@@ -1,6 +1,11 @@
 # SIRC (Samsung Israel R&D Center) compose overlay
 # Usage: docker compose -f docker-compose.yml -f production.yml -f deployments/sirc.yml up
 
+x-sirc-build-args: &sirc-build-args
+  PROXY_URL: "http://webproxy.transchip.com:8080"
+  CA_CERT_URL: "http://itweb/downloads/sirc-ca.crt"
+  NO_PROXY: "gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt,sentry,sentry.transchip.com"
+
 services:
   iiif-cde:
     image: "gitlab-srv:4567/dvs/slamvizapp/iipsrv-cde"
@@ -29,6 +34,12 @@ services:
 
   backend:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:backend"
+    build:
+      ssh: [default]
+      args:
+        <<: *sirc-build-args
+        GIT_SSL_VERIFY: "false"
+        QABOARD_EXTRA: "sirc"
     environment:
     - GITLAB_HOST=http://gitlab-srv
     - UWSGI_UID=ispq
@@ -68,6 +79,9 @@ services:
     - /algo/ws:/algo/ws:shared
 
   proxy:
+    build:
+      args:
+        <<: *sirc-build-args
     ports:
     - ${QABOARD_PORT_HTTPS:-443}:443
     - ${QABOARD_PROXY_PORT_HTTP:-80}:5003
@@ -104,6 +118,7 @@ services:
   #   # user: ispq
   #   build:
   #     args:
+  #       <<: *sirc-build-args
   #       user: ispq
   #       uid: 1411
   #       group: uucp
@@ -123,6 +138,8 @@ services:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:frontend"
     build:
       args:
+        <<: *sirc-build-args
+        NODE_TLS_REJECT_UNAUTHORIZED: "0"
         REACT_APP_SENTRY_DSN: ${REACT_APP_SENTRY_DSN:-}
         REACT_APP_QABOARD_LOGIN_TYPE: "LDAP"
         SENTRY_ORG: ${SENTRY_ORG:-sentry}
@@ -133,3 +150,12 @@ services:
 
   website:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:website"
+    build:
+      args:
+        <<: *sirc-build-args
+        NODE_TLS_REJECT_UNAUTHORIZED: "0"
+
+  flower:
+    build:
+      args:
+        <<: *sirc-build-args

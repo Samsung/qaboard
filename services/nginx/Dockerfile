@@ -1,21 +1,17 @@
 # Adapted from https://github.com/nginxinc/docker-nginx/blob/master/mainline/buster/Dockerfile
 FROM debian:buster-slim
 
-# SIRC proxy configuration [debian/ubuntu]
-# Copied from http://gitlab-srv/docker/drun/snippets/11/edit
-# if you still run into network issues, try building the image on a different server :_)
-ENV PROXY_HOST=webproxy.transchip.com \
-    PROXY_PORT=8080 \
-    PROXY_PROTOCOL=http
-ENV PROXY $PROXY_PROTOCOL://$PROXY_HOST:$PROXY_PORT
-RUN echo "Acquire::http::Proxy \"$PROXY\";" >> /etc/apt/apt.conf; \
-    echo 'Acquire::https::Verify-Peer "false";' >> /etc/apt/apt.conf; \
-    echo "[http]\nsslverify = false\n# proxy = $PROXY" >> /root/.gitconfig
-ENV HTTP_PROXY=$PROXY \
-    http_proxy=$PROXY \
-    HTTPS_PROXY=$PROXY \
-    https_proxy=$PROXY \
-    NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt'
+# Proxy/cert configuration — no-ops when args are empty (open-source builds)
+ARG PROXY_URL=""
+ARG NO_PROXY=""
+
+RUN if [ -n "$PROXY_URL" ]; then \
+      echo "Acquire::http::Proxy \"$PROXY_URL\";" >> /etc/apt/apt.conf && \
+      echo 'Acquire::https::Verify-Peer "false";' >> /etc/apt/apt.conf; \
+    fi
+ENV HTTP_PROXY=${PROXY_URL} http_proxy=${PROXY_URL} \
+    HTTPS_PROXY=${PROXY_URL} https_proxy=${PROXY_URL} \
+    NO_PROXY=${NO_PROXY}
 
 
 # create nginx user/group first, to be consistent throughout docker variants
@@ -45,6 +41,10 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     && ln -sf /dev/stdout /var/log/nginx/access.log \
     && ln -sf /dev/stderr /var/log/nginx/error.log
 
+# Clear proxy env so it doesn't leak into runtime
+ENV HTTP_PROXY="" http_proxy="" \
+    HTTPS_PROXY="" https_proxy="" \
+    NO_PROXY=""
 
 EXPOSE 80 443
 STOPSIGNAL SIGTERM

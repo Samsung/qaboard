@@ -3,32 +3,30 @@ FROM alpine:3.10
 
 WORKDIR /tmp
 
-# SIRC proxy configuration [debian/ubuntu]
-# Copied from http://gitlab-srv/docker/drun/snippets/11/edit
-# if you still run into network issues, try building the image on a different server :_)
-ENV PROXY_HOST=webproxy.transchip.com \
-        PROXY_PORT=8080 \
-        PROXY_PROTOCOL=http
-ENV PROXY $PROXY_PROTOCOL://$PROXY_HOST:$PROXY_PORT
-RUN echo "Acquire::http::Proxy \"$PROXY\";" >> /etc/apt/apt.conf; \
-    echo 'Acquire::https::Verify-Peer "false";' >> /etc/apt/apt.conf; \
-    echo "[http]\nsslverify = false\n# proxy = $PROXY" >> /root/.gitconfig
-ENV HTTP_PROXY=$PROXY \
-    http_proxy=$PROXY \
-    HTTPS_PROXY=$PROXY \
-    https_proxy=$PROXY \
-        NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt'
+# Proxy/cert configuration — no-ops when args are empty (open-source builds)
+ARG PROXY_URL=""
+ARG CA_CERT_URL=""
+ARG NO_PROXY=""
+
+RUN if [ -n "$PROXY_URL" ]; then \
+      sed -i 's/https/http/g' /etc/apk/repositories; \
+    fi
+ENV HTTP_PROXY=${PROXY_URL} http_proxy=${PROXY_URL} \
+    HTTPS_PROXY=${PROXY_URL} https_proxy=${PROXY_URL} \
+    NO_PROXY=${NO_PROXY}
+
 RUN apk update && apk add ca-certificates && rm -rf /var/cache/apk/*
 
-
-COPY cert/* /tmp/cert/
-RUN cp -R /tmp/cert/* /usr/local/share/ca-certificates && \
-    update-ca-certificates $$ \
-    apk -U add ca-certificates
-    # mkdir -p /usr/share/ca-certificates/extra && \
-    # mkdir -p /etc/ssh/certs && \
-    # cp -R /tmp/cert/* /usr/share/ca-certificates/extra/ && \
-    # cp -R /tmp/cert/* /etc/ssh/certs && \
+# Copy any site-specific certs (directory may be empty for open-source builds)
+COPY cert/ /tmp/cert/
+RUN if ls /tmp/cert/*.crt 1>/dev/null 2>&1; then \
+      cp /tmp/cert/*.crt /usr/local/share/ca-certificates/ && \
+      update-ca-certificates; \
+    fi && \
+    if [ -n "$CA_CERT_URL" ]; then \
+      wget "$CA_CERT_URL" -P /usr/local/share/ca-certificates/ && \
+      update-ca-certificates; \
+    fi
 
 
 RUN apk add --no-cache --update -X http://dl-cdn.alpinelinux.org/alpine/edge/community \

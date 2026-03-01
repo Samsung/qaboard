@@ -3,27 +3,26 @@ FROM python:3.13-slim-trixie
 
 LABEL maintainer="arthurf.flam@samsung.com"
 
-# SIRC proxy configuration [debian/ubuntu]
-# Copied from http://gitlab-srv/docker/drun/snippets/11/edit
-# if you still run into network issues, try building the image on a different server :_)
-ENV PROXY_HOST=webproxy.transchip.com \
-    PROXY_PORT=8080 \
-    PROXY_PROTOCOL=http
-ENV PROXY $PROXY_PROTOCOL://$PROXY_HOST:$PROXY_PORT
-RUN echo "Acquire::http::Proxy \"$PROXY\";" >> /etc/apt/apt.conf; \
-    echo 'Acquire::https::Verify-Peer "false";' >> /etc/apt/apt.conf; \
-    echo "[http]\nsslverify = false\n# proxy = $PROXY" >> /root/.gitconfig
-ENV HTTP_PROXY=$PROXY \
-    http_proxy=$PROXY \
-    HTTPS_PROXY=$PROXY \
-    https_proxy=$PROXY \
-    NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt,sentry,sentry.transchip.com'
+# Proxy/cert configuration — no-ops when args are empty (open-source builds)
+# SIRC/DSK pass values via compose overlay build args
+ARG PROXY_URL=""
+ARG CA_CERT_URL=""
+ARG NO_PROXY=""
 
+RUN if [ -n "$PROXY_URL" ]; then \
+      echo "Acquire::http::Proxy \"$PROXY_URL\";" >> /etc/apt/apt.conf && \
+      echo 'Acquire::https::Verify-Peer "false";' >> /etc/apt/apt.conf; \
+    fi
+ENV HTTP_PROXY=${PROXY_URL} http_proxy=${PROXY_URL} \
+    HTTPS_PROXY=${PROXY_URL} https_proxy=${PROXY_URL} \
+    NO_PROXY=${NO_PROXY}
 
 RUN apt-get update -qq && \
-    apt-get install ca-certificates wget -y && \
-    wget http://itweb/downloads/sirc-ca.crt -P /usr/local/share/ca-certificates/ && \
-    update-ca-certificates
+    apt-get install -y ca-certificates wget && \
+    if [ -n "$CA_CERT_URL" ]; then \
+      wget "$CA_CERT_URL" -P /usr/local/share/ca-certificates/ && \
+      update-ca-certificates; \
+    fi
 
 
     # Keeps Python from generating .pyc files for 1-time use in the container's unionFS
@@ -37,10 +36,15 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 
 # Git: debian ships a recent enough version without requiring an alternative PPA
-RUN apt-get install -y git && git config --global http.proxy $PROXY
+ARG GIT_SSL_VERIFY="true"
+RUN apt-get install -y git && \
+    if [ -n "$PROXY_URL" ]; then \
+      git config --global http.proxy "$PROXY_URL"; \
+    fi
 
-# [SIRC] We ran into strange host-key verification issues when downloading packages
-RUN git config --global http.sslVerify false && \
+RUN if [ "$GIT_SSL_VERIFY" = "false" ]; then \
+      git config --global http.sslVerify false; \
+    fi && \
     # gc tends to take time in our big repos and the locks slow everything down
     # causing uwsgi to spawn more workers and eat RAM
     git config --global gc.auto 0 && \
@@ -63,7 +67,7 @@ RUN apt-get update -qq && \
     procps
     # If we want uwsgi's routing support we need libpcre
     # https://uwsgi-docs.readthedocs.io/en/latest/InternalRouting.html
-    # we used to have libpcre3 but it is not shipped as part of recent debian 
+    # we used to have libpcre3 but it is not shipped as part of recent debian
     # https://launchpad.net/ubuntu/+source/uwsgi/+changelog
     # and this breaks at link-time
     # libpcre2-dev
@@ -97,9 +101,6 @@ ENV UV_SYSTEM_PYTHON=1 \
 WORKDIR /qaboard
 COPY pyproject.toml README.md ./
 
-# Including internal dependencies
-RUN --mount=type=ssh ssh -T -o StrictHostKeyChecking=no git@gitlab-srv
-
 WORKDIR /qaboard/backend
 # Install all dependencies
 RUN --mount=type=ssh \
@@ -115,27 +116,6 @@ RUN --mount=type=ssh \
     # --locked \
     --no-install-project \
     --no-install-package qaboard
-
-    # we even tried to build here...
-# RUN --mount=type=ssh \
-# --mount=type=cache,target=/root/.cache/uv \
-# --mount=type=bind,source=backend/uv.lock,target=uv.lock,readwrite \
-# --mount=type=bind,source=backend/pyproject.toml,target=pyproject.toml \
-# uv add uwsgi --refresh-package uwsgi --no-binary-package uwsgi
-# and ended up runing this manually
-# RUN --mount=type=ssh \
-#     --mount=type=cache,target=/root/.cache/uv \
-#     --mount=type=bind,source=backend/uv.lock,target=uv.lock,readwrite \
-#     --mount=type=bind,source=backend/pyproject.toml,target=pyproject.toml \
-# uv add lxml xmlsec uwsgi \
-#     --no-binary-package uwsgi \
-#     --no-binary-package lxml \
-#     --no-binary-package xmlsec \
-#     --refresh-package lxml \
-#     --refresh-package xmlsec \
-#     --refresh-package uwsgi \
-#     --no-cache --reinstall
-# UWSGI_PROFILE_OVERRIDE=xml=expat uv add lxml xmlsec uwsgi --no-binary-package uwsgi --no-binary-package lxml --no-binary-package xmlsec --refresh-package lxml --refresh-package xmlsec --refresh-package uwsgi --no-cache --reinstall
 
 # FIXME: should not be needed: why don't we use the system python?
 ENV PATH="/qaboard/backend/.venv/bin:$PATH"
@@ -157,8 +137,21 @@ RUN --mount=type=ssh \
     --mount=type=cache,target=/root/.cache/uv \
     uv sync --refresh-package qaboard
     #FIXME: when we fix the xml bugs and issues then we can uncomment --locked
-    # --locked  
+    # --locked
 
+# Install site-specific extras (e.g. QABOARD_EXTRA=sirc)
+ARG QABOARD_EXTRA=""
+RUN --mount=type=ssh \
+    --mount=type=cache,target=/root/.cache/uv \
+    if [ -n "$QABOARD_EXTRA" ]; then \
+      ssh -T -o StrictHostKeyChecking=no git@gitlab-srv || true && \
+      uv sync --extra "$QABOARD_EXTRA" --refresh-package qaboard; \
+    fi
+
+# Clear proxy env so it doesn't leak into runtime containers
+ENV HTTP_PROXY="" http_proxy="" \
+    HTTPS_PROXY="" https_proxy="" \
+    NO_PROXY=""
 
 ENV QA_NO_CHECK_FOR_UPDATES=1
 

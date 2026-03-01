@@ -1,24 +1,28 @@
 FROM node:20 as dev
 WORKDIR /app
 
-ENV PROXY_HOST=webproxy \
-    PROXY_PORT=8080 \
-    PROXY_PROTOCOL=http
-ENV PROXY $PROXY_PROTOCOL://$PROXY_HOST:$PROXY_PORT
-RUN echo "Acquire::http::Proxy \"$PROXY\";" >> /etc/apt/apt.conf; \
-    echo 'Acquire::https::Verify-Peer "false";' >> /etc/apt/apt.conf; \
-    echo "[http]\nsslverify = false\n# proxy = $PROXY" >> /root/.gitconfig
-ENV HTTP_PROXY=$PROXY \
-    http_proxy=$PROXY \
-    HTTPS_PROXY=$PROXY \
-    https_proxy=$PROXY \
-    NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt,sentry,sentry.transchip.com'
-ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+# Proxy/cert configuration — no-ops when args are empty (open-source builds)
+ARG PROXY_URL=""
+ARG CA_CERT_URL=""
+ARG NO_PROXY=""
+
+RUN if [ -n "$PROXY_URL" ]; then \
+      echo "Acquire::http::Proxy \"$PROXY_URL\";" >> /etc/apt/apt.conf && \
+      echo 'Acquire::https::Verify-Peer "false";' >> /etc/apt/apt.conf; \
+    fi
+ENV HTTP_PROXY=${PROXY_URL} http_proxy=${PROXY_URL} \
+    HTTPS_PROXY=${PROXY_URL} https_proxy=${PROXY_URL} \
+    NO_PROXY=${NO_PROXY}
+
+ARG NODE_TLS_REJECT_UNAUTHORIZED=""
+ENV NODE_TLS_REJECT_UNAUTHORIZED=${NODE_TLS_REJECT_UNAUTHORIZED}
 
 RUN apt-get update -qq && \
-    apt-get install ca-certificates wget -y && \
-    wget http://itweb/downloads/sirc-ca.crt -P /usr/local/share/ca-certificates/ && \
-    update-ca-certificates
+    apt-get install -y ca-certificates wget && \
+    if [ -n "$CA_CERT_URL" ]; then \
+      wget "$CA_CERT_URL" -P /usr/local/share/ca-certificates/ && \
+      update-ca-certificates; \
+    fi
 
 
 ENV PATH /app/node_modules/.bin:$PATH
@@ -57,28 +61,34 @@ ARG SENTRY_AUTH_TOKEN
 ENV SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
 
 RUN npm run-script build
-RUN sentry-cli sourcemaps inject build && \
-    sentry-cli sourcemaps upload build
+RUN if [ -n "$SENTRY_AUTH_TOKEN" ]; then \
+      sentry-cli sourcemaps inject build && \
+      sentry-cli sourcemaps upload build; \
+    fi
 CMD ["npm", "start"]
 
 
 FROM debian:bullseye as production
 COPY --from=dev /app/build /build
 
-ENV PROXY_HOST=webproxy \
-    PROXY_PORT=8080 \
-    PROXY_PROTOCOL=http
-ENV PROXY $PROXY_PROTOCOL://$PROXY_HOST:$PROXY_PORT
-ENV HTTP_PROXY=$PROXY \
-    http_proxy=$PROXY \
-    HTTPS_PROXY=$PROXY \
-    https_proxy=$PROXY \
-    NO_PROXY='localhost'
-RUN echo "Acquire::http::Proxy \"$PROXY\";" >> /etc/apt/apt.conf; \
-    echo 'Acquire::https::Verify-Peer "false";' >> /etc/apt/apt.conf; \
-    echo "[http]\nsslverify = false\n# proxy = $PROXY" >> /root/.gitconfig
+# Proxy/cert configuration — needed for apt-get install rsync
+ARG PROXY_URL=""
+ARG NO_PROXY=""
+
+RUN if [ -n "$PROXY_URL" ]; then \
+      echo "Acquire::http::Proxy \"$PROXY_URL\";" >> /etc/apt/apt.conf && \
+      echo 'Acquire::https::Verify-Peer "false";' >> /etc/apt/apt.conf; \
+    fi
+ENV HTTP_PROXY=${PROXY_URL} http_proxy=${PROXY_URL} \
+    HTTPS_PROXY=${PROXY_URL} https_proxy=${PROXY_URL} \
+    NO_PROXY=${NO_PROXY}
+
 RUN apt-get update -qq && apt-get install -y --no-install-recommends rsync
-# RUN apk update --allow-untrusted && apk add rsync --allow-untrusted
+
+# Clear proxy env so it doesn't leak into runtime
+ENV HTTP_PROXY="" http_proxy="" \
+    HTTPS_PROXY="" https_proxy="" \
+    NO_PROXY=""
 
 # When upgrading, we want to enable clients to continue using a previous bundle
 # without the application crashing and asking for a refresh

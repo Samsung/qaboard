@@ -1,20 +1,21 @@
 FROM node:22-alpine
 WORKDIR /website
 
+# Proxy/cert configuration — no-ops when args are empty (open-source builds)
+ARG PROXY_URL=""
+ARG NO_PROXY=""
 
-ENV PROXY_HOST=webproxy.transchip.com \
-    PROXY_PORT=8080 \
-    PROXY_PROTOCOL=http
-ENV PROXY $PROXY_PROTOCOL://$PROXY_HOST:$PROXY_PORT
-ENV HTTP_PROXY=$PROXY \
-    http_proxy=$PROXY \
-    HTTPS_PROXY=$PROXY \
-    https_proxy=$PROXY \
-    NO_PROXY='gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt,sentry'
-ENV NODE_TLS_REJECT_UNAUTHORIZED=0
+ENV HTTP_PROXY=${PROXY_URL} http_proxy=${PROXY_URL} \
+    HTTPS_PROXY=${PROXY_URL} https_proxy=${PROXY_URL} \
+    NO_PROXY=${NO_PROXY}
 
-# Thanks to our proxies...
-RUN sed -i 's/https/http/g' /etc/apk/repositories
+ARG NODE_TLS_REJECT_UNAUTHORIZED=""
+ENV NODE_TLS_REJECT_UNAUTHORIZED=${NODE_TLS_REJECT_UNAUTHORIZED}
+
+# Switch apk repos to http when behind proxy
+RUN if [ -n "$PROXY_URL" ]; then \
+      sed -i 's/https/http/g' /etc/apk/repositories; \
+    fi
 RUN apk update && apk add --no-cache \
     # needed for node-gyp.. some do it with npm install in one layer
     # https://github.com/mhart/alpine-node/issues/27
@@ -25,7 +26,9 @@ RUN apk update && apk add --no-cache \
     && rm -rf /var/cache/apk/*
 
 ENV PATH /app/node_modules/.bin:$PATH
-RUN yarn config set strict-ssl false
+RUN if [ -n "$PROXY_URL" ]; then \
+      yarn config set strict-ssl false; \
+    fi
 
 # RUN npm install -g yarn
 

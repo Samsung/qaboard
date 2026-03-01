@@ -1,8 +1,18 @@
 # DSK (Device Solution Korea) compose overlay
 # Usage: docker compose -f docker-compose.yml -f production.yml -f deployments/dsk.yml up
 
+# Set these in .env or override below with your DSK proxy/cert values:
+#   PROXY_URL, CA_CERT_URL, NO_PROXY
+x-dsk-build-args: &dsk-build-args
+  PROXY_URL: ${PROXY_URL:-}
+  CA_CERT_URL: ${CA_CERT_URL:-}
+  NO_PROXY: ${NO_PROXY:-}
+
 services:
   backend:
+    build:
+      args:
+        <<: *dsk-build-args
     environment:
       - QABOARD_LOGIN_TYPE=${QABOARD_LOGIN_TYPE:-SAML}
       - QABOARD_TUNING_RUNNER=celery
@@ -13,11 +23,17 @@ services:
       - 'QABOARD_IMAGE_SERVERS={"default": "/iiif", "raw,hex,cde": "/iiif/cde"}'
 
   frontend:
+    build:
+      args:
+        <<: *dsk-build-args
     environment:
       - REACT_APP_QABOARD_LOGIN_TYPE=${QABOARD_LOGIN_TYPE:-SAML}
       - REACT_APP_QABOARD_LOGIN_REQUIRED=${QABOARD_LOGIN_REQUIRED:-}
 
   proxy:
+    build:
+      args:
+        <<: *dsk-build-args
     volumes:
       - ./deployments/nginx/dsk.conf:/etc/nginx/conf.d/dsk.conf:ro
 

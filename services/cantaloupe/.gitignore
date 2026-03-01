@@ -1,1 +1,5 @@
 config.json
+cert/*.crt
+cert/*.cer
+cert/*.pem
+!cert/.gitkeep
