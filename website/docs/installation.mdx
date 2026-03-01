@@ -6,29 +6,38 @@ sidebar_label: Client Installation
 
 You need to install QA-Board's CLI client: `qa`. It wraps and runs your code.
 
+### Open-source (default)
 ```bash
-pip install --upgrade git+ssh://git@gitlab-srv/common-infrastructure/qaboard
-# If you have SSL/certificates/trust errors, use --trusted-host pypi.python.org --trusted-host pypi.org --trusted-host files.pythonhosted.org
-# If you have timeouts, not authorized, proxy errors, or "this is not a git repo error", use --proxy http://dlp2-wcg01:8080 # in case of proxy issues (TIMEOUT error) in case of SSL/proxy issues
-
-# If you don't have pip / permissions, it means your python environment sucks.
-# If you're not a python pro, simply install python with the anaconda distribution.
-# https://www.anaconda.com/distribution/#download-section
+pip install qaboard
 ```
+
+### SIRC users
+```bash
+pip install qaboard[sirc]
+```
+
+### DSK users
+```bash
+pip install qaboard[dsk]
+```
+
+The `[sirc]` and `[dsk]` extras install **site packages** that auto-configure defaults such as the API URL, port, and other site-specific settings. You do not need to manually set environment variables for standard deployments.
+
+:::tip
+Environment variables (e.g. `QABOARD_HOST`, `QABOARD_PROTOCOL`) **always override** site package defaults. This lets you point at a different server during development or testing without changing the installed package.
+:::
 
 To make sure the installation was successful, try printing a list of `qa`'s CLI commands:
 
 ```bash
 qa --help
 
-# If you get errors about not using a utf8 locale, you can likely: 
+# If you get errors about not using a utf8 locale, you can likely:
 #   export LC_ALL=C.utf8 LANG=C.utf8
 ```
 
 ## Connecting to a custom QA-Board server
-By default `qa` tries to use a QA-Board server running locally (it assumes you used the default config).
-
-If you connect to a remote QA-Board server, you'll need to set those environment variables:
+If you installed `qaboard` without a site extra (or want to override the defaults), set these environment variables:
 
 ```bash
 export QABOARD_HOST=my-server:5151

@@ -12,10 +12,10 @@ Until then, please [fill issues](https://github.com/Samsung/qaboard/issues), [ch
 
 :::
 
-## Create a directory to store results 
+## Create a directory to store results
 QA-Board expects that all clients can access a shared storage to save and read results.
 
-To get started quickly on a single server, create a *local* folder. Worry about sharing it later: 
+To get started quickly on a single server, create a *local* folder. Worry about sharing it later:
 
 ```bash
 mkdir -p /mnt/qabaord
@@ -36,32 +36,39 @@ Use file-base storage like [AWS EFS](https://aws.amazon.com/en/efs/) or [GCP Fil
 We plan on supporting blob-stores like AWS **S3**. <a href="mailto:arthur.flam@gmail.com">Contact us</a> or [create an issue](https://github.com/samsung/qaboard/issues) if it would help.
 :::
 
-:::tip At SIRC
-To resolve auto-mount issues causing "too many levels of symbolic links", run `./at-sirc-before-up.py`.
-:::
-
 ## Starting the server
-1. You need Linux, [`docker`](https://docs.docker.com/engine/install/), [`docker-compose`](https://docs.docker.com/compose/install/) and `git`.
-2. To start the QA-Board server:
+
+### Prerequisites
+You need Linux, [`docker`](https://docs.docker.com/engine/install/), [`docker compose`](https://docs.docker.com/compose/install/) and `git`.
+
+### Deployment modes
+QA-Board uses **compose overlays** in the `deployments/` directory to adapt the stack to different environments. Pick the mode that matches your site:
+
 ```bash
-git clone https://gitlab-srv/common-infrastructure/qaboard.git
+git clone https://github.com/Samsung/qaboard.git
 cd qaboard
-
-docker compose -f docker-compose.yml -f sirc.yml pull
-
-# At SIRC we need to make sure important folders are mounted before starting containers...
-./at-sirc-before-up.py
-
-docker compose -f docker-compose.yml -f sirc.yml up -d
-#=> the application is live at localhost:8080
 ```
 
-To have the server restart automatically:
-
-At SIRC:
+**Open-source (default):**
 ```bash
-docker compose -f docker-compose.yml -f production.yml -f sirc.yml up -d
+docker compose -f docker-compose.yml -f production.yml up -d
 ```
+
+**SIRC:**
+```bash
+docker compose -f docker-compose.yml -f production.yml -f deployments/sirc.yml up -d
+```
+
+**DSK:**
+```bash
+docker compose -f docker-compose.yml -f production.yml -f deployments/dsk.yml up -d
+```
+
+The overlay files in `deployments/` add site-specific services, volumes, environment variables, and nginx configuration without modifying the base `docker-compose.yml`. See `deployments/example.yml` as a template for creating your own overlay.
+
+:::tip
+The application is live at `localhost:5151` by default (set `QABOARD_PORT_HTTP` to change it).
+:::
 
 :::note
 Want to install from a Kubernetes helm chart, CloudFormation or Terraform plans? <a href="mailto:arthur.flam@gmail.com">Get in touch</a>.
@@ -81,8 +88,7 @@ QA-Board can connect to external authentifications systems (LDAP, SAML). If need
 | `QABOARD_PORT_HTTP`    | 5151    | Port mapped to the app on the host                   |
 | `QABOARD_DB_HOST`      | db      | Connect the backend to a non-default database host (e.g. instead of dev'ing with prod dumps, connect directly to it) |
 | `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port               |
-| `JENKINS_AUTH`         | _none_  | Credentials used to [trigger jenkins jobs](/docs/triggering-third-party-tool) on 1 or many jenkins servers. The format is a JSON string looking like `{"hostname_1": {"user": "jenkinsuser", "token": "xxxxx", "crumb": "yyy"}}` ([how-to-get-the-token-crumb?](/docs/triggering-| `GITLAB_AUTH`         | _none_  | Credentials used to forward private project avatars from Gitlab. The format is a JSON string looking like `{"hostname": {"user": "username", "password": "xxxxx", "type": "user"}}`. `type` is optionnal and can also be `ldap_user`. Asking for a password is not great but [the API is not sufficient](https://docs.gitlab.com/ce/api/#session-cookie)... You can use `"http": true` if needed. |
-third-party-tools#example-jenkins-integration-via-webhooks))               |
+| `JENKINS_AUTH`         | _none_  | Credentials used to [trigger jenkins jobs](/docs/triggering-third-party-tool) on 1 or many jenkins servers. The format is a JSON string looking like `{"hostname_1": {"user": "jenkinsuser", "token": "xxxxx", "crumb": "yyy"}}` ([how-to-get-the-token-crumb?](/docs/triggering-third-party-tools#example-jenkins-integration-via-webhooks))               |
 | `QABOARD_LOGIN_TYPE`   | _LOCAL_  | Set to `LOCAL/LDAP/SAML`                   |
 | `QABOARD_LOGIN_REQUIRED`   | _false_  | Set to `true` to block anonymous users (requires frontend rebuild)                   |
 | `QABOARD_DISABLE_SIGNUP`   | _false_  | Set to `True` to disallow local users from signing up                   |
@@ -143,7 +149,7 @@ proxy:
   - "somewhere/cert.pem:/ssl/cert.pem"
 ```
 
-If you want to use your own reverse proxy, with `nginx` for instance you can set `QABOARD_PORT_HTTP=8080` and: 
+If you want to use your own reverse proxy, with `nginx` for instance you can set `QABOARD_PORT_HTTP=8080` and:
 
 ```nginx
 server {
@@ -161,20 +167,9 @@ We run those cron jobs:
 # Weekly cleanup of old results
 # https://samsung.github.io/qaboard/docs/deleting-old-data
 59 1 1 * * cd qaboard && docker compose exec -T backend qaboard_clean
-# https://github.com/docker/compose/issues/3352
 
 # Weekly removal of old docker images, helps to avoid filling the disk on the host
 59 1 2 * * docker image prune --force
-
-# Restart the image server, somehow after a while they need it (need research...)
-0 4 * * * cd qaboard && docker compose -f docker-compose.yml -f production.yml -f sirc.yml stop cantaloupe && docker compose -f docker-compose.yml -f production.yml -f sirc.yml rm -v cantaloupe && docker compose -f docker-compose.yml -f production.yml -f sirc.yml up -d cantaloupe
-
-
-# Restart CDE's IIIF bridge
-0 4 * * * cd qaboard && docker compose -f docker-compose.yml -f production.yml -f sirc.yml restart iiif-cde
-
-# To resolve auto-mount issues causing "too many levels of symbolic links"
-@reboot /home/ispq/qaboard_prod/at-sirc-before-up.py.
 ```
 
 :::tip
