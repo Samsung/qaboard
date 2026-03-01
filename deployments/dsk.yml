@@ -10,7 +10,7 @@ services:
       - QABOARD_HOST=${QABOARD_HOST:-12.36.168.155}
       - QABOARD_PROTOCOL=http
       - CELERY_BROKER_URL=pyamqp://guest:guest@rabbitmq:5672//
-      - QABOARD_IMAGE_SERVERS={"default": "/iiif", "raw,hex,cde": "/iiif/cde"}
+      - 'QABOARD_IMAGE_SERVERS={"default": "/iiif", "raw,hex,cde": "/iiif/cde"}'
 
   frontend:
     environment:

@@ -48,7 +48,7 @@ services:
     - SENTRY_DSN=https://REDACTED_SENTRY_KEY@sentry.transchip.com/5
     - QABOARD_TUNING_RUNNER=lsf
     - QABOARD_DEFAULT_USER=ispq
-    - QABOARD_IMAGE_SERVERS={"default": "/iiif", "raw,hex,cde": "/iiif/cde"}
+    - 'QABOARD_IMAGE_SERVERS={"default": "/iiif", "raw,hex,cde": "/iiif/cde"}'
 
     volumes:
     - ./services/backend/passwd:/etc/passwd
