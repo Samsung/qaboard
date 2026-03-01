@@ -1,6 +1,5 @@
-version: "3.5"
-# dns: 127.0.0.53
-# dns_search: transchip.com
+# SIRC (Samsung Israel R&D Center) compose overlay
+# Usage: docker compose -f docker-compose.yml -f production.yml -f deployments/sirc.yml up
 
 services:
   iiif-cde:
@@ -16,52 +15,6 @@ services:
     - /opt/dockermounts/home:/var/www/localhost/images/home
     - /sim:/var/www/localhost/images/sim:shared
 
-
-  # plan for tonight:
-  ###################################################
-  # 1. make a dump
-  #      docker compose exec db bash
-  #      pg_dumpall -Uqaboard > /backups/latest.sql
-  #       => takes 15min at least
-  # 2. upgrade the psql version and restore
-  #      docker compose exec db-16 bash
-  #      psql -U qaboard -d qaboard < /backups/latest.sql
-  #       => takes 1h15
-  # 3. use the new database
-  #      in compose change make db-16 db, rename db to db-9, keep same volume...
-  #      restart backend
-  # 4. ugprade docker, compose...
-  ##################################################
-
-  db-upgrade:
-    # based on
-    # image: tianon/postgres-upgrade:12-to-16
-    build:
-      context: ./services/db
-      dockerfile: ./major-upgrades.Dockerfile
-    volumes:
-      - db:/var/lib/postgresql/12/data
-      - db-16:/var/lib/postgresql/16/data
-      # fixme by installing properly...
-      # https://github.com/tianon/gosu/blob/master/INSTALL.md
-      - /home/ispq/miniconda3/lib/python3.7/site-packages/drun/third_party/bin/gosu:/usr/local/bin/gosu
-    environment:
-      - POSTGRES_USER=qaboard
-      - POSTGRES_PASSWORD=password
-      - POSTGRES_DB=qaboard
-
-  # upgrade ########################################
-  # 0. stop database (test without...)
-  # 1. copy files
-  # 2. [x] new container latest version in compose
-  #    [ ] mount the data backup somewhere 
-  #    new volumne with db-16 name
-  # 3. shell, pg_upgrade pointing to the correct places
-  # pg_upgrade --link --verbose
-  # 4. is it long?
-  # 5. rename container, remove previous 
-
-
   db:
     # postgres needs a file owned by postgres, and we cannot chown on our shared storage
     # the default entrypoint changes user from root to postgres and inits the database,
@@ -74,14 +27,8 @@ services:
     ports:
       - ${QABOARD_EXPOSED_DB_PORT:-5432}:5432
 
-
-
   backend:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:backend"
-    # deploy: # supported with swarm
-    #   resources:
-    #     limits:
-    #       memory: 16000M
     environment:
     - GITLAB_HOST=http://gitlab-srv
     - UWSGI_UID=ispq
@@ -98,16 +45,14 @@ services:
     - QABOARD_LDAP_PASSWORD=REDACTED_LDAP_PASSWORD
     - QABOARD_LDAP_HOST=REDACTED_LDAP_HOST
     - QABOARD_LDAP_USER_FILTER=(&(objectClass=user)(sAMAccountName={login}))
-    # - QABOARD_SAML_DIR=${QABOARD_SAML_DIR:-/etc/saml}
-    # - QABOARD_SAML_ATTRIBUTE_EMAIL=http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress
-    # - QABOARD_SAML_ATTRIBUTE_USER_NAME=http://schemas.sec.com/2018/05/identity/claims/LoginId
-    # - QABOARD_SAML_ATTRIBUTE_COMMON_NAME=http://schemas.sec.com/2018/05/identity/claims/Username
     - SENTRY_DSN=https://REDACTED_SENTRY_KEY@sentry.transchip.com/5
+    - QABOARD_TUNING_RUNNER=lsf
+    - QABOARD_DEFAULT_USER=ispq
+    - QABOARD_IMAGE_SERVERS={"default": "/iiif", "raw,hex,cde": "/iiif/cde"}
 
     volumes:
     - ./services/backend/passwd:/etc/passwd
     - ./services/backend/ldap:/etc/ldap
-    # /opt/dockermounts should not be necessary anymore
     - /opt/dockermounts/home:/home
     - /opt/dockermounts/raid:/raid
     - /opt/dockermounts/stage:/stage
@@ -116,17 +61,11 @@ services:
     - /stage/qa_data:/stage/qa_data
     - /stage/algo-datasets:/stage/algo-datasets
     - /stage/algo_archive:/stage/algo_archive
-    # - /net/f2/algo_archive/DVS_SLAM_Database:/net/f2/algo_archive/DVS_SLAM_Database
-    # - /net/f2/algo_archive/ToF_SW_Database:/net/f2/algo_archive/ToF_SW_Database
-    # - /net/f2/algo_archive/PTAM_Results:/net/f2/algo_archive/PTAM_Results
     - /sim:/sim:shared
     - /algo:/algo:shared
     - /data:/data:shared
     - /net:/net:shared
     - /algo/ws:/algo/ws:shared
-    # we use a shared location to avoid using ~10G of local storage
-    # but root can't write to it, so it's painful..
-    # - /algo/ws/ispq/qaboard_data/_data:/var/qaboard
 
   proxy:
     ports:
@@ -139,8 +78,8 @@ services:
     - iiif-cde
     environment:
     - NGINX_USER=ispq
-    # - QABOARD_PORT_HTTP=80
     volumes:
+    - ./deployments/nginx/sirc.conf:/etc/nginx/conf.d/sirc.conf:ro
     - /home/ispq/qaboard_prod/services/nginx/ssl/qa/qa.key:/ssl/cert.key
     - /home/ispq/qaboard_prod/services/nginx/ssl/qa/cert.cer:/ssl/cert.cer
     - /home/ispq/qaboard_prod/services/nginx/ssl/publish/publish.cer:/ssl/publish.cer
@@ -179,7 +118,7 @@ services:
   #   environment:
   #     CANTALOUPE_MEM_START: 4g
   #     CANTALOUPE_MEM_MAX: 8g
-  
+
   frontend:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:frontend"
     build:
