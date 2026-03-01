@@ -13,8 +13,6 @@
   <a href="https://github.com/samsung/qaboard/actions?query=workflow%3ACI"><img src="https://github.com/samsung/qaboard/workflows/CI/badge.svg" alt="CI"/></a>
 </p>
 
-> [Take a look at SIRC's live server](https://qa) 😊👓
->
 > It's an open-source project: https://github.com/samsung/qaboard
 
 ## Features
@@ -31,6 +29,18 @@ QA-Board across many projects enables us to:
 - **Scale R&D:** enable engineers to achieve more and be more productive.
 - **Faster Time-to-Market:** collaboration across teams, workflow integration..
 - **Quality:** uncover issues earlier, KPIs, tuning, reporting...
+
+## Deployment
+
+```bash
+# Open-source
+docker compose -f docker-compose.yml -f production.yml up
+
+# With site-specific config (e.g. SIRC, DSK)
+docker compose -f docker-compose.yml -f production.yml -f deployments/sirc.yml up
+```
+
+> For details on migrating from branch-specific setups, see [MIGRATION.md](MIGRATION.md).
 
 ## Getting Started
 [Read the docs!](https://samsung.github.io/qaboard/docs/introduction) You will learn how to:
