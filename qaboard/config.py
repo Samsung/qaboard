@@ -147,10 +147,6 @@ else:
 on_windows = os.name == 'nt'
 on_linux = not on_windows
 
-# SIRC-specific hosts
-on_vdi = 'HOST' in os.environ and os.environ['HOST'].endswith("vdi")
-on_lsf = 'HOST' in os.environ and (os.environ['HOST'].endswith("transchip.com") or os.environ['HOST'].startswith("planet"))
-
 platform = 'windows' if on_windows else 'linux'
 
 
