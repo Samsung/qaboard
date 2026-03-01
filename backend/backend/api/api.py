@@ -1,6 +1,7 @@
 """
 Access data related to Projects.
 """
+import os
 import pytz
 import json
 import datetime
@@ -21,6 +22,24 @@ from .auth import is_authorized_user
 
 to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ'))
 timezone = pytz.timezone("utc")
+
+
+@app.route("/api/v1/config")
+def get_site_config():
+    """Return runtime site configuration for the frontend."""
+    image_servers_raw = os.environ.get('QABOARD_IMAGE_SERVERS', '{"default": "/iiif"}')
+    try:
+        image_servers = json.loads(image_servers_raw)
+    except (json.JSONDecodeError, ValueError):
+        image_servers = {"default": "/iiif"}
+
+    return jsonify({
+        "image_servers": image_servers,
+        "login_type": os.environ.get('QABOARD_LOGIN_TYPE', 'LOCAL'),
+        "login_required": bool(os.environ.get('QABOARD_LOGIN_REQUIRED', '')),
+        "sentry_dsn": os.environ.get('SENTRY_DSN'),
+        "posthog_api_key": os.environ.get('POSTHOG_API_KEY'),
+    })
 
 
 @app.route("/api/v1/commits")
