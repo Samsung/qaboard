@@ -44,8 +44,14 @@ dev = [
     "types-setuptools",
     "types-simplejson",
 ]
-sirc = ["qaboard-site-sirc", "cde @ git+ssh://git@gitlab-srv/cde/cde-python"]
-dsk = ["qaboard-site-dsk"]
+sirc = [
+    "qaboard-site-sirc @ file:deployments/cli/sirc",
+    "cde @ git+ssh://git@gitlab-srv/cde/cde-python",
+]
+dsk = [
+    "qaboard-site-dsk @ file:deployments/cli/dsk",
+    'cde @ git+ssh://git@github.sec.samsung.net/CDE/cde-python',
+]
 
 [project.scripts]
 qa = "qaboard.qa:main"
@@ -58,7 +64,11 @@ build-backend = "hatchling.build"
 include = ["qaboard/**/*", "README.md"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["qaboard", "qatools"]
+packages = [
+    "qaboard",
+    # for backward compat only
+    "qatools",
+]
 
 
 [tool.hatch.metadata]

@@ -11,7 +11,10 @@ Install a site package to auto-configure:
     pip install qaboard[dsk]     # DSK defaults
 """
 import os
+from pathlib import Path
 from importlib.metadata import entry_points
+
+import yaml
 
 
 def _load_site_defaults():
@@ -33,6 +36,16 @@ def _load_site_defaults():
 _site_defaults = _load_site_defaults()
 
 
+secrets_path = os.getenv('QA_SECRETS', _site_defaults.get("QA_SECRETS"))
+if secrets_path and Path(secrets_path).exists():
+  with Path(secrets_path).open() as f:
+    secrets = yaml.load(f, Loader=yaml.SafeLoader)
+else:
+  secrets = {}
+
+
+
 def site_config(key, default=None):
-    """Get a config value: ENV > site package > default."""
-    return os.getenv(key, _site_defaults.get(key, default))
+    """Get a config value: ENV > secrets > site package > default."""
+    return os.getenv(key, secrets.get(key, _site_defaults.get(key, default)))
+

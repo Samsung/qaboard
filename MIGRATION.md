@@ -7,7 +7,7 @@ This document covers breaking changes from the branch unification
 
 ### CLI
 - Install with: `pip install qaboard[sirc]` (was: `pip install qaboard`)
-- This auto-configures API URL (https://qa), port (5000), secrets path
+- This auto-configures API URL (https://qa), port (5000), secrets path (! we dont support it anymore as part of the project config)
 - All existing ENV var overrides continue to work
 
 ### Server

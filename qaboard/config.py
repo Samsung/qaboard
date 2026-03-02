@@ -429,18 +429,8 @@ if metrics_file:
       available_metrics = _metrics.get('available_metrics', {})
       main_metrics = _metrics.get('main_metrics', [])
 
-# We want to allow any user to use the Gitlab API, stay backward compatible
-# ...and remove the credentials from the repo
-# TODO: remove hardcoded SIRC fallback path once all SIRC users install qaboard[sirc]
-_default_secrets = '/home/ispq/.secrets.yaml' if os.name != 'nt' else '//mars/raid/users/ispq/.secrets.yaml'
-default_secrets_path = site_config('QA_SECRETS', _default_secrets)
-secrets_path = Path(config.get('secrets', default_secrets_path))
-if secrets_path.exists():
-  with secrets_path.open() as f:
-    secrets = yaml.load(f, Loader=yaml.SafeLoader)
-else:
-  secrets = {}
-
+# reexport for backward compat
+from .site_config import secrets
 
 # backward compat only for HW_ALG's tools/find_valid_build.py (removed 28/07/20)
 from .git import _Repo, _Commit

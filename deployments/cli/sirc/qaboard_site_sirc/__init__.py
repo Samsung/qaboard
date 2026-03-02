@@ -1,11 +1,10 @@
 """QABoard site defaults for Samsung SIRC."""
+import os
 
 defaults = {
     "QABOARD_URL": "https://qa",
-    "QATOOLS_DB_PROTOCOL": "http",
-    "QATOOLS_DB_HOST": "qa",
-    "QATOOLS_DB_PORT": "5000",
-    "QABOARD_API_PORT": "5000",
-    # TODO: remove hardcoded SIRC fallback
-    "QA_SECRETS": "/home/ispq/.secrets.yaml",
+    "QABOARD_API_PREFIX": "http://qa:5000",
+    # We want to allow users to use the Gitlab API (limited scope: CI statuses) without having to login
+    # to stay backward compatible and not have credentials in any repo
+    "QA_SECRETS": '/home/ispq/.secrets.yaml' if os.name != 'nt' else '//mars/raid/users/ispq/.secrets.yaml',
 }
