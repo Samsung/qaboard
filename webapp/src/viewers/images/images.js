@@ -127,13 +127,16 @@ function maintain_zoom() {
     sync_group.leading = "resize";
     try { // we should try to find how to identify when an image is not loaed...
       sync_group.viewers.forEach(v => {
+        if (sync_group.visibility?.[v.id] === false) return; // skip off-screen viewers
         const size = new OpenSeadragon.Point(v.container.clientWidth ?? 1, v.container.clientHeight ?? 1);
         v.viewport.resize(size, true);
         v.viewport.zoomTo(sync_group.zoom, null, true);
         v.viewport.panTo(sync_group.center, true);
       })
       sync_group.leading = null;
-      sync_group.viewers.forEach(v => v.forceRedraw())
+      sync_group.viewers.forEach(v => {
+        if (sync_group.visibility?.[v.id] !== false) v.forceRedraw();
+      })
     } catch { }
   })
 }
@@ -213,8 +216,12 @@ class ImgViewer extends React.PureComponent {
         center: null,
         // When the user moves a viewer, it leads the others
         // whose pan/zoom events we ignore.
-        // Values: the id of a viewer, null, or "all"
+        // Values: the id of a viewer, null, "resize", or "catchup"
         leading: null,
+         // IntersectionObserver visibility per viewer id (false = off-screen, skip sync)
+         visibility: {},
+         // IntersectionObserver instances per viewer id for cleanup
+         observers: {},
       }
     } else {
       if (synced_viewers[sync_key].viewers.every(v => v.id !== viewer_new.id))
@@ -224,6 +231,34 @@ class ImgViewer extends React.PureComponent {
       if (synced_viewers[sync_key].diff_canvases.every(c => c !== canvas_diff))
         synced_viewers[sync_key].diff_canvases.push(canvas_diff)
     }
+    // Track viewport visibility for each viewer so we can skip off-screen ones during sync.
+    // When a viewer enters the 200px margin it catches up instantly (no animation → no extra tile requests).
+    const setupVisibilityTracking = (viewer) => {
+      if (!viewer.container) return;
+      const sync_group = synced_viewers[sync_key];
+      sync_group.visibility[viewer.id] = false; // assume off-screen until observer fires
+
+      const observer = new IntersectionObserver(([entry]) => {
+        sync_group.visibility[viewer.id] = entry.isIntersecting;
+        if (entry.isIntersecting) {
+          // Catch up to the group's current zoom/center instantly (true = no animation)
+          const { zoom, center } = sync_group;
+          if (zoom !== null && center !== null) {
+            sync_group.leading = 'catchup';
+            viewer.viewport.zoomTo(zoom, null, true);
+            viewer.viewport.panTo(center, true);
+            sync_group.leading = null;
+          }
+        }
+      }, { rootMargin: '200px' });
+
+      observer.observe(viewer.container);
+      sync_group.observers[viewer.id] = observer;
+    };
+
+    setupVisibilityTracking(viewer_new);
+    setupVisibilityTracking(viewer_ref);
+
 
 
     var lead_viewer_sync = (sync_key, viewer) => () => {
@@ -240,8 +275,8 @@ class ImgViewer extends React.PureComponent {
         return
       synced_viewers[sync_key].leading = viewer.id;
       synced_viewers[sync_key].viewers.filter(v => v.id !== viewer.id).forEach(v => {
+        if (synced_viewers[sync_key].visibility?.[v.id] === false) return;
         // console.log(`  follow for ${v.id} (${v.source.height}:${v.source.width})`)
-        // console.log(v.source.width)
         v.viewport.zoomTo(synced_viewers[sync_key].zoom);
         v.viewport.panTo(synced_viewers[sync_key].center);
       })
@@ -262,6 +297,12 @@ class ImgViewer extends React.PureComponent {
         synced_viewers[sync_key].viewers = synced_viewers[sync_key].viewers.filter(
           v => v.id !== viewer_new.id && v.id !== viewer_ref.id
         )
+        // Disconnect IntersectionObservers for these viewers
+        ;[viewer_new, viewer_ref].forEach(v => {
+          synced_viewers[sync_key].observers?.[v.id]?.disconnect();
+          delete synced_viewers[sync_key].observers?.[v.id];
+          delete synced_viewers[sync_key].visibility?.[v.id];
+        })
         synced_viewers[sync_key].diff_canvases = synced_viewers[sync_key].diff_canvases.filter(
           c => c !== canvas_diff
         )
