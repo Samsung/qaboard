@@ -150,8 +150,8 @@ RUN --mount=type=ssh \
 
 # Clear proxy env so it doesn't leak into runtime containers
 ENV HTTP_PROXY="" http_proxy="" \
-    HTTPS_PROXY="" https_proxy="" \
-    NO_PROXY=""
+    HTTPS_PROXY="" https_proxy=""
+    # we keep NO_PROXY however!
 
 ENV QA_NO_CHECK_FOR_UPDATES=1
 
