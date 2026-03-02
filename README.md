@@ -40,8 +40,6 @@ docker compose -f docker-compose.yml -f production.yml up
 docker compose -f docker-compose.yml -f production.yml -f deployments/sirc.yml up
 ```
 
-> For details on migrating from branch-specific setups, see [MIGRATION.md](MIGRATION.md).
-
 ## Getting Started
 [Read the docs!](https://samsung.github.io/qaboard/docs/introduction) You will learn how to:
 - Start a QA-Board server

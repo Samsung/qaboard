@@ -32,7 +32,6 @@ version: "3.5"
 volumes:
   data: {}              # git clones (and custom batches.yaml for now...)
   db: {}
-  db-16: {}
   redis_data: {}
   rabbitmq-data: {}
   cache_cantaloupe: {}  # cache for the iiif image server
@@ -149,6 +148,7 @@ services:
     image: docker.pkg.github.com/samsung/qaboard/proxy
     build:
       context: services/nginx
+    # # https://github.com/docker-library/docs/tree/master/nginx#using-environment-variables-in-nginx-configuration
     command: /bin/bash -c "rm -rf /etc/nginx && cp -r /tmp/etc/nginx /etc && envsubst < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && exec ${NGINX_BIN-nginx} -g 'daemon off;'"
     environment:
     - NGINX_USER=nginx
@@ -172,8 +172,9 @@ services:
     - "8182"
     volumes:
     - cache_cantaloupe:/var/cache/cantaloupe
-    - /:/repository
     - /srv/cantaloupe
+    # INSECURE/FIXME: obviously it's not a great default, but not clear how to do better
+    - /:/repository
     environment:
       CANTALOUPE_MEM_START: 1g
       CANTALOUPE_MEM_MAX: 2g

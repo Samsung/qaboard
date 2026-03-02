@@ -7,19 +7,6 @@ x-sirc-build-args: &sirc-build-args
   NO_PROXY: "gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt,sentry,sentry.transchip.com"
 
 services:
-  iiif-cde:
-    image: "gitlab-srv:4567/dvs/slamvizapp/iipsrv-cde"
-    # command: 'tail -f /dev/null' # keeps the container up for debugging, but does nothing...
-    restart: always
-    expose:
-    - "80"
-    volumes:
-    - /stage:/var/www/localhost/images/stage
-    - /algo:/var/www/localhost/images/algo
-    - /data:/var/www/localhost/images/data
-    - /opt/dockermounts/home:/var/www/localhost/images/home
-    - /sim:/var/www/localhost/images/sim:shared
-
   db:
     # postgres needs a file owned by postgres, and we cannot chown on our shared storage
     # the default entrypoint changes user from root to postgres and inits the database,
@@ -31,6 +18,17 @@ services:
     - /home/ispq/qaboard_data_prod/database_backups:/backups
     ports:
       - ${QABOARD_EXPOSED_DB_PORT:-5432}:5432
+
+  cron-backup-db:
+    volumes:
+    - /home/ispq/qaboard_data_prod/database_backups:/backups
+    environment:
+      AS_USER_NAME: ispq
+      AS_USER_GROUP: uucp
+      AS_USER_UID: "1411"
+      AS_USER_GID: "10"
+
+
 
   backend:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:backend"
@@ -64,11 +62,11 @@ services:
     volumes:
     - ./services/backend/passwd:/etc/passwd
     - ./services/backend/ldap:/etc/ldap
-    - /opt/dockermounts/home:/home
-    - /opt/dockermounts/raid:/raid
-    - /opt/dockermounts/stage:/stage
-    - /opt/dockermounts/home:/raid/users
-    - /opt/dockermounts/stage/algo_data:/stage/algo_data
+    - /home:/home
+    - /raid:/raid
+    - /stage:/stage
+    - /home:/raid/users
+    - /stage/algo_data:/stage/algo_data
     - /stage/qa_data:/stage/qa_data
     - /stage/algo-datasets:/stage/algo-datasets
     - /stage/algo_archive:/stage/algo_archive
@@ -100,11 +98,11 @@ services:
     - /home/ispq/qaboard_prod/services/nginx/ssl/publish/publish.pem:/ssl/publish.pem
     - /home/ispq/qaboard_prod/services/nginx/ssl/publish/publish.key:/ssl/publish.key
     - ./services/nginx/passwd:/etc/passwd
-    - /opt/dockermounts/home:/home
-    - /opt/dockermounts/raid:/raid
-    - /opt/dockermounts/stage:/stage
-    - /opt/dockermounts/home:/raid/users
-    - /opt/dockermounts/stage/algo_data:/stage/algo_data
+    - /home:/home
+    - /raid:/raid
+    - /stage:/stage
+    - /home:/raid/users
+    - /stage/algo_data:/stage/algo_data
     - /stage/algo_archive:/stage/algo_archive
     - /stage/qa_data:/stage/qa_data
     - /stage/algo-datasets:/stage/algo-datasets

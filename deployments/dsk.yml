@@ -13,6 +13,7 @@ services:
     build:
       args:
         <<: *dsk-build-args
+        QABOARD_EXTRA: "dsk"
     environment:
       - QABOARD_LOGIN_TYPE=${QABOARD_LOGIN_TYPE:-SAML}
       - QABOARD_TUNING_RUNNER=celery
