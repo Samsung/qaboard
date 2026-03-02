@@ -61,7 +61,7 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-      ssh: [default]
+      # ssh: [default]
     # Wait for the database to be ready - https://docs.docker.com/compose/startup-order/
     command: ["./wait-for-it.sh", "${QABOARD_DB_HOST-db}:${QABOARD_DB_PORT-5432}", "--", "/qaboard/backend/init.sh"]
     depends_on:
@@ -90,10 +90,6 @@ services:
     build:
       context: webapp
       shm_size: 6gb
-      args:
-        REACT_APP_QABOARD_DOCS_ROOT: "/"
-        REACT_APP_QABOARD_LOGIN_TYPE: ${QABOARD_LOGIN_TYPE:-LOCAL} # LOCAL/LDAP/SAML
-        REACT_APP_QABOARD_LOGIN_REQUIRED: ${QABOARD_LOGIN_REQUIRED:-}
     volumes:
     - frontend_builds:/builds
     # by default we assume you run the QA-Board on localhost, but will want to change this

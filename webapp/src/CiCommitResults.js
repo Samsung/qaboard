@@ -552,6 +552,7 @@ class CiCommitResults extends Component {
                     commit={new_commit}
                     config={config}
                     available_tests_files={available_tests_files}
+                    docs_root={this.props.docs_root}
                     />
                   </PrivateContent>
                 </Card>
@@ -561,7 +562,7 @@ class CiCommitResults extends Component {
                 ? <NonIdealState
                     icon="heatmap"
                     title={<p>Tuning requires you to define build <strong>artifacts.</strong></p>}
-                    description={<p><a target="_blank" rel="noopener noreferrer" href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/visualizations`}>Read the docs</a> to learn how to declare visualizations.</p>}
+                    description={<p><a target="_blank" rel="noopener noreferrer" href={`${this.props.docs_root}docs/visualizations`}>Read the docs</a> to learn how to declare visualizations.</p>}
                   />
                 : <Section>
                   <h2 className={Classes.HEADING}>Tuning Experiments</h2>
@@ -621,7 +622,7 @@ class CiCommitResults extends Component {
                  ? <NonIdealState
                      icon="heatmap"
                      title="Visualizations are not configured yet." 
-                     description={<p><a target="_blank" rel="noopener noreferrer" href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/visualizations`}>Read the docs</a> to learn how to declare visualizations.`</p>}
+                     description={<p><a target="_blank" rel="noopener noreferrer" href={`${this.props.docs_root}docs/visualizations`}>Read the docs</a> to learn how to declare visualizations.`</p>}
                    />
                  : <Section>
                   <h2 className={Classes.HEADING}>Visualizations</h2>
@@ -795,9 +796,10 @@ const mapStateToProps = (state, ownProps) => {
 
       // TODO: migrate the availble-tests-files to DB
       available_tests_files: {
-        gr: "extra-batches", 
+        gr: "extra-batches",
         usr: state.user?.user_name ?? null
       },
+      docs_root: state.siteConfig.docs_root,
     }
 }
 

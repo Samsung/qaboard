@@ -27,7 +27,6 @@ import { Container } from "./components/layout";
 import { Avatar } from "./components/avatars";
 import AuthButton from "./components/authentication/Auth"
 import PrivateContent from "./components/authentication/PrivateContent"
-import {APP_LOGIN_REQUIRED} from "./components/authentication/constants";
 import { updateFavorite } from './actions/projects'
 import { updateSelected } from './actions/selected'
 import { match_query } from "./utils"
@@ -179,7 +178,7 @@ class ProjectsList extends Component {
                 <NavbarHeading><b>QA-Board</b></NavbarHeading>
                 <NavbarDivider />
                 <a href="https://github.com/Samsung/qaboard"><Button className={Classes.MINIMAL} icon={github_cat} text="GitHub" style={{color : "#fff"}}/></a>
-                <a href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/introduction`}><Button className={Classes.MINIMAL} icon={<Icon icon="help" color="#fff"/>} text="Docs" style={{color : "#fff"}}/></a>
+                <a href={`${this.props.docs_root}docs/introduction`}><Button className={Classes.MINIMAL} icon={<Icon icon="help" color="#fff"/>} text="Docs" style={{color : "#fff"}}/></a>
             </NavbarGroup>
             <NavbarGroup align={Alignment.RIGHT}>
               {user?.is_logged && <a style={{paddingRight: '15px'}} href={`/metabase/dashboard/38?username=${user.user_name}`} rel="noopener noreferrer" target="_blank">
@@ -189,7 +188,7 @@ class ProjectsList extends Component {
             </NavbarGroup>
         </Navbar>
         <Container>
-          <PrivateContent enabled={APP_LOGIN_REQUIRED}>
+          <PrivateContent>
             <div style={{display: "flex", justifyContent: "space-between", alignItems: "baseline"}}>
               <div style={{width: '300px', marginTop: '30px', marginBottom: '10px'}}>
                   <InputGroup
@@ -224,6 +223,7 @@ const mapStateToProps = state => {
     is_loaded: state.projects.is_loaded ?? false,
     projects: state.projects.data,
     user: state.user ?? null,
+    docs_root: state.siteConfig.docs_root,
   }
 }
 

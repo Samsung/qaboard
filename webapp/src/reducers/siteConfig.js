@@ -8,7 +8,11 @@ const initialState = {
   login_required: false,
   sentry_dsn: null,
   posthog_api_key: null,
+  posthog_host: null,
   path_mappings: [],
+  docs_root: 'https://samsung.github.io/qaboard/',
+  avatar_url_template: null,
+  sentry_traces_sample_rate: 1.0,
 };
 
 export function siteConfig(state = initialState, action) {

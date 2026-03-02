@@ -64,6 +64,7 @@ class PrivateContent extends React.Component {
 const mapStateToProps = state => {
   return {
     user: state.user || null,
+    enabled: state.siteConfig.login_required,
   }
 }
 

@@ -13,7 +13,6 @@ import {
   Button,
   Dialog,
 } from "@blueprintjs/core";
-import {LOGIN_TYPE} from "./constants";
 import { login, logout } from '../../actions/users'
 import { toaster } from "./../../toaster"
 import { Avatar } from '../avatars';
@@ -177,7 +176,7 @@ class AuthButton extends React.Component {
     const { user_name, full_name } = this.props.user;
     const display_name = full_name ?? user_name
     this.props.dispatch(logout())
-    if (LOGIN_TYPE == "SAML") {
+    if (this.props.login_type === "SAML") {
       this.setState({is_loading: true});
       toaster.show({ message: `Goodbye, ${display_name}`, intent: Intent.WARNING, timeout: 3000 });
       window.location.href = '/api/auth/saml20/login/?slo';
@@ -205,12 +204,14 @@ class AuthButton extends React.Component {
               <UserMenu
                 user={this.props.user}
                 logout={this.logout}
+                avatar_url_template={this.props.avatar_url_template}
               />
             : <LoginButton
                 user={this.props.user}
                 dispatch={this.props.dispatch}
                 logout={this.logout}
                 appSider={this.props.appSider}
+                login_type={this.props.login_type}
               />
   }
 }
@@ -226,10 +227,9 @@ class UserMenu extends React.Component {
     const { user, logout } = this.props;
     const display_name = user.full_name || user.user_name;
     
-    // TODO: save profile picture URLs in the auth flow, and rely on it
-    //       instead of this solution that only works at SIRC.
-    // Generate avatar URL - first try email for Gravatar, fallback to name
-    const avatarUrl = `https://dag.sirc.co.il:8081/${user.user_name}.jpg`
+    const avatarUrl = this.props.avatar_url_template
+      ? this.props.avatar_url_template.replace('{user_name}', user.user_name)
+      : null;
     return (
       <UserMenuItemWrapper>
         <MenuItem
@@ -399,7 +399,7 @@ class LoginButton extends React.Component {
 
 
   handleLogin = () => {
-    if (LOGIN_TYPE == "SAML") {
+    if (this.props.login_type === "SAML") {
       this.setState({is_loading: true});
       window.location.href = '/api/auth/saml20/login/?sso';
     }
@@ -416,6 +416,8 @@ class LoginButton extends React.Component {
 const mapStateToProps = state => {
   return {
     user: state.user || null,
+    login_type: state.siteConfig.login_type,
+    avatar_url_template: state.siteConfig.avatar_url_template,
   }
 }
 export default connect(mapStateToProps)(AuthButton);

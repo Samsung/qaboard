@@ -279,7 +279,7 @@ class IntegrationsMenus extends React.Component {
                 <MenuItem
                     icon="info-sign"
                     target="_blank"
-                    href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/triggering-third-party-tools`}
+                    href={`${this.props.docs_root}docs/triggering-third-party-tools`}
                     text="Click to learn how to link to docs/artifacts, or trigger webhooks and GitlabCI/jenkins jobs..."
                 />
             </>}

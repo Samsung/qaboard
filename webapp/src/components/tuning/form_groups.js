@@ -236,7 +236,7 @@ class AddRecordingsForm extends Component {
             <li><b>Shared</b> with all QA-Board users.</li>
             <li><b>Private</b> ({user_form_name}), that only you can view and edit.</li>
           </ol></p>
-          <p>To know more about the <b>syntax</b> of this files, <a href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs/batches-running-on-multiple-inputs`}>read the docs</a>.</p>
+          <p>To know more about the <b>syntax</b> of this files, <a href={`${this.props.docs_root}docs/batches-running-on-multiple-inputs`}>read the docs</a>.</p>
           {(config.inputs?.database !== undefined) && <p>
              <em>By default input paths are relative to</em> <code>{config.inputs?.database?.windows}</code>
             <CopyToClipboard

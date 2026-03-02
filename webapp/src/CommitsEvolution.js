@@ -1,5 +1,6 @@
 import React, { Component, Fragment } from "react";
 import { withRouter } from "react-router";
+import { connect } from "react-redux";
 import qs from "qs";
 
 import Plot from 'react-plotly.js';
@@ -685,7 +686,7 @@ class CommitsEvolution extends Component {
     const { available_metrics={}, default_metric} = this.props.project_data?.data?.qatools_metrics || {};
     const shown_batches = this.props.shown_batches || Object.keys(commits[0]?.batches || {}) || ['default']
     if (!default_metric)
-      return <div>To see metrics over time, <a href={process.env.REACT_APP_QABOARD_DOCS_ROOT}>define your project's metrics</a>.</div>;
+      return <div>To see metrics over time, <a href={this.props.docs_root}>define your project's metrics</a>.</div>;
 
     return (
       <div style={style}>
@@ -773,4 +774,8 @@ class CommitsEvolution extends Component {
 
 
 
-export default withRouter(CommitsEvolution );
+const mapStateToProps = state => ({
+  docs_root: state.siteConfig.docs_root,
+});
+
+export default withRouter(connect(mapStateToProps)(CommitsEvolution));

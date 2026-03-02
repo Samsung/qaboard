@@ -38,13 +38,23 @@ _path_mappings = _parse_json_env('QABOARD_PATH_MAPPINGS', '[]')
 @app.route("/api/v1/config")
 def get_site_config():
     """Return runtime site configuration for the frontend."""
+    sample_rate = os.environ.get('SENTRY_TRACES_SAMPLE_RATE', '1.0')
+    try:
+        sample_rate = float(sample_rate)
+    except (ValueError, TypeError):
+        sample_rate = 1.0
+
     return jsonify({
         "image_servers": _image_servers,
         "login_type": os.environ.get('QABOARD_LOGIN_TYPE', 'LOCAL'),
         "login_required": bool(os.environ.get('QABOARD_LOGIN_REQUIRED', '')),
         "sentry_dsn": os.environ.get('SENTRY_DSN'),
         "posthog_api_key": os.environ.get('POSTHOG_API_KEY'),
+        "posthog_host": os.environ.get('POSTHOG_HOST'),
         "path_mappings": _path_mappings,
+        "docs_root": os.environ.get('QABOARD_DOCS_ROOT', 'https://samsung.github.io/qaboard/'),
+        "avatar_url_template": os.environ.get('QABOARD_AVATAR_URL'),
+        "sentry_traces_sample_rate": sample_rate,
     })
 
 

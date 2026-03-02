@@ -513,6 +513,7 @@ class ProjectSideCommitList extends React.Component {
           commit={commit}
           ref_commit={ref_commit}
           user={user}
+          docs_root={this.props.docs_root}
           integrationStatuses={this.props.integrationStatuses}
           triggerIntegration={this.props.triggerIntegration}
           startUpdateIntegrationStatuses={this.props.startUpdateIntegrationStatuses}
@@ -596,6 +597,7 @@ class ProjectSideResults extends React.Component {
         project_data={project_data}
         commit={commit}
         ref_commit={ref_commit}
+        docs_root={this.props.docs_root}
         batch={new_batch}
         ref_batch={ref_batch?.label}
         filter={this.props.filter}
@@ -908,7 +910,7 @@ class AppSider extends React.Component {
             </Link>
             <Tooltip content="Click to see the docs!">
               <a 
-                href={`${process.env.REACT_APP_QABOARD_DOCS_ROOT}docs`} 
+                href={`${this.props.docs_root}docs`}
                 rel="noopener noreferrer" 
                 target="_blank"
                 className="help-icon"
@@ -1012,6 +1014,7 @@ const mapStateToProps = (state, ownProps) => {
       latest_commit, // on branch
       selected_views,
       user: state.user,
+      docs_root: state.siteConfig.docs_root,
     };
   }
 
@@ -1028,6 +1031,7 @@ const mapStateToProps = (state, ownProps) => {
     new_batch, ref_batch,
     filter, ref_filter, ref_project,
     user: state.user,
+    docs_root: state.siteConfig.docs_root,
   }
 }
 

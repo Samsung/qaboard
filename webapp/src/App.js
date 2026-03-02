@@ -1,13 +1,14 @@
 import React from "react";
 import { Provider } from 'react-redux'
-import history from "./history";
 // https://github.com/remix-run/react-router/blob/main/docs/upgrading/v5.md
 import { Router, Route, Switch } from "react-router-dom";
 import { PersistGate } from 'redux-persist/integration/react'
 
 import { Classes } from "@blueprintjs/core";
 
+import posthog from 'posthog-js'
 import * as Sentry from "@sentry/react";
+import history from "./history";
 const SentryRoute = Sentry.withSentryRouting(Route);
 
 import { Layout } from "./components/layout";
@@ -30,7 +31,6 @@ import "./App.css";
 
 import { routes } from './routes'
 import PrivateContent from "./components/authentication/PrivateContent"
-import { APP_LOGIN_REQUIRED } from "./components/authentication/constants";
 import { sider_width } from './AppSider'
 
 const Footer = () => {
@@ -46,7 +46,10 @@ class App extends React.Component {
   }
 
   componentDidMount() {
-    this.props.store.dispatch(fetchSiteConfig())
+    this.props.store.dispatch(fetchSiteConfig()).then(config => {
+      this.initSentry(config);
+      this.initPostHog(config);
+    });
     this.props.store.dispatch(fetchProjects())
     const state = this.props.store.getState()
     if (state.selected.project !== null)
@@ -56,6 +59,35 @@ class App extends React.Component {
       fetchProject(selected.new_project)
     if (selected.ref_project !== null)
       fetchProject(selected.ref_project)
+  }
+
+  initSentry(config) {
+    // https://docs.sentry.io/platforms/javascript/guides/react/configuration/integrations/react-router/
+    // https://docs.sentry.io/platforms/javascript/guides/react/features/react-router/
+    // TODO: migrate to react-router-v6, then improve the sentry integration
+    //       https://reactrouter.com/en/main/upgrading/v5#upgrade-to-react-router-v6
+    //       it make require moving to hooks in many places, so at this stage nextjs might make more sense...
+    if (process.env.NODE_ENV !== 'production' || !config.sentry_dsn) return;
+    Sentry.init({
+      dsn: config.sentry_dsn,
+      integrations: [
+        new Sentry.BrowserTracing({
+          routingInstrumentation: Sentry.reactRouterV5Instrumentation(history),
+        }),
+        new Sentry.Replay(),
+      ],
+      tracesSampleRate: config.sentry_traces_sample_rate ?? 1.0,
+      tracePropagationTargets: [/\/api\//],
+      replaysSessionSampleRate: 0.1,
+      replaysOnErrorSampleRate: 1.0,
+    });
+  }
+
+  initPostHog(config) {
+    if (process.env.NODE_ENV !== 'production' || !config.posthog_api_key) return;
+    posthog.init(config.posthog_api_key, {
+      api_host: config.posthog_host || undefined,
+    });
   }
 
 
@@ -81,7 +113,7 @@ class App extends React.Component {
                   <ProjectsList/>
               </SentryRoute>
               <SentryRoute>
-                <PrivateContent enabled={APP_LOGIN_REQUIRED}>
+                <PrivateContent>
                   <ProjectApp/>
                 </PrivateContent>
               </SentryRoute>
