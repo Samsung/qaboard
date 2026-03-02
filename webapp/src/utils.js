@@ -282,27 +282,28 @@ const git_hostname = qaboard_config => {
 
 }
 
-// FIXME: make it part of a global user/project/instance configuration
+// Path mappings populated from /api/v1/config (via setPathMappings).
+// Each entry is [windows_prefix, linux_prefix].
+let _path_mappings = [];
+
+const setPathMappings = (mappings) => {
+  _path_mappings = mappings || [];
+};
+
 const linux_to_windows = path => {
   if (path === undefined || path === null)
     return path
-  let windows_path = decodeURI(path)
-    .replace(/\/s\//, '/')
-    .replace('//home', '//mars/raid/users')
-    .replace('/home', '//mars/raid/users')
-    .replace('//stage/algo-datasets', '//f2/algo-datasets')
-    .replace('/stage/algo-datasets', '//f2/algo-datasets')
-    .replace('//stage/algo_archive', '//mars/__stage__/algo_archive')
-    .replace('/stage/algo_archive', '//mars/__stage__/algo_archive')
-    .replace('/stage/qa_data', '//netapp/QA-Data')
-    .replace('//stage', '//netapp')
-    .replace('/stage', '//netapp')
-    .replace('/algo/', '//mars/algo/')
-    .replace('/data/', '//mars/data/')
-    .replace('__stage__', 'stage')
-  // if (!windows_path.startsWith('//mars') || !windows_path.startsWith('//netapp'))
-  //   windows_path = `//mars/raid/users/arthurf${windows_path}` 
-  return windows_path.replace(/\//g, '\\')
+  let result = decodeURI(path).replace(/\/s\//, '/')
+  for (const [windows_prefix, linux_prefix] of _path_mappings) {
+    if (result.startsWith(linux_prefix)) {
+      // Convert backslashes in windows_prefix to forward slashes for matching,
+      // then convert everything to backslashes at the end
+      const win = windows_prefix.replace(/\\/g, '/')
+      result = win + result.slice(linux_prefix.length)
+      return result.replace(/\//g, '\\')
+    }
+  }
+  return result.replace(/\//g, '\\')
 }
 
 
@@ -522,6 +523,7 @@ export {
   git_hostname,
   default_git_hostname,
   linux_to_windows,
+  setPathMappings,
   are_on_same_filesystem, extract_drive_and_folder,
   make_eval_templates_recursively,
   metrics_fill_defaults,

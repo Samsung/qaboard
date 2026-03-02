@@ -24,21 +24,27 @@ to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%m-%
 timezone = pytz.timezone("utc")
 
 
+def _parse_json_env(key, default):
+    raw = os.environ.get(key, default)
+    try:
+        return json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        return json.loads(default)
+
+_image_servers = _parse_json_env('QABOARD_IMAGE_SERVERS', '{"default": "/iiif"}')
+_path_mappings = _parse_json_env('QABOARD_PATH_MAPPINGS', '[]')
+
+
 @app.route("/api/v1/config")
 def get_site_config():
     """Return runtime site configuration for the frontend."""
-    image_servers_raw = os.environ.get('QABOARD_IMAGE_SERVERS', '{"default": "/iiif"}')
-    try:
-        image_servers = json.loads(image_servers_raw)
-    except (json.JSONDecodeError, ValueError):
-        image_servers = {"default": "/iiif"}
-
     return jsonify({
-        "image_servers": image_servers,
+        "image_servers": _image_servers,
         "login_type": os.environ.get('QABOARD_LOGIN_TYPE', 'LOCAL'),
         "login_required": bool(os.environ.get('QABOARD_LOGIN_REQUIRED', '')),
         "sentry_dsn": os.environ.get('SENTRY_DSN'),
         "posthog_api_key": os.environ.get('POSTHOG_API_KEY'),
+        "path_mappings": _path_mappings,
     })
 
 

@@ -8,6 +8,7 @@ const initialState = {
   login_required: false,
   sentry_dsn: null,
   posthog_api_key: null,
+  path_mappings: [],
 };
 
 export function siteConfig(state = initialState, action) {

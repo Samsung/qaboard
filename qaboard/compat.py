@@ -4,10 +4,13 @@ Deprecation warnings, backward compatibility, Windows compatibility
 import re
 import os
 import sys
-import shlex
+import json
 from pathlib import Path
+from importlib.metadata import entry_points
 
 import click
+
+from qaboard.site_config import site_config
 
 
 def ensure_cli_backward_compatibility():
@@ -80,30 +83,18 @@ def escaped_for_cli(string):
   else:
     return 
 
-mappings = (
-  ('\\\\netapp\\algo_data', '/stage/algo_data'),
-  ('\\\\netapp2\\algo_data', '/stage/algo_data'),
-  ('\\\\netapp\\algo-datasets', '/stage/algo-datasets'),
-  ('\\\\f2\\algo_archive', '/stage/algo_archive'),
-  ('\\\\mars\\stage\\jenkins_ws', '/stage/jenkins_ws'),
-  ('\\\\mars\\stage\\algo_jenkins_ws', '/stage/algo_jenkins_ws'),
-  ('\\\\mars\\raid\\data\\DATASYNC', '/raid/data/DATASYNC'),
-  ('\\\\netapp\\algo_ws', '/algo/ws'),
-  ('\\\\netapp\\vol23_algo', '/algo'),
-  ('\\\\netapp\\vol24_algo', '/algo'),
-  ('\\\\mars\\algo', '/algo'),
-  ('\\\\mars\\raid\\algo', '/algo'),
-  ('\\\\mars\\raid', '/raid'),
-  ('\\\\mars\\stage\\algo_db', '/stage/algo_db'),
-  ('\\\\netapp\\raid\\users', '/home'),
-  ('\\\\netapp\\QA-Data', '/stage/qa_data'),
-  ('\\\\f2\\algo-datasets', '/stage/algo-datasets'),
-  ('\\\\mars\\data', '/data'),
-  ('\\\\netapp\\Joint', '/net/netapp/vol/home_nt/Joint'),
-  ('\\\\mars\\sim', '/sim'),
-  ('\\\\mars\\stage', '/stage'),
-  ('\\\\netapp\\vol19_data', '/net/netapp/vol/vol19_data'),
-)
+def _load_path_mappings():
+  """Load path mappings from site config (env var or site package)."""
+  raw = site_config("QABOARD_PATH_MAPPINGS", "[]")
+  try:
+    parsed = json.loads(raw)
+    return tuple(tuple(pair) for pair in parsed)
+  except (json.JSONDecodeError, TypeError):
+    return ()
+
+mappings = _load_path_mappings()
+
+# TODO: ideally parameterizable, but too painful and near-zero chance of name collision
 re_algo_inputs = re.compile(r"\\\\netapp\\vol23_algo\\([^\\]+)[\\_]inputs")
 
 
@@ -138,35 +129,15 @@ def linux_to_windows_path(path : Path) -> Path:
 
 
 def fix_linux_permissions(path: Path):
-  from getpass import getuser
-  click.secho("... Fixing linux file permissions", err=True)
+  """Dispatch to a site-specific fix_permissions hook, if installed."""
   try:
-    # Windows does not set file permissions correctly on the shared storage,
-    # it does not respect umask 0: files are not world-writable.
-    # Trying to each_file.chmod(0o777) does not work either
-    # The only option is to make the call from linux.
-    # We could save a list of paths and chmod them with their parent directories...
-    # but to make things faster to code, we just "ssh linux chmod everything"
-    # We can assume SSH to be present on Windows10
-    
-    # Check if Git for Windows SSH exists and use it instead of PATH ssh
-    # It helps as ACLs prevent network path from being used as keys with the builtin ssh
-    git_ssh_path = r"C:\Program Files\Git\usr\bin\ssh.exe"
-    if os.name == 'nt' and os.path.exists(git_ssh_path):
-        ssh_cmd = git_ssh_path
-    else:
-        ssh_cmd = "ssh"
-    
-    user = getuser()
-    ssh = f"{shlex.quote(ssh_cmd)} -i \\\\netapp\\raid\\users\\{user}\\.ssh\\id_rsa -oStrictHostKeyChecking=no"
-    hostname = f"{user}-vdi" if user != "sircdevops" else "qa"
-    def windowsize(path):
-       return windows_to_linux_path(path).as_posix()
-    # usually we use this function for artifact folders, but if the parent dir
-    # was also created it will have permissions too restrictive too,
-    # and it will break other commits!
-    chmod = f'{ssh} {user}@{hostname} \'chmod -R 777 "{windowsize(path)}"; chmod 777 "{windowsize(path.parent)}"\''
-    click.secho(chmod, err=True)
-    os.system(chmod)
+    eps = entry_points(group="qaboard.hooks")
+    for ep in eps:
+      if ep.name == "fix_permissions":
+        hook = ep.load()
+        hook(path)
+        return
   except Exception as e:
-    click.secho(f'WARNING: {e}', err=True)
+    click.secho(f'WARNING: fix_permissions hook failed: {e}', err=True)
+    return
+  click.secho("... No fix_permissions hook installed, skipping", err=True, fg='yellow')
