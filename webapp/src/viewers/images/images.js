@@ -236,7 +236,7 @@ class ImgViewer extends React.PureComponent {
     const setupVisibilityTracking = (viewer) => {
       if (!viewer.container) return;
       const sync_group = synced_viewers[sync_key];
-      sync_group.visibility[viewer.id] = false; // assume off-screen until observer fires
+      sync_group.visibility[viewer.id] = true; // assume visible until observer says otherwise
 
       const observer = new IntersectionObserver(([entry]) => {
         sync_group.visibility[viewer.id] = entry.isIntersecting;
