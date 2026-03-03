@@ -36,6 +36,7 @@ dependencies = [
     "qaboard",
     "lxml>=5.4.0",
     "xmlsec>=1.3.15",
+    "pillow",
 ]
 
 [tool.uv]
