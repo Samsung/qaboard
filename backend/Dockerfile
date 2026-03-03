@@ -1,5 +1,5 @@
 # https://pythonspeed.com/articles/base-image-python-docker-images/
-FROM python:3.13-slim-trixie
+FROM python:3.14-slim-trixie
 
 LABEL maintainer="arthurf.flam@samsung.com"
 
@@ -87,7 +87,7 @@ ENV UWSGI_PROFILE_OVERRIDE="xml=no"
 # References:
 # https://docs.astral.sh/uv/guides/integration/docker/
 # https://hynek.me/articles/docker-uv/
-COPY --from=ghcr.io/astral-sh/uv:0.8.22 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.10.6 /uv /uvx /bin/
     # Already isolated environment
 ENV UV_SYSTEM_PYTHON=1 \
     # Silence uv complaining about not being able to use hard links

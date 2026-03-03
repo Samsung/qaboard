@@ -45,11 +45,11 @@ dev = [
     "types-simplejson",
 ]
 sirc = [
-    "qaboard-site-sirc @ file:deployments/cli/sirc",
+    "qaboard-site-sirc",
     "cde @ git+ssh://git@gitlab-srv/cde/cde-python",
 ]
 dsk = [
-    "qaboard-site-dsk @ file:deployments/cli/dsk",
+    "qaboard-site-dsk",
     'cde @ git+ssh://git@github.sec.samsung.net/CDE/cde-python',
 ]
 
@@ -70,6 +70,10 @@ packages = [
     "qatools",
 ]
 
+
+[tool.uv.sources]
+qaboard-site-sirc = { path = "deployments/sirc/cli" }
+qaboard-site-dsk = { path = "deployments/dsk/cli" }
 
 [tool.hatch.metadata]
 allow-direct-references = true

@@ -43,6 +43,8 @@ package = true
 
 [tool.uv.sources]
 qaboard = { path = "../" }
+qaboard-site-sirc = { path = "../deployments/sirc/cli" }
+qaboard-site-dsk = { path = "../deployments/dsk/cli" }
 
 [tool.uv.pip]
 no-binary = ["uwsgi", "lxml", "xmlsec"]

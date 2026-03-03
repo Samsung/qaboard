@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -136,19 +136,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/21/28/9b3f50ce0e048515135495f198351908d99540d69bfdc8c1d15b73dc55ce/blinker-1.9.0.tar.gz", hash = "sha256:b4ce2265a7abece45e7cc896e98dbebe6cead56bcf805a3d23136d145f5445bf", size = 22460, upload-time = "2024-11-08T17:25:47.436Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/10/cb/f2ad4230dc2eb1a74edf38f1a38b9b52277f75bef262d8908e60d957e13c/blinker-1.9.0-py3-none-any.whl", hash = "sha256:ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc", size = 8458, upload-time = "2024-11-08T17:25:46.184Z" },
-]
-
-[[package]]
-name = "cde"
-version = "0.0.8"
-source = { git = "ssh://git@gitlab-srv/cde/cde-python#3ca7e4a9752dd61138953c25ffc46df22100206c" }
-dependencies = [
-    { name = "click" },
-    { name = "numpy" },
-    { name = "pandas" },
-    { name = "pillow" },
-    { name = "pyyaml" },
-    { name = "scikit-image" },
 ]
 
 [[package]]
@@ -1016,7 +1003,6 @@ name = "qaboard"
 version = "1.0.3"
 source = { directory = "../" }
 dependencies = [
-    { name = "cde" },
     { name = "click" },
     { name = "joblib" },
     { name = "pyyaml" },
@@ -1030,13 +1016,16 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cde", git = "ssh://git@gitlab-srv/cde/cde-python" },
+    { name = "cde", marker = "extra == 'dsk'", git = "ssh://git@github.sec.samsung.net/CDE/cde-python" },
+    { name = "cde", marker = "extra == 'sirc'", git = "ssh://git@gitlab-srv/cde/cde-python" },
     { name = "click", specifier = ">=7.0" },
     { name = "flake8", marker = "extra == 'dev'" },
     { name = "green", marker = "extra == 'dev'" },
     { name = "joblib" },
     { name = "mypy", marker = "extra == 'dev'" },
     { name = "pyyaml" },
+    { name = "qaboard-site-dsk", marker = "extra == 'dsk'", directory = "../deployments/dsk/cli" },
+    { name = "qaboard-site-sirc", marker = "extra == 'sirc'", directory = "../deployments/sirc/cli" },
     { name = "requests" },
     { name = "rich" },
     { name = "scikit-learn" },
@@ -1048,7 +1037,7 @@ requires-dist = [
     { name = "types-setuptools", marker = "extra == 'dev'" },
     { name = "types-simplejson", marker = "extra == 'dev'" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["dev", "sirc", "dsk"]
 
 [[package]]
 name = "redis"
