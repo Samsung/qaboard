@@ -56,12 +56,12 @@ docker compose -f docker-compose.yml -f production.yml up -d
 
 **SIRC:**
 ```bash
-docker compose -f docker-compose.yml -f production.yml -f deployments/sirc.yml up -d
+docker compose -f docker-compose.yml -f production.yml -f deployments/sirc/sirc.yml -f deployments/sirc/prod.yml up -d
 ```
 
 **DSK:**
 ```bash
-docker compose -f docker-compose.yml -f production.yml -f deployments/dsk.yml up -d
+docker compose -f docker-compose.yml -f production.yml -f deployments/dsk/dsk.yml up -d
 ```
 
 The overlay files in `deployments/` add site-specific services, volumes, environment variables, and nginx configuration without modifying the base `docker-compose.yml`. See `deployments/example.yml` as a template for creating your own overlay.

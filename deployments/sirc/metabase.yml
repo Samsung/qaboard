@@ -1,3 +1,5 @@
+# Metabase is hosted on docker-prod-srv-1
+# TODO: Move this elsewhere!
 version: "3.5"
 
 volumes:

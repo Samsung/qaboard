@@ -11,15 +11,15 @@ This document covers breaking changes from the branch unification
 - All existing ENV var overrides continue to work
 
 ### Server
-- Deploy with: `docker compose -f docker-compose.yml -f production.yml -f deployments/sirc.yml up`
-- The `sirc.yml` file moved from repo root to `deployments/sirc.yml`
+- Deploy with: `docker compose -f docker-compose.yml -f production.yml -f deployments/sirc/sirc.yml -f deployments/sirc/prod.yml up up`
+- The `sirc.yml` file moved from repo root to `deployments/sirc/sirc.yml`
 
 ### Docker Builds
 Proxy/cert configuration is no longer hardcoded in Dockerfiles. Instead, `sirc.yml`
 passes build args automatically. **No action needed** — just rebuild as usual with
 the SIRC overlay:
 ```bash
-docker compose -f docker-compose.yml -f deployments/sirc.yml build
+docker compose -f docker-compose.yml -f deployments/sirc/sirc.yml build
 ```
 The overlay provides `PROXY_URL`, `CA_CERT_URL`, `NO_PROXY`, `GIT_SSL_VERIFY`,
 `NODE_TLS_REJECT_UNAUTHORIZED`, and `QABOARD_EXTRA=sirc` as build args.
@@ -38,11 +38,11 @@ gitignored (only `.gitkeep` is tracked). Copy your certs back after cloning.
 - This auto-configures API URL (https://qaboard.samsungds.net)
 
 ### Server
-- Deploy with: `docker compose -f docker-compose.yml -f production.yml -f deployments/dsk.yml up`
+- Deploy with: `docker compose -f docker-compose.yml -f production.yml -f deployments/dsk/dsk.yml up`
 
 ### Docker Builds
 Proxy/cert values are no longer hardcoded. Set `PROXY_URL`, `CA_CERT_URL`, and
-`NO_PROXY` in your `.env` file or override them in `deployments/dsk.yml`.
+`NO_PROXY` in your `.env` file or override them in `deployments/dsk/dsk.yml`.
 
 ### Breaking Changes
 - DB migration required: `is_ldap`/`is_sso` booleans -> `login_type` string field

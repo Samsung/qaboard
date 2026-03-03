@@ -11,12 +11,9 @@ services:
   redis:
     logging:
       driver: none
-  # cantaloupe:
-  #   logging:
-  #     driver: none
-  # metabase:
-  #   logging:
-  #     driver: none
+  cantaloupe:
+    logging:
+      driver: none
   proxy:
     environment:
     - NGINX_BIN=nginx-debug

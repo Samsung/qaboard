@@ -1,0 +1,41 @@
+# SIRC (Samsung Israel R&D Center) compose overlay
+# Usage: docker compose -f docker-compose.yml -f production.yml -f deployments/sirc/sirc.yml -f deployments/sirc/prod.yml up
+
+x-sirc-logging: &sirc-logging
+  logging:
+    driver: "fluentd"
+    options:
+      tag: qaboard.db
+      fluentd-address: "0.0.0.0:24224"
+
+services:
+  fluentd:
+    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:fluentd"
+    restart: always
+    build:
+      context: deployments/fluentd
+      dockerfile: fluentd.Dockerfile
+    container_name: fluentd
+    ports:
+      - "24224:24224"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./services/fluentd/fluentd.conf:/fluentd/etc/fluentd.conf
+    environment:
+      - FLUENTD_CONF=fluentd.conf
+
+  db:
+    <<: *sirc-logging
+
+  backend:
+    <<: *sirc-logging
+
+  cron-backup-db:
+    volumes:
+    - /home/ispq/qaboard_data_prod/database_backups:/backups
+    environment:
+      AS_USER_NAME: ispq
+      AS_USER_GROUP: uucp
+      AS_USER_UID: "1411"
+      AS_USER_GID: "10"
+    <<: *sirc-logging

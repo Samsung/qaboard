@@ -1,36 +1,13 @@
 # SIRC (Samsung Israel R&D Center) compose overlay
-# Usage: docker compose -f docker-compose.yml -f production.yml -f deployments/sirc.yml up
+# Usage: docker compose -f docker-compose.yml -f production.yml -f deployments/sirc/sirc.yml up
 
 x-sirc-build-args: &sirc-build-args
   PROXY_URL: "http://webproxy.transchip.com:8080"
   CA_CERT_URL: "http://itweb/downloads/sirc-ca.crt"
   NO_PROXY: "gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt,sentry,sentry.transchip.com"
 
-x-sirc-logging: &sirc-logging
-  logging:
-    driver: "fluentd"
-    options:
-      tag: qaboard.db
-      fluentd-address: "0.0.0.0:24224"
-
-
 
 services:
-  fluentd:
-    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:fluentd"
-    restart: always
-    build:
-      context: deployments/fluentd
-      dockerfile: fluentd.Dockerfile
-    container_name: fluentd
-    ports:
-      - "24224:24224"
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - ./services/fluentd/fluentd.conf:/fluentd/etc/fluentd.conf
-    environment:
-      - FLUENTD_CONF=fluentd.conf
-
   db:
     # postgres needs a file owned by postgres, and we cannot chown on our shared storage
     # the default entrypoint changes user from root to postgres and inits the database,
@@ -42,22 +19,8 @@ services:
     - /home/ispq/qaboard_data_prod/database_backups:/backups
     ports:
       - ${QABOARD_EXPOSED_DB_PORT:-5432}:5432
-    <<: *sirc-logging
-
-  cron-backup-db:
-    volumes:
-    - /home/ispq/qaboard_data_prod/database_backups:/backups
-    environment:
-      AS_USER_NAME: ispq
-      AS_USER_GROUP: uucp
-      AS_USER_UID: "1411"
-      AS_USER_GID: "10"
-    <<: *sirc-logging
-
-
 
   backend:
-    <<: *sirc-logging
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:backend"
     build:
       ssh: [default]
@@ -113,12 +76,10 @@ services:
     # backward compat, from LSF accessing port 80 doesn't always work...
     - ${QABOARD_EXTRA_SIRC_PORT_1:-5000}:5000
     - ${QABOARD_EXTRA_SIRC_PORT_2:-5002}:5002
-    depends_on:
-    - iiif-cde
     environment:
     - NGINX_USER=ispq
     volumes:
-    - ./deployments/nginx/sirc.conf:/etc/nginx/conf.d/sirc.conf:ro
+    - ./deployments/sirc/nginx/sirc.conf:/etc/nginx/conf.d/sirc.conf:ro
     - /home/ispq/qaboard_prod/services/nginx/ssl/qa/qa.key:/ssl/cert.key
     - /home/ispq/qaboard_prod/services/nginx/ssl/qa/cert.cer:/ssl/cert.cer
     - /home/ispq/qaboard_prod/services/nginx/ssl/publish/publish.cer:/ssl/publish.cer

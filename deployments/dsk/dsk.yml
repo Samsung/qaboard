@@ -1,5 +1,5 @@
 # DSK (Device Solution Korea) compose overlay
-# Usage: docker compose -f docker-compose.yml -f production.yml -f deployments/dsk.yml up
+# Usage: docker compose -f docker-compose.yml -f production.yml -f deployments/dsk/dsk.yml up
 
 # Set these in .env or override below with your DSK proxy/cert values:
 #   PROXY_URL, CA_CERT_URL, NO_PROXY
@@ -36,7 +36,7 @@ services:
       args:
         <<: *dsk-build-args
     volumes:
-      - ./deployments/nginx/dsk.conf:/etc/nginx/conf.d/dsk.conf:ro
+      - ./deployments/dsk/nginx/dsk.conf:/etc/nginx/conf.d/dsk.conf:ro
 
   cron-backup-db:
     environment:
@@ -45,3 +45,21 @@ services:
       - AS_USER_GID=1001
     volumes:
       - /var/qaboard/data/backups:/backup
+
+
+  # iiif-cde:
+  #   # TODO: sync with DSK the new image
+  #   image: gitlab-srv:4567/swi/iipsrv
+  #   restart: always
+  #   # command: 'tail -f /dev/null' # keeps the container up for debugging, but does nothing...
+  #   # volumes:
+  #   # - TBD
+  #   user: "${USER_ID}:${USER_GID}"
+  #   environment:
+  #     - LOGFILE=/tmp/socket/log
+  #     - VERBOSITY=10
+  #     - MAX_CVT=-1
+  #     - PNG_QUALITY=9
+  #     - CORS=*
+  #     - FILESYSTEM_PREFIX=/var/www/localhost/images
+  #     - HOME=/home/${USER}
