@@ -61,7 +61,6 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-      # ssh: [default]
     # Wait for the database to be ready - https://docs.docker.com/compose/startup-order/
     command: ["./wait-for-it.sh", "${QABOARD_DB_HOST-db}:${QABOARD_DB_PORT-5432}", "--", "/qaboard/backend/init.sh"]
     depends_on:
