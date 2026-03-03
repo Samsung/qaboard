@@ -248,15 +248,15 @@ class ImgViewer extends React.PureComponent {
             viewer.viewport.zoomTo(zoom, null, true);
             viewer.viewport.panTo(center, true);
             sync_group.leading = null;
-            }
           }
-        }, { rootMargin: '20%' }); // ~20vh: IntersectionObserver doesn't support vh, but % is relative to viewport when root is null
+        }
+      }, { rootMargin: '20%' }); // ~20vh: IntersectionObserver doesn't support vh, but % is relative to viewport when root is null
 
-        observer.observe(viewer.container);
-        sync_group.observers[viewer.id] = observer;
-      };
+      observer.observe(viewer.container);
+      sync_group.observers[viewer.id] = observer;
+    };
 
-      setupVisibilityTracking(viewer_new);
+    setupVisibilityTracking(viewer_new);
     setupVisibilityTracking(viewer_ref);
 
      // If joining a group that was already zoomed/panned (e.g. viewer mounted late),
