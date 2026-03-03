@@ -6,7 +6,31 @@ x-sirc-build-args: &sirc-build-args
   CA_CERT_URL: "http://itweb/downloads/sirc-ca.crt"
   NO_PROXY: "gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt,sentry,sentry.transchip.com"
 
+x-sirc-logging: &sirc-logging
+  logging:
+    driver: "fluentd"
+    options:
+      tag: qaboard.db
+      fluentd-address: "0.0.0.0:24224"
+
+
+
 services:
+  fluentd:
+    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:fluentd"
+    restart: always
+    build:
+      context: deployments/fluentd
+      dockerfile: fluentd.Dockerfile
+    container_name: fluentd
+    ports:
+      - "24224:24224"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ./services/fluentd/fluentd.conf:/fluentd/etc/fluentd.conf
+    environment:
+      - FLUENTD_CONF=fluentd.conf
+
   db:
     # postgres needs a file owned by postgres, and we cannot chown on our shared storage
     # the default entrypoint changes user from root to postgres and inits the database,
@@ -18,6 +42,7 @@ services:
     - /home/ispq/qaboard_data_prod/database_backups:/backups
     ports:
       - ${QABOARD_EXPOSED_DB_PORT:-5432}:5432
+    <<: *sirc-logging
 
   cron-backup-db:
     volumes:
@@ -27,10 +52,12 @@ services:
       AS_USER_GROUP: uucp
       AS_USER_UID: "1411"
       AS_USER_GID: "10"
+    <<: *sirc-logging
 
 
 
   backend:
+    <<: *sirc-logging
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:backend"
     build:
       ssh: [default]
@@ -110,27 +137,31 @@ services:
     - /sim:/sim:shared
     - /data:/data:shared
 
-  # cantaloupe:
-  #   image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:cantaloupe"
-  #   user: "1411:10" # FIXME: ==ispq, so remove after a 1st rebuild..
-  #   # user: ispq
-  #   build:
-  #     args:
-  #       <<: *sirc-build-args
-  #       user: ispq
-  #       uid: 1411
-  #       group: uucp
-  #       gid: 10
-  #   volumes:
-  #     - /opt/dockermounts/stage/algo_data:/repository/stage/algo_data
-  #     - /algo/CIS/outputs:/repository/algo/CIS/outputs
-  #     - /algo/CIS_artifacts:/repository/algo/CIS_artifacts
-  #     - /algo/ws/sircdevops/qaboard_data/cantaloupe:/var/cache/cantaloupe
-  #     - /sim:/repository/sim:shared
-  #     - /data:/data:shared
-  #   environment:
-  #     CANTALOUPE_MEM_START: 4g
-  #     CANTALOUPE_MEM_MAX: 8g
+  cantaloupe:
+    # The service is now hosted outside of QA-Board
+    entrypoint: ["true"]
+    command: []
+
+    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:cantaloupe"
+    user: "1411:10" # FIXME: ==ispq, so remove after a 1st rebuild..
+    # user: ispq
+    build:
+      args:
+        <<: *sirc-build-args
+        user: ispq
+        uid: 1411
+        group: uucp
+        gid: 10
+    volumes:
+      - /stage/algo_data:/repository/stage/algo_data
+      - /algo/CIS/outputs:/repository/algo/CIS/outputs
+      - /algo/CIS_artifacts:/repository/algo/CIS_artifacts
+      - /algo/ws/sircdevops/qaboard_data/cantaloupe:/var/cache/cantaloupe
+      - /sim:/repository/sim:shared
+      - /data:/data:shared
+    environment:
+      CANTALOUPE_MEM_START: 4g
+      CANTALOUPE_MEM_MAX: 8g
 
   frontend:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:frontend"
