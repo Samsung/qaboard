@@ -250,7 +250,7 @@ class ImgViewer extends React.PureComponent {
             sync_group.leading = null;
           }
         }
-      }, { rootMargin: '200px' });
+      }, { rootMargin: '20%' }); // ~20vh: IntersectionObserver doesn't support vh, but % is relative to viewport when root is null
 
       observer.observe(viewer.container);
       sync_group.observers[viewer.id] = observer;
