@@ -42,10 +42,22 @@ dependencies = [
 [tool.uv]
 package = true
 
+# Unfortunately uv tries to resolve even extras we dont use
+# Leading to ssh issues all over the place. So we can't just
+# [project.optional-dependencies]
+# sirc = [
+#     "qaboard-site-sirc",
+#     "cde @ git+ssh://git@gitlab-srv/cde/cde-python",
+# ]
+# dsk = [
+#     "qaboard-site-dsk",
+#     'cde @ git+ssh://git@github.sec.samsung.net/CDE/cde-python',
+# ]
+
 [tool.uv.sources]
 qaboard = { path = "../" }
-qaboard-site-sirc = { path = "../deployments/sirc/cli" }
-qaboard-site-dsk = { path = "../deployments/dsk/cli" }
+# qaboard-site-sirc = { path = "../deployments/sirc/cli" }
+# qaboard-site-dsk = { path = "../deployments/dsk/cli" }
 
 [tool.uv.pip]
 no-binary = ["uwsgi", "lxml", "xmlsec"]

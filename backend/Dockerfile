@@ -1,5 +1,6 @@
 # https://pythonspeed.com/articles/base-image-python-docker-images/
-FROM python:3.14-slim-trixie
+# TODO: 3.14 when pillow ships in binary https://pillow.readthedocs.io/en/latest/installation/platform-support.html
+FROM python:3.13-slim-trixie
 
 LABEL maintainer="arthurf.flam@samsung.com"
 
@@ -52,6 +53,12 @@ RUN if [ "$GIT_SSL_VERIFY" = "false" ]; then \
     git config --system --add safe.directory '*' && \
     git config --global --add safe.directory '*'
 
+ARG GIT_SERVER=""
+RUN --mount=type=ssh \
+    if [ -n "$GIT_SERVER" ]; then \
+      ssh -T -o StrictHostKeyChecking=no git@$GIT_SERVER; \
+    fi
+
 RUN apt-get update -qq && \
     apt-get install -y \
     # https://www.psycopg.org/docs/install.html#install-from-source
@@ -87,9 +94,10 @@ ENV UWSGI_PROFILE_OVERRIDE="xml=no"
 # References:
 # https://docs.astral.sh/uv/guides/integration/docker/
 # https://hynek.me/articles/docker-uv/
-COPY --from=ghcr.io/astral-sh/uv:0.10.6 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.10.7 /uv /uvx /bin/
     # Already isolated environment
 ENV UV_SYSTEM_PYTHON=1 \
+    UV_PROJECT_ENVIRONMENT="/usr/local/" \
     # Silence uv complaining about not being able to use hard links
     UV_LINK_MODE=copy \
     # Faster application startups
@@ -100,6 +108,9 @@ ENV UV_SYSTEM_PYTHON=1 \
 # Make it possible to resolve dependencies of the CLI package
 WORKDIR /qaboard
 COPY pyproject.toml README.md ./
+WORKDIR /qaboard
+COPY deployments/ ./deployments
+# RUN ls /qaboard && exit 1
 
 WORKDIR /qaboard/backend
 # Install all dependencies
@@ -141,11 +152,12 @@ RUN --mount=type=ssh \
 
 # Install site-specific extras (e.g. QABOARD_EXTRA=sirc)
 ARG QABOARD_EXTRA=""
+ARG CDE_PACKAGE=""
 RUN --mount=type=ssh \
     --mount=type=cache,target=/root/.cache/uv \
     if [ -n "$QABOARD_EXTRA" ]; then \
-      ssh -T -o StrictHostKeyChecking=no git@gitlab-srv || true && \
-      uv sync --extra "$QABOARD_EXTRA" --refresh-package qaboard; \
+      # uv sync --extra "$QABOARD_EXTRA" --refresh-package qaboard; \
+      uv pip install "qaboard-site-$QABOARD_EXTRA @ file:../deployments/$QABOARD_EXTRA/cli" "$CDE_PACKAGE"; \
     fi
 
 # Clear proxy env so it doesn't leak into runtime containers

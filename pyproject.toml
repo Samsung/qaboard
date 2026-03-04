@@ -44,14 +44,16 @@ dev = [
     "types-setuptools",
     "types-simplejson",
 ]
-sirc = [
-    "qaboard-site-sirc",
-    "cde @ git+ssh://git@gitlab-srv/cde/cde-python",
-]
-dsk = [
-    "qaboard-site-dsk",
-    'cde @ git+ssh://git@github.sec.samsung.net/CDE/cde-python',
-]
+# Unfortunately pip does not understand tool.uv.sources
+# and uv does not understand syntax with "qaboard-site-sirc @ file:deployements/sirc/cli"
+# and if we use an ssh syntax in uv it will try to resolve even if it is part of an unused extra
+# so we are forced to really split into 2 packages
+# sirc = [
+#     "qaboard-site-sirc",
+# ]
+# dsk = [
+#     "qaboard-site-dsk",
+# ]
 
 [project.scripts]
 qa = "qaboard.qa:main"
@@ -70,10 +72,10 @@ packages = [
     "qatools",
 ]
 
-
-[tool.uv.sources]
-qaboard-site-sirc = { path = "deployments/sirc/cli" }
-qaboard-site-dsk = { path = "deployments/dsk/cli" }
+# See above
+# [tool.uv.sources]
+# qaboard-site-sirc = { path = "deployments/sirc/cli" }
+# qaboard-site-dsk = { path = "deployments/dsk/cli" }
 
 [tool.hatch.metadata]
 allow-direct-references = true

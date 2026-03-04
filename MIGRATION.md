@@ -6,13 +6,16 @@ This document covers breaking changes from the branch unification
 ## For SIRC Users
 
 ### CLI
-- Install with: `pip install qaboard[sirc]` (was: `pip install qaboard`)
+- After the regular install with: `pip install git+ssh://git@gitlab-srv/common-infrastructure/qaboard`
+- Also install the site config:
+```bash
+    pip install --upgrade "qaboard-site-sirc @ git+ssh://git@gitlab-srv/common-infrastructure/qaboard#subdirectory=deployments/sirc/cli"
+```
 - This auto-configures API URL (https://qa), port (5000), secrets path (! we dont support it anymore as part of the project config)
 - All existing ENV var overrides continue to work
 
 ### Server
 - Deploy with: `docker compose -f docker-compose.yml -f production.yml -f deployments/sirc/sirc.yml -f deployments/sirc/prod.yml up up`
-- The `sirc.yml` file moved from repo root to `deployments/sirc/sirc.yml`
 
 ### Docker Builds
 Proxy/cert configuration is no longer hardcoded in Dockerfiles. Instead, `sirc.yml`
@@ -28,7 +31,6 @@ If you have custom certs in `services/cantaloupe/cert/`, those files are now
 gitignored (only `.gitkeep` is tracked). Copy your certs back after cloning.
 
 ### Breaking Changes
-- `on_vdi`/`on_lsf` host detection removed. Replaced by qaboard[sirc] package.
 - `--lsf-threads` renamed to `--lsf-max-threads` (already done on master-sirc)
 
 ## For DSK Users

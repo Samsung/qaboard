@@ -4,6 +4,8 @@
 x-sirc-build-args: &sirc-build-args
   PROXY_URL: "http://webproxy.transchip.com:8080"
   CA_CERT_URL: "http://itweb/downloads/sirc-ca.crt"
+  GIT_SERVER: "gitlab-srv"
+  CDE_PACKAGE: "cde @ git+ssh://git@gitlab-srv/cde/cde-python"
   NO_PROXY: "gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt,sentry,sentry.transchip.com"
 
 

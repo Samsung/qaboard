@@ -6,6 +6,8 @@
 x-dsk-build-args: &dsk-build-args
   PROXY_URL: ${PROXY_URL:-}
   CA_CERT_URL: ${CA_CERT_URL:-}
+  GIT_SERVER: "github.sec.samsung.net"
+  CDE_PACKAGE: "cde @ git+ssh://git@github.sec.samsung.net/CDE/cde-python"
   NO_PROXY: ${NO_PROXY:-}
 
 services:

@@ -33,7 +33,8 @@ else:
     click.secho(f"         To remove this warning provide it as an environment variable (via QABOARD_HOST, e.g. 'qaboard-srv', 'qaboard-srv:443').", fg='yellow', err=True)
     click.secho(f"         If needed you can define QABOARD_PROTOCOL (default: http). You can also provide both QABOARD_HOSTNAME and QABOARD_PORT.", fg='yellow', err=True)
     click.secho(f"       > If you have not started a QA-Board server, read the docs to learn how to start one!", fg='yellow', err=True)
-    click.secho(f"       > If you work at sirc/dsk re-install with e.g. 'pip install qaboard[sirc]'", fg='yellow', bold=True, err=True)
+    click.secho(f"       > If you work at sirc/dsk re-install with e.g.:", fg='yellow', bold=True, err=True)
+    click.secho(f"         pip install --upgrade 'qaboard-site-sirc @ git+ssh://git@gitlab-srv/common-infrastructure/qaboard#subdirectory=deployments/sirc/cli'", fg='yellow', err=True)
 
 api_prefix = site_config('QABOARD_API_PREFIX', f"{qaboard_url}/api/v1")
 

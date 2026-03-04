@@ -7,8 +7,10 @@ Priority order (highest wins):
 3. Hardcoded open-source defaults
 
 Install a site package to auto-configure:
-    pip install qaboard[sirc]    # SIRC defaults
-    pip install qaboard[dsk]     # DSK defaults
+    # for SIRC 
+    pip install --upgrade "qaboard-site-sirc @ git+ssh://git@gitlab-srv/common-infrastructure/qaboard#subdirectory=deployments/sirc/cli"    # SIRC defaults
+    # for DSK (replace the repo URL with one you can access)
+    pip install --upgrade "qaboard-site-dsk @ git+ssh://git@gitlab-srv/common-infrastructure/qaboard#subdirectory=deployments/dsk/cli"    # DSK defaults
 """
 import os
 from pathlib import Path
