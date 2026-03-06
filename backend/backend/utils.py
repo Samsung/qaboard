@@ -8,6 +8,7 @@ import requests
 from hashlib import md5
 from pathlib import Path
 from functools import cache
+from urllib.parse import urlparse
 
 from .hybrid_cache import hybrid_cache
 
@@ -100,6 +101,56 @@ def get_avatar_url(name):
     return user['avatar_url']
   else:
     return gravatar_url(name)
+
+def detect_hosting_type(url):
+  """Detect whether a URL points to a GitHub or GitLab instance."""
+  if not url:
+    return "gitlab"  # backward compat default
+  parsed = urlparse(url)
+  hostname = parsed.hostname or ''
+  if "github" in hostname:
+    return "github"
+  return "gitlab"
+
+
+def _github_api_base(web_url):
+  """Derive the GitHub API base URL from a repository web URL."""
+  parsed = urlparse(web_url)
+  if parsed.hostname == 'github.com':
+    return 'https://api.github.com'
+  # GitHub Enterprise: https://github.example.com/api/v3
+  return f'{parsed.scheme}://{parsed.hostname}/api/v3'
+
+
+@hybrid_cache(ttl=12*60*60) # 12h
+def get_github_avatar_url(name, web_url=''):
+  """Retrieve avatar URL for a user from GitHub API."""
+  github_token = os.environ.get('GITHUB_ACCESS_TOKEN', '')
+  api_base = _github_api_base(web_url) if web_url else 'https://api.github.com'
+
+  headers = {}
+  if github_token:
+    headers['Authorization'] = f'Bearer {github_token}'
+
+  # Try searching by name
+  try:
+    r = requests.get(
+      f'{api_base}/search/users',
+      params={'q': f'{name} in:name'},
+      headers=headers,
+      timeout=5,
+      proxies={},
+    )
+    if r.ok:
+      items = r.json().get('items', [])
+      if items:
+        return items[0].get('avatar_url', '')
+  except Exception as e:
+    print(f'[WARNING] GitHub avatar lookup failed for {name}: {e}')
+
+  # Fall back to gravatar
+  return gravatar_url(name)
+
 
 # Wrapp function calls in profiled(my_call()) to profile code
 import cProfile, pstats, io

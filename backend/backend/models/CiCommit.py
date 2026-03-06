@@ -20,7 +20,7 @@ from qaboard.conventions import get_commit_dirs
 from qaboard.api import dir_to_url
 
 from backend.models import Base, Batch, Output
-from ..utils import get_avatar_url
+from ..utils import get_avatar_url, get_github_avatar_url
 from ..fs_utils import rm_empty_parents, rmtree
 from ..git_utils import find_branch
 
@@ -327,6 +327,14 @@ class CiCommit(Base):
       ci_commit.data = {}
     return ci_commit
 
+  def _get_avatar_url(self):
+    """Return the avatar URL using the appropriate hosting provider."""
+    hosting_type = self.project.data.get('git', {}).get('hosting_type', 'gitlab')
+    if hosting_type == 'github':
+      web_url = self.project.data.get('git', {}).get('web_url', '')
+      return get_github_avatar_url(self.committer_name, web_url)
+    return get_avatar_url(self.committer_name)
+
   def to_dict(self, db_session, with_aggregation=None, with_batches=None, with_outputs=False):
     repo_artifacts_url = self.repo_artifacts_url
     artifacts_url = self.artifacts_url
@@ -338,7 +346,7 @@ class CiCommit(Base):
         # 'parents': [p for p in self.parents] if self.parents else [],
         'message': self.message,
         'committer_name': self.committer_name,
-        'committer_avatar_url': get_avatar_url(self.committer_name),
+        'committer_avatar_url': self._get_avatar_url(),
         'authored_datetime': self.authored_datetime.isoformat(),
         'authored_date': self.authored_date.isoformat(),
         'latest_output_datetime': self.latest_output_datetime.isoformat() if self.latest_output_datetime else None,

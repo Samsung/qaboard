@@ -50,3 +50,23 @@ def gitlab_webhook():
   update_project(data, db_session)
   return "{status:'OK'}"
 
+
+@app.route('/webhook/github', methods=['GET', 'POST'])
+def github_webhook():
+  """If GitHub calls this endpoint every push, we normalize the payload and update our local copy of the repo."""
+  # https://docs.github.com/en/webhooks/webhook-events-and-payloads#push
+  data = json.loads(request.data)
+  print(data, file=sys.stderr)
+  normalized = {
+    'ref': data['ref'],
+    'checkout_sha': data.get('after'),
+    'project': {
+      'path_with_namespace': data['repository']['full_name'],
+      'web_url': data['repository']['html_url'],
+      'name': data['repository']['name'],
+      'hosting_type': 'github',
+    }
+  }
+  update_project(normalized, db_session)
+  return "{status:'OK'}"
+

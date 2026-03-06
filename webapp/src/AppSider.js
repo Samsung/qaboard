@@ -428,9 +428,8 @@ class ProjectSideAvatar extends React.Component {
 
     const project_git_hostname = git_hostname(project_data?.data?.qatools_config) ?? default_git_hostname
     git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
-    const gitlab_host = git.web_url.split('/').slice(0,3).join('/')
     let avatar_url = git.avatar_url
-    if (!!avatar_url && avatar_url.startsWith(gitlab_host)) {
+    if (!!avatar_url) {
       avatar_url = encodeURI(`/api/v1/gitlab/proxy?url=${avatar_url}`)
     }
     return (

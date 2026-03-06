@@ -269,8 +269,7 @@ class CommitRow extends React.Component {
     const has_data = !!commit?.authored_datetime
     let maybe_skeletton = has_data ? null : Classes.SKELETON;
     let avatar_url = commit?.committer_avatar_url
-    const gitlab_host = git.web_url.split('/').slice(0,3).join('/')
-    if (!!avatar_url && avatar_url.startsWith(gitlab_host)) {
+    if (!!avatar_url) {
       avatar_url = encodeURI(`/api/v1/gitlab/proxy?url=${avatar_url}`)
     }
     const commit_has_milestones = has_milestones({commit, project, project_data})

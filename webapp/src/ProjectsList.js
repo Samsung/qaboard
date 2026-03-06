@@ -111,9 +111,8 @@ class ProjectsList extends Component {
 
             const project_git_hostname = git_hostname(data.qatools_config) ?? default_git_hostname
             git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
-            const gitlab_host = git.web_url.split('/').slice(0,3).join('/')
             let avatar_url = qatools_config_project.avatar_url ?? git.avatar_url
-            if (!!avatar_url && avatar_url.startsWith(gitlab_host)) {
+            if (!!avatar_url) {
               avatar_url = encodeURI(`/api/v1/gitlab/proxy?url=${avatar_url}`)
             }
             const is_subproject = git.path_with_namespace !== project_id;

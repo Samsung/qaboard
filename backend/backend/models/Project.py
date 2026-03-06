@@ -186,8 +186,10 @@ def update_project(data, db_session):
   root_project = Project.get_or_create(session=db_session, id=root_project_id)
   update_project_data(root_project, data, db_session)
 
+  hosting_type = data['project'].get('hosting_type')
+  web_url = data['project'].get('web_url')
   try:
-    repo = repos[root_project_id]
+    repo = repos.get(root_project_id, hosting_type=hosting_type, web_url=web_url)
     git_pull(repo)
   except:
     print(f"Could not fetch the git info for {root_project_id}")

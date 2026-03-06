@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlparse
 
 from git import Repo
 from git import RemoteProgress
@@ -16,18 +17,36 @@ class Repos():
         self.git_server = self.git_server + '/'
     self.clone_directory = clone_directory
 
-  def __getitem__(self, project_path):
+  def _authenticated_clone_url(self, project_path, hosting_type=None, web_url=None):
+    """Build an authenticated clone URL for GitHub or GitLab."""
+    if hosting_type == 'github':
+      github_token = os.environ.get('GITHUB_ACCESS_TOKEN', '')
+      if web_url:
+        parsed = urlparse(web_url)
+        host = parsed.hostname
+        scheme = parsed.scheme
+      else:
+        host = 'github.com'
+        scheme = 'https'
+      if github_token:
+        return f"{scheme}://x-access-token:{github_token}@{host}/{project_path}"
+      return f"{scheme}://{host}/{project_path}"
+    else:
+      # GitLab (default)
+      gitlab_token = os.environ.get('GITLAB_ACCESS_TOKEN', '')
+      if gitlab_token:
+        return self.git_server.replace('://', f"://oauth2:{gitlab_token}@") + project_path
+      return f"{self.git_server}{project_path}"
+
+  def __getitem__(self, project_path, hosting_type=None, web_url=None):
     """
     Return a git-python Repo object representing a clone
     of $QABOARD_GIT_SERVER/project_path at $QABOARD_DATA_DIR
 
     project_path: the full git repository namespace, eg group/repo
+    hosting_type: 'github' or 'gitlab' (default)
+    web_url: the web URL of the repo (used to derive host for GitHub Enterprise)
     """
-    if "GITLAB_ACCESS_TOKEN" not in os.environ:
-      raise ValueError(f'[ERROR] Please provide $GITLAB_ACCESS_TOKEN as environment variable')
-    if "GITLAB_HOST" not in os.environ:
-      raise ValueError(f'[ERROR] Please provide $GITLAB_HOST as environment variable')
-
     clone_location = str(self.clone_directory / project_path)
     try:
       repo = Repo(clone_location)
@@ -36,14 +55,11 @@ class Repos():
       rmtree(clone_location) # fail, and hopefully it will work better next time...
     except NoSuchPathError:
       try:
-        # TODO: use access token :)
-        # git clone http://oauth2:xxxxxxxxxxxxxxxxx@gitlab-srv/cde/cde-python
-        gitlab_uri = self.git_server.replace('://', f"://oauth2:{os.environ['GITLAB_ACCESS_TOKEN']}@")
+        clone_url = self._authenticated_clone_url(project_path, hosting_type=hosting_type, web_url=web_url)
         print(f'Cloning <{project_path}> to {self.clone_directory}')
         # https://gitpython.readthedocs.io/en/stable/reference.html#git.repo.base.Repo.clone_from
         repo = Repo.clone_from(
-          # for now we expect everything to be on gitlab-srv via http
-          f"{gitlab_uri}{project_path}",
+          clone_url,
           str(clone_location),
         )
       except Exception as e:
@@ -51,6 +67,10 @@ class Repos():
         raise(e)
     self._repos[project_path] = repo
     return self._repos[project_path]
+
+  def get(self, project_path, hosting_type=None, web_url=None):
+    """Like __getitem__ but accepts hosting context parameters."""
+    return self.__getitem__(project_path, hosting_type=hosting_type, web_url=web_url)
 
 
 def git_pull(repo):

@@ -5,6 +5,7 @@ qaboard_url = os.getenv('QABOARD_URL', 'http://qaboard')
 
 # we clone our repositories locally here to access commit metadata
 git_server = os.getenv('GITLAB_HOST', 'https://gitlab.com')
+github_token = os.getenv('GITHUB_ACCESS_TOKEN', '')
 
 # Where we save "non-metadata" qaboard data
 qaboard_data_dir = Path(os.getenv('QABOARD_DATA_DIR', '/var/qaboard')).resolve()
