@@ -516,7 +516,6 @@ class OutputCard extends React.Component {
         const isEnabled = (!view.default_hidden && controls.show?.[view.name] !== false) || 
                          (controls.show?.[view.name] === true);
         let hidden = !isEnabled;
-        console.log(`Rendering view ${view.name} - hidden: ${hidden}`)
         if (hidden)
           return <span key={idx} />
 

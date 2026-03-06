@@ -374,9 +374,33 @@ class CiCommitResults extends Component {
   }
 
   componentDidUpdate(prevProps) {
-    // if (this.props.match.url !== prevProps.match.url) {
-    //   this.fetchCommits();
-    // }
+    // Reset all registration state when commit or batch changes
+    const commitChanged = this.props.new_commit_id !== prevProps.new_commit_id;
+    const batchChanged = this.props.selected_batch_new !== prevProps.selected_batch_new;
+
+    if (commitChanged || batchChanged) {
+      this.setState({
+        registered_outputs: new Set(),
+        global_dynamic_options: {},
+        output_options_store: {},
+        visualizations_with_files: new Set(),
+        registration_info: {
+          total_outputs: 0,
+          registered_outputs: 0,
+          is_throttled: false,
+          last_recompute_at: 0,
+        },
+      });
+    }
+
+    // Reset file tracking when filter changes (but keep registrations for performance)
+    const filterChanged = this.props.filter_batch_new !== prevProps.filter_batch_new;
+    if (filterChanged && !commitChanged && !batchChanged) {
+      this.setState({
+        visualizations_with_files: new Set(),
+      });
+    }
+
     const config_curr = this.props.config;
     const config_prev = prevProps.config;
     const new_outputs = config_curr?.outputs;
@@ -384,15 +408,16 @@ class CiCommitResults extends Component {
 
     if (new_outputs !== old_outputs ) {
       let newControls = controls_defaults(config_curr);
-      // Preserve existing dynamic options and sync preferences when config changes
+      // Preserve existing user preferences when config changes
+      newControls.show = { ...newControls.show, ...this.state.controls.show };
       newControls.dynamic_options = this.state.controls.dynamic_options || {};
       newControls.dynamic_options_sync = this.state.controls.dynamic_options_sync || {};
-      
+
       // Only reset registrations if the actual visualization config has meaningfully changed
       // This prevents unnecessary flashing when just switching tabs within the same project
       const prevVisualizationsConfig = JSON.stringify(old_outputs?.visualizations || []);
       const currVisualizationsConfig = JSON.stringify(new_outputs?.visualizations || []);
-      
+
       if (prevVisualizationsConfig !== currVisualizationsConfig) {
         // True config change - reset and re-discover
         this.setState({

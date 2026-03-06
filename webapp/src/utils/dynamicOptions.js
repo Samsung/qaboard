@@ -102,12 +102,7 @@ export const parseVisualizationOptions = (views, manifests = {}) => {
 export const calculateOptionValues = (option, manifestPaths) => {
   const values = new Set();
   
-  // Performance optimization: limit processing for large manifest lists
-  const pathsToProcess = manifestPaths.length > 1000 
-    ? manifestPaths.slice(0, 1000) // Sample first 1000 paths for performance
-    : manifestPaths;
-  
-  pathsToProcess.forEach(path => {
+  manifestPaths.forEach(path => {
     option.paths.forEach(optionPath => {
       const match = matchPath(path, { path: optionPath });
       if (match === null || match === undefined) return;

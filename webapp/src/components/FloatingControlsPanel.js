@@ -433,7 +433,7 @@ const FloatingControlsPanel = ({
           )}
 
           {/* Visualizations Section */}
-          {show_viewer_controls && visualizationsWithFiles > 0 && (
+          {show_viewer_controls && (
             <>
               <SectionHeader onClick={() => toggleSection('visualizations')}>
                 <Button
