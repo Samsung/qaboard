@@ -1,6 +1,7 @@
 # https://pythonspeed.com/articles/base-image-python-docker-images/
 # TODO: 3.14 when pillow ships in binary https://pillow.readthedocs.io/en/latest/installation/platform-support.html
-FROM python:3.13-slim-trixie
+#       -slim-trixie when python-ldap binary links with the updated libldap..
+FROM python:3.13-slim-bookworm
 
 LABEL maintainer="arthurf.flam@samsung.com"
 
@@ -63,7 +64,7 @@ RUN apt-get update -qq && \
     apt-get install -y \
     # https://www.psycopg.org/docs/install.html#install-from-source
     # https://www.psycopg.org/docs/faq.html#faq-compile
-    libpq-dev build-essential \
+    libpq-dev build-essential gcc \
     # for Ldap Authentication
     libsasl2-dev libldap2-dev \
     # At SIRC we need to be able to turn into any user to delete their output files
@@ -85,10 +86,8 @@ RUN apt-get update -qq && \
     # for scipy if python is very recent
     gfortran pkg-config libopenblas-dev liblapack-dev \
     # required for python3-saml for python-xmlsec https://xmlsec.readthedocs.io/en/stable/install.html
-    libxml2-dev libxmlsec1-dev libxmlsec1-openssl libz-dev
-
-# https://github.com/xmlsec/python-xmlsec/issues/320
-ENV UWSGI_PROFILE_OVERRIDE="xml=no"
+    libxml2-dev libxmlsec1-dev libxmlsec1-openssl libz-dev \
+    libxslt1-dev # gcc
 
 
 # References:
@@ -98,6 +97,8 @@ COPY --from=ghcr.io/astral-sh/uv:0.10.7 /uv /uvx /bin/
     # Already isolated environment
 ENV UV_SYSTEM_PYTHON=1 \
     UV_PROJECT_ENVIRONMENT="/usr/local/" \
+    # Still useful for dev
+    PATH="/qaboard/backend/.venv/bin:$PATH" \
     # Silence uv complaining about not being able to use hard links
     UV_LINK_MODE=copy \
     # Faster application startups
@@ -110,26 +111,24 @@ WORKDIR /qaboard
 COPY pyproject.toml README.md ./
 WORKDIR /qaboard
 COPY deployments/ ./deployments
-# RUN ls /qaboard && exit 1
 
 WORKDIR /qaboard/backend
 # Install all dependencies
+# https://github.com/xmlsec/python-xmlsec/issues/320
+ENV UWSGI_PROFILE_OVERRIDE="xml=no" \
+    CC=gcc \
+    CXX=g++
 RUN --mount=type=ssh \
     --mount=type=cache,target=/root/.cache/uv \
     --mount=type=bind,source=backend/uv.lock,target=uv.lock,readwrite \
     --mount=type=bind,source=backend/pyproject.toml,target=pyproject.toml \
     uv sync \
     # we ran into issues making sure we really build uwsgi
-    # from source to use the UWSGI_PROFILE_OVERRIDE set above
-    # --refresh-package uwsgi \
-    # --no-binary-package uwsgi \
+    # From source to use the UWSGI_PROFILE_OVERRIDE set above
     #FIXME: when we fix the xml bugs and issues then we can uncomment --locked
     # --locked \
     --no-install-project \
     --no-install-package qaboard
-
-# FIXME: should not be needed: why don't we use the system python?
-ENV PATH="/qaboard/backend/.venv/bin:$PATH"
 
 # Backend
 WORKDIR /qaboard/backend
@@ -151,13 +150,21 @@ RUN --mount=type=ssh \
     # --locked
 
 # Install site-specific extras (e.g. QABOARD_EXTRA=sirc)
+ENV PYTHONPATH="/opt/site-packages:${PYTHONPATH}"
 ARG QABOARD_EXTRA=""
 ARG CDE_PACKAGE=""
+# Useful if we need to dev...
+ENV CDE_PACKAGE=${CDE_PACKAGE}
+ENV QABOARD_EXTRA=${QABOARD_EXTRA}
 RUN --mount=type=ssh \
     --mount=type=cache,target=/root/.cache/uv \
     if [ -n "$QABOARD_EXTRA" ]; then \
+      ## Cannot work as uv requires to resolve even extras... 
       # uv sync --extra "$QABOARD_EXTRA" --refresh-package qaboard; \
-      uv pip install "qaboard-site-$QABOARD_EXTRA @ file:../deployments/$QABOARD_EXTRA/cli" "$CDE_PACKAGE"; \
+      ## Annoying for dev and when managing lock-files
+      # uv pip install "qaboard-site-$QABOARD_EXTRA @ file:../deployments/$QABOARD_EXTRA/cli" "$CDE_PACKAGE"; \
+      uv pip install --no-deps --target /opt/site-packages \
+        "qaboard-site-$QABOARD_EXTRA @ file:../deployments/$QABOARD_EXTRA/cli" "$CDE_PACKAGE"; \
     fi
 
 # TODO: Ideally clear proxy env so it doesn't leak into runtime containers

@@ -23,22 +23,21 @@ services:
   backend:
     volumes:
     - ./qaboard:/qaboard/qaboard
-    - ./qaboard:/usr/local/lib/python3.11/site-packages/qaboard
     - ./backend:/qaboard/backend
+    - ${HOME}:${HOME}
     - ./pyproject.toml:/qaboard/pyproject.toml
     environment:
-    # in dev we run as the user so we can't use the system python
-    # owned by root
+    - FLASK_APP=backend
+    - FLASK_ENV=development
+    - FLASK_DEBUG=1
+    # in dev we run as the user so we can't use the system python owned by root
     - UV_PROJECT_ENVIRONMENT=
     - PYTHONNOUSERSITE=1
     # - QABOARD_DB_ECHO=true
     - UWSGI_STATS=true
-    - FLASK_APP=backend
-    - FLASK_ENV=development
-    - FLASK_DEBUG=1
+    - QABOARD_DATA_DIR=/qaboard/backend/data
     # Connect to the production database
     - QABOARD_DB_HOST=qa
-    # Start a flask debug server instead of the full uwsgi
     - SSH_AUTH_SOCK=/ssh-agent
     working_dir: /qaboard/backend
     # With what's just below, everything works except being able to delete files owned by other users
@@ -54,14 +53,12 @@ services:
     command: >
       bash -c "
       echo '${USER} ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
-      && su ${USER} -c 'uv run flask run --host 0.0.0.0 --with-threads --port 5152'
-      echo 'WARNING: the first time users might need to call manually'
-      echo 'uv add lxml xmlsec uwsgi --no-binary-package uwsgi --no-binary-package lxml --no-binary-package xmlsec --refresh-package lxml --refresh-package xmlsec --refresh-package uwsgi --no-cache --reinstall'
+        su ${USER} -c 'uv run flask run --host 0.0.0.0 --with-threads --port 5152'
       "
     ports:
     - "${QABOARD_DEV_BACKEND_PORT:-5152}:5152"
-    logging:
-      driver: json-file
+    # logging:
+    #   driver: json-file
 
   frontend:
     build:

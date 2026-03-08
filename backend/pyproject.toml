@@ -34,13 +34,17 @@ dependencies = [
     "simplejson",
     "redis",
     "qaboard",
-    "lxml>=5.4.0",
-    "xmlsec>=1.3.15",
+    # see https://github.com/xmlsec/python-xmlsec/issues/320
+    "lxml",
+    "xmlsec",
     "pillow",
 ]
 
 [tool.uv]
 package = true
+# see https://github.com/xmlsec/python-xmlsec/issues/320
+# but not a good enough workaround..
+no-binary-package = ["uwsgi", "lxml", "xmlsec", "psycopg2"]
 
 # Unfortunately uv tries to resolve even extras we dont use
 # Leading to ssh issues all over the place. So we can't just
@@ -59,8 +63,8 @@ qaboard = { path = "../" }
 # qaboard-site-sirc = { path = "../deployments/sirc/cli" }
 # qaboard-site-dsk = { path = "../deployments/dsk/cli" }
 
-[tool.uv.pip]
-no-binary = ["uwsgi", "lxml", "xmlsec"]
+# [tool.uv.pip]
+# no-binary = ["uwsgi", "lxml", "xmlsec"]
 
 # uv sync --extra qaboard
 # [project.optional-dependencies]
