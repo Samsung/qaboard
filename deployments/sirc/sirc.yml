@@ -30,6 +30,9 @@ services:
         <<: *sirc-build-args
         GIT_SSL_VERIFY: "false"
         QABOARD_EXTRA: "sirc"
+    env_file:
+      - .env
+      - deployments/sirc/.env
     environment:
     - GITLAB_HOST=http://gitlab-srv
     - UWSGI_UID=ispq
@@ -49,6 +52,7 @@ services:
     - SENTRY_DSN=${SENTRY_DSN:-}
     - QABOARD_TUNING_RUNNER=lsf
     - QABOARD_DEFAULT_USER=ispq
+    - QA_LSF_SSH_TARGET=ispq@ispq-vdi
     - 'QABOARD_IMAGE_SERVERS={"default": "/iiif", "raw,hex,cde": "/iiif/cde"}'
 
     volumes:
@@ -81,7 +85,7 @@ services:
     environment:
     - NGINX_USER=ispq
     volumes:
-    - ./deployments/sirc/nginx/sirc.conf:/etc/nginx/conf.d/sirc.conf:ro
+    - ./deployments/sirc/nginx/sirc.conf:/tmp/etc/nginx/conf.d/sirc.conf:ro
     - /home/ispq/qaboard_prod/services/nginx/ssl/qa/qa.key:/ssl/cert.key
     - /home/ispq/qaboard_prod/services/nginx/ssl/qa/cert.cer:/ssl/cert.cer
     - /home/ispq/qaboard_prod/services/nginx/ssl/publish/publish.cer:/ssl/publish.cer

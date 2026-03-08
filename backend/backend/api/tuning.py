@@ -232,9 +232,6 @@ def _generate_batch_script(ci_commit, user, working_directory, command_id, batch
 
     default_user = os.environ.get('QABOARD_DEFAULT_USER', 'qaboard')
     outputs_dir_prefix = str(ci_commit.outputs_dir).replace(f'/outputs/{default_user}/', f'/outputs/{user}/')
-
-    use_openstf = data.get("android_device", "").lower() == "openstf"
-
     script = "".join([
         "#!/bin/bash\n",
         'export LC_ALL=en_US.utf8;\n',
@@ -243,8 +240,6 @@ def _generate_batch_script(ci_commit, user, working_directory, command_id, batch
         ('\n'.join(envrcs) + '\n') if envrcs else "",
         "set -xe\n\n",
         f'cd "{working_directory}";\n\n',
-        f"export RESERVED_ANDROID_DEVICE='{data.get('android_device', '')}';\n" if not use_openstf else "",
-        f"export OPENSTF_STORAGE_QUOTA=12;\n" if not use_openstf else "",
         f"\nexport CI=true;\n",
         f"\nexport GIT_COMMIT='{ci_commit.hexsha}';\n",
         f"export QABOARD_TUNING=true;\n\n",
@@ -290,17 +285,21 @@ def _dispatch_celery(qa_batch_path, batch_dir):
 
 def _dispatch_lsf(qa_batch_path, batch_dir, user, ci_commit, do_optimize):
     """Run batch script via LSF job submission (SSH + bsub)."""
+    # TODO: We use a bridge server to submit - ideally we should use
+    #       some LSF API to do it, but their docs/auth are terrible. 
     qatools_config = ci_commit.project.data.get("qatools_config", {})
     lsf_config = qatools_config.get('runners', qatools_config).get("lsf", {})
     default_queue = lsf_config.get('queue', 'default')
-    queue = lsf_config.get('long_queue', 'alg_long_q') if do_optimize else default_queue
-
+    queue = lsf_config.get('long_queue', 'default') if do_optimize else default_queue
+    # TODO: this is SIRC-specific to switch user - would need a better solution
+    #       for LSF but also for other runners...
+    bsub = "bsub" if os.environ.get("QABOARD_DEFAULT_USER") != "ispq" else f'bsub_su "{user}"'
     start_script = "\n".join([
         "#!/bin/bash",
         "set -xe",
         "",
         f'mkdir -p "{batch_dir}"',
-        f'bsub_su "{user}" -q "{queue}" -o "{batch_dir}/log.lsf.txt" -sp 4000 '
+        f'{bsub} -q "{queue}" -o "{batch_dir}/log.lsf.txt" -sp 4000 '
         f"'bash \"{qa_batch_path}\" &>> \"{batch_dir}/log.txt\"'",
     ])
     print(start_script)

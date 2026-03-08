@@ -40,18 +40,22 @@ def gitlab_session_cookie(hostname, user, password, user_type="user"):
         # curl for the login page to get a session cookie and the sources with the auth tokens
         login_url = f'{hostname}/users/sign_in'
         r = s.get(login_url)
-        matches = re.findall(r'<form.* data-testid="new_ldap_user" action="([^"]+)" .* name="authenticity_token" value="([^"]+)"', r.text)
-        if not matches: # before gitlab 16
-          matches = re.findall(r'<form.* id="new_([a-z_]+)" .* action="([^"]+)" .* name="authenticity_token" value="([^"]+)"', r.text)
-        if not matches:
+        # print([l for l in r.text.splitlines() if "ldap_user" in l])
+        auth_matches = re.findall(r'<form.* data-testid="new_(ldap_user)" action="([^"]+)" .* name="authenticity_token" value="([^"]+)"', r.text)
+        if not auth_matches: # before gitlab 16
+          auth_matches = re.findall(r'<form.* id="new_([a-z_]+)" .* action="([^"]+)" .* name="authenticity_token" value="([^"]+)"', r.text)
+        if not auth_matches:
           raise ValueError(f"Cannot find Gitlab login form at {login_url}")
-        print(matches)
-        matches = [m for m in matches if m[0] == user_type]
+        matches = [m for m in auth_matches if m[0] == user_type]
+        if not matches and user_type == "ldap_user": # recent gitlab versions?
+          matches = [m for m in auth_matches if m[0] == "/users/auth/ldapmain/callback"]
+        # print(">> matches", matches)
         try:
             user_type, action, authenticity_token = matches[0]
         except:
             print(r.text)
             print(f"Error with the gitlab login form. {matches}")
+            return None
         login_url = f"{hostname}{action}"
         # print(user_type, login_url, user, password, authenticity_token)
         r = s.post(
@@ -80,7 +84,7 @@ except:
   gitlab_cookies = {}
 refresh_cookies = False
 for hostname, auth in gitlab_credentials.items():
-  if hostname in gitlab_cookies and not refresh_cookies:
+  if gitlab_cookies.get(hostname) and not refresh_cookies:
     continue
   print("Getting gitlab cookie for", hostname)
   url = f"https://{hostname}" if not auth.get('http') else f"http://{hostname}"
@@ -114,7 +118,7 @@ def jenkins_hostname_credentials(build_url):
 def proxy_gitlab():
   url = request.args['url']
   hostname = urlparse(url).hostname
-  if hostname in gitlab_cookies:
+  if gitlab_cookies.get(hostname):
     cookies = {'_gitlab_session': gitlab_cookies[hostname]}
   else:
     cookies = {}

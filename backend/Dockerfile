@@ -160,10 +160,11 @@ RUN --mount=type=ssh \
       uv pip install "qaboard-site-$QABOARD_EXTRA @ file:../deployments/$QABOARD_EXTRA/cli" "$CDE_PACKAGE"; \
     fi
 
-# Clear proxy env so it doesn't leak into runtime containers
-ENV HTTP_PROXY="" http_proxy="" \
-    HTTPS_PROXY="" https_proxy=""
-    # we keep NO_PROXY however!
+# TODO: Ideally clear proxy env so it doesn't leak into runtime containers
+# but for dev it is not a good experience
+# ENV HTTP_PROXY="" http_proxy="" \
+#     HTTPS_PROXY="" https_proxy=""
+#     # we keep NO_PROXY however!
 
 ENV QA_NO_CHECK_FOR_UPDATES=1
 

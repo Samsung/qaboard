@@ -27,6 +27,9 @@ services:
     - ./backend:/qaboard/backend
     - ./pyproject.toml:/qaboard/pyproject.toml
     environment:
+    # in dev we run as the user so we can't use the system python
+    # owned by root
+    - UV_PROJECT_ENVIRONMENT=
     - PYTHONNOUSERSITE=1
     # - QABOARD_DB_ECHO=true
     - UWSGI_STATS=true

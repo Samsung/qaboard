@@ -16,6 +16,9 @@ services:
       args:
         <<: *dsk-build-args
         QABOARD_EXTRA: "dsk"
+    env_file:
+      - .env
+      - deployments/dsk/.env
     environment:
       - QABOARD_LOGIN_TYPE=${QABOARD_LOGIN_TYPE:-SAML}
       - QABOARD_TUNING_RUNNER=celery
@@ -38,7 +41,7 @@ services:
       args:
         <<: *dsk-build-args
     volumes:
-      - ./deployments/dsk/nginx/dsk.conf:/etc/nginx/conf.d/dsk.conf:ro
+      - ./deployments/dsk/nginx/dsk.conf:/tmp/etc/nginx/conf.d/dsk.conf:ro
 
   cron-backup-db:
     environment:
