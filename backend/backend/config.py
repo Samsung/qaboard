@@ -9,6 +9,8 @@ github_token = os.getenv('GITHUB_ACCESS_TOKEN', '')
 
 # Where we save "non-metadata" qaboard data
 qaboard_data_dir = Path(os.getenv('QABOARD_DATA_DIR', '/var/qaboard')).resolve()
+qaboard_data_dir.mkdir(exist_ok=True, parents=True)
+
 # Where we save custom per-project groups (currently used only for extra-runs and tuning in api/tuning.py)
 qaboard_data_shared_dir = Path(os.environ.get("QABOARD_DATA_SHARED_DIR", qaboard_data_dir / 'shared'))
 # Where we clone git repositories

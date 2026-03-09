@@ -15,8 +15,6 @@ services:
     logging:
       driver: none
   proxy:
-    environment:
-    - NGINX_BIN=nginx-debug
     ports:
     - 5001:5001
 

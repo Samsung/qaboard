@@ -41,7 +41,12 @@ services:
       args:
         <<: *dsk-build-args
     volumes:
-      - ./deployments/dsk/nginx/dsk.conf:/tmp/etc/nginx/conf.d/dsk.conf:ro
+    - ./deployments/dsk/nginx/qaboard.conf:/tmp/deployment/nginx/conf.d/qaboard.conf:ro
+
+  flower:
+    build:
+      args:
+        <<: *dsk-build-args
 
   cron-backup-db:
     environment:

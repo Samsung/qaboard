@@ -144,13 +144,23 @@ services:
     build:
       context: services/nginx
     # # https://github.com/docker-library/docs/tree/master/nginx#using-environment-variables-in-nginx-configuration
-    command: /bin/bash -c "rm -rf /etc/nginx && cp -r /tmp/etc/nginx /etc && envsubst < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf && exec ${NGINX_BIN-nginx} -g 'daemon off;'"
+    command: >-
+      /bin/bash -c "
+        set -e;
+        rm -rf /etc/nginx;
+        cp -r /tmp/etc/nginx /etc;
+        if [ -d /tmp/deployment/nginx/conf.d/ ]; then
+          cp -r /tmp/deployment/nginx/conf.d/* /etc/nginx/conf.d/;
+        fi;
+        envsubst < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf;
+        exec $${NGINX_BIN:-nginx} -g 'daemon off;'
+      "
     environment:
     - NGINX_USER=nginx
     ports:
     - ${QABOARD_PORT_HTTP:-5151}:80
     volumes:
-    - ./services/nginx:/tmp/etc/nginx:ro
+    - ./services/nginx:/tmp/etc/nginx
     - frontend_builds:/builds:ro
     - website_builds:/docs:ro
     depends_on:

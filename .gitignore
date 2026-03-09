@@ -18,6 +18,8 @@ commits/
 user/
 drafts/
 
+backend/data/
+
 image.batches.yaml
 iter.batches.yaml
 sub.batches.yaml

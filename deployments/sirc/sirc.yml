@@ -85,7 +85,9 @@ services:
     environment:
     - NGINX_USER=ispq
     volumes:
-    - ./deployments/sirc/nginx/sirc.conf:/tmp/etc/nginx/conf.d/sirc.conf:ro
+    - ./deployments/sirc/nginx/qaboard.conf:/tmp/deployment/nginx/conf.d/qaboard.conf:ro
+    - ./deployments/sirc/nginx/dvd.conf:/tmp/deployment/nginx/conf.d/dvd.conf:ro
+    - ./deployments/sirc/nginx/publish.conf:/tmp/deployment/nginx/conf.d/publish.conf:ro
     - /home/ispq/qaboard_prod/services/nginx/ssl/qa/qa.key:/ssl/cert.key
     - /home/ispq/qaboard_prod/services/nginx/ssl/qa/cert.cer:/ssl/cert.cer
     - /home/ispq/qaboard_prod/services/nginx/ssl/publish/publish.cer:/ssl/publish.cer
@@ -153,5 +155,6 @@ services:
 
   flower:
     build:
+      ssh: [default]
       args:
         <<: *sirc-build-args

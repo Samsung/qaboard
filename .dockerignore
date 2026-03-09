@@ -17,6 +17,8 @@ data/
 
 .dockerignore
 Dockerfile
+*.yml
+
 __pycache__
 *.pyc
 *.pyo
