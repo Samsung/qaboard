@@ -28,6 +28,7 @@ dependencies = [
     "scikit-optimize",
     "sentry-sdk",
     "simplejson",
+    "psutil",
 ]
 license = {text = "Apache-2.0"}
 

@@ -38,7 +38,11 @@ dependencies = [
     "lxml",
     "xmlsec",
     "pillow",
+    "pytz>=2026.1.post1",
 ]
+
+[tool.setuptools.packages.find]
+include = ["backend"] 
 
 [tool.uv]
 package = true

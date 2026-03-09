@@ -87,7 +87,7 @@ RUN apt-get update -qq && \
     gfortran pkg-config libopenblas-dev liblapack-dev \
     # required for python3-saml for python-xmlsec https://xmlsec.readthedocs.io/en/stable/install.html
     libxml2-dev libxmlsec1-dev libxmlsec1-openssl libz-dev \
-    libxslt1-dev # gcc
+    libxslt1-dev
 
 
 # References:
