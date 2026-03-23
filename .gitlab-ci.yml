@@ -28,7 +28,7 @@ unit-tests:
   stage: test
   retry: 2 # solves frequent filesystem sync issues
   script:
-    - green -vvv --quiet-stdout --run-coverage
+    - green -vvv --quiet-stdout --run-coverage tests
 
 type-check:
   stage: test
@@ -130,8 +130,8 @@ deploy:dev:
     DOCKER_HOST: "ssh://alginfra1"
     CI_ENVIRONMENT_SLUG: ""
   script:
-    - source ./.envrc && ./at-sirc-before-up.py > /dev/null && COMPOSE_PROJECT_NAME=qaboard_ci QABOARD_DEV_BACKEND_PORT=7159 QABOARD_DEV_FRONTEND_PORT=7019 QABOARD_PORT_HTTPS=9944 QABOARD_PROXY_PORT_HTTP=9254 QABOARD_EXTRA_SIRC_PORT_1=9000 QABOARD_EXTRA_SIRC_PORT_2=9002 QABOARD_DEV_PROXY_PORT_5001=9001 docker compose -f docker-compose.yml -f development.yml -f sirc.yml build
-    - source ./.envrc && ./at-sirc-before-up.py > /dev/null && COMPOSE_PROJECT_NAME=qaboard_ci QABOARD_DEV_BACKEND_PORT=7159 QABOARD_DEV_FRONTEND_PORT=7019 QABOARD_PORT_HTTPS=9944 QABOARD_PROXY_PORT_HTTP=9254 QABOARD_EXTRA_SIRC_PORT_1=9000 QABOARD_EXTRA_SIRC_PORT_2=9002 QABOARD_DEV_PROXY_PORT_5001=9001 docker compose -f docker-compose.yml -f development.yml -f sirc.yml up --force-recreate --no-deps -d
+    - source ./.envrc && ./at-sirc-before-up.py > /dev/null && COMPOSE_PROJECT_NAME=qaboard_ci QABOARD_DEV_BACKEND_PORT=7159 QABOARD_DEV_FRONTEND_PORT=7019 QABOARD_PORT_HTTPS=9944 QABOARD_PROXY_PORT_HTTP=9254 QABOARD_EXTRA_SIRC_PORT_1=9000 QABOARD_EXTRA_SIRC_PORT_2=9002 QABOARD_DEV_PROXY_PORT_5001=9001 QABOARD_EXPOSED_DB_PORT=7432 docker compose -f docker-compose.yml -f development.yml -f sirc.yml build
+    - source ./.envrc && ./at-sirc-before-up.py > /dev/null && COMPOSE_PROJECT_NAME=qaboard_ci QABOARD_DEV_BACKEND_PORT=7159 QABOARD_DEV_FRONTEND_PORT=7019 QABOARD_PORT_HTTPS=9944 QABOARD_PROXY_PORT_HTTP=9254 QABOARD_EXTRA_SIRC_PORT_1=9000 QABOARD_EXTRA_SIRC_PORT_2=9002 QABOARD_DEV_PROXY_PORT_5001=9001 QABOARD_EXPOSED_DB_PORT=7432 docker compose -f docker-compose.yml -f development.yml -f sirc.yml up --force-recreate --no-deps -d
   environment:
     name: development
     url: http://alginfra1:7159
@@ -154,6 +154,20 @@ smoke-test:dev:
   needs:
     - deploy:dev
 
+backend:tests:
+  stage: smoke-test
+  variables:
+    DOCKER_HOST: "ssh://alginfra1"
+    CI_ENVIRONMENT_SLUG: ""
+  script:
+    - echo "Running backend unit tests..."
+    - source ./.envrc && COMPOSE_PROJECT_NAME=qaboard_ci docker compose -f docker-compose.yml -f development.yml exec -T backend bash -c 'cd /qaboard/backend && python -m pytest backend/tests/ -v -p no:cacheprovider'
+    - echo "✅ Backend tests passed!"
+  only:
+    - master
+  when: on_success
+  needs:
+    - smoke-test:dev
 
 cleanup:dev:
   stage: cleanup
@@ -167,4 +181,4 @@ cleanup:dev:
     - master
   when: always  # Always cleanup, even if tests fail
   needs:
-    - smoke-test:dev
+    - backend:tests

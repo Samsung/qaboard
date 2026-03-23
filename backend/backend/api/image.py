@@ -27,14 +27,27 @@ def cached_read_image(image_path):
   return image, meta
 
 
-# TODO: - add locking when working with flask
-#         import threading # Lock, Semaphore
-#       - check locking works ok with uwsgi
 try:
   import uwsgi
-  under_uwsgi = True
-except:
-  under_uwsgi = False
+  import contextlib
+
+  @contextlib.contextmanager
+  def _cache_lock():
+    uwsgi.lock()
+    try:
+      yield
+    finally:
+      uwsgi.unlock()
+
+except ImportError:
+  import threading
+  import contextlib
+  _lock = threading.Lock()
+
+  @contextlib.contextmanager
+  def _cache_lock():
+    with _lock:
+      yield
 
 import json
 import time
@@ -89,39 +102,34 @@ def maybe_memmapped_read_image(image_path):
   hash = hashlib.sha1(key.encode()).hexdigest()
   image_cache_data = image_cache_dir / f"{hash}.dat"
   image_cache_info = image_cache_dir / f"{hash}.json"
-  # FIXME: Avoid partial writes by doing a final rename
   is_cached = lambda: image_cache_data.exists() and image_cache_info.exists()
-  is_cached = lambda: False
-  if not is_cached():
-    print(f'MISS {image_path}')
-    # if multiple worker processes try to create the cache, we'll run into issues
-    # https://uwsgi-docs.readthedocs.io/en/latest/Locks.html
-    if under_uwsgi:
-      uwsgi.lock()
-    # it's possible we were waiting for another request that wrote the missing file
-    if is_cached():
-      return memmapped_read_image(image_cache_data, image_cache_info)
-
-    try:
-      clear_memmapped_cache_dir()
-      image, meta = read_image(image_path)
-      print(f'READ', meta)
-      with image_cache_info.open('w') as fmeta:
-        json.dump({"meta": meta, "shape": image.shape, "dtype": str(image.dtype)}, fmeta)
-      fp = np.memmap(image_cache_data, dtype=image.dtype, mode='w+', shape=image.shape)
-      fp[:] = image[:]
-      fp.flush() # write to disk
-      if under_uwsgi:
-        uwsgi.unlock()
-      return fp, meta, None
-    except Exception as e:
-      if under_uwsgi:
-        uwsgi.unlock()
-      return None, None, e
-  else:
+  # Hot path: no lock needed, just read
+  if is_cached():
     print(f'HIT {image_path}')
     return memmapped_read_image(image_cache_data, image_cache_info)
 
+  print(f'MISS {image_path}')
+
+  with _cache_lock():
+    try:
+      if is_cached():
+        return memmapped_read_image(image_cache_data, image_cache_info)
+      clear_memmapped_cache_dir()
+      image, meta = read_image(image_path)
+      print(f'READ', meta)
+      tmp_data = image_cache_data.with_suffix('.tmp')
+      tmp_info = image_cache_info.with_suffix('.tmp.json')
+      fp = np.memmap(tmp_data, dtype=image.dtype, mode='w+', shape=image.shape)
+      fp[:] = image[:]
+      fp.flush()
+      del fp
+      with tmp_info.open('w') as fmeta:
+        json.dump({"meta": meta, "shape": image.shape, "dtype": str(image.dtype)}, fmeta)
+      tmp_data.rename(image_cache_data)
+      tmp_info.rename(image_cache_info)
+      return memmapped_read_image(image_cache_data, image_cache_info)
+    except Exception as e:
+      return None, None, e
 
 @app.route("/api/v1/output/image/pixel", methods=['GET', 'POST'])
 def get_pixel():
