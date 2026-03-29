@@ -33,14 +33,13 @@ engine = create_engine(
 	max_overflow=5,
 	json_deserializer=ujson.loads,
 	json_serializer=ujson.dumps,
+	connect_args={"connect_timeout": 20}, #limit connection timeout
 )
-
 try:
-  if not database_exists(engine.url):
+  if not database_exists(engine_url + "?connect_timeout=20"):
     create_database(engine.url)
-except:
-  print(f'[WARNING] Could not connect to {engine_url}')
-  pass
+except Exception as e:
+  print(f'[Error] Could not connect to {db_type}://{db_user}@{db_host}:{db_port}/{db_name}: {e}')
 
 
 # This is the recommended integration with Flask
