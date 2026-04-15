@@ -669,7 +669,9 @@ class AppSider extends React.Component {
   }
 
   // Integration status management methods
-  key = integration => (integration.id || integration.text || integration.name || integration.alt)
+  // Prefix carries the parent path so sub-menu items with the same text as a
+  // sibling elsewhere in the tree don't share a status entry.
+  key = (integration, prefix = '') => (prefix + (integration.id || integration.text || integration.name || integration.alt))
 
   stopUpdateIntegrationStatuses = () => {
     clearInterval(this.state.intervalId);
@@ -683,16 +685,17 @@ class AppSider extends React.Component {
     })
   }
 
-  triggerIntegration = integration => e => {
+  triggerIntegration = (integration, integration_key) => e => {
     const { project, project_data={}, commit={} } = this.props;
     const { webhook, gitlabCI, jenkins } = integration;
     if (!webhook && !gitlabCI && !jenkins) {
       return
     }
+    const entry_key = integration_key ?? this.key(integration);
     this.setState({
       integrationStatuses: {
         ...this.state.integrationStatuses,
-        [this.key(integration)]: {
+        [entry_key]: {
           loading: true,
           triggered: true,
           data: undefined,
@@ -714,7 +717,7 @@ class AppSider extends React.Component {
         this.setState({
           integrationStatuses: {
             ...this.state.integrationStatuses,
-            [this.key(integration)]: {
+            [entry_key]: {
               is_loaded: true, loading: false,
               error: "Can't find gitlab host",
               statusText: 'ERROR',
@@ -740,7 +743,7 @@ class AppSider extends React.Component {
         this.setState({
           integrationStatuses: {
             ...this.state.integrationStatuses,
-            [this.key(integration)]: {
+            [entry_key]: {
               is_loaded: true,
               loading: false,
               error: null,
@@ -762,7 +765,7 @@ class AppSider extends React.Component {
       this.setState({
         integrationStatuses: {
           ...this.state.integrationStatuses,
-          [this.key(integration)]: {
+          [entry_key]: {
             is_loaded: true, loading: false, error,
             statusText: error.response?.statusText,
             data: error.response?.data,
@@ -789,15 +792,21 @@ class AppSider extends React.Component {
     // Flatten integrations so sub-menu entries also get their status probed.
     // Without this, only top-level items get a HEAD request / status tag and
     // nested links have no way to show they're broken.
-    const flatten = (items) => (items || []).flatMap(i =>
-      i?.sub ? [i, ...flatten(i.sub)] : [i]
-    );
+    // Each entry carries a path-aware key so that sub-items that share a
+    // text/name with a sibling elsewhere in the tree don't collide.
+    const flatten = (items, prefix = '') => (items || []).flatMap(i => {
+      if (!i) return [];
+      const item_key = this.key(i, prefix);
+      return i.sub
+        ? [{ integration: i, integration_key: item_key }, ...flatten(i.sub, `${item_key}/`)]
+        : [{ integration: i, integration_key: item_key }];
+    });
 
-    flatten(all_integrations).filter(i =>
+    flatten(all_integrations).filter(({ integration: i }) =>
       (i?.href !== undefined && i?.href !== "" && i?.src === undefined)
       || i?.gitlabCI
       || i?.jenkins
-    ).forEach(integration => {
+    ).forEach(({ integration, integration_key }) => {
       try {
         integration = eval_templates_recusively(integration)
       } catch {
@@ -806,7 +815,7 @@ class AppSider extends React.Component {
       if (!integration) {
         return;
       }
-      const status = this.state.integrationStatuses[this.key(integration)] || {};
+      const status = this.state.integrationStatuses[integration_key] || {};
       if (status.loading)
         return
       if (integration.jenkins && status.data?.web_url === undefined && status.data?.url === undefined)
@@ -814,8 +823,8 @@ class AppSider extends React.Component {
       this.setState({
         integrationStatuses: {
           ...this.state.integrationStatuses,
-          [this.key(integration)]: {
-            ...this.state.integrationStatuses[this.key(integration)],
+          [integration_key]: {
+            ...this.state.integrationStatuses[integration_key],
             loading: true,
           },
         }
@@ -830,7 +839,7 @@ class AppSider extends React.Component {
          this.setState({
            integrationStatuses: {
              ...this.state.integrationStatuses,
-             [this.key(integration)]: {
+             [integration_key]: {
                is_loaded: true,
                loading: false,
                error: "Can't find gitlab host",
@@ -867,8 +876,8 @@ class AppSider extends React.Component {
            this.setState({
              integrationStatuses: {
                ...this.state.integrationStatuses,
-               [this.key(integration)]: {
-                 ...this.state.integrationStatuses[this.key(integration)],
+               [integration_key]: {
+                 ...this.state.integrationStatuses[integration_key],
                  is_loaded: true,
                  loading: false,
                  error: null,
@@ -884,8 +893,8 @@ class AppSider extends React.Component {
            this.setState({
              integrationStatuses: {
                ...this.state.integrationStatuses,
-               [this.key(integration)]: {
-                 ...this.state.integrationStatuses[this.key(integration)],
+               [integration_key]: {
+                 ...this.state.integrationStatuses[integration_key],
                  is_loaded: true,
                  loading: false,
                  error: (!!ignore_failure || statusText.includes("METHOD NOT ALLOWED")) ? null : error,

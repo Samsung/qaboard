@@ -53,7 +53,13 @@ import { make_eval_templates_recursively } from '../utils';
 //     => started/finished Xmin ago, est. Ymin left / duration: Zmin
 
 
-export const key = integration => (integration.id || integration.text || integration.name || integration.alt)
+// The key uniquely identifies an integration in the statuses map. A prefix
+// (parent path) disambiguates sub-menu items that share a text/name with a
+// sibling elsewhere in the tree (e.g. two "Executable" entries under
+// different parents).
+export const key = (integration, prefix = '') => (
+  prefix + (integration.id || integration.text || integration.name || integration.alt)
+)
 
 class IntegrationsMenus extends React.Component {
     constructor(props) {
@@ -136,7 +142,7 @@ class IntegrationsMenus extends React.Component {
     }
 
     render() {
-        const { integrations, level=0, integrationStatuses={}, triggerIntegration, startUpdateIntegrationStatuses, stopUpdateIntegrationStatuses } = this.props;
+        const { integrations, level=0, key_prefix='', integrationStatuses={}, triggerIntegration, startUpdateIntegrationStatuses, stopUpdateIntegrationStatuses } = this.props;
         const eval_templates_recusively = make_eval_templates_recursively(this.props)
         const { searchQuery } = this.state;
 
@@ -155,16 +161,15 @@ class IntegrationsMenus extends React.Component {
           if (integration.divider) {
             return <MenuDivider key={idx} {...integration}/>
           }
-          let status = integrationStatuses[key(integration)];
+          const integration_key = key(integration, key_prefix);
+          let status = integrationStatuses[integration_key];
           let first_loading = !!status && (status.loading && !status.is_loaded);
           let trigger_loading = !!status && (status.loading && status.triggered);
           let has_error = !!status && !!status.error
           let disabled = !integration.src && (integration.disabled || first_loading || (has_error && !integration.allow_failed) || trigger_loading);
-          // console.log(key(integration), integration, status, "first_loading", first_loading, "disabled", disabled, "trigger_loading", trigger_loading)
 
           // TODO: always show the JobTag if "status.data" has some info
           if (integration.gitlabCI || integration.jenkins) {
-            // console.log(status)
             let label = has_error ? <Tooltip content={<span>{JSON.stringify(status.error.message)}</span>}>
                                       <Tag round icon="cross" intent="danger"/>
                                     </Tooltip>
@@ -178,13 +183,13 @@ class IntegrationsMenus extends React.Component {
               gitlabCI={undefined}
               jenkins={undefined}
               label={label}
-              onClick={triggerIntegration(integration)}
+              onClick={triggerIntegration(integration, integration_key)}
               disabled={disabled}
             />
           }
 
           const badge = integration.src && <img
-            alt={integration.alt || key(integration)}
+            alt={integration.alt || integration_key}
             src={encodeURI(`/api/v1/gitlab/proxy?url=${integration.src}`)}
           />
           if (badge) {
@@ -215,9 +220,9 @@ class IntegrationsMenus extends React.Component {
               icon={badge || integration.icon}
               label={right_label}
               target={!!integration.href ? "_blank" : undefined}
-              onClick={!integration.href && has_trigger ? triggerIntegration(integration) : undefined}
+              onClick={!integration.href && has_trigger ? triggerIntegration(integration, integration_key) : undefined}
             >
-              {sub && <IntegrationsMenus {...this.props} integrations={sub} level={level+1} />}
+              {sub && <IntegrationsMenus {...this.props} integrations={sub} level={level+1} key_prefix={`${integration_key}/`} />}
           </MenuItem>
         }
 
