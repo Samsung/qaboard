@@ -199,17 +199,25 @@ class IntegrationsMenus extends React.Component {
               }
             }
           }
+          // Strip props that aren't meant to reach the <MenuItem>/DOM -
+          // they come from the qaboard.yaml integration schema.
+          const {
+            sub, webhook, gitlabCI, jenkins, src, alt, only, in_menu,
+            allow_failed, allow_failure, id, name,
+            ...menu_item_props
+          } = integration;
+          const has_trigger = !!webhook;
           return <MenuItem
               key={idx}
               shouldDismissPopover={!!integration.href}
-              {...integration}
+              {...menu_item_props}
               disabled={disabled}
               icon={badge || integration.icon}
               label={right_label}
               target={!!integration.href ? "_blank" : undefined}
-              onClick={!!!integration.href ? triggerIntegration(integration) : undefined}
+              onClick={!integration.href && has_trigger ? triggerIntegration(integration) : undefined}
             >
-              {integration.sub && <IntegrationsMenus {...this.props} integrations={integration.sub} level={level+1} />}
+              {sub && <IntegrationsMenus {...this.props} integrations={sub} level={level+1} />}
           </MenuItem>
         }
 
@@ -324,7 +332,6 @@ const StatusTag = ({status}) => {
       return {icon: 'cog', intent: 'warning'}
     return {}
   }
-  console.log(status)
   const { data={}, allow_failure, statusText, error } = status;
   let tag_props = {...make_props(data.status, allow_failure)}
   if (data.status === undefined && statusText) {
