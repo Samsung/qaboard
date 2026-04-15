@@ -785,11 +785,18 @@ class AppSider extends React.Component {
     
     const all_integrations = [...commitList_integrations, ...results_integrations];
     const eval_templates_recusively = make_eval_templates_recursively(this.props)
-    
-    all_integrations.filter(i => 
-      (i.href !== undefined && i.href !== "" && i.src === undefined)
-      || i.gitlabCI
-      || i.jenkins
+
+    // Flatten integrations so sub-menu entries also get their status probed.
+    // Without this, only top-level items get a HEAD request / status tag and
+    // nested links have no way to show they're broken.
+    const flatten = (items) => (items || []).flatMap(i =>
+      i?.sub ? [i, ...flatten(i.sub)] : [i]
+    );
+
+    flatten(all_integrations).filter(i =>
+      (i?.href !== undefined && i?.href !== "" && i?.src === undefined)
+      || i?.gitlabCI
+      || i?.jenkins
     ).forEach(integration => {
       try {
         integration = eval_templates_recusively(integration)
