@@ -23,6 +23,12 @@ export const iiif_url = (output_dir_url, path, imageServers) => {
   return url
 }
 
+export const prefer_tiff = (path, manifest) => {
+  if (!manifest || !path.endsWith('.png')) return path;
+  const tiff_path = path.replace(/\.png$/i, '.tiff');
+  if (manifest[tiff_path]) return tiff_path;
+  return path;
+}
 
 
 export const is_image = visualization => {
