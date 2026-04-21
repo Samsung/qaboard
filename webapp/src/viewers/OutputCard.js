@@ -609,19 +609,35 @@ class OutputCard extends React.Component {
         show_ref_if_available = show_ref_if_available || is_image(view)
         const viewers = paths.map(
           (path, path_idx) => {
+            const configPath = path; // Store original config path for ref checks
             let new_available = path === undefined || (!!this.state.manifests.new && !!this.state.manifests.new[path])
+            // TIFF fallback for new side: if clicked file doesn't exist, try TIFF
+            if (!new_available && path !== undefined && path.endsWith('.png')) {
+              const tiffPath = path.replace(/\.png$/i, '.tiff')
+              new_available = !!this.state.manifests.new && !!this.state.manifests.new[tiffPath]
+            }
             if (!new_available)
               return <span key={`${idx}-${path_idx}`}/>
-            let ref_available = path === undefined || (!!this.state.manifests.reference && !!this.state.manifests.reference[path])
-
+            
+            // For ref side: only fallback if the exact clicked file doesn't exist
+            let path_ref = path;
+            let ref_available = path === undefined || (!!this.state.manifests.reference && !!this.state.manifests.reference[path]);
+            
+            // Fallback for ref: if file doesn't exist, try TIFF then BMP (old behavior for PNG)
             // we changed the output format in HW_ALG from bmp to png in May 2024
             // but we still want to compare results across branches - for some time at least.
-            let path_ref = path
-            if(path !== undefined && path.endsWith('.png') && !ref_available) {
-              const path_ref_ = path.replace(/.png$/, '.bmp')
-              if (!!this.state.manifests.reference && !!this.state.manifests.reference[path_ref_]) {
-                ref_available = true
-                path_ref = path_ref_
+            if (path !== undefined && path.endsWith('.png') && !ref_available) {
+              const tiffPath = path.replace(/\.png$/i, '.tiff');
+              if (this.state.manifests.reference?.[tiffPath]) {
+                path_ref = tiffPath;
+                ref_available = true;
+              } else {
+                // Try BMP fallback for old runs
+                const bmpPath = path.replace(/\.png$/, '.bmp');
+                if (this.state.manifests.reference?.[bmpPath]) {
+                  path_ref = bmpPath;
+                  ref_available = true;
+                }
               }
             }
             const has_same_data = is_same_data(path, this.state.manifests.manifests?.new?.[path], this.state.manifests.manifests?.reference?.[path_ref])
