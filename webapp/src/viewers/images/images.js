@@ -22,7 +22,7 @@ import { Tooltips } from './tooltip';
 import "./image-canvas.css";
 import { histogram_traces } from './histogram';
 import { CropSelection } from "./crops";
-import { iiif_url, prefer_tiff } from "./utils";
+import { iiif_url } from "./utils";
 
 import { RoiViewer } from './roi_viewer'
 
@@ -420,15 +420,15 @@ class ImgViewer extends React.PureComponent {
   Init = () => {
     return new Promise((resolve, reject) => {
       const { viewer_new, viewer_ref } = this;
-      const { path, output_new, output_ref } = this.props;
+      const { path, output_new, output_ref, preferTiffEnabled=true } = this.props;
       let { path_ref=this.props.path } = this.props
  
       let has_reference = !!output_ref && !output_ref.deleted && !!output_ref.output_dir_url && this.props.manifests.reference[path_ref] !== undefined;
       this.setState({has_reference})
 
-      let requests = [get(`${iiif_url(output_new.output_dir_url, prefer_tiff(path, this.props.manifests?.new))}/info.json`, { cancelToken: this.state.cancel_source.token })]
+      let requests = [get(`${iiif_url(output_new.output_dir_url, path, this.props.manifests?.new, preferTiffEnabled)}/info.json`, { cancelToken: this.state.cancel_source.token })]
       if (has_reference)
-        requests.push(get(`${iiif_url(output_ref.output_dir_url, prefer_tiff(path_ref, this.props.manifests?.reference))}/info.json`, { cancelToken: this.state.cancel_source.token }))
+        requests.push(get(`${iiif_url(output_ref.output_dir_url, path_ref, this.props.manifests?.reference, preferTiffEnabled)}/info.json`, { cancelToken: this.state.cancel_source.token }))
       Promise.all(requests).then( ([res_new, res_ref]) => {
         this.setState({ loaded: true })
         // https://Openseadragon.github.io/examples/tilesource-iiif/
@@ -497,8 +497,9 @@ class ImgViewer extends React.PureComponent {
         // Trying to replace images using `viewer.open` first closes the image, so there is a blank if one change the image path...
         // https://github.com/openseadragon/openseadragon/issues/1428
         // let viewer_new_is_open = viewer_new.isOpen()
+        const { preferTiffEnabled=true } = this.props;
         viewer_new.addTiledImage({
-          tileSource: { ...source_config, "@id": iiif_url(output_new.output_dir_url, prefer_tiff(path, this.props.manifests?.new)) },
+          tileSource: { ...source_config, "@id": iiif_url(output_new.output_dir_url, path, this.props.manifests?.new, preferTiffEnabled) },
           success: () => {
             // To avoid leaking tile sources, we should remove the previous tile
             // however, it causes a blink-to-white transition... so until we find a fix...
@@ -519,7 +520,7 @@ class ImgViewer extends React.PureComponent {
               ...source_config,
               width: res_ref?.data?.width,
               height: res_ref?.data?.height,
-              "@id": iiif_url(output_ref.output_dir_url, prefer_tiff(path_ref, this.props.manifests?.reference)),
+              "@id": iiif_url(output_ref.output_dir_url, path_ref, this.props.manifests?.reference, preferTiffEnabled),
             },
             success: () => { },
           })
@@ -1018,8 +1019,8 @@ class ImgViewer extends React.PureComponent {
             y_ref={this.state.y_ref}
             color_new={this.state.color_new}
             color_ref={this.state.color_ref}
-            image_url_new={`${this.props.output_new.output_dir_url}/${prefer_tiff(this.props.path, this.props.manifests?.new)}`}
-            image_url_ref={`${this.props.output_ref?.output_dir_url}/${prefer_tiff(path_ref, this.props.manifests?.reference)}`}
+            image_url_new={`${this.props.output_new.output_dir_url}/${this.props.path}`}
+            image_url_ref={`${this.props.output_ref?.output_dir_url}/${path_ref}`}
             has_reference={has_reference}
             first_image={first_image}
           />
