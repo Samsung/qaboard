@@ -1,16 +1,11 @@
-// Get the right IIIF endpoint for a file based on its extension.
-// imageServers is a mapping like { "default": "/iiif", "raw,hex,dng": "/iiif/cde" }
-export const getIiifEndpoint = (filePath, imageServers) => {
-  if (!imageServers || !filePath) return '/iiif';
-  const ext = filePath.split('.').pop().toLowerCase();
-  for (const [extensions, endpoint] of Object.entries(imageServers)) {
-    if (extensions === 'default') continue;
-    if (extensions.split(',').includes(ext)) return endpoint;
+export const iiif_url = (output_dir_url, path, manifest = null, preferTiff = true) => {
+   // Prefer TIFF over PNG when available
+   if (preferTiff && manifest && path.endsWith('.png')) {
+    const tiffPath = path.replace(/\.png$/i, '.tiff');
+    if (manifest[tiffPath]) {
+      path = tiffPath;
+    }
   }
-  return imageServers.default || '/iiif';
-}
-
-export const iiif_url = (output_dir_url, path, imageServers) => {
   // remove the URL's leading "/s"
   let identifier = output_dir_url.replace(/^\/*?s\//, "")
   // /algo/CIS/inputs is a symlink to /algo/CIS_inputs but in the IIIF container it breaks
@@ -21,13 +16,6 @@ export const iiif_url = (output_dir_url, path, imageServers) => {
   let endpoint = getIiifEndpoint(path, imageServers);
   let url = `${endpoint}${identifier}`
   return url
-}
-
-export const prefer_tiff = (path, manifest) => {
-  if (!manifest || !path.endsWith('.png')) return path;
-  const tiff_path = path.replace(/\.png$/i, '.tiff');
-  if (manifest[tiff_path]) return tiff_path;
-  return path;
 }
 
 
