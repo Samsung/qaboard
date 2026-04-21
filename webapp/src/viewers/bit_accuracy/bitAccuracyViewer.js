@@ -251,20 +251,52 @@ class BitAccuracyViewer extends React.Component {
       />
       {selected.map( filename => {
         const has_same_data = is_same_data(filename, this.props.manifests?.new?.[filename], this.props.manifests?.reference?.[filename])
+        
+        // For new side: fallback if file doesn't exist
+        let filename_new = filename
+        if (filename.match(/\.tiff?$/i)) {
+          // TIFF clicked but doesn't exist in new - try PNG fallback
+          if (!this.props.manifests?.new?.[filename]) {
+            const pngPath = filename.replace(/\.tiff?$/i, '.png')
+            if (this.props.manifests?.new?.[pngPath]) {
+              filename_new = pngPath
+            }
+          }
+        }
+        
+        // For ref side: fallback if file doesn't exist
         let filename_ref = filename
         if (filename.endsWith('.png')) {
-          const _filename_ref = filename.replace(/.png$/, '.bmp')
-          if (!this.props.manifests?.reference?.[filename] && this.props.manifests?.reference?.[_filename_ref]) {
-            filename_ref = _filename_ref
+          // PNG clicked but doesn't exist in ref - try TIFF then BMP
+          if (!this.props.manifests?.reference?.[filename]) {
+            const tiffPath = filename.replace(/\.png$/i, '.tiff')
+            if (this.props.manifests?.reference?.[tiffPath]) {
+              filename_ref = tiffPath
+            } else {
+              const bmpPath = filename.replace(/.png$/, '.bmp')
+              if (this.props.manifests?.reference?.[bmpPath]) {
+                filename_ref = bmpPath
+              }
+            }
+          }
+        } else if (filename.match(/\.tiff?$/i)) {
+          // TIFF clicked but doesn't exist in ref - try PNG fallback
+          if (!this.props.manifests?.reference?.[filename]) {
+            const pngPath = filename.replace(/\.tiff?$/i, '.png')
+            if (this.props.manifests?.reference?.[pngPath]) {
+              filename_ref = pngPath
+            }
           }
         } 
+        
         return <div key={filename}>
           {has_same_data && <Tag style={{marginTop: "5px"}} key={`same-${filename}`} minimal icon="duplicate">same-data</Tag>}
           <OutputViewer
               key={filename}
-              path={filename}
+              path={filename_new}
               path_ref={filename_ref}
               max_lines={30}
+              preferTiffEnabled={false}
               {...props}
           />
         </div>
