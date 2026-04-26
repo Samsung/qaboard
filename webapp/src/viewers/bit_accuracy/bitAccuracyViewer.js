@@ -296,7 +296,6 @@ class BitAccuracyViewer extends React.Component {
               path={filename_new}
               path_ref={filename_ref}
               max_lines={30}
-              preferTiffEnabled={false}
               {...props}
           />
         </div>

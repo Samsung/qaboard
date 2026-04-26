@@ -420,15 +420,15 @@ class ImgViewer extends React.PureComponent {
   Init = () => {
     return new Promise((resolve, reject) => {
       const { viewer_new, viewer_ref } = this;
-      const { path, output_new, output_ref, preferTiffEnabled=true } = this.props;
+      const { path, output_new, output_ref } = this.props;
       let { path_ref=this.props.path } = this.props
  
       let has_reference = !!output_ref && !output_ref.deleted && !!output_ref.output_dir_url && this.props.manifests.reference[path_ref] !== undefined;
       this.setState({has_reference})
 
-      let requests = [get(`${iiif_url(output_new.output_dir_url, path, this.props.manifests?.new, preferTiffEnabled)}/info.json`, { cancelToken: this.state.cancel_source.token })]
+      let requests = [get(`${iiif_url(output_new.output_dir_url, path, this.props.manifests?.new)}/info.json`, { cancelToken: this.state.cancel_source.token })]
       if (has_reference)
-        requests.push(get(`${iiif_url(output_ref.output_dir_url, path_ref, this.props.manifests?.reference, preferTiffEnabled)}/info.json`, { cancelToken: this.state.cancel_source.token }))
+        requests.push(get(`${iiif_url(output_ref.output_dir_url, path_ref, this.props.manifests?.reference)}/info.json`, { cancelToken: this.state.cancel_source.token }))
       Promise.all(requests).then( ([res_new, res_ref]) => {
         this.setState({ loaded: true })
         // https://Openseadragon.github.io/examples/tilesource-iiif/
@@ -497,9 +497,8 @@ class ImgViewer extends React.PureComponent {
         // Trying to replace images using `viewer.open` first closes the image, so there is a blank if one change the image path...
         // https://github.com/openseadragon/openseadragon/issues/1428
         // let viewer_new_is_open = viewer_new.isOpen()
-        const { preferTiffEnabled=true } = this.props;
         viewer_new.addTiledImage({
-          tileSource: { ...source_config, "@id": iiif_url(output_new.output_dir_url, path, this.props.manifests?.new, preferTiffEnabled) },
+          tileSource: { ...source_config, "@id": iiif_url(output_new.output_dir_url, path, this.props.manifests?.new) },
           success: () => {
             // To avoid leaking tile sources, we should remove the previous tile
             // however, it causes a blink-to-white transition... so until we find a fix...
@@ -520,7 +519,7 @@ class ImgViewer extends React.PureComponent {
               ...source_config,
               width: res_ref?.data?.width,
               height: res_ref?.data?.height,
-              "@id": iiif_url(output_ref.output_dir_url, path_ref, this.props.manifests?.reference, preferTiffEnabled),
+              "@id": iiif_url(output_ref.output_dir_url, path_ref, this.props.manifests?.reference),
             },
             success: () => { },
           })
