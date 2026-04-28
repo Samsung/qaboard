@@ -519,6 +519,12 @@ class ImgViewer extends React.PureComponent {
         // let viewer_new_is_open = viewer_new.isOpen()
         viewer_new.addTiledImage({
           tileSource: { ...source_config, "@id": iiif_url(output_new.output_dir_url, path, this.props.manifests?.new) },
+          // To avoid leaking tile sources, we should remove the previous tile
+          // however, it causes a blink-to-white transition... so until we find a fix...
+          // We may also not want to remove old source, eg cache them. But it's a small gain, and
+          // we already have the browser's cache, the IIIF server's, so...
+          // if (viewer_new.world.getItemCount() > 1)
+          //   viewer_new.world.removeItem(viewer_new.world.getItemAt(1))
           // We would like to do this, there is still a white flicker...
           // index: viewer_new_is_open ? 0 : undefined,
           // replace: viewer_new_is_open ? true : undefined,
