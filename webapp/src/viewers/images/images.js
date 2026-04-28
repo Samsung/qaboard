@@ -156,7 +156,7 @@ class ImgViewer extends React.PureComponent {
 
     this.state = {
       ready: false, // viewer mounted
-      fullyLoaded: {}, // e.g. 'new': true
+      fullyLoaded: {new: false, ref: false},
       cancel_source: CancelToken.source(),
       first_image: "new",
       width: Math.floor(parseFloat((this.props.style?.width ?? '390px').replace(/[^\d]+/, ''))),
@@ -468,18 +468,38 @@ class ImgViewer extends React.PureComponent {
           error: null,
         }, () => resolve())
 
+        // Track when each viewer's image is fully rendered
         viewer_new.world.addHandler('add-item', addItemEvent => {
-          var tiledImage = addItemEvent.item;
+          const tiledImage = addItemEvent.item;
+          const markLoaded = (loaded) => {
+            this.setState(prev => ({
+              fullyLoaded: { ...prev.fullyLoaded, new: loaded }
+            }));
+          };
+          if (tiledImage.getFullyLoaded()) {
+            markLoaded(true);
+          }
           tiledImage.addHandler('fully-loaded-change', e => {
-              this.setState({ fullyLoaded: {...this.state.fullyLoaded, 'new': e.fullyLoaded} })
+            markLoaded(e.fullyLoaded);
           });
         });
-        viewer_new.world.addHandler('add-item', addItemEvent => {
-          var tiledImage = addItemEvent.item;
-          tiledImage.addHandler('fully-loaded-change', e => {
-              this.setState({ fullyLoaded: {...this.state.fullyLoaded, 'ref': e.fullyLoaded} })
+
+        if (has_reference) {
+          viewer_ref.world.addHandler('add-item', addItemEvent => {
+            const tiledImage = addItemEvent.item;
+            const markLoaded = (loaded) => {
+              this.setState(prev => ({
+                fullyLoaded: { ...prev.fullyLoaded, ref: loaded }
+              }));
+            };
+            if (tiledImage.getFullyLoaded()) {
+              markLoaded(true);
+            }
+            tiledImage.addHandler('fully-loaded-change', e => {
+              markLoaded(e.fullyLoaded);
+            });
           });
-        });
+        }
 
         viewer_new.addHandler('tile-load-failed', ({tile, message}) => {
           this.setState({ error: {
@@ -499,15 +519,7 @@ class ImgViewer extends React.PureComponent {
         // let viewer_new_is_open = viewer_new.isOpen()
         viewer_new.addTiledImage({
           tileSource: { ...source_config, "@id": iiif_url(output_new.output_dir_url, path, this.props.manifests?.new) },
-          success: () => {
-            // To avoid leaking tile sources, we should remove the previous tile
-            // however, it causes a blink-to-white transition... so until we find a fix...
-            // We may also not want to remove old source, eg cache them. But it's a small gain, and
-            // we already have the browser's cache, the IIIF server's, so...
-            // if (viewer_new.world.getItemCount() > 1)
-            //   viewer_new.world.removeItem(viewer_new.world.getItemAt(1))
-          },
-          // We would like to do this, there is still a white flicker... 
+          // We would like to do this, there is still a white flicker...
           // index: viewer_new_is_open ? 0 : undefined,
           // replace: viewer_new_is_open ? true : undefined,
         })
@@ -521,7 +533,6 @@ class ImgViewer extends React.PureComponent {
               height: res_ref?.data?.height,
               "@id": iiif_url(output_ref.output_dir_url, path_ref, this.props.manifests?.reference),
             },
-            success: () => { },
           })
         }
       })
@@ -1004,7 +1015,7 @@ class ImgViewer extends React.PureComponent {
             path={path}
             viewer={this.viewer_new}
             current_roi={current_roi}
-            fullyLoaded={this.state.fullyLoaded.new && this.state.fullyLoaded.ref}
+            fullyLoaded={this.state.fullyLoaded.new && (!has_reference || this.state.fullyLoaded.ref)}
          />
         </>}
         <span>
