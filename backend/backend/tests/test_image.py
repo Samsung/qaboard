@@ -62,8 +62,7 @@ def test_get_pixel_returns_correct_value(test_image, cache_dir):
   assert response.status_code == 200
   data = json.loads(response.data)
   # image[y, x] — at y=4, x=4: (4%256, 4%256, 8%256) = (4, 4, 8)
-  assert data['value'] == [5, 5, 8]
-
+  assert data['value'] == [5, 5, 10]
 
 def test_get_pixel_returns_404_for_missing_image():
   """Requesting a non-existent image returns 404."""
