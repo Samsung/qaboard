@@ -1,11 +1,5 @@
-export const iiif_url = (output_dir_url, path, manifest = null, preferTiff = true) => {
-   // Prefer TIFF over PNG when available
-   if (preferTiff && manifest && path.endsWith('.png')) {
-    const tiffPath = path.replace(/\.png$/i, '.tiff');
-    if (manifest[tiffPath]) {
-      path = tiffPath;
-    }
-  }
+export const preferred_path = (output_dir_url, path, manifest = null, preferTiff = true) => {
+  path = build_image_name(path, manifest, preferTiff)
   // remove the URL's leading "/s"
   let identifier = output_dir_url.replace(/^\/*?s\//, "")
   // /algo/CIS/inputs is a symlink to /algo/CIS_inputs but in the IIIF container it breaks
@@ -16,6 +10,17 @@ export const iiif_url = (output_dir_url, path, manifest = null, preferTiff = tru
   let endpoint = getIiifEndpoint(path, imageServers);
   let url = `${endpoint}${identifier}`
   return url
+}
+
+export const build_image_name = (path, manifest = null, preferTiff = true) => {
+  // Prefer TIFF over PNG when available
+  if (preferTiff && manifest && path.endsWith('.png')) {
+    const tiffPath = path.replace(/\.png$/i, '.tiff');
+    if (manifest[tiffPath]) {
+      path = tiffPath;
+    }
+  }
+  return path
 }
 
 

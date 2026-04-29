@@ -24,30 +24,37 @@ const formatting = {
 
 const margin = {marginLeft: '10px'};
 
-const Tooltips = ({x, y, x_ref, y_ref, has_reference, first_image, image_url_new, image_url_ref, color_new, color_ref}) => {
+const Tooltips = ({x, y, x_ref, y_ref, has_reference, first_image, image_url_new, image_url_ref, color_new, color_ref, image_height, image_width, image_height_ref, image_width_ref}) => {
     const [base, setBase] = useState('dec');
-    const x_round = (x !== null && x !== undefined) ? Math.round(x) : null
-    const y_round = (y !== null && y !== undefined) ? Math.round(y) : null
-    const x_ref_round = x_ref !== null ? Math.round(x_ref) : null
-    const y_ref_round = y_ref !== null ? Math.round(y_ref) : null
-    // console.log(x, y, x_ref, y_ref)
+    // Explanation for the below `-1`:
+    // The calls to this endpoint come from coordinates given by OpenseaDragon. OpenseaDragon uses a continuous coordinate system on an image, and not a discrete one (pixel aligned).
+    // Basically it wraps each pixel with a box starting from its index to the index + 1
+    // This means for example that OpenseaDragon can show floating point coordinates like 67.67 that belongs to pixel indexd 67.
+    // This is actually not a problem because the we floor the value to the lower integer.
+    // Hoever, in the edge case (literaly an EDGE case) where the the cursor is at the end of the box, OpenseaDragon can return the upper bound. 
+    // This means that if you put the cursor on the rightmost edge of the image of width n, you will get the value of n and not n-1.
+    const x_floor = (x !== null && x !== undefined) ? Math.max(0, Math.min(image_width - 1, Math.floor(x))) : null;
+    const y_floor = (y !== null && y !== undefined) ? Math.max(0, Math.min(image_height - 1, Math.floor(y))) : null;
+    const x_ref_floor = (x_ref !== null && x_ref !== undefined) ? Math.max(0, Math.min(image_width_ref - 1, Math.floor(x_ref))) : null;
+    const y_ref_floor = (y_ref !== null && y_ref !== undefined) ? Math.max(0, Math.min(image_height_ref - 1, Math.floor(y_ref))) : null;
+    
     return <div
                 onClick={() => setBase(base === 'dec' ? 'hex' : 'dec')}
             >
-                {has_reference && x_round !== x_ref_round ? <>
-                    <CoordTooltip style={{marginRight: '5px'}} label="new " x={x_round} y={y_round}/>
-                    <CoordTooltip label="ref " x={x_ref_round} y={y_ref_round}/>
-                </> : <CoordTooltip x={x_round} y={y_round}/>}
+                {has_reference && x_floor !== x_ref_floor ? <>
+                    <CoordTooltip style={{marginRight: '5px'}} label="new " x={x_floor} y={y_floor}/>
+                    <CoordTooltip label="ref " x={x_ref_floor} y={y_ref_floor}/>
+                </> : <CoordTooltip x={x_floor} y={y_floor}/>}
                 <ColorTooltip
-                    x={x_round}
-                    y={y_round}
+                    x={x_floor}
+                    y={y_floor}
                     color={first_image === 'new' ? color_new : color_ref}
                     image_url={first_image === 'new' ? image_url_new : image_url_ref}
                     base={base}
                 />
                 {has_reference && <ColorTooltip
-                    x={x_ref_round}
-                    y={y_ref_round}
+                    x={x_ref_floor}
+                    y={y_ref_floor}
                     color={first_image === 'new' ? color_ref : color_new}
                     image_url={first_image === 'new' ? image_url_ref : image_url_new}
                     base={base}

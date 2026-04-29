@@ -133,8 +133,8 @@ def maybe_memmapped_read_image(image_path):
 
 @app.route("/api/v1/output/image/pixel", methods=['GET', 'POST'])
 def get_pixel():
-  x = int(request.args['x'])-1
-  y = int(request.args['y'])-1
+  x = int(request.args['x'])
+  y = int(request.args['y'])
   image_path = Path(url_to_dir(request.args['image_url']))
   if not image_path.exists():
     return f"ERROR: Cannot find {image_path}", 404

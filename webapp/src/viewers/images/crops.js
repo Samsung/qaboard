@@ -13,7 +13,7 @@ import {
 import { toaster } from "../../toaster"
 
 
-import { iiif_url } from "./utils";
+import { preferred_path } from "./utils";
 
 
 
@@ -47,8 +47,7 @@ const output_rois = output => {
 
 
 const Crop = ({roi, output, path, viewer, selected, onSelect}) => {
-  const imageServers = useSelector(state => state.siteConfig?.image_servers);
-  const url_prefix = iiif_url(output.output_dir_url, path, imageServers)
+  const url_prefix = preferred_path(output.output_dir_url, path)
   const x = roi.x * viewer.source.width  / (roi.image_width  ?? viewer.source.width)
   const y = roi.y * viewer.source.height / (roi.image_height ?? viewer.source.height)
   const w = roi.w * viewer.source.width  / (roi.image_height ?? viewer.source.width)
