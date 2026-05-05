@@ -329,14 +329,22 @@ const are_on_same_filesystem = (path1, path2) => {
 
 
 // Apply a function to all elements of a JS object (go into dict, array...)
+// Returns a new object/array; does NOT mutate its input. This matters because
+// integration configs come from Redux state and are reused across renders:
+// mutating them in-place replaces template strings like "${commit.x}" with
+// concrete values from the *first* render, so when the user navigates to a
+// different commit the template no longer exists and the stale URL is used
+// (leading to 404s on artifact links, etc.).
 const recursively_apply = function(object, func) {
-  if (typeof object === 'object') {
-    Object.keys(object).forEach(k => {object[k] = recursively_apply(object[k], func)})
-    return object
-  } else {
-    object = func(object)
-    return object
+  if (object === null || typeof object !== 'object') {
+    return func(object)
   }
+  if (Array.isArray(object)) {
+    return object.map(item => recursively_apply(item, func))
+  }
+  const result = {}
+  Object.keys(object).forEach(k => {result[k] = recursively_apply(object[k], func)})
+  return result
 }
 
 // Evaluated JS-style templated strings using a dict of variables (like backticks).
