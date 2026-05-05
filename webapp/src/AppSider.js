@@ -746,6 +746,7 @@ class AppSider extends React.Component {
             [entry_key]: {
               is_loaded: true,
               loading: false,
+              triggered: true,
               error: null,
               statusText: response.statusText,
               data: response.data,
@@ -820,20 +821,12 @@ class AppSider extends React.Component {
         return
       if (integration.jenkins && status.data?.web_url === undefined && status.data?.url === undefined)
         return
-      this.setState({
-        integrationStatuses: {
-          ...this.state.integrationStatuses,
-          [integration_key]: {
-            ...this.state.integrationStatuses[integration_key],
-            loading: true,
-          },
-        }
-      });
       const { label, icon, text, href, alt, style, ignore_failure, gitlabCI, jenkins, ...request } = integration;
+      let req_url, params;
       if (gitlabCI) {
        if (status?.triggered !== true)
          return
-       var req_url = '/api/v1/gitlab/job/';
+       req_url = '/api/v1/gitlab/job/';
        const git = project_data.data?.git || {};
        if (!git.web_url) {
          this.setState({
@@ -849,7 +842,7 @@ class AppSider extends React.Component {
          });
          return;
        }
-       var params = {
+       params = {
          gitlab_host: git.web_url.split('/').slice(0,3).join('/'),
          project_id: project,
          commit_id: commit.id,
@@ -871,6 +864,16 @@ class AppSider extends React.Component {
          ...request
        };
      }
+      // Only mark as loading once we know we'll actually fire a request.
+      this.setState({
+        integrationStatuses: {
+          ...this.state.integrationStatuses,
+          [integration_key]: {
+            ...this.state.integrationStatuses[integration_key],
+            loading: true,
+          },
+        }
+      });
      axios.post(req_url, params)
        .then(response => {
            this.setState({

@@ -315,10 +315,12 @@ const StatusTag = ({status}) => {
   const make_props = (status, allow_failure) => {
     if (status === 'created')
       return {icon: 'flash', intent: 'warning'}
-    if (status === 'pending' || status === 'BLOCKED' || status === 'STUCK' )
+    if (status === 'BLOCKED' || status === 'STUCK')
       return {icon: 'pause', intent: 'warning'}
-    if (status === 'running')
-      return {icon: 'walk', intent: 'primary'}
+    if (status === 'pending' || status === 'queued')
+      return {icon: 'time', intent: 'warning'}
+    if (status === 'running' || status === 'building')
+      return {icon: 'refresh', intent: 'primary', className: 'bp3-spin'}
     if (status === 'failed') {
       return {
         icon: allow_failure ? 'issue' : 'cross',
