@@ -652,18 +652,93 @@ class ProjectSideResults extends React.Component {
 
 
 class AppSider extends React.Component {
+  // localStorage keys for persisting integration statuses across refreshes.
+  // Per-commit so different commits don't share state. Index key tracks
+  // insertion order, capped to keep storage bounded.
+  static LS_PREFIX = 'qaboard:integrationStatuses:';
+  static LS_INDEX_KEY = 'qaboard:integrationStatuses:index';
+  static LS_MAX_COMMITS = 50;
+
   constructor(props) {
     super(props);
     this.state = {
       integrationStatuses: {}
     }
   }
-
-  componentDidMount() {
-    // Not necessary to rush fetching the statuses (?)
-    // this.startUpdateIntegrationStatuses(60 * 1000)
+  loadIntegrationStatuses = (commitId) => {
+    if (!commitId) return {};
+    try {
+      const raw = localStorage.getItem(AppSider.LS_PREFIX + commitId);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw);
+      // Clear stale loading flags, the in-flight request from the previous
+      // session is gone and would otherwise block the next poll forever.
+      Object.keys(parsed).forEach(k => {
+        if (parsed[k]) parsed[k].loading = false;
+      });
+      return parsed;
+    } catch (e) {
+      console.warn('Failed to load integrationStatuses from localStorage', e);
+      return {};
+    }
   }
-
+  saveIntegrationStatuses = (commitId, statuses) => {
+    if (!commitId) return;
+    try {
+      // Only persist entries the user actively triggered (Jenkins/gitlabCI builds).
+      // HEAD-probe results for plain links/artifacts are cheap to recompute on
+      // demand and not worth the storage churn.
+      const cleaned = {};
+      Object.keys(statuses).forEach(k => {
+        if (!statuses[k] || !statuses[k].triggered) return;
+        const { error, ...rest } = statuses[k];
+        cleaned[k] = error ? { ...rest, error: true } : rest;
+      });
+      // Skip writing entirely if nothing meaningful to save.
+      if (Object.keys(cleaned).length === 0) {
+        localStorage.removeItem(AppSider.LS_PREFIX + commitId);
+        return;
+      }
+      localStorage.setItem(AppSider.LS_PREFIX + commitId, JSON.stringify(cleaned));
+      // Update the index, evict oldest if over cap.
+      let index = [];
+      try {
+        index = JSON.parse(localStorage.getItem(AppSider.LS_INDEX_KEY) || '[]');
+      } catch { index = []; }
+      index = index.filter(id => id !== commitId);
+      index.push(commitId);
+      while (index.length > AppSider.LS_MAX_COMMITS) {
+        const evicted = index.shift();
+        localStorage.removeItem(AppSider.LS_PREFIX + evicted);
+      }
+      localStorage.setItem(AppSider.LS_INDEX_KEY, JSON.stringify(index));
+    } catch (e) {
+      console.warn('Failed to save integrationStatuses to localStorage', e);
+    }
+  }
+  componentDidMount() {
+    const commitId = this.props.commit?.id;
+    if (commitId) {
+      const restored = this.loadIntegrationStatuses(commitId);
+      if (Object.keys(restored).length > 0) {
+        this.setState({ integrationStatuses: restored });
+      }
+    }
+  }
+  componentDidUpdate(prevProps, prevState) {
+    const prevCommitId = prevProps.commit?.id;
+    const currCommitId = this.props.commit?.id;
+    // Commit changed: reload from localStorage for the new commit.
+    if (prevCommitId !== currCommitId && currCommitId) {
+      const restored = this.loadIntegrationStatuses(currCommitId);
+      this.setState({ integrationStatuses: restored });
+      return;
+    }
+    // Same commit, statuses changed: persist them.
+    if (currCommitId && prevState.integrationStatuses !== this.state.integrationStatuses) {
+      this.saveIntegrationStatuses(currCommitId, this.state.integrationStatuses);
+    }
+  }
   componentWillUnmount() {
     this.stopUpdateIntegrationStatuses()
   }
