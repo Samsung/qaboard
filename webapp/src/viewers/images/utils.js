@@ -1,4 +1,4 @@
-export const preferred_path = (output_dir_url, path, manifest = null, preferTiff = true) => {
+export const iiif_url = (output_dir_url, path, manifest = null, preferTiff = true) => {
   path = build_image_name(path, manifest, preferTiff)
   // remove the URL's leading "/s"
   let identifier = output_dir_url.replace(/^\/*?s\//, "")
