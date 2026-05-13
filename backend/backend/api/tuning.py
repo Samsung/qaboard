@@ -378,7 +378,7 @@ def start_tuning(hexsha):
         batch_context = merged_batches.get(b,{})
         if batch_context.get('type', " ") == 'pipeline':
             for key in batch_context.keys():
-                if key.lower() in ['configuration', 'configurations']:
+                if key.lower() in ['configuration', 'configurations', 'configs']:
                     configs = batch_context.get(key, [])
                     for step in configs:
                         if 'batch' in step.keys():
