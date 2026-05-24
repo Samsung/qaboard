@@ -4,6 +4,10 @@
   "private": true,
   "version": "0.1.0",
   "proxy": "http://qa:5001",
+  "jest-junit": {
+    "outputDirectory": ".",
+    "outputName": "junit.xml"
+  },
   "overrides": {
     "@blueprintjs/datetime": {
       "@types/react": "^18",
@@ -97,6 +101,10 @@
   },
   "devDependencies": {
     "@sentry/cli": "^2.25.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "jest-junit": "^17.0.0",
     "redux-devtools-extension": "^2.13.9"
   }
 }

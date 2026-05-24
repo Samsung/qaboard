@@ -40,6 +40,65 @@ lint:
   script:
   - flake8 backend qaboard
 
+webapp-tests:
+  stage: test
+  rules:
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  script:
+    - cd webapp
+    - npm install --legacy-peer-deps
+    - npm test -- --coverage --coverageReporters=cobertura --coverageReporters=text --watchAll=false --ci --forceExit --detectOpenHandles --reporters=default --reporters=jest-junit --testEnvironment=jsdom
+    - pip install diff-cover
+    - |
+      TARGET_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-master}"
+      echo "Target branch is: $TARGET_BRANCH"
+      git fetch --unshallow || true
+      git fetch origin "$TARGET_BRANCH"
+      diff-cover coverage/cobertura-coverage.xml --compare-branch "origin/$TARGET_BRANCH"
+      DIFF_COV="$(diff-cover coverage/cobertura-coverage.xml --compare-branch "origin/$TARGET_BRANCH" \
+        | grep -E '^Coverage:' | grep -Eo '[0-9]+(\.[0-9]+)?%' || echo '0.00%')"
+      echo "Diff coverage: $DIFF_COV"
+  coverage: '/Diff coverage:\s+\d+(?:\.\d+)?%/'
+  artifacts:
+    when: always
+    reports:
+      junit: webapp/junit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: webapp/coverage/cobertura-coverage.xml
+
+backend-tests:
+  stage: test
+  rules:
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  before_script:
+    - export PATH=$PATH:/home/ispq/miniconda3/envs/py311/bin
+    - cd backend
+    - uv sync --group dev
+    - source .venv/bin/activate
+  script:
+    - pytest -q tests/ --cov=backend --cov-report=xml --junitxml=report.xml
+    - coverage report
+    - |
+      TARGET_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-master}"
+      echo "Target branch is: $TARGET_BRANCH"
+      git fetch --unshallow || true
+      git fetch origin "$TARGET_BRANCH"
+      diff-cover coverage.xml --compare-branch "origin/$TARGET_BRANCH"
+      DIFF_COV="$(diff-cover coverage.xml --compare-branch "origin/$TARGET_BRANCH" \
+        | grep -E '^Coverage:' | grep -Eo '[0-9]+(\.[0-9]+)?%' || echo '0.00%')"
+      echo "Diff coverage: $DIFF_COV"
+  coverage: '/Diff coverage:\s+\d+(?:\.\d+)?%/'
+  artifacts:
+    when: always
+    reports:
+      junit: backend/report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: backend/coverage.xml
+
 
 deploy:qa:
   stage: deploy
@@ -70,21 +129,6 @@ publish:PyPi:
 #  GIT_CLEAN_FLAGS: -ffdx --exclude=webapp/node_modules/
 #  GIT_SUBMODULE_STRATEGY: recursive
 
-# CI for the web application and the backend
-# TODO: enable it, make it work...
-# image: gitlab-srv.transchip.com:4567/common-infrastructure/qaboard
-# backend:tests:
-#   stage: test
-#   script:
-#   - cd backend
-#   # we only check that the syntax is correct
-#   - pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org .
-# webapp:tests:
-#   stage: test
-#   script:
-#     - cd webapp
-#     - npm ci
-#     # - npm test
 
 .deploy: &deploy
   stage: deploy
@@ -154,14 +198,14 @@ smoke-test:dev:
   needs:
     - deploy:dev
 
-backend:tests:
+smoke-test:backend:
   stage: smoke-test
   variables:
     DOCKER_HOST: "ssh://alginfra1"
     CI_ENVIRONMENT_SLUG: ""
   script:
     - echo "Running backend unit tests..."
-    - source ./.envrc && COMPOSE_PROJECT_NAME=qaboard_ci docker compose -f docker-compose.yml -f development.yml exec -T backend bash -c 'cd /qaboard/backend && python -m pytest backend/tests/ -v -p no:cacheprovider'
+    - source ./.envrc && COMPOSE_PROJECT_NAME=qaboard_ci docker compose -f docker-compose.yml -f development.yml exec -T backend bash -c 'export BACKEND_TEST_MODE=no-mock && cd /qaboard/backend && python -m pytest smoke_tests/ -v -p no:cacheprovider'
     - echo "✅ Backend tests passed!"
   only:
     - master
@@ -181,4 +225,4 @@ cleanup:dev:
     - master
   when: always  # Always cleanup, even if tests fail
   needs:
-    - backend:tests
+    - smoke-test:backend

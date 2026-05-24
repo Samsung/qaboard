@@ -71,6 +71,15 @@ qaboard = { path = "../" }
 # [tool.uv.pip]
 # no-binary = ["uwsgi", "lxml", "xmlsec"]
 
+[tool.coverage.run]
+omit = ["tests/*", "*/tests/*"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["backend*"]
+exclude = ["smoke_tests*"]
+
+
 # uv sync --extra qaboard
 # [project.optional-dependencies]
 # qaboard = ["qaboard"]
@@ -88,4 +97,8 @@ qaboard_clean_untracked_hwalg_outputs = "backend.clean:clean_untracked_hwalg_out
 qaboard_init_database = "backend.scripts.init_database:init_database"
 
 [dependency-groups]
-dev = ["pytest"]
+dev = [
+    "pytest",
+    "pytest-cov>=7.0.0",
+    "diff-cover>=9.0.0",
+]

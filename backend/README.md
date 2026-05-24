@@ -45,11 +45,18 @@ sudo sysctl -w net.core.somaxconn=65536
 ```
 
 ## Running Tests
-Tests must run inside the Docker backend container.
+
+### Smoke Tests
+
+Smoke Tests must run inside the Docker backend container.  
+**Important:** You must set this env var: `BACKEND_TEST_MODE=no-mock` in order to run smoke tests without mocks that are used in unit tests.
 ```bash
-docker compose exec backend bash -c "cd /qaboard/backend && python -m pytest backend/tests/ -v -p no:cacheprovider "
+docker compose exec backend bash -c "cd /qaboard/backend && python -m pytest backend/smoke_tests/ -v -p no:cacheprovider "
 ```
 
+### Unit Tests
+
+See `backend/tests/TESTING.md` for details and how-to.
 
 ## Overview
 [sqlalchemy](http://docs.sqlalchemy.org/en/latest/orm/tutorial.html) maps our classes (defined in [/models](models/)) to database tables:

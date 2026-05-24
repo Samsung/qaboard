@@ -51,6 +51,24 @@ const milestone_type = ({ commit, project_shown, project_data, batch }) => {
   return 'none';
 }
 
+const getPersonFilter = (milestone) => {
+  // Filter by owner names (both full_name and user_name)
+  let personFilter = ''
+  if (milestone.owners) {
+    const ownerNames = milestone.owners
+      .map(o => `${o.full_name || ''} ${o.user_name || ''}`)
+      .join(' ')
+    personFilter = ownerNames
+  }
+
+  // Filter by committer name too
+  if (milestone.committer_name) {
+    personFilter = `${personFilter} ${milestone.committer_name}`
+  }
+
+  return personFilter
+}
+
 // FIXME: Right now we can only have 1 filter per commit/batch, because it's not in the key...
 //        The design is really bad. Instead we could use uuids, or just have a list of milestones
 //        that we filter for match on project+commit+batch+filter
@@ -65,7 +83,7 @@ const MilestonesMenu = ({project, milestones, title, icon, onSelect, type}) => {
   const sortWeight =  orderBy.includes("↓") ? -1 : 1
 	const milestones_menu_items = has_milestones
       ? (Object.values(milestones)
-          .filter(m => matcher(`${m.project} ${m.commit} ${m.batch} ${m.filter} ${m.label} ${m.notes}`))
+          .filter(m => matcher(`${m.project} ${m.commit} ${m.batch} ${m.filter} ${m.label} ${m.notes} ${getPersonFilter(m)}`))
           .sort( (m0, m1) => sortWeight * (new Date(m0.date) - new Date(m1.date)))
          || [])
          .map(  (m, idx) => <MilestoneMenu project={project} icon={icon} key={`${type}-${idx}`} milestone={m} onSelect={onSelect} /> )
@@ -75,7 +93,7 @@ const MilestonesMenu = ({project, milestones, title, icon, onSelect, type}) => {
       {Object.keys(milestones).length > 1 &&
           <ControlGroup>
             <InputGroup
-              placeholder="filter milestones by label, branch, comment..."
+              placeholder="filter milestones by label, branch, owner..."
               leftIcon="filter"
               value={filter}
               className={filter === '' ? undefined : Intent.PRIMARY}
@@ -118,6 +136,7 @@ const MilestoneMenu = ({ project, milestone, onSelect, icon }) => {
       {has_filter && <Tag minimal style={{marginRight: '5px'}} icon="filter">{filter}</Tag>}
       {!!milestone.branch && <Tag minimal icon="git-branch" style={{marginRight: '5px'}}>{milestone.branch}</Tag>}
       {!!commit_id && <Tag minimal icon="git-commit" style={{marginRight: '5px'}}>{commit_id.slice(0, 8)}</Tag>}
+      {!!milestone.committer_name && <Tag minimal icon="person" style={{marginRight: '5px'}}>{milestone.committer_name}</Tag>}
       {has_notes && <Tooltip position="right" content={<pre>{notes}</pre>}>
         <Tag icon="more" style={{marginRight: '5px'}}/>
       </Tooltip>}
@@ -235,7 +254,7 @@ class CommitMilestoneEditor extends React.Component {
         intent={Intent.PRIMARY}
         isOpen={show_alert_overwrite}
         onCancel={() => this.setState({ show_alert_overwrite: false })}
-        onConfirm={this.saveMilestone}
+        onConfirm={this.saveEditSharedMilestone}
         style={{width: null, }}
       >
         <p>A similar shared milestone already exist: <Menu><MilestoneMenu icon="crown" milestone={overwrite_milestone}/></Menu>.</p>
@@ -292,11 +311,19 @@ class CommitMilestoneEditor extends React.Component {
         this.props.dispatch(fetchProjects())
       })
       .catch(error => {
-        toaster.show({ message: `${error}`, intent: Intent.DANGER, timeout: 3000 });
+        // Handle auth errors with user-friendly messages
+        const errorMessage = error.response?.data?.error;
+        if (error.response?.status === 401) {
+          toaster.show({ message: errorMessage || 'Please log in to manage milestones', intent: Intent.DANGER, timeout: 5000 });
+        } else if (error.response?.status === 403) {
+          toaster.show({ message: errorMessage || 'You can only edit or delete your own milestones', intent: Intent.DANGER, timeout: 5000 });
+        } else {
+          toaster.show({ message: errorMessage || `${error}`, intent: Intent.DANGER, timeout: 3000 });
+        }
       })
   }
 
-  saveMilestone = () => {
+  saveEditSharedMilestone = () => {
     // FIXME: can we avoid this? It really should happen only if a milestone switches between shared<=>private
     //        otherwise we can just update
 
@@ -315,6 +342,7 @@ class CommitMilestoneEditor extends React.Component {
       batch: batch.label,
       filter,
       date,
+      committer_name: commit.committer_name,
     }
     if (project !== project_shown)
       milestone.project = project_shown
@@ -344,7 +372,7 @@ class CommitMilestoneEditor extends React.Component {
         overwrite_milestone: shared_milestones[key],
       });
     else
-      this.saveMilestone();
+      this.saveEditSharedMilestone();
   }
 
   deleteMilestone = () => {

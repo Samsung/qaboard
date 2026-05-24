@@ -29,4 +29,17 @@ module.exports = function override(config, env) {
   });
   // console.log(config.plugins.filter(plugin => plugin.constructor.name === "GenerateSW"))
   return config;
-}
+};
+
+/* Add jest config for react-app-rewired */
+module.exports.jest = function(config) {
+  return {
+    ...config,
+    transformIgnorePatterns: [
+      "/node_modules/(?!(d3-scale-chromatic|d3-interpolate|d3-color|d3-format|d3-time|d3-array|d3-scale|d3-contour|d3-hierarchy|d3-path|d3-shape|quick-lru|mathjs|fraction.js|complex.js|typed-function|decimal.js)/)"
+    ],
+    moduleNameMapper: {
+      "^mathjs/number$": require.resolve("mathjs/number"),  // force correct resolution
+    },
+  };
+};
