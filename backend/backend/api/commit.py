@@ -29,7 +29,8 @@ def api_ci_commit(commit_id=None):
         data=request.json,
       )
     except Exception as e:
-      return f"404 ERROR: {e}\n ({request.json['project']}): There is an issue with your commit id ({request.json['git_commit_sha']})", 404
+      project = request.json.get('project', 'unknown')
+      return f"404 ERROR: {e}\n Project: {project} - There is an issue with your commit id ({hexsha})", 404
     if not commit.data:
       commit.data = {}
     # Clients can store any metadata with each commit.

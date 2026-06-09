@@ -45,6 +45,7 @@ def pytest_configure():
     auth_mod = types.ModuleType('backend.api.auth')
     auth_mod.__package__ = 'backend.api'
     auth_mod.get_current_user = MagicMock()
+    auth_mod.is_authorized_user = MagicMock()
     sys.modules['backend.api.auth'] = auth_mod
     api_mod.auth = auth_mod
 
@@ -53,15 +54,27 @@ def pytest_configure():
     models_mod.__package__ = 'backend'
     models_mod.Project = MagicMock()
     models_mod.Output = MagicMock()
+    models_mod.CiCommit = MagicMock()
+    models_mod.latest_successful_commit = MagicMock()
+    models_mod.Batch = MagicMock()
     sys.modules['backend.models'] = models_mod
     sys.modules['backend.backend'] = types.ModuleType('backend.backend')
 
     # Mock SQLAlchemy
     sa_mod = sys.modules.setdefault('sqlalchemy', types.ModuleType('sqlalchemy'))
     sa_orm = sys.modules.setdefault('sqlalchemy.orm', types.ModuleType('sqlalchemy.orm'))
+    sa_orm.selectinload = MagicMock()
+
     sa_attrs = types.ModuleType('sqlalchemy.orm.attributes')
     sa_attrs.flag_modified = MagicMock()
     sys.modules['sqlalchemy.orm.attributes'] = sa_attrs
+
+    import json as _json
+    ujson_mod = types.ModuleType('ujson')
+    ujson_mod.dumps = _json.dumps
+    ujson_mod.loads = _json.loads
+    sys.modules['ujson'] = ujson_mod
+
 
     class MockNoResultFound(Exception):
         pass
