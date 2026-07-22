@@ -82,6 +82,32 @@ class TestIterators(unittest.TestCase):
       "object abcdef"
     )
 
+  def test_expressions(self):
+    from qaboard.iterators import evaluate_expressions
+    variables = {'matrix': {'gain': 2}}
+    # full-string expressions keep their type
+    self.assertEqual(evaluate_expressions("${{ 168 * matrix.gain }}", variables), 336)
+    self.assertEqual(evaluate_expressions("${{ matrix.gain / 4 }}", variables), 0.5)
+    self.assertEqual(evaluate_expressions("${{ min(2 ** matrix.gain, 3) }}", variables), 3)
+    self.assertEqual(evaluate_expressions("${{ matrix['gain'] + 1 }}", variables), 3)
+    # expressions embedded in strings are formatted back, recursively in dicts/lists
+    self.assertEqual(
+      evaluate_expressions({"SMAP.bp_th": "[${{ 168 * matrix.gain }}, 200, ${{ matrix.gain }}]"}, variables),
+      {"SMAP.bp_th": "[336, 200, 2]"}
+    )
+    # integral floats are formatted as ints
+    self.assertEqual(evaluate_expressions("[${{ 168 * matrix.gain }}]", {'matrix': {'gain': 1.5}}), "[252]")
+    # strings without expressions are left alone
+    self.assertEqual(evaluate_expressions("plain ${matrix.gain}", variables), "plain ${matrix.gain}")
+    self.assertEqual(evaluate_expressions(42, variables), 42)
+    # errors are loud, not silent
+    with self.assertRaises(ValueError):
+      evaluate_expressions("${{ matrix.typo }}", variables)
+    with self.assertRaises(ValueError):
+      evaluate_expressions("${{ __import__('os').system('true') }}", variables)
+    with self.assertRaises(ValueError):
+      evaluate_expressions("${{ 1 if 1 else 2 }}", variables)
+
   def test_match(self):
     from qaboard.iterators import match
     metadata = {"Sensor": "HM4"}
@@ -207,6 +233,11 @@ class TestIterators(unittest.TestCase):
     self.assertEqual(batches[1].configurations, ['base', 'config-v2', {"version": "v2"}])
     batches = get_batch('matrix-interpolate-2')
     self.assertEqual(len(batches), 4)
+
+    batches = get_batch('matrix-expressions')
+    self.assertEqual(len(batches), 2)
+    self.assertEqual(batches[0].configurations, ['base', {"SMAP.bp_th": "[168, 200]"}, {"threshold": 10}])
+    self.assertEqual(batches[1].configurations, ['base', {"SMAP.bp_th": "[336, 200]"}, {"threshold": 20}])
 
 
 
@@ -359,6 +390,16 @@ matrix-interpolate:
     - base
     - config-v${matrix.version}
     - version: v${matrix.version}
+
+matrix-expressions:
+  inputs:
+  - a.txt
+  matrix:
+    gain: [1, 2]
+  configurations:
+    - base
+    - SMAP.bp_th: "[${{ 168 * matrix.gain }}, 200]"
+    - threshold: ${{ 10 * matrix.gain }}
 
 matrix-interpolate-2:
   inputs:
