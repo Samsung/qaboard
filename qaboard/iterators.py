@@ -3,9 +3,11 @@ Iterators over inputs, parameters...
 """
 import os
 import re
+import ast
 import sys
 import json
 import numbers
+import operator
 import fnmatch
 import traceback
 from copy import deepcopy
@@ -308,6 +310,96 @@ def deep_interpolate(value, replaced: str, to_value):
     return value
 
 
+# Arithmetic expressions like `${{ 168 * matrix.gain }}`, inspired by GitHub Actions
+expression_regex = re.compile(r'\$\{\{(.*?)\}\}')
+
+safe_eval_binops = {
+  ast.Add: operator.add,
+  ast.Sub: operator.sub,
+  ast.Mult: operator.mul,
+  ast.Div: operator.truediv,
+  ast.FloorDiv: operator.floordiv,
+  ast.Mod: operator.mod,
+  ast.Pow: operator.pow,
+}
+safe_eval_unaryops = {ast.UAdd: operator.pos, ast.USub: operator.neg}
+safe_eval_functions = {'abs': abs, 'int': int, 'float': float, 'round': round, 'min': min, 'max': max}
+
+def safe_eval(expression: str, variables: Dict):
+  """Evaluates arithmetic expressions like "168 * matrix.gain". Anything except literals,
+  variable lookups, arithmetic operators and abs/int/float/round/min/max raises ValueError."""
+  def eval_node(node):
+    node_type = type(node).__name__
+    if isinstance(node, ast.Expression):
+      return eval_node(node.body)
+    if isinstance(node, ast.Constant):
+      return node.value
+    if node_type == 'Num': # python3.7
+      return node.n
+    if node_type == 'Str': # python3.7
+      return node.s
+    if isinstance(node, ast.Name):
+      if node.id in variables:
+        return variables[node.id]
+      if node.id in safe_eval_functions:
+        return safe_eval_functions[node.id]
+      raise ValueError(f'unknown name "{node.id}"')
+    if isinstance(node, ast.Attribute):
+      obj = eval_node(node.value)
+      if isinstance(obj, dict) and node.attr in obj:
+        return obj[node.attr]
+      raise ValueError(f'unknown attribute "{node.attr}"')
+    if isinstance(node, ast.Subscript):
+      obj = eval_node(node.value)
+      key = node.slice
+      if type(key).__name__ == 'Index': # python<3.9
+        key = key.value
+      return obj[eval_node(key)]
+    if isinstance(node, ast.BinOp) and type(node.op) in safe_eval_binops:
+      return safe_eval_binops[type(node.op)](eval_node(node.left), eval_node(node.right))
+    if isinstance(node, ast.UnaryOp) and type(node.op) in safe_eval_unaryops:
+      return safe_eval_unaryops[type(node.op)](eval_node(node.operand))
+    if isinstance(node, ast.Call):
+      func = eval_node(node.func)
+      if func not in safe_eval_functions.values():
+        raise ValueError(f'only calls to {"/".join(safe_eval_functions)} are allowed')
+      return func(*[eval_node(a) for a in node.args], **{kw.arg: eval_node(kw.value) for kw in node.keywords})
+    raise ValueError(f'unsupported syntax ({node_type})')
+  return eval_node(ast.parse(expression.strip(), mode='eval'))
+
+
+def evaluate_expressions(value, variables: Dict):
+  """Evaluates recursively the `${{ <expression> }}` blocks found in strings.
+  If a string is exactly one expression, it keeps the result's type (e.g. int),
+  otherwise results are formatted back into the string (floats with integral
+  values are formatted as ints, so `${{ 168 * 1.5 }}` gives "252" not "252.0").
+  Unlike the lenient `${matrix.param}` interpolation, errors here raise ValueError:
+  expressions are always intentional, so failures should never pass silently."""
+  if isinstance(value, dict):
+    return {k: evaluate_expressions(v, variables) for k, v in value.items()}
+  if isinstance(value, list):
+    return [evaluate_expressions(v, variables) for v in value]
+  if not isinstance(value, str):
+    return value
+  def evaluate(match):
+    expression = match.group(1)
+    try:
+      return safe_eval(expression, variables)
+    except Exception as e:
+      message = f'ERROR: Cannot evaluate the expression <${{{{{expression}}}}}>: {e}'
+      click.secho(message, fg='red', bold=True, err=True)
+      raise ValueError(message) from e
+  full_match = expression_regex.fullmatch(value.strip())
+  if full_match:
+    return evaluate(full_match)
+  def evaluate_str(match):
+    result = evaluate(match)
+    if isinstance(result, float) and result.is_integer():
+      return str(int(result))
+    return str(result)
+  return expression_regex.sub(evaluate_str, value)
+
+
 def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, default_inputs_settings, debug):
     # Happens often when there is an orphan "my-batch:" in in the yaml file
     if batch is None:
@@ -356,10 +448,14 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
             matrix_run_context.configurations.append(matrix_config)
           else:
             matrix_run_context.configurations = matrix_config
+        matrix_params = {}
         for param, value in matrix.items():
           if param in ['configuration', 'configurations', 'configs', 'platform']:
             continue
+          matrix_params[param] = value
           matrix_run_context.configurations = deep_interpolate(matrix_run_context.configurations, 'matrix', {param: value})
+        # arithmetic expressions are evaluated after all matrix parameters are known
+        matrix_run_context.configurations = evaluate_expressions(matrix_run_context.configurations, {'matrix': matrix_params})
         yield from iter_batch(batch_, matrix_run_context, qatools_config, default_inputs_settings, debug)
       return
 

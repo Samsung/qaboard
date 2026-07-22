@@ -193,6 +193,27 @@ my-batch-matrix-object:
     - flags: "-x=${matrix.point[x]} -y=${matrix.point[y]}"
 ```
 
+### Arithmetic expressions
+Sometimes parameters are correlated: a threshold that scales with the gain, a size that depends on a ratio... Instead of maintaining parallel lists of pre-computed values, you can write arithmetic expressions with the `${{ <expression> }}` syntax, referencing matrix parameters as `matrix.variable`:
+
+```yaml
+my-batch-derived-parameters:
+  inputs:
+  - image.raw
+  matrix:
+    gain: [1, 2, 4]
+  configs:
+    - workspace/config_gain${matrix.gain}.cde
+    - SMAP.bp_th_red_min_curve_exp_0: "[${{ 168 * matrix.gain }}, 200, 240, 280, 360, 600, 600]"
+    - SMAP.other_threshold: ${{ min(50 * matrix.gain, 100) }}
+
+# => will run with SMAP.bp_th_red_min_curve_exp_0 == "[168, ...]", "[336, ...]" and "[672, ...]"
+```
+
+Expressions support the usual arithmetic operators (`+ - * / // % **`), parentheses, and calls to `abs/int/float/round/min/max` — nothing else, by design. If an expression is the whole value, the result keeps its type (*e.g.* integer); when embedded in a longer string it is formatted back into it (floats with integral values like `252.0` are written as `252`).
+
+> Unlike `${matrix.variable}` interpolation, which leaves unknown placeholders untouched, a `${{ }}` expression that cannot be evaluated stops the batch with an error: expressions are always intentional, so typos fail loudly instead of silently sending a literal string to your runs.
+
 ## Aliases for groups of batches
 For convenience you can define aliases for batches you often run together. For instance you can do:
 
