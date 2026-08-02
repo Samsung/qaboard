@@ -79,12 +79,11 @@ evaluations: 50
 parallel_sampling: 1
 
 # You can configure the the solver:
-# https://scikit-optimize.github.io/stable/modules/generated/skopt.optimizer.Optimizer.html#skopt.optimizer.Optimizer
+# https://samsung.github.io/qaboard/docs/auto-optimization
 # solver:
-#   base_estimator: GP
-#   n_initial_points: 10
-#   acq_funcstring: gp_hedge
-#   # etc
+#   sampler: gp          # gp (gaussian processes) | tpe | random
+#   n_startup_trials: 10 # random exploration before the sampler kicks in
+#   seed: 42
 
 
 # You can optimize objective functions of the form:
@@ -137,7 +136,7 @@ objective:
 
 search_space:
   # Below are some examples.
-  # More info at https://scikit-optimize.github.io/stable/modules/classes.html#module-skopt.space.space
+  # More info at https://samsung.github.io/qaboard/docs/auto-optimization
   - Integer:
       name: max_events
       low: 1000
