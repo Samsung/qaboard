@@ -33,6 +33,7 @@ uwsgi = "*"        # server
 uwsgitop = "*"     # top for uwsgi
 qaboard = { path = "..", optional = true } #, develop = true }
 optuna = ">=4.9"      # needed for auto-tuning, it's specified in qaboard[opt], normally it should be enough but..
+plotly = "*"          # interactive tuning plots
 
 # Makes incremental docker builds easier
 [tool.poetry.extras]

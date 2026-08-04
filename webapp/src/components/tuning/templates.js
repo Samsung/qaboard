@@ -76,7 +76,20 @@ return {
   optimize: (config, metrics) => {
     return `# We will call the objective function that many times
 evaluations: 50
+# How many evaluations run concurrently -- a new one starts as soon as one finishes
 parallel_sampling: 1
+
+# Stop before the budget is spent when nothing improves anymore:
+# early_stopping:
+#   patience: 15  # evaluations without a new best
+
+# With 2-3 metrics in the objective, you can optimize each separately
+# and get the Pareto front of best trade-offs instead of a single winner:
+# pareto: true
+
+# Results are saved as they arrive (optuna.db in the experiment's output directory):
+# re-running the same experiment resumes where it left off. To start over:
+# resume: false
 
 # You can configure the the solver:
 # https://samsung.github.io/qaboard/docs/auto-optimization

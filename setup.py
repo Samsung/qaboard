@@ -61,6 +61,7 @@ setup(
     'opt': [
       'optuna>=4.9',
       'torch',
+      'plotly',  # interactive tuning plots
     ],
     'dev': [
       'flake8', # lint

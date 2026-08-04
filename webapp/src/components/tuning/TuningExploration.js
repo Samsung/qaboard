@@ -1,6 +1,7 @@
 import React, { Component, Fragment, useReducer, useState, useEffect } from "react";
 import { withRouter } from "react-router";
 import qs from "qs";
+import { get } from "axios";
 import { get as _get } from "lodash";
 
 import Plot from 'react-plotly.js';
@@ -26,6 +27,51 @@ const metric_formatter = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2
 });
+
+
+// Interactive views of an automated-tuning search, written by `qa optimize` as
+// tuning-plots.json (Plotly figures: convergence/pareto-front, parameter importances,
+// slice, parallel-coordinates, timeline...). Old runs only have static PNGs, so we
+// fall back to those when the JSON is missing.
+const TuningPlots = ({ batch, iteration }) => {
+  const [payload, setPayload] = useState(null);
+  const [not_found, setNotFound] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    // re-fetched on each new iteration so the plots follow a running search
+    get(`${batch.batch_dir_url}/tuning-plots.json?iter=${iteration}`)
+      .then(response => { if (!cancelled) { setPayload(response.data); setNotFound(false); } })
+      .catch(() => { if (!cancelled) setNotFound(true); })
+    return () => { cancelled = true; }
+  }, [batch.batch_dir_url, iteration]);
+
+  if (not_found)
+    return <>
+      <h4>Convergence</h4>
+      <img height={250} alt="not yet available" src={`${batch.batch_dir_url}/plot_convergence.png?iter=${iteration}`}/>
+    </>;
+  if (payload === null || !payload.plots)
+    return null;
+  return <>
+    <p className={Classes.TEXT_MUTED}>
+      {payload.n_completed} evaluations
+      {payload.n_failed > 0 && <> ({payload.n_failed} failed)</>}
+      <a style={{marginLeft: '10px'}} href={`${batch.batch_dir_url}/tuning-report.html`} target="_blank" rel="noopener noreferrer">standalone report</a>
+    </p>
+    {payload.plots.map(({key, title, figure}) =>
+      <Fragment key={key}>
+        <h4>{title}</h4>
+        <Plot
+          data={figure.data}
+          layout={{...figure.layout, autosize: true}}
+          config={config}
+          useResizeHandler
+          style={{width: '100%'}}
+        />
+      </Fragment>
+    )}
+  </>;
+}
 
 const optimization_metrics = {
   iteration: {
@@ -684,12 +730,26 @@ class TuningExploration extends Component {
                                    }), {}) : {};
     return (
       <Section>
-        {batch_data.optimization && <Callout icon='crown' title="Best parameters">
-          {Object.entries(batch_data.best_params).map(([k, v]) => 
+        {batch_data.optimization && !!batch_data.pareto_front && <Callout icon='crown' title={`Pareto front: ${batch_data.pareto_front.length} trade-offs`}>
+          {batch_data.pareto_front.map(({iteration, params, objectives}) =>
+            <p key={iteration} style={{marginBottom: '4px'}}>
+              <Tag minimal round style={{marginRight: '5px'}}>iteration {iteration}</Tag>
+              {Object.entries(objectives).map(([k, v]) =>
+                <Tag key={k} minimal round intent={Intent.PRIMARY} style={{"margin":'3px'}}>{k}: {metric_formatter.format(v)}</Tag>
+              )}
+              {Object.entries(params).map(([k, v]) =>
+                <Tag key={k} minimal round intent={Intent.SUCCESS} style={{"margin":'3px'}}>{k}: {JSON.stringify(v)}</Tag>
+              )}
+            </p>
+          )}
+          <p className={Classes.TEXT_MUTED}>after {batch_data.iteration} iterations</p>
+        </Callout>}
+        {batch_data.optimization && !batch_data.pareto_front && <Callout icon='crown' title="Best parameters">
+          {Object.entries(batch_data.best_params || {}).map(([k, v]) =>
             <Tag key={k} minimal round intent={Intent.SUCCESS} style={{"margin":'3px'}}>{k}: {JSON.stringify(v)}</Tag>
           )}
           {Object.entries(filtered_best_metrics).map(([k,v]) =>
-            <Tag key={k} minimal round style={{"margin":'3px'}}>{available_metrics[k].label}: {metric_formatter.format(v*available_metrics[k].scale)}{available_metrics[k].suffix}</Tag>
+            <Tag key={k} minimal round style={{"margin":'3px'}}>{(available_metrics[k] || {label: k}).label}: {metric_formatter.format(v*((available_metrics[k] || {}).scale ?? 1))}{(available_metrics[k] || {}).suffix}</Tag>
           )}
           <p className={Classes.TEXT_MUTED}>found at iteration {batch_data.best_iter}/{batch_data.iteration}</p>
         </Callout>}
@@ -727,14 +787,9 @@ class TuningExploration extends Component {
           />
         </FormGroup>
 
-        {batch_data.optimization && <>
-          <h4>Convergence</h4>
-          <img height={250} alt="not yet available" src={`${batch.batch_dir_url}/plot_convergence.png?iter=${batch_data.best_iter}`}/>
-          {/* <h4>Parameters' importance</h4>
-          <img alt="not yet available" src={`${batch.batch_dir_url}/plot_objective.png`}/>
-          <h4>How we sampled the search space</h4>
-          <img alt="not yet available" src={`${batch.batch_dir_url}/plot_evaluations.png`}/> */}
-        </>}
+        {batch_data.optimization &&
+          <TuningPlots batch={batch} iteration={batch_data.iteration}/>
+        }
 
 
         <h4 className={Classes.HEADING}>Sensibility to tuning parameters</h4>

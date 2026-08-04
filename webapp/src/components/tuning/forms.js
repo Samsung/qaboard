@@ -27,6 +27,8 @@ import {
 } from "@blueprintjs/core";
 
 import templates from './templates'
+import OptimizeForm from './OptimizeForm'
+import { parseOptimizeConfig, validateOptimizeConfig } from './optimize_config'
 export const toaster = Toaster.create();
 
 
@@ -326,6 +328,11 @@ class TuningForm extends Component {
           ? Intent.PRIMARY
           : Intent.WARNING;
 
+    // in automated tuning the YAML is validated live, and we refuse to submit a broken config
+    const optimize_errors = search_type === "optimize"
+      ? validateOptimizeConfig(parseOptimizeConfig(this.state.parameter_search_auto || '').config)
+      : [];
+
 
     // we should show different parameters for different runners: queues, user...
     const lsf_runner = (config.runners?.lsf !== undefined || config.lsf !== undefined);
@@ -393,7 +400,12 @@ class TuningForm extends Component {
    
 
     const panel_auto = <>
-      <Button onClick={e => this.setState({ parameter_search_auto: templates['optimize'](config, metrics) })}>Reset</Button>
+      <OptimizeForm
+        value={this.state.parameter_search_auto || ''}
+        onChange={this.updateParameterSearchAuto}
+        metrics={metrics}
+      />
+      <Button onClick={e => this.setState({ parameter_search_auto: templates['optimize'](config, metrics) })}>Reset to the commented template</Button>
       <MonacoEditor
         height={250}
         language='yaml'
@@ -512,8 +524,8 @@ class TuningForm extends Component {
 
       <FormGroup
         helperText={!user ? "Please provide a user in the input below"
-                          : (this.state.experiment_name.length === 0 ? 'Please give a name to the tuning experiment (the input is above)' : (selected_group_info.tests.length === 0 ? "No inputs found in the batch you asked to use" : undefined))}
-        intent={(!user || this.state.experiment_name.length === 0 || !total_runs) ? Intent.DANGER : undefined}
+                          : (this.state.experiment_name.length === 0 ? 'Please give a name to the tuning experiment (the input is above)' : (selected_group_info.tests.length === 0 ? "No inputs found in the batch you asked to use" : (optimize_errors.length > 0 ? "Please fix the tuning configuration above" : undefined)))}
+        intent={(!user || this.state.experiment_name.length === 0 || !total_runs || optimize_errors.length > 0) ? Intent.DANGER : undefined}
       >
       <Button
         onClick={this.onSubmit}
@@ -521,7 +533,8 @@ class TuningForm extends Component {
           this.state.submitted ||
           !user ||
           this.state.experiment_name.length === 0 ||
-          !total_runs
+          !total_runs ||
+          optimize_errors.length > 0
         }
         large
         intent={search_type !== "optimize" ? (total_runs < 1000 ? Intent.PRIMARY : Intent.DANGER) : Intent.PRIMARY}
@@ -569,8 +582,9 @@ class TuningForm extends Component {
       {search_type === "optimize" && <>
         <Callout icon="info-sign" title="About auto-tuning">
           <ul>
-          <li>The solver is <a href="https://optuna.org/">Optuna</a>. There are lots of choices for black-box optimization (Ax/BoTorch, SMAC, nevergrad, Ray Tune, hyperopt...), all with varying features, maturity, algorithms and popularity.</li>
+          <li>The solver is <a href="https://optuna.org/">Optuna</a>. Results are saved as they arrive, and interrupted experiments resume automatically.</li>
           <li>You need to use <a href="https://samsung.github.io/qaboard/docs/computing-quantitative-metrics">QA-Board metrics</a>.</li>
+          <li>The tuning tab shows interactive plots of the search: convergence, parameter importances, trade-offs...</li>
           </ul>
           <p><strong>Do send <a href="mailto:arthur.flam@samsung.com">feedback</a>!</strong></p>
         </Callout>
