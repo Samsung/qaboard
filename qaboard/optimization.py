@@ -57,7 +57,7 @@ def parse_search_space(search_space: Any) -> Dict[str, Any]:
 
   Error messages are shown to users in the web UI, so they name what went wrong and where.
   """
-  optuna = _import_optuna()
+  _import_optuna()  # for the friendly error message when it's missing
   from optuna.distributions import CategoricalDistribution, FloatDistribution, IntDistribution
 
   if not search_space:

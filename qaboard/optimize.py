@@ -88,7 +88,11 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
         iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration+idx+1}"
         iteration_batch_dir = batch_dir_for(iteration_batch_label)
         metrics = tuple([m for m in optim_config['objective'].keys() if m != 'target'])
-        aggregated_metrics_ = aggregated_metrics(iteration_batch_label, metrics=metrics)
+        try:
+          aggregated_metrics_ = aggregated_metrics(iteration_batch_label, metrics=metrics)
+        except Exception:
+          # a failed trial may not have any results to aggregate: that must not stop the search
+          aggregated_metrics_ = {}
         notify_qa_database(**{
           **ctx.obj,
           **{
@@ -141,9 +145,10 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
             make_plots(study, optim_dir)
           except:
             pass
-        else:
+        elif y_iter is not None:
           # We remove the results to make sure we don't waste disk space
           # It is also be done server-side...
+          # Failed iterations are kept: their logs explain what went wrong.
           print(f"RM {iteration_batch_dir}")
           rmtree(iteration_batch_dir, ignore_errors=True)
 
@@ -367,22 +372,23 @@ def make_plots(study, dir):
     dir.mkdir(parents=True, exist_ok=True)
 
   # the filenames are what the webapp expects, see webapp/src/components/tuning/TuningExploration.js
+  # Optuna's matplotlib functions draw on a figure of their own; we close them all
+  # because this runs on every new best, and leaked figures add up on long searches.
   click.secho(f'. plot_convergence', fg='blue')
-  plt.figure()
   plot_optimization_history(study)
   plt.savefig(dir/'plot_convergence.png', bbox_inches='tight')
-  plt.close()
+  plt.close('all')
 
   # Needs a few completed trials before it means anything, and it is the slowest plot,
   # so we never let it break the run.
   try:
     click.secho(f'. plot_objective', fg='blue')
-    plt.figure()
     plot_param_importances(study)
     plt.savefig(dir/'plot_objective.png', bbox_inches='tight')
-    plt.close()
   except Exception as e:
     click.secho(f'  (skipped: {e})', fg='yellow', dim=True)
+  finally:
+    plt.close('all')
 
 
 
