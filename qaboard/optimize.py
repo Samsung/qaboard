@@ -7,13 +7,13 @@ import datetime
 import subprocess
 
 import click
-from joblib import Parallel, delayed
 
 from .api import NumpyEncoder, batch_info, notify_qa_database, print_url, matching_output
 from .config import project, subproject, commit_id, outputs_commit, available_metrics, default_batches_files, default_platform
 from .conventions import batch_dir
 from .utils import PathType, getenvs
 from .run import RunContext
+from .optimization import make_plots, make_study, parse_options, parse_search_space, run_optimization
 
 
 
@@ -27,10 +27,7 @@ from .run import RunContext
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, forwarded_args):
-  import numpy as np
-  np.random.seed(int(os.environ.get('QA_SEED', 101)))
-
-  command_id = os.environ.get('QA_BATCH_COMMAND_ID', str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
+  command_id = os.environ.get('QA_BATCH_COMMAND_ID', str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them
   command_data = {
     "command_created_at_datetime":  datetime.datetime.utcnow().isoformat(),
     "argv": sys.argv,
@@ -52,158 +49,159 @@ def optimize(ctx, batches, batches_files, config_file, parallel_param_sampling, 
 
   from shutil import rmtree
   from .api import aggregated_metrics
-  objective, optimizer, optim_config, dim_mapping = init_optimization(config_file, ctx)
-  if not parallel_param_sampling:
-    parallel_param_sampling = optim_config.get('parallel_sampling', 1)
+  objective, study, distributions, options, optim_config, dim_mapping = init_optimization(config_file, ctx, optim_dir)
+  if parallel_param_sampling:
+    options['parallel_sampling'] = parallel_param_sampling
 
-  # TODO: warm-start
-  #   load and "tell" existing results (if there are any)
-  #   (or use a checkpoint?)
-  for iteration in range(0, optim_config['evaluations'], parallel_param_sampling):
-      click.secho(f"Starting iteration {iteration}", fg='blue')
-      if parallel_param_sampling == 1:
-        suggested = optimizer.ask()
-      else:
-        click.secho(f"  {parallel_param_sampling} parallel samples", fg='blue')
-        suggested = optimizer.ask(n_points=parallel_param_sampling)
-      # print("suggested", suggested)
-      click.secho(f"Computing objective", fg='blue')
-      if parallel_param_sampling == 1:
-        y = objective([*suggested, iteration])
-      else:
-        y = Parallel(n_jobs=parallel_param_sampling)(delayed(objective)([*s, iteration+idx]) for idx, s in enumerate(suggested))
-      # print(f"y={y}", suggested)
-      click.secho(f"Updating optimizer", fg='blue')
-      results = optimizer.tell(suggested, y)
+  pareto = options['pareto']
+  metric_names = options['objective_metrics']
 
-      click.secho(f"Updating QA-Board", fg='blue')
-      if parallel_param_sampling == 1:
-        suggested = [suggested]
-        y = [y]
-      for idx, y_iter in enumerate(y): 
-        iteration_batch_label = f"{ctx.obj['batch_label']}|iter{iteration+idx+1}"
-        iteration_batch_dir = batch_dir_for(iteration_batch_label)
-        metrics = tuple([m for m in optim_config['objective'].keys() if m != 'target'])
-        aggregated_metrics_ = aggregated_metrics(iteration_batch_label, metrics=metrics)
-        notify_qa_database(**{
-          **ctx.obj,
-          **{
-            "extra_parameters": dim_mapping(suggested[idx]),
-            # TODO: we really should to tuning/platform in make_batch_conf_dir
-            #       1. make change, 2. rename existing folders)
-            "output_directory": iteration_batch_dir,
-            'input_path': '|'.join(batches),
-            # we want to show in the summary tab the best results for the tuning experiment
-            # but in the exploration see the results per iteration....
-            "input_type": 'optim_iteration', # or... single ? don't show them in the UI
-            "is_pending": False,
-            "is_failed": False,
-            "metrics": {
-              "iteration": iteration+idx+1,
-              "objective": y_iter,
-              **aggregated_metrics_,
-            },
-          },
-        }, command=command)
-
-        # results
-        #    .x [float]: location of the minimum.
-        #    .fun [float]: function value at the minimum.
-        #    .models: surrogate models used for each iteration.
-        #    .x_iters [array]: location of function evaluation for each iteration.
-        #    .func_vals [array]: function value for each iteration.
-        #    .space [Space]: the optimization space.
-        #    .specs [dict]: parameters passed to the function.
-        is_best = results.func_vals[iteration+idx] <= results.fun or iteration+idx==0
-        if is_best:
-          click.secho(f'New best @iteration{iteration+idx+1}: {y} at iteration {iteration+idx+1}', fg='green')
-
-        is_best_data = {
-          "is_best_iter": True,
-          "best_params": dim_mapping(suggested[idx]),
-          "best_metrics": {
-            "objective": y_iter,
+  def on_trial(trial_number, params, components, scalar, is_best):
+    """Report one finished evaluation to QA-Board. Runs under the search loop's lock."""
+    failed = components is None
+    iteration_batch_label = f"{ctx.obj['batch_label']}|iter{trial_number+1}"
+    iteration_batch_dir = batch_dir_for(iteration_batch_label)
+    try:
+      aggregated_metrics_ = aggregated_metrics(iteration_batch_label, metrics=tuple(metric_names))
+    except Exception:
+      # a failed trial may not have any results to aggregate: that must not stop the search
+      aggregated_metrics_ = {}
+    try:
+      notify_qa_database(**{
+        **ctx.obj,
+        **{
+          "extra_parameters": dim_mapping(params),
+          # TODO: we really should to tuning/platform in make_batch_conf_dir
+          #       1. make change, 2. rename existing folders)
+          "output_directory": iteration_batch_dir,
+          'input_path': '|'.join(batches),
+          # we want to show in the summary tab the best results for the tuning experiment
+          # but in the exploration see the results per iteration....
+          "input_type": 'optim_iteration', # or... single ? don't show them in the UI
+          "is_pending": False,
+          "is_failed": failed,
+          "metrics": {
+            "iteration": trial_number+1,
+            **({} if failed else {"objective": scalar}),
             **aggregated_metrics_,
           },
-        } if is_best else {}
+        },
+      }, command=command)
 
-        notify_qa_database(
-          object_type='batch',
-          command=command,
-          **ctx.obj,
-          **{"data": {
-              "optimization": True,
-              "iteration": iteration+idx+1,
-              "iteration_label": iteration_batch_label,
-              **is_best_data,
-          }},
-        )
+      if is_best:
+        click.secho(f'New best @iteration{trial_number+1}: {scalar}', fg='green')
 
-        if is_best:
-          try:
-            click.secho(f'Creating plots', fg='blue')
-            make_plots(results, optim_dir)
-          except:
-            pass
-        else:
-          # We remove the results to make sure we don't waste disk space
-          # It is also be done server-side...
-          print(f"RM {iteration_batch_dir}")
-          rmtree(iteration_batch_dir, ignore_errors=True)
+      is_best_data = {
+        "is_best_iter": True,
+        "best_params": dim_mapping(params),
+        "best_metrics": {
+          "objective": scalar,
+          **aggregated_metrics_,
+        },
+      } if is_best else {}
 
-  print(results)
-  if not results.models: # needs at least n_initial_points(=5) evaluations!
+      if pareto:
+        # the current front, so the UI can show the trade-offs, not just one winner
+        front = [
+          {"iteration": t.number+1, "params": dim_mapping(t.params), "objectives": dict(zip(metric_names, t.values))}
+          for t in study.best_trials
+        ]
+      notify_qa_database(
+        object_type='batch',
+        command=command,
+        **ctx.obj,
+        **{"data": {
+            "optimization": True,
+            "iteration": trial_number+1,
+            "iteration_label": iteration_batch_label,
+            **({"pareto_front": front} if pareto else {}),
+            **is_best_data,
+        }},
+      )
+    except Exception as e:
+      click.secho(f"WARNING: could not update QA-Board for iteration {trial_number+1}: {e}", fg='yellow', err=True)
+
+    make_plots(study, optim_dir, metric_names=metric_names if pareto else None)
+    if not is_best and not failed:
+      # We remove the results to make sure we don't waste disk space
+      # It is also be done server-side...
+      # Failed iterations are kept: their logs explain what went wrong.
+      print(f"RM {iteration_batch_dir}")
+      rmtree(iteration_batch_dir, ignore_errors=True)
+
+  summary = run_optimization(
+    study,
+    distributions,
+    objective,
+    evaluations=options['evaluations'],
+    parallel_sampling=options['parallel_sampling'],
+    patience=options['patience'],
+    metric_names=metric_names if pareto else None,
+    on_trial=on_trial,
+    log=lambda message: click.secho(message, fg='blue'),
+  )
+
+  if summary['early_stopped']:
+    click.secho(f"Stopped early after {summary['finished']} evaluations.", fg='blue', bold=True)
+  if best_objective(study) is None:
+    click.secho("No evaluation succeeded, there is nothing to report.", fg='red', bold=True)
     return
+  if pareto:
+    click.secho(f"Pareto front: {len(study.best_trials)} trade-offs", fg='green', bold=True)
+    for t in study.best_trials:
+      objectives = ', '.join(f'{name}: {value:.6g}' for name, value in zip(metric_names, t.values))
+      click.secho(f"  iteration {t.number+1}: {objectives}", fg='green')
+      click.secho(f"    {dim_mapping(t.params)}", fg='green', dim=True)
+  else:
+    click.secho(f"Best objective: {study.best_value}", fg='green', bold=True)
+    click.secho(f"Best parameters: {dim_mapping(study.best_params)}", fg='green')
 
   # tuning plots are saved in the label directory
-  make_plots(results, optim_dir)
+  make_plots(study, optim_dir, metric_names=metric_names if pareto else None)
 
 
 
 
-def init_optimization(optim_config_file, ctx):
+def best_objective(study):
+  """
+  Best (summed) objective value so far, or None if no evaluation succeeded yet.
+  `study.best_value` raises when every trial failed, and failures are expected here:
+  a single batch that does not compute its metrics should not abort the whole search.
+  """
+  from optuna.trial import TrialState
+  values = [sum(t.values) for t in study.trials if t.state == TrialState.COMPLETE]
+  return min(values) if values else None
+
+
+def init_optimization(optim_config_file, ctx, optim_dir):
   with optim_config_file.open('r') as f:
     optim_config = yaml.load(f, Loader=yaml.SafeLoader)
 
   # default settings
-  if "objective" not in optim_config:
-    raise ValueError('ERROR: the configuration must provide an `objective`.')
-  if "evaluations" not in optim_config:
-    raise ValueError('ERROR: the configuration must project a `evaluations` budget.')
   optim_config = {
     "solver": {},
     "search_space": {},
     "preset_params": {},
     **optim_config,
   }
-  optim_config['solver'] = {
-    "name": "scikit-optimize",
-    "random_state": 42,
-    **optim_config.get('solver', {}),
-  }
-  from skopt.utils import Space
-  space = Space.from_yaml(optim_config_file, namespace='search_space')
+  options = parse_options(optim_config)
+  distributions = parse_search_space(optim_config['search_space'])
   preset_params = optim_config.get('preset_params', {})
   click.secho("Search space:", fg="blue", err=True)
-  click.secho(str(space), fg="blue", dim=True, err=True)
+  for name, distribution in distributions.items():
+    click.secho(f"  {name}: {distribution}", fg="blue", dim=True, err=True)
   click.secho("Preset parameters:", fg="blue", err=True)
   click.secho(str(preset_params), fg="blue", dim=True, err=True)
 
-  # we use the iteration step in the objective function, to store results at the right place
-  from skopt.utils import Integer
-  dim_iteration = Integer(name='iteration', low=0, high=2^16)
-  dims = [*space, dim_iteration]
+  def objective(opt_params, iteration):
+    """
+    Run a batch with the suggested parameters, and return the objective value of each
+    metric, as {metric: value}. Returns None if the objective could not be computed, so
+    the caller can mark the trial as failed instead of losing the whole optimization run.
+    """
+    params = {**preset_params, **opt_params}
 
-  from skopt.utils import use_named_args
-
-  @use_named_args(dims)
-  def objective(**opt_params):
-    params =  {**preset_params, **opt_params}
-
-    # From the UI we will want to see the iteration as a metric
-    del params["iteration"]
-
-    batch_label = f"{ctx.obj['raw_batch_label']}|iter{opt_params['iteration']+1}"
+    batch_label = f"{ctx.obj['raw_batch_label']}|iter{iteration+1}"
     command = ' '.join([
       'qa',
       f"--label '{batch_label}'",
@@ -235,22 +233,33 @@ def init_optimization(optim_config_file, ctx):
 
     # Now that we finished computing all the results, we will download the results and
     # compute the objective function:
-    shared_batch_label = f"{ctx.obj['batch_label']}|iter{opt_params['iteration']+1}"
-    return batch_objective(project, commit_id, shared_batch_label, optim_config['objective'])
+    shared_batch_label = f"{ctx.obj['batch_label']}|iter{iteration+1}"
+    try:
+      return batch_objective_components(project, commit_id, shared_batch_label, optim_config['objective'])
+    except Exception as e:
+      click.secho(f"[ERROR] Could not compute the objective at iteration {iteration+1}: {e}", fg='red', bold=True)
+      return None
 
-  # For the full list of options, refer to:
-  # https://scikit-optimize.github.io/stable/modules/generated/skopt.optimizer.Optimizer.html#skopt.optimizer.Optimizer
-  from skopt import Optimizer
-  del optim_config['solver']['name']
-  optimizer = Optimizer(space, **optim_config['solver'])
+  # Results are stored on disk: re-running the same experiment resumes where it left off
+  storage_path = optim_dir / 'optuna.db'
+  if not options['resume'] and storage_path.exists():
+    click.secho(f"Restarting from scratch (resume: false): removing {storage_path}", fg='blue', err=True)
+    storage_path.unlink()
+  n_objectives = len(options['objective_metrics']) if options['pareto'] else 1
+  study = make_study(optim_config['solver'], storage=f"sqlite:///{storage_path}", n_objectives=n_objectives)
+  try:
+    study.set_metric_names(options['objective_metrics'] if options['pareto'] else ['objective'])
+  except Exception:
+    pass
+  if len(study.trials):
+    click.secho(f"Resuming: {len(study.trials)} trials already in {storage_path}", fg='blue', bold=True, err=True)
 
-  # in the optimization loop, `ask` gives us an array of values
-  # this wrapper converts it back to the actual named parameters
-  @use_named_args([*space])
-  def dim_mapping(**opt_params):
+  # `ask` gives us only the parameters being optimized,
+  # this wrapper adds back the parameters set to fixed values
+  def dim_mapping(opt_params):
     return {**preset_params, **opt_params}
 
-  return objective, optimizer, optim_config, dim_mapping
+  return objective, study, distributions, options, optim_config, dim_mapping
 
 
 
@@ -293,7 +302,11 @@ def make_reduce(options):
     from numpy.linalg import norm
     return lambda x: norm(x, ord=int(reduce_type[1])) / len(x)
 
-def batch_objective(project, commit_id, batch_label, config_objective):
+def batch_objective_components(project, commit_id, batch_label, config_objective):
+  """
+  The weighted objective value of each metric, as {metric: value}.
+  The scalar objective is their sum; in Pareto mode each is optimized on its own.
+  """
   metrics = [m for m in config_objective.keys() if m != 'target']
   this_batch_info = batch_info(
     reference=commit_id,
@@ -319,9 +332,9 @@ def batch_objective(project, commit_id, batch_label, config_objective):
   else:
     use_default_targets = True
 
-  objective = 0
+  components = {}
   for metric, options in config_objective.items():
-    if metric == 'target': # this is a special key, not a metric 
+    if metric == 'target': # this is a special key, not a metric
       continue
     if options is None:
       options = {}
@@ -340,82 +353,42 @@ def batch_objective(project, commit_id, batch_label, config_objective):
       else:
         metric_target = None
       if output['metrics'].get('is_failed'):
-        click.secho('Failed output', fg='red')        
+        click.secho('Failed output', fg='red')
         click.secho(output['output_dir_url'][2:], fg='red')
       else:
         try:
           losses.append(loss(output['metrics'][metric], metric_target) )
         except:
-          click.secho(f'Could not find {metric}', fg='red')        
+          click.secho(f'Could not find {metric}', fg='red')
           click.secho(output['output_dir_url'][2:], fg='red')
     partial_objective = make_reduce(options)(losses)
-    objective += options.get('weight', 1) * partial_objective
-  return objective
+    components[metric] = options.get('weight', 1) * partial_objective
+  return components
+
+
+def batch_objective(project, commit_id, batch_label, config_objective):
+  """The scalar objective of a batch: the sum of its per-metric components."""
+  return sum(batch_objective_components(project, commit_id, batch_label, config_objective).values())
 
 
 
 
 
 
-def make_plots(results, dir):
-  # click.secho(str(dir), dim=True)
-  import matplotlib
-  import matplotlib.pyplot as plt
-  # https://matplotlib.org/faq/usage_faq.html#non-interactive-example
-  # https://matplotlib.org/api/_as_gen/matplotlib.pyplot.savefig.html
-
-  if not dir.exists():
-    dir.mkdir(parents=True, exist_ok=True)
-
-  # WIP: there is currently no support for plotting categorical variables...
-  # You have to manually checkout this pull request:
-  #   git pr 675  # install https://github.com/tj/git-extras
-  #   git pull origin master 
-  # https://github.com/scikit-optimize/scikit-optimize/pull/675
-  from skopt.plots import plot_convergence
-  click.secho(f'. plot_convergence', fg='blue')
-  _ = plot_convergence(results)
-  plt.savefig(dir/'plot_convergence.png')
-
-  # Those plots can be VERY slow.
-  # TODO: create them in the  background
-  # from skopt.plots import plot_objective
-  # click.secho(f'. plot_objective', fg='blue')
-  # _ = plot_objective(results)
-  # plt.savefig(dir/'plot_objective.png')
-
-  # from skopt.plots import plot_regret
-  # click.secho(f'. plot_regret', fg='blue')
-  # _ = plot_regret(results)
-  # plt.savefig(dir/'plot_regret.png')
-
-  # from skopt.plots import plot_evaluations
-  # click.secho(f'. plot_evaluations', fg='blue')
-  # _ = plot_evaluations(results)
-  # plt.savefig(dir/'plot_evaluations.png')
+# The plots (make_plots) live in qaboard/optimization.py next to the engine:
+# they are written as Plotly JSON + a standalone HTML report, and the webapp renders
+# them natively -- see webapp/src/components/tuning/TuningExploration.js
 
 
 
+# compare convergence across runs...
+# https://optuna.readthedocs.io/en/stable/reference/visualization/generated/optuna.visualization.plot_optimization_history.html
+# plot_optimization_history accepts a list of studies:
+# _ = plot_optimization_history([study_gp, study_tpe, study_random])
 
 
-# compare convergence...
-# https://github.com/scikit-optimize/scikit-optimize/blob/master/examples/strategy-comparison.ipynb
-# for all runs...
-# from skopt.plots import plot_convergence
-# plot = plot_convergence(("dummy_minimize", dummy_res),
-#                         ("gp_minimize", gp_res),
-#                         ("forest_minimize('rf')", rf_res),
-#                         ("forest_minimize('et)", et_res), 
-#                         true_minimum=0.397887, yscale="log")
-# plot.legend(loc="best", prop={'size': 6}, numpoints=1);
-
-
-# checkpoints?
-# https://github.com/scikit-optimize/scikit-optimize/blob/master/examples/interruptible-optimization.ipynb
-# https://github.com/scikit-optimize/scikit-optimize/blob/master/examples/store-and-load-results.ipynb
-# poor man's solution:
-# import pickle
-# with open('my-optimizer.pkl', 'wb') as f:
-#     pickle.dump(opt, f)
-# with open('my-optimizer.pkl', 'rb') as f:
-#     opt_restored = pickle.load(f)
+# checkpoints / warm-start?
+# Optuna studies can live in a database instead of memory, which would give us both
+# resumable runs and a way to "tell" past results at startup:
+#   study = optuna.create_study(storage="sqlite:///optim.db", study_name=..., load_if_exists=True)
+# https://optuna.readthedocs.io/en/stable/tutorial/20_recipes/001_rdb.html

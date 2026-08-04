@@ -52,10 +52,17 @@ setup(
     'pyyaml',      # YAML reader
     'joblib',      # Parallelism for dummies
     'scikit-learn',
-    'scikit-optimize',
   ],
 
   extras_require={
+    # auto-tuning (`qa optimize`). Kept optional: torch is a lot to ask of the many
+    # users who only ever run `qa batch`. It is needed by the default `gp` sampler;
+    # `sampler: tpe` and `sampler: random` work with optuna alone.
+    'opt': [
+      'optuna>=4.9',
+      'torch',
+      'plotly',  # interactive tuning plots
+    ],
     'dev': [
       'flake8', # lint
       'green',  # test runner

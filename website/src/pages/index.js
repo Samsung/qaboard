@@ -131,7 +131,7 @@ export default function Home() {
               <a href="https://samsung.github.io/qaboard/docs/batches-running-on-multiple-inputs">Define batches of inputs</a> to run on files/databases that matter to you. Start tuning experiments to compare parameters or feature flags  
             </p>
             <p>
-              Use Grid-Search or <strong>Black-box optimization</strong> (via <a href="https://scikit-optimize.github.io/">scikit-optimize</a>), and analyse trade-offs. Use <a href="https://github.com/Samsung/qaboard/wiki/Adding-new-runners">common tools</a> for distributed runs.
+              Use Grid-Search or <strong>Black-box optimization</strong> (via <a href="https://optuna.org/">Optuna</a>), and analyse trade-offs. Use <a href="https://github.com/Samsung/qaboard/wiki/Adding-new-runners">common tools</a> for distributed runs.
             </p>
             <iframe style={{maxWidth: "450px"}} width="100%" height="315" src="https://www.youtube.com/embed/XN71PBr0Rvg" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
           </>
