@@ -478,7 +478,7 @@ class OutputTags extends React.Component {
                 const name = this.props.output.test_input_path.split(".")[0]
                 const wd = `${decodeURIComponent(linux_to_windows(`${output_dir_url}/${cde_dir}`))}\\`
                 axios.post(
-                  `http://localhost:2022/CDE/Launch?WebCDE`, {
+                  `http://localhost:2020/CDE/Launch?WebCDE`, {
                     os: platform, 
                     command, wd, name,
                     commit: this.props.commit.id.slice(0, 8), 
