@@ -14,7 +14,7 @@ stages:
   - publish # To Pypi
 
 before_script:
-  - uv sync --extra dev
+  - source ./deployments/sirc/.envrc
   - eval $(ssh-agent -s)
   - ssh-add $HOME/.ssh/id_rsa
   - echo "${SSH_AGENT_PID}" > ssh-agent.pid
