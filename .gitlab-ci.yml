@@ -14,8 +14,7 @@ stages:
   - publish # To Pypi
 
 before_script:
-  # - source ./.envrc
-  # Use ssh-agent to build container images that access private repositories
+  - uv sync --extra dev
   - eval $(ssh-agent -s)
   - ssh-add $HOME/.ssh/id_rsa
   - echo "${SSH_AGENT_PID}" > ssh-agent.pid
