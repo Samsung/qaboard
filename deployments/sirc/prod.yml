@@ -13,7 +13,7 @@ services:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:fluentd"
     restart: always
     build:
-      context: deployments/fluentd
+      context: deployments/sirc/fluentd
       dockerfile: fluentd.Dockerfile
     container_name: fluentd
     ports:
