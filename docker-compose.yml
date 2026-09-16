@@ -111,9 +111,7 @@ services:
 
   # https://flower.readthedocs.io/en/latest/config.html#options
   flower:
-    build:
-      context: .
-      dockerfile: services/flower.Dockerfile
+    image: "arthurflam/qaboard:backend"
     environment:
       - CELERY_BROKER_URL=pyamqp://guest@rabbitmq//
       - CELERY_BROKER_API=http://guest:guest@rabbitmq:15672/api/
@@ -123,6 +121,7 @@ services:
     ports:
       - "8888:8888"
     depends_on:
+        - backend
         - rabbitmq
 
   website:

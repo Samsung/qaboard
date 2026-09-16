@@ -39,6 +39,7 @@ dependencies = [
     "xmlsec",
     "pillow",
     "pytz>=2026.1.post1",
+    "flower>=2.1.0",
 ]
 
 [tool.setuptools.packages.find]
