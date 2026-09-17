@@ -20,7 +20,7 @@ services:
     - ./services/db/postgres.conf:/postgres.host.conf
     - /home/ispq/qaboard_data_prod/database_backups:/backups
     ports:
-      - ${QABOARD_EXPOSED_DB_PORT:-5432}:5432
+      - ${QABOARD_EXPOSED_DB_PORT:-5434}:5432
 
   backend:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:backend"
