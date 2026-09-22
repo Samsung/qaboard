@@ -1,6 +1,14 @@
 # SIRC (Samsung Israel R&D Center) compose overlay
 # Usage: docker compose -f docker-compose.yml -f production.yml -f deployments/sirc/sirc.yml -f deployments/sirc/prod.yml up
 
+x-sirc-build-args: &sirc-build-args
+  PROXY_URL: "http://webproxy.transchip.com:8080"
+  CA_CERT_URL: "http://itweb/downloads/sirc-ca.crt"
+  GIT_SERVER: "gitlab-srv"
+  CDE_PACKAGE: "cde @ git+ssh://git@gitlab-srv/cde/cde-python"
+  NO_PROXY: "gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt,sentry,sentry.transchip.com"
+
+
 x-sirc-logging: &sirc-logging
   logging:
     driver: "fluentd"
@@ -15,12 +23,14 @@ services:
     build:
       context: deployments/sirc/fluentd
       dockerfile: fluentd.Dockerfile
+      args:
+        <<: *sirc-build-args
     container_name: fluentd
     ports:
       - "24224:24224"
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - ./services/fluentd/fluentd.conf:/fluentd/etc/fluentd.conf
+      - ./deployments/sirc/fluentd/fluentd.conf:/fluentd/etc/fluentd.conf
     environment:
       - FLUENTD_CONF=fluentd.conf
 
