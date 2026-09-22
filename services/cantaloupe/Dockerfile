@@ -24,7 +24,7 @@ RUN if ls /tmp/cert/*.crt 1>/dev/null 2>&1; then \
       update-ca-certificates; \
     fi && \
     if [ -n "$CA_CERT_URL" ]; then \
-      wget "$CA_CERT_URL" -P /usr/local/share/ca-certificates/ && \
+      wget "$CA_CERT_URL" -O "/usr/local/share/ca-certificates/$(basename "$CA_CERT_URL")" && \
       update-ca-certificates; \
     fi
 
