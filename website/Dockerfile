@@ -23,6 +23,7 @@ RUN apk update && apk add --no-cache \
     # https://github.com/nodejs/docker-node/issues/282
     g++ make python3 \
     rsync \
+    autoconf automake libtool build-base \
     && rm -rf /var/cache/apk/*
 
 ENV PATH /app/node_modules/.bin:$PATH
@@ -44,6 +45,7 @@ COPY . ./
 ENV QABOARD_DOCS_FOR_WEBAPP true
 ARG QABOARD_URL
 ENV QABOARD_URL=$QABOARD_URL
+RUN yarn install
 RUN yarn build
 
 # When upgrading, we want to enable clients to continue using a previous bundle
