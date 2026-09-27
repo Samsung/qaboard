@@ -110,6 +110,8 @@ services:
 
 
   # https://flower.readthedocs.io/en/latest/config.html#options
+  # Note: flower 2.x registers via the `celery.commands` entry point, so it is launched through celery. It shares the backend
+  # image (which installs flower>=2.1.0), so only backend needs building.
   flower:
     image: "arthurflam/qaboard:backend"
     environment:
