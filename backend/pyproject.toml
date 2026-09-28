@@ -43,7 +43,9 @@ dependencies = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["backend"] 
+where = ["."]
+include = ["backend*"]
+exclude = ["smoke_tests*"]
 
 [tool.uv]
 package = true
@@ -73,11 +75,6 @@ qaboard = { path = "../" }
 
 [tool.coverage.run]
 omit = ["tests/*", "*/tests/*"]
-
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["backend*"]
-exclude = ["smoke_tests*"]
 
 
 # uv sync --extra qaboard
