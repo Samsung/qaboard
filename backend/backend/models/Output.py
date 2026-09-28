@@ -285,8 +285,17 @@ class Output(Base):
     with script_path.open('w') as f:
       f.write(script)
     print(f'"{script_path}"')
-    script_exec = "bash" if user == "ispq" else f'bsub_su {user} -I bash'
-    p = subprocess.run(f'ssh ispq@ispq-vdi \'{script_exec} "{script_path}"\' > "{logs_path}" 2>&1', shell=True)
+    lsf_bridge = os.environ.get('QA_RUNNERS_LSF_BRIDGE', '')
+    if lsf_bridge:
+      ssh_command = (lsf_bridge
+        .replace('{user}', user)
+        .replace('{bsub_command}', f'bash "{script_path}"')
+        .replace('{command}', f'bash "{script_path}"'))
+    else:
+      # backward-compatible fallback when the bridge is not configured
+      script_exec = "bash" if user == "ispq" else f'bsub_su {user} -I bash'
+      ssh_command = f'ssh ispq@ispq-vdi \'{script_exec} "{script_path}"\''
+    p = subprocess.run(f'{ssh_command} > "{logs_path}" 2>&1', shell=True)
     success = p.returncode == 0
     return success
 
