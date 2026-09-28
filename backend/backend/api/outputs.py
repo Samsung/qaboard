@@ -124,9 +124,15 @@ def new_output_webhook():
   # keeping locks on the tables too long
   now = datetime.datetime.utcnow()
   threshold = datetime.timedelta(seconds=5)
-  if not ci_commit.project.latest_output_datetime or now - ci_commit.project.latest_output_datetime > threshold:
+  # the column may be read back as timezone-aware (e.g. on fresh databases
+  # created from the model's DateTime(timezone=True), unlike legacy
+  # alembic-migrated databases), while `now` is naive: normalize before
+  # subtracting to avoid TypeError
+  def _naive(dt):
+    return dt.replace(tzinfo=None) if dt is not None else dt
+  if not ci_commit.project.latest_output_datetime or now - _naive(ci_commit.project.latest_output_datetime) > threshold:
       ci_commit.project.latest_output_datetime = now
-  if not ci_commit.latest_output_datetime or now - ci_commit.latest_output_datetime > threshold:
+  if not ci_commit.latest_output_datetime or now - _naive(ci_commit.latest_output_datetime) > threshold:
       ci_commit.latest_output_datetime = now
 
   # We make sure the Test on which we ran exists in the database 
