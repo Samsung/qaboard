@@ -107,7 +107,7 @@ deploy:qa:
   script:
     - export PROXY_STUFF='--trusted-host pypi.org --trusted-host files.pythonhosted.org  --trusted-host pypi.python.org'
     - umask 022
-    - pip install $PROXY_STUFF .
+    - pip install $PROXY_STUFF '.[dask]'
 
 deploy:qa:windows:
   stage: deploy
