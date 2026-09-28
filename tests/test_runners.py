@@ -135,11 +135,8 @@ class TestDaskRunner(unittest.TestCase):
       f'echo start >> "{counter}"; grep -c start "{counter}" > started; grep -c end "{counter}" > ended; sleep 0.5; echo end >> "{counter}"; echo run-{i}'
       for i in range(7)
     ]
-    jobs = make_jobs('dask', commands, self.root, scheduler_address=self.cluster.scheduler_address, concurrency=2, cwd=str(self.root))
-    # the counter would be racy with 2 runs in the same dir... each run gets its own cwd
-    for job in jobs:
-      job.run_context.output_dir.mkdir(parents=True)
-      job.run_context.job_options['cwd'] = str(job.run_context.output_dir)
+    commands = [f'mkdir -p output{i} && cd output{i} && {c}' for i, c in enumerate(commands)]
+    jobs = make_jobs('dask', commands, self.root, scheduler_address=self.cluster.scheduler_address, concurrency=2)
     # runs last longer than the poll interval
     with mock.patch('qaboard.runners.dask_runner.poll_interval', 0.1):
       DaskRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=True)
@@ -149,10 +146,20 @@ class TestDaskRunner(unittest.TestCase):
       in_flight = int((output_dir / 'started').read_text()) - int((output_dir / 'ended').read_text())
       self.assertLessEqual(in_flight, 2)
 
+  def test_subproject(self):
+    """`qa` changes directory to the project root, and commands start with "cd {subproject}".
+    job_options['cwd'] is where the user called `qa` from, e.g. the subproject: it must not be used."""
+    from qaboard.runners.dask_runner import DaskRunner
+    (self.root / 'PSP_2x').mkdir()
+    jobs = make_jobs('dask', ['cd PSP_2x && pwd'], self.root, scheduler_address=self.cluster.scheduler_address, cwd=str(self.root / 'PSP_2x'))
+    DaskRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=True)
+    log = (jobs[0].run_context.output_dir / 'log.dask.txt').read_text()
+    self.assertEqual(Path(log.strip()).resolve(), (self.root / 'PSP_2x').resolve())
+
   def test_stop(self):
     import threading
     from qaboard.runners.dask_runner import DaskRunner
-    jobs = make_jobs('dask', ['sleep 60'] * 4, self.root, scheduler_address=self.cluster.scheduler_address, concurrency=2, cwd=str(self.root))
+    jobs = make_jobs('dask', ['sleep 60'] * 4, self.root, scheduler_address=self.cluster.scheduler_address, concurrency=2)
     job_options = jobs[0].run_context.job_options
     exit_codes = []
     def batch():
@@ -179,7 +186,7 @@ class TestDaskRunner(unittest.TestCase):
     from distributed import LocalCluster
     from qaboard.runners.dask_runner import DaskRunner
     batch_dir = self.root / 'batch'
-    jobs = make_jobs('dask', [f'echo run-{i}' for i in range(3)], self.root, concurrency=2, cwd=str(self.root), batch_dir=str(batch_dir),
+    jobs = make_jobs('dask', [f'echo run-{i}' for i in range(3)], self.root, concurrency=2, batch_dir=str(batch_dir),
                      lsf={'queue': 'gpu_q', 'project': 'proj'}, driver={'queue': 'cpu_q', 'max_memory': 1000})
     job_options = jobs[0].run_context.job_options
     bsub = FakeBsub()

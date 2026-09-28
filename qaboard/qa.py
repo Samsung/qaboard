@@ -667,7 +667,7 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     if dask_concurrency != default_dask_concurrency:
       cli_runner_overrides["concurrency"] = dask_concurrency
 
-  if runner in ('local', 'celery', 'dask'):
+  if runner == 'local' or runner == 'celery':
     cli_runner_overrides["cwd"] = ctx.obj['previous_cwd'] if 'previous_cwd' in ctx.obj else os.getcwd()
 
   # For backward compatibility, combine for JobGroup

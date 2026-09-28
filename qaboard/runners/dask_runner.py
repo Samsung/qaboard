@@ -61,7 +61,6 @@ class DaskOptions():
   cluster: Dict[str, Any] = field(default_factory=dict)
   # defaults for the LSF worker jobs, taken from `runners.lsf`: queue, project, resources, max_memory, options
   lsf: Dict[str, Any] = field(default_factory=dict)
-  cwd: Optional[str] = None
   # Where we save logs. Set by `qa batch` to its batch directory
   batch_dir: Optional[str] = None
   # For --no-wait, LSF options of the job running the scheduler and sending runs: queue, project, resources, max_memory, options.
@@ -215,7 +214,9 @@ def job_to_task(job: Job, job_options: Dict[str, Any]) -> Dict[str, Any]:
   output_dir = job.run_context.output_dir
   return {
     "command": job.run_context.command,
-    "cwd": str(job.run_context.job_options.get('cwd', job_options.get('cwd', os.getcwd()))),
+    # Like other runners, we run where `qa batch` runs: the root of the project (it changes directory there).
+    # Commands start with "cd {subproject}" if needed. Note: job_options['cwd'] is where the user called `qa` from.
+    "cwd": os.getcwd(),
     "output_dir": str(output_dir.resolve()) if output_dir else None,
   }
 
