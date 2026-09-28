@@ -44,6 +44,14 @@ class LsfOptions():
   max_memory: int = 0 #in MB
   resources: Optional[str] = None
   options: Optional[str] = None
+  # Max number of jobs from the same `qa batch` running at the same time. 0 = unlimited.
+  concurrency: int = 0
+  # How we enforce `concurrency`:
+  # - "array": jobs sharing the same bsub options are sent as 1 job array with a slot limit (-J "name[1-n]%concurrency").
+  #            It's a sliding window, and a single bsub call instead of 1 per job.
+  # - "waves": jobs are sent in waves of `concurrency` jobs, each wave waiting for the previous one to end.
+  #            Stragglers block the next wave, use only if job arrays don't work for you.
+  concurrency_strategy: str = "array"
   # not strictly LSF options, but important to send jobs
   user: Optional[str] = getenvs(('USERNAME', 'USER'))
   cwd: Path = Path() # current working directory
@@ -97,14 +105,44 @@ class LsfRunner(BaseRunner):
 
   def start(self, blocking=True, name: Optional[str] = None, flags: str = ''):
     """Sends a job to the LSF queue and returns the results of the subprocess call that sent the command to LSF.
-    The `dependencies` parameter specifies jobs that must be exited (any error code is OK) before this one.
+    Use `flags` for extra bsub flags, e.g. dependencies like `-w "ended(my_job_name)"`.
     """
-    queue = self.options.queue
-
     # In our cluster, we have filessytem sync issues, and LSF does't print live logs.
     # So here we save STDOUT to log.lsf.txt, while we log in real-time log.txt ourselves
     # Ideally we should copy the actual LSF logs after the job, since they have STDOUT and a summary header
     lsf_log_file = (self.output_dir / "log.lsf.txt").resolve() if self.output_dir else None
+    script = " ".join([
+      # the click python package hates ascii locales, for good reasons
+      "  LC_ALL=en_US.utf8 LANG=en_US.utf8" if self.command else '  ',
+      # forces a non-interactive matplotlib backend
+      "MPLBACKEND=agg" if self.command else '',
+      self.command if self.command else 'echo OK',
+    ])
+    return self.bsub(
+      script=script,
+      name=name if name else self.name,
+      log_file=lsf_log_file,
+      blocking=blocking,
+      flags=flags,
+    )
+
+
+  def bsub_options(self) -> List[str]:
+    """bsub flags describing where/how a job runs. Jobs with identical options can be grouped in a job array."""
+    return [
+      f"-P '{self.options.project}'",
+      f"-q '{self.options.queue}'",
+      f"-sp {self.options.priority}",
+      # TODO: we could ask those threads to be on the same cores...
+      f"-R \"affinity[thread({self.options.max_threads})]\"" if self.options.max_threads > 0 else "",
+      f"-R \"rusage[mem={self.options.max_memory}]\"" if self.options.max_memory > 0 else "",
+      f"-R \"{self.options.resources}\"" if self.options.resources else '',
+      self.options.options if self.options.options else '',
+    ]
+
+
+  def bsub(self, script: str, name: str, log_file: Optional[Path] = None, blocking=False, flags: str = ''):
+    """Runs bsub (via the bridge if any), with retries. `script` is sent via a heredoc."""
     bsub_command = " ".join(
       [
         # When running without a TTY (usually under su/sudo)
@@ -118,26 +156,15 @@ class LsfRunner(BaseRunner):
         f'-cwd "{os.getcwd()}"' if self.options.bridge else '',
         # Note: for our current use-cases, -K should be enough, but it's still nice to get STDOUT logs
         "-I" if blocking else "",
-        f"-P '{self.options.project}'",
-        f"-q '{queue}'",
-        f'-J "{name if name else self.name}"',
-        f"-sp {self.options.priority}",
-        f'-o "{lsf_log_file}"' if lsf_log_file else '', 
+        f'-J "{name}"',
+        f'-o "{log_file}"' if log_file else '',
         # It would be nice to overwrite our logs with LSF's, which include a nice header
-        # But we've had issues with filesystem sync, and found that LSF would somethings have no logs(?!?) 
+        # But we've had issues with filesystem sync, and found that LSF would somethings have no logs(?!?)
         # f'-Ep \'sleep 30 ; mv "{lsf_log_file}" "{log_file}"\'',
-        # TODO: we could ask those threads to be on the same cores...
-        f"-R \"affinity[thread({self.options.max_threads})]\"" if self.options.max_threads > 0 else "",
-        f"-R \"rusage[mem={self.options.max_memory}]\"" if self.options.max_memory > 0 else "",
-        f"-R \"{self.options.resources}\"" if self.options.resources else '',
-        self.options.options if self.options.options else '',
+        *self.bsub_options(),
         flags,
         '<< "EOF"\n'
-        # the click python package hates ascii locales, for good reasons
-        "  LC_ALL=en_US.utf8 LANG=en_US.utf8" if self.command else '  ',
-        # forces a non-interactive matplotlib backend
-        "MPLBACKEND=agg" if self.command else '',
-        self.command if self.command else 'echo OK',
+        f"{script}",
         "\nEOF",
       ]
     )
@@ -181,11 +208,77 @@ class LsfRunner(BaseRunner):
 
     return out
 
+
+  @staticmethod
+  def start_jobs_as_arrays(jobs: List[Job], batch_prefix: str, concurrency: int, max_array_size: int = 1000):
+    """
+    Jobs with identical bsub options are sent as 1 job array with a slot limit: `-J "name[1-n]%concurrency"`.
+    Each array element picks its command from $LSB_JOBINDEX. Since the name starts with `batch_prefix`,
+    `bkill -J "{batch_prefix}*"` and the WAIT job's dependency keep working.
+    Note: the limit applies per array, so if runs need different LSF options (e.g. per input type), you may get more.
+    """
+    groups: Dict[Any, List[Job]] = {}
+    for job in jobs:
+      runner = cast(LsfRunner, job.runner)
+      groups.setdefault(tuple(runner.bsub_options()), []).append(job)
+    # LSF's default MAX_JOB_ARRAY_SIZE is 1000
+    chunks = [g[i:i+max_array_size] for g in groups.values() for i in range(0, len(g), max_array_size)]
+    if len(chunks) > 1:
+      secho(f"WARNING: The runs need {len(chunks)} LSF job arrays (different LSF options, or >{max_array_size} runs). The concurrency limit ({concurrency}) applies to each array.", fg='yellow', err=True)
+    for chunk in chunks:
+      cases = []
+      for index, job in enumerate(chunk, start=1):
+        runner = cast(LsfRunner, job.runner)
+        lines = [f"{index})"]
+        if runner.output_dir:
+          output_dir = runner.output_dir.resolve()
+          lines.append(f'  mkdir -p "{output_dir}" && exec > "{output_dir}/log.lsf.txt" 2>&1')
+        lines.extend([f"  {runner.command if runner.command else 'echo OK'}", "  ;;"])
+        cases.append("\n".join(lines))
+      script = "\n".join([
+        # the click python package hates ascii locales, for good reasons
+        # and we force a non-interactive matplotlib backend
+        "export LC_ALL=en_US.utf8 LANG=en_US.utf8 MPLBACKEND=agg",
+        'case "$LSB_JOBINDEX" in',
+        *cases,
+        "esac",
+      ])
+      runner = cast(LsfRunner, chunk[0].runner)
+      array_name = f"{batch_prefix}_{runner.name.split('_', 1)[1]}"
+      slot_limit = min(concurrency, len(chunk))
+      # -o /dev/null: we redirect each run's output to its own log.lsf.txt, and without -o LSF sends emails.
+      runner.bsub(script=script, name=f"{array_name}[1-{len(chunk)}]%{slot_limit}", log_file=Path('/dev/null'))
+
+
+  @staticmethod
+  def start_jobs_in_waves(jobs: List[Job], batch_prefix: str, concurrency: int):
+    """
+    Jobs are sent in waves of `concurrency` jobs, named "{batch_prefix}_W{k}_{random}".
+    Each wave waits for the previous one to end. Note the "_" after the wave number: "W1_*" does not match "W10_...".
+    """
+    for wave_index, start in enumerate(range(0, len(jobs), concurrency)):
+      flags = f'-w "ended({batch_prefix}_W{wave_index-1}_*)"' if wave_index > 0 else ''
+      for job in jobs[start:start+concurrency]:
+        runner = cast(LsfRunner, job.runner)
+        random_str = runner.name.split('_', 1)[1]
+        job.start(blocking=False, name=f"{batch_prefix}_W{wave_index}_{random_str}", flags=flags)
+
+
   @staticmethod
   def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
     # start asynchronously the jobs 
-    for job in jobs:
-      job.start(blocking=False)
+    options = dict_to_LsfOptions(job_options)
+    batch_prefix = job_options['command_id'][:8]
+    if options.concurrency > 0 and len(jobs) > options.concurrency:
+      if options.concurrency_strategy == "waves":
+        LsfRunner.start_jobs_in_waves(jobs, batch_prefix, options.concurrency)
+      elif options.concurrency_strategy == "array":
+        LsfRunner.start_jobs_as_arrays(jobs, batch_prefix, options.concurrency)
+      else:
+        raise ValueError(f"Unknown LSF concurrency_strategy: {options.concurrency_strategy}. Use 'array' or 'waves'.")
+    else:
+      for job in jobs:
+        job.start(blocking=False)
 
     if blocking:
       # Runs may take a while, so just in case we receive SIGTERM/SIGINT,

@@ -496,6 +496,9 @@ default_lsf_max_memory = lsf_config.get('max_memory', lsf_config.get('memory', 0
 default_lsf_resources = lsf_config.get('resources', None)
 default_lsf_priority = lsf_config.get('priority')
 default_lsf_options = lsf_config.get('options')
+default_lsf_concurrency = lsf_config.get('concurrency', 0)
+dask_config = config.get('runners', {}).get('dask', {})
+default_dask_concurrency = dask_config.get('concurrency')
 
 default_local_concurrency = os.environ.get('QA_BATCH_CONCURRENCY', local_config.get('concurrency'))
 default_local_timeout = float(os.environ.get('QA_BATCH_TIMEOUT', local_config.get('timeout', 0)))
@@ -522,12 +525,14 @@ default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "
 @click.option('--lsf-resources', default=default_lsf_resources, help="LSF resources restrictions (-R)")
 @click.option('--lsf-priority', default=default_lsf_priority, type=int, help="LSF priority (-sp)")
 @click.option('--lsf-options', default=default_lsf_options, help="Other LSF options (as 1 string, like '-W 24:00') that bsub can understand. Will be added after all other CLI flags.")
+@click.option('--lsf-concurrency', default=default_lsf_concurrency, type=int, help="Max number of LSF jobs from this batch running at the same time. 0=unlimited")
+@click.option('--dask-concurrency', default=default_dask_concurrency, type=int, help="Max number of runs from this batch running at the same time on dask workers.")
 @click.option('--action-on-existing', default=default_action_on_existing, help="When there are already finished successful runs, whether to do run / postprocess (only) / sync (re-read metrics from output dir) / skip / assert-exists")
 @click.option('--action-on-pending', default=default_action_on_pending, help="When there are already pending runs, whether to do wait (then run) / sync (use those runs' results) / skip (don't run) / run (run as usual, can cause races)")
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
 @click.argument('batch_names', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, local_timeout, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_resources, lsf_priority, lsf_options, action_on_existing, action_on_pending, prefix_outputs_path, batch_names):
+def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, local_timeout, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_resources, lsf_priority, lsf_options, lsf_concurrency, dask_concurrency, action_on_existing, action_on_pending, prefix_outputs_path, batch_names):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
   from .runners import runners
   if not batches_files:
@@ -576,6 +581,9 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       "runner": runner,
       **ctx.obj,
     }
+    if runner == 'dask' and dask_config.get('scheduler_address'):
+      # so that the backend can stop the batch
+      command_data['scheduler_address'] = dask_config['scheduler_address']
     job_url = getenvs(('BUILD_URL', 'CI_JOB_URL', 'CIRCLE_BUILD_URL', 'TRAVIS_BUILD_WEB_URL')) # jenkins, gitlabCI, circleCI, travisCI
     if job_url:
       command_data['job_url'] = job_url
@@ -623,6 +631,12 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       cli_runner_overrides['options'] = lsf_options
     else:
       base_runner_options['options'] = lsf_options
+    if lsf_concurrency != default_lsf_concurrency:
+      cli_runner_overrides['concurrency'] = lsf_concurrency
+    else:
+      base_runner_options['concurrency'] = lsf_concurrency
+    if 'concurrency_strategy' in lsf_config:
+      base_runner_options['concurrency_strategy'] = lsf_config['concurrency_strategy']
 
     # These are always set for LSF
     cli_runner_overrides.update({
@@ -640,7 +654,15 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     else:
       base_runner_options['timeout'] = local_timeout
 
-  if runner == 'local' or runner == 'celery':
+  if runner == 'dask':
+    # scheduler_address, cluster (dask_jobqueue.LSFCluster kwargs)...
+    base_runner_options.update(dask_config)
+    # By default dask workers are LSF jobs, sent with the same queue/project... as the LSF runner
+    base_runner_options['lsf'] = {k: v for k, v in lsf_config.items() if k in ('queue', 'project', 'resources', 'max_memory', 'options')}
+    if dask_concurrency != default_dask_concurrency:
+      cli_runner_overrides["concurrency"] = dask_concurrency
+
+  if runner in ('local', 'celery', 'dask'):
     cli_runner_overrides["cwd"] = ctx.obj['previous_cwd'] if 'previous_cwd' in ctx.obj else os.getcwd()
 
   # For backward compatibility, combine for JobGroup

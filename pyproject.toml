@@ -45,6 +45,11 @@ dev = [
     "types-setuptools",
     "types-simplejson",
 ]
+# Runner that sends runs to a pool of dask workers, started on LSF with dask-jobqueue
+dask = [
+    "distributed; python_version >= '3.9'",
+    "dask-jobqueue; python_version >= '3.9'",
+]
 # Unfortunately pip does not understand tool.uv.sources
 # and uv does not understand syntax with "qaboard-site-sirc @ file:deployements/sirc/cli"
 # and if we use an ssh syntax in uv it will try to resolve even if it is part of an unused extra

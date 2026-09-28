@@ -30,9 +30,51 @@ runners:
                                   # Will be added after all other CLI flags.
 ```
 
-:::warning
-`qa` doesn't use LSF's job arrays. If your algorithm takes very little time to run, maybe using them would be better. Create an issue or contact [Arthur Flam](mailto:arthur.flam@samsung.com). 
-:::
+## Limiting concurrency
+By default all the runs from a `qa batch` are sent at once. To limit how many run at the same time:
+
+```yaml title="qaboard.yaml"
+runners:
+  lsf:
+    concurrency: 20              # 0=unlimited (default)
+    # concurrency_strategy: array  # default
+```
+
+or `qa batch --lsf-concurrency 20 my-batch`.
+
+Two strategies are available:
+- `array` (default): runs with identical LSF options are sent as a single [job array](https://www.ibm.com/docs/en/spectrum-lsf/10.1.0?topic=arrays-create-job-array) with a slot limit (`-J "name[1-n]%20"`). It's a sliding window, and a single `bsub` call. Each run's output is in its `log.lsf.txt`. If runs need different LSF options (e.g. per input type), each group gets its own array and its own limit.
+- `waves`: runs are sent by groups of `concurrency` jobs, each group waiting for the previous one to end (`-w "ended(...)"`). Slow runs delay the next wave. Use it only if job arrays don't work for you.
+
+In both cases job names keep the batch prefix, so stopping a batch from QA-Board still works.
+
+## Running on a pool of Dask workers
+With LSF each run is an LSF job, and pays the scheduling overhead. If you have many short runs, you can instead run them on a few long-lived [Dask](https://distributed.dask.org) workers, themselves started as LSF jobs via [dask-jobqueue](https://jobqueue.dask.org/en/latest/generated/dask_jobqueue.LSFCluster.html).
+
+```bash
+pip install "qaboard[dask]"
+```
+
+```yaml title="qaboard.yaml"
+runners:
+  default: dask
+  lsf:
+    queue: your_queue      # used by default for the worker jobs (also: project, resources, max_memory, options)
+  dask:
+    concurrency: 20        # max runs in flight for a `qa batch` (or --dask-concurrency)
+    cluster:               # dask_jobqueue.LSFCluster arguments
+      cores: 4             # runs per worker job
+      memory: 32GB         # per worker job: it should cover `cores` runs
+      # walltime: "24:00"  # by default the queue decides
+      # interface: ib0     # if workers can't reach the scheduler's default address
+    # To use an existing cluster, instead of starting workers for each batch:
+    # scheduler_address: tcp://my-host:8786
+```
+
+- By default, `qa batch` starts the Dask scheduler, bsubs `ceil(concurrency / cores)` worker jobs named `{batch-prefix}_dask`, and stops them when done. Workers must be able to open a TCP connection to the host running `qa batch`, and use the same python environment. Worker logs are in `~/.qaboard/dask-logs`.
+- Each run's output is in its `log.dask.txt`.
+- `--no-wait` is only supported with `scheduler_address`, and then `concurrency` is not enforced.
+- LSF "bridges" are not supported: `bsub` must be available where `qa batch` runs.
 
 ## LSF options per batch
 
