@@ -51,6 +51,7 @@ const sidebars: SidebarsConfig = {
                 "local-multiprocessing",
                 "celery-integration",
                 "lsf-integration",
+                "dask-integration",
                 "jenkins-integration",
             ],
         },

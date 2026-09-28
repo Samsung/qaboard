@@ -61,11 +61,13 @@ To keep previous output files, `export QATOOLS_RUN_KEEP=true`. It can be useful 
 ### Batch Runners
 While `qa run` uses the local environment, `qa batch` will offload computation to a "runner" backend.
 
-Currently:
-- On Windows we use [`joblib`](http://joblib.readthedocs.io/) for parallel computing. You can set the concurrency with `QATOOLS_BATCH_CONCURRENCY` and [other environment variables](https://joblib.readthedocs.io/en/latest/parallel.html) from `joblib`. `runners.local.concurrency` in *qaboard.yaml* also works...
-- On linux we use SIRC's LSF cluster
+Available runners:
+- `local`: [local multiprocessing](local-multiprocessing) with [`joblib`](http://joblib.readthedocs.io/). Default on Windows. Set the concurrency with `--local-concurrency`, `QA_BATCH_CONCURRENCY` or `runners.local.concurrency` in *qaboard.yaml*.
+- `lsf`: 1 [LSF](lsf-integration) job per run. Limit how many run at the same time with `--lsf-concurrency` or `runners.lsf.concurrency`.
+- `dask`: a pool of long-lived [Dask workers](dask-integration), started as LSF jobs. Best for many short runs. Set the concurrency with `--dask-concurrency` or `runners.dask.concurrency`.
+- `celery`: [Celery](celery-integration) workers.
 
-You can also set the runner via `--runner=local`, and even set a default with `runners.default: local` in *qaboard.yaml*.
+Choose the runner with `--runner=local`, and set a default with `runners.default: local` in *qaboard.yaml*.
 
 ### Dealing with existing results
 When you try to re-run already existing results, The behaviour of `qa batch` can be changed with the `--action-on-existing` flag:

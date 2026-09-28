@@ -48,33 +48,8 @@ Two strategies are available:
 
 In both cases job names keep the batch prefix, so stopping a batch from QA-Board still works.
 
-## Running on a pool of Dask workers
-With LSF each run is an LSF job, and pays the scheduling overhead. If you have many short runs, you can instead run them on a few long-lived [Dask](https://distributed.dask.org) workers, themselves started as LSF jobs via [dask-jobqueue](https://jobqueue.dask.org/en/latest/generated/dask_jobqueue.LSFCluster.html).
-
-```bash
-pip install "qaboard[dask]"
-```
-
-```yaml title="qaboard.yaml"
-runners:
-  default: dask
-  lsf:
-    queue: your_queue      # used by default for the worker jobs (also: project, resources, max_memory, options)
-  dask:
-    concurrency: 20        # max runs in flight for a `qa batch` (or --dask-concurrency)
-    cluster:               # dask_jobqueue.LSFCluster arguments
-      cores: 4             # runs per worker job
-      memory: 32GB         # per worker job: it should cover `cores` runs
-      # walltime: "24:00"  # by default the queue decides
-      # interface: ib0     # if workers can't reach the scheduler's default address
-    # To use an existing cluster, instead of starting workers for each batch:
-    # scheduler_address: tcp://my-host:8786
-```
-
-- By default, `qa batch` starts the Dask scheduler, bsubs `ceil(concurrency / cores)` worker jobs named `{batch-prefix}_dask`, and stops them when done. Workers must be able to open a TCP connection to the host running `qa batch`, and use the same python environment. Worker logs are in `~/.qaboard/dask-logs`.
-- Each run's output is in its `log.dask.txt`.
-- `--no-wait` is only supported with `scheduler_address`, and then `concurrency` is not enforced.
-- LSF "bridges" are not supported: `bsub` must be available where `qa batch` runs.
+## Many short runs? Use a pool of workers
+Each run is an LSF job, and pays LSF's scheduling overhead. If you have many short runs, run them instead on a few long-lived workers, themselves started as LSF jobs: read the [Dask integration](dask-integration) docs.
 
 ## LSF options per batch
 
@@ -119,7 +94,8 @@ qa batch --help
   --lsf-options TEXT           Other LSF options (as 1 string, like '-W
                                24:00') that bsub can understand. Will be added
                                after all other CLI flags.
-  --lsf-sequential / --lsf-parallel
+  --lsf-concurrency INTEGER    Max number of LSF jobs from this batch running
+                               at the same time. 0=unlimited
 ```
 
 ## Connecting to LSF via a "bridge" host

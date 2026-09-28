@@ -1,0 +1,86 @@
+---
+id: dask-integration
+title: Running batches on a pool of Dask workers
+sidebar_label: Dask Integration
+---
+
+With the [LSF runner](lsf-integration), each run is an LSF job: it pays LSF's scheduling and allocation overhead, and a batch can flood the cluster. With the `dask` runner, a batch's runs execute on a few long-lived [Dask](https://distributed.dask.org) workers, with a bounded concurrency. By default the workers are themselves LSF jobs, started for you with [dask-jobqueue's `LSFCluster`](https://jobqueue.dask.org/en/latest/generated/dask_jobqueue.LSFCluster.html).
+
+:::tip When to use it
+- Many short runs (seconds to a few minutes), where LSF overhead dominates.
+- You want to cap how many runs a batch uses at the same time.
+
+For long runs, or to only cap concurrency, the [LSF runner's `concurrency` option](lsf-integration#limiting-concurrency) is simpler.
+:::
+
+## Setup
+Install the optional dependencies (python 3.9+):
+
+```bash
+pip install "qaboard[dask]"
+# or
+uv sync --extra dask
+```
+
+Workers run `qa run` commands: they must use the same python environment as `qa batch`, and see the same filesystem (as for LSF).
+
+## Configuration
+```yaml title="qaboard.yaml"
+runners:
+  default: dask
+  lsf:
+    queue: your_queue      # used by default for the worker jobs (also: project, resources, max_memory, options)
+  dask:
+    concurrency: 20        # max runs in flight for a `qa batch` (default: 10)
+    cluster:               # arguments for dask_jobqueue.LSFCluster, they override the defaults
+      cores: 4             # runs per worker job, each run is a thread in the worker (default: 1)
+      memory: 32GB         # per worker job: it must cover `cores` runs (default: runners.lsf.max_memory, or 4GB)
+      # walltime: "24:00"  # by default the queue decides
+      # interface: ib0     # if workers can't reach the scheduler's default address
+      # log_directory: /some/path   # default: ~/.qaboard/dask-logs
+    # no_worker_timeout: 600        # give up if all workers are gone for that long (seconds)
+    # scheduler_address: tcp://my-host:8786   # use an existing cluster, see below
+```
+
+You can also choose the runner and concurrency on the CLI:
+
+```bash
+qa batch --runner dask --dask-concurrency 8 my-batch
+```
+
+## How it works
+1. `qa batch` starts a Dask scheduler in its own process.
+2. It bsubs `ceil(min(#runs, concurrency) / cores)` worker jobs, named `{batch-prefix}_dask`.
+3. It keeps at most `concurrency` runs in flight: a new run starts as soon as one finishes.
+4. When all runs are done, the worker jobs are stopped.
+
+- Each run's output is saved in its output directory as `log.dask.txt` (in addition to the usual `log.txt`).
+- Your environment variables are forwarded to the runs, except those specific to your host or LSF job (`LSB_*`, `TMPDIR`, `CUDA_VISIBLE_DEVICES`...).
+- Stopping a batch from QA-Board kills the worker jobs (`bkill -J "{batch-prefix}*"`). `Ctrl-C` on `qa batch` kills the running runs and the workers.
+- If a worker job dies while running something (e.g. killed by LSF for using too much memory), Dask retries the run on another worker, up to 3 times.
+
+:::caution Requirements & limitations
+- Workers open a TCP connection to the host running `qa batch`. It's usually fine within a cluster; otherwise set `cluster.interface`.
+- `bsub` must be available where `qa batch` runs: LSF "bridges" are not supported.
+- `--no-wait` is not supported: the scheduler lives as long as `qa batch`. Use a shared cluster (below) for that.
+- All workers get the same LSF options: per-input-type LSF options (e.g. more memory for some inputs) are not applied. Size `memory` for your heaviest runs.
+- Worker jobs are kept until the batch ends, even if idle while the last runs finish.
+:::
+
+## Using an existing Dask cluster
+If you keep a Dask cluster running (e.g. `dask scheduler` on a host, and `dask worker tcp://host:8786` sent with `bsub`), point to it:
+
+```yaml title="qaboard.yaml"
+runners:
+  dask:
+    scheduler_address: tcp://my-host:8786
+    concurrency: 20
+```
+
+- `qa batch` doesn't start or stop workers: the cluster size is the global limit, `concurrency` the per-batch limit.
+- With `--no-wait`, all runs are sent at once and `concurrency` is not enforced.
+- To stop batches from QA-Board, the QA-Board server needs `distributed` installed and access to the scheduler.
+
+## Troubleshooting
+- Nothing starts: check the worker jobs with `bjobs -J "*_dask"`, and their logs in `~/.qaboard/dask-logs`.
+- `QA_BATCH_VERBOSE=1 qa batch ...` prints the worker job script.
