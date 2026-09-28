@@ -38,5 +38,19 @@ class TestConventions(unittest.TestCase):
     # self.assertEqual(deserialize_config('C://path:a'), ['C://path', 'a'])
 
 
+  def test_batches_files_no_inputs_config(self):
+    """
+    Regression test: legacy qatools-style projects may define no inputs.groups
+    or inputs.batches in their qatools.yaml. batches_files() used to return
+    None in that case, crashing callers like `qa save-artifacts` with
+    "'NoneType' object is not iterable". It must return an empty list instead.
+    """
+    from qaboard.conventions import batches_files
+    legacy_config = {'inputs': {}}  # no groups, no batches
+    self.assertEqual(batches_files(legacy_config, None, 'proj', Path('.'), Path('.')), [])
+    configured_config = {'inputs': {'groups': ['a', 'b']}}
+    self.assertEqual(batches_files(configured_config, None, 'proj', Path('.'), Path('.')), [Path('a'), Path('b')])
+
+
 if __name__ == '__main__':
   unittest.main()

@@ -58,7 +58,7 @@ def batches_files(config, batch_paths, project, subproject, root_qatools):
   if config:
     config_inputs = config.get('inputs', {})
     # "batches" is prefered, but we want to stay backward compatible
-    paths = config_inputs.get('groups', config_inputs.get('batches'))
+    paths = config_inputs.get('groups', config_inputs.get('batches')) or []
   elif batch_paths:
     paths = batch_paths
 
