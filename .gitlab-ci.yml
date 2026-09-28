@@ -11,6 +11,9 @@ variables:
 stages:
   - test
   - deploy  # Internally
+  - smoke-test
+  - production  # Prod deploy, gated by smoke-test:dev
+  - cleanup
   - publish # To Pypi
 
 before_script:
@@ -152,7 +155,7 @@ publish:PyPi:
 # - put the SSL keys in services/nginx/ssl/qa
 deploy:production:
   # <<: *deploy
-  stage: deploy
+  stage: production  # After smoke-test so needs: [smoke-test:dev] is valid (needs must point at current or prior stages)
   variables:
     DOCKER_HOST: qa 
     DOCKER_API_VERSION: "1.43" # Required due to version mismatch, see https://jira.transchip.com/servicedesk/customer/portal/5/DEVOPS-1423
