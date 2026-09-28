@@ -37,7 +37,10 @@ runners:
       memory: 32GB         # per worker job: it must cover `cores` runs (default: runners.lsf.max_memory, or 4GB)
       # walltime: "24:00"  # by default the queue decides
       # interface: ib0     # if workers can't reach the scheduler's default address
-      # log_directory: /some/path   # default: ~/.qaboard/dask-logs
+    driver:                # for --no-wait: LSF options of the job that runs the scheduler (default: runners.lsf)
+      queue: some_cpu_queue          # it needs little: 1 CPU, it sleeps most of the time
+      max_memory: 2000               # MB
+      # resources: "select[...]"
     # no_worker_timeout: 600        # give up if all workers are gone for that long (seconds)
     # scheduler_address: tcp://my-host:8786   # use an existing cluster, see below
 ```
@@ -54,15 +57,20 @@ qa batch --runner dask --dask-concurrency 8 my-batch
 3. It keeps at most `concurrency` runs in flight: a new run starts as soon as one finishes.
 4. When all runs are done, the worker jobs are stopped.
 
+With `--no-wait`, steps 1-4 happen in a "driver" LSF job named `{batch-prefix}_dask_driver`, and `qa batch` returns as soon as it is sent. The driver uses the LSF options from `runners.dask.driver`, so it doesn't take e.g. a GPU slot.
+
+### Logs
 - Each run's output is saved in its output directory as `log.dask.txt` (in addition to the usual `log.txt`).
+- Everything else is in the batch directory, under `dask/{batch-prefix}/`:
+  - worker logs: `*.err` has Dask's logs, and a `[qaboard] start` / `[qaboard] end` line per run. `*.out` is usually empty.
+  - with `--no-wait`: `driver.log` (live progress), `driver.lsf.log` (LSF's report, at the end) and `tasks.json` (the runs it was asked to execute).
 - Your environment variables are forwarded to the runs, except those specific to your host or LSF job (`LSB_*`, `TMPDIR`, `CUDA_VISIBLE_DEVICES`...).
-- Stopping a batch from QA-Board kills the worker jobs (`bkill -J "{batch-prefix}*"`). `Ctrl-C` on `qa batch` kills the running runs and the workers.
+- Stopping a batch from QA-Board kills the worker and driver jobs (`bkill -J "{batch-prefix}*"`). `Ctrl-C` on `qa batch` kills the running runs and the workers.
 - If a worker job dies while running something (e.g. killed by LSF for using too much memory), Dask retries the run on another worker, up to 3 times.
 
 :::caution Requirements & limitations
 - Workers open a TCP connection to the host running `qa batch`. It's usually fine within a cluster; otherwise set `cluster.interface`.
-- `bsub` must be available where `qa batch` runs: LSF "bridges" are not supported.
-- `--no-wait` is not supported: the scheduler lives as long as `qa batch`. Use a shared cluster (below) for that.
+- Without `--no-wait`, `bsub` must be available where `qa batch` runs: LSF "bridges" are not supported. With `--no-wait`, the driver is sent via the bridge like other LSF jobs, and it then starts the workers itself.
 - All workers get the same LSF options: per-input-type LSF options (e.g. more memory for some inputs) are not applied. Size `memory` for your heaviest runs.
 - Worker jobs are kept until the batch ends, even if idle while the last runs finish.
 :::
@@ -82,5 +90,6 @@ runners:
 - To stop batches from QA-Board, the QA-Board server needs `distributed` installed and access to the scheduler.
 
 ## Troubleshooting
-- Nothing starts: check the worker jobs with `bjobs -J "*_dask"`, and their logs in `~/.qaboard/dask-logs`.
+- Nothing starts: check the jobs with `bjobs -J "{batch-prefix}_dask*"`, and the logs in `{batch-dir}/dask/{batch-prefix}/`.
+- Workers start but runs don't: check they reached the scheduler (`Registered to:` in the worker's `.err`), then the `[qaboard] start` lines, then the runs' `log.dask.txt`.
 - `QA_BATCH_VERBOSE=1 qa batch ...` prints the worker job script.

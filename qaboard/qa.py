@@ -658,7 +658,12 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
     # scheduler_address, cluster (dask_jobqueue.LSFCluster kwargs)...
     base_runner_options.update(dask_config)
     # By default dask workers are LSF jobs, sent with the same queue/project... as the LSF runner
-    base_runner_options['lsf'] = {k: v for k, v in lsf_config.items() if k in ('queue', 'project', 'resources', 'max_memory', 'options')}
+    base_runner_options['lsf'] = {
+      "project": lsf_config.get('project', str(project) if project else "qaboard"),
+      **{k: v for k, v in lsf_config.items() if k in ('queue', 'project', 'resources', 'max_memory', 'options')},
+    }
+    # We save logs there
+    base_runner_options['batch_dir'] = str(ctx.obj['batch_dir'])
     if dask_concurrency != default_dask_concurrency:
       cli_runner_overrides["concurrency"] = dask_concurrency
 

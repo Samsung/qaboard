@@ -173,5 +173,40 @@ class TestDaskRunner(unittest.TestCase):
     self.assertLess(time.time() - start, 45)
 
 
+  def test_no_wait_driver(self):
+    """With --no-wait, we bsub a driver job. We run its script for real, against a local cluster."""
+    import json
+    from distributed import LocalCluster
+    from qaboard.runners.dask_runner import DaskRunner
+    batch_dir = self.root / 'batch'
+    jobs = make_jobs('dask', [f'echo run-{i}' for i in range(3)], self.root, concurrency=2, cwd=str(self.root), batch_dir=str(batch_dir),
+                     lsf={'queue': 'gpu_q', 'project': 'proj'}, driver={'queue': 'cpu_q', 'max_memory': 1000})
+    job_options = jobs[0].run_context.job_options
+    bsub = FakeBsub()
+    with mock.patch('qaboard.runners.lsf.subprocess.run', bsub):
+      DaskRunner.start_jobs(jobs, job_options, blocking=False)
+    self.assertEqual(bsub.names(), ['abcdefgh_dask_driver'])
+    command = bsub.commands[0]
+    self.assertIn("-q 'cpu_q'", command)
+    self.assertIn("-P 'proj'", command)
+    self.assertIn('rusage[mem=1000]', command)
+    logs_dir = batch_dir / 'dask' / 'abcdefgh'
+    self.assertIn(f'-o "{logs_dir}/driver.lsf.log"', command)
+
+    # Instead of starting LSF workers, the driver uses a local cluster
+    tasks_path = logs_dir / 'tasks.json'
+    data = json.loads(tasks_path.read_text())
+    self.assertEqual(len(data['tasks']), 3)
+    with LocalCluster(n_workers=1, threads_per_worker=2, processes=True, dashboard_address=None) as cluster:
+      data['job_options']['scheduler_address'] = cluster.scheduler_address
+      tasks_path.write_text(json.dumps(data))
+      script = command.split('<< "EOF"\n', 1)[1].rsplit('\nEOF', 1)[0]
+      out = subprocess.run(['bash', '-c', script], timeout=120)
+    self.assertEqual(out.returncode, 0, (logs_dir / 'driver.log').read_text())
+    self.assertIn('3 runs done, 0 failed', (logs_dir / 'driver.log').read_text())
+    for index, job in enumerate(jobs):
+      self.assertEqual((job.run_context.output_dir / 'log.dask.txt').read_text(), f'run-{index}\n')
+
+
 if __name__ == '__main__':
   unittest.main()

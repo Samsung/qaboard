@@ -4,12 +4,15 @@ Run `qa run` commands on a pool of long-lived Dask workers.
 Why? With the LSF runner each run is 1 LSF job, and pays the scheduling/allocation overhead.
 Here we ask LSF for a few worker jobs, and each worker executes many runs, with a bounded concurrency.
 
-Two modes:
+Modes:
 - By default, `qa batch` starts a Dask scheduler in-process, and uses dask-jobqueue to bsub
   worker jobs named "{command_id[:8]}_dask". They are stopped when the batch ends.
-  Since the scheduler lives in the `qa batch` process, --no-wait is not supported.
+- With --no-wait, the same logic runs in a "driver" LSF job named "{command_id[:8]}_dask_driver".
+  It can use different LSF options (e.g. a CPU queue) via `runners.dask.driver`.
 - If `scheduler_address` is set, we connect to an existing Dask cluster (started by you,
   e.g. with `dask scheduler` + `dask worker` sent via bsub, or dask-jobqueue).
+
+Logs (driver, workers, list of runs) are saved in the batch directory, under dask/{command_id[:8]}.
 
 Setup: `pip install qaboard[dask]`. Workers need the same python environment (shared filesystem).
 
@@ -24,9 +27,13 @@ qaboard.yaml:
         memory: 32GB                 # per worker job, so it should cover `cores` runs
         # walltime: "24:00"
         # interface: ib0
+      driver:                        # LSF options for the --no-wait driver job. Default: runners.lsf
+        queue: some_cpu_queue
+        max_memory: 2000
 """
 import os
 import sys
+import json
 import math
 import asyncio
 import time
@@ -55,6 +62,11 @@ class DaskOptions():
   # defaults for the LSF worker jobs, taken from `runners.lsf`: queue, project, resources, max_memory, options
   lsf: Dict[str, Any] = field(default_factory=dict)
   cwd: Optional[str] = None
+  # Where we save logs. Set by `qa batch` to its batch directory
+  batch_dir: Optional[str] = None
+  # For --no-wait, LSF options of the job running the scheduler and sending runs: queue, project, resources, max_memory, options.
+  # Defaults to `lsf`.
+  driver: Dict[str, Any] = field(default_factory=dict)
   # If all workers are gone for that long (e.g. killed by LSF), we give up. Before the first worker starts we wait forever, like LSF.
   no_worker_timeout: float = 600 # seconds
 
@@ -82,6 +94,14 @@ _processes_lock = threading.Lock()
 
 def run_command(command: str, cwd: Optional[str], env: Dict[str, str], log_path: Optional[str], command_id: str) -> int:
   """Executed on a worker thread. Returns the command's return code."""
+  # Goes to the worker's logs
+  print(f"[qaboard] start: {command}\n          logs: {log_path}", file=sys.stderr, flush=True)
+  return_code = _run_command(command, cwd, env, log_path, command_id)
+  print(f"[qaboard] end (return code {return_code}): {log_path}", file=sys.stderr, flush=True)
+  return return_code
+
+
+def _run_command(command: str, cwd: Optional[str], env: Dict[str, str], log_path: Optional[str], command_id: str) -> int:
   if log_path:
     Path(log_path).parent.mkdir(parents=True, exist_ok=True)
   with open(log_path if log_path else os.devnull, 'w') as log:
@@ -111,16 +131,21 @@ def kill_command(command_id: str) -> int:
     processes = list(_processes.get(command_id, []))
   for process in processes:
     try:
-      parent = psutil.Process(process.pid)
-      tree = [*parent.children(recursive=True), parent]
+      descendants = psutil.Process(process.pid).children(recursive=True)
     except psutil.NoSuchProcess:
       continue
-    for p in tree:
+    for p in descendants:
       try:
         p.terminate()
       except psutil.NoSuchProcess:
         pass
-    _, alive = psutil.wait_procs(tree, timeout=10)
+    process.terminate()
+    # Only Popen must reap its child: if psutil did, Popen.wait() would see ECHILD and return 0, as if the run succeeded
+    _, alive = psutil.wait_procs(descendants, timeout=10)
+    try:
+      process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+      process.kill()
     for p in alive:
       try:
         p.kill()
@@ -140,7 +165,16 @@ def stop_event_name(command_id: str) -> str:
 ###
 ### What runs in `qa batch`
 ###
-def make_lsf_cluster(options: DaskOptions, batch_prefix: str, nb_runs: int):
+def logs_dir(options: DaskOptions, command_id: str) -> Path:
+  if options.batch_dir:
+    directory = Path(options.batch_dir) / 'dask' / command_id[:8]
+  else:
+    directory = Path.home() / '.qaboard' / 'dask-logs' / command_id[:8]
+  directory.mkdir(parents=True, exist_ok=True)
+  return directory
+
+
+def make_lsf_cluster(options: DaskOptions, batch_prefix: str, nb_runs: int, log_directory: Path):
   from dask_jobqueue import LSFCluster # type: ignore
   lsf = options.lsf
   job_extra_directives = []
@@ -148,7 +182,6 @@ def make_lsf_cluster(options: DaskOptions, batch_prefix: str, nb_runs: int):
     job_extra_directives.append(f'-R "{lsf["resources"]}"')
   if lsf.get('options'):
     job_extra_directives.append(lsf['options'])
-  log_directory = Path.home() / '.qaboard' / 'dask-logs'
   cluster_kwargs = {
     "job_name": f"{batch_prefix}_dask", # so that `bkill -J "{batch_prefix}*"` stops the workers
     "queue": lsf.get('queue'),
@@ -177,6 +210,133 @@ def make_lsf_cluster(options: DaskOptions, batch_prefix: str, nb_runs: int):
   return cluster
 
 
+def job_to_task(job: Job, job_options: Dict[str, Any]) -> Dict[str, Any]:
+  """What we need to execute a run. Plain data, so that the --no-wait driver can read it from a JSON file."""
+  output_dir = job.run_context.output_dir
+  return {
+    "command": job.run_context.command,
+    "cwd": str(job.run_context.job_options.get('cwd', job_options.get('cwd', os.getcwd()))),
+    "output_dir": str(output_dir.resolve()) if output_dir else None,
+  }
+
+
+def run_tasks(tasks: List[Dict[str, Any]], job_options: Dict[str, Any]):
+  """Executes the tasks on dask workers, with at most `concurrency` in flight. Blocks until all are done."""
+  from distributed import Client, Event, wait # type: ignore
+  options = dict_to_DaskOptions(job_options)
+  command_id = job_options['command_id']
+  env = forwarded_env()
+  quiet = 'QA_BATCH_QUIET' in os.environ
+
+  cluster = None
+  if options.scheduler_address:
+    client = Client(options.scheduler_address)
+  else:
+    cluster = make_lsf_cluster(options, command_id[:8], nb_runs=len(tasks), log_directory=logs_dir(options, command_id))
+    client = Client(cluster)
+
+  def submit(index: int, task: Dict[str, Any]):
+    log_path = str(Path(task['output_dir']) / "log.dask.txt") if task['output_dir'] else None
+    return client.submit(
+      run_command,
+      task['command'],
+      task['cwd'],
+      env,
+      log_path,
+      command_id,
+      key=f"qaboard-{command_id}-{index}",
+      pure=False,
+    )
+
+  try:
+    in_flight: Dict[Any, Dict[str, Any]] = {}
+    def abort(_signo=None, _stackframe=None):
+      print('Aborted.')
+      client.cancel(list(in_flight))
+      client.run(kill_command, command_id)
+      # sys.exit: the finally clause below closes the cluster (and bkills the workers)
+      sys.exit(1)
+    signal.signal(signal.SIGTERM, abort)
+    signal.signal(signal.SIGINT, abort)
+
+    # Lets `qa` in the backend stop the batch
+    stop_event = Event(stop_event_name(command_id), client=client)
+
+    # Sliding window of `concurrency` runs
+    pending = list(enumerate(tasks))
+    pending.reverse()
+    concurrency = options.concurrency if options.concurrency > 0 else len(tasks)
+    nb_done, nb_failed = 0, 0
+    seen_workers, no_worker_since = False, None
+    while pending or in_flight:
+      if stop_event.is_set():
+        secho("The batch was stopped.", fg='red', err=True)
+        abort()
+      while pending and len(in_flight) < concurrency:
+        index, task = pending.pop()
+        in_flight[submit(index, task)] = task
+      try:
+        done, _ = wait(list(in_flight), timeout=poll_interval, return_when="FIRST_COMPLETED")
+      except (TimeoutError, asyncio.TimeoutError): # unlike concurrent.futures.wait, it raises. Different classes before python 3.11
+        done = set()
+      for future in done:
+        task = in_flight.pop(future)
+        nb_done += 1
+        try:
+          return_code = future.result()
+          error = f"return code {return_code}" if return_code != 0 else None
+        except Exception as e: # e.g. KilledWorker, if the worker died several times while running it
+          error = f"{type(e).__name__}: {e}"
+        if error:
+          nb_failed += 1
+          secho(f"[{nb_done}/{len(tasks)}] Failed ({error}): {task['output_dir']}", fg='red', err=True)
+        elif not quiet:
+          secho(f"[{nb_done}/{len(tasks)}] Done: {task['output_dir']}", dim=True, err=True)
+      if client.scheduler_info()['workers']:
+        seen_workers, no_worker_since = True, None
+      elif seen_workers:
+        no_worker_since = no_worker_since or time.time()
+        if time.time() - no_worker_since > options.no_worker_timeout:
+          secho(f"ERROR: No dask worker for {options.no_worker_timeout}s, giving up.", fg='red', err=True)
+          abort()
+    secho(f"{len(tasks)} runs done, {nb_failed} failed.", err=True)
+  finally:
+    client.close()
+    if cluster is not None:
+      cluster.close()
+
+
+def start_driver(tasks: List[Dict[str, Any]], job_options: Dict[str, Any]):
+  """For --no-wait: sends to LSF a job that runs the scheduler and sends the runs."""
+  from .lsf import LsfRunner, dict_to_LsfOptions
+  options = dict_to_DaskOptions(job_options)
+  command_id = job_options['command_id']
+  directory = logs_dir(options, command_id)
+  tasks_path = directory / 'tasks.json'
+  with tasks_path.open('w') as f:
+    json.dump({"tasks": tasks, "job_options": job_options}, f, indent=2, default=str)
+
+  lsf_options = {
+    'bridge': os.environ.get('QA_RUNNERS_LSF_BRIDGE', ''),
+    **options.lsf,
+    **options.driver,
+    'command_id': command_id,
+  }
+  runner = LsfRunner.__new__(LsfRunner) # we only need its bsub helper
+  runner.options = dict_to_LsfOptions(lsf_options)
+  name = f"{command_id[:8]}_dask_driver"
+  runner.bsub(
+    script=" ".join([
+      "export LC_ALL=en_US.utf8 LANG=en_US.utf8 MPLBACKEND=agg;",
+      # LSF only writes -o at the end of the job, we want live logs
+      f'"{sys.executable}" -m qaboard.runners.dask_runner "{tasks_path}" > "{directory}/driver.log" 2>&1',
+    ]),
+    name=name,
+    log_file=directory / 'driver.lsf.log',
+  )
+  secho(f"Sent the dask driver to LSF ({name}). Logs: {directory}", err=True)
+
+
 class DaskRunner(BaseRunner):
   """Execute runs on Dask workers, by default started as LSF jobs."""
   type = "dask"
@@ -188,98 +348,33 @@ class DaskRunner(BaseRunner):
     raise NotImplementedError("Use start_jobs")
 
   @staticmethod
-  def submit(client, job: Job, index: int, job_options: Dict[str, Any], env: Dict[str, str]):
-    command_id = job_options['command_id']
-    output_dir = job.run_context.output_dir
-    log_path = str((output_dir / "log.dask.txt").resolve()) if output_dir else None
-    cwd = job.run_context.job_options.get('cwd', job_options.get('cwd', os.getcwd()))
-    return client.submit(
-      run_command,
-      job.run_context.command,
-      str(cwd),
-      env,
-      log_path,
-      command_id,
-      key=f"qaboard-{command_id}-{index}",
-      pure=False,
-    )
-
-  @staticmethod
   def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
-    from distributed import Client, Event, fire_and_forget, wait # type: ignore
+    from distributed import Client, fire_and_forget # type: ignore
     options = dict_to_DaskOptions(job_options)
+    tasks = [job_to_task(job, job_options) for job in jobs]
+    if blocking:
+      return run_tasks(tasks, job_options)
+    if not options.scheduler_address:
+      return start_driver(tasks, job_options)
+
+    secho("WARNING: with --no-wait and a `scheduler_address`, all runs are sent at once, and `concurrency` is not enforced.", fg='yellow', err=True)
     command_id = job_options['command_id']
-    batch_prefix = command_id[:8]
     env = forwarded_env()
-
-    cluster = None
-    if options.scheduler_address:
-      client = Client(options.scheduler_address)
-    else:
-      if not blocking:
-        secho("WARNING: --no-wait is not supported by the dask runner without a `scheduler_address`: the workers live as long as `qa batch`.", fg='yellow', err=True)
-      cluster = make_lsf_cluster(options, batch_prefix, nb_runs=len(jobs))
-      client = Client(cluster)
-
-    try:
-      if not blocking and options.scheduler_address:
-        secho("WARNING: with --no-wait, all runs are sent at once, and `concurrency` is not enforced.", fg='yellow', err=True)
-        fire_and_forget([DaskRunner.submit(client, job, index, job_options, env) for index, job in enumerate(jobs)])
-        return
-
-      in_flight: Dict[Any, Job] = {}
-      def abort(_signo=None, _stackframe=None):
-        print('Aborted.')
-        client.cancel(list(in_flight))
-        client.run(kill_command, command_id)
-        # sys.exit: the finally clause below closes the cluster (and bkills the workers)
-        sys.exit(1)
-      signal.signal(signal.SIGTERM, abort)
-      signal.signal(signal.SIGINT, abort)
-
-      # Lets `qa` in the backend stop the batch
-      stop_event = Event(stop_event_name(command_id), client=client)
-
-      # Sliding window of `concurrency` runs
-      pending = list(enumerate(jobs))
-      pending.reverse()
-      concurrency = options.concurrency if options.concurrency > 0 else len(jobs)
-      nb_failed = 0
-      seen_workers, no_worker_since = False, None
-      while pending or in_flight:
-        if stop_event.is_set():
-          secho("The batch was stopped.", fg='red', err=True)
-          abort()
-        while pending and len(in_flight) < concurrency:
-          index, job = pending.pop()
-          in_flight[DaskRunner.submit(client, job, index, job_options, env)] = job
-        try:
-          done, _ = wait(list(in_flight), timeout=poll_interval, return_when="FIRST_COMPLETED")
-        except (TimeoutError, asyncio.TimeoutError): # unlike concurrent.futures.wait, it raises. Different classes before python 3.11
-          done = set()
-        for future in done:
-          job = in_flight.pop(future)
-          try:
-            return_code = future.result()
-            if return_code != 0:
-              nb_failed += 1
-              secho(f"Failed run (return code {return_code}): {job.run_context.output_dir}", fg='red', err=True)
-          except Exception as e: # e.g. KilledWorker, if the worker died several times while running it
-            nb_failed += 1
-            secho(f"Failed run ({type(e).__name__}: {e}): {job.run_context.output_dir}", fg='red', err=True)
-        if client.scheduler_info()['workers']:
-          seen_workers, no_worker_since = True, None
-        elif seen_workers:
-          no_worker_since = no_worker_since or time.time()
-          if time.time() - no_worker_since > options.no_worker_timeout:
-            secho(f"ERROR: No dask worker for {options.no_worker_timeout}s, giving up.", fg='red', err=True)
-            abort()
-      if 'QA_BATCH_VERBOSE' in os.environ:
-        secho(f"{len(jobs)} runs done, {nb_failed} failed.", err=True)
-    finally:
-      client.close()
-      if cluster is not None:
-        cluster.close()
+    with Client(options.scheduler_address) as client:
+      futures = [
+        client.submit(
+          run_command,
+          task['command'],
+          task['cwd'],
+          env,
+          str(Path(task['output_dir']) / "log.dask.txt") if task['output_dir'] else None,
+          command_id,
+          key=f"qaboard-{command_id}-{index}",
+          pure=False,
+        )
+        for index, task in enumerate(tasks)
+      ]
+      fire_and_forget(futures)
 
   @staticmethod
   def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
@@ -293,7 +388,16 @@ class DaskRunner(BaseRunner):
         # ...and we kill those that are running
         client.run(kill_command, command_id)
     else:
-      # The workers are LSF jobs with the batch prefix: killing them makes `qa batch` see failures.
+      # The workers (and --no-wait driver) are LSF jobs with the batch prefix.
       from .lsf import LsfRunner
       lsf_options = {**job_options, 'bridge': job_options.get('bridge') or os.environ.get('QA_RUNNERS_LSF_BRIDGE', '')}
       LsfRunner.stop_jobs(jobs, lsf_options)
+
+
+if __name__ == '__main__':
+  # The --no-wait driver.
+  # We import from the module: functions defined in __main__ would be pickled by value, with their own copy of the globals.
+  from qaboard.runners.dask_runner import run_tasks as _run_tasks
+  with open(sys.argv[1]) as f:
+    data = json.load(f)
+  _run_tasks(data['tasks'], data['job_options'])
