@@ -291,15 +291,13 @@ def _dispatch_lsf(qa_batch_path, batch_dir, user, ci_commit, do_optimize):
     lsf_config = qatools_config.get('runners', qatools_config).get("lsf", {})
     default_queue = lsf_config.get('queue', 'default')
     queue = lsf_config.get('long_queue', 'default') if do_optimize else default_queue
-    # TODO: this is SIRC-specific to switch user - would need a better solution
-    #       for LSF but also for other runners...
-    bsub = "bsub" if os.environ.get("QABOARD_DEFAULT_USER") != "ispq" else f'bsub_su "{user}"'
+
     start_script = "\n".join([
         "#!/bin/bash",
         "set -xe",
         "",
         f'mkdir -p "{batch_dir}"',
-        f'{bsub} -q "{queue}" -o "{batch_dir}/log.lsf.txt" -sp 4000 '
+        f'bsub -q "{queue}" -o "{batch_dir}/log.lsf.txt" -sp 4000 '
         f"'bash \"{qa_batch_path}\" &>> \"{batch_dir}/log.txt\"'",
     ])
     print(start_script)
@@ -310,15 +308,12 @@ def _dispatch_lsf(qa_batch_path, batch_dir, user, ci_commit, do_optimize):
 
     lsf_bridge = os.environ.get('QA_RUNNERS_LSF_BRIDGE', '')
     if lsf_bridge:
-        cmd = lsf_bridge.replace('{command}', f'bash "{start_path}"')
+        cmd = (lsf_bridge
+            .replace('{user}', user)
+            .replace('{bsub_command}', f'bash "{start_path}"')
+            .replace('{command}', f'bash "{start_path}"'))
     else:
-        cmd = " ".join([
-            "LC_ALL=en_US.utf8 LANG=en_US.utf8",
-            "ssh", "-q", "-tt",
-            "-o StrictHostKeyChecking=no",
-            os.environ.get('QA_LSF_SSH_TARGET', 'localhost'),
-            f'\'bash "{start_path}"\'',
-        ])
+        cmd = f'bash "{start_path}"'
     print(cmd)
     out = subprocess.run(cmd, shell=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     out.check_returncode()
