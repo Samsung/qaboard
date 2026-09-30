@@ -291,10 +291,7 @@ class Output(Base):
         .replace('{user}', user)
         .replace('{bsub_command}', f'bash "{script_path}"')
         .replace('{command}', f'bash "{script_path}"'))
-    else:
-      # backward-compatible fallback when the bridge is not configured
-      script_exec = "bash" if user == "ispq" else f'bsub_su {user} -I bash'
-      ssh_command = f'ssh ispq@ispq-vdi \'{script_exec} "{script_path}"\''
+    
     p = subprocess.run(f'{ssh_command} > "{logs_path}" 2>&1', shell=True)
     success = p.returncode == 0
     return success
