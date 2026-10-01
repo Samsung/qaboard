@@ -11,7 +11,7 @@ x-sirc-build-args: &sirc-build-args
 
 services:
   fluentd:
-    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:fluentd"
+    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:fluentd${QABOARD_VERSION:+-$QABOARD_VERSION}"
     restart: always
     build:
       context: deployments/sirc/fluentd

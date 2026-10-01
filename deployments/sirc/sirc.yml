@@ -23,7 +23,7 @@ services:
       - ${QABOARD_EXPOSED_DB_PORT:-5434}:5432
 
   backend:
-    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:backend"
+    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:backend${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       ssh: [default]
       args:
@@ -76,6 +76,7 @@ services:
     - /algo/ws:/algo/ws:shared
 
   proxy:
+    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:proxy${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       args:
         <<: *sirc-build-args
@@ -115,7 +116,7 @@ services:
     restart: no
     command: []
 
-    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:cantaloupe"
+    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:cantaloupe${QABOARD_VERSION:+-$QABOARD_VERSION}"
     user: "1411:10" # FIXME: ==ispq, so remove after a 1st rebuild..
     # user: ispq
     build:
@@ -137,7 +138,7 @@ services:
       CANTALOUPE_MEM_MAX: 8g
 
   frontend:
-    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:frontend"
+    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:frontend${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       args:
         <<: *sirc-build-args
@@ -150,7 +151,7 @@ services:
         # REACT_APP_POSTHOG_TOKEN: ${REACT_APP_POSTHOG_TOKEN:-}
 
   website:
-    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:website"
+    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:website${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       args:
         <<: *sirc-build-args
@@ -158,4 +159,4 @@ services:
 
   # Shares the backend image (which installs flower>=2.1.0), so only backend needs building
   flower:
-    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:backend"
+    image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:backend${QABOARD_VERSION:+-$QABOARD_VERSION}"

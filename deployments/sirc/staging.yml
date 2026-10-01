@@ -1,0 +1,16 @@
+# Staging at SIRC, see staging.env
+# Usage: deployments/deploy.py deployments/sirc/staging.env up
+
+services:
+  backend:
+    environment:
+    # Don't share git clones with production
+    - QABOARD_DATA_GIT_DIR=/var/qaboard/git
+
+  db:
+    volumes:
+    # Read-only: staging can be seeded from production backups (deploy.py ... restore-db latest), never write them
+    - /home/ispq/qaboard_data_prod/database_backups:/backups:ro
+
+  cron-backup-db:
+    profiles: [disabled]

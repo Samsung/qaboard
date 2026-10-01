@@ -1,4 +1,3 @@
-version: "3.5"
 
 services:
   # don't show logs from those services
@@ -60,6 +59,8 @@ services:
       "
     ports:
     - "${QABOARD_DEV_BACKEND_PORT:-5152}:5152"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5152/api/v1/health', timeout=5)"]
     # logging:
     #   driver: json-file
 

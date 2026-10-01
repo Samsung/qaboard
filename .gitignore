@@ -519,3 +519,4 @@ paket-files/
 
 
 # End of https://www.gitignore.io/api/linux,python,windows,sublimetext,visualstudio
+.deploy-state.*.json

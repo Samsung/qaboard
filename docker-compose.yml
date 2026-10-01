@@ -1,6 +1,5 @@
 # https://docs.docker.com/compose/
 # https://docs.docker.com/compose/compose-file
-version: "3.5"
 
 # Production:
 #   # https://docs.docker.com/compose/production/
@@ -13,6 +12,10 @@ version: "3.5"
 #   docker compose -f docker-compose.yml -f production.yml -f deployments/mysite.yml up -d
 
 # Container names will be prefixed with "qaboard-"
+
+# Images are tagged per service (arthurflam/qaboard:backend...).
+# Set QABOARD_VERSION to use the images built for a given version (arthurflam/qaboard:backend-$QABOARD_VERSION),
+# CI pushes them tagged with the git commit. deployments/deploy.py sets it.
 
 # Usage:
 # - The application is served on port 5151 by default
@@ -55,9 +58,14 @@ services:
       - POSTGRES_USER=qaboard
       - POSTGRES_PASSWORD=password
       - POSTGRES_DB=qaboard
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qaboard -d qaboard"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   backend:
-    image: "arthurflam/qaboard:backend"
+    image: "arthurflam/qaboard:backend${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -84,9 +92,19 @@ services:
     - QABOARD_LOGIN_RESTRICTED=${QABOARD_LOGIN_RESTRICTED:-} # true/false
     - QABOARD_LOGIN_RESTRICTED_YAML=${QABOARD_LOGIN_RESTRICTED_YAML:-} # path
     - CELERY_BROKER_URL=pyamqp://guest:guest@rabbitmq:${QABOARD_PORT_RABBITMQ:-5672}//
+    - QABOARD_RUN_MIGRATIONS
+    # Used by docker and deployments/deploy.py to know when a replica is ready to serve traffic
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3001/api/v1/health', timeout=5)"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    # uwsgi finishes in-flight requests on SIGTERM
+    stop_grace_period: 60s
 
   frontend:
-    image: "arthurflam/qaboard:frontend"
+    image: "arthurflam/qaboard:frontend${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       context: webapp
       shm_size: 6gb
@@ -114,7 +132,7 @@ services:
   # Note: flower 2.x registers via the `celery.commands` entry point, so it is launched through celery. It shares the backend
   # image (which installs flower>=2.1.0), so only backend needs building.
   flower:
-    image: "arthurflam/qaboard:backend"
+    image: "arthurflam/qaboard:backend${QABOARD_VERSION:+-$QABOARD_VERSION}"
     environment:
       - CELERY_BROKER_URL=pyamqp://guest@rabbitmq//
       - CELERY_BROKER_API=http://guest:guest@rabbitmq:15672/api/
@@ -122,13 +140,13 @@ services:
       - FLOWER_URL_PREFIX=flower
     command: celery -A qaboard.runners.celery_app flower
     ports:
-      - "8888:8888"
+      - "${QABOARD_PORT_FLOWER:-8888}:8888"
     depends_on:
         - backend
         - rabbitmq
 
   website:
-    image: "arthurflam/qaboard:website"
+    image: "arthurflam/qaboard:website${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       context: website
       shm_size: 4gb
@@ -142,19 +160,14 @@ services:
   # nginx as reverse-proxy
   # https://hub.docker.com/_/nginx
   proxy:
-    image: "arthurflam/qaboard:proxy"
+    image: "arthurflam/qaboard:proxy${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       context: services/nginx
     # # https://github.com/docker-library/docs/tree/master/nginx#using-environment-variables-in-nginx-configuration
     command: >-
       /bin/bash -c "
         set -e;
-        rm -rf /etc/nginx;
-        cp -r /tmp/etc/nginx /etc;
-        if [ -d /tmp/deployment/nginx/conf.d/ ]; then
-          cp -r /tmp/deployment/nginx/conf.d/* /etc/nginx/conf.d/;
-        fi;
-        envsubst < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf;
+        sh /tmp/etc/nginx/configure.sh;
         exec $${NGINX_BIN:-nginx} -g 'daemon off;'
       "
     environment:
@@ -172,7 +185,7 @@ services:
 
   # IIIF image server to serve images as tiles
   cantaloupe:
-    image: "arthurflam/qaboard:cantaloupe"
+    image: "arthurflam/qaboard:cantaloupe${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       context: ./services/cantaloupe
     expose:
