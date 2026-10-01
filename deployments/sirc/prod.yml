@@ -9,13 +9,6 @@ x-sirc-build-args: &sirc-build-args
   NO_PROXY: "gitlab-srv,gitlab-srv.transchip.com,localhost,aospt-dt,sentry,sentry.transchip.com"
 
 
-x-sirc-logging: &sirc-logging
-  logging:
-    driver: "fluentd"
-    options:
-      tag: qaboard.db
-      fluentd-address: "0.0.0.0:24224"
-
 services:
   fluentd:
     image: "gitlab-srv.transchip.com:4567/common-infrastructure/qaboard:fluentd"
@@ -35,10 +28,18 @@ services:
       - FLUENTD_CONF=fluentd.conf
 
   db:
-    <<: *sirc-logging
+    logging:
+      driver: "fluentd"
+      options:
+        tag: qaboard.db
+        fluentd-address: "0.0.0.0:24224"
 
   backend:
-    <<: *sirc-logging
+    logging:
+      driver: "fluentd"
+      options:
+        tag: qaboard.backend
+        fluentd-address: "0.0.0.0:24224"
 
   cron-backup-db:
     volumes:
@@ -48,4 +49,8 @@ services:
       AS_USER_GROUP: uucp
       AS_USER_UID: "1411"
       AS_USER_GID: "10"
-    <<: *sirc-logging
+    logging:
+      driver: "fluentd"
+      options:
+        tag: qaboard.cron-backup-db
+        fluentd-address: "0.0.0.0:24224"
