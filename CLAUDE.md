@@ -27,6 +27,15 @@ source deployments/sirc/.envrc
 docker compose -f docker-compose.yml -f development.yml -f deployments/sirc/sirc.yml up -d
 ```
 
+### Deploying
+```bash
+# Zero-downtime deploys, one env file per environment (compose files, project, replicas...)
+deployments/deploy.py deployments/sirc/production.env up|status|rollback|restore-db|compose ...
+docker compose --env-file deployments/sirc/production.env ps
+# Kubernetes: helm chart in charts/qaboard, SIRC values in deployments/sirc/values.yaml
+```
+GitLab CI deploys master to staging then production automatically. Runbooks: `website/docs/backend-admin/`.
+
 ### Frontend Development (React)
 ```bash
 cd webapp

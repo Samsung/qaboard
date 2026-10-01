@@ -46,10 +46,19 @@ Harmless for other sites (it only triggers on SIRC project names, paths or files
 ## Ops
 - The cantaloupe admin endpoint is enabled with `qaboard`/`qaboard`. It is only reachable inside the compose network.
 - Base images: cantaloupe uses `alpine:3.10`, nginx uses Debian buster from archive.debian.org. Both are EOL.
-- On a fresh database `alembic upgrade head` fails (the baseline migration is empty). `init.sh` falls back to
-  `alembic stamp head` and the app creates the tables, so it works, but it's noisy.
-- GitLab `smoke-test:dev` runs backend tests against the CI instance, which uses the production database
-  (`QABOARD_DEV_DB_HOST=qa`).
+- On a fresh database `alembic upgrade head` fails (the baseline migration is empty). `migrate.sh` falls back to
+  `alembic downgrade head || alembic stamp head` and the app creates the tables, so it works, but it's noisy.
+  Worse: the fallback also hides real migration failures, so `deploy.py`/the helm Job can't stop a deploy on them.
+  Fix the baseline, then remove the fallback.
+- PostgreSQL 12 is EOL (Nov 2024). Upgrade with dump/restore, e.g. when moving to kubernetes (CloudNativePG uses 16).
+- Deploys need docker compose ≥ 2.24 on the hosts and on the GitLab runner (`${VAR:+...}` interpolation,
+  `pull --policy`). SIRC's hosts run Docker Engine 24 (API 1.43): fine, but not healthcheck `start_interval`.
+- With docker compose, nginx is restarted (~1s of refused connections) when the *proxy image* changes.
+  Config changes are reloaded without a restart, and new versions with the same image don't restart it.
+- SIRC staging uses the shared storage, the LSF bridge and `/home/ispq/qaboard/shared` like production.
+- The SIRC GitLab pipeline was written without access to SIRC's GitLab/runners: check on the first run that
+  the registry is enabled (else `QABOARD_BUILD_ON_HOST=1`), and the one-time host setup in
+  `website/docs/backend-admin/deployment.mdx`.
 - Publishing:
   - PyPI: create a GitHub release with a tag matching the version (`pypy.yml`). Needs trusted publishing
     configured on PyPI, or a `PYPI_API_TOKEN` secret.
@@ -57,3 +66,5 @@ Harmless for other sites (it only triggers on SIRC project names, paths or files
   - Docker images: `publish-docker-images` needs `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` secrets.
 - CI tests the CLI on Python 3.11 only, but `requires-python` says `>=3.7`.
 - The website deploy workflow only runs on master pushes that touch `website/`.
+- The helm chart (`charts/qaboard`) is validated (lint, kubeconform) but was not run on a cluster yet.
+  `deployments/sirc/values.yaml` has `TODO(sirc)`s, see `website/docs/backend-admin/kubernetes.mdx`.

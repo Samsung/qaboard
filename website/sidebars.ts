@@ -92,6 +92,8 @@ const sidebars: SidebarsConfig = {
     //   ]
     // "alternatives",
     "Backend Admin": [
+        "backend-admin/deployment",
+        "backend-admin/kubernetes",
         "backend-admin/troubleshooting",
         "backend-admin/host-upgrades",
         "backend-admin/user-management",

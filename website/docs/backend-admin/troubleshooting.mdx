@@ -6,59 +6,64 @@ title: Troubleshooting common issues
 Assuming you work on the QA-Board server:
 ```bash
 ssh qa
+cd /home/ispq/qaboard_prod
+source deployments/sirc/.envrc
 ```
+
+The examples use SIRC's production environment, `deployments/sirc/production.env`. It tells docker compose which compose files and project to use. For other environments, see [Deployments](deployment).
 
 ## Talking to the different services
-You can interact with the individual services with e.g.
-
 ```bash
-# read logs from a specific service
-docker compose logs -f backend
+# status: deployed version, containers and their health
+deployments/deploy.py deployments/sirc/production.env status
 
-# you can get a shell on the various services:
-docker compose exec backend bash
-docker compose run proxy /bin/ash
-# or with the docker compose conventions, if the service is up:
-docker exec -it qaboard_proxy_1 bash
+# read logs from a specific service
+deployments/deploy.py deployments/sirc/production.env compose logs -f --tail 100 backend
+
+# get a shell in a service
+deployments/deploy.py deployments/sirc/production.env compose exec backend bash
+# check the backend directly, without nginx
+deployments/deploy.py deployments/sirc/production.env compose exec backend wget -qO- localhost:3001/api/v1/health
 ```
 
-> Refer to the examples in *[docker-compose.yml](docker-compose.yml)* or to the `docker-compose` docs.
+`deploy.py ... compose` is `docker compose --env-file ...` with the images of the deployed version. Plain `docker compose --env-file deployments/sirc/production.env ...` works for anything that doesn't (re)create containers.
 
+:::tip
+The backend runs several replicas. `compose exec`/`logs` pick one; add `--index N` for another. With old docker compose versions, `exec` can complain that "container #1" is not running after a deploy: use `--index` with the numbers from `docker compose ps`.
+:::
 
-
-## Quesions to ask if things don't work
-- Is the container even running ? Is it restarting all the time?
+## Questions to ask if things don't work
+- Is the container even running? Is it restarting all the time? Is it unhealthy?
 ```bash
-docker ps
+docker compose --env-file deployments/sirc/production.env ps -a
 ```
 - Is the disk full?
 ```bash
 df -h
 ```
+- Did a deploy just happen? Check the [GitLab environments page](deployment#rollbacks), and roll back if needed.
 
-## How to restart the docker containers
+## How to restart the containers
 Symptom:
 - Cannot load the web application
 - 500 errors
-- Often necessary if the disk got full..
+- Often necessary if the disk got full...
 
 ```bash
 # At SIRC we need to make sure important folders are mounted before starting containers...
 ./at-sirc-before-up.py
-
-docker compose -f docker-compose.yml -f production.yml  -f sirc.yml restart
-# if you make changes to the docker compose files...
-docker compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d
-
+docker compose --env-file deployments/sirc/production.env restart backend
+# or everything (downtime!)
+docker compose --env-file deployments/sirc/production.env restart
 ```
 
-### How to start from scratch the docker container
+### How to recreate all the containers
 ```bash
-# At SIRC we need to make sure important folders are mounted before starting containers...
-./at-sirc-before-up.py
-
-docker compose -f docker-compose.yml -f production.yml  -f sirc.yml down
-docker compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d
+# Redeploys the current version: only what changed is recreated, the backend without downtime
+deployments/deploy.py deployments/sirc/production.env up
+# From scratch (downtime!). Never add --volumes/-v: it deletes the database
+docker compose --env-file deployments/sirc/production.env down
+deployments/deploy.py deployments/sirc/production.env up
 ```
 
 ### Quick wins when the disk is full
@@ -69,28 +74,19 @@ Symptom:
 
 Remove the IIIF image cache:
 ```bash
-# stop
-docker compose -f docker-compose.yml -f production.yml  -f sirc.yml stop cantaloupe
-# remove with the volumes
-docker compose -f docker-compose.yml -f production.yml  -f sirc.yml rm -v cantaloupe
-
-# At SIRC we need to make sure important folders are mounted before starting containers...
+docker compose --env-file deployments/sirc/production.env stop cantaloupe
+docker compose --env-file deployments/sirc/production.env rm -v cantaloupe
 ./at-sirc-before-up.py
-
-# Restart
-docker compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d cantaloupe
+deployments/deploy.py deployments/sirc/production.env compose up -d cantaloupe
 ```
 
-Remove unused docker images
+Remove unused docker images (`deploy.py` already removes the images of old versions, it keeps the last 3):
 ```bash
 docker image prune # -a
 ```
 
-### Re-build and start the docker container
+### Re-build and start the containers
+Normally CI builds the images. To build and deploy on the host:
 ```bash
-# At SIRC we need to make sure important folders are mounted before starting containers...
-./at-sirc-before-up.py
-
-docker compose -f docker-compose.yml -f production.yml  -f sirc.yml up -d --build
-# you can rebuild a subset of the services: backend, frontend...
+deployments/deploy.py deployments/sirc/production.env up --build
 ```

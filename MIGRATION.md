@@ -15,7 +15,8 @@ This document covers breaking changes from the branch unification
 - All existing ENV var overrides continue to work
 
 ### Server
-- Deploy with: `docker compose -f docker-compose.yml -f production.yml -f deployments/sirc/sirc.yml -f deployments/sirc/prod.yml up up`
+- Deployed by GitLab CI (staging, then production). By hand: `deployments/deploy.py deployments/sirc/production.env up`,
+  see `website/docs/backend-admin/deployment.mdx`
 
 ### Docker Builds
 Proxy/cert configuration is no longer hardcoded in Dockerfiles. Instead, `sirc.yml`

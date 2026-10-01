@@ -41,8 +41,8 @@ We plan on supporting blob-stores like AWS **S3**. <a href="mailto:arthur.flam@g
 ### Prerequisites
 You need Linux, [`docker`](https://docs.docker.com/engine/install/), [`docker compose`](https://docs.docker.com/compose/install/) and `git`.
 
-### Deployment modes
-QA-Board uses **compose overlays** in the `deployments/` directory to adapt the stack to different environments. Pick the mode that matches your site:
+### Deployment
+QA-Board uses **compose overlays** in the `deployments/` directory to adapt the stack to different environments, and an **env file** per environment that lists them:
 
 ```bash
 git clone https://github.com/Samsung/qaboard.git
@@ -51,27 +51,31 @@ cd qaboard
 
 **Open-source (default):**
 ```bash
-docker compose -f docker-compose.yml -f production.yml up -d
+# first time
+deployments/deploy.py deployments/production.env up --build --init
+# upgrades (git pull first), with zero downtime
+deployments/deploy.py deployments/production.env up --build
 ```
 
-**SIRC:**
-```bash
-docker compose -f docker-compose.yml -f production.yml -f deployments/sirc/sirc.yml -f deployments/sirc/prod.yml up -d
-```
+If you prefer plain docker compose, `docker compose -f docker-compose.yml -f production.yml up -d` still works, without zero-downtime upgrades.
+
+**SIRC:** deployed by GitLab CI, see [Deployments](backend-admin/deployment). By hand: `deployments/deploy.py deployments/sirc/production.env up`.
 
 **DSK:**
 ```bash
 docker compose -f docker-compose.yml -f production.yml -f deployments/dsk/dsk.yml up -d
 ```
 
-The overlay files in `deployments/` add site-specific services, volumes, environment variables, and nginx configuration without modifying the base `docker-compose.yml`. See `deployments/example.yml` as a template for creating your own overlay.
+The overlay files in `deployments/` add site-specific services, volumes, environment variables, and nginx configuration without modifying the base `docker-compose.yml`. See `deployments/example.yml` as a template for creating your own overlay, and `deployments/production.env` or `deployments/sirc/production.env` for the env file.
+
+`deployments/deploy.py` runs several backend replicas and replaces them one version at a time, runs database migrations once, and keeps the previous images for rollbacks. Read [Deployments, rollbacks and high availability](backend-admin/deployment) for the details.
 
 :::tip
 The application is live at `localhost:5151` by default (set `QABOARD_PORT_HTTP` to change it).
 :::
 
-:::note
-Want to install from a Kubernetes helm chart, CloudFormation or Terraform plans? <a href="mailto:arthur.flam@gmail.com">Get in touch</a>.
+:::note Kubernetes
+A helm chart is available in `charts/qaboard`, see [Kubernetes](backend-admin/kubernetes).
 :::
 
 ## Managing access rights and users
@@ -88,7 +92,7 @@ QA-Board can connect to external authentifications systems (LDAP, SAML). If need
 | `QABOARD_PORT_HTTP`    | 5151    | Port mapped to the app on the host                   |
 | `QABOARD_DB_HOST`      | db      | Connect the backend to a non-default database host (e.g. instead of dev'ing with prod dumps, connect directly to it) |
 | `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port               |
-| `JENKINS_AUTH`         | _none_  | Credentials used to [trigger jenkins jobs](/docs/triggering-third-party-tool) on 1 or many jenkins servers. The format is a JSON string looking like `{"hostname_1": {"user": "jenkinsuser", "token": "xxxxx", "crumb": "yyy"}}` ([how-to-get-the-token-crumb?](/docs/triggering-third-party-tools#example-jenkins-integration-via-webhooks))               |
+| `JENKINS_AUTH`         | _none_  | Credentials used to [trigger jenkins jobs](triggering-third-party-tools) on 1 or many jenkins servers. The format is a JSON string looking like `{"hostname_1": {"user": "jenkinsuser", "token": "xxxxx", "crumb": "yyy"}}` ([how-to-get-the-token-crumb?](triggering-third-party-tools))               |
 | `QABOARD_LOGIN_TYPE`   | _LOCAL_  | Set to `LOCAL/LDAP/SAML`                   |
 | `QABOARD_LOGIN_REQUIRED`   | _false_  | Set to `true` to block anonymous users (requires frontend rebuild)                   |
 | `QABOARD_DISABLE_SIGNUP`   | _false_  | Set to `True` to disallow local users from signing up                   |
@@ -109,7 +113,8 @@ QA-Board can connect to external authentifications systems (LDAP, SAML). If need
 | `QABOARD_SAML_ATTRIBUTE_ID`   | _none_    |                                            |
 | `CANTALOUPE_MEM_START` | 1g      | Starting memory for the image server                 |
 | `CANTALOUPE_MEM_MAX`   | 2g      | Max memory for the image server                      |
-| `UWSGI_PROCESSS`       | 1       | default: 1g                                          |
+| `QABOARD_BACKEND_REPLICAS` | 1   | Backend replicas, see [Deployments](backend-admin/deployment#settings) |
+| `QABOARD_UWSGI_PROCESSES`  | 16  | uwsgi processes per backend replica, in production   |
 | `SENTRY_DSN`           | _none_  | monitor crashes in the backend with sentry.io. Example: https://xxxxxxxxxxx@sentry.io/000 |
 | `SENTRY_SAMPLE_RATE`           | 0.2  | sample for perf monitoring |
 
@@ -125,7 +130,7 @@ In the future we plan to introduce a proper "secret" store, per user and per pro
 
 ## (Optional) For "production"
 ### Backups
-In *production.yml* you can uncomment the `cron-backup-db` service to enable daily backups.
+The `cron-backup-db` service in *production.yml* makes daily backups of the database. Mount a host directory at `/backups` in your site overlay (see `deployments/sirc/prod.yml`), and copy the backups off the host. To restore one: `deployments/deploy.py <env file> restore-db <file>.dump`.
 
 ### Using SSL / hosting behind a reverse proxy
 What we do is directly change the `nginx` confix:

@@ -7,30 +7,30 @@ title: Upgrading the QA-Board host
 First connect to the QA-Board host:
 ```bash
 ssh qa
+cd /home/ispq/qaboard_prod
+source deployments/sirc/.envrc
 ```
 
-## Make sure backups are enabled
-In *production.yml* you should uncomment the `cron-backup-db` service to enable daily backups
+The examples use SIRC's production environment, `deployments/sirc/production.env`, see [Deployments](deployment).
+
+## Pause automatic deploys
+Set the GitLab CI/CD variable `QABOARD_PROD_DEPLOY=manual`, or create a deploy freeze.
 
 ## Check the latest daily backup
+Backups are made daily by the `cron-backup-db` service.
 ```bash
 # check the latest backup worked
-ls -lht /WHERE/BACKUPS/ARE/SAVED/ | head
-# copy the latest somewhere to make sure nothing can go wrong
-cp /WHERE/BACKUPS/ARE/SAVED/latest.dump .
-
-# At SIRC backups are under /home/ispq/qaboard_data_prod/database_backups
+ls -lht /home/ispq/qaboard_data_prod/database_backups/ | head
 ```
 
-## Stop the server and create a backup 
+## Stop the server and create a backup
 ```bash
 # disconnect clients to avoid anyone writing
-docker compose -f docker-compose.yml -f production.yml stop
+docker compose --env-file deployments/sirc/production.env stop
 # we need the database to create a backup
-docker compose -f docker-compose.yml -f production.yml up -d db
-
+docker compose --env-file deployments/sirc/production.env up -d db
 # manually start a backup
-docker compose -f docker-compose.yml -f production.yml -f sirc.yml run cron-backup-db /etc/periodic/daily/backup before-upgrade.dump
+docker compose --env-file deployments/sirc/production.env run --rm cron-backup-db /etc/periodic/daily/backup before-upgrade.dump
 ```
 
 ## Maintenance Period
@@ -39,27 +39,19 @@ docker compose -f docker-compose.yml -f production.yml -f sirc.yml run cron-back
 ## Restart
 After the boot, make sure everything is up:
 ```bash
-docker compose -f docker-compose.yml -f production.yml -f sirc.yml up -d
+./at-sirc-before-up.py
+deployments/deploy.py deployments/sirc/production.env up
+deployments/deploy.py deployments/sirc/production.env status
 ```
 
 **Checks**:
 - [ ] you can access the web application
+- [ ] `status` shows all containers running, and the backends healthy
 - [ ] the logs are all right
-- [ ] the logs are all right
-
+- [ ] remove `QABOARD_PROD_DEPLOY=manual` in GitLab
 
 ## Restoring from a backup
-In case of issues, recover from a backup:
-
+In case of issues, recover from a backup. The backend is stopped meanwhile:
 ```bash
-# disconnect clients
-docker compose -f docker-compose.yml -f production.yml -f sirc.yml stop
-# we need the database to restore a backup
-docker compose -f docker-compose.yml -f production.yml -f sirc.yml up -d db
-
-# now restore
-docker compose -f docker-compose.yml -f production.yml -f sirc.yml exec --user 1411:10 db /opt/restore /backups/before-upgrade.dump
-
-# and restart
-docker compose -f docker-compose.yml -f production.yml -f sirc.yml up -d
+deployments/deploy.py deployments/sirc/production.env restore-db before-upgrade.dump
 ```
