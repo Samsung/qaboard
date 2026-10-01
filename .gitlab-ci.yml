@@ -1,66 +1,115 @@
-default:
-  tags: [lsf]
+# QA-Board CI/CD at SIRC
+#
+# Merge requests: lint, types, unit tests and webapp tests, in parallel.
+# master: the same + build images → staging → production, automatically:
+#   1. build:images  builds the images once, tags them with the commit, pushes them to the GitLab registry
+#                    (in parallel with the tests)
+#   2. deploy:staging deploys them on alginfra1 (its own database), test:staging runs smoke tests against it
+#   3. deploy:production deploys the *same* images on qa, with zero downtime (deployments/deploy.py)
+#
+# Rollback: Deployments > Environments > production > "Rollback" re-runs the deploy job of an older pipeline,
+#           or on the host: deployments/deploy.py deployments/sirc/production.env rollback
+# Make production deploys manual: set the CI/CD variable QABOARD_PROD_DEPLOY=manual (deploy freezes also do it)
+# No container registry? Set QABOARD_BUILD_ON_HOST=1: images are then built on each host when deploying (slower)
+#
+# Runbook: website/docs/backend-admin/deployment.mdx
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Don't run branch pipelines on top of merge request pipelines
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+    - if: $CI_COMMIT_TAG
 
 variables:
-  SIRC_LSF_QUEUE: alg_isp_q
-  SIRC_USER: ispq
+  GIT_DEPTH: "20"
   # https://docs.gitlab.com/ee/ci/yaml/#git-clean-flags
   GIT_CLEAN_FLAGS: -ffdx --exclude=webapp/node_modules/
+  SIRC_LSF_QUEUE: alg_isp_q
+  SIRC_USER: ispq
+  # Images are tagged with the commit: see `image:` in docker-compose.yml and deployments/sirc/sirc.yml
+  QABOARD_VERSION: $CI_COMMIT_SHORT_SHA
+  QABOARD_IMAGE: gitlab-srv.transchip.com:4567/common-infrastructure/qaboard
+  QABOARD_BUILD_HOST: alginfra1
+  QABOARD_STAGING_HOST: alginfra1
+  QABOARD_STAGING_DIR: /home/ispq/qaboard_staging
+  QABOARD_STAGING_URL: http://alginfra1:7159
+  QABOARD_PROD_HOST: qa
+  QABOARD_PROD_DIR: /home/ispq/qaboard_prod
+  DOCKER_API_VERSION: "1.43" # Required due to version mismatch, see https://jira.transchip.com/servicedesk/customer/portal/5/DEVOPS-1423
 
 stages:
   - test
-  - deploy  # Internally
-  - smoke-test
-  - production  # Prod deploy, gated by smoke-test:dev
-  - cleanup
-  - publish # To Pypi
+  - build
+  - staging
+  - production
+  - publish
 
-before_script:
-  - source ./deployments/sirc/.envrc
-  - eval $(ssh-agent -s)
-  - ssh-add $HOME/.ssh/id_rsa
-  - echo "${SSH_AGENT_PID}" > ssh-agent.pid
-
-after_script:
-  # don't leave ssh agents running
-  - if [ -f ssh-agent.pid ] ; then kill $(cat ssh-agent.pid) ; fi
+default:
+  tags: [lsf]
+  # A newer pipeline on the same branch cancels these jobs (with "Auto-cancel redundant pipelines", the default)
+  interruptible: true
+  before_script:
+    - source ./deployments/sirc/.envrc
 
 
+.on-master:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+.ssh:
+  before_script:
+    - source ./deployments/sirc/.envrc
+    - eval $(ssh-agent -s) > /dev/null
+    - ssh-add -q $HOME/.ssh/id_rsa
+    - echo "${SSH_AGENT_PID}" > ssh-agent.pid
+  after_script:
+    # don't leave ssh agents running
+    - if [ -f ssh-agent.pid ] ; then kill $(cat ssh-agent.pid) ; fi
+
+
+## Tests ##########################################################################################
 unit-tests:
   stage: test
+  needs: []
   retry: 2 # solves frequent filesystem sync issues
   script:
     - green -vvv --quiet-stdout --run-coverage tests
 
 type-check:
   stage: test
+  needs: []
   script:
-  - mypy -p qaboard --ignore-missing-imports
+    - mypy -p qaboard --ignore-missing-imports
 
 lint:
   stage: test
+  needs: []
   script:
-  - flake8 backend qaboard
+    - flake8 backend qaboard
 
 webapp-tests:
   stage: test
+  needs: []
   rules:
-    - if: $CI_COMMIT_BRANCH
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - changes: [webapp/**/*]
   script:
     - cd webapp
-    - npm install --legacy-peer-deps
-    - npm test -- --coverage --coverageReporters=cobertura --coverageReporters=text --watchAll=false --ci --forceExit --detectOpenHandles --reporters=default --reporters=jest-junit --testEnvironment=jsdom
-    - pip install diff-cover
+    # node_modules is kept between jobs (GIT_CLEAN_FLAGS), so this is fast when package-lock.json didn't change
+    - npm install --legacy-peer-deps --prefer-offline --no-audit --no-fund
+    # Note: --detectOpenHandles would run the tests serially (--runInBand)
+    - npm test -- --coverage --coverageReporters=cobertura --coverageReporters=text-summary --watchAll=false --ci --forceExit --reporters=default --reporters=jest-junit --testEnvironment=jsdom
     - |
-      TARGET_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-master}"
-      echo "Target branch is: $TARGET_BRANCH"
-      git fetch --unshallow || true
-      git fetch origin "$TARGET_BRANCH"
-      diff-cover coverage/cobertura-coverage.xml --compare-branch "origin/$TARGET_BRANCH"
-      DIFF_COV="$(diff-cover coverage/cobertura-coverage.xml --compare-branch "origin/$TARGET_BRANCH" \
-        | grep -E '^Coverage:' | grep -Eo '[0-9]+(\.[0-9]+)?%' || echo '0.00%')"
-      echo "Diff coverage: $DIFF_COV"
+      if [ -n "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" ]; then
+        pip install -q diff-cover
+        git fetch -q --depth=200 origin "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+        git merge-base HEAD FETCH_HEAD > /dev/null || git fetch -q --unshallow origin "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+        diff-cover coverage/cobertura-coverage.xml --compare-branch FETCH_HEAD | tee diff-cover.txt
+        echo "Diff coverage: $(grep -E '^Coverage:' diff-cover.txt | grep -Eo '[0-9]+(\.[0-9]+)?%' || echo '0.00%')"
+      fi
   coverage: '/Diff coverage:\s+\d+(?:\.\d+)?%/'
   artifacts:
     when: always
@@ -70,166 +119,218 @@ webapp-tests:
         coverage_format: cobertura
         path: webapp/coverage/cobertura-coverage.xml
 
-# TODO: re-enable once openldap-devel + cyrus-sasl-devel are installed on the CI runner hosts.
-# backend-tests fails during `uv sync --group dev`: python-ldap (and friends) must compile
-# from source and need lber.h/sasl.h, which are missing on gitlabci03 / the LSF nodes.
-# backend-tests:
-#   stage: test
-#   rules:
-#     - if: $CI_COMMIT_BRANCH
-#     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-#   before_script:
-#     - export PATH=$PATH:/home/ispq/miniconda3/envs/py311/bin
-#     - cd backend
-#     - uv sync --group dev
-#     - source .venv/bin/activate
-#   script:
-#     - pytest -q tests/ --cov=backend --cov-report=xml --junitxml=report.xml
-#     - coverage report
-#     - |
-#       TARGET_BRANCH="${CI_MERGE_REQUEST_TARGET_BRANCH_NAME:-master}"
-#       echo "Target branch is: $TARGET_BRANCH"
-#       git fetch --unshallow || true
-#       git fetch origin "$TARGET_BRANCH"
-#       diff-cover coverage.xml --compare-branch "origin/$TARGET_BRANCH"
-#       DIFF_COV="$(diff-cover coverage.xml --compare-branch "origin/$TARGET_BRANCH" \
-#         | grep -E '^Coverage:' | grep -Eo '[0-9]+(\.[0-9]+)?%' || echo '0.00%')"
-#       echo "Diff coverage: $DIFF_COV"
-#   coverage: '/Diff coverage:\s+\d+(?:\.\d+)?%/'
-#   artifacts:
-#     when: always
-#     reports:
-#       junit: backend/report.xml
-#       coverage_report:
-#         coverage_format: cobertura
-#         path: backend/coverage.xml
+
+## Images #########################################################################################
+.docker:
+  extends: .ssh
+  variables:
+    DOCKER_HOST: ssh://$QABOARD_BUILD_HOST
+  rules:
+    - if: $QABOARD_BUILD_ON_HOST
+      when: never
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    # To test images from a merge request
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+
+build:images:
+  extends: .docker
+  stage: build
+  needs: [] # in parallel with the tests, the deploys wait for both
+  script:
+    # compose checks they exist, the images don't use them
+    - touch .env deployments/sirc/.env
+    # Don't leave the job token in the shared ~/.docker
+    - export DOCKER_CONFIG="$CI_PROJECT_DIR/.docker" && mkdir -p "$DOCKER_CONFIG"
+    - if [ -d ~/.docker/cli-plugins ]; then ln -sfn ~/.docker/cli-plugins "$DOCKER_CONFIG/cli-plugins"; fi
+    - echo "$CI_JOB_TOKEN" | docker login -u gitlab-ci-token --password-stdin "$CI_REGISTRY"
+    # BuildKit's cache on the build host makes unchanged layers instant (e.g. the backend's dependencies)
+    - docker compose --env-file deployments/sirc/production.env build backend frontend website proxy cantaloupe fluentd
+    - docker compose --env-file deployments/sirc/production.env push backend frontend website proxy cantaloupe fluentd
+    - echo "Pushed $QABOARD_IMAGE:*-$QABOARD_VERSION"
+
+# Unit tests that need the backend's dependencies (python-ldap...), easier in its image than on the runners
+backend-tests:
+  extends: .docker
+  stage: build
+  needs: [build:images]
+  script:
+    - docker run --rm "$QABOARD_IMAGE:backend-$QABOARD_VERSION" python -m pytest -q -p no:cacheprovider tests
 
 
-deploy:qa:
-  stage: deploy
-  only:
-    - master
+## Deploys ########################################################################################
+# Updates the checkout on the host to this commit, then runs deployments/deploy.py there
+.deploy:
+  extends: .ssh
+  interruptible: false # never cancel a deploy halfway
+  variables:
+    DEPLOY_ARGS: ""
+  script:
+    - DEPLOY_ARGS="$DEPLOY_ARGS ${QABOARD_BUILD_ON_HOST:+--build}"
+    - |
+      ssh -o BatchMode=yes "$DEPLOY_HOST" bash -s <<EOF
+      set -eo pipefail
+      cd "$DEPLOY_DIR"
+      # Hand-made changes on the host are saved, not lost
+      if ! git diff --quiet HEAD; then
+        patch="deploy-discarded-\$(date +%Y%m%d-%H%M%S).patch"
+        git diff HEAD > "\$patch"
+        echo "WARNING: local changes in $DEPLOY_DIR were saved to \$patch, commit them to git!"
+      fi
+      git fetch -q origin "$CI_COMMIT_REF_NAME"
+      git checkout -q -f --detach "$CI_COMMIT_SHA"
+      source deployments/sirc/.envrc
+      export QABOARD_VERSION="$QABOARD_VERSION" GITLAB_USER_LOGIN="$GITLAB_USER_LOGIN" CI_PIPELINE_URL="$CI_PIPELINE_URL"
+      python3 deployments/deploy.py "$DEPLOY_ENV" up $DEPLOY_ARGS
+      EOF
+
+deploy:staging:
+  extends: .deploy
+  stage: staging
+  needs:
+    - {job: build:images, optional: true}
+    - {job: backend-tests, optional: true}
+    - unit-tests
+    - type-check
+    - lint
+    - {job: webapp-tests, optional: true}
+  resource_group: staging
+  variables:
+    DEPLOY_HOST: $QABOARD_STAGING_HOST
+    DEPLOY_DIR: $QABOARD_STAGING_DIR
+    DEPLOY_ENV: deployments/sirc/staging.env
+    DEPLOY_ARGS: --init # staging can start with an empty database
+  environment:
+    name: staging
+    url: $QABOARD_STAGING_URL
+    deployment_tier: staging
+    on_stop: stop:staging
+  rules:
+    - !reference [.on-master, rules]
+
+test:staging:
+  extends: .ssh
+  stage: staging
+  needs: [deploy:staging]
+  script:
+    - curl -fsS --noproxy '*' --retry 10 --retry-delay 3 --retry-all-errors --max-time 30 "$QABOARD_STAGING_URL/api/v1/health"
+    - curl -fsS --noproxy '*' --max-time 120 "$QABOARD_STAGING_URL/api/v1/projects" > /dev/null
+    - curl -fsS --noproxy '*' --max-time 30 "$QABOARD_STAGING_URL/" | grep -q 'id="root"'
+    - ssh -o BatchMode=yes "$QABOARD_STAGING_HOST" "cd $QABOARD_STAGING_DIR && source deployments/sirc/.envrc && python3 deployments/deploy.py deployments/sirc/staging.env compose exec -T -e BACKEND_TEST_MODE=no-mock backend python -m pytest smoke_tests/ -q -p no:cacheprovider"
+  rules:
+    - !reference [.on-master, rules]
+
+stop:staging:
+  extends: .ssh
+  stage: staging
+  interruptible: false
+  needs: []
+  script:
+    - ssh -o BatchMode=yes "$QABOARD_STAGING_HOST" "cd $QABOARD_STAGING_DIR && source deployments/sirc/.envrc && python3 deployments/deploy.py deployments/sirc/staging.env compose stop"
+  environment:
+    name: staging
+    action: stop
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+      allow_failure: true
+
+# Seeds staging with the latest production backup
+staging:refresh-db:
+  extends: .ssh
+  stage: staging
+  interruptible: false
+  needs: []
+  resource_group: staging
+  script:
+    - ssh -o BatchMode=yes "$QABOARD_STAGING_HOST" "cd $QABOARD_STAGING_DIR && source deployments/sirc/.envrc && python3 deployments/deploy.py deployments/sirc/staging.env restore-db latest"
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+      allow_failure: true
+
+deploy:production:
+  extends: .deploy
+  stage: production
+  needs: [test:staging]
+  resource_group: production
+  variables:
+    DEPLOY_HOST: $QABOARD_PROD_HOST
+    DEPLOY_DIR: $QABOARD_PROD_DIR
+    DEPLOY_ENV: deployments/sirc/production.env
+  environment:
+    name: production
+    url: https://qa
+    deployment_tier: production
+  rules:
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH
+      when: never
+    - if: $QABOARD_PROD_DEPLOY == "manual" || $CI_DEPLOY_FREEZE
+      when: manual
+    - when: on_success
+
+test:production:
+  stage: production
+  needs: [deploy:production]
+  script:
+    - curl -fsS --noproxy '*' --retry 5 --retry-delay 3 --retry-all-errors --max-time 30 http://qa:5000/api/v1/health
+  rules:
+    - !reference [.on-master, rules]
+
+
+# Kubernetes (being migrated): enabled with the CI/CD variable QABOARD_K8S_DEPLOY=1 (or =manual)
+# Needs helm on the runner and a KUBECONFIG (a CI/CD variable of type "File"), or the GitLab agent for Kubernetes.
+# --atomic: if the rollout fails, helm rolls back automatically. Runbook: website/docs/backend-admin/kubernetes.mdx
+deploy:k8s:
+  stage: production
+  interruptible: false
+  needs: [test:staging]
+  resource_group: production-k8s
+  script:
+    - helm upgrade --install qaboard charts/qaboard --namespace qaboard
+        -f deployments/sirc/values.yaml --set image.version="$QABOARD_VERSION"
+        --atomic --wait --timeout 15m
+    - kubectl --namespace qaboard rollout status deploy/qaboard-backend
+  environment:
+    name: production-k8s
+    deployment_tier: production
+  rules:
+    - if: $CI_COMMIT_BRANCH != $CI_DEFAULT_BRANCH || $QABOARD_K8S_DEPLOY == null
+      when: never
+    - if: $QABOARD_K8S_DEPLOY == "manual" || $CI_DEPLOY_FREEZE
+      when: manual
+    - when: on_success
+
+
+## CLI ############################################################################################
+# Installs the CLI for SIRC users
+deploy:cli:
+  stage: production
+  needs: [unit-tests, type-check, lint]
   script:
     - export PROXY_STUFF='--trusted-host pypi.org --trusted-host files.pythonhosted.org  --trusted-host pypi.python.org'
     - umask 022
     - pip install $PROXY_STUFF '.[dask]'
+  rules:
+    - !reference [.on-master, rules]
 
-deploy:qa:windows:
-  stage: deploy
-  only:
-    - master
+deploy:cli:windows:
+  stage: production
+  needs: [unit-tests, type-check, lint]
   before_script: [] # Overrides the global before_script since it changes LD_LIBRARY_PATH which causes curl to fail
   script:
-    -   - 'curl --header "Content-Type: application/json" --request POST --data ''{"build_url": "http://jenmaster1:8080/job/ALGO/job/Install_qaboard_on_windows_nodes", "cause": "cde-python updated", "params": {}}'' http://qa/api/v1/jenkins/build/trigger/'
+    - 'curl --header "Content-Type: application/json" --request POST --data ''{"build_url": "http://jenmaster1:8080/job/ALGO/job/Install_qaboard_on_windows_nodes", "cause": "cde-python updated", "params": {}}'' http://qa/api/v1/jenkins/build/trigger/'
+  rules:
+    - !reference [.on-master, rules]
 
+# Redundant with the GitHub release workflow (.github/workflows/pypy.yml)
 publish:PyPi:
   stage: publish
-  when: manual
+  needs: []
   script:
-  - ssh arthurf@planet31 'cd qaboard; twine upload --verbose -u __token__ dist/*'
-
-
-#variables:
-#  # https://docs.gitlab.com/ee/ci/yaml/#git-clean-flags
-#  GIT_CLEAN_FLAGS: -ffdx --exclude=webapp/node_modules/
-#  GIT_SUBMODULE_STRATEGY: recursive
-
-
-.deploy: &deploy
-  stage: deploy
-  variables:
-    DOCKER_HOST: alginfra1
-    COMPOSE_PROJECT_NAME: $CI_ENVIRONMENT_SLUG
-  # script:
-  #   - ssh $DOCKER_HOST "bash -c \\\"cd $(pwd) && source deployments/sirc/.envrc && ./at-sirc-before-up.py && docker compose -f docker-compose.yml -f production.yml -f deployments/sirc/sirc.yml -f deployments/sirc/prod.yml up -d --build\\\""
-
-# deploy:staging:
-#   <<: *deploy
-#   environment:
-#     name: staging
-#     url: http://qa:9000
-#   only:
-#   - master
-
-# Assuming you
-# - cloned at /home/ispq/qabaord
-# - filled .env with the jenkins/gitlab tokens
-# - put the SSL keys in services/nginx/ssl/qa
-deploy:production:
-  # <<: *deploy
-  stage: production  # After smoke-test so needs: [smoke-test:dev] is valid (needs must point at current or prior stages)
-  variables:
-    DOCKER_HOST: qa 
-    DOCKER_API_VERSION: "1.43" # Required due to version mismatch, see https://jira.transchip.com/servicedesk/customer/portal/5/DEVOPS-1423
-    CI_ENVIRONMENT_SLUG: ""
-  script:
-    - ssh $DOCKER_HOST "bash -c \\\"cd /home/ispq/qaboard_prod && source deployments/sirc/.envrc && git reset --hard && git pull && ./at-sirc-before-up.py > /dev/null && docker compose -f docker-compose.yml -f production.yml -f deployments/sirc/sirc.yml -f deployments/sirc/prod.yml build && docker compose -f docker-compose.yml -f production.yml -f deployments/sirc/sirc.yml -f deployments/sirc/prod.yml up --force-recreate --no-deps -d\\\""
-  environment:
-    name: production
-    url: https://qa
-  only:
-  - master
-  when: manual
-  needs:
-    - smoke-test:dev
-
-
-deploy:dev:
-  stage: deploy
-  variables:
-    DOCKER_HOST: "ssh://alginfra1"
-    DOCKER_API_VERSION: "1.43" # Required due to version mismatch, see https://jira.transchip.com/servicedesk/customer/portal/5/DEVOPS-1423
-    CI_ENVIRONMENT_SLUG: ""
-  script:
-    - source ./deployments/sirc/.envrc && ./at-sirc-before-up.py > /dev/null && COMPOSE_PROJECT_NAME=qaboard_ci QABOARD_DEV_BACKEND_PORT=7159 QABOARD_DEV_FRONTEND_PORT=7019 QABOARD_PORT_HTTPS=9944 QABOARD_PROXY_PORT_HTTP=9254 QABOARD_EXTRA_SIRC_PORT_1=9000 QABOARD_EXTRA_SIRC_PORT_2=9002 QABOARD_DEV_PROXY_PORT_5001=9001 QABOARD_EXPOSED_DB_PORT=7432 docker compose -f docker-compose.yml -f development.yml -f deployments/sirc/sirc.yml build
-    - source ./deployments/sirc/.envrc && ./at-sirc-before-up.py > /dev/null && COMPOSE_PROJECT_NAME=qaboard_ci QABOARD_DEV_BACKEND_PORT=7159 QABOARD_DEV_FRONTEND_PORT=7019 QABOARD_PORT_HTTPS=9944 QABOARD_PROXY_PORT_HTTP=9254 QABOARD_EXTRA_SIRC_PORT_1=9000 QABOARD_EXTRA_SIRC_PORT_2=9002 QABOARD_DEV_PROXY_PORT_5001=9001 QABOARD_EXPOSED_DB_PORT=7432 docker compose -f docker-compose.yml -f development.yml -f deployments/sirc/sirc.yml up --force-recreate --no-deps -d
-  environment:
-    name: development
-    url: http://alginfra1:7159
-  only:
-    - master
-  when: on_success
-
-
-smoke-test:dev:
-  stage: smoke-test
-  script:
-    - echo "Waiting for backend to be ready (will retry if needed)..."
-    - sleep 20
-    - echo "Testing backend /api/v1/projects endpoint..."
-    - curl -f --connect-timeout 10 --max-time 30 --retry 10 --retry-delay 10 --retry-all-errors http://alginfra1:7159/api/v1/projects
-    - echo "✅ Smoke tests passed! Backend is healthy and connected to database."
-  only:
-    - master
-  when: on_success
-  needs:
-    - deploy:dev
-
-smoke-test:backend:
-  stage: smoke-test
-  variables:
-    DOCKER_HOST: "ssh://alginfra1"
-    CI_ENVIRONMENT_SLUG: ""
-  script:
-    - echo "Running backend unit tests..."
-    - source ./deployments/sirc/.envrc && COMPOSE_PROJECT_NAME=qaboard_ci docker compose -f docker-compose.yml -f development.yml exec -T backend bash -c 'export BACKEND_TEST_MODE=no-mock && cd /qaboard/backend && python -m pytest smoke_tests/ -v -p no:cacheprovider'
-    - echo "✅ Backend tests passed!"
-  only:
-    - master
-  when: on_success
-  needs:
-    - smoke-test:dev
-
-cleanup:dev:
-  stage: cleanup
-  variables:
-    DOCKER_HOST: "ssh://alginfra1"
-  script:
-    - echo "Cleaning up CI deployment containers..."
-    - source ./deployments/sirc/.envrc && COMPOSE_PROJECT_NAME=qaboard_ci docker compose -f docker-compose.yml -f development.yml -f deployments/sirc/sirc.yml down
-    - echo "✅ Cleanup complete - alginfra1 is clean"
-  only:
-    - master
-  when: always  # Always cleanup, even if tests fail
-  needs:
-    - smoke-test:backend
+    - ssh arthurf@planet31 'cd qaboard; twine upload --verbose -u __token__ dist/*'
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+      allow_failure: true
