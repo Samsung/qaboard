@@ -25,13 +25,7 @@ def qa_init(ctx):
     exit(0)
 
   # Locate the sample project's configuration
-  try: # fast, available from python3.7
-    from importlib import resources
-    with resources.path('qa', '') as qatools_dir:
-      pass
-  except Exception:
-      import pkg_resources
-      qatools_dir = Path(pkg_resources.resource_filename('qaboard', ''))
+  qatools_dir = Path(__file__).resolve().parent
 
   click.secho('Creating a `qatools` configuration based on the sample project 🎉', fg='green')
   if not ctx.obj['dryrun']:

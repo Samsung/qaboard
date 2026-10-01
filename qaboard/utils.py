@@ -299,23 +299,32 @@ def _file_info(path : Path, compute_hashes=True):
         image_meta = None
 
         # At SIRC we compute hash that only depend
-        # on pixel values, not metadata
+        # on pixel values, not metadata. It needs internal packages (cde, idb_client),
+        # without them we only have the md5 of the whole file.
         if path.suffix == '.hex':
-          from cde.image.read import hex_attributes
-          hex_attr = hex_attributes(path)
-          hash_length = hex_attr.get('footer_start_pos')
-          info['md5_data'] = md5_hex(path, hash_length)
-          image_meta = hex_attr
+          try:
+            from cde.image.read import hex_attributes
+          except ImportError:
+            pass
+          else:
+            hex_attr = hex_attributes(path)
+            hash_length = hex_attr.get('footer_start_pos')
+            info['md5_data'] = md5_hex(path, hash_length)
+            image_meta = hex_attr
         if path.suffix.lower() in [".png", ".bmp", ".jpg", ".jpeg"]:
-          from idb_client.v2.utils import Md5HashCalculator
           try: # can fail for corrupted/empty images
+            from idb_client.v2.utils import Md5HashCalculator
             info['md5_data'] = Md5HashCalculator.from_image(path)
           except Exception as e:
             pass
 
         if path.suffix == '.raw':
-          from cde.image.read import read_imgprops
-          image_meta = read_imgprops(path)
+          try:
+            from cde.image.read import read_imgprops
+          except ImportError:
+            pass
+          else:
+            image_meta = read_imgprops(path)
 
         if image_meta:
           for attr in checked_cde_attrs:

@@ -1,4 +1,5 @@
 import os
+import shutil
 import json
 from pathlib import Path
 
@@ -121,6 +122,7 @@ class TestQaCli(unittest.TestCase):
     assert result.exit_code == 0
 
 
+  @unittest.skipUnless(shutil.which('bsub'), 'needs LSF (bsub)')
   def test_runner_lsf(self):
     result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=lsf', 'echo "{input_path} => {output_dir}"')
     assert result.exit_code == 0

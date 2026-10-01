@@ -38,10 +38,14 @@ class LocalRunner(BaseRunner):
       cwd = os.getcwd()
       if 'cwd' in job_options:
         os.chdir(job_options['cwd'])
+      # Jobs only wait on a subprocess, so threads are enough. Process-based workers
+      # also linger after the batch, and blocked the exit of `qa` when it was itself a subprocess.
       Parallel(
+        prefer="threads",
         n_jobs=job_options.get('concurrency'),
         verbose=int(os.environ.get('QA_BATCH_VERBOSE', 0)),
-        timeout=job_options.get('timeout'),        
+        # 0/None mean "no timeout", but joblib's timeout=0 times out immediately
+        timeout=job_options.get('timeout') or None,
       )(delayed(lambda j: j.start(cwd=cwd))(j) for j in jobs)
       os.chdir(cwd)
 

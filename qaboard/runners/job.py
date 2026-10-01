@@ -84,7 +84,9 @@ class JobGroup():
     # Note: We get all outputs in the batch, some not started in this command...
     finished_outputs = get_outputs(qa_context, ignore_errors=False)
     if not finished_outputs:
-      if '--offline' not in sys.argv:
+      is_offline = '--offline' in sys.argv or (qa_context or {}).get('offline')
+      # local runs write on the local filesystem, no need to wait for a sync
+      if not is_offline and self.Runner.type != 'local':
         sync_time = 30
         click.secho(f'[WARNING] Since we could not access the status of the runs via the QA-Board server', fg='yellow', bold=True, err=True)
         click.secho(f'          We will fall back to looking at output folders directly.', fg='yellow', err=True)

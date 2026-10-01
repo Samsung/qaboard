@@ -371,37 +371,48 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
 
 
   ###### SIRC-specific ########################################################
+  # Track output images in IDB, only if the (internal) idb_client package is installed
   try:
-    from sentry_sdk import capture_exception
-    from .idb import update_idb
-    if input_files:
+    import idb_client  # noqa: F401
+    has_idb = True
+  except ImportError:
+    has_idb = False
+  try:
+    if has_idb and input_files:
+      from .idb import update_idb
       update_idb(run_context, input_files, outputs_manifest, manifest_path_str)
   except Exception as e:
-    import random
-    backlog_dir = Path("/home/ispq/idb_backlog")
-    hex_string = ''.join(random.choices('0123456789abcdef', k=8))
-    task_path = backlog_dir / f"{hex_string}.pickle"
-    json.dump(
-      {
-        "id": run_context.id,
-        "input_path": str(run_context.input_path),
-        "output_dir": str(run_context.output_dir),
-        "batch_label": run_context.obj['batch_label'],
-        "project": str(project.name),
-        "commit_id": commit_id,
-        "input_files": input_files,
-        "outputs_manifest": outputs_manifest,
-      },
-      task_path.open("w")
-    )
-    ### Then to tackle the backlog...
-    # for task in backlog_dir.glob("*.pickle"):
-    #   args = pickle.load(task.open())
-    #   from qaboard.idb import idb_update
-    #   idb_update(*args)
-    #   task.unlink() # delete the file
+    from sentry_sdk import capture_exception
     capture_exception(e)
     print(f"WARNING: idb raised {e}")
+    from .site_config import site_config
+    backlog_dir = site_config('QABOARD_IDB_BACKLOG_DIR')
+    if backlog_dir:
+      import random
+      hex_string = ''.join(random.choices('0123456789abcdef', k=8))
+      task_path = Path(backlog_dir) / f"{hex_string}.pickle"
+      try:
+        json.dump(
+          {
+            "id": run_context.id,
+            "input_path": str(run_context.input_path),
+            "output_dir": str(run_context.output_dir),
+            "batch_label": run_context.obj['batch_label'],
+            "project": str(project.name),
+            "commit_id": commit_id,
+            "input_files": input_files,
+            "outputs_manifest": outputs_manifest,
+          },
+          task_path.open("w")
+        )
+      except Exception as e_backlog:
+        print(f"WARNING: could not save the idb task in the backlog: {e_backlog}")
+      ### Then to tackle the backlog...
+      # for task in backlog_dir.glob("*.pickle"):
+      #   args = pickle.load(task.open())
+      #   from qaboard.idb import idb_update
+      #   idb_update(*args)
+      #   task.unlink() # delete the file
 
   if os.name == "nt" and not run_context.obj.get('dryrun') and (run_context.obj.get('share') or is_ci):
     from qaboard.compat import fix_linux_permissions
