@@ -70,13 +70,18 @@ deployments/deploy.py deployments/sirc/production.env up --build
 What `up` does, step by step, is described at the top of `deployments/deploy.py`. If a deploy fails, the job's log says which step. If the images can't be pulled or the migrations fail, nothing running was changed. If the new backend replicas are unhealthy, the previous ones keep serving.
 
 ## Staging
-Staging runs the production images and configuration, with **its own database**. To get production's data, seed it from the latest production backup (manual GitLab job `staging:refresh-db`, or):
+Staging runs the production images and configuration, with **its own database**. To get production's data, seed it with the manual GitLab job `staging:refresh-db`, or:
 
 ```bash
 ssh alginfra1
 cd /home/ispq/qaboard_staging && source deployments/sirc/.envrc
-deployments/deploy.py deployments/sirc/staging.env restore-db latest
+deployments/deploy.py deployments/sirc/staging.env seed-db             # last 30 days
+deployments/deploy.py deployments/sirc/staging.env seed-db --days 90
 ```
+
+Production's database is big, so `seed-db` doesn't restore a full backup. It copies the schema and the small tables (projects, users, test inputs...) in full, but only the **recent commits** (authored, or with outputs, in the last `QABOARD_SEED_DAYS` days) with their batches and outputs. It reads production in a single read-only snapshot, with indexed queries, so only the recent rows are transferred. It replaces staging's database: if production can't be read, staging is left as it was. Older commits referenced by milestones are not copied.
+
+The source is `QABOARD_SEED_SOURCE` in `deployments/sirc/staging.env` (production's database, exposed on `qa:5434`). For a full copy, restore a backup instead: `restore-db latest`.
 
 :::caution
 Staging still uses the shared storage and the LSF bridge: tuning runs started from staging are real runs.
@@ -123,3 +128,5 @@ In the env file, or the shell's environment (which takes precedence):
 | `QABOARD_UWSGI_PROCESSES`, `QABOARD_UWSGI_CHEAPER`, `QABOARD_UWSGI_CHEAPER_INITIAL` | 16, 8, 16 | uwsgi processes *per replica* (max, min, initial) |
 | `QABOARD_DEPLOY_PRE_HOOK` | _none_ | A command run before deploying (at SIRC: mounting autofs volumes) |
 | `QABOARD_RUN_MIGRATIONS` | 1 | Set to 0 to not run migrations when the backend starts |
+| `QABOARD_SEED_SOURCE` | _none_ | `seed-db`: the database to copy recent data from, `postgresql://user:password@host:port/db` |
+| `QABOARD_SEED_DAYS` | 30 | `seed-db`: keep the commits of the last N days |

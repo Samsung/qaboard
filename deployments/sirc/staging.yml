@@ -9,7 +9,8 @@ services:
 
   db:
     volumes:
-    # Read-only: staging can be seeded from production backups (deploy.py ... restore-db latest), never write them
+    # Read-only: staging can be restored from production backups (deploy.py ... restore-db latest), never write them.
+    # Prefer `deploy.py ... seed-db`: it only copies recent data.
     - /home/ispq/qaboard_data_prod/database_backups:/backups:ro
 
   cron-backup-db:

@@ -1,0 +1,73 @@
+#!/bin/sh
+# Replaces this database with recent data from another QA-Board database, e.g. staging from production:
+# - the schema, and the small tables in full (projects, users, test_inputs...)
+# - only the recent commits (authored, or with outputs, in the last N days), with their batches and outputs
+#
+# Usage (in the db container): /opt/seed postgresql://user:password@host:port/database [days]
+#   or with deployments/deploy.py deployments/sirc/staging.env seed-db
+#
+# The source is only read, in a single read-only snapshot, with indexed queries: only recent rows are transferred.
+set -eu
+
+SOURCE="$1"
+DAYS="${2:-30}"
+case "$DAYS" in ''|*[!0-9]*) echo "days must be a number, got: $DAYS" >&2; exit 1;; esac
+DB="${POSTGRES_DB:-qaboard}"
+export PGUSER="${POSTGRES_USER:-qaboard}"
+BIG_TABLES="'ci_commits', 'batches', 'outputs'"
+RECENT="greatest(c.authored_datetime, c.latest_output_datetime) > now() - interval '$DAYS days'"
+
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+
+echo "1. Reading the source (commits from the last $DAYS days)"
+pg_dump --schema-only --no-owner --no-acl "$SOURCE" > "$WORK/schema.sql"
+SMALL_TABLES=$(psql "$SOURCE" -Atc "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename NOT IN ($BIG_TABLES)")
+{
+  echo "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;"
+  for t in $SMALL_TABLES; do
+    echo "\\copy public.\"$t\" TO '$WORK/$t.copy'"
+  done
+  echo "\\copy (SELECT c.* FROM ci_commits c WHERE $RECENT) TO '$WORK/ci_commits.copy'"
+  echo "\\copy (SELECT b.* FROM batches b JOIN ci_commits c ON c.id = b.ci_commit_id WHERE $RECENT) TO '$WORK/batches.copy'"
+  echo "\\copy (SELECT o.* FROM outputs o JOIN batches b ON b.id = o.batch_id JOIN ci_commits c ON c.id = b.ci_commit_id WHERE $RECENT) TO '$WORK/outputs.copy'"
+  echo "COMMIT;"
+} > "$WORK/export.sql"
+psql "$SOURCE" -q -v ON_ERROR_STOP=1 -f "$WORK/export.sql"
+for t in $SMALL_TABLES ci_commits batches outputs; do
+  printf '   %-14s %s rows\n' "$t" "$(wc -l < "$WORK/$t.copy")"
+done
+
+echo "2. Recreating the database $DB"
+psql -d postgres -qAt -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$DB' AND pid <> pg_backend_pid();" > /dev/null
+dropdb --if-exists "$DB"
+createdb -T template0 "$DB"
+psql -d "$DB" -q -v ON_ERROR_STOP=1 -f "$WORK/schema.sql" > /dev/null
+
+echo "3. Loading the data"
+{
+  # No foreign key checks while loading: the tables are loaded in any order
+  echo "SET session_replication_role = replica;"
+  for t in $SMALL_TABLES ci_commits batches outputs; do
+    echo "\\copy public.\"$t\" FROM '$WORK/$t.copy'"
+  done
+  echo "SET session_replication_role = DEFAULT;"
+  # The sequences start after the ids we copied
+  cat <<'EOF'
+DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN
+    SELECT table_name, column_name, pg_get_serial_sequence(format('public.%I', table_name), column_name) AS seq
+    FROM information_schema.columns WHERE table_schema = 'public'
+  LOOP
+    IF r.seq IS NOT NULL THEN
+      EXECUTE format('SELECT setval(%L, COALESCE((SELECT max(%I) FROM public.%I), 0) + 1, false)', r.seq, r.column_name, r.table_name);
+    END IF;
+  END LOOP;
+END $$;
+ANALYZE;
+EOF
+} > "$WORK/load.sql"
+psql -d "$DB" -q -v ON_ERROR_STOP=1 -f "$WORK/load.sql"
+echo "Done: $(psql -d "$DB" -Atc "SELECT pg_size_pretty(pg_database_size('$DB'))")"

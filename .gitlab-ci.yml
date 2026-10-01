@@ -236,7 +236,7 @@ stop:staging:
       when: manual
       allow_failure: true
 
-# Seeds staging with the latest production backup
+# Seeds staging with production's recent data (QABOARD_SEED_DAYS days of commits, see services/db/seed)
 staging:refresh-db:
   extends: .ssh
   stage: staging
@@ -244,7 +244,7 @@ staging:refresh-db:
   needs: []
   resource_group: staging
   script:
-    - ssh -o BatchMode=yes "$QABOARD_STAGING_HOST" "cd $QABOARD_STAGING_DIR && source deployments/sirc/.envrc && python3 deployments/deploy.py deployments/sirc/staging.env restore-db latest"
+    - ssh -o BatchMode=yes "$QABOARD_STAGING_HOST" "cd $QABOARD_STAGING_DIR && source deployments/sirc/.envrc && python3 deployments/deploy.py deployments/sirc/staging.env seed-db"
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual

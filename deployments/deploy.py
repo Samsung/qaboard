@@ -11,6 +11,7 @@ Usage (from the root of the repository):
     deployments/deploy.py ENV_FILE rollback
     deployments/deploy.py ENV_FILE status
     deployments/deploy.py ENV_FILE restore-db [DUMP|latest]
+    deployments/deploy.py ENV_FILE seed-db [--source URL] [--days N]   # recent data only, e.g. for staging
     deployments/deploy.py ENV_FILE compose ARGS...     # e.g. compose logs -f backend
 
 ENV_FILE describes an environment, e.g. deployments/sirc/production.env. It's a docker compose env file
@@ -33,6 +34,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -100,7 +102,9 @@ class Deployment:
     def compose(self, *args: str, check=True, capture=False) -> subprocess.CompletedProcess:
         cmd = self.compose_cmd(*args)
         if not capture:
-            print("+ docker compose " + " ".join(shlex.quote(a) for a in args), flush=True)
+            # Don't print passwords from database URLs in CI logs
+            shown = re.sub(r"://([^:/@\s]+):[^@\s]+@", r"://\1:***@", " ".join(shlex.quote(a) for a in args))
+            print("+ docker compose " + shown, flush=True)
         r = subprocess.run(cmd, cwd=ROOT, env=self.env, text=True, capture_output=capture)
         if check and r.returncode:
             die(f"`docker compose {' '.join(args)}` failed{': ' + r.stderr.strip() if capture else ''}")
@@ -373,6 +377,19 @@ class Deployment:
             print(f"  {h['date']}  {h['version']}  {h.get('by') or ''}  {h.get('pipeline') or ''}")
         self.compose("ps", "-a")
 
+    def seed_db(self, source: Optional[str], days: Optional[int]) -> None:
+        """Replaces the database with the recent data of another one (e.g. staging from production), see services/db/seed"""
+        source = source or self.settings.get("QABOARD_SEED_SOURCE") or die("Set QABOARD_SEED_SOURCE or pass --source")
+        days = days or int(self.settings.get("QABOARD_SEED_DAYS") or 30)
+        log(f"Seeding the database with the last {days} days of data: the backend is stopped meanwhile")
+        users = [s for s in ("backend", "flower", "cron-backup-db") if s in self.config()["services"]]
+        self.compose("stop", *users)
+        try:
+            self.compose("exec", "-T", "db", "sh", "/opt/seed", source, str(days))
+        finally:
+            self.compose("up", "-d", "--no-deps", "--no-build", *users)
+            self.reconfigure_proxy(list(self.config()["services"]))
+
     def restore_db(self, dump: str) -> None:
         if dump == "latest":
             dump = self.compose("exec", "-T", "db", "sh", "-c", "ls -t /backups/*.dump | head -1", capture=True).stdout.strip()
@@ -404,6 +421,9 @@ def main() -> None:
     sub.add_parser("status", help="show the deployed version and containers")
     restore = sub.add_parser("restore-db", help="restore a database backup (from /backups in the db container)")
     restore.add_argument("dump", nargs="?", default="latest")
+    seed = sub.add_parser("seed-db", help="replace the database with recent data from another one (e.g. staging from production)")
+    seed.add_argument("--source", help="postgresql://user:password@host:port/database (default: $QABOARD_SEED_SOURCE)")
+    seed.add_argument("--days", type=int, help="keep the commits of the last N days (default: $QABOARD_SEED_DAYS or 30)")
     compose = sub.add_parser("compose", help="run docker compose for this environment and version")
     compose.add_argument("args", nargs=argparse.REMAINDER)
     args = parser.parse_args()
@@ -415,6 +435,8 @@ def main() -> None:
         deployment.rollback(pull=not args.no_pull)
     elif args.command == "status":
         deployment.status()
+    elif args.command == "seed-db":
+        deployment.seed_db(args.source, args.days)
     elif args.command == "restore-db":
         deployment.restore_db(args.dump)
     elif args.command == "compose":
