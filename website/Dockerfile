@@ -36,7 +36,10 @@ RUN if [ -n "$PROXY_URL" ]; then \
 # In the past we had ulimit issues and "ulimit -n 2000 &&"
 COPY package.json yarn.lock ./
 # we try multiple times to work around network issues...
-RUN yarn install --network-timeout 100000 || yarn install --network-timeout 100000 || yarn install --network-timeout 100000 || yarn install --network-timeout 100000
+RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
+    yarn install --frozen-lockfile --network-timeout 100000 || \
+    yarn install --frozen-lockfile --network-timeout 100000 || \
+    yarn install --frozen-lockfile --network-timeout 100000
 COPY . ./
 
 # On the website we have algolia for the search, but the baseURL (/qaboard) is different than
@@ -45,7 +48,6 @@ COPY . ./
 ENV QABOARD_DOCS_FOR_WEBAPP true
 ARG QABOARD_URL
 ENV QABOARD_URL=$QABOARD_URL
-RUN yarn install
 RUN yarn build
 
 # When upgrading, we want to enable clients to continue using a previous bundle

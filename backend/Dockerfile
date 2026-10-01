@@ -107,8 +107,10 @@ ENV UV_SYSTEM_PYTHON=1 \
     UV_PYTHON_DOWNLOADS=never
 
 # Make it possible to resolve dependencies of the CLI package
+# README.md is only needed later to build the qaboard package: copying it here would mean that
+# editing it invalidates the cache of the slow dependency layer below (uwsgi/lxml/xmlsec are compiled)
 WORKDIR /qaboard
-COPY pyproject.toml README.md ./
+COPY pyproject.toml ./
 
 WORKDIR /qaboard/backend
 # Install all dependencies
@@ -129,6 +131,8 @@ RUN --mount=type=ssh \
     --no-install-package qaboard
 
 # Backend
+WORKDIR /qaboard
+COPY README.md ./
 WORKDIR /qaboard/backend
 ADD backend .
 # CLI package

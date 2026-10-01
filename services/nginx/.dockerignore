@@ -1,0 +1,10 @@
+# The image embeds this configuration (used as-is on kubernetes, compose bind-mounts it)
+# Never bake certificates/keys or site data into the image
+Dockerfile
+.dockerignore
+passwd
+ssl/
+**/*.key
+**/*.pem
+**/*.cer
+**/*.crt

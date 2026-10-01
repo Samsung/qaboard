@@ -1,4 +1,9 @@
-FROM node:20 as dev
+# Stages:
+# - deps: node_modules, cached as long as package*.json don't change
+# - dev: used by development.yml, serves the code with `npm start` (no production build needed)
+# - build: the production bundle
+# - production (default): copies the bundle to the /builds volume served by nginx
+FROM node:20 AS deps
 WORKDIR /app
 
 # Proxy/cert configuration — no-ops when args are empty (open-source builds)
@@ -36,8 +41,18 @@ COPY package.json package-lock.json ./
 #     npm config set fetch-timeout 10000# In the past we had ulimit issues and "ulimit -n 2000 &&"
 # too many peer deps issues
 # RUN npm ci || npm ci || npm ci
-RUN npm install --legacy-peer-deps || npm install --legacy-peer-deps || npm install --legacy-peer-deps
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --legacy-peer-deps --no-audit --no-fund || \
+    npm install --legacy-peer-deps --no-audit --no-fund || \
+    npm install --legacy-peer-deps --no-audit --no-fund
 
+
+FROM deps AS dev
+COPY . ./
+CMD ["npm", "start"]
+
+
+FROM deps AS build
 COPY . ./
 
 ARG SENTRY_ORG
@@ -52,11 +67,10 @@ RUN if [ -n "$SENTRY_AUTH_TOKEN" ]; then \
       sentry-cli sourcemaps inject build && \
       sentry-cli sourcemaps upload build; \
     fi
-CMD ["npm", "start"]
 
 
-FROM debian:bookworm-slim as production
-COPY --from=dev /app/build /build
+FROM debian:bookworm-slim AS production
+COPY --from=build /app/build /build
 
 # Proxy/cert configuration — needed for apt-get install rsync
 ARG PROXY_URL=""

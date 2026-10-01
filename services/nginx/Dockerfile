@@ -46,6 +46,9 @@ ENV HTTP_PROXY="" http_proxy="" \
     HTTPS_PROXY="" https_proxy="" \
     NO_PROXY=""
 
+# Default configuration. docker-compose.yml bind-mounts services/nginx over it, so edits apply without rebuilding
+COPY . /tmp/etc/nginx
+
 EXPOSE 80 443
 STOPSIGNAL SIGTERM
 CMD ["nginx", "-g", "daemon off;"]
