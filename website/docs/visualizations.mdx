@@ -55,11 +55,18 @@ Extensions                                          | Type         | Viewer     
 ### Image viewer
   * Supports all common image formats.
   * Fast and smooth zoom & pan, synced. Fast image streaming via [IIIF](https://iiif.io).
-  * Color tooltip.
+  * Color tooltip, with a synced cursor on the other images.
   * Perceptual color difference.
-  * Automatic regions of interest.
-  * Image filters (exposure, contrast, gamma...).
+  * Automatic regions of interest, found where images differ most according to a YIQ, SSIM or CIE (1976, 1994, 2000) color difference.
+  * Image filters (brightness, contrast, gamma, sharpen).
   * Histograms per channel.
+  * Copy the new, reference or diff image to the clipboard. Press <kbd>t</kbd> to swap new and reference.
+
+How to use it is described in the user guide: [comparing images](/docs/user-guide/comparing-results).
+
+:::tip TIFF and PNG
+If a run saved both *image.png* and *image.tiff*, a visualization of *image.png* shows the TIFF. When the reference run doesn't have the file, the viewer falls back to the reference's *.tiff*, then *.bmp*, of the same name: it helps comparing results across a change of output format.
+:::
 
 
 <!-- <img alt="Image viewer" src={useBaseUrl('img/image-viewer.gif')} /> -->
@@ -111,6 +118,8 @@ with open('graph.plotly.json', 'w') as f:
   spec = fig.to_json() # '{"layout": {...}, "data": [{...}, {...}, ...]}'
   f.write(spec)
 ```
+
+You can also save figures as stand-alone HTML, e.g. with `fig.write_html('graph.plotly.html')`. They are shown side by side (new and reference) in iframes, so the reference isn't overlaid on the same plot like with JSON.
 
 ### Text Viewer
 <img alt="Text/diff viewer" src={useBaseUrl('img/text-viewer.jpg')} />
@@ -167,7 +176,7 @@ outputs:
       #   you will get two select inputs for the frame.
 ```
 
-By default, only one viewer/path is shown at a time, and you get sliders/select to decide what to show:
+By default, only one viewer/path is shown at a time, and you get sliders/select to decide what to show. They are in the **Controls** panel and synced across all runs, but users can make an option *per-output*, to choose its value in each run's card (see the [user guide](/docs/user-guide/commit-page#the-controls-panel)):
 
 <img alt="Everything is synced" src={useBaseUrl('img/dynamic-outputs-select.gif')} />
 

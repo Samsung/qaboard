@@ -43,6 +43,22 @@ my-batch:
 # => qa --config base:delta run B.jpg
 ```
 
+### Tuning parameters
+`--tuning` (JSON) and `--tuning-filepath` (a JSON file) add extra parameters, which are merged in `context.params` (they are also the last item of `context.configs`). Both options can be repeated:
+
+```bash
+qa --tuning '{"threshold": 0.5}' --tuning-filepath params.json run --input my/test
+#=> ctx.params == {"threshold": 0.5, ...params.json}
+```
+
+To tune values that are not `dict`s, give a JSON string or array: they are appended to `context.configs`.
+
+```bash
+qa --config base --tuning '"low-light"' --tuning '{"key": "value"}' run --input my/test
+#=> ctx.configs == ['base', 'low-light', {... 'key': 'value'}]
+#=> ctx.params['key'] == 'value'
+```
+
 ## Common meaning for configurations
 QA-Board is not opiniated. Projects usually consider that each configuration in `ctx.configs` is meant to be merged with ones before:
 

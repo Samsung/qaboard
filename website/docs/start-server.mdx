@@ -133,10 +133,10 @@ QA-Board can connect to external authentifications systems (LDAP, SAML). If need
 | `QABOARD_IMAGE_SERVERS` | `{"default": "/iiif"}` | JSON map of file extensions to IIIF image servers |
 | `QABOARD_PATH_MAPPINGS` | `[]` | JSON list of `["windows_prefix", "linux_prefix"]` pairs, used to show Windows paths to results (`qa` reads it too, from the environment or a site package, to convert Windows paths), e.g. `[["\\\\server\\share", "/mnt/share"]]` |
 | `QABOARD_DEFAULT_USER` | qaboard | The user CI runs are saved under (with `{user}` in `storage`). Runs started from the webapp replace it with the logged-in user in output paths |
-| `QABOARD_DOCS_ROOT`    | *https://samsung.github.io/qaboard/* | Where the webapp's links to the docs point |
+| `QABOARD_DOCS_ROOT`    | */* | Where the webapp's links to the docs point. By default, the docs served by this server at `/docs/`, which match its version |
 | `QABOARD_AVATAR_URL`   | _none_  | Avatar URL template for logged-in users, with a `{user_name}` placeholder |
 | `POSTHOG_API_KEY` / `POSTHOG_HOST` | _none_ | Enables [PostHog](https://posthog.com/) product analytics in the webapp |
-| `REDIS_HOST` / `REDIS_PORT` | redis / 6379 | Redis cache shared by the backend replicas. The backend still works if it's unreachable |
+| `REDIS_HOST` / `REDIS_PORT` | redis / 6379 (set in *docker-compose.yml*) | Redis cache shared by the backend replicas. The backend still works if it's unreachable |
 | `QABOARD_QUOTA_URL_TEMPLATE` | _none_ | Shows a "Quota" link, with `{user_name}` and `{project}` placeholders |
 | `QABOARD_SUPPORT_URL` | GitHub issues | Where users report bugs, can be a `mailto:` |
 | `CANTALOUPE_MEM_START` | 1g      | Starting memory for the image server (set in `services.cantaloupe.environment`) |

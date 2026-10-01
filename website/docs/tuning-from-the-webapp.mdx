@@ -38,3 +38,10 @@ The QA-Board server starts tuning runs with the runner chosen by its `QABOARD_TU
 
 ### 3. Logged-in users
 Starting tuning experiments requires a logged-in user, and runs are started as that user. See [user management](backend-admin/user-management).
+
+## Tips for users
+How to start runs is described in the [user guide](/docs/user-guide/running-from-the-webapp). A few shortcuts:
+- To start from an existing run's parameters, hover its configuration tags and choose **Copy full config in tuning format**, then paste it in the manual tuning editor.
+- Pasting lines of `key=value` in the manual tuning editor converts them to the tuning format: `block.threshold=10` becomes `"block.threshold": [10]`, and space-separated matrices like `[1 2 3]` become JSON arrays.
+- In the **Available Tests** view, where you can define your own batches, <kbd>Ctrl</kbd>+<kbd>S</kbd> (or <kbd>Cmd</kbd>+<kbd>S</kbd>) saves the batches file you are editing.
+- Once runs are done, the **Analysis** view (`selected_views=optimization`) shows the tuning exploration plots: sensitivity to each parameter and to pairs of parameters (box plots, contours), a parallel coordinates plot, the trade-off between two metrics, and for `qa optimize` experiments the best parameters and the convergence. See the [user guide](/docs/user-guide/commit-page#analysis).

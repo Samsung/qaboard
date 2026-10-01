@@ -15,11 +15,7 @@ sidebar_label: Jenkins Integration
 
 ```
 # if you need to make sure shared drive are available...
-net use \\netapp\algo_data
-net use \\netapp\raid
-net use \\mars\stage\jenkins_ws
-net use \\mars\stage\algo_jenkins_ws
-net use \\mars\raid
+net use \\server\share
 
 @echo "%task%"
 "%task%"" 
@@ -30,7 +26,7 @@ net use \\mars\raid
 ```yaml
 runners:
   jenkins:
-    build_url: http://jenmaster1:8080/job/ALGO/job/WindowsExecutor
+    build_url: https://jenkins.example.com/job/my-team/job/WindowsExecutor
     token: "1234"
 ```
 
@@ -43,11 +39,8 @@ The runner is named `windows`, while its configuration is under `runners.jenkins
 ## How to use this runner?
 Multiple options:
 - On the CLI: `qa batch --runner=windows`
-- In our YAML files defining batches:
-```yaml
-my-batch:
-  runner: windows
-  inputs:
-  - my/images/
-  configurations: [base, delta]
-```
+- As the default runner, with `runners.default: windows` in *qaboard.yaml*
+
+:::caution
+Choosing the runner per batch, with `runner: windows` in a batch, doesn't work at the moment: the CLI's runner (`--runner` or `runners.default`) always wins.
+:::
