@@ -166,10 +166,6 @@ if __name__ == '__main__':
     merge_duplicates()
 
 
-def clean():
-  merge_duplicates()
-  global problems
-  print(problems)
 # merge_duplicates()
 
 # --select * from outputs where (id=844700 or id=844725) and is_pending=true;

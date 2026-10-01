@@ -16,13 +16,13 @@ if __name__ == '__main__':
 import os
 from functools import wraps
 import fnmatch
-from typing import Set
+from typing import Callable, List, Set
 
 import click
 
 
 # We store all tests that we may want to execute
-test_funcs = []
+test_funcs: List[Callable] = []
 
 # To give helpful error messages, we store a few things
 test_funcs_names : Set[str] = set()

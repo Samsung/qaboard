@@ -141,7 +141,7 @@ services:
   # nginx as reverse-proxy
   # https://hub.docker.com/_/nginx
   proxy:
-    image: docker.pkg.github.com/samsung/qaboard/proxy
+    image: "arthurflam/qaboard:proxy"
     build:
       context: services/nginx
     # # https://github.com/docker-library/docs/tree/master/nginx#using-environment-variables-in-nginx-configuration

@@ -219,7 +219,7 @@ def iter_inputs(
       raise e
     # deep-merge the aliases
     old_aliases = available_batches.get('aliases', {})
-    new_aliases = new_batches.get('aliases', new_batches.get('groups', {}))
+    new_aliases: Dict = new_batches.get('aliases', new_batches.get('groups', {})) or {}
     available_batches['aliases'] = {**old_aliases, **new_aliases}
 
     for new_batch in new_batches:
@@ -532,7 +532,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
           if location_configurations and 'configs' not in location_configurations and 'configurations' not in location_configurations and 'configurations' not in location_configurations:
             location_run_context.configurations = [*location_run_context.configurations, location_configurations]
           else:
-            patch_config = location_configurations.get('configs', location_configurations.get('configurations', location_configurations.get('configuration', [])))
+            patch_config = cast(List, location_configurations.get('configs', location_configurations.get('configurations', location_configurations.get('configuration', []))))
             location_run_context.configurations = [*location_run_context.configurations, *patch_config]
         elif isinstance(location_configurations, list):
           location_run_context.configurations = [*location_run_context.configurations, *list(flatten(location_configurations))]
