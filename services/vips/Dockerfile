@@ -3,14 +3,17 @@
 # Updated: alpine:3.21 (pinned), vips-tools now in community repo
 FROM alpine:3.21
 
-# SIRC proxy
-ENV http_proxy=http://webproxy.transchip.com:8080 \
-    https_proxy=http://webproxy.transchip.com:8080 \
-    HTTP_PROXY=http://webproxy.transchip.com:8080 \
-    HTTPS_PROXY=http://webproxy.transchip.com:8080
+# Proxy configuration — no-ops when args are empty (open-source builds)
+# e.g. at SIRC: --build-arg PROXY_URL=http://webproxy.transchip.com:8080
+ARG PROXY_URL=""
+ENV http_proxy=${PROXY_URL} \
+    https_proxy=${PROXY_URL} \
+    HTTP_PROXY=${PROXY_URL} \
+    HTTPS_PROXY=${PROXY_URL}
 
-# Override default repos with HTTP (SIRC proxy breaks HTTPS/SSL)
-RUN echo "http://dl-cdn.alpinelinux.org/alpine/v3.21/main" > /etc/apk/repositories \
-    && echo "http://dl-cdn.alpinelinux.org/alpine/v3.21/community" >> /etc/apk/repositories \
+# Behind a proxy, use HTTP repos (SIRC's proxy breaks HTTPS/SSL)
+RUN if [ -n "$PROXY_URL" ]; then \
+      sed -i 's/https/http/g' /etc/apk/repositories; \
+    fi \
     && apk add --no-cache vips-tools bash \
     && rm -rf /var/cache/apk/*

@@ -19,11 +19,12 @@ QA-Board is an experiment tracking framework with advanced viewers for algorithm
 # Start full development environment
 docker compose -f docker-compose.yml -f development.yml up -d
 
-# At SIRC, run this first to mount important folders
+# At SIRC, run this first to set proxies/dev settings and mount important folders
+source deployments/sirc/.envrc
 ./at-sirc-before-up.py
 
 # With SIRC-specific config
-docker compose -f docker-compose.yml -f development.yml -f sirc.yml up -d
+docker compose -f docker-compose.yml -f development.yml -f deployments/sirc/sirc.yml up -d
 ```
 
 ### Frontend Development (React)
@@ -67,7 +68,7 @@ uv sync --extra dev     # Install with dev dependencies
 
 ```bash
 # Run Python tests (use green test runner)
-green
+green tests
 
 # Type checking
 mypy qaboard/
