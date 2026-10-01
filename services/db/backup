@@ -8,13 +8,15 @@ else
     backup=$1
 fi
 
+# Written to a temporary file then renamed: a failed dump never looks like a valid backup
 if [ -z ${AS_USER_NAME+x} ]; then
-  pg_dump -Fc > "/backups/$backup"
+  pg_dump -Fc > "/backups/.$backup.tmp"
+  mv "/backups/.$backup.tmp" "/backups/$backup"
 else
   # we should use gosu but it's nice to use the official image as-is
   addgroup -S $AS_USER_GROUP -g $AS_USER_GID group                            || true
   adduser --disabled-password $AS_USER_NAME -u $AS_USER_UID -G $AS_USER_GROUP || true
-  su $AS_USER_NAME -c "pg_dump -Fc > '/backups/$backup'"
+  su $AS_USER_NAME -c "pg_dump -Fc > '/backups/.$backup.tmp' && mv '/backups/.$backup.tmp' '/backups/$backup'"
 fi
 
 # TODO:

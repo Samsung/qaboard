@@ -146,7 +146,7 @@ class Deployment:
                          'printf "%s" "$1" > /etc/nginx/upstreams/backend.conf && nginx -t -q && nginx -s reload',
                          "_", servers, check=False)
         if r.returncode:
-            die("Could not update nginx's upstreams")
+            log("WARNING: could not point nginx at the new replicas: requests to the old ones may fail while they stop")
 
     def reconfigure_proxy(self, services: List[str]) -> None:
         """Applies nginx config changes, and points nginx at the "backend" DNS name (all running replicas)."""
@@ -286,6 +286,8 @@ class Deployment:
             die(f"{service} failed its healthcheck")
 
         if old:
+            # A proxy started before deploy.py existed doesn't have /etc/nginx/upstreams/ yet
+            self.reconfigure_proxy(services)
             self.set_upstream(services, new)  # new requests only go to the new replicas
             # nginx's reload is asynchronous: its old workers can still send requests they accepted to the old replicas
             time.sleep(DRAIN_SECONDS)

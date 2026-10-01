@@ -7,6 +7,8 @@ export PGUSER=$POSTGRES_USER
 export PGDATABASE=$POSTGRES_DB
 
 
+# dropdb fails if anyone is still connected (e.g. metabase)
+psql -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '$PGDATABASE' AND pid <> pg_backend_pid();"
 dropdb $PGDATABASE
 createdb -T template0 qaboard
 pg_restore --verbose -d $PGDATABASE < $1
