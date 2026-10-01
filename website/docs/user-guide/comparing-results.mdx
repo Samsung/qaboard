@@ -1,0 +1,108 @@
+---
+id: comparing-results
+title: Comparing results
+sidebar_label: Comparing results
+description: New vs reference, picking a reference, milestones, synced image viewers and metric colors.
+---
+import useBaseUrl from '@docusaurus/useBaseUrl';
+
+QA-Board always shows the results of a **new** commit next to a **reference** (`ref`). Knowing what you compare to is half the job.
+
+<img alt="The new and reference bars" src={useBaseUrl('img/comparing-new-and-reference.png')} />
+
+## The default reference
+When you open a commit without choosing a reference, the reference is the **latest commit with results on the project's reference branch** (often `master` or `develop`, set by the project lead in *qaboard.yaml*).
+
+As soon as it is known, its hash is added to the URL (`reference=<hash>`): a link you share later still compares with the same commit, even after new commits land.
+
+## Picking a reference
+In the **ref** bar (or the **new** bar, it works the same way):
+
+- **Type a commit hash** in the commit field. Short hashes work.
+- **Click the branch name** to select the latest commit of that branch.
+- **Hover Change** next to the commit field for a menu:
+
+<img alt="The Change menu" src={useBaseUrl('img/commit-select-menu.png')} />
+
+| Menu item | What it does |
+|---|---|
+| **Change Project** | Pick results from another project, e.g. another sub-project of a monorepo, or a fork. |
+| **Switch new/reference** | Swaps the two commits, with their batches and filters. |
+| **Also Select as Reference** / **as New** | Copies this commit, batch and filter to the other bar. Handy to compare two batches of the **same** commit, e.g. a tuning experiment vs CI. |
+| **Remove from comparaison** | Clears the commit. |
+| The reference branch | Selects its latest commit. |
+| Milestones | From *qaboard.yaml*, shared, or private. The milestone's batch and filter are selected too. |
+
+Each bar also has its own **batch selector** and **filter**: you can compare any batch of any commit with any other.
+
+:::tip
+To see what a tuning experiment changed, select its batch in the new bar, then use **Also Select as Reference** and pick the **CI** batch in the reference bar.
+:::
+
+## How runs are matched
+For each new run, QA-Board finds the most similar reference run: first the same input, then the closest configuration, the closest tuning parameters, and the same platform.
+
+When the best match is not identical, yellow tags warn you on the run: **Input**, **Config**, **Platform** or **Tuning** (with a `≠` icon). Hover them to see what the reference used. If a run has no match at all, it has no reference values or visualizations.
+
+:::caution
+Matching only uses the reference runs left by the **filter ref outputs** box. If you filter the new runs, filter the reference the same way.
+:::
+
+## Milestones
+Milestones are bookmarks for references worth keeping: a release, a benchmark, "the best tuning so far". They are kept by the cleanup of old results, and protected from deletion.
+
+There are three kinds:
+
+| Kind | Who sees it | How to create it |
+|---|---|---|
+| **From *qaboard.yaml*** (crown icon) | Everyone | The project lead lists branches, tags or commits under `project.milestones`. See [References & Milestones](../references-and-milestones.mdx#project-references). |
+| **Shared** (crown icon) | Everyone | The star in a commit bar, with **Shared** on. |
+| **Private** (star icon) | Only you, in this browser | The star in a commit bar, with **Shared** off. |
+
+To save a milestone, click the **star** next to the commit hash in the new or ref bar:
+
+<img alt="Save as Milestone" src={useBaseUrl('img/save-as-milestone.png')} />
+
+Give it an optional **label** and **notes**, choose whether it's **Shared**, then **Save**:
+
+<img alt="Milestone details" src={useBaseUrl('img/milestone-details.png')} />
+
+- A milestone remembers the commit, the selected **batch** and **filter**.
+- Click the star again to edit or **Delete** it. You can only edit or delete shared milestones that you created, and you need to be logged in.
+- Pick milestones from the **Change** menu of the commit bars, or from the **Milestones** menu of the project's sidebar. With many milestones, filter them by label, branch or owner, and sort them by date.
+- Milestone commits show a star in the commit list, and milestone batches a `⭐` in the batch selector.
+
+:::note
+Private milestones are stored in your browser: they don't follow you to another computer or browser.
+:::
+
+## Image viewers
+Images are shown side by side: **new** on one side, **reference** on the other.
+
+<img alt="Image viewer with perceptual diff and regions of interest" src={useBaseUrl('img/image-viewer-autoroi.png')} />
+
+- **Synced zoom and pan**: zoom (mouse wheel) or pan (drag) in one image and the others follow. All the viewers of the same input with the same image proportions stay in sync, including the other visualizations of the run.
+- **Pixel values**: hover to see coordinates and RGB values, in the new and reference images, with a cross at the same spot on the other images.
+- **Switch**: click the **new** or **reference** label, or press <kbd>t</kbd>, to swap the two images in place. Flip back and forth to spot differences. Press <kbd>h</kbd> to hide the labels.
+- **Image Diff**: turn it on in the controls panel to show a perceptual color difference between the images. The slider sets the saturation threshold.
+- **Regions of interest**: the ROI menu above the image zooms on preset regions (when the inputs have them) or **Auto ROIs**, regions found automatically where the images differ most. **Copy current ROI** copies the current view's coordinates.
+- **Filters**: a button in the viewer's toolbar opens Brightness, Contrast, Gamma and Sharpen sliders, applied to all viewers of the same visualization.
+- **Histograms**: the selection button in the toolbar (or <kbd>c</kbd>) lets you select a region and see its RGB and luminance histograms.
+- **Copy**: copy the new, reference or diff image to your clipboard, to paste it in a chat or a slide.
+
+Images of different sizes are still synced as long as their proportions match. Large images are streamed tile by tile, so zooming in a 100MP image stays fast.
+
+Other viewers compare too: videos play in sync, text files show a diff (press <kbd>t</kbd> to swap sides), plots overlay the reference (dashed or faded) on the new results. See [the list of viewers](../visualizations.mdx#available-file-viewers).
+
+## Metric diffs and colors
+Colors follow the same rules everywhere:
+
+| Where | Green | Red | Neutral |
+|---|---|---|---|
+| Summary, card tags | New is better than the reference, by more than 1% | New is worse by more than 1% | Change under 1% |
+| Metrics Diff | New is better | New is worse | Yellow for small changes, `=` when equal |
+| Metrics Table, card tags | Meets the metric's target | Misses the target | No target defined |
+
+"Better" depends on the metric: the project lead sets whether **smaller is better** (the default) and the **target** for each metric. Hover a metric's name to see its full label and description, and hover a value for its exact number.
+
+Learn how projects define metrics in [Computing quantitative metrics](../computing-quantitative-metrics.mdx).

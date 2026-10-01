@@ -1,0 +1,156 @@
+---
+id: commit-page
+title: The commit page
+sidebar_label: The commit page
+description: The top bars, the controls panel, and what each view of the commit page is for.
+---
+import useBaseUrl from '@docusaurus/useBaseUrl';
+
+The commit page shows the results of one commit (the **new** one) compared with a **reference**. Its URL looks like `/<project>/commit/<hash>?reference=<hash>&batch=...`.
+
+## The top bars
+There are two bars, **new** on top and **ref** below. Each one shows:
+
+- The commit message, its author and date.
+- A **star** to save the commit as a [milestone](comparing-results.mdx#milestones).
+- The **commit hash** field: type another hash to switch commits, or hover **Change** for more options (switch new and reference, pick a branch or a milestone...). See [Picking a reference](comparing-results.mdx#picking-a-reference).
+- The **branch**: click it to select the latest commit of that branch.
+- A **filter** box and the counters of runs (outputs, running, pending, crashed). See the [filter syntax](finding-results.mdx#filter-syntax).
+- The **batch selector** (see [Batches](finding-results.mdx#batches)).
+- A **refresh** button, and a **menu** (☰) with:
+  - *Commit*: copy the commit's artifacts directory (Windows or Linux path), view it in the browser.
+  - *Batch*: copy the batch's output directory, view it in the browser, move runs to another batch, rename the batch, **redo** failed, deleted or all runs, and delete runs (all, failed only, or several batches at once). The *Delete files, keep metadata* switch deletes only the files, optionally matching patterns like `*.png`. Milestones are protected from deletion.
+
+:::info
+The reference bar is hidden on the **Logs**, **Available Tests** and **Run Tests / Tuning** views: they only concern the new commit.
+:::
+
+Above the views, messages tell you about the selected batch:
+- **N running** / **N pending**: hover to list the runs. A **Stop runs** button cancels them.
+- **N crashed**: the list of failed runs. Read their [logs](#logs).
+- **N of the outputs below were deleted**: **Redo Deleted Outputs** runs them again.
+- **Be careful, those are local outputs**: the runs were started from someone's workspace, and may not match the committed code.
+- **This commit's artifacts have been deleted**: **Restore Artifacts** brings them back (you'll likely need to rebuild to redo runs).
+
+While runs are pending, the page refreshes by itself every 15 seconds.
+
+## The controls panel
+On the right edge of the page, the **Controls** panel (click the dark tab to open or close it, your choice is remembered):
+
+- **Visualizations**: switches to show or hide each visualization, including the ones hidden by default, and **Image Diff** to show a perceptual difference between new and reference images. A search box appears when there are many.
+- **Dynamic Options**: when a visualization has several files per run (frames, channels, reports...), pick which one to show. The link icon makes an option **synced** across all runs, or **per-output** so each card has its own selector.
+- **Sorting**: sort runs by name, id, storage, a tuning parameter or a metric, ascending or descending. It applies to tables and cards.
+- **Metrics**: which metrics to show in the tables.
+
+## Views
+The sidebar of a commit page lists the views. Each one answers a different question.
+
+| Sidebar | View | Use it to... |
+|---|---|---|
+| **Summary** | Summary | Get the big picture: how the main metrics changed |
+| **Metrics Table** | Quality report | Check each run's metrics against their targets |
+| **Metrics Diff** | Improvement report | See per-run improvements and regressions vs the reference |
+| **Visualizations** | Visualizations | Look at images, plots, videos, text... side by side with the reference |
+| **Output Files** | Output Files | Browse and diff all the files each run created |
+| **Logs** | Logs | Read why a run crashed, see the commands that started the batch |
+| **Artifacts & Configs** | Artifacts & Configurations | Diff the build and the configuration files between commits |
+| **Code** | | Open the commit's code on your git server |
+| **Available Tests** | Groups of tests | See and edit the batches of inputs you can run |
+| **Run Tests / Tuning** | Tuning Experiments | Start new runs or tuning experiments on this commit |
+| **Analysis** | Auto-Tuning Analysis | Understand the results of a tuning experiment |
+
+Some projects open a different view by default. The selected view is part of the URL (`selected_views=`), see [Sharing](sharing.mdx#whats-in-the-url).
+
+### Summary
+For each **summary metric** (pick others with the metrics selector):
+- the new **median**, and the reference median with the change in percent, green when it improves, red when it degrades (changes under 1% stay neutral);
+- when the metric has a target, a bar with the share of runs meeting it;
+- box plots of the new and reference distributions, with the target zone in green or red.
+
+<img alt="Summary view" src={useBaseUrl('img/summary-metrics.png')} />
+
+:::caution
+If the batch mixes several values of tuning parameters, a warning reminds you that the summary aggregates them all. Filter the runs (e.g. `threshold:0.5`) to compare like with like.
+:::
+
+The reference values only use reference runs on the same inputs as the new runs.
+
+### Metrics Table
+One row per run, with its input, tuning parameters, platform and configuration tags. For each metric, the **New** and **Ref** values side by side. The header shows the metric's target and unit, e.g. `[0.01 cm]`.
+
+When a metric has a **target**, cells are colored from red to green by how far they are from it (or just red/green for pass/fail metrics). A reference cell shows `=` when it's identical to the new value. Rows with a **Failed** tag crashed.
+
+### Metrics Diff
+One row per run, with `new − ref` for each metric, and the change in percent. Cells are green when the new run is better, red when it's worse, taking into account whether smaller is better for that metric. Hover a cell to see both values. Only metrics that the reference also has are shown.
+
+<img alt="Metrics Diff view" src={useBaseUrl('img/quantitative-metrics.png')} />
+
+*Older screenshot, when the view was called "KPI diff".*
+
+:::tip
+Use the **Sorting** section of the controls panel to sort runs by a metric, and see the worst regressions first.
+:::
+
+Yellow **Input**, **Config**, **Platform** or **Tuning** tags (with a `≠` icon) mean the run was compared with a reference run that is not exactly the same. Hover them for details. See [How runs are matched](comparing-results.mdx#how-runs-are-matched).
+
+### Visualizations
+One card per run, with its main metrics (and their change vs the reference) and the visualizations the project lead configured: images, plots, videos, text, HTML, flame graphs, point clouds... The reference is shown next to the new result.
+
+<img alt="Visualizations" src={useBaseUrl('img/quantitative-metrics-on-viz.png')} />
+
+On each card:
+- **The run name**: hover for its batch, input path and database (click to copy), metadata, compute time, date and storage. Click it to see that input's [history](history-and-dashboards.mdx).
+- **Tags** for the platform and configurations: hover a configuration to copy it, as JSON or in a format you can paste in a tuning experiment.
+- **☰ menu**: **Redo** the run, **Mark as Finished** if it's stuck (it then counts as crashed), **Delete** it, or **Delete Output Files** only.
+- **Folder icon**: open the output directory (or the reference's) in the browser. **Copy icon**: copy the new or reference output directory, as a Windows or Linux path.
+- **Fullscreen** button at the top right of the card.
+
+Cards load their files when you scroll to them. The image viewer has many tools: synced zoom, pixel values, perceptual diff, regions of interest, filters and histograms. See [Comparing results](comparing-results.mdx#image-viewers) and the [list of viewers](../visualizations.mdx#available-file-viewers).
+
+Above the cards, **Export** gathers matching files from all runs in one shared directory: see [Sharing](sharing.mdx#exporting-files).
+
+### Output Files
+All the files each run created, as a tree, diffed against the reference run. It shows the total storage used.
+
+<img alt="Output Files" src={useBaseUrl('img/output-files.png')} />
+
+- By default only files that are **different, added or removed** are shown. Use **Show all files**, **Hide runs without files**, **Expand all folders**, **Color-blind friendly** and the path filter to change that.
+- **Click a file** to see its diff with the reference. Press <kbd>Ctrl</kbd> or <kbd>Shift</kbd> to select several files.
+- Hover **Help** for the meaning of the icons and colors: bit-accurate, different, missing in the reference, only in the reference...
+
+This is the view for [bit-accuracy tests](../bit-accuracy.mdx).
+
+### Logs
+One line per run. Click **Show logs** to read its log, with colors; it keeps updating while the run is pending. A button scrolls to the end of the log. If the cluster killed the run, a **Killed by LSF! Click to check why** tag links to the cluster's log.
+
+Below, the **Batch logs** list the commands that started the batch, when, by whom, on which host, with an **Open Logs** link to the CI or cluster job when there is one.
+
+:::tip
+The **Logs** sidebar item turns red when the batch has crashed runs, and the **Outputs** section shows the number of crashes.
+:::
+
+### Artifacts & Configs
+Compares the commit's [artifacts](../storage/artifacts.mdx) with the reference commit: the configuration files, the build, and any other artifacts the project saves. Pick which artifacts to explore with the buttons at the top.
+
+<img alt="Artifacts and configurations" src={useBaseUrl('img/artifacts-tab.jpg')} />
+
+It works like Output Files: only differences are shown by default, click a file to diff it. Buttons at the bottom copy the artifacts directory path (Windows or Linux) or open it in the browser.
+
+If the artifacts are missing, the page tells you to run `qa save-artifacts` from the commit's workspace.
+
+### Code
+Opens the commit on your git server, in a new tab. In a monorepo, it opens the project's sub-folder.
+
+### Available Tests
+Lists where the batches of inputs you can run are defined:
+1. In the commit's own files (links to them),
+2. **Shared** with all QA-Board users,
+3. **Private**, in a file only you can see and edit.
+
+The shared and private definitions are editable here: edit, then **Update Batches**. For the syntax, see [Batches of inputs](../batches-running-on-multiple-inputs.mdx). You need to be logged in.
+
+### Run Tests / Tuning
+Starts new runs of this commit's code on a batch of inputs, optionally with tuning parameters. See [Running from the web app](running-from-the-webapp.mdx#running-tests-and-tuning).
+
+### Analysis
+For a tuning batch: how metrics depend on the tuning parameters. It shows the number of runs and inputs, the sensitivity to each parameter (and to pairs of parameters), a breakdown by test, and the trade-off between two metrics. For an automated tuning (optimization) batch, it also shows the **best parameters** found and the convergence. Use the batch selector to pick the tuning batch first.

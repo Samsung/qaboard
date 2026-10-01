@@ -1,0 +1,82 @@
+---
+id: running-from-the-webapp
+title: Running from the web app
+sidebar_label: Running from the web app
+description: Redo runs, start tests and tuning experiments, and trigger CI jobs from the web app.
+---
+import useBaseUrl from '@docusaurus/useBaseUrl';
+
+You don't need a terminal to start runs: the web app can redo runs, run a commit's code on new tests, start tuning experiments and trigger CI jobs.
+
+:::info Before you start
+- Most actions need you to be **logged in** (top of the sidebar).
+- Running code needs the commit's **artifacts** (its build and configuration files). If they were deleted, the commit page offers to restore them, but you'll likely need to rebuild.
+- Your project needs a **task runner** (a cluster, Celery workers...) for runs to start. If none is set up, the tuning form warns you: ask your project lead.
+:::
+
+## Redo, stop and clean up runs
+
+| To... | Where |
+|---|---|
+| Redo **one run** | On its card (Visualizations or Output Files views), ☰ menu → **Redo** |
+| Redo the **failed** runs of a batch | Commit bar menu (☰) → **Redo Failed Outputs** |
+| Redo **deleted** runs | Commit bar menu → **Redo Deleted Outputs**, or the button in the "N of the outputs below were deleted" message |
+| Redo **all** runs of a batch | Commit bar menu → **Redo All Outputs** |
+| **Stop** pending runs | The **Stop runs** button above the views, shown while runs are pending |
+| Unblock a run stuck as pending | On its card, ☰ menu → **Mark as Finished** |
+| Delete runs or only their files | Card ☰ menu (one run), or commit bar menu (failed runs, the batch, several batches) |
+
+Redone runs use the commit's saved artifacts and the same input, configuration and parameters. The page refreshes by itself while runs are pending: follow their progress with the counters next to the filter box, or in the [Logs](commit-page.mdx#logs) view.
+
+:::caution
+Delete actions are immediate. Milestones are protected: QA-Board won't delete batches or commits saved as [milestones](comparing-results.mdx#milestones).
+:::
+
+## Running tests and tuning
+To run a commit's code on other inputs, or with other parameters, open the commit page and select **Run Tests / Tuning** in the sidebar.
+
+<img alt="Starting runs from the web app" src={useBaseUrl('img/tuning-from-the-ui.jpg')} />
+
+*Older screenshot: the fields are the same, some labels changed.*
+
+1. **Experiment name**: the label of the new batch. Reusing the name of an existing experiment adds runs to it.
+2. **Batch of inputs+configurations**: the name of a batch of tests, like `my-batch`, or several, like `batch-*`. Hover **N tests** to check which inputs and configurations it includes. The [Available Tests](commit-page.mdx#available-tests) view lists the batches you can use, and lets you define your own.
+3. If the project supports several **platforms**, pick one.
+4. Choose the parameters:
+   - **Manual tuning**: write the parameters to try, as JSON. Click the examples (*simple-combinations*, *list-of-combinations*, *1x2 matrix*...) to get started. Choose **All combinations** (a grid) or **Sampling** a number of them. The total number of runs is shown before you send.
+   - **Automated tuning**: describe the search space and the objective in YAML, and let the optimizer ([scikit-optimize](https://scikit-optimize.github.io/)) choose the parameters. It needs the project to compute metrics.
+   - To just run the tests, without tuning, use the *no tuning* example.
+5. **Send**. The runs start as you (the "Will run as" tag), and a message confirms the request.
+
+Then select the new batch in the batch selector to follow it. When it's done:
+- compare it with the CI batch (see the [tip in Comparing results](comparing-results.mdx#picking-a-reference)),
+- open the **Analysis** view to see how metrics depend on the parameters, and the best parameters found by an automated tuning.
+
+:::tip
+Turn on **Overwrite previous identical runs** to redo runs that already exist with the same input, configuration and parameters. Otherwise they are kept and not run again.
+:::
+
+For a video walkthrough and how a project enables it, see [Tuning from QA-Board](../tuning-from-the-webapp.mdx). For the batch syntax, see [Batches of inputs](../batches-running-on-multiple-inputs.mdx).
+
+## Integrations: CI jobs, links and webhooks
+Projects can add buttons to the sidebar's **Integrations** menu (hover it to open). What you see depends on what your project lead configured:
+
+- **Links** to docs, dashboards, build artifacts or reports. A link is disabled when its target doesn't answer.
+- **Badges**, like the pipeline status or the test coverage.
+- **GitLab CI manual jobs** and **Jenkins builds**: click to start them for this commit. A status tag shows whether the job is pending, running, successful or failed; click the tag to open the job's page and its logs. Once started, the icon changes to *repeat* so you can start it again.
+- **Webhooks** that call other tools, with a tag showing the response.
+
+<img alt="Triggering CI jobs from QA-Board" src={useBaseUrl('img/gitlab-jenkins.gif')} />
+
+Good to know:
+- On the commit list, integrations act on the branch you're looking at. On a commit page, on the selected commit and batch.
+- Statuses refresh every few seconds while the menu is open, and your browser remembers the jobs you started on each commit.
+- With many entries, a search box appears at the top of the menu.
+- Some projects show their most used integrations directly in the sidebar, outside the menu.
+
+Project leads: see [Triggering external tools](../triggering-external-ci-tools.mdx) to configure integrations.
+
+## Logs
+- Each run's log is in the [Logs](commit-page.mdx#logs) view (**Show logs**), and updates live while the run is pending.
+- The **Batch logs** at the bottom list the commands that started the batch, by whom and where, with an **Open Logs** link to the cluster or CI job.
+- For CI jobs started from Integrations, click their status tag to open the job's own logs.

@@ -1,0 +1,65 @@
+---
+id: sharing
+title: Sharing results
+sidebar_label: Sharing
+description: Share exactly what you see with a link, copy paths and images, export files, and report bugs.
+---
+import useBaseUrl from '@docusaurus/useBaseUrl';
+
+## Links are shareable
+Almost everything you select is saved in the page's URL. **Copy the URL from your browser's address bar** and whoever opens it sees the same commits, batches, filters and view as you. The browser's back and forward buttons also work as you'd expect.
+
+:::tip
+The reference commit is written in the URL as soon as it's known (`reference=<hash>`). A link shared today still shows the same comparison next month, even if the reference branch moved on.
+:::
+
+### What's in the URL
+On a commit page, `/<project>/commit/<hash>?...`:
+
+| Parameter | What it holds |
+|---|---|
+| path `/<project>/commit/<hash>` | The project and the **new** commit |
+| `reference` | The **reference** commit |
+| `batch`, `batch_ref` | The new and reference batches (`default` is CI) |
+| `filter`, `filter_ref` | The new and reference [filters](finding-results.mdx#filter-syntax) |
+| `new_project`, `ref_project` | Only when results come from [another project](comparing-results.mdx#picking-a-reference) |
+| `selected_views` | The view: `summary`, `table-kpi` (Metrics Table), `table-compare` (Metrics Diff), `output-list` (Visualizations), `bit_accuracy` (Output Files), `logs`, `parameters` (Artifacts & Configs), `groups` (Available Tests), `tuning`, `optimization` (Analysis) |
+| `sort_by`, `sort_order` | How runs are sorted |
+| `controls` | Visualizations shown or hidden, Image Diff, dynamic options (as JSON) |
+| `show_all_files`, `expand_all`, `files_filter`... | Options of the Output Files view (`params_...` for Artifacts & Configs) |
+
+On the commit list, the **Filter...** box is saved as `search`. On the History page, the filter, batch and chart options (`selected_metric`, `breakdown_per_test`, `relative`...) are saved too.
+
+:::note
+The date range of the commit list and the history is **not** updated in the URL when you change it. To share a date range, add `from` and `to` yourself, e.g. `?from=2026-09-01&to=2026-09-30`.
+:::
+
+Some things stay in your browser and are not shared: your favorite projects, your private milestones, whether the controls panel is open, and the statuses of the CI jobs you started.
+
+## Copying paths, hashes and images
+Results live on a shared storage, so you often want a path rather than a link:
+
+- **Commit hash**: the copy icon next to the hash, in the commit list.
+- **Commit or batch directory**: the ☰ menu of a commit row or of a commit bar, as a **Windows** or **Linux** path, or open it in the browser.
+- **Run output directory**: the copy and folder icons on each run's card, for the new and the reference run.
+- **Input path, database, batch**: hover the run's name on its card and click the value to copy it.
+- **Configuration**: hover a configuration tag, copy it as JSON, or in tuning format to paste in a [tuning experiment](running-from-the-webapp.mdx#running-tests-and-tuning).
+- **Images**: the **Copy** button above an image viewer copies the new, reference or diff image to your clipboard, ready to paste in a chat or a slide.
+
+## Exporting files
+Above the cards of the **Visualizations** and **Output Files** views, **Export** gathers the files matching a pattern from all the (filtered) runs, new and reference, into one directory:
+
+<img alt="Exporting files" src={useBaseUrl('img/export-files-viz.jpg')} />
+
+1. Type a pattern, like `*.png`, `*.txt` or `**/*.jpg` (`**/` matches any number of folders).
+2. Click **Export**. The export directory's Windows path is copied to your clipboard, and both the Windows and Linux paths are shown.
+3. Open it to share or post-process the files, e.g. in a slide deck.
+
+By default, files are exported as **links** to the original files in a shared directory (no copy, it's fast). Use **Edit where** to choose your own directory: files are then copied (or linked, if it's on the same filesystem).
+
+## Bug reports and support
+- If the web app crashes, you'll see **Sorry, something went wrong!** with a **Report the bug** button. Depending on your server, it opens an email with the page's URL and the error filled in, or your team's issue tracker.
+- For anything else, send the URL of the page you're looking at to your QA-Board admins: thanks to the URL, they'll see exactly what you see.
+- Questions on how a project's results are produced (metrics, visualizations, inputs) go to that project's lead.
+
+Admins configure where bug reports go with `QABOARD_SUPPORT_URL`, see [Server Bringup](../start-server.mdx).
