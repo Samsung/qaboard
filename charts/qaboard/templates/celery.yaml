@@ -1,0 +1,71 @@
+{{- if .Values.celery.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "qaboard.fullname" . }}-rabbitmq
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "qaboard.selectorLabels" (list . "rabbitmq") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "qaboard.selectorLabels" (list . "rabbitmq") | nindent 8 }}
+    spec:
+      containers:
+        - name: rabbitmq
+          image: {{ .Values.celery.rabbitmq.image }}
+          ports:
+            - {name: amqp, containerPort: 5672}
+            - {name: management, containerPort: 15672}
+          readinessProbe:
+            tcpSocket: {port: amqp}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "qaboard.fullname" . }}-rabbitmq
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "qaboard.selectorLabels" (list . "rabbitmq") | nindent 4 }}
+  ports:
+    - {name: amqp, port: 5672, targetPort: amqp}
+    - {name: management, port: 15672, targetPort: management}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "qaboard.fullname" . }}-flower
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "qaboard.selectorLabels" (list . "flower") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "qaboard.selectorLabels" (list . "flower") | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: flower
+          image: {{ include "qaboard.image" (list . "backend") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["celery", "-A", "qaboard.runners.celery_app", "flower"]
+          env:
+            - {name: CELERY_BROKER_URL, value: "pyamqp://guest@{{ include "qaboard.fullname" . }}-rabbitmq//"}
+            - {name: CELERY_BROKER_API, value: "http://guest:guest@{{ include "qaboard.fullname" . }}-rabbitmq:15672/api/"}
+            - {name: FLOWER_PORT, value: "8888"}
+            - {name: FLOWER_URL_PREFIX, value: flower}
+          ports: [{name: http, containerPort: 8888}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "qaboard.fullname" . }}-flower
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "qaboard.selectorLabels" (list . "flower") | nindent 4 }}
+  ports: [{name: http, port: 8888, targetPort: http}]
+{{- end }}

@@ -1,0 +1,152 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "qaboard.fullname" . }}-backend
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  {{- if not .Values.backend.autoscaling.enabled }}
+  replicas: {{ .Values.backend.replicas }}
+  {{- end }}
+  selector:
+    matchLabels: {{- include "qaboard.selectorLabels" (list . "backend") | nindent 6 }}
+  strategy:
+    # Zero-downtime: new pods must be ready before old ones are stopped
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  template:
+    metadata:
+      labels: {{- include "qaboard.selectorLabels" (list . "backend") | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.podSecurityContext }}
+      securityContext: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # uwsgi finishes in-flight requests on SIGTERM (up to 30s), after the preStop delay
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: backend
+          image: {{ include "qaboard.image" (list . "backend") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["./wait-for-it.sh", "{{ include "qaboard.dbHost" . }}:{{ .Values.database.port }}", "-t", "0", "--", "/qaboard/backend/init.sh"]
+          {{- with .Values.backend.securityContext }}
+          securityContext: {{- toYaml . | nindent 12 }}
+          {{- end }}
+          envFrom: {{- include "qaboard.backendEnvFrom" . | nindent 12 }}
+          env: {{- include "qaboard.backendEnv" . | nindent 12 }}
+          ports:
+            - {name: uwsgi, containerPort: 3000}
+            - {name: http, containerPort: 3001}
+          startupProbe:
+            httpGet: {path: /api/v1/health, port: http}
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: {path: /api/v1/health, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 5
+          # Not the health endpoint: we don't want to restart all pods when the database is down
+          livenessProbe:
+            tcpSocket: {port: uwsgi}
+            periodSeconds: 20
+            failureThreshold: 6
+          lifecycle:
+            # Let the endpoints/nginx stop sending requests before uwsgi stops accepting them
+            preStop:
+              exec: {command: ["sleep", "10"]}
+          resources: {{- toYaml .Values.backend.resources | nindent 12 }}
+          volumeMounts:
+            - {name: data, mountPath: /var/qaboard}
+            {{- with .Values.backend.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Values.backend.data.existingClaim | default (printf "%s-data" (include "qaboard.fullname" .)) }}
+        {{- with .Values.backend.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.backend.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        {{- if .Values.backend.affinity }}
+        {{- toYaml .Values.backend.affinity | nindent 8 }}
+        {{- else }}
+        # Spread replicas on different nodes, to survive a node failure
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels: {{- include "qaboard.selectorLabels" (list . "backend") | nindent 20 }}
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "qaboard.fullname" . }}-backend
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "qaboard.selectorLabels" (list . "backend") | nindent 4 }}
+  ports:
+    - {name: uwsgi, port: 3000, targetPort: uwsgi}
+    - {name: http, port: 3001, targetPort: http}
+---
+{{- if not .Values.backend.data.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "qaboard.fullname" . }}-data
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [{{ .Values.backend.data.accessMode }}]
+  {{- with .Values.backend.data.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.backend.data.size }}
+{{- end }}
+---
+{{- with .Values.backend.podDisruptionBudget }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "qaboard.fullname" $ }}-backend
+  labels: {{- include "qaboard.labels" $ | nindent 4 }}
+spec:
+  minAvailable: {{ .minAvailable }}
+  selector:
+    matchLabels: {{- include "qaboard.selectorLabels" (list $ "backend") | nindent 6 }}
+{{- end }}
+---
+{{- if .Values.backend.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "qaboard.fullname" . }}-backend
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "qaboard.fullname" . }}-backend
+  minReplicas: {{ .Values.backend.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.backend.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: {{ .Values.backend.autoscaling.targetCPUUtilizationPercentage }}}
+{{- end }}

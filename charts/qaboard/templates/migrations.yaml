@@ -1,0 +1,40 @@
+{{- if .Values.migrations.enabled }}
+# Before upgrades: if migrations fail, the release fails and the running version is untouched.
+# After the first install: the database may be created by the chart itself (cnpg/embedded).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "qaboard.fullname" . }}-migrations
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  activeDeadlineSeconds: 1800
+  template:
+    metadata:
+      labels: {{- include "qaboard.selectorLabels" (list . "migrations") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: migrations
+          image: {{ include "qaboard.image" (list . "backend") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["./wait-for-it.sh", "{{ include "qaboard.dbHost" . }}:{{ .Values.database.port }}", "-t", "600", "--", "/qaboard/backend/migrate.sh"]
+          # The hook can run before the release's ConfigMap/Secret exist (pre-upgrade with new keys), so we don't rely on them
+          env: {{- include "qaboard.backendEnv" . | nindent 12 }}
+            {{- if not (or .Values.database.cnpg.enabled .Values.database.embedded.enabled) }}
+            - name: QABOARD_DB_PASSWORD
+              valueFrom: {secretKeyRef: {name: {{ include "qaboard.secretName" . }}, key: QABOARD_DB_PASSWORD, optional: true}}
+            {{- end }}
+          volumeMounts:
+            - {name: data, mountPath: /var/qaboard}
+      volumes:
+        - name: data
+          emptyDir: {}
+{{- end }}

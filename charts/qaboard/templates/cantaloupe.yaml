@@ -1,0 +1,48 @@
+{{- if .Values.cantaloupe.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "qaboard.fullname" . }}-cantaloupe
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "qaboard.selectorLabels" (list . "cantaloupe") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "qaboard.selectorLabels" (list . "cantaloupe") | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: cantaloupe
+          image: {{ include "qaboard.image" (list . "cantaloupe") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["sh", "-c", "java -Dcantaloupe.config=/etc/cantaloupe.properties -Dcom.sun.media.jai.disableMediaLib=true -Xms$CANTALOUPE_MEM_START -Xmx$CANTALOUPE_MEM_MAX -jar /usr/local/cantaloupe/cantaloupe-$VERSION.jar"]
+          env:
+            - {name: CANTALOUPE_MEM_START, value: {{ .Values.cantaloupe.memory.start | quote }}}
+            - {name: CANTALOUPE_MEM_MAX, value: {{ .Values.cantaloupe.memory.max | quote }}}
+          ports: [{name: http, containerPort: 8182}]
+          readinessProbe:
+            tcpSocket: {port: http}
+          volumeMounts:
+            - {name: cache, mountPath: /var/cache/cantaloupe}
+            {{- with .Values.cantaloupe.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - {name: cache, emptyDir: {}}
+        {{- with .Values.cantaloupe.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "qaboard.fullname" . }}-cantaloupe
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "qaboard.selectorLabels" (list . "cantaloupe") | nindent 4 }}
+  ports: [{name: http, port: 8182, targetPort: http}]
+{{- end }}

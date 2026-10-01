@@ -1,0 +1,3 @@
+ci/
+*.md.gotmpl
+.DS_Store

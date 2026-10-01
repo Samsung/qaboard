@@ -1,0 +1,8 @@
+# Used by CI to validate the templates
+database:
+  embedded:
+    enabled: true
+backend:
+  replicas: 1
+  data:
+    accessMode: ReadWriteOnce

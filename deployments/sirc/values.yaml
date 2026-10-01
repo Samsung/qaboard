@@ -1,0 +1,118 @@
+# QA-Board on kubernetes at SIRC (helm chart: charts/qaboard)
+#   helm upgrade --install qaboard charts/qaboard -n qaboard -f deployments/sirc/values.yaml \
+#        --set image.version=<commit> --atomic --wait --timeout 15m
+# Runbook: website/docs/backend-admin/kubernetes.mdx
+#
+# TODO(sirc) marks what we need from IT / what is still specific to the docker hosts.
+# Translated from deployments/sirc/sirc.yml and prod.yml
+
+image:
+  repository: gitlab-srv.transchip.com:4567/common-infrastructure/qaboard
+  version: "" # set by CI to the commit
+# TODO(sirc): a GitLab deploy token with read_registry:
+#   kubectl -n qaboard create secret docker-registry gitlab-registry --docker-server=gitlab-srv.transchip.com:4567 \
+#           --docker-username=<token name> --docker-password=<token>
+imagePullSecrets:
+  - name: gitlab-registry
+
+config:
+  GITLAB_HOST: http://gitlab-srv
+  QABOARD_URL: https://qa
+  QABOARD_LOGIN_TYPE: LDAP
+  QABOARD_DISABLE_SIGNUP: "True"
+  QABOARD_LOGIN_RESTRICTED: "True"
+  QABOARD_LOGIN_RESTRICTED_YAML: /etc/ldap/users_restrict.yml
+  QABOARD_LDAP_USER_FILTER: (&(objectClass=user)(sAMAccountName={login}))
+  QABOARD_TUNING_RUNNER: lsf
+  QABOARD_DEFAULT_USER: ispq
+  QA_LSF_SSH_TARGET: ispq@ispq-vdi
+  QA_RUNNERS_LSF_BRIDGE: ssh ispq@ispq-vdi 'bsub_su {user} -I {bsub_command}'
+  QABOARD_IMAGE_SERVERS: '{"default": "/iiif", "raw,hex,cde": "/iiif/cde"}'
+  QABOARD_QUOTA_URL_TEMPLATE: /metabase/dashboard/154-manage-and-delete-storage?username={user_name}&project={project}
+  QABOARD_SUPPORT_URL: mailto:arthur.flam@samsung.com
+  QABOARD_IMAGE_CACHE_DIR: /algo/qa_db/image_cache
+  QABOARD_DATA_SHARED_DIR: /home/ispq/qaboard/shared
+  QABOARD_DATA_GIT_DIR: /algo/ws/ispq/qaboard_prod_data_git
+  # uwsgi drops privileges to ispq, and uses sudo to delete outputs as their owner
+  UWSGI_UID: ispq
+  UWSGI_GID: uucp
+
+# TODO(sirc): create it from the .env files of the qa host:
+#   kubectl -n qaboard create secret generic qaboard-secrets --from-env-file=.env --from-env-file=deployments/sirc/.env
+# It needs SECRET_KEY (the same as now, or everyone is logged out), QABOARD_DB_PASSWORD, GITLAB_ACCESS_TOKEN,
+# QABOARD_LDAP_HOST/USER_BASE/BIND_DN/PASSWORD, JENKINS_AUTH...
+secret:
+  existingSecret: qaboard-secrets
+
+database:
+  # TODO(sirc): a PostgreSQL managed by IT? Then set its host. Else enable cnpg (if IT installs the operator).
+  # Migration: pg_dump the qa host's database, pg_restore it here (see the runbook), then switch DNS.
+  host: "" # <TODO>
+  cnpg:
+    enabled: false
+    instances: 3
+    storage:
+      size: 200Gi
+      storageClass: "" # <TODO>
+
+backend:
+  replicas: 3
+  uwsgi: {processes: 8, cheaper: 4, cheaperInitial: 8}
+  data:
+    # TODO(sirc): a ReadWriteMany storage class (NFS)
+    storageClass: ""
+    size: 50Gi
+  # The shared storage users write outputs to.
+  # TODO(sirc): the docker hosts use autofs. Either the kubernetes nodes mount them the same way (hostPath below,
+  # and pods must be scheduled on those nodes), or IT gives us the NFS exports (nfs: {server, path}) for each.
+  extraVolumes: &storage-volumes
+    - {name: home, hostPath: {path: /home}}
+    - {name: algo, hostPath: {path: /algo}}
+    - {name: stage, hostPath: {path: /stage}}
+    - {name: sim, hostPath: {path: /sim}}
+    - {name: data, hostPath: {path: /data}}
+    - {name: raid, hostPath: {path: /raid}}
+    - {name: net, hostPath: {path: /net}}
+    # From this repository: kubectl -n qaboard create configmap qaboard-passwd --from-file=services/backend/passwd
+    - {name: passwd, configMap: {name: qaboard-passwd}}
+    # kubectl -n qaboard create configmap qaboard-ldap --from-file=services/backend/ldap/
+    - {name: ldap, configMap: {name: qaboard-ldap}}
+    # TODO(sirc): the ssh key used for the LSF bridge (ssh ispq@ispq-vdi)
+    #   kubectl -n qaboard create secret generic qaboard-ssh --from-file=id_rsa=... --from-file=known_hosts=...
+    - {name: ssh, secret: {secretName: qaboard-ssh, defaultMode: 0400}}
+  extraVolumeMounts: &storage-mounts
+    - {name: home, mountPath: /home, mountPropagation: HostToContainer}
+    - {name: home, mountPath: /raid/users, mountPropagation: HostToContainer}
+    - {name: algo, mountPath: /algo, mountPropagation: HostToContainer}
+    - {name: stage, mountPath: /stage, mountPropagation: HostToContainer}
+    - {name: sim, mountPath: /sim, mountPropagation: HostToContainer}
+    - {name: data, mountPath: /data, mountPropagation: HostToContainer}
+    - {name: raid, mountPath: /raid, mountPropagation: HostToContainer}
+    - {name: net, mountPath: /net, mountPropagation: HostToContainer}
+    - {name: passwd, mountPath: /etc/passwd, subPath: passwd}
+    - {name: ldap, mountPath: /etc/ldap}
+    - {name: ssh, mountPath: /root/.ssh}
+  # TODO(sirc): nodes that mount the storage
+  nodeSelector: {}
+
+proxy:
+  replicas: 2
+  # TODO(sirc): port the extra locations of deployments/sirc/nginx/qaboard.conf (/s/algo/, /s/stage/..., /metabase,
+  # /pgadmin, /docs/cis_utils...), dvd.conf and publish.conf. TLS is handled by the ingress, nginx listens on 80.
+  siteConfig: {}
+  extraVolumes: *storage-volumes
+  extraVolumeMounts: *storage-mounts
+  nodeSelector: {}
+
+ingress:
+  # TODO(sirc): the ingress class and hostname IT gives us. Users and the CLI use https://qa: keep it as a DNS alias.
+  className: ""
+  host: qa
+  # The certificate from IT (website/docs/backend-admin/getting-SSL-certificates-from-IT.mdx):
+  #   kubectl -n qaboard create secret tls qaboard-tls --cert=cert.pem --key=qa.key
+  tls:
+    - secretName: qaboard-tls
+
+# Cantaloupe is hosted outside of QA-Board at SIRC
+cantaloupe:
+  enabled: false

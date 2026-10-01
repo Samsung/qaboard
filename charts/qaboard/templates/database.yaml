@@ -1,0 +1,79 @@
+{{- if .Values.database.cnpg.enabled }}
+# HA PostgreSQL: a primary and streaming replicas, with automatic failover. Requires the CloudNativePG operator.
+# The backend connects to the "-rw" service, that always points to the primary.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "qaboard.fullname" . }}-db
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+spec:
+  instances: {{ .Values.database.cnpg.instances }}
+  imageName: {{ .Values.database.cnpg.imageName }}
+  bootstrap:
+    initdb:
+      database: {{ .Values.database.name }}
+      owner: {{ .Values.database.user }}
+  postgresql:
+    parameters:
+      # Each uwsgi process has a pool of up to 15 connections
+      max_connections: "400"
+      shared_buffers: 1GB
+  storage:
+    size: {{ .Values.database.cnpg.storage.size }}
+    {{- with .Values.database.cnpg.storage.storageClass }}
+    storageClass: {{ . }}
+    {{- end }}
+  {{- with .Values.database.cnpg.backup }}
+  backup: {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}
+{{- if .Values.database.embedded.enabled }}
+# A single database pod, not for production
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "qaboard.fullname" . }}-db
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "qaboard.fullname" . }}-db
+  replicas: 1
+  selector:
+    matchLabels: {{- include "qaboard.selectorLabels" (list . "db") | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "qaboard.selectorLabels" (list . "db") | nindent 8 }}
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.database.embedded.image }}
+          env:
+            - {name: POSTGRES_USER, value: {{ .Values.database.user | quote }}}
+            - {name: POSTGRES_PASSWORD, value: {{ .Values.database.embedded.password | quote }}}
+            - {name: POSTGRES_DB, value: {{ .Values.database.name | quote }}}
+            - {name: PGDATA, value: /var/lib/postgresql/data/pgdata}
+          ports: [{name: postgres, containerPort: 5432}]
+          readinessProbe:
+            exec: {command: ["pg_isready", "-U", {{ .Values.database.user | quote }}]}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/postgresql/data}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with .Values.database.embedded.storage.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.database.embedded.storage.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "qaboard.fullname" . }}-db
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "qaboard.selectorLabels" (list . "db") | nindent 4 }}
+  ports: [{name: postgres, port: 5432, targetPort: postgres}]
+{{- end }}

@@ -1,0 +1,11 @@
+QA-Board {{ .Values.image.version | default "latest" }} is deployed.
+{{- if .Values.ingress.enabled }}
+
+  URL: http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.host }}
+{{- end }}
+
+Check the rollout:
+  kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "qaboard.fullname" . }}-backend
+  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "qaboard.fullname" . }}-backend
+Rollback:
+  helm -n {{ .Release.Namespace }} rollback {{ .Release.Name }}

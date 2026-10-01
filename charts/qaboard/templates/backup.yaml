@@ -1,0 +1,71 @@
+{{- if .Values.backup.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "qaboard.fullname" . }}-backup
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: backup
+              image: {{ .Values.backup.image }}
+              command:
+                - sh
+                - -c
+                - |
+                  set -e
+                  # Written then renamed: a failed dump never looks like a valid backup
+                  pg_dump -Fc -f /backups/.tmp.dump
+                  mv /backups/.tmp.dump "/backups/$(date -I).dump"
+                  find /backups -name '*.dump' -mtime +{{ .Values.backup.keepDays }} -delete
+                  ls -lh /backups
+              env:
+                - {name: PGHOST, value: {{ include "qaboard.dbHost" . | quote }}}
+                - {name: PGPORT, value: {{ .Values.database.port | quote }}}
+                - {name: PGDATABASE, value: {{ .Values.database.name | quote }}}
+                {{- if .Values.database.cnpg.enabled }}
+                - name: PGUSER
+                  valueFrom: {secretKeyRef: {name: {{ include "qaboard.fullname" . }}-db-app, key: username}}
+                - name: PGPASSWORD
+                  valueFrom: {secretKeyRef: {name: {{ include "qaboard.fullname" . }}-db-app, key: password}}
+                {{- else }}
+                - {name: PGUSER, value: {{ .Values.database.user | quote }}}
+                {{- if .Values.database.embedded.enabled }}
+                - {name: PGPASSWORD, value: {{ .Values.database.embedded.password | quote }}}
+                {{- else }}
+                - name: PGPASSWORD
+                  valueFrom: {secretKeyRef: {name: {{ include "qaboard.secretName" . }}, key: QABOARD_DB_PASSWORD}}
+                {{- end }}
+                {{- end }}
+              volumeMounts:
+                - {name: backups, mountPath: /backups}
+          volumes:
+            - name: backups
+              persistentVolumeClaim:
+                claimName: {{ .Values.backup.storage.existingClaim | default (printf "%s-backups" (include "qaboard.fullname" .)) }}
+---
+{{- if not .Values.backup.storage.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "qaboard.fullname" . }}-backups
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.backup.storage.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.backup.storage.size }}
+{{- end }}
+{{- end }}

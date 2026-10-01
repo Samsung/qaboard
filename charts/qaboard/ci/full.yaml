@@ -1,0 +1,32 @@
+# Used by CI to validate the templates: every option enabled
+image:
+  repository: registry.example.com/qaboard
+  version: 1a2b3c4d
+imagePullSecrets: [{name: registry}]
+database:
+  cnpg:
+    enabled: true
+secret:
+  values:
+    GITLAB_ACCESS_TOKEN: xxx
+backend:
+  autoscaling:
+    enabled: true
+  extraVolumes:
+    - name: algo
+      nfs: {server: nas.example.com, path: /algo}
+  extraVolumeMounts:
+    - {name: algo, mountPath: /algo}
+proxy:
+  siteConfig:
+    extra.conf: |
+      server { listen 8080; }
+ingress:
+  className: nginx
+  tls: [{secretName: qaboard-tls}]
+cantaloupe:
+  enabled: true
+celery:
+  enabled: true
+backup:
+  enabled: true

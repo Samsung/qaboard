@@ -1,0 +1,158 @@
+# Default values for QA-Board. Site examples: deployments/sirc/values.yaml
+# Runbook: website/docs/backend-admin/kubernetes.mdx
+
+image:
+  # Images are <repository>:<service>-<version> (e.g. arthurflam/qaboard:backend-1a2b3c4d), as built by CI.
+  repository: arthurflam/qaboard
+  # The git commit (short sha) built by CI. Empty: the latest images (<repository>:<service>)
+  version: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+#  - name: gitlab-registry
+
+# Non-secret backend settings, see website/docs/start-server.mdx for all the options
+config:
+  QABOARD_LOGIN_TYPE: LOCAL
+  # GITLAB_HOST: https://gitlab.example.com
+  # QABOARD_LDAP_HOST: ldap.example.com
+  # QABOARD_IMAGE_SERVERS: '{"default": "/iiif"}'
+
+# Secret backend settings: SECRET_KEY (signs sessions, must be the same for all replicas),
+# QABOARD_DB_PASSWORD (unless database.cnpg.enabled), GITLAB_ACCESS_TOKEN, QABOARD_LDAP_PASSWORD...
+secret:
+  # Recommended: create the secret yourself (e.g. with sealed-secrets/external-secrets) and reference it
+  existingSecret: ""
+  # Or let the chart create it (a random SECRET_KEY is generated once and kept across upgrades)
+  values: {}
+
+database:
+  # By default we use an external PostgreSQL (e.g. managed by IT)
+  host: ""
+  port: 5432
+  name: qaboard
+  user: qaboard
+  # HA PostgreSQL (primary + replicas, automatic failover) with the CloudNativePG operator,
+  # that must be installed in the cluster: https://cloudnative-pg.io
+  cnpg:
+    enabled: false
+    instances: 3
+    imageName: ghcr.io/cloudnative-pg/postgresql:16
+    storage:
+      size: 100Gi
+      storageClass: ""
+    # Continuous backups / point-in-time recovery to S3-compatible storage (e.g. MinIO), recommended
+    # https://cloudnative-pg.io/documentation/current/backup/
+    backup: {}
+    #  barmanObjectStore:
+    #    destinationPath: s3://qaboard-backups/
+    #    endpointURL: https://minio.example.com
+    #    s3Credentials: {...}
+    #  retentionPolicy: 30d
+  # A single PostgreSQL pod, only to try the chart
+  embedded:
+    enabled: false
+    image: postgres:16-alpine
+    password: password
+    storage:
+      size: 10Gi
+      storageClass: ""
+
+backend:
+  replicas: 2
+  # uwsgi processes per replica
+  uwsgi:
+    processes: 8
+    cheaper: 4
+    cheaperInitial: 8
+  resources:
+    requests: {cpu: "1", memory: 4Gi}
+    limits: {memory: 16Gi}
+  # Application data: git clones, caches. Shared by the replicas: use ReadWriteMany (e.g. NFS) if replicas > 1
+  data:
+    existingClaim: ""
+    size: 50Gi
+    storageClass: ""
+    accessMode: ReadWriteMany
+  # Extra environment variables (list of EnvVar)
+  env: []
+  # The storage where users save outputs, e.g. NFS volumes or hostPath (when nodes mount NFS with autofs)
+  extraVolumes: []
+  #  - name: algo
+  #    nfs: {server: nas.example.com, path: /algo}
+  extraVolumeMounts: []
+  #  - {name: algo, mountPath: /algo}
+  # The image runs as root: init.sh writes /etc/sudoers (to delete outputs as their owner) and uwsgi drops privileges
+  podSecurityContext: {}
+  securityContext: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podDisruptionBudget:
+    minAvailable: 1
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+
+# Database migrations run in a Job before each upgrade (and after the first install)
+migrations:
+  enabled: true
+
+# nginx: serves the webapp and the docs, proxies the API
+proxy:
+  replicas: 2
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+  # Site-specific nginx configuration files (conf.d). A "qaboard.conf" replaces the default one.
+  siteConfig: {}
+  #  extra.conf: |
+  #    server { ... }
+  # e.g. to serve outputs under /s/
+  extraVolumes: []
+  extraVolumeMounts: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podDisruptionBudget:
+    minAvailable: 1
+
+ingress:
+  enabled: true
+  className: ""
+  host: qaboard.example.com
+  annotations:
+    # Uploads and slow API calls
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+  # - secretName: qaboard-tls
+  tls: []
+
+# Cache only, no persistence needed
+redis:
+  enabled: true
+  image: redis:7
+
+# IIIF image server, to serve images as tiles
+cantaloupe:
+  enabled: false
+  memory: {start: 1g, max: 2g}
+  extraVolumes: []
+  extraVolumeMounts: []
+
+# Only needed with QABOARD_TUNING_RUNNER=celery
+celery:
+  enabled: false
+  rabbitmq:
+    image: rabbitmq:3-management
+
+# Daily pg_dump to a volume, when we don't use CloudNativePG's backups
+backup:
+  enabled: false
+  schedule: "0 2 * * *"
+  image: postgres:16-alpine
+  keepDays: 14
+  storage:
+    existingClaim: ""
+    size: 200Gi
+    storageClass: ""

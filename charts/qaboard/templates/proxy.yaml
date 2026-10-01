@@ -1,0 +1,167 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "qaboard.fullname" . }}-nginx
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+data:
+  qaboard.conf: |
+    {{- tpl (.Files.Get "files/qaboard.conf") . | nindent 4 }}
+  # The Service load-balances between ready backend pods
+  backend.conf: |
+    server {{ include "qaboard.fullname" . }}-backend:3000;
+---
+{{- if .Values.proxy.siteConfig }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "qaboard.fullname" . }}-nginx-site
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+data: {{- toYaml .Values.proxy.siteConfig | nindent 2 }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "qaboard.fullname" . }}-proxy
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+    app.kubernetes.io/component: proxy
+spec:
+  replicas: {{ .Values.proxy.replicas }}
+  selector:
+    matchLabels: {{- include "qaboard.selectorLabels" (list . "proxy") | nindent 6 }}
+  strategy:
+    rollingUpdate: {maxSurge: 1, maxUnavailable: 0}
+  template:
+    metadata:
+      labels: {{- include "qaboard.selectorLabels" (list . "proxy") | nindent 8 }}
+      annotations:
+        checksum/nginx: {{ list (tpl (.Files.Get "files/qaboard.conf") .) .Values.proxy.siteConfig | toYaml | sha256sum }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      # The frontend and docs images copy their bundles where nginx serves them.
+      # Note: unlike with docker compose, older bundles are not kept: clients with an old version must reload.
+      initContainers:
+        - name: frontend
+          image: {{ include "qaboard.image" (list . "frontend") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          volumeMounts: [{name: frontend, mountPath: /builds}]
+        - name: docs
+          image: {{ include "qaboard.image" (list . "website") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          volumeMounts: [{name: docs, mountPath: /builds}]
+      containers:
+        - name: nginx
+          image: {{ include "qaboard.image" (list . "proxy") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/bash", "-c", "sh /tmp/etc/nginx/configure.sh && exec nginx -g 'daemon off;'"]
+          env:
+            - {name: NGINX_USER, value: nginx}
+          ports:
+            - {name: http, containerPort: 80}
+          readinessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: {port: http}
+            periodSeconds: 20
+          lifecycle:
+            preStop:
+              exec: {command: ["sleep", "5"]}
+          resources: {{- toYaml .Values.proxy.resources | nindent 12 }}
+          volumeMounts:
+            - {name: frontend, mountPath: /builds, readOnly: true}
+            - {name: docs, mountPath: /docs, readOnly: true}
+            - {name: nginx, mountPath: /tmp/etc/nginx/conf.d/qaboard.conf, subPath: qaboard.conf}
+            - {name: nginx, mountPath: /tmp/etc/nginx/upstreams/backend.conf, subPath: backend.conf}
+            {{- if .Values.proxy.siteConfig }}
+            - {name: nginx-site, mountPath: /tmp/deployment/nginx/conf.d}
+            {{- end }}
+            {{- with .Values.proxy.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - {name: frontend, emptyDir: {}}
+        - {name: docs, emptyDir: {}}
+        - name: nginx
+          configMap: {name: {{ include "qaboard.fullname" . }}-nginx}
+        {{- if .Values.proxy.siteConfig }}
+        - name: nginx-site
+          configMap: {name: {{ include "qaboard.fullname" . }}-nginx-site}
+        {{- end }}
+        {{- with .Values.proxy.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.proxy.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.proxy.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        {{- if .Values.proxy.affinity }}
+        {{- toYaml .Values.proxy.affinity | nindent 8 }}
+        {{- else }}
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels: {{- include "qaboard.selectorLabels" (list . "proxy") | nindent 20 }}
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "qaboard.fullname" . }}-proxy
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "qaboard.selectorLabels" (list . "proxy") | nindent 4 }}
+  ports:
+    - {name: http, port: 80, targetPort: http}
+---
+{{- with .Values.proxy.podDisruptionBudget }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "qaboard.fullname" $ }}-proxy
+  labels: {{- include "qaboard.labels" $ | nindent 4 }}
+spec:
+  minAvailable: {{ .minAvailable }}
+  selector:
+    matchLabels: {{- include "qaboard.selectorLabels" (list $ "proxy") | nindent 6 }}
+{{- end }}
+---
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "qaboard.fullname" . }}
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations: {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    {{- range . }}
+    - hosts: [{{ $.Values.ingress.host | quote }}]
+      secretName: {{ .secretName }}
+    {{- end }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "qaboard.fullname" . }}-proxy
+                port: {name: http}
+{{- end }}

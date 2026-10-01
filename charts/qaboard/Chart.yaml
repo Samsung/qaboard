@@ -1,0 +1,11 @@
+apiVersion: v2
+name: qaboard
+description: QA-Board, experiment tracking with advanced viewers for algorithm, ML and performance engineers
+type: application
+# Chart version, bump it when the chart changes
+version: 0.1.0
+# Default image version: images are <repository>:<service>-<version>, see image.version in values.yaml
+appVersion: "1.1.0"
+home: https://github.com/Samsung/qaboard
+sources:
+  - https://github.com/Samsung/qaboard

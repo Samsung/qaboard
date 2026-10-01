@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "qaboard.fullname" . }}-config
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+data:
+  FLASK_ENV: production
+  QA_NO_CHECK_FOR_UPDATES: "1"
+  # Migrations run once in a Job, not in every replica
+  QABOARD_RUN_MIGRATIONS: "0"
+  UWSGI_PROCESSES: {{ .Values.backend.uwsgi.processes | quote }}
+  UWSGI_CHEAPER_ALGO_BUSYNESS: "true"
+  UWSGI_CHEAPER: {{ .Values.backend.uwsgi.cheaper | quote }}
+  UWSGI_CHEAPER_INITIAL: {{ .Values.backend.uwsgi.cheaperInitial | quote }}
+  UWSGI_CHEAPER_OVERLOAD: "15"
+  UWSGI_CHEAPER_RSS_LIMIT_SOFT: "17179869184"
+  UWSGI_LISTEN_QUEUE_SIZE: "1024"
+  {{- range $key, $value := .Values.config }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+---
+{{- if not .Values.secret.existingSecret }}
+{{- $name := include "qaboard.secretName" . }}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $name }}
+{{- $secretKey := .Values.secret.values.SECRET_KEY | default (and $existing (index $existing.data "SECRET_KEY") | default "" | b64dec) | default (randAlphaNum 64) }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $name }}
+  labels: {{- include "qaboard.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  # Kept across upgrades, or everyone would be logged out
+  SECRET_KEY: {{ $secretKey | quote }}
+  {{- range $key, $value := .Values.secret.values }}
+  {{- if ne $key "SECRET_KEY" }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+  {{- end }}
+{{- end }}
