@@ -24,8 +24,8 @@ If you don't like this default, make `--share` the default via
 # .bashrc or other shell config
 alias qa="qa --share"
 
-# you can also use an environment variable
-export QATOOLS_SHARE=true
+# you can also use an environment variable (all options can be set as QA_<OPTION>)
+export QA_SHARE=true
 ```
 :::
 
@@ -54,7 +54,7 @@ qa --label    with-optimizations batch validation-images
 <img alt="select-batch" src={useBaseUrl('img/select-batch.png')} />
 
 :::tip
-To keep previous output files, `export QATOOLS_RUN_KEEP=true`. It can be useful if you are debugging long runs and implemented a caching mecanism. *(Experimental)*
+To keep previous output files, use `qa run --keep-previous` (or `export QABOARD_RUN_KEEP=true`). It can be useful if you are debugging long runs and implemented a caching mecanism. *(Experimental)*
 :::
 
 ## `qa batch`
@@ -62,12 +62,13 @@ To keep previous output files, `export QATOOLS_RUN_KEEP=true`. It can be useful 
 While `qa run` uses the local environment, `qa batch` will offload computation to a "runner" backend.
 
 Available runners:
-- `local`: [local multiprocessing](local-multiprocessing) with [`joblib`](http://joblib.readthedocs.io/). Default on Windows. Set the concurrency with `--local-concurrency`, `QA_BATCH_CONCURRENCY` or `runners.local.concurrency` in *qaboard.yaml*.
+- `local`: [local multiprocessing](local-multiprocessing) with [`joblib`](http://joblib.readthedocs.io/). Default if no other runner is configured, and on Windows instead of `lsf`. Set the concurrency with `--local-concurrency`, `QA_BATCH_CONCURRENCY` or `runners.local.concurrency` in *qaboard.yaml*.
 - `lsf`: 1 [LSF](lsf-integration) job per run. Limit how many run at the same time with `--lsf-concurrency` or `runners.lsf.concurrency`.
 - `dask`: a pool of long-lived [Dask workers](dask-integration), started as LSF jobs. Best for many short runs. Set the concurrency with `--dask-concurrency` or `runners.dask.concurrency`.
 - `celery`: [Celery](celery-integration) workers.
+- `windows`: runs sent to Windows hosts via [Jenkins](jenkins-integration).
 
-Choose the runner with `--runner=local`, and set a default with `runners.default: local` in *qaboard.yaml*.
+Choose the runner with `--runner=local`, and set a default with `runners.default: local` in *qaboard.yaml*. Without `runners.default`, `qa batch` uses the first runner configured under `runners` (other than `local`), else `local`.
 
 ### Dealing with existing results
 When you try to re-run already existing results, The behaviour of `qa batch` can be changed with the `--action-on-existing` flag:
@@ -75,6 +76,11 @@ When you try to re-run already existing results, The behaviour of `qa batch` can
 - `postprocess`: only call the `postprocess()` function, not `run()+postprocess()` as usual. (Note: it's also provided by `qa postprocess`)
 - `sync`: update the output file manifest and read metrics from *$output_dir/metrics.json*. (Note: it's also provided by `qa sync`)
 - `skip`: do nothing
+- `assert-exists`: fail if there are no results
+
+The default can be set in *qaboard.yaml* with `outputs.action_on_existing`.
+
+Similarly, `--action-on-pending` (or `outputs.action_on_pending`) decides what to do when the same runs are already pending: `wait` (default, then run), `sync` (use those runs' results), `skip` or `run` (run as usual, can cause races).
 
 ---
 
@@ -83,8 +89,10 @@ Use `qa --offline` to ensure you don't connect to a QA-Board instance. It's usef
 The default connection settings can be overriden by environment variables. For example:
 
 ```bash
-export QATOOLS_DB_PROTOCOL=http
-export QATOOLS_DB_HOST=qa
-export QATOOLS_DB_PORT=5000
+export QABOARD_PROTOCOL=http
+export QABOARD_HOST=my-server:5151
+# or: export QABOARD_URL=http://my-server:5151
 ```
+
+See [Client Installation](installation#connecting-to-a-custom-qa-board-server).
 

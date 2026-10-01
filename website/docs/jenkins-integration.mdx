@@ -34,6 +34,12 @@ runners:
     token: "1234"
 ```
 
+You can also use the `QA_RUNNERS_JENKINS_BUILD_URL` and `QA_RUNNERS_JENKINS_TOKEN` environment variables.
+
+:::caution
+The runner is named `windows`, while its configuration is under `runners.jenkins`. Set `runners.default` (e.g. to `local`): otherwise `qa batch` would try to use a runner named `jenkins`, which doesn't exist.
+:::
+
 ## How to use this runner?
 Multiple options:
 - On the CLI: `qa batch --runner=windows`

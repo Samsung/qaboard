@@ -16,11 +16,11 @@ The web application lets you view and compare all files created by your algorith
 <img alt="bit accuracy viewer" src={useBaseUrl('img/bit-accuracy-viewer.jpg')} />
 
 :::note
-The UI doesn't care about [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml#L93)'s `bit-accuracy.patterns` *(discussed later)*.
+The UI doesn't care about [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml#L121)'s `bit_accuracy.patterns` *(discussed later)*.
 :::
 
 ### "Hard" `qa check-bit-accuracy` on the CLI
-`qa check-bit-accuracy $batch` compares the results of `qa batch $batch` to:
+`qa check-bit-accuracy --batch $batch` compares the results of `qa batch $batch` to:
 - The latest results on `project.reference_branch` from [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml) (default: *master*).
 - ...unlesss you're checking a merge made to that branch. In which case the commit's parents will act as references.
 - You can ask to compare versus a specific git commit, branch or tag with `qa check-bit-accuracy --reference $git-ref`.
@@ -28,20 +28,25 @@ The UI doesn't care about [*qaboard.yaml*](https://github.com/Samsung/qaboard/bl
 > If the commit you compare against has not finished its CI, `qa` will  wait.
 
 :::note Custom Needs
-You can opt-in to more complex behaviour in *[qaboard.yaml](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml)* with `bit-accuracy.on_reference_failed_ci`, in case there are not results in the reference commit. Maybe the build failed, in which case you want to compare against the previous commit... If you're interested open an issue we'll add more details to the docs.
+You can opt-in to more complex behaviour in *[qaboard.yaml](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml)* with `bit_accuracy.on_reference_failed_ci: compare-first-parent` (and `bit_accuracy.max_parents_depth`, default 5), in case there are not results in the reference commit. Maybe the build failed, in which case you want to compare against the previous commit... If you're interested open an issue we'll add more details to the docs.
 :::
 
 If output files are different, `qa` prints a report and exists with a failure.
 
-:::note
-For specific use-case, there is also `qa check-bit-accuracy-manifest` which checks accuracy versus a manifest file stored in the database next to the input files. To generate those manifests, use `qa batch --save-manifests-in-database`.
-:::
+Other options:
+- `--strict`: by default only the files that exist in both runs are compared. With `--strict`, files that exist in only one of the runs are errors too.
+- `--reference-label`: compare to the reference's runs that used another [label](using-the-qa-cli#qa---label-my-label), e.g. `qa --label new check-bit-accuracy --batch all --reference-label old`.
+
+### Input and output manifests
+Each run saves in its output directory a *manifest.outputs.json*, with a hash of each output file, and a *manifest.inputs.json*, with a hash of the input files (at most 200 files for an input folder). `qa check-bit-accuracy` compares both, so it also tells you if the inputs changed. To list other files as inputs, set `context.obj['manifest-inputs']` to a list of paths in `run()`.
+
+For specific use-cases, there is also `qa check-bit-accuracy-manifest --batch my-batch` (it also accepts `--strict`), which checks the results versus manifests stored in the database next to the input files, instead of versus another commit. To save those manifests, use `qa batch my-batch --save-manifests-in-database` (the flag is forwarded to `qa run`). It only works for inputs that are folders.
 
 ### What files are checked?
-Files matching the patterns defined as `bit-accuracy.patterns` in [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml#L93) will be checked.
+Files matching the patterns defined as `bit_accuracy.patterns` in [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml#L121) will be checked.
 
 :::note
-If you work with text files on both Linux and Windows, EOL can make things tricky... You can decide what files are plaintext or binary using `bit-accuracy.plaintext` *or* `bit-accuracy.binary`.
+If you work with text files on both Linux and Windows, EOL can make things tricky... You can decide what files are plaintext or binary using `bit_accuracy.plaintext` *or* `bit_accuracy.binary`.
 :::
 
 
@@ -51,7 +56,7 @@ You often want to know when your algorithm's results change, *especially if anot
 
 Here is how you could get the CI to warn you with GitlabCI:
 
-```yaml title="qaboard.yaml"
+```yaml title=".gitlab-ci.yml"
 stages:
   - tests
   - bit-accuracy
@@ -63,7 +68,7 @@ tests-all:
 
 bit-accuracy-all:
   stage: bit-accuracy
-  allowed_failure: true
+  allow_failure: true
   script:
   - qa check-bit-accuracy --batch all
 ```
@@ -78,7 +83,7 @@ In some cases, you may want to compare files using something else than bit-exact
 ```python
 from pathlib import Path
 
-def cmp(path1 : Path, path2 : Path) -> bool
+def cmp(path1 : Path, path2 : Path) -> bool:
   """Checks if the files have the same content, like QA-Board does by default"""
   return path1.read_bytes() == path2.read_bytes()
 ```

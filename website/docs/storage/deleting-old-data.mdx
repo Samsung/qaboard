@@ -30,6 +30,12 @@ storage:
 
 `after:` supports human-readable values like *2weeks*, *1year*, *3months*...
 
+:::caution
+Data is deleted when the server runs `qaboard_clean` (see the [server's cron jobs](../deploy#optional-cleanup)). It applies to all projects: without `storage.garbage.after`, outputs are deleted after **1month**. Use `qaboard_clean --help` for the options (e.g. `--dryrun`, `--project`).
+:::
+
+To also allow deleting results on the reference branch (the latest commit is kept), set `storage.garbage.can_delete_reference_branch: true`.
+
 :::note
 **TODO** Right now we only clean data for repositories [that have an integration with Gitlab](/docs/project-init).
 :::

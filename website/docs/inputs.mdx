@@ -122,17 +122,25 @@ inputs:
         windows: F://movies
 ```
 
-You can have runner setttings per type:
+You can have runner settings per type:
 ```yaml title="qaboard.yaml"
-  # qaboard.yaml
   inputs:
     types:
       image:
         runners:
-          default: local          # Default for this input type
           lsf:
             queue: my_queue
 ```
+
+Runner settings are merged in this order, the last one wins:
+1. `runners.<runner>` in *qaboard.yaml* (e.g. `runners.lsf.queue`),
+2. `runners.<runner>` in the input type, as above,
+3. `<runner>:` in the batch (e.g. `lsf: {queue: my_queue}`, see [batches](batches-running-on-multiple-inputs#runner-settings-per-batch)),
+4. CLI flags, like `qa batch --lsf-queue`.
+
+:::caution
+The runner itself is chosen by `qa batch --runner` or `runners.default` in *qaboard.yaml*. Choosing it with `runners.default` in an input type, or `runner:` in a batch, doesn't work at the moment: the CLI's runner always wins.
+:::
 
 You can choose what type each batch is: 
 
@@ -161,7 +169,7 @@ And finally in `run()` you can:
 def run(context):
   if context.type == "image":
     ...
-  else if context.type == "movie":
+  elif context.type == "movie":
     ...
 ```
 

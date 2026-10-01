@@ -77,7 +77,8 @@ def iter_inputs(path, database, only, exclude, inputs_settings):
   # OPTIONALLY: return filtered inputs using only/exclude
   #             even if you don't do it, qa-board will always re-filter
   #             but doing it yourself in SQL can be much more efficient
-  return ({"absolute_input_path": database / p.path, "metadata": p.metadata} for p in inputs)
+  # qa reads the "input_path" (relative to "database"), "database" and "metadata" keys
+  return ({"input_path": p.path, "database": database, "metadata": p.metadata} for p in inputs)
 
 # Note: path=None should match all inputs in the database
 # Note: inputs_settings is a dict with information on how inputs should be found: file globs, use_parent, or anything else you put in qaboard.yaml's inputs.

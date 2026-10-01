@@ -76,6 +76,7 @@ You can use webhooks to trigger a variety of external tools:
 ```yaml
 integrations:
   - text: Jenkins Triggered Build
+    sub:
     - text: 'Windows'
       icon: build
       webhook:
@@ -157,7 +158,7 @@ Since you'll commit those credentials with the code, make sure you don't have to
 
 ```yaml title="qaboard.yaml"
 integrations:
-  - name: Jenkins Triggered Build
+  - text: Jenkins Triggered Build
     webhook:
       method: post
       url: $JENKINS_URL/job/$PROJECT/buildWithParameters
@@ -165,7 +166,7 @@ integrations:
         Jenkins-Crumb: $JenkinsCrumb
       params:
         token: $TOKEN
-      auth: {
+      auth:
         # this needs to be hardcoded with jenkins credentials
         # hopefully of limited scope
         username: <the-jenkins-username>
@@ -185,5 +186,5 @@ integrations:
     href: $JENKINS_URL/view/HW_ALG/job/HW_ALG-delivery/build?delay=0sec
     # Jenkins behaves wtf and returns 405 errors...
     # https://issues.jenkins-ci.org/browse/JENKINS-3121
-    ignore_failure: true
+    allow_failed: true
 ```

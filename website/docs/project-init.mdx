@@ -53,15 +53,24 @@ If you integrate with Gitlab, you'll be able to:
 - Wait for CI pipelines to end when checking if results changed vs the last version
 
 :::note
-In the past Gitlab was required. We'll work on enabling those features for e.g. Github.  
+In the past Gitlab was required. GitHub is now partly supported, [see below](#optional-integration-with-github).
 :::
 
 ### How-to
 1. Make sure you [started QA-Board with](/docs/deploy) a `GITLAB_HOST` and a `GITLAB_ACCESS_TOKEN` with `read_repository` scope.
 2. Be one of the project's Maintainers.
-3. Go to http://gitlab-srv/$YOUR_GROUP/PROJECT/settings/integrations.
-4. Add an integration with:
-  * __URL:__ `http://qa/webhook/gitlab`. Replace localhost with your hostname if you setup any DNS/SSL..
+3. Go to your project's *Settings > Webhooks* in Gitlab (`$GITLAB_HOST/$YOUR_GROUP/$PROJECT/-/hooks`).
+4. Add a webhook with:
+  * __URL:__ `http://localhost:5151/webhook/gitlab`. Replace `localhost:5151` with your QA-Board server's hostname if you setup any DNS/SSL..
   * __Secret token:__ *(leave the field empty)*
 
 > To test everything went well, Gitlab lets you "Test" your new hook. You should get a blue happy `200 OK` message  🔵🎉.
+
+## *(Optional)* Integration with GitHub
+GitHub repositories (including GitHub Enterprise) can send their push events to QA-Board, which then clones the repository to read commit metadata and `qaboard.yaml`, and shows committers' avatars. Updating commit statuses from `qa` is not supported yet for GitHub.
+
+1. For private repositories, [start QA-Board with](/docs/deploy#optional-environment-variables) a `GITHUB_ACCESS_TOKEN` that can read the repository.
+2. In the repository's *Settings > Webhooks*, add a webhook with:
+  * __Payload URL:__ `http://localhost:5151/webhook/github` (use your QA-Board server's hostname)
+  * __Content type:__ `application/json`
+  * __Events:__ *Just the push event*

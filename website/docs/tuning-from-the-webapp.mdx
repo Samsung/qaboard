@@ -33,3 +33,8 @@ You must have defined and be using [artifacts](storage/artifacts)
 
 ### 2. Distributed task queue
 You need to configure a task runner, that will execute tuning runs asynchronously. QA-Board ships with a `celery` integration so you'll just have to register a "worker" to get started. [Read more here](celery-integration)!
+
+The QA-Board server starts tuning runs with the runner chosen by its `QABOARD_TUNING_RUNNER` environment variable: `local` (default, on the server itself), `celery` or `lsf` (via `QA_RUNNERS_LSF_BRIDGE`). See the [server's environment variables](deploy#optional-environment-variables).
+
+### 3. Logged-in users
+Starting tuning experiments requires a logged-in user, and runs are started as that user. See [user management](backend-admin/user-management).

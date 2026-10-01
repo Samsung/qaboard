@@ -8,13 +8,13 @@ title: QA-Board's API
 If you run batches, it can be useful to know where results where saved.
 
 ```bash
-qa batch my-batch –-list-output-dirs
+qa batch my-batch --list-output-dirs
 ##=> prints to STDOUT each output directory on a line
 #> $some/where/place
 #> $some/other/place
 #> ...
 
-qa batch my-batch –-list
+qa batch my-batch --list
 ##=> prints to STDOUT an array with info on each run
 # [
 #   {
@@ -28,7 +28,7 @@ qa batch my-batch –-list
 For specific needs, you can also use `qa get` to output internal variables:
 
 ```bash
-qa --input my/input get output_directory
+qa get --input my/input output_dir
 qa get commit_id
 # etc
 ```
@@ -39,8 +39,19 @@ qa get commit_id
 It's not documented yet, but quite stable and there are no surprises.
 
 ```bash
-curl -k "https://qa/api/v1/commits?project=tof/swip_tof" | jq
+base_url=http://localhost:5151/api/v1
+curl "$base_url/commits?project=group/my-project" | jq
 ```
+
+### Authentication
+Reading data doesn't need to be logged-in (unless the server [blocks anonymous users](backend-admin/user-management#blocking-anonymous-users)). Some actions do, e.g. starting tuning runs. From scripts, use an API token: create one with a `POST` to `/api/v1/user/token/` while logged-in, then send it with an `Authorization: Bearer` header, or as a `?token=` URL parameter:
+
+```bash
+curl -H "Authorization: Bearer $QA_TOKEN" "$base_url/user/me/"
+curl "$base_url/user/me/?token=$QA_TOKEN"
+```
+
+The `qa` CLI sends `QA_TOKEN` automatically, from the environment or from *~/.qaboard/secrets.yaml* (see [Client Installation](installation#api-token)). Tokens don't expire, so keep them private.
 
 ```js
 [
@@ -53,13 +64,13 @@ curl -k "https://qa/api/v1/commits?project=tof/swip_tof" | jq
       "c976adc9020683f90d51d25c39d9e177c621dc95"
     ],
     "message": "add dynamic min subtract\n",
-    "committer_name": "Rivka Emanuel",
-    "committer_avatar_url": "http://gitlab-srv/uploads/-/system/user/avatar/164/avatar.png",
+    "committer_name": "Jane Doe",
+    "committer_avatar_url": "https://gitlab.example.com/uploads/-/system/user/avatar/164/avatar.png",
     "authored_datetime": "2019-04-30T09:05:09+00:00",
     "authored_date": "2019-04-30",
     "data": null,
-    "artifacts_url": "/s//stage/algo_data/ci/LSC/Calibration/commits/1556615109__Rivka Emanuel__af9370b9",
-    "repo_artifacts_url": "/s//stage/algo_data/ci/LSC/Calibration/commits/1556615109__Rivka Emanuel__af9370b9",
+    "artifacts_url": "/s/mnt/qaboard/group/my-project/af/9370b9246657e7",
+    "repo_artifacts_url": "/s/mnt/qaboard/group/my-project/af/9370b9246657e7",
     "batches": {
       "default": {
         "id": 19172,
@@ -69,7 +80,7 @@ curl -k "https://qa/api/v1/commits?project=tof/swip_tof" | jq
         "data": {
           "type": "ci"
         },
-        "batch_dir_url": "/s/stage/algo_data/ci/LSC/Calibration/commits/1556615109__Rivka Emanuel__af9370b9/output",
+        "batch_dir_url": "/s/mnt/qaboard/group/my-project/af/9370b9246657e7/output",
         "aggregated_metrics": {},
         "valid_outputs": 0,
         "pending_outputs": 0,
@@ -84,7 +95,7 @@ curl -k "https://qa/api/v1/commits?project=tof/swip_tof" | jq
 ```
 
 ```bash
-curl -k "$base_url/commit/01c27dfc4ffbf93ce95639b4dfbc126da4c53053?project=tof/swip_tof" | jq
+curl "$base_url/commit/2032a39564281de429e667260d1def3d16980e01?project=group/my-project" | jq
 ```
 
 ```js
@@ -96,8 +107,8 @@ curl -k "$base_url/commit/01c27dfc4ffbf93ce95639b4dfbc126da4c53053?project=tof/s
     "93b0a95d0ceaa78d24be33bea67a4aa333491c23"
   ],
   "message": "1. PARAMETERIZE compression\n2. add gw1 package\n",
-  "committer_name": "Rivka Emanuel",
-  "committer_avatar_url": "http://gitlab-srv/uploads/-/system/user/avatar/164/avatar.png",
+  "committer_name": "Jane Doe",
+  "committer_avatar_url": "https://gitlab.example.com/uploads/-/system/user/avatar/164/avatar.png",
   "authored_datetime": "2019-04-28T12:55:51+00:00",
   "authored_date": "2019-04-28",
   "data": {
@@ -108,8 +119,8 @@ curl -k "$base_url/commit/01c27dfc4ffbf93ce95639b4dfbc126da4c53053?project=tof/s
       // --snip
      }
   }
-  "artifacts_url": "/s//stage/algo_data/ci/LSC/Calibration/commits/1556456151__Rivka Emanuel__2032a395",
-  "repo_artifacts_url": "/s//stage/algo_data/ci/LSC/Calibration/commits/1556456151__Rivka Emanuel__2032a395",
+  "artifacts_url": "/s/mnt/qaboard/group/my-project/20/32a39564281de4",
+  "repo_artifacts_url": "/s/mnt/qaboard/group/my-project/20/32a39564281de4",
   "batches": {
     "default": {
       "id": 19071,
@@ -119,7 +130,7 @@ curl -k "$base_url/commit/01c27dfc4ffbf93ce95639b4dfbc126da4c53053?project=tof/s
       "data": {
         "type": "ci"
       },
-      "batch_dir_url": "/s/stage/algo_data/ci/LSC/Calibration/commits/1556456151__Rivka Emanuel__2032a395/output",
+      "batch_dir_url": "/s/mnt/qaboard/group/my-project/20/32a39564281de4/output",
       "aggregated_metrics": {},
       "valid_outputs": 1,
       "pending_outputs": 2,
@@ -145,8 +156,8 @@ curl -k "$base_url/commit/01c27dfc4ffbf93ce95639b4dfbc126da4c53053?project=tof/s
           "data": {
             "ci": true
           },
-          "batch_dir_url": "/s/stage/algo_data/ci/LSC/Calibration/commits/1556456151__Rivka Emanuel__2032a395/output/windows/base-2x5/Truly_LSC_DB/M01",
-          "test_input_database": "\\\\netapp\\QA-Data\\2X5",
+          "batch_dir_url": "/s/mnt/qaboard/group/my-project/20/32a39564281de4/output/windows/base-2x5/Truly_LSC_DB/M01",
+          "test_input_database": "\\\\server\\QA-Data\\2X5",
           "test_input_path": "Truly_LSC_DB\\M01",
           "test_input_tags": []
         },

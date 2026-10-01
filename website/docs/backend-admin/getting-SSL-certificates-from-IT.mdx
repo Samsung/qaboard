@@ -4,8 +4,10 @@ sidebar_label: SSL Certificates
 title: Getting SSL certificates from IT
 ---
 
+At SIRC, `deployments/sirc/sirc.yml` mounts the certificates from `services/nginx/ssl/` in the server's checkout (the `ssl/` folders are gitignored).
+
 ```bash
-cd deployment/nginx/ssl/qa
+cd services/nginx/ssl/qa
 
 # 1. Generate a key `.key`.
 openssl genrsa -out qa.key 2048
@@ -28,7 +30,7 @@ openssl req -noout -text -in qa.csr
 
 # 3. Send the CSR to IT.
 # 4. They will give you a `.cer` certificate. Convert it to `.pem` with 
-openssl x509 -in dvs.cer -inform der -outform pem -out qa.pem
+openssl x509 -in qa.cer -inform der -outform pem -out qa.pem
 
 # 5. Now you can configure your server to use qa.key and qa.pem
 ```

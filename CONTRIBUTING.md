@@ -7,7 +7,7 @@ The following is a set of guidelines for contributing to QA-Board. These are mos
 This project and everyone participating in it is governed by the QA-Board [Code of Conduct](https://github.com/Samsung/qaboard/blob/master/CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code. Please report unacceptable behavior to arthur.flam@samsung.com.
 
 ## Questions?
-If you've got questions about anything (setup, contributing...) or just want to chat with the developers, please feel free to [start a thread in our Spectrum community](https://spectrum.chat/qaboard)! You can also contact us [by mail](arthur.flam@samsung.com).
+If you've got questions about anything (setup, contributing...) or just want to chat with the developers, please feel free to [open an issue](https://github.com/Samsung/qaboard/issues)! You can also contact us [by mail](arthur.flam@samsung.com).
 
 ## Code organization
 Each section has its own README:
@@ -24,14 +24,15 @@ If you want to contribute to the project but do not know where to start, or what
 
 ```bash
 # check requirements in webapp/README.md
-cd webapp
-npm install
-
-# At SIRC we need to make sure important folders are mounted before starting containers...
-./at-sirc-before-up.py
+(cd webapp && npm install)
 
 # see more into in docker-compose.yml and backend/README.md
-docker compose -f docker-compose.yml -f development.yml -f sirc.yml up -d
+docker compose -f docker-compose.yml -f development.yml up -d
+
+# At SIRC: set proxies/dev settings, make sure important folders are mounted, then use the SIRC overlay
+source deployments/sirc/.envrc
+./at-sirc-before-up.py
+docker compose -f docker-compose.yml -f development.yml -f deployments/sirc/sirc.yml up -d
 ```
 
 ## Openness

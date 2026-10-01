@@ -8,7 +8,7 @@ QA-Board's run-wrapper, `qa`, will sync with a central server that tracks and di
 :::note Need a hosted version?
 We're considering offering a hosted solution to help you get started. If you are interested, contact the <a href="mailto:arthur.flam@gmail.com">maintainers</a>.
 
-Until then, please [fill issues](https://github.com/Samsung/qaboard/issues), [chat](https://spectrum.chat/qaboard) or <a href="mailto:arthur.flam@samsung.com">send an email</a> to maintainers if you run into issues starting a server. We're responsive.
+Until then, please [fill issues](https://github.com/Samsung/qaboard/issues) or <a href="mailto:arthur.flam@samsung.com">send an email</a> to maintainers if you run into issues starting a server. We're responsive.
 
 :::
 
@@ -18,12 +18,24 @@ QA-Board expects that all clients can access a shared storage to save and read r
 To get started quickly on a single server, create a *local* folder. Worry about sharing it later:
 
 ```bash
-mkdir -p /mnt/qabaord
-chmod -R 777 /mnt/qabaord
+mkdir -p /mnt/qaboard
+chmod -R 777 /mnt/qaboard
+```
+
+The base `docker-compose.yml` doesn't mount any results storage. Mount it in your site overlay (start from `deployments/example.yml`): the backend needs it at the same path as the clients, and nginx serves files under `/s/` from `/var/qaboard/` (`/s/mnt/qaboard/...` is read from `/var/qaboard/mnt/qaboard/...`):
+
+```yaml title="deployments/mysite.yml"
+services:
+  backend:
+    volumes:
+    - /mnt/qaboard:/mnt/qaboard
+  proxy:
+    volumes:
+    - /mnt/qaboard:/var/qaboard/mnt/qaboard:ro
 ```
 
 :::tip
-If you want to use a different folder, find-and-replace */mnt/qaboard* with your path in `docker-compose.yml` and *services/nginx/conf.d/qaboard.conf*.
+If you want to use a different folder, use your path in the overlay, and set `storage` in your projects' *qaboard.yaml* (see [where is the data saved](storage/where-is-the-data)).
 :::
 
 :::note Shared Storage?
@@ -49,7 +61,7 @@ git clone https://github.com/Samsung/qaboard.git
 cd qaboard
 ```
 
-**Open-source (default):**
+**Open-source (default):** add your overlay to `COMPOSE_FILE` in a copy of `deployments/production.env`, then:
 ```bash
 # first time
 deployments/deploy.py deployments/production.env up --build --init
@@ -82,21 +94,25 @@ A helm chart is available in `charts/qaboard`, see [Kubernetes](backend-admin/ku
 QA-Board can connect to external authentifications systems (LDAP, SAML). If needed, access can be restricted to logged-in users. To know more about this, or create a test user, refer to the docs on [user management](backend-admin/user-management).
 
 ## (Optional) Environment variables
-> To configure your installation, you can either edit [an `.env` file](https://docs.docker.com/compose/environment-variables/#the-env-file) or `services.backend.environment` in one of the `docker-compose` files (*docker-compose.yml*, *development.yml*, *production.yml*...).
+> To configure your installation, set `services.backend.environment` in your site overlay (see `deployments/example.yml`).
+> An [`.env` file](https://docs.docker.com/compose/environment-variables/#the-env-file) only sets the variables used by the compose files: the ports (`QABOARD_PORT_*`), and those that *docker-compose.yml* or your overlay forward to the backend (e.g. `SECRET_KEY`, `GITLAB_ACCESS_TOKEN`, `QABOARD_DB_HOST`, `QABOARD_LOGIN_*`). Others, like the LDAP settings, must be listed in the overlay.
 
 
 | ENV Variable           | Default | Usage                                                |
 -------------------------|-------- |------------------------------------------------------|
 | `GITLAB_ACCESS_TOKEN`  | _none_  | Optional for some extra features. Get it with a `read_repository` scope at https://$gitlab-server/profile/personal_access_tokens |
-| `GITLAB_HOST`          | _none_  | e.g. *https://gitlab.com* or *http://my-gitlab-srv/* |
+| `SECRET_KEY`           | _generated_ | Signs the sessions. If unset, a key is generated once and saved in the backend's data volume. With several hosts/kubernetes, set the same value everywhere. |
+| `GITLAB_HOST`          | *https://gitlab.com* | e.g. *https://gitlab.com* or *http://my-gitlab-srv/*. Also used for git links in the UI |
+| `QABOARD_GITLAB_HOSTS` | _none_  | Comma-separated extra gitlab hostnames the backend may send `GITLAB_ACCESS_TOKEN` to |
+| `GITHUB_ACCESS_TOKEN`  | _none_  | Token used to clone private GitHub repositories and look up committers' avatars (see [GitHub integration](project-init#optional-integration-with-github)) |
 | `QABOARD_PORT_HTTP`    | 5151    | Port mapped to the app on the host                   |
 | `QABOARD_DB_HOST`      | db      | Connect the backend to a non-default database host (e.g. instead of dev'ing with prod dumps, connect directly to it) |
 | `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port               |
 | `JENKINS_AUTH`         | _none_  | Credentials used to [trigger jenkins jobs](triggering-third-party-tools) on 1 or many jenkins servers. The format is a JSON string looking like `{"hostname_1": {"user": "jenkinsuser", "token": "xxxxx", "crumb": "yyy"}}` ([how-to-get-the-token-crumb?](triggering-third-party-tools))               |
 | `QABOARD_LOGIN_TYPE`   | _LOCAL_  | Set to `LOCAL/LDAP/SAML`                   |
-| `QABOARD_LOGIN_REQUIRED`   | _false_  | Set to `true` to block anonymous users (requires frontend rebuild)                   |
-| `QABOARD_DISABLE_SIGNUP`   | _false_  | Set to `True` to disallow local users from signing up                   |
-| `QABOARD_LOGIN_RESTRICTED`   | _false_  | Set to `true` to use a configuration file to allow only specific users (requires backend restart)                   |
+| `QABOARD_LOGIN_REQUIRED`   | _empty_  | Any non-empty value (e.g. `true`) blocks anonymous users. Leave it unset/empty to allow them: even `false` enables it |
+| `QABOARD_DISABLE_SIGNUP`   | _empty_  | Set to `True` (exactly) to disallow local users from signing up                   |
+| `QABOARD_LOGIN_RESTRICTED`   | _empty_  | Any non-empty value (e.g. `true`) uses a configuration file to allow only specific users (requires backend restart)                   |
 | `QABOARD_LOGIN_RESTRICTED_YAML`   | _none_  | The path to the users configuration file                     |
 | `QABOARD_LDAP_HOST`   | _none_  | Server hostname (including port)                   |
 | `QABOARD_LDAP_PORT`   | _389_  | Server port, usually 389 (or 636 if SSL is used / **not supported yet!**). |
@@ -111,9 +127,21 @@ QA-Board can connect to external authentifications systems (LDAP, SAML). If need
 | `QABOARD_SAML_ATTRIBUTE_COMMON_NAME`         | _none_  |                                            |
 | `QABOARD_SAML_ATTRIBUTE_USER_NAME`   | _none_    |                                            |
 | `QABOARD_SAML_ATTRIBUTE_ID`   | _none_    |                                            |
-| `CANTALOUPE_MEM_START` | 1g      | Starting memory for the image server                 |
-| `CANTALOUPE_MEM_MAX`   | 2g      | Max memory for the image server                      |
-| `QABOARD_BACKEND_REPLICAS` | 1   | Backend replicas, see [Deployments](backend-admin/deployment#settings) |
+| `QABOARD_TUNING_RUNNER` | local  | How tuning/"redo" runs started from the webapp are dispatched: `local`, `celery` or `lsf` |
+| `QA_RUNNERS_LSF_BRIDGE` | _none_ | With `lsf`: the command used to submit LSF jobs, e.g. `ssh user@lsf-host 'bsub_su {user} -I {bsub_command}'` |
+| `QABOARD_DASK_SCHEDULERS` | _none_ | Comma-separated dask scheduler addresses the backend trusts (to stop dask jobs from the webapp) |
+| `QABOARD_IMAGE_SERVERS` | `{"default": "/iiif"}` | JSON map of file extensions to IIIF image servers |
+| `QABOARD_PATH_MAPPINGS` | `[]` | JSON list of `["windows_prefix", "linux_prefix"]` pairs, used to show Windows paths to results (`qa` reads it too, from the environment or a site package, to convert Windows paths), e.g. `[["\\\\server\\share", "/mnt/share"]]` |
+| `QABOARD_DEFAULT_USER` | qaboard | The user CI runs are saved under (with `{user}` in `storage`). Runs started from the webapp replace it with the logged-in user in output paths |
+| `QABOARD_DOCS_ROOT`    | *https://samsung.github.io/qaboard/* | Where the webapp's links to the docs point |
+| `QABOARD_AVATAR_URL`   | _none_  | Avatar URL template for logged-in users, with a `{user_name}` placeholder |
+| `POSTHOG_API_KEY` / `POSTHOG_HOST` | _none_ | Enables [PostHog](https://posthog.com/) product analytics in the webapp |
+| `REDIS_HOST` / `REDIS_PORT` | redis / 6379 | Redis cache shared by the backend replicas. The backend still works if it's unreachable |
+| `QABOARD_QUOTA_URL_TEMPLATE` | _none_ | Shows a "Quota" link, with `{user_name}` and `{project}` placeholders |
+| `QABOARD_SUPPORT_URL` | GitHub issues | Where users report bugs, can be a `mailto:` |
+| `CANTALOUPE_MEM_START` | 1g      | Starting memory for the image server (set in `services.cantaloupe.environment`) |
+| `CANTALOUPE_MEM_MAX`   | 2g      | Max memory for the image server (set in `services.cantaloupe.environment`) |
+| `QABOARD_BACKEND_REPLICAS` | 1 (2 in `deployments/production.env`) | Backend replicas, see [Deployments](backend-admin/deployment#settings) |
 | `QABOARD_UWSGI_PROCESSES`  | 16  | uwsgi processes per backend replica, in production   |
 | `SENTRY_DSN`           | _none_  | monitor crashes in the backend with sentry.io. Example: https://xxxxxxxxxxx@sentry.io/000 |
 | `SENTRY_SAMPLE_RATE`           | 0.2  | sample for perf monitoring |
@@ -133,9 +161,9 @@ In the future we plan to introduce a proper "secret" store, per user and per pro
 The `cron-backup-db` service in *production.yml* makes daily backups of the database. Mount a host directory at `/backups` in your site overlay (see `deployments/sirc/prod.yml`), and copy the backups off the host. To restore one: `deployments/deploy.py <env file> restore-db <file>.dump`.
 
 ### Using SSL / hosting behind a reverse proxy
-What we do is directly change the `nginx` confix:
+What we do is use our own copy of *services/nginx/conf.d/qaboard.conf* in the site overlay. Files mounted under `/tmp/deployment/nginx/conf.d/` in the `proxy` container are added to (or replace) *services/nginx/conf.d/*:
 
-```nginx title="services/nginx/conf.d/qaboard.conf"
+```nginx title="deployments/nginx/qaboard.conf (copied from services/nginx/conf.d/qaboard.conf)"
 server {
   # ...
   listen 443 ssl;
@@ -147,11 +175,15 @@ server {
 
 And mount keys with:
 
-```yaml title="docker-compose.yml"
-proxy:
-  volumes:
-  - "somewhere/cert.key:/ssl/cert.key"
-  - "somewhere/cert.pem:/ssl/cert.pem"
+```yaml title="deployments/mysite.yml"
+services:
+  proxy:
+    ports:
+    - "443:443"
+    volumes:
+    - "./deployments/nginx/qaboard.conf:/tmp/deployment/nginx/conf.d/qaboard.conf:ro"
+    - "somewhere/cert.key:/ssl/cert.key"
+    - "somewhere/cert.pem:/ssl/cert.pem"
 ```
 
 If you want to use your own reverse proxy, with `nginx` for instance you can set `QABOARD_PORT_HTTP=8080` and:
@@ -170,8 +202,8 @@ server {
 We run those cron jobs:
 ```cron
 # Weekly cleanup of old results
-# https://samsung.github.io/qaboard/docs/deleting-old-data
-59 1 1 * * cd qaboard && docker compose exec -T backend qaboard_clean
+# https://samsung.github.io/qaboard/docs/storage/deleting-old-data
+59 1 1 * * cd qaboard && docker compose --env-file deployments/production.env exec -T backend qaboard_clean
 
 # Weekly removal of old docker images, helps to avoid filling the disk on the host
 59 1 2 * * docker image prune --force

@@ -25,7 +25,7 @@ qa --share run --input path/to/your/input.file 'echo "{input_path} => {output_di
 alias qa="qa --share"
 
 # you can also use an environment variable
-export QATOOLS_SHARE=true
+export QA_SHARE=true
 ```
 :::
 
@@ -45,7 +45,7 @@ The main assumption is that your code
 - Write *"qualitative"* files in the `output_dir`
 - Returns *"quantitative"* metrics/KPIs ([More info here - what you return can also be used to consider the run as "failed", or display badges...](computing-quantitative-metrics)).
 
-The `run()` function receives as argument a [`context` object whose properties](#reference-useful-context-properties) tell us **how** you should run **what**, and **where** outputs are expected to be saved.
+The `run()` function receives as argument a [`context` object whose properties](#useful-context-properties-reference) tell us **how** you should run **what**, and **where** outputs are expected to be saved.
 
 :::important
 Below are the most common ways users wrap their code. Identify what works for you and continue to the next page!
@@ -121,9 +121,9 @@ def run(context):
         # Next page you will learn how you can provided configurations/parameters to the run.
         benchmark = context.params['benchmark']
         # Find the benchmark results...
-        benchmark_outputs = context.database / benchmark context.input_path.parent / context.input_path.stem
+        benchmark_outputs = context.database / benchmark / context.rel_input_path.parent / context.rel_input_path.stem
         # To copy the result image only
-        os.copy(str(benchmark_outputs / 'output.jpg'), str(context.output_dir])
+        shutil.copy(str(benchmark_outputs / 'output.jpg'), str(context.output_dir))
         # To copy the whole directory
         shutil.copytree(
             str(benchmark_outputs),
@@ -174,10 +174,16 @@ From the QA-Board web application, you can set the benchark as a "milestone", to
 | **Where**           |                                            |
 |---------------------|--------------------------------------------|
 | `output_dir`        | where your code should save its outputs    |
+| `id`                | the run's ID in QA-Board (`None` with `qa --offline`, or if the server can't be reached) |
 
 :::tip
 You can use `context.obj` to store arbitrary data.
 :::
+
+### Environment variables
+- `qa` sets `QA_LABEL` to the run's label (from `qa --label`), e.g. for your code's own logs.
+- `QA_USER` overrides the user name `qa` uses (by default, the logged-in user), e.g. for `{user}` in [storage locations](storage/where-is-the-data).
+- `GIT_MESSAGE` and `GIT_AUTHORED_DATETIME` override the commit message and date sent to QA-Board, e.g. when your code isn't in a git repository.
 
 ## Accessing the QA-Board configuration
 :::note Work in Progress

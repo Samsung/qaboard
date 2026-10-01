@@ -19,6 +19,10 @@ project:
     reference_branch: master
 ```
 
+:::note
+Set `reference_branch` explicitly: when it's missing, the web application uses `develop`, while the `qa` CLI (e.g. `qa check-bit-accuracy`) uses `master`.
+:::
+
 To change the selected `new` or `ref` commit, you can edit the commit ID field in the navbar. Hovering it gives you a menu with other options:
 <img alt="commit-select-menu.png" src={useBaseUrl('img/commit-select-menu.png')} />
 
@@ -29,7 +33,7 @@ Clicking on the branch name in the navbar will select the latest commit on the b
 ## Project References
 You can also list in *qaboard.yaml* other versions as milestones.
 
-```yaml {4-7} title=""qaboard.yaml"
+```yaml {3-6} title="qaboard.yaml"
 project:
     reference_branch: master
     milestones:
