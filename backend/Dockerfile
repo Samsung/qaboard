@@ -109,8 +109,6 @@ ENV UV_SYSTEM_PYTHON=1 \
 # Make it possible to resolve dependencies of the CLI package
 WORKDIR /qaboard
 COPY pyproject.toml README.md ./
-WORKDIR /qaboard
-COPY deployments/ ./deployments
 
 WORKDIR /qaboard/backend
 # Install all dependencies
@@ -156,8 +154,10 @@ ARG CDE_PACKAGE=""
 # Useful if we need to dev...
 ENV CDE_PACKAGE=${CDE_PACKAGE}
 ENV QABOARD_EXTRA=${QABOARD_EXTRA}
+# deployments/ is only mounted during the build: images don't contain other sites' configuration
 RUN --mount=type=ssh \
     --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=bind,source=deployments,target=/qaboard/deployments,rw \
     if [ -n "$QABOARD_EXTRA" ]; then \
       ## Cannot work as uv requires to resolve even extras... 
       # uv sync --extra "$QABOARD_EXTRA" --refresh-package qaboard; \

@@ -6,7 +6,6 @@ variables:
   SIRC_USER: ispq
   # https://docs.gitlab.com/ee/ci/yaml/#git-clean-flags
   GIT_CLEAN_FLAGS: -ffdx --exclude=webapp/node_modules/
-  GIT_SUBMODULE_STRATEGY: recursive
 
 stages:
   - test

@@ -254,7 +254,9 @@ class Output(Base):
       # FIXME: if forwarded_args in parsed(self.configuration), add it..
     ])
 
-    outputs_dir_prefix = str(self.batch.ci_commit.outputs_dir).replace('/outputs/ispq/', f'/outputs/{user}/')
+    # CI results are saved under the CI user's folder (QABOARD_DEFAULT_USER), runs started here under the user's
+    ci_user = os.environ.get('QABOARD_DEFAULT_USER', 'qaboard')
+    outputs_dir_prefix = str(self.batch.ci_commit.outputs_dir).replace(f'/outputs/{ci_user}/', f'/outputs/{user}/')
     artifacts_dir = str(self.batch.ci_commit.artifacts_dir)
     script = '\n'.join([
       '#!/bin/bash',
