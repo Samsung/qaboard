@@ -1,5 +1,5 @@
 import { get } from "axios";
-import { setPathMappings } from "../utils";
+import { setPathMappings, setDefaultGitHostname } from "../utils";
 
 export const FETCH_SITE_CONFIG = 'FETCH_SITE_CONFIG';
 export const RECEIVE_SITE_CONFIG = 'RECEIVE_SITE_CONFIG';
@@ -15,6 +15,9 @@ const defaultConfig = {
   docs_root: 'https://samsung.github.io/qaboard/',
   avatar_url_template: null,
   sentry_traces_sample_rate: 1.0,
+  git_web_url: 'https://gitlab.com',
+  quota_url_template: null,
+  support_url: 'https://github.com/Samsung/qaboard/issues',
 };
 
 export const fetchSiteConfig = () => {
@@ -23,6 +26,7 @@ export const fetchSiteConfig = () => {
     return get('/api/v1/config')
       .then(response => {
         setPathMappings(response.data.path_mappings);
+        setDefaultGitHostname(response.data.git_web_url);
         dispatch({ type: RECEIVE_SITE_CONFIG, config: response.data });
         return response.data;
       })

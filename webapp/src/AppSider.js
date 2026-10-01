@@ -1,5 +1,5 @@
 import React from "react";
-import { connect } from 'react-redux'
+import { connect, useSelector } from 'react-redux'
 import { withRouter } from "react-router";
 import { Link } from "react-router-dom";
 import styled from "styled-components";
@@ -14,7 +14,6 @@ import {
   MenuDivider,
   Navbar,
   Icon,
-  Tag,
   Tooltip,
 } from "@blueprintjs/core";
 
@@ -33,7 +32,7 @@ import {
 } from './selectors/projects'
 import { updateSelected } from "./actions/selected";
 import { fetchCommit } from "./actions/commit";
-import { git_hostname, default_git_hostname, project_avatar_style } from "./utils"
+import { git_hostname, default_git_hostname, project_avatar_style, quota_url } from "./utils"
 import { make_eval_templates_recursively } from "./utils"
 import { toaster } from "./toaster"
 
@@ -449,6 +448,20 @@ class ProjectSideAvatar extends React.Component {
   }
 }
 
+// Only shown if the site has a quota dashboard (QABOARD_QUOTA_URL_TEMPLATE)
+const QuotaMenuItem = ({ user, project }) => {
+  const template = useSelector(state => state.siteConfig.quota_url_template)
+  const href = quota_url(template, user?.user_name, project)
+  if (!user?.is_logged || !href)
+    return null
+  return <MenuItem
+    href={href}
+    rel="noopener noreferrer" target="_blank"
+    icon="database"
+    text="Quota"
+  />
+}
+
 class ProjectSideCommitList extends React.Component {
   updateBranch = branch => {
     const { project, history, dispatch } = this.props;
@@ -533,13 +546,7 @@ class ProjectSideCommitList extends React.Component {
           <MilestonesMenu project={project} milestones={shared_milestones} onSelect={this.selectMilestone} icon="crown" type="shared" title="Select a shared milestone" />
           <MilestonesMenu project={project} milestones={private_milestones} onSelect={this.selectMilestone} type="private" title="Select a private milestone" />
         </MenuItem>
-        {user?.is_logged && <MenuItem
-          href={`/metabase/dashboard/154-manage-and-delete-storage?username=${user.user_name}&project=${project}`}
-          rel="noopener noreferrer" target="_blank"
-          icon="database"
-          text="Quota"
-          label={<Tag intent="primary">new</Tag>}
-        />}
+        <QuotaMenuItem user={user} project={project} />
         </>}
     </>
     }

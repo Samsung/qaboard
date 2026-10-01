@@ -103,7 +103,7 @@ class App extends React.Component {
 
   render() {
     if (this.state.hasError)
-      return <ErrorPage error={this.state.error} info={this.state.info}/>
+      return <ErrorPage error={this.state.error} info={this.state.info} support_url={this.props.store.getState().siteConfig?.support_url}/>
 	  return <Provider store={this.props.store}>
       <PersistGate loading={null} persistor={this.props.persistor}>
         <IeDeprecationWarning/>

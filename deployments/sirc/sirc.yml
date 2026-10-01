@@ -54,6 +54,8 @@ services:
     - QABOARD_DEFAULT_USER=ispq
     - QA_LSF_SSH_TARGET=ispq@ispq-vdi
     - 'QABOARD_IMAGE_SERVERS={"default": "/iiif", "raw,hex,cde": "/iiif/cde"}'
+    - QABOARD_QUOTA_URL_TEMPLATE=/metabase/dashboard/154-manage-and-delete-storage?username={user_name}&project={project}
+    - QABOARD_SUPPORT_URL=mailto:arthur.flam@samsung.com
 
     volumes:
     - ./services/backend/passwd:/etc/passwd

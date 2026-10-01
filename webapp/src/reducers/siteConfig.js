@@ -13,6 +13,9 @@ const initialState = {
   docs_root: 'https://samsung.github.io/qaboard/',
   avatar_url_template: null,
   sentry_traces_sample_rate: 1.0,
+  git_web_url: 'https://gitlab.com',
+  quota_url_template: null,
+  support_url: 'https://github.com/Samsung/qaboard/issues',
 };
 
 export function siteConfig(state = initialState, action) {

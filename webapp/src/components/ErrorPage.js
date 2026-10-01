@@ -1,5 +1,5 @@
 import React from "react";
-import { Callout, Intent, Classes, Button } from "@blueprintjs/core";
+import { Callout, Intent, Button } from "@blueprintjs/core";
 import { Container } from "./layout";
 
 
@@ -10,11 +10,13 @@ class ErrorPage extends React.Component {
 
 		let componentStack = (this.props.info || {}).componentStack
 		let body = encodeURIComponent(`URL: ${document.URL}\nerror: ${error}\ncomponentStack: ${componentStack}`)
+		// QABOARD_SUPPORT_URL can be an email (mailto:) or e.g. an issue tracker
+		const support_url = this.props.support_url || "https://github.com/Samsung/qaboard/issues"
+		const report_url = support_url.startsWith("mailto:") ? `${support_url}?subject=${subject}&body=${body}` : support_url
 		return <Container>
 			<Callout intent={Intent.DANGER} title="Sorry, something went wrong!">
-				<p>Try refreshing the page..? If you're lucky, try the <a href={`http://alginfra1:3000${window.location.pathname}`}>staging version</a></p>
-				<p><b>Point of contact:</b> Arthur Flam <span className={Classes.TEXT_MUTED}>(+972-(0)58-706-2016) WhatsApp/Phone </span></p>
-				<p><a href={`mailto:arthur.flam@samsung.com?subject=${subject}&body=${body}`}><Button>Report the bug</Button></a></p>
+				<p>Try refreshing the page..?</p>
+				<p><a href={report_url} rel="noopener noreferrer" target="_blank"><Button>Report the bug</Button></a></p>
 				<p><code dangerouslySetInnerHTML={{ __html: error || "" }}></code></p>
 				<p><code dangerouslySetInnerHTML={{ __html: componentStack || "" }}></code></p>
 			</Callout>

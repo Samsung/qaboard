@@ -20,7 +20,8 @@ def get_users_per_name(search_filter):
     return {}
 
   headers = {'Private-Token': os.environ['GITLAB_ACCESS_TOKEN']}
-  gitlab_api = "http://gitlab-srv.transchip.com/api/v4"
+  from .config import git_server
+  gitlab_api = f"{git_server}/api/v4"
   users_db = {} # tries to matche a name/fullname/firstname/id to a gitlab user
 
   # gitlab paginates each 100 users

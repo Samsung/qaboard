@@ -55,7 +55,7 @@ RUN if [ -n "$SENTRY_AUTH_TOKEN" ]; then \
 CMD ["npm", "start"]
 
 
-FROM debian:bullseye as production
+FROM debian:bookworm-slim as production
 COPY --from=dev /app/build /build
 
 # Proxy/cert configuration — needed for apt-get install rsync

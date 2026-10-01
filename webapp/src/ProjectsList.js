@@ -30,7 +30,7 @@ import PrivateContent from "./components/authentication/PrivateContent"
 import { updateFavorite } from './actions/projects'
 import { updateSelected } from './actions/selected'
 import { match_query } from "./utils"
-import { project_avatar_style, git_hostname, default_git_hostname } from "./utils"
+import { project_avatar_style, git_hostname, default_git_hostname, quota_url } from "./utils"
 
 
 class LastCommitAt extends Component {
@@ -180,7 +180,7 @@ class ProjectsList extends Component {
                 <a href={`${this.props.docs_root}docs/introduction`}><Button className={Classes.MINIMAL} icon={<Icon icon="help" color="#fff"/>} text="Docs" style={{color : "#fff"}}/></a>
             </NavbarGroup>
             <NavbarGroup align={Alignment.RIGHT}>
-              {user?.is_logged && <a style={{paddingRight: '15px'}} href={`/metabase/dashboard/38?username=${user.user_name}`} rel="noopener noreferrer" target="_blank">
+              {user?.is_logged && quota_url(this.props.quota_url_template, user.user_name) && <a style={{paddingRight: '15px'}} href={quota_url(this.props.quota_url_template, user.user_name)} rel="noopener noreferrer" target="_blank">
                 <Button icon="database" text="Quotas" style={{color : "#fff"}}/>
               </a>}
               <AuthButton/>
@@ -223,6 +223,7 @@ const mapStateToProps = state => {
     projects: state.projects.data,
     user: state.user ?? null,
     docs_root: state.siteConfig.docs_root,
+    quota_url_template: state.siteConfig.quota_url_template,
   }
 }
 

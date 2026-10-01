@@ -18,6 +18,7 @@ from sqlalchemy.sql import label
 from backend import app, db_session
 from ..models import Project, CiCommit, Batch, Output
 from ..utils import profiled
+from ..config import git_server
 from .auth import is_authorized_user
 
 to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ'))
@@ -55,6 +56,12 @@ def get_site_config():
         "docs_root": os.environ.get('QABOARD_DOCS_ROOT', 'https://samsung.github.io/qaboard/'),
         "avatar_url_template": os.environ.get('QABOARD_AVATAR_URL'),
         "sentry_traces_sample_rate": sample_rate,
+        # Fallback web URL for git links, when a project doesn't define project.url in qaboard.yaml
+        "git_web_url": git_server,
+        # Optional link to a storage quota dashboard, with {user_name} and {project} placeholders
+        "quota_url_template": os.environ.get('QABOARD_QUOTA_URL_TEMPLATE'),
+        # Where users report issues
+        "support_url": os.environ.get('QABOARD_SUPPORT_URL', 'https://github.com/Samsung/qaboard/issues'),
     })
 
 
