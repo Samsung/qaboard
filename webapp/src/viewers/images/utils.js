@@ -1,4 +1,16 @@
-export const iiif_url = (output_dir_url, path, manifest = null, preferTiff = true) => {
+// Get the right IIIF endpoint for a file based on its extension.
+// imageServers is a mapping like { "default": "/iiif", "raw,hex,dng": "/iiif/cde" }
+export const getIiifEndpoint = (filePath, imageServers) => {
+  if (!imageServers || !filePath) return '/iiif';
+  const ext = filePath.split('.').pop().toLowerCase();
+  for (const [extensions, endpoint] of Object.entries(imageServers)) {
+    if (extensions === 'default') continue;
+    if (extensions.split(',').includes(ext)) return endpoint;
+  }
+  return imageServers.default || '/iiif';
+}
+
+export const iiif_url = (output_dir_url, path, manifest = null, preferTiff = true, imageServers = undefined) => {
   path = build_image_name(path, manifest, preferTiff)
   // remove the URL's leading "/s"
   let identifier = output_dir_url.replace(/^\/*?s\//, "")

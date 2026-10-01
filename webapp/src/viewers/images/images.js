@@ -426,9 +426,9 @@ class ImgViewer extends React.PureComponent {
       let has_reference = !!output_ref && !output_ref.deleted && !!output_ref.output_dir_url && this.props.manifests.reference[path_ref] !== undefined;
       this.setState({has_reference})
 
-      let requests = [get(`${iiif_url(output_new.output_dir_url, path, this.props.manifests?.new)}/info.json`, { cancelToken: this.state.cancel_source.token })]
+      let requests = [get(`${iiif_url(output_new.output_dir_url, path, this.props.manifests?.new, true, this.props.imageServers)}/info.json`, { cancelToken: this.state.cancel_source.token })]
       if (has_reference)
-        requests.push(get(`${iiif_url(output_ref.output_dir_url, path_ref, this.props.manifests?.reference)}/info.json`, { cancelToken: this.state.cancel_source.token }))
+        requests.push(get(`${iiif_url(output_ref.output_dir_url, path_ref, this.props.manifests?.reference, true, this.props.imageServers)}/info.json`, { cancelToken: this.state.cancel_source.token }))
       Promise.all(requests).then( ([res_new, res_ref]) => {
         this.setState({ loaded: true })
         // https://Openseadragon.github.io/examples/tilesource-iiif/
@@ -518,7 +518,7 @@ class ImgViewer extends React.PureComponent {
         // https://github.com/openseadragon/openseadragon/issues/1428
         // let viewer_new_is_open = viewer_new.isOpen()
         viewer_new.addTiledImage({
-          tileSource: { ...source_config, "@id": iiif_url(output_new.output_dir_url, path, this.props.manifests?.new) },
+          tileSource: { ...source_config, "@id": iiif_url(output_new.output_dir_url, path, this.props.manifests?.new, true, this.props.imageServers) },
           // To avoid leaking tile sources, we should remove the previous tile
           // however, it causes a blink-to-white transition... so until we find a fix...
           // We may also not want to remove old source, eg cache them. But it's a small gain, and
@@ -537,7 +537,7 @@ class ImgViewer extends React.PureComponent {
               ...source_config,
               width: res_ref?.data?.width,
               height: res_ref?.data?.height,
-              "@id": iiif_url(output_ref.output_dir_url, path_ref, this.props.manifests?.reference),
+              "@id": iiif_url(output_ref.output_dir_url, path_ref, this.props.manifests?.reference, true, this.props.imageServers),
             },
           })
         }

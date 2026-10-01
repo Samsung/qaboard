@@ -588,7 +588,7 @@ class TofOutputCard extends Component {
         <div hidden={!show_pointcloud} ref={threeRoot => {this.threeRoot = threeRoot;}}> </div>
 
         {has_many_frame && <>
-          <Plot data={metric_traces} layout={metric_layout}/>}
+          <Plot data={metric_traces} layout={metric_layout}/>
           <Slider 
             min={first_frame_id}
             max={last_frame_id}

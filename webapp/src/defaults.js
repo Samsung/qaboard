@@ -54,7 +54,7 @@ export const default_commits_data = {
 	is_loading: false,
 	error: null,
 	ids: [],
-	date_range: default_date_range,
+	date_range: default_date_range(),
 }
 
 export const default_qatools_config = {

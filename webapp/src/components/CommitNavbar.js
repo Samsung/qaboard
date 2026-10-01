@@ -569,7 +569,7 @@ class CommitNavbar extends React.Component {
 
   deleteBatches = () => {
     const { show_delete_batches_values, files_delete_filter, soft_delete } = this.state;
-    const { commit, project, project_data } = this.props;
+    const { commit, project, project_data, selected, type, update } = this.props;
     this.setState({waiting: true})
     toaster.show({message: `Deleting ${show_delete_batches_values.length} batches.`});
     let requests = []
@@ -591,7 +591,8 @@ class CommitNavbar extends React.Component {
         this.setState({waiting: false})
         toaster.show({message: `Deleted.`, intent: Intent.SUCCESS});
         this.refresh()
-        if (isDeleteBatchSelected(this.state.selected.selected_batch_new)) {
+        // the selected batch was deleted
+        if (this.isDeleteBatchSelected(selected[`selected_batch_${type}`])) {
           update(`selected_batch_${type}`)('default')
         }
         this.setState({waiting: false, show_delete_batches_dialog: false });
