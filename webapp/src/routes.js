@@ -1,8 +1,11 @@
+import { lazy } from "react";
 import AppNavbar from "./AppNavbar";
 import AppSider from "./AppSider";
-import CiCommitList from "./CiCommitList";
-import CiCommitResults from "./CiCommitResults";
-import Dashboard from "./Dashboard";
+
+// Pages are loaded on demand: each pulls heavy dependencies (plotly, monaco...)
+const CiCommitList = lazy(() => import("./CiCommitList"));
+const CiCommitResults = lazy(() => import("./CiCommitResults"));
+const Dashboard = lazy(() => import("./Dashboard"));
 
 
 export const routes = [

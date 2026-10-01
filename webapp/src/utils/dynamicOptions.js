@@ -1,5 +1,5 @@
 import { parse, compile } from 'path-to-regexp';
-import { matchPath } from 'react-router';
+import { matchPath } from "../router";
 
 // Adapted from
 // https://github.com/ReactTraining/react-router/blob/82ce94c3b4e74f71018d104df6dc999801fa9ab2/packages/react-router/modules/matchPath.js

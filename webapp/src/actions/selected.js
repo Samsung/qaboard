@@ -1,6 +1,6 @@
 import qs from "qs";
 
-import history from "../history";
+import { history } from "../router";
 import {
   UPDATE_SELECTED,
 } from './constants'

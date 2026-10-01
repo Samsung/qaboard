@@ -1,5 +1,5 @@
 // https://raw.githubusercontent.com/picturae/openseadragonselection/master/src/selection.js
-var OpenSeadragon = require('openseadragon')
+import OpenSeadragon from 'openseadragon'
 
 
 OpenSeadragon.Viewer.prototype.selection = function (options) {

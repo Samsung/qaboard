@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "import", "jsx-a11y", "vitest", "oxc", "unicorn"],
+  "env": { "browser": true, "es2024": true },
+  "categories": { "correctness": "warn" },
+  "rules": {
+    "no-undef": "error",
+    "no-dupe-keys": "error",
+    "import/named": "error",
+    "import/default": "error",
+    "react/jsx-no-undef": "error",
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "warn",
+    "no-extra-boolean-cast": "off",
+    "unicorn/no-empty-file": "off"
+  },
+  "overrides": [
+    { "files": ["vite.config.js"], "env": { "node": true } },
+    { "files": ["**/*.test.{js,jsx}"], "env": { "vitest": true } }
+  ],
+  "ignorePatterns": ["build/**", "src/viewers/tof/*Controls.js", "src/viewers/tof/PCDLoader.js"]
+}

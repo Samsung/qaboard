@@ -1,11 +1,11 @@
 /* eslint-disable */
 // https://github.com/picturae/OpenSeadragonImageFilters/blob/master/src/imagefilters.js
-import { debounce } from "lodash"
+import { debounce } from "es-toolkit/compat"
 import { Classes } from "@blueprintjs/core";
 
-var OpenSeadragon = require('openseadragon')
+import OpenSeadragon from 'openseadragon'
 
-require('./filtering')
+import './filtering'
 
 //should disable caman cache to prevent memory leak
 // var caman = Caman;

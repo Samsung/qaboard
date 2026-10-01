@@ -1,5 +1,5 @@
 // https://github.com/picturae/openseadragonrgb/blob/master/src/rgb.js
-var OpenSeadragon = require('openseadragon')
+import OpenSeadragon from 'openseadragon'
 
 function onMouseMove(event) {
     if (event.originalEvent.delta_clientX)

@@ -1,4 +1,5 @@
-import { get } from "axios";
+import axios from "axios";
+const { get } = axios;
 
 import {
   FETCH_PROJECT,

@@ -1,0 +1,277 @@
+import React from "react";
+import { InView } from 'react-intersection-observer'
+import axios from "axios";
+const { get } = axios;
+
+import { DateTime } from 'luxon';
+import sanitizeHtml from 'sanitize-html';
+
+import {
+  Classes,
+  Collapse,
+  Callout,
+  Button,
+  NonIdealState,
+  Tag,
+} from "@blueprintjs/core";
+
+import { StatusTag, style_skeleton } from './tags'
+import { OutputHeader } from '../viewers/OutputCard'
+import { pretty_label } from '../utils'
+
+import Convert from 'ansi-to-html';
+var convert = new Convert();
+
+
+
+class OutputLog extends React.Component {
+  constructor(props) {
+    super(props);
+    this.log_ref = null
+    this.onRefChange = element => {
+      // console.log("onRefChange", element)
+      this.log_ref = element
+      // this.scrollBottom(true)
+    };
+
+    this.state = {
+      is_loaded: false,
+      is_open: false,
+      error: null,
+      logs: null,
+      logs_html: null,
+      viewable: false || props.viewable,
+    };
+  }
+
+  becameViewable = inView => {
+    this.setState({viewable: true})
+  }
+
+  componentDidUpdate(prevProps) {
+    const has_logs = !!this.props.output && !!this.props.output_dir_url
+    if (!has_logs) return
+    const had_logs = !!prevProps.output && !!prevProps.output_dir_url
+    if (had_logs && this.props.output_dir_url !==prevProps.output.output_dir_url)
+      this.getLog()
+
+    // console.log("[didUpdate]")
+    // if (!!this.props.output?.logs_html_safe && !!!this.prevProps.output?.logs_html_safe)
+    // this.scrollBottom()
+  
+  }
+
+  refreshLog = () => {
+    if ((!!this.props.output && !this.props.output.is_pending) || !this.state.is_open) {
+      clearInterval(this.refreshLogInterval);
+    } else {
+      this.getLog();
+    }
+  }
+
+  handleClick = () => {
+    if (!this.state.is_loaded) this.getLog();
+    this.setState({ is_open: !this.state.is_open });
+
+    if (!!this.refreshLogInterval) clearInterval(this.refreshLogInterval);
+    if (!!this.props.output && this.props.output.is_pending) {
+      // console.log(this.props.output)
+      this.refreshLogInterval = setInterval(this.refreshLog, 2500);
+    }
+  };
+
+  componentWillUnmount(){
+    if (!!this.refreshLogInterval) clearInterval(this.refreshLogInterval);
+  }
+
+  getLog(log_file) {
+    const { output } = this.props;
+    if (!!!output || !!!output.output_dir_url) return
+    this.setState({is_loaded: false});
+    // console.log(`[logs] fetch ${output.test_input_path}`)
+    // console.log(`       => ${output.output_dir_url}/${log_file || 'log.txt'}`)
+
+    const log_url = `${output.output_dir_url}/${log_file ?? 'log.txt'}`
+    get(log_url)
+      .then(response => {
+        var logs = response.data;
+        logs = logs.replaceAll("<?", "??") // avoid issues wih tqdm prints being stripped
+        // https://stackoverflow.com/questions/4842424/list-of-ansi-color-escape-sequences
+        // https://github.com/rburns/ansi-to-html/blob/master/test/ansi_to_html.js
+        // https://github.com/rburns/ansi-to-html/blob/master/src/ansi_to_html.js
+        const sanitizeHtml_options = {
+          disallowedTagsMode: "recursiveEscape",
+          // allowedTags: ['b', 'i', 'em', 'strong', 'a'],
+          // allowedAttributes: {
+          //   a: ['href', 'target']
+          // }
+        }
+        let logs_safe = sanitizeHtml(logs, sanitizeHtml_options);
+        let ansi_to_html_options =  {
+          //fg: '#fff',
+          // bg: '#000',
+          // colors: {
+          //   0: '#fff',
+          //   30: '#fff',
+          //   232: '#fff',
+          // },
+          // pre: style={{background: '#000'}} 
+        }
+        var logs_html_safe;
+        try {
+          logs_html_safe = !!logs && convert.toHtml(logs_safe, ansi_to_html_options);
+        } catch {
+          logs_html_safe = !!logs && logs_safe;
+        }
+        this.setState({
+          is_loaded: true,
+          // logs,
+          logs_html_safe,
+          log_url,
+          error: null,
+        });
+      })
+      .catch(error => {
+        console.log(error)
+        this.setState({ log_url, is_loaded: true, error });
+      });
+  }
+
+  scrollBottom = redo => {
+    console.log("scroll", this.log_ref)
+    if (this.log_ref) {
+      console.log(">")
+      this.log_ref.scrollTo(0, this.log_ref.scrollHeight)
+      if (redo)
+        setTimeout(this.scrollBottom, 10)
+    }
+  }
+
+  render() {
+    const { output, commit, project, dispatch } = this.props;
+    const { is_open, is_loaded, error, logs_html_safe, viewable } = this.state;
+    // console.log(`[logs] render ${output.test_input_path}`)
+    // console.log(sanitizeHtml("<Config>test</Config>"));
+
+    const button_text = is_open ? "Hide" : is_loaded ? "Loading" : "Show";
+    const show_button = (
+      <Button title={button_text} onClick={this.handleClick}>
+        {button_text} logs
+      </Button>
+    );
+    // onmount ref
+    // this.log_ref.current.scrollTop = offsetTop
+    const header_prefix = <>
+      {show_button}{button_text==="Hide" && <Button onClick={this.scrollBottom} icon="double-chevron-down"></Button>} {output.output_type !== "batch" && <StatusTag output={output}/>}
+    </>
+    const has_failure_lsf = output.is_failed && (logs_html_safe ?? "").slice(-1000).includes("Aborted!")
+    return (
+      <div>
+        {!viewable && <InView key="unviewable" threshold={0.1} margin='150%' /*triggerOnce*/ onChange={inView => this.becameViewable(inView)}>
+          <span key="viewable"></span>
+        </InView>}
+        <OutputHeader
+          project={project}
+          commit={commit}
+          output={output}
+          mismatch={output.reference_mismatch}
+          dispatch={dispatch}
+          prefix={header_prefix}
+          tags_first
+          viewable={viewable}
+        />
+        <Collapse isOpen={is_open}>
+          {error ? 
+            <NonIdealState
+              title="No logs."
+              description={
+                error.response ? (!!error.response.data && error.response.data.includes('404') ? '404: Not found' : JSON.stringify(error.response.data)) : error
+              }
+            />
+          : <div>
+              {has_failure_lsf && <a target="_blank" href={(this.state.log_url ?? '').replace("log.txt", "log.lsf.txt")}>
+                <Tag interactive intent="danger">
+                  Killed by LSF! Click to check why
+              </Tag></a>}
+              <pre
+                // ref={this.log_ref}
+                ref={this.onRefChange}
+                className={Classes.CODE_BLOCK}
+                dangerouslySetInnerHTML={{
+                  __html: logs_html_safe ?? ""
+                }}
+                style={{
+                  maxHeight: '500px',
+                  maxWidth: '1400px',
+                  overflow: 'scroll',
+                  ...(output.is_pending ? style_skeleton : {}),
+                }}
+              />
+            </div>
+          }
+        </Collapse>
+      </div>
+    );
+  }
+}
+
+
+
+
+class BatchLogs extends React.Component {
+  render() {
+    const { batch } = this.props;
+    if (batch === null || batch === undefined  || batch.batch_dir_url === undefined)
+      return <span></span>
+
+    let batch_mock_output = {
+      is_failed: false,
+      is_pending: false,
+      is_running: false,
+      extra_parameters: {},
+      output_type: "batch",
+      output_dir_url: batch.batch_dir_url,
+      test_input_metadata: batch.data,
+      configurations: [],
+    }
+
+    let commands = Object.values(batch.data?.commands ?? {});
+    const some_tuning_commands = batch.data?.optimization ?? commands.some(c => !c.job_url)
+
+    const title = pretty_label(batch)
+    return <>
+      {batch.filtered.outputs.map(id => batch.outputs[id])
+            .filter( o => o.output_type !== "optim_iteration")
+            .map(output => <OutputLog
+              key={output.id}
+              project={this.props.project}
+              commit={this.props.commit}
+              output={output}
+              dispatch={this.props.dispatch}
+            />)}
+      <h2 style={{marginTop: '25px'}} className={Classes.HEADING}>Batch logs: {title}</h2>
+      {some_tuning_commands && <OutputLog
+        key={batch.batch_dir_url}
+        project={this.props.project}
+        commit={this.props.commit}
+        output={batch_mock_output}
+        dispatch={this.props.dispatch}
+      />}
+      <div>{commands.map( (command, id) => {
+        return <Callout style={{marginBottom: '5px'}} key={id} title={
+          <>
+            {!!command.job_url && <a style={{marginRight: '12px'}} href={command.job_url} target="_blank" rel="noopener noreferrer"><Button icon="share">Open Logs</Button></a>}
+            <span title={command.command_created_at_datetime}>{DateTime.fromISO(command.command_created_at_datetime, { zone: 'utc' }).toRelative()}</span>
+            {!!command.user && ` as ${command.user}`}{!!command.HOST && ` @${command.HOST}`}
+          </>}>
+          <code>{command.argv.join(" ")}</code>
+        </Callout>
+      })}
+      </div>
+    </>
+
+	}
+}
+
+
+export { BatchLogs };

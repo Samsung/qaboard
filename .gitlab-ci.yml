@@ -99,9 +99,10 @@ webapp-tests:
   script:
     - cd webapp
     # node_modules is kept between jobs (GIT_CLEAN_FLAGS), so this is fast when package-lock.json didn't change
-    - npm install --legacy-peer-deps --prefer-offline --no-audit --no-fund
-    # Note: --detectOpenHandles would run the tests serially (--runInBand)
-    - npm test -- --coverage --coverageReporters=cobertura --coverageReporters=text-summary --watchAll=false --ci --forceExit --reporters=default --reporters=jest-junit --testEnvironment=jsdom
+    - npm install --prefer-offline --no-audit --no-fund
+    - npm run lint
+    # CI is set: also writes junit.xml
+    - npm test -- --run --coverage
     - |
       if [ -n "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" ]; then
         pip install -q diff-cover

@@ -2,7 +2,7 @@
 // TODO: update to get compat with openseadragon v6 
 // https://github.com/usnistgov/OpenSeadragonFiltering
 // https://github.com/usnistgov/OpenSeadragonFiltering/blob/master/openseadragon-filtering.js
-var OpenSeadragon = require('openseadragon')
+import OpenSeadragon from 'openseadragon'
 
 
 /*

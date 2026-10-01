@@ -3,7 +3,7 @@
 # - dev: used by development.yml, serves the code with `npm start` (no production build needed)
 # - build: the production bundle
 # - production (default): copies the bundle to the /builds volume served by nginx
-FROM node:20 AS deps
+FROM node:24 AS deps
 WORKDIR /app
 
 # Proxy/cert configuration — no-ops when args are empty (open-source builds)
@@ -34,17 +34,10 @@ ENV PATH /app/node_modules/.bin:$PATH
 
 COPY package.json package-lock.json ./
 
-# https://docs.npmjs.com/cli/v7/using-npm/config
-## RUN npm config set fetch-retry-maxtimeout 60000
-# we used this config until npm started to say it's not valid (?)
-# RUN npm config set fetch-retries 10\
-#     npm config set fetch-timeout 10000# In the past we had ulimit issues and "ulimit -n 2000 &&"
-# too many peer deps issues
-# RUN npm ci || npm ci || npm ci
 RUN --mount=type=cache,target=/root/.npm \
-    npm install --legacy-peer-deps --no-audit --no-fund || \
-    npm install --legacy-peer-deps --no-audit --no-fund || \
-    npm install --legacy-peer-deps --no-audit --no-fund
+    npm ci --no-audit --no-fund || \
+    npm ci --no-audit --no-fund || \
+    npm ci --no-audit --no-fund
 
 
 FROM deps AS dev
@@ -62,7 +55,7 @@ ENV SENTRY_PROJECT=$SENTRY_PROJECT
 ARG SENTRY_AUTH_TOKEN
 ENV SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
 
-RUN npm run-script build
+RUN npm run build
 RUN if [ -n "$SENTRY_AUTH_TOKEN" ]; then \
       sentry-cli sourcemaps inject build && \
       sentry-cli sourcemaps upload build; \

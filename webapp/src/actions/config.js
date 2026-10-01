@@ -1,4 +1,5 @@
-import { get } from "axios";
+import axios from "axios";
+const { get } = axios;
 import { setPathMappings, setDefaultGitHostname } from "../utils";
 
 export const FETCH_SITE_CONFIG = 'FETCH_SITE_CONFIG';

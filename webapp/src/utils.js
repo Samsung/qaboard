@@ -1,6 +1,5 @@
 import { interpolateRainbow } from "d3-scale-chromatic";
 import md5 from "js-md5";
-import html2canvas from "html2canvas";
 
 // https://mathjs.org/docs/custom_bundling.html
 import {
@@ -12,8 +11,6 @@ const { median: mathjs_median, format } = create({
   medianDependencies,
   formatDependencies,
 })
-
-import {  } from "mathjs/number";
 
 import { memoized_levenshtein } from "./levenshtein";
 
@@ -503,6 +500,7 @@ const copyElementToClipboard = async (element, name, message_renderer) => {
     return;
   }
   try {
+    const { default: html2canvas } = await import("html2canvas");
     const canvas = await html2canvas(element, { useCORS: true });
 
     // Convert to Blob

@@ -40,9 +40,10 @@ GitLab CI deploys master to staging then production automatically. Runbooks: `we
 ```bash
 cd webapp
 npm install
-npm start                # Start dev server
-npm run build           # Production build  
-npm test                # Run tests
+npm start               # Vite dev server
+npm run build           # Production build (Vite)
+npm test                # Vitest (watch mode), `npm test -- --run` for a single run
+npm run lint            # oxlint
 ```
 
 ### Backend Development (Python Flask)
@@ -89,13 +90,13 @@ flake8 qaboard/
 ### Frontend Tests
 ```bash
 cd webapp
-npm test                # React test suite
+npm test -- --run       # Vitest + Testing Library, jsdom
 ```
 
 ## Key Technologies
 
 - **Backend**: Python 3.11+, Flask, PostgreSQL, SQLAlchemy, Celery, Redis
-- **Frontend**: React 18, Redux, TypeScript, Blueprint UI, D3.js, Plotly.js
+- **Frontend**: React 19, Redux, Blueprint UI 6, React Router 8, D3.js, Plotly.js 3, Monaco. Built with Vite 8, tested with Vitest, linted with oxlint
 - **Infrastructure**: Docker Compose, nginx, RabbitMQ
 - **CLI**: Python with Click framework
 - **Package Management**: `uv` for Python, `npm` for JavaScript

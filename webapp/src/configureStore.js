@@ -1,6 +1,6 @@
 // https://redux.js.org/recipes/configuringyourstore
 import { createStore, applyMiddleware } from 'redux'
-import { compose } from 'redux'
+import { compose as reduxCompose } from 'redux'
 import { thunk } from 'redux-thunk'
 
 // https://github.com/rt2zz/redux-persist
@@ -10,10 +10,6 @@ import localForage from "localforage";
 // import autoMergeLevel2 from 'redux-persist/lib/stateReconciler/autoMergeLevel2';
 
 import * as Sentry from "@sentry/react";
-
-import { composeWithDevTools } from 'redux-devtools-extension/developmentOnly'
-import loggerMiddleware from './middleware/logger'
-import monitorReducersEnhancer from './enhancers/monitorReducers'
 
 import { rootReducer } from './reducers'
 
@@ -42,24 +38,12 @@ const sentryReduxEnhancer = Sentry.createReduxEnhancer({});
 
 
 export default function configureStore(preloadedState) {
-  let is_production = process.env.NODE_ENV === 'production'
-  // let is_production = false
-
-  let middlewares = is_production ? [thunk] : [loggerMiddleware, thunk]
-  let middlewareEnhancer = applyMiddleware(...middlewares)
-  let enhancers = is_production ? [middlewareEnhancer] : [middlewareEnhancer, monitorReducersEnhancer]
-  let composedEnhancers = (is_production || !window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__) ? compose(...enhancers, sentryReduxEnhancer) : composeWithDevTools(...enhancers)
+  // https://github.com/reduxjs/redux-devtools/tree/main/extension#11-basic-store
+  const compose = (!import.meta.env.PROD && window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__) || reduxCompose
+  const enhancers = compose(applyMiddleware(thunk), sentryReduxEnhancer)
 
   const persistedReducer = persistReducer(persistConfig, rootReducer)
-  const store = createStore(persistedReducer, preloadedState, composedEnhancers)
-
-  if (process.env.NODE_ENV !== 'production' && module.hot) {
-    module.hot.accept('./reducers', () =>
-      store.replaceReducer(persistedReducer)
-    )
-  }
-
-  let persistor = persistStore(store)
-
+  const store = createStore(persistedReducer, preloadedState, enhancers)
+  const persistor = persistStore(store)
   return {store, persistor}
 }

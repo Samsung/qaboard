@@ -53,18 +53,22 @@ jobs:
   webapp:
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
-    # The production build happens in the frontend image (docker job)
+    defaults:
+      run:
+        working-directory: webapp
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20.x
+          node-version: 24.x
           cache: npm
           cache-dependency-path: webapp/package-lock.json
       - run: npm ci --no-audit --no-fund
-        working-directory: webapp
-      - run: npm test -- --watchAll=false --ci --testEnvironment=jsdom
-        working-directory: webapp
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test -- --run
+      # The docker image builds it again, but this takes seconds and fails faster
+      - run: npm run build
 
   docker:
     runs-on: ubuntu-latest

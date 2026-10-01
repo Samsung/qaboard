@@ -1,5 +1,5 @@
 import { createSelector } from 'reselect'
-import { get as _get } from "lodash";
+import { get as _get } from "es-toolkit/compat";
 
 import { filter_batch, matching_output, metrics_fill_defaults } from "../utils";
 import {
