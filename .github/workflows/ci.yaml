@@ -5,18 +5,18 @@
 # - The images are built once, tested (smoke tests, backend unit tests, a zero-downtime rolling deploy),
 #   and on master pushed as arthurflam/qaboard:<service>-<commit>, then tagged arthurflam/qaboard:<service>
 name: CI
+# Every push runs CI. Pull requests only do for forks: for our branches it would run twice.
 on:
   push:
-    branches: [master]
     paths-ignore: ['docs/**', 'drafts/**', '**.md']
   pull_request:
     paths-ignore: ['docs/**', 'drafts/**', '**.md']
   workflow_dispatch:
 
-# A new push to a pull request cancels its running CI
+# A new push cancels the outdated CI of the branch (but every commit on master is published)
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 permissions:
   contents: read
@@ -24,6 +24,7 @@ permissions:
 jobs:
   python:
     runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -51,6 +52,7 @@ jobs:
 
   webapp:
     runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     # The production build happens in the frontend image (docker job)
     steps:
       - uses: actions/checkout@v4
@@ -66,6 +68,7 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     env:
       # Small uwsgi pools: the runner has 4 CPUs
       QABOARD_UWSGI_PROCESSES: "2"
@@ -137,6 +140,7 @@ jobs:
 
   helm:
     runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
