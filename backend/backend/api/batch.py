@@ -1,11 +1,12 @@
 import json
 
-from flask import request, jsonify
+from flask import request, jsonify, g
 from sqlalchemy.orm.attributes import flag_modified
 
 from backend import app, db_session
 from ..models import CiCommit, Batch
 from .export_to_folder import filter_outputs
+from .auth import login_required
 
 
 
@@ -105,6 +106,7 @@ def update_batch():
 
 @app.route('/api/v1/batch/stop', methods=['POST'])
 @app.route('/api/v1/batch/stop/', methods=['POST'])
+@login_required
 def stop_batch():
   data = request.get_json()
   try:
@@ -116,6 +118,7 @@ def stop_batch():
 
 @app.route('/api/v1/batch/redo', methods=['POST'])
 @app.route('/api/v1/batch/redo/', methods=['POST'])
+@login_required
 def redo_batch():
   data = request.get_json()
   try:
@@ -124,6 +127,7 @@ def redo_batch():
     return f"404 ERROR:\n Not found", 404
   try:
     success = batch.redo(
+      user=g.user['user_name'],
       only_failed=data.get('only_failed', False),
       only_deleted=data.get('only_deleted', False),
     )
@@ -136,6 +140,7 @@ def redo_batch():
 
 @app.route('/api/v1/batch/rename', methods=['POST'])
 @app.route('/api/v1/batch/rename/', methods=['POST'])
+@login_required
 def rename_batch():
   data = request.get_json()
   try:
@@ -153,6 +158,7 @@ def rename_batch():
 
 @app.route('/api/v1/batch/move', methods=['POST'])
 @app.route('/api/v1/batch/move/', methods=['POST'])
+@login_required
 def move_batch():
   data = request.get_json()
   try:
@@ -171,6 +177,7 @@ def move_batch():
 
 @app.route('/api/v1/batch/<batch_id>', methods=['DELETE'])
 @app.route('/api/v1/batch/<batch_id>/', methods=['DELETE'])
+@login_required
 def delete_batch(batch_id):
   try:
     batch = Batch.query.filter(Batch.id == batch_id).one()

@@ -22,6 +22,7 @@ from backend import app, db_session
 from backend.fs_utils import as_user, rmtree
 from ..models import Project, CiCommit, Batch, slugify_hash
 from ..config import qaboard_url
+from .auth import login_required
 
 
 @lru_cache(maxsize=1024)
@@ -178,6 +179,7 @@ def commonprefix(m):
 
 @app.route("/api/v1/export")
 @app.route("/api/v1/export/")
+@login_required
 def export_to_folder():
   project_id = request.args['project']
   ref_project_id = request.args.get('ref_project', project_id)

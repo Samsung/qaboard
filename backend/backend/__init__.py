@@ -8,7 +8,30 @@ app = Flask(__name__)
 
 # This key will be used to sign session cookies
 # To generate a key: python -c 'import os; print(os.urandom(16))'
-app.secret_key = os.environ.get('SECRET_KEY', 'please-generate-your-own-secret-key')
+def _secret_key():
+    """
+    Anyone knowing the key can forge sessions and log in as anyone, so we never use a hardcoded default.
+    If $SECRET_KEY is not set, we generate a key once and save it, so sessions survive restarts.
+    """
+    if os.environ.get('SECRET_KEY'):
+        return os.environ['SECRET_KEY']
+    import secrets
+    from .config import qaboard_data_dir
+    key_path = qaboard_data_dir / 'secret_key'
+    try:
+        fd = os.open(key_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'w') as f:
+            f.write(secrets.token_hex(32))
+    except FileExistsError:
+        pass
+    import time
+    for _ in range(50): # another worker may be writing it
+        key = key_path.read_text().strip()
+        if key:
+            return key
+        time.sleep(0.1)
+    raise RuntimeError(f"Empty {key_path}")
+app.secret_key = _secret_key()
 
 if os.environ.get('FLASK_ENV') == 'production' and os.environ.get('SENTRY_DSN'):
     # send errors to sentry server

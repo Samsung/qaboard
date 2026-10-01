@@ -14,7 +14,8 @@ from requests.utils import quote
 from requests.auth import HTTPBasicAuth
 
 from backend import app
-from ..config import qaboard_data_dir
+from ..config import qaboard_data_dir, git_server
+from .auth import login_required
 
 # We love our proxies
 import urllib3
@@ -96,6 +97,16 @@ for hostname, auth in gitlab_credentials.items():
     json.dump(gitlab_cookies, f)
 
 
+# We only send GITLAB_ACCESS_TOKEN to the gitlab servers we know about
+trusted_gitlab_hosts = {urlparse(git_server).hostname, *[h for h in os.environ.get('QABOARD_GITLAB_HOSTS', '').split(',') if h]}
+
+def gitlab_api_url(gitlab_host):
+  parsed = urlparse(gitlab_host)
+  if parsed.scheme not in ('http', 'https') or parsed.hostname not in trusted_gitlab_hosts:
+    raise ValueError(f"Untrusted gitlab host: {gitlab_host}. Set QABOARD_GITLAB_HOSTS to allow it.")
+  return f"{gitlab_host.rstrip('/')}/api/v4"
+
+
 jenkins_credentials = json.loads(os.environ.get('JENKINS_AUTH', '{}'))
 def jenkins_hostname_credentials(build_url):
   hostname = urlparse(build_url).hostname
@@ -115,6 +126,7 @@ def jenkins_hostname_credentials(build_url):
 # TODO: get password for gitlab-adm to avoid any auth and password changes
 # TODO: if expired, renew the token...
 @app.route("/api/v1/gitlab/proxy")
+@login_required
 def proxy_gitlab():
   url = request.args['url']
   hostname = urlparse(url).hostname
@@ -136,6 +148,7 @@ def proxy_gitlab():
 
 @app.route("/api/v1/webhook/proxy", methods=['POST'])
 @app.route("/api/v1/webhook/proxy/", methods=['POST'])
+@login_required
 def proxy_webook():
   """
   Proxy users' webhook triggers to avoid CORS issues.
@@ -174,16 +187,19 @@ def gitlab_job():
     return jsonify({"error": f'Error: Missing GITLAB_ACCESS_TOKEN in environment variables'}), 500
 
   data = request.get_json()
-  gitlab_api = f"{data['gitlab_host']}/api/v4"
+  try:
+    gitlab_api = gitlab_api_url(data['gitlab_host'])
+  except ValueError as e:
+    return jsonify({"error": str(e)}), 403
   gitlab_headers = {
     'Private-Token': os.environ['GITLAB_ACCESS_TOKEN'],
   }
   project_id = quote(data['project_id'], safe='')
   if data.get('job_id'):
-    job_id = data['job_id']
+    job_id = quote(str(data['job_id']), safe='')
   else:
     # Get the latest pipeline for this commit
-    url = f"{gitlab_api}/projects/{project_id}/repository/commits/{data['commit_id']}"
+    url = f"{gitlab_api}/projects/{project_id}/repository/commits/{quote(str(data['commit_id']), safe='')}"
     r = requests.get(url, headers=gitlab_headers)
     pipeline_id = r.json()['last_pipeline']['id']
 
@@ -231,6 +247,7 @@ def gitlab_job():
 
 @app.route("/api/v1/gitlab/job/play", methods=['POST'])
 @app.route("/api/v1/gitlab/job/play/", methods=['POST'])
+@login_required
 def gitlab_play_manual_job():
   """
   Trigger a GitlabCI manual job.
@@ -239,7 +256,10 @@ def gitlab_play_manual_job():
     return jsonify({"error": f'Error: Missing GITLAB_ACCESS_TOKEN in environment variables'}), 500
   data = request.get_json()
 
-  gitlab_api = f"{data['gitlab_host']}/api/v4"
+  try:
+    gitlab_api = gitlab_api_url(data['gitlab_host'])
+  except ValueError as e:
+    return jsonify({"error": str(e)}), 403
   gitlab_headers = {
     # FIXME: store the credentials in a "secret store", global per user/project 
     'Private-Token': os.environ['GITLAB_ACCESS_TOKEN'],
@@ -247,7 +267,7 @@ def gitlab_play_manual_job():
   project_id = quote(data['project_id'], safe='')
 
   # Get the latest pipeline for this commit
-  url = f"{gitlab_api}/projects/{project_id}/repository/commits/{data['commit_id']}"
+  url = f"{gitlab_api}/projects/{project_id}/repository/commits/{quote(str(data['commit_id']), safe='')}"
   r = requests.get(url, headers=gitlab_headers)
   pipeline_id = r.json()['last_pipeline']['id']
 

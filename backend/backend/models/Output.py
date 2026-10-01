@@ -21,6 +21,7 @@ from qaboard.api import dir_to_url
 
 from backend.models import Base
 from backend.fs_utils import rm_empty_parents, rmtree
+from backend.shell_utils import quote, safe_user_name, lsf_bridge_command
 
 
 
@@ -206,64 +207,71 @@ class Output(Base):
       return output
 
 
-  def redo(self, command_id=None):
+  def redo(self, user, command_id=None):
+    """
+    Re-run this output, as `user` (the logged-in user who requested it).
+    Note: almost everything used here comes from unauthenticated API calls, so all values are quoted.
+    """
     # in case it was deleted without QA-Board being made aware
     if not self.batch.ci_commit.artifacts_dir.exists():
       print("Restoring artifacts")
       self.batch.ci_commit.save_artifacts()
 
+    user = safe_user_name(user)
     if not command_id:
       command_id = uuid.uuid4()
     extra_parameters = json.dumps(self.extra_parameters, sort_keys=True)
-    job_options = self.data.get("job_options", {})
-    job_options_cli = ""
+    job_options = self.data.get("job_options", {}) or {}
+    job_options_cli = []
     if not job_options:
       # for backward compatibility, it's a good defaut at SIRC
-      job_options_cli = " --lsf-max-memory 20000"
-    elif job_options['type'] == "lsf":
+      job_options_cli = ["--lsf-max-memory", "20000"]
+    elif job_options.get('type') == "lsf":
       # TODO: support other runners... maybe create an ad-hoc functions in their classes...
       if 'queue' in job_options:
-        job_options_cli += f" --lsf-queue '{job_options['queue']}'"
+        job_options_cli += ["--lsf-queue", quote(str(job_options['queue']))]
       if 'max_memory' in job_options and job_options['max_memory'] != 0:
-        job_options_cli += f" --lsf-max-memory '{job_options['max_memory']}'"
+        job_options_cli += ["--lsf-max-memory", quote(str(job_options['max_memory']))]
       if 'resources' in job_options and job_options['resources']:
-        job_options_cli += f" --lsf-resources '{job_options['resources']}'"
+        job_options_cli += ["--lsf-resources", quote(str(job_options['resources']))]
       if 'max_threads' in job_options and job_options['max_threads'] != 0:
-        job_options_cli += f" --lsf-threads '{job_options['max_threads']}'"
+        job_options_cli += ["--lsf-threads", quote(str(job_options['max_threads']))]
     command = ' '.join([
       'qa',
-      f'--label "{self.batch.label}"',
-      f"--configuration '{self.configuration}'",
-      f"--database '{self.test_input.database}'",
-      f"--type '{self.output_type}'",
-      f"--tuning '{extra_parameters}'",
+      '--label', quote(self.batch.label),
+      '--configuration', quote(self.configuration),
+      '--database', quote(str(self.test_input.database)),
+      '--type', quote(str(self.output_type)),
+      '--tuning', quote(extra_parameters),
       'batch',
       '--no-wait',
-      job_options_cli,
+      *job_options_cli,
       '--action-on-existing=run',
       '--action-on-pending=run',
-      f'"{self.test_input.path}"',
+      # "--" so that an input path can't be parsed as an option
+      '--',
+      quote(str(self.test_input.path)),
       # FIXME: if forwarded_args in parsed(self.configuration), add it..
     ])
 
-    user = self.data.get("user", "ispq")
     outputs_dir_prefix = str(self.batch.ci_commit.outputs_dir).replace('/outputs/ispq/', f'/outputs/{user}/')
+    artifacts_dir = str(self.batch.ci_commit.artifacts_dir)
     script = '\n'.join([
       '#!/bin/bash',
       'set -ex',
       # needed...
       f"export CI=true;",
-      f"export GIT_COMMIT='{self.batch.ci_commit.hexsha}';",
-      f"export QA_OUTPUTS_COMMIT='{outputs_dir_prefix}'",
+      f"export GIT_COMMIT={quote(self.batch.ci_commit.hexsha)};",
+      f"export QA_OUTPUTS_COMMIT={quote(outputs_dir_prefix)}",
       # backward compatibility with previous qa versions, remove later...
-      f"export QATOOLS_CI_COMMIT_DIR='{outputs_dir_prefix}'",
+      f"export QATOOLS_CI_COMMIT_DIR={quote(outputs_dir_prefix)}",
       f"export QABOARD_TUNING=true;",
-      f'export QA_BATCH_COMMAND_ID={command_id}',
+      f'export QA_BATCH_COMMAND_ID={quote(str(command_id))}',
       "",
       # get the env right
       f'umask 0',
-      f'mkdir -p "{self.batch.ci_commit.artifacts_dir}"',
-      f'cd "{self.batch.ci_commit.artifacts_dir}"',
+      f'mkdir -p {quote(artifacts_dir)}',
+      f'cd {quote(artifacts_dir)}',
       'set +ex',
       '[[ -f ".envrc" ]] && source .envrc',
       '[[ -f "../.envrc" ]] && source ../.envrc',
@@ -285,14 +293,9 @@ class Output(Base):
     with script_path.open('w') as f:
       f.write(script)
     print(f'"{script_path}"')
-    lsf_bridge = os.environ.get('QA_RUNNERS_LSF_BRIDGE', '')
-    if lsf_bridge:
-      ssh_command = (lsf_bridge
-        .replace('{user}', user)
-        .replace('{bsub_command}', f'bash "{script_path}"')
-        .replace('{command}', f'bash "{script_path}"'))
-    
-    p = subprocess.run(f'{ssh_command} > "{logs_path}" 2>&1', shell=True)
+    # raises if the user or path are not safe to use in the LSF bridge
+    command = lsf_bridge_command(user, script_path)
+    p = subprocess.run(f'{command} > {quote(str(logs_path))} 2>&1', shell=True)
     success = p.returncode == 0
     return success
 

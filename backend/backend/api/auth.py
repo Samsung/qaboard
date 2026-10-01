@@ -3,11 +3,12 @@ Authentication for qaboard - LOCAL, LDAP and SAML.
 """
 import os
 from datetime import timedelta
+from functools import wraps
 
 import yaml
 import ldap
 import simplejson
-from flask import request, jsonify, redirect, session
+from flask import request, jsonify, redirect, session, g
 from flask_login import LoginManager, login_user, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 try:
@@ -136,15 +137,16 @@ def get_current_user(to_jsonify=True):
             # full_name = samlUserdata.get(saml_attr_common_name, [])[0]
             # user_id = samlUserdata.get(saml_attr_id, [])[0]
             user = User.query.filter_by(user_name=user_name).one_or_none()
-            info.update({
-            "is_authenticated": True,
-            "login_type": login_type,
-            "user_id": user.id,
-            "user_name": user.user_name,
-            "full_name": user.full_name,
-            "email": user.email,
-            "data": user.data,
-      })
+            if user:
+              info.update({
+                "is_authenticated": True,
+                "login_type": login_type,
+                "user_id": user.id,
+                "user_name": user.user_name,
+                "full_name": user.full_name,
+                "email": user.email,
+                "data": user.data,
+              })
   else: # login_type != "SAML"
     # https://flask-login.readthedocs.io/en/latest/#your-user-class
     is_authenticated = current_user.is_authenticated
@@ -166,6 +168,25 @@ def get_current_user(to_jsonify=True):
     return jsonify(info)
   else:
     return info
+
+
+def login_required(f):
+  """
+  Decorator for endpoints that need a logged-in user (session cookie, SAML session or API token).
+  The user's info is available as `flask.g.user` (see get_current_user).
+  If QABOARD_LOGIN_RESTRICTED is set, also checks the user may access `?project=`.
+  """
+  @wraps(f)
+  def wrapper(*args, **kwargs):
+    user_info = get_current_user(to_jsonify=False)
+    if not user_info.get('is_authenticated') or not user_info.get('user_name'):
+      return jsonify({"error": "You need to be logged-in to do this."}), 401
+    project = request.args.get('project')
+    if is_login_restricted and not is_authorized_user(user_info, project):
+      return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
+    g.user = user_info
+    return f(*args, **kwargs)
+  return wrapper
 
 
 @app.route('/api/v1/user/logout/', methods=['POST'])

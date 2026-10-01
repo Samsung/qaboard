@@ -165,6 +165,9 @@ class CiCommit(Base):
     # workaround for SIRC, trying to save artifacts will crash because the storage assumes a product name
     if self.project.id_relative.endswith("tests/products"):
       return
+    # hexsha comes from unauthenticated API calls, make sure git won't parse it as an option
+    if not re.match(r'^[0-9a-fA-F]{4,64}$', self.hexsha):
+      raise ValueError(f"Invalid commit id: {self.hexsha!r}")
 
     with tempfile.TemporaryDirectory() as tmp_dir:
       tmp_dir_path = Path(tmp_dir)

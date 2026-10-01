@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 import yaml
-from flask import request, jsonify
+from flask import request, jsonify, g
 from sqlalchemy.orm.exc import NoResultFound
 
 from qaboard.utils import merge
@@ -24,6 +24,8 @@ from qaboard.conventions import deserialize_config, batches_files
 from backend import app, db_session
 from ..models import CiCommit, Project
 from ..config import qaboard_data_shared_dir
+from ..shell_utils import safe_user_name, lsf_bridge_command
+from .auth import login_required
 
 
 def get_groups_path(project_id, name="extra-batches"):
@@ -31,7 +33,13 @@ def get_groups_path(project_id, name="extra-batches"):
     Return the path of the file where we save the groups of tests we defined for a project.
     Creates it if it does not exist yet.
     """
-    path = qaboard_data_shared_dir / project_id / f"{name}.yml"
+    name = str(name)
+    if not re.match(r'^[\w.@-]+$', name) or name.startswith('.'):
+        raise ValueError(f"Invalid group file name: {name!r}")
+    root = qaboard_data_shared_dir.resolve()
+    path = (root / project_id / f"{name}.yml").resolve()
+    if not path.is_relative_to(root):
+        raise ValueError(f"Invalid project: {project_id!r}")
     if not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w") as f:
@@ -50,16 +58,12 @@ def groups():
     """
     project_id = request.args["project"]
     name = request.args["name"]
-    groups_path = get_groups_path(project_id, name=name)
+    try:
+        groups_path = get_groups_path(project_id, name=name)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     if request.method == "POST":
-        data = request.get_json()
-        try:
-          yaml.load(data["groups"], Loader=yaml.SafeLoader)
-        except Exception as e:
-          return jsonify(str(e)), 400
-        with groups_path.open("w") as f:
-            f.write(data["groups"])
-        return jsonify("OK")
+        return login_required(update_groups)(groups_path)
     else:
         try:
             with groups_path.open("r") as f:
@@ -71,6 +75,17 @@ def groups():
                 ),
                 500,
             )
+
+
+def update_groups(groups_path):
+    data = request.get_json()
+    try:
+      yaml.load(data["groups"], Loader=yaml.SafeLoader)
+    except Exception as e:
+      return jsonify(str(e)), 400
+    with groups_path.open("w") as f:
+        f.write(data["groups"])
+    return jsonify("OK")
 
 
 def get_commit_batches_paths(ci_commit):
@@ -92,6 +107,7 @@ def get_commit_batches_paths(ci_commit):
 
 
 @app.route("/api/v1/tests/group", methods=["POST"])
+@login_required
 def get_group():
     if not request.args["name"]:
         return jsonify({"tests": []})
@@ -105,7 +121,10 @@ def get_group():
         return jsonify(str(e)), 400
 
     message = None
-    batches_paths = [get_groups_path(project_id, name=group) for group in groups]
+    try:
+        batches_paths = [get_groups_path(project_id, name=group) for group in groups]
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
 
     commit_id = request.args.get("commit")
     if commit_id:
@@ -164,13 +183,14 @@ def get_group():
     if has_custom_iter_inputs:
         cwd = ci_commit.artifacts_dir
         parent_including_cwd = [*list(reversed(list(cwd.parents))), cwd]
-        envrcs = [f'source "{p}/.envrc"\n' for p in parent_including_cwd if (p / '.envrc').exists()]
+        envrcs = [f'source {quote(str(p / ".envrc"))}\n' for p in parent_including_cwd if (p / '.envrc').exists()]
         cmd = ' '.join([
             'qa',
             'batch',
-            *list(itertools.chain.from_iterable((('--batches-file', f'"{f}"') for f in batches_paths))),
+            *list(itertools.chain.from_iterable((('--batches-file', quote(str(f))) for f in batches_paths))),
             '--list',
-            request.args["name"],
+            '--',
+            quote(request.args["name"]),
         ])
         cmd = '\n'.join([*envrcs, cmd])
         print(cmd)
@@ -228,7 +248,7 @@ def get_group():
 def _generate_batch_script(ci_commit, user, working_directory, command_id, batch_command, data):
     """Generate the qa_batch.sh script (shared across all runners)."""
     parent_including_cwd = [*list(reversed(list(working_directory.parents))), working_directory]
-    envrcs = [f'source "{p}/.envrc"\n' for p in parent_including_cwd if (p / '.envrc').exists()]
+    envrcs = [f'source {quote(str(p / ".envrc"))}\n' for p in parent_including_cwd if (p / '.envrc').exists()]
 
     default_user = os.environ.get('QABOARD_DEFAULT_USER', 'qaboard')
     outputs_dir_prefix = str(ci_commit.outputs_dir).replace(f'/outputs/{default_user}/', f'/outputs/{user}/')
@@ -239,24 +259,30 @@ def _generate_batch_script(ci_commit, user, working_directory, command_id, batch
         'export MPLBACKEND=agg;\n',
         ('\n'.join(envrcs) + '\n') if envrcs else "",
         "set -xe\n\n",
-        f'cd "{working_directory}";\n\n',
+        f'cd {quote(str(working_directory))};\n\n',
         f"\nexport CI=true;\n",
-        f"\nexport GIT_COMMIT='{ci_commit.hexsha}';\n",
+        f"\nexport GIT_COMMIT={quote(ci_commit.hexsha)};\n",
         f"export QABOARD_TUNING=true;\n\n",
-        f"export QA_OUTPUTS_COMMIT='{outputs_dir_prefix}';\n\n",
-        f"export QATOOLS_CI_COMMIT_DIR='{ci_commit.outputs_dir}';\n\n",
-        f"export QA_BATCH_COMMAND_ID='{command_id}';\n\n",
+        f"export QA_OUTPUTS_COMMIT={quote(outputs_dir_prefix)};\n\n",
+        f"export QATOOLS_CI_COMMIT_DIR={quote(str(ci_commit.outputs_dir))};\n\n",
+        f"export QA_BATCH_COMMAND_ID={quote(command_id)};\n\n",
         f"{batch_command};\n\n",
     ])
     return script
 
 
+def _run_script(qa_batch_path, batch_dir):
+    """Run a bash script, appending its output to batch_dir/log.txt"""
+    cmd = ['bash', str(qa_batch_path)]
+    print(cmd)
+    with (Path(batch_dir) / 'log.txt').open('a') as log:
+        out = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT)
+    out.check_returncode()
+
+
 def _dispatch_local(qa_batch_path, batch_dir):
     """Run batch script locally via subprocess."""
-    cmd = ['bash', '-c', f'bash "{qa_batch_path}" &>> "{batch_dir}/log.txt"']
-    print(cmd)
-    out = subprocess.run(cmd, encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    out.check_returncode()
+    _run_script(qa_batch_path, batch_dir)
 
 
 def _dispatch_celery(qa_batch_path, batch_dir):
@@ -266,21 +292,17 @@ def _dispatch_celery(qa_batch_path, batch_dir):
     qaboard_protocol = os.environ.get('QABOARD_PROTOCOL', 'http')
 
     celery_env = "".join([
-        f"export QABOARD_PROTOCOL={qaboard_protocol}\n",
-        f"export QABOARD_HOST={qaboard_host}\n",
-        f"export CELERY_BROKER_URL={broker_url}\n",
-        f"export no_proxy={qaboard_host},proxy,rabbitmq,qaboard\n",
+        f"export QABOARD_PROTOCOL={quote(qaboard_protocol)}\n",
+        f"export QABOARD_HOST={quote(qaboard_host)}\n",
+        f"export CELERY_BROKER_URL={quote(broker_url)}\n",
+        f"export no_proxy={quote(f'{qaboard_host},proxy,rabbitmq,qaboard')}\n",
     ])
     with qa_batch_path.open("r") as f:
         content = f.read()
     content = content.replace("#!/bin/bash\n", f"#!/bin/bash\n{celery_env}", 1)
     with qa_batch_path.open("w") as f:
         f.write(content)
-
-    cmd = ['bash', '-c', f'bash "{qa_batch_path}" &>> "{batch_dir}/log.txt"']
-    print(cmd)
-    out = subprocess.run(cmd, encoding='utf-8', stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    out.check_returncode()
+    _run_script(qa_batch_path, batch_dir)
 
 
 def _dispatch_lsf(qa_batch_path, batch_dir, user, ci_commit, do_optimize):
@@ -292,13 +314,14 @@ def _dispatch_lsf(qa_batch_path, batch_dir, user, ci_commit, do_optimize):
     default_queue = lsf_config.get('queue', 'default')
     queue = lsf_config.get('long_queue', 'default') if do_optimize else default_queue
 
+    # The command given to bsub is parsed again by a shell on the execution host, so it's quoted twice
+    job_command = f'bash {quote(str(qa_batch_path))} &>> {quote(f"{batch_dir}/log.txt")}'
     start_script = "\n".join([
         "#!/bin/bash",
         "set -xe",
         "",
-        f'mkdir -p "{batch_dir}"',
-        f'bsub -q "{queue}" -o "{batch_dir}/log.lsf.txt" -sp 4000 '
-        f"'bash \"{qa_batch_path}\" &>> \"{batch_dir}/log.txt\"'",
+        f'mkdir -p {quote(str(batch_dir))}',
+        f'bsub -q {quote(str(queue))} -o {quote(f"{batch_dir}/log.lsf.txt")} -sp 4000 {quote(job_command)}',
     ])
     print(start_script)
 
@@ -306,20 +329,15 @@ def _dispatch_lsf(qa_batch_path, batch_dir, user, ci_commit, do_optimize):
     with start_path.open("w") as f:
         f.write(start_script)
 
-    lsf_bridge = os.environ.get('QA_RUNNERS_LSF_BRIDGE', '')
-    if lsf_bridge:
-        cmd = (lsf_bridge
-            .replace('{user}', user)
-            .replace('{bsub_command}', f'bash "{start_path}"')
-            .replace('{command}', f'bash "{start_path}"'))
-    else:
-        cmd = f'bash "{start_path}"'
+    # raises if the user or path are not safe to use in the LSF bridge
+    cmd = lsf_bridge_command(user, start_path)
     print(cmd)
     out = subprocess.run(cmd, shell=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     out.check_returncode()
 
 
 @app.route("/api/v1/commit/<hexsha>/batch", methods=["POST"], strict_slashes=False)
+@login_required
 def start_tuning(hexsha):
     """
     Request that we run extra tests for a given project.
@@ -327,9 +345,12 @@ def start_tuning(hexsha):
     project_id = request.args["project"]
     data = request.get_json()
 
-    # TODO: use the logged-in user
-    user = data['user']
-    
+    # We run as the logged-in user, ignoring data['user']
+    try:
+        user = safe_user_name(g.user['user_name'])
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
     try:
         ci_commit = CiCommit.query.filter(
             CiCommit.project_id == project_id,
@@ -356,7 +377,10 @@ def start_tuning(hexsha):
         return jsonify(str(e)), 400
 
     commit_batches_paths = get_commit_batches_paths(ci_commit)
-    batches_paths = [get_groups_path(project_id, name=group) for group in groups]
+    try:
+        batches_paths = [get_groups_path(project_id, name=group) for group in groups]
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     batches_paths = [*commit_batches_paths, *batches_paths]
     merged_batches : Dict[str, Any] = {}
     for c in batches_paths:
@@ -419,7 +443,7 @@ def start_tuning(hexsha):
         # it needs to be accessed from LSF so we can't use temporary files...
         config_path = batch_dir / 'optim-config.yaml'
         checkpoint_path = batch_dir / 'checkpoint.pkl'
-        config_option = f"--config-file '{config_path}' --checkpoint '{checkpoint_path}'"
+        config_option = f"--config-file {quote(str(config_path))} --checkpoint {quote(str(checkpoint_path))}"
         with config_path.open("w") as f:
             f.write(data['tuning_search']['parameter_search'])
     else:
@@ -428,11 +452,11 @@ def start_tuning(hexsha):
     overwrite = "--action-on-existing run" if data["overwrite"] in ("on", True) else "--action-on-existing sync"
     batch_command = " ".join([
         "qa",
-        f"--platform '{data['platform']}'" if "platform" in data else "",
-        f"--label '{data['batch_label']}'",
+        f"--platform {quote(str(data['platform']))}" if "platform" in data else "",
+        f"--label {quote(str(data['batch_label']))}",
         "optimize" if do_optimize else "batch",
-        f'--batches-file {merged_batches_path} '
-        f"--batch '{data['selected_group']}'",
+        f"--batches-file {quote(merged_batches_path)}",
+        f"--batch {quote(str(data['selected_group']))}",
         # f"--runner=local", # uncomment if testing from Samsung SIRC where LSF is the default
         config_option,
         f"{overwrite} --no-wait" if not do_optimize else '',

@@ -10,7 +10,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.attributes import flag_modified
 
 from backend import app, db_session
-from .auth import is_authorized_user
+from .auth import is_authorized_user, login_required
 from ..models import Project, CiCommit, latest_successful_commit, Batch
 
 
@@ -140,6 +140,7 @@ def api_ci_commit(commit_id=None):
 
 @app.route("/api/v1/commit/save-artifacts/", methods=['POST'])
 @app.route("/api/v1/commit/save-artifacts", methods=['POST'])
+@login_required
 def commit_save_artifacts():
   hexsha = request.json.get('hexsha')
   try:

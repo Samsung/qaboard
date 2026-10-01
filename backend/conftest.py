@@ -46,6 +46,8 @@ def pytest_configure():
     auth_mod.__package__ = 'backend.api'
     auth_mod.get_current_user = MagicMock()
     auth_mod.is_authorized_user = MagicMock()
+    # Pass-through: the decorator itself is tested in tests/test_security.py
+    auth_mod.login_required = lambda f: f
     sys.modules['backend.api.auth'] = auth_mod
     api_mod.auth = auth_mod
 

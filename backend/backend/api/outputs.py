@@ -1,7 +1,7 @@
 import json
 import datetime
 
-from flask import request, jsonify, redirect, make_response
+from flask import request, jsonify, redirect, make_response, g
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.exc import NoResultFound
 
@@ -10,6 +10,7 @@ from qaboard.api import dir_to_url
 
 from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
+from .auth import login_required
 
 
 @app.route("/api/v1/output/<output_id>", methods=['GET', 'PUT', 'DELETE'])
@@ -61,13 +62,14 @@ def crud_output(output_id):
 
 @app.route('/api/v1/output/redo/<output_id>', methods=['POST'])
 @app.route('/api/v1/output/redo/<output_id>/', methods=['POST'])
+@login_required
 def output_redo(output_id):
   try:
     output = Output.query.filter(Output.id==output_id).one()
   except NoResultFound:
     return jsonify({"error": f"Cannot find output {output_id}"}), 400
   try:
-    success = output.redo()
+    success = output.redo(user=g.user['user_name'])
   except Exception as e:
     return jsonify({"error": f"{e}"}), 500
   if success:

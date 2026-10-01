@@ -12,12 +12,14 @@ from sqlalchemy.orm.attributes import flag_modified
 from backend import app, db_session
 from ..models import CiCommit, Output
 from ..models.Project import update_project
+from .auth import login_required
 
 
 @app.route('/api/v1/commit/<path:project_id>/<commit_id>/batches', methods=['DELETE'])
 @app.route('/api/v1/commit/<path:project_id>/<commit_id>/batches/', methods=['DELETE'])
 @app.route('/api/v1/commit/<commit_id>/batches', methods=['DELETE'])
 @app.route('/api/v1/commit/<commit_id>/batches/', methods=['DELETE'])
+@login_required
 def delete_commit(commit_id, project_id=None):
   try:
     ci_commits = CiCommit.query.filter(CiCommit.hexsha == commit_id)

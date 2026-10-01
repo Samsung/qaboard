@@ -18,6 +18,7 @@ from qaboard.conventions import batch_folder_name
 from qaboard.api import dir_to_url
 
 from backend.models import Base, Output
+from backend.shell_utils import shell_safe, safe_user_name
 
 
 
@@ -106,7 +107,7 @@ class Batch(Base):
     db_session.add(self)
     db_session.commit()
 
-  def redo(self, only_failed=False, only_deleted=False):
+  def redo(self, user, only_failed=False, only_deleted=False):
     # in case it was deleted without QA-Board being made aware
     if not self.ci_commit.artifacts_dir.exists():
       print("Restoring artifacts")
@@ -119,7 +120,7 @@ class Batch(Base):
         continue
       if only_deleted and not output.deleted:
         continue
-      output_success = output.redo(command_id=command_id)
+      output_success = output.redo(user=user, command_id=command_id)
       success = success and output_success
     return success
 
@@ -131,19 +132,31 @@ class Batch(Base):
     # TODO: can we after the stop() just mark all outputs as is_pending:False ?
     errors = []
     for command_id, command in self.data.get('commands', {}).items():
-      print(f"stopping {command['runner']} {command_id}")
+      print(f"stopping {command.get('runner')} {command_id}")
       from qaboard.runners.job import JobGroup
-      # Default to something reasonnable, but it likely won't work out-of-the-box for all runners
-      if command['runner'] == "lsf":
-        bridge = os.environ.get("QA_RUNNERS_LSF_BRIDGE")
-      else:
-        bridge = None
-      jobs = JobGroup(job_options={
-        "type": command['runner'],
-        "command_id": command_id,
-        **command,
-        "bridge": bridge,
-      })
+      # Batch.data.commands is written by unauthenticated API calls, and the runners
+      # use those options to build shell commands (e.g. `bkill` via the LSF bridge).
+      # So we only forward the few options needed to stop jobs, after validating them.
+      runner = command.get('runner')
+      if runner not in ("lsf", "dask", "local", "celery"):
+        print(f"WARNING: cannot stop jobs for runner {runner!r}")
+        continue
+      try:
+        job_options = {
+          "type": runner,
+          "command_id": shell_safe(command_id, "command_id"),
+          "bridge": os.environ.get("QA_RUNNERS_LSF_BRIDGE", ""),
+        }
+        if command.get('user'):
+          job_options['user'] = safe_user_name(command['user'])
+      except ValueError as e:
+        print(f"WARNING: cannot stop jobs for command {command_id!r}: {e}")
+        continue
+      # We only connect to Dask schedulers we trust
+      trusted_schedulers = [s for s in os.environ.get("QABOARD_DASK_SCHEDULERS", "").split(",") if s]
+      if runner == "dask" and command.get('scheduler_address') in trusted_schedulers:
+        job_options['scheduler_address'] = command['scheduler_address']
+      jobs = JobGroup(job_options=job_options)
       try:
         jobs.stop()
       except Exception as e:
