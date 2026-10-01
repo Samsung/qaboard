@@ -115,10 +115,12 @@ jobs:
           for service in backend frontend website proxy cantaloupe; do
             docker tag "arthurflam/qaboard:$service-$QABOARD_VERSION" "arthurflam/qaboard:$service-$QABOARD_VERSION-next"
           done
-          .github/scripts/load.py http://localhost:5151/api/v1/health 90 POST 405 &
+          export STOP_FILE=/tmp/deployed
+          .github/scripts/load.py http://localhost:5151/api/v1/health 300 POST 405 &
           load=$!
           sleep 5
           QABOARD_VERSION="$QABOARD_VERSION-next" ./deployments/deploy.py deployments/production.env up --no-pull
+          sleep 5 && touch "$STOP_FILE"
           wait $load
       - name: Logs on failure
         if: failure()
