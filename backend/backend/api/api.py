@@ -9,7 +9,7 @@ import datetime
 import ujson
 from flask import request, jsonify, make_response
 
-from sqlalchemy import func, and_, asc, or_
+from sqlalchemy import func, and_, asc, or_, text
 from sqlalchemy.orm import selectinload
 
 from sqlalchemy.orm.attributes import flag_modified
@@ -63,6 +63,19 @@ def get_site_config():
         # Where users report issues
         "support_url": os.environ.get('QABOARD_SUPPORT_URL', 'https://github.com/Samsung/qaboard/issues'),
     })
+
+
+@app.route("/api/v1/health")
+def health():
+    """
+    Readiness check used by docker healthchecks, the rolling deploy script and kubernetes probes.
+    We only check the database: without it nothing works. Redis is a cache, we work without it.
+    """
+    try:
+        db_session.execute(text("SELECT 1"))
+    except Exception as e:
+        return jsonify({"status": "error", "database": str(e)}), 503
+    return jsonify({"status": "ok"})
 
 
 @app.route("/api/v1/commits")

@@ -6,8 +6,10 @@ set -ex
 chmod 777 /var/qaboard
 
 # Apply migrations if needed
-cd /qaboard/backend/backend
-alembic upgrade head || alembic downgrade head || alembic stamp head
+# When we deploy several replicas, migrations run once before the rollout (deployments/deploy.py, the helm chart's Job)
+if [ "${QABOARD_RUN_MIGRATIONS:-1}" != "0" ]; then
+  /qaboard/backend/migrate.sh
+fi
 
 
 # At SIRC we need to be able to turn into any user to delete their output files
@@ -19,5 +21,6 @@ fi
 
 
 # Start the server
+# exec: uwsgi becomes PID 1 and receives SIGTERM from `docker stop`/kubernetes, to shutdown gracefully
 cd /qaboard/backend
-uwsgi --listen $UWSGI_LISTEN_QUEUE_SIZE --ini /qaboard/backend/uwsgi.ini
+exec uwsgi --listen $UWSGI_LISTEN_QUEUE_SIZE --ini /qaboard/backend/uwsgi.ini

@@ -9,6 +9,9 @@ redis_client = redis.Redis(
     host=os.environ.get("REDIS_HOST", "localhost"),
     port=int(os.environ.get("REDIS_PORT", "6379")),
     db=0,
+    # Don't block requests for long if redis is unreachable
+    socket_connect_timeout=2,
+    socket_timeout=2,
 )
 
 # Thread-local cache
@@ -31,8 +34,6 @@ def hybrid_cache(ttl=60, maxsize=128):
                 thread_local.cache = {}
 
             cache_key = f"{func.__name__}:{args}:{kwargs}"
-            print(cache_key)
-
 
             # 1️⃣ Check thread-local cache
             # We don't have a TTL here since we kill workers after a while...
@@ -41,7 +42,11 @@ def hybrid_cache(ttl=60, maxsize=128):
 
 
             # 2️⃣ Check Redis cache
-            result = redis_client.get(cache_key)
+            # Redis is only a cache: if it's down we compute the result instead of failing the request
+            try:
+                result = redis_client.get(cache_key)
+            except redis.RedisError:
+                result = None
             if result is not None:
                 try:
                     result = pickle.loads(result)
@@ -54,7 +59,10 @@ def hybrid_cache(ttl=60, maxsize=128):
             result = func(*args, **kwargs)
 
             thread_local.cache[cache_key] = result  # Store in local cache
-            redis_client.setex(cache_key, ttl, pickle.dumps(result))  # Store in Redis
+            try:
+                redis_client.setex(cache_key, ttl, pickle.dumps(result))  # Store in Redis
+            except redis.RedisError:
+                pass
 
             return result
 
