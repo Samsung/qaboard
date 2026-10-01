@@ -90,6 +90,13 @@ class TestCompatNoMappings(unittest.TestCase):
         # Ensure no mappings env var is set
         os.environ.pop('QABOARD_PATH_MAPPINGS', None)
         cls.compat = _reload_compat()
+        # Mappings can also come from a site package (e.g. qaboard-site-sirc)
+        # installed on the machine, which site_config() falls back to when the
+        # env var is absent. Force an empty mapping table so these tests
+        # deterministically exercise the no-mappings passthrough behavior.
+        patcher = mock.patch.object(cls.compat, 'mappings', ())
+        patcher.start()
+        cls.addClassCleanup(patcher.stop)
 
     @classmethod
     def tearDownClass(cls):
