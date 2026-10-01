@@ -6,11 +6,10 @@ import os
 import sys
 import json
 from pathlib import Path
-from importlib.metadata import entry_points
 
 import click
 
-from qaboard.site_config import site_config
+from qaboard.site_config import site_config, site_entry_points
 
 
 def ensure_cli_backward_compatibility():
@@ -131,7 +130,7 @@ def linux_to_windows_path(path : Path) -> Path:
 def fix_linux_permissions(path: Path):
   """Dispatch to a site-specific fix_permissions hook, if installed."""
   try:
-    eps = entry_points(group="qaboard.hooks")
+    eps = site_entry_points("qaboard.hooks")
     for ep in eps:
       if ep.name == "fix_permissions":
         hook = ep.load()

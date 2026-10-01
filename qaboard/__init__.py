@@ -1,4 +1,4 @@
-# need to be update setup.py as well
+# need to be updated in pyproject.toml as well
 __version__ = '1.0.3'
 
 

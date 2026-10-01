@@ -187,7 +187,7 @@ def storage_roots(config: Dict, project: Path, subproject: Path) -> Tuple[Path, 
     outputs_root = Path()
     if not ignore_config_errors:
       click.secho('ERROR: Could not find the storage settings that define where outputs & artifacts are saved.', fg='red', err=True)
-      click.secho('Consider adding to qaboard.yaml:\n```storage:\n  linux: /net/stage/algo_data/ci\n  windows: "\\\\netapp\\algo_data\\ci"\n```', fg='red', err=True, dim=True)
+      click.secho('Consider adding to qaboard.yaml:\n```storage:\n  linux: /mnt/qaboard\n  windows: "\\\\server\\share\\qaboard"\n```', fg='red', err=True, dim=True)
   return outputs_root, artifacts_root, subproject_for_artifacts
 
 def mkdir(path: Path):
@@ -397,7 +397,7 @@ def get_default_database(inputs_settings):
     database = "."
     if not ignore_config_errors:
       click.secho(f'WARNING: Could not find the default database location, defaulting to "."', fg='yellow', err=True)
-      click.secho(f'Consider adding to qaboard.yaml:\n```\ninputs:\n  database:\n    linux: /net/stage/algo_data\n    windows: "\\\\netapp2\\algo_data"\n```', fg='yellow', err=True, dim=True)
+      click.secho(f'Consider adding to qaboard.yaml:\n```\ninputs:\n  database:\n    linux: /mnt/datasets\n    windows: "\\\\server\\datasets"\n```', fg='yellow', err=True, dim=True)
       ignore_config_errors = True
   return Path(database)
 

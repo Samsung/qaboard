@@ -3,6 +3,9 @@ Checks if an update is available, if yes prints a warning message to stderr.
 To avoid introducing extra latency, we only check daily.
 
 FIMXE: users not connected to our internal network will pay a 1s timeout every time.
+
+Sites can override where we look for the latest version (QABOARD_LATEST_VERSION_URL, a PyPI JSON API URL
+or a file with `version = "x.y.z"`) and the upgrade command we suggest (QABOARD_UPGRADE_COMMAND).
 """
 import os
 import json
@@ -18,16 +21,21 @@ def latest_qaboard_version():
   # We simple need a way to let them know they are using an old version
   import requests
   import re
+  from .site_config import site_config
+  url = site_config('QABOARD_LATEST_VERSION_URL', 'https://pypi.org/pypi/qaboard/json')
   try:
-    # we surely could do something more robust
-    r = requests.get('https://raw.githubusercontent.com/Samsung/qaboard/master/setup.py', verify=False, timeout=1)
+    r = requests.get(url, timeout=1)
     r.raise_for_status()
   except Exception as e:
     click.secho(f'WARNING: Unable to find latest qaboard version', fg='yellow', bold=True, err=True)
     click.secho(str(e), fg='yellow', err=True)
     return None
+  try:
+    return r.json()['info']['version']
+  except Exception:
+    pass
   for l in r.text.split('\n'):
-    version = re.match('.*version="([0-9]+.[0-9]+.[0-9]+)".*', l)
+    version = re.match(r'.*version\s*=\s*["\']([0-9]+\.[0-9]+\.[0-9]+)["\'].*', l)
     if version:
       return version.group(1)
 
@@ -81,4 +89,6 @@ def check_for_updates():
     newer_version_available = to_ints(current_version) < to_ints(latest_version)
     if newer_version_available:
       click.secho(f'[INFO] A new version of qaboard is available! Upgrade to {latest_version}:', fg='yellow', bold=True, err=True)
-      click.secho('       $ pip install --upgrade git+ssh://git@gitlab-srv/common-infrastructure/qaboard', fg='yellow', err=True)
+      from .site_config import site_config
+      upgrade_command = site_config('QABOARD_UPGRADE_COMMAND', 'pip install --upgrade qaboard')
+      click.secho(f'       $ {upgrade_command}', fg='yellow', err=True)

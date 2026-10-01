@@ -14,16 +14,27 @@ Install a site package to auto-configure:
 """
 import os
 from pathlib import Path
-from importlib.metadata import entry_points
 
 import yaml
+
+
+def site_entry_points(group):
+    """Installed entry points in a group, e.g. qaboard.site or qaboard.hooks."""
+    try:
+        from importlib.metadata import entry_points
+    except ImportError: # python 3.7
+        return []
+    eps = entry_points()
+    if hasattr(eps, 'select'): # python>=3.10
+        return eps.select(group=group)
+    return eps.get(group, [])
 
 
 def _load_site_defaults():
     """Discover and load site defaults from installed entry points."""
     defaults = {}
     try:
-        eps = entry_points(group="qaboard.site")
+        eps = site_entry_points("qaboard.site")
         for ep in eps:
             site_module = ep.load()
             if isinstance(site_module, dict):

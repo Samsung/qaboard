@@ -153,22 +153,23 @@ bit_accuracy: {}
 
 
 runners:
-  # By default `qa batch` uses LSF on linux and the local host on Windows
+  # By default `qa batch` uses the first task runner configured below (e.g. LSF), else runs on the local host
   # default: lsf
   local:
     concurrency: -1
-  lsf: # we use our cluster on linux
-    # Depending on your project, you may want to use different LSF job queues
-    # Those defaults are reasonnable. In doubt, ask advice from your manager / CAD / bqueues.
-    queue: alg_isp_q
-    # threads: 0        # ask for eg 8 max threads when sending jobs to LSF (0=default)
-    # max_memory: 0         # ask for eg 8000M memory when sending jobs to LSF (0=default)
-    # You can also set: project, resources, priority
+  # lsf: # to use an LSF cluster
+  #   # Depending on your project, you may want to use different LSF job queues
+  #   # In doubt, ask advice from your manager / CAD / bqueues.
+  #   queue: normal
+  #   threads: 0        # ask for eg 8 max threads when sending jobs to LSF (0=default)
+  #   max_memory: 0     # ask for eg 8000M memory when sending jobs to LSF (0=default)
+  #   # You can also set: project, resources, priority
 
 
+# Where results are saved when using --share or in CI
 storage:
-  linux: /stage/algo_data/ci
-  windows: '//netapp/algo_data/ci'
+  linux: /mnt/qaboard
+  # windows: '//server/share/qaboard'
 
 
 ## Optionnal policy to delete old results

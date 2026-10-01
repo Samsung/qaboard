@@ -8,6 +8,7 @@ defaults = {
     # We want to allow users to use the Gitlab API (limited scope: CI statuses) without having to login
     # to stay backward compatible and not have credentials in any repo
     "QA_SECRETS": '/home/ispq/.secrets.yaml' if os.name != 'nt' else '//mars/raid/users/ispq/.secrets.yaml',
+    "QABOARD_UPGRADE_COMMAND": "pip install --upgrade git+ssh://git@gitlab-srv/common-infrastructure/qaboard",
     # When IDB updates fail, we save them here to retry later
     "QABOARD_IDB_BACKLOG_DIR": "/home/ispq/idb_backlog",
     "QABOARD_PATH_MAPPINGS": json.dumps([
