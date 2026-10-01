@@ -1,110 +1,171 @@
 ---
 # https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions
-# https://help.github.com/en/actions/reference/context-and-expression-syntax-for-github-actions
-# https://help.github.com/en/actions/configuring-and-managing-workflows/authenticating-with-the-github_token
-# https://hynek.me/articles/python-github-actions/
-# https://medium.com/swlh/fast-docker-build-in-kubernetes-f52088854f45
-
+# - python, webapp, docker and helm run in parallel
+# - Docker layers are cached in the GitHub Actions cache: unchanged images build in seconds
+# - The images are built once, tested (smoke tests, backend unit tests, a zero-downtime rolling deploy),
+#   and on master pushed as arthurflam/qaboard:<service>-<commit>, then tagged arthurflam/qaboard:<service>
 name: CI
-on: [push, pull_request]
+on:
+  push:
+    branches: [master]
+    paths-ignore: ['docs/**', 'drafts/**', '**.md']
+  pull_request:
+    paths-ignore: ['docs/**', 'drafts/**', '**.md']
+  workflow_dispatch:
 
-env:
-  DOCKER_BUILDKIT: 1
-  COMPOSE_DOCKER_CLI_BUILD: 1
+# A new push to a pull request cancels its running CI
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 jobs:
-  code-checks:
+  python:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.11'
+          enable-cache: true
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install .[dev]
+        run: uv sync --locked --extra dev
       - name: Lint with flake8
-        run: |
-          # stop the build if there are Python syntax errors or undefined names
-          flake8 backend qaboard --count --select=E9,F63,F7,F82 --show-source --statistics
-          # --exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-          # flake8 backend qaboard --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        # stop the build if there are Python syntax errors or undefined names
+        run: uv run --no-sync flake8 backend qaboard --count --select=E9,F63,F7,F82 --show-source --statistics
       - name: Type Checks with MyPy
-        run: mypy -p qaboard --ignore-missing-imports
+        run: uv run --no-sync mypy -p qaboard --ignore-missing-imports
       - name: Unit Tests
         run: |
           # git is needed in the tests and setup to fail if not setup
           git config --global user.name "Arthur Flam"
           git config --global user.email "arthur.flam@samsung.com"
-          green -vvv --quiet-stdout tests
+          uv run --no-sync green -vvv --quiet-stdout tests
       # Same build as the PyPI publish workflow (pypy.yml)
-      - uses: astral-sh/setup-uv@v6
       - name: Build the package
         run: |
           uv build
           uvx twine check dist/*
 
-  build-webapp:
+  webapp:
+    runs-on: ubuntu-latest
+    # The production build happens in the frontend image (docker job)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+          cache-dependency-path: webapp/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: webapp
+      - run: npm test -- --watchAll=false --ci --testEnvironment=jsdom
+        working-directory: webapp
+
+  docker:
+    runs-on: ubuntu-latest
+    env:
+      # Small uwsgi pools: the runner has 4 CPUs
+      QABOARD_UWSGI_PROCESSES: "2"
+      QABOARD_UWSGI_CHEAPER: "1"
+      QABOARD_UWSGI_CHEAPER_INITIAL: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version
+        run: echo "QABOARD_VERSION=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
+      - uses: docker/setup-buildx-action@v3
+      - name: Build the images
+        uses: docker/bake-action@v6
+        with:
+          source: .
+          files: docker-compose.yml
+          load: true
+          # One cache scope per image, or they overwrite each other
+          set: |
+            backend.cache-from=type=gha,scope=backend
+            backend.cache-to=type=gha,scope=backend,mode=max
+            frontend.cache-from=type=gha,scope=frontend
+            frontend.cache-to=type=gha,scope=frontend,mode=max
+            website.cache-from=type=gha,scope=website
+            website.cache-to=type=gha,scope=website,mode=max
+            proxy.cache-from=type=gha,scope=proxy
+            proxy.cache-to=type=gha,scope=proxy,mode=max
+            cantaloupe.cache-from=type=gha,scope=cantaloupe
+            cantaloupe.cache-to=type=gha,scope=cantaloupe,mode=max
+      - name: Deploy
+        run: ./deployments/deploy.py deployments/production.env up --no-pull --init
+      - name: Smoke Test @app
+        run: curl -sSf --retry 10 --retry-connrefused --retry-delay 3 http://localhost:5151/ | grep -q 'id="root"'
+      - name: Smoke Test @api
+        run: |
+          curl -sSf --retry 20 --retry-connrefused --retry-delay 3 http://localhost:5151/api/v1/health
+          curl -sSf http://localhost:5151/api/v1/projects > /dev/null
+          curl -sSf http://localhost:5151/api/v1/config > /dev/null
+          curl -sSf --retry 5 --retry-delay 2 http://localhost:5151/docs/ > /dev/null
+      - name: Backend unit tests
+        run: ./deployments/deploy.py deployments/production.env compose exec -T backend python -m pytest -q -p no:cacheprovider tests
+      - name: Zero-downtime rolling deploy
+        run: |
+          # A "new version" with the same images: the backend replicas are replaced
+          for service in backend frontend website proxy cantaloupe; do
+            docker tag "arthurflam/qaboard:$service-$QABOARD_VERSION" "arthurflam/qaboard:$service-$QABOARD_VERSION-next"
+          done
+          .github/scripts/load.py http://localhost:5151/api/v1/health 90 POST 405 &
+          load=$!
+          sleep 5
+          QABOARD_VERSION="$QABOARD_VERSION-next" ./deployments/deploy.py deployments/production.env up --no-pull
+          wait $load
+      - name: Logs on failure
+        if: failure()
+        run: |
+          ./deployments/deploy.py deployments/production.env status
+          ./deployments/deploy.py deployments/production.env compose logs --tail 200 backend proxy
+      - name: Push the images
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -z "$DOCKERHUB_TOKEN" ]; then
+            echo "::notice::DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets are not set, not publishing images"
+            exit 0
+          fi
+          echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+          docker compose push backend frontend website proxy cantaloupe
+
+  helm:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - name: Use Node.js 20.x
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20.x
-    - uses: actions/cache@v4
-      with:
-        path: ~/.npm
-        key: ${{ runner.os }}-node-${{ hashFiles('webapp/package-lock.json') }}
-        restore-keys: ${{ runner.os }}-node-
-    - run: cd webapp && npm ci
-    - run: cd webapp && npm run build --if-present
-    # - run: cd webapp && npm test
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Lint and validate the chart
+        run: |
+          curl -sSfL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz | tar xz kubeconform
+          helm lint charts/qaboard -f charts/qaboard/ci/minimal.yaml
+          for values in charts/qaboard/ci/*.yaml; do
+            echo "--- $values"
+            helm template qaboard charts/qaboard -f "$values" | ./kubeconform -strict -summary -ignore-missing-schemas
+          done
 
-  test-docker-images:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - name: Build the docker compose stack
-      run: docker compose build --build-arg BUILDKIT_INLINE_CACHE=1
-    - name: Up the docker compose stack
-      run: docker compose up -d
-    - name: Check running containers
-      run: docker ps -a
-    - name: Check logs
-      run: sleep 10 && docker compose logs
-    - name: Smoke Test @app
-      run: curl -sSf --retry 10 --retry-connrefused --retry-delay 3 http://localhost:5151/ > /dev/null
-    - name: Smoke Test @api
-      run: |
-        curl -sSf --retry 20 --retry-connrefused --retry-delay 3 http://localhost:5151/api/v1/projects
-        curl -sSf http://localhost:5151/api/v1/config
-    - name: Logs on failure
-      if: failure()
-      run: docker compose logs backend proxy
-
+  # The images are only "latest" once everything passed
   publish-docker-images:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
-    needs:
-      - code-checks
-      - build-webapp
-      - test-docker-images
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [python, webapp, docker, helm]
     steps:
-    - uses: actions/checkout@v4
-    - name: Build the docker compose stack
-      run: docker compose build --build-arg BUILDKIT_INLINE_CACHE=1
-    # Images are named arthurflam/qaboard:* in docker-compose.yml, they live on Docker Hub
-    - name: Publish images
-      env:
-        DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-        DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-      run: |
-        if [ -z "$DOCKERHUB_TOKEN" ]; then
-          echo "::notice::DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets are not set, not publishing images"
-          exit 0
-        fi
-        echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-        docker compose push backend frontend website proxy cantaloupe
+      - name: Tag the images as latest
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -z "$DOCKERHUB_TOKEN" ]; then
+            echo "::notice::DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets are not set, not publishing images"
+            exit 0
+          fi
+          echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+          # Retags in the registry, nothing is rebuilt or uploaded again
+          for service in backend frontend website proxy cantaloupe; do
+            docker buildx imagetools create -t "arthurflam/qaboard:$service" "arthurflam/qaboard:$service-${GITHUB_SHA::8}"
+          done
