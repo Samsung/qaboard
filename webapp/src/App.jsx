@@ -28,6 +28,7 @@ import "@blueprintjs/datetime/lib/css/blueprint-datetime.css";
 import "./App.css";
 
 import { routes } from './routes'
+import { ReleaseNotesProvider, WhatsNewLink } from "./releaseNotes/ReleaseNotes"
 import PrivateContent from "./components/authentication/PrivateContent"
 import { sider_width } from './AppSider'
 
@@ -37,7 +38,7 @@ const shouldForwardProp = (prop, target) => typeof target !== "string" || isProp
 
 const Footer = () => {
   return <div style={{margin: "10px", textAlign: "right"}}>
-     <span className={Classes.TEXT_MUTED}>Made with <span role="img" aria-label="<3">❤️</span> at Samsung, under <a href="https://github.com/Samsung/qaboard">Apache License 2.0</a></span> 
+     <span className={Classes.TEXT_MUTED}><WhatsNewLink via="footer"/> · Made with <span role="img" aria-label="<3">❤️</span> at Samsung, under <a href="https://github.com/Samsung/qaboard">Apache License 2.0</a></span>
   </div>
 }
 
@@ -112,9 +113,11 @@ class App extends React.Component {
     return <Provider store={this.props.store}>
       <PersistGate loading={null} persistor={this.props.persistor}>
         <StyleSheetManager shouldForwardProp={shouldForwardProp}>
-          <HistoryRouter history={history}>
-            <Routes/>
-          </HistoryRouter>
+          <ReleaseNotesProvider>
+            <HistoryRouter history={history}>
+              <Routes/>
+            </HistoryRouter>
+          </ReleaseNotesProvider>
         </StyleSheetManager>
       </PersistGate>
     </Provider>

@@ -38,6 +38,50 @@ function HomepageHeader() {
 }
 
 
+// The docs have one section per audience
+function Audiences() {
+  // In the build for the web app, the docs are at the root of the /docs/ baseUrl
+  const docs = path => useBaseUrl(`docs/${path}`).replace('docs/docs/', 'docs/');
+  const audiences = [
+    {
+      title: 'I look at results',
+      text: 'Find your commits, compare them with a reference, dig into metrics, images and logs, run tests from the web app.',
+      to: docs('user-guide/overview'),
+      cta: 'User guide',
+    },
+    {
+      title: 'I set up a project',
+      text: 'Wrap your code with the qa CLI, define inputs, metrics and visualizations, run batches locally, on a cluster or in CI.',
+      to: docs('introduction'),
+      cta: 'Project setup',
+    },
+    {
+      title: 'I run the server',
+      text: 'Deploy QA-Board with docker compose or Kubernetes, upgrade without downtime, manage storage and users.',
+      to: docs('backend-admin/deployment'),
+      cta: 'Admin guide',
+    },
+  ];
+  const releaseNotes = useBaseUrl('release-notes');
+  return (
+    <section className={clsx('container', styles.audiences)}>
+      <div className={styles.audienceGrid}>
+        {audiences.map(a => (
+          <Link key={a.title} to={a.to} className={styles.audienceCard}>
+            <h3>{a.title}</h3>
+            <p>{a.text}</p>
+            <span className={styles.audienceCta}>{a.cta} →</span>
+          </Link>
+        ))}
+      </div>
+      <p className={styles.whatsNew}>
+        <Link to={releaseNotes}>✨ What's new in QA-Board? Read the release notes →</Link>
+      </p>
+    </section>
+  );
+}
+
+
 export default function Home() {
   const {siteConfig} = useDocusaurusContext();
   return (
@@ -46,6 +90,7 @@ export default function Home() {
       description={siteConfig.tagline.replace("<br/>", " ")}>
       <HomepageHeader />
       <main>
+        <Audiences />
         <HomepageFeatures />
 
         <div className="container">

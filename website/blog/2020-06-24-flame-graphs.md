@@ -126,7 +126,7 @@ burn convert --type=folded out.filtered.perf-folded --output=perf.flame.json
 
 
 ## Visualizing flame graphs in QA-Board
-QA-Board integrates Martin Spier's [`d3-flame-graph`](https://github.com/spiermar/d3-flame-graph). At a glance, you can check where you code spends its CPU cycles, and use [differential flame graphs]((http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html)) to debug regressions. What do you need to do?
+QA-Board integrates Martin Spier's [`d3-flame-graph`](https://github.com/spiermar/d3-flame-graph). At a glance, you can check where you code spends its CPU cycles, and use [differential flame graphs](http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html) to debug regressions. What do you need to do?
 
 1. Wrap calls to `perf` & cie in your `run()` function:
 

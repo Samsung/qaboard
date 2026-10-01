@@ -21,6 +21,7 @@ import { Avatar } from "./components/avatars";
 import { IntegrationsMenus, default_gitlab_integrations } from "./components/integrations";
 import { MilestonesMenu } from "./components/milestones"
 import AuthButton from "./components/authentication/Auth"
+import { WhatsNewButton } from "./releaseNotes/ReleaseNotes"
 
 import {
   selectedSelector,
@@ -1008,16 +1009,21 @@ class AppSider extends React.Component {
             <Link to="/">
               <strong>QA-Board</strong>
             </Link>
-            <Tooltip content="Click to see the docs!">
-              <a 
-                href={`${this.props.docs_root}docs`}
-                rel="noopener noreferrer" 
-                target="_blank"
-                className="help-icon"
-              >
-                <Icon icon="info-sign"/>
-              </a>
-            </Tooltip>
+            <span>
+              <WhatsNewButton via="sidebar" className="help-icon"/>
+              <Tooltip content="User guide">
+                <a
+                  href={`${this.props.docs_root}docs/user-guide/overview`}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                  className="help-icon"
+                  aria-label="User guide"
+                  style={{marginLeft: spacing.xs}}
+                >
+                  <Icon icon="info-sign"/>
+                </a>
+              </Tooltip>
+            </span>
           </Navbar.Heading>
         </SiderHeader>
 

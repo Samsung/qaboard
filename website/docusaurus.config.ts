@@ -22,6 +22,7 @@ const logo = {
 /** @type {import('@docusaurus/types').Config} */
 let config: Config = {
   title: 'QA-Board',
+  customFields: {is_for_webapp},
   tagline: "Algorithm engineering is hard enough.<br/>Don't waste time with logistics.",
   url: 'https://samsung.github.io',
   onBrokenLinks: 'warn', // log
@@ -53,6 +54,32 @@ let config: Config = {
     ],
   ],
 
+  plugins: [
+    [
+      // The release notes, also shown in the web app's "What's new" panel. See CLAUDE.md
+      '@docusaurus/plugin-content-blog', {
+        id: 'release-notes',
+        path: 'release-notes',
+        routeBasePath: 'release-notes',
+        blogTitle: 'QA-Board release notes',
+        blogDescription: "What's new in QA-Board: highlights and changes, month by month",
+        blogSidebarTitle: 'All release notes',
+        blogSidebarCount: 'ALL',
+        postsPerPage: 10,
+        showReadingTime: false,
+        onUntruncatedBlogPosts: 'ignore',
+        remarkPlugins: is_for_webapp ? [require('./src/remark/docs-links.js')] : [],
+        editUrl: 'https://github.com/Samsung/qaboard/edit/master/website/release-notes',
+        feedOptions: {
+          type: 'all',
+          title: 'QA-Board release notes',
+          description: "What's new in QA-Board",
+          limit: 24,
+        },
+      },
+    ],
+  ],
+
   themeConfig: {
       image: "img/share.jpg",
       docs: {
@@ -63,16 +90,13 @@ let config: Config = {
         logo,
         hideOnScroll: true,
         items: [
-          {docId: 'introduction', label: 'Docs', type: 'doc', position: 'left'},
+          // One sidebar per audience: people looking at results, project leads, server admins
+          {type: 'docSidebar', sidebarId: 'userGuide', label: 'User guide', position: 'left'},
+          {type: 'docSidebar', sidebarId: 'docs', label: 'Project setup', position: 'left'},
+          {type: 'docSidebar', sidebarId: 'admin', label: 'Admin', position: 'left'},
+          {to: '/release-notes', label: "What's new", position: 'left'},
           {
-            // link to other docs, or href links...
-            // type: 'doc', docId: 'intro',
-            href: 'https://github.com/Samsung/qaboard',
-            position: 'left',
-            label: 'Source',
-          },
-          {
-            href: 'https://samsung.github.io/qaboard/blog',
+            to: '/blog',
             position: 'left',
             label: 'Blog',
           },
@@ -90,10 +114,16 @@ let config: Config = {
           {
             title: 'Docs',
             items: [
-              {
-                label: 'Introduction',
-                to: '/docs/introduction',
-              },
+              {label: 'User guide', to: '/docs/user-guide/overview'},
+              {label: 'Project setup', to: '/docs/introduction'},
+              {label: 'Server admin', to: '/docs/backend-admin/deployment'},
+            ],
+          },
+          {
+            title: "What's new",
+            items: [
+              {label: 'Release notes', to: '/release-notes'},
+              {label: 'RSS feed', href: 'pathname:///release-notes/rss.xml'},
             ],
           },
           // {

@@ -78,3 +78,53 @@
     display: none;
   }
 }
+
+/* "Where do you start?" cards, one per audience */
+.audiences {
+  padding: 2.5rem var(--ifm-spacing-horizontal) 0.5rem;
+}
+
+.audienceGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.25rem;
+}
+
+.audienceCard {
+  display: flex;
+  flex-direction: column;
+  padding: 1.25rem 1.4rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 12px;
+  color: inherit;
+  background: var(--ifm-card-background-color);
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+
+.audienceCard:hover {
+  color: inherit;
+  text-decoration: none;
+  border-color: var(--ifm-color-primary);
+  box-shadow: var(--ifm-global-shadow-md);
+  transform: translateY(-2px);
+}
+
+.audienceCard h3 {
+  margin-bottom: 0.5rem;
+}
+
+.audienceCard p {
+  flex: 1;
+  color: var(--ifm-color-emphasis-800);
+}
+
+.audienceCta {
+  font-weight: 600;
+  color: var(--ifm-color-primary);
+}
+
+.whatsNew {
+  margin: 1.5rem 0 0;
+  text-align: center;
+  font-size: 1.05rem;
+}

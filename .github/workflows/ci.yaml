@@ -6,11 +6,12 @@
 #   and on master pushed as arthurflam/qaboard:<service>-<commit>, then tagged arthurflam/qaboard:<service>
 name: CI
 # Every push runs CI. Pull requests only do for forks: for our branches it would run twice.
+# Changes to docs alone skip CI, except the release notes: the web app bundles them (patterns apply in order)
 on:
   push:
-    paths-ignore: ['docs/**', 'drafts/**', '**.md']
+    paths: ['**', '!docs/**', '!drafts/**', '!**.md', 'website/release-notes/**']
   pull_request:
-    paths-ignore: ['docs/**', 'drafts/**', '**.md']
+    paths: ['**', '!docs/**', '!drafts/**', '!**.md', 'website/release-notes/**']
   workflow_dispatch:
 
 # A new push cancels the outdated CI of the branch (but every commit on master is published)
@@ -38,6 +39,9 @@ jobs:
         run: uv run --no-sync flake8 backend qaboard --count --select=E9,F63,F7,F82 --show-source --statistics
       - name: Type Checks with MyPy
         run: uv run --no-sync mypy -p qaboard --ignore-missing-imports
+      - name: Release notes
+        # valid frontmatter and docs links, and the web app's bundle is up to date
+        run: uv run website/release-notes/release_notes.py check
       - name: Unit Tests
         run: |
           # git is needed in the tests and setup to fail if not setup

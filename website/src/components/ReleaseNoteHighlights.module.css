@@ -1,0 +1,70 @@
+.releaseNote {
+  margin-bottom: 1.5rem;
+}
+
+.version {
+  display: inline-block;
+  margin-bottom: 0.5rem;
+  padding: 0.1rem 0.6rem;
+  border-radius: 1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--ifm-color-emphasis-200);
+}
+
+.description {
+  font-size: 1.15rem;
+  line-height: 1.55;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: var(--ifm-card-border-radius, 8px);
+  background: var(--ifm-card-background-color);
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.card:hover {
+  border-color: var(--ifm-color-primary);
+  box-shadow: var(--ifm-global-shadow-lw);
+}
+
+.title {
+  margin: 0.4rem 0 0.3rem 0;
+  font-size: 1.05rem;
+}
+
+.text {
+  flex: 1;
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.audience {
+  padding: 0.05rem 0.55rem;
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ifm-color-primary-darkest);
+  background: var(--ifm-color-primary-lightest);
+}
+
+.project-leads {
+  color: #0a6640;
+  background: #c8f0dc;
+}
+
+.admins {
+  color: #77450d;
+  background: #fbe3bf;
+}

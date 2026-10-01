@@ -55,7 +55,8 @@ def get_site_config():
         "posthog_api_key": os.environ.get('POSTHOG_API_KEY'),
         "posthog_host": os.environ.get('POSTHOG_HOST'),
         "path_mappings": _path_mappings,
-        "docs_root": os.environ.get('QABOARD_DOCS_ROOT', 'https://samsung.github.io/qaboard/'),
+        # The docs served by this server at /docs/ match its version. Can be e.g. https://samsung.github.io/qaboard/
+        "docs_root": os.environ.get('QABOARD_DOCS_ROOT', '/'),
         "avatar_url_template": os.environ.get('QABOARD_AVATAR_URL'),
         "sentry_traces_sample_rate": sample_rate,
         # Fallback web URL for git links, when a project doesn't define project.url in qaboard.yaml

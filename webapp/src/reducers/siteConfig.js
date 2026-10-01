@@ -10,7 +10,7 @@ const initialState = {
   posthog_api_key: null,
   posthog_host: null,
   path_mappings: [],
-  docs_root: 'https://samsung.github.io/qaboard/',
+  docs_root: '/',
   avatar_url_template: null,
   sentry_traces_sample_rate: 1.0,
   git_web_url: 'https://gitlab.com',

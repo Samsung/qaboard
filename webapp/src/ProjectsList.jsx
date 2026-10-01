@@ -28,6 +28,7 @@ import { Avatar } from "./components/avatars";
 import AuthButton from "./components/authentication/Auth"
 import PrivateContent from "./components/authentication/PrivateContent"
 import { updateFavorite } from './actions/projects'
+import { WhatsNewLink } from './releaseNotes/ReleaseNotes'
 import { updateSelected } from './actions/selected'
 import { match_query } from "./utils"
 import { project_avatar_style, git_hostname, default_git_hostname, quota_url } from "./utils"
@@ -177,7 +178,8 @@ class ProjectsList extends Component {
                 <NavbarHeading><b>QA-Board</b></NavbarHeading>
                 <NavbarDivider />
                 <a href="https://github.com/Samsung/qaboard"><Button className={Classes.MINIMAL} icon={github_cat} text="GitHub" style={{color : "#fff"}}/></a>
-                <a href={`${this.props.docs_root}docs/introduction`}><Button className={Classes.MINIMAL} icon={<Icon icon="help" color="#fff"/>} text="Docs" style={{color : "#fff"}}/></a>
+                <a href={`${this.props.docs_root}docs/user-guide/overview`}><Button className={Classes.MINIMAL} icon={<Icon icon="help" color="#fff"/>} text="User guide" style={{color : "#fff"}}/></a>
+                <WhatsNewLink via="projects-list"><Button className={Classes.MINIMAL} icon={<Icon icon="clean" color="#fff"/>} text="What's new" style={{color : "#fff"}}/></WhatsNewLink>
             </NavbarGroup>
             <NavbarGroup align={Alignment.RIGHT}>
               {user?.is_logged && quota_url(this.props.quota_url_template, user.user_name) && <a style={{paddingRight: '15px'}} href={quota_url(this.props.quota_url_template, user.user_name)} rel="noopener noreferrer" target="_blank">

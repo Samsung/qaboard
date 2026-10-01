@@ -26,10 +26,25 @@ const sidebars: SidebarsConfig = {
   ],
    */
 
+  // One sidebar per audience, see the navbar in docusaurus.config.ts
+
+  // People who look at results in the web app
+  userGuide: [
+    "user-guide/overview",
+    "user-guide/finding-results",
+    "user-guide/commit-page",
+    "user-guide/comparing-results",
+    "user-guide/history-and-dashboards",
+    "user-guide/running-from-the-webapp",
+    "user-guide/sharing",
+    "user-guide/tips-and-faq",
+    "user-guide/whats-new",
+  ],
+
+  // Project leads who wrap their code with qa and set up qaboard.yaml
   docs: {
     "Getting Started": [
         "introduction",
-        "deploy",
         "installation",
         "project-init",
         "inputs",
@@ -91,7 +106,12 @@ const sidebars: SidebarsConfig = {
     // 	  "server-maintenance"
     //   ]
     // "alternatives",
-    "Backend Admin": [
+  },
+
+  // Admins who run the QA-Board server
+  admin: {
+    "Server Admin": [
+        "deploy",
         "backend-admin/deployment",
         "backend-admin/kubernetes",
         "backend-admin/troubleshooting",
