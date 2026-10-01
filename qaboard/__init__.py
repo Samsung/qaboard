@@ -1,5 +1,5 @@
-# need to be updated in pyproject.toml as well
-__version__ = '1.0.3'
+# keep in sync with pyproject.toml (checked in tests/test_compat.py)
+__version__ = '1.1.0'
 
 
 from .check_for_updates import check_for_updates

@@ -1,3 +1,0 @@
-[submodule "third_party/cde-python"]
-	path = third_party/cde-python
-	url = git@gitlab-srv:cde/cde-python.git

@@ -121,3 +121,12 @@ class TestCompatNoMappings(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestVersion(unittest.TestCase):
+  def test_version_matches_pyproject(self):
+    import re
+    import qaboard
+    pyproject = (Path(__file__).resolve().parent.parent / 'pyproject.toml').read_text()
+    version = re.search(r'^version = "([^"]+)"', pyproject, re.MULTILINE).group(1)
+    self.assertEqual(qaboard.__version__, version)

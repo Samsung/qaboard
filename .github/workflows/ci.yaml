@@ -39,6 +39,12 @@ jobs:
           git config --global user.name "Arthur Flam"
           git config --global user.email "arthur.flam@samsung.com"
           green -vvv --quiet-stdout tests
+      # Same build as the PyPI publish workflow (pypy.yml)
+      - uses: astral-sh/setup-uv@v6
+      - name: Build the package
+        run: |
+          uv build
+          uvx twine check dist/*
 
   build-webapp:
     runs-on: ubuntu-latest

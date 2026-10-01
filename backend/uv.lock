@@ -1486,7 +1486,7 @@ wheels = [
 
 [[package]]
 name = "qaboard"
-version = "1.0.3"
+version = "1.1.0"
 source = { directory = "../" }
 dependencies = [
     { name = "click" },

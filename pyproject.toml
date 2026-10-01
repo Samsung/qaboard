@@ -1,7 +1,7 @@
 
 [project]
 name = "qaboard"
-version = "1.0.3"
+version = "1.1.0"
 description = "Visualize and compare algorithm results. Optimize parameters. Share results and track progress."
 readme = "README.md"
 authors = [
@@ -69,7 +69,15 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build]
-include = ["qaboard/**/*", "README.md"]
+# Outputs from running the sample project, e.g. during tests (hatch ignores nested .gitignore files)
+exclude = [
+    "qaboard/sample_project/**/output/",
+    "qaboard/sample_project/**/cli_tests/**/*.jpg",
+    "qaboard/sample_project/**/*.batches.yaml",
+]
+
+[tool.hatch.build.targets.sdist]
+include = ["/qaboard", "/qatools", "/tests", "/README.md", "/LICENSE"]
 
 [tool.hatch.build.targets.wheel]
 packages = [

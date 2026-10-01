@@ -1,4 +1,10 @@
-# https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions#publishing-to-package-registries
+# Publishes the qaboard CLI to PyPI when a GitHub release is created
+# 1. Bump the version in pyproject.toml and qaboard/__init__.py
+# 2. Create a release (e.g. tag v1.1.0)
+#
+# Authentication: PyPI trusted publishing (https://docs.pypi.org/trusted-publishers/),
+# configure it on PyPI for this repository and the "pypy.yml" workflow.
+# Without it, set a PYPI_API_TOKEN secret (a PyPI API token, starts with "pypi-").
 name: Upload Python Package
 
 on:
@@ -8,20 +14,31 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # for trusted publishing
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - uses: astral-sh/setup-uv@v6
       with:
         python-version: '3.11'
-    - name: Install dependencies
+    - name: Check the release tag matches the version
       run: |
-        python -m pip install --upgrade pip
-        pip install build twine
-    - name: Build and publish
+        version=$(uv version --short)
+        tag="${GITHUB_REF_NAME#v}"
+        if [ "$version" != "$tag" ]; then
+          echo "::error::The release tag ($GITHUB_REF_NAME) does not match the version in pyproject.toml ($version)"
+          exit 1
+        fi
+    - name: Build
+      run: uv build
+    - name: Check the wheel installs and runs
+      run: |
+        uv venv /tmp/venv
+        uv pip install --python /tmp/venv dist/*.whl
+        QA_NO_CHECK_FOR_UPDATES=1 /tmp/venv/bin/qa --help > /dev/null
+    - name: Publish
       env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-      run: |
-        python -m build
-        twine upload dist/*
+        # Empty without the secret: uv then uses trusted publishing
+        UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+      run: uv publish
