@@ -9,7 +9,7 @@ from pathlib import Path
 import yaml
 
 
-sirc_config_path = Path(__file__).parent / 'sirc.yml'
+sirc_config_path = Path(__file__).parent / 'deployments' / 'sirc' / 'sirc.yml'
 with sirc_config_path.open() as f:
     sirc_config = yaml.safe_load(f)
 volumes = sirc_config['services']['proxy']['volumes']

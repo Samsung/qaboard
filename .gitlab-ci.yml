@@ -142,7 +142,7 @@ publish:PyPi:
     DOCKER_HOST: alginfra1
     COMPOSE_PROJECT_NAME: $CI_ENVIRONMENT_SLUG
   # script:
-  #   - ssh $DOCKER_HOST "bash -c \\\"cd $(pwd) && source .envrc && ./at-sirc-before-up.py && docker compose -f docker-compose.yml -f production.yml -f deployments/sirc/sirc.yml -f deployments/sirc/prod.yml up -d --build\\\""
+  #   - ssh $DOCKER_HOST "bash -c \\\"cd $(pwd) && source deployments/sirc/.envrc && ./at-sirc-before-up.py && docker compose -f docker-compose.yml -f production.yml -f deployments/sirc/sirc.yml -f deployments/sirc/prod.yml up -d --build\\\""
 
 # deploy:staging:
 #   <<: *deploy
@@ -164,7 +164,7 @@ deploy:production:
     DOCKER_API_VERSION: "1.43" # Required due to version mismatch, see https://jira.transchip.com/servicedesk/customer/portal/5/DEVOPS-1423
     CI_ENVIRONMENT_SLUG: ""
   script:
-    - ssh $DOCKER_HOST "bash -c \\\"cd /home/ispq/qaboard_prod && source .envrc && git reset --hard && git pull && ./at-sirc-before-up.py > /dev/null && docker compose -f docker-compose.yml -f production.yml -f deployments/sirc/sirc.yml -f deployments/sirc/prod.yml build && docker compose -f docker-compose.yml -f production.yml -f deployments/sirc/sirc.yml -f deployments/sirc/prod.yml up --force-recreate --no-deps -d\\\""
+    - ssh $DOCKER_HOST "bash -c \\\"cd /home/ispq/qaboard_prod && source deployments/sirc/.envrc && git reset --hard && git pull && ./at-sirc-before-up.py > /dev/null && docker compose -f docker-compose.yml -f production.yml -f deployments/sirc/sirc.yml -f deployments/sirc/prod.yml build && docker compose -f docker-compose.yml -f production.yml -f deployments/sirc/sirc.yml -f deployments/sirc/prod.yml up --force-recreate --no-deps -d\\\""
   environment:
     name: production
     url: https://qa
@@ -182,8 +182,8 @@ deploy:dev:
     DOCKER_API_VERSION: "1.43" # Required due to version mismatch, see https://jira.transchip.com/servicedesk/customer/portal/5/DEVOPS-1423
     CI_ENVIRONMENT_SLUG: ""
   script:
-    - source ./.envrc && ./at-sirc-before-up.py > /dev/null && COMPOSE_PROJECT_NAME=qaboard_ci QABOARD_DEV_BACKEND_PORT=7159 QABOARD_DEV_FRONTEND_PORT=7019 QABOARD_PORT_HTTPS=9944 QABOARD_PROXY_PORT_HTTP=9254 QABOARD_EXTRA_SIRC_PORT_1=9000 QABOARD_EXTRA_SIRC_PORT_2=9002 QABOARD_DEV_PROXY_PORT_5001=9001 QABOARD_EXPOSED_DB_PORT=7432 docker compose -f docker-compose.yml -f development.yml -f deployments/sirc/sirc.yml build
-    - source ./.envrc && ./at-sirc-before-up.py > /dev/null && COMPOSE_PROJECT_NAME=qaboard_ci QABOARD_DEV_BACKEND_PORT=7159 QABOARD_DEV_FRONTEND_PORT=7019 QABOARD_PORT_HTTPS=9944 QABOARD_PROXY_PORT_HTTP=9254 QABOARD_EXTRA_SIRC_PORT_1=9000 QABOARD_EXTRA_SIRC_PORT_2=9002 QABOARD_DEV_PROXY_PORT_5001=9001 QABOARD_EXPOSED_DB_PORT=7432 docker compose -f docker-compose.yml -f development.yml -f deployments/sirc/sirc.yml up --force-recreate --no-deps -d
+    - source ./deployments/sirc/.envrc && ./at-sirc-before-up.py > /dev/null && COMPOSE_PROJECT_NAME=qaboard_ci QABOARD_DEV_BACKEND_PORT=7159 QABOARD_DEV_FRONTEND_PORT=7019 QABOARD_PORT_HTTPS=9944 QABOARD_PROXY_PORT_HTTP=9254 QABOARD_EXTRA_SIRC_PORT_1=9000 QABOARD_EXTRA_SIRC_PORT_2=9002 QABOARD_DEV_PROXY_PORT_5001=9001 QABOARD_EXPOSED_DB_PORT=7432 docker compose -f docker-compose.yml -f development.yml -f deployments/sirc/sirc.yml build
+    - source ./deployments/sirc/.envrc && ./at-sirc-before-up.py > /dev/null && COMPOSE_PROJECT_NAME=qaboard_ci QABOARD_DEV_BACKEND_PORT=7159 QABOARD_DEV_FRONTEND_PORT=7019 QABOARD_PORT_HTTPS=9944 QABOARD_PROXY_PORT_HTTP=9254 QABOARD_EXTRA_SIRC_PORT_1=9000 QABOARD_EXTRA_SIRC_PORT_2=9002 QABOARD_DEV_PROXY_PORT_5001=9001 QABOARD_EXPOSED_DB_PORT=7432 docker compose -f docker-compose.yml -f development.yml -f deployments/sirc/sirc.yml up --force-recreate --no-deps -d
   environment:
     name: development
     url: http://alginfra1:7159
@@ -213,7 +213,7 @@ smoke-test:backend:
     CI_ENVIRONMENT_SLUG: ""
   script:
     - echo "Running backend unit tests..."
-    - source ./.envrc && COMPOSE_PROJECT_NAME=qaboard_ci docker compose -f docker-compose.yml -f development.yml exec -T backend bash -c 'export BACKEND_TEST_MODE=no-mock && cd /qaboard/backend && python -m pytest smoke_tests/ -v -p no:cacheprovider'
+    - source ./deployments/sirc/.envrc && COMPOSE_PROJECT_NAME=qaboard_ci docker compose -f docker-compose.yml -f development.yml exec -T backend bash -c 'export BACKEND_TEST_MODE=no-mock && cd /qaboard/backend && python -m pytest smoke_tests/ -v -p no:cacheprovider'
     - echo "✅ Backend tests passed!"
   only:
     - master
@@ -227,7 +227,7 @@ cleanup:dev:
     DOCKER_HOST: "ssh://alginfra1"
   script:
     - echo "Cleaning up CI deployment containers..."
-    - source ./.envrc && COMPOSE_PROJECT_NAME=qaboard_ci docker compose -f docker-compose.yml -f development.yml -f deployments/sirc/sirc.yml down
+    - source ./deployments/sirc/.envrc && COMPOSE_PROJECT_NAME=qaboard_ci docker compose -f docker-compose.yml -f development.yml -f deployments/sirc/sirc.yml down
     - echo "✅ Cleanup complete - alginfra1 is clean"
   only:
     - master

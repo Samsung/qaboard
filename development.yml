@@ -34,8 +34,8 @@ services:
     # - QABOARD_DB_ECHO=true
     - UWSGI_STATS=true
     - QABOARD_DATA_DIR=/qaboard/backend/data
-    # Connect to the production database
-    - QABOARD_DB_HOST=qa
+    # At SIRC, deployments/sirc/.envrc sets QABOARD_DEV_DB_HOST to connect to the production database
+    - QABOARD_DB_HOST=${QABOARD_DEV_DB_HOST:-db}
     - SSH_AUTH_SOCK=/ssh-agent
     working_dir: /qaboard/backend
     # With what's just below, everything works except being able to delete files owned by other users
@@ -48,10 +48,15 @@ services:
     # But non-root users don't gain capabilities...
     # uv add lxml xmlsec uwsgi --no-binary-package uwsgi --no-binary-package lxml --no-binary-package xmlsec --refresh-package lxml --refresh-package xmlsec --refresh-package uwsgi --no-cache --reinstall
     # flask run --with-threads --host 0.0.0.0 --port 5152
+    # We run as your user if it exists in the container (e.g. at SIRC, services/backend/passwd is mounted), else as root
     command: >
       bash -c "
-      echo '${USER} ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
-        su ${USER} -c 'uv run flask run --host 0.0.0.0 --with-threads --port 5152'
+      if id '${USER}' >/dev/null 2>&1; then
+        echo '${USER} ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers;
+        exec su '${USER}' -c 'uv run flask run --host 0.0.0.0 --with-threads --port 5152';
+      else
+        exec uv run flask run --host 0.0.0.0 --with-threads --port 5152;
+      fi
       "
     ports:
     - "${QABOARD_DEV_BACKEND_PORT:-5152}:5152"
@@ -74,12 +79,12 @@ services:
     # - REACT_EDITOR=code
     # Relay API requests to your development server
     - REACT_APP_QABOARD_API_HOST=http://backend:5152
-    - REACT_APP_QABOARD_HOST=http://proxy:5151
-    ### At SIRC ####
+    - REACT_APP_QABOARD_HOST=http://proxy
+    # Don't relay requests to other containers via a proxy
     - HTTP_PROXY=
     - http_proxy=
-    - REACT_APP_QABOARD_HOST=http://proxy
-    user: "11611:10"
+    # To avoid root-owned files in ./webapp: export QABOARD_DEV_USER="$(id -u):$(id -g)"
+    user: "${QABOARD_DEV_USER:-root}"
     ports:
     - "${QABOARD_DEV_FRONTEND_PORT:-3000}:3000"
     depends_on:
@@ -98,7 +103,7 @@ services:
       - DANGEROUSLY_DISABLE_HOST_CHECK=true
       # with SIRC's filesystem that doesn't send update events
       - CHOKIDAR_USEPOLLING=true
-      # at SIRC to deal with broken proxies/certs
-      - NODE_TLS_REJECT_UNAUTHORIZED=0
+      # deployments/sirc/.envrc sets it to 0 to deal with broken proxies/certs
+      - NODE_TLS_REJECT_UNAUTHORIZED=${NODE_TLS_REJECT_UNAUTHORIZED:-1}
     ports:
       - 6051:3000
