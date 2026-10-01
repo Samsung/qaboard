@@ -10,13 +10,13 @@ import numpy as np
 from requests.utils import unquote
 from flask import request, jsonify
 
-from cde.image import read_image, ImageType
 from qaboard.api import url_to_dir 
 
 from backend import app
 from ..models import Output
 from ..config import qaboard_url
 from .image_diff import find_rois
+from ..images import read_image, ImageType
 
 @lru_cache(maxsize=2)
 def cached_read_image(image_path):
@@ -49,13 +49,13 @@ except ImportError:
     with _lock:
       yield
 
+import os
 import json
 import time
 import hashlib
 
 from backend.config import qaboard_data_dir
-image_cache_dir = qaboard_data_dir / 'cache' / 'images'
-image_cache_dir = Path('/algo/qa_db/image_cache') # TODO: remove for the open-source version
+image_cache_dir = Path(os.environ.get('QABOARD_IMAGE_CACHE_DIR', qaboard_data_dir / 'cache' / 'images'))
 image_cache_dir.mkdir(exist_ok=True, parents=True)
 
 def clear_memmapped_cache_dir():
@@ -145,12 +145,13 @@ def get_pixel():
     return jsonify({"error": str(error)}), 400
   # image, meta = cached_read_image(image_path)
   # print('meta', meta)
-  try:
-    meta = ImageType(*meta)
-  except:
-    pass
-  if isinstance(meta, ImageType):
-    meta = {"mode": meta.id}
+  if ImageType is not None:
+    try:
+      meta = ImageType(*meta)
+    except:
+      pass
+    if isinstance(meta, ImageType):
+      meta = {"mode": meta.id}
   return jsonify({
     "value": image[y,x].tolist(),
     "meta": meta,

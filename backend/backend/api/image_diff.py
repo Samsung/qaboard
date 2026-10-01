@@ -8,7 +8,7 @@ from skimage.feature import peak_local_max, blob_dog # blob_log, blob_doh
 from skimage.metrics import structural_similarity as ssim
 from scipy import ndimage as ndi
 
-from cde.image import read_image
+from ..images import read_image
 
 plot_debug = False
 if os.environ.get("PLOT_DEBUG"):
