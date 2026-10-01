@@ -15,7 +15,7 @@ import click
 from .config import project, commit_id, is_ci, available_metrics
 from .run import RunContext
 
-from .site_config import site_config
+from .site_config import site_config, user_secret
 
 qaboard_protocol = site_config('QABOARD_PROTOCOL', 'http')
 qaboard_hostname = site_config('QABOARD_HOSTNAME')
@@ -39,8 +39,10 @@ api_prefix = site_config('QABOARD_API_PREFIX', f"{qaboard_url}/api/v1")
 
 
 headers = {'Content-Type': 'application/json'}
-if "QA_TOKEN" in os.environ:
-  headers["Authorization"] = f"Bearer {os.environ['QA_TOKEN']}"
+# API token, needed for actions that require a logged-in user. Read from $QA_TOKEN or ~/.qaboard/secrets.yaml
+qa_token = user_secret('QA_TOKEN')
+if qa_token:
+  headers["Authorization"] = f"Bearer {qa_token}"
 
 def url_to_dir(url: str) -> Path:
   from .compat import linux_to_windows

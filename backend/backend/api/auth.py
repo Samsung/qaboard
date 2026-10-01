@@ -147,6 +147,16 @@ def get_current_user(to_jsonify=True):
                 "email": user.email,
                 "data": user.data,
               })
+    if not info["is_authenticated"] and current_user.is_authenticated:
+      # e.g. scripts using an API token
+      info.update({
+        "is_authenticated": True,
+        "login_type": current_user.login_type,
+        "user_id": current_user.id,
+        "user_name": current_user.user_name,
+        "full_name": current_user.full_name,
+        "email": current_user.email,
+      })
   else: # login_type != "SAML"
     # https://flask-login.readthedocs.io/en/latest/#your-user-class
     is_authenticated = current_user.is_authenticated

@@ -49,12 +49,35 @@ def _load_site_defaults():
 _site_defaults = _load_site_defaults()
 
 
+def _load_secrets(path, check_permissions=False):
+  path = Path(path).expanduser()
+  try:
+    if not path.exists():
+      return {}
+    if not os.access(path, os.R_OK):
+      return {}
+    if check_permissions and os.name != 'nt' and path.stat().st_mode & 0o077:
+      import sys
+      print(f"WARNING: {path} contains secrets but is readable by other users. Run: chmod 600 {path}", file=sys.stderr)
+    with path.open() as f:
+      return yaml.load(f, Loader=yaml.SafeLoader) or {}
+  except (OSError, yaml.YAMLError) as e:
+    import sys
+    print(f"WARNING: Could not read {path}: {e}", file=sys.stderr)
+    return {}
+
+# Shared secrets, e.g. for the CI service account
 secrets_path = os.getenv('QA_SECRETS', _site_defaults.get("QA_SECRETS"))
-if secrets_path and Path(secrets_path).exists():
-  with Path(secrets_path).open() as f:
-    secrets = yaml.load(f, Loader=yaml.SafeLoader)
-else:
-  secrets = {}
+secrets = _load_secrets(secrets_path) if secrets_path else {}
+# Per-user secrets, e.g. a personal QA_TOKEN to use the API from scripts. They win over shared secrets.
+user_secrets_path = os.getenv('QA_USER_SECRETS', '~/.qaboard/secrets.yaml')
+user_secrets = _load_secrets(user_secrets_path, check_permissions=True)
+secrets = {**secrets, **user_secrets}
+
+
+def user_secret(key, default=None):
+    """Get a personal secret: ENV > per-user secrets file. Never read from shared secrets."""
+    return os.getenv(key, user_secrets.get(key, default))
 
 
 
