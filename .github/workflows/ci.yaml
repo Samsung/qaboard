@@ -70,9 +70,14 @@ jobs:
     - name: Check logs
       run: sleep 10 && docker compose logs
     - name: Smoke Test @app
-      run: curl -s --retry 10 --retry-connrefused http://localhost:5151/
-    - name: sleep 10 && Smoke Test @api
-      run: sleep 10 && curl -s --retry 10 --retry-connrefused http://localhost:5151/api/v1/projects
+      run: curl -sSf --retry 10 --retry-connrefused --retry-delay 3 http://localhost:5151/ > /dev/null
+    - name: Smoke Test @api
+      run: |
+        curl -sSf --retry 20 --retry-connrefused --retry-delay 3 http://localhost:5151/api/v1/projects
+        curl -sSf http://localhost:5151/api/v1/config
+    - name: Logs on failure
+      if: failure()
+      run: docker compose logs backend proxy
 
   publish-docker-images:
     runs-on: ubuntu-latest
