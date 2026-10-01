@@ -100,10 +100,10 @@ jobs:
       - name: Deploy
         run: ./deployments/deploy.py deployments/production.env up --no-pull --init
       - name: Smoke Test @app
-        run: curl -sSf --retry 10 --retry-connrefused --retry-delay 3 http://localhost:5151/ | grep -q 'id="root"'
+        run: curl -sSf --retry 10 --retry-all-errors --retry-delay 3 http://localhost:5151/ | grep -q 'id="root"'
       - name: Smoke Test @api
         run: |
-          curl -sSf --retry 20 --retry-connrefused --retry-delay 3 http://localhost:5151/api/v1/health
+          curl -sSf --retry 20 --retry-all-errors --retry-delay 3 http://localhost:5151/api/v1/health
           curl -sSf http://localhost:5151/api/v1/projects > /dev/null
           curl -sSf http://localhost:5151/api/v1/config > /dev/null
           curl -sSf --retry 5 --retry-delay 2 http://localhost:5151/docs/ > /dev/null

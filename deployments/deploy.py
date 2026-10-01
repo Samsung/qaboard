@@ -148,14 +148,24 @@ class Deployment:
         if r.returncode:
             log("WARNING: could not point nginx at the new replicas: requests to the old ones may fail while they stop")
 
-    def reconfigure_proxy(self, services: List[str]) -> None:
+    def reconfigure_proxy(self, services: List[str], fatal: bool = True) -> None:
         """Applies nginx config changes, and points nginx at the "backend" DNS name (all running replicas)."""
         if not self.proxy_running(services):
             return
         r = self.compose("exec", "-T", "proxy", "sh", "/tmp/etc/nginx/configure.sh", "--reload", check=False)
-        if r.returncode:
-            # Restarting nginx with an invalid config would take everything down: it keeps running with the previous one
-            die("Could not reload nginx, is the configuration valid? It still runs with the previous one.")
+        if r.returncode == 0:
+            return
+        if r.returncode == 2:
+            log("The nginx configuration is valid but nginx couldn't reload: restarting the proxy")
+            self.compose("restart", "proxy")
+            self.wait_proxy()
+            return
+        # Invalid configuration: restarting nginx would take everything down. It keeps the previous configuration,
+        # but must still re-resolve the backend replicas.
+        self.compose("exec", "-T", "proxy", "nginx", "-s", "reload", check=False)
+        if fatal:
+            die("The new nginx configuration is invalid (see above): nginx still runs with the previous one.")
+        log("WARNING: the new nginx configuration is invalid (see above)")
 
     def only_tag_changed(self, service: str, config: dict) -> bool:
         """
@@ -245,6 +255,8 @@ class Deployment:
         last = [s for s in ("proxy", *STATIC_SERVICES) if s in services]
         if last and "proxy" not in self.up_services(last, config):
             self.reconfigure_proxy(services)  # the proxy wasn't recreated: apply nginx config changes
+        elif "proxy" in last:
+            self.wait_proxy()
 
         # 6. Bookkeeping
         if self.version and self.version != self.state.get("current"):
@@ -287,7 +299,7 @@ class Deployment:
 
         if old:
             # A proxy started before deploy.py existed doesn't have /etc/nginx/upstreams/ yet
-            self.reconfigure_proxy(services)
+            self.reconfigure_proxy(services, fatal=False)
             self.set_upstream(services, new)  # new requests only go to the new replicas
             # nginx's reload is asynchronous: its old workers can still send requests they accepted to the old replicas
             time.sleep(DRAIN_SECONDS)
@@ -295,6 +307,17 @@ class Deployment:
             self.docker("stop", "-t", "60", *old)
             self.docker("rm", *old)
         self.reconfigure_proxy(services)  # back to the "backend" DNS name, that now resolves to the new replicas
+
+    def wait_proxy(self, timeout: int = 30) -> None:
+        """A new proxy container takes a moment before nginx serves requests."""
+        start = time.time()
+        while time.time() - start < timeout:
+            r = self.compose("exec", "-T", "proxy", "sh", "-c", "test -s /tmp/nginx.pid", check=False, capture=True)
+            if r.returncode == 0:
+                time.sleep(1)
+                return
+            time.sleep(1)
+        log("WARNING: nginx doesn't seem to have started, check: docker compose logs proxy")
 
     def wait_healthy(self, containers: List[str], timeout: int = 300) -> bool:
         log(f"Waiting for {len(containers)} containers to be healthy (timeout {timeout}s)")
