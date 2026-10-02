@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkApache_2_0||=[]).push([[1084],{1850(a){a.exports=JSON.parse('{"metadata":{"permalink":"/qaboard/blog","page":1,"postsPerPage":10,"totalPages":1,"totalCount":2,"blogDescription":"Blog","blogTitle":"Blog"}}')}}]);
