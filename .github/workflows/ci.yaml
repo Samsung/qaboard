@@ -69,6 +69,14 @@ jobs:
       - run: npm test -- --run
       # The docker image builds it again, but this takes seconds and fails faster
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results
+          path: webapp/test-results/
+          retention-days: 7
 
   docker:
     runs-on: ubuntu-latest

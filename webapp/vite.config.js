@@ -41,6 +41,8 @@ export default defineConfig(({ mode }) => ({
   worker: { format: 'es' },
   test: {
     environment: 'jsdom',
+    // e2e/ has the playwright tests
+    include: ['src/**/*.test.{js,jsx}'],
     globals: true,
     setupFiles: ['./src/setupTests.js'],
     reporters: process.env.CI ? ['default', 'junit'] : ['default'],

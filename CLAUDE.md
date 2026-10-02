@@ -44,6 +44,7 @@ npm start               # Vite dev server
 npm run build           # Production build (Vite)
 npm test                # Vitest (watch mode), `npm test -- --run` for a single run
 npm run lint            # oxlint
+npm run e2e             # Playwright smoke tests on the production build (after npm run build)
 ```
 
 ### Backend Development (Python Flask)

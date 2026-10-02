@@ -21,6 +21,7 @@ npm test           # unit tests (vitest), in watch mode
 npm run lint       # oxlint
 npm run build      # production bundle, in build/
 npm run analyze    # production bundle + build/stats.html to see what's inside
+npm run e2e        # Playwright smoke tests, on the production build with a mocked API
 ``` 
 By default the application will proxy API requests to *http://localhost:5151*. If you prefer something else (e.g. a development server, the production server...), set
 
@@ -68,4 +69,6 @@ Basically it's `project > commit > batch > output`, with lots of metadata. **TOD
 
 
 ## Contributing
+Known follow-ups are tracked in [TODO.md](TODO.md).
+
 Help is welcome!

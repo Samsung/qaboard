@@ -15,7 +15,7 @@
     "unicorn/no-empty-file": "off"
   },
   "overrides": [
-    { "files": ["vite.config.js"], "env": { "node": true } },
+    { "files": ["vite.config.js", "playwright.config.js"], "env": { "node": true } },
     { "files": ["**/*.test.{js,jsx}"], "env": { "vitest": true } }
   ],
   "ignorePatterns": ["build/**", "src/viewers/tof/*Controls.js", "src/viewers/tof/PCDLoader.js"]
