@@ -1,0 +1,36 @@
+# Defaults for all QA-Board projects at SIRC.
+#
+# Projects' qaboard.yaml files are merged on top of this file, and can override any setting:
+# - mappings are merged key by key,
+# - lists are replaced, unless they contain "super", e.g. `batches: [super, qa/batches.yaml]`,
+# - locations (storage, inputs.database) are replaced as a whole.
+# `qa init` writes the settings below as comments instead of the sample project's.
+#
+# To check what a project ends up with: `qa get config`. To ignore this file: QABOARD_SITE_CONFIG="".
+
+
+runners:
+  # On Windows `qa` falls back to running locally
+  default: lsf
+  lsf: {}
+    # Without a queue, bsub uses the cluster's default queue ($LSB_DEFAULTQUEUE or lsb.params' DEFAULT_QUEUE)
+    # queue: normal
+    # max_threads: 0
+    # max_memory: 0
+    # concurrency: 0   # max number of jobs from the same `qa batch` running at the same time. 0 = unlimited.
+
+
+# TODO(SIRC): fill in the shared storage and datasets locations, then `qa init` will use them.
+#             Projects currently use per-group locations like /algo/CIS/outputs/{user} and /algo/CIS_artifacts.
+# storage:
+#   outputs:
+#     linux: /algo/qaboard/outputs/{user}
+#     windows: '\\netapp\vol23_algo\qaboard\outputs\{user}'
+#   artifacts:
+#     linux: /algo/qaboard/artifacts
+#     windows: '\\netapp\vol23_algo\qaboard\artifacts'
+#
+# inputs:
+#   database:
+#     linux: /stage/algo-datasets
+#     windows: '\\netapp\algo-datasets'

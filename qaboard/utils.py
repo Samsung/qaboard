@@ -25,7 +25,9 @@ def merge(src: Dict, dest: Dict) -> Dict:
     if src:
       for key, value in src.items():
         if isinstance(value, dict):
-          node = dest.setdefault(key, {})
+          node = dest.get(key)
+          if not isinstance(node, dict): # e.g. a dict replacing a string
+            node = dest[key] = {}
           merge(value, node)
         else:
           # "super" is a reserved keyword

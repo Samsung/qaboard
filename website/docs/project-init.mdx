@@ -22,6 +22,22 @@ root-git-repository
    └── metrics.yaml    # examples of how to define KPIs
 ```
 
+## Site defaults
+Organizations can provide defaults for all projects (where results are stored, which task runner to use...) with a base `qaboard.yaml`:
+
+- Each project's `qaboard.yaml` is merged on top of it, and can override any setting. Mappings are merged key by key, lists are replaced unless they contain `super` (e.g. `batches: [super, qa/batches.yaml]`), and locations (`storage`, `inputs.database`) are replaced as a whole.
+- `qa init` doesn't copy the sample project's values for settings the site defines, it shows the site's values as comments instead.
+- To check the configuration a project ends up with, run `qa get config`.
+
+The base configuration is found via the `QABOARD_SITE_CONFIG` environment variable, which site packages set (e.g. `qaboard-site-sirc` points to its `qaboard_site_sirc/qaboard.yaml`). Read [the installation docs](installation) to install your site package. Set `QABOARD_SITE_CONFIG=""` to ignore it.
+
+:::tip Creating a site package
+Add a `qaboard.yaml` next to your site package's `__init__.py`, and add to its `defaults`:
+```python
+"QABOARD_SITE_CONFIG": str(Path(__file__).with_name("qaboard.yaml")),
+```
+:::
+
 ## *(Optional)* Gitlab Integration
 If you integrate with Gitlab, you'll be able to:
 - Update GitlabCI with your runs' statuses

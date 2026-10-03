@@ -44,6 +44,49 @@ class FakeBsub():
     return [re.search(r'-J "([^"]+)"', c).group(1) for c in self.commands]
 
 
+def has_bsub():
+  return mock.patch('qaboard.runners.lsf.shutil.which', return_value='/usr/bin/bsub')
+
+
+class TestLsfOptions(unittest.TestCase):
+  def bsub_command(self, extra_parameters=None, **job_options):
+    from qaboard.runners.lsf import LsfRunner
+    tmp = tempfile.TemporaryDirectory()
+    self.addCleanup(tmp.cleanup)
+    job = make_jobs('lsf', ['echo hi'], Path(tmp.name), **job_options)[0]
+    job.run_context.extra_parameters = extra_parameters or {}
+    bsub = FakeBsub()
+    with mock.patch('qaboard.runners.lsf.subprocess.run', bsub), has_bsub():
+      LsfRunner(job.run_context).start(blocking=False)
+    return bsub.commands[0]
+
+  def test_lsf_defaults(self):
+    # Without queue/project, bsub uses LSF's defaults
+    command = self.bsub_command()
+    self.assertNotIn(' -q ', command)
+    self.assertNotIn(' -P ', command)
+    self.assertNotIn('None', command)
+    self.assertIn('-sp 2000', command)
+
+  def test_options(self):
+    command = self.bsub_command(queue='my_queue', project='my/project')
+    self.assertIn("-q 'my_queue'", command)
+    self.assertIn("-P 'my/project'", command)
+
+  def test_priority(self):
+    self.assertIn('-sp 1000', self.bsub_command(extra_parameters={'a': 1}))
+    self.assertIn('-sp 3000', self.bsub_command(priority=3000))
+    self.assertIn('-sp 3000', self.bsub_command(priority=3000, extra_parameters={'a': 1}))
+
+  def test_no_bsub(self):
+    from qaboard.runners.lsf import LsfRunner
+    job = make_jobs('lsf', ['echo hi'], Path(), queue='q')[0]
+    with mock.patch('qaboard.runners.lsf.shutil.which', return_value=None), mock.patch('qaboard.runners.lsf.subprocess.run') as run:
+      with self.assertRaisesRegex(Exception, 'bsub'):
+        LsfRunner(job.run_context).start(blocking=False)
+    run.assert_not_called()
+
+
 class TestLsfConcurrency(unittest.TestCase):
   def start(self, nb_jobs, **job_options):
     from qaboard.runners.lsf import LsfRunner
@@ -53,7 +96,7 @@ class TestLsfConcurrency(unittest.TestCase):
     commands = [f'echo run-{i}' for i in range(nb_jobs)]
     jobs = make_jobs('lsf', commands, self.output_root, queue='q', **job_options)
     bsub = FakeBsub()
-    with mock.patch('qaboard.runners.lsf.subprocess.run', bsub):
+    with mock.patch('qaboard.runners.lsf.subprocess.run', bsub), has_bsub():
       LsfRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
     return bsub
 
@@ -99,7 +142,7 @@ class TestLsfConcurrency(unittest.TestCase):
     jobs = make_jobs('lsf', ['a', 'b', 'c'], Path(tmp.name), queue='q', concurrency=1)
     jobs += make_jobs('lsf', ['d', 'e'], Path(tmp.name) / 'big', queue='q', concurrency=1, max_memory=1000)
     bsub = FakeBsub()
-    with mock.patch('qaboard.runners.lsf.subprocess.run', bsub), mock.patch('qaboard.runners.lsf.secho'):
+    with mock.patch('qaboard.runners.lsf.subprocess.run', bsub), has_bsub(), mock.patch('qaboard.runners.lsf.secho'):
       LsfRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
     self.assertEqual(len(bsub.commands), 2)
     self.assertRegex(bsub.names()[0], r'\[1-3\]%1$')
@@ -190,7 +233,7 @@ class TestDaskRunner(unittest.TestCase):
                      lsf={'queue': 'gpu_q', 'project': 'proj'}, driver={'queue': 'cpu_q', 'max_memory': 1000})
     job_options = jobs[0].run_context.job_options
     bsub = FakeBsub()
-    with mock.patch('qaboard.runners.lsf.subprocess.run', bsub):
+    with mock.patch('qaboard.runners.lsf.subprocess.run', bsub), has_bsub():
       DaskRunner.start_jobs(jobs, job_options, blocking=False)
     self.assertEqual(bsub.names(), ['abcdefgh_dask_driver'])
     command = bsub.commands[0]

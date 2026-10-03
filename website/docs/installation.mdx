@@ -24,7 +24,7 @@ pip install --upgrade 'qaboard-site-sirc @ git+ssh://git@gitlab-srv/common-infra
 pip install 'qaboard[dsk]'
 ```
 
-The extras installs auto-configure defaults such as the API URL, port, and other site-specific settings. You do not need to manually set environment variables for standard deployments.
+The extras installs auto-configure defaults such as the API URL, port, and other site-specific settings. You do not need to manually set environment variables for standard deployments. They can also provide [default `qaboard.yaml` settings for all projects](project-init#site-defaults), like where results are stored or the LSF queue.
 
 :::tip
 Environment variables (e.g. `QABOARD_HOST`, `QABOARD_PROTOCOL`) **always override** site package defaults. This lets you point at a different server during development or testing without changing the installed package.

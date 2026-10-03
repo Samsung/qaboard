@@ -15,7 +15,7 @@ from .utils import merge, getenvs
 from .git import git_head, git_show
 from .conventions import slugify, get_commit_dirs, location_from_spec, batches_files
 from .iterators import flatten
-from .site_config import site_config
+from .site_config import site_config, site_qaboard_config, site_qaboard_config_path, without_locations_from
 
 
 # In case the qaboard.yaml configuration has errors, we don't want to exit directly.
@@ -102,6 +102,8 @@ else:
     root_qatools_config, *_ = qatools_configs
   subproject = project_dir.relative_to(root_qatools) if root_qatools else Path(".")
 
+  # The site's base qaboard.yaml (e.g. from qaboard-site-sirc) provides defaults for all projects
+  config = without_locations_from(site_qaboard_config(), qatools_configs)
   # take care not to mutate the root config, as its project.name is the git repo name
   for c in qatools_configs:
     if "include" in c:
@@ -188,6 +190,8 @@ def storage_roots(config: Dict, project: Path, subproject: Path) -> Tuple[Path, 
     if not ignore_config_errors:
       click.secho('ERROR: Could not find the storage settings that define where outputs & artifacts are saved.', fg='red', err=True)
       click.secho('Consider adding to qaboard.yaml:\n```storage:\n  linux: /mnt/qaboard\n  windows: "\\\\server\\share\\qaboard"\n```', fg='red', err=True, dim=True)
+      if not site_qaboard_config_path():
+        click.secho('If your organization has a site package (e.g. qaboard-site-sirc), install it to get default settings.', fg='red', err=True, dim=True)
   return outputs_root, artifacts_root, subproject_for_artifacts
 
 def mkdir(path: Path):

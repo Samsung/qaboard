@@ -12,6 +12,7 @@ Note:
 import re
 import os
 import random
+import shutil
 import string
 import subprocess
 import time
@@ -37,9 +38,12 @@ class LsfPriority:
 
 @dataclass
 class LsfOptions():
+  # When not set, we don't pass the flag and bsub uses LSF's defaults:
+  # $LSB_DEFAULTPROJECT / "default" for the project, $LSB_DEFAULTQUEUE / DEFAULT_QUEUE (lsb.params) for the queue.
   project: Optional[str] = None
   queue: Optional[str] = None
-  priority: int = LsfPriority.NORMAL
+  # Default: LsfPriority.NORMAL, or LsfPriority.LOW for tuning runs
+  priority: Optional[int] = None
   max_threads: int = 0
   max_memory: int = 0 #in MB
   resources: Optional[str] = None
@@ -87,7 +91,8 @@ class LsfRunner(BaseRunner):
 
     self.options = dict_to_LsfOptions(run_context.job_options)
     # We've find it useful to dial back the priority if tuning jobs
-    self.options.priority = LsfPriority.LOW if run_context.extra_parameters else LsfPriority.NORMAL
+    if self.options.priority is None:
+      self.options.priority = LsfPriority.LOW if run_context.extra_parameters else LsfPriority.NORMAL
 
   @property
   def name(self):
@@ -130,9 +135,9 @@ class LsfRunner(BaseRunner):
   def bsub_options(self) -> List[str]:
     """bsub flags describing where/how a job runs. Jobs with identical options can be grouped in a job array."""
     return [
-      f"-P '{self.options.project}'",
-      f"-q '{self.options.queue}'",
-      f"-sp {self.options.priority}",
+      f"-P '{self.options.project}'" if self.options.project else "",
+      f"-q '{self.options.queue}'" if self.options.queue else "",
+      f"-sp {self.options.priority}" if self.options.priority is not None else "",
       # TODO: we could ask those threads to be on the same cores...
       f"-R \"affinity[thread({self.options.max_threads})]\"" if self.options.max_threads > 0 else "",
       f"-R \"rusage[mem={self.options.max_memory}]\"" if self.options.max_memory > 0 else "",
@@ -177,6 +182,8 @@ class LsfRunner(BaseRunner):
     # os.environ['LSB_STDOUT_DIRECT'] = 'Y'
 
     bridge_bsub_command = self.options.bridge.format(**asdict(self.options), bsub_command=bsub_command)
+    if not bridge_bsub_command and not shutil.which('bsub'):
+      raise Exception("Can't send jobs to LSF: `bsub` was not found. Use another runner (e.g. --runner=local), or set QA_RUNNERS_LSF_BRIDGE.")
 
     # Retry mechanism
     retry_count = 3

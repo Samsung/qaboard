@@ -1,6 +1,7 @@
 """QABoard site defaults for Samsung SIRC."""
 import os
 import json
+from pathlib import Path
 
 defaults = {
     "QABOARD_URL": "https://qa",
@@ -9,6 +10,8 @@ defaults = {
     # to stay backward compatible and not have credentials in any repo
     "QA_SECRETS": '/home/ispq/.secrets.yaml' if os.name != 'nt' else '//mars/raid/users/ispq/.secrets.yaml',
     "QABOARD_UPGRADE_COMMAND": "pip install --upgrade git+ssh://git@gitlab-srv/common-infrastructure/qaboard",
+    # Base qaboard.yaml for all projects: they are merged on top of it
+    "QABOARD_SITE_CONFIG": str(Path(__file__).with_name("qaboard.yaml")),
     # When IDB updates fail, we save them here to retry later
     "QABOARD_IDB_BACKLOG_DIR": "/home/ispq/idb_backlog",
     "QABOARD_PATH_MAPPINGS": json.dumps([

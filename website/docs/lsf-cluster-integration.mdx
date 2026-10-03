@@ -15,20 +15,25 @@ LSF jobs with have your project name as LSF project (`-P`).
 :::
 
 ## LSF project options
-You can change the default LSF configuration with:
+All settings are optional. You can change the default LSF configuration with:
 
 ```yaml title="qaboard.yaml"
 runners:
   # In doubt, ask advice from your manager / CAD / bqueues.
   lsf:
-    queue: your_queue
+    queue: your_queue             # default: the cluster's default queue ($LSB_DEFAULTQUEUE, or DEFAULT_QUEUE in lsb.params)
+    # project: my/project         # default: your QA-Board project's name
+    # priority: 2000              # default: 2000, or 1000 for tuning runs
     # max_threads: 8              # ask for eg 8 max threads when sending jobs to LSF (0=default)
     # max_memory: 8000            # ask for eg 8000M memory when sending jobs to LSF (0=default)
-    # queue: my_queue
     # resources: RESOURCE_STRING
     # options: "-W 24:00"         # Specifiy freely other LSF options that bsub accepts
                                   # Will be added after all other CLI flags.
 ```
+
+:::tip
+Your organization's site package can set defaults for all projects, e.g. `runners.default: lsf` and the queue. See [Site defaults](project-init#site-defaults).
+:::
 
 ## Limiting concurrency
 By default all the runs from a `qa batch` are sent at once. To limit how many run at the same time:
