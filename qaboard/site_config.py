@@ -16,6 +16,7 @@ Install a site package to auto-configure:
     pip install --upgrade "qaboard-site-dsk @ git+ssh://git@gitlab-srv/common-infrastructure/qaboard#subdirectory=deployments/dsk/cli"    # DSK defaults
 """
 import os
+import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -96,24 +97,36 @@ LOCATION_KEYS = (('storage',), ('inputs', 'database'))
 
 
 def site_qaboard_config_path() -> Optional[Path]:
-    """Path to the site's base qaboard.yaml, if any. Set QABOARD_SITE_CONFIG="" to ignore the site's."""
-    path = site_config('QABOARD_SITE_CONFIG')
-    return Path(path).expanduser() if path else None
+    """
+    Path to the site's base qaboard.yaml, if any. Set QABOARD_SITE_CONFIG="" to ignore the site's.
+    Like other locations, it can depend on the platform, e.g. for a variable shared by Linux and Windows CI runners:
+        QABOARD_SITE_CONFIG='{"linux": "/mnt/qaboard/site.yaml", "windows": "//server/qaboard/site.yaml"}'
+    """
+    from .conventions import location_from_spec
+    spec = site_config('QABOARD_SITE_CONFIG')
+    if isinstance(spec, str) and spec.lstrip().startswith('{'):
+        try:
+            spec = json.loads(spec)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"QABOARD_SITE_CONFIG is not valid JSON: {e}") from e
+    if not spec:
+        return None
+    return location_from_spec(spec).expanduser()
 
 
 def site_qaboard_config() -> Dict[str, Any]:
     """The site's base qaboard.yaml: projects' qaboard.yaml are merged on top of it."""
-    path = site_qaboard_config_path()
-    if not path:
-        return {}
     try:
+        path = site_qaboard_config_path()
+        if not path:
+            return {}
         with path.open() as f:
             site_qaboard = yaml.load(f, Loader=yaml.SafeLoader) or {}
         if not isinstance(site_qaboard, dict):
             raise ValueError("expected a mapping at the top level")
     except (OSError, yaml.YAMLError, ValueError) as e:
         import click
-        click.secho(f"ERROR: Could not read the site's base qaboard.yaml (QABOARD_SITE_CONFIG={path}): {e}", fg='red', err=True)
+        click.secho(f"ERROR: Could not read the site's base qaboard.yaml (QABOARD_SITE_CONFIG={site_config('QABOARD_SITE_CONFIG')}): {e}", fg='red', err=True)
         return {}
     # The project's identity can't have site-wide defaults
     for key in ('name', 'url'):

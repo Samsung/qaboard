@@ -31,6 +31,11 @@ Organizations can provide defaults for all projects (where results are stored, w
 
 The base configuration is found via the `QABOARD_SITE_CONFIG` environment variable, which site packages set (e.g. `qaboard-site-sirc` points to its `qaboard_site_sirc/qaboard.yaml`). Read [the installation docs](installation) to install your site package. Set `QABOARD_SITE_CONFIG=""` to ignore it.
 
+If you set `QABOARD_SITE_CONFIG` yourself, e.g. as a CI variable shared by Linux and Windows runners, it can depend on the platform like other locations:
+```bash
+QABOARD_SITE_CONFIG='{"linux": "/mnt/qaboard/site.yaml", "windows": "//server/qaboard/site.yaml"}'
+```
+
 :::tip Creating a site package
 Add a `qaboard.yaml` next to your site package's `__init__.py`, and add to its `defaults`:
 ```python

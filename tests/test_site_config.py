@@ -86,6 +86,35 @@ class TestSiteConfig(unittest.TestCase):
     self.assertEqual(project_config['runners']['local'], {'concurrency': -1})
 
 
+class TestSiteConfigPath(unittest.TestCase):
+  def path(self, value):
+    from unittest import mock
+    from qaboard.site_config import site_qaboard_config_path
+    with mock.patch.dict(os.environ, {'QABOARD_SITE_CONFIG': value}):
+      return site_qaboard_config_path()
+
+  def test_path(self):
+    self.assertEqual(self.path('/site/qaboard.yaml'), Path('/site/qaboard.yaml'))
+    self.assertIsNone(self.path(''))
+
+  def test_per_platform(self):
+    platform = 'windows' if os.name == 'nt' else 'linux'
+    spec = {"linux": "/mnt/site.yaml", "windows": "//server/site.yaml"}
+    self.assertEqual(self.path(json.dumps(spec)), Path(spec[platform]))
+
+  def test_invalid_json(self):
+    with self.assertRaisesRegex(ValueError, 'JSON'):
+      self.path('{"linux": ')
+
+  def test_errors_are_loud_but_not_fatal(self):
+    from unittest import mock
+    from qaboard.site_config import site_qaboard_config
+    for value in ('/does/not/exist.yaml', '{"linux": ', '{"other-platform": "/x"}'):
+      with mock.patch.dict(os.environ, {'QABOARD_SITE_CONFIG': value}), mock.patch('click.secho') as secho:
+        self.assertEqual(site_qaboard_config(), {})
+      self.assertIn('ERROR', secho.call_args[0][0])
+
+
 class TestUseSiteDefaults(unittest.TestCase):
   def test_shadowed_keys(self):
     from qaboard.init import shadowed_keys
