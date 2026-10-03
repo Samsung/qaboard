@@ -75,6 +75,10 @@ unit-tests:
   stage: test
   needs: []
   retry: 2 # solves frequent filesystem sync issues
+  variables:
+    # The tests use this commit's code (see tests/__init__.py), and this commit's site defaults,
+    # not what deploy:cli installed in the conda env earlier.
+    QABOARD_SITE_CONFIG: $CI_PROJECT_DIR/deployments/sirc/cli/qaboard_site_sirc/qaboard.yaml
   script:
     - green -vvv --quiet-stdout --run-coverage tests
 
@@ -313,6 +317,8 @@ deploy:cli:
     - export PROXY_STUFF='--trusted-host pypi.org --trusted-host files.pythonhosted.org  --trusted-host pypi.python.org'
     - umask 022
     - pip install $PROXY_STUFF '.[dask]'
+    # SIRC defaults, including the base qaboard.yaml. Its `cde` dependency is installed separately.
+    - pip install $PROXY_STUFF --no-deps ./deployments/sirc/cli
   rules:
     - !reference [.on-master, rules]
 
