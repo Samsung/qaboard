@@ -14,7 +14,7 @@ runners:
   default: lsf
   lsf: {}
     # Without a queue, bsub uses the cluster's default queue ($LSB_DEFAULTQUEUE or lsb.params' DEFAULT_QUEUE)
-    # queue: normal
+    queue: alg_isp_q
     # max_threads: 0
     # max_memory: 0
     # concurrency: 0   # max number of jobs from the same `qa batch` running at the same time. 0 = unlimited.
