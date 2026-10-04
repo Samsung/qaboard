@@ -141,6 +141,10 @@ build:images:
     - |
       ssh -o BatchMode=yes "$QABOARD_BUILD_HOST" bash -s <<EOF
       set -eo pipefail
+      # The backend installs cde from git+ssh during its build (ssh: [default] in deployments/sirc/sirc.yml)
+      eval "\$(ssh-agent -s)" > /dev/null
+      trap 'ssh-agent -k > /dev/null' EXIT
+      ssh-add -q ~/.ssh/id_rsa
       cd "$CI_PROJECT_DIR"
       source deployments/sirc/.envrc
       export QABOARD_VERSION="$QABOARD_VERSION"
