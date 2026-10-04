@@ -116,6 +116,9 @@ class Deployment:
             die(f"`docker {' '.join(args)}` failed: {r.stderr.strip()}")
         return r.stdout.strip()
 
+    def image_exists(self, image: str) -> bool:
+        return subprocess.run(["docker", "image", "inspect", image], capture_output=True).returncode == 0
+
     def config(self) -> dict:
         out = self.compose("config", "--format", "json", capture=True).stdout
         return json.loads(out)
@@ -238,7 +241,10 @@ class Deployment:
         elif pull:
             # We only pull our images, so that a new upstream release of e.g. postgres doesn't restart the database.
             # Versioned tags never change: no need to contact the registry if we have them (e.g. fast rollbacks)
-            self.compose("pull", "--policy", "missing" if self.version else "always", *ours)
+            # (like `pull --policy missing`, which older docker compose versions don't have)
+            to_pull = [s for s in ours if not (self.version and self.image_exists(config["services"][s]["image"]))]
+            if to_pull:
+                self.compose("pull", *to_pull)
 
         # 2. Migrations
         if "db" in services:
