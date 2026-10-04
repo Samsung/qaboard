@@ -13,6 +13,10 @@
 # No container registry? Set QABOARD_BUILD_ON_HOST=1: images are then built on each host when deploying (slower)
 #
 # Runbook: website/docs/backend-admin/deployment.mdx
+#
+# NOTE on shells: GitLab Runner runs job scripts in bash (su -s /bin/bash), but commands
+# run over ssh use the remote user's login shell (tcsh on qa/alginfra1), which cannot
+# source .envrc. Wrap remote commands in `bash -c '...'` (or `bash -s <<EOF`).
 
 workflow:
   rules:
@@ -65,10 +69,10 @@ default:
     - eval $(ssh-agent -s) > /dev/null
     - ssh-add -q $HOME/.ssh/id_rsa
     - echo "${SSH_AGENT_PID}" > ssh-agent.pid
-  after_script:
-    # don't leave ssh agents running
-    - if [ -f ssh-agent.pid ] ; then kill $(cat ssh-agent.pid) ; fi
-
+    # commented out since the after script runs on the CI runner not the LSF node working the CI
+  # after_script:
+  #   # don't leave ssh agents running
+  #   - if [ -f ssh-agent.pid ] ; then kill $(cat ssh-agent.pid) ; fi
 
 ## Tests ##########################################################################################
 unit-tests:
@@ -222,7 +226,8 @@ test:staging:
     - curl -fsS --noproxy '*' --retry 10 --retry-delay 3 --retry-all-errors --max-time 30 "$QABOARD_STAGING_URL/api/v1/health"
     - curl -fsS --noproxy '*' --max-time 120 "$QABOARD_STAGING_URL/api/v1/projects" > /dev/null
     - curl -fsS --noproxy '*' --max-time 30 "$QABOARD_STAGING_URL/" | grep -q 'id="root"'
-    - ssh -o BatchMode=yes "$QABOARD_STAGING_HOST" "cd $QABOARD_STAGING_DIR && source deployments/sirc/.envrc && python3 deployments/deploy.py deployments/sirc/staging.env compose exec -T -e BACKEND_TEST_MODE=no-mock backend python -m pytest smoke_tests/ -q -p no:cacheprovider"
+    # ssh runs the command in the login shell (tcsh), wrap it in bash to source .envrc
+    - ssh -o BatchMode=yes "$QABOARD_STAGING_HOST" "bash -c 'cd $QABOARD_STAGING_DIR && source deployments/sirc/.envrc && python3 deployments/deploy.py deployments/sirc/staging.env compose exec -T -e BACKEND_TEST_MODE=no-mock backend python -m pytest smoke_tests/ -q -p no:cacheprovider'"
   rules:
     - !reference [.on-master, rules]
 
@@ -232,7 +237,8 @@ stop:staging:
   interruptible: false
   needs: []
   script:
-    - ssh -o BatchMode=yes "$QABOARD_STAGING_HOST" "cd $QABOARD_STAGING_DIR && source deployments/sirc/.envrc && python3 deployments/deploy.py deployments/sirc/staging.env compose stop"
+    # ssh runs the command in the login shell (tcsh), wrap it in bash to source .envrc
+    - ssh -o BatchMode=yes "$QABOARD_STAGING_HOST" "bash -c 'cd $QABOARD_STAGING_DIR && source deployments/sirc/.envrc && python3 deployments/deploy.py deployments/sirc/staging.env compose stop'"
   environment:
     name: staging
     action: stop
@@ -249,7 +255,8 @@ staging:refresh-db:
   needs: []
   resource_group: staging
   script:
-    - ssh -o BatchMode=yes "$QABOARD_STAGING_HOST" "cd $QABOARD_STAGING_DIR && source deployments/sirc/.envrc && python3 deployments/deploy.py deployments/sirc/staging.env seed-db"
+    # ssh runs the command in the login shell (tcsh), wrap it in bash to source .envrc
+    - ssh -o BatchMode=yes "$QABOARD_STAGING_HOST" "bash -c 'cd $QABOARD_STAGING_DIR && source deployments/sirc/.envrc && python3 deployments/deploy.py deployments/sirc/staging.env seed-db'"
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual

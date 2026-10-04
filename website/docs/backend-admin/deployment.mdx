@@ -47,6 +47,7 @@ Set the CI/CD variable `QABOARD_PROD_DEPLOY=manual`: `deploy:production` then wa
 - **On the host**:
 ```bash
 ssh qa
+bash  # the login shell (tcsh) can't source .envrc
 cd /home/ispq/qaboard_prod && source deployments/sirc/.envrc
 deployments/deploy.py deployments/sirc/production.env status     # deployed version, history
 deployments/deploy.py deployments/sirc/production.env rollback   # back to the previous version
@@ -60,6 +61,7 @@ Rolling back the code does not roll back database migrations. Write migrations t
 ## Deploying by hand
 ```bash
 ssh qa
+bash  # the login shell (tcsh) can't source .envrc
 cd /home/ispq/qaboard_prod && source deployments/sirc/.envrc
 git fetch && git checkout --detach <commit>
 deployments/deploy.py deployments/sirc/production.env up --version <short commit>
@@ -74,6 +76,7 @@ Staging runs the production images and configuration, with **its own database**.
 
 ```bash
 ssh alginfra1
+bash  # the login shell (tcsh) can't source .envrc
 cd /home/ispq/qaboard_staging && source deployments/sirc/.envrc
 deployments/deploy.py deployments/sirc/staging.env seed-db             # last 30 days
 deployments/deploy.py deployments/sirc/staging.env seed-db --days 90
