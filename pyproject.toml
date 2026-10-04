@@ -1,7 +1,7 @@
 
 [project]
 name = "qaboard"
-version = "1.1.0"
+version = "1.1.1"
 description = "Visualize and compare algorithm results. Optimize parameters. Share results and track progress."
 readme = "README.md"
 authors = [
