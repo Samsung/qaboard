@@ -31,7 +31,7 @@ variables:
   SIRC_USER: ispq
   # Images are tagged with the commit: see `image:` in docker-compose.yml and deployments/sirc/sirc.yml
   QABOARD_VERSION: $CI_COMMIT_SHORT_SHA
-  QABOARD_IMAGE: gitlab-srv.transchip.com:4567/common-infrastructure/qaboard
+  QABOARD_IMAGE: gitlab-srv:4567/common-infrastructure/qaboard
   QABOARD_BUILD_HOST: alginfra1
   QABOARD_STAGING_HOST: alginfra1
   QABOARD_STAGING_DIR: /home/ispq/qaboard_staging
