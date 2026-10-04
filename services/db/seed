@@ -7,6 +7,7 @@
 #   or with deployments/deploy.py deployments/sirc/staging.env seed-db
 #
 # The source is only read, in a single read-only snapshot, with indexed queries: only recent rows are transferred.
+#   On the source, batches.ci_commit_id needs an index (outputs.batch_id has one), or batches are scanned in full.
 set -eu
 
 SOURCE="$1"
@@ -15,22 +16,33 @@ case "$DAYS" in ''|*[!0-9]*) echo "days must be a number, got: $DAYS" >&2; exit 
 DB="${POSTGRES_DB:-qaboard}"
 export PGUSER="${POSTGRES_USER:-qaboard}"
 BIG_TABLES="'ci_commits', 'batches', 'outputs'"
-RECENT="greatest(c.authored_datetime, c.latest_output_datetime) > now() - interval '$DAYS days'"
+# Not greatest(authored, latest_output) > ...: postgres can't estimate it and assumes 1/3 of all commits match,
+# so it plans full scans of batches/outputs instead of index lookups.
+RECENT="(c.authored_datetime > now() - interval '$DAYS days' OR c.latest_output_datetime > now() - interval '$DAYS days')"
+# Fail instead of waiting forever if the source is unreachable, or locked (e.g. by a migration)
+export PGCONNECT_TIMEOUT=20
+LOCK_TIMEOUT=2min
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
 echo "1. Reading the source (commits from the last $DAYS days)"
-pg_dump --schema-only --no-owner --no-acl "$SOURCE" > "$WORK/schema.sql"
+echo "   schema"
+pg_dump --schema-only --no-owner --no-acl --lock-wait-timeout="$LOCK_TIMEOUT" "$SOURCE" > "$WORK/schema.sql"
 SMALL_TABLES=$(psql "$SOURCE" -Atc "SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename NOT IN ($BIG_TABLES)")
 {
   echo "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;"
+  echo "SET LOCAL lock_timeout = '$LOCK_TIMEOUT';"
+  printf '%s\n' "\\echo '   small tables'"
   for t in $SMALL_TABLES; do
-    echo "\\copy public.\"$t\" TO '$WORK/$t.copy'"
+    printf '%s\n' "\\copy public.\"$t\" TO '$WORK/$t.copy'"
   done
-  echo "\\copy (SELECT c.* FROM ci_commits c WHERE $RECENT) TO '$WORK/ci_commits.copy'"
-  echo "\\copy (SELECT b.* FROM batches b JOIN ci_commits c ON c.id = b.ci_commit_id WHERE $RECENT) TO '$WORK/batches.copy'"
-  echo "\\copy (SELECT o.* FROM outputs o JOIN batches b ON b.id = o.batch_id JOIN ci_commits c ON c.id = b.ci_commit_id WHERE $RECENT) TO '$WORK/outputs.copy'"
+  printf '%s\n' "\\echo '   ci_commits'"
+  printf '%s\n' "\\copy (SELECT c.* FROM ci_commits c WHERE $RECENT) TO '$WORK/ci_commits.copy'"
+  printf '%s\n' "\\echo '   batches'"
+  printf '%s\n' "\\copy (SELECT b.* FROM batches b JOIN ci_commits c ON c.id = b.ci_commit_id WHERE $RECENT) TO '$WORK/batches.copy'"
+  printf '%s\n' "\\echo '   outputs'"
+  printf '%s\n' "\\copy (SELECT o.* FROM outputs o JOIN batches b ON b.id = o.batch_id JOIN ci_commits c ON c.id = b.ci_commit_id WHERE $RECENT) TO '$WORK/outputs.copy'"
   echo "COMMIT;"
 } > "$WORK/export.sql"
 psql "$SOURCE" -q -v ON_ERROR_STOP=1 -f "$WORK/export.sql"
@@ -49,7 +61,7 @@ echo "3. Loading the data"
   # No foreign key checks while loading: the tables are loaded in any order
   echo "SET session_replication_role = replica;"
   for t in $SMALL_TABLES ci_commits batches outputs; do
-    echo "\\copy public.\"$t\" FROM '$WORK/$t.copy'"
+    printf '%s\n' "\\copy public.\"$t\" FROM '$WORK/$t.copy'"
   done
   echo "SET session_replication_role = DEFAULT;"
   # The sequences start after the ids we copied
