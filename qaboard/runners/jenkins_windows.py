@@ -51,7 +51,7 @@ from ..run import RunContext
 from ..compat import linux_to_windows, linux_to_windows_path
 from ..config import config
 
-from ..api import api_prefix
+from ..api import api_prefix, api_verify
 
 
 def get_jenkins_config():
@@ -85,7 +85,7 @@ def trigger_run(task: str) -> Dict:
             "task": task,
         }
     }
-    r = requests.post(f"{api_prefix}/jenkins/build/trigger/", json=data)
+    r = requests.post(f"{api_prefix}/jenkins/build/trigger/", json=data, verify=api_verify)
     try:
         r.raise_for_status()
         if r.json().get('error'):
@@ -139,7 +139,7 @@ def build_status(build_info):
   )
   session.mount('https://', adapter)
   session.mount('http://', adapter)
-  r = session.post(f"{api_prefix}/jenkins/build/", json=build_info)
+  r = session.post(f"{api_prefix}/jenkins/build/", json=build_info, verify=api_verify)
   try:
       r.raise_for_status()
       if r.json().get('error'):

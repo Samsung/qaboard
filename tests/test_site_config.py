@@ -148,5 +148,15 @@ class TestMerge(unittest.TestCase):
     self.assertEqual(merge({"storage": "/y"}, {"storage": {"linux": "/x"}}), {"storage": "/y"})
 
 
+class TestRequestsVerify(unittest.TestCase):
+  def test_as_requests_verify(self):
+    from qaboard.site_config import as_requests_verify
+    for value in (None, True, '', 'true', 'True', '1', 'yes', 'on'):
+      self.assertIs(as_requests_verify(value), True, value)
+    for value in (False, 'false', 'FALSE', '0', 'no', 'off', ' false '):
+      self.assertIs(as_requests_verify(value), False, value)
+    self.assertEqual(as_requests_verify('/etc/ssl/certs/internal-ca.pem'), '/etc/ssl/certs/internal-ca.pem')
+
+
 if __name__ == '__main__':
   unittest.main()

@@ -91,6 +91,21 @@ def site_config(key, default=None):
     return os.getenv(key, secrets.get(key, _site_defaults.get(key, default)))
 
 
+def as_requests_verify(value):
+    """
+    Parses a setting like QABOARD_API_VERIFY into requests' `verify` argument:
+    true/false, or the path to a CA bundle.
+    """
+    if value is None or isinstance(value, bool):
+        return value is not False
+    value = str(value).strip()
+    if value.lower() in ('', '1', 'true', 'yes', 'on'):
+        return True
+    if value.lower() in ('0', 'false', 'no', 'off'):
+        return False
+    return value
+
+
 # Locations can be specified as a path, {linux, windows}, {outputs, artifacts}...
 # They are not merged key by key: when projects define them, they replace the site's.
 LOCATION_KEYS = (('storage',), ('inputs', 'database'))

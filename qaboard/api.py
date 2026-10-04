@@ -2,12 +2,13 @@
 Utilities related to CI database: fetching results, saving results... 
 """
 import os
+import re
 import sys
 import json
 from pathlib import Path
 from copy import deepcopy
 from functools import lru_cache
-from urllib.parse import quote, unquote
+from urllib.parse import quote, unquote, urlparse
 from typing import Any, Dict, Optional, List
 
 import click
@@ -15,7 +16,7 @@ import click
 from .config import project, commit_id, is_ci, available_metrics
 from .run import RunContext
 
-from .site_config import site_config, user_secret
+from .site_config import site_config, user_secret, as_requests_verify
 
 qaboard_protocol = site_config('QABOARD_PROTOCOL', 'http')
 qaboard_hostname = site_config('QABOARD_HOSTNAME')
@@ -36,6 +37,13 @@ else:
     click.secho(f"       > If your organization has a site package (e.g. qaboard-site-sirc), install it.", fg='yellow', err=True)
 
 api_prefix = site_config('QABOARD_API_PREFIX', f"{qaboard_url}/api/v1")
+# Whether requests to the API check TLS certificates: true (default), false, or the path to a CA bundle.
+# Useful when the server uses certificates from an internal CA that clients don't trust.
+api_verify = as_requests_verify(site_config('QABOARD_API_VERIFY'))
+if api_verify is False:
+  import warnings
+  # requests would warn about each unverified request to the server
+  warnings.filterwarnings('ignore', message=f"Unverified HTTPS request is being made to host '{re.escape(urlparse(api_prefix).hostname or '')}'")
 
 
 headers = {'Content-Type': 'application/json'}
@@ -168,7 +176,7 @@ def notify_qa_database(object_type='output', **kwargs):
   try:
     import simplejson
     data = simplejson.dumps(data, ignore_nan=True, cls=makeNumpyEncoder())
-    r = requests.post(url, data=data, headers=headers)
+    r = requests.post(url, data=data, headers=headers, verify=api_verify)
     if 'QA_VERBOSE' in os.environ:
       click.secho(r.text, fg='cyan', dim=True, err=True)
     r.raise_for_status()
@@ -196,7 +204,7 @@ def get_output(output_id):
   import requests
   url = f"{api_prefix}/output/{output_id}/"
   try:
-    r = requests.get(url, headers=headers)
+    r = requests.get(url, headers=headers, verify=api_verify)
     r.raise_for_status()
     return r.json()
   except Exception:
@@ -220,7 +228,7 @@ def batch_info(reference, batch, is_branch=False, project=project, metrics: Opti
     params["branch"] = reference
   commit_id = reference if not is_branch else ''
   url = f'{api_prefix}/commit/{commit_id}'
-  r = requests.get(url, params=params, headers=headers)
+  r = requests.get(url, params=params, headers=headers, verify=api_verify)
   try:
     r.raise_for_status()
     data = r.json()

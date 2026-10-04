@@ -46,3 +46,10 @@ If you installed `qaboard` without a site extra (or want to override the default
 export QABOARD_HOST=my-server:5151
 export QABOARD_PROTOCOL=http
 ```
+
+If your server uses HTTPS with a certificate your machines don't trust (e.g. from an internal CA), point `QABOARD_API_VERIFY` to the CA bundle, or disable the checks for requests to the API:
+
+```bash
+export QABOARD_API_VERIFY=/etc/ssl/certs/internal-ca.pem
+export QABOARD_API_VERIFY=false
+```
