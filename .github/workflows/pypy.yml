@@ -1,5 +1,5 @@
 # Publishes the qaboard CLI to PyPI when a GitHub release is created
-# 1. Bump the version in pyproject.toml and qaboard/__init__.py
+# 1. Bump the version in pyproject.toml (`uv version --bump patch` also updates uv.lock)
 # 2. Create a release (e.g. tag v1.1.0)
 #
 # Authentication: PyPI trusted publishing (https://docs.pypi.org/trusted-publishers/),

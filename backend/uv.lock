@@ -1486,7 +1486,7 @@ wheels = [
 
 [[package]]
 name = "qaboard"
-version = "1.1.0"
+version = "1.1.1"
 source = { directory = "../" }
 dependencies = [
     { name = "click" },
@@ -1508,6 +1508,7 @@ requires-dist = [
     { name = "distributed", marker = "python_full_version >= '3.9' and extra == 'dask'" },
     { name = "flake8", marker = "extra == 'dev'" },
     { name = "green", marker = "extra == 'dev'" },
+    { name = "importlib-metadata", marker = "python_full_version < '3.8'" },
     { name = "joblib" },
     { name = "mypy", marker = "extra == 'dev'" },
     { name = "psutil" },

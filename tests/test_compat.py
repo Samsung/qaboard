@@ -125,6 +125,7 @@ if __name__ == '__main__':
 
 class TestVersion(unittest.TestCase):
   def test_version_matches_pyproject(self):
+    # qaboard.__version__ comes from the installed package's metadata
     import re
     import qaboard
     pyproject = (Path(__file__).resolve().parent.parent / 'pyproject.toml').read_text()

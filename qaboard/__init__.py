@@ -1,5 +1,12 @@
-# keep in sync with pyproject.toml (checked in tests/test_compat.py)
-__version__ = '1.1.1'
+# The version is only defined in pyproject.toml
+try:
+  from importlib.metadata import version, PackageNotFoundError
+except ImportError: # python 3.7
+  from importlib_metadata import version, PackageNotFoundError # type: ignore
+try:
+  __version__ = version('qaboard')
+except PackageNotFoundError: # e.g. used from a checkout via PYTHONPATH, without being installed
+  __version__ = 'unknown'
 
 
 from .check_for_updates import check_for_updates
