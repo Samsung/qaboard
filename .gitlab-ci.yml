@@ -63,17 +63,6 @@ default:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-.ssh:
-  before_script:
-    - source ./deployments/sirc/.envrc
-    - eval $(ssh-agent -s) > /dev/null
-    - ssh-add -q $HOME/.ssh/id_rsa
-    - echo "${SSH_AGENT_PID}" > ssh-agent.pid
-    # commented out since the after script runs on the CI runner not the LSF node working the CI
-  # after_script:
-  #   # don't leave ssh agents running
-  #   - if [ -f ssh-agent.pid ] ; then kill $(cat ssh-agent.pid) ; fi
-
 ## Tests ##########################################################################################
 unit-tests:
   stage: test
@@ -130,10 +119,10 @@ webapp-tests:
 
 
 ## Images #########################################################################################
+# The images are built and run on $QABOARD_BUILD_HOST over plain ssh. Not with DOCKER_HOST=ssh://...:
+# buildx's connections to BuildKit through `ssh host docker system dial-stdio` kept dying
+# ("failed to list workers: ... write |1: file already closed").
 .docker:
-  extends: .ssh
-  variables:
-    DOCKER_HOST: ssh://$QABOARD_BUILD_HOST
   rules:
     - if: $QABOARD_BUILD_ON_HOST
       when: never
@@ -148,15 +137,23 @@ build:images:
   stage: build
   needs: [] # in parallel with the tests, the deploys wait for both
   script:
-    # compose checks they exist, the images don't use them
-    - touch .env deployments/sirc/.env
-    # Don't leave the job token in the shared ~/.docker
-    - export DOCKER_CONFIG="$CI_PROJECT_DIR/.docker" && mkdir -p "$DOCKER_CONFIG"
-    - if [ -d ~/.docker/cli-plugins ]; then ln -sfn ~/.docker/cli-plugins "$DOCKER_CONFIG/cli-plugins"; fi
-    - echo "$CI_JOB_TOKEN" | docker login -u gitlab-ci-token --password-stdin "$CI_REGISTRY"
-    # BuildKit's cache on the build host makes unchanged layers instant (e.g. the backend's dependencies)
-    - docker compose --env-file deployments/sirc/production.env build backend frontend website proxy cantaloupe fluentd
-    - docker compose --env-file deployments/sirc/production.env push backend frontend website proxy cantaloupe fluentd
+    # The checkout is on NFS, the build host sees it at the same path
+    - |
+      ssh -o BatchMode=yes "$QABOARD_BUILD_HOST" bash -s <<EOF
+      set -eo pipefail
+      cd "$CI_PROJECT_DIR"
+      source deployments/sirc/.envrc
+      export QABOARD_VERSION="$QABOARD_VERSION"
+      # compose checks they exist, the images don't use them
+      touch .env deployments/sirc/.env
+      # Don't leave the job token in the shared ~/.docker
+      export DOCKER_CONFIG="$CI_PROJECT_DIR/.docker" && mkdir -p "\$DOCKER_CONFIG"
+      if [ -d ~/.docker/cli-plugins ]; then ln -sfn ~/.docker/cli-plugins "\$DOCKER_CONFIG/cli-plugins"; fi
+      echo "$CI_JOB_TOKEN" | docker login -u gitlab-ci-token --password-stdin "$CI_REGISTRY"
+      # BuildKit's cache on the build host makes unchanged layers instant (e.g. the backend's dependencies)
+      docker compose --env-file deployments/sirc/production.env build backend frontend website proxy cantaloupe fluentd
+      docker compose --env-file deployments/sirc/production.env push backend frontend website proxy cantaloupe fluentd
+      EOF
     - echo "Pushed $QABOARD_IMAGE:*-$QABOARD_VERSION"
 
 # Unit tests that need the backend's dependencies (python-ldap...), easier in its image than on the runners
@@ -165,13 +162,12 @@ backend-tests:
   stage: build
   needs: [build:images]
   script:
-    - docker run --rm "$QABOARD_IMAGE:backend-$QABOARD_VERSION" python -m pytest -q -p no:cacheprovider tests
+    - ssh -o BatchMode=yes "$QABOARD_BUILD_HOST" docker run --rm "$QABOARD_IMAGE:backend-$QABOARD_VERSION" python -m pytest -q -p no:cacheprovider tests
 
 
 ## Deploys ########################################################################################
 # Updates the checkout on the host to this commit, then runs deployments/deploy.py there
 .deploy:
-  extends: .ssh
   interruptible: false # never cancel a deploy halfway
   variables:
     DEPLOY_ARGS: ""
@@ -219,7 +215,6 @@ deploy:staging:
     - !reference [.on-master, rules]
 
 test:staging:
-  extends: .ssh
   stage: staging
   needs: [deploy:staging]
   script:
@@ -232,7 +227,6 @@ test:staging:
     - !reference [.on-master, rules]
 
 stop:staging:
-  extends: .ssh
   stage: staging
   interruptible: false
   needs: []
@@ -249,7 +243,6 @@ stop:staging:
 
 # Seeds staging with production's recent data (QABOARD_SEED_DAYS days of commits, see services/db/seed)
 staging:refresh-db:
-  extends: .ssh
   stage: staging
   interruptible: false
   needs: []

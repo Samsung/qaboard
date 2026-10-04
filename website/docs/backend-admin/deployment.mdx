@@ -110,7 +110,7 @@ deployments/deploy.py deployments/sirc/production.env restore-db 2026-10-01.dump
 Going further on a single host doesn't buy much: the host is the single point of failure. A warm standby (a second host with a PostgreSQL streaming replica, and a manual failover) is possible but costs about as much effort as [moving to kubernetes](kubernetes), which gives automatic failover.
 
 ## First-time setup of a host
-1. Docker Engine with **docker compose ≥ 2.24** (`docker compose version`). The runner deploying with `DOCKER_HOST=ssh://...` needs it too.
+1. Docker Engine with **docker compose ≥ 2.24** (`docker compose version`). The build host (`QABOARD_BUILD_HOST`) needs it too: CI builds and pushes the images there over ssh, from the job's checkout on NFS.
 2. Clone the repository: `git clone git@gitlab-srv:common-infrastructure/qaboard.git /home/ispq/qaboard_prod` (or `_staging`).
 3. Fill the secrets: `.env` and `deployments/sirc/.env` (see `deployments/sirc/.env.sirc.example`), the SSL certificates.
 4. Let the host pull images: create a GitLab **deploy token** with `read_registry`, then `docker login gitlab-srv.transchip.com:4567` once as `ispq`.
