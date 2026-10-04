@@ -12,7 +12,7 @@
 runners:
   # On Windows `qa` falls back to running locally
   default: lsf
-  lsf: {}
+  lsf:
     # Without a queue, bsub uses the cluster's default queue ($LSB_DEFAULTQUEUE or lsb.params' DEFAULT_QUEUE)
     queue: alg_isp_q
     # max_threads: 0
