@@ -82,7 +82,7 @@ deployments/deploy.py deployments/sirc/staging.env seed-db             # last 30
 deployments/deploy.py deployments/sirc/staging.env seed-db --days 90
 ```
 
-Production's database is big, so `seed-db` doesn't restore a full backup. It copies the schema and the small tables (projects, users, test inputs...) in full, but only the **recent commits** (authored, or with outputs, in the last `QABOARD_SEED_DAYS` days) with their batches and outputs. It reads production in a single read-only snapshot, with indexed queries, so only the recent rows are transferred. It replaces staging's database: if production can't be read, staging is left as it was. Older commits referenced by milestones are not copied.
+Production's database is big, so `seed-db` doesn't restore a full backup. It copies the schema and the small tables (projects, users...) in full, but only the **recent commits** (authored, or with outputs, in the last `QABOARD_SEED_DAYS` days) with their batches and outputs, and the test inputs those outputs use. Deleted commits and outputs are skipped. It reads production in a single read-only snapshot, with indexed queries, so only the recent rows are transferred. It replaces staging's database: if production can't be read, staging is left as it was. Older commits referenced by milestones are not copied.
 
 The source is `QABOARD_SEED_SOURCE` in `deployments/sirc/staging.env` (production's database, exposed on `qa:5434`). For a full copy, restore a backup instead: `restore-db latest`.
 

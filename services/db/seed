@@ -1,7 +1,8 @@
 #!/bin/sh
 # Replaces this database with recent data from another QA-Board database, e.g. staging from production:
-# - the schema, and the small tables in full (projects, users, test_inputs...)
-# - only the recent commits (authored, or with outputs, in the last N days), with their batches and outputs
+# - the schema, and the small tables in full (projects, users...)
+# - only the recent commits (authored, or with outputs, in the last N days), with their batches and outputs,
+#   minus what was deleted (commits/outputs with deleted=true), and the test_inputs those outputs use
 #
 # Usage (in the db container): /opt/seed postgresql://user:password@host:port/database [days]
 #   or with deployments/deploy.py deployments/sirc/staging.env seed-db
@@ -15,10 +16,12 @@ DAYS="${2:-30}"
 case "$DAYS" in ''|*[!0-9]*) echo "days must be a number, got: $DAYS" >&2; exit 1;; esac
 DB="${POSTGRES_DB:-qaboard}"
 export PGUSER="${POSTGRES_USER:-qaboard}"
-BIG_TABLES="'ci_commits', 'batches', 'outputs'"
+BIG_TABLES="'ci_commits', 'batches', 'outputs', 'test_inputs'"
 # Not greatest(authored, latest_output) > ...: postgres can't estimate it and assumes 1/3 of all commits match,
 # so it plans full scans of batches/outputs instead of index lookups.
 RECENT="(c.authored_datetime > now() - interval '$DAYS days' OR c.latest_output_datetime > now() - interval '$DAYS days')"
+COMMITS="$RECENT AND c.deleted IS NOT TRUE"
+OUTPUTS="outputs o JOIN batches b ON b.id = o.batch_id JOIN ci_commits c ON c.id = b.ci_commit_id WHERE $COMMITS AND o.deleted IS NOT TRUE"
 # Fail instead of waiting forever if the source is unreachable, or locked (e.g. by a migration)
 export PGCONNECT_TIMEOUT=20
 LOCK_TIMEOUT=2min
@@ -38,15 +41,17 @@ SMALL_TABLES=$(psql "$SOURCE" -Atc "SELECT tablename FROM pg_tables WHERE schema
     printf '%s\n' "\\copy public.\"$t\" TO '$WORK/$t.copy'"
   done
   printf '%s\n' "\\echo '   ci_commits'"
-  printf '%s\n' "\\copy (SELECT c.* FROM ci_commits c WHERE $RECENT) TO '$WORK/ci_commits.copy'"
+  printf '%s\n' "\\copy (SELECT c.* FROM ci_commits c WHERE $COMMITS) TO '$WORK/ci_commits.copy'"
   printf '%s\n' "\\echo '   batches'"
-  printf '%s\n' "\\copy (SELECT b.* FROM batches b JOIN ci_commits c ON c.id = b.ci_commit_id WHERE $RECENT) TO '$WORK/batches.copy'"
+  printf '%s\n' "\\copy (SELECT b.* FROM batches b JOIN ci_commits c ON c.id = b.ci_commit_id WHERE $COMMITS) TO '$WORK/batches.copy'"
   printf '%s\n' "\\echo '   outputs'"
-  printf '%s\n' "\\copy (SELECT o.* FROM outputs o JOIN batches b ON b.id = o.batch_id JOIN ci_commits c ON c.id = b.ci_commit_id WHERE $RECENT) TO '$WORK/outputs.copy'"
+  printf '%s\n' "\\copy (SELECT o.* FROM $OUTPUTS) TO '$WORK/outputs.copy'"
+  printf '%s\n' "\\echo '   test_inputs'"
+  printf '%s\n' "\\copy (SELECT t.* FROM test_inputs t WHERE t.id IN (SELECT o.test_input_id FROM $OUTPUTS)) TO '$WORK/test_inputs.copy'"
   echo "COMMIT;"
 } > "$WORK/export.sql"
 psql "$SOURCE" -q -v ON_ERROR_STOP=1 -f "$WORK/export.sql"
-for t in $SMALL_TABLES ci_commits batches outputs; do
+for t in $SMALL_TABLES ci_commits batches outputs test_inputs; do
   printf '   %-14s %s rows\n' "$t" "$(wc -l < "$WORK/$t.copy")"
 done
 
@@ -60,7 +65,7 @@ echo "3. Loading the data"
 {
   # No foreign key checks while loading: the tables are loaded in any order
   echo "SET session_replication_role = replica;"
-  for t in $SMALL_TABLES ci_commits batches outputs; do
+  for t in $SMALL_TABLES ci_commits batches outputs test_inputs; do
     printf '%s\n' "\\copy public.\"$t\" FROM '$WORK/$t.copy'"
   done
   echo "SET session_replication_role = DEFAULT;"
