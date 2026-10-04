@@ -83,8 +83,8 @@ def check_for_updates():
     latest_version = latest['version']
 
 
-  if latest_version:
-    from qaboard import __version__ as current_version
+  from qaboard import __version__ as current_version
+  if latest_version and current_version != 'unknown':
     to_ints = lambda v: [int(n) for n in v.split('.')]
     newer_version_available = to_ints(current_version) < to_ints(latest_version)
     if newer_version_available:

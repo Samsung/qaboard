@@ -29,6 +29,7 @@ dependencies = [
     "sentry-sdk",
     "simplejson",
     "psutil",
+    "importlib_metadata; python_version < '3.8'",
 ]
 license = {text = "Apache-2.0"}
 
