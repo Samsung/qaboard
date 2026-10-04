@@ -73,7 +73,6 @@ services:
     - /algo:/algo:shared
     - /data:/data:shared
     - /net:/net:shared
-    - /algo/ws:/algo/ws:shared
 
   proxy:
     image: "gitlab-srv:4567/common-infrastructure/qaboard:proxy${QABOARD_VERSION:+-$QABOARD_VERSION}"
