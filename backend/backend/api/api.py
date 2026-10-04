@@ -15,6 +15,9 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.sql import label
 
+# Like the CLI: ENV > secrets > site package (e.g. qaboard-site-sirc) > default
+from qaboard.compat import mappings as _path_mappings
+
 from backend import app, db_session
 from ..models import Project, CiCommit, Batch, Output
 from ..utils import profiled
@@ -33,7 +36,6 @@ def _parse_json_env(key, default):
         return json.loads(default)
 
 _image_servers = _parse_json_env('QABOARD_IMAGE_SERVERS', '{"default": "/iiif"}')
-_path_mappings = _parse_json_env('QABOARD_PATH_MAPPINGS', '[]')
 
 
 @app.route("/api/v1/config")
