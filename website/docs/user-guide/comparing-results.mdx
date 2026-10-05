@@ -11,7 +11,7 @@ QA-Board always shows the results of a **new** commit next to a **reference** (`
 <img alt="The new and reference bars" src={useBaseUrl('img/comparing-new-and-reference.png')} />
 
 ## The default reference
-When you open a commit without choosing a reference, the reference is the **latest commit with results on the project's reference branch** (often `master` or `develop`, set by the project lead in *qaboard.yaml*).
+When you open a commit without choosing a reference, the reference is the **latest commit with results on the project's reference branch** (often `master` or `develop`, set in the project's *qaboard.yaml*).
 
 As soon as it is known, its hash is added to the URL (`reference=<hash>`): a link you share later still compares with the same commit, even after new commits land.
 
@@ -29,7 +29,7 @@ In the **ref** bar (or the **new** bar, it works the same way):
 | **Change Project** | Pick results from another project, e.g. another sub-project of a monorepo, or a fork. |
 | **Switch new/reference** | Swaps the two commits, with their batches and filters. |
 | **Also Select as Reference** / **as New** | Copies this commit, batch and filter to the other bar. Handy to compare two batches of the **same** commit, e.g. a tuning experiment vs CI. |
-| **Remove from comparaison** | Clears the commit. |
+| **Remove from comparison** | Clears the commit. |
 | The reference branch | Selects its latest commit. |
 | Milestones | From *qaboard.yaml*, shared, or private. The milestone's batch and filter are selected too. |
 
@@ -55,7 +55,7 @@ There are three kinds:
 
 | Kind | Who sees it | How to create it |
 |---|---|---|
-| **From *qaboard.yaml*** (crown icon) | Everyone | The project lead lists branches, tags or commits under `project.milestones`. See [References & Milestones](../references-and-milestones.mdx#project-references). |
+| **From *qaboard.yaml*** (crown icon) | Everyone | The project's *qaboard.yaml* lists branches, tags or commits under `project.milestones`. See [References & Milestones](../references-and-milestones.mdx#project-references). |
 | **Shared** (crown icon) | Everyone | The star in a commit bar, with **Shared** on. |
 | **Private** (star icon) | Only you, in this browser | The star in a commit bar, with **Shared** off. |
 
@@ -103,6 +103,6 @@ Colors follow the same rules everywhere:
 | Metrics Diff | New is better | New is worse | Yellow for small changes, `=` when equal |
 | Metrics Table, card tags | Meets the metric's target | Misses the target | No target defined |
 
-"Better" depends on the metric: the project lead sets whether **smaller is better** (the default) and the **target** for each metric. Hover a metric's name to see its full label and description, and hover a value for its exact number.
+"Better" depends on the metric: the project's configuration sets whether **smaller is better** (the default) and the **target** for each metric. Hover a metric's name to see its full label and description, and hover a value for its exact number.
 
 Learn how projects define metrics in [Computing quantitative metrics](../computing-quantitative-metrics.mdx).

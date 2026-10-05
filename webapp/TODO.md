@@ -9,6 +9,14 @@ Check items off or delete them when done, add new ones with enough context for s
 - [ ] **Node on SIRC GitLab runners** is 22.14 (`deployments/sirc/.envrc`), close to the minimum the toolchain supports (22.12). Move them to Node 24 LTS like Docker and GitHub Actions.
 - [ ] Viewers not covered by automated tests with real data: images (OpenSeadragon/IIIF), ToF point clouds (three.js), SLAM, flame graphs, videos. Check them manually on staging after deploys that touch them.
 
+## UX
+- [ ] **Date ranges in the URL**: the commit list reads `?from=YYYY-MM-DD&to=YYYY-MM-DD` on load, but changing the dates (`DateRangeInput3` in `src/AppNavbar.jsx`) only refetches commits, so date ranges can't be shared or bookmarked. Write them to the URL (replace, not push) and keep the History page consistent.
+- [ ] **History page layout** (`src/Dashboard.jsx`, `/:project/history/:branch`):
+  - the sidebar has no navigation (`src/AppSider.jsx` hides it on `/history/`): no History/Code/Integrations/Milestones, no way back to the branch's commits;
+  - under "Metrics per-test", the second tab (`table-compare`) has no `title`;
+  - the sidebar's "History" and "Code" entries are plain `href`s that reload the whole app instead of client-side navigation.
+- [ ] `selected_metrics` is written to the URL but not read back on load.
+
 ## Testing / CI
 - [ ] Run the Playwright smoke tests (`npm run e2e`) in GitLab CI too. They run in GitHub Actions; the LSF runners need Chromium (`npx playwright install chromium` through the proxy, or use `PLAYWRIGHT_CHROMIUM_EXECUTABLE`).
 - [ ] Extend `e2e/smoke.spec.js` with realistic fixtures (batches, outputs, metrics) to cover the viewers and the tuning forms (Monaco).

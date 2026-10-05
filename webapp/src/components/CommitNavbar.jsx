@@ -183,7 +183,7 @@ class CommitNavbar extends React.Component {
       <MenuDivider title="Quick Actions"/>
       <MenuItem text="Switch new/reference" icon="exchange" onClick={this.switchSelection} />
       <MenuItem text={`Also Select as ${type === 'ref' ? 'New' : 'Reference'}`} icon={type === 'ref' ? "chevron-up" : "chevron-down"} onClick={this.copyToOtherType} />
-      <MenuItem text="Remove from comparaison" icon="cross" onClick={() => this.removeSelection()} />
+      <MenuItem text="Remove from comparison" icon="cross" onClick={() => this.removeSelection()} />
       <MenuDivider title="Select"/>
       <MenuItem text={reference_branch} icon="git-branch" onClick={() => this.selectBranch(reference_branch)} />
       <MilestonesMenu project={project} milestones={qatools_milestones} onSelect={this.selectMilestone} icon="crown" title="Select a milestone from qaboard.yaml" type="qatools" />

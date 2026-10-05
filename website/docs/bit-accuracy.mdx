@@ -76,7 +76,7 @@ bit-accuracy-all:
 ## Custom output comparisons
 Bit accuracy checks in QA-Board are done by checking the hashes of your output files. To make it fast, those hashes are computed once, and stored in "manifest" files to make it fast, along with other file metadata.
 
-In some cases, you may want to compare files using something else than bit-exactness between files. Maybe you want to ignore timestamps, or maybe you want to do "semantic" comparaions... To to this, you can supply your own comparaison function:
+In some cases, you may want to compare files using something else than bit-exactness between files. Maybe you want to ignore timestamps, or maybe you want to do "semantic" comparisons... To do this, you can supply your own comparison function:
 
 1. Implement a `cmp` function in some _file.py_:
 
