@@ -648,6 +648,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       base_runner_options['concurrency'] = lsf_concurrency
     if 'concurrency_strategy' in lsf_config:
       base_runner_options['concurrency_strategy'] = lsf_config['concurrency_strategy']
+    # Job arrays keep some bookkeeping there
+    base_runner_options['batch_dir'] = str(ctx.obj['batch_dir'])
 
     # These are always set for LSF
     cli_runner_overrides.update({

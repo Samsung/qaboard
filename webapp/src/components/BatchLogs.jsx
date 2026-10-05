@@ -10,7 +10,9 @@ import {
   Classes,
   Collapse,
   Callout,
+  AnchorButton,
   Button,
+  ButtonGroup,
   NonIdealState,
   Tag,
 } from "@blueprintjs/core";
@@ -18,10 +20,30 @@ import {
 import { StatusTag, style_skeleton } from './tags'
 import { OutputHeader } from '../viewers/OutputCard'
 import { pretty_label } from '../utils'
+import { LsfReport, LsfTag } from './LsfReport'
+import { fetchLsfReport } from './lsf'
 
 import Convert from 'ansi-to-html';
 var convert = new Convert();
 
+
+
+// Escapes HTML, and renders ANSI colors
+const logToHtml = logs => {
+  logs = logs.replaceAll("<?", "??") // avoid issues wih tqdm prints being stripped
+  // https://github.com/rburns/ansi-to-html/blob/master/src/ansi_to_html.js
+  const logs_safe = sanitizeHtml(logs, { disallowedTagsMode: "recursiveEscape" });
+  try {
+    return convert.toHtml(logs_safe);
+  } catch {
+    return logs_safe;
+  }
+}
+
+
+// log.txt is written by `qa run`.
+// With LSF, log.lsf.txt has all the job's output, and LSF's job report (exit reason, resources...)
+const LOG_FILES = ["log.txt", "log.lsf.txt"]
 
 
 class OutputLog extends React.Component {
@@ -29,36 +51,46 @@ class OutputLog extends React.Component {
     super(props);
     this.log_ref = null
     this.onRefChange = element => {
-      // console.log("onRefChange", element)
       this.log_ref = element
-      // this.scrollBottom(true)
     };
 
     this.state = {
       is_loaded: false,
       is_open: false,
       error: null,
-      logs: null,
-      logs_html: null,
-      viewable: false || props.viewable,
+      logs_html_safe: null,
+      log_file: LOG_FILES[0],
+      lsf_report: null,
+      lsf_report_requested: false,
+      viewable: !!props.viewable,
     };
   }
 
+  componentDidMount() {
+    if (this.state.viewable && this.props.output?.is_failed)
+      this.getLsfReport()
+  }
+
   becameViewable = inView => {
+    if (!inView) return
     this.setState({viewable: true})
+    // We show right away why LSF killed failed runs
+    if (this.props.output?.is_failed)
+      this.getLsfReport()
   }
 
   componentDidUpdate(prevProps) {
-    const has_logs = !!this.props.output && !!this.props.output_dir_url
-    if (!has_logs) return
-    const had_logs = !!prevProps.output && !!prevProps.output_dir_url
-    if (had_logs && this.props.output_dir_url !==prevProps.output.output_dir_url)
-      this.getLog()
-
-    // console.log("[didUpdate]")
-    // if (!!this.props.output?.logs_html_safe && !!!this.prevProps.output?.logs_html_safe)
-    // this.scrollBottom()
-  
+    const { output } = this.props
+    if (!output?.output_dir_url || !prevProps.output) return
+    if (output.output_dir_url !== prevProps.output.output_dir_url) {
+      this.setState({lsf_report: null, lsf_report_requested: false})
+      if (this.state.is_open)
+        this.getLog()
+      return
+    }
+    // The run just finished
+    if (prevProps.output.is_pending && !output.is_pending && (this.state.is_open || (this.state.viewable && output.is_failed)))
+      this.getLsfReport(true)
   }
 
   refreshLog = () => {
@@ -71,87 +103,72 @@ class OutputLog extends React.Component {
 
   handleClick = () => {
     if (!this.state.is_loaded) this.getLog();
+    this.getLsfReport();
     this.setState({ is_open: !this.state.is_open });
 
     if (!!this.refreshLogInterval) clearInterval(this.refreshLogInterval);
     if (!!this.props.output && this.props.output.is_pending) {
-      // console.log(this.props.output)
       this.refreshLogInterval = setInterval(this.refreshLog, 2500);
     }
   };
+
+  showLogFile = log_file => {
+    this.setState({ log_file, is_open: true })
+    this.getLog(log_file)
+  }
 
   componentWillUnmount(){
     if (!!this.refreshLogInterval) clearInterval(this.refreshLogInterval);
   }
 
+  getLsfReport(force = false) {
+    const { output } = this.props;
+    if (!output?.output_dir_url || output.is_pending) return
+    if (this.state.lsf_report_requested && !force) return
+    this.setState({lsf_report_requested: true})
+    const output_dir_url = output.output_dir_url
+    fetchLsfReport(get, `${output_dir_url}/log.lsf.txt`)
+      .then(lsf_report => {
+        if (this.props.output?.output_dir_url === output_dir_url)
+          this.setState({lsf_report})
+      })
+      .catch(() => {}) // e.g. not run with LSF
+  }
+
   getLog(log_file) {
     const { output } = this.props;
     if (!!!output || !!!output.output_dir_url) return
+    log_file = log_file ?? this.state.log_file
     this.setState({is_loaded: false});
-    // console.log(`[logs] fetch ${output.test_input_path}`)
-    // console.log(`       => ${output.output_dir_url}/${log_file || 'log.txt'}`)
-
-    const log_url = `${output.output_dir_url}/${log_file ?? 'log.txt'}`
-    get(log_url)
+    const log_url = `${output.output_dir_url}/${log_file}`
+    get(log_url, { responseType: 'text', transformResponse: [data => data] })
       .then(response => {
-        var logs = response.data;
-        logs = logs.replaceAll("<?", "??") // avoid issues wih tqdm prints being stripped
-        // https://stackoverflow.com/questions/4842424/list-of-ansi-color-escape-sequences
-        // https://github.com/rburns/ansi-to-html/blob/master/test/ansi_to_html.js
-        // https://github.com/rburns/ansi-to-html/blob/master/src/ansi_to_html.js
-        const sanitizeHtml_options = {
-          disallowedTagsMode: "recursiveEscape",
-          // allowedTags: ['b', 'i', 'em', 'strong', 'a'],
-          // allowedAttributes: {
-          //   a: ['href', 'target']
-          // }
-        }
-        let logs_safe = sanitizeHtml(logs, sanitizeHtml_options);
-        let ansi_to_html_options =  {
-          //fg: '#fff',
-          // bg: '#000',
-          // colors: {
-          //   0: '#fff',
-          //   30: '#fff',
-          //   232: '#fff',
-          // },
-          // pre: style={{background: '#000'}} 
-        }
-        var logs_html_safe;
-        try {
-          logs_html_safe = !!logs && convert.toHtml(logs_safe, ansi_to_html_options);
-        } catch {
-          logs_html_safe = !!logs && logs_safe;
-        }
+        // the user may have switched to another file
+        if (log_file !== this.state.log_file) return
+        const logs = response.data;
         this.setState({
           is_loaded: true,
-          // logs,
-          logs_html_safe,
+          logs_html_safe: !!logs ? logToHtml(logs) : logs,
           log_url,
           error: null,
         });
       })
       .catch(error => {
+        if (log_file !== this.state.log_file) return
         console.log(error)
         this.setState({ log_url, is_loaded: true, error });
       });
   }
 
-  scrollBottom = redo => {
-    console.log("scroll", this.log_ref)
+  scrollBottom = () => {
     if (this.log_ref) {
-      console.log(">")
       this.log_ref.scrollTo(0, this.log_ref.scrollHeight)
-      if (redo)
-        setTimeout(this.scrollBottom, 10)
     }
   }
 
   render() {
     const { output, commit, project, dispatch } = this.props;
-    const { is_open, is_loaded, error, logs_html_safe, viewable } = this.state;
-    // console.log(`[logs] render ${output.test_input_path}`)
-    // console.log(sanitizeHtml("<Config>test</Config>"));
+    const { is_open, is_loaded, error, logs_html_safe, viewable, log_file, log_url, lsf_report } = this.state;
 
     const button_text = is_open ? "Hide" : is_loaded ? "Loading" : "Show";
     const show_button = (
@@ -159,15 +176,15 @@ class OutputLog extends React.Component {
         {button_text} logs
       </Button>
     );
-    // onmount ref
-    // this.log_ref.current.scrollTop = offsetTop
     const header_prefix = <>
       {show_button}{button_text==="Hide" && <Button onClick={this.scrollBottom} icon="double-chevron-down"></Button>} {output.output_type !== "batch" && <StatusTag output={output}/>}
+      <LsfTag report={lsf_report} onClick={() => !is_open && this.handleClick()} />
     </>
-    const has_failure_lsf = output.is_failed && (logs_html_safe ?? "").slice(-1000).includes("Aborted!")
+    // Without LSF's report (e.g. runs from before 2026-10), we look at how the run ended
+    const was_aborted = !lsf_report && output.is_failed && log_file === "log.txt" && (logs_html_safe ?? "").slice(-1000).includes("Aborted!")
     return (
       <div>
-        {!viewable && <InView key="unviewable" threshold={0.1} margin='150%' /*triggerOnce*/ onChange={inView => this.becameViewable(inView)}>
+        {!viewable && <InView key="unviewable" threshold={0.1} margin='150%' /*triggerOnce*/ onChange={this.becameViewable}>
           <span key="viewable"></span>
         </InView>}
         <OutputHeader
@@ -181,20 +198,24 @@ class OutputLog extends React.Component {
           viewable={viewable}
         />
         <Collapse isOpen={is_open}>
-          {error ? 
+          <LsfReport report={lsf_report} />
+          <div style={{ marginBottom: '5px' }}>
+            <ButtonGroup>
+              {LOG_FILES.map(name => <Button key={name} size="small" active={log_file === name} onClick={() => this.showLogFile(name)}>{name}</Button>)}
+            </ButtonGroup>
+            {!!log_url && <AnchorButton size="small" variant="minimal" icon="share" href={log_url} target="_blank" rel="noopener noreferrer" style={{ marginLeft: '5px' }}>Open</AnchorButton>}
+            {was_aborted && <Tag interactive intent="danger" onClick={() => this.showLogFile("log.lsf.txt")} style={{ marginLeft: '5px' }}>
+              Aborted! Check log.lsf.txt to know why
+            </Tag>}
+          </div>
+          {error ?
             <NonIdealState
-              title="No logs."
+              title={`No ${log_file}.`}
               description={
-                error.response ? (!!error.response.data && error.response.data.includes('404') ? '404: Not found' : JSON.stringify(error.response.data)) : error
+                error.response ? (error.response.status === 404 || (!!error.response.data && `${error.response.data}`.includes('404')) ? '404: Not found' : JSON.stringify(error.response.data)) : `${error}`
               }
             />
-          : <div>
-              {has_failure_lsf && <a target="_blank" href={(this.state.log_url ?? '').replace("log.txt", "log.lsf.txt")}>
-                <Tag interactive intent="danger">
-                  Killed by LSF! Click to check why
-              </Tag></a>}
-              <pre
-                // ref={this.log_ref}
+          : <pre
                 ref={this.onRefChange}
                 className={Classes.CODE_BLOCK}
                 dangerouslySetInnerHTML={{
@@ -207,7 +228,6 @@ class OutputLog extends React.Component {
                   ...(output.is_pending ? style_skeleton : {}),
                 }}
               />
-            </div>
           }
         </Collapse>
       </div>

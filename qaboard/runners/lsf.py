@@ -56,6 +56,8 @@ class LsfOptions():
   # - "waves": jobs are sent in waves of `concurrency` jobs, each wave waiting for the previous one to end.
   #            Stragglers block the next wave, use only if job arrays don't work for you.
   concurrency_strategy: str = "array"
+  # Where we keep job arrays' bookkeeping. Set by `qa batch` to its batch directory.
+  batch_dir: Optional[str] = None
   # not strictly LSF options, but important to send jobs
   user: Optional[str] = getenvs(('USERNAME', 'USER'))
   cwd: Path = Path() # current working directory
@@ -77,6 +79,17 @@ def dict_to_LsfOptions(job_options):
   options = LsfOptions()
   filtered_options = {k:v for k,v in job_options.items() if k in lsf_option_names and v is not None}
   return replace(options, **filtered_options)
+
+
+def redirect_to_log(output_dir: Path) -> str:
+  """
+  Shell line sending the job's output to <output_dir>/log.lsf.txt as it runs.
+  LSF only writes its -o file when the job ends (unless LSB_STDOUT_DIRECT=Y), and we've seen it lose the output.
+  We still ask LSF to write in the same file with -o: it appends its job report (exit reason, resource usage...) at the end.
+  Note: `qa run` cleans its output directory, but keeps the file its output is redirected to.
+  """
+  output_dir = output_dir.resolve()
+  return f'mkdir -p "{output_dir}" && exec > "{output_dir}/log.lsf.txt" 2>&1'
 
 
 class LsfRunner(BaseRunner):
@@ -112,9 +125,8 @@ class LsfRunner(BaseRunner):
     """Sends a job to the LSF queue and returns the results of the subprocess call that sent the command to LSF.
     Use `flags` for extra bsub flags, e.g. dependencies like `-w "ended(my_job_name)"`.
     """
-    # In our cluster, we have filessytem sync issues, and LSF does't print live logs.
-    # So here we save STDOUT to log.lsf.txt, while we log in real-time log.txt ourselves
-    # Ideally we should copy the actual LSF logs after the job, since they have STDOUT and a summary header
+    # log.txt is written by `qa run`. log.lsf.txt has all the job's output (e.g. from subprocesses, or crashes)
+    # live, then LSF's job report. With -I (blocking), the output goes to the terminal, so we don't redirect it.
     lsf_log_file = (self.output_dir / "log.lsf.txt").resolve() if self.output_dir else None
     script = " ".join([
       # the click python package hates ascii locales, for good reasons
@@ -123,6 +135,8 @@ class LsfRunner(BaseRunner):
       "MPLBACKEND=agg" if self.command else '',
       self.command if self.command else 'echo OK',
     ])
+    if self.output_dir and not blocking:
+      script = f"  {redirect_to_log(self.output_dir)}\n{script}"
     return self.bsub(
       script=script,
       name=name if name else self.name,
@@ -163,9 +177,7 @@ class LsfRunner(BaseRunner):
         "-I" if blocking else "",
         f'-J "{name}"',
         f'-o "{log_file}"' if log_file else '',
-        # It would be nice to overwrite our logs with LSF's, which include a nice header
-        # But we've had issues with filesystem sync, and found that LSF would somethings have no logs(?!?)
-        # f'-Ep \'sleep 30 ; mv "{lsf_log_file}" "{log_file}"\'',
+        # -o appends to the file (-oo would overwrite)
         *self.bsub_options(),
         flags,
         '<< "EOF"\n'
@@ -217,12 +229,16 @@ class LsfRunner(BaseRunner):
 
 
   @staticmethod
-  def start_jobs_as_arrays(jobs: List[Job], batch_prefix: str, concurrency: int, max_array_size: int = 1000):
+  def start_jobs_as_arrays(jobs: List[Job], batch_prefix: str, concurrency: int, max_array_size: int = 1000, batch_dir: Optional[str] = None):
     """
     Jobs with identical bsub options are sent as 1 job array with a slot limit: `-J "name[1-n]%concurrency"`.
     Each array element picks its command from $LSB_JOBINDEX. Since the name starts with `batch_prefix`,
     `bkill -J "{batch_prefix}*"` and the WAIT job's dependency keep working.
     Note: the limit applies per array, so if runs need different LSF options (e.g. per input type), you may get more.
+
+    Array elements share the same -o file, but LSF replaces %I with the element's index. To have LSF write
+    each element's job report in its run's log.lsf.txt, we use -o "{links_dir}/%I/log.lsf.txt",
+    where {links_dir}/{index} is a symlink to the element's output directory.
     """
     groups: Dict[Any, List[Job]] = {}
     for job in jobs:
@@ -233,13 +249,28 @@ class LsfRunner(BaseRunner):
     if len(chunks) > 1:
       secho(f"WARNING: The runs need {len(chunks)} LSF job arrays (different LSF options, or >{max_array_size} runs). The concurrency limit ({concurrency}) applies to each array.", fg='yellow', err=True)
     for chunk in chunks:
+      runner = cast(LsfRunner, chunk[0].runner)
+      array_name = f"{batch_prefix}_{runner.name.split('_', 1)[1]}"
+      output_dirs = [cast(LsfRunner, job.runner).output_dir for job in chunk]
+      links_dir = None
+      if all(output_dirs):
+        links_root = Path(batch_dir) if batch_dir else Path(os.path.commonpath([str(d.resolve()) for d in output_dirs if d]))
+        links_dir = (links_root / 'lsf' / array_name).resolve()
+        try:
+          links_dir.mkdir(parents=True, exist_ok=True)
+          for index, output_dir in enumerate(output_dirs, start=1):
+            assert output_dir
+            (links_dir / str(index)).symlink_to(output_dir.resolve(), target_is_directory=True)
+        except OSError as e:
+          secho(f"WARNING: Could not create {links_dir} ({e}). LSF job reports won't be saved.", fg='yellow', err=True)
+          links_dir = None
+
       cases = []
       for index, job in enumerate(chunk, start=1):
         runner = cast(LsfRunner, job.runner)
         lines = [f"{index})"]
         if runner.output_dir:
-          output_dir = runner.output_dir.resolve()
-          lines.append(f'  mkdir -p "{output_dir}" && exec > "{output_dir}/log.lsf.txt" 2>&1')
+          lines.append(f"  {redirect_to_log(runner.output_dir)}")
         lines.extend([f"  {runner.command if runner.command else 'echo OK'}", "  ;;"])
         cases.append("\n".join(lines))
       script = "\n".join([
@@ -250,11 +281,10 @@ class LsfRunner(BaseRunner):
         *cases,
         "esac",
       ])
-      runner = cast(LsfRunner, chunk[0].runner)
-      array_name = f"{batch_prefix}_{runner.name.split('_', 1)[1]}"
       slot_limit = min(concurrency, len(chunk))
-      # -o /dev/null: we redirect each run's output to its own log.lsf.txt, and without -o LSF sends emails.
-      runner.bsub(script=script, name=f"{array_name}[1-{len(chunk)}]%{slot_limit}", log_file=Path('/dev/null'))
+      # Without -o LSF sends emails.
+      log_file = links_dir / '%I' / 'log.lsf.txt' if links_dir else Path('/dev/null')
+      runner.bsub(script=script, name=f"{array_name}[1-{len(chunk)}]%{slot_limit}", log_file=log_file)
 
 
   @staticmethod
@@ -280,7 +310,7 @@ class LsfRunner(BaseRunner):
       if options.concurrency_strategy == "waves":
         LsfRunner.start_jobs_in_waves(jobs, batch_prefix, options.concurrency)
       elif options.concurrency_strategy == "array":
-        LsfRunner.start_jobs_as_arrays(jobs, batch_prefix, options.concurrency)
+        LsfRunner.start_jobs_as_arrays(jobs, batch_prefix, options.concurrency, batch_dir=options.batch_dir)
       else:
         raise ValueError(f"Unknown LSF concurrency_strategy: {options.concurrency_strategy}. Use 'array' or 'waves'.")
     else:

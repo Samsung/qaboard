@@ -48,10 +48,21 @@ runners:
 or `qa batch --lsf-concurrency 20 my-batch`.
 
 Two strategies are available:
-- `array` (default): runs with identical LSF options are sent as a single [job array](https://www.ibm.com/docs/en/spectrum-lsf/10.1.0?topic=arrays-create-job-array) with a slot limit (`-J "name[1-n]%20"`). It's a sliding window, and a single `bsub` call. Each run's output is in its `log.lsf.txt`. If runs need different LSF options (e.g. per input type), each group gets its own array and its own limit.
+- `array` (default): runs with identical LSF options are sent as a single [job array](https://www.ibm.com/docs/en/spectrum-lsf/10.1.0?topic=arrays-create-job-array) with a slot limit (`-J "name[1-n]%20"`). It's a sliding window, and a single `bsub` call. If runs need different LSF options (e.g. per input type), each group gets its own array and its own limit.
 - `waves`: runs are sent by groups of `concurrency` jobs, each group waiting for the previous one to end (`-w "ended(...)"`). Slow runs delay the next wave. Use it only if job arrays don't work for you.
 
 In both cases job names keep the batch prefix, so stopping a batch from QA-Board still works.
+
+## Logs
+Each run has 2 log files in its output directory:
+- `log.txt`: what `qa run` and your code print from Python, written live. You get it with every runner.
+- `log.lsf.txt`: everything the LSF job printed, written live, including output that doesn't go through Python (subprocesses, native code, crashes). When the job ends, LSF appends its job report: exit code, why LSF terminated the job (e.g. `TERM_MEMLIMIT`), the host, run time, memory usage...
+
+In QA-Board, when you show a run's logs, you can switch between the two files. A summary of LSF's job report is shown above the logs, and failed runs get a tag explaining why LSF ended them (e.g. "LSF: TERM_MEMLIMIT"), with what to do about it.
+
+:::note
+With job arrays (see above), all runs share the same `bsub -o` file name. To get each run's job report in its own `log.lsf.txt`, *qaboard* creates symlinks to the runs' output directories in `{batch_dir}/lsf/{job_array_name}/{index}`, and uses `-o "{batch_dir}/lsf/{job_array_name}/%I/log.lsf.txt"`.
+:::
 
 ## Many short runs? Use a pool of workers
 Each run is an LSF job, and pays LSF's scheduling overhead. If you have many short runs, run them instead on a few long-lived workers, themselves started as LSF jobs: read the [Dask integration](dask-integration) docs.
