@@ -8,10 +8,7 @@ import {
   Button,
   Collapse,
   Card,
-  Divider,
   InputGroup,
-  Slider,
-  Tag,
   Tooltip,
 } from "@blueprintjs/core";
 import { is_image } from "../viewers/images/utils";
@@ -189,7 +186,6 @@ const FloatingControlsPanel = ({
   visualizations,
   controls_extra,
   selected_views,
-  selected_metrics,
   new_batch,
   available_metrics,
   metricTableSelect,
@@ -203,7 +199,6 @@ const FloatingControlsPanel = ({
   dynamic_options = {},
   onUpdateDynamicOption = () => {},
   onToggleDynamicOptionSync = () => {},
-  visualization_stats = { total_visualizations: 0, disabled_visualizations: 0, missing_files_count: 0 },
   visualizations_with_files = new Set(),
   expandPanel = false,
   registration_info = { total_outputs: 0, registered_outputs: 0, is_throttled: false, last_recompute_at: 0 },
@@ -215,6 +210,8 @@ const FloatingControlsPanel = ({
     return saved !== null ? JSON.parse(saved) : true;
   });
   
+  const [isExpandedWithLogs, setIsExpandedWithLogs] = useState(false);
+
   const [expandedSections, setExpandedSections] = useState({
     visualizations: true,
     dynamic_options: true,
@@ -249,6 +246,10 @@ const FloatingControlsPanel = ({
   };
 
   const show_viewer_controls = selected_views.includes('output-list') || selected_views.includes('bit-accuracy');
+  // With only the logs, the panel only has the sorting, and would cover the right side of the logs: it starts closed
+  const only_logs = selected_views.includes('logs') && !show_viewer_controls
+  const expanded = only_logs ? isExpandedWithLogs : isExpanded
+  const setExpanded = only_logs ? setIsExpandedWithLogs : setIsExpanded
   const maybe_diff = visualizations.some(v => is_image(v));
 
   // Helper function to check if a visualization is currently enabled
@@ -271,7 +272,7 @@ const FloatingControlsPanel = ({
     return visualizations_with_files.has(viewName);
   }).length;
   
-  const availableDynamicOptions = Object.entries(dynamic_options || {}).filter(([name, option]) => {
+  const availableDynamicOptions = Object.entries(dynamic_options || {}).filter(([, option]) => {
     return option.views?.some(viewName => {
       const view = visualizations.find(v => v.name === viewName);
       if (!view) return false;
@@ -343,7 +344,7 @@ const FloatingControlsPanel = ({
   return (
     <>
       {/* Invisible hover detection zone when collapsed */}
-      {!isExpanded && (
+      {!expanded && (
         <div
           style={{
             position: 'fixed',
@@ -360,15 +361,15 @@ const FloatingControlsPanel = ({
       
       {/* Toggle button */}
       <ToggleButton
-        isExpanded={isExpanded}
-        icon={isExpanded ? "chevron-right" : "chevron-left"}
+        isExpanded={expanded}
+        icon={expanded ? "chevron-right" : "chevron-left"}
         minimal
         intent={Intent.PRIMARY}
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={() => setExpanded(!expanded)}
         title="Toggle Controls Panel"
       />
       
-      <PanelContainer isExpanded={isExpanded}>
+      <PanelContainer isExpanded={expanded}>
 
       <StyledCard>
         <PanelContent>

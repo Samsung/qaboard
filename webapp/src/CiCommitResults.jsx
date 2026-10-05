@@ -3,14 +3,10 @@ import { connect } from 'react-redux'
 import { withRouter } from "./router";
 
 import {
-  Intent,
   Classes,
-  HTMLSelect,
-  Switch,
   Button,
   MenuItem,
   Card,
-  Tabs,
   NonIdealState,
 } from "@blueprintjs/core";
 import { MultiSelect } from "@blueprintjs/select";
@@ -32,15 +28,12 @@ import { TuningForm } from "./components/tuning/forms";
 import { AddRecordingsForm } from "./components/tuning/form_groups";
 import TuningExploration from "./components/tuning/TuningExploration";
 import { controls_defaults, updateQueryUrl } from "./viewers/controls";
-import { is_image } from "./viewers/images/utils"
 import { ExportPlugin } from "./plugins/ExportPlugin";
 import { match_query } from "./utils";
 import { humanFileSize } from "./viewers/bit_accuracy/utils";
 import { 
-  parseVisualizationOptions, 
   mergeCompatibleOptions, 
   setSyncPreferences,
-  generateViewPaths
 } from "./utils/dynamicOptions";
 import { matchPath } from "./router";
 
@@ -114,7 +107,7 @@ class CiCommitResults extends Component {
   }
 
   // these members help us define the metric selector
-  renderMetric = (metric, { handleClick, modifiers, query }) => {
+  renderMetric = (metric, { handleClick, modifiers }) => {
     if (!modifiers.matchesPredicate) {
       return null;
     }
@@ -187,7 +180,7 @@ class CiCommitResults extends Component {
         try {
           const match = matchPath(path, { path: view.path });
           return match !== null && match !== undefined;
-        } catch (error) {
+        } catch {
           return false;
         }
       });
@@ -247,7 +240,7 @@ class CiCommitResults extends Component {
         // Collect all output options for merging  
         const allOutputOptions = Array.from(newRegisteredOutputs).map(id => ({
           output_id: id,
-          ...outputOptionsStore[id] || {}
+          ...outputOptionsStore[id]
         }));
         
         mergedOptions = mergeCompatibleOptions(allOutputOptions);
@@ -327,7 +320,7 @@ class CiCommitResults extends Component {
     // Force recomputation of all dynamic options by collecting all stored options
     const allOutputOptions = Array.from(this.state.registered_outputs).map(id => ({
       output_id: id,
-      ...this.state.output_options_store[id] || {}
+      ...this.state.output_options_store[id]
     }));
     
     const mergedOptions = mergeCompatibleOptions(allOutputOptions);
@@ -434,7 +427,7 @@ class CiCommitResults extends Component {
     }
   }
 
-  update = (attribute, attribute_url) => e => {
+  update = attribute => e => {
   	const value = (e.target && e.target.value !==undefined) ? e.target.value : e;
     this.props.dispatch(updateSelected(this.props.project, { [attribute]: value }))
   } 
@@ -471,8 +464,8 @@ class CiCommitResults extends Component {
     let metricTableSelect = (
       <MultiSelect
         items={Object.entries(available_metrics)
-               .filter(([key, _]) => new_batch.used_metrics.has(key))
-               .map(([k, m]) => m)}
+               .filter(([key]) => new_batch.used_metrics.has(key))
+               .map(([, m]) => m)}
         itemPredicate={this.filterMetric}
         itemRenderer={this.renderMetric}
         onItemSelect={this.handleMetricSelect}
@@ -490,40 +483,6 @@ class CiCommitResults extends Component {
     let config_outputs =  config.outputs || {};
     let controls_extra = config_outputs.controls || []
     let visualizations = [...(config_outputs.visualizations || []), ...(config_outputs.detailed_views || []) ]; // we allow both for some leeway with half updated projects
-    let maybe_diff = visualizations.some(v => is_image(v)) && <Switch
-        key='diff'
-        intent={Intent.WARNING}
-        checked={this.state.controls.diff || false}
-        onChange={this.toggle('diff')}
-        labelElement={<strong>Image Diff</strong>}
-        innerLabel="off"
-        innerLabelChecked="on"
-    />
-    let controls = <>
-      {!selected_views.includes('bit-accuracy') && visualizations.map( (view, idx) => {
-        if (!view.default_hidden ||
-            this.state.controls.show === undefined || this.state.controls.show === null ||
-            this.state.controls.show[view.name] === undefined || this.state.controls.show[view.name] === null)
-          return <React.Fragment key={idx}></React.Fragment>
-        return <Switch
-                key={idx}
-                checked={this.state.controls.show[view.name]}
-                onChange={this.toggle_show(view.name)}
-                label={view.label || view.name || view.path}
-               />
-      })}
-      {maybe_diff}
-      {controls_extra.map(control => {
-        return <Switch
-                key={control.name}
-                checked={this.state.controls[control.name]}
-                onChange={this.toggle(control.name)}
-                label={control.label || control.name}
-               />
-      })}
-    </>
-
-    let show_viewer_controls = selected_views.includes('output-list') || selected_views.includes('bit-accuracy')
     const tuned_params = new_batch.sorted_extra_parameters.filter(p => new_batch.extra_parameters[p].size > 1)
     const has_tuning = tuned_params.length > 0
     let show_ref_navbar = ! (selected_views.includes('logs') || selected_views.includes('tuning') || selected_views.includes('groups'))
@@ -630,7 +589,8 @@ class CiCommitResults extends Component {
                 </Card>
                </Section>}
 
-              {selected_views.includes('logs') && <Section>
+              {/* as wide as the page, not as its widest log line or run configuration */}
+              {selected_views.includes('logs') && <Section style={{ width: 'auto', minWidth: 0 }}>
                   <h2 className={Classes.HEADING}>Logs</h2>
                   <BatchLogs
                     project={this.props.selected.new_project}

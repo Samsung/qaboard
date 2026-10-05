@@ -11,6 +11,7 @@ import {
   MenuItem,
   MenuDivider,
   Popover,
+  PopoverNext,
   Intent,
   Tooltip,
   Button,
@@ -72,7 +73,7 @@ const convertToTuningFormat = (configurations) => {
   configurations.forEach(config => {
     if (typeof config === 'object' && config !== null) {
       Object.entries(config)
-        .filter(([k, v]) => !hidden_keys.includes(k))
+        .filter(([k]) => !hidden_keys.includes(k))
         .forEach(([key, value]) => {
           // Handle numeric vectors/arrays specially
           if (Array.isArray(value) && value.every(item => typeof item === 'number')) {
@@ -104,7 +105,7 @@ const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, to
         
         if (!toplevel) return stringTag;
         
-        return <Popover
+        return <PopoverNext
           key={idx}
           placement="bottom"
           hoverCloseDelay={200}
@@ -141,11 +142,11 @@ const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, to
           }
         >
           {stringTag}
-        </Popover>
+        </PopoverNext>
       } else {
         const objectTags = <span style={wrapper_style} key={idx}>
           {Object.entries(c)
-                 .filter(([k, v]) => !hidden_keys.includes(k))
+                 .filter(([k]) => !hidden_keys.includes(k))
                  .map( ([k, v]) => {
                    const tag = <Tag round interactive minimal={!inverted} key={k} intent={intent}>
                      <strong>{k}:</strong> {JSON.stringify(v)}
@@ -153,7 +154,7 @@ const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, to
                    
                    if (!toplevel) return tag;
                    
-                   return <Popover
+                   return <PopoverNext
                      key={k}
                      placement="bottom"
                      hoverCloseDelay={200}
@@ -200,7 +201,7 @@ const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, to
                      }
                    >
                      {tag}
-                   </Popover>
+                   </PopoverNext>
                  })}
           </span>
           
@@ -223,7 +224,7 @@ class ExtraParametersTags extends React.Component {
 
     const intent = this.props.intent || Intent.PRIMARY;
     const tags = Object.entries(parameters)
-      .filter(([k, v]) => !hidden_keys.includes(k))
+      .filter(([k]) => !hidden_keys.includes(k))
       .map(([k, v]) => (
         <Tag key={k} intent={intent} minimal={!this.props.inverted} round interactive style={{ marginRight: '5px', marginBottom: '3px' }}>
           <strong>{k}: </strong> {JSON.stringify(v)}
@@ -290,6 +291,107 @@ const RunBadge = ({badge}) => {
 
 
 
+// What users can do with a run: redo it, mark it as failed, delete it...
+const RunActionsMenu = ({ output, project, commit, dispatch }) => {
+  const [waiting, setWaiting] = React.useState(false)
+  const { id, deleted, is_pending } = output
+  const refresh = () => dispatch(fetchCommit({project, id: commit.id}))
+  return (
+    <Menu>
+      {id && is_pending && <MenuItem
+        icon="stop"
+        text="Mark as Failed"
+        htmlTitle="For runs stuck as pending or running: their job is gone and will never report"
+        intent={Intent.WARNING}
+        minimal
+        disabled={waiting}
+        onClick={() => {
+          setWaiting(true)
+          toaster.show({message: "Requested to mark as 'Failed'."});
+          axios.put(`/api/v1/output/${id}/`, {is_pending: false, is_running: false, is_failed: true})
+            .then(() => {
+              setWaiting(false)
+              toaster.show({message: "Marked as failed.", intent: Intent.SUCCESS});
+              refresh()
+            })
+            .catch(error => {
+              setWaiting(false)
+              toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
+              refresh()
+            });
+        }}
+      />}
+      {id && !is_pending && <MenuItem
+        icon="redo"
+        text="Redo"
+        intent={Intent.WARNING}
+        minimal
+        disabled={waiting}
+        onClick={() => {
+          setWaiting(true)
+          toaster.show({message: "Requested Redo."});
+          axios.post(`/api/v1/output/redo/${id}/`, {is_pending: false, is_running: false})
+            .then(() => {
+              setWaiting(false)
+              toaster.show({message: "Redo started.", intent: Intent.SUCCESS});
+              refresh()
+            })
+            .catch(error => {
+              setWaiting(false)
+              toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
+              refresh()
+            });
+        }}
+      />}
+      {id && !deleted && <MenuItem
+        icon="trash"
+        text="Delete"
+        intent={Intent.DANGER}
+        minimal
+        disabled={waiting}
+        onClick={() => {
+          setWaiting(true)
+          toaster.show({message: "Delete requested."});
+          axios.delete(`/api/v1/output/${id}/`)
+            .then(() => {
+              setWaiting(false)
+              toaster.show({message: "Deleted.", intent: Intent.SUCCESS});
+              refresh()
+            })
+            .catch(error => {
+              setWaiting(false)
+              toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
+              refresh()
+            });
+        }}
+      />}
+      {id && !deleted && <MenuItem
+        icon="trash"
+        text="Delete Output Files"
+        intent={Intent.DANGER}
+        minimal
+        disabled={waiting}
+        onClick={() => {
+          setWaiting(true)
+          toaster.show({message: "Delete requested."});
+          axios.delete(`/api/v1/output/${id}/?soft=true`)
+            .then(() => {
+              setWaiting(false)
+              toaster.show({message: "Deleted.", intent: Intent.SUCCESS});
+              refresh()
+            })
+            .catch(error => {
+              setWaiting(false)
+              toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
+              refresh()
+            });
+        }}
+      />}
+    </Menu>
+  )
+}
+
+
 class OutputTags extends React.Component {
   constructor(props) {
     super(props);
@@ -305,7 +407,7 @@ class OutputTags extends React.Component {
 
 
   render() {
-    const { platform, configurations, output_dir_url, id, deleted, is_pending, output_type } = this.props.output;
+    const { platform, configurations, output_dir_url, deleted, output_type } = this.props.output;
     const { mismatch } = this.props;
     const cde_shs = !deleted ? Object.keys(this.props.manifests?.new ?? []).filter(path => path.endsWith("cde.sh")) : []
     return <span style={this.props.style}>
@@ -315,97 +417,7 @@ class OutputTags extends React.Component {
 
       {output_type !== "batch" &&
       <Popover placement="bottom" hoverCloseDelay={200} interactionKind={"hover"} content={
-        <Menu>
-          {id && is_pending && <MenuItem
-            icon="stop"
-            text="Mark as Failed"
-            htmlTitle="For runs stuck as pending or running: their job is gone and will never report"
-            intent={Intent.WARNING}
-            minimal
-            disabled={this.state.waiting}
-            onClick={() => {
-              this.setState({waiting: true})
-              toaster.show({message: "Requested to mark as 'Failed'."});
-              axios.put(`/api/v1/output/${id}/`, {is_pending: false, is_running: false, is_failed: true})
-                .then(() => {
-                  this.setState({waiting: false})
-                  toaster.show({message: "Marked as failed.", intent: Intent.SUCCESS});
-                  this.refresh()
-                })
-                .catch(error => {
-                  this.setState({waiting: false });
-                  toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
-                  this.refresh()
-                });
-            }}
-          />}
-          {id && !is_pending && <MenuItem
-            icon="redo"
-            text="Redo"
-            intent={Intent.WARNING}
-            minimal
-            disabled={this.state.waiting}
-            onClick={() => {
-              this.setState({waiting: true})
-              toaster.show({message: "Requested Redo."});
-              axios.post(`/api/v1/output/redo/${id}/`, {is_pending: false, is_running: false})
-                .then(() => {
-                  this.setState({waiting: false})
-                  toaster.show({message: "Redo started.", intent: Intent.SUCCESS});
-                  this.refresh()
-                })
-                .catch(error => {
-                  this.setState({waiting: false });
-                  toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
-                  this.refresh()
-                });
-            }}
-          />}
-          {id && !deleted && <MenuItem
-            icon="trash"
-            text="Delete"
-            intent={Intent.DANGER}
-            minimal
-            disabled={this.state.waiting}
-            onClick={() => {
-              this.setState({waiting: true})
-              toaster.show({message: "Delete requested."});
-              axios.delete(`/api/v1/output/${id}/`)
-                .then(() => {
-                  this.setState({waiting: false})
-                  toaster.show({message: "Deleted.", intent: Intent.SUCCESS});
-                  this.refresh()
-                })
-                .catch(error => {
-                  this.setState({waiting: false });
-                  toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
-                  this.refresh()
-                });
-            }}
-          />}
-          {id && !deleted && <MenuItem
-            icon="trash"
-            text="Delete Output Files"
-            intent={Intent.DANGER}
-            minimal
-            disabled={this.state.waiting}
-            onClick={() => {
-              this.setState({waiting: true})
-              toaster.show({message: "Delete requested."});
-              axios.delete(`/api/v1/output/${id}/?soft=true`)
-                .then(() => {
-                  this.setState({waiting: false})
-                  toaster.show({message: "Deleted.", intent: Intent.SUCCESS});
-                  this.refresh()
-                })
-                .catch(error => {
-                  this.setState({waiting: false });
-                  toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
-                  this.refresh()
-                });
-            }}
-          />}
-        </Menu>
+        <RunActionsMenu output={this.props.output} project={this.props.project} commit={this.props.commit} dispatch={this.props.dispatch} />
       }>
         <Icon icon="menu" style={{ marginLeft: "5px", color: Colors.GRAY1 }}/>
       </Popover>}
@@ -515,4 +527,4 @@ class OutputTags extends React.Component {
 }
 
 
-export { StatusTag, PlatformTag, ConfigurationsTags, ExtraParametersTags, MismatchTags, OutputTags, RunBadge, RunBadges, style_skeleton };
+export { hidden_keys, RunActionsMenu, StatusTag, PlatformTag, ConfigurationsTags, ExtraParametersTags, MismatchTags, OutputTags, RunBadge, RunBadges, style_skeleton };

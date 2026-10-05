@@ -121,9 +121,11 @@ All the files each run created, as a tree, diffed against the reference run. It 
 This is the view for [bit-accuracy tests](../bit-accuracy.mdx).
 
 ### Logs
-One line per run. Filter them with **All**, **Failed** or **Running**, and use **Open failed runs** to expand the logs of the failed ones at once. Big batches are paginated.
+When runs failed, the sidebar's **Logs** entry says how many (it also shows runs still running or pending).
 
-Click a run to read its log:
+One line per run: its status, its name, and its configuration in short (hover it to read it all). On the right, open the run's output directory, or use the **⋯** menu to redo, mark as failed or delete it. Filter the runs with **All**, **Failed** or **Running**, and use **Open failed runs** to expand the logs of the failed ones at once. Big batches are paginated.
+
+Click a run to see its full configuration (hover a tag to copy it) and read its log:
 - it updates **live** while the run is running (only the new lines are downloaded), and follows the end like a terminal until you scroll up;
 - colors, line numbers, progress bars shown like in a terminal, error and warning lines highlighted, with a button to jump to the **next error**;
 - **search** (with previous/next match), wrap lines, copy, download, or open the raw file;
