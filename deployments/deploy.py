@@ -305,6 +305,11 @@ class Deployment:
                 # Not self.docker(): containers log to stderr, which it doesn't print
                 log(f"Last logs of {c}:")
                 subprocess.run(["docker", "logs", "--tail", "80", c])
+                # Why docker thinks it's unhealthy: the output of the last healthchecks
+                checks = json.loads(self.docker("inspect", "-f", "{{json .State.Health}}", c, check=False) or "null")
+                for check in (checks or {}).get("Log", [])[-3:]:
+                    log(f"Healthcheck at {check.get('Start', '')[:19]}: exit code {check.get('ExitCode')}")
+                    print(check.get("Output", "").strip())
             log(f"New {service} replicas are not healthy, removing them. The previous version is still serving.")
             self.docker("rm", "-f", *new)
             die(f"{service} failed its healthcheck")
