@@ -94,14 +94,14 @@ Use the **Sorting** section of the controls panel to sort runs by a metric, and 
 Yellow **Input**, **Config**, **Platform** or **Tuning** tags (with a `≠` icon) mean the run was compared with a reference run that is not exactly the same. Hover them for details. See [How runs are matched](comparing-results.mdx#how-runs-are-matched).
 
 ### Visualizations
-One card per run, with its main metrics (and their change vs the reference) and the visualizations the project lead configured: images, plots, videos, text, HTML, flame graphs, point clouds... The reference is shown next to the new result.
+One card per run, with its main metrics (and their change vs the reference) and the visualizations configured for the project: images, plots, videos, text, HTML, flame graphs, point clouds... The reference is shown next to the new result.
 
 <img alt="Visualizations" src={useBaseUrl('img/quantitative-metrics-on-viz.png')} />
 
 On each card:
 - **The run name**: hover for its batch, input path and database (click to copy), metadata, compute time, date and storage. Click it to see that input's [history](history-and-dashboards.mdx).
 - **Tags** for the platform and configurations: hover a configuration to copy it, as JSON or in a format you can paste in a tuning experiment.
-- **☰ menu**: **Redo** the run, **Mark as Finished** if it's stuck (it then counts as crashed), **Delete** it, or **Delete Output Files** only.
+- **☰ menu**: **Redo** the run, **Mark as Failed** if it's stuck, **Delete** it, or **Delete Output Files** only.
 - **Folder icon**: open the output directory (or the reference's) in the browser. **Copy icon**: copy the new or reference output directory, as a Windows or Linux path.
 - **Fullscreen** button at the top right of the card.
 
@@ -121,9 +121,17 @@ All the files each run created, as a tree, diffed against the reference run. It 
 This is the view for [bit-accuracy tests](../bit-accuracy.mdx).
 
 ### Logs
-One line per run. Click **Show logs** to read its log, with colors; it keeps updating while the run is pending. A button scrolls to the end of the log. If the cluster killed the run, a **Killed by LSF! Click to check why** tag links to the cluster's log.
+One line per run. Filter them with **All**, **Failed** or **Running**, and use **Open failed runs** to expand the logs of the failed ones at once. Big batches are paginated.
 
-Below, the **Batch logs** list the commands that started the batch, when, by whom, on which host, with an **Open Logs** link to the CI or cluster job when there is one.
+Click a run to read its log:
+- it updates **live** while the run is running (only the new lines are downloaded), and follows the end like a terminal until you scroll up;
+- colors, line numbers, progress bars shown like in a terminal, error and warning lines highlighted, with a button to jump to the **next error**;
+- **search** (with previous/next match), wrap lines, copy, download, or open the raw file;
+- switch between the run's `log.txt` and, when they exist, `log.lsf.txt` (what LSF captured, with its job report) and `log.dask.txt`.
+
+For runs on LSF, a summary shows why the job ended (e.g. out of memory, run time limit), the host, the run time and the memory used vs requested, with hints on which `lsf:` options of your batch to change. Failed runs are tagged with the reason.
+
+Batches started from QA-Board (tuning, **Run Tests**) show a callout on every view while `qa batch` is waiting for LSF or running, and when it failed or didn't start any run, with the error and a link to its logs. The **Batch logs** list those submissions, and the commands that started the batch: when, by whom, on which host, with a link to the CI or cluster job when there is one.
 
 :::tip
 The **Logs** sidebar item turns red when the batch has crashed runs, and the **Outputs** section shows the number of crashes.

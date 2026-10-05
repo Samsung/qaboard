@@ -39,7 +39,7 @@ DOCS_DIR = REPO_ROOT / "website" / "docs"
 BUNDLE = REPO_ROOT / "webapp" / "src" / "releaseNotes" / "release-notes.json"
 
 PERIOD_RE = re.compile(r"^(?P<year>\d{4})(?:-(?:(?P<month>0[1-9]|1[0-2])|q(?P<quarter>[1-4])))?$")
-AUDIENCES = ("users", "project-leads", "admins")
+AUDIENCES = ("users", "project-integration", "admins")
 # The body's sections, in this order. Other headings are allowed but `check` warns about them.
 SECTIONS = ("Web app", "CLI and project setup", "Server and administration", "Documentation", "Fixes", "Notes")
 ALLOWED_KEYS = {"title", "date", "description", "version", "highlights", "draft", "period", "tags", "slug"}

@@ -41,7 +41,7 @@ const sidebars: SidebarsConfig = {
     "user-guide/whats-new",
   ],
 
-  // Project leads who wrap their code with qa and set up qaboard.yaml
+  // Project integration: wrapping code with qa, qaboard.yaml, runners, CI
   docs: {
     "Getting Started": [
         "introduction",

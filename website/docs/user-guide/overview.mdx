@@ -11,7 +11,7 @@ This guide is for the engineers who **use the QA-Board web app every day** to lo
 You don't need to know how the project was set up to use it.
 
 :::note Other audiences
-- **Project leads** who add QA-Board to a project (*qaboard.yaml*, inputs, metrics, visualizations, runners): start at [Project Setup](../project-init.mdx).
+- **Project integration**: to add QA-Board to a project (*qaboard.yaml*, inputs, metrics, visualizations, runners), start at [Project Setup](../project-init.mdx).
 - **Admins** who run the QA-Board server: see [Server Bringup](../start-server.mdx) and the [deployment runbook](../backend-admin/deployment.mdx).
 :::
 
@@ -25,7 +25,7 @@ You don't need to know how the project was set up to use it.
 | **Run** (or **output**) | The code from a commit, executed on one input, with one configuration, on one platform. Each run has its output files, metrics and logs. |
 | **Input** | What a run works on: an image, a movie, a recording, a test case... Inputs are identified by their path. |
 | **Configuration** | The settings a run used (e.g. `base`, `low-light`), plus optional **tuning parameters** shown as `key: value` tags. |
-| **Metrics** | Numbers computed by each run (error, speed, quality...). The project lead decides which ones matter, their target and whether smaller is better. |
+| **Metrics** | Numbers computed by each run (error, speed, quality...). The project's configuration decides which ones matter, their target and whether smaller is better. |
 | **New vs reference** | Results are always shown for a **new** commit compared with a **reference** (`ref`). By default the reference is the latest commit with results on the project's reference branch. |
 | **Milestone** | A commit (and batch) bookmarked as a reference: a release, a benchmark, "the version before my refactor". Some are shared with everyone, some are private to you. |
 | **Artifacts** | Files saved per commit, like the build output and the configuration files, so runs can be redone and configs compared. |

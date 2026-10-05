@@ -5,28 +5,28 @@
    "slug": "2026-10",
    "title": "October 2026",
    "period": "2026-10",
-   "date": "2026-10-01",
-   "version": "1.1.0",
-   "description": "QA-Board now tells you what changed: release notes open in the app when there are new ones, and a new user guide explains the web app. Version 1.1.0 of the CLI is on PyPI, and admins get zero-downtime deploys and a Helm chart.",
+   "date": "2026-10-05",
+   "version": "1.1.1",
+   "description": "QA-Board now tells you what changed: release notes open in the app, and a new user guide explains the web app. Logs are much easier to read, with live updates and LSF's own reports. At SIRC, install one more package when you upgrade qaboard.",
    "highlights": [
     {
-     "title": "What's new, in the app",
-     "description": "New release notes now open once when you load QA-Board. To read them again, or to search all the past ones, click the sparkles button in the sidebar or \"What's new\" in the footer.",
+     "title": "What's new, and a user guide",
+     "description": "New release notes open once when you load QA-Board. Read them again, or search the past ones, from the sparkles button in the sidebar. A new user guide explains the web app: finding results, the commit page, comparing.",
      "audience": "users",
      "icon": "clean",
      "link": "/docs/user-guide/whats-new"
     },
     {
-     "title": "A user guide for the web app",
-     "description": "A new guide for everyone who looks at results: finding commits, the views of the commit page, comparing with a reference, running tests from the web app and sharing links.",
+     "title": "A new logs viewer",
+     "description": "Logs update live while runs are running, with colors, line numbers, search and \"jump to next error\". Failed LSF runs show why LSF stopped them (memory, run time...) and how to fix it.",
      "audience": "users",
-     "icon": "manual",
-     "link": "/docs/user-guide/overview"
+     "icon": "console",
+     "link": "/docs/user-guide/commit-page"
     },
     {
-     "title": "qaboard 1.1.0 on PyPI",
-     "description": "Upgrade with `pip install -U qaboard`. `qa init`, `qa run` and `qa batch --runner=local` now work out of the box outside of Samsung, and update checks use PyPI.",
-     "audience": "project-leads",
+     "title": "SIRC: upgrading qaboard",
+     "description": "When you upgrade qaboard, also install the qaboard-site-sirc package: it now holds SIRC's settings, like the server's address, LSF as the default runner and where results are stored. See the SIRC instructions.",
+     "audience": "users",
      "icon": "box",
      "link": "/docs/installation"
     },
@@ -38,8 +38,8 @@
      "link": "/docs/backend-admin/deployment"
     }
    ],
-   "html": "<h2>Web app</h2>\n<ul>\n<li>Added the &quot;What's new&quot; panel: the release notes, newest first, with a search box. The link <code>/#whats-new</code> opens it, handy to share in a chat.</li>\n<li>The sidebar's help button opens the new <a href=\"/docs/user-guide/overview\">user guide</a>.</li>\n<li>Links to commits and projects use your server's git host instead of a hardcoded one, and the &quot;Quotas&quot; links only show when the server has a quota dashboard.</li>\n<li>The error page links to your server's support page.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li>Released <code>qaboard</code> 1.1.0 on PyPI. The package is smaller, and it now includes the <code>qatools</code> compatibility package.</li>\n<li><code>qa init</code> creates a configuration that runs locally: LSF is commented out, and storage defaults to <code>/mnt/qaboard</code> like the server.</li>\n<li>The CLI reads your <code>QA_TOKEN</code> from <code>$QA_TOKEN</code> or <code>~/.qaboard/secrets.yaml</code>, and warns if other users can read that file.</li>\n<li>Site packages (company-specific plugins) are no longer ignored on Python 3.8 and 3.9.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>Zero-downtime deploys with <a href=\"/docs/backend-admin/deployment\">deployments/deploy.py</a>: images tagged per version, several backend replicas behind nginx, rolling updates, <code>rollback</code>, <code>status</code> and <code>restore-db</code>.</li>\n<li><code>deploy.py seed-db</code> fills a staging database with only production's recent data.</li>\n<li>A <a href=\"/docs/backend-admin/kubernetes\">Helm chart</a> to run QA-Board on Kubernetes.</li>\n<li>The backend has a <code>/api/v1/health</code> endpoint, shuts down gracefully, and keeps working when redis is down.</li>\n<li>Security: actions that run commands (redo, tuning, stopping or deleting batches...) now require a login and run as the logged-in user, and their inputs are escaped. See SECURITY.md.</li>\n<li>The web app links to the docs served by your server at <code>/docs/</code>, which match its version, instead of the public website. Set <code>QABOARD_DOCS_ROOT</code> to use another docs site.</li>\n<li>The git host, quota dashboard and support links are configurable (<code>GITLAB_HOST</code>, <code>QABOARD_QUOTA_URL_TEMPLATE</code>, <code>QABOARD_SUPPORT_URL</code>).</li>\n</ul>\n<h2>Documentation</h2>\n<ul>\n<li>New <a href=\"/docs/user-guide/overview\">user guide</a> for people who use the web app every day.</li>\n<li>New runbooks for deployments, rollbacks and Kubernetes.</li>\n<li>Release notes going back to 2017, on the website and in the app.</li>\n</ul>",
-   "sha256": "75e91d944618acd3f13ba701ee649ded8cd196d1a8389b38fbf3770559a2bef3"
+   "html": "<h2>Web app</h2>\n<ul>\n<li>Added the &quot;What's new&quot; panel: the release notes, newest first, with a search box. The link <code>/#whats-new</code> opens it, handy to share in a chat.</li>\n<li>The sidebar's help button opens the new <a href=\"/docs/user-guide/overview\">user guide</a>.</li>\n<li>The Logs view lets you filter runs (all, failed, running), tags failed runs with the reason (e.g. &quot;LSF: out of memory&quot;), and stays fast with hundreds of runs.</li>\n<li>Switch between a run's <code>log.txt</code>, <code>log.lsf.txt</code> and <code>log.dask.txt</code>. For LSF runs, a summary shows the exit reason, host, run time and memory used vs requested, with hints that point to the batch's <code>lsf:</code> options.</li>\n<li>Batches started from QA-Board (tuning, &quot;Run Tests&quot;) show whether <code>qa batch</code> is waiting for LSF, running, failed (with the error) or didn't start any run, with a link to its logs.</li>\n<li>Links to commits and projects use your server's git host instead of a hardcoded one, and the &quot;Quotas&quot; links only show when the server has a quota dashboard.</li>\n<li>The error page links to your server's support page.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li>At SIRC, upgrading <code>qaboard</code> now requires also installing <code>qaboard-site-sirc</code>, see the <a href=\"/docs/installation\">installation instructions</a>. Site packages provide a base <code>qaboard.yaml</code> that every project's configuration is merged on (<a href=\"/docs/project-init#site-defaults\">site defaults</a>): <code>qa init</code> shows the inherited values instead of overriding them.</li>\n<li>LSF runs write their output live to <code>log.lsf.txt</code>, with LSF's job report at the end. <code>qa batch</code> no longer passes an LSF queue or project when none is set, and fails fast when <code>bsub</code> is missing.</li>\n<li><code>qa init</code> creates a configuration that runs locally: LSF is commented out, and storage defaults to <code>/mnt/qaboard</code> like the server.</li>\n<li>The CLI reads your <code>QA_TOKEN</code> from <code>$QA_TOKEN</code> or <code>~/.qaboard/secrets.yaml</code>, and warns if other users can read that file.</li>\n<li><code>QABOARD_API_VERIFY</code> controls the TLS verification of the CLI's requests to the server: <code>true</code> (the default), <code>false</code>, or the path to a CA bundle.</li>\n<li>Site packages (company-specific plugins) are no longer ignored on Python 3.8 and 3.9.</li>\n<li>The package now includes the <code>qatools</code> compatibility package, and update checks no longer suggest a site-specific install command to everyone.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>Zero-downtime deploys with <a href=\"/docs/backend-admin/deployment\">deployments/deploy.py</a>: images tagged per version, several backend replicas behind nginx, rolling updates, <code>rollback</code>, <code>status</code> and <code>restore-db</code>.</li>\n<li><code>deploy.py seed-db</code> fills a staging database with only production's recent data.</li>\n<li>A <a href=\"/docs/backend-admin/kubernetes\">Helm chart</a> to run QA-Board on Kubernetes.</li>\n<li>The backend has a <code>/api/v1/health</code> endpoint, shuts down gracefully, and keeps working when redis is down.</li>\n<li>Security: actions that run commands (redo, tuning, stopping or deleting batches...) now require a login and run as the logged-in user, and their inputs are escaped. See SECURITY.md.</li>\n<li>Each batch started from QA-Board gets its own folder with its scripts and logs, under the batch's <code>qaboard-batches/</code>.</li>\n<li>The web app links to the docs served by your server at <code>/docs/</code>, which match its version, instead of the public website. Set <code>QABOARD_DOCS_ROOT</code> to use another docs site.</li>\n<li>The git host, quota dashboard and support links are configurable (<code>GITLAB_HOST</code>, <code>QABOARD_QUOTA_URL_TEMPLATE</code>, <code>QABOARD_SUPPORT_URL</code>).</li>\n</ul>\n<h2>Documentation</h2>\n<ul>\n<li>New <a href=\"/docs/user-guide/overview\">user guide</a> for people who use the web app every day.</li>\n<li>New runbooks for deployments, rollbacks and Kubernetes.</li>\n<li>Release notes going back to 2017, on the website and in the app.</li>\n<li>Many pages updated to match the code, and features that were never documented: GitHub webhooks, API tokens, batch options, bit-accuracy manifests, auto-optimization...</li>\n</ul>\n<h2>Fixes</h2>\n<ul>\n<li>With LSF job arrays and the Dask runner, <code>qa run</code> no longer deletes the log file its output goes to: errors are no longer lost.</li>\n<li>The tuning form shows a readable error instead of the server's raw response.</li>\n<li>A stuck run's &quot;Mark as Finished&quot; action is now labelled &quot;Mark as Failed&quot;, which is what it does.</li>\n</ul>",
+   "sha256": "cd4f791a1f8d6e47ad1cec7042a05c1cd9733175b4926d4a5a6cdb9dc0da012d"
   },
   {
    "slug": "2026-09",
@@ -52,20 +52,20 @@
     {
      "title": "Limit batch concurrency on LSF",
      "description": "Set runners.lsf.concurrency in qaboard.yaml, or use qa batch --lsf-concurrency 20, so a batch never has more than 20 LSF jobs running at once and doesn't flood the cluster. The default, 0, keeps the previous behavior: no limit.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "time",
      "link": "/docs/lsf-integration"
     },
     {
      "title": "Dask runner",
      "description": "With qa batch --runner dask, a batch's runs execute on a few long-lived Dask workers started as LSF jobs, with a bounded number of runs in flight. It avoids paying LSF's scheduling overhead for each of many short runs. Install it with pip install \"qaboard[dask]\".",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "layout-auto",
      "link": "/docs/dask-integration"
     }
    ],
-   "html": "<h2>CLI and project setup</h2>\n<ul>\n<li>By default the LSF concurrency limit uses an LSF job array with a slot limit: a new run starts as soon as one ends. Set <code>runners.lsf.concurrency_strategy: waves</code> to send runs in groups that each wait for the previous group to end, if job arrays don't work for you.</li>\n<li>The Dask runner is configured under <code>runners.dask</code> in <em>qaboard.yaml</em>: <code>concurrency</code> (or <code>--dask-concurrency</code>), the worker jobs' <code>cluster</code> size and memory, and <code>scheduler_address</code> to use a Dask cluster you already run.</li>\n<li>With <code>--no-wait</code>, the Dask runner sends a small &quot;driver&quot; LSF job that runs the batch, with its own LSF options (<code>runners.dask.driver</code>), and <code>qa batch</code> returns right away.</li>\n<li>Dask workers' and the driver's logs are saved in the batch directory, under <code>dask/</code>, and each run's output directory gets a <code>log.dask.txt</code>. Stopping a batch from QA-Board also stops its Dask workers.</li>\n<li><code>qa save-artifacts</code> and other commands no longer crash with &quot;'NoneType' object is not iterable&quot; in legacy projects whose configuration defines no inputs.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>&quot;Redo&quot; actions on a batch (deleted, failed or all outputs) and tuning batches sent to LSF from the web app now go through the backend's <code>QA_RUNNERS_LSF_BRIDGE</code>, which supports the <code>{user}</code> and <code>{bsub_command}</code> placeholders, instead of a hardcoded SSH host. Set it to use these features with LSF (see <a href=\"/docs/lsf-integration\">LSF bridges</a>).</li>\n<li>The Flower dashboard for Celery now runs from the backend image: there is no separate Flower image to build anymore.</li>\n<li>The documentation site's image now builds with Docusaurus 3.10.</li>\n<li>The SIRC deployment's files, including <code>.env.sirc.example</code>, now all live under <code>deployments/sirc/</code>.</li>\n</ul>\n<h2>Documentation</h2>\n<ul>\n<li>New <a href=\"/docs/dask-integration\">Dask integration</a> page. The <a href=\"/docs/using-the-qa-cli\">CLI docs</a> now list the batch runners (local, LSF, Dask, Celery) and how to limit their concurrency, and the <a href=\"/docs/lsf-integration\">LSF page</a> documents <code>--lsf-concurrency</code>.</li>\n</ul>\n<h2>Fixes</h2>\n<ul>\n<li>Fixed results uploads failing (HTTP 500 on every new output) on servers whose database was created from scratch rather than migrated from an older version.</li>\n<li>The database container now starts on a fresh, empty volume: its custom configuration is applied only once the database is initialized.</li>\n<li>Fixed Docker builds that download a CA certificate (<code>CA_CERT_URL</code>) failing when the certificate file already existed.</li>\n</ul>\n<h2>Notes</h2>\n<ul>\n<li>The LSF concurrency limit and the Dask runner ship in the <code>qaboard</code> 1.1.0 package.</li>\n</ul>",
-   "sha256": "b67dcfae1514db88abfe53ad59377cae99ba6f5b7c7fa22405a199659cda3e38"
+   "html": "<h2>CLI and project setup</h2>\n<ul>\n<li>By default the LSF concurrency limit uses an LSF job array with a slot limit: a new run starts as soon as one ends. Set <code>runners.lsf.concurrency_strategy: waves</code> to send runs in groups that each wait for the previous group to end, if job arrays don't work for you.</li>\n<li>The Dask runner is configured under <code>runners.dask</code> in <em>qaboard.yaml</em>: <code>concurrency</code> (or <code>--dask-concurrency</code>), the worker jobs' <code>cluster</code> size and memory, and <code>scheduler_address</code> to use a Dask cluster you already run.</li>\n<li>With <code>--no-wait</code>, the Dask runner sends a small &quot;driver&quot; LSF job that runs the batch, with its own LSF options (<code>runners.dask.driver</code>), and <code>qa batch</code> returns right away.</li>\n<li>Dask workers' and the driver's logs are saved in the batch directory, under <code>dask/</code>, and each run's output directory gets a <code>log.dask.txt</code>. Stopping a batch from QA-Board also stops its Dask workers.</li>\n<li><code>qa save-artifacts</code> and other commands no longer crash with &quot;'NoneType' object is not iterable&quot; in legacy projects whose configuration defines no inputs.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>&quot;Redo&quot; actions on a batch (deleted, failed or all outputs) and tuning batches sent to LSF from the web app now go through the backend's <code>QA_RUNNERS_LSF_BRIDGE</code>, which supports the <code>{user}</code> and <code>{bsub_command}</code> placeholders, instead of a hardcoded SSH host. Set it to use these features with LSF (see <a href=\"/docs/lsf-integration\">LSF bridges</a>).</li>\n<li>The Flower dashboard for Celery now runs from the backend image: there is no separate Flower image to build anymore.</li>\n<li>The documentation site's image now builds with Docusaurus 3.10.</li>\n<li>The SIRC deployment's files, including <code>.env.sirc.example</code>, now all live under <code>deployments/sirc/</code>.</li>\n</ul>\n<h2>Documentation</h2>\n<ul>\n<li>New <a href=\"/docs/dask-integration\">Dask integration</a> page. The <a href=\"/docs/using-the-qa-cli\">CLI docs</a> now list the batch runners (local, LSF, Dask, Celery) and how to limit their concurrency, and the <a href=\"/docs/lsf-integration\">LSF page</a> documents <code>--lsf-concurrency</code>.</li>\n</ul>\n<h2>Fixes</h2>\n<ul>\n<li>Fixed results uploads failing (HTTP 500 on every new output) on servers whose database was created from scratch rather than migrated from an older version.</li>\n<li>The database container now starts on a fresh, empty volume: its custom configuration is applied only once the database is initialized.</li>\n<li>Fixed Docker builds that download a CA certificate (<code>CA_CERT_URL</code>) failing when the certificate file already existed.</li>\n</ul>\n<h2>Notes</h2>\n<ul>\n<li>The LSF concurrency limit and the Dask runner are in <code>qaboard</code> 1.1, released in October.</li>\n</ul>",
+   "sha256": "93181cfa51e20d0a9a384ccc7df0b4ce906221be192f079df137728b957f22f1"
   },
   {
    "slug": "2026-q2",
@@ -245,7 +245,7 @@
     {
      "title": "Runner settings per input type",
      "description": "Input types in qaboard.yaml can now have their own runner settings under runners, for instance a different LSF queue for each type of input. Settings in a batch still win, and flags you pass to qa batch win over both.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "fork",
      "link": "/docs/inputs"
     },
@@ -257,7 +257,7 @@
     }
    ],
    "html": "<h2>Web app</h2>\n<ul>\n<li>The image viewer's filters have a new panel with value displays, a reset button and a new Sharpen filter, next to Brightness, Contrast and Gamma.</li>\n<li>In the bit-accuracy viewer, hover a file's size to download the new or the reference version of the file.</li>\n<li>The filter box of the controls panel also filters the list of metrics.</li>\n<li>Redesigned sidebar, with a user menu that shows who you are logged in as and lets you sign out.</li>\n<li>You can search the sidebar's list of <a href=\"/docs/triggering-third-party-tools\">integrations</a>, and menus keep their state when you close and reopen them.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li>Runner settings are merged in this order, each winning over the previous: the <code>runners</code> section of <code>qaboard.yaml</code>, the input type's <code>runners</code>, the batch's runner settings, then the flags you pass explicitly to <code>qa batch</code> such as <code>--lsf-queue</code> or <code>--local-concurrency</code>.</li>\n<li><code>--local-timeout</code> and <code>runners.local.timeout</code> now set the timeout of local runs, not only <code>QA_BATCH_TIMEOUT</code>.</li>\n<li>Removed <code>qa batch --lsf-fast-queue</code>: LSF jobs always use the regular queue.</li>\n</ul>\n<h2>Documentation</h2>\n<ul>\n<li>The <a href=\"/docs/inputs\">inputs</a> page shows how to set runner settings per input type.</li>\n</ul>\n<h2>Fixes</h2>\n<ul>\n<li>Fixed the CLI when it is embedded in a C++ program and has no command-line arguments.</li>\n</ul>",
-   "sha256": "3c59488ad9628cffbaba665f232142520269b1c7c3e02228fbefcf9b45e80764"
+   "sha256": "a8e698f6c1e900d66d1a638d692b09859b77946ffe54fa1b7061cd93266b3f64"
   },
   {
    "slug": "2025-05",
@@ -277,13 +277,13 @@
     {
      "title": "qaboard 1.0.3, built with pyproject.toml",
      "description": "The qaboard package is now defined in pyproject.toml instead of setup.py. Developers install it with uv sync --extra dev, and the backend's dependencies are locked with uv instead of poetry.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "box",
      "link": "/docs/installation"
     }
    ],
    "html": "<h2>Web app</h2>\n<ul>\n<li>Hover the colored dot of an automatic region of interest to see its diff value.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li>The deprecated <code>qatools</code> package still ships for older scripts, and importing it now shows a deprecation warning: use <code>qaboard</code> instead.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>The backend image installs its dependencies with uv from <code>backend/uv.lock</code>.</li>\n</ul>",
-   "sha256": "6670f883e13f42d0c4eeb692c2b3576f2f145011d5bbc8d000e79c01a7ed8cfe"
+   "sha256": "5c0190ae3f0fd0edf8205530a9b4965bf23b9d39bcb5b5c01f1ed55f1b607d49"
   },
   {
    "slug": "2025-04",
@@ -302,13 +302,13 @@
     {
      "title": "A limit of 1,000 runs per qa batch",
      "description": "qa batch now fails when it would send more than 1,000 runs at once, which is usually a mistake in a batch definition. Set QA_BATCH_ALLOW_MANY_RUNS=1 when you really need more, or use qa --offline batch to run without reporting to QA-Board.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "high-priority",
      "link": "/docs/batches-running-on-multiple-inputs"
     }
    ],
    "html": "<h2>Server and administration</h2>\n<ul>\n<li>The server updates the &quot;latest results&quot; time of commits and projects at most every few seconds, which avoids database lock contention when many runs report their results together.</li>\n</ul>\n<h2>Fixes</h2>\n<ul>\n<li><code>qa run</code> no longer crashes when writing the outputs manifest fails, it only warns.</li>\n<li>Fixed <code>qa optimize</code> crashing when it sets <code>QA_OPTIM_DIR</code>.</li>\n</ul>",
-   "sha256": "db9f97af1ab720a1e2ecfe3b88a6e71426862b0413c99329cbbb7a018a2671dc"
+   "sha256": "21250ff7db45dd188b99a52528573164c9714a813f959e3df07322df89aec808"
   },
   {
    "slug": "2025-03",
@@ -414,13 +414,13 @@
     {
      "title": "Metric descriptions",
      "description": "Metrics in metrics.yaml can have a description, shown in a tooltip on the metric's header.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "info-sign",
      "link": "/docs/computing-quantitative-metrics"
     }
    ],
    "html": "<h2>Web app</h2>\n<ul>\n<li>The image viewer shows both images' dimensions when they differ, and warns when some tiles fail to load.</li>\n<li>Logs link directly to the LSF log when LSF killed the run.</li>\n<li>Clearer error messages when tuning is not possible, and when an export folder is not writable or has locked-down permissions.</li>\n<li>Style and help text improvements.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li><code>exclude</code> filters can match the input path relative to the database with <code>rel_input_path</code>.</li>\n<li><code>QA_BATCH_TIMEOUT</code> sets the timeout of local runs, and <code>QA_BATCH_QUIET</code> stops <code>qa batch</code> from printing each run's command and output directory.</li>\n<li><code>qa check-bit-accuracy</code> sets <code>QA_BATCH</code>, so batch-only metadata logic behaves as in <code>qa batch</code>.</li>\n<li>When the server cannot report run statuses, <code>qa batch</code> warns and falls back to reading the output folders.</li>\n<li>Fixed batch aliases, batches named <code>matrix</code>, and <code>*</code> input patterns.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>The local sign-up endpoint is enabled again, unless you set <code>QABOARD_DISABLE_SIGNUP=True</code>.</li>\n<li>API tokens are stored in a new table (with a migration).</li>\n<li>Batch summaries are counted in the database, using less memory, and file exports are faster.</li>\n<li>Output folders created by the server are now writable by all users (umask 0), avoiding permission issues when runs write to them.</li>\n</ul>",
-   "sha256": "d52185f6503ef6aa46c8413605f323d638aece709d83973ae843bf634b7310a5"
+   "sha256": "854d8ad48779a7754ba2436c6d8130662444f3cb3d8104ae9cf32aa509a8fc36"
   },
   {
    "slug": "2024-q3",
@@ -489,7 +489,7 @@
     {
      "title": "Richer integrations menu",
      "description": "Integrations in qaboard.yaml can nest items with sub, appear directly in the sidebar with in_menu: false, and use variables for the selected batches, filters and logged-in user. Webhooks can return a url to show, and open it automatically with open: true.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "link",
      "link": "/docs/triggering-third-party-tools"
     },
@@ -502,13 +502,13 @@
     {
      "title": "Filter inputs by path",
      "description": "The only and exclude filters of batches can match the absolute input path with an input_path key, alongside input metadata.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "search",
      "link": "/docs/metadata-integration-external-databases"
     }
    ],
    "html": "<h2>Web app</h2>\n<ul>\n<li>Upgraded the UI toolkit to Blueprint 5, with refreshed tooltips, popovers and notifications.</li>\n<li>Integrations now come from the selected batch's configuration when it has its own, show their errors more clearly, and appear on the commit index page again.</li>\n<li>Metric tags are clearer, shown as compound tags.</li>\n<li>Configuration differences with nested items are now displayed correctly.</li>\n<li>The file viewer has an icon for PNG files, says when there is no reference, and collapsing/expanding/selecting files works again.</li>\n<li>Disabled the image viewer's buggy full-page button.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li>Input metadata keys starting with <code>_</code> are no longer stored with runs.</li>\n<li>Fixed bit-accuracy checks wrongly falling back to plain file comparisons.</li>\n<li>Fixed permissions of artifact folders created from Windows.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>Backend workers no longer restart all at the same time.</li>\n<li>Exports name crops better, and no longer strip more characters than intended from file names.</li>\n</ul>\n<h2>Fixes</h2>\n<ul>\n<li>Fixed errors when users have no email.</li>\n</ul>",
-   "sha256": "7c4cf84914dc063233b5da502d1ed9522db11e0a4b85e87428aaf8b6649aba90"
+   "sha256": "3605ff74192f338f615e4c72263b0a29c48340eb0d5c176c2ea75d8299075a95"
   },
   {
    "slug": "2023-q4",
@@ -528,7 +528,7 @@
     {
      "title": "Shared configuration across repositories",
      "description": "project.name and project.url can use {root_path} and {project_path} placeholders, so many repositories can include the same qaboard.yaml. Submodules can set storage.artifacts.subproject to keep their artifacts organized.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "git-repo",
      "link": "/docs/monorepo-subprojects"
     },
@@ -540,7 +540,7 @@
     }
    ],
    "html": "<h2>Web app</h2>\n<ul>\n<li>The output menu shows the run's compute time (for example &quot;1h2min3s&quot;), and offers to copy or open the reference's output directory, in titled sections.</li>\n<li>The date range filter no longer needs both a start and an end date.</li>\n<li>Deleting several batches skips milestones and batches that no longer exist.</li>\n<li>Tuning warnings are shown as callouts, and more errors are displayed instead of failing silently.</li>\n<li>Fixed state issues when the URL contains encoded characters.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li><code>qa check-bit-accuracy</code> compares RAW and HEX images by their attributes and pixel data, and warns and falls back to file hashes when attributes are missing.</li>\n<li>Batches can change labels while their runs are ongoing.</li>\n<li>Fixed submodule projects that used their parent's repository, and errors when LSF jobs had already finished.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>Git pushes no longer create commits ahead of time, which bloated the database of monorepos with hundreds of projects. Commits are recorded with their configuration and metrics when their first batch is posted.</li>\n<li>New projects work whether their default branch is <code>main</code> or <code>master</code>.</li>\n<li>Supports GitLab 16 sign-in.</li>\n<li>Database JSON columns now use JSONB (with a migration).</li>\n<li>The web app can report errors to Sentry with source maps and send product analytics to PostHog. Both are optional, enabled with build arguments.</li>\n<li>pgAdmin is served under <code>/pgadmin4/</code>, and Flower can display pickled task data.</li>\n<li>The docs and the dev setup now use <code>docker compose</code> instead of <code>docker-compose</code>.</li>\n<li>Fixed race conditions in the image pixel API and when creating inputs, and errors when deleting the same run twice.</li>\n</ul>\n<h2>Documentation</h2>\n<ul>\n<li>New <a href=\"/docs/backend-admin/user-management\">user management</a> page.</li>\n<li>Expanded <a href=\"/docs/monorepo-subprojects\">monorepo and multi-repo</a> docs, input types in <a href=\"/docs/inputs\">inputs</a>, and how to <a href=\"/docs/debugging-runs-with-an-IDE\">debug runs</a>.</li>\n</ul>",
-   "sha256": "1a4c2d65ad94ba4f8665be8fa95f0d44ad1b104e6827a58dbe4bcaf5111b9b2b"
+   "sha256": "26c8e74f0ef3a3ce41617c027ceb419cabd8c1c1744677c75daff0e84dc9784d"
   },
   {
    "slug": "2023-q3",
@@ -579,7 +579,7 @@
     {
      "title": "Include other qaboard.yaml files",
      "description": "A qaboard.yaml can now use a top-level include key to pull in another YAML file, to share settings between subprojects. Paths are relative to the root QA-Board directory.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "import",
      "link": "/docs/monorepo-subprojects"
     },
@@ -592,7 +592,7 @@
     }
    ],
    "html": "<h2>Web app</h2>\n<ul>\n<li>The output directory's copy button now offers both the Linux and the Windows path.</li>\n<li>Images of different resolutions but the same aspect ratio now stay synced when zooming and panning.</li>\n<li>Image views now always check the reference, so they can tell you when both images are identical.</li>\n<li>Errors in the <code>path</code> of visualizations are now shown on the output card.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li>During auto-optimization, runs get <code>QA_OPTIM_DIR</code>, a directory to save data relevant to the whole optimization loop.</li>\n<li>The LSF runner retries sending a job a few times before failing.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>The backend image now includes the libraries needed for SAML login.</li>\n</ul>\n<h2>Documentation</h2>\n<ul>\n<li>New page on <a href=\"/docs/monorepo-subprojects\">monorepos and subprojects</a>: <code>root: true</code>, inheritance with <code>super</code>, and <code>include</code>.</li>\n</ul>\n<h2>Fixes</h2>\n<ul>\n<li>Fixed copying the current region of interest in the image viewer.</li>\n<li>Fixed spurious errors on output cards.</li>\n</ul>",
-   "sha256": "1fb4c6d60dbfd62843935f364e5eb5c50e8948475207fc66f442324c666b4532"
+   "sha256": "31f52ca0db0bf1f0201cd5434f1c0faedc64b4a35937493f46758ef9c87b8ef7"
   },
   {
    "slug": "2023-q1",
@@ -636,13 +636,13 @@
     {
      "title": "Jenkins runner configuration from the environment",
      "description": "The Jenkins runner can now read its build URL and token from QA_RUNNERS_JENKINS_BUILD_URL and QA_RUNNERS_JENKINS_TOKEN, so they don't have to live in qaboard.yaml. The token is now optional.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "key",
      "link": "/docs/jenkins-integration"
     }
    ],
    "html": "<h2>Web app</h2>\n<ul>\n<li>Tuning from the web app is now limited to 5000 runs per batch, and the form says so.</li>\n<li>The CI integrations menu refreshes statuses as soon as it opens, and links to Jenkins builds open the build page.</li>\n<li>Runs aborted before writing their file manifest now get one when you open them.</li>\n<li>Logs with stray <code>&lt;</code> characters are now displayed correctly.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li>Output directory names derived from input paths are now always slugified, avoiding characters that cause problems on some filesystems. New runs of inputs with such characters get a different output directory.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>The backend recycles its workers after a number of requests, a maximum lifetime or too much memory use, and nginx waits up to 10 minutes for slow API calls.</li>\n<li>Several API endpoints and webhooks read database rows in chunks to use less memory.</li>\n<li>Exports to a folder now report when they fail to create symlinks.</li>\n</ul>",
-   "sha256": "3d5f7aa4aca19ca4494d84b19560ddaf8bfe6951b88f17598a1de19c24fac2ef"
+   "sha256": "905e68521f4509241dff91c70288294ffc0fa178c81491449aac328818aaadc1"
   },
   {
    "slug": "2022-q3",
@@ -693,13 +693,13 @@
     {
      "title": "Free-form LSF options",
      "description": "The LSF runner accepts a new options setting, for example \"-W 24:00\", appended to the bsub flags QA-Board already sends. The LSF docs now use the correct max_memory and max_threads keys.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "settings",
      "link": "/docs/lsf-integration"
     }
    ],
    "html": "<h2>Web app</h2>\n<ul>\n<li>Commit pages now accept a branch name instead of a commit ID, and show the latest commit of that branch.</li>\n<li>Logs now load only when you scroll to them, and use the same run headers as the other views.</li>\n<li>Stand-alone Plotly <code>.html</code> figures are now shown side by side with the reference.</li>\n<li>&quot;Copy to clipboard&quot; on an output directory now copies a decoded path.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li>The Jenkins runner now retries failed requests, and the server retries when checking Jenkins build statuses.</li>\n<li>Fixed deadlocks when a tuning pipeline's runs themselves call <code>qa batch</code>.</li>\n<li>Fixed spurious warnings when the first batch of a commit starts without a git hosting provider configured.</li>\n<li>Git errors now print the failed command's output.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>The image server keeps its logs in rolling files with a 30-day history, instead of storing them forever.</li>\n<li>Deleting data now also removes the empty directories left behind.</li>\n<li>Fixed duplicated CORS headers on API responses.</li>\n</ul>\n<h2>Fixes</h2>\n<ul>\n<li>Fixed an edge case in the dynamic output viewer where no file ended up selected.</li>\n<li>Fixed the cleanup job failing on deleted commits, and returned proper errors for unknown commits.</li>\n<li>Fixed encoding errors in the backend when it runs as a non-root user, and several Jenkins integration errors.</li>\n</ul>",
-   "sha256": "50fae111cc82dc3c682e837d1c3ebca5fa44c32d51550cd3b2031398c7677c10"
+   "sha256": "c78d990e2c76f5b71d4119914b4ad0a6675768666df837585d9cb194e739e503"
   },
   {
    "slug": "2022-q1",
@@ -719,7 +719,7 @@
     {
      "title": "String metrics",
      "description": "String metrics returned by your run() are now displayed in the metric tables and output cards, next to the numeric ones.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "badge",
      "link": "/docs/computing-quantitative-metrics"
     },
@@ -732,13 +732,13 @@
     {
      "title": "Custom bit-accuracy comparisons",
      "description": "qa check-bit-accuracy can compare files with your own Python function, set with QA_BITACCURACY_CMP, instead of only comparing file hashes.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "comparison",
      "link": "/docs/bit-accuracy"
     }
    ],
    "html": "<h2>Web app</h2>\n<ul>\n<li>Pages with many runs now render much faster.</li>\n<li>Added a &quot;Color-blind friendly&quot; switch to the file and bit-accuracy viewers, and clearer file icons.</li>\n<li>The image viewer now warns when an image file is empty.</li>\n<li>Plotly figures saved as stand-alone <code>.html</code> files are now displayed, next to the reference's.</li>\n<li>You can now delete a batch, or the output files of a milestone, even when another batch of the same commit is a milestone.</li>\n<li>The tuning batch selector now shows how many runs are still running.</li>\n<li>The sample tuning configuration mentions <code>keep_all_best_iters</code>.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li>The <code>qaboard</code> package is now version 1.0.1.</li>\n<li>Celery runners now get the environment variables of the <code>qa batch</code> command that started them (except ones that look like secrets), and default to the broker on your QA-Board server.</li>\n<li>LSF job names are now short and safe to reuse as docker container names.</li>\n<li>Auto-optimization: <code>keep_all_best_iters</code> can be set to <code>true</code>/<code>false</code> in the tuning configuration.</li>\n<li>Output manifests are sorted by file name.</li>\n<li>The CLI logs more details on network errors, and no longer fails when no tests are configured or when GitLab is not used.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>Added RabbitMQ and Flower services to the docker compose setup.</li>\n<li>The database uses a custom PostgreSQL configuration file with more shared memory, and the backend README explains how to use your own.</li>\n<li>The cleanup job now marks commits as deleted when their artifacts were deleted, and errors on corrupted git clones are now visible.</li>\n<li>Auto-tuning jobs use an LSF queue with longer time limits.</li>\n</ul>\n<h2>Documentation</h2>\n<ul>\n<li>The docs website moved to Docusaurus v2, with updated search.</li>\n<li>New page on <a href=\"/docs/deep-learning\">deep learning</a> workflows, and a video in <a href=\"/docs/tuning-from-the-webapp\">tuning from the web app</a>.</li>\n<li>The <a href=\"/docs/celery-integration\">Celery integration</a> page was rewritten for the built-in broker.</li>\n</ul>\n<h2>Fixes</h2>\n<ul>\n<li>Fixed a crash of the video viewer when the reference is bit-exact.</li>\n<li>Fixed the image viewer's toolbar buttons with OpenSeadragon 3.</li>\n<li>Fixed LDAP login, subproject support, and errors when opening commits that appeared twice.</li>\n<li>Fixed storage usage being undercounted after deleting files by pattern.</li>\n<li>Fixed auto-optimization running iterations more than once with parallel sampling, and failures with tuning pipelines.</li>\n<li>Fixed errors when requesting too many metrics from the CLI (URLs above the maximum length).</li>\n<li>Fixed metrics with labels in the commits evolution charts, and the width of the logs.</li>\n</ul>",
-   "sha256": "49b38b1e1bd075b02eed00e50d3302d30799cedae0f666694df6052b0595c84f"
+   "sha256": "492bc7a997e7fbfccf4d099d618b2ee7f6d121d9aadcef99bd39cba992c6c64d"
   },
   {
    "slug": "2021-q4",
@@ -765,20 +765,20 @@
     {
      "title": "Bit-accuracy checks compare inputs",
      "description": "Runs now save a manifest of their input files in manifest.inputs.json, and qa check-bit-accuracy reports when the inputs differ from the reference's, not only the outputs.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "comparison",
      "link": "/docs/bit-accuracy"
     },
     {
      "title": "More flexible batches files",
      "description": "A batches file can set a default database for all its batches, database paths can use {project} and {subproject}, and inputs.allow_duplicate_batches lets subprojects define the same batch names.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "properties",
      "link": "/docs/batches-running-on-multiple-inputs"
     }
    ],
    "html": "<h2>Web app</h2>\n<ul>\n<li>The diff viewer is hidden when both files are identical, and the reference video is hidden when it is the same as the new one. Video sync is less strict.</li>\n<li>The commit list date range can be set in the URL with <code>?from=YYYY-MM-DD&amp;to=YYYY-MM-DD</code>, and no longer jumps around.</li>\n<li>Batch logs show the ID of each command, and concatenate the commands of a tuning batch.</li>\n<li>Better link to the docs.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li>Matrix batches support indexing, like <code>${matrix.param[0]}</code> or <code>${matrix.param[key]}</code>.</li>\n<li>The CLI shows nicer tracebacks, and better messages when runs are killed, for instance by LSF.</li>\n<li><code>qa batch</code> always prints the URLs of the results, and warns when batches files are empty.</li>\n<li>Bit-accuracy checks handle non-default output directory names, long paths, and several reference folders with results.</li>\n<li>The CLI handles network errors, not only HTTP errors.</li>\n<li>The Jenkins integration no longer requires <code>JENKINS_AUTH</code> to be set.</li>\n</ul>\n<h2>Fixes</h2>\n<ul>\n<li>Fixed <code>qa get</code>, including <code>qa get output_dir</code>.</li>\n<li>Fixed imports when not running under a QA-Board project directory.</li>\n<li>Fixed commit messages with two line breaks, <code>None</code> batches and relative database paths.</li>\n<li>Fixed deleting artifacts of subprojects, and interpolating <code>{subproject}</code> in the web app.</li>\n<li>Fixed output manifests on Windows.</li>\n</ul>",
-   "sha256": "c484f4607a3a79e457f1fa4dc2cd9f699e79a0a49d849b86a28104e08797559f"
+   "sha256": "c53879b77bbf7744479ccc333e3a23a301e5f98ca48c5d5ede2a0c5c50b7f563"
   },
   {
    "slug": "2021-q3",
@@ -798,7 +798,7 @@
     {
      "title": "Run parameters and badges",
      "description": "run() can return params, shown and filterable like configuration parameters in the web app, and badges that link from a run to another page, such as the training log of a machine learning model.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "badge",
      "link": "/docs/computing-quantitative-metrics"
     },
@@ -811,7 +811,7 @@
     }
    ],
    "html": "<h2>Web app</h2>\n<ul>\n<li>The reference image is hidden when it is identical to the new one.</li>\n<li>When selecting a region in the image viewer, the copied region of interest now includes the image dimensions.</li>\n<li>Tuning plots ignore non-numeric metric values, and falsy values are no longer shown as 0.</li>\n<li>Plots keep their colors when the data doesn't change, and the layout is more responsive.</li>\n<li>Tags look nicer.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li>Paths to batches files, including <code>inputs.batches</code>, can use <code>{project}</code> and <code>{subproject}</code>.</li>\n<li>Auto-optimization uses a fixed random seed by default, so experiments are reproducible. Set <code>QA_SEED</code> to change it.</li>\n<li>The Jenkins Windows runner prints the job's console output.</li>\n<li>Clearer messages when inputs are not found, and auto-optimization logs are saved at the right place.</li>\n<li>Stopping an LSF job that already finished no longer fails.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>Triggering Jenkins jobs is more robust, with a timeout and clearer errors, and integrations always provide a link to the job.</li>\n<li>Deleting outputs handles corrupted output manifests.</li>\n</ul>\n<h2>Documentation</h2>\n<ul>\n<li>Documented run parameters and badges, and how to select regions of interest in the image viewer.</li>\n<li>Updated the LSF and &quot;running your code&quot; docs.</li>\n</ul>\n<h2>Fixes</h2>\n<ul>\n<li>Fixed timezone issues in the commit list.</li>\n<li>Fixed subprojects with relative paths, and permission issues.</li>\n<li>Fixed tuning forms with recursive configuration tags.</li>\n<li>Fixed the image viewer when an image doesn't exist in the reference.</li>\n<li>Fixed deleting an output's files when some files are to be kept: the whole output folder could be removed.</li>\n</ul>",
-   "sha256": "a35cfab8620a989e04b685a01ee20e08410052f604d57b8256182f141d7ed98a"
+   "sha256": "ce39495fd14502ebf0b2e4c5cf51059ad67c4e158be4ef2dc23ef86270cb9761"
   },
   {
    "slug": "2021-q2",
@@ -843,13 +843,13 @@
     {
      "title": "Windows runners through Jenkins",
      "description": "Batches can run on Windows machines by sending jobs to a Jenkins server configured in qaboard.yaml. The CLI prints a link to each Jenkins job and waits for it to finish. Runners can also have their own default platform.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "build",
      "link": "/docs/jenkins-integration"
     }
    ],
    "html": "<h2>Web app</h2>\n<ul>\n<li>The text viewer can switch between side-by-side and inline diffs, without animations, and says when both files are identical.</li>\n<li>Batch logs have a &quot;scroll to bottom&quot; button.</li>\n<li>Batches can be soft-deleted: their output files are removed but their metadata and metrics are kept.</li>\n<li>The table view has a clearer sort menu and fewer unused columns, and metrics with <code>target_passfail</code> are shown green or red against their target.</li>\n<li>The project list can be filtered, and loads faster because it no longer downloads every project's data.</li>\n<li>Milestones can be filtered.</li>\n<li>Tuning analysis can use any configuration parameter, not only tuning parameters, shows nested parameters, and has a better UI.</li>\n<li>The artifacts panel has a better UI.</li>\n<li>Project avatars from private GitLab repositories are proxied by the server, which also avoids mixed-content issues.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li><code>qa batch --action-on-existing=assert-exists</code> fails when matching runs don't exist, which helps scripts look up past results, for instance with <code>CI=true GIT_COMMIT=...</code>.</li>\n<li><code>qa check-bit-accuracy --strict</code> also fails when a file exists in only one of the runs being compared. Input manifests are always written.</li>\n<li>Auto-optimization reads <code>parallel_sampling</code> from the optimization configuration file.</li>\n<li>Tuning parameters are passed to <code>qa batch</code> on the command line instead of through files, so past tuning runs can be reproduced and permission issues are avoided.</li>\n<li><code>QA_USER</code> overrides the user name recorded for runs.</li>\n<li>Parsing errors in configuration files are no longer ignored, and missing runs are reported with more details.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>Added LDAP settings (<code>QABOARD_LDAP_ENABLED</code>, <code>QABOARD_LDAP_HOST</code>...) and a <code>SECRET_KEY</code> for login sessions.</li>\n<li>Jenkins credentials are now given with a single <code>JENKINS_AUTH</code> JSON variable, which supports several Jenkins servers. It replaces <code>JENKINS_USER_NAME</code>, <code>JENKINS_USER_TOKEN</code> and <code>JENKINS_USER_CRUMB</code>.</li>\n<li><code>GITLAB_AUTH</code> gives the credentials used to show avatars of private GitLab projects.</li>\n<li>Added an API to update a run's data (<code>PUT /api/v1/output/:id</code>).</li>\n<li><code>PGHOST</code> can be set from the environment, and the database container gets more shared memory.</li>\n<li>CORS headers are always sent, even on errors.</li>\n<li>Triggering GitLab pipelines with many jobs works, thanks to pagination.</li>\n</ul>\n<h2>Documentation</h2>\n<ul>\n<li>Documented the LDAP settings.</li>\n</ul>\n<h2>Fixes</h2>\n<ul>\n<li>Fixed bit-accuracy checks on runs started by different users.</li>\n<li>Fixed sorting when metrics can be 0, and the metrics view in tables.</li>\n<li>Fixed auto-optimization with <code>--parallel</code> and <code>--share</code>.</li>\n<li>Fixed the navigation bar on the committer page, and refreshing after a delete.</li>\n<li>Fixed LSF issues and the LSF bridge when stopping jobs.</li>\n</ul>",
-   "sha256": "be43dd04b996e1329054a550a70def5685159731ef280c2c5380348b31b401a1"
+   "sha256": "d79774592bbac33565b618e3e5482490e262e0d83412d47258c387a87193bcb8"
   },
   {
    "slug": "2021-q1",
@@ -869,19 +869,19 @@
     {
      "title": "Per-input configurations in batches",
      "description": "Each input of a batch can have its own extra configuration, and the same input can appear several times with different ones. Matrix batches no longer add the default configurations when they define their own.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "properties",
      "link": "/docs/batches-running-on-multiple-inputs"
     },
     {
      "title": "Run outside of a git repository",
      "description": "The new GIT_MESSAGE and GIT_AUTHORED_DATETIME environment variables, along with GIT_COMMIT and GIT_BRANCH, describe the commit when your code doesn't run from a git checkout. When set, they take precedence over git.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "git-commit"
     }
    ],
    "html": "<h2>Web app</h2>\n<ul>\n<li><code>.mp4</code> and <code>.webp</code> files are shown with the video viewer by default.</li>\n<li>Redo logs are shown in the web app, with clearer error messages, and outputs with non-default input types can be redone.</li>\n<li>Tuning is always available from the web app.</li>\n<li>Project and commit links work for projects hosted on any GitLab server, based on the project's URL.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li><code>qa batch</code> fails if pending runs it waited for have failed.</li>\n<li><code>qa --share</code> is ignored when <code>CI=true</code>.</li>\n<li><code>qa check-bit-accuracy</code> can compare against a commit, not only a branch, and its ignore patterns are more flexible.</li>\n<li>Artifacts can be listed with <code>globs</code> as well as <code>glob</code>.</li>\n<li>The LSF memory limit can be set with <code>max_memory</code>.</li>\n<li>scikit-optimize is now installed by default, so auto-optimization works out of the box.</li>\n<li><code>qa optimize --parallel-param-sampling N</code> (experimental) evaluates several parameter sets in parallel, and prints the URL of the results.</li>\n<li>Better error messages, and less verbose output.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>The backend now runs uWSGI with adaptive worker scaling and a configurable listen queue (<code>UWSGI_LISTEN_QUEUE_SIZE</code>), and containers start with a larger <code>net.core.somaxconn</code>.</li>\n<li>nginx serves pre-compressed <code>.gz</code> versions of output files when they exist.</li>\n<li>The exposed database port is configurable, and no port is hardcoded.</li>\n<li>The server records which user started each run.</li>\n<li>Fixed startup issues caused by sharing database connections between forked workers.</li>\n</ul>\n<h2>Fixes</h2>\n<ul>\n<li>Fixed saving artifacts when the project's storage location changed.</li>\n<li>Fixed a timer bug that could flood the server with requests.</li>\n</ul>",
-   "sha256": "a493f014cff7e6d1a29946a09751da9cfc16068f6e92a20b172cbf86cf85d041"
+   "sha256": "f8cc0b5b239d0c2afcb3c63d219c3d10ff4e369bcc194bf73ef20983e873fcd9"
   },
   {
    "slug": "2020-q4",
@@ -926,14 +926,14 @@
     {
      "title": "Simpler run() API",
      "description": "Your run(context) function now reads everything from attributes like context.input_path, context.output_dir, context.params and context.forwarded_args, instead of digging into context.obj.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "code",
      "link": "/docs/running-your-code"
     },
     {
      "title": "Separate storage for outputs and artifacts",
      "description": "The storage key in qaboard.yaml, which replaces ci_root, can set different locations for run outputs and for build artifacts. Outputs are saved with new, shorter path conventions.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "database",
      "link": "/docs/storage/where-is-the-data"
     },
@@ -946,7 +946,7 @@
     }
    ],
    "html": "<h2>Web app</h2>\n<ul>\n<li>Output cards show when each run started.</li>\n<li>Metrics are formatted with 3 significant digits by default, or a per-metric <code>precision</code>, and use the metrics configuration of the latest commit.</li>\n<li>The metrics-over-time plot shows all batches.</li>\n<li>Added menus to delete all the batches of a commit.</li>\n<li>Filtering on JSON values such as configurations is easier, and mismatch tags are clearer.</li>\n<li>Integrations handle CI jobs that are blocked waiting for a manual action.</li>\n<li>The web app no longer fails when <code>main_metrics</code> are missing.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li><code>qa batch --action-on-pending</code> chooses what to do when matching runs are already pending: wait, reuse their results, skip, or run anyway.</li>\n<li>Input paths can be absolute, without specifying a database, and the default database is <code>/</code>. Database paths are normalized, and paths with many <code>..</code> are handled better.</li>\n<li>Long output directory names are shortened automatically.</li>\n<li><code>QA_BATCHES_FILES</code> lists the batches files of the current <code>qa batch</code>, and database paths can contain environment variables.</li>\n<li><code>qa run</code> warns when <code>run()</code> doesn't return a dict like <code>{&quot;is_failed&quot;: False}</code>, and the sample project shows how to print logs in real time.</li>\n<li>The CLI prints YAML parsing errors and shorter URLs.</li>\n<li>GitLab CI statuses are updated more reliably and link directly to QA-Board for custom batches; tuning runs no longer update them.</li>\n<li><code>qa get artifacts_branch</code> gives where a branch's artifacts are saved.</li>\n<li>Input manifests are limited to the first 200 files of an input folder.</li>\n<li>Added a sample script that uses the QA-Board API to get a batch's total storage.</li>\n<li>The <code>qaboard</code> package is now version 0.8.13.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>More backend settings can be set with environment variables.</li>\n<li>Database backups can run as a different user.</li>\n<li>nginx serves more common file types (YAML, shell and Python scripts) as plain text.</li>\n<li>The backend handles commits with a large number of outputs better, and creates missing storage folders.</li>\n</ul>\n<h2>Documentation</h2>\n<ul>\n<li>Published the <a href=\"https://samsung.github.io/qaboard/blog/2020/08/10/introducing-QA-Board\">introduction blog post</a> and a <a href=\"https://samsung.github.io/qaboard/blog/2020/06/24/flame-graphs\">flame graphs tutorial</a>, with a Blog link in the navigation bar.</li>\n<li>Added instructions to pull the docker images instead of building them, and docs on local runs and metrics.</li>\n<li>The docs use the new Algolia DocSearch and better meta tags.</li>\n</ul>\n<h2>Fixes</h2>\n<ul>\n<li>Fixed relative and absolute database paths, including with input types.</li>\n<li>Fixed subproject URLs when the storage root contains the subproject.</li>\n<li>Fixed crashes with undefined or invalid metrics, and a mixup between configurations and metrics.</li>\n<li>Fixed forwarded arguments, dynamic outputs and tuning runs.</li>\n</ul>",
-   "sha256": "55eaaa2dba8e8423b4f3e7cff7bb82bccf8e1682ab4a4577a29d87eb0a193d9f"
+   "sha256": "0e4586868baab9731ffe4f444c888806937bd41e640df55d56cd72c41865d51a"
   },
   {
    "slug": "2020-q2",
@@ -973,20 +973,20 @@
     {
      "title": "No more GitLab requirement",
      "description": "The CLI now sends the commit, branch and configuration data to the server itself, so QA-Board works without GitLab and without giving the server read access to your repository. The CLI also integrates with GitHub Actions.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "git-repo",
      "link": "/docs/ci-integration"
     },
     {
      "title": "Matrix batches",
      "description": "Batches can define a matrix of configurations and platforms, and qa batch runs every combination.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "grid",
      "link": "/docs/batches-running-on-multiple-inputs"
     }
    ],
    "html": "<h2>Web app</h2>\n<ul>\n<li>Commit pages refresh automatically while results are pending.</li>\n<li>References are matched to each run by the closest configuration, so runs with slightly different settings are still compared.</li>\n<li>The image viewer selects the first region of interest automatically (or the one marked <code>focused: true</code>), shows regions of interest from input metadata, and shows them even without a reference. Images are requested as lossless PNG when possible.</li>\n<li>The text viewer lets you toggle between new and reference with the <code>T</code> key, and highlights large files correctly.</li>\n<li>Viewers are only shown for files that exist, and outputs show more clearly whether they changed.</li>\n<li>Output lists can be sorted by ID, and filtering is much faster.</li>\n<li>Batches show the storage they use.</li>\n<li>Each batch can have its own configuration and metrics, which helps with <code>qa --share</code> runs.</li>\n<li>Integrations can use the commit's <code>branch_slug</code>, a URL-friendly version of the branch name.</li>\n<li>The tuning menu is easier to discover, has clearer sample configurations, and hides LSF-only options when LSF isn't used.</li>\n<li>A friendlier welcome page is shown when the database is empty.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li><code>QA_BATCH_FAIL_IF_EMPTY</code> makes <code>qa batch</code> fail when a batch matches no inputs.</li>\n<li>Auto-optimization accepts parameters for scikit-optimize's <code>Optimizer</code>, and works with subprojects.</li>\n<li>Tuning no longer requires users to set up SSH keys.</li>\n<li>The commit tag can be read from environment variables, and <code>qa --share run</code> always sends the git data it needs.</li>\n<li><code>QA_CI_HELPERS_N_JOBS</code> sets how many jobs the CI helpers run concurrently.</li>\n<li>On Windows, paths like <code>C://</code> are accepted and <code>|</code> characters in commands are escaped.</li>\n<li>The CLI no longer fails on a repository's first commit, or prints warnings when GitLab isn't used.</li>\n<li>The <code>qaboard</code> package now requires Python 3.7 and is released to PyPI from GitHub Actions; it is now version 0.8.7.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>Docker images are published to Docker Hub and the GitHub container registry, with development and production compose overrides.</li>\n<li>The image server (Cantaloupe) runs as a compose service with an upgraded image, and pgAdmin comes preconfigured.</li>\n<li>Added a daily database backup service, and the backup docs explain how to restore.</li>\n<li>Integrations that trigger CI jobs support a custom token and cause.</li>\n<li>Added a cron job to remove old docker images.</li>\n</ul>\n<h2>Documentation</h2>\n<ul>\n<li>The website is published on GitHub Pages, with screenshots, Algolia search and a clearer order.</li>\n<li>New docs on starting the server with docker compose, matrix batches and tuning, and updated troubleshooting.</li>\n</ul>\n<h2>Fixes</h2>\n<ul>\n<li>Fixed deleting failed results, sorting outputs, and exporting renamed batches.</li>\n<li>Fixed thin lines between image tiles and colors differing between new and reference images.</li>\n<li>Fixed <code>commit_url</code> with subprojects and custom artifact locations.</li>\n<li>Fixed the tuning &quot;override&quot; option.</li>\n</ul>",
-   "sha256": "d0f5812ae962dbac91cd716b39308ef665aa6c80d3b1914fd15e4eac31895c07"
+   "sha256": "02f5758b001a7eeed8745699c7352016fbf2b438264816a2e42f90a8e30e53f7"
   },
   {
    "slug": "2020-q1",
@@ -999,21 +999,21 @@
     {
      "title": "qatools is now QA-Board",
      "description": "The configuration file is now qaboard.yaml and the package is imported with import qaboard. Existing qatools.yaml files and import qatools keep working, and the sample project now keeps its files in a qa/ folder.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "tag",
      "link": "/docs/project-init"
     },
     {
      "title": "Celery task runner",
      "description": "Besides local runs and LSF, batches can now be sent to Celery workers. Runners now share a common API, which makes it easier to add new ones, and local batches are the default.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "layers",
      "link": "/docs/celery-integration"
     },
     {
      "title": "Subprojects in monorepos",
      "description": "qaboard.yaml no longer needs to sit at the root of the repository, and nested qaboard.yaml files (even empty ones) define subprojects with their own settings.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "git-branch",
      "link": "/docs/monorepo-subprojects"
     },
@@ -1026,7 +1026,7 @@
     }
    ],
    "html": "<h2>Web app</h2>\n<ul>\n<li>Runs that are still running are now shown as such, with their own status tag.</li>\n<li>Each output card links to the reference's output folder, and individual outputs can be deleted.</li>\n<li>Added batch menus to rename a batch, delete all its failed outputs and redo the outputs whose files were deleted. Any batch can now be deleted.</li>\n<li>Each commit in the commit list now has its own menu.</li>\n<li>The image viewer can detect regions of interest automatically and export a PDF report of them.</li>\n<li>Visualizations whose paths depend on the run are better supported, and the diff image tooltip is clearer.</li>\n<li>The tuning panel lists all configurations, with better examples, labels and help text in its forms.</li>\n<li>A welcome message is shown when the server has no projects yet.</li>\n<li>Added a credits footer and a new favicon.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li>CLI options can now be set with <code>QA_</code> environment variables (previously <code>QATOOLS_</code>).</li>\n<li><code>QA_BATCH_CONCURRENCY</code> limits how many runs a batch starts in parallel, locally or on LSF.</li>\n<li><code>postprocess()</code> is now optional, and arguments forwarded by <code>qa batch</code> are escaped better.</li>\n<li><code>qa batch</code> warns when a batch matches no inputs, and <code>inputs.batches</code> is now optional.</li>\n<li>Inputs can be left out of a batch with an <code>exclude</code> key, and input matching is case-insensitive on every platform.</li>\n<li>In batches files, <code>groups</code> is renamed <code>aliases</code>; <code>groups</code> still works.</li>\n<li><code>qa --share run</code> and <code>qa --share postprocess</code> print the URL of the results, and <code>qa run</code> prints the output directory. URLs are printed URL-encoded so they are easy to copy.</li>\n<li><code>qa postprocess</code> also writes its logs to a log file.</li>\n<li><code>qa save-artifacts</code> has an <code>--exclude</code> option.</li>\n<li><code>qa run --keep-previous</code> keeps files already in the output directory instead of cleaning it.</li>\n<li>Computing file hashes for output manifests can be turned off.</li>\n<li>The <code>--offline</code> mode works better, and the CLI falls back to checks that don't need the server.</li>\n<li>The CLI reads server settings and tokens from environment variables or a secrets file instead of hardcoded values.</li>\n<li>The storage used by each run is now recorded.</li>\n<li>The <code>qaboard</code> package is now version 0.8.5, and was prepared for publication on PyPI. Its git integration no longer depends on GitPython.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>The database is created on startup if it doesn't exist.</li>\n<li>The script that deletes old results is more configurable, and only deletes failed batches when asked to.</li>\n<li>Added a script to backfill the storage used by past runs.</li>\n<li>Run configurations are now stored as JSON in the database.</li>\n<li>Removed the built-in admin view: use a tool like pgAdmin instead.</li>\n<li>Metrics can only be updated through the API, not by reading them from the filesystem.</li>\n<li>The backend starts faster and reports errors better.</li>\n</ul>\n<h2>Documentation</h2>\n<ul>\n<li>The docs moved to a Docusaurus website, with a search bar.</li>\n<li>Added guides for administrators, and docs on the LSF bridge settings.</li>\n<li>Added a license, a code of conduct, contributing guidelines and GitHub issue templates.</li>\n</ul>\n<h2>Fixes</h2>\n<ul>\n<li>Fixed paths and file names with characters that need URL encoding, such as <code>#</code>.</li>\n<li>Fixed several case-sensitivity and working-directory issues on Windows and in subprojects.</li>\n<li>Fixed runs reported as running after the task manager killed them, and jobs reported as failed with <code>--no-wait</code>.</li>\n<li>Fixed infinite loops with self-referencing aliases in batches files.</li>\n<li>Fixed hovering over image diffs, dynamic viewers and broken output manifests.</li>\n<li>Fixed pages crashing when a commit has no reference.</li>\n</ul>",
-   "sha256": "198d3a0b3f2013a681c0b3dc6ac409579a1052de42b9e87de04144946633ef70"
+   "sha256": "6728f88d762e755beecaecdca456cff094e25dce7d544a0f366deda56c7b9d9e"
   },
   {
    "slug": "2019",
@@ -1039,7 +1039,7 @@
     {
      "title": "Bit-accuracy checks",
      "description": "qa check-bit-accuracy compares a commit's outputs with any reference (branch, tag or commit), with clear reports and file manifests to make it fast. In the web app, a bit-accuracy tab shows which outputs changed.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "endorsed",
      "link": "/docs/bit-accuracy"
     },
@@ -1060,13 +1060,13 @@
     {
      "title": "Batches of inputs and configurations",
      "description": "Batches files list the inputs to run on, together with their configurations and database, and support aliases, filters and custom input discovery. Run them with qa batch --batch, on LSF or locally in parallel.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "layers",
      "link": "/docs/batches-running-on-multiple-inputs"
     }
    ],
    "html": "<h2>Web app</h2>\n<ul>\n<li>The web app is now called QA-Board.</li>\n<li>Added search on the commit list, by message, author, branch or batch, and a refresh button.</li>\n<li>Added favorite projects; projects are sorted by their latest results, and sub-projects show their own avatar, description and color.</li>\n<li>You can pick any commit, not only a branch, as the commit or the reference to compare with.</li>\n<li>Visualizations are now defined per commit in the project configuration, and the files each one shows are matched by patterns.</li>\n<li>The image viewer: press <code>t</code> to toggle between the new and the reference image, and image settings are synced across viewers.</li>\n<li>Added a configuration tab that shows and diffs all the configuration files and artifacts in a file tree, with syntax highlighting.</li>\n<li>Two videos play side by side, in sync.</li>\n<li>The 3D point cloud viewer can color points by intensity, show a mesh, and be moved with the WASD keys.</li>\n<li>Added an integrations menu on commits, with links to build artifacts and documentation and buttons to trigger external jobs such as Jenkins builds.</li>\n<li>Added live logs for running jobs, logs for whole batches, and buttons to stop a batch's jobs or delete a batch.</li>\n<li>Tuning: the exploration plots are saved in the URL, the efficient frontier plot is colored by parameter, the 1D sensitivity plots are split per input and configuration, and you can choose the platform to run on.</li>\n<li>Results can be exported to a shared folder.</li>\n<li>Added a page that follows metrics across commits over time.</li>\n<li>The web app works in Internet Explorer 11.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li>Batches files replace the input groups: <code>qa batch --batch</code> (and <code>--batches-file</code>) run over their inputs and configurations, with only/exclude filters and merging of several files.</li>\n<li>Added <code>--runner local</code> with multiprocessing, and LSF settings now live under <code>runners.lsf</code> in <code>qatools.yaml</code>, with per-batch overrides.</li>\n<li>Added <code>qa batch --list</code>, <code>--list-inputs</code> and <code>--list-output-dirs</code> to see what a batch would run.</li>\n<li>Projects can define their own way of finding inputs with <code>iter_inputs</code>, and the kind of inputs with <code>--type</code>.</li>\n<li><code>--share</code> (formerly <code>--ci</code>) saves local runs at the central location so they appear in the web app.</li>\n<li>Configurations can set environment variables for your code with <code>{&quot;ENV&quot;: {...}}</code>.</li>\n<li>Bit-accuracy: <code>qa check-bit-accuracy</code> takes <code>--batch</code>, <code>--reference-platform</code> and ignore patterns (<code>bit_accuracy.ignore</code>), lets you define which files are text or binary, and normalizes line endings on Windows. Added <code>qa check-bit-accuracy-manifest</code>.</li>\n<li>Added CI helpers (<code>@on_branch()</code>, <code>run_tests()</code>) and GitLab commit statuses, and better support for Jenkins.</li>\n<li><code>qa save-artifacts --file</code> saves a list of files instead of the configured artifacts.</li>\n<li><code>qa</code> exits with code 1 when runs fail, forwards your code's return codes, and warns when a newer version is available.</li>\n<li>Improved Windows support: paths, line endings and file names.</li>\n<li><code>qa</code> starts much faster.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>Added daily database backups, with instructions to dump and restore.</li>\n<li>Old results are garbage-collected once a day.</li>\n<li>The server is deployed automatically when <code>master</code> changes.</li>\n<li>Added API endpoints to stop pending runs, update batch metadata and export results.</li>\n</ul>\n<h2>Documentation</h2>\n<ul>\n<li>Added a documentation website, with an &quot;Edit&quot; button on each page, guides on visualizations and on debugging runs with an IDE.</li>\n</ul>\n<h2>Notes</h2>\n<ul>\n<li>The CLI was still distributed as the <code>qatools</code> package, configured with <code>qatools.yaml</code>. Versions 0.3.0 to 0.8.0 came out during the year. The <code>--group</code> options became <code>--batch</code>, and <code>--ci</code> became <code>--share</code>.</li>\n</ul>",
-   "sha256": "852f4d7920c83878d01e6c728e4a9d0cdc6a8d3ac58dc06bff00b5251d750c66"
+   "sha256": "5fee205ca756c78b58869a41f7a87d61bb03b0ce9fe2ffc6a1c8d708f927353a"
   },
   {
    "slug": "2018",
@@ -1085,7 +1085,7 @@
     {
      "title": "The qa command-line tool",
      "description": "A small Python package wraps your code so that each run on an input is tracked: qa run for one input, qa batch for groups of inputs on the cluster, and qa init to set up a project with a single YAML file.",
-     "audience": "project-leads",
+     "audience": "project-integration",
      "icon": "console",
      "link": "/docs/project-init"
     },
@@ -1105,7 +1105,7 @@
     }
    ],
    "html": "<h2>Web app</h2>\n<ul>\n<li>The commit list can be filtered by branch, committer and date range, including negative filters, and the selected batches and filters are saved in the URL.</li>\n<li>Added charts that follow the metrics over time, with boxplot summaries, log scale, medians and improvements relative to the reference.</li>\n<li>Output cards show each run's status (pending, running, failed, crashed), its parameters, its logs with ANSI colors, and a link to the output folder, with a button to copy its Windows path.</li>\n<li>Added tuning exploration plots: 1D and 2D sensitivity, a parallel coordinates plot of the parameters and the main metrics, and the trade-offs between metrics.</li>\n<li>Tuning forms support grid and random sampling, arrays and categorical parameters, a label for each experiment, and the platform to run on.</li>\n<li>Added a viewer switcher on output cards, and the selected tab is saved in the URL.</li>\n<li>Large components are loaded on demand, for faster page loads.</li>\n</ul>\n<h2>CLI and project setup</h2>\n<ul>\n<li>Projects are configured with <code>qatools.yaml</code>, and their metrics with a <code>metrics.yaml</code> file (labels, units, targets, whether smaller is better, which ones to show by default).</li>\n<li>Groups of inputs are listed in YAML files, with globs and lists of globs; <code>qa batch --group</code> runs over them, locally or on LSF.</li>\n<li><code>qa batch</code> can cap LSF memory and threads per project, waits for its jobs, and cancels them if it is interrupted.</li>\n<li>When results already exist, you can choose to skip, re-run, only re-compute the metrics or only sync them (<code>--action-on-existing</code>, also configurable per project).</li>\n<li>Added <code>qa optimize</code> for automated tuning, with custom loss functions and targets.</li>\n<li>Added <code>qa check-bit-accuracy</code> to compare a commit's outputs with its reference branch, and <code>qa save-artifacts</code> to save build outputs (with multiple globs).</li>\n<li>Added <code>qa get</code> to read the CLI's variables, a module entrypoint (<code>python -m qatools</code>), and a sample project.</li>\n<li>Added sub-projects: a <code>qatools.yaml</code> in a parent folder is inherited, so one repository can host several projects.</li>\n<li>Runs can be tagged with a label to keep tuning experiments apart, and their parameters are hashed to keep output paths short.</li>\n</ul>\n<h2>Server and administration</h2>\n<ul>\n<li>Results are stored in a SQL database, PostgreSQL in production, with Alembic migrations.</li>\n<li>GitLab webhooks keep commits, branches and committers in sync with the repositories.</li>\n<li>Added a REST API, used by the web app and by the CLI to report runs and their metrics.</li>\n<li>The server ships as a Docker image, with staging and production environments deployed from CI, behind nginx with HTTPS.</li>\n<li>Added a cleanup script that deletes old results, configurable per project.</li>\n<li>Added a Cantaloupe IIIF image server to serve large images efficiently.</li>\n</ul>\n<h2>Notes</h2>\n<ul>\n<li>The CLI was then distributed as the <code>qatools</code> Python package, configured with <code>qatools.yaml</code>. Version 0.1.0 came out in July 2018 and 0.2.0 in December 2018.</li>\n<li>QA-Board was used internally at Samsung by a growing number of algorithm teams; it was not open-source yet.</li>\n</ul>",
-   "sha256": "230271a0c0f029523a187f9c71b8b6ee1a0d32773bbc7464b496be86485e1e92"
+   "sha256": "bc9edc4a3025640ff54e8562cf2600aea02c0be45d07fe3f88d9227b41b29c45"
   },
   {
    "slug": "2017",

@@ -105,7 +105,7 @@ describe('the bundle', () => {
     for (const n of bundle.notes)
       for (const h of n.highlights) {
         expect([n.slug, h.title, icons.has(h.icon || 'star')]).toEqual([n.slug, h.title, true]);
-        expect(['users', 'project-leads', 'admins', undefined]).toContain(h.audience);
+        expect(['users', 'project-integration', 'admins', undefined]).toContain(h.audience);
       }
   });
 

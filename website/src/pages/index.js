@@ -50,10 +50,10 @@ function Audiences() {
       cta: 'User guide',
     },
     {
-      title: 'I set up a project',
+      title: 'I integrate a project',
       text: 'Wrap your code with the qa CLI, define inputs, metrics and visualizations, run batches locally, on a cluster or in CI.',
       to: docs('introduction'),
-      cta: 'Project setup',
+      cta: 'Project integration',
     },
     {
       title: 'I run the server',

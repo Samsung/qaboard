@@ -7,7 +7,7 @@ import styles from './ReleaseNoteHighlights.module.css';
 
 const AUDIENCES = {
   'users': 'Users',
-  'project-leads': 'Project leads',
+  'project-integration': 'Project integration',
   'admins': 'Admins',
 };
 

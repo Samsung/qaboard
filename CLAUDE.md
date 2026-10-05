@@ -85,7 +85,7 @@ website shows them at `/release-notes` (with RSS/Atom feeds).
   No commit shas, no names, no internal hostnames or ticket ids: the repo and website are public.
   Link docs as `[text](/docs/page-id)`.
 - **Publishing** (maintainers, at the start of the next month or for a big release): curate the bullets,
-  write `description` (1-2 sentences) and 2-4 `highlights` (title, `audience`: users | project-leads |
+  write `description` (1-2 sentences) and 2-4 `highlights` (title, `audience`: users | project-integration |
   admins, a Blueprint `icon` name, plain-text `description` (backticks for code), optional `link: /docs/...`), set `date`
   to the publication date, and remove `draft: true`. Users get the popup once after the next deploy
   (notes older than 60 days don't pop up). Later edits to a published note don't notify again.
@@ -100,7 +100,7 @@ website shows them at `/release-notes` (with RSS/Atom feeds).
   and `website/src/theme/BlogPostItem/Content/` (highlight cards on the website).
 
 **Docs** (`website/docs/`) have one sidebar per audience (`website/sidebars.ts`): the **User guide**
-(`user-guide/`, for people looking at results in the web app), **Project setup** (wrapping code with `qa`,
+(`user-guide/`, for people looking at results in the web app), **Project integration** (wrapping code with `qa`,
 qaboard.yaml, runners, integrations), and **Admin** (`backend-admin/`, running the server). When a change
 affects how people use the web app, update the user guide page too.
 

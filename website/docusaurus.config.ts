@@ -90,9 +90,9 @@ let config: Config = {
         logo,
         hideOnScroll: true,
         items: [
-          // One sidebar per audience: people looking at results, project leads, server admins
+          // One sidebar per audience: people looking at results, project integration, server admins
           {type: 'docSidebar', sidebarId: 'userGuide', label: 'User guide', position: 'left'},
-          {type: 'docSidebar', sidebarId: 'docs', label: 'Project setup', position: 'left'},
+          {type: 'docSidebar', sidebarId: 'docs', label: 'Project integration', position: 'left'},
           {type: 'docSidebar', sidebarId: 'admin', label: 'Admin', position: 'left'},
           {to: '/release-notes', label: "What's new", position: 'left'},
           {
@@ -115,7 +115,7 @@ let config: Config = {
             title: 'Docs',
             items: [
               {label: 'User guide', to: '/docs/user-guide/overview'},
-              {label: 'Project setup', to: '/docs/introduction'},
+              {label: 'Project integration', to: '/docs/introduction'},
               {label: 'Server admin', to: '/docs/backend-admin/deployment'},
             ],
           },

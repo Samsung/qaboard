@@ -10,7 +10,7 @@ export const HASH = '#whats-new';
 
 export const AUDIENCES = {
   'users': { label: 'Users', intent: 'primary' },
-  'project-leads': { label: 'Project leads', intent: 'success' },
+  'project-integration': { label: 'Project integration', intent: 'success' },
   'admins': { label: 'Admins', intent: 'warning' },
 };
 
