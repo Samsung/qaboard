@@ -7,6 +7,9 @@ defaults = {
     "QABOARD_URL": "https://qa",
     # Talk to the API on https://qa without checking its certificate, instead of a dedicated http port
     "QABOARD_API_VERIFY": "false",
+    # Errors of `qa` in CI are reported to Sentry
+    "QABOARD_SENTRY_DSN": "https://09ed52c49322629052df6b6e6cf334c5@sentry.transchip.com/30",
+    "QABOARD_SENTRY_VERIFY": "false",
     # We want to allow users to use the Gitlab API (limited scope: CI statuses) without having to login
     # to stay backward compatible and not have credentials in any repo
     "QA_SECRETS": '/home/ispq/.secrets.yaml' if os.name != 'nt' else '//mars/raid/users/ispq/.secrets.yaml',

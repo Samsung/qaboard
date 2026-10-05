@@ -37,7 +37,6 @@ To configure debugging, the editor opens a file called *launch.json*. You want t
   "request": "launch",
   "module": "qaboard",
   "args": [
-    "--", // needed...
     "--help",
   ]
 },
@@ -46,13 +45,16 @@ To configure debugging, the editor opens a file called *launch.json*. You want t
 To debug `qa run`, for instance:
 ```json
   "args": [
-    "--",
     "--database",
     ".",
     "run", // don't debug "qa batch" command
     "--input",
-    "tv/tv_GW1_9296x256_REMOSAIC_V1_FULL_X_HP_PDA1",
+    "images/A.jpg",
   ]
 ```
+
+:::caution
+Don't start `args` with `"--"`: `qa` now treats everything after `--` as arguments forwarded to your code, so the command would be ignored.
+:::
 
 Here is a more in-depth review of your options at https://code.visualstudio.com/docs/python/debugging

@@ -1,0 +1,101 @@
+---
+id: finding-results
+title: Finding results
+sidebar_label: Finding results
+description: Find a project, a commit, a branch or a batch of runs, and filter what you see.
+---
+import useBaseUrl from '@docusaurus/useBaseUrl';
+
+## Projects list
+The home page lists all projects that have results.
+
+- **Search** with the *filter projects...* box.
+- **Pin** a project at the top of the list with its star. Favorites are remembered by your browser only.
+- Projects are sorted by favorites first, then by their latest run. Each card shows when the last run (or commit) happened and how many commits have results.
+- **Source** opens the project's git repository.
+
+Click a project to open its commit list.
+
+:::tip
+Project names are git paths, like `group/repo`. In monorepos, each sub-project has its own entry, like `group/repo/sub-project`.
+:::
+
+## Commit list
+The project's home page lists the **latest commits with results**, grouped by day ("Today — 3 commits"). It refreshes every minute.
+
+<img alt="Commit list, grouped by day" src={useBaseUrl('img/commits-index.jpg')} />
+
+*An older screenshot: the layout is the same, the sidebar menus have changed.*
+
+Each commit row shows:
+
+| Where | What | Click it to... |
+|---|---|---|
+| Avatar | The committer | see all their commits |
+| Message, short hash | The commit | open the commit diff on your git server (hash), or copy the full hash (copy icon) |
+| Star icon | The commit is a [milestone](comparing-results.mdx#milestones) | |
+| Menu icon (☰) | Copy the commit's directory (Windows or Linux path), view its files in the browser, delete its runs | |
+| Branch name | The commit's branch | see the branch's commits |
+| "2 hours ago by ..." | Commit date and committer | see the committer's commits |
+| Right side | The CI batch status: pending, running, crashed runs, the main metric (median and average), `...` for all aggregated metrics | |
+| **N other batches** | Hover to list the commit's other batches (tuning, local runs...) and jump to one | |
+| Green **N CI results** button | | open the commit page |
+
+:::note
+**No results** or **Check the pipeline status...** means the commit has no finished runs yet in its CI batch: check your CI pipeline.
+:::
+
+### Branches and committers
+- The sidebar shows the project's **reference branch**: click it to see only its commits.
+- Click any branch name in a commit row to see that branch. The URL is `/<project>/commits/<branch>`.
+- On a branch page, a chart of the main metrics over time comes first. Hover a point to see the commit and its reference, click to freeze the reference. For more, use [History](history-and-dashboards.mdx).
+- Click an avatar or a committer name to see their commits, on all branches: `/<project>/committer/<name>`.
+
+### The filter box
+The **Filter...** box at the top right filters the loaded commits by committer, message, branch and batch names. As you type, it also suggests matching branches: pick one to open it.
+
+The [filter syntax](#filter-syntax) is the same as on the commit page: `-word` excludes, regular expressions work.
+
+### Date range
+By default, the list shows the **last 3 days**. Change the range with the date picker at the top left (it has shortcuts like "past week"), and use the refresh button to reload.
+
+:::tip
+"Could not find a commit with results" usually means you should widen the date range.
+:::
+
+### Going to a commit by its hash
+- Type or paste a commit hash in the **Filter...** box, then choose **Go to commit: ...**.
+- Or edit the URL: `/<project>/commit/<hash>`. Short hashes work.
+- On a commit page, you can also type a hash in the commit field of the new or reference bar (see [Comparing results](comparing-results.mdx#picking-a-reference)).
+
+### Milestones
+The sidebar's **Milestones** menu lists the project's milestones: those from *qaboard.yaml*, the shared ones, and your private ones. Pick one to open it. See [Milestones](comparing-results.mdx#milestones).
+
+## Batches
+A commit can have many batches. On the commit page, the batch selector next to the filter box shows the selected batch and lets you switch:
+
+<img alt="Selecting a batch" src={useBaseUrl('img/selecting-local-runs.jpg')} />
+
+- **CI** is the batch from your continuous integration (label `default`).
+- **user 🏠 label** are local runs started by *user* from their workspace. A warning reminds you they may not use the code under version control.
+- Other labels are tuning experiments or runs started with `qa --label`.
+- Each entry shows `successful/total ✅`, crashed `❌`, running `🏃`, optimization iterations `🔁`, a `⭐` for milestones, and who started it.
+- The list is searchable: type a label, a user name, or words like `failed`, `running`, `local`, `ci`, `tuning`.
+
+The new and reference bars each have their own batch selector, so you can compare a tuning batch with the CI batch of another commit.
+
+## Filter syntax
+The **filter new outputs** and **filter ref outputs** boxes on the commit page keep only matching runs. The counters below them (`8 outputs`, `4 crashed`...) count what's left.
+
+| You type | You keep runs... |
+|---|---|
+| `night` | whose input path, configuration, platform, metadata, tuning parameters or batch contain "night" |
+| `night indoor` | matching **both** words |
+| `-night` | **not** matching "night" |
+| `2X5\|GW1` | matching a regular expression |
+| `threshold:0.5` | with tuning parameter `threshold` equal to 0.5 (also `threshold=0.5`) |
+| `fail` or `crash` | that crashed |
+| `pending` or `running` | that are not finished |
+| `id:1234` | with this run id |
+
+Filters are case-insensitive and are saved in the URL (`filter=` and `filter_ref=`), so a shared link shows the same runs.

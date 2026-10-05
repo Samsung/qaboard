@@ -11,7 +11,7 @@ If you don't want to use LSF, [read here how to make `qa batch` use a different 
 :::
 
 :::tip
-LSF jobs with have your project name as LSF project (`-P`).
+LSF jobs will have your project name as LSF project (`-P`).
 :::
 
 ## LSF project options
@@ -27,6 +27,7 @@ runners:
     # max_threads: 8              # ask for eg 8 max threads when sending jobs to LSF (0=default)
     # max_memory: 8000            # ask for eg 8000M memory when sending jobs to LSF (0=default)
     # resources: RESOURCE_STRING
+    # priority: 10                # LSF priority (-sp)
     # options: "-W 24:00"         # Specifiy freely other LSF options that bsub accepts
                                   # Will be added after all other CLI flags.
 ```
@@ -103,11 +104,10 @@ You can use CLI options to override the defaults:
 ```bash
 qa batch --help
 # --snip--
-  --lsf-threads INTEGER        restrict number of lsf threads to use. 0=no
+  --lsf-max-threads INTEGER    restrict number of lsf threads to use. 0=no
                                restriction
   --lsf-max-memory INTEGER     restrict memory (MB) to use. 0=no restriction
   --lsf-queue TEXT             LSF queue (-q)
-  --lsf-fast-queue TEXT        Fast LSF queue, for interactive jobs
   --lsf-resources TEXT         LSF resources restrictions (-R)
   --lsf-priority INTEGER       LSF priority (-sp)
   --lsf-options TEXT           Other LSF options (as 1 string, like '-W
@@ -116,6 +116,10 @@ qa batch --help
   --lsf-concurrency INTEGER    Max number of LSF jobs from this batch running
                                at the same time. 0=unlimited
 ```
+
+:::note
+`--lsf-threads` was renamed `--lsf-max-threads`, and `--lsf-fast-queue` was removed.
+:::
 
 ## Connecting to LSF via a "bridge" host
 It's needed for the server, that runs in a container, and sometimes to send LSF jobs from windows. There are two options:

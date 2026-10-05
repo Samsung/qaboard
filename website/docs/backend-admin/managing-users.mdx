@@ -10,13 +10,13 @@ QA-Board offers a user management system. It can be used to block access to anon
 ## Authentication Providers
 - `LOCAL`: an internal users list, created by qaboard admins.<br />
 - `LDAP`
-- `SSO`: via SAML
+- `SAML`: SSO via SAML
 
 > **To register a new `LOCAL` user**, either:
 > - add an entry to the database under `users` table.<br />
-> - enable http requests of the _signup()_ function at _backend/backend/api/auth.py_ , then use the curl command:
+> - use the signup endpoint (_signup()_ in _backend/backend/api/auth.py_). It is enabled unless `QABOARD_DISABLE_SIGNUP=True`:
 > ```bash
-> curl -d "user_name=<user_name>&password=<password>&email=<user_email>&full_name=<user_full_name>" -X POST '<qaboard_url>/api/v1/user/signup/
+> curl -d "user_name=<user_name>&password=<password>&email=<user_email>&full_name=<user_full_name>" -X POST '<qaboard_url>/api/v1/user/signup/'
 > ```
 
 :::tip
@@ -28,13 +28,18 @@ This flow can be improved. So far all instances of QA-Board rely on external aut
 **To apply changes** the backend server needs to be restarted.
 :::
 
+:::note
+With docker compose, set them in `services.backend.environment` in your site overlay (see `deployments/example.yml`). Only some of them (`QABOARD_LOGIN_TYPE`, `QABOARD_LOGIN_REQUIRED`, `QABOARD_LOGIN_RESTRICTED`, `QABOARD_LOGIN_RESTRICTED_YAML`) are forwarded from an `.env` file by *docker-compose.yml*.
+:::
+
 The sign-in policy is set via environment variables such as `QABOARD_LOGIN_*`, `QABOARD_LDAP_*`, `QABOARD_SAML_*`, as described below:
 
 | ENV Variable           | Default | Usage                                                |
 -------------------------|-------- |------------------------------------------------------|
 | `QABOARD_LOGIN_TYPE`   | _LOCAL_  | Set to `LOCAL/LDAP/SAML`                   |
-| `QABOARD_LOGIN_REQUIRED`   | _false_  | Set to `true` to block anonymous users (requires frontend rebuild)                   |
-| `QABOARD_LOGIN_RESTRICTED`   | _false_  | Set to `true` to use a configuration file to allow only specific users (requires backend restart)                   |
+| `QABOARD_LOGIN_REQUIRED`   | _empty_  | Any non-empty value (e.g. `true`) blocks anonymous users. Leave it unset/empty to allow them: even `false` enables it |
+| `QABOARD_DISABLE_SIGNUP`   | _empty_  | Set to `True` (exactly) to disable the signup endpoint for `LOCAL` users |
+| `QABOARD_LOGIN_RESTRICTED`   | _empty_  | Any non-empty value (e.g. `true`) uses a configuration file to allow only specific users |
 | `QABOARD_LOGIN_RESTRICTED_YAML`   | _none_  | The path to the users configuration file                     |
 | `QABOARD_LDAP_HOST`   | _none_  | Server hostname (including port)                   |
 | `QABOARD_LDAP_PORT`   | _389_  | Server port, usually 389 (or 636 if SSL is used / **not supported yet!**). |
@@ -51,7 +56,7 @@ The sign-in policy is set via environment variables such as `QABOARD_LOGIN_*`, `
 | `QABOARD_SAML_ATTRIBUTE_ID`   | _none_    |                                            |
 
 ## Blocking anonymous users
-To block anonymous users, who are not logged-in, from accessing any content on QA-Board, set the environment variable `QABOARD_LOGIN_REQUIRED=true`.
+To block anonymous users, who are not logged-in, from accessing any content on QA-Board, set the environment variable `QABOARD_LOGIN_REQUIRED=true` (any non-empty value) and restart the backend. The webapp reads it from the backend: no frontend rebuild is needed.
 
 <img alt="Image viewer" src={useBaseUrl('img/login-block-unsigned-user.jpg')} />
 
@@ -68,8 +73,8 @@ Example:
 login:
   # only users with one of those emails will be able to login
   email:
-  - mr.nobody@samsung.com
-  - user3@samsung.com
+  - mr.nobody@example.com
+  - user3@example.com
 
   # those users will also be allowed to login
   user_name:
@@ -95,8 +100,8 @@ projects:
   my_namespace:
     # only users with one of those emails will be able to access projects that are under the namespace "my_namespace", but not to "my_namespace/proj1"
     email:
-    - mr.nobody@samsung.com
-    - user3@samsung.com
+    - mr.nobody@example.com
+    - user3@example.com
 
     # those users will also be allowed to access projects that are under the namespace "my_namespace", but not to "my_namespace/proj1"
     user_name:
@@ -116,7 +121,7 @@ projects:
   my_namespace/proj1:
     # only users with one of those emails will be able to access proj1
     email:
-    - mr.nobody@samsung.com
+    - mr.nobody@example.com
 
     # those users will also be allowed to access proj1
     user_name:
@@ -130,8 +135,8 @@ A full configuration file that has both 'login' and 'project' restrictions will 
 login:
   # only users with one of those emails will be able to login
   email:
-  - mr.nobody@samsung.com
-  - user3@samsung.com
+  - mr.nobody@example.com
+  - user3@example.com
 
   # those users will also be allowed to login
   user_name:
@@ -152,8 +157,8 @@ projects:
   my_namespace:
     # only users with one of those emails will be able to access projects that are under the namespace "my_namespace", but not to "my_namespace/proj1"
     email:
-    - mr.nobody@samsung.com
-    - user3@samsung.com
+    - mr.nobody@example.com
+    - user3@example.com
 
     # those users will also be allowed to access projects that are under the namespace "my_namespace", but not to "my_namespace/proj1"
     user_name:
@@ -173,7 +178,7 @@ projects:
   my_namespace/proj1:
     # only users with one of those emails will be able to access proj1
     email:
-    - mr.nobody@samsung.com
+    - mr.nobody@example.com
 
     # those users will also be allowed to access proj1
     user_name:

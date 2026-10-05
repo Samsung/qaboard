@@ -686,7 +686,7 @@ class CommitsEvolution extends Component {
     const { available_metrics={}, default_metric} = this.props.project_data?.data?.qatools_metrics || {};
     const shown_batches = this.props.shown_batches || Object.keys(commits[0]?.batches || {}) || ['default']
     if (!default_metric)
-      return <div>To see metrics over time, <a href={this.props.docs_root}>define your project's metrics</a>.</div>;
+      return <div>To see metrics over time, <a href={`${this.props.docs_root}docs/computing-quantitative-metrics`}>define your project's metrics</a>.</div>;
 
     return (
       <div style={style}>

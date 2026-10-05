@@ -7,7 +7,6 @@
 </p>
 
 <p align="center">
-  <a href="https://spectrum.chat/qaboard"><img src="https://img.shields.io/badge/chat-spectrum-brightgreen" alt="qaboard-chat"/></a>
   <a href="https://pypi.org/project/qaboard/"><img src="https://img.shields.io/pypi/v/qaboard" alt="PyPI"/></a>
   <a href="https://samsung.github.io/qaboard"><img src="https://img.shields.io/badge/docs-master-steelblue.svg?style=flat-square" alt="Docs"/></a>
   <a href="https://github.com/samsung/qaboard/actions?query=workflow%3ACI"><img src="https://github.com/samsung/qaboard/workflows/CI/badge.svg" alt="CI"/></a>
@@ -33,11 +32,15 @@ QA-Board across many projects enables us to:
 ## Deployment
 
 ```bash
-# Open-source
-docker compose -f docker-compose.yml -f production.yml up
+# Open-source, zero-downtime upgrades (see deployments/production.env)
+deployments/deploy.py deployments/production.env up --build --init  # first time
+deployments/deploy.py deployments/production.env up --build         # upgrades
+# or plain docker compose
+docker compose -f docker-compose.yml -f production.yml up -d
 
 # With site-specific config (e.g. SIRC, DSK)
-docker compose -f docker-compose.yml -f production.yml -f deployments/sirc.yml up
+deployments/deploy.py deployments/sirc/production.env up
+docker compose -f docker-compose.yml -f production.yml -f deployments/dsk/dsk.yml up -d
 ```
 
 ## Getting Started
@@ -53,7 +56,7 @@ If you want to learn about the code's organization, or how to contribute, read [
 ## Feedback? Questions? Need Help? Found a bug?
 > Don't hesitate to get in touch! Contact arthur.flam@samsung.com, we'll be delighted to hear your insights.
 
-If you've got questions about setup, deploying, want to develop new features, or just want to chat with the developers, please feel free to [start a thread in our Spectrum community](https://spectrum.chat/qaboard)!
+If you've got questions about setup, deploying, want to develop new features, or just want to chat with the developers, please feel free to [open an issue](https://github.com/Samsung/qaboard/issues)!
 
 Found a bug with QA-Board? Go ahead and [submit an issue](https://github.com/Samsung/qaboard/issues). And, of course, feel free to submit pull requests with bug fixes or changes to the `master` branch.
 

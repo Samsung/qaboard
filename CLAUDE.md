@@ -68,6 +68,42 @@ yarn build              # Build static site
 uv sync --extra dev     # Install with dev dependencies
 ```
 
+## Release notes and docs (communicating with users)
+
+Users see the release notes in the web app's "What's new" panel: it pops up once when there are new
+notes, and opens anytime from the sidebar's sparkles button, the footer, or `/#whats-new`. The docs
+website shows them at `/release-notes` (with RSS/Atom feeds).
+
+- **Source**: `website/release-notes/YYYY-MM.md`, one file per month (`YYYY-qN.md` or `YYYY.md` for quiet
+  or old periods; periods can't overlap). The format is documented in `website/release-notes/_template.md`.
+- **In the same PR as any user-visible change** (web app, `qa` CLI, qaboard.yaml, server/admin), add a
+  bullet to the current month's note, under the right section: `## Web app`, `## CLI and project setup`,
+  `## Server and administration`, `## Documentation`, `## Fixes`. If the month's file doesn't exist,
+  create it as a draft: `website/release-notes/release_notes.py draft 2026-11 --write` (pre-filled from
+  the git log, keeps `draft: true`). Skip refactors, CI-only and typo changes.
+- **Write for the reader**: one change per bullet, starting with a verb, saying what they can now do.
+  No commit shas, no names, no internal hostnames or ticket ids: the repo and website are public.
+  Link docs as `[text](/docs/page-id)`.
+- **Publishing** (maintainers, at the start of the next month or for a big release): curate the bullets,
+  write `description` (1-2 sentences) and 2-4 `highlights` (title, `audience`: users | project-integration |
+  admins, a Blueprint `icon` name, plain-text `description` (backticks for code), optional `link: /docs/...`), set `date`
+  to the publication date, and remove `draft: true`. Users get the popup once after the next deploy
+  (notes older than 60 days don't pop up). Later edits to a published note don't notify again.
+- **After editing any note**: run `website/release-notes/release_notes.py build` and commit
+  `webapp/src/releaseNotes/release-notes.json` (generated, the web app bundles it: the webapp and website
+  docker builds can't see each other's folders). `release_notes.py check` validates the frontmatter, the
+  docs links and that the bundle is up to date; CI runs it, and the webapp tests also detect a stale bundle.
+  `build --include-drafts` previews drafts in `npm start` (don't commit that).
+- **Changelog from git**: `release_notes.py changelog 2026-09` (or `2026-q3`, `2026`) lists the period's
+  commits grouped by the area they touch, as raw material for a note.
+- Code: `webapp/src/releaseNotes/` (popup, panel, links), `website/src/components/ReleaseNoteHighlights.js`
+  and `website/src/theme/BlogPostItem/Content/` (highlight cards on the website).
+
+**Docs** (`website/docs/`) have one sidebar per audience (`website/sidebars.ts`): the **User guide**
+(`user-guide/`, for people looking at results in the web app), **Project integration** (wrapping code with `qa`,
+qaboard.yaml, runners, integrations), and **Admin** (`backend-admin/`, running the server). When a change
+affects how people use the web app, update the user guide page too.
+
 ## Testing
 
 ### Python Tests

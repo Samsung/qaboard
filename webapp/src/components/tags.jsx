@@ -318,17 +318,18 @@ class OutputTags extends React.Component {
         <Menu>
           {id && is_pending && <MenuItem
             icon="stop"
-            text="Mark as Finished"
+            text="Mark as Failed"
+            htmlTitle="For runs stuck as pending or running: their job is gone and will never report"
             intent={Intent.WARNING}
             minimal
             disabled={this.state.waiting}
             onClick={() => {
               this.setState({waiting: true})
-              toaster.show({message: "Requested to mark as 'Finished'."});
+              toaster.show({message: "Requested to mark as 'Failed'."});
               axios.put(`/api/v1/output/${id}/`, {is_pending: false, is_running: false, is_failed: true})
                 .then(() => {
                   this.setState({waiting: false})
-                  toaster.show({message: "Marked as finished.", intent: Intent.SUCCESS});
+                  toaster.show({message: "Marked as failed.", intent: Intent.SUCCESS});
                   this.refresh()
                 })
                 .catch(error => {

@@ -10,7 +10,7 @@ You often want to integrate various tools into your workflow, or show [status ba
 <img alt="Allowing triggered build" src={useBaseUrl('img/ui-triggers.png')} />
 
 :::note
-The screenshots are not up-to-date; the menu is now named **"Actions & Links"**
+The screenshots are not up-to-date; the menu is now named **"Integrations"**
 :::
 
 
@@ -28,7 +28,7 @@ integrations:
   href: https://my-project/docs
   alt: Coverage Report
   # if you want to display items in the side-bar directly,
-  # not within the "Action & Links" menu, you can use:
+  # not within the "Integrations" menu, you can use:
   in_menu: false
 ```
 
@@ -76,6 +76,7 @@ You can use webhooks to trigger a variety of external tools:
 ```yaml
 integrations:
   - text: Jenkins Triggered Build
+    sub:
     - text: 'Windows'
       icon: build
       webhook:
@@ -121,7 +122,7 @@ integrations:
 integrations:
   - text: Jenkins Triggered Build
     jenkins:
-      build_url: $JENKINS_URL/job/CDE_Project_Linux
+      build_url: $JENKINS_URL/job/my-project-linux
       # You can include the token from the job's configuration page
       # token: qaboard   # default value # FIXME: make it empty in the OSS version
       parameters:
@@ -129,6 +130,8 @@ integrations:
 ```
 
 You must enable "triggering the build via scripts/webhooks" in the job's configuration. Parameters are optional.
+
+Once a build is triggered, its status (queued, running, success, failure...) is updated every 10 seconds next to the menu item. It is remembered by your browser, so it survives page refreshes (for the last 50 commits).
 
 
 
@@ -157,7 +160,7 @@ Since you'll commit those credentials with the code, make sure you don't have to
 
 ```yaml title="qaboard.yaml"
 integrations:
-  - name: Jenkins Triggered Build
+  - text: Jenkins Triggered Build
     webhook:
       method: post
       url: $JENKINS_URL/job/$PROJECT/buildWithParameters
@@ -165,7 +168,7 @@ integrations:
         Jenkins-Crumb: $JenkinsCrumb
       params:
         token: $TOKEN
-      auth: {
+      auth:
         # this needs to be hardcoded with jenkins credentials
         # hopefully of limited scope
         username: <the-jenkins-username>
@@ -182,8 +185,8 @@ integrations:
   - text: Build
     label: With Parameters
     icon: build
-    href: $JENKINS_URL/view/HW_ALG/job/HW_ALG-delivery/build?delay=0sec
+    href: $JENKINS_URL/view/my-view/job/my-job/build?delay=0sec
     # Jenkins behaves wtf and returns 405 errors...
     # https://issues.jenkins-ci.org/browse/JENKINS-3121
-    ignore_failure: true
+    allow_failed: true
 ```

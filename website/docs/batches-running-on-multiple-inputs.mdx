@@ -7,7 +7,7 @@ sidebar_label: Batches of Inputs
 Make sure you read [the section on input files](inputs)
 :::
 
-As we discussed, you can define batches of inputs in file(s) whose paths are given by `inputs.batches` in your [qaboard.yaml](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml#L25) configuration.
+As we discussed, you can define batches of inputs in file(s) whose paths are given by `inputs.batches` in your [qaboard.yaml](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml#L45) configuration.
 
 ```yaml title="qa/batches.yaml (default)" 
 my-batch:
@@ -24,8 +24,20 @@ qa batch my-batch
 qa batch first-batch second-batch
 ```
 
+Runs started by `qa batch` remember the name of their batch: the web application shows it, and you can use it in the filter.
+
+Arguments after `--` are forwarded to each `qa run`, and to your code as `context.forwarded_args` (it works the same with `qa run` and `qa postprocess`):
+
+```bash
+qa batch my-batch -- --my-flag value
+#=> qa run --input A.jpg --my-flag value
+#=> qa run --input B.jpg --my-flag value
+```
+
+Use `qa batch my-batch --list-inputs` to only print the inputs, and see the [API page](apis) for `--list` and `--list-output-dirs`.
+
 ## Setting a custom database
-In QA-Board relative input paths are considered relative to a "database" folder (defaults to `/` unless changed in _qatools.yaml_).
+In QA-Board relative input paths are considered relative to a "database" folder (defaults to `/` unless changed with `inputs.database` in _qaboard.yaml_).
 
 You can set a default database for all the batches in define in each YAML file:
 
@@ -120,7 +132,22 @@ each-input-can-have-its-own-configuration-and-appear-twice:
     #=> configurations == ["base", {"crop": ["C"]}]
 ```
 
-You can also set top-level default `configs` in your YAML files.
+You can also set top-level default `configs` (and `platform`) in your YAML files. Batches can also set their own `platform`.
+
+## Runner settings per batch
+Under a key named after the runner, batches can change the [runner's settings](using-the-qa-cli#batch-runners). They are used when the batch runs with this runner:
+
+```yaml {4-7}
+my-batch:
+  inputs:
+  - A.jpg
+  lsf:
+    queue: my_long_queue
+  local:
+    concurrency: 2
+```
+
+See [in what order runner settings are merged](inputs#advanced-handling-multiple-input-types).
 
 ## Matrix batches
 You can use "matrix" batches to run on combinations of configurations (and platfornms):
@@ -307,3 +334,12 @@ lots-of-no-hdr-inputs:
   <<: *HDR-disabled
   <<: *lots_inputs_hdr
 ```
+
+## Environment variables
+| Variable | Usage |
+|----------|-------|
+| `QA_BATCH_ALLOW_MANY_RUNS` | `qa batch` refuses to send more than 1000 runs to QA-Board at once. Set it to allow it (or use `qa --offline`) |
+| `QA_BATCH_FILTER_INPUT_REGEX` | Only keep the inputs whose path matches this regular expression (when using `inputs.globs`) |
+| `QA_BATCH_FAIL_IF_EMPTY` | Fail instead of warning when a batch has no inputs |
+| `QA_BATCH_QUIET` | Don't print the `qa run` command of each run |
+| `QA_BATCH_CONCURRENCY`, `QA_BATCH_TIMEOUT` | Defaults for the [local runner](local-multiprocessing) |

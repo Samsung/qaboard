@@ -19,6 +19,10 @@ project:
     reference_branch: master
 ```
 
+:::note
+Set `reference_branch` explicitly: when it's missing, the web application uses `develop`, while the `qa` CLI (e.g. `qa check-bit-accuracy`) uses `master`.
+:::
+
 To change the selected `new` or `ref` commit, you can edit the commit ID field in the navbar. Hovering it gives you a menu with other options:
 <img alt="commit-select-menu.png" src={useBaseUrl('img/commit-select-menu.png')} />
 
@@ -29,7 +33,7 @@ Clicking on the branch name in the navbar will select the latest commit on the b
 ## Project References
 You can also list in *qaboard.yaml* other versions as milestones.
 
-```yaml {4-7} title=""qaboard.yaml"
+```yaml {3-6} title="qaboard.yaml"
 project:
     reference_branch: master
     milestones:
@@ -52,3 +56,10 @@ You'll now be able to select them in the commit ID hover menu.
 :::tip
 Milestones can be shared with everybody - or kept private.
 :::
+
+- **Shared** milestones are saved on the server, and you must be logged-in to create, edit or delete them. Whoever saves a shared milestone becomes one of its *owners*: after that, only its owners can edit or delete it.
+- **Private** milestones are saved in your browser.
+- In the milestones menus, you can filter milestones by label, branch, owner or committer.
+- Milestones are kept by the [cleanup of old results](storage/deleting-old-data), and the web application won't delete all the runs of a milestone's batch.
+
+See the user guide on [milestones](/docs/user-guide/comparing-results#milestones).

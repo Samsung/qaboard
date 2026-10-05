@@ -14,7 +14,7 @@ qa batch --runner=local my-batch
 ```
 
 ## Configuration
-There is only 1 option: `concurrency`. You have multiple options to set it up:
+The main option is `concurrency` (joblib's `n_jobs`). If it is not set, runs are done one at a time; the sample `qaboard.yaml` created by `qa init` uses `-1` (1 run per CPU). You have multiple options to set it up:
 
 - Per batch:
 
@@ -23,7 +23,7 @@ my-batch:
   inputs:
   - image.jpg
   local:
-    concurrency: -1 # 1 concurrent run per CPUs, default
+    concurrency: -1 # 1 concurrent run per CPU
 ```
 
 - Globally:
@@ -42,6 +42,8 @@ qa batch --local-concurrency 1
 ```
 
 -	via the `QA_BATCH_CONCURRENCY` environment variable
+
+You can also set a `timeout` (in seconds, 0 means no timeout) with `runners.local.timeout`, `qa batch --local-timeout` or `QA_BATCH_TIMEOUT`.
 
 :::tip
 Read [joblib's docs](https://joblib.readthedocs.io/en/latest/generated/joblib.Parallel.html)

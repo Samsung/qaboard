@@ -13,6 +13,7 @@ const proxy = {
   '^/api/': { target: QABOARD_API_HOST, changeOrigin: true },
   '^/s/': { target: QABOARD_SERVER_URL, changeOrigin: true },
   '^/iiif/': { target: QABOARD_SERVER_URL, changeOrigin: true },
+  '^/docs/': { target: QABOARD_SERVER_URL, changeOrigin: true },
 }
 
 export default defineConfig(({ mode }) => ({

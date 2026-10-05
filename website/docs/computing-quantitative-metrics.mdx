@@ -23,6 +23,7 @@ available_metrics:
   loss:  # the fields below are all optionnal
     label: Loss function     # human-readable name
     short_label: Loss        # somes part of the UI are better with thin labels...
+    description: Mean error on the validation set  # shown in the metric's tooltip
     smaller_is_better: true  # default: true
     target: 0.01             # plots in the UI will compare KPIs versus a target if given
     target_passfail: false   # the UI will render the metric as green/red depending on above/below the target
@@ -40,14 +41,14 @@ If it all goes well you get:
 
 - Tables to compare KPIs per-input across versions:
 
-<img alt="https://qa/tof/swip_tof/commit/42778afb1fea31e19c00291a2a52bf490e3acc2c?reference=a451dda9cfdd586702ead95f436e41c5b074ebfa&selected_views=summary&filter=old" src={useBaseUrl('img/quantitative-metrics.png')} />
+<img alt="Metrics table" src={useBaseUrl('img/quantitative-metrics.png')} />
 
 - Summaries:
 
-<img alt="https://qa/tof/swip_tof/commit/42778afb1fea31e19c00291a2a52bf490e3acc2c?reference=a451dda9cfdd586702ead95f436e41c5b074ebfa&selected_views=summary&filter=old" src={useBaseUrl('img/summary-metrics.png')} />
+<img alt="Summary metrics" src={useBaseUrl('img/summary-metrics.png')} />
 
 - Metrics integrated in the visualizations:
-<img alt="https://qa/tof/swip_tof/commit/42778afb1fea31e19c00291a2a52bf490e3acc2c?reference=a451dda9cfdd586702ead95f436e41c5b074ebfa&selected_views=output-list&filter=old%20low%204ta" src={useBaseUrl('img/quantitative-metrics-on-viz.png')} />
+<img alt="Metrics in the visualizations" src={useBaseUrl('img/quantitative-metrics-on-viz.png')} />
 
 - and evolution over time per branch...
 
@@ -66,7 +67,7 @@ The main uses cases are:
 ## Rich metrics
 If you return string metrics, they will be shown the UI's tables and cards like this:
 
-<img alt="https://qa/tof/swip_tof/commit/42778afb1fea31e19c00291a2a52bf490e3acc2c?reference=a451dda9cfdd586702ead95f436e41c5b074ebfa&selected_views=output-list&filter=old%20low%204ta" src={useBaseUrl('img/rich-metrics-in-card.png')} />
+<img alt="Rich metrics in a card" src={useBaseUrl('img/rich-metrics-in-card.png')} />
 
 You can return "rich" metrics to customize the display:
 
@@ -96,7 +97,7 @@ It is possible to add at run-time parameters to the run. The use-cases are:
 1. **making very visible a few key parameters** nested deep in a config-file, and enabling **filtering** by them
 2. **displaying links** next to runs, grouped with the configuration (and not the metrics like above!). Users often use those badges to do deep-learning inference on QA-Board, and easily link back to the training page, managed by a different product. They'll give a model ID as configuration, their `run()` will fetch the training page URL, and it enables smooth workflows.
 
-<img alt="https://qa/tof/swip_tof/commit/42778afb1fea31e19c00291a2a52bf490e3acc2c?reference=a451dda9cfdd586702ead95f436e41c5b074ebfa&selected_views=output-list&filter=old%20low%204ta" src={useBaseUrl('img/run-badges.png')} />
+<img alt="Run badges" src={useBaseUrl('img/run-badges.png')} />
 
 To make it happen, return in your metrics a `params` key:
 

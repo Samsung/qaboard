@@ -92,7 +92,8 @@ webapp-tests:
   needs: []
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    - changes: [webapp/**/*]
+    # the tests check webapp/src/releaseNotes/release-notes.json is up to date with the release notes
+    - changes: [webapp/**/*, website/release-notes/**/*]
   script:
     - cd webapp
     # node_modules is kept between jobs (GIT_CLEAN_FLAGS), so this is fast when package-lock.json didn't change

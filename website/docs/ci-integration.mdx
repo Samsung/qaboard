@@ -8,9 +8,9 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 CI tools run automated scripts and tests everytime someone pushes a new commit.
 
 :::tip
-If you don't have a CI, follow [those instructions to use GitlabCI](http://gitlab-srv/common-infrastructure/qatools/wikis/gitlab-ci-test-runner). 
+If you don't have a CI, follow [those instructions to use GitlabCI](https://docs.gitlab.com/ee/ci/quick_start/). 
 
-This said, you can still view your results in the web application by using `qa --ci run/batch`. *Note: It will only work with commits that were pushed to gitlab!*
+This said, you can still view your results in the web application by using `qa --share run/batch`. *Note: It will only work with commits that were pushed to gitlab!*
 :::
 
 
@@ -53,11 +53,31 @@ build-linux:
   - make
   - qa save-artifacts
 
-qa-tests
+qa-tests:
   stage: qa
   script:
   - qa batch ci
 ```
+
+## Example with GitHub Actions
+`qa` reads the commit and branch from `GITHUB_SHA` and `GITHUB_REF`. The repository should have a [GitHub integration](project-init#optional-integration-with-github).
+
+```yaml title=".github/workflows/qa.yml"
+on: push
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - run: pip install qaboard
+    - run: qa batch ci
+      env:
+        QABOARD_URL: https://qaboard.example.com
+```
+
+:::note
+`qa` detects that it runs in a CI when the `CI` environment variable is set (by GitlabCI, GitHub Actions, CircleCI, TravisCI...), or `GIT_COMMIT` (by Jenkins' git plugin).
+:::
 
 ## Optionnal CI helpers
 QA-Board is not a CI tool, but it provide some utilities to run code only in some branches:
