@@ -6,7 +6,7 @@ import { Button, Callout, Classes, Collapse, Colors, Intent, Spinner, Tag, Toolt
 import { toaster } from "../../toaster";
 import { updateSelected } from "../../actions/selected";
 import { LogViewer } from "./LogViewer";
-import { LsfReport } from "./LsfReport";
+import { LsfReport, withCode } from "./LsfReport";
 import { lsfHint, lsfKilled, lsfReason } from "./lsf";
 import { RunList, Header, Content, INTERACTIVE } from "./RunLogs";
 import { batchSubmissions, is_final, useSubmissionStatus } from "./submissions";
@@ -150,7 +150,7 @@ const SubmissionRow = ({ submission, expanded, onToggle }) => {
       <Content $failed={failed}>
         {failed && (lsfKilled(status.report)
           ? <LsfReport report={status.report} />
-          : <Callout compact intent={Intent.DANGER} icon="error" title={failureSummary(submission, status)} style={{ marginBottom: 8 }}>
+          : <Callout compact intent={Intent.DANGER} icon="error" title={withCode(failureSummary(submission, status))} style={{ marginBottom: 8 }}>
               {!!status.last_error && <LastError>{status.last_error}</LastError>}
             </Callout>
         )}
@@ -230,7 +230,7 @@ const LatestSubmissionCallout = ({ submission, has_runs, project, dispatch, onFi
 
   if (status.state === 'failed')
     return <Callout intent={Intent.DANGER} icon="error" title="The batch you started from QA-Board failed">
-      <p>{failureSummary(submission, status)}</p>
+      <p>{withCode(failureSummary(submission, status))}</p>
       {!!status.last_error && <p><LastError>{status.last_error}</LastError></p>}
       <p className={Classes.TEXT_MUTED}>Started {when}{submission.user ? ` by ${submission.user}` : ''}{job ? ` · ${job}` : ''}</p>
       {show_logs}

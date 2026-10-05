@@ -1,7 +1,23 @@
-import React from "react";
-import { Callout, Intent, Tag, Tooltip } from "@blueprintjs/core";
+import React, { useContext } from "react";
+import { ReactReduxContext } from "react-redux";
+import { Callout, Classes, Intent, Tag, Tooltip } from "@blueprintjs/core";
 
-import { lsfHeadline, lsfHint, lsfKilled, lsfNearMemoryLimit, lsfReason } from "./lsf";
+import { lsfHeadline, lsfHint, lsfHintDocs, lsfKilled, lsfNearMemoryLimit, lsfReason } from "./lsf";
+
+
+const DEFAULT_DOCS_ROOT = 'https://samsung.github.io/qaboard/'
+
+// Sites can host their own docs. Works without a redux store (e.g. in tests).
+const useDocsRoot = () => {
+  const context = useContext(ReactReduxContext)
+  return context?.store?.getState()?.siteConfig?.docs_root ?? DEFAULT_DOCS_ROOT
+}
+
+
+// Renders `code` in hints
+export const withCode = text => (text ?? '').split('`').map((part, index) => index % 2
+  ? <code key={index} className={Classes.CODE}>{part}</code>
+  : <React.Fragment key={index}>{part}</React.Fragment>)
 
 
 const failed = report => !report.successful && (report.exited || report.term_reason !== null)
@@ -14,7 +30,7 @@ const LsfTag = ({ report, onClick }) => {
   return <Tooltip content={<div style={{ maxWidth: '400px' }}>
     <p style={{ marginBottom: 4 }}><strong>{lsfHeadline(report)}</strong></p>
     {report.term_reason && <p style={{ marginBottom: 4 }}>{report.term_reason}: {report.term_message}</p>}
-    {lsfHint(report) && <p style={{ marginBottom: 0 }}>{lsfHint(report)}</p>}
+    {lsfHint(report) && <p style={{ marginBottom: 0 }}>{withCode(lsfHint(report))}</p>}
   </div>}>
     <Tag intent={Intent.DANGER} minimal interactive={!!onClick} onClick={onClick} icon="warning-sign">
       LSF: {lsfReason(report)}
@@ -30,9 +46,11 @@ const ResourceTag = ({ label, value, intent }) => <Tag minimal intent={intent} s
 
 // What LSF says about the job: why it ended, where it ran, what it used.
 const LsfReport = ({ report }) => {
+  const docs_root = useDocsRoot()
   if (!report) return null
   const is_failed = failed(report)
   const hint = lsfHint(report)
+  const docs = lsfHintDocs(report)
   const near_memory_limit = lsfNearMemoryLimit(report)
   const { resources } = report
   const memory = resources['Max Memory']
@@ -46,7 +64,10 @@ const LsfReport = ({ report }) => {
     style={{ marginBottom: '8px', maxWidth: '1400px' }}
   >
     {report.term_message && <p style={{ marginBottom: '5px' }}>{report.term_message}</p>}
-    {hint && <p style={{ marginBottom: '5px' }}><strong>{hint}</strong></p>}
+    {hint && <p style={{ marginBottom: '5px' }}>
+      <strong>{withCode(hint)}</strong>
+      {docs && <> <a href={`${docs_root}${docs}`} target="_blank" rel="noopener noreferrer">Read the docs</a></>}
+    </p>}
     <div>
       {report.job_id && <ResourceTag label="Job" value={report.job_id} />}
       {report.hosts.length > 0 && <ResourceTag label="Host" value={report.hosts.join(' ')} />}

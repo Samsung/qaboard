@@ -56,7 +56,7 @@ describe('submissionState', () => {
   })
 
   it('failureSummary', () => {
-    expect(failureSummary(lsf_submission, { report: memlimit })).toMatch(/^LSF: out of memory\. The run used more memory/)
+    expect(failureSummary(lsf_submission, { report: memlimit })).toMatch(/^LSF: out of memory\. The run used more memory.*definition of the batch/)
     expect(failureSummary(lsf_submission, { exit_code: 1 })).toBe('qa batch exited with code 1.')
     expect(failureSummary({ ...lsf_submission, status: 'failed' }, { exit_code: null })).toBe('Could not submit the job to LSF.')
   })

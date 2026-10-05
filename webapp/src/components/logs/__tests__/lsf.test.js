@@ -91,7 +91,7 @@ describe('parseLsfReport', () => {
       'Turnaround time': '125 sec',
     })
     expect(lsfHeadline(report)).toBe('Exited with exit code 137 (SIGKILL)')
-    expect(lsfHint(report)).toMatch(/max_memory/)
+    expect(lsfHint(report)).toMatch(/definition of the batch.*max_memory/)
     expect(lsfNearMemoryLimit(report)).toBe(true)
     expect(lsfReason(report)).toBe('out of memory')
   })

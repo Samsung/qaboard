@@ -26,14 +26,15 @@ const SIGNALS = {
   11: 'SIGSEGV', 12: 'SIGUSR2', 13: 'SIGPIPE', 15: 'SIGTERM', 24: 'SIGXCPU', 25: 'SIGXFSZ',
 }
 
-// What happened, and what to do about it
+// What happened, and what to do about it.
+// Most users set LSF options in the definition of their batches (`lsf:` in the batches YAML).
 const TERM_HINTS = {
-  TERM_MEMLIMIT: 'The run used more memory than it requested. Raise runners.lsf.max_memory in qaboard.yaml, or use --lsf-max-memory.',
+  TERM_MEMLIMIT: 'The run used more memory than it requested. Ask for more in the definition of the batch, e.g. `lsf: {max_memory: 8000}` (MB).',
   TERM_SWAP: 'The run reached its swap limit.',
-  TERM_RUNLIMIT: "The run reached its run time limit. Use a queue with a longer limit, or ask for more time with -W in runners.lsf.options.",
-  TERM_CPULIMIT: 'The run reached its CPU time limit.',
+  TERM_RUNLIMIT: 'The run reached its run time limit. In the definition of the batch, use a queue with a longer limit (`lsf: {queue: ...}`), or ask for more time (`lsf: {options: -W 24:00}`).',
+  TERM_CPULIMIT: 'The run reached its CPU time limit. In the definition of the batch, use a queue with a longer limit (`lsf: {queue: ...}`).',
   TERM_PROCESSLIMIT: 'The run started more processes than allowed.',
-  TERM_THREADLIMIT: 'The run started more threads than allowed.',
+  TERM_THREADLIMIT: 'The run started more threads than allowed. Ask for more in the definition of the batch, e.g. `lsf: {max_threads: 8}`.',
   TERM_OWNER: 'Killed by its owner (bkill), for instance when the batch was stopped from QA-Board.',
   TERM_FORCE_OWNER: 'Killed by its owner (bkill), for instance when the batch was stopped from QA-Board.',
   TERM_ADMIN: 'Killed by an LSF administrator.',
@@ -217,6 +218,16 @@ export function lsfReason(report) {
   if (report.exit_code !== null)
     return `exit code ${report.exit_code}`
   return report.signal_description ?? 'failed'
+}
+
+
+// Where the docs explain how to change the LSF options of a batch
+export const LSF_OPTIONS_DOCS = 'docs/lsf-cluster-integration#lsf-options-per-batch'
+const TERM_WITH_OPTIONS = new Set(['TERM_MEMLIMIT', 'TERM_RUNLIMIT', 'TERM_CPULIMIT', 'TERM_THREADLIMIT'])
+
+// The docs page that helps fix the failure, if any
+export function lsfHintDocs(report) {
+  return TERM_WITH_OPTIONS.has(report?.term_reason) ? LSF_OPTIONS_DOCS : null
 }
 
 
