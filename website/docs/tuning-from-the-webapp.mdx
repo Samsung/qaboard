@@ -13,6 +13,15 @@ When doing QA or during development, you often want to run the code/configs from
 
 <!-- <img alt="Tuning from the UI" src={useBaseUrl('img/tuning-from-the-ui.jpg')} /> -->
 
+## When the batch doesn't start
+QA-Board starts your batch by running `qa batch` (as an LSF job, with Celery, or locally on the server). If it fails or takes a while, there are no runs to look at, so the batch's page tells you what's going on:
+- *Waiting for LSF*: the job is queued, the cluster may be busy.
+- *Starting your batch…*: `qa batch` is running.
+- *Failed*: why, e.g. `qa batch exited with code 1` with the error from its logs (`ModuleNotFoundError: ...`), or why LSF killed it (out of memory...).
+- *Didn't start any run*: e.g. there were no inputs, or all the runs already existed.
+
+In the *Logs* view, *Started from QA-Board* lists the last batches you started, each with the `qa batch` command, its logs and LSF's report. They are saved in the batch directory, under `qaboard-batches/`.
+
 ## Enabling tuning from QA-Board
 
 :::note

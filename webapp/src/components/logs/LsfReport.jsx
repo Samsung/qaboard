@@ -1,15 +1,16 @@
 import React from "react";
 import { Callout, Intent, Tag, Tooltip } from "@blueprintjs/core";
 
-import { lsfHeadline, lsfHint, lsfNearMemoryLimit, lsfReason } from "./lsf";
+import { lsfHeadline, lsfHint, lsfKilled, lsfNearMemoryLimit, lsfReason } from "./lsf";
 
 
 const failed = report => !report.successful && (report.exited || report.term_reason !== null)
 
 
-// A tag summarizing why LSF ended the job, e.g. "LSF: out of memory"
+// A tag summarizing why LSF ended the job, e.g. "LSF: out of memory".
+// When jobs exit with an error by themselves, their logs say more than LSF.
 const LsfTag = ({ report, onClick }) => {
-  if (!report || !failed(report)) return null
+  if (!lsfKilled(report)) return null
   return <Tooltip content={<div style={{ maxWidth: '400px' }}>
     <p style={{ marginBottom: 4 }}><strong>{lsfHeadline(report)}</strong></p>
     {report.term_reason && <p style={{ marginBottom: 4 }}>{report.term_reason}: {report.term_message}</p>}

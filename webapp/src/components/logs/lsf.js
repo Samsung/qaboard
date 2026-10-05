@@ -201,6 +201,13 @@ export function lsfHeadline(report) {
 }
 
 
+// True if LSF or the system ended the job (memory limit, run limit, signal...),
+// as opposed to the job exiting with an error by itself.
+export function lsfKilled(report) {
+  return !!report && !report.successful && (!!report.term_reason || !!report.signal || !!report.signal_description)
+}
+
+
 // A few words on why the job failed, e.g. "out of memory"
 export function lsfReason(report) {
   if (report.term_reason)

@@ -280,8 +280,9 @@ const Skeleton = () => <Placeholder>
 /**
  * Shows a log file, with colors, line numbers, search, errors... While `live`, follows the file as it's written.
  * `files` are the logs the user can switch between: [{name: "log.txt", url: "/s/..."}]
+ * `emptyHint` explains missing files ({"log.lsf.txt": "..."}), `waitingHint` why live logs don't exist yet.
  */
-export const LogViewer = ({ files, file, onFileChange, live = false, emptyHint }) => {
+export const LogViewer = ({ files, file, onFileChange, live = false, emptyHint, waitingHint }) => {
   const selected = files.find(f => f.name === file) ?? files[0]
   const url = selected?.url
   const log = useLogTail(url, { live })
@@ -425,7 +426,7 @@ export const LogViewer = ({ files, file, onFileChange, live = false, emptyHint }
       iconSize={is_missing && live ? undefined : 32}
       title={is_missing ? `No ${selected.name} yet` : `Could not read ${selected.name}`}
       description={is_missing
-        ? (live ? "The run hasn't written it yet, we'll show it as soon as it does." : (emptyHint?.[selected.name] ?? "This file doesn't exist."))
+        ? (live ? (waitingHint ?? "The run hasn't written it yet, we'll show it as soon as it does.") : (emptyHint?.[selected.name] ?? "This file doesn't exist."))
         : log.error?.message}
       action={!is_missing && <Button icon="refresh" text="Retry" onClick={log.reload} />}
       layout="horizontal"

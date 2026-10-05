@@ -530,10 +530,16 @@ class TuningForm extends Component {
       })
       .catch(error => {
         this.setState({ submitted: false });
+        // The batch's page tells users why, and shows the logs
+        const submission = error.response?.data?.submission
         toaster.show({
-          message: `Something went wrong: ${JSON.stringify(error.response)}`,
-          intent: Intent.DANGER
+          message: submission
+            ? "The batch failed to start. Select it to see why, and its logs."
+            : `Something went wrong: ${error.response?.data?.error ?? error.message}`,
+          intent: Intent.DANGER,
+          timeout: 10000,
         });
+        dispatch(fetchCommit({project, id: commit.id}))
       });
   };
 

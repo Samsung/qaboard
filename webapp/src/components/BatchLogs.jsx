@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import styled from "styled-components";
 import { DateTime } from 'luxon';
 import {
@@ -16,6 +16,8 @@ import {
 import { pretty_label } from '../utils'
 import { toaster } from "../toaster";
 import { RunList, RunLogs } from './logs/RunLogs'
+import { BatchSubmissions } from './logs/BatchSubmissions'
+import { batchSubmissions } from './logs/submissions'
 
 
 // Rendering many runs is slow
@@ -115,20 +117,22 @@ export const BatchLogs = ({ batch, project, commit, dispatch }) => {
   [batch])
   const failed = useMemo(() => outputs.filter(output => output.is_failed), [outputs])
   const pending = useMemo(() => outputs.filter(output => output.is_pending), [outputs])
+  const toggle = useCallback(id => setExpanded(expanded => {
+    const next = new Set(expanded)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  }), [])
 
   if (batch === null || batch === undefined || batch.batch_dir_url === undefined)
     return null
 
   const shown = filter === 'failed' ? failed : (filter === 'pending' ? pending : outputs)
-  const toggle = id => setExpanded(expanded => {
-    const next = new Set(expanded)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    return next
-  })
 
   const commands = Object.values(batch.data?.commands ?? {})
-  const has_tuning_commands = batch.data?.optimization ?? commands.some(c => !c.job_url)
+  // Before 2026-10, batches started from QA-Board all logged in the batch directory
+  const has_submissions = batchSubmissions(batch).length > 0
+  const has_legacy_logs = !has_submissions && (batch.data?.optimization ?? commands.some(c => !c.job_url))
   const batch_output = {
     is_failed: false,
     is_pending: false,
@@ -141,7 +145,9 @@ export const BatchLogs = ({ batch, project, commit, dispatch }) => {
   }
 
   return <>
-    <ListToolbar>
+    <BatchSubmissions key={batch.id} batch={batch} has_runs={Object.keys(batch.outputs ?? {}).length > 0} />
+    {has_submissions && <h3 className={Classes.HEADING}>Runs</h3>}
+    {outputs.length > 0 && <ListToolbar>
       <SegmentedControl
         size="small"
         value={filter}
@@ -167,23 +173,24 @@ export const BatchLogs = ({ batch, project, commit, dispatch }) => {
       {expanded.size > 0 && <Button size="small" variant="minimal" icon="collapse-all" onClick={() => setExpanded(new Set())}>
         Collapse all
       </Button>}
-    </ListToolbar>
+    </ListToolbar>}
 
     {shown.length > 0
       ? <RunList>
           {shown.slice(0, limit).map(output => <RunLogs
             key={output.id}
+            id={output.id}
             output={output}
             project={project}
             commit={commit}
             dispatch={dispatch}
             expanded={expanded.has(output.id)}
-            onToggle={() => toggle(output.id)}
+            onToggle={toggle}
           />)}
         </RunList>
       : <NonIdealState
           icon={filter === 'failed' ? "tick-circle" : "search"}
-          title={filter === 'failed' ? "No failed runs" : (filter === 'pending' ? "No running runs" : "No runs")}
+          title={filter === 'failed' ? "No failed runs" : (filter === 'pending' ? "No running runs" : "No runs yet")}
           layout="horizontal"
         />
     }
@@ -192,15 +199,16 @@ export const BatchLogs = ({ batch, project, commit, dispatch }) => {
     </Button>}
 
     <h3 className={Classes.HEADING} style={{ marginTop: 28 }}>Batch: {pretty_label(batch)}</h3>
-    {has_tuning_commands && <RunList style={{ marginBottom: 12 }}>
+    {has_legacy_logs && <RunList style={{ marginBottom: 12 }}>
       <RunLogs
+        id="batch"
         output={batch_output}
         project={project}
         commit={commit}
         dispatch={dispatch}
         title="Batch logs"
         expanded={expanded.has('batch')}
-        onToggle={() => toggle('batch')}
+        onToggle={toggle}
       />
     </RunList>}
     {commands.length > 0 && <RunList>

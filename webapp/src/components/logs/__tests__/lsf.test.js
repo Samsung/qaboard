@@ -2,7 +2,7 @@
  * Tests for parsing LSF job reports in log.lsf.txt
  * Run with: cd webapp && npm test -- lsf
  */
-import { parseLsfReport, lsfHeadline, lsfHint, lsfNearMemoryLimit, lsfReason, fetchLsfReport } from '../lsf';
+import { parseLsfReport, lsfHeadline, lsfHint, lsfKilled, lsfNearMemoryLimit, lsfReason, fetchLsfReport } from '../lsf';
 
 
 const script = `------------------------------------------------------------
@@ -156,6 +156,14 @@ Exited with exit code 139.
     expect(lsfHeadline(report)).toBe('Exited with exit code 139 (SIGSEGV)')
     expect(lsfHint(report)).toMatch(/Segmentation fault/)
     expect(lsfReason(report)).toBe('segfault')
+  })
+
+  it('tells jobs killed by LSF from jobs that failed by themselves', () => {
+    expect(lsfKilled(parseLsfReport('Sender: LSF System <a>\nTERM_RUNLIMIT: job killed after reaching LSF run time limit.\nExited with exit code 140.\n'))).toBe(true)
+    expect(lsfKilled(parseLsfReport('Sender: LSF System <a>\nExited with exit code 139.\n'))).toBe(true)
+    expect(lsfKilled(parseLsfReport('Sender: LSF System <a>\nExited with exit code 1.\n'))).toBe(false)
+    expect(lsfKilled(parseLsfReport('Sender: LSF System <a>\nSuccessfully completed.\n'))).toBe(false)
+    expect(lsfKilled(null)).toBe(false)
   })
 
   it('uses the last report', () => {

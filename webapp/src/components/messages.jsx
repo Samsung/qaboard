@@ -13,6 +13,7 @@ import {
 import { ConfigurationsTags, ExtraParametersTags } from './tags'
 import { fetchCommit } from "../actions/commit";
 import { toaster } from "../toaster"
+import { SubmissionCallout } from "./logs/BatchSubmissions"
 
 
 class CommitWarningMessages extends React.Component {
@@ -240,6 +241,13 @@ class BatchStatusMessages extends React.Component {
 
 
     return <Fragment>
+      <SubmissionCallout
+        batch={batch}
+        has_runs={Object.keys(batch.outputs ?? {}).length > 0}
+        project={this.props.project}
+        dispatch={this.props.dispatch}
+        onFinished={this.refresh}
+      />
       {local_batch_message}
       {running_message}
       {pending_message}
