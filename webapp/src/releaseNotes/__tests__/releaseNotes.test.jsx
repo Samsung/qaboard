@@ -17,6 +17,7 @@ import {
   popupNotes,
   unseenNotes,
   newestDate,
+  newestSlug,
   resolveLink,
   searchNotes,
   renderHtml,
@@ -41,7 +42,14 @@ describe('which notes are new', () => {
     expect(popupNotes(notes, '2026-09-30', now).map(n => n.slug)).toEqual(['2026-10']);
     expect(popupNotes(notes, '2026-10-01', now)).toEqual([]);
   });
+  test('the last seen period is what counts, not its date', () => {
+    expect(popupNotes(notes, '2026-09', now).map(n => n.slug)).toEqual(['2026-10']);
+    expect(popupNotes(notes, '2026-10', now)).toEqual([]);
+    // a published note that gets re-dated doesn't notify again
+    expect(popupNotes([note('2026-10', '2026-10-20'), ...notes.slice(1)], '2026-10', now)).toEqual([]);
+  });
   test('newest date', () => {
+    expect(newestSlug(notes)).toBe('2026-10');
     expect(newestDate(notes)).toBe('2026-10-01');
     expect(newestDate([])).toBe(null);
   });
@@ -144,7 +152,7 @@ describe('the What\'s new popup', () => {
     expect(screen.getByText('Learn more').closest('a')).toHaveAttribute('href', '/docs/faq');
 
     fireEvent.click(screen.getByText('Got it'));
-    expect(window.localStorage.getItem(LAST_SEEN_KEY)).toBe('2099-01-31');
+    expect(window.localStorage.getItem(LAST_SEEN_KEY)).toBe('2099-01');
     await waitFor(() => expect(screen.queryByTestId('whats-new-unread')).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByLabelText("What's new"));
@@ -153,12 +161,30 @@ describe('the What\'s new popup', () => {
   });
 
   test('does not open for notes already seen', async () => {
-    window.localStorage.setItem(LAST_SEEN_KEY, '2099-01-31');
+    window.localStorage.setItem(LAST_SEEN_KEY, '2099-01');
     renderApp();
     // let the notes load
     await waitFor(() => expect(screen.getByLabelText("What's new")).toBeInTheDocument());
     await new Promise(resolve => setTimeout(resolve, 20));
     expect(screen.queryByText('Flying cars')).not.toBeInTheDocument();
     expect(screen.queryByTestId('whats-new-unread')).not.toBeInTheDocument();
+  });
+
+  test('opens on any page, and navigating afterwards does not reopen it', async () => {
+    window.history.pushState({}, '', '/some/project/commit/abc');
+    const { rerender } = renderApp();
+    expect(await screen.findByText('Flying cars')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Got it'));
+    await waitFor(() => expect(screen.queryByText('Flying cars')).not.toBeInTheDocument());
+    window.history.pushState({}, '', '/other/project');
+    rerender(
+      <Provider store={store}>
+        <ReleaseNotesProvider load={() => Promise.resolve([recent])} popupDelay={0}>
+          <WhatsNewButton />
+        </ReleaseNotesProvider>
+      </Provider>
+    );
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(screen.queryByText('Flying cars')).not.toBeInTheDocument();
   });
 });

@@ -25,7 +25,7 @@ import {
   HASH,
   getLastSeen,
   setLastSeen,
-  newestDate,
+  newestSlug,
   popupNotes,
   renderHtml,
   resolveLink,
@@ -73,6 +73,8 @@ export const ReleaseNotesProvider = ({ children, load = loadNotes, popupDelay = 
       setHasUnread(to_popup.length > 0);
       if (to_popup.length > 0 && window.location.hash !== HASH)
         timer = setTimeout(() => {
+          // another tab may have shown the notes in the meantime
+          if (popupNotes(notes, getLastSeen()).length === 0) return;
           setDialogOpen(true);
           track("release_notes_popup", { slug: to_popup[0].slug });
         }, popupDelay);
@@ -81,7 +83,7 @@ export const ReleaseNotesProvider = ({ children, load = loadNotes, popupDelay = 
   }, [load, popupDelay]);
 
   const markSeen = useCallback(() => {
-    const newest = newestDate(notes);
+    const newest = newestSlug(notes);
     if (newest) setLastSeen(newest);
     setHasUnread(false);
   }, [notes]);

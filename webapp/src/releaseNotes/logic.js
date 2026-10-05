@@ -31,8 +31,16 @@ export const setLastSeen = date => {
 };
 
 
-// The notes are sorted newest first; dates are YYYY-MM-DD, so they compare as strings
-export const unseenNotes = (notes, lastSeen) => notes.filter(n => !lastSeen || n.date > lastSeen);
+// What's stored is the period (slug) of the newest note the user has seen, so the popup only
+// opens when a new period is published: re-dating or editing a published note doesn't re-trigger it.
+// The notes are sorted newest first, so the unseen ones are those before the last seen period.
+// Older versions stored a date (YYYY-MM-DD, they compare as strings): still understood.
+export const unseenNotes = (notes, lastSeen) => {
+  if (!lastSeen) return notes;
+  const index = notes.findIndex(n => n.slug === lastSeen);
+  if (index >= 0) return notes.slice(0, index);
+  return notes.filter(n => n.date > lastSeen);
+};
 
 export const popupNotes = (notes, lastSeen, now = new Date()) => {
   const oldest = new Date(now.getTime() - POPUP_MAX_AGE_DAYS * 24 * 3600 * 1000).toISOString().slice(0, 10);
@@ -40,6 +48,7 @@ export const popupNotes = (notes, lastSeen, now = new Date()) => {
 };
 
 export const newestDate = notes => notes.reduce((newest, n) => (!newest || n.date > newest ? n.date : newest), null);
+export const newestSlug = notes => notes.find(n => n.date === newestDate(notes))?.slug ?? null;
 
 
 // Links in the notes are /docs/page-id, /release-notes/slug or full URLs
