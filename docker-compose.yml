@@ -78,15 +78,18 @@ services:
     - "3000"
     volumes:
     - data:/var/qaboard
+    # Secrets (SECRET_KEY, GITLAB_ACCESS_TOKEN...) come from env files, not from `environment`:
+    # an entry without a value there, like `- SECRET_KEY`, would unset what env files define if the shell doesn't set it.
+    env_file:
+    - path: .env
+      required: false
     environment:
-    - SECRET_KEY
     - UWSGI_PROCESSES=2
     - UWSGI_LISTEN_QUEUE_SIZE=100
     - QABOARD_DB_HOST
     - QABOARD_DB_PORT
     - REDIS_HOST=redis
     - REDIS_PORT=6379
-    - GITLAB_ACCESS_TOKEN
     - QABOARD_LOGIN_TYPE=${QABOARD_LOGIN_TYPE:-LOCAL} # LOCAL/LDAP/SAML
     - QABOARD_LOGIN_REQUIRED=${QABOARD_LOGIN_REQUIRED:-} # non-empty: users must login to see anything
     - QABOARD_LOGIN_RESTRICTED=${QABOARD_LOGIN_RESTRICTED:-} # true/false

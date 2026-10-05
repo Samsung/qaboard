@@ -17,6 +17,11 @@ if [ -z ${UWSGI_UID+x} ]; then
   echo "not-needed"
 else
   echo "$UWSGI_UID ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+  # Without $SECRET_KEY, a key is generated in this file, maybe by root (e.g. the migrations), readable only by its owner
+  secret_key="${QABOARD_DATA_DIR:-/var/qaboard}/secret_key"
+  if [ -f "$secret_key" ]; then
+    chown "$UWSGI_UID${UWSGI_GID:+:$UWSGI_GID}" "$secret_key"
+  fi
 fi
 
 
