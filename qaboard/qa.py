@@ -1031,23 +1031,28 @@ def split_dashdash():
       return post
   return []
 
-def main():
-  if os.environ.get("CI"):
+def init_sentry():
+  """In CI, report errors to the Sentry project set by the site (QABOARD_SENTRY_DSN), if any."""
+  from .site_config import site_config, as_requests_verify
+  dsn = site_config("QABOARD_SENTRY_DSN")
+  if not os.environ.get("CI") or not dsn:
+    return
+  import sentry_sdk
+  options = {}
+  if as_requests_verify(site_config("QABOARD_SENTRY_VERIFY")) is False:
     import urllib3
     urllib3.disable_warnings()
-    import sentry_sdk
     class InsecureHttpTransport(sentry_sdk.transport.HttpTransport):
-      def _get_pool_options(self):
-        options = super()._get_pool_options()
-        options["cert_reqs"] = "CERT_NONE" # Ignore SSL Errors
+      def _get_pool_options(self, *args, **kwargs):
+        options = super()._get_pool_options(*args, **kwargs)
+        options["cert_reqs"] = "CERT_NONE"
         return options
-    sentry_sdk.init(
-      dsn="https://09ed52c49322629052df6b6e6cf334c5@sentry.transchip.com/30",
-      transport=InsecureHttpTransport,
-      # Set traces_sample_rate to 1.0 to capture 100%
-      # of transactions for tracing.
-      traces_sample_rate=1.0,
-    )
+    options["transport"] = InsecureHttpTransport
+  sentry_sdk.init(dsn=dsn, traces_sample_rate=1.0, **options)
+
+
+def main():
+  init_sentry()
   from .compat import ensure_cli_backward_compatibility
   ensure_cli_backward_compatibility()
   forwarded_args = split_dashdash()
