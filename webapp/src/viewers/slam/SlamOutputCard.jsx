@@ -91,7 +91,7 @@ class SlamOutputCard extends Component {
         })
           .then(response => {
             let poses = parse_poses(response.data, output_new.test_input_path);
-            this.setState((previous_state, props) => {
+            this.setState(previous_state => {
                 return {
                     traces_6dof: {
                       ...previous_state.traces_6dof,
@@ -104,7 +104,7 @@ class SlamOutputCard extends Component {
                 };              
             });
           })
-          .catch(e => {console.log("error at get_gt")});
+          .catch(() => {console.log("error at get_gt")});
       };
     } else {
       get_gt = () => {};
@@ -119,7 +119,7 @@ class SlamOutputCard extends Component {
 
         //first change state to include data_set, then (asynchronously )make traces (and return).
         await this.setState({data_set : poses.data_set});
-        this.setState((previous_state, props) => {
+        this.setState(previous_state => {
           return {
             traces_6dof: {
               ...previous_state.traces_6dof,
@@ -132,7 +132,7 @@ class SlamOutputCard extends Component {
           };
         });       
       }
-      catch(e) {console.log("error at get_new")}
+      catch {console.log("error at get_new")}
     };
     var get_ref;
     if (
@@ -146,7 +146,7 @@ class SlamOutputCard extends Component {
         })
           .then(response => {
             let poses = parse_poses(response.data, output_new.test_input_path);
-            this.setState((previous_state, props) => {
+            this.setState(previous_state => {
                 return {
                     traces_6dof: {
                       ...previous_state.traces_6dof,
@@ -159,7 +159,7 @@ class SlamOutputCard extends Component {
                 };
             });
           })
-          .catch(e => {console.log("error at get_ref")});
+          .catch(() => {console.log("error at get_ref")});
       };
     } else {
       get_ref = () => {};
@@ -171,7 +171,7 @@ class SlamOutputCard extends Component {
     try {
       await get_new();
       all([get_gt(), get_ref()]).then(
-        spread((req_gt, req_new, req_ref) => {
+        spread(() => {
           if (this.state.data_set === undefined) {
             console.log("Error: setting is_loaded. but data_set is undefined!!");
           }
@@ -186,7 +186,7 @@ class SlamOutputCard extends Component {
         this.setState({ is_loaded: true });
       })
     }
-    catch(e) {
+    catch {
       this.setState({ is_loaded: true });
     }
     // //option #2:
@@ -215,7 +215,7 @@ class SlamOutputCard extends Component {
       return get(`${output_new.output_dir_url}/DebugExtensions.txt`)
         .then(response => {
           let data = parse_debug(response.data);
-          this.setState((previous_state, props) => {
+          this.setState(previous_state => {
             return {
               data_debug: { ...previous_state.data_debug, new: data },
               traces_debug: {
@@ -225,13 +225,13 @@ class SlamOutputCard extends Component {
             };
           });
         })
-        .catch(e => {});
+        .catch(() => {});
     };
     var get_ref_debug = () => {
       return get(`${output_ref.output_dir_url}/DebugExtensions.txt`)
         .then(response => {
           let data = parse_debug(response.data);
-          this.setState((previous_state, props) => {
+          this.setState(previous_state => {
             return {
               data_debug: { ...previous_state.data_debug, reference: data },
               traces_debug: {
@@ -245,12 +245,12 @@ class SlamOutputCard extends Component {
             };
           });
         })
-        .catch(e => {});
+        .catch(() => {});
     };
     all([get_new_debug(), get_ref_debug()])
       .then(
-        spread((req_new, req_ref) => {
-          this.setState((previous_state, props) => {
+        spread(() => {
+          this.setState(previous_state => {
             return {
               is_loaded_debug: true,
               plot_revision: previous_state.plot_revision + 1
@@ -402,7 +402,7 @@ const parse_poses_old = (text_string, test_input_path) => {
 };
 */
 
-const is_old_format = (text_string, test_input_path) => {
+const is_old_format = text_string => {
   let data = tsvParse(text_string);
   if (Object.keys(data[0]).includes('t'))
     return false;
@@ -487,7 +487,7 @@ var make_traces = function(poses, label, data_set) {
         showlegend: index === 4 ? true : false
       };
     });
-  }catch(e){console.log("error at make traces for ".concat(label))}  
+  }catch{console.log("error at make traces for ".concat(label))}  
 };
 
 var make_traces3d = function(poses, label) {

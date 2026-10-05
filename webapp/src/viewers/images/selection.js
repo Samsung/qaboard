@@ -284,7 +284,11 @@ OpenSeadragon.extend(OpenSeadragon.Selection.prototype, OpenSeadragon.ControlDoc
         this.isSelecting = enabled;
         // this.viewer.innerTracker.setTracking(!enabled);
         this.outerTracker.setTracking(enabled);
-        enabled ? this.draw() : this.undraw();
+        if (enabled) {
+            this.draw();
+        } else {
+            this.undraw();
+        }
         if (this.buttonActiveImg) {
             this.buttonActiveImg.style.visibility = enabled ? 'visible' : 'hidden';
         }

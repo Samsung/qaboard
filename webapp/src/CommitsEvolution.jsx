@@ -150,7 +150,7 @@ class CommitsEvolutionPerTest extends React.Component {
   };
 
 
-  onDoubleClick = e => {
+  onDoubleClick = () => {
     this.setState({selected_ref: false})
   }
   onClick = e => {
@@ -658,7 +658,7 @@ class CommitsEvolution extends Component {
       })
     });
   }
-  toggle = name => e => {
+  toggle = name => () => {
     this.setState({ [name]: !this.state[name] });
     let query = qs.parse(window.location.search.substring(1));
     this.props.history.push({

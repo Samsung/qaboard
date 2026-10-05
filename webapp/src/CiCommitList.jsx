@@ -80,7 +80,7 @@ class CiCommitList extends React.Component {
     document.title = `${match.params.name || match.params.committer || project} - ${name}`;
 
     this.getData({...this.props, date_range: default_date_range()});
-    this.interval = setInterval(x => this.getData(this.props), 60 * 1000);
+    this.interval = setInterval(() => this.getData(this.props), 60 * 1000);
   }
 
   componentWillUnmount() {

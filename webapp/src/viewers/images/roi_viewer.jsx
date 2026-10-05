@@ -182,9 +182,6 @@ const RoiViewer = ({output_new, output_ref, path, viewer, current_roi, fullyLoad
             }
         }
     }/>}
-    {false && rois.label == "Auto False Colors" && <div>
-        Work in Progress!
-    </div>}
     {non_default_rois && <div>{rois.rois.map((roi, idx) => {
         return <Crop
             selected={idx==selected_roi_idx}

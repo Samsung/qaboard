@@ -1,6 +1,6 @@
 import React from "react";
 
-import { Tree, Classes, Colors, Tag, Icon, Tooltip, Popover, Menu, MenuItem } from "@blueprintjs/core";
+import { Tree, Classes, Colors, Tag, Icon, Popover, Menu, MenuItem } from "@blueprintjs/core";
 import { OutputViewer } from "../OutputViewer"
 import { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, updateMissingFrom, humanFileSize } from "./utils"
 import { match_query, is_same_data } from "../../utils"
@@ -238,7 +238,6 @@ class BitAccuracyViewer extends React.Component {
   render() {
     const { tree, selected } = this.state;
     const has_files = !!tree.mixed && tree.mixed.length !== 0
-    const has_ref = !!this.props.manifests && !!this.props.manifests.reference
     const { type, ...props } = this.props;
     return <div className={(!has_files && this.props.hide_runs_without_files) ? "viewer-no-files" : undefined}>
       {!has_files && <em className={Classes.TEXT_MUTED}>all files filtered</em>}
@@ -399,7 +398,7 @@ class BitAccuracyViewer extends React.Component {
   };
 
 
-  componentDidUpdate(prevProps, prevState) {
+  componentDidUpdate(prevProps) {
       // console.log(this.props)
       // console.log(prevProps)
       const has_new_manifest = !!this.props.manifests && !!this.props.manifests.new;

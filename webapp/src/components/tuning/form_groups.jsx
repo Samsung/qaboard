@@ -16,9 +16,7 @@ import {
   Tag,
   Tab,
   Tabs,
-  Tooltip
 } from "@blueprintjs/core";
-import { MultiSelect } from "@blueprintjs/select";
 import { toaster } from "../../toaster"
 
 
@@ -52,7 +50,7 @@ class AddRecordingsForm extends Component {
   componentDidMount() {
     const { available_tests_files } = this.props;
     this.setState({ selectedTabId: "usr", files: available_tests_files }, () =>
-    Object.entries(this.state.files).forEach( ([key, value]) => {
+    Object.entries(this.state.files).forEach( ([, value]) => {
       this.getGroups(value)
     }));
     
@@ -73,7 +71,7 @@ class AddRecordingsForm extends Component {
       });
   }
 
-  updateGroups = (newGroups, e) => {
+  updateGroups = newGroups => {
     const { files, selectedTabId } = this.state;
     let name = files[selectedTabId]
     this.setState({ groups: {...this.state.groups, [name]: newGroups}, dirty: {...this.state.dirty, [name]: true}});
@@ -93,7 +91,7 @@ class AddRecordingsForm extends Component {
       project: this.props.project,
       groups: groups[name],
     })
-      .then(response => {
+      .then(() => {
         this.setState(prevState => ({submitted: {...prevState.submitted, [name]: false}}));
         toaster.show({
           message: `Saved`,
@@ -109,12 +107,12 @@ class AddRecordingsForm extends Component {
       });
   };
 
-  handleTabChange = (newTabId, prevTabId, e) => { this.setState({ selectedTabId: newTabId }) };
+  handleTabChange = newTabId => { this.setState({ selectedTabId: newTabId }) };
 
-  editorDidMount(editor, monaco) {
+  editorDidMount() {
   }
   
-  editorWillMount(monaco) {
+  editorWillMount() {
   }
 
   componentWillUnmount() {

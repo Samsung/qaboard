@@ -11,17 +11,17 @@ import {
   Classes,
   Intent,
   MenuItem,
-  MenuDivider,
   Navbar,
   Icon,
   Tooltip,
 } from "@blueprintjs/core";
 
 import { Avatar } from "./components/avatars";
-import { IntegrationsMenus, default_gitlab_integrations } from "./components/integrations";
+import { IntegrationsMenus } from "./components/integrations";
 import { MilestonesMenu } from "./components/milestones"
 import AuthButton from "./components/authentication/Auth"
 import { WhatsNewButton } from "./releaseNotes/ReleaseNotes"
+import { LogsMenuItem, logs_hint_class } from "./AppSiderLogsItem"
 
 import {
   selectedSelector,
@@ -174,6 +174,11 @@ const EnhancedMenuItem = styled.div`
             opacity: 0.7 !important;
             color: inherit !important;
         }
+
+        /* Hints (e.g. failures on Logs) must stand out */
+        .bp6-menu-item-label.${logs_hint_class} {
+            opacity: 1 !important;
+        }
     }
     
     /* Also target direct MenuItem children */
@@ -205,52 +210,6 @@ const SectionHeader = styled.div`
     
     &:first-child {
         margin-top: 0;
-    }
-`;
-
-const StatusBadge = styled.span`
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 ${spacing.xs};
-    font-size: ${typography.xs};
-    font-weight: ${typography.medium};
-    border-radius: ${borders.radius.lg};
-    background: ${props => {
-        switch(props.variant) {
-            case 'error': return colors.danger;
-            case 'warning': return colors.warning;
-            case 'success': return colors.success;
-            case 'info': return colors.info;
-            default: return colors.primary;
-        }
-    }};
-    color: white;
-    margin-left: auto;
-    
-    &.pulse {
-        animation: pulse 2s infinite;
-    }
-    
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.8; }
-    }
-`;
-
-const LoadingSkeleton = styled.div`
-    height: 36px;
-    background: linear-gradient(90deg, ${colors.surface} 25%, ${colors.surfaceHover} 50%, ${colors.surface} 75%);
-    background-size: 200% 100%;
-    border-radius: ${borders.radius.md};
-    margin-bottom: ${spacing.xs};
-    animation: shimmer 1.5s infinite;
-    
-    @keyframes shimmer {
-        0% { background-position: -200% 0; }
-        100% { background-position: 200% 0; }
     }
 `;
 
@@ -557,7 +516,7 @@ class ProjectSideCommitList extends React.Component {
 
 
 class ProjectSideResults extends React.Component {
-  set = (attribute, value) => e => {
+  set = (attribute, value) => () => {
     this.props.dispatch(updateSelected(this.props.project, { [attribute]: value }))
   } 
 
@@ -627,15 +586,10 @@ class ProjectSideResults extends React.Component {
       {/* Outputs Section */}
       <SectionHeader>
         <span>Outputs</span>
-        {new_batch?.failed_outputs > 0 && (
-          <StatusBadge variant="error" className="pulse">
-            {new_batch.failed_outputs}
-          </StatusBadge>
-        )}
       </SectionHeader>
       <MenuItem icon="media" text="Visualizations" active={active('output-list')} onClick={this.set('selected_views', 'output-list')} />
       <MenuItem icon="folder-open" text="Output Files" active={active('bit_accuracy')} onClick={this.set('selected_views', 'bit_accuracy')} />
-      <MenuItem icon="console" intent={(!!new_batch && new_batch.failed_outputs > 0) ? Intent.DANGER : null} text="Logs" active={active('logs')} onClick={this.set('selected_views', 'logs')} />
+      <LogsMenuItem batch={new_batch} active={active('logs')} onClick={this.set('selected_views', 'logs')} />
 
       {/* Source Section */}
       <SectionHeader>
@@ -670,7 +624,8 @@ class AppSider extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      integrationStatuses: {}
+      // Restored from localStorage for the current commit
+      integrationStatuses: this.loadIntegrationStatuses(props.commit?.id),
     }
   }
   loadIntegrationStatuses = (commitId) => {
@@ -725,12 +680,10 @@ class AppSider extends React.Component {
     }
   }
   componentDidMount() {
+    // Mark the restored commit as recently used
     const commitId = this.props.commit?.id;
-    if (commitId) {
-      const restored = this.loadIntegrationStatuses(commitId);
-      if (Object.keys(restored).length > 0) {
-        this.setState({ integrationStatuses: restored });
-      }
+    if (commitId && Object.keys(this.state.integrationStatuses).length > 0) {
+      this.saveIntegrationStatuses(commitId, this.state.integrationStatuses);
     }
   }
   componentDidUpdate(prevProps, prevState) {
@@ -768,7 +721,7 @@ class AppSider extends React.Component {
     })
   }
 
-  triggerIntegration = (integration, integration_key) => e => {
+  triggerIntegration = (integration, integration_key) => () => {
     const { project, project_data={}, commit={} } = this.props;
     const { webhook, gitlabCI, jenkins } = integration;
     if (!webhook && !gitlabCI && !jenkins) {
@@ -904,7 +857,8 @@ class AppSider extends React.Component {
         return
       if (integration.jenkins && status.data?.web_url === undefined && status.data?.url === undefined)
         return
-      const { label, icon, text, href, alt, style, ignore_failure, gitlabCI, jenkins, ...request } = integration;
+      // Those are display-only fields, not part of the request
+      const { label: _label, icon: _icon, text: _text, href: _href, alt: _alt, style: _style, ignore_failure, gitlabCI, jenkins, ...request } = integration;
       let req_url, params;
       if (gitlabCI) {
        if (status?.triggered !== true)

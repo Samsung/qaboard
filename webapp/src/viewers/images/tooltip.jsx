@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import axios from 'axios'
 import { debounce } from "es-toolkit/compat";
 
@@ -11,9 +11,6 @@ import {
 } from "@blueprintjs/core";
 
 // TODO
-// - unmount: cancel the request
-//      if (!!this.state.pixel_cancel_source && !!this.state.pixel_cancel_source.token)
-//      this.state.pixel_cancel_source.cancel();
 // - when fractional values, merge... to get closer to the display rgb at low zoom
 
 const formatting = {
@@ -65,7 +62,6 @@ const Tooltips = ({x, y, x_ref, y_ref, has_reference, first_image, image_url_new
 
 const ColorTooltip = ({color, x, y, image_url, base}) => {
     // we try to show the pixel data from the real image
-    const [cancel_source, setCancelSource] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [pixel, setPixel] = useState(null)
@@ -73,8 +69,11 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
     // no need to flood it with requests until the data is cached
     const [loaded_once, setLoadedOnce] = useState(false);
 
-    const _debounce = useCallback(
-        debounce( (_x, _y, _image_url) => {
+    // Created once (lazy state initializer) so that the debounce applies across renders.
+    // The request to cancel lives in this closure: state would be stale inside the debounced function.
+    const [pixel_fetcher] = useState(() => {
+        let cancel_source = null;
+        const fetch = debounce( (_x, _y, _image_url) => {
             // console.log(`current ${x} ${y}`);
             // console.log(`new  ${_x} ${_y}`);
             const fetchData = async () => {
@@ -82,7 +81,7 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
                 if (!!cancel_source)
                     cancel_source.cancel();
                 const new_cancel_source = axios.CancelToken.source()
-                setCancelSource(new_cancel_source)
+                cancel_source = new_cancel_source
                 try {
                     const params = {
                         x: _x, y: _y,
@@ -113,14 +112,20 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
             if (_image_url !== undefined && Number.isInteger(_x) && Number.isInteger(_y) ){
                 fetchData();
             }
-        }, 200),
-        []
-    );
+        }, 200);
+        // drop the pending fetch and cancel the request in flight
+        const cancel = () => {
+            fetch.cancel()
+            cancel_source?.cancel()
+        }
+        return { fetch, cancel }
+    });
+    useEffect(() => pixel_fetcher.cancel, [pixel_fetcher]);
     useEffect(() => {
         if (x === null || y === null)
             return
         if (loaded_once || !loading)
-            _debounce(x, y, image_url)
+            pixel_fetcher.fetch(x, y, image_url)
     }, [x, y, image_url, loaded_once]);
 
     if (color === undefined || color === null)

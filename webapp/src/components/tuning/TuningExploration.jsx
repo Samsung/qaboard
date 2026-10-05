@@ -1,4 +1,4 @@
-import React, { Component, Fragment, useReducer, useState, useEffect } from "react";
+import React, { Component, Fragment } from "react";
 import { withRouter } from "../../router";
 import qs from "qs";
 import { get as _get } from "es-toolkit/compat";
@@ -8,8 +8,6 @@ import { Classes, Callout, Colors, Intent, Tag, FormGroup, Switch, HTMLSelect } 
 
 import { Section } from "../../components/layout";
 import { groupBy, groupByObject, hash_color, median, average } from "../../utils";
-import { OutputTags } from "../tags";
-import { main_metrics } from "../../viewers/tof/metrics";
 
 // to test selectable metrics...
 // http://alginfra1:6001/CIS_ISP_Algorithms/approximate_computing/sircapproxlib/commit/dd68070ad59b72b00d242959fb235eed8e9ee495?reference=81055b515c71cd3c3557c49ca8e889e7b0028eb4&selected_views=optimization&sort_by=miter.threshold_%25&sort_order=1&selected_parameter=miter.threshold_%25&selected_metric=fitness_last&aggregation=average&selected_parameter_2=resources.evolve_limit_value&selected_metric2=fitness_last&filter=&selected_metrics%5B0%5D=fitness_init&selected_metrics%5B1%5D=fitness_last&selected_metrics%5B2%5D=fitness_improvement&selected_metrics%5B3%5D=wce_%25_actual&selected_metrics%5B4%5D=wce_%25_goal&selected_metrics%5B5%5D=wce_%25_actual_diff_goal&selected_metrics%5B6%5D=no_generations&selected_metrics%5B7%5D=average_generation_runtime
@@ -58,11 +56,12 @@ const Sensibility1DLines = ({
   relative,
   layout
 }) => {
-  Object.keys(outputs).forEach(id => {
-    const output = outputs[id]
-    output.input_configurations = {test_input_path: output.test_input_path, configurations: output.configurations}
-  })
-  let outputs_by_input_config = groupByObject(Object.values(outputs), "input_configurations");
+  // Group without mutating the outputs we were given (they come from the redux store)
+  const outputs_with_input_config = Object.values(outputs).map(output => ({
+    ...output,
+    input_configurations: {test_input_path: output.test_input_path, configurations: output.configurations},
+  }))
+  let outputs_by_input_config = groupByObject(outputs_with_input_config, "input_configurations");
 
   let traces = Object.entries(outputs_by_input_config).map(
     ([input_path_config,  outputs_for_input]) => {
@@ -71,7 +70,7 @@ const Sensibility1DLines = ({
         .filter(o => !o.is_pending && !o.is_failed)
         .sort(
           (a, b) =>
-            _get(a.params, parameter) ?? - _get(b.params, parameter)
+            _get(a.params, parameter) - _get(b.params, parameter)
         );
       let color = hash_color(test_input_path);
       let line = {
@@ -123,7 +122,7 @@ const Sensibility1DLines = ({
     },
     ...layout,
     xaxis: {
-      ...layout.axis,
+      ...layout.xaxis,
       title: parameter,
     },
   };
@@ -167,7 +166,7 @@ const Sensibility1DBoxplots = React.memo(({ outputs, metric, parameter, layout }
     },
     ...layout,
     xaxis: {
-      ...layout.axis,
+      ...layout.xaxis,
       title: parameter,
     },
   };
@@ -194,13 +193,6 @@ const Sensibility1DBoxplots = React.memo(({ outputs, metric, parameter, layout }
 //   values: outputs.map(o => o.metrics[metric.key] * metric.scale),
 // })),
 
-const plotly_state_init = {data: [], layout: {}, frames: [], config: {}}
-const plotly_state_reducer = (state, action) => {
-  return {
-    ...state,
-    ...action
-  }
-}
 
 
 const ParallelTuningPlot = ({
@@ -253,7 +245,7 @@ const ParallelTuningPlot = ({
     )
     // console.log(metrics_aggregated_by_params)
 
-    const values = metric => aggr => aggr.map(  ([p, m]) => m[metric.key] * metric.scale);
+    const values = metric => aggr => aggr.map(  ([, m]) => m[metric.key] * metric.scale);
     const all_good = values => values.every( v => !isNaN(v) && v!==null && v!==undefined)
     const some_different = values => new Set(values).size > 1
     const line = {
@@ -274,7 +266,7 @@ const ParallelTuningPlot = ({
     const metrics_with_different_values = metrics
       .filter( m => all_good(values(m)(metrics_aggregated_by_params)) )
       .filter( m => some_different(values(m)(metrics_aggregated_by_params)) )
-    const parameters_with_different_values = parameters.filter(p => some_different(metrics_aggregated_by_params.map( ([params, agg_metrics]) => _get(params, p))) );
+    const parameters_with_different_values = parameters.filter(p => some_different(metrics_aggregated_by_params.map( ([params]) => _get(params, p))) );
     let traces = [{
       type: 'parcoords',
       line: all_good(line.color) ? line : undefined,
@@ -289,15 +281,15 @@ const ParallelTuningPlot = ({
               }
         }),
         ...parameters_with_different_values.map(p => {
-          let values = metrics_aggregated_by_params.map( ([params, agg_metrics]) => _get(params, p))
+          let values = metrics_aggregated_by_params.map( ([params]) => _get(params, p))
           let numeric = values.every(v => !isNaN(parseFloat(v)) && isFinite(v));
           let integer = values.every(v => Number.isInteger(v));
           // console.log(p, 'int:', integer, 'num:', numeric)
           // console.log(values)
           if (!numeric) {
             // we need to remap the values to categorical integers values
-            var remapped_values = new Array(values.length);
-            var unique_values = new Map(...[undefined, 0]);
+            var remapped_values = Array.from({ length: values.length });
+            var unique_values = new Map();
             values.forEach( (v, idx) => {
               let v_s = JSON.stringify(v)
               // if (v === false) v = 'false'
@@ -332,12 +324,10 @@ const ParallelTuningPlot = ({
     }]
     // console.log(metrics_with_different_values)
     // console.log(parameters_with_different_values)
-    const sum_length = array => array.map(e => e.length).reduce( (a,b) => a+b, 0)
     const max_length = array => array.map(e => e.length).reduce( (a,b) => Math.max(a, b), 0)
-    const sum_chars = sum_length(metrics_with_different_values.map(m=>(m.short_label ?? m.label ?? m.key))) + sum_length(parameters_with_different_values)
     const columns = metrics_with_different_values.length + parameters_with_different_values.length
     const max_col_length = max_length(metrics_with_different_values.map(m=>(m.short_label ?? m.label ?? m.key))) + max_length(parameters_with_different_values)
-    // console.log("columns", columns, "sum_chars", sum_chars, "max_col_length", max_col_length)
+    // console.log("columns", columns, "max_col_length", max_col_length)
     const width = Math.max(4 * max_col_length * columns, 840)
     // console.log(width)
     // console.log(traces)
@@ -406,7 +396,7 @@ const EfficientFrontierPlot = React.memo(({
     }
   )
 
-  let color = metrics_aggregated_by_params.map( ([extra_parameters_s, aggregated_metrics]) => JSON.parse(extra_parameters_s)[parameter])
+  let color = metrics_aggregated_by_params.map( ([extra_parameters_s]) => JSON.parse(extra_parameters_s)[parameter])
   let traces = [{
     type: 'scatter',
     mode: 'markers',
@@ -418,9 +408,9 @@ const EfficientFrontierPlot = React.memo(({
       },
       colorscale: 'RdBu',
     },
-    x: metrics_aggregated_by_params.map( ([extra_parameters_s, aggregated_metrics]) => aggregated_metrics[metric_x.key]),
-    y: metrics_aggregated_by_params.map( ([extra_parameters_s, aggregated_metrics]) => aggregated_metrics[metric_y.key]),
-    text: metrics_aggregated_by_params.map( ([extra_parameters_s, aggregated_metrics]) => extra_parameters_s.replace(/,/g, '<br />')),
+    x: metrics_aggregated_by_params.map( ([, aggregated_metrics]) => aggregated_metrics[metric_x.key]),
+    y: metrics_aggregated_by_params.map( ([, aggregated_metrics]) => aggregated_metrics[metric_y.key]),
+    text: metrics_aggregated_by_params.map( ([extra_parameters_s]) => extra_parameters_s.replace(/,/g, '<br />')),
     showscale: true,
   }];
 
@@ -447,7 +437,6 @@ const Sensibility2DContour = React.memo(({
   outputs,
   metric,
   parameters,
-  layout,
   available_metrics,
   aggregation,
 }) => {
@@ -511,9 +500,9 @@ const Sensibility2DContour = React.memo(({
   let traces = [
     {
       type: "contour",
-      x: metrics_by_shown_params_aggregated.map(([p,m]) => _get(p, parameters[0])),
-      y: metrics_by_shown_params_aggregated.map(([p,m]) => _get(p, parameters[1])),
-      z: metrics_by_shown_params_aggregated.map(([p,m]) => m[metric.key] * metric.scale),
+      x: metrics_by_shown_params_aggregated.map(([p]) => _get(p, parameters[0])),
+      y: metrics_by_shown_params_aggregated.map(([p]) => _get(p, parameters[1])),
+      z: metrics_by_shown_params_aggregated.map(([, m]) => m[metric.key] * metric.scale),
       contours: {
         coloring: "heatmap", // apply a gradient within each contour
         showlabels: true,
@@ -588,9 +577,9 @@ class TuningExploration extends Component {
     }
   }
 
-  updateXScale = e => {
+  updateXScale = () => {
     const toogleScale = scale => (scale === "log" ? "linear" : "log");
-    this.setState((previousState, newProps) => ({
+    this.setState(previousState => ({
       layout: {
         ...previousState.layout,
         xaxis: {
@@ -785,7 +774,7 @@ class TuningExploration extends Component {
         <Switch
           label="Relative to Best"
           defaultChecked={relative}
-          onChange={e => {this.setState({ relative: !relative });}}
+          onChange={() => {this.setState({ relative: !relative });}}
         />
         <Sensibility1DLines
           outputs={outputs}

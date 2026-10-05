@@ -231,7 +231,7 @@ const eval_function = text => {
   try {
     /*eslint-disable no-new-func */
     return Function(text)();
-  } catch (e) {
+  } catch {
     return null;
   }
 };
@@ -245,7 +245,7 @@ const eval_combinations = param_search_text => {
   try {
     combinations = JSON.parse(param_search_text);
     var language = "yaml" // no json support out of the box, yaml is superset so..
-  } catch (e) {
+  } catch {
     // or they can provide a function that returns a tuning set
     combinations = eval_function(param_search_text);
     language = "javascript"
@@ -278,7 +278,7 @@ const combinations_info = (parameter_search, search_options, search_type) => {
       combinations = "invalid";
     else
       combinations = (search_options.n_iter < 0 || search_type==='grid') ? combinations : Math.min(search_options.n_iter, combinations);
-  } catch (e) {
+  } catch {
     combinations = "invalid";
     language = 'javascript'
   }
@@ -341,7 +341,7 @@ class TuningForm extends Component {
     }
   }
 
-  componentDidUpdate(prevProps, prevState) {
+  componentDidUpdate(prevProps) {
     const { selected_group } = this.state;
     const has_commit = this.props.commit !== undefined && this.props.commit !== null;
     let updated_commit = has_commit && (prevProps.commit === null || prevProps.commit === undefined || prevProps.commit.id !== this.props.commit.id);
@@ -413,7 +413,7 @@ class TuningForm extends Component {
     this.props.dispatch(updateTuningForm(this.props.project, {parameter_search: new_parameter_search}))
   };
 
-  onEditorDidMount = (editor, monaco) => {
+  onEditorDidMount = editor => {
     // Store reference for cleanup
     this.editor = editor;
     this.isTransforming = false;
@@ -515,7 +515,7 @@ class TuningForm extends Component {
       android_device,
       overwrite,
     })
-      .then(response => {
+      .then(() => {
         this.setState({ submitted: false });
         toaster.show({
           message: "Acknowledged! You can select the batch here ➡️",
@@ -625,7 +625,7 @@ class TuningForm extends Component {
 
 
     const panel_auto = <>
-      <Button onClick={e => this.setState({ parameter_search_auto: templates['optimize'](config, metrics) })}>Reset</Button>
+      <Button onClick={() => this.setState({ parameter_search_auto: templates['optimize'](config, metrics) })}>Reset</Button>
       <MonacoEditor
         height={250}
         language='yaml'
@@ -723,6 +723,7 @@ class TuningForm extends Component {
       {(project!=='dvs/psp_swip' && project!=='tof/swip_tof' && available_platforms.length > 0) &&
       <RadioGroup onChange={this.update('platform')} selectedValue={platform}>
         {available_platforms.map(p => <Radio
+          key={p.name}
           labelElement={<span>{p.label || p.name || 'undefined name/label!'}</span>}
           value={p.name}
           large
@@ -834,7 +835,7 @@ class TuningForm extends Component {
 const mapStateToProps = (state, ownProps) => {
   return {
       redux_user: state.user || null,
-      ...(state.tuning[ownProps.project] || {})
+      ...state.tuning[ownProps.project]
   }
 }
 

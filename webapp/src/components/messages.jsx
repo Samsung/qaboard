@@ -35,7 +35,7 @@ class CommitWarningMessages extends React.Component {
     this.setState({waiting: true})
     toaster.show({message: "Restoring artifacts..."});
     post(`/api/v1/commit/save-artifacts/`, {hexsha: commit.id, project})
-      .then(response => {
+      .then(() => {
         this.setState({waiting: false})
         toaster.show({message: `Restore artifacts.`, intent: Intent.PRIMARY});
         this.refresh()
@@ -117,7 +117,7 @@ class BatchStatusMessages extends React.Component {
     this.setState({waiting_stop: true})
     toaster.show({message: "Stop requested."});
     post(`/api/v1/batch/stop/`, {id: batch.id})
-    .then(response => {
+    .then(() => {
       this.setState({waiting_stop: false})
     })
     .catch(error => {
@@ -142,7 +142,7 @@ class BatchStatusMessages extends React.Component {
     this.setState({waiting_redo: true})
     toaster.show({message: "Redo requested."});
     post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: true})
-      .then(response => {
+      .then(() => {
         this.setState({waiting_redo: false})
         toaster.show({message: `Redo ${batch.label}.`, intent: Intent.PRIMARY});
         this.refresh()

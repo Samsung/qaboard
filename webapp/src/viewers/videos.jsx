@@ -35,57 +35,10 @@ const SyncedVideos = ({
     setShowReference(show_reference_updated)
   }
 
-  useEffect(() => {
-    const handleTimeUpdate = () => {
-      if (viewer_reference_ref.current) {
-        setCurrentTimeRef(viewer_reference_ref.current.currentTime);
-      }
-    };
-    if (viewer_reference_ref.current) { // normally should be always true
-      viewer_reference_ref.current.addEventListener("timeupdate", handleTimeUpdate);
-      viewer_reference_ref.current.addEventListener('play', handlePlayRef);
-      viewer_reference_ref.current.addEventListener('pause', handlePauseRef);
-    }
-    // cleanup on unmount
-    return () => {
-      if (viewer_reference_ref.current) { // normally should be always true
-        viewer_reference_ref.current.removeEventListener("timeupdate", handleTimeUpdate);
-        viewer_reference_ref.current.removeEventListener('play', handlePlayRef);
-        viewer_reference_ref.current.removeEventListener('pause', handlePauseRef);
-      }
-    };
-  }, [show_reference])
-
- 
-  useEffect(() => {
-    const handleTimeUpdate = () => {
-      if (viewer_new_ref.current) {
-        setCurrentTimeNew(viewer_new_ref.current.currentTime);
-      }
-    };
-    if (viewer_new_ref.current) { // always true since unconditionnaly rendered
-      viewer_new_ref.current.addEventListener("timeupdate", handleTimeUpdate);
-
-      viewer_new_ref.current.addEventListener('play', handlePlayRef);
-      viewer_new_ref.current.addEventListener('pause', handlePauseRef);
-    }
-    // cleanup on unmount
-    return () => {
-      if (viewer_new_ref.current) {
-        viewer_new_ref.current.removeEventListener("timeupdate", handleTimeUpdate);
-        viewer_new_ref.current.removeEventListener('play', handlePlayRef);
-        viewer_new_ref.current.removeEventListener('pause', handlePauseRef);
-      }
-      if (syncInterval.current) {
-        cancelAnimationFrame(syncInterval.current);
-      }
-    };
-  }, []);
-
   const handlePlayRef = () => {
     if (viewer_new_ref.current) {
       let play_promise_new = viewer_new_ref.current.play();
-      play_promise_new.then(_ => {
+      play_promise_new.then(() => {
         // console.log("play started (new)")
       })
       .catch(error => {
@@ -95,7 +48,7 @@ const SyncedVideos = ({
     if (viewer_reference_ref.current) {
       syncInterval.current = requestAnimationFrame(syncVideos);
       let play_promise_ref = viewer_reference_ref.current.play();
-      play_promise_ref.then(_ => {
+      play_promise_ref.then(() => {
         // console.log("play started (ref)")
       })
       .catch(error => {
@@ -139,6 +92,55 @@ const SyncedVideos = ({
       // }
     }
   };
+
+  // The effects are declared after the handlers they register
+  useEffect(() => {
+    // keep the element: on cleanup, the ref may already point to a newly rendered element
+    const viewer_reference = viewer_reference_ref.current
+    const handleTimeUpdate = () => {
+      if (viewer_reference_ref.current) {
+        setCurrentTimeRef(viewer_reference_ref.current.currentTime);
+      }
+    };
+    if (viewer_reference) { // normally should be always true
+      viewer_reference.addEventListener("timeupdate", handleTimeUpdate);
+      viewer_reference.addEventListener('play', handlePlayRef);
+      viewer_reference.addEventListener('pause', handlePauseRef);
+    }
+    // cleanup on unmount
+    return () => {
+      if (viewer_reference) {
+        viewer_reference.removeEventListener("timeupdate", handleTimeUpdate);
+        viewer_reference.removeEventListener('play', handlePlayRef);
+        viewer_reference.removeEventListener('pause', handlePauseRef);
+      }
+    };
+  }, [show_reference])
+
+  useEffect(() => {
+    const viewer_new = viewer_new_ref.current
+    const handleTimeUpdate = () => {
+      if (viewer_new_ref.current) {
+        setCurrentTimeNew(viewer_new_ref.current.currentTime);
+      }
+    };
+    if (viewer_new) { // always true since unconditionnaly rendered
+      viewer_new.addEventListener("timeupdate", handleTimeUpdate);
+      viewer_new.addEventListener('play', handlePlayRef);
+      viewer_new.addEventListener('pause', handlePauseRef);
+    }
+    // cleanup on unmount
+    return () => {
+      if (viewer_new) {
+        viewer_new.removeEventListener("timeupdate", handleTimeUpdate);
+        viewer_new.removeEventListener('play', handlePlayRef);
+        viewer_new.removeEventListener('pause', handlePauseRef);
+      }
+      if (syncInterval.current) {
+        cancelAnimationFrame(syncInterval.current);
+      }
+    };
+  }, []);
 
   const width = parseFloat(((style?.width ?? '390px').replace(/[^\d]+/, '')))
   const singleVideoWidth = (width - 10) / 2;

@@ -1,6 +1,6 @@
 /**
  * Tests for the "What's new" release notes.
- * Run with: cd webapp && npm test -- --testPathPattern=releaseNotes
+ * Run with: cd webapp && npm test -- releaseNotes
  */
 import fs from 'fs';
 import path from 'path';
@@ -78,7 +78,7 @@ test('search matches every word, in any field', () => {
 
 describe('the bundle', () => {
   // The web app bundles website/release-notes/*.md as release-notes.json
-  const notes_dir = path.join(__dirname, '../../../../website/release-notes');
+  const notes_dir = path.join(import.meta.dirname, '../../../../website/release-notes');
   const sources = fs.existsSync(notes_dir)
     ? fs.readdirSync(notes_dir).filter(f => f.endsWith('.md') && !f.startsWith('_'))
     : [];

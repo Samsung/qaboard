@@ -2,7 +2,7 @@ import React from "react";
 import axios, { all, CancelToken } from "axios";
 const { get } = axios;
 
-import { Classes, Tag, Tooltip } from "@blueprintjs/core";
+import { Classes, Tag } from "@blueprintjs/core";
 import MonacoEditor, { MonacoDiffEditor } from "../components/MonacoEditor";
 
 import { is_same_data } from "../utils"
@@ -80,17 +80,17 @@ class GenericTextViewer extends React.Component {
   }
 
   componentWillUnmount() {
-    window.removeEventListener('keypress', this.keypress);
+    window.removeEventListener('keypress', this.keyboard);
     if (!!this.state.cancel_source)
       this.state.cancel_source.cancel();
   }
 
-  componentDidUpdate(prevProps, prevState) {
-    let had_new = prevProps.text_url_new !== undefined && prevProps.text_url_new !== undefined
-    let had_ref = prevProps.text_url_ref !== undefined && prevProps.text_url_ref !== undefined
+  componentDidUpdate(prevProps) {
+    let had_new = prevProps.text_url_new !== undefined && prevProps.text_url_new !== null
+    let had_ref = prevProps.text_url_ref !== undefined && prevProps.text_url_ref !== null
 
-    let has_new = this.props.text_url_new !== undefined && this.props.text_url_new !== undefined
-    let has_ref = this.props.text_url_ref !== undefined && this.props.text_url_ref !== undefined
+    let has_new = this.props.text_url_new !== undefined && this.props.text_url_new !== null
+    let has_ref = this.props.text_url_ref !== undefined && this.props.text_url_ref !== null
 
     let updated_new = has_new && (!had_new || this.props.text_url_new !== prevProps.text_url_new)
     let updated_ref = has_ref && (!had_ref || this.props.text_url_ref !== prevProps.text_url_ref)
@@ -195,10 +195,10 @@ class GenericTextViewer extends React.Component {
   editorDidMount = editor => {
     this.editor = editor
   }
-  next_diff = e => {
+  next_diff = () => {
     this.editor?.goToDiff('next')
   }
-  switch = e => {
+  switch = () => {
     let shown_left = this.state.shown_left === 'reference' ? 'new' : 'reference';
     this.setState({ shown_left })
   }

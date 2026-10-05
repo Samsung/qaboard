@@ -13,7 +13,7 @@ import {
 import { pretty_label } from '../../utils'
 import { has_milestones } from '../milestones'
 
-const SelectBatchesNav = ({ commit, onChange, batch, hide_counts, project, project_data }) => {
+const SelectBatchesNav = ({ commit, onChange, batch, project, project_data }) => {
   // Prepare batch data for Select component
   const prepareBatchData = (batches) => {
     return Object.entries(batches)

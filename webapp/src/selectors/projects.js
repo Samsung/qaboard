@@ -193,14 +193,14 @@ export const batchSelector = createSelector([batchSelectorPreFilter, selectedSel
   }
 
   const has_optim_iterations = Object.values(new_batch.outputs).some(o => o.output_type === "optim_iteration")
-  Object.entries(new_batch.outputs).filter(([id, o]) => !has_optim_iterations || o.output_type === "optim_iteration").forEach(([id, o]) => {
+  Object.entries(new_batch.outputs).filter(([, o]) => !has_optim_iterations || o.output_type === "optim_iteration").forEach(([, o]) => {
     update_params(o.params)
   });
 
   // Sort tuned parameters by the number of different values that were used
   let sorted_extra_parameters = Object.entries(extra_parameters)
-    .sort(([p1, s1], [p2, s2]) => s2.size - s1.size)
-    .map(([k, v]) => k);
+    .sort(([, s1], [, s2]) => s2.size - s1.size)
+    .map(([k]) => k);
 
   // Parts of the frontend want to know whether there was tuning and how
   new_batch.extra_parameters = extra_parameters

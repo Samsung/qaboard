@@ -12,6 +12,8 @@ const Container = styled.div`
   padding-left: 15px;
   margin-right: auto;
   margin-left: auto;
+  /* the widths below are for the whole window, but the sidebar takes some of it */
+  max-width: 100%;
   @media (min-width: 768px) {
     width: 750px;
   }

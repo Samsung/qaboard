@@ -55,7 +55,7 @@ class CommitBranchButton extends React.PureComponent {
     const has_branch = !!commit && !!commit.branch
     return <span style={style}>
       <Tooltip content={<span>Click to select the latest commit from <code>{has_branch ? commit.branch : 'the branch'}</code></span>}>
-        <Tag style={{marginLeft: '10px', padding: '5px'}} interactive minimal onClick={e => { onClick(commit.branch) }} className={has_branch ? null : Classes.SKELETON} icon="git-branch" >
+        <Tag style={{marginLeft: '10px', padding: '5px'}} interactive minimal onClick={() => { onClick(commit.branch) }} className={has_branch ? null : Classes.SKELETON} icon="git-branch" >
           <span className="hide-small-screen">{has_branch ? commit.branch : 'master'}</span>
         </Tag>
       </Tooltip>
@@ -386,7 +386,7 @@ class CommitNavbar extends React.Component {
                 this.setState({waiting: true})
                 toaster.show({message: "Redo of deleted outputs requested."});
                 axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: true})
-                  .then(response => {
+                  .then(() => {
                     this.setState({waiting: false})
                     toaster.show({message: `Redo ${batch.label}.`, intent: Intent.SUCCESS});
                     this.refresh()
@@ -407,7 +407,7 @@ class CommitNavbar extends React.Component {
                 this.setState({waiting: true})
                 toaster.show({message: "Redo of failed outputs requested."});
                 axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_failed: true})
-                  .then(response => {
+                  .then(() => {
                     this.setState({waiting: false})
                     toaster.show({message: `Redo ${batch.label}.`, intent: Intent.SUCCESS});
                     this.refresh()
@@ -428,7 +428,7 @@ class CommitNavbar extends React.Component {
                 this.setState({waiting: true})
                 toaster.show({message: "Redo requested."});
                 axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: false})
-                  .then(response => {
+                  .then(() => {
                     this.setState({waiting: false})
                     toaster.show({message: `Redo ${batch.label}.`, intent: Intent.SUCCESS});
                     this.refresh()
@@ -455,7 +455,7 @@ class CommitNavbar extends React.Component {
                 axios.delete(`/api/v1/batch/${batch.id}/`, {
                   params: {only_failed: true, soft: soft_delete, filter: files_delete_filter}
                 })
-                  .then(response => {
+                  .then(() => {
                     this.setState({waiting: false})
                     toaster.show({message: `Deleted ${batch.label}.`, intent: Intent.SUCCESS});
                     this.refresh()
@@ -480,7 +480,7 @@ class CommitNavbar extends React.Component {
                 axios.delete(`/api/v1/batch/${batch.id}/`, {
                   params: {soft: soft_delete, filter: files_delete_filter}
                 })
-                  .then(response => {
+                  .then(() => {
                     this.setState({waiting: false})
                     toaster.show({message: `Deleted ${batch.label}.`, intent: Intent.SUCCESS});
                     this.refresh()
@@ -587,7 +587,7 @@ class CommitNavbar extends React.Component {
         params: {soft: soft_delete, filter: files_delete_filter}
       }))
     })
-    Promise.all(requests).then( responses => {
+    Promise.all(requests).then( () => {
         this.setState({waiting: false})
         toaster.show({message: `Deleted.`, intent: Intent.SUCCESS});
         this.refresh()
