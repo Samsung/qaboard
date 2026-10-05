@@ -98,7 +98,8 @@ services:
     - QABOARD_RUN_MIGRATIONS
     # Used by docker and deployments/deploy.py to know when a replica is ready to serve traffic
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3001/api/v1/health', timeout=5)"]
+      # Never through the http_proxy of the environment, it may not bypass localhost
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.build_opener(u.ProxyHandler({})).open('http://127.0.0.1:3001/api/v1/health', timeout=5)"]
       interval: 10s
       timeout: 10s
       retries: 3
