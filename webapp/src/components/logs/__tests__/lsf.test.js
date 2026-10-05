@@ -2,7 +2,7 @@
  * Tests for parsing LSF job reports in log.lsf.txt
  * Run with: cd webapp && npm test -- lsf
  */
-import { parseLsfReport, lsfHeadline, lsfHint, lsfNearMemoryLimit, fetchLsfReport } from '../lsf';
+import { parseLsfReport, lsfHeadline, lsfHint, lsfNearMemoryLimit, lsfReason, fetchLsfReport } from '../lsf';
 
 
 const script = `------------------------------------------------------------
@@ -93,6 +93,7 @@ describe('parseLsfReport', () => {
     expect(lsfHeadline(report)).toBe('Exited with exit code 137 (SIGKILL)')
     expect(lsfHint(report)).toMatch(/max_memory/)
     expect(lsfNearMemoryLimit(report)).toBe(true)
+    expect(lsfReason(report)).toBe('out of memory')
   })
 
   it('parses the old format, with the report before the output', () => {
@@ -154,6 +155,7 @@ Exited with exit code 139.
     expect(report.cluster).toBeNull()
     expect(lsfHeadline(report)).toBe('Exited with exit code 139 (SIGSEGV)')
     expect(lsfHint(report)).toMatch(/Segmentation fault/)
+    expect(lsfReason(report)).toBe('segfault')
   })
 
   it('uses the last report', () => {
@@ -165,31 +167,31 @@ Exited with exit code 139.
 
 
 describe('fetchLsfReport', () => {
+  const encoder = new TextEncoder()
+  const response = (status, text, total) => ({ status, bytes: encoder.encode(text), total })
+
   it('reads the end of the file', async () => {
-    const get = vi.fn().mockResolvedValue({ status: 206, data: memlimit_report, headers: { 'content-range': 'bytes 0-10/100000' } })
-    const report = await fetchLsfReport(get, '/s/log.lsf.txt')
+    const fetch_range = vi.fn().mockResolvedValue(response(206, memlimit_report, 100000))
+    const report = await fetchLsfReport('/s/log.lsf.txt', { fetch_range })
     expect(report.exit_code).toBe(137)
-    expect(get).toHaveBeenCalledTimes(1)
-    expect(get.mock.calls[0][1].headers.Range).toBe('bytes=-65536')
+    expect(fetch_range).toHaveBeenCalledTimes(1)
+    expect(fetch_range.mock.calls[0][1]).toBe('bytes=-65536')
   })
 
   it('reads the start of large files when the report is not at the end', async () => {
-    const get = vi.fn()
-      .mockResolvedValueOnce({ status: 206, data: 'lots of output', headers: { 'content-range': 'bytes 34464-99999/100000' } })
-      .mockResolvedValueOnce({ status: 206, data: memlimit_report, headers: { 'content-range': 'bytes 0-65535/100000' } })
-    const report = await fetchLsfReport(get, '/s/log.lsf.txt')
+    const fetch_range = vi.fn()
+      .mockResolvedValueOnce(response(206, 'lots of output', 100000))
+      .mockResolvedValueOnce(response(206, memlimit_report, 100000))
+    const report = await fetchLsfReport('/s/log.lsf.txt', { fetch_range })
     expect(report.term_reason).toBe('TERM_MEMLIMIT')
-    expect(get.mock.calls[1][1].headers.Range).toBe('bytes=0-65535')
+    expect(fetch_range.mock.calls[1][1]).toBe('bytes=0-65535')
   })
 
   it('does not read twice small files, or when the server ignores ranges', async () => {
-    for (const response of [
-      { status: 206, data: 'output', headers: { 'content-range': 'bytes 0-5/6' } },
-      { status: 200, data: 'output', headers: {} },
-    ]) {
-      const get = vi.fn().mockResolvedValue(response)
-      expect(await fetchLsfReport(get, '/s/log.lsf.txt')).toBeNull()
-      expect(get).toHaveBeenCalledTimes(1)
+    for (const r of [response(206, 'output', 6), response(200, 'output', 6)]) {
+      const fetch_range = vi.fn().mockResolvedValue(r)
+      expect(await fetchLsfReport('/s/log.lsf.txt', { fetch_range })).toBeNull()
+      expect(fetch_range).toHaveBeenCalledTimes(1)
     }
   })
 })

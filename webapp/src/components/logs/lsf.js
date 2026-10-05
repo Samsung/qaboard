@@ -18,6 +18,9 @@
 // [...]
 // The output (if any) follows:
 
+import { fetchRange, decodeText } from './fetchRange'
+
+
 const SIGNALS = {
   1: 'SIGHUP', 2: 'SIGINT', 3: 'SIGQUIT', 4: 'SIGILL', 6: 'SIGABRT', 7: 'SIGBUS', 8: 'SIGFPE', 9: 'SIGKILL',
   11: 'SIGSEGV', 12: 'SIGUSR2', 13: 'SIGPIPE', 15: 'SIGTERM', 24: 'SIGXCPU', 25: 'SIGXFSZ',
@@ -45,6 +48,30 @@ const TERM_HINTS = {
   TERM_ZOMBIE: 'LSF lost track of the job, maybe the host went down.',
   TERM_EXTERNAL_SIGNAL: 'Killed by a signal from outside LSF, for instance the kernel out-of-memory killer.',
   TERM_UNKNOWN: 'LSF does not know why the job was terminated. The host may have rebooted, or the kernel out-of-memory killer killed it.',
+}
+
+// For tags
+const TERM_LABELS = {
+  TERM_MEMLIMIT: 'out of memory',
+  TERM_SWAP: 'out of swap',
+  TERM_RUNLIMIT: 'time limit',
+  TERM_CPULIMIT: 'CPU time limit',
+  TERM_PROCESSLIMIT: 'too many processes',
+  TERM_THREADLIMIT: 'too many threads',
+  TERM_OWNER: 'killed by its owner',
+  TERM_FORCE_OWNER: 'killed by its owner',
+  TERM_ADMIN: 'killed by an admin',
+  TERM_FORCE_ADMIN: 'killed by an admin',
+  TERM_PREEMPT: 'preempted',
+  TERM_REQUEUE_OWNER: 'requeued',
+  TERM_REQUEUE_ADMIN: 'requeued',
+  TERM_LOAD: 'host overloaded',
+  TERM_WINDOW: 'run window closed',
+  TERM_DEADLINE: 'deadline',
+  TERM_CWD_NOTEXIST: 'no working directory',
+  TERM_ZOMBIE: 'job lost',
+  TERM_EXTERNAL_SIGNAL: 'killed',
+  TERM_UNKNOWN: 'killed',
 }
 
 const SIGNAL_HINTS = {
@@ -174,6 +201,18 @@ export function lsfHeadline(report) {
 }
 
 
+// A few words on why the job failed, e.g. "out of memory"
+export function lsfReason(report) {
+  if (report.term_reason)
+    return TERM_LABELS[report.term_reason] ?? report.term_reason.replace('TERM_', '').toLowerCase()
+  if (report.signal)
+    return report.signal === 'SIGSEGV' ? 'segfault' : report.signal
+  if (report.exit_code !== null)
+    return `exit code ${report.exit_code}`
+  return report.signal_description ?? 'failed'
+}
+
+
 // Explains why the job failed, when we know
 export function lsfHint(report) {
   if (report.term_reason && TERM_HINTS[report.term_reason])
@@ -203,19 +242,12 @@ export function lsfNearMemoryLimit(report) {
 // Fetches log.lsf.txt and parses its report.
 // The report is at the end of the file (or at the start, before 2026-10), and the logs can be large,
 // so we read only the end, and then the start, of the file.
-export async function fetchLsfReport(get, url, chunk_size = 64 * 1024) {
-  const options = range => ({
-    headers: { Range: range },
-    responseType: 'text',
-    transformResponse: [data => data],
-  })
-  const tail = await get(url, options(`bytes=-${chunk_size}`))
-  const report = parseLsfReport(tail.data)
-  if (report || tail.status !== 206)
+// Throws if the file doesn't exist (HttpError with status 404).
+export async function fetchLsfReport(url, { chunk_size = 64 * 1024, fetch_range = fetchRange, signal } = {}) {
+  const tail = await fetch_range(url, `bytes=-${chunk_size}`, { signal })
+  const report = parseLsfReport(decodeText(tail.bytes))
+  if (report || tail.status !== 206 || !(tail.total > chunk_size))
     return report
-  const total = parseInt((tail.headers?.['content-range'] ?? '').split('/')[1], 10)
-  if (!(total > chunk_size))
-    return null
-  const head = await get(url, options(`bytes=0-${chunk_size - 1}`))
-  return parseLsfReport(head.data)
+  const head = await fetch_range(url, `bytes=0-${chunk_size - 1}`, { signal })
+  return parseLsfReport(decodeText(head.bytes))
 }

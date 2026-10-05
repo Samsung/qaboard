@@ -1,22 +1,22 @@
 import React from "react";
 import { Callout, Intent, Tag, Tooltip } from "@blueprintjs/core";
 
-import { lsfHeadline, lsfHint, lsfNearMemoryLimit } from "./lsf";
+import { lsfHeadline, lsfHint, lsfNearMemoryLimit, lsfReason } from "./lsf";
 
 
 const failed = report => !report.successful && (report.exited || report.term_reason !== null)
 
 
-// A tag summarizing why LSF ended the job, e.g. "LSF: TERM_MEMLIMIT"
+// A tag summarizing why LSF ended the job, e.g. "LSF: out of memory"
 const LsfTag = ({ report, onClick }) => {
   if (!report || !failed(report)) return null
-  const reason = report.term_reason ?? (report.signal ? report.signal : `exit code ${report.exit_code ?? '?'}`)
   return <Tooltip content={<div style={{ maxWidth: '400px' }}>
-    <p>{lsfHeadline(report)}{report.term_message ? `: ${report.term_message}` : ''}</p>
-    {lsfHint(report) && <p>{lsfHint(report)}</p>}
+    <p style={{ marginBottom: 4 }}><strong>{lsfHeadline(report)}</strong></p>
+    {report.term_reason && <p style={{ marginBottom: 4 }}>{report.term_reason}: {report.term_message}</p>}
+    {lsfHint(report) && <p style={{ marginBottom: 0 }}>{lsfHint(report)}</p>}
   </div>}>
-    <Tag intent={Intent.DANGER} interactive={!!onClick} onClick={onClick} icon="warning-sign" style={{ marginLeft: '5px' }}>
-      LSF: {reason}
+    <Tag intent={Intent.DANGER} minimal interactive={!!onClick} onClick={onClick} icon="warning-sign">
+      LSF: {lsfReason(report)}
     </Tag>
   </Tooltip>
 }

@@ -58,7 +58,10 @@ Each run has 2 log files in its output directory:
 - `log.txt`: what `qa run` and your code print from Python, written live. You get it with every runner.
 - `log.lsf.txt`: everything the LSF job printed, written live, including output that doesn't go through Python (subprocesses, native code, crashes). When the job ends, LSF appends its job report: exit code, why LSF terminated the job (e.g. `TERM_MEMLIMIT`), the host, run time, memory usage...
 
-In QA-Board, when you show a run's logs, you can switch between the two files. A summary of LSF's job report is shown above the logs, and failed runs get a tag explaining why LSF ended them (e.g. "LSF: TERM_MEMLIMIT"), with what to do about it.
+In QA-Board's *Logs* view:
+- Failed runs get a tag explaining why LSF ended them (e.g. "LSF: out of memory"). Above the logs, a summary of LSF's job report says what to do about it, and shows the host, run time, and memory used vs requested.
+- You can switch between `log.txt` and `log.lsf.txt`, search (<kbd>Ctrl/Cmd</kbd>+<kbd>F</kbd>, then <kbd>Enter</kbd>), and jump to errors.
+- While runs are running, logs update live. We only download what was added since the last update, and for large logs, only the end of the file at first.
 
 :::note
 With job arrays (see above), all runs share the same `bsub -o` file name. To get each run's job report in its own `log.lsf.txt`, *qaboard* creates symlinks to the runs' output directories in `{batch_dir}/lsf/{job_array_name}/{index}`, and uses `-o "{batch_dir}/lsf/{job_array_name}/%I/log.lsf.txt"`.

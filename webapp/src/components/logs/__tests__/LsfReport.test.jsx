@@ -40,7 +40,7 @@ describe('LsfReport', () => {
 
   it('tags failed jobs only', () => {
     render(<LsfTag report={report} />)
-    expect(screen.getByText(/LSF: TERM_MEMLIMIT/)).toBeInTheDocument()
+    expect(screen.getByText('LSF: out of memory')).toBeInTheDocument()
     const { container } = render(<LsfTag report={parseLsfReport('Successfully completed.\n')} />)
     expect(container).toBeEmptyDOMElement()
   })
