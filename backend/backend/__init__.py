@@ -91,11 +91,10 @@ Base.metadata.create_all(engine)
 
 
 def warm_cache():
-    """Warm up cache when a worker starts."""
-    print("Warming cache in worker")
-    from backend.utils import get_users_per_name
-    users = get_users_per_name("")
-    print(f"Loaded info about {len(users)} users")
+    """
+    Warm up caches when a worker starts. In the background: meanwhile the worker must answer requests,
+    e.g. the healthchecks of rolling deploys (fetching all the users from GitLab takes minutes).
+    """
     # https://chatgpt.com/share/67c6e90f-f8b8-8000-953b-b164371166c9
     # Avoids errors
     #   > sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) lost synchronization with server: got message type " "
@@ -104,6 +103,19 @@ def warm_cache():
     # https://uwsgi-docs.readthedocs.io/en/latest/articles/TheArtOfGracefulReloading.html#preforking-vs-lazy-apps-vs-lazy
     # https://stackoverflow.com/questions/41279157/connection-problems-with-sqlalchemy-and-multiple-processes
     engine.dispose()
+
+    def warm():
+        print("Warming cache in worker")
+        from backend.utils import get_users_per_name
+        try:
+            users = get_users_per_name("")  # also stored in redis, shared with the other workers
+        except Exception as e:
+            print(f"WARNING: could not warm the users cache: {e}")
+            return
+        print(f"Loaded info about {len(users)} users")
+
+    import threading
+    threading.Thread(target=warm, name="warm-cache", daemon=True).start()
 
 try:
   import uwsgi
