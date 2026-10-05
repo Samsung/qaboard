@@ -1,5 +1,4 @@
 import React from "react";
-import { useSelector } from "react-redux";
 import copy from 'copy-to-clipboard';
 
 import {

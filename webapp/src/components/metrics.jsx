@@ -401,7 +401,7 @@ class MetricsSummary extends Component {
 
 
 
-  renderMetric = (metric, { handleClick, modifiers, query }) => {
+  renderMetric = (metric, { handleClick, modifiers }) => {
     if (!modifiers.matchesPredicate) {
       return null;
     }

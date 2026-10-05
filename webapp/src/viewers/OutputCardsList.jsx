@@ -1,11 +1,6 @@
 import React from "react";
 import qs from "qs";
 
-import {
-  FormGroup,
-  InputGroup,
-} from "@blueprintjs/core";
-
 import { BitAccuracyForm } from "./bit_accuracy/utils";
 import { OutputCard } from "./OutputCard";
 
@@ -49,7 +44,7 @@ class OutputCardsList extends React.Component {
     }
     const outputs = (new_batch?.filtered?.outputs || [])
                     .map( id => [id, new_batch.outputs[id]])
-                    .filter( ([id, output]) => output.output_type !== "optim_iteration")
+                    .filter( ([, output]) => output.output_type !== "optim_iteration")
 
     return (
       <>

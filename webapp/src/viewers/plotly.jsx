@@ -70,7 +70,7 @@ class PlotlyViewer extends PureComponent {
   }
 
   getData(props, label) {
-    const { output_new, output_ref, path, path_groundtruth, side_by_side } = props;
+    const { output_new, output_ref, path, path_groundtruth } = props;
     const { cancel_source } = this.state;
     if (!output_new.output_dir_url || !path || path.endsWith('.html')) return;
 
@@ -87,7 +87,7 @@ class PlotlyViewer extends PureComponent {
     }
 
     const load_data = label => response => {
-      this.setState((previous_state, props) => ({
+      this.setState(previous_state => ({
         data: {
           ...previous_state.data,
           [label]: response.data.data ?? [],
@@ -118,7 +118,7 @@ class PlotlyViewer extends PureComponent {
       this.state.cancel_source.cancel();
   }
 
-  componentDidUpdate(prevProps, prevState) {
+  componentDidUpdate(prevProps) {
       const has_path = this.props.path !== undefined && this.props.path !== null;
       let updated_path = has_path && (prevProps.path === null || prevProps.path === undefined || prevProps.path !== this.props.path);
 

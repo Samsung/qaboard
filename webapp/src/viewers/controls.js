@@ -14,7 +14,7 @@ const controls_defaults = qatools_config => {
     })
     const outputs = qatools_config.outputs;
     let visualizations = outputs.visualizations || outputs.detailed_views || []
-    visualizations.forEach( (view, idx) => {
+    visualizations.forEach( view => {
       if (view.default_hidden)
         state_controls.show[view.name] = false;
     })

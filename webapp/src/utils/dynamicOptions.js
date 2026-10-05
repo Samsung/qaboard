@@ -17,7 +17,7 @@ function compilePath(path) {
 }
 
 // Extract meaningful context from path for unnamed groups
-function extractPathContext(path, token) {
+function extractPathContext(path) {
   if (!path) return null;
   
   // For paths like ":frame/output.jpg" or "(.*)/debug.jpg"
@@ -29,8 +29,9 @@ function extractPathContext(path, token) {
   if (path.includes(':number')) return 'number';
   
   // For regex patterns like "(.*\.jpg)" or "(debug_.*)"
-  if (path.includes('.*\.jpg')) return 'jpg_files';
-  if (path.includes('.*\.png')) return 'png_files';
+  // match the escaped dot (.*\.jpg) and the plain one (.*.jpg)
+  if (path.includes('.*\\.jpg') || path.includes('.*.jpg')) return 'jpg_files';
+  if (path.includes('.*\\.png') || path.includes('.*.png')) return 'png_files';
   if (path.includes('debug_.*')) return 'debug_files';
   if (path.includes('.*')) return 'files';
   
@@ -52,7 +53,7 @@ function extractPathContext(path, token) {
 }
 
 // Extract option parsing logic from OutputCard.js
-export const parseVisualizationOptions = (views, manifests = {}) => {
+export const parseVisualizationOptions = views => {
   const options = {};
   const parseErrors = [];
   
@@ -75,7 +76,7 @@ export const parseVisualizationOptions = (views, manifests = {}) => {
         token.unnamed_group = token.name;
         
         // Extract the part of the path this group corresponds to
-        const pathPart = extractPathContext(view.path, token);
+        const pathPart = extractPathContext(view.path);
         const viewIdentifier = view.name || pathPart || `view_${idx}`;
         const cleanPath = viewIdentifier.replace(/[^a-zA-Z0-9]/g, '_');
         
@@ -188,7 +189,7 @@ export const generateViewPaths = (view, selectedOptions, manifests) => {
         try {
           const match = matchPath(path, { path: view.path });
           return match !== null && match !== undefined;
-        } catch (error) {
+        } catch {
           return false;
         }
       });

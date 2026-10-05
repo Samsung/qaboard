@@ -72,7 +72,7 @@ class Dashboard extends React.Component {
   }
 
 
-  renderMetric = (metric, { handleClick, modifiers, query }) => {
+  renderMetric = (metric, { handleClick, modifiers }) => {
     if (!modifiers.matchesPredicate) {
       return null;
     }
@@ -118,7 +118,7 @@ class Dashboard extends React.Component {
     }
   };
 
-  update = (attribute, attribute_url) => e => {
+  update = attribute => e => {
   	const value = (e.target && e.target.value !==undefined) ? e.target.value : e;
     this.props.dispatch(updateSelected(this.props.project, { [attribute]: value }))
   } 
@@ -149,8 +149,8 @@ class Dashboard extends React.Component {
     let metricTableSelect = (
       <MultiSelect
         items={Object.entries(available_metrics)
-          .filter(([key, _]) => new_batch.used_metrics.has(key))
-          .map(([k, m]) => m)}
+          .filter(([key]) => new_batch.used_metrics.has(key))
+          .map(([, m]) => m)}
         itemPredicate={this.filterMetric}
         itemRenderer={this.renderMetric}
         onItemSelect={this.handleMetricSelect}
@@ -230,7 +230,7 @@ class Dashboard extends React.Component {
             <Tabs
               renderActiveTabPanelOnly
               id="tabs-outputs"
-              onChange={(newTabId, prevTabId, event) => {
+              onChange={newTabId => {
                 this.setState({ selectedTabId: newTabId });
               }}
               selectedTabId={this.state.selectedTabId}

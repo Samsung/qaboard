@@ -77,8 +77,8 @@ class CommitResults extends React.Component {
     git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
     const gitlab_commit_url = `${git.web_url}/commit/${commit.id}`;
     let batches_with_results = Object.entries(commit.batches)
-                               .filter( ([label, batch]) => has_outputs_in_batch(label)(commit) )
-                               .map( ([label, batch]) => label )
+                               .filter( ([label]) => has_outputs_in_batch(label)(commit) )
+                               .map( ([label]) => label )
     let valid_outputs_not_in_default_batch = (!has_outputs_in_batch(default_batch)(commit) && batches_with_results.length>0)
     let ci_batch_label = valid_outputs_not_in_default_batch ? batches_with_results[0] : default_batch
     let ci_batch =  commit.batches[ci_batch_label];
@@ -332,7 +332,7 @@ class CommitRow extends React.Component {
                     this.setState({waiting: true})
                     toaster.show({message: "Delete requested."});
                     axios.delete(`/api/v1/commit/${project}/${commit.id}/batches/`)
-                      .then(response => {
+                      .then(() => {
                         this.setState({waiting: false})
                         toaster.show({message: `Deleted ${commit.id}.`, intent: Intent.SUCCESS});
                         this.refresh()
@@ -355,7 +355,7 @@ class CommitRow extends React.Component {
                     this.setState({waiting: true})
                     toaster.show({message: "Delete requested."});
                     axios.delete(`/api/v1/commit/${commit.id}/batches/`)
-                      .then(response => {
+                      .then(() => {
                         this.setState({waiting: false})
                         toaster.show({message: `Deleted ${commit.id}.`, intent: Intent.SUCCESS});
                         this.refresh()
@@ -396,7 +396,7 @@ class CommitRow extends React.Component {
   }
 }
 
-const mapStateToProps = (state, ownProps) => {
+const mapStateToProps = () => {
   return {}
 }
 

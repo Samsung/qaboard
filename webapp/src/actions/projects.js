@@ -120,7 +120,7 @@ export const updateFavorite = (project, is_favorite) => ({
   is_favorite,
 })
 
-export const updateMilestones = (project, milestones, storage /*"local" | "shared"*/) => ({
+export const updateMilestones = (project, milestones) => ({
   type: UPDATE_MILESTONES,
   project,
   milestones,

@@ -68,7 +68,7 @@ class CommitParameters extends React.Component {
       if (response.data !== undefined) {
         Object.values(response.data).forEach(f => {storage += f.st_size ?? 0})
       }
-      this.setState((previous_state, props) => ({
+      this.setState(previous_state => ({
         manifests: {
           ...previous_state.manifests,
           [label]: response.data,
@@ -107,7 +107,7 @@ class CommitParameters extends React.Component {
   }
 
 
-  componentDidUpdate(prevProps, prevState) {
+  componentDidUpdate(prevProps) {
       const has_new = this.props.new_commit !== undefined && this.props.new_commit !== null;
       const has_ref = this.props.ref_commit !== undefined && this.props.ref_commit !== null;
       let updated_new = has_new && (prevProps.new_commit === null || prevProps.new_commit === undefined || prevProps.new_commit.id !== this.props.new_commit.id || prevProps.new_commit.artifacts_url !== this.props.new_commit.artifacts_url);
@@ -142,7 +142,7 @@ class CommitParameters extends React.Component {
         You can explore all your artifacts:  {artifacts.map((artifact, idx) => 
             <Button
                 key={idx}
-                onClick={e => this.setState({artifact}, () => {this.update('artifact', 'params_artifact')(artifact); this.fetchData(this.props)})}
+                onClick={() => this.setState({artifact}, () => {this.update('artifact', 'params_artifact')(artifact); this.fetchData(this.props)})}
                 intent={this.state.artifact===artifact ? Intent.PRIMARY : null}
                 style={{margin: '5px'}}
             >

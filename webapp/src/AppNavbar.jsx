@@ -38,7 +38,7 @@ import { sider_width } from './AppSider'
 
 
 
-const renderBranch = (item, { handleClick, modifiers, query }) => {
+const renderBranch = (item, { handleClick, modifiers }) => {
   return (
     <MenuItem
       className={!modifiers.active ? Classes.ACTIVE : Classes.INTENT_PRIMARY}
@@ -95,7 +95,7 @@ const StyledNavbarRef = styled(Navbar)`
 
 class AppNavbar extends Component {
 
-  update = (attribute, attribute_url) => e => {
+  update = attribute => e => {
     const value = (e.target && e.target.value !==undefined) ? e.target.value : e;
     this.props.dispatch(updateSelected(this.props.project, { [attribute]: value }))
   }
@@ -198,9 +198,6 @@ class AppNavbar extends Component {
     //   var tag = match.params.name || match.params.committer;
     // else tag = reference_branch;
 
-    let some_commits_loaded = !!commits && commits.length > 0;
-    const first_commit_date = (some_commits_loaded && commits[commits.length - 1].authored_datetime) || date_range[0]
-    const last_commit_date = (some_commits_loaded && commits[0].authored_datetime)  || date_range[1]
     // const effective_date_range = [
     //   (!!first_commit_date ? new Date(first_commit_date) : null),
     //   (!!last_commit_date ? new Date(last_commit_date) : null)

@@ -149,7 +149,7 @@ class IntegrationsMenus extends React.Component {
         const render_integration = (integration, idx) => {
           try {
             integration = eval_templates_recusively(integration)
-          } catch(e) {
+          } catch {
             // console.log('error with integration', integration, e)
             return <span key={idx}/>;
           }
@@ -241,7 +241,7 @@ class IntegrationsMenus extends React.Component {
               usePortal: true,
               hoverCloseDelay: 2000,
               transitionDuration: 1000,
-              onOpening: () => {startUpdateIntegrationStatuses && startUpdateIntegrationStatuses(5000)},
+              onOpening: () => {startUpdateIntegrationStatuses?.(5000)},
               onClosed: stopUpdateIntegrationStatuses,
               // Prevent closing when interacting with search input
               interactionKind: "hover",

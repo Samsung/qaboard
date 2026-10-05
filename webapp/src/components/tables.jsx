@@ -109,8 +109,8 @@ const TableCompare = ({
   const [label_new, label_ref] = labels || ["new", "ref"];
 
   const outputs = new_batch.filtered.outputs.map(id => [id, new_batch.outputs[id]])
-    .filter(([id, o]) => !o.is_pending)
-    .filter(([id, o]) => o.output_type!=="optim_iteration");
+    .filter(([, o]) => !o.is_pending)
+    .filter(([, o]) => o.output_type!=="optim_iteration");
   const metrics_ = (metrics.length > 0 ? metrics : Object.keys(available_metrics))
                           .filter(m => !!available_metrics[m])
                           .map(m => available_metrics[m])
@@ -177,8 +177,8 @@ const TableKpi = ({
   if (new_batch?.outputs === undefined || new_batch?.outputs === null) return <span />;
   const [label_new, label_ref] = labels || ["New", "Ref"];
   const outputs = new_batch.filtered.outputs.map(id => [id, new_batch.outputs[id]])
-    .filter(([id, o]) => !o.is_pending)
-    .filter(([id, o]) => o.output_type!=="optim_iteration");
+    .filter(([, o]) => !o.is_pending)
+    .filter(([, o]) => o.output_type!=="optim_iteration");
     const metrics_ = (metrics.length > 0 ? metrics : Object.keys(available_metrics))
                             .filter(m => !!available_metrics[m])
                             .map(m => available_metrics[m]).filter(m => new_batch.used_metrics.has(m.key))

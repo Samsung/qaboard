@@ -22,7 +22,6 @@ import pixelmatch from './pixelmatch';
 import { Tooltips } from './tooltip';
 import "./image-canvas.css";
 import { histogram_traces } from './histogram';
-import { CropSelection } from "./crops";
 import { iiif_url, build_image_name } from "./utils";
 
 import { RoiViewer } from './roi_viewer'
@@ -374,11 +373,11 @@ class ImgViewer extends React.PureComponent {
             })
           }
         })
-        viewer.addHandler('canvas-enter', (event) => {
+        viewer.addHandler('canvas-enter', () => {
           viewer.mouse_tracker.setTracking(true);
           // console.log("istracking", viewer.mouse_tracker.isTracking())
         });
-        viewer.addHandler('canvas-exit', (event) => {
+        viewer.addHandler('canvas-exit', () => {
           // console.log("canvas-exit")
           // TODO: Ideally we'd stop tracking but for some reason tracking won't ever restart (!?)
           // viewer.mouse_tracker.setTracking(false);
@@ -560,7 +559,7 @@ class ImgViewer extends React.PureComponent {
     })
   }
 
-  componentDidUpdate(prevProps, prevState) {
+  componentDidUpdate(prevProps) {
     const has_new = this.props.output_new !== undefined && this.props.output_new !== null;
     const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
     let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new.id !== this.props.output_new.id);
@@ -577,7 +576,7 @@ class ImgViewer extends React.PureComponent {
       this.Init().then(() => {
         this.InitDiff();
         this.InitZoomSync();
-      }).catch(error => { });
+      }).catch(() => { });
     }
 
     let updated_diff = prevProps.diff !== this.props.diff;
@@ -732,7 +731,7 @@ class ImgViewer extends React.PureComponent {
   }
 
 
-  InitSelectionTool(props) {
+  InitSelectionTool() {
     const { viewer_new } = this;
     const selection_options = {
       onSelection: rect => { console.log(rect) },
@@ -845,9 +844,6 @@ class ImgViewer extends React.PureComponent {
     const switch_label = <Tag interactive rightIcon="exchange" onClick={this.switch_images}>Switch</Tag>;
     const switch_help_label = <span>Switch New/Reference with the keyboard shortcut <kbd>t</kbd>. Hide labels with <kbd>h</kbd></span>
 
-    const are_different_sizes = has_reference && (image_width !== image_width_ref || image_height !== image_height_ref)    
-    image_height_ref
-    image_width_ref
 
     const image_new = <div style={flex} key="new">
       {has_reference && <div style={{ minHeight: (diff ? '40px' : undefined) }}>
@@ -1065,7 +1061,7 @@ class ImgViewer extends React.PureComponent {
     </div>
   }
 
-  switch_images = e => {
+  switch_images = () => {
     let first_image = this.state.first_image === 'reference' ? 'new' : 'reference';
 
     // For some reason the scroll jumps arounds when react re-renders

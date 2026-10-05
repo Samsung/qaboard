@@ -41,7 +41,7 @@ export const fetchCommit = ({project, id, branch, update_with_id, batch}) => {
         // we want to keep updated
         const batches = response.data.batches || {}
         if (Object.values(batches).some(b => b.pending_outputs > 0))
-          setTimeout(x => dispatch(fetchCommit({project, id: id_, branch, batch})), refresh_interval);
+          setTimeout(() => dispatch(fetchCommit({project, id: id_, branch, batch})), refresh_interval);
       })
       .catch(error => {
         if (error.response) {

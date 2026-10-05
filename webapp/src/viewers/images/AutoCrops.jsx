@@ -20,6 +20,10 @@ import { rgb } from 'd3-color'
 import { toaster } from "../../toaster"
 
 
+// The threshold/diameter/count inputs and the report export are currently hidden
+const show_advanced_controls = false
+const show_report_controls = false
+
 let default_diff_type = "yiq"
 const diff_type_options = [
   {type: "yiq", label: "YIQ"},
@@ -46,7 +50,6 @@ class AutoCrops extends React.Component {
 
 
   render() {
-    const { error } = this.state
     return <>
       <ControlGroup style={{marginTop: "10px", marginBottom: "10px"}}>
         <Button
@@ -66,7 +69,7 @@ class AutoCrops extends React.Component {
           {diff_type_options.map(type => <option key={type.type} value={type.type} >{type.label ?? type.type}</option>)}
         </HTMLSelect>
         {this.state.error && <Tag intent={Intent.DANGER}>Error: {JSON.stringify(this.state.error)}</Tag>}
-        {false && <><Tooltip content={<ul>
+        {show_advanced_controls && <><Tooltip content={<ul>
             <li>Threshold [%]</li>
             <li>hold 'alt' for minor step</li>
             <li>hold 'shift' for major step</li>
@@ -120,9 +123,9 @@ class AutoCrops extends React.Component {
             disabled={this.state.is_loading}
           />
         </Tooltip></>}
-        <Tooltip content="Export the results to a document" position={Position.TOP}>
+        {show_report_controls && <Tooltip content="Export the results to a document" position={Position.TOP}>
           <>
-          {false && !this.props.rois.length &&
+          {!this.props.rois.length &&
             <Checkbox
               label={<b>Export report</b>}
               checked={this.state.send_report}
@@ -130,7 +133,7 @@ class AutoCrops extends React.Component {
               style={{ marginLeft: "10px" }}
             />
           }
-          {false && !!this.props.rois.length &&
+          {!!this.props.rois.length &&
             <Button
               onClick={this.generateReport}
               large={false}
@@ -141,7 +144,7 @@ class AutoCrops extends React.Component {
             />
           }
           </>
-        </Tooltip>
+        </Tooltip>}
       </ControlGroup>
     </>
   }

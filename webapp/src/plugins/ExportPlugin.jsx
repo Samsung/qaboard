@@ -187,8 +187,8 @@ class ExportPlugin extends React.Component {
           >
           {nb_files_exported} files exported from {nb_outputs_exported} runs{nb_files_exported === 0 && <span>: check files match the pattern <code>{path}</code></span>}.</Tag>}
         {errors.length > 0 && <Callout icon="issue" intent="danger" title="Errors when exporting">
-          <ul>{errors.map(e=> {
-            return <li><code>{e}</code></li>
+          <ul>{errors.map((e, idx) => {
+            return <li key={idx}><code>{e}</code></li>
           })}</ul>
           </Callout>}
       </FormGroup>

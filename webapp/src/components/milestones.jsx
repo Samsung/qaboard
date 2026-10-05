@@ -302,7 +302,7 @@ class CommitMilestoneEditor extends React.Component {
       "delete": should_delete ? 'true' : 'false',
     };
     post("/api/v1/project/milestones/", data)
-      .then(res => {
+      .then(() => {
         toaster.show({
           message: !!should_delete ? 'Deleted' : 'Saved.',
           intent: Intent.SUCCESS,

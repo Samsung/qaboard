@@ -63,7 +63,7 @@ export const updateSelected = (project, selected, url_search) => {
         search: qs.stringify({
           ...search,
           ...selected_in_url,
-          ...(url_search || {})
+          ...url_search
         })
       })
     }

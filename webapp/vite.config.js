@@ -50,7 +50,9 @@ export default defineConfig(({ mode }) => ({
     outputFile: { junit: 'junit.xml' },
     coverage: {
       provider: 'v8',
-      include: ['src/**'],
+      // not the markdown, css, json... files in src/: they can't be parsed as code
+      include: ['src/**/*.{js,jsx,ts,tsx}'],
+      exclude: ['src/**/__tests__/**', 'src/**/*.test.{js,jsx}'],
       reporter: ['text-summary', 'cobertura'],
     },
   },

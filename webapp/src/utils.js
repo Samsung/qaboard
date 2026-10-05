@@ -135,7 +135,7 @@ const safe_regex = s => {
   // creating regexes with user input can lead to invalid regexes...
   try {
     return new RegExp(s);
-  } catch(e) {
+  } catch {
     const s_safe = s.replace(/[\W]/g, ".")
     return new RegExp(s_safe)
   }
@@ -237,7 +237,7 @@ const plotly_palette = idx => plotly_palette_colors[idx % plotly_palette_colors.
 const hash_numeric = str => {
   const md5_array = md5.array(str);
   const md5_value = md5_array.reduce(
-    (accumulator, current, current_idx, array) =>
+    (accumulator, current, current_idx) =>
       accumulator + (current >> 7) / Math.pow(2, current_idx + 1),
     0
   );

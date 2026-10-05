@@ -368,7 +368,7 @@ class TofOutputCard extends Component {
         }
         this.scene.add(pointcloud);
       }
-      this.setState((previousState, props) => ({
+      this.setState(previousState => ({
         pointclouds: {
           ...previousState.pointclouds,
           [frame_id]: {
@@ -561,7 +561,7 @@ class TofOutputCard extends Component {
         traceorder: "grouped",
         tracegroupgap: 0
       },
-      ...(this.props.layout || {})
+      ...this.props.layout
     };
     let heatmaps_layout = {
       title: `${selected_output_type} @${this.state.focus}`,
@@ -647,20 +647,20 @@ class TofOutputCard extends Component {
         </div>
         <div className="viewButtons">
           <div>
-            <Button onClick={e => this.setState({show_heatmap: !this.state.show_heatmap})}>{this.state.show_heatmap ? (heatmap.is_loaded ? "Show static image" : "loading...") : "Show heatmap"}</Button>&nbsp; &nbsp;
+            <Button onClick={() => this.setState({show_heatmap: !this.state.show_heatmap})}>{this.state.show_heatmap ? (heatmap.is_loaded ? "Show static image" : "loading...") : "Show heatmap"}</Button>&nbsp; &nbsp;
             <input type="text" id="customFileInput" value={`${custom_output_filename}`} onChange={e=> {this.setState({custom_output_filename: e.target.value})}}></input>
           </div>
           <div>
-            <Button onClick={e => {this.setState({selected_output_type: "depth"})}}>Show depth</Button>
-			<Button onClick={e => {this.setState({selected_output_type: "z"})}}>Show z</Button>
-            <Button onClick={e => {this.setState({selected_output_type: "intensity"})}}>Show intensity</Button>
-			<Button onClick={e => {this.setState({selected_output_type: "amplitude"})}}>Show amplitude</Button>
-            <Button onClick={e => {this.setState({selected_output_type: "pcmdHeatmap"})}}>Show PCMD</Button>
-            <Button onClick={e => {this.setState({selected_output_type: "AbsErrHeatmap"})}}>Show Abs Error</Button>
-            <Button onClick={e => {this.setState({selected_output_type: "customMap"})}}>Show Custom</Button>
+            <Button onClick={() => {this.setState({selected_output_type: "depth"})}}>Show depth</Button>
+			<Button onClick={() => {this.setState({selected_output_type: "z"})}}>Show z</Button>
+            <Button onClick={() => {this.setState({selected_output_type: "intensity"})}}>Show intensity</Button>
+			<Button onClick={() => {this.setState({selected_output_type: "amplitude"})}}>Show amplitude</Button>
+            <Button onClick={() => {this.setState({selected_output_type: "pcmdHeatmap"})}}>Show PCMD</Button>
+            <Button onClick={() => {this.setState({selected_output_type: "AbsErrHeatmap"})}}>Show Abs Error</Button>
+            <Button onClick={() => {this.setState({selected_output_type: "customMap"})}}>Show Custom</Button>
           </div>
           <div>
-            <Button onClick={e => {
+            <Button onClick={() => {
               if (!show_pointcloud)
                 this.updatePointCloud(selected_frame)
               else
@@ -750,7 +750,7 @@ class TofOutputCard extends Component {
 
   // Toggles the component's focus in order to receive keyboard events.
   // When the component is focused, WASD keys control the viewpoint, otherwise we use the standard "orbit" controls.
-  click = ev => {
+  click = () => {
     if (!!!this.renderer || !!!this.renderer.domElement)
       return
     this.renderer.domElement.focus();

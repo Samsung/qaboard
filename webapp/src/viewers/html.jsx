@@ -23,7 +23,7 @@ class HtmlViewer extends PureComponent {
       this.state.cancel_source.cancel();
   }
 
-  componentDidUpdate(prevProps, prevState) {
+  componentDidUpdate(prevProps) {
     const has_path = this.props.path !== undefined && this.props.path !== null;
     let updated_path = has_path && (prevProps.path === null || prevProps.path === undefined || prevProps.path !== this.props.path);
 
@@ -55,7 +55,7 @@ class HtmlViewer extends PureComponent {
       results.push(['reference', `${output_ref.output_dir_url}/${path}`])
 
     const load_data = label => response => {
-      this.setState((previous_state, props) => ({
+      this.setState(previous_state => ({
         data: {
           ...previous_state.data,
           [label]: response.data,
