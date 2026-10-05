@@ -22,6 +22,14 @@ from backend.shell_utils import shell_safe, safe_user_name
 
 
 
+def with_log_dir_url(submission):
+  """Where the webapp can read the logs of a batch started from QA-Board"""
+  try:
+    return {**submission, 'log_dir_url': dir_to_url(Path(submission['log_dir']))}
+  except Exception:
+    return submission
+
+
 class Batch(Base):
   __tablename__ = 'batches'
   id = Column(Integer, primary_key=True)
@@ -80,12 +88,15 @@ class Batch(Base):
         .filter(Output.batch_id == self.id)
         .one()
     )
+    data = self.data if self.data else {} # None check for old batches (todo: migrate them properly)
+    if data.get('submissions'):
+      data = {**data, 'submissions': {id: with_log_dir_url(s) for id, s in data['submissions'].items()}}
     return {
         'id': self.id,
         'commit_id': self.ci_commit.hexsha,
         'label': self.label,
         'created_date': self.created_date.isoformat(),
-        'data': self.data if self.data else {}, # None check for old batches (todo: migrate them properly)
+        'data': data,
         'batch_dir_url': dir_to_url(self.batch_dir),
         'aggregated_metrics': {}, # aggregated_metrics(self.outputs, metrics_to_aggregate),
         'valid_outputs': result.valid_outputs or 0,

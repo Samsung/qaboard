@@ -16,6 +16,7 @@ from typing import Dict, Any
 import yaml
 from flask import request, jsonify, g
 from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm.attributes import flag_modified
 
 from qaboard.utils import merge
 from qaboard.iterators import iter_inputs, resolve_aliases
@@ -254,6 +255,8 @@ def _generate_batch_script(ci_commit, user, working_directory, command_id, batch
     outputs_dir_prefix = str(ci_commit.outputs_dir).replace(f'/outputs/{default_user}/', f'/outputs/{user}/')
     script = "".join([
         "#!/bin/bash\n",
+        # Helps users understand why they see no runs
+        'trap \'echo "[qaboard] qa batch exited with code $?"\' EXIT\n',
         'export LC_ALL=en_US.utf8;\n',
         'export LANG=en_US.utf8;\n\n',
         'export MPLBACKEND=agg;\n',
@@ -271,21 +274,21 @@ def _generate_batch_script(ci_commit, user, working_directory, command_id, batch
     return script
 
 
-def _run_script(qa_batch_path, batch_dir):
-    """Run a bash script, appending its output to batch_dir/log.txt"""
+def _run_script(qa_batch_path, log_dir):
+    """Run a bash script, appending its output to log_dir/log.txt"""
     cmd = ['bash', str(qa_batch_path)]
     print(cmd)
-    with (Path(batch_dir) / 'log.txt').open('a') as log:
+    with (Path(log_dir) / 'log.txt').open('a') as log:
         out = subprocess.run(cmd, stdout=log, stderr=subprocess.STDOUT)
     out.check_returncode()
 
 
-def _dispatch_local(qa_batch_path, batch_dir):
+def _dispatch_local(qa_batch_path, log_dir):
     """Run batch script locally via subprocess."""
-    _run_script(qa_batch_path, batch_dir)
+    _run_script(qa_batch_path, log_dir)
 
 
-def _dispatch_celery(qa_batch_path, batch_dir):
+def _dispatch_celery(qa_batch_path, log_dir):
     """Run batch script via celery worker. Injects broker URL into script."""
     broker_url = os.environ.get('CELERY_BROKER_URL', 'pyamqp://guest:guest@qaboard:5672//')
     qaboard_host = os.environ.get('QABOARD_HOST', 'localhost')
@@ -302,11 +305,20 @@ def _dispatch_celery(qa_batch_path, batch_dir):
     content = content.replace("#!/bin/bash\n", f"#!/bin/bash\n{celery_env}", 1)
     with qa_batch_path.open("w") as f:
         f.write(content)
-    _run_script(qa_batch_path, batch_dir)
+    _run_script(qa_batch_path, log_dir)
 
 
-def _dispatch_lsf(qa_batch_path, batch_dir, user, ci_commit, do_optimize):
-    """Run batch script via LSF job submission (SSH + bsub)."""
+def parse_bsub_job_id(output: str):
+    """Returns the job ID from bsub's output: "Job <1234> is submitted to queue <normal>." """
+    match = re.search(r'Job <(\d+)> is submitted', output or '')
+    return match.group(1) if match else None
+
+
+def _dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize):
+    """
+    Run batch script via LSF job submission (SSH + bsub).
+    Returns {"lsf_job_id", "queue"}. The job writes its output in log_dir/log.txt, and LSF its report in log_dir/log.lsf.txt.
+    """
     # TODO: We use a bridge server to submit - ideally we should use
     #       some LSF API to do it, but their docs/auth are terrible. 
     qatools_config = ci_commit.project.data.get("qatools_config", {})
@@ -315,17 +327,17 @@ def _dispatch_lsf(qa_batch_path, batch_dir, user, ci_commit, do_optimize):
     queue = lsf_config.get('long_queue', 'default') if do_optimize else default_queue
 
     # The command given to bsub is parsed again by a shell on the execution host, so it's quoted twice
-    job_command = f'bash {quote(str(qa_batch_path))} &>> {quote(f"{batch_dir}/log.txt")}'
+    job_command = f'bash {quote(str(qa_batch_path))} &>> {quote(f"{log_dir}/log.txt")}'
     start_script = "\n".join([
         "#!/bin/bash",
         "set -xe",
         "",
-        f'mkdir -p {quote(str(batch_dir))}',
-        f'bsub -q {quote(str(queue))} -o {quote(f"{batch_dir}/log.lsf.txt")} -sp 4000 {quote(job_command)}',
+        f'mkdir -p {quote(str(log_dir))}',
+        f'bsub -q {quote(str(queue))} -o {quote(f"{log_dir}/log.lsf.txt")} -sp 4000 {quote(job_command)}',
     ])
     print(start_script)
 
-    start_path = batch_dir / "start.sh"
+    start_path = log_dir / "start.sh"
     with start_path.open("w") as f:
         f.write(start_script)
 
@@ -333,7 +345,30 @@ def _dispatch_lsf(qa_batch_path, batch_dir, user, ci_commit, do_optimize):
     cmd = lsf_bridge_command(user, start_path)
     print(cmd)
     out = subprocess.run(cmd, shell=True, encoding="utf-8", stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    print(out.stdout)
+    if out.returncode != 0:
+        # Users see this log in QA-Board
+        with (log_dir / 'log.txt').open('a') as log:
+            log.write(f"ERROR: Could not submit the job to LSF (exit code {out.returncode}):\n{out.stdout}\n")
     out.check_returncode()
+    return {"lsf_job_id": parse_bsub_job_id(out.stdout), "queue": queue}
+
+
+# We keep the history of the last batches started from QA-Board
+MAX_SUBMISSIONS = 20
+
+def record_submission(batch, submission):
+    """
+    Remember in batch.data.submissions how users started the batch from QA-Board.
+    QA-Board uses it to show the status of `qa batch`, and its logs.
+    """
+    data = batch.data or {}
+    submissions = {**data.get('submissions', {}), submission['id']: submission}
+    if len(submissions) > MAX_SUBMISSIONS:
+        recent = sorted(submissions.values(), key=lambda s: s.get('created_at', ''))[-MAX_SUBMISSIONS:]
+        submissions = {s['id']: s for s in recent}
+    batch.data = {**data, 'submissions': submissions}
+    flag_modified(batch, "data")
 
 
 @app.route("/api/v1/commit/<hexsha>/batch", methods=["POST"], strict_slashes=False)
@@ -429,7 +464,13 @@ def start_tuning(hexsha):
     os.umask(prev_mask)
 
     command_id = str(uuid.uuid4())
-    merged_batches_path = f'{batch_dir}/batches-{command_id[:8]}.yaml'
+    # Each batch started from QA-Board has its own scripts and logs
+    created_at = datetime.datetime.utcnow()
+    log_dir = batch_dir / 'qaboard-batches' / f"{created_at.strftime('%Y%m%d-%H%M%S')}-{command_id[:8]}"
+    prev_mask = os.umask(000)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    os.umask(prev_mask)
+    merged_batches_path = f'{log_dir}/batches.yaml'
     with Path(merged_batches_path).open('w') as f:
         f.write(yaml.dump(merged_batches))
 
@@ -465,19 +506,48 @@ def start_tuning(hexsha):
 
     qa_batch_script = _generate_batch_script(ci_commit, user, working_directory, command_id, batch_command, data)
     print(qa_batch_script)
-    qa_batch_path = batch_dir / "qa_batch.sh"
+    qa_batch_path = log_dir / "qa_batch.sh"
     with qa_batch_path.open("w") as f:
         f.write(qa_batch_script)
 
     runner = os.environ.get('QABOARD_TUNING_RUNNER', 'local')
+    submission = {
+        "id": command_id,
+        "created_at": created_at.isoformat() + 'Z',
+        "user": user,
+        "runner": runner,
+        "command": batch_command,
+        "log_dir": str(log_dir),
+        # local/celery: we wait for `qa batch` (it uses --no-wait), LSF: `qa batch` is an LSF job
+        "status": "submitting",
+    }
+    record_submission(batch, submission)
+    db_session.add(batch)
+    db_session.commit()
+
     try:
         if runner == 'lsf':
-            _dispatch_lsf(qa_batch_path, batch_dir, user, ci_commit, do_optimize)
+            submission.update(_dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize))
+            submission["status"] = "submitted"
         elif runner == 'celery':
-            _dispatch_celery(qa_batch_path, batch_dir)
+            _dispatch_celery(qa_batch_path, log_dir)
+            submission.update({"status": "done", "exit_code": 0})
         else:
-            _dispatch_local(qa_batch_path, batch_dir)
-    except Exception:
-        error_log = (batch_dir / 'log.txt').read_text() if (batch_dir / 'log.txt').exists() else "Failed to start batch"
-        return jsonify({"error": error_log, "cmd": runner}), 500
-    return jsonify({"cmd": runner, "stdout": "OK"})
+            _dispatch_local(qa_batch_path, log_dir)
+            submission.update({"status": "done", "exit_code": 0})
+    except Exception as e:
+        submission["status"] = "failed"
+        if isinstance(e, subprocess.CalledProcessError):
+            submission["exit_code"] = e.returncode
+        else:
+            submission["error"] = str(e)
+    # `qa batch` may have updated the batch meanwhile
+    db_session.refresh(batch)
+    record_submission(batch, submission)
+    db_session.add(batch)
+    db_session.commit()
+
+    if submission["status"] == "failed":
+        error_log = (log_dir / 'log.txt').read_text() if (log_dir / 'log.txt').exists() else submission.get("error", "Failed to start batch")
+        return jsonify({"error": error_log, "cmd": runner, "submission": submission}), 500
+    return jsonify({"cmd": runner, "stdout": "OK", "submission": submission})

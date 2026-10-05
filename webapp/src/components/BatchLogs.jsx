@@ -1,277 +1,218 @@
-import React from "react";
-import { InView } from 'react-intersection-observer'
-import axios from "axios";
-const { get } = axios;
-
+import React, { useCallback, useMemo, useState } from "react";
+import styled from "styled-components";
 import { DateTime } from 'luxon';
-import sanitizeHtml from 'sanitize-html';
-
 import {
-  Classes,
-  Collapse,
-  Callout,
+  AnchorButton,
   Button,
+  Classes,
+  Colors,
+  Icon,
+  Intent,
   NonIdealState,
-  Tag,
+  SegmentedControl,
+  Tooltip,
 } from "@blueprintjs/core";
 
-import { StatusTag, style_skeleton } from './tags'
-import { OutputHeader } from '../viewers/OutputCard'
 import { pretty_label } from '../utils'
+import { toaster } from "../toaster";
+import { RunList, RunLogs } from './logs/RunLogs'
+import { BatchSubmissions } from './logs/BatchSubmissions'
+import { batchSubmissions } from './logs/submissions'
 
-import Convert from 'ansi-to-html';
-var convert = new Convert();
 
+// Rendering many runs is slow
+const PAGE_SIZE = 100
 
-
-class OutputLog extends React.Component {
-  constructor(props) {
-    super(props);
-    this.log_ref = null
-    this.onRefChange = element => {
-      // console.log("onRefChange", element)
-      this.log_ref = element
-      // this.scrollBottom(true)
-    };
-
-    this.state = {
-      is_loaded: false,
-      is_open: false,
-      error: null,
-      logs: null,
-      logs_html: null,
-      viewable: false || props.viewable,
-    };
+const ListToolbar = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+  .spacer {
+    flex: 1;
   }
+`
 
-  becameViewable = inView => {
-    this.setState({viewable: true})
+const Command = styled.div`
+  padding: 8px 12px;
+  .meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    margin-bottom: 6px;
+    font-size: 12px;
   }
-
-  componentDidUpdate(prevProps) {
-    const has_logs = !!this.props.output && !!this.props.output_dir_url
-    if (!has_logs) return
-    const had_logs = !!prevProps.output && !!prevProps.output_dir_url
-    if (had_logs && this.props.output_dir_url !==prevProps.output.output_dir_url)
-      this.getLog()
-
-    // console.log("[didUpdate]")
-    // if (!!this.props.output?.logs_html_safe && !!!this.prevProps.output?.logs_html_safe)
-    // this.scrollBottom()
-  
+  .meta > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
   }
-
-  refreshLog = () => {
-    if ((!!this.props.output && !this.props.output.is_pending) || !this.state.is_open) {
-      clearInterval(this.refreshLogInterval);
-    } else {
-      this.getLog();
+  .spacer {
+    flex: 1;
+  }
+  .command {
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 0;
+    padding: 6px 4px 6px 10px;
+    border-radius: 3px;
+    background: ${Colors.LIGHT_GRAY5};
+    font-size: 12px;
+    .${Classes.DARK} & {
+      background: ${Colors.DARK_GRAY3};
     }
   }
+  .command code {
+    flex: 1;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    padding-top: 3px;
+  }
+`
 
-  handleClick = () => {
-    if (!this.state.is_loaded) this.getLog();
-    this.setState({ is_open: !this.state.is_open });
+const copy = text => navigator.clipboard?.writeText(text).then(
+  () => toaster.show({ message: 'Copied', icon: 'tick', intent: Intent.SUCCESS, timeout: 1500 }),
+)
 
-    if (!!this.refreshLogInterval) clearInterval(this.refreshLogInterval);
-    if (!!this.props.output && this.props.output.is_pending) {
-      // console.log(this.props.output)
-      this.refreshLogInterval = setInterval(this.refreshLog, 2500);
-    }
-  };
+const BatchCommand = ({ command }) => {
+  const created_at = DateTime.fromISO(command.command_created_at_datetime, { zone: 'utc' })
+  const text = command.argv.join(" ")
+  return <Command>
+    <div className={`meta ${Classes.TEXT_MUTED}`}>
+      <span>
+        <Icon icon="time" size={12} />
+        <Tooltip content={created_at.toLocal().toLocaleString(DateTime.DATETIME_FULL)}>{created_at.toRelative()}</Tooltip>
+      </span>
+      {!!command.user && <span><Icon icon="user" size={12} />{command.user}</span>}
+      {!!command.HOST && <span><Icon icon="desktop" size={12} />{command.HOST}</span>}
+      <span className="spacer" />
+      {!!command.job_url && <AnchorButton size="small" variant="minimal" icon="share" href={command.job_url} target="_blank" rel="noopener noreferrer">
+        CI job
+      </AnchorButton>}
+    </div>
+    <pre className={`command ${Classes.MONOSPACE_TEXT}`}>
+      <code>{text}</code>
+      <Tooltip content="Copy the command">
+        <Button size="small" variant="minimal" icon="duplicate" aria-label="Copy the command" onClick={() => copy(text)} />
+      </Tooltip>
+    </pre>
+  </Command>
+}
 
-  componentWillUnmount(){
-    if (!!this.refreshLogInterval) clearInterval(this.refreshLogInterval);
+
+/**
+ * The logs of all the runs in a batch, and of the commands that started it.
+ */
+export const BatchLogs = ({ batch, project, commit, dispatch }) => {
+  const [filter, setFilter] = useState('all')
+  const [expanded, setExpanded] = useState(() => new Set())
+  const [limit, setLimit] = useState(PAGE_SIZE)
+
+  const outputs = useMemo(() => (batch?.filtered?.outputs ?? [])
+    .map(id => batch.outputs[id])
+    .filter(output => !!output && output.output_type !== "optim_iteration"),
+  [batch])
+  const failed = useMemo(() => outputs.filter(output => output.is_failed), [outputs])
+  const pending = useMemo(() => outputs.filter(output => output.is_pending), [outputs])
+  const toggle = useCallback(id => setExpanded(expanded => {
+    const next = new Set(expanded)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  }), [])
+
+  if (batch === null || batch === undefined || batch.batch_dir_url === undefined)
+    return null
+
+  const shown = filter === 'failed' ? failed : (filter === 'pending' ? pending : outputs)
+
+  const commands = Object.values(batch.data?.commands ?? {})
+  // Before 2026-10, batches started from QA-Board all logged in the batch directory
+  const has_submissions = batchSubmissions(batch).length > 0
+  const has_legacy_logs = !has_submissions && (batch.data?.optimization ?? commands.some(c => !c.job_url))
+  const batch_output = {
+    is_failed: false,
+    is_pending: false,
+    is_running: false,
+    extra_parameters: {},
+    output_type: "batch",
+    output_dir_url: batch.batch_dir_url,
+    test_input_metadata: batch.data,
+    configurations: [],
   }
 
-  getLog(log_file) {
-    const { output } = this.props;
-    if (!!!output || !!!output.output_dir_url) return
-    this.setState({is_loaded: false});
-    // console.log(`[logs] fetch ${output.test_input_path}`)
-    // console.log(`       => ${output.output_dir_url}/${log_file || 'log.txt'}`)
+  return <>
+    <BatchSubmissions key={batch.id} batch={batch} has_runs={Object.keys(batch.outputs ?? {}).length > 0} />
+    {has_submissions && <h3 className={Classes.HEADING}>Runs</h3>}
+    {outputs.length > 0 && <ListToolbar>
+      <SegmentedControl
+        size="small"
+        value={filter}
+        onValueChange={value => {
+          setFilter(value)
+          setLimit(PAGE_SIZE)
+        }}
+        options={[
+          { value: 'all', label: `All · ${outputs.length}` },
+          { value: 'failed', label: `Failed · ${failed.length}`, disabled: !failed.length && filter !== 'failed' },
+          { value: 'pending', label: `Running · ${pending.length}`, disabled: !pending.length && filter !== 'pending' },
+        ]}
+      />
+      <span className="spacer" />
+      {failed.length > 0 && <Button
+        size="small"
+        variant="minimal"
+        icon="expand-all"
+        onClick={() => setExpanded(new Set(failed.slice(0, 20).map(output => output.id)))}
+      >
+        Open failed runs{failed.length > 20 ? ' (first 20)' : ''}
+      </Button>}
+      {expanded.size > 0 && <Button size="small" variant="minimal" icon="collapse-all" onClick={() => setExpanded(new Set())}>
+        Collapse all
+      </Button>}
+    </ListToolbar>}
 
-    const log_url = `${output.output_dir_url}/${log_file ?? 'log.txt'}`
-    get(log_url)
-      .then(response => {
-        var logs = response.data;
-        logs = logs.replaceAll("<?", "??") // avoid issues wih tqdm prints being stripped
-        // https://stackoverflow.com/questions/4842424/list-of-ansi-color-escape-sequences
-        // https://github.com/rburns/ansi-to-html/blob/master/test/ansi_to_html.js
-        // https://github.com/rburns/ansi-to-html/blob/master/src/ansi_to_html.js
-        const sanitizeHtml_options = {
-          disallowedTagsMode: "recursiveEscape",
-          // allowedTags: ['b', 'i', 'em', 'strong', 'a'],
-          // allowedAttributes: {
-          //   a: ['href', 'target']
-          // }
-        }
-        let logs_safe = sanitizeHtml(logs, sanitizeHtml_options);
-        let ansi_to_html_options =  {
-          //fg: '#fff',
-          // bg: '#000',
-          // colors: {
-          //   0: '#fff',
-          //   30: '#fff',
-          //   232: '#fff',
-          // },
-          // pre: style={{background: '#000'}} 
-        }
-        var logs_html_safe;
-        try {
-          logs_html_safe = !!logs && convert.toHtml(logs_safe, ansi_to_html_options);
-        } catch {
-          logs_html_safe = !!logs && logs_safe;
-        }
-        this.setState({
-          is_loaded: true,
-          // logs,
-          logs_html_safe,
-          log_url,
-          error: null,
-        });
-      })
-      .catch(error => {
-        console.log(error)
-        this.setState({ log_url, is_loaded: true, error });
-      });
-  }
-
-  scrollBottom = redo => {
-    console.log("scroll", this.log_ref)
-    if (this.log_ref) {
-      console.log(">")
-      this.log_ref.scrollTo(0, this.log_ref.scrollHeight)
-      if (redo)
-        setTimeout(this.scrollBottom, 10)
-    }
-  }
-
-  render() {
-    const { output, commit, project, dispatch } = this.props;
-    const { is_open, is_loaded, error, logs_html_safe, viewable } = this.state;
-    // console.log(`[logs] render ${output.test_input_path}`)
-    // console.log(sanitizeHtml("<Config>test</Config>"));
-
-    const button_text = is_open ? "Hide" : is_loaded ? "Loading" : "Show";
-    const show_button = (
-      <Button title={button_text} onClick={this.handleClick}>
-        {button_text} logs
-      </Button>
-    );
-    // onmount ref
-    // this.log_ref.current.scrollTop = offsetTop
-    const header_prefix = <>
-      {show_button}{button_text==="Hide" && <Button onClick={this.scrollBottom} icon="double-chevron-down"></Button>} {output.output_type !== "batch" && <StatusTag output={output}/>}
-    </>
-    const has_failure_lsf = output.is_failed && (logs_html_safe ?? "").slice(-1000).includes("Aborted!")
-    return (
-      <div>
-        {!viewable && <InView key="unviewable" threshold={0.1} margin='150%' /*triggerOnce*/ onChange={inView => this.becameViewable(inView)}>
-          <span key="viewable"></span>
-        </InView>}
-        <OutputHeader
-          project={project}
-          commit={commit}
-          output={output}
-          mismatch={output.reference_mismatch}
-          dispatch={dispatch}
-          prefix={header_prefix}
-          tags_first
-          viewable={viewable}
+    {shown.length > 0
+      ? <RunList>
+          {shown.slice(0, limit).map(output => <RunLogs
+            key={output.id}
+            id={output.id}
+            output={output}
+            project={project}
+            commit={commit}
+            dispatch={dispatch}
+            expanded={expanded.has(output.id)}
+            onToggle={toggle}
+          />)}
+        </RunList>
+      : <NonIdealState
+          icon={filter === 'failed' ? "tick-circle" : "search"}
+          title={filter === 'failed' ? "No failed runs" : (filter === 'pending' ? "No running runs" : "No runs yet")}
+          layout="horizontal"
         />
-        <Collapse isOpen={is_open}>
-          {error ? 
-            <NonIdealState
-              title="No logs."
-              description={
-                error.response ? (!!error.response.data && error.response.data.includes('404') ? '404: Not found' : JSON.stringify(error.response.data)) : error
-              }
-            />
-          : <div>
-              {has_failure_lsf && <a target="_blank" href={(this.state.log_url ?? '').replace("log.txt", "log.lsf.txt")}>
-                <Tag interactive intent="danger">
-                  Killed by LSF! Click to check why
-              </Tag></a>}
-              <pre
-                // ref={this.log_ref}
-                ref={this.onRefChange}
-                className={Classes.CODE_BLOCK}
-                dangerouslySetInnerHTML={{
-                  __html: logs_html_safe ?? ""
-                }}
-                style={{
-                  maxHeight: '500px',
-                  maxWidth: '1400px',
-                  overflow: 'scroll',
-                  ...(output.is_pending ? style_skeleton : {}),
-                }}
-              />
-            </div>
-          }
-        </Collapse>
-      </div>
-    );
-  }
-}
-
-
-
-
-class BatchLogs extends React.Component {
-  render() {
-    const { batch } = this.props;
-    if (batch === null || batch === undefined  || batch.batch_dir_url === undefined)
-      return <span></span>
-
-    let batch_mock_output = {
-      is_failed: false,
-      is_pending: false,
-      is_running: false,
-      extra_parameters: {},
-      output_type: "batch",
-      output_dir_url: batch.batch_dir_url,
-      test_input_metadata: batch.data,
-      configurations: [],
     }
+    {shown.length > limit && <Button style={{ marginTop: 8 }} variant="outlined" fill onClick={() => setLimit(limit => limit + PAGE_SIZE)}>
+      Show {Math.min(PAGE_SIZE, shown.length - limit)} more ({(shown.length - limit).toLocaleString()} hidden)
+    </Button>}
 
-    let commands = Object.values(batch.data?.commands ?? {});
-    const some_tuning_commands = batch.data?.optimization ?? commands.some(c => !c.job_url)
-
-    const title = pretty_label(batch)
-    return <>
-      {batch.filtered.outputs.map(id => batch.outputs[id])
-            .filter( o => o.output_type !== "optim_iteration")
-            .map(output => <OutputLog
-              key={output.id}
-              project={this.props.project}
-              commit={this.props.commit}
-              output={output}
-              dispatch={this.props.dispatch}
-            />)}
-      <h2 style={{marginTop: '25px'}} className={Classes.HEADING}>Batch logs: {title}</h2>
-      {some_tuning_commands && <OutputLog
-        key={batch.batch_dir_url}
-        project={this.props.project}
-        commit={this.props.commit}
-        output={batch_mock_output}
-        dispatch={this.props.dispatch}
-      />}
-      <div>{commands.map( (command, id) => {
-        return <Callout style={{marginBottom: '5px'}} key={id} title={
-          <>
-            {!!command.job_url && <a style={{marginRight: '12px'}} href={command.job_url} target="_blank" rel="noopener noreferrer"><Button icon="share">Open Logs</Button></a>}
-            <span title={command.command_created_at_datetime}>{DateTime.fromISO(command.command_created_at_datetime, { zone: 'utc' }).toRelative()}</span>
-            {!!command.user && ` as ${command.user}`}{!!command.HOST && ` @${command.HOST}`}
-          </>}>
-          <code>{command.argv.join(" ")}</code>
-        </Callout>
-      })}
-      </div>
-    </>
-
-	}
+    <h3 className={Classes.HEADING} style={{ marginTop: 28 }}>Batch: {pretty_label(batch)}</h3>
+    {has_legacy_logs && <RunList style={{ marginBottom: 12 }}>
+      <RunLogs
+        id="batch"
+        output={batch_output}
+        project={project}
+        commit={commit}
+        dispatch={dispatch}
+        title="Batch logs"
+        expanded={expanded.has('batch')}
+        onToggle={toggle}
+      />
+    </RunList>}
+    {commands.length > 0 && <RunList>
+      {commands.map((command, index) => <BatchCommand key={index} command={command} />)}
+    </RunList>}
+  </>
 }
-
-
-export { BatchLogs };

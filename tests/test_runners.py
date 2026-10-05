@@ -123,17 +123,63 @@ class TestLsfConcurrency(unittest.TestCase):
   def test_array(self):
     bsub = self.start(5, concurrency=2)
     self.assertEqual(len(bsub.commands), 1)
-    self.assertRegex(bsub.names()[0], r'^abcdefgh_[a-z]{12}\[1-5\]%2$')
+    name = bsub.names()[0]
+    self.assertRegex(name, r'^abcdefgh_[a-z]{12}\[1-5\]%2$')
     command = bsub.commands[0]
-    self.assertIn('-o "/dev/null"', command)
     self.assertIn("-q 'q'", command)
+    # LSF writes each element's report via a symlink to the element's output directory
+    links_dir = self.output_root.resolve() / 'lsf' / name.split('[')[0]
+    self.assertIn(f'-o "{links_dir}/%I/log.lsf.txt"', command)
     # Each array element runs its own command, and logs in its own output directory
     script = command.split('<< "EOF"\n', 1)[1].rsplit('\nEOF', 1)[0]
     for index in range(5):
-      out = subprocess.run(['bash', '-c', script], env={**os.environ, 'LSB_JOBINDEX': str(index + 1)})
+      out = subprocess.run(['sh', '-c', script], env={**os.environ, 'LSB_JOBINDEX': str(index + 1)})
       self.assertEqual(out.returncode, 0)
+      # LSF appends its report when the job ends
+      with (links_dir / str(index + 1) / 'log.lsf.txt').open('a') as f:
+        f.write('Successfully completed.\n')
       log = (self.output_root / f'output{index}' / 'log.lsf.txt').read_text()
-      self.assertEqual(log, f'run-{index}\n')
+      self.assertEqual(log, f'run-{index}\nSuccessfully completed.\n')
+
+  def test_array_uses_batch_dir(self):
+    with tempfile.TemporaryDirectory() as batch_dir:
+      bsub = self.start(3, concurrency=2, batch_dir=batch_dir)
+      links_dir = Path(batch_dir).resolve() / 'lsf' / bsub.names()[0].split('[')[0]
+      self.assertIn(f'-o "{links_dir}/%I/log.lsf.txt"', bsub.commands[0])
+      self.assertEqual((links_dir / '2').resolve(), (self.output_root / 'output1').resolve())
+
+  def test_live_log(self):
+    # Like job arrays, the output is written live to log.lsf.txt, and LSF appends its report
+    bsub = self.start(1)
+    command = bsub.commands[0]
+    output_dir = (self.output_root / 'output0').resolve()
+    self.assertIn(f'-o "{output_dir}/log.lsf.txt"', command)
+    script = command.split('<< "EOF"\n', 1)[1].rsplit('\nEOF', 1)[0]
+    out = subprocess.run(['sh', '-c', script], stdout=subprocess.PIPE, encoding='utf-8')
+    self.assertEqual(out.returncode, 0)
+    self.assertEqual(out.stdout, '')
+    self.assertEqual((output_dir / 'log.lsf.txt').read_text(), 'run-0\n')
+
+  def test_array_logs_survive_output_cleanup(self):
+    # `qa run` cleans its output directory when it starts, after the array element redirected its output there
+    import sys
+    from qaboard.runners.lsf import LsfRunner
+    tmp = tempfile.TemporaryDirectory()
+    self.addCleanup(tmp.cleanup)
+    output_dir = Path(tmp.name) / 'output0'
+    (output_dir / 'previous' / 'nested').mkdir(parents=True)
+    (output_dir / 'previous' / 'nested' / 'old.txt').write_text('old')
+    (output_dir / 'log.txt').write_text('old')
+    qa_run = f"{sys.executable} -c \"from pathlib import Path; from qaboard.utils import clean_output_dir; print('before', flush=True); clean_output_dir(Path('{output_dir}')); print('after')\""
+    jobs = make_jobs('lsf', [qa_run, 'echo b', 'echo c'], Path(tmp.name), queue='q', concurrency=2)
+    bsub = FakeBsub()
+    with mock.patch('qaboard.runners.lsf.subprocess.run', bsub), has_bsub():
+      LsfRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
+    script = bsub.commands[0].split('<< "EOF"\n', 1)[1].rsplit('\nEOF', 1)[0]
+    out = subprocess.run(['bash', '-c', script], env={**os.environ, 'LSB_JOBINDEX': '1'})
+    self.assertEqual(out.returncode, 0)
+    self.assertEqual(sorted(p.name for p in output_dir.iterdir()), ['log.lsf.txt'])
+    self.assertTrue((output_dir / 'log.lsf.txt').read_text().endswith('before\nafter\n'))
 
   def test_array_groups_by_lsf_options(self):
     from qaboard.runners.lsf import LsfRunner
@@ -155,6 +201,33 @@ try:
   has_dask = True
 except ImportError:
   has_dask = False
+
+
+class TestCleanOutputDir(unittest.TestCase):
+  def test_removes_everything_when_not_redirected(self):
+    import sys
+    with tempfile.TemporaryDirectory() as tmp:
+      output_dir = Path(tmp) / 'output'
+      (output_dir / 'a').mkdir(parents=True)
+      (output_dir / 'a' / 'b.txt').write_text('b')
+      (output_dir / 'log.lsf.txt').write_text('old')
+      code = f"from pathlib import Path; from qaboard.utils import clean_output_dir; clean_output_dir(Path('{output_dir}'))"
+      subprocess.run([sys.executable, '-c', code], check=True, stdout=subprocess.DEVNULL)
+      self.assertFalse(output_dir.exists())
+
+  def test_keeps_nested_redirected_logs(self):
+    import sys
+    with tempfile.TemporaryDirectory() as tmp:
+      output_dir = Path(tmp) / 'output'
+      (output_dir / 'logs').mkdir(parents=True)
+      (output_dir / 'other').mkdir()
+      (output_dir / 'other' / 'x.txt').write_text('x')
+      (output_dir / 'logs' / 'y.txt').write_text('y')
+      code = f"from pathlib import Path; from qaboard.utils import clean_output_dir; clean_output_dir(Path('{output_dir}')); print('ok')"
+      with (output_dir / 'logs' / 'log.dask.txt').open('w') as log:
+        subprocess.run([sys.executable, '-c', code], check=True, stdout=log, stderr=subprocess.STDOUT)
+      self.assertEqual([str(p.relative_to(output_dir)) for p in output_dir.rglob('*')], ['logs', 'logs/log.dask.txt'])
+      self.assertTrue((output_dir / 'logs' / 'log.dask.txt').read_text().endswith('ok\n'))
 
 
 @unittest.skipUnless(has_dask, "requires the dask extra")

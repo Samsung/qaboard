@@ -24,7 +24,7 @@ from .conventions import make_batch_dir, make_batch_conf_dir
 from .conventions import serialize_config, deserialize_config, get_settings
 from .utils import PathType, entrypoint_module, load_tuning_search
 from .utils import save_outputs_manifest, total_storage
-from .utils import redirect_std_streams
+from .utils import redirect_std_streams, clean_output_dir
 from .utils import getenvs
 from .api import url_to_dir, print_url
 from .api import get_outputs, notify_qa_database, serialize_paths
@@ -211,8 +211,8 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
     # In some cases users want to debug long, multi-stepped runs, for which they have their own caching
       if not (keep_previous or 'QABOARD_RUN_KEEP' in os.environ):
         # TODO: check in the database the status of the run?
-        import shutil
-        shutil.rmtree(run_context.output_dir, ignore_errors=True)
+        # Keeps the log files runners redirected our output to (e.g. log.lsf.txt with LSF job arrays)
+        clean_output_dir(run_context.output_dir)
     run_context.output_dir.mkdir(parents=True, exist_ok=True)
 
     with (run_context.output_dir / 'run.json').open('w') as f:
@@ -648,6 +648,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       base_runner_options['concurrency'] = lsf_concurrency
     if 'concurrency_strategy' in lsf_config:
       base_runner_options['concurrency_strategy'] = lsf_config['concurrency_strategy']
+    # Job arrays keep some bookkeeping there
+    base_runner_options['batch_dir'] = str(ctx.obj['batch_dir'])
 
     # These are always set for LSF
     cli_runner_overrides.update({
