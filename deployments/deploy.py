@@ -302,7 +302,9 @@ class Deployment:
         new = [c for c in self.containers(service) if c not in old]
         if not self.wait_healthy(new):
             for c in new:
-                print(self.docker("logs", "--tail", "80", c, check=False))
+                # Not self.docker(): containers log to stderr, which it doesn't print
+                log(f"Last logs of {c}:")
+                subprocess.run(["docker", "logs", "--tail", "80", c])
             log(f"New {service} replicas are not healthy, removing them. The previous version is still serving.")
             self.docker("rm", "-f", *new)
             die(f"{service} failed its healthcheck")
