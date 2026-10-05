@@ -40,7 +40,8 @@ services:
       args:
         <<: *dsk-build-args
     volumes:
-    - ./deployments/dsk/nginx/dsk.conf:/tmp/deployment/nginx/conf.d/dsk.conf:ro
+    # The folder, not the file: see deployments/sirc/sirc.yml
+    - ./deployments/dsk/nginx:/tmp/deployment/nginx/conf.d:ro
 
   # flower shares the backend image (which installs flower>=2.1.0), so only backend needs building
 
