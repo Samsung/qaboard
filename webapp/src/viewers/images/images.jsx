@@ -191,7 +191,11 @@ class ImgViewer extends React.PureComponent {
       this.InitSelectionTool();
       this.InitDiff();
       window.addEventListener("keypress", this.keyboard, { passive: true });
-    }).catch(error => { console.log("Init Error:", JSON.stringify(error)) })
+    }).catch(error => {
+      // Not JSON.stringify(error): exceptions (e.g. TypeError) would show as "{}"
+      const cause = error?.error ?? error
+      if (!isCancel(cause)) console.error("Init Error:", cause)
+    })
   }
 
   InitZoomSync() {
@@ -424,7 +428,7 @@ class ImgViewer extends React.PureComponent {
       const { path, output_new, output_ref } = this.props;
       let { path_ref=this.props.path } = this.props
  
-      let has_reference = !!output_ref && !output_ref.deleted && !!output_ref.output_dir_url && this.props.manifests.reference[path_ref] !== undefined;
+      let has_reference = !!output_ref && !output_ref.deleted && !!output_ref.output_dir_url && this.props.manifests?.reference?.[path_ref] !== undefined;
       this.setState({has_reference})
 
       let requests = [get(`${iiif_url(output_new.output_dir_url, path, this.props.manifests?.new, true, this.props.imageServers)}/info.json`, { cancelToken: this.state.cancel_source.token })]

@@ -264,7 +264,7 @@ class OutputCard extends React.Component {
         .catch(thrown => {
           if(!isCancel(thrown))
             load_data(label)(
-              { load_data: {} },
+              { data: {} },
               thrown,
             )
           else if (!update_manifest)
