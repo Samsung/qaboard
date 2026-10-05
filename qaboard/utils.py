@@ -8,6 +8,7 @@ import json
 import shutil
 import traceback
 import hashlib
+from stat import S_ISREG
 from pathlib import Path
 from itertools import chain
 from fnmatch import fnmatch
@@ -87,6 +88,51 @@ class RedirectStream():
   def flush(self):
     self.file.flush()
     self.stream.flush()
+
+
+def clean_output_dir(output_dir: Path):
+  """
+  Removes everything in output_dir, except the files our STDOUT/STDERR are redirected to.
+  Runners often redirect a run's output to its output directory, *before* `qa run` starts
+  (e.g. log.lsf.txt with LSF job arrays, log.dask.txt with dask). If we deleted those files,
+  the rest of the output would be written to a deleted inode and lost, including errors.
+  """
+  own_logs = set()
+  for fd in (1, 2):
+    try:
+      fd_stat = os.fstat(fd)
+    except OSError: # closed
+      continue
+    if S_ISREG(fd_stat.st_mode):
+      own_logs.add((fd_stat.st_dev, fd_stat.st_ino))
+
+  def clean(directory: Path) -> bool:
+    """Returns True if the directory is now empty."""
+    is_empty = True
+    for path in directory.iterdir():
+      try:
+        if path.is_dir() and not path.is_symlink():
+          if clean(path):
+            path.rmdir()
+          else:
+            is_empty = False
+        else:
+          path_stat = path.lstat()
+          if (path_stat.st_dev, path_stat.st_ino) in own_logs:
+            is_empty = False
+          else:
+            path.unlink()
+      except OSError: # like shutil.rmtree(ignore_errors=True)
+        is_empty = False
+    return is_empty
+
+  if not own_logs:
+    shutil.rmtree(output_dir, ignore_errors=True)
+  else:
+    try:
+      clean(output_dir)
+    except OSError:
+      pass
 
 
 @contextmanager
