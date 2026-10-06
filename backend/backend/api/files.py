@@ -7,8 +7,9 @@ nginx serves the files (services/nginx/snippets/qaboard-files.conf). It asks us:
 
 Files are restricted with QABOARD_LOGIN_RESTRICTED_YAML:
 - "projects": the outputs and artifacts folders of the restricted projects, from their storage settings in qaboard.yaml
-- "paths": any folder, e.g. "/algo/secret: {user_name: [john.doe]}"
+- "paths" (optional): any folder, e.g. "/algo/secret: {user_name: [john.doe]}"
 The most specific folder decides. Its rules are the same as for projects, and with empty rules anyone can read it.
+And in the folders listed in QABOARD_FILES_UNIX_PERMISSIONS (e.g. /home), users only read what their Unix account can read.
 """
 import os
 import time
@@ -17,7 +18,8 @@ from flask import request, jsonify
 
 from backend import app
 from ..models import Project
-from ..files import normalize, path_from_url, is_listable, longest_prefix, list_directory
+from ..config import files_unix_permissions_roots
+from ..files import normalize, path_from_url, is_listable, longest_prefix, list_directory, unix_account, unix_can_read
 from .auth import get_current_user, restrictions, restricted_project_key, matches_rules
 
 
@@ -67,17 +69,26 @@ def file_restriction(path: str):
 
 def check_read_access(path: str):
   """None if the current user can read the path, else an error response."""
-  if not restrictions('paths') and not restrictions('projects'):
+  if not restrictions('paths') and not restrictions('projects') and not files_unix_permissions_roots:
     return None
   # Through symlinks users could reach restricted files from public folders
-  applicable = [r for r in (file_restriction(path), file_restriction(os.path.realpath(path))) if r]
-  if not applicable:
+  real_path = os.path.realpath(path)
+  applicable = [r for r in (file_restriction(path), file_restriction(real_path)) if r]
+  unix_root = longest_prefix(real_path, {root: root for root in files_unix_permissions_roots})
+  if not applicable and not unix_root:
     return None
+
   user_info = get_current_user(to_jsonify=False)
-  if not user_info.get('is_authenticated'):
-    description, _ = applicable[0]
-    return jsonify({"error": f"Only some users can see {description}. Sign in to see these files.", "reason": "login"}), 401
+  is_authenticated = bool(user_info.get('is_authenticated'))
+  if unix_root:
+    account = unix_account(user_info.get('user_name') if is_authenticated else None)
+    if not unix_can_read(real_path, unix_root, account):
+      if not is_authenticated:
+        return jsonify({"error": "These files are private. Sign in to see the files your account can read.", "reason": "login"}), 401
+      return jsonify({"error": f"Your account ({user_info.get('user_name')}) doesn't have the permissions to read these files.", "reason": "forbidden"}), 403
   for description, perms_data in applicable:
+    if not is_authenticated:
+      return jsonify({"error": f"Only some users can see {description}. Sign in to see these files.", "reason": "login"}), 401
     if not matches_rules(user_info, perms_data):
       return jsonify({"error": f"Only some users can see {description}.", "reason": "forbidden"}), 403
   return None

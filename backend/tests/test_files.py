@@ -316,3 +316,88 @@ def test_restricted_project_dirs(api_files, monkeypatch):
   # cached
   module.Project.query.all.return_value = []
   assert module.restricted_project_dirs() == expected
+
+
+# ==========================================
+# Unix permissions (QABOARD_FILES_UNIX_PERMISSIONS)
+# ==========================================
+
+from backend.files import UnixAccount, NOBODY, unix_can_read, unix_account
+
+
+@pytest.fixture
+def home(tmp_path):
+  """A home folder with private and shared files, owned by the user running the tests"""
+  home = tmp_path / "home"
+  (home / "alice/private").mkdir(parents=True)
+  (home / "alice/shared").mkdir(parents=True)
+  (home / "alice/private/secret.txt").write_text("x")
+  (home / "alice/shared/notes.txt").write_text("x")
+  (home / "alice/group.txt").write_text("x")
+  (home / "alice/public.txt").write_text("x")
+  home.chmod(0o755)
+  (home / "alice").chmod(0o711)  # others can traverse, not list
+  (home / "alice/private").chmod(0o700)
+  (home / "alice/private/secret.txt").chmod(0o644)  # readable, but behind a private folder
+  (home / "alice/shared").chmod(0o755)
+  (home / "alice/shared/notes.txt").chmod(0o644)
+  (home / "alice/group.txt").chmod(0o640)
+  (home / "alice/public.txt").chmod(0o600)
+  yield home
+  (home / "alice/private").chmod(0o700)
+
+
+def test_unix_can_read(home):
+  alice = UnixAccount(uid=os.getuid(), gids=frozenset())
+  colleague = UnixAccount(uid=os.getuid() + 12345, gids=frozenset([(home / "alice/group.txt").stat().st_gid]))
+  stranger = UnixAccount(uid=os.getuid() + 12345, gids=frozenset())
+  root = str(home)
+  for account in (alice, colleague, stranger, NOBODY):
+    assert unix_can_read(str(home / "alice/shared/notes.txt"), root, account)
+    assert unix_can_read(str(home / "alice/shared"), root, account)
+  assert unix_can_read(str(home / "alice/private/secret.txt"), root, alice)
+  assert not unix_can_read(str(home / "alice/private/secret.txt"), root, stranger)
+  assert not unix_can_read(str(home / "alice/private"), root, stranger)
+  # alice's home can be traversed, but not listed
+  assert unix_can_read(str(home / "alice"), root, alice)
+  assert not unix_can_read(str(home / "alice"), root, stranger)
+  assert unix_can_read(str(home / "alice/group.txt"), root, colleague)
+  assert not unix_can_read(str(home / "alice/group.txt"), root, stranger)
+  assert not unix_can_read(str(home / "alice/public.txt"), root, colleague)
+  # nginx will answer 404
+  assert unix_can_read(str(home / "alice/missing.txt"), root, stranger)
+
+
+def test_unix_account(monkeypatch):
+  import pwd
+  unix_account.cache_clear()
+  entry = type("pw", (), {"pw_uid": 1000, "pw_gid": 100})
+  monkeypatch.setattr(pwd, "getpwnam", lambda name: entry if name == "alice" else (_ for _ in ()).throw(KeyError(name)))
+  monkeypatch.setattr(os, "getgrouplist", lambda name, gid: [gid, 10])
+  assert unix_account("alice") == UnixAccount(uid=1000, gids=frozenset([100, 10]))
+  assert unix_account("unknown") == NOBODY
+  assert unix_account(None) == NOBODY
+  unix_account.cache_clear()
+
+
+def test_check_read_access_unix_permissions(api_files, dummy_app, monkeypatch, home):
+  api_files.config["paths"] = {}
+  api_files.config["projects"] = {}
+  monkeypatch.setattr(api_files, "restricted_project_dirs", lambda: {})
+  monkeypatch.setattr(api_files, "files_unix_permissions_roots", [str(home)])
+  me = UnixAccount(uid=os.getuid(), gids=frozenset())
+  stranger = UnixAccount(uid=os.getuid() + 12345, gids=frozenset())
+  monkeypatch.setattr(api_files, "unix_account", lambda user_name: {"alice": me, "bob": stranger}.get(user_name, NOBODY))
+  secret = str(home / "alice/private/secret.txt")
+  with dummy_app.test_request_context("/"):
+    assert status(api_files.check_read_access(str(home / "alice/shared/notes.txt"))) == 200
+    assert status(api_files.check_read_access(secret)) == 401
+    login(monkeypatch, api_files, "bob")
+    assert status(api_files.check_read_access(secret)) == 403
+    login(monkeypatch, api_files, "alice")
+    assert status(api_files.check_read_access(secret)) == 200
+  # symlinks into a private folder don't help
+  (home.parent / "link").symlink_to(home / "alice/private")
+  login(monkeypatch, api_files, "bob")
+  with dummy_app.test_request_context("/"):
+    assert status(api_files.check_read_access(str(home.parent / "link/secret.txt"))) == 403

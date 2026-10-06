@@ -672,7 +672,7 @@ function ErrorState({ error, path, user, navigate, onSignIn, retry, support_url 
   const up = parent && <Button icon={<ArrowUpIcon/>} text="Parent folder" onClick={() => navigate(parent)}/>
   if (error.status === 401)
     return <NonIdealState className="fb-error" icon={<LockIcon size={48}/>} title="Sign in to see these files"
-      description={error.message?.replace(/ Sign in to see these files\.$/, '')} action={<Button intent={Intent.PRIMARY} icon={<LogInIcon/>} text="Sign in" onClick={onSignIn}/>}/>
+      description={error.message?.replace(/ Sign in[^.]*\.$/, '')} action={<Button intent={Intent.PRIMARY} icon={<LogInIcon/>} text="Sign in" onClick={onSignIn}/>}/>
   if (error.reason === 'forbidden')
     return <NonIdealState className="fb-error" icon={<LockIcon size={48}/>} title="You don't have access"
       description={<>
