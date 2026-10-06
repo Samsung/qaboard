@@ -38,6 +38,8 @@ services:
 If you want to use a different folder, use your path in the overlay, and set `storage` in your projects' *qaboard.yaml* (see [where is the data saved](storage/where-is-the-data)).
 :::
 
+When users open a folder under `/s/` in their browser, they get QA-Board's [file browser](user-guide/files). nginx still sends the files, but the backend lists the folders: it lists those inside `QABOARD_STORAGE_ROOTS`, at the same paths as in the URLs. Other clients (`curl`, `wget`...) still get nginx's index. To restrict who can read the files of some projects, see [user management](backend-admin/user-management#restricting-who-can-read-files).
+
 :::note Shared Storage?
 Later, read how to setup [**NFS**](https://www.digitalocean.com/community/tutorials/how-to-set-up-an-nfs-mount-on-ubuntu-18-04) or [**Samba**](https://www.digitalocean.com/community/tutorials/how-to-set-up-a-samba-share-for-a-small-organization-on-ubuntu-16-04). If you need fine-tuning read about [options for NFS volumes](https://docs.docker.com/compose/compose-file/#volume-configuration-reference) in *docker-compose.yml*.
 :::
@@ -164,7 +166,7 @@ In the future we plan to introduce a proper "secret" store, per user and per pro
 The `cron-backup-db` service in *production.yml* makes daily backups of the database. Mount a host directory at `/backups` in your site overlay (see `deployments/sirc/prod.yml`), and copy the backups off the host. To restore one: `deployments/deploy.py <env file> restore-db <file>.dump`.
 
 ### Using SSL / hosting behind a reverse proxy
-What we do is use our own copy of *services/nginx/conf.d/qaboard.conf* in the site overlay. Files mounted under `/tmp/deployment/nginx/conf.d/` in the `proxy` container are added to (or replace) *services/nginx/conf.d/*:
+What we do is use our own copy of *services/nginx/conf.d/qaboard.conf* in the site overlay (keep its `include snippets/...` lines: they serve the files and the file browser). Files mounted under `/tmp/deployment/nginx/conf.d/` in the `proxy` container are added to (or replace) *services/nginx/conf.d/*:
 
 ```nginx title="deployments/nginx/qaboard.conf (copied from services/nginx/conf.d/qaboard.conf)"
 server {

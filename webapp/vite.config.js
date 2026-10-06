@@ -16,9 +16,27 @@ const proxy = {
   '^/docs/': { target: QABOARD_SERVER_URL, changeOrigin: true },
 }
 
+// In production nginx serves files.html for the folders under /s/ (services/nginx/snippets/qaboard-files.conf),
+// we do the same here, so the file browser can be developed with `npm start`
+const fileBrowser = () => {
+  const middleware = (req, res, next) => {
+    const [pathname, search = ''] = req.url.split('?')
+    const isFolder = pathname.startsWith('/s/') && pathname.endsWith('/')
+    if (isFolder && (req.headers.accept ?? '').includes('text/html') && !new URLSearchParams(search).has('view'))
+      req.url = '/files.html'
+    next()
+  }
+  return {
+    name: 'qaboard-file-browser',
+    configureServer: server => { server.middlewares.use(middleware) },
+    configurePreviewServer: server => { server.middlewares.use(middleware) },
+  }
+}
+
 export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
+    fileBrowser(),
     // npm run analyze => build/stats.html
     mode === 'analyze' && visualizer({ filename: 'build/stats.html', gzipSize: true }),
   ],
@@ -38,6 +56,13 @@ export default defineConfig(({ mode }) => ({
     sourcemap: true,
     // plotly, monaco and three are big but lazy-loaded
     chunkSizeWarningLimit: 5000,
+    rollupOptions: {
+      input: {
+        main: 'index.html',
+        // the file browser, see src/files/
+        files: 'files.html',
+      },
+    },
   },
   worker: { format: 'es' },
   test: {

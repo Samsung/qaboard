@@ -184,3 +184,26 @@ projects:
     user_name:
     - john.doe
 ```
+
+## Restricting who can read files
+nginx serves the output and artifacts files under `/s/`, and by default anyone who can reach the server can read them. With `QABOARD_LOGIN_RESTRICTED`, you can also restrict who reads files:
+
+1. In `users_restrict.yml`, the restricted `projects` also restrict their files: the outputs and artifacts folders from the projects' `storage` in *qaboard.yaml*. To restrict other folders, list them under `paths`, with the same rules as projects:
+```yml title="users_restrict.yml"
+paths:
+  /algo/confidential:
+    user_name:
+    - john.doe
+  # The most specific folder wins. With no rules, anyone can read it
+  /algo/confidential/public: {}
+```
+2. Have nginx check permissions before sending files: add `include snippets/qaboard-files-auth.conf;` to **all** the `/s/` locations of your nginx configuration (with the helm chart, set `proxy.restrictFiles: true`). Files can be reached from several locations through symlinks: the backend checks where links lead, but only for the locations that ask it.
+
+In the [file browser](../user-guide/files.mdx), users who are not signed in see **Sign in to see these files**, others **You don't have access**. Scripts can authenticate with an API token: `curl -H "Authorization: Bearer <token>" https://qaboard/s/...`
+
+:::caution Limits
+- nginx asks the backend before sending each file. It answers quickly, without database queries for public files, but **if the backend is down, nginx doesn't serve files**.
+- Sub-projects share the storage of their git repository: restricting a sub-project restricts the files of the whole repository.
+- Only the projects' storage settings are known: results saved elsewhere (e.g. with `{user}` in `storage`, or `--share` to another folder) need `paths`. The backend reads `users_restrict.yml` when it starts, and the projects' folders every 5 minutes.
+- Other ways to read files are not restricted: the image server (IIIF), WebDAV (`/davs/`), and the API endpoints that read images.
+:::

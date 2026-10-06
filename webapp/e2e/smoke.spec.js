@@ -52,3 +52,20 @@ for (const { name, path, text } of pages) {
     await page.waitForLoadState('networkidle');
   });
 }
+
+// nginx serves files.html for folders under /s/, `vite preview` too (see vite.config.js)
+test('file browser', async ({ page }) => {
+  await page.route('**/s/**', route => {
+    if (route.request().headers().accept !== 'application/json') return route.fallback();
+    return route.fulfill({ json: { path: '/mnt/qaboard', truncated: false, entries: [
+      { name: 'outputs', type: 'directory', mtime: 1790000000, owner: 'alice', mode: 'drwxr-xr-x' },
+      { name: 'log.txt', type: 'file', size: 1234, mtime: 1790000000, owner: 'alice', mode: '-rw-r--r--' },
+    ] } });
+  });
+  await page.goto('/s/mnt/qaboard/');
+  await expect(page.getByText('Alice').first()).toBeVisible();
+  await expect(page.getByRole('link', { name: 'log.txt', exact: true })).toHaveAttribute('href', '/s/mnt/qaboard/log.txt');
+  await page.getByRole('link', { name: 'outputs/', exact: true }).click();
+  await expect(page).toHaveURL(/\/s\/mnt\/qaboard\/outputs\/$/);
+  await page.waitForLoadState('networkidle');
+});

@@ -270,6 +270,50 @@ def update_user(user, info):
   return user
 
 
+def restrictions(section: str) -> dict:
+  """
+  The rules of a section of QABOARD_LOGIN_RESTRICTED_YAML: "login", "projects" or "paths".
+  Empty if QABOARD_LOGIN_RESTRICTED is not set.
+  """
+  return users_restrict_config.get(section) or {}
+
+
+def restricted_project_key(project: str):
+  """
+  The key of QABOARD_LOGIN_RESTRICTED_YAML's "projects" that applies to a project:
+  the project itself, else the longest key the project starts with (e.g. its namespace).
+  None if the project is public.
+  """
+  projects = restrictions('projects')
+  if project in projects:
+    return project
+  matching_keys = [key for key in projects if project.startswith(key)]
+  if not matching_keys:
+    return None
+  return max(matching_keys, key=len)
+
+
+def matches_rules(user_info: dict, perms_data: dict) -> bool:
+  """
+  Whether the user matches one of the rules from QABOARD_LOGIN_RESTRICTED_YAML,
+  e.g. {"user_name": ["john.doe"], "email": [...], "data": {"<SAML/LDAP attribute>": [...]}}.
+  """
+  is_authorized = False
+  for key, value in user_info.items():
+    if is_authorized: break
+    if key in perms_data.keys():
+      if isinstance(value, str):
+        is_authorized = value in perms_data[key]
+      elif isinstance(value, list):
+        is_authorized = any([v for v in value if v in perms_data[key]])
+      elif isinstance(value, dict):
+          for inner_key, inner_value in value.items():
+            if is_authorized: break
+            if inner_key in perms_data[key].keys():
+              is_authorized = any([v for v in inner_value if v in perms_data[key][inner_key]])
+  return is_authorized
+
+
 def is_authorized_user(user_info: dict, project=None):
   """
   Check if the given user is authorized to access the server or to a specified project.
@@ -291,40 +335,15 @@ def is_authorized_user(user_info: dict, project=None):
     user_info = get_current_user(to_jsonify=False)
 
   if project:
-    if not users_restrict_config.get('projects'): 
+    project = restricted_project_key(project)
+    if project is None:
+      # Project is public
       return True
-    # check if project is projects
-    if not users_restrict_config['projects'].get(project):
-      # check if a father project exists
 
-
-      # Find all strings in list_of_strs that start with the same prefix as my_str
-      matching_strs = [s for s in users_restrict_config['projects'].keys() if project.startswith(s)]
-      # Get the longest string from the matching strings
-      if matching_strs:
-        project = max(matching_strs, key=len)
-      else:
-        # Project is public
-        return True
-
-  is_authorized = False
-  perms_data = users_restrict_config['projects'][project] if project else users_restrict_config.get('login', {})
+  perms_data = restrictions('projects')[project] if project else restrictions('login')
   if not perms_data:
     return True
-  for key, value in user_info.items():
-    if is_authorized: break
-    if key in perms_data.keys():
-      if isinstance(value, str):
-        is_authorized = value in perms_data[key]
-      elif isinstance(value, list):
-        is_authorized = any([v for v in value if v in perms_data[key]])
-      elif isinstance(value, dict):
-          for inner_key, inner_value in value.items():
-            if is_authorized: break
-            if inner_key in perms_data[key].keys():
-              print([v for v in inner_value if v in perms_data[key][inner_key]])
-              is_authorized = any([v for v in inner_value if v in perms_data[key][inner_key]])
-  return is_authorized
+  return matches_rules(user_info, perms_data)
 
 
 def auth(username, password):
