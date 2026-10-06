@@ -46,11 +46,13 @@ const editor_options = {
 class GenericTextViewer extends React.Component {
   constructor(props) {
     super(props);
+    // cancellation token kept on the instance (not state) so it's updated
+    // synchronously when a new fetch supersedes the previous one
+    this.cancel_source = CancelToken.source();
     this.state = {
       data: {},
       is_loaded: false,
       error: null,
-      cancel_source: CancelToken.source(),
       shown_left: "reference",
       renderSideBySide: props.renderSideBySide ?? true,
     }
@@ -59,24 +61,6 @@ class GenericTextViewer extends React.Component {
   componentDidMount() {
     this.fetchData(this.props);
     window.addEventListener("keypress", this.keyboard, { passive: true });
-  }
-
-  shouldComponentUpdate(nextProps, nextState) {
-    const {text_url_new, text_url_ref } = this.props || {};
-    const {text_url_new: next_text_url_new, text_url_ref: next_text_url_ref } = this.nextProps || {};
-    const { is_loaded, error, data, shown_left } = this.state;
-    const { is_loaded: next_is_loaded, error: next_error, data: next_data, shown_left: next_shown_left } = nextState;
-    if (is_loaded === next_is_loaded && 
-        next_error === error &&
-        data.reference === next_data.reference &&
-        data.new === next_data.new &&
-        shown_left === next_shown_left &&
-        text_url_new === next_text_url_new &&
-        text_url_ref === next_text_url_ref
-       ) {
-      return false;
-    }
-    return true;
   }
 
   componentWillUnmount() {
@@ -103,32 +87,47 @@ class GenericTextViewer extends React.Component {
     const { text_url_new, text_url_ref } = this.props;
     if (text_url_new === undefined || text_url_new === null) return;
 
+    // cancel any in-flight requests from a previous selection and reset state,
+    // so stale content or errors don't leak into the new selection
+    if (!!this.cancel_source)
+      this.cancel_source.cancel();
+    const cancel_source = CancelToken.source();
+    this.cancel_source = cancel_source; // synchronous: new fetch supersedes the previous one
+    this.setState({ data: {}, is_loaded: false, error: null });
+
     let results = []
     results.push(['new', text_url_new])
     if (!!text_url_ref)
       results.push(['reference', text_url_ref])
 
+    const is_current = () => this.cancel_source === cancel_source;
     const load_data = label => response => {
-      this.setState({
+      if (!is_current()) return; // a newer selection superseded this fetch
+      // functional form: merges must build on the latest state, otherwise
+      // responses resolving in the same tick (e.g. cached) overwrite each other
+      this.setState(prevState => ({
         data: {
-          ...this.state.data,
+          ...prevState.data,
           [label]: response.data.replace(ansi_regexp, ''),
         },
-      })
+      }))
     }
 
     all(results.map( ([label, url]) => {
-      return () =>  get(url, {cancelToken: this.state.cancel_source.token, transformResponse: response => response})
+      return () =>  get(url, {cancelToken: cancel_source.token, transformResponse: response => response})
                     .then(load_data(label))
                     .catch(response => {
+                      // ignore requests cancelled by a newer selection
+                      if (get.isCancel(response)) return;
+                      if (!is_current()) return;
                       // we don't really care about errors for reference logs
-                      this.setState({data: {...this.state.data, [label]: ''}})
+                      this.setState(prevState => ({data: {...prevState.data, [label]: ''}}))
                       if (label==='new' && !!response)
                         this.setState({error: response.data})
                     });
     }).map(f=>f()) )
     // now we loaded and parsed all the data
-    .then( () => this.setState({is_loaded: true}) )
+    .then( () => { if (is_current()) this.setState({is_loaded: true}) })
   }
 
   render() {
