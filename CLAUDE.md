@@ -70,8 +70,8 @@ uv sync --extra dev     # Install with dev dependencies
 
 ## Release notes and docs (communicating with users)
 
-Users see the release notes in the web app's "What's new" panel: it pops up once when there are new
-notes, and opens anytime from the sidebar's sparkles button, the footer, or `/#whats-new`. The docs
+Users see the release notes in the web app's "What's new" panel: it pops up once when a period with notes
+is over, and opens anytime from the sidebar's sparkles button, the footer, or `/#whats-new`. The docs
 website shows them at `/release-notes` (with RSS/Atom feeds).
 
 - **Source**: `website/release-notes/YYYY-MM.md`, one file per month (`YYYY-qN.md` or `YYYY.md` for quiet
@@ -87,8 +87,10 @@ website shows them at `/release-notes` (with RSS/Atom feeds).
 - **Publishing** (maintainers, at the start of the next month or for a big release): curate the bullets,
   write `description` (1-2 sentences) and 2-4 `highlights` (title, `audience`: users | project-integration |
   admins, a Blueprint `icon` name, plain-text `description` (backticks for code), optional `link: /docs/...`), set `date`
-  to the publication date, and remove `draft: true`. Users get the popup once after the next deploy
-  (notes older than 60 days don't pop up). Later edits to a published note don't notify again.
+  to the publication date, and remove `draft: true`. Until its period is over, a published note is a
+  preview in the panel ("In progress"), so keep adding bullets as work lands: it pops up once, after the
+  period's last day, with everything in it (notes whose period ended over 60 days ago don't pop up).
+  "Seen" is remembered per period: later edits to a note don't notify again.
 - **After editing any note**: run `website/release-notes/release_notes.py build` and commit
   `webapp/src/releaseNotes/release-notes.json` (generated, the web app bundles it: the webapp and website
   docker builds can't see each other's folders). `release_notes.py check` validates the frontmatter, the

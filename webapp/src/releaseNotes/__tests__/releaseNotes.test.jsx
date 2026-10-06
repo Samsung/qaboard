@@ -16,8 +16,9 @@ import {
   LAST_SEEN_KEY,
   popupNotes,
   unseenNotes,
-  newestDate,
-  newestSlug,
+  periodEnd,
+  isPreview,
+  lastSeenSlug,
   resolveLink,
   searchNotes,
   renderHtml,
@@ -34,24 +35,39 @@ const now = new Date('2026-10-05T12:00:00Z');
 
 
 describe('which notes are new', () => {
-  test('without a last seen date, all notes are unseen but only the recent ones pop up', () => {
-    expect(unseenNotes(notes, null)).toHaveLength(3);
-    expect(popupNotes(notes, null, now).map(n => n.slug)).toEqual(['2026-10', '2026-09']);
+  test('period ends', () => {
+    expect(periodEnd(note('2026-02', '2026-02-03'))).toBe('2026-02-28');
+    expect(periodEnd(note('2024-02', '2024-02-03'))).toBe('2024-02-29');
+    expect(periodEnd(note('2026-q3', '2026-07-01'))).toBe('2026-09-30');
+    expect(periodEnd(note('2026-q4', '2026-07-01'))).toBe('2026-12-31');
+    expect(periodEnd(note('2019', '2019-05-01'))).toBe('2019-12-31');
+    expect(periodEnd({ ...note('x', '2026-05-01'), period: 'whatever' })).toBe('2026-05-01');
   });
-  test('only notes newer than the last seen one pop up', () => {
-    expect(popupNotes(notes, '2026-09-30', now).map(n => n.slug)).toEqual(['2026-10']);
+  test('the current period is a preview, until its last day included', () => {
+    expect(isPreview(notes[0], now)).toBe(true);
+    expect(isPreview(notes[0], new Date('2026-10-31T12:00:00Z'))).toBe(true);
+    expect(isPreview(notes[0], new Date('2026-11-01T12:00:00Z'))).toBe(false);
+    expect(isPreview(notes[1], now)).toBe(false);
+  });
+  test('without a last seen period, finished notes are unseen but only the recent ones pop up', () => {
+    expect(unseenNotes(notes, null, now).map(n => n.slug)).toEqual(['2026-09', '2026-q2']);
+    expect(popupNotes(notes, null, now).map(n => n.slug)).toEqual(['2026-09']);
+  });
+  test('the current period pops up once it is over, with the changes added meanwhile', () => {
+    // read in October: September is remembered, not the October preview
+    expect(lastSeenSlug(notes, now)).toBe('2026-09');
+    expect(popupNotes(notes, '2026-09', now)).toEqual([]);
+    const november = new Date('2026-11-02T12:00:00Z');
+    expect(popupNotes(notes, '2026-09', november).map(n => n.slug)).toEqual(['2026-10']);
+    expect(lastSeenSlug(notes, november)).toBe('2026-10');
+    // editing or re-dating a finished note doesn't notify again
+    expect(popupNotes([note('2026-10', '2026-11-20'), ...notes.slice(1)], '2026-10', november)).toEqual([]);
+  });
+  test('dates stored by older versions are still understood', () => {
+    // the October note was seen mid-October: it pops up again once October is over
     expect(popupNotes(notes, '2026-10-01', now)).toEqual([]);
-  });
-  test('the last seen period is what counts, not its date', () => {
-    expect(popupNotes(notes, '2026-09', now).map(n => n.slug)).toEqual(['2026-10']);
-    expect(popupNotes(notes, '2026-10', now)).toEqual([]);
-    // a published note that gets re-dated doesn't notify again
-    expect(popupNotes([note('2026-10', '2026-10-20'), ...notes.slice(1)], '2026-10', now)).toEqual([]);
-  });
-  test('newest date', () => {
-    expect(newestSlug(notes)).toBe('2026-10');
-    expect(newestDate(notes)).toBe('2026-10-01');
-    expect(newestDate([])).toBe(null);
+    expect(popupNotes(notes, '2026-10-01', new Date('2026-11-02T12:00:00Z')).map(n => n.slug)).toEqual(['2026-10']);
+    expect(popupNotes(notes, '2026-09-29', now).map(n => n.slug)).toEqual(['2026-09']);
   });
 });
 
@@ -131,8 +147,12 @@ describe('the bundle', () => {
 
 describe('the What\'s new popup', () => {
   const store = createStore(() => ({ siteConfig: { docs_root: '/' } }));
-  const recent = note('2099-01', '2099-01-31', {
-    title: 'January 2099',
+  // last month: finished, and recent enough to pop up
+  const d = new Date();
+  const lastMonth = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 0));
+  const slug = lastMonth.toISOString().slice(0, 7);
+  const recent = note(slug, lastMonth.toISOString().slice(0, 10), {
+    title: 'Last month',
     highlights: [{ title: 'Flying cars', description: 'They fly.', audience: 'users', icon: 'airplane', link: '/docs/faq' }],
     html: '<h2>Web app</h2><ul><li>Added flying cars</li></ul>',
   });
@@ -152,7 +172,7 @@ describe('the What\'s new popup', () => {
     expect(screen.getByText('Learn more').closest('a')).toHaveAttribute('href', '/docs/faq');
 
     fireEvent.click(screen.getByText('Got it'));
-    expect(window.localStorage.getItem(LAST_SEEN_KEY)).toBe('2099-01');
+    expect(window.localStorage.getItem(LAST_SEEN_KEY)).toBe(slug);
     await waitFor(() => expect(screen.queryByTestId('whats-new-unread')).not.toBeInTheDocument());
 
     fireEvent.click(screen.getByLabelText("What's new"));
@@ -161,7 +181,7 @@ describe('the What\'s new popup', () => {
   });
 
   test('does not open for notes already seen', async () => {
-    window.localStorage.setItem(LAST_SEEN_KEY, '2099-01');
+    window.localStorage.setItem(LAST_SEEN_KEY, slug);
     renderApp();
     // let the notes load
     await waitFor(() => expect(screen.getByLabelText("What's new")).toBeInTheDocument());
@@ -186,5 +206,26 @@ describe('the What\'s new popup', () => {
     );
     await new Promise(resolve => setTimeout(resolve, 20));
     expect(screen.queryByText('Flying cars')).not.toBeInTheDocument();
+  });
+
+  test('does not pop up the current period, but shows it in the panel as in progress', async () => {
+    const current = note(new Date().toISOString().slice(0, 7), new Date().toISOString().slice(0, 10), {
+      highlights: [{ title: 'Hover boards', description: 'Soon.', audience: 'users', icon: 'airplane' }],
+    });
+    render(
+      <Provider store={store}>
+        <ReleaseNotesProvider load={() => Promise.resolve([current])} popupDelay={0}>
+          <WhatsNewButton />
+        </ReleaseNotesProvider>
+      </Provider>
+    );
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(screen.queryByText('Hover boards')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('whats-new-unread')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("What's new"));
+    expect(await screen.findByText('Hover boards')).toBeInTheDocument();
+    expect(screen.getByText('In progress')).toBeInTheDocument();
+    // seeing the preview doesn't count as seeing the period
+    expect(window.localStorage.getItem(LAST_SEEN_KEY)).toBe(null);
   });
 });
