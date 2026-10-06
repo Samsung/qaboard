@@ -2,7 +2,7 @@
 # Files starting with _ are ignored. Copy this file to YYYY-MM.md (a month), YYYY-qN.md (a quarter) or YYYY.md (a year),
 # or generate a draft from git: ./release_notes.py draft 2026-10 --write
 title: October 2026        # optional, defaults to the period ("October 2026", "Q2 2025", "2019")
-date: 2026-10-31           # publication date. Notes newer than what a user last saw pop up in the web app.
+date: 2026-10-31           # publication date. The web app pops a note up once its period is over.
 draft: true                # drafts are hidden in the app and on the website. Remove it to publish.
 version: 1.1.0             # optional: the `qaboard` package version released in the period
 description: >-
