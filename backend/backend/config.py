@@ -19,3 +19,7 @@ qaboard_data_git_dir = Path(os.environ.get("QABOARD_DATA_GIT_DIR", qaboard_data_
 default_storage_root = Path('/mnt/qaboard')
 default_outputs_root = default_storage_root
 default_artifacts_root = default_storage_root
+
+# Clients tell us where they saved their results, but the server only writes, deletes or runs code inside these
+# folders (see backend/storage.py). Separated by ":" like $PATH.
+storage_roots = [Path(p) for p in os.environ.get('QABOARD_STORAGE_ROOTS', str(default_storage_root)).split(':') if p]

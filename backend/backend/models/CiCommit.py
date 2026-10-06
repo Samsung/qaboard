@@ -22,6 +22,7 @@ from qaboard.api import dir_to_url
 from backend.models import Base, Batch, Output
 from ..utils import get_avatar_url, get_github_avatar_url
 from ..fs_utils import rm_empty_parents, rmtree
+from ..storage import check_storage_path, check_inside, UnsafePathError
 from ..git_utils import find_branch
 
 
@@ -168,6 +169,7 @@ class CiCommit(Base):
     # hexsha comes from unauthenticated API calls, make sure git won't parse it as an option
     if not re.match(r'^[0-9a-fA-F]{4,64}$', self.hexsha):
       raise ValueError(f"Invalid commit id: {self.hexsha!r}")
+    check_storage_path(self.repo_artifacts_dir)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
       tmp_dir_path = Path(tmp_dir)
@@ -186,7 +188,12 @@ class CiCommit(Base):
     NOTE: We don't touch batches/outputs, you have to deal with them yourself.
           See hard_delete() in api/webhooks.py and clean.py
     """
-    # print(self.artifacts_dir)
+    try:
+      check_storage_path(self.repo_artifacts_dir)
+      check_storage_path(self.artifacts_dir)
+    except UnsafePathError as e:
+      print(f"WARNING: not deleting the artifacts: {e}")
+      return
     manifest_dir = self.artifacts_dir / 'manifests'
     delete_errors = False
     nb_manifests = 0
@@ -215,6 +222,8 @@ class CiCommit(Base):
           # raise ValueError
           if not dryrun:
             try:
+              # manifests are written by users
+              check_inside(file_to_delete, self.repo_artifacts_dir)
               if file_to_delete.exists():
                 rmtree(file_to_delete)
                 rm_empty_parents(file_to_delete)

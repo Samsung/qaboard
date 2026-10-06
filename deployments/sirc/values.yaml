@@ -33,6 +33,8 @@ config:
   QABOARD_IMAGE_CACHE_DIR: /algo/qa_db/image_cache
   QABOARD_DATA_SHARED_DIR: /home/ispq/qaboard/shared
   QABOARD_DATA_GIT_DIR: /algo/ws/ispq/qaboard_prod_data_git
+  # The server only writes, deletes or runs code in these folders (the shared storage mounted below)
+  QABOARD_STORAGE_ROOTS: /algo:/stage:/home:/raid:/sim:/data:/net
   # uwsgi drops privileges to ispq, and uses sudo to delete outputs as their owner
   UWSGI_UID: ispq
   UWSGI_GID: uucp

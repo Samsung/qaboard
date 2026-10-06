@@ -3,8 +3,11 @@ Here is the "write" part of the API, to signal more data is ready.
 It includes the actual webhooks sent e.g. by Gitlab, as well as
 API calls to update batches and outputs.
 """
+import os
 import sys
+import hmac
 import json
+import hashlib
 
 from flask import request, jsonify
 from sqlalchemy.orm.attributes import flag_modified
@@ -43,10 +46,30 @@ def delete_commit(commit_id, project_id=None):
 
 
 
+# If set, webhooks must prove they know it: GitLab's "Secret token", GitHub's "Secret"
+webhook_secret = os.environ.get('QABOARD_WEBHOOK_SECRET', '')
+
+def is_gitlab_webhook_authentic():
+  if not webhook_secret:
+    return True
+  token = request.headers.get('X-Gitlab-Token', '')
+  return hmac.compare_digest(token.encode(), webhook_secret.encode())
+
+def is_github_webhook_authentic():
+  # https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries
+  if not webhook_secret:
+    return True
+  signature = request.headers.get('X-Hub-Signature-256', '')
+  expected = 'sha256=' + hmac.new(webhook_secret.encode(), request.get_data(), hashlib.sha256).hexdigest()
+  return hmac.compare_digest(signature.encode(), expected.encode())
+
+
 @app.route('/webhook/gitlab', methods=['GET', 'POST'])
 def gitlab_webhook():
   """If Gitlab calls this endpoint every push, we get avatars and update our local copy of the repo."""
   # https://docs.gitlab.com/ce/user/project/integrations/webhooks.html
+  if not is_gitlab_webhook_authentic():
+    return jsonify({"error": "Invalid webhook secret token"}), 401
   data = json.loads(request.data)
   print(data, file=sys.stderr)
   update_project(data, db_session)
@@ -57,6 +80,8 @@ def gitlab_webhook():
 def github_webhook():
   """If GitHub calls this endpoint every push, we normalize the payload and update our local copy of the repo."""
   # https://docs.github.com/en/webhooks/webhook-events-and-payloads#push
+  if not is_github_webhook_authentic():
+    return jsonify({"error": "Invalid webhook signature"}), 401
   data = json.loads(request.data)
   print(data, file=sys.stderr)
   normalized = {

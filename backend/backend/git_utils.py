@@ -1,4 +1,5 @@
 import os
+import re
 from urllib.parse import urlparse
 
 from git import Repo
@@ -6,6 +7,18 @@ from git import RemoteProgress
 from git.exc import NoSuchPathError, InvalidGitRepositoryError
 
 from .fs_utils import as_user
+
+
+# Repository paths and URLs come from unauthenticated webhooks and API calls.
+# Paths must stay under the clone directory: no absolute paths, no "." or ".." segments
+safe_project_path = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*(/[A-Za-z0-9_][A-Za-z0-9_.-]*)*")
+# We only clone from (and send the GITHUB_ACCESS_TOKEN to) known GitHub hosts
+trusted_github_hosts = {'github.com', *[h for h in os.environ.get('QABOARD_GITHUB_HOSTS', '').split(',') if h]}
+
+def check_project_path(project_path):
+  if not safe_project_path.fullmatch(str(project_path)):
+    raise ValueError(f"Invalid repository path: {project_path!r}")
+
 
 class Repos():
   """Holds data for multiple repositories."""
@@ -25,6 +38,8 @@ class Repos():
         parsed = urlparse(web_url)
         host = parsed.hostname
         scheme = parsed.scheme
+        if scheme not in ('http', 'https') or host not in trusted_github_hosts:
+          raise ValueError(f"Untrusted GitHub host: {web_url}. Set QABOARD_GITHUB_HOSTS to allow it.")
       else:
         host = 'github.com'
         scheme = 'https'
@@ -47,6 +62,7 @@ class Repos():
     hosting_type: 'github' or 'gitlab' (default)
     web_url: the web URL of the repo (used to derive host for GitHub Enterprise)
     """
+    check_project_path(project_path)
     clone_location = str(self.clone_directory / project_path)
     try:
       repo = Repo(clone_location)

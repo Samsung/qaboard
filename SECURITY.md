@@ -34,6 +34,10 @@ Fixed on the default branch, after the `qaboard` 1.0.3 release:
 - Path traversal when reading and writing the custom test groups files.
 - Git argument injection through commit IDs when restoring artifacts.
 - The GitLab proxy, webhook proxy, export, save-artifacts and delete endpoints now require a logged-in user.
+- Changing or deleting a single output (`PUT`/`DELETE /api/v1/output/<id>`) didn't require a login. Since the output's folder is chosen by the client that created it, anyone could make the server delete any folder it can write to.
+- The GitLab and GitHub webhooks could make the server clone a repository to any path, and from any host: with a `GITHUB_ACCESS_TOKEN`, the token was sent to that host. Repository paths are now validated, the token is only sent to github.com and hosts listed in `QABOARD_GITHUB_HOSTS`, and webhooks can be authenticated with `QABOARD_WEBHOOK_SECRET`.
+- The server wrote, deleted and ran code in output and artifacts folders chosen by the clients, anywhere on its filesystem. It now only does so inside the storage folders listed in `QABOARD_STORAGE_ROOTS` (default: `/mnt/qaboard`), and never in its own folders (`QABOARD_DATA_DIR`, the git clones, the shared folder, the image cache, its user's home). Results with other folders are refused.
+- Deleting results followed symlinks: deleting an output that contained a link to a folder deleted the folder's contents. Files listed in manifests could also point outside of the output folder.
 
 
 ## Known issues
@@ -42,11 +46,14 @@ We know about the issues below. In the deployments maintained by the authors, th
 
 ### Results are sent to the server without authentication
 The `qa` CLI sends runs, batches and commits to `POST /api/v1/output`, `/api/v1/batch` and `/api/v1/commit` without authentication, so that it works from any CI or workstation. As a result:
-- anyone who can reach the server can create or change results;
-- paths stored with results (output and artifacts folders) can't be trusted. Deleting results, and the cleanup scripts, delete files at those paths, as the owner of the files when the server can switch users.
+- anyone who can reach the server can create or change results, and delete results (`qa optimize` deletes the previous best iteration's runs through `POST /api/v1/batch`);
+- the output and artifacts folders stored with results can be any folder in the storage (`QABOARD_STORAGE_ROOTS`). Deleting results, and the cleanup scripts, delete files there, as the owner of the files when the server can switch users;
+- results can point to an existing commit and replace its artifacts folder. Redo, tuning and "Run Tests" run code from that folder (its `.envrc` files and the project's entrypoint). They run as the logged-in user when an LSF bridge is configured, but listing the tests of a tuning group (`POST /api/v1/tests/group`, a logged-in user is needed) runs `qa batch --list` in the backend itself, as the server's user.
 
-*Mitigations*: only expose the server to trusted networks; make sure the server can't write to folders outside your QA-Board storage.
-*Planned*: an option to require API tokens on these endpoints, and refusing to delete files outside the configured storage roots.
+Code that runs as the server's user can read its credentials (database, GitLab token, the ssh key of the LSF bridge...). If users can write in the storage, they can also change the `.envrc` files and the code that the server, CI and other users run from it.
+
+*Mitigations*: only expose the server to trusted networks; set `QABOARD_STORAGE_ROOTS` as narrowly as you can; make sure users can't write to the artifacts folders.
+*Planned*: an option to require API tokens on these endpoints, and running the tests listing without access to the server's credentials.
 
 ### Insecure defaults in `docker-compose.yml`
 - RabbitMQ is published on ports 5672/15672 with the `guest:guest` account. Celery workers run the shell commands given in the tasks they receive, so **anyone who can reach RabbitMQ can run commands on the workers**.
@@ -55,6 +62,11 @@ The `qa` CLI sends runs, batches and commits to `POST /api/v1/output`, `/api/v1/
 - pgAdmin uses a default password.
 
 *Mitigations*: don't publish these ports outside the Docker network (or firewall them), and change all the default credentials.
+
+### Webhooks
+Without `QABOARD_WEBHOOK_SECRET`, anyone who can reach the server can send fake push events to `/webhook/gitlab` and `/webhook/github`: they make the server fetch repositories, and change the projects' git metadata.
+
+*Mitigation*: set `QABOARD_WEBHOOK_SECRET`, and the same secret in the GitLab and GitHub webhooks.
 
 ### Accounts and sessions
 - With `QABOARD_LOGIN_TYPE=LOCAL`, anyone can sign up. Set `QABOARD_DISABLE_SIGNUP=True`, or use LDAP or SAML.
@@ -65,6 +77,9 @@ The `qa` CLI sends runs, batches and commits to `POST /api/v1/output`, `/api/v1/
 ### Other
 - `GET /api/v1/export` lets logged-in users create links or copies of output files in most folders the server can write to.
 - `POST /api/v1/jenkins/build/trigger` doesn't require authentication, because the CLI's Jenkins runner calls it. Jenkins credentials are only sent to the hosts configured in `JENKINS_AUTH`.
+- `POST /api/v1/gitlab/job` doesn't require authentication: anyone can read the details of GitLab CI jobs that `GITLAB_ACCESS_TOKEN` can see.
+- Milestones can be created and deleted without a login.
+- `GET /api/v1/output/<id>/manifest` doesn't require a login: it writes `manifest.outputs.json` in the output's folder, and returns the list of files in it.
 - Inside the backend container, `fs_utils.as_user` passes results between processes using a world-writable temporary file read with `pickle`.
 
 

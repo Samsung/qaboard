@@ -105,6 +105,9 @@ QA-Board can connect to external authentifications systems (LDAP, SAML). If need
 | `GITLAB_HOST`          | *https://gitlab.com* | e.g. *https://gitlab.com* or *http://my-gitlab-srv/*. Also used for git links in the UI |
 | `QABOARD_GITLAB_HOSTS` | _none_  | Comma-separated extra gitlab hostnames the backend may send `GITLAB_ACCESS_TOKEN` to |
 | `GITHUB_ACCESS_TOKEN`  | _none_  | Token used to clone private GitHub repositories and look up committers' avatars (see [GitHub integration](project-init#optional-integration-with-github)) |
+| `QABOARD_GITHUB_HOSTS` | _none_  | Comma-separated GitHub Enterprise hostnames the backend may clone from and send `GITHUB_ACCESS_TOKEN` to, besides github.com |
+| `QABOARD_STORAGE_ROOTS` | */mnt/qaboard* | Folders where your projects store outputs and artifacts, separated by `:` (e.g. `/mnt/qaboard:/mnt/datasets`). The backend refuses results stored elsewhere, and never writes, deletes or runs code outside these folders |
+| `QABOARD_WEBHOOK_SECRET` | _none_ | Secret that the GitLab and GitHub webhooks must send (GitLab's *Secret token*, GitHub's *Secret*). Recommended: without it anyone who can reach the server can send fake push events |
 | `QABOARD_PORT_HTTP`    | 5151    | Port mapped to the app on the host                   |
 | `QABOARD_DB_HOST`      | db      | Connect the backend to a non-default database host (e.g. instead of dev'ing with prod dumps, connect directly to it) |
 | `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port               |

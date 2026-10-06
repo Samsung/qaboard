@@ -26,6 +26,7 @@ from backend import app, db_session
 from ..models import CiCommit, Project
 from ..config import qaboard_data_shared_dir
 from ..shell_utils import safe_user_name, lsf_bridge_command
+from ..storage import check_storage_path, UnsafePathError
 from .auth import login_required
 
 
@@ -183,6 +184,11 @@ def get_group():
     # project fallback?
     if has_custom_iter_inputs:
         cwd = ci_commit.artifacts_dir
+        # We run code from this folder, which comes from unauthenticated API calls
+        try:
+            check_storage_path(cwd)
+        except UnsafePathError as e:
+            return jsonify({"error": str(e)}), 400
         parent_including_cwd = [*list(reversed(list(cwd.parents))), cwd]
         envrcs = [f'source {quote(str(p / ".envrc"))}\n' for p in parent_including_cwd if (p / '.envrc').exists()]
         cmd = ' '.join([
@@ -454,6 +460,13 @@ def start_tuning(hexsha):
     # but it's likely better to use the user that requested the tuning
     default_user = os.environ.get('QABOARD_DEFAULT_USER', 'qaboard')
     batch_dir = Path(str(batch_dir).replace(f'/outputs/{default_user}/', f'/outputs/{user}/'))
+    # We write scripts in the batch's folder, and run code from the artifacts folder
+    try:
+        check_storage_path(batch_dir)
+        check_storage_path(ci_commit.artifacts_dir)
+    except UnsafePathError as e:
+        os.umask(prev_mask)
+        return jsonify({"error": str(e)}), 400
     if not batch.batch_dir_override:
         batch.batch_dir_override = str(batch_dir)
         db_session.add(batch)

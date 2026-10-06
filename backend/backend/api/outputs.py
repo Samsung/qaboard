@@ -10,21 +10,32 @@ from qaboard.api import dir_to_url
 
 from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
+from ..storage import check_storage_path, UnsafePathError
 from .auth import login_required
 
 
-@app.route("/api/v1/output/<output_id>", methods=['GET', 'PUT', 'DELETE'])
-@app.route("/api/v1/output/<output_id>/", methods=['GET', 'PUT', 'DELETE'])
-def crud_output(output_id):
+@app.route("/api/v1/output/<output_id>", methods=['GET'])
+@app.route("/api/v1/output/<output_id>/", methods=['GET'])
+def get_output(output_id):
+  try:
+    output = Output.query.filter(Output.id==output_id).one()
+  except NoResultFound:
+    return jsonify({"error": f"Cannot find output {output_id}"}), 400
+  return jsonify(output.to_dict())
+
+
+# Only the web app changes or deletes outputs, the CLI uses POST /api/v1/output/
+# Deleting removes the output's folder, which comes from unauthenticated API calls
+@app.route("/api/v1/output/<output_id>", methods=['PUT', 'DELETE'])
+@app.route("/api/v1/output/<output_id>/", methods=['PUT', 'DELETE'])
+@login_required
+def update_output(output_id):
   try:
     output = Output.query.filter(Output.id==output_id).one()
   except NoResultFound:
     if request.method == 'DELETE':
       return {"status": "OK"}
     return jsonify({"error": f"Cannot find output {output_id}"}), 400
-
-  if request.method == 'GET':
-    return jsonify(output.to_dict())
 
   if request.method == 'PUT':
     data = request.get_json()
@@ -53,7 +64,10 @@ def crud_output(output_id):
     if output.is_pending:
       return {"error": "Please wait for the Output to finish running before deleting it"}, 500
     soft = request.args.get('soft') == 'true'
-    output.delete(soft=soft)
+    try:
+      output.delete(soft=soft)
+    except UnsafePathError as e:
+      return jsonify({"error": f"{e}"}), 400
     if not soft:
       db_session.delete(output)
       db_session.commit()
@@ -87,7 +101,10 @@ def get_output_manifest(output_id):
     return jsonify({"error": f"Cannot find output {output_id}"}), 400
   manifest_path = output.output_dir / "manifest.outputs.json"
   if output.is_running or request.args.get('refresh') or not manifest_path.exists():
-    manifest = output.update_manifest(compute_hashes=False)
+    try:
+      manifest = output.update_manifest(compute_hashes=False)
+    except UnsafePathError as e:
+      return jsonify({"error": f"{e}"}), 400
     return jsonify(manifest)
   else:
     # FIXME: in dev it will return http://backend/ and break the frontend who cannot connect
@@ -111,6 +128,21 @@ def new_output_webhook():
   """Updates the database when we get new results."""
   data = request.get_json()
   hexsha = data.get('commit_sha', data['git_commit_sha'])
+
+  # The server will write, delete and run code in those folders
+  output_directory = data.get('output_directory')
+  # prefix_output_dir for backward-compatibility
+  artifacts_commit = data.get('artifacts_commit', data.get('commit_ci_dir'))
+  if not artifacts_commit or not artifacts_commit.startswith('/'): # or "some-protocol://"
+    artifacts_commit = None # just ignore...
+  try:
+    if output_directory:
+      check_storage_path(output_directory)
+    if artifacts_commit:
+      check_storage_path(artifacts_commit)
+  except UnsafePathError as e:
+    return jsonify({"error": f"{e}"}), 400
+
   # We get a handle on the Commit object related to our new output
   try:
     ci_commit = CiCommit.get_or_create(
@@ -187,11 +219,8 @@ def new_output_webhook():
   if output.deleted:
     output.deleted = False
 
-  # prefix_output_dir for backward-compatibility
-  ci_commit.commit_dir_override = data.get('artifacts_commit', data.get('commit_ci_dir'))
-  if not ci_commit.commit_dir_override.startswith('/'): # or "some-protocol://" 
-    ci_commit.commit_dir_override = None # just ignore...
-  output.output_dir_override = data['output_directory']
+  ci_commit.commit_dir_override = artifacts_commit
+  output.output_dir_override = output_directory
 
   # We update the output's status
   output.is_running = data.get('is_running', False)

@@ -23,6 +23,10 @@ services:
 
       # Output path user (for multi-user environments)
       # - QABOARD_DEFAULT_USER=qaboard
+
+      # Where your projects store results (default: /mnt/qaboard). The server refuses to write, delete
+      # or run code anywhere else, e.g. in folders sent by a client. Separated by ":"
+      # - QABOARD_STORAGE_ROOTS=/mnt/qaboard:/mnt/datasets
       []
 
   # Uncomment to customize frontend:
