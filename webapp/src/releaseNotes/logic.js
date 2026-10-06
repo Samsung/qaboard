@@ -31,15 +31,43 @@ export const setLastSeen = date => {
 };
 
 
-// The notes are sorted newest first; dates are YYYY-MM-DD, so they compare as strings
-export const unseenNotes = (notes, lastSeen) => notes.filter(n => !lastSeen || n.date > lastSeen);
+// The last day of a period: 2026-10, 2026-q4 or 2026. Unknown formats use the note's date.
+export const periodEnd = note => {
+  const m = /^(\d{4})(?:-(\d{2})|-q([1-4]))?$/.exec(note.period || '');
+  if (!m) return note.date;
+  const year = Number(m[1]);
+  const lastMonth = m[2] ? Number(m[2]) : m[3] ? 3 * Number(m[3]) : 12;
+  // day 0 of the next month is the last day of this one
+  return new Date(Date.UTC(year, lastMonth, 0)).toISOString().slice(0, 10);
+};
+
+const today = now => now.toISOString().slice(0, 10);
+
+// The notes of the current period are a preview: they are still updated as work lands, so they
+// don't pop up and don't count as unread. They pop up once the period is over, with everything in it.
+export const isPreview = (note, now = new Date()) => periodEnd(note) >= today(now);
+
+// What's stored is the period (slug) of the newest finished note the user has seen, so the popup
+// only opens when a period ends: editing or re-dating a published note doesn't re-trigger it.
+// The notes are sorted newest first, so the unseen ones are those before the last seen period.
+// Older versions stored the date of the newest note, possibly published mid-period: the periods
+// that ended after it are unseen.
+export const unseenNotes = (notes, lastSeen, now = new Date()) => {
+  const finished = notes.filter(n => !isPreview(n, now));
+  if (!lastSeen) return finished;
+  const index = notes.findIndex(n => n.slug === lastSeen);
+  if (index >= 0) return finished.filter(n => notes.indexOf(n) < index);
+  return finished.filter(n => periodEnd(n) > lastSeen);
+};
 
 export const popupNotes = (notes, lastSeen, now = new Date()) => {
   const oldest = new Date(now.getTime() - POPUP_MAX_AGE_DAYS * 24 * 3600 * 1000).toISOString().slice(0, 10);
-  return unseenNotes(notes, lastSeen).filter(n => n.date >= oldest);
+  return unseenNotes(notes, lastSeen, now).filter(n => periodEnd(n) >= oldest);
 };
 
-export const newestDate = notes => notes.reduce((newest, n) => (!newest || n.date > newest ? n.date : newest), null);
+// What to remember once the notes were shown: the newest finished period
+export const lastSeenSlug = (notes, now = new Date()) => notes.find(n => !isPreview(n, now))?.slug ?? null;
+
 
 
 // Links in the notes are /docs/page-id, /release-notes/slug or full URLs
