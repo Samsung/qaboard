@@ -16,6 +16,8 @@ config:
   # GITLAB_HOST: https://gitlab.example.com
   # QABOARD_LDAP_HOST: ldap.example.com
   # QABOARD_IMAGE_SERVERS: '{"default": "/iiif"}'
+  # The folders mounted below (extraVolumeMounts): the backend only writes, deletes or runs code there
+  # QABOARD_STORAGE_ROOTS: /algo
 
 # Secret backend settings: SECRET_KEY (signs sessions, must be the same for all replicas),
 # QABOARD_DB_PASSWORD (unless database.cnpg.enabled), GITLAB_ACCESS_TOKEN, QABOARD_LDAP_PASSWORD...

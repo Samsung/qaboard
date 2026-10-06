@@ -20,6 +20,7 @@ from qaboard.compat import windows_to_linux_path
 from qaboard.conventions import serialize_config
 from backend import app, db_session
 from backend.fs_utils import as_user, rmtree
+from backend.storage import check_storage_path, UnsafePathError
 from ..models import Project, CiCommit, Batch, slugify_hash
 from ..config import qaboard_url
 from .auth import login_required
@@ -225,11 +226,12 @@ def export_to_folder():
   if "export_dir" in request.args:
     export_dir = Path(request.args['export_dir'])
     export_dir = windows_to_linux_path(export_dir).resolve()
-    forbidden_dirs = ["/etc", "/bin", "/sbin", "/bin", "/lib", "/arch", "/proc", "/lib64", "/run", "/sys", "/usr/"]
-    for forbidden_dir in forbidden_dirs:
-      assert not export_dir.is_relative_to(forbidden_dir)
   else:
     export_dir = new_commit.repo_outputs_dir / 'share' / m[:8]
+  try:
+    check_storage_path(export_dir)
+  except UnsafePathError as e:
+    return json.dumps({"error": f"ERROR: {e}"}), 403
 
   if not export_dir.exists():
     prev_mask = os.umask(000)

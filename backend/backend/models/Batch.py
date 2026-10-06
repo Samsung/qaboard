@@ -19,6 +19,7 @@ from qaboard.api import dir_to_url
 
 from backend.models import Base, Output
 from backend.shell_utils import shell_safe, safe_user_name
+from backend.storage import UnsafePathError
 
 
 
@@ -199,7 +200,13 @@ class Batch(Base):
       if only_failed and not output.is_failed:
         still_has_outputs = True
         continue
-      output.delete(soft=soft, filter=filter)
+      try:
+        output.delete(soft=soft, filter=filter)
+      except UnsafePathError as e:
+        # we keep the output, so that admins can see it and its files are not lost
+        print(f"WARNING: not deleting {output}: {e}")
+        still_has_outputs = True
+        continue
       if not soft:
         session.delete(output)
     if not still_has_outputs and not soft:

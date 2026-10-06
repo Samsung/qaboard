@@ -19,26 +19,27 @@ from pathlib import Path
 
 def rmtree(path: Path) -> int:
   nb_deleted = 0
-  if path.is_dir(): # delete the children first
+  # We never follow symlinks: we delete the link, not what it points to
+  if path.is_dir() and not path.is_symlink(): # delete the children first
     for p in path.iterdir():
       nb_deleted += rmtree(p)
 
   print("RM", path)
   try:
-      if path.is_file():
+      if path.is_file() or path.is_symlink():
         path.unlink()
       else:
         path.rmdir()
       return 1
   except:
       # Already deleted?
-      if not path.exists():
+      if not os.path.lexists(path):
           return 0
 
       # Permission issues?
       # we need to be able to delete files owned by any user
       # since we don't have access to the real NFS root, we need to su as the owner of each file
-      stat = path.stat()
+      stat = path.lstat()
       try:
           try: # the user running the server needs SETUID/SETGID capabilities
             as_user(f"{stat.st_uid}:{stat.st_gid}", rmtree, path)
@@ -57,7 +58,11 @@ def rmtree(path: Path) -> int:
 
 
 def rm_empty_parents(path: Path):
+  from .storage import is_storage_path
   for parent in path.parents:
+    # never go up to the storage roots, or outside of them
+    if not is_storage_path(parent):
+      break
     try:
       is_empty = not any(parent.iterdir())
     except FileNotFoundError:

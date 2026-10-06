@@ -12,6 +12,7 @@ from sqlalchemy.orm.attributes import flag_modified
 from backend import app, db_session
 from .auth import is_authorized_user, login_required
 from ..models import Project, CiCommit, latest_successful_commit, Batch
+from ..storage import UnsafePathError
 
 
 
@@ -160,7 +161,10 @@ def commit_save_artifacts():
     # FIXME: in the clean crontab we remove commits without runs
     # if we rely on artifacts from a subproject without runs, it will cause issues... 
     # we should use the git info to find the qatools.yaml
-    ci_commit.save_artifacts()
+    try:
+      ci_commit.save_artifacts()
+    except UnsafePathError as e:
+      return jsonify({"error": f"{e}"}), 400
     if ci_commit.deleted:
       ci_commit.deleted = False
       db_session.add(ci_commit)

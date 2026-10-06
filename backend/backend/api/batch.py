@@ -5,6 +5,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from backend import app, db_session
 from ..models import CiCommit, Batch
+from ..storage import check_storage_path, UnsafePathError
 from .export_to_folder import filter_outputs
 from .auth import login_required
 
@@ -15,6 +16,14 @@ from .auth import login_required
 @app.route('/api/v1/batch/', methods=['POST'])
 def update_batch():
   data = request.get_json()
+  # prefix_output_dir for backward-compatibility
+  batch_dir = data.get("batch_dir", data.get("prefix_output_dir"))
+  if batch_dir:
+    # The server will write, delete and run code in this folder
+    try:
+      check_storage_path(batch_dir)
+    except UnsafePathError as e:
+      return jsonify({"error": f"{e}"}), 400
   try:
     ci_commit = CiCommit.get_or_create(
       session=db_session,
@@ -26,8 +35,7 @@ def update_batch():
     return f"404 ERROR:\n ({request.json['project']}): There is an issue with your commit id ({request.json['git_commit_sha']})", 404
 
   batch = ci_commit.get_or_create_batch(data['batch_label'])
-  # prefix_output_dir for backward-compatibility
-  batch.batch_dir_override = data.get("batch_dir", data.get("prefix_output_dir"))
+  batch.batch_dir_override = batch_dir
 
   # Clients can store any metadata in each batch.
   # Currently it's used by `qa optimize` to store info on iterations

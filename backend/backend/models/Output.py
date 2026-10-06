@@ -21,6 +21,7 @@ from qaboard.api import dir_to_url
 
 from backend.models import Base
 from backend.fs_utils import rm_empty_parents, rmtree
+from backend.storage import check_storage_path, check_inside
 from backend.shell_utils import quote, safe_user_name, lsf_bridge_command
 
 
@@ -210,8 +211,11 @@ class Output(Base):
   def redo(self, user, command_id=None):
     """
     Re-run this output, as `user` (the logged-in user who requested it).
-    Note: almost everything used here comes from unauthenticated API calls, so all values are quoted.
+    Note: almost everything used here comes from unauthenticated API calls, so all values are quoted,
+          and we only write and run code in the storage folders.
     """
+    check_storage_path(self.output_dir)
+    check_storage_path(self.batch.ci_commit.artifacts_dir)
     # in case it was deleted without QA-Board being made aware
     if not self.batch.ci_commit.artifacts_dir.exists():
       print("Restoring artifacts")
@@ -307,8 +311,9 @@ class Output(Base):
     Delete the output's output files.
     It's soft by default, in that we still keep the metadata.
     For a full hard delete, you'll also want to `session.delete(output)`
+    Raises UnsafePathError if the output directory is outside the storage folders.
     """
-    output_dir = self.output_dir
+    output_dir = check_storage_path(self.output_dir)
     if not output_dir.exists():
       self.deleted = True
       print(f"WARN: already deleted: {output_dir}")
@@ -339,7 +344,8 @@ class Output(Base):
               continue
           if filter and not fnmatch.fnmatch(file, filter):
             continue
-          output_file = output_dir / file
+          # manifests are written by users
+          output_file = check_inside(output_dir / file, output_dir)
           if not output_file.exists():
             continue
           print(f'{output_file}')
@@ -355,6 +361,7 @@ class Output(Base):
 
   def update_manifest(self, compute_hashes=True):
     qatools_config = self.batch.ci_commit.project.data.get('qatools_config', {})
+    check_storage_path(self.output_dir)
     os.umask(0)
     return save_outputs_manifest(self.output_dir, config=qatools_config, compute_hashes=compute_hashes)
 
