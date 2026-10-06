@@ -13,18 +13,28 @@ from ..models import TestInput, CiCommit, Output
 from .auth import login_required
 
 
-@app.route("/api/v1/output/<output_id>", methods=['GET', 'PUT', 'DELETE'])
-@app.route("/api/v1/output/<output_id>/", methods=['GET', 'PUT', 'DELETE'])
-def crud_output(output_id):
+@app.route("/api/v1/output/<output_id>", methods=['GET'])
+@app.route("/api/v1/output/<output_id>/", methods=['GET'])
+def get_output(output_id):
+  try:
+    output = Output.query.filter(Output.id==output_id).one()
+  except NoResultFound:
+    return jsonify({"error": f"Cannot find output {output_id}"}), 400
+  return jsonify(output.to_dict())
+
+
+# Only the web app changes or deletes outputs, the CLI uses POST /api/v1/output/
+# Deleting removes the output's folder, which comes from unauthenticated API calls
+@app.route("/api/v1/output/<output_id>", methods=['PUT', 'DELETE'])
+@app.route("/api/v1/output/<output_id>/", methods=['PUT', 'DELETE'])
+@login_required
+def update_output(output_id):
   try:
     output = Output.query.filter(Output.id==output_id).one()
   except NoResultFound:
     if request.method == 'DELETE':
       return {"status": "OK"}
     return jsonify({"error": f"Cannot find output {output_id}"}), 400
-
-  if request.method == 'GET':
-    return jsonify(output.to_dict())
 
   if request.method == 'PUT':
     data = request.get_json()
