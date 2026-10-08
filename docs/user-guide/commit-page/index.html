@@ -13,7 +13,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.3b48104c.css">
-<script src="/qaboard/assets/js/runtime~main.af9dfc70.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.be0b510a.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.199b2546.js" defer="defer"></script>
 </head>
 <body>
@@ -57,7 +57,7 @@
 </ul>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="views">Views<a href="#views" class="hash-link" aria-label="Direct link to Views" title="Direct link to Views" translate="no">​</a></h2>
 <p>The sidebar of a commit page lists the views. Each one answers a different question.</p>
-<table><thead><tr><th>Sidebar</th><th>View</th><th>Use it to...</th></tr></thead><tbody><tr><td><strong>Summary</strong></td><td>Summary</td><td>Get the big picture: how the main metrics changed</td></tr><tr><td><strong>Metrics Table</strong></td><td>Quality report</td><td>Check each run&#x27;s metrics against their targets</td></tr><tr><td><strong>Metrics Diff</strong></td><td>Improvement report</td><td>See per-run improvements and regressions vs the reference</td></tr><tr><td><strong>Visualizations</strong></td><td>Visualizations</td><td>Look at images, plots, videos, text... side by side with the reference</td></tr><tr><td><strong>Output Files</strong></td><td>Output Files</td><td>Browse and diff all the files each run created</td></tr><tr><td><strong>Logs</strong></td><td>Logs</td><td>Read why a run crashed, see the commands that started the batch</td></tr><tr><td><strong>Artifacts &amp; Configs</strong></td><td>Artifacts &amp; Configurations</td><td>Diff the build and the configuration files between commits</td></tr><tr><td><strong>Code</strong></td><td></td><td>Open the commit&#x27;s code on your git server</td></tr><tr><td><strong>Available Tests</strong></td><td>Groups of tests</td><td>See and edit the batches of inputs you can run</td></tr><tr><td><strong>Run Tests / Tuning</strong></td><td>Tuning Experiments</td><td>Start new runs or tuning experiments on this commit</td></tr><tr><td><strong>Analysis</strong></td><td>Auto-Tuning Analysis</td><td>Understand the results of a tuning experiment</td></tr></tbody></table>
+<table><thead><tr><th>Sidebar</th><th>View</th><th>Use it to...</th></tr></thead><tbody><tr><td><strong>Summary</strong></td><td>Summary</td><td>Get the big picture: how the main metrics changed</td></tr><tr><td><strong>Metrics Table</strong></td><td>Quality report</td><td>Check each run&#x27;s metrics against their targets</td></tr><tr><td><strong>Metrics Diff</strong></td><td>Improvement report</td><td>See per-run improvements and regressions vs the reference</td></tr><tr><td><strong>Visualizations</strong></td><td>Visualizations</td><td>Look at images, plots, videos, text... side by side with the reference</td></tr><tr><td><strong>Output Files</strong></td><td>Output Files</td><td>Browse and diff all the files each run created</td></tr><tr><td><strong>Logs</strong></td><td>Logs</td><td>Read why a run crashed, see the commands that started the batch</td></tr><tr><td><strong>Artifacts &amp; Configs</strong></td><td>Artifacts &amp; Configurations</td><td>Diff the build and the configuration files between commits</td></tr><tr><td><strong>Code</strong></td><td></td><td>Open the commit&#x27;s code on your git server</td></tr><tr><td><strong>Available Tests</strong></td><td>Available Tests</td><td>See, check and edit the batches of inputs you can run</td></tr><tr><td><strong>Run Tests / Tuning</strong></td><td>Tuning Experiments</td><td>Start new runs or tuning experiments on this commit</td></tr><tr><td><strong>Analysis</strong></td><td>Auto-Tuning Analysis</td><td>Understand the results of a tuning experiment</td></tr></tbody></table>
 <p>Some projects open a different view by default. The selected view is part of the URL (<code>selected_views=</code>), see <a class="" href="/qaboard/docs/user-guide/sharing#whats-in-the-url">Sharing</a>.</p>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="summary">Summary<a href="#summary" class="hash-link" aria-label="Direct link to Summary" title="Direct link to Summary" translate="no">​</a></h3>
 <p>For each <strong>summary metric</strong> (pick others with the metrics selector):</p>
@@ -121,13 +121,20 @@
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="code">Code<a href="#code" class="hash-link" aria-label="Direct link to Code" title="Direct link to Code" translate="no">​</a></h3>
 <p>Opens the commit on your git server, in a new tab. In a monorepo, it opens the project&#x27;s sub-folder.</p>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="available-tests">Available Tests<a href="#available-tests" class="hash-link" aria-label="Direct link to Available Tests" title="Direct link to Available Tests" translate="no">​</a></h3>
-<p>Lists where the batches of inputs you can run are defined:</p>
-<ol>
-<li class="">In the commit&#x27;s own files (links to them),</li>
-<li class=""><strong>Shared</strong> with all QA-Board users,</li>
-<li class=""><strong>Private</strong>, in a file only you can see and edit.</li>
-</ol>
-<p>The shared and private definitions are editable here: edit, then <strong>Update Batches</strong>. For the syntax, see <a class="" href="/qaboard/docs/batches-running-on-multiple-inputs">Batches of inputs</a>. You need to be logged in.</p>
+<p>Edit the batches of inputs you can run, in two files:</p>
+<ul>
+<li class=""><strong>Private</strong>: only you can see and edit it,</li>
+<li class=""><strong>Shared</strong>: every QA-Board user can see and edit it.</li>
+</ul>
+<p>The commit&#x27;s own batch files (<code>inputs.batches</code> in <em>qaboard.yaml</em>) are linked in the side panel. When a batch is defined in several places, Private overrides Shared, which overrides the commit&#x27;s files. For the syntax, see <a class="" href="/qaboard/docs/batches-running-on-multiple-inputs">Batches of inputs</a>. You need to be logged in.</p>
+<ul>
+<li class=""><strong>Save</strong> (or <kbd>Ctrl</kbd>+<kbd>S</kbd>, <kbd>⌘</kbd>+<kbd>S</kbd> on a Mac). The status next to the button tells you if there are <em>Unsaved changes</em>, when it was <em>Saved</em>, or why it was <em>Not saved</em>. A dot on a file&#x27;s tab means it has unsaved changes.</li>
+<li class="">YAML mistakes are underlined while you type, and listed below the editor: click one to go to its line. A batch defined twice is flagged too, since only its last definition is used.</li>
+<li class=""><strong>Review changes</strong> shows what you changed since the last save, and <strong>Discard</strong> drops it (with an <em>Undo</em>).</li>
+<li class="">The <strong>Batches</strong> panel lists the batches and aliases in the file, with their number of inputs: click one to go to its definition. Hover it to <strong>list its tests</strong> (the inputs and configurations it resolves to on this commit, with all the batch files) or to <strong>run</strong> it from the <em>Run Tests / Tuning</em> view. <em>Check any batch or pattern</em> does the same for any batch, like the commit&#x27;s, or a pattern like <code>nightly-*</code>. Listing tests uses the saved files.</li>
+<li class=""><strong>New</strong> adds an example batch to start from.</li>
+</ul>
+<p>Your unsaved changes are kept in your browser: if you switch views, reload or close the tab, they come back the next time you open the view. If someone saved the same file while you were editing, saving shows both versions side by side, and lets you keep editing, use the saved file, or overwrite it with yours.</p>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="run-tests--tuning">Run Tests / Tuning<a href="#run-tests--tuning" class="hash-link" aria-label="Direct link to Run Tests / Tuning" title="Direct link to Run Tests / Tuning" translate="no">​</a></h3>
 <p>Starts new runs of this commit&#x27;s code on a batch of inputs, optionally with tuning parameters. See <a class="" href="/qaboard/docs/user-guide/running-from-the-webapp#running-tests-and-tuning">Running from the web app</a>.</p>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="analysis">Analysis<a href="#analysis" class="hash-link" aria-label="Direct link to Analysis" title="Direct link to Analysis" translate="no">​</a></h3>
