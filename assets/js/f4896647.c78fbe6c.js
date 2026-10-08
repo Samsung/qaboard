@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkApache_2_0||=[]).push([[3275],{7362(e){e.exports=JSON.parse('{"metadata":{"permalink":"/qaboard/release-notes","page":1,"postsPerPage":10,"totalPages":4,"totalCount":37,"nextPage":"/qaboard/release-notes/page/2","blogDescription":"What\'s new in QA-Board: highlights and changes, month by month","blogTitle":"QA-Board release notes"}}')}}]);

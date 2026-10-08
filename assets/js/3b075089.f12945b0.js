@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkApache_2_0||=[]).push([[3609],{1904(e){e.exports=JSON.parse('{"blogBasePath":"/qaboard/release-notes","blogTitle":"QA-Board release notes","authorsListPath":"/qaboard/release-notes/authors"}')}}]);

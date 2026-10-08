@@ -1,0 +1,685 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <id>https://samsung.github.io/qaboard/release-notes</id>
+    <title>QA-Board release notes</title>
+    <updated>2026-10-05T00:00:00.000Z</updated>
+    <generator>https://github.com/jpmonette/feed</generator>
+    <link rel="alternate" href="https://samsung.github.io/qaboard/release-notes"/>
+    <subtitle>What's new in QA-Board</subtitle>
+    <icon>https://samsung.github.io/qaboard/img/favicon/favicon-32x32.png</icon>
+    <entry>
+        <title type="html"><![CDATA[2026-10]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2026-10</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2026-10"/>
+        <updated>2026-10-05T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[QA-Board now tells you what changed: release notes open in the app, and a new user guide explains the web app. Logs are much easier to read, with live updates and LSF's own reports. At SIRC, install one more package when you upgrade qaboard.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><span class="version_NYcp">qaboard v<!-- -->1.1.1</span><p class="description_UTc_">QA-Board now tells you what changed: release notes open in the app, and a new user guide explains the web app. Logs are much easier to read, with live updates and LSF's own reports. At SIRC, install one more package when you upgrade qaboard.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">What's new, and a user guide</h3><p class="text_FLe0">New release notes open once when you load QA-Board. Read them again, or search the past ones, from the sparkles button in the sidebar. A new user guide explains the web app: finding results, the commit page, comparing.</p><a href="https://samsung.github.io/qaboard/docs/user-guide/whats-new">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">A new logs viewer</h3><p class="text_FLe0">Logs update live while runs are running, with colors, line numbers, search and "jump to next error". Failed LSF runs show why LSF stopped them (memory, run time...) and how to fix it.</p><a href="https://samsung.github.io/qaboard/docs/user-guide/commit-page">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">SIRC: upgrading qaboard</h3><p class="text_FLe0">When you upgrade qaboard, also install the qaboard-site-sirc package: it now holds SIRC's settings, like the server's address, LSF as the default runner and where results are stored. See the SIRC instructions.</p><a href="https://samsung.github.io/qaboard/docs/installation">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q admins_lbEZ">Admins</span><h3 class="title_hdm3">Zero-downtime deploys</h3><p class="text_FLe0">deployments/deploy.py runs the migrations once, rolls out new backend replicas next to the old ones and rolls back instantly. There is also a Helm chart to run QA-Board on Kubernetes.</p><a href="https://samsung.github.io/qaboard/docs/backend-admin/deployment">Learn more →</a></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2026-10#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
+<ul>
+<li class="">Added the "What's new" panel: the release notes, newest first, with a search box. The link <code>/#whats-new</code> opens it, handy to share in a chat.</li>
+<li class="">The "What's new" dialog pops up once a month (or quarter) is over, with everything that changed in it. The notes of the current month show in the panel as a preview, tagged "In progress".</li>
+<li class="">The sidebar's help button opens the new <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/overview">user guide</a>.</li>
+<li class="">The Logs view lets you filter runs (all, failed, running), tags failed runs with the reason (e.g. "LSF: out of memory"), and stays fast with hundreds of runs.</li>
+<li class="">In the Logs view, each run fits on one line, with its configuration in short and buttons to open its output directory, redo, mark as failed or delete it. The full configuration shows when you open the run's logs, and the logs no longer get wider than the window.</li>
+<li class="">The sidebar's Logs entry shows how many runs failed, or are still running.</li>
+<li class="">Switch between a run's <code>log.txt</code>, <code>log.lsf.txt</code> and <code>log.dask.txt</code>. For LSF runs, a summary shows the exit reason, host, run time and memory used vs requested, with hints that point to the batch's <code>lsf:</code> options.</li>
+<li class="">Batches started from QA-Board (tuning, "Run Tests") show whether <code>qa batch</code> is waiting for LSF, running, failed (with the error) or didn't start any run, with a link to its logs.</li>
+<li class="">Links to commits and projects use your server's git host instead of a hardcoded one, and the "Quotas" links only show when the server has a quota dashboard.</li>
+<li class="">The error page links to your server's support page.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2026-10#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
+<ul>
+<li class="">At SIRC, upgrading <code>qaboard</code> now requires also installing <code>qaboard-site-sirc</code>, see the <a class="" href="https://samsung.github.io/qaboard/docs/installation">installation instructions</a>. Site packages provide a base <code>qaboard.yaml</code> that every project's configuration is merged on (<a class="" href="https://samsung.github.io/qaboard/docs/project-init#site-defaults">site defaults</a>): <code>qa init</code> shows the inherited values instead of overriding them.</li>
+<li class="">LSF runs write their output live to <code>log.lsf.txt</code>, with LSF's job report at the end. <code>qa batch</code> no longer passes an LSF queue or project when none is set, and fails fast when <code>bsub</code> is missing.</li>
+<li class=""><code>qa init</code> creates a configuration that runs locally: LSF is commented out, and storage defaults to <code>/mnt/qaboard</code> like the server.</li>
+<li class="">The CLI reads your <code>QA_TOKEN</code> from <code>$QA_TOKEN</code> or <code>~/.qaboard/secrets.yaml</code>, and warns if other users can read that file.</li>
+<li class=""><code>QABOARD_API_VERIFY</code> controls the TLS verification of the CLI's requests to the server: <code>true</code> (the default), <code>false</code>, or the path to a CA bundle.</li>
+<li class="">Site packages (company-specific plugins) are no longer ignored on Python 3.8 and 3.9.</li>
+<li class="">The package now includes the <code>qatools</code> compatibility package, and update checks no longer suggest a site-specific install command to everyone.</li>
+<li class="">Configure the Windows runner's PowerShell <code>$ErrorActionPreference</code> per job (the batch's <code>error_action:</code> option) or with the <code>QA_RUNNER_ERROR_ACTION</code> environment variable (default <code>Stop</code>).</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2026-10#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">Zero-downtime deploys with <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/deployment">deployments/deploy.py</a>: images tagged per version, several backend replicas behind nginx, rolling updates, <code>rollback</code>, <code>status</code> and <code>restore-db</code>.</li>
+<li class=""><code>deploy.py seed-db</code> fills a staging database with only production's recent data.</li>
+<li class="">A <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/kubernetes">Helm chart</a> to run QA-Board on Kubernetes.</li>
+<li class="">The backend has a <code>/api/v1/health</code> endpoint, shuts down gracefully, and keeps working when redis is down.</li>
+<li class="">Security: actions that run commands (redo, tuning, stopping or deleting batches...) now require a login and run as the logged-in user, and their inputs are escaped. See SECURITY.md.</li>
+<li class="">Security: the server only writes, deletes or runs code in the folders listed in <code>QABOARD_STORAGE_ROOTS</code> (default: <code>/mnt/qaboard</code>), and refuses results stored elsewhere. <strong>If your projects store results in other folders, set it before upgrading</strong> (see <a class="" href="https://samsung.github.io/qaboard/docs/deploy#optional-environment-variables">environment variables</a>).</li>
+<li class="">Set <code>QABOARD_WEBHOOK_SECRET</code>, and the same secret in your GitLab and GitHub webhooks, so that only they can send push events. For GitHub Enterprise, list its hostname in <code>QABOARD_GITHUB_HOSTS</code> (see <a class="" href="https://samsung.github.io/qaboard/docs/deploy#optional-environment-variables">environment variables</a>).</li>
+<li class="">Each batch started from QA-Board gets its own folder with its scripts and logs, under the batch's <code>qaboard-batches/</code>.</li>
+<li class="">The web app links to the docs served by your server at <code>/docs/</code>, which match its version, instead of the public website. Set <code>QABOARD_DOCS_ROOT</code> to use another docs site.</li>
+<li class="">The git host, quota dashboard and support links are configurable (<code>GITLAB_HOST</code>, <code>QABOARD_QUOTA_URL_TEMPLATE</code>, <code>QABOARD_SUPPORT_URL</code>).</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="documentation">Documentation<a href="https://samsung.github.io/qaboard/release-notes/2026-10#documentation" class="hash-link" aria-label="Direct link to Documentation" title="Direct link to Documentation" translate="no">​</a></h2>
+<ul>
+<li class="">New <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/overview">user guide</a> for people who use the web app every day.</li>
+<li class="">New runbooks for deployments, rollbacks and Kubernetes.</li>
+<li class="">Release notes going back to 2017, on the website and in the app.</li>
+<li class="">Many pages updated to match the code, and features that were never documented: GitHub webhooks, API tokens, batch options, bit-accuracy manifests, auto-optimization...</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2026-10#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
+<ul>
+<li class="">With LSF job arrays and the Dask runner, <code>qa run</code> no longer deletes the log file its output goes to: errors are no longer lost.</li>
+<li class="">The tuning form shows a readable error instead of the server's raw response.</li>
+<li class="">A stuck run's "Mark as Finished" action is now labelled "Mark as Failed", which is what it does.</li>
+<li class="">Security: marking a run as failed or deleting it now requires a login.</li>
+<li class="">Deleting results no longer deletes the contents of folders that they link to.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2026-09]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2026-09</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2026-09"/>
+        <updated>2026-09-30T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[Cap how many runs of a batch use the LSF cluster at the same time, or run batches of short runs on a pool of Dask workers. The server is easier to deploy from scratch, and re-running outputs or tuning on LSF goes through the configured LSF bridge.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">Cap how many runs of a batch use the LSF cluster at the same time, or run batches of short runs on a pool of Dask workers. The server is easier to deploy from scratch, and re-running outputs or tuning on LSF goes through the configured LSF bridge.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q project-integration_Ky7h">Project integration</span><h3 class="title_hdm3">Limit batch concurrency on LSF</h3><p class="text_FLe0">Set runners.lsf.concurrency in qaboard.yaml, or use qa batch --lsf-concurrency 20, so a batch never has more than 20 LSF jobs running at once and doesn't flood the cluster. The default, 0, keeps the previous behavior: no limit.</p><a href="https://samsung.github.io/qaboard/docs/lsf-integration">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q project-integration_Ky7h">Project integration</span><h3 class="title_hdm3">Dask runner</h3><p class="text_FLe0">With qa batch --runner dask, a batch's runs execute on a few long-lived Dask workers started as LSF jobs, with a bounded number of runs in flight. It avoids paying LSF's scheduling overhead for each of many short runs. Install it with pip install "qaboard[dask]".</p><a href="https://samsung.github.io/qaboard/docs/dask-integration">Learn more →</a></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2026-09#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
+<ul>
+<li class="">By default the LSF concurrency limit uses an LSF job array with a slot limit: a new run starts as soon as one ends. Set <code>runners.lsf.concurrency_strategy: waves</code> to send runs in groups that each wait for the previous group to end, if job arrays don't work for you.</li>
+<li class="">The Dask runner is configured under <code>runners.dask</code> in <em>qaboard.yaml</em>: <code>concurrency</code> (or <code>--dask-concurrency</code>), the worker jobs' <code>cluster</code> size and memory, and <code>scheduler_address</code> to use a Dask cluster you already run.</li>
+<li class="">With <code>--no-wait</code>, the Dask runner sends a small "driver" LSF job that runs the batch, with its own LSF options (<code>runners.dask.driver</code>), and <code>qa batch</code> returns right away.</li>
+<li class="">Dask workers' and the driver's logs are saved in the batch directory, under <code>dask/</code>, and each run's output directory gets a <code>log.dask.txt</code>. Stopping a batch from QA-Board also stops its Dask workers.</li>
+<li class=""><code>qa save-artifacts</code> and other commands no longer crash with "'NoneType' object is not iterable" in legacy projects whose configuration defines no inputs.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2026-09#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">"Redo" actions on a batch (deleted, failed or all outputs) and tuning batches sent to LSF from the web app now go through the backend's <code>QA_RUNNERS_LSF_BRIDGE</code>, which supports the <code>{user}</code> and <code>{bsub_command}</code> placeholders, instead of a hardcoded SSH host. Set it to use these features with LSF (see <a class="" href="https://samsung.github.io/qaboard/docs/lsf-integration">LSF bridges</a>).</li>
+<li class="">The Flower dashboard for Celery now runs from the backend image: there is no separate Flower image to build anymore.</li>
+<li class="">The documentation site's image now builds with Docusaurus 3.10.</li>
+<li class="">The SIRC deployment's files, including <code>.env.sirc.example</code>, now all live under <code>deployments/sirc/</code>.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="documentation">Documentation<a href="https://samsung.github.io/qaboard/release-notes/2026-09#documentation" class="hash-link" aria-label="Direct link to Documentation" title="Direct link to Documentation" translate="no">​</a></h2>
+<ul>
+<li class="">New <a class="" href="https://samsung.github.io/qaboard/docs/dask-integration">Dask integration</a> page. The <a class="" href="https://samsung.github.io/qaboard/docs/using-the-qa-cli">CLI docs</a> now list the batch runners (local, LSF, Dask, Celery) and how to limit their concurrency, and the <a class="" href="https://samsung.github.io/qaboard/docs/lsf-integration">LSF page</a> documents <code>--lsf-concurrency</code>.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2026-09#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
+<ul>
+<li class="">Fixed results uploads failing (HTTP 500 on every new output) on servers whose database was created from scratch rather than migrated from an older version.</li>
+<li class="">The database container now starts on a fresh, empty volume: its custom configuration is applied only once the database is initialized.</li>
+<li class="">Fixed Docker builds that download a CA certificate (<code>CA_CERT_URL</code>) failing when the certificate file already existed.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="notes">Notes<a href="https://samsung.github.io/qaboard/release-notes/2026-09#notes" class="hash-link" aria-label="Direct link to Notes" title="Direct link to Notes" translate="no">​</a></h2>
+<ul>
+<li class="">The LSF concurrency limit and the Dask runner are in <code>qaboard</code> 1.1, released in October.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2026-q2]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2026-q2</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2026-q2"/>
+        <updated>2026-06-30T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[The image viewer shows TIFF versions of PNG outputs when they exist and compares outputs saved in different formats. Jenkins build statuses update live and survive page refreshes, and shared milestones now have owners and can be filtered by person.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">The image viewer shows TIFF versions of PNG outputs when they exist and compares outputs saved in different formats. Jenkins build statuses update live and survive page refreshes, and shared milestones now have owners and can be filtered by person.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">TIFF versions of images</h3><p class="text_FLe0">When an output has both image.png and image.tiff, the image viewer shows the TIFF. When comparing to a reference saved in another format, each side falls back to the file it has: TIFF, PNG or the older BMP.</p><a href="https://samsung.github.io/qaboard/docs/visualizations">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Live Jenkins build status</h3><p class="text_FLe0">After you trigger a Jenkins build from the commit page, its status tag now updates on its own (queued, running, then the result), and it is still there when you refresh the page or come back to the commit in the same browser.</p><a href="https://samsung.github.io/qaboard/docs/jenkins-integration">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Milestone owners</h3><p class="text_FLe0">Shared milestones remember who created them and the commit's author. Filter milestones by their names, and only a milestone's owners can edit or delete it.</p><a href="https://samsung.github.io/qaboard/docs/references-and-milestones">Learn more →</a></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2026-q2#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
+<ul>
+<li class="">Pixel values shown when you hover an image are now read from the file actually displayed (the TIFF when it is used), and always match the pixel under the cursor. They could be off by one pixel before, especially at the image's edges.</li>
+<li class="">In the "Output Files" view, opening a TIFF or a PNG also falls back to the other format on the side (new or reference) that doesn't have it.</li>
+<li class="">Build status icons are clearer: a clock while a build is queued or pending, a spinning icon while it runs, and a pause icon only for blocked or stuck builds.</li>
+<li class="">Integration links inside sub-menus are now checked too, so broken links show up there like in top-level menus.</li>
+<li class="">Saving, editing or deleting a shared milestone now requires being logged in. Milestones saved before this change have no owner: any logged-in user can still edit them, and becomes an owner by doing so. Milestones show their commit's author as a tag.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2026-q2#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">Added <code>services/vips</code>, a small Docker image with the libvips command line tools, to convert PNG outputs to TIFF.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2026-q2#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
+<ul>
+<li class="">The loading spinner of the image viewer now disappears once the images are loaded, including for the reference image and for images already in the browser's cache.</li>
+<li class="">Jenkins builds triggered from the commit page are now polled for their status. Before, their status could stay stuck after the trigger.</li>
+<li class="">Integrations with the same name in different menus no longer share their status.</li>
+<li class="">When <code>qa</code> reports a commit the server can't find, the server answers with a clear error instead of crashing.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2026-03]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2026-03</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2026-03"/>
+        <updated>2026-03-31T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[Synced zoom and pan in the image viewer stays smooth on pages with many images, and the server can track GitHub repositories. Every deployment now runs the same code: site-specific settings moved to compose overlays and to site packages for the qa CLI.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">Synced zoom and pan in the image viewer stays smooth on pages with many images, and the server can track GitHub repositories. Every deployment now runs the same code: site-specific settings moved to compose overlays and to site packages for the qa CLI.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Smoother synced zoom and pan</h3><p class="text_FLe0">On pages with many images, zooming or panning one image no longer slows down the page: only the images on screen follow along, and the others catch up instantly when you scroll to them. Images that load late open at the current zoom and position.</p><a href="https://samsung.github.io/qaboard/docs/visualizations">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q admins_lbEZ">Admins</span><h3 class="title_hdm3">GitHub repositories</h3><p class="text_FLe0">Besides GitLab, the server can now follow projects hosted on GitHub or GitHub Enterprise: it receives push events on /webhook/github, clones the repositories with GITHUB_ACCESS_TOKEN and shows GitHub avatars. Commit statuses and GitHub Actions are not supported yet.</p><a href="https://samsung.github.io/qaboard/docs/project-init">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q admins_lbEZ">Admins</span><h3 class="title_hdm3">One codebase for every site</h3><p class="text_FLe0">The base docker-compose.yml now has open-source defaults, and each site adds its own settings with an overlay in deployments/, for example deployments/sirc/sirc.yml. Copy deployments/example.yml to describe your own site.</p><a href="https://samsung.github.io/qaboard/docs/deploy">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Site packages for the qa CLI</h3><p class="text_FLe0">Install qaboard[sirc] to get your site's defaults (server URL, secrets location, internal dependencies) without setting environment variables. Environment variables still override them.</p><a href="https://samsung.github.io/qaboard/docs/installation">Learn more →</a></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2026-03#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
+<ul>
+<li class="">The visualizations section of the commit page's controls panel shows up right away, instead of waiting for every output's file list to load.</li>
+<li class="">Avatars from any git server now go through QA-Board, so they are no longer blocked as mixed content when QA-Board is served over HTTPS.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2026-03#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
+<ul>
+<li class="">Without <code>QABOARD_HOST</code> or a site package, <code>qa</code> now connects to <code>http://localhost:5151</code>, the default local server. It used to try an internal SIRC server. At SIRC, install <code>qaboard[sirc]</code> (see <a class="" href="https://samsung.github.io/qaboard/docs/installation">Client Installation</a>).</li>
+<li class="">Removed <code>qaboard.on_vdi</code> and <code>qaboard.on_lsf</code>, which detected SIRC hosts from the hostname: update project code that imports them. Site packages now provide site-specific settings.</li>
+<li class="">An internal SIRC dependency is now installed only with <code>qaboard[sirc]</code>, so <code>pip install qaboard</code> works outside SIRC.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2026-03#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">Deploy with your site's overlay on top of the base files, e.g. <code>docker compose -f docker-compose.yml -f production.yml -f deployments/sirc/sirc.yml up -d</code>. Site-specific nginx configuration, volumes and services (fluentd, metabase...) moved to <code>deployments/&lt;site&gt;/</code>.</li>
+<li class="">The Docker images build with no arguments by default. Behind a proxy, pass the <code>PROXY_URL</code>, <code>CA_CERT_URL</code> and <code>NO_PROXY</code> build args, and <code>QABOARD_EXTRA</code> to include a site package in the backend image.</li>
+<li class="">Credentials for LDAP, Sentry and PostHog are read from a <code>.env</code> file instead of the compose files. <code>.env.sirc.example</code> lists the SIRC variables.</li>
+<li class="">The web app now gets its settings from the server when it loads (image servers, login type, Sentry and PostHog keys, path mappings, docs URL), so changing them no longer requires rebuilding the web app image.</li>
+<li class=""><code>QABOARD_IMAGE_SERVERS</code> picks the IIIF image server per file extension, e.g. one server for raw images and Cantaloupe for the rest.</li>
+<li class=""><code>QABOARD_PATH_MAPPINGS</code> (a JSON list of Windows/Linux path pairs) replaces the hardcoded mappings used to convert paths between Windows shares and Linux.</li>
+<li class=""><code>QABOARD_TUNING_RUNNER</code> chooses how tuning batches started from the web app run: <code>local</code> (default), <code>celery</code> or <code>lsf</code>. <code>QABOARD_DEFAULT_USER</code> sets the user that owns their outputs. See <a class="" href="https://samsung.github.io/qaboard/docs/tuning-from-the-webapp">tuning from the web app</a>.</li>
+<li class=""><code>GITLAB_HOST</code> and <code>GITLAB_ACCESS_TOKEN</code> are no longer required to start the backend: without a token, repositories are cloned anonymously.</li>
+<li class="">The backend now gives up after 20 seconds when the database is unreachable, instead of hanging silently.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="documentation">Documentation<a href="https://samsung.github.io/qaboard/release-notes/2026-03#documentation" class="hash-link" aria-label="Direct link to Documentation" title="Direct link to Documentation" translate="no">​</a></h2>
+<ul>
+<li class="">The <a class="" href="https://samsung.github.io/qaboard/docs/deploy">server</a> and <a class="" href="https://samsung.github.io/qaboard/docs/installation">client installation</a> docs describe the compose overlays and site packages. <code>MIGRATION.md</code>, at the root of the repository, lists the changes to make when upgrading an existing deployment.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2026-03#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
+<ul>
+<li class="">Opening another page now always starts images at the default zoom, even when the previous page had images synced with the same key.</li>
+<li class="">Fixed crashes of the backend when several people read pixel values on the same image at the same time. Its image cache, which had been turned off because of them, is back on, so pixel values show up faster.</li>
+<li class="">The visualizations panel now resets when you switch to another commit or batch, keeps your show/hide choices when the project configuration reloads, and lists the options found in all output files (only the first 1000 files were used).</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2026-02]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2026-02</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2026-02"/>
+        <updated>2026-02-28T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[Image and text viewers no longer react to their keyboard shortcuts while you type or use Ctrl/Cmd shortcuts, and the storage quota link works again.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">Image and text viewers no longer react to their keyboard shortcuts while you type or use Ctrl/Cmd shortcuts, and the storage quota link works again.</p></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2026-02#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">Added a database index on outputs (<code>idx_outputs_batch_user_storage</code>) that speeds up the storage quota dashboard. New databases get it automatically; on an existing database, create it by hand.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2026-02#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
+<ul>
+<li class="">The image and text viewers' keyboard shortcuts (e.g. <code>t</code> to toggle between new and reference) no longer fire while you type in a text area or an editable field, or when you press Ctrl, Cmd or Alt combinations such as Ctrl+C.</li>
+<li class="">The "Quota" entry in the commit list's menu opens the current storage dashboard again. It pointed to a dashboard that was deleted.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2026-01]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2026-01</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2026-01"/>
+        <updated>2026-01-31T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[A fix for triggering Jenkins builds from the web app.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">A fix for triggering Jenkins builds from the web app.</p></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2026-01#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
+<ul>
+<li class="">Triggering a <a class="" href="https://samsung.github.io/qaboard/docs/jenkins-integration">Jenkins build</a> from the web app no longer fails with an error when Jenkins's response about the queued build can't be read.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2025-q4]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2025-q4</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2025-q4"/>
+        <updated>2025-12-31T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[Use -- to pass arguments to your own code with qa run, qa postprocess and qa batch, and save your custom batches in the web app with Ctrl-S. The backend image moved to Debian trixie and Python 3.13.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">Use -- to pass arguments to your own code with qa run, qa postprocess and qa batch, and save your custom batches in the web app with Ctrl-S. The backend image moved to Debian trixie and Python 3.13.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Forward arguments with --</h3><p class="text_FLe0">Everything after -- on the command line is passed as-is to your code, for example qa batch my-batch -- --my-flag. Late qa options like qa batch my-batch --list keep working.</p><a href="https://samsung.github.io/qaboard/docs/using-the-qa-cli">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Ctrl-S to save custom batches</h3><p class="text_FLe0">In the web app's editor for custom batches, used by tuning experiments, press Ctrl-S (Cmd-S on macOS) to save your changes instead of clicking "Update Batches".</p><a href="https://samsung.github.io/qaboard/docs/tuning-from-the-webapp">Learn more →</a></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2025-q4#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
+<ul>
+<li class=""><code>QA_BATCH_FILTER_INPUT_REGEX</code> now matches anywhere in the input path, and ignores a leading <code>^</code>.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2025-q4#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">The backend image is now based on Debian trixie with Python 3.13, which also brings fixes for the XML libraries used by SAML login.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2025-q4#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
+<ul>
+<li class="">On Windows, the CLI uses Git for Windows' <code>ssh</code> when it is installed to fix the permissions of outputs on network storage, since the built-in <code>ssh</code> can't read keys from network paths. Paths with spaces are quoted correctly.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2025-q3]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2025-q3</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2025-q3"/>
+        <updated>2025-09-30T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[Copy a run's configuration in one click, ready to paste in a tuning experiment, and qa batch accepts several batch names at once. Commit pages use less memory on the server.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">Copy a run's configuration in one click, ready to paste in a tuning experiment, and qa batch accepts several batch names at once. Commit pages use less memory on the server.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Copy configurations, also in tuning format</h3><p class="text_FLe0">Hover a run's configuration tags to copy one item, the full configuration, or the full configuration in the format the tuning form expects.</p></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Paste parameters into the tuning form</h3><p class="text_FLe0">When you paste key=value parameter lines into the tuning form's editor, including multi-line matrices, they are converted to the tuning format for you.</p><a href="https://samsung.github.io/qaboard/docs/tuning-from-the-webapp">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Several batches in one qa batch</h3><p class="text_FLe0">Run qa batch first-batch second-batch instead of repeating --batch for each one. Options that start with a dash after the batch names are still forwarded to qa run.</p><a href="https://samsung.github.io/qaboard/docs/batches-running-on-multiple-inputs">Learn more →</a></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2025-q3#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
+<ul>
+<li class="">The batch selector marks milestone batches with a star, and works better with the keyboard.</li>
+<li class="">On commits with many outputs, the controls panel shows how many outputs it has read options from, with a "Refresh Options" button to update them all.</li>
+<li class="">The "Delete All Runs" menu item says more clearly that it deletes the runs in all other projects for this commit.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2025-q3#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
+<ul>
+<li class=""><code>qa batch</code> fails with a clear error when a batch in <code>batches.yaml</code> is not a mapping (with <code>inputs</code>, <code>configurations</code>...), and warns about batches with an empty definition.</li>
+<li class="">Set <code>QA_BATCH_FILTER_INPUT_REGEX</code> to only run the inputs of a batch whose path matches a regular expression.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2025-q3#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">Commit pages use less memory on the server, and a commit that is missing from the database returns a clean 404.</li>
+<li class="">The nginx image builds again: it now uses the Debian archive since Debian Buster reached its end of life.</li>
+<li class="">The backend image builds its XML libraries from source to avoid library version mismatches. If SAML support can't load, the backend now starts anyway and logs a warning.</li>
+<li class="">For contributors, <code>development.yml</code> runs the backend with <code>uv run</code> and as your own user.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="documentation">Documentation<a href="https://samsung.github.io/qaboard/release-notes/2025-q3#documentation" class="hash-link" aria-label="Direct link to Documentation" title="Direct link to Documentation" translate="no">​</a></h2>
+<ul>
+<li class="">The <a class="" href="https://samsung.github.io/qaboard/docs/batches-running-on-multiple-inputs">batches</a> page uses the new <code>qa batch first-batch second-batch</code> syntax.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2025-q3#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
+<ul>
+<li class="">Fixed "Copy reference image to the clipboard", which copied the new image instead of the reference.</li>
+<li class="">Fixed the size of the current region of interest in the image viewer.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2025-06]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2025-06</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2025-06"/>
+        <updated>2025-06-30T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[The commit page has a new controls panel to pick visualizations, metrics and sorting, and options like the frame to show can now be synced across all outputs or set per output. Input types can have their own runner settings.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">The commit page has a new controls panel to pick visualizations, metrics and sorting, and options like the frame to show can now be synced across all outputs or set per output. Input types can have their own runner settings.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">A controls panel on the commit page</h3><p class="text_FLe0">A panel on the right side of the commit page gathers the viewer controls: which visualizations to show, with a filter box, the image diff toggle, sorting and the metrics to display. Collapse it with its arrow button when you need the room.</p><a href="https://samsung.github.io/qaboard/docs/visualizations">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Synced or per-output visualization options</h3><p class="text_FLe0">Options that come from visualization paths, like :frame, default to synced: one control in the panel drives every output. Unsync an option to pick its value separately in each output card.</p><a href="https://samsung.github.io/qaboard/docs/visualizations">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q project-integration_Ky7h">Project integration</span><h3 class="title_hdm3">Runner settings per input type</h3><p class="text_FLe0">Input types in qaboard.yaml can now have their own runner settings under runners, for instance a different LSF queue for each type of input. Settings in a batch still win, and flags you pass to qa batch win over both.</p><a href="https://samsung.github.io/qaboard/docs/inputs">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Searchable batch selector</h3><p class="text_FLe0">The batch selector in the commit navbar is now a search box. Find a batch by name, by the user who launched it, or with words like failed, running or tuning.</p></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2025-06#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
+<ul>
+<li class="">The image viewer's filters have a new panel with value displays, a reset button and a new Sharpen filter, next to Brightness, Contrast and Gamma.</li>
+<li class="">In the bit-accuracy viewer, hover a file's size to download the new or the reference version of the file.</li>
+<li class="">The filter box of the controls panel also filters the list of metrics.</li>
+<li class="">Redesigned sidebar, with a user menu that shows who you are logged in as and lets you sign out.</li>
+<li class="">You can search the sidebar's list of <a class="" href="https://samsung.github.io/qaboard/docs/triggering-third-party-tools">integrations</a>, and menus keep their state when you close and reopen them.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2025-06#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
+<ul>
+<li class="">Runner settings are merged in this order, each winning over the previous: the <code>runners</code> section of <code>qaboard.yaml</code>, the input type's <code>runners</code>, the batch's runner settings, then the flags you pass explicitly to <code>qa batch</code> such as <code>--lsf-queue</code> or <code>--local-concurrency</code>.</li>
+<li class=""><code>--local-timeout</code> and <code>runners.local.timeout</code> now set the timeout of local runs, not only <code>QA_BATCH_TIMEOUT</code>.</li>
+<li class="">Removed <code>qa batch --lsf-fast-queue</code>: LSF jobs always use the regular queue.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="documentation">Documentation<a href="https://samsung.github.io/qaboard/release-notes/2025-06#documentation" class="hash-link" aria-label="Direct link to Documentation" title="Direct link to Documentation" translate="no">​</a></h2>
+<ul>
+<li class="">The <a class="" href="https://samsung.github.io/qaboard/docs/inputs">inputs</a> page shows how to set runner settings per input type.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2025-06#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
+<ul>
+<li class="">Fixed the CLI when it is embedded in a C++ program and has no command-line arguments.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2025-05]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2025-05</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2025-05"/>
+        <updated>2025-05-31T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[qaboard 1.0.3 is packaged with a modern pyproject.toml, and the backend's dependencies are managed with uv. The image viewer stops flagging images whose pixels are identical as different.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><span class="version_NYcp">qaboard v<!-- -->1.0.3</span><p class="description_UTc_">qaboard 1.0.3 is packaged with a modern pyproject.toml, and the backend's dependencies are managed with uv. The image viewer stops flagging images whose pixels are identical as different.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Images compared by their pixels</h3><p class="text_FLe0">When the outputs manifest has a hash of an image's pixel values, the image viewer uses it to decide whether the new and reference images are the same. Images that only differ in their metadata are no longer shown as changed.</p><a href="https://samsung.github.io/qaboard/docs/visualizations">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q project-integration_Ky7h">Project integration</span><h3 class="title_hdm3">qaboard 1.0.3, built with pyproject.toml</h3><p class="text_FLe0">The qaboard package is now defined in pyproject.toml instead of setup.py. Developers install it with uv sync --extra dev, and the backend's dependencies are locked with uv instead of poetry.</p><a href="https://samsung.github.io/qaboard/docs/installation">Learn more →</a></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2025-05#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
+<ul>
+<li class="">Hover the colored dot of an automatic region of interest to see its diff value.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2025-05#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
+<ul>
+<li class="">The deprecated <code>qatools</code> package still ships for older scripts, and importing it now shows a deprecation warning: use <code>qaboard</code> instead.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2025-05#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">The backend image installs its dependencies with uv from <code>backend/uv.lock</code>.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2025-04]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2025-04</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2025-04"/>
+        <updated>2025-04-30T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[You can find a run by its ID in the commit page's search box, and qa batch now stops before flooding QA-Board with more than 1,000 runs at once.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">You can find a run by its ID in the commit page's search box, and qa batch now stops before flooding QA-Board with more than 1,000 runs at once.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Search runs by ID</h3><p class="text_FLe0">Type id:1234 in the commit page's filter box to show only the run with that ID, for instance when a colleague or a log gives you a run ID.</p></div><div class="card_ukht"><span class="audience_eP3Q project-integration_Ky7h">Project integration</span><h3 class="title_hdm3">A limit of 1,000 runs per qa batch</h3><p class="text_FLe0">qa batch now fails when it would send more than 1,000 runs at once, which is usually a mistake in a batch definition. Set QA_BATCH_ALLOW_MANY_RUNS=1 when you really need more, or use qa --offline batch to run without reporting to QA-Board.</p><a href="https://samsung.github.io/qaboard/docs/batches-running-on-multiple-inputs">Learn more →</a></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2025-04#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">The server updates the "latest results" time of commits and projects at most every few seconds, which avoids database lock contention when many runs report their results together.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2025-04#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
+<ul>
+<li class=""><code>qa run</code> no longer crashes when writing the outputs manifest fails, it only warns.</li>
+<li class="">Fixed <code>qa optimize</code> crashing when it sets <code>QA_OPTIM_DIR</code>.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2025-03]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2025-03</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2025-03"/>
+        <updated>2025-03-31T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[You can copy the new, reference or diff image straight to the clipboard to paste it in a chat or a report. Admins get a backend tuned for heavy load, and production logs can go to a central collector.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">You can copy the new, reference or diff image straight to the clipboard to paste it in a chat or a report. Admins get a backend tuned for heavy load, and production logs can go to a central collector.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Copy images to the clipboard</h3><p class="text_FLe0">The image viewer has a new Copy button. Click it to copy the new image, or hover it to copy the reference or the diff image instead. If your browser can't write images to the clipboard, the image is downloaded.</p><a href="https://samsung.github.io/qaboard/docs/visualizations">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q admins_lbEZ">Admins</span><h3 class="title_hdm3">A backend tuned for heavy load</h3><p class="text_FLe0">uWSGI workers now use threads, a larger request queue and longer timeouts, and are recycled when they use more than 4GB of memory. Fewer processes and smaller database connection pools keep PostgreSQL from running out of connections.</p></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2025-03#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
+<ul>
+<li class="">The image viewer's zoom controls fade out faster, and the sidebar's menus close sooner after the mouse leaves them.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2025-03#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">Production deployments can forward the logs of the backend, database and redis containers to a fluentd log collector.</li>
+<li class="">PostgreSQL now writes its logs to files and logs connections and disconnections, and accepts up to 200 connections.</li>
+<li class="">Larger request headers are accepted (<code>buffer-size</code> 65535), and big uploads are buffered so they don't block a worker.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2025-03#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
+<ul>
+<li class="">Fixed the diff image after the upgrade of the image viewer library.</li>
+<li class="">HTML and Plotly viewers no longer stay blank when a file fails to load.</li>
+<li class="">Fixed the visualization options (such as the frame selector) sometimes not appearing after the move to React 18.</li>
+<li class="">Fixed a server error on some commit pages.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2025-02]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2025-02</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2025-02"/>
+        <updated>2025-02-28T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[Commit pages load faster, especially for big batches and for commits that don't exist, and their errors now say what went wrong. The web app moved to React 18 and newer UI libraries.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">Commit pages load faster, especially for big batches and for commits that don't exist, and their errors now say what went wrong. The web app moved to React 18 and newer UI libraries.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Faster commit pages</h3><p class="text_FLe0">The server now caches slow lookups like the list of users in redis, shared by all its workers, and the web app matches each run with its reference run much faster. Large commits open noticeably quicker.</p></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Clearer errors on the commit page</h3><p class="text_FLe0">Hover the red "Error" tag in the commit navbar to see the server's message. It also tells you whether to check the commit and project you asked for, or to contact the QA-Board admins.</p></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2025-02#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
+<ul>
+<li class="">Output cards keep a minimum height while they load, so scrolling a long list no longer starts loading too many images at once.</li>
+<li class="">The reference image's label always shows the image size.</li>
+<li class="">Upgraded to React 18, Redux 5 and recent Blueprint and Plotly versions.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2025-02#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">The backend now uses a redis service as a shared cache, with <code>REDIS_HOST</code> and <code>REDIS_PORT</code> (included in <code>docker-compose.yml</code>). Each worker warms the cache when it starts.</li>
+<li class="">Asking for a full commit hash that has no results now fails right away with a 404, instead of a slow search.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2025-02#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
+<ul>
+<li class="">Fixed an error when hovering an image while the diff image is hidden.</li>
+<li class="">Fixed a server error when a run was reported without any extra data.</li>
+<li class="">Fixed small display issues in the metrics, tables and tuning forms after the upgrade.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2025-01]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2025-01</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2025-01"/>
+        <updated>2025-01-31T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[When you compare images, the diff image now shows the same crosshair as the new and reference images. The CLI can authenticate to the API with a QA_TOKEN environment variable.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">When you compare images, the diff image now shows the same crosshair as the new and reference images. The CLI can authenticate to the API with a QA_TOKEN environment variable.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Synced crosshair on the diff image</h3><p class="text_FLe0">Hovering over the new or reference image now draws the crosshair at the same spot on the diff image too, so you can see where a difference is. It goes away when the mouse leaves the image.</p><a href="https://samsung.github.io/qaboard/docs/visualizations">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">API token from QA_TOKEN</h3><p class="text_FLe0">When the QA_TOKEN environment variable is set, the qa CLI and qaboard.api send it to the QA-Board API as a bearer token, which lets scripts and CI jobs call the API as a logged-in user.</p></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2025-01#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
+<ul>
+<li class="">The crosshair stays in sync with the diff image while you zoom.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2025-01#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
+<ul>
+<li class="">Fixed videos that never started playing when the browser had them in its cache.</li>
+<li class="">Fixed the image viewer when an output has no reference to compare to.</li>
+<li class=""><code>qa check-bit-accuracy</code> now looks for outputs on the platform you selected with <code>--platform</code> (or the batch's platform) instead of always the default platform.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2024-q4]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2024-q4</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2024-q4"/>
+        <updated>2024-12-31T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[Scripts can call the API with personal tokens, the video viewer keeps both videos in sync and shows the time of each, and runs remember which batch they came from. Image comparisons flag different sizes and failed tiles.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">Scripts can call the API with personal tokens, the video viewer keeps both videos in sync and shows the time of each, and runs remember which batch they came from. Image comparisons flag different sizes and failed tiles.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">API tokens</h3><p class="text_FLe0">Logged-in users can create a personal API token with a POST to /api/v1/user/token/, then authenticate scripts with an Authorization Bearer header or a token URL parameter.</p><a href="https://samsung.github.io/qaboard/docs/installation">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Synced video comparisons</h3><p class="text_FLe0">The video viewer keeps the new and reference videos in sync, re-syncs when you pause, and shows the current time of each video and how far apart they are.</p></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Batch names on runs</h3><p class="text_FLe0">Runs now record the name of the batch they were started from. It is shown in the run's menu, and you can filter runs by it.</p></div><div class="card_ukht"><span class="audience_eP3Q project-integration_Ky7h">Project integration</span><h3 class="title_hdm3">Metric descriptions</h3><p class="text_FLe0">Metrics in metrics.yaml can have a description, shown in a tooltip on the metric's header.</p><a href="https://samsung.github.io/qaboard/docs/computing-quantitative-metrics">Learn more →</a></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2024-q4#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
+<ul>
+<li class="">The image viewer shows both images' dimensions when they differ, and warns when some tiles fail to load.</li>
+<li class="">Logs link directly to the LSF log when LSF killed the run.</li>
+<li class="">Clearer error messages when tuning is not possible, and when an export folder is not writable or has locked-down permissions.</li>
+<li class="">Style and help text improvements.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2024-q4#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
+<ul>
+<li class=""><code>exclude</code> filters can match the input path relative to the database with <code>rel_input_path</code>.</li>
+<li class=""><code>QA_BATCH_TIMEOUT</code> sets the timeout of local runs, and <code>QA_BATCH_QUIET</code> stops <code>qa batch</code> from printing each run's command and output directory.</li>
+<li class=""><code>qa check-bit-accuracy</code> sets <code>QA_BATCH</code>, so batch-only metadata logic behaves as in <code>qa batch</code>.</li>
+<li class="">When the server cannot report run statuses, <code>qa batch</code> warns and falls back to reading the output folders.</li>
+<li class="">Fixed batch aliases, batches named <code>matrix</code>, and <code>*</code> input patterns.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2024-q4#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">The local sign-up endpoint is enabled again, unless you set <code>QABOARD_DISABLE_SIGNUP=True</code>.</li>
+<li class="">API tokens are stored in a new table (with a migration).</li>
+<li class="">Batch summaries are counted in the database, using less memory, and file exports are faster.</li>
+<li class="">Output folders created by the server are now writable by all users (umask 0), avoiding permission issues when runs write to them.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2024-q3]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2024-q3</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2024-q3"/>
+        <updated>2024-09-30T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[Admins can restrict access to specific projects or namespaces, exports let you choose how and where files go, and batches can be selected with wildcards. The qa CLI starts faster and the docs moved to Docusaurus 3.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">Admins can restrict access to specific projects or namespaces, exports let you choose how and where files go, and batches can be selected with wildcards. The qa CLI starts faster and the docs moved to Docusaurus 3.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q admins_lbEZ">Admins</span><h3 class="title_hdm3">Per-project access control</h3><p class="text_FLe0">The users restriction YAML has a new projects section to allow only some users into a project or a whole namespace. Sign-in rules move under a login key. Users now stay signed in for 180 days.</p><a href="https://samsung.github.io/qaboard/docs/backend-admin/user-management">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Better file exports</h3><p class="text_FLe0">Exporting results lets you choose between links and copies and set the destination folder on the shared storage. It warns about invalid file patterns, and reports errors and the number of exported files clearly.</p></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Wildcards for batches</h3><p class="text_FLe0">qa batch 'batch-*' runs every matching batch, and wildcards also work in aliases and pipelines.</p><a href="https://samsung.github.io/qaboard/docs/batches-running-on-multiple-inputs">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Synced cursor in the image viewer</h3><p class="text_FLe0">When comparing images, a cross shows on the other image where your mouse is, to compare the same pixels.</p></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2024-q3#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
+<ul>
+<li class="">The tuning form has a bigger editor, a nicer layout, and defaults to the <code>linux</code> platform.</li>
+<li class="">The web app checks your session with the server instead of trusting what the browser remembers.</li>
+<li class="">Errors about missing project permissions are shown on the commits list.</li>
+<li class="">Better contrast, and tooltips are back.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2024-q3#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
+<ul>
+<li class=""><code>qa</code> starts faster: imports are delayed, and it no longer makes a network request on every call to check for updates.</li>
+<li class=""><code>qa batch</code> accepts several <code>--tuning</code> and <code>--tuning-filepath</code> options, merged together. String or list values go into a <code>_config</code> key whose items are appended to <code>context.configs</code>.</li>
+<li class="">Batch YAML files can set default <code>platform</code> and <code>configurations</code> for all their batches, like <code>database</code>.</li>
+<li class="">Batches without an <code>inputs</code> key match more inputs, including the database folder itself, and empty batch definitions now get a warning.</li>
+<li class="">Fixed duplicated inputs in batches.</li>
+<li class="">Fixed unstable output directories when redoing runs started from the web app.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2024-q3#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">The docs explain how to develop with docker, and <code>/docs</code> on the server now leads to the docs.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="documentation">Documentation<a href="https://samsung.github.io/qaboard/release-notes/2024-q3#documentation" class="hash-link" aria-label="Direct link to Documentation" title="Direct link to Documentation" translate="no">​</a></h2>
+<ul>
+<li class="">The docs website moved to Docusaurus 3, and search results link correctly when the docs are served by the web app.</li>
+<li class="">The <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/user-management">user management</a> page documents project access restrictions.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2024-q2]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2024-q2</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2024-q2"/>
+        <updated>2024-06-30T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[A quiet quarter: image comparisons fall back to BMP references when a PNG is missing, the image viewer shows when it is still loading, and tuning from the web app handles single quotes.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">A quiet quarter: image comparisons fall back to BMP references when a PNG is missing, the image viewer shows when it is still loading, and tuning from the web app handles single quotes.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Compare PNG outputs with older BMP references</h3><p class="text_FLe0">When a run outputs a PNG image but the reference only has the same image as BMP, the file and image viewers now compare the two, and label which file is shown on each side.</p></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2024-q2#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
+<ul>
+<li class="">The image viewer shows a spinner until both images are fully loaded.</li>
+<li class="">Plotly figures are shown side by side with the reference by default.</li>
+<li class="">Integrations can use the reference commit as a variable (<code>ref_commit</code>).</li>
+<li class="">Fixed the histogram when there is no reference, with clearer legends.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2024-q2#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
+<ul>
+<li class="">Tuning parameters and configurations containing single quotes now work when tuning from the web app.</li>
+<li class="">In batch matrices, values that are valid JSON (lists, objects...) are now parsed instead of being kept as strings.</li>
+<li class="">GitLab commit statuses are retried a few times before giving up.</li>
+<li class=""><code>qa check-bit-accuracy</code> stops early when nothing was compared.</li>
+<li class="">Fixed <code>--reference-label</code> in some cases, and Windows UNC paths when computing output directories.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2024-q1]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2024-q1</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2024-q1"/>
+        <updated>2024-03-31T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[The integrations menu got nested items, per-batch configurations and more variables, and webhooks can open a page in response. The file viewer can filter on differing or matching files, and the web app moved to Blueprint 5.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">The integrations menu got nested items, per-batch configurations and more variables, and webhooks can open a page in response. The file viewer can filter on differing or matching files, and the web app moved to Blueprint 5.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q project-integration_Ky7h">Project integration</span><h3 class="title_hdm3">Richer integrations menu</h3><p class="text_FLe0">Integrations in qaboard.yaml can nest items with sub, appear directly in the sidebar with in_menu: false, and use variables for the selected batches, filters and logged-in user. Webhooks can return a url to show, and open it automatically with open: true.</p><a href="https://samsung.github.io/qaboard/docs/triggering-third-party-tools">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Filter files by comparison status</h3><p class="text_FLe0">In the file and bit-accuracy viewer, filter with diff:name or match:name to only show files that differ from, or match, the reference. A new "Hide runs without files" switch hides runs where every file is filtered out.</p></div><div class="card_ukht"><span class="audience_eP3Q project-integration_Ky7h">Project integration</span><h3 class="title_hdm3">Filter inputs by path</h3><p class="text_FLe0">The only and exclude filters of batches can match the absolute input path with an input_path key, alongside input metadata.</p><a href="https://samsung.github.io/qaboard/docs/metadata-integration-external-databases">Learn more →</a></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2024-q1#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
+<ul>
+<li class="">Upgraded the UI toolkit to Blueprint 5, with refreshed tooltips, popovers and notifications.</li>
+<li class="">Integrations now come from the selected batch's configuration when it has its own, show their errors more clearly, and appear on the commit index page again.</li>
+<li class="">Metric tags are clearer, shown as compound tags.</li>
+<li class="">Configuration differences with nested items are now displayed correctly.</li>
+<li class="">The file viewer has an icon for PNG files, says when there is no reference, and collapsing/expanding/selecting files works again.</li>
+<li class="">Disabled the image viewer's buggy full-page button.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2024-q1#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
+<ul>
+<li class="">Input metadata keys starting with <code>_</code> are no longer stored with runs.</li>
+<li class="">Fixed bit-accuracy checks wrongly falling back to plain file comparisons.</li>
+<li class="">Fixed permissions of artifact folders created from Windows.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2024-q1#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">Backend workers no longer restart all at the same time.</li>
+<li class="">Exports name crops better, and no longer strip more characters than intended from file names.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2024-q1#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
+<ul>
+<li class="">Fixed errors when users have no email.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2023-q4]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2023-q4</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2023-q4"/>
+        <updated>2023-12-31T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[Admins can restrict sign-in to a list of users or groups, and projects spread over many repositories can share one templated configuration. Runs are matched with the reference more accurately, and output menus show compute times and the reference's directory.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">Admins can restrict sign-in to a list of users or groups, and projects spread over many repositories can share one templated configuration. Runs are matched with the reference more accurately, and output menus show compute times and the reference's directory.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q admins_lbEZ">Admins</span><h3 class="title_hdm3">Restrict who can sign in</h3><p class="text_FLe0">With QABOARD_LOGIN_RESTRICTED=true and a YAML file set in QABOARD_LOGIN_RESTRICTED_YAML, only listed users can sign in, matched by user name, email or any attribute from the authentication provider. User details from the provider are now saved on each login.</p><a href="https://samsung.github.io/qaboard/docs/backend-admin/user-management">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q project-integration_Ky7h">Project integration</span><h3 class="title_hdm3">Shared configuration across repositories</h3><p class="text_FLe0">project.name and project.url can use {root_path} and {project_path} placeholders, so many repositories can include the same qaboard.yaml. Submodules can set storage.artifacts.subproject to keep their artifacts organized.</p><a href="https://samsung.github.io/qaboard/docs/monorepo-subprojects">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">More accurate run matching</h3><p class="text_FLe0">When comparing with a reference, runs are matched by input database and path, and still by input path alone when databases differ. Exports name files after the database when a batch mixes several.</p></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2023-q4#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
+<ul>
+<li class="">The output menu shows the run's compute time (for example "1h2min3s"), and offers to copy or open the reference's output directory, in titled sections.</li>
+<li class="">The date range filter no longer needs both a start and an end date.</li>
+<li class="">Deleting several batches skips milestones and batches that no longer exist.</li>
+<li class="">Tuning warnings are shown as callouts, and more errors are displayed instead of failing silently.</li>
+<li class="">Fixed state issues when the URL contains encoded characters.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2023-q4#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
+<ul>
+<li class=""><code>qa check-bit-accuracy</code> compares RAW and HEX images by their attributes and pixel data, and warns and falls back to file hashes when attributes are missing.</li>
+<li class="">Batches can change labels while their runs are ongoing.</li>
+<li class="">Fixed submodule projects that used their parent's repository, and errors when LSF jobs had already finished.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2023-q4#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">Git pushes no longer create commits ahead of time, which bloated the database of monorepos with hundreds of projects. Commits are recorded with their configuration and metrics when their first batch is posted.</li>
+<li class="">New projects work whether their default branch is <code>main</code> or <code>master</code>.</li>
+<li class="">Supports GitLab 16 sign-in.</li>
+<li class="">Database JSON columns now use JSONB (with a migration).</li>
+<li class="">The web app can report errors to Sentry with source maps and send product analytics to PostHog. Both are optional, enabled with build arguments.</li>
+<li class="">pgAdmin is served under <code>/pgadmin4/</code>, and Flower can display pickled task data.</li>
+<li class="">The docs and the dev setup now use <code>docker compose</code> instead of <code>docker-compose</code>.</li>
+<li class="">Fixed race conditions in the image pixel API and when creating inputs, and errors when deleting the same run twice.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="documentation">Documentation<a href="https://samsung.github.io/qaboard/release-notes/2023-q4#documentation" class="hash-link" aria-label="Direct link to Documentation" title="Direct link to Documentation" translate="no">​</a></h2>
+<ul>
+<li class="">New <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/user-management">user management</a> page.</li>
+<li class="">Expanded <a class="" href="https://samsung.github.io/qaboard/docs/monorepo-subprojects">monorepo and multi-repo</a> docs, input types in <a class="" href="https://samsung.github.io/qaboard/docs/inputs">inputs</a>, and how to <a class="" href="https://samsung.github.io/qaboard/docs/debugging-runs-with-an-IDE">debug runs</a>.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2023-q3]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2023-q3</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2023-q3"/>
+        <updated>2023-09-30T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[QA-Board servers can now authenticate users with single sign-on (SAML) and require a login to see projects. Interrupted runs show as failed, and comparisons prefer reference runs on the same input.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">QA-Board servers can now authenticate users with single sign-on (SAML) and require a login to see projects. Interrupted runs show as failed, and comparisons prefer reference runs on the same input.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q admins_lbEZ">Admins</span><h3 class="title_hdm3">Single sign-on with SAML</h3><p class="text_FLe0">Besides local accounts and LDAP, users can now sign in through a SAML identity provider. Choose the method with QABOARD_LOGIN_TYPE (LOCAL, LDAP or SAML) and configure SAML with the QABOARD_SAML_* variables.</p><a href="https://samsung.github.io/qaboard/docs/backend-admin/user-management">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q admins_lbEZ">Admins</span><h3 class="title_hdm3">Require a login</h3><p class="text_FLe0">Set QABOARD_LOGIN_REQUIRED=true to block anonymous users: they must sign in before opening a project.</p><a href="https://samsung.github.io/qaboard/docs/backend-admin/user-management">Learn more →</a></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2023-q3#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
+<ul>
+<li class="">When matching runs with the reference, the web app and exports now prefer reference runs with the same input path.</li>
+<li class="">Stopped batches now mark their interrupted runs as failed, with finer-grained statuses.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2023-q3#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
+<ul>
+<li class=""><code>qa batch --action-on-existing skip</code> no longer skips runs that are still pending: it waits for them instead.</li>
+<li class="">The LSF runner no longer uses <code>fast_queue</code>: jobs always go to the configured <code>queue</code>.</li>
+<li class="">Absolute input paths are resolved through symlinks.</li>
+<li class="">The package now depends on <code>scikit-learn</code> instead of the deprecated <code>sklearn</code> name.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2023-q3#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">The public sign-up API endpoint is disabled, to prevent unauthorized users from creating accounts.</li>
+<li class="">The login settings are baked into the web app image when it is built.</li>
+<li class="">nginx forwards the <code>X-Forwarded-*</code> headers that SAML needs, and the development setup can run over HTTPS.</li>
+<li class="">The cleanup job falls back to deleting the whole output directory when a run has no file manifest.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="documentation">Documentation<a href="https://samsung.github.io/qaboard/release-notes/2023-q3#documentation" class="hash-link" aria-label="Direct link to Documentation" title="Direct link to Documentation" translate="no">​</a></h2>
+<ul>
+<li class="">The <a class="" href="https://samsung.github.io/qaboard/docs/deploy">server setup</a> page documents user management, sign-in methods and the new login variables.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2023-q3#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
+<ul>
+<li class="">Fixed a directory traversal vulnerability in the nginx configuration for the docs.</li>
+<li class="">Fixed regions of interest when the image is zoomed, and the text copied from the ROI viewer.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2023-q2]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2023-q2</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2023-q2"/>
+        <updated>2023-06-30T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[qaboard.yaml files can include another file, bit-accuracy checks can compare two labels of the same batch, and a new page documents monorepos and subprojects.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">qaboard.yaml files can include another file, bit-accuracy checks can compare two labels of the same batch, and a new page documents monorepos and subprojects.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q project-integration_Ky7h">Project integration</span><h3 class="title_hdm3">Include other qaboard.yaml files</h3><p class="text_FLe0">A qaboard.yaml can now use a top-level include key to pull in another YAML file, to share settings between subprojects. Paths are relative to the root QA-Board directory.</p><a href="https://samsung.github.io/qaboard/docs/monorepo-subprojects">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Compare bit-accuracy across labels</h3><p class="text_FLe0">qa check-bit-accuracy has a new --reference-label option to compare a batch's outputs against the outputs of another batch label.</p><a href="https://samsung.github.io/qaboard/docs/bit-accuracy">Learn more →</a></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2023-q2#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
+<ul>
+<li class="">The output directory's copy button now offers both the Linux and the Windows path.</li>
+<li class="">Images of different resolutions but the same aspect ratio now stay synced when zooming and panning.</li>
+<li class="">Image views now always check the reference, so they can tell you when both images are identical.</li>
+<li class="">Errors in the <code>path</code> of visualizations are now shown on the output card.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2023-q2#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
+<ul>
+<li class="">During auto-optimization, runs get <code>QA_OPTIM_DIR</code>, a directory to save data relevant to the whole optimization loop.</li>
+<li class="">The LSF runner retries sending a job a few times before failing.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2023-q2#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">The backend image now includes the libraries needed for SAML login.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="documentation">Documentation<a href="https://samsung.github.io/qaboard/release-notes/2023-q2#documentation" class="hash-link" aria-label="Direct link to Documentation" title="Direct link to Documentation" translate="no">​</a></h2>
+<ul>
+<li class="">New page on <a class="" href="https://samsung.github.io/qaboard/docs/monorepo-subprojects">monorepos and subprojects</a>: <code>root: true</code>, inheritance with <code>super</code>, and <code>include</code>.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2023-q2#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
+<ul>
+<li class="">Fixed copying the current region of interest in the image viewer.</li>
+<li class="">Fixed spurious errors on output cards.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2023-q1]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2023-q1</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2023-q1"/>
+        <updated>2023-03-31T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[The image viewer has a new regions-of-interest menu, with automatic difference detection that is faster and offers several diff metrics. Text diffs can jump from one change to the next, and the backend moved to Python 3.11.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">The image viewer has a new regions-of-interest menu, with automatic difference detection that is faster and offers several diff metrics. Text diffs can jump from one change to the next, and the backend moved to Python 3.11.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">New regions-of-interest viewer</h3><p class="text_FLe0">A "View ROIs" menu in the image viewer switches between the full image, the ROI presets from your input metadata, and automatically detected differences with the reference. It always offers the full image and keeps a stable layout.</p><a href="https://samsung.github.io/qaboard/docs/visualizations">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Faster automatic diffs, with more metrics</h3><p class="text_FLe0">Finding regions of interest is faster and no longer runs out of memory on huge images. You can pick the difference metric (YIQ, SSIM, CIE 1976, CIE 1994 or CIE 2000), and the last one used is remembered.</p></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Navigate text diffs</h3><p class="text_FLe0">The text viewer jumps to the first difference with the reference, has a "Next Diff" button, and says when both files have the same content.</p></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2023-q1#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
+<ul>
+<li class=""><code>is_failed</code> metrics are now shown, including for failed runs.</li>
+<li class="">Wider sections on wide screens, clearer error messages, and no more empty tooltips.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2023-q1#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
+<ul>
+<li class="">Runs now get the batch label as <code>QA_LABEL</code>, and their QA-Board ID as <code>context.id</code>.</li>
+<li class="">Configurations can be <code>null</code>.</li>
+<li class="">Redoing a run from the web app now reuses the original output directory.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2023-q1#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">The backend image now uses Python 3.11 on a newer OS.</li>
+<li class="">The web app is built with a multi-stage Dockerfile, for faster builds and smaller images. Compose files pick the development or production target.</li>
+<li class="">The bundled Cantaloupe image server is no longer started by the default docker compose setup, in favor of an image server running separately.</li>
+<li class="">The backend trusts every git repository it clones (<code>safe.directory</code>), avoiding errors with recent git versions.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2023-q1#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
+<ul>
+<li class="">Fixed errors when the reference output was deleted.</li>
+<li class="">Fixed "same data" being shown too often in the file viewers.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2022-q4]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2022-q4</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2022-q4"/>
+        <updated>2022-12-31T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[A quiet quarter: safer output directory names, Jenkins runners configurable from environment variables, a cap on the size of tuning batches, and backend stability tweaks.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><p class="description_UTc_">A quiet quarter: safer output directory names, Jenkins runners configurable from environment variables, a cap on the size of tuning batches, and backend stability tweaks.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q project-integration_Ky7h">Project integration</span><h3 class="title_hdm3">Jenkins runner configuration from the environment</h3><p class="text_FLe0">The Jenkins runner can now read its build URL and token from QA_RUNNERS_JENKINS_BUILD_URL and QA_RUNNERS_JENKINS_TOKEN, so they don't have to live in qaboard.yaml. The token is now optional.</p><a href="https://samsung.github.io/qaboard/docs/jenkins-integration">Learn more →</a></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2022-q4#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
+<ul>
+<li class="">Tuning from the web app is now limited to 5000 runs per batch, and the form says so.</li>
+<li class="">The CI integrations menu refreshes statuses as soon as it opens, and links to Jenkins builds open the build page.</li>
+<li class="">Runs aborted before writing their file manifest now get one when you open them.</li>
+<li class="">Logs with stray <code>&lt;</code> characters are now displayed correctly.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2022-q4#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
+<ul>
+<li class="">Output directory names derived from input paths are now always slugified, avoiding characters that cause problems on some filesystems. New runs of inputs with such characters get a different output directory.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2022-q4#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">The backend recycles its workers after a number of requests, a maximum lifetime or too much memory use, and nginx waits up to 10 minutes for slow API calls.</li>
+<li class="">Several API endpoints and webhooks read database rows in chunks to use less memory.</li>
+<li class="">Exports to a folder now report when they fail to create symlinks.</li>
+</ul>]]></content>
+    </entry>
+    <entry>
+        <title type="html"><![CDATA[2022-q3]]></title>
+        <id>https://samsung.github.io/qaboard/release-notes/2022-q3</id>
+        <link href="https://samsung.github.io/qaboard/release-notes/2022-q3"/>
+        <updated>2022-09-30T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[You can delete several batches at once and sort runs by storage. Auto-optimizations can resume from a checkpoint, and servers can report crashes to Sentry.]]></summary>
+        <content type="html"><![CDATA[<div class="releaseNote_PSHz"><span class="version_NYcp">qaboard v<!-- -->1.0.2</span><p class="description_UTc_">You can delete several batches at once and sort runs by storage. Auto-optimizations can resume from a checkpoint, and servers can report crashes to Sentry.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Delete multiple batches</h3><p class="text_FLe0">The commit page's batch menu has a new "Delete multiple batches" option to pick and delete several batches in one go. Milestones are skipped.</p></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Resumable auto-optimization</h3><p class="text_FLe0">qa optimize has a new --checkpoint option to save its progress and restart interrupted optimizations. Tunings started from the web app use it automatically, and show accurate iteration counts.</p><a href="https://samsung.github.io/qaboard/docs/auto-optimization">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Storage per batch</h3><p class="text_FLe0">The Output Files view shows the total storage used by the selected runs, and runs can be sorted by storage.</p></div><div class="card_ukht"><span class="audience_eP3Q admins_lbEZ">Admins</span><h3 class="title_hdm3">Crash monitoring with Sentry</h3><p class="text_FLe0">The backend and the web app can report errors and performance traces to Sentry. Set SENTRY_DSN (and optionally SENTRY_SAMPLE_RATE) on the backend to enable it.</p><a href="https://samsung.github.io/qaboard/docs/deploy">Learn more →</a></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2022-q3#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
+<ul>
+<li class="">The image, video and bit-accuracy viewers can now compare raw/hex images by their image metadata and pixel-data hash, when the manifest has them, instead of the file hash.</li>
+<li class="">Layout tweaks for small and wide screens.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2022-q3#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
+<ul>
+<li class="">The <code>qaboard</code> package is now version 1.0.2.</li>
+<li class="">Auto-optimization: clearer errors when the objective cannot be computed, logs reachable from the web app even when the first iteration fails, and a <code>QA_SEED</code> that now seeds every random generator.</li>
+<li class=""><code>qa check-bit-accuracy</code> prints clearer logs, with links to the failing comparisons.</li>
+<li class="">Windows paths are now converted case-insensitively and with forward slashes.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2022-q3#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
+<ul>
+<li class="">Upgraded the Cantaloupe image server from 4.1 to 5.0.</li>
+<li class="">PostgreSQL now allows 200 connections, with more working memory per query.</li>
+<li class="">The backend has configurable memory limits and <code>UWSGI_CHEAPER_OVERLOAD</code> to tune how quickly workers are spawned.</li>
+<li class="">The cleanup job reads commits in chunks, using much less memory on large databases.</li>
+</ul>
+<h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2022-q3#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
+<ul>
+<li class="">Fixed crashes when the reference lacks a metric present in the new run.</li>
+<li class="">Fixed crashes of the history page and of some project index pages.</li>
+<li class="">Fixed the detection of raw and hex image files.</li>
+<li class="">Fixed tuning forms that were sometimes disabled for no reason.</li>
+</ul>]]></content>
+    </entry>
+</feed>
