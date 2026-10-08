@@ -3,7 +3,6 @@
 # requires-python = ">=3.11"
 # dependencies = [
 #   "pyyaml>=6",
-#   "markdown-it-py>=3",
 # ]
 # ///
 """
@@ -13,17 +12,14 @@ See _template.md and CLAUDE.md for how to write them.
 
   ./release_notes.py changelog 2026-09        # commits of the period, grouped by area
   ./release_notes.py draft 2026-10 --write    # new release note pre-filled from the commits
-  ./release_notes.py build                    # update the web app's bundle (webapp/src/releaseNotes/release-notes.json)
-  ./release_notes.py check                    # validate the notes, their links, and that the bundle is up to date
+  ./release_notes.py check                    # validate the notes and their links to the docs
 
-The web app shows the published notes (not `draft: true`) in its "What's new" panel,
-the website renders them at /release-notes.
+The web app shows the published notes (not `draft: true`) in its "What's new" panel: vite reads them when it
+builds or serves the app (webapp/releaseNotes.js). The website renders them at /release-notes.
 """
 import argparse
 import calendar
 import datetime
-import hashlib
-import json
 import re
 import subprocess
 import sys
@@ -31,12 +27,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
-from markdown_it import MarkdownIt
 
 NOTES_DIR = Path(__file__).resolve().parent
 REPO_ROOT = NOTES_DIR.parent.parent
 DOCS_DIR = REPO_ROOT / "website" / "docs"
-BUNDLE = REPO_ROOT / "webapp" / "src" / "releaseNotes" / "release-notes.json"
 
 PERIOD_RE = re.compile(r"^(?P<year>\d{4})(?:-(?:(?P<month>0[1-9]|1[0-2])|q(?P<quarter>[1-4])))?$")
 AUDIENCES = ("users", "project-integration", "admins")
@@ -252,15 +246,6 @@ def doc_urls() -> set[str]:
     return urls
 
 
-# No raw HTML: it is escaped, and markdown-it rejects javascript: links. The web app can show the output as is.
-markdown = MarkdownIt("commonmark", {"html": False}).enable(["table", "strikethrough"])
-
-
-def render_html(body: str) -> str:
-    body = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
-    return markdown.render(body).strip()
-
-
 def validate(note: Note, docs: set[str]) -> tuple[list[str], list[str]]:
     errors, warnings = [], []
     meta = note.meta
@@ -309,36 +294,6 @@ def validate(note: Note, docs: set[str]) -> tuple[list[str], list[str]]:
     return errors, warnings
 
 
-def to_bundle(note: Note) -> dict:
-    period = note.period
-    return {
-        "slug": note.slug,
-        "title": note.meta.get("title") or period.title,
-        "period": period.name,
-        "date": note.meta["date"],
-        "version": str(note.meta["version"]) if note.meta.get("version") else None,
-        "description": str(note.meta["description"]).strip(),
-        "highlights": [
-            {k: str(h[k]).strip() for k in ("title", "description", "audience", "icon", "link") if h.get(k)}
-            for h in note.meta.get("highlights") or []
-        ],
-        "html": render_html(note.body),
-        # lets the web app's tests check the bundle is up to date
-        "sha256": hashlib.sha256(note.path.read_bytes()).hexdigest(),
-    }
-
-
-def build_bundle(include_drafts=False) -> str:
-    notes = [read_note(p) for p in note_paths()]
-    notes = [n for n in notes if include_drafts or not n.draft]
-    notes.sort(key=lambda n: (n.meta.get("date", ""), n.slug), reverse=True)
-    bundle = {
-        "_generated_by": "website/release-notes/release_notes.py build -- do not edit",
-        "notes": [to_bundle(n) for n in notes],
-    }
-    return json.dumps(bundle, indent=1, ensure_ascii=False) + "\n"
-
-
 # ---------------------------------------------------------------- CLI
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -351,9 +306,7 @@ def main() -> int:
     p.add_argument("period", help="YYYY-MM, YYYY-qN or YYYY")
     p.add_argument("--rev", default="HEAD")
     p.add_argument("--write", action="store_true", help=f"create {NOTES_DIR.name}/<period>.md instead of printing")
-    p = sub.add_parser("build", help="update the web app's bundle")
-    p.add_argument("--include-drafts", action="store_true", help="to preview drafts in the app (don't commit)")
-    sub.add_parser("check", help="validate the notes and check the web app's bundle is up to date")
+    sub.add_parser("check", help="validate the notes and their links to the docs")
     args = parser.parse_args()
 
     if args.command in ("changelog", "draft"):
@@ -372,12 +325,6 @@ def main() -> int:
             return 1
         path.write_text(text, encoding="utf-8")
         print(f"Created {path.relative_to(REPO_ROOT)} ({len(commits)} commits)")
-        return 0
-
-    if args.command == "build":
-        BUNDLE.parent.mkdir(parents=True, exist_ok=True)
-        BUNDLE.write_text(build_bundle(args.include_drafts), encoding="utf-8")
-        print(f"Updated {BUNDLE.relative_to(REPO_ROOT)}")
         return 0
 
     # check
@@ -400,9 +347,6 @@ def main() -> int:
         for e in errors:
             print(f"ERROR   {path.name}: {e}")
         n_errors += len(errors)
-    if not BUNDLE.exists() or BUNDLE.read_text(encoding="utf-8") != build_bundle():
-        print(f"ERROR   {BUNDLE.relative_to(REPO_ROOT)} is out of date. Run: {Path(__file__).relative_to(REPO_ROOT)} build")
-        n_errors += 1
     print(f"{len(periods)} release notes, {n_errors} errors")
     return 1 if n_errors else 0
 

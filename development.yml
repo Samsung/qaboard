@@ -69,6 +69,8 @@ services:
       target: dev
     volumes:
     - ./webapp:/app
+    # the "What's new" panel shows them, updated as you edit them
+    - ./website/release-notes:/website/release-notes:ro
     working_dir: /app
     environment:
     - HOME=/app

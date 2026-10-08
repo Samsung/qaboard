@@ -46,8 +46,9 @@ const track = (event, properties) => {
   if (posthog.__loaded) posthog.capture(event, properties);
 };
 
-// The notes are in their own chunk: they are not needed for the first render
-const loadNotes = () => import(/* webpackChunkName: "release-notes" */ "./release-notes.json")
+// The notes are in their own chunk: they are not needed for the first render.
+// They come from website/release-notes/, see webapp/releaseNotes.js
+const loadNotes = () => import("virtual:release-notes")
   .then(m => (m.default || m).notes);
 
 

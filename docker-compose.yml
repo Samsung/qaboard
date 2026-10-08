@@ -110,7 +110,9 @@ services:
   frontend:
     image: "arthurflam/qaboard:frontend${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
-      context: webapp
+      # the root, to include website/release-notes/: see webapp/Dockerfile
+      context: .
+      dockerfile: webapp/Dockerfile
       shm_size: 6gb
     volumes:
     - frontend_builds:/builds

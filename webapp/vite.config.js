@@ -2,6 +2,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { visualizer } from 'rollup-plugin-visualizer'
+import { releaseNotes } from './releaseNotes.js'
 
 // Where the development server relays API/data requests. The variable names predate Vite, we keep them.
 // By default we assume you run QA-Board on localhost
@@ -37,6 +38,8 @@ export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     fileBrowser(),
+    // the release notes, from website/release-notes/
+    releaseNotes(),
     // npm run analyze => build/stats.html
     mode === 'analyze' && visualizer({ filename: 'build/stats.html', gzipSize: true }),
   ],

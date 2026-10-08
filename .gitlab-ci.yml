@@ -92,7 +92,7 @@ webapp-tests:
   needs: []
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    # the tests check webapp/src/releaseNotes/release-notes.json is up to date with the release notes
+    # the web app bundles the release notes, its tests check them
     - changes: [webapp/**/*, website/release-notes/**/*]
   script:
     - cd webapp

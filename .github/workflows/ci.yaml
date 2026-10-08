@@ -40,7 +40,7 @@ jobs:
       - name: Type Checks with MyPy
         run: uv run --no-sync mypy -p qaboard --ignore-missing-imports
       - name: Release notes
-        # valid frontmatter and docs links, and the web app's bundle is up to date
+        # valid frontmatter and docs links
         run: uv run website/release-notes/release_notes.py check
       - name: Unit Tests
         run: |
