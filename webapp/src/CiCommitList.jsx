@@ -21,6 +21,7 @@ import { toaster } from "./toaster"
 
 import { fetchCommits } from './actions/projects'
 import { default_date_range } from './defaults'
+import { day_range } from './dateRange'
 import {
 	projectSelector,
 	projectDataSelector,
@@ -68,10 +69,7 @@ class CiCommitList extends React.Component {
 
   getData(props) {
     const { dispatch, project, date_range, aggregated_metrics, match } = props;
-    const extended_date_range = [date_range[0], date_range[1]]
-    extended_date_range[0].setHours(0,0,0,0);
-    extended_date_range[1].setHours(23,59,59,999);
-    dispatch(fetchCommits(project, {...match.params}, extended_date_range, aggregated_metrics))
+    dispatch(fetchCommits(project, {...match.params}, day_range(date_range), aggregated_metrics))
   }
 
   componentDidMount() {
