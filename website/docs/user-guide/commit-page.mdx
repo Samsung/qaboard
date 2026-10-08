@@ -55,7 +55,7 @@ The sidebar of a commit page lists the views. Each one answers a different quest
 | **Logs** | Logs | Read why a run crashed, see the commands that started the batch |
 | **Artifacts & Configs** | Artifacts & Configurations | Diff the build and the configuration files between commits |
 | **Code** | | Open the commit's code on your git server |
-| **Available Tests** | Groups of tests | See and edit the batches of inputs you can run |
+| **Available Tests** | Available Tests | See, check and edit the batches of inputs you can run |
 | **Run Tests / Tuning** | Tuning Experiments | Start new runs or tuning experiments on this commit |
 | **Analysis** | Auto-Tuning Analysis | Understand the results of a tuning experiment |
 
@@ -152,12 +152,19 @@ If the artifacts are missing, the page tells you to run `qa save-artifacts` from
 Opens the commit on your git server, in a new tab. In a monorepo, it opens the project's sub-folder.
 
 ### Available Tests
-Lists where the batches of inputs you can run are defined:
-1. In the commit's own files (links to them),
-2. **Shared** with all QA-Board users,
-3. **Private**, in a file only you can see and edit.
+Edit the batches of inputs you can run, in two files:
+- **Private**: only you can see and edit it,
+- **Shared**: every QA-Board user can see and edit it.
 
-The shared and private definitions are editable here: edit, then **Update Batches**. For the syntax, see [Batches of inputs](../batches-running-on-multiple-inputs.mdx). You need to be logged in.
+The commit's own batch files (`inputs.batches` in *qaboard.yaml*) are linked in the side panel. When a batch is defined in several places, Private overrides Shared, which overrides the commit's files. For the syntax, see [Batches of inputs](../batches-running-on-multiple-inputs.mdx). You need to be logged in.
+
+- **Save** (or <kbd>Ctrl</kbd>+<kbd>S</kbd>, <kbd>⌘</kbd>+<kbd>S</kbd> on a Mac). The status next to the button tells you if there are *Unsaved changes*, when it was *Saved*, or why it was *Not saved*. A dot on a file's tab means it has unsaved changes.
+- YAML mistakes are underlined while you type, and listed below the editor: click one to go to its line. A batch defined twice is flagged too, since only its last definition is used.
+- **Review changes** shows what you changed since the last save, and **Discard** drops it (with an *Undo*).
+- The **Batches** panel lists the batches and aliases in the file, with their number of inputs: click one to go to its definition. Hover it to **list its tests** (the inputs and configurations it resolves to on this commit, with all the batch files) or to **run** it from the *Run Tests / Tuning* view. *Check any batch or pattern* does the same for any batch, like the commit's, or a pattern like `nightly-*`. Listing tests uses the saved files.
+- **New** adds an example batch to start from.
+
+Your unsaved changes are kept in your browser: if you switch views, reload or close the tab, they come back the next time you open the view. If someone saved the same file while you were editing, saving shows both versions side by side, and lets you keep editing, use the saved file, or overwrite it with yours.
 
 ### Run Tests / Tuning
 Starts new runs of this commit's code on a batch of inputs, optionally with tuning parameters. See [Running from the web app](running-from-the-webapp.mdx#running-tests-and-tuning).

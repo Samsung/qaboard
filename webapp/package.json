@@ -65,7 +65,8 @@
     "redux-thunk": "^3.1.0",
     "reselect": "^5.1.1",
     "styled-components": "^6.5.3",
-    "three": "^0.136.0"
+    "three": "^0.136.0",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
@@ -79,6 +80,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "@vitest/coverage-v8": "^5.0.3",
     "jsdom": "^28.1.0",
+    "markdown-it": "^14.3.2",
     "oxlint": "^1.86.0",
     "rollup-plugin-visualizer": "^7.1.1",
     "typescript": "^7.0.2",

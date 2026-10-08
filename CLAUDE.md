@@ -91,11 +91,11 @@ website shows them at `/release-notes` (with RSS/Atom feeds).
   preview in the panel ("In progress"), so keep adding bullets as work lands: it pops up once, after the
   period's last day, with everything in it (notes whose period ended over 60 days ago don't pop up).
   "Seen" is remembered per period: later edits to a note don't notify again.
-- **After editing any note**: run `website/release-notes/release_notes.py build` and commit
-  `webapp/src/releaseNotes/release-notes.json` (generated, the web app bundles it: the webapp and website
-  docker builds can't see each other's folders). `release_notes.py check` validates the frontmatter, the
-  docs links and that the bundle is up to date; CI runs it, and the webapp tests also detect a stale bundle.
-  `build --include-drafts` previews drafts in `npm start` (don't commit that).
+- **Nothing to generate or commit besides the `.md`**: vite reads the notes when it builds or serves the web
+  app, or runs its tests (`webapp/releaseNotes.js`, imported as `virtual:release-notes`; the frontend image
+  is built from the repo root for that, see `webapp/Dockerfile`). `npm start` reloads when a note changes;
+  `QABOARD_RELEASE_NOTES_DRAFTS=1 npm start` also shows the drafts. `release_notes.py check` validates the
+  frontmatter and the docs links: CI runs it.
 - **Changelog from git**: `release_notes.py changelog 2026-09` (or `2026-q3`, `2026`) lists the period's
   commits grouped by the area they touch, as raw material for a note.
 - Code: `webapp/src/releaseNotes/` (popup, panel, links), `website/src/components/ReleaseNoteHighlights.js`

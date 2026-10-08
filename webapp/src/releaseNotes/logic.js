@@ -1,6 +1,5 @@
 // What's new: which release notes a user hasn't seen, links, search.
-// The notes are written in website/release-notes/ and bundled in release-notes.json
-// by website/release-notes/release_notes.py build
+// The notes are written in website/release-notes/, vite bundles them (webapp/releaseNotes.js)
 
 export const LAST_SEEN_KEY = 'qaboard.release-notes.last-seen';
 // Notes older than that don't pop up, e.g. for new users, or after a long vacation
