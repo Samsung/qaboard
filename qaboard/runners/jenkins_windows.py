@@ -217,6 +217,8 @@ class JenkinsWindowsRunner(BaseRunner):
     # Can't use commands with more than 256 characters, so we use a script to save space
     command = self.run_context.command
     assert command
+    # external callers may pass a duck-typed context without a job_options attribute
+    job_options = getattr(self.run_context, 'job_options', None)
 
     if not log_path:
       log_path = self.run_context.output_dir / 'log.txt'
@@ -232,12 +234,12 @@ class JenkinsWindowsRunner(BaseRunner):
 
     from ..config import user
     script = "\n".join([
-      # TODO: use this? self.run_context.job_options.get('user', user)
+      # TODO: use this? job_options.get('user', user)
       f'cd "{linux_to_windows(os.getcwd())}"',
       f"$Env:QA_USER = '{user}'",
       # https://stackoverflow.com/questions/40098771/changing-powershells-default-output-encoding-to-utf-8
       "$PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'",
-      f"$ErrorActionPreference = \"{get_error_action(self.run_context.job_options)}\"",
+      f"$ErrorActionPreference = \"{get_error_action(job_options)}\"",
       command,
       'exit $lastExitCode',
     ])

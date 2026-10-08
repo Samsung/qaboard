@@ -230,6 +230,22 @@ class TestJenkinsWindowsRunner(unittest.TestCase):
     self.assertIn('$ErrorActionPreference = "Stop"', content)
     self.assertTrue(any('Bogus' in str(c) for c in secho.call_args_list))
 
+  def test_context_without_job_options_attribute(self):
+    # regression: external callers (e.g. CI scripts) may pass a duck-typed
+    # context without a job_options attribute; start() must not raise
+    from qaboard.runners.jenkins_windows import JenkinsWindowsRunner
+
+    class BareRunContext:
+      def __init__(self, output_dir):
+        self.output_dir = output_dir
+        self.command = 'echo hi'
+
+    output_dir = self.output_root / 'bare'
+    with mock.patch('qaboard.runners.jenkins_windows.trigger_run', return_value={}):
+      JenkinsWindowsRunner(BareRunContext(output_dir)).start(blocking=False)
+    content = (output_dir / 'run.ps1').read_text()
+    self.assertIn('$ErrorActionPreference = "Stop"', content)
+
 
 try:
   import distributed # noqa: F401
