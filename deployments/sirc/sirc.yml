@@ -59,6 +59,9 @@ services:
     - QABOARD_IMAGE_CACHE_DIR=/algo/qa_db/image_cache
     # The server only writes, deletes or runs code in these folders (the shared storage mounted below)
     - QABOARD_STORAGE_ROOTS=/algo:/stage:/home:/raid:/sim:/data:/net
+    # Users only read the files under /s/ that their Unix account can read, in these folders. The backend must know
+    # the users' accounts: mount the output of `getent passwd` and `getent group` (services/backend/passwd is partial)
+    # - QABOARD_FILES_UNIX_PERMISSIONS=/home:/raid/users
 
     volumes:
     - ./services/backend/passwd:/etc/passwd

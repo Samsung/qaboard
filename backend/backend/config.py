@@ -23,3 +23,7 @@ default_artifacts_root = default_storage_root
 # Clients tell us where they saved their results, but the server only writes, deletes or runs code inside these
 # folders (see backend/storage.py). Separated by ":" like $PATH.
 storage_roots = [Path(p) for p in os.environ.get('QABOARD_STORAGE_ROOTS', str(default_storage_root)).split(':') if p]
+
+# In these folders (e.g. /home), users only read the files under /s/ that their Unix account can read. Separated by ":".
+# See backend/api/files.py, nginx must check permissions with services/nginx/snippets/qaboard-files-auth.conf
+files_unix_permissions_roots = [p for p in os.environ.get('QABOARD_FILES_UNIX_PERMISSIONS', '').split(':') if p]
