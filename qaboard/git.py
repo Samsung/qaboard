@@ -80,26 +80,45 @@ def latest_commit(reference: str) -> str:
     return reference
 
 
+def git_dirs(repo_root: Path) -> Tuple[Path, Path]:
+  """
+  Return the git directory (HEAD) and the common directory (refs/, packed-refs) of a checkout.
+
+  They differ in a git worktree: there .git is a file pointing to <main>/.git/worktrees/<name>,
+  whose "commondir" file points back to the main repository's .git, where the branches live.
+  In submodules, .git is also a file, pointing to a (often relative) path under the parent's .git/modules.
+  """
+  git_dir = repo_root / '.git'
+  if git_dir.is_file():
+    pointer = git_dir.read_text().strip()
+    if pointer.startswith('gitdir:'):
+      pointer = pointer[len('gitdir:'):].strip()
+    git_dir = repo_root / pointer # stays absolute if the pointer is absolute
+  common_dir = git_dir
+  commondir_path = git_dir / 'commondir'
+  if commondir_path.is_file():
+    common_dir = git_dir / commondir_path.read_text().strip()
+  return git_dir, common_dir
+
+
 def git_head(repo_root : Path) -> Tuple[str, str]:
   """Return the git ref and sha for the HEAD"""
-  git_dir = repo_root / '.git'
-  if git_dir.is_file(): # support git worktree
-    git_dir= Path(git_dir.read_text().split()[1])
+  git_dir, common_dir = git_dirs(repo_root)
   with (git_dir / 'HEAD').open() as f:
     head_data = f.read().strip()
-    if head_data.startswith('ref: refs/heads/'):
-      commit_branch = head_data[16:]
-    else:
-      commit_branch = head_data
+  if not head_data.startswith('ref: refs/heads/'):
+    # detached HEAD
+    return head_data, head_data
+  commit_branch = head_data[16:]
 
-  # Maybe we should just call "git rev-parse HEAD" from repo_root,
-  # there cant be that much overhead and it won't be as fragile...
-  refs_head_path = repo_root / '.git' / 'refs' / 'heads' / commit_branch
-  if refs_head_path.exists():
-    with refs_head_path.open() as f:
-      return commit_branch, f.read().strip()
+  # We read the refs ourselves to avoid the overhead of calling git at import time
+  for refs_dir in dict.fromkeys([git_dir, common_dir]):
+    refs_head_path = refs_dir / 'refs' / 'heads' / commit_branch
+    if refs_head_path.is_file():
+      with refs_head_path.open() as f:
+        return commit_branch, f.read().strip()
 
-  packed_refs_path = repo_root / '.git' / 'packed-refs'
+  packed_refs_path = common_dir / 'packed-refs'
   if packed_refs_path.exists():
     with packed_refs_path.open() as f:
       for line in f.readlines():
@@ -111,6 +130,18 @@ def git_head(repo_root : Path) -> Tuple[str, str]:
             return commit_branch, hexsha
         except Exception:
             pass
+
+  # Other ref storage backends (e.g. reftable), or layouts we don't know about
+  p = subprocess.run(
+    ["git", "rev-parse", "--verify", "--quiet", "HEAD"],
+    cwd=repo_root,
+    encoding='utf8',
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+  )
+  if p.returncode == 0 and p.stdout.strip():
+    return commit_branch, p.stdout.strip()
+  # e.g. a branch without commits yet
   return commit_branch, commit_branch
 
 
