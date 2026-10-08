@@ -54,7 +54,7 @@ services:
     - QABOARD_DEFAULT_USER=ispq
     - QA_LSF_SSH_TARGET=ispq@ispq-vdi
     - 'QABOARD_IMAGE_SERVERS={"default": "https://cantaloupe-svc.transchip.com/iiif/2/", "raw,hex,cde": "https://iipsrv.transchip.com/fcgi-bin/iipsrv.fcgi?IIIF=/"}'
-    - QABOARD_QUOTA_URL_TEMPLATE=https://metabase.transchip.com/dashboard/154-storage-cleanup-dashboard?project={project}%2F&username={user_name}
+    - QABOARD_QUOTA_URL_TEMPLATE=https://metabase.transchip.com/dashboard/154-storage-cleanup-dashboard?project={project}&username={user_name}
     - QABOARD_SUPPORT_URL=mailto:arthur.flam@samsung.com
     - QABOARD_IMAGE_CACHE_DIR=/algo/qa_db/image_cache
     # The server only writes, deletes or runs code in these folders (the shared storage mounted below)
