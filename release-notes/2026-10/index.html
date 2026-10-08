@@ -13,8 +13,8 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.3b48104c.css">
-<script src="/qaboard/assets/js/runtime~main.e4787a40.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.53c20b79.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.1743e280.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.199b2546.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -32,6 +32,7 @@
 <li class="">Batches started from QA-Board (tuning, &quot;Run Tests&quot;) show whether <code>qa batch</code> is waiting for LSF, running, failed (with the error) or didn&#x27;t start any run, with a link to its logs.</li>
 <li class="">Links to commits and projects use your server&#x27;s git host instead of a hardcoded one, and the &quot;Quotas&quot; links only show when the server has a quota dashboard.</li>
 <li class="">The error page links to your server&#x27;s support page.</li>
+<li class="">Open a folder under <code>/s/</code> in your browser to get the new <a class="" href="/qaboard/docs/user-guide/files">file browser</a>: sort and filter files (e.g. <code>*.png</code>), copy their Linux or Windows paths, paste a path to go there, and navigate with the keyboard (press <code>?</code>). Scripts and <code>curl</code> still get nginx&#x27;s plain index.</li>
 </ul>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
 <ul>
@@ -56,6 +57,9 @@
 <li class="">Each batch started from QA-Board gets its own folder with its scripts and logs, under the batch&#x27;s <code>qaboard-batches/</code>.</li>
 <li class="">The web app links to the docs served by your server at <code>/docs/</code>, which match its version, instead of the public website. Set <code>QABOARD_DOCS_ROOT</code> to use another docs site.</li>
 <li class="">The git host, quota dashboard and support links are configurable (<code>GITLAB_HOST</code>, <code>QABOARD_QUOTA_URL_TEMPLATE</code>, <code>QABOARD_SUPPORT_URL</code>).</li>
+<li class="">Restrict who can read the files of restricted projects, or of the folders you list under <code>paths</code> in <code>users_restrict.yml</code>: nginx asks the backend before sending each file (see <a class="" href="/qaboard/docs/backend-admin/user-management#restricting-who-can-read-files">user management</a>). If you use your own nginx configuration, include <code>snippets/qaboard-files.conf</code> in the <code>/s/</code> locations to get the file browser.</li>
+<li class="">In the folders listed in <code>QABOARD_FILES_UNIX_PERMISSIONS</code> (e.g. <code>/home</code>), users only read the files that their own Unix account can read (see <a class="" href="/qaboard/docs/backend-admin/user-management#unix-permissions">user management</a>).</li>
+<li class="">At SIRC, QA-Board no longer serves the storage over WebDAV (<code>/davs/algo/</code>): it let anyone write and delete files. <code>services/nginx/webdav.conf</code> explains how to bring it back.</li>
 </ul>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="documentation">Documentation<a href="#documentation" class="hash-link" aria-label="Direct link to Documentation" title="Direct link to Documentation" translate="no">​</a></h2>
 <ul>
