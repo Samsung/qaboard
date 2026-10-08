@@ -66,6 +66,8 @@ class Output(Base):
     # https://sqlalche.me/e/14/f405
     Index('idx_outputs_data_user', text("(data->>'user')")),#, postgresql_ops={'user': 'text_pattern_ops'}),
     Index('idx_outputs_filter', "batch_id", "test_input_id", "platform"),
+    # The file browser finds the run a folder belongs to
+    Index('idx_outputs_output_dir_override', "output_dir_override"),
     Index('idx_outputs_batch_user_storage', 
           "batch_id", 
           text("(data->>'user')"),
@@ -239,7 +241,7 @@ class Output(Base):
       if 'resources' in job_options and job_options['resources']:
         job_options_cli += ["--lsf-resources", quote(str(job_options['resources']))]
       if 'max_threads' in job_options and job_options['max_threads'] != 0:
-        job_options_cli += ["--lsf-threads", quote(str(job_options['max_threads']))]
+        job_options_cli += ["--lsf-max-threads", quote(str(job_options['max_threads']))]
     command = ' '.join([
       'qa',
       '--label', quote(self.batch.label),
@@ -252,9 +254,8 @@ class Output(Base):
       *job_options_cli,
       '--action-on-existing=run',
       '--action-on-pending=run',
-      # "--" so that an input path can't be parsed as an option
-      '--',
-      quote(str(self.test_input.path)),
+      # one word, so that an input path can't be parsed as an option. Not "--": qa gives what follows to the user's code
+      '--batch=' + quote(str(self.test_input.path)),
       # FIXME: if forwarded_args in parsed(self.configuration), add it..
     ])
 

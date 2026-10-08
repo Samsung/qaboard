@@ -112,6 +112,9 @@ proxy:
   #    server { ... }
   # e.g. to serve outputs under /s/
   extraVolumes: []
+  # Only the users allowed by QABOARD_LOGIN_RESTRICTED_YAML can read the files of restricted projects and folders under /s/.
+  # nginx asks the backend before serving each file.
+  restrictFiles: false
   extraVolumeMounts: []
   nodeSelector: {}
   tolerations: []

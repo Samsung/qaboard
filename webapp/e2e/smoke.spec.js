@@ -52,3 +52,36 @@ for (const { name, path, text } of pages) {
     await page.waitForLoadState('networkidle');
   });
 }
+
+// nginx serves files.html for folders under /s/, `vite preview` too (see vite.config.js)
+test('file browser', async ({ page }) => {
+  await page.route('**/s/**', route => {
+    if (route.request().headers().accept !== 'application/json') return route.fallback();
+    return route.fulfill({ json: { path: '/mnt/qaboard', truncated: false, entries: [
+      { name: 'outputs', type: 'directory', mtime: 1790000000, owner: 'alice', mode: 'drwxr-xr-x' },
+      { name: 'log.txt', type: 'file', size: 1234, mtime: 1790000000, owner: 'alice', mode: '-rw-r--r--' },
+    ] } });
+  });
+  await page.goto('/s/mnt/qaboard/');
+  await expect(page.getByText('Alice').first()).toBeVisible();
+  await expect(page.getByRole('link', { name: 'log.txt', exact: true })).toHaveAttribute('href', '/s/mnt/qaboard/log.txt');
+  await page.getByRole('link', { name: 'outputs/', exact: true }).click();
+  await expect(page).toHaveURL(/\/s\/mnt\/qaboard\/outputs\/$/);
+  await page.waitForLoadState('networkidle');
+});
+
+// The commit lists' date ranges are persisted (as JSON) in the browser's storage
+test('switch to a branch seen in a previous session', async ({ page }) => {
+  await page.goto(`/${project}/commits/master`);
+  await expect(page.getByText('Hello world').first()).toBeVisible();
+  await page.goto(`/${project}/commits/develop`);
+  await expect(page.getByText('Hello world').first()).toBeVisible();
+  await page.waitForTimeout(1500); // redux-persist writes are throttled
+  await page.reload();
+  await expect(page.getByText('Hello world').first()).toBeVisible();
+  // the commit's branch tag
+  await page.getByRole('link', { name: 'master', exact: true }).first().click();
+  await expect(page).toHaveURL(new RegExp(`/${project}/commits/master`));
+  await expect(page.getByText('Hello world').first()).toBeVisible();
+  await expect(page.getByText('Sorry, something went wrong')).toHaveCount(0);
+});

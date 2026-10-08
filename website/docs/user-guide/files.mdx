@@ -1,0 +1,48 @@
+---
+id: files
+title: Browsing files
+sidebar_label: Browsing files
+description: Browse the output and artifacts folders in your browser, copy Linux and Windows paths, and find files fast with the keyboard.
+---
+
+Results live on a shared storage. QA-Board serves its files under `/s/`: the folder `/algo/project/outputs` is at `https://<qaboard>/s/algo/project/outputs/`. When you open a folder in your browser, you get QA-Board's **file browser**. You land there from the folder icons of the web app (e.g. on each run's card), from the links printed by the `qa` CLI, or by typing a path.
+
+## What you can do
+- **Navigate**: click a folder, or a part of the path at the top. The browser's back and forward buttons work, and links open in new tabs as usual.
+- **Go to a path**: click next to the path at the top, or press <kbd>g</kbd>, and type or paste a **Linux path**, a **Windows path** (`\\server\share\...`) or a **QA-Board URL**.
+- **Copy paths**: **Copy path** and **Windows** at the top copy the folder's path. Hover a file to copy its path, or download it.
+- **Filter**: type part of a name, or a glob like `*.png` or `frame_??.raw`. Hidden files (starting with `.`) are not shown, unless they match the filter or you click the eye icon.
+- **Sort**: click a column's name. Folders always come first, and names are sorted "naturally": `frame2` comes before `frame10`.
+- **See more**: hover a size for the exact number of bytes, a date for the exact time, and a name for its permissions (and where a link points to).
+
+Files open in the browser, exactly as before: nginx sends them, so large files and logs load fast.
+
+## Runs
+In a run's output folder, or in a folder inside it, a bar shows the run: its status, the input it ran on, its batch and who started it. From there you can:
+- open its **Results** (metrics, logs...) in QA-Board,
+- **Redo** it, e.g. after a failure. Its files are replaced when it starts again,
+- **Delete** it: its folder and its results in QA-Board. Check **Only delete its files** to keep the run in QA-Board, like "Delete Output Files" in the web app,
+- **Mark as failed** a run stuck as pending or running, whose job is gone.
+
+You need to be signed in. You act on whole runs, like in the web app: the file browser doesn't delete single files.
+
+## Keyboard shortcuts
+Press <kbd>?</kbd> to see them all.
+
+| Key | What it does |
+|---|---|
+| <kbd>/</kbd> | Filter. <kbd>Enter</kbd> opens the first match, <kbd>Esc</kbd> clears the filter. |
+| <kbd>g</kbd> | Go to a path |
+| <kbd>j</kbd> <kbd>k</kbd> or <kbd>↓</kbd> <kbd>↑</kbd> | Select the next or previous file |
+| <kbd>Enter</kbd> or <kbd>→</kbd> | Open the selected file or folder |
+| <kbd>Backspace</kbd> or <kbd>←</kbd> | Go to the parent folder, with the folder you were in selected |
+| <kbd>c</kbd> | Copy the path of the selected file, or of the folder |
+| <kbd>w</kbd> | Copy the Windows path |
+| <kbd>.</kbd> | Show or hide hidden files |
+| <kbd>r</kbd> | Refresh, e.g. while a run is writing files |
+
+## Restricted folders
+Your admins can restrict who can see the files of some projects or folders. If you see **Sign in to see these files**, sign in with the button. If you see **You don't have access**, ask them for access.
+
+## The plain index
+Scripts and tools like `curl` and `wget` still get nginx's plain index of the folders. To see it in your browser, click **Plain index** at the bottom of the page, or add `?view=nginx` to the URL.

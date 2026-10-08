@@ -35,6 +35,12 @@ config:
   QABOARD_DATA_GIT_DIR: /algo/ws/ispq/qaboard_prod_data_git
   # The server only writes, deletes or runs code in these folders (the shared storage mounted below)
   QABOARD_STORAGE_ROOTS: /algo:/stage:/home:/raid:/sim:/data:/net
+  # Users only read the files under /s/ that their Unix account can read, in these folders. The backend must know
+  # the users' accounts: mount the output of `getent passwd` and `getent group` (services/backend/passwd is partial)
+  # QABOARD_FILES_UNIX_PERMISSIONS: /home:/raid/users
+  # Users' accounts, refreshed daily, see deployments/sirc/sirc.yml
+  # QABOARD_ACCOUNTS_COMMAND: ssh ispq@ispq-vdi getent passwd
+  # QABOARD_GROUPS_COMMAND: ssh ispq@ispq-vdi getent group
   # uwsgi drops privileges to ispq, and uses sudo to delete outputs as their owner
   UWSGI_UID: ispq
   UWSGI_GID: uucp

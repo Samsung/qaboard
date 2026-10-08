@@ -219,7 +219,8 @@ def batch_info(reference, batch, is_branch=False, project=project, metrics: Opti
   """Get data about a batch of outputs in the database"""
   import requests
   params = {
-    "project": str(project),
+    # project names use "/", but Path() uses "\\" on Windows
+    "project": Path(project).as_posix(),
     "batch": batch,
     # the format is metric: target.... not great.
     "metrics": json.dumps({m: 0 for m in (metrics or available_metrics.keys())}),

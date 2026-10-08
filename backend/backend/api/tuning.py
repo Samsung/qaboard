@@ -196,8 +196,7 @@ def get_group():
             'batch',
             *list(itertools.chain.from_iterable((('--batches-file', quote(str(f))) for f in batches_paths))),
             '--list',
-            '--',
-            quote(request.args["name"]),
+            '--batch=' + quote(request.args["name"]),
         ])
         cmd = '\n'.join([*envrcs, cmd])
         print(cmd)

@@ -38,6 +38,8 @@ services:
 If you want to use a different folder, use your path in the overlay, and set `storage` in your projects' *qaboard.yaml* (see [where is the data saved](storage/where-is-the-data)).
 :::
 
+When users open a folder under `/s/` in their browser, they get QA-Board's [file browser](user-guide/files). nginx still sends the files, but the backend lists the folders: it lists those inside `QABOARD_STORAGE_ROOTS`, at the same paths as in the URLs. Other clients (`curl`, `wget`...) still get nginx's index. To restrict who can read the files of some projects, see [user management](backend-admin/user-management#restricting-who-can-read-files).
+
 :::note Shared Storage?
 Later, read how to setup [**NFS**](https://www.digitalocean.com/community/tutorials/how-to-set-up-an-nfs-mount-on-ubuntu-18-04) or [**Samba**](https://www.digitalocean.com/community/tutorials/how-to-set-up-a-samba-share-for-a-small-organization-on-ubuntu-16-04). If you need fine-tuning read about [options for NFS volumes](https://docs.docker.com/compose/compose-file/#volume-configuration-reference) in *docker-compose.yml*.
 :::
@@ -107,6 +109,10 @@ QA-Board can connect to external authentifications systems (LDAP, SAML). If need
 | `GITHUB_ACCESS_TOKEN`  | _none_  | Token used to clone private GitHub repositories and look up committers' avatars (see [GitHub integration](project-init#optional-integration-with-github)) |
 | `QABOARD_GITHUB_HOSTS` | _none_  | Comma-separated GitHub Enterprise hostnames the backend may clone from and send `GITHUB_ACCESS_TOKEN` to, besides github.com |
 | `QABOARD_STORAGE_ROOTS` | */mnt/qaboard* | Folders where your projects store outputs and artifacts, separated by `:` (e.g. `/mnt/qaboard:/mnt/datasets`). The backend refuses results stored elsewhere, and never writes, deletes or runs code outside these folders |
+| `QABOARD_FILES_UNIX_PERMISSIONS` | _none_ | Folders, separated by `:` (e.g. `/home`), where users only read the files under `/s/` that their Unix account can read. See [user management](backend-admin/user-management#unix-permissions) |
+| `QABOARD_ACCOUNTS_COMMAND` | _none_ | Command printing the users' accounts like `/etc/passwd` (e.g. `ssh host getent passwd`), for file owners and Unix permissions, when you can't mount a complete `/etc/passwd`. See [users' accounts](backend-admin/user-management#users-accounts) |
+| `QABOARD_GROUPS_COMMAND` | _none_ | Same for the groups, like `/etc/group` |
+| `QABOARD_ACCOUNTS_REFRESH` | 86400 | How often (seconds) the backend runs these commands |
 | `QABOARD_WEBHOOK_SECRET` | _none_ | Secret that the GitLab and GitHub webhooks must send (GitLab's *Secret token*, GitHub's *Secret*). Recommended: without it anyone who can reach the server can send fake push events |
 | `QABOARD_PORT_HTTP`    | 5151    | Port mapped to the app on the host                   |
 | `QABOARD_DB_HOST`      | db      | Connect the backend to a non-default database host (e.g. instead of dev'ing with prod dumps, connect directly to it) |
@@ -164,7 +170,7 @@ In the future we plan to introduce a proper "secret" store, per user and per pro
 The `cron-backup-db` service in *production.yml* makes daily backups of the database. Mount a host directory at `/backups` in your site overlay (see `deployments/sirc/prod.yml`), and copy the backups off the host. To restore one: `deployments/deploy.py <env file> restore-db <file>.dump`.
 
 ### Using SSL / hosting behind a reverse proxy
-What we do is use our own copy of *services/nginx/conf.d/qaboard.conf* in the site overlay. Files mounted under `/tmp/deployment/nginx/conf.d/` in the `proxy` container are added to (or replace) *services/nginx/conf.d/*:
+What we do is use our own copy of *services/nginx/conf.d/qaboard.conf* in the site overlay (keep its `include snippets/...` lines: they serve the files and the file browser). Files mounted under `/tmp/deployment/nginx/conf.d/` in the `proxy` container are added to (or replace) *services/nginx/conf.d/*:
 
 ```nginx title="deployments/nginx/qaboard.conf (copied from services/nginx/conf.d/qaboard.conf)"
 server {

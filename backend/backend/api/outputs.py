@@ -11,7 +11,7 @@ from qaboard.api import dir_to_url
 from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
 from ..storage import check_storage_path, UnsafePathError
-from .auth import login_required
+from .auth import login_required, is_authorized_user
 
 
 @app.route("/api/v1/output/<output_id>", methods=['GET'])
@@ -36,6 +36,8 @@ def update_output(output_id):
     if request.method == 'DELETE':
       return {"status": "OK"}
     return jsonify({"error": f"Cannot find output {output_id}"}), 400
+  if not is_authorized_user(g.user, output.batch.ci_commit.project_id):
+    return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
 
   if request.method == 'PUT':
     data = request.get_json()
@@ -82,6 +84,8 @@ def output_redo(output_id):
     output = Output.query.filter(Output.id==output_id).one()
   except NoResultFound:
     return jsonify({"error": f"Cannot find output {output_id}"}), 400
+  if not is_authorized_user(g.user, output.batch.ci_commit.project_id):
+    return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
   try:
     success = output.redo(user=g.user['user_name'])
   except Exception as e:
@@ -229,8 +233,12 @@ def new_output_webhook():
   else:
     output.is_pending = data.get('is_pending', False)
 
+  # A run that starts again (redo, qa batch...) is not failed anymore, until it says so when it ends.
+  # Else re-runs of failed runs show as failed (and count as failed) while they are pending or running.
+  if output.is_pending:
+    output.is_failed = False
   # We save the output's metrics
-  if not output.is_pending:
+  else:
     metrics = data.get('metrics', {})
     output.metrics = metrics
     output.is_failed = data.get('is_failed', False) or metrics.get('is_failed')

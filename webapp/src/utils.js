@@ -13,6 +13,7 @@ const { median: mathjs_median, format } = create({
 })
 
 import { memoized_levenshtein } from "./levenshtein";
+import { setPathMappings, linux_to_windows } from "./utils/paths";
 
 
 const calendarStrings = {
@@ -298,29 +299,6 @@ const git_hostname = qaboard_config => {
 
 }
 
-// Path mappings populated from /api/v1/config (via setPathMappings).
-// Each entry is [windows_prefix, linux_prefix].
-let _path_mappings = [];
-
-const setPathMappings = (mappings) => {
-  _path_mappings = mappings || [];
-};
-
-const linux_to_windows = path => {
-  if (path === undefined || path === null)
-    return path
-  let result = decodeURI(path).replace(/\/s\//, '/')
-  for (const [windows_prefix, linux_prefix] of _path_mappings) {
-    if (result.startsWith(linux_prefix)) {
-      // Convert backslashes in windows_prefix to forward slashes for matching,
-      // then convert everything to backslashes at the end
-      const win = windows_prefix.replace(/\\/g, '/')
-      result = win + result.slice(linux_prefix.length)
-      return result.replace(/\//g, '\\')
-    }
-  }
-  return result.replace(/\//g, '\\')
-}
 
 
 const path_regex = /^(\\\\[^\\]+)(\\[^\\]+)/;
