@@ -898,7 +898,11 @@ class ImgViewer extends React.PureComponent {
 
     const diff_info = !has_same_data && single_image_height > 0 ? <div hidden={!diff || !has_reference} style={flex}>
       <div style={{ minHeight: '40px' }}>
-        <MultiSlider
+        {/* Blueprint measures the slider's track width only when it mounts. Mounted while hidden, it measures 0px,
+            then any drag computes an infinite step and the handle sticks to max/min: only mount it once visible,
+            and remount it when the width changes. */}
+        {diff && has_reference && <MultiSlider
+          key={single_image_width}
           defaultTrackIntent={Intent.WARNING}
           labelPrecision={2}
           labelRenderer={label => `${(100 * label).toFixed(0)}%`}
@@ -913,7 +917,7 @@ class ImgViewer extends React.PureComponent {
           style={{ width: single_image_size.width }}
         >
           <MultiSlider.Handle value={this.state.diff_threshold} intentAfter={Intent.NONE} />
-        </MultiSlider>
+        </MultiSlider>}
       </div>
       <div style={single_image_size}>
         <div>
