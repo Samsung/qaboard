@@ -26,6 +26,7 @@
 <li class="">Links to commits and projects use your server's git host instead of a hardcoded one, and the "Quotas" links only show when the server has a quota dashboard.</li>
 <li class="">The error page links to your server's support page.</li>
 <li class="">Open a folder under <code>/s/</code> in your browser to get the new <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/files">file browser</a>: sort and filter files (e.g. <code>*.png</code>), copy their Linux or Windows paths, paste a path to go there, and navigate with the keyboard (press <code>?</code>). Scripts and <code>curl</code> still get nginx's plain index.</li>
+<li class="">In the file browser, a bar shows the run whose folder you are in, with its status and a link to its results: <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/files#runs">redo it, delete it or mark it as failed</a> from there.</li>
 </ul>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2026-10#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
 <ul>
@@ -52,6 +53,8 @@
 <li class="">The git host, quota dashboard and support links are configurable (<code>GITLAB_HOST</code>, <code>QABOARD_QUOTA_URL_TEMPLATE</code>, <code>QABOARD_SUPPORT_URL</code>).</li>
 <li class="">Restrict who can read the files of restricted projects, or of the folders you list under <code>paths</code> in <code>users_restrict.yml</code>: nginx asks the backend before sending each file (see <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/user-management#restricting-who-can-read-files">user management</a>). If you use your own nginx configuration, include <code>snippets/qaboard-files.conf</code> in the <code>/s/</code> locations to get the file browser.</li>
 <li class="">In the folders listed in <code>QABOARD_FILES_UNIX_PERMISSIONS</code> (e.g. <code>/home</code>), users only read the files that their own Unix account can read (see <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/user-management#unix-permissions">user management</a>).</li>
+<li class="">Without a complete <code>/etc/passwd</code>, e.g. with LDAP or SSSD, <code>QABOARD_ACCOUNTS_COMMAND</code> (and <code>QABOARD_GROUPS_COMMAND</code>) gives the backend the users' accounts, refreshed daily: the file browser shows owners' names instead of their ids (see <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/user-management#users-accounts">users' accounts</a>).</li>
+<li class="">Redoing, deleting or marking a run as failed now requires access to its project, for restricted projects.</li>
 <li class="">At SIRC, QA-Board no longer serves the storage over WebDAV (<code>/davs/algo/</code>): it let anyone write and delete files. <code>services/nginx/webdav.conf</code> explains how to bring it back.</li>
 </ul>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="documentation">Documentation<a href="https://samsung.github.io/qaboard/release-notes/2026-10#documentation" class="hash-link" aria-label="Direct link to Documentation" title="Direct link to Documentation" translate="no">​</a></h2>
@@ -72,6 +75,10 @@
 <li class="">Switching to a branch you had opened in a previous visit no longer crashes the commits list ("setHours is not a function").</li>
 <li class="">Runs started from a <code>git worktree</code> checkout are saved under their commit, instead of their branch name. Submodules with a relative <code>.git</code> pointer also work.</li>
 <li class="">The image viewer's diff threshold slider no longer jumps to its maximum and gets stuck: it moves step by step after you turn the diff on.</li>
+<li class="">Runs that start again (redo, <code>qa batch</code>...) no longer show as failed, and count as failed, until they finish: their status is reset when they are pending or running.</li>
+<li class="">In the file browser, going back after opening a file shows the folder again, instead of its raw listing.</li>
+<li class="">Links to a run's output directory open the file browser even when the folder doesn't exist, e.g. for runs that failed before they started, instead of an error page.</li>
+<li class="">Security: when a restricted project saves its results in a folder per user (e.g. <code>/algo/outputs/{user}</code>), the project's files are now restricted in every user's folder, not only in the server's.</li>
 </ul>]]></content>
     </entry>
     <entry>
