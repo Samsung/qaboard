@@ -25,7 +25,7 @@ import { updateSelected } from "./actions/selected";
 
 
 import { TuningForm } from "./components/tuning/forms";
-import { AddRecordingsForm } from "./components/tuning/form_groups";
+import { BatchesEditor } from "./components/tuning/BatchesEditor";
 import TuningExploration from "./components/tuning/TuningExploration";
 import { controls_defaults, updateQueryUrl } from "./viewers/controls";
 import { ExportPlugin } from "./plugins/ExportPlugin";
@@ -497,7 +497,8 @@ class CiCommitResults extends Component {
             <>
               <Section key="filters">
                 {warning_messages}
-                <BatchStatusMessages project={this.props.selected.new_project} commit={new_commit} batch={new_batch} dispatch={dispatch} />
+                {/* the selected batch's runs are unrelated to editing batch definitions, and would push the editor down */}
+                {!selected_views.includes('groups') && <BatchStatusMessages project={this.props.selected.new_project} commit={new_commit} batch={new_batch} dispatch={dispatch} />}
               </Section>
 
               {selected_views.includes('summary') && <Section>
@@ -526,20 +527,19 @@ class CiCommitResults extends Component {
                 </Card>
                </Section>}
 
-              {selected_views.includes('groups') && <Section style={{width: "1000px"}}>
-                <Card>
-                  <h2 className={Classes.HEADING}>Groups of tests</h2>
-                  <PrivateContent enabled={true}>
-                    <AddRecordingsForm
+              {selected_views.includes('groups') && <Section style={{ width: 'auto', minWidth: 0, marginTop: '10px' }}>
+                <h2 className={Classes.HEADING}>Available Tests</h2>
+                <PrivateContent enabled={true}>
+                  <BatchesEditor
                     project={project}
                     git={git}
                     commit={new_commit}
                     config={config}
                     available_tests_files={available_tests_files}
                     docs_root={this.props.docs_root}
-                    />
-                  </PrivateContent>
-                </Card>
+                    dispatch={dispatch}
+                  />
+                </PrivateContent>
                </Section>}
 
               {selected_views.includes('tuning') && (Object.keys(config.artifacts || {}).length === 0
@@ -690,8 +690,8 @@ class CiCommitResults extends Component {
             </>
           )}
 
-        {/* Floating Controls Panel */}
-        {(!!new_commit) && (
+        {/* Floating Controls Panel. Editing batches has no use for it, it would cover the editor's side panel */}
+        {(!!new_commit) && [].concat(selected_views).join(',') !== 'groups' && (
           <FloatingControlsPanel
             controls={this.state.controls}
             visualizations={visualizations}
