@@ -31,6 +31,8 @@ export const fetchListing = async (path, { signal } = {}) => {
   const response = await fetch(urlFromPath(path.endsWith('/') ? path : `${path}/`), {
     headers: { Accept: 'application/json' },
     credentials: 'same-origin',
+    // The page has the same URL: if browsers cache the JSON, Back (e.g. after opening a file) shows it instead of the page
+    cache: 'no-store',
     signal,
   })
   const isJson = (response.headers.get('Content-Type') ?? '').includes('application/json')
@@ -45,7 +47,7 @@ export const fetchListing = async (path, { signal } = {}) => {
     throw new FilesError(response.status, 'nginx', "The server doesn't allow you to see this folder.")
   }
   if (response.status === 404)
-    throw new FilesError(404, 'not-found', `${path} doesn't exist (anymore?).`)
+    throw new FilesError(404, 'not-found', `${path} doesn't exist (yet, or anymore).`)
   throw new FilesError(response.status, 'server', `The server failed to list this folder (HTTP ${response.status}). Is the backend running?`)
 }
 

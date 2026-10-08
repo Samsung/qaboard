@@ -229,8 +229,12 @@ def new_output_webhook():
   else:
     output.is_pending = data.get('is_pending', False)
 
+  # A run that starts again (redo, qa batch...) is not failed anymore, until it says so when it ends.
+  # Else re-runs of failed runs show as failed (and count as failed) while they are pending or running.
+  if output.is_pending:
+    output.is_failed = False
   # We save the output's metrics
-  if not output.is_pending:
+  else:
     metrics = data.get('metrics', {})
     output.metrics = metrics
     output.is_failed = data.get('is_failed', False) or metrics.get('is_failed')

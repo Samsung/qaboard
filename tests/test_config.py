@@ -46,5 +46,29 @@ class TestFindConfigs(unittest.TestCase):
     self.assertIs(configs[0].get('root'), True)
 
 
+class TestStorageRoots(unittest.TestCase):
+  def setUp(self):
+    # Lazy import, see TestFindConfigs
+    from qaboard.config import storage_roots
+    self.storage_roots = storage_roots
+    self.config = {"storage": {"outputs": "/algo/outputs/{user}", "artifacts": "/algo/artifacts/{project}"}}
+    previous = os.environ.pop('QA_STORAGE', None)
+    if previous is not None:
+      self.addCleanup(os.environ.__setitem__, 'QA_STORAGE', previous)
+
+  def test_user_name(self):
+    # The server uses it to know the folders of restricted projects, with any user
+    outputs, artifacts, _ = self.storage_roots(self.config, Path('group/repo'), Path('.'), user_name='{user}')
+    self.assertEqual(outputs, Path('/algo/outputs/{user}'))
+    self.assertEqual(artifacts, Path('/algo/artifacts/group/repo'))
+    outputs, _, _ = self.storage_roots(self.config, Path('group/repo'), Path('.'), user_name='alice')
+    self.assertEqual(outputs, Path('/algo/outputs/alice'))
+
+  def test_current_user(self):
+    from qaboard.config import user
+    outputs, _, _ = self.storage_roots(self.config, Path('group/repo'), Path('.'))
+    self.assertEqual(outputs, Path(f'/algo/outputs/{user}'))
+
+
 if __name__ == '__main__':
   unittest.main()

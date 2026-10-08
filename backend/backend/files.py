@@ -6,6 +6,7 @@ the web app's file browser, which asks the backend for the listing (see backend/
 """
 import os
 import pwd
+import re
 import stat
 from functools import lru_cache
 from pathlib import Path
@@ -41,6 +42,27 @@ def is_listable(path: str) -> bool:
   if not any(real.is_relative_to(os.path.realpath(root)) for root in storage_roots):
     return False
   return not any(real.is_relative_to(private_dir) for private_dir in private_dirs())
+
+
+# In folders from the storage settings, e.g. /algo/outputs/{user}/project
+USER_PLACEHOLDER = '{user}'
+
+
+def folder_for(pattern: str, path: str) -> Optional[str]:
+  """
+  The folder matching `pattern` that is `path` or contains it, where {user} matches any folder name.
+  '/algo/outputs/{user}/repo', '/algo/outputs/alice/repo/run' => '/algo/outputs/alice/repo'. None if none.
+  """
+  if USER_PLACEHOLDER not in pattern:
+    return pattern
+  match = _folder_regex(pattern).match(path)
+  return match.group(1) if match else None
+
+
+@lru_cache(maxsize=4096)
+def _folder_regex(pattern: str) -> re.Pattern:
+  regex = re.escape(pattern.rstrip('/')).replace(re.escape(USER_PLACEHOLDER), '[^/]+')
+  return re.compile(f'({regex})(?:/|$)')
 
 
 def longest_prefix(path: str, prefixes: Dict[str, T]) -> Optional[T]:

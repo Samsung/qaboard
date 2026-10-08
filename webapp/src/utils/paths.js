@@ -41,4 +41,8 @@ const windows_to_linux = path => {
   return null
 }
 
-export { setPathMappings, hasPathMappings, path_to_windows, linux_to_windows, windows_to_linux }
+// Links to folders under /s/ end with "/": they open the file browser even when the folder doesn't exist (yet),
+// e.g. for runs that failed or didn't start, instead of nginx's 404 page. And nginx doesn't need to redirect.
+const folder_url = url => !url || url.endsWith('/') ? url : `${url}/`
+
+export { setPathMappings, hasPathMappings, path_to_windows, linux_to_windows, windows_to_linux, folder_url }

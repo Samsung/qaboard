@@ -214,6 +214,7 @@ Set `QABOARD_FILES_UNIX_PERMISSIONS` to the folders where it applies, separated 
 :::caution Limits
 - nginx asks the backend before sending each file. It answers quickly, without database queries for public files, but **if the backend is down, nginx doesn't serve files**.
 - Sub-projects share the storage of their git repository: restricting a sub-project restricts the files of the whole repository.
+- With a folder per user in the storage (e.g. `outputs: /algo/outputs/{user}`), the project's folder is restricted in every user's folder.
 - Results of restricted projects saved outside of their storage (e.g. `--share` to another folder) are not restricted, unless you list their folders under `paths`. The backend reads `users_restrict.yml` when it starts, and the projects' folders every 5 minutes.
 - The image server (IIIF) and the API endpoints that read images don't check permissions. Their paths are hard to guess (they contain commit hashes), but whoever knows one can see its images.
 - WebDAV (*services/nginx/webdav.conf*) doesn't check them either: it's not enabled by default.

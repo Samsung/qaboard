@@ -19,7 +19,7 @@ from flask import request, jsonify
 from backend import app
 from ..models import Project
 from ..config import files_unix_permissions_roots
-from ..files import normalize, path_from_url, is_listable, longest_prefix, list_directory, unix_account, unix_can_read
+from ..files import normalize, path_from_url, is_listable, longest_prefix, folder_for, list_directory, unix_account, unix_can_read, USER_PLACEHOLDER
 from .auth import get_current_user, restrictions, restricted_project_key, matches_rules
 
 
@@ -29,7 +29,10 @@ _project_dirs = {"expires": 0.0, "dirs": {}}
 
 
 def restricted_project_dirs() -> dict:
-  """{folder: project key in QABOARD_LOGIN_RESTRICTED_YAML} for the outputs and artifacts of restricted projects."""
+  """
+  {folder: project key in QABOARD_LOGIN_RESTRICTED_YAML} for the outputs and artifacts of restricted projects.
+  Storage settings often have a folder per user (e.g. /algo/outputs/{user}): those folders keep {user}, see folder_for.
+  """
   if not restrictions('projects'):
     return {}
   now = time.monotonic()
@@ -41,7 +44,7 @@ def restricted_project_dirs() -> dict:
     if key is None:
       continue
     try:
-      roots = project.storage_roots()
+      roots = project.storage_roots(user_name=USER_PLACEHOLDER)
     except Exception as e:
       print(f"[files] Could not get the storage of {project.id}: {e}")
       continue
@@ -59,8 +62,10 @@ def file_restriction(path: str):
   for prefix, perms_data in restrictions('paths').items():
     rules[normalize(prefix)] = (f"the folder {prefix}", perms_data)
   projects = restrictions('projects')
-  for folder, key in restricted_project_dirs().items():
-    rules.setdefault(folder, (f"the project {key}", projects[key]))
+  for pattern, key in restricted_project_dirs().items():
+    folder = folder_for(pattern, path)
+    if folder:
+      rules.setdefault(folder, (f"the project {key}", projects[key]))
   restriction = longest_prefix(path, rules)
   if restriction is None or not restriction[1]:
     return None
@@ -130,9 +135,12 @@ def list_files(url_path=''):
   try:
     listing = list_directory(path)
   except (FileNotFoundError, NotADirectoryError):
-    return jsonify({"error": f"{path} is not a folder, or it doesn't exist (anymore?).", "reason": "not-found"}), 404
+    return jsonify({"error": f"{path} is not a folder, or it doesn't exist (yet, or anymore).", "reason": "not-found"}), 404
   except PermissionError:
     return jsonify({"error": f"The QA-Board server doesn't have the permissions to read {path}.", "reason": "permissions"}), 403
   response = jsonify(listing)
-  response.headers['Cache-Control'] = 'no-cache'
+  # Browsers get the file browser's page at this same URL. With Back, they show what they cached for the URL
+  # (even with no-cache): if it's this JSON, users see it instead of the file browser.
+  response.headers['Cache-Control'] = 'no-store'
+  response.headers['Vary'] = 'Accept'
   return response

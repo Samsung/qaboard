@@ -70,7 +70,7 @@ describe('RunLogs', () => {
     expect(screen.getByText('base · isp: {"denoise":0.8} · lr=0.1')).toBeInTheDocument()
     // the configuration tags are only rendered for expanded runs
     expect(screen.queryByText('Configuration')).toBeNull()
-    expect(screen.getByLabelText('Open the output directory')).toHaveAttribute('href', '/s/out/7')
+    expect(screen.getByLabelText('Open the output directory')).toHaveAttribute('href', '/s/out/7/') // the file browser, even if the folder is missing
   })
 
   it('toggles when clicking the row, not its buttons', () => {
