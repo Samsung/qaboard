@@ -309,6 +309,48 @@ def test_list_files_without_permissions(api_files, dummy_app, monkeypatch, tmp_p
     (tmp_path / "locked").chmod(0o700)
 
 
+def fake_output(id, folder, project="group/repo", label="default"):
+  from types import SimpleNamespace
+  ci_commit = SimpleNamespace(project_id=project, hexsha="a" * 40)
+  return SimpleNamespace(
+    id=id, output_dir_override=folder, is_failed=True, is_pending=False, is_running=False, deleted=False,
+    platform="linux", configurations=["base"], data={"user": "alice"},
+    test_input=SimpleNamespace(path=Path("inputs/a b.raw")), batch=SimpleNamespace(label=label, ci_commit=ci_commit),
+  )
+
+
+def test_run_of_folder(api_files, dummy_app, monkeypatch):
+  queried = []
+  outputs = [fake_output(1, "/algo/public/batch/run"), fake_output(2, "/algo/public/batch/run/nested", label="tuning")]
+  def query(folders):
+    queried.append(folders)
+    return [o for o in outputs if o.output_dir_override in folders]
+  monkeypatch.setattr(api_files, "Output", MagicMock())
+  api_files.Output.query.filter.side_effect = lambda condition: MagicMock(all=lambda: query(condition.folders))
+  api_files.Output.output_dir_override.in_ = lambda folders: MagicMock(folders=folders)
+  monkeypatch.setattr(api_files, "is_authorized_user", lambda user_info, project: project != "secret/repo")
+  def run(path):
+    with dummy_app.test_request_context(f"/api/v1/files/run?path={path}"):
+      response = api_files.run_of_folder()
+    return response if isinstance(response, tuple) else response.get_json()
+
+  # the run's folder, or a folder inside it
+  assert run("/algo/public/batch/run/")["run"]["id"] == 1
+  assert run("/algo/public/batch/run/images/")["run"]["id"] == 1
+  assert {"/algo/public/batch/run/images", "/algo/public/batch/run", "/algo/public/batch", "/algo/public", "/algo"} <= queried[-1]
+  # the most specific run
+  described = run("/algo/public/batch/run/nested/x")["run"]
+  assert described["id"] == 2
+  assert described["url"] == f"/group/repo/commit/{'a' * 40}?batch=tuning&filter=inputs%2Fa+b.raw&selected_views=logs"
+  assert described["is_failed"] and described["input"] == "inputs/a b.raw" and described["user"] == "alice"
+  assert run("/algo/public/batch/")["run"] is None
+  # projects users can't see
+  outputs.append(fake_output(3, "/algo/public/secret-run", project="secret/repo"))
+  assert run("/algo/public/secret-run")["run"] is None
+  # folders users can't read
+  assert run("/algo/secret/run")[1] == 401
+
+
 def test_restricted_project_dirs(api_files, monkeypatch):
   import backend.api.files as module
   monkeypatch.undo() # the real restricted_project_dirs
@@ -389,14 +431,17 @@ def test_unix_can_read(home):
 
 def test_unix_account(monkeypatch):
   import pwd
-  unix_account.cache_clear()
+  from backend import accounts
+  monkeypatch.setattr(accounts, "accounts_dir", Path("/does/not/exist"))
+  monkeypatch.setattr(accounts, "_state", {**accounts._state, "checked": 0.0})
+  files._unix_account.cache_clear()
   entry = type("pw", (), {"pw_uid": 1000, "pw_gid": 100})
   monkeypatch.setattr(pwd, "getpwnam", lambda name: entry if name == "alice" else (_ for _ in ()).throw(KeyError(name)))
   monkeypatch.setattr(os, "getgrouplist", lambda name, gid: [gid, 10])
   assert unix_account("alice") == UnixAccount(uid=1000, gids=frozenset([100, 10]))
   assert unix_account("unknown") == NOBODY
   assert unix_account(None) == NOBODY
-  unix_account.cache_clear()
+  files._unix_account.cache_clear()
 
 
 def test_check_read_access_unix_permissions(api_files, dummy_app, monkeypatch, home):

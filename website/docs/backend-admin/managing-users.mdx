@@ -208,8 +208,24 @@ paths:
 ### Unix permissions
 Set `QABOARD_FILES_UNIX_PERMISSIONS` to the folders where it applies, separated by `:` (e.g. `/home:/raid/users`). There, users read a file only if their Unix account could: it must be allowed to read the file, and to traverse the folders above it. Users who are not signed in only read what everyone can read.
 
-- The backend finds users' accounts by their QA-Board user name, in its own `/etc/passwd` and `/etc/group`. Mount complete files, e.g. the output of `getent passwd` and `getent group` on a host that sees your users: users without an account get the permissions of "others".
+- The backend finds users' accounts by their QA-Board user name: see [Users' accounts](#users-accounts). Users without an account get the permissions of "others".
 - ACLs are ignored.
+
+### Users' accounts
+The file browser shows who owns each file, and Unix permissions need users' groups. The backend reads the accounts in its own `/etc/passwd` and `/etc/group`. If you have complete files, mount them.
+
+With a directory service (LDAP, SSSD, NIS...), you usually don't: the backend can instead **run a command that prints the accounts**, in the `/etc/passwd` format, and another one for the groups (`/etc/group` format). For instance, through ssh to a host that sees your users:
+
+```bash
+QABOARD_ACCOUNTS_COMMAND=ssh qaboard@some-host getent passwd
+QABOARD_GROUPS_COMMAND=ssh qaboard@some-host getent group
+```
+
+- The backend runs them in the background when their last output is older than `QABOARD_ACCOUNTS_REFRESH` seconds (default: a day), and keeps it in `$QABOARD_DATA_SHARED_DIR/accounts`: one run serves all the backend's workers and replicas. To refresh now, delete that folder's `passwd`.
+- If a command fails, or prints less than half of the accounts it printed last time, the backend keeps the previous accounts, and tries again 10 minutes later. Errors show in its logs (`[accounts]`).
+- Accounts the commands don't know are looked up in `/etc/passwd` and `/etc/group`.
+- With SSSD, `getent passwd` alone only lists all users if enumeration is enabled (`enumerate = true`), which is often not the case. Check the number of lines, or use a command that queries the directory itself, e.g. `ldapsearch`, formatted as `name:x:uid:gid:gecos:home:shell`.
+- The command runs with the backend's environment, e.g. the ssh key used for the LSF bridge, and its own user's permissions.
 
 :::caution Limits
 - nginx asks the backend before sending each file. It answers quickly, without database queries for public files, but **if the backend is down, nginx doesn't serve files**.

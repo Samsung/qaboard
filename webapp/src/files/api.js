@@ -67,3 +67,29 @@ export const signIn = async (username, password) => {
 }
 
 export const signOut = () => fetch('/api/v1/user/logout/', { method: 'POST', credentials: 'same-origin' })
+
+// The run whose output folder is `path` or contains it: {id, folder, is_failed, is_pending, is_running, input, batch, url...}, or null
+export const fetchRun = async (path, { signal } = {}) => {
+  const response = await fetch(`/api/v1/files/run?path=${encodeURIComponent(path)}`, { credentials: 'same-origin', signal })
+  if (!response.ok) return null
+  return (await response.json()).run ?? null
+}
+
+// Redo, mark as failed or delete a run, with the same API as the web app
+const RUN_ACTIONS = {
+  redo: id => [`/api/v1/output/redo/${id}/`, 'POST', {}],
+  'mark-failed': id => [`/api/v1/output/${id}/`, 'PUT', { is_pending: false, is_running: false, is_failed: true }],
+  delete: id => [`/api/v1/output/${id}/`, 'DELETE'],
+  'delete-files': id => [`/api/v1/output/${id}/?soft=true`, 'DELETE'],
+}
+
+export const runAction = async (action, id) => {
+  const [url, method, body] = RUN_ACTIONS[action](id)
+  const response = await fetch(url, {
+    method,
+    credentials: 'same-origin',
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (!response.ok) throw await readError(response)
+}
