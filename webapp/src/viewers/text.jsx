@@ -1,5 +1,5 @@
 import React from "react";
-import axios, { all, CancelToken } from "axios";
+import axios, { all, CancelToken, isCancel } from "axios";
 const { get } = axios;
 
 import { Classes, Tag } from "@blueprintjs/core";
@@ -65,8 +65,7 @@ class GenericTextViewer extends React.Component {
 
   componentWillUnmount() {
     window.removeEventListener('keypress', this.keyboard);
-    if (!!this.state.cancel_source)
-      this.state.cancel_source.cancel();
+    this.cancel_source.cancel();
   }
 
   componentDidUpdate(prevProps) {
@@ -118,7 +117,7 @@ class GenericTextViewer extends React.Component {
                     .then(load_data(label))
                     .catch(response => {
                       // ignore requests cancelled by a newer selection
-                      if (get.isCancel(response)) return;
+                      if (isCancel(response)) return;
                       if (!is_current()) return;
                       // we don't really care about errors for reference logs
                       this.setState(prevState => ({data: {...prevState.data, [label]: ''}}))
