@@ -64,6 +64,10 @@
 <li class="">A stuck run's "Mark as Finished" action is now labelled "Mark as Failed", which is what it does.</li>
 <li class="">Security: marking a run as failed or deleting it now requires a login.</li>
 <li class="">Deleting results no longer deletes the contents of folders that they link to.</li>
+<li class="">The batch selector no longer jumps back to the top while you scroll it, and its keyboard navigation works again. It now opens on the selected batch, marked with a check.</li>
+<li class="">Switching to a branch you had opened in a previous visit no longer crashes the commits list ("setHours is not a function").</li>
+<li class="">Runs started from a <code>git worktree</code> checkout are saved under their commit, instead of their branch name. Submodules with a relative <code>.git</code> pointer also work.</li>
+<li class="">The image viewer's diff threshold slider no longer jumps to its maximum and gets stuck: it moves step by step after you turn the diff on.</li>
 </ul>]]></content>
     </entry>
     <entry>
