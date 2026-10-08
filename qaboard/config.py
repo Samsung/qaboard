@@ -33,7 +33,7 @@ def find_configs(path : Path) -> List[Tuple[Dict, Path]]:
     """
     configsxpaths = []
     # We need a full path to iterate on the parents
-    path = path.resolve()
+    path = Path(os.path.abspath(path)) # abspath() instead of resolve(), since it fails on Windows by dereferencing mapped drives
     # We look for qaboard.yaml configuration files in the path folder and its parents
     parents = [path, *list(path.parents)]
     for parent in parents:

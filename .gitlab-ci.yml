@@ -285,6 +285,7 @@ test:production:
   needs: [deploy:production]
   script:
     - curl -fsS --noproxy '*' --retry 5 --retry-delay 3 --retry-all-errors --max-time 30 http://qa:5000/api/v1/health
+    - curl -fsS --noproxy '*' --max-time 30 http://qa/api/v1/health  # port 80, used by scripts and deploy:cli:windows
   rules:
     - !reference [.on-master, rules]
 

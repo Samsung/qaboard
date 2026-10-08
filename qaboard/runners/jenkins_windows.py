@@ -41,7 +41,7 @@ net use \\mars\raid
 import os
 import re
 import time
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from click import secho
 
@@ -52,6 +52,19 @@ from ..compat import linux_to_windows, linux_to_windows_path
 from ..config import config
 
 from ..api import api_prefix, api_verify
+
+# Valid values for PowerShell's $ErrorActionPreference (case-insensitive)
+ERROR_ACTION_PREFERENCES = frozenset({"continue", "stop", "silentlycontinue", "inquire", "ignore"})
+DEFAULT_ERROR_ACTION = "Stop"
+
+
+def get_error_action(job_options: Optional[Dict[str, Any]]) -> str:
+  # ErrorActionPreference can be configured per-job, with an env var, and defaults to "Stop"
+  preference = (job_options or {}).get('error_action') or os.environ.get('QA_RUNNER_ERROR_ACTION') or DEFAULT_ERROR_ACTION
+  if preference.lower() not in ERROR_ACTION_PREFERENCES:
+    secho(f'[WARNING] Invalid ErrorActionPreference: {preference}! Falling back to "{DEFAULT_ERROR_ACTION}"', fg='yellow')
+    preference = DEFAULT_ERROR_ACTION
+  return preference
 
 
 def get_jenkins_config():
@@ -224,7 +237,7 @@ class JenkinsWindowsRunner(BaseRunner):
       f"$Env:QA_USER = '{user}'",
       # https://stackoverflow.com/questions/40098771/changing-powershells-default-output-encoding-to-utf-8
       "$PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'",
-      "$ErrorActionPreference = \"Stop\"",
+      f"$ErrorActionPreference = \"{get_error_action(self.run_context.job_options)}\"",
       command,
       'exit $lastExitCode',
     ])
