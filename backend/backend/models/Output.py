@@ -239,7 +239,7 @@ class Output(Base):
       if 'resources' in job_options and job_options['resources']:
         job_options_cli += ["--lsf-resources", quote(str(job_options['resources']))]
       if 'max_threads' in job_options and job_options['max_threads'] != 0:
-        job_options_cli += ["--lsf-threads", quote(str(job_options['max_threads']))]
+        job_options_cli += ["--lsf-max-threads", quote(str(job_options['max_threads']))]
     command = ' '.join([
       'qa',
       '--label', quote(self.batch.label),
@@ -252,9 +252,8 @@ class Output(Base):
       *job_options_cli,
       '--action-on-existing=run',
       '--action-on-pending=run',
-      # "--" so that an input path can't be parsed as an option
-      '--',
-      quote(str(self.test_input.path)),
+      # one word, so that an input path can't be parsed as an option. Not "--": qa gives what follows to the user's code
+      '--batch=' + quote(str(self.test_input.path)),
       # FIXME: if forwarded_args in parsed(self.configuration), add it..
     ])
 

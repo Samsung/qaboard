@@ -52,3 +52,19 @@ for (const { name, path, text } of pages) {
     await page.waitForLoadState('networkidle');
   });
 }
+
+// The commit lists' date ranges are persisted (as JSON) in the browser's storage
+test('switch to a branch seen in a previous session', async ({ page }) => {
+  await page.goto(`/${project}/commits/master`);
+  await expect(page.getByText('Hello world').first()).toBeVisible();
+  await page.goto(`/${project}/commits/develop`);
+  await expect(page.getByText('Hello world').first()).toBeVisible();
+  await page.waitForTimeout(1500); // redux-persist writes are throttled
+  await page.reload();
+  await expect(page.getByText('Hello world').first()).toBeVisible();
+  // the commit's branch tag
+  await page.getByRole('link', { name: 'master', exact: true }).first().click();
+  await expect(page).toHaveURL(new RegExp(`/${project}/commits/master`));
+  await expect(page.getByText('Hello world').first()).toBeVisible();
+  await expect(page.getByText('Sorry, something went wrong')).toHaveCount(0);
+});

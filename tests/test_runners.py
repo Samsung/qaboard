@@ -196,6 +196,41 @@ class TestLsfConcurrency(unittest.TestCase):
     self.assertIn('rusage[mem=1000]', bsub.commands[1])
 
 
+class TestJenkinsWindowsRunner(unittest.TestCase):
+  def setUp(self):
+    self.tmp = tempfile.TemporaryDirectory()
+    self.addCleanup(self.tmp.cleanup)
+    self.output_root = Path(self.tmp.name)
+    # other tests may leave us in a deleted directory
+    self.addCleanup(os.chdir, Path(__file__).resolve().parent.parent)
+    os.chdir(self.tmp.name)
+    # make sure an env var set in another test doesn't leak into the defaults
+    os.environ.pop('QA_RUNNER_ERROR_ACTION', None)
+
+  def run_ps1(self, **job_options):
+    from qaboard.runners.jenkins_windows import JenkinsWindowsRunner
+    job = make_jobs('windows', ['echo hi'], self.output_root, **job_options)[0]
+    with mock.patch('qaboard.runners.jenkins_windows.trigger_run', return_value={}):
+      JenkinsWindowsRunner(job.run_context).start(blocking=False)
+    return (job.run_context.output_dir / 'run.ps1').read_text()
+
+  def test_default_error_action(self):
+    self.assertIn('$ErrorActionPreference = "Stop"', self.run_ps1())
+
+  def test_env_error_action(self):
+    os.environ['QA_RUNNER_ERROR_ACTION'] = 'Continue'
+    self.addCleanup(os.environ.pop, 'QA_RUNNER_ERROR_ACTION', None)
+    self.assertIn('$ErrorActionPreference = "Continue"', self.run_ps1())
+
+  def test_invalid_env_error_action_falls_back(self):
+    os.environ['QA_RUNNER_ERROR_ACTION'] = 'Bogus'
+    self.addCleanup(os.environ.pop, 'QA_RUNNER_ERROR_ACTION', None)
+    with mock.patch('qaboard.runners.jenkins_windows.secho') as secho:
+      content = self.run_ps1()
+    self.assertIn('$ErrorActionPreference = "Stop"', content)
+    self.assertTrue(any('Bogus' in str(c) for c in secho.call_args_list))
+
+
 try:
   import distributed # noqa: F401
   has_dask = True
