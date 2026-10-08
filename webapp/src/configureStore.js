@@ -12,12 +12,14 @@ import localForage from "localforage";
 import * as Sentry from "@sentry/react";
 
 import { rootReducer } from './reducers'
+import { dateRangesTransform } from './dateRange'
 
 
 // https://github.com/rt2zz/redux-persist/blob/master/src/types.js#L13-L27
 const persistConfig = {
   key: 'root',
   transforms: [
+    dateRangesTransform,
   ],
   storage: localForage,
   whitelist: [
