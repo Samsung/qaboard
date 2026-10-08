@@ -223,6 +223,7 @@ QABOARD_GROUPS_COMMAND=ssh qaboard@some-host getent group
 
 - The backend runs them in the background when their last output is older than `QABOARD_ACCOUNTS_REFRESH` seconds (default: a day), and keeps it in `$QABOARD_DATA_SHARED_DIR/accounts`: one run serves all the backend's workers and replicas. To refresh now, delete that folder's `passwd`.
 - If a command fails, or prints less than half of the accounts it printed last time, the backend keeps the previous accounts, and tries again 10 minutes later. Errors show in its logs (`[accounts]`).
+- Only lines in the right format count: ssh banners (sent to stderr) and messages printed by shell startup files are ignored.
 - Accounts the commands don't know are looked up in `/etc/passwd` and `/etc/group`.
 - With SSSD, `getent passwd` alone only lists all users if enumeration is enabled (`enumerate = true`), which is often not the case. Check the number of lines, or use a command that queries the directory itself, e.g. `ldapsearch`, formatted as `name:x:uid:gid:gecos:home:shell`.
 - The command runs with the backend's environment, e.g. the ssh key used for the LSF bridge, and its own user's permissions.

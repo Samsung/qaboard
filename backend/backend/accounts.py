@@ -48,11 +48,14 @@ EMPTY = Accounts({}, {}, {})
 
 
 def parse_passwd(text: str) -> Dict[str, Account]:
-  """The accounts in a passwd file: name:password:uid:gid:gecos:home:shell"""
+  """
+  The accounts in a passwd file: name:password:uid:gid:gecos:home:shell
+  Other lines are ignored, e.g. banners or messages from shell startup files when the command uses ssh.
+  """
   accounts = {}
   for line in text.splitlines():
     fields = line.strip().split(':')
-    if len(fields) < 4 or not fields[0] or line.startswith('#'):
+    if len(fields) != 7 or not fields[0] or ' ' in fields[0] or line.startswith('#'):
       continue
     try:
       accounts.setdefault(fields[0], Account(fields[0], int(fields[2]), int(fields[3])))
@@ -66,7 +69,7 @@ def parse_group(text: str) -> Dict[str, FrozenSet[int]]:
   memberships: Dict[str, Set[int]] = {}
   for line in text.splitlines():
     fields = line.strip().split(':')
-    if len(fields) < 4 or line.startswith('#'):
+    if len(fields) != 4 or not fields[0] or ' ' in fields[0] or line.startswith('#'):
       continue
     try:
       gid = int(fields[2])
@@ -76,6 +79,15 @@ def parse_group(text: str) -> Dict[str, FrozenSet[int]]:
       if member.strip():
         memberships.setdefault(member.strip(), set()).add(gid)
   return {name: frozenset(gids) for name, gids in memberships.items()}
+
+
+def count_groups(text: str) -> int:
+  count = 0
+  for line in text.splitlines():
+    fields = line.strip().split(':')
+    if len(fields) == 4 and fields[0] and ' ' not in fields[0] and fields[2].isdigit():
+      count += 1
+  return count
 
 
 _lock = threading.Lock()
@@ -163,9 +175,9 @@ def refresh(force=False) -> bool:
       text = _run(accounts_command)
       _save('passwd', text, len(parse_passwd(text)), previous)
       if groups_command:
-        previous = sum(1 for line in (accounts_dir / 'group').read_text(errors='replace').splitlines() if line.strip()) if (accounts_dir / 'group').exists() else 0
+        previous = count_groups((accounts_dir / 'group').read_text(errors='replace')) if (accounts_dir / 'group').exists() else 0
         text = _run(groups_command)
-        _save('group', text, sum(1 for line in text.splitlines() if line.count(':') >= 3), previous)
+        _save('group', text, count_groups(text), previous)
       print(f"[accounts] updated in {time.time() - started:.1f}s")
     except Exception as e:
       print(f"[accounts] ERROR: could not update the accounts, we keep the previous ones: {e}")

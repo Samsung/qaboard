@@ -79,6 +79,24 @@ def test_new_users_show_up_after_a_refresh(commands):
   assert files.owner_name(1002) == "dave"
 
 
+def test_ssh_banners_and_noise_are_ignored(commands, monkeypatch):
+  noise = "\n".join([
+    "*** Authorized users only: activity: may be monitored ***",
+    "Last login: Thu Oct  8 12:00:00 2026 from 10.0.0.1",
+    "WARNING: this host: reboots: Sunday",
+    "",
+  ])
+  (commands / "passwd.txt").write_text(noise + PASSWD + noise)
+  (commands / "group.txt").write_text(noise + GROUP)
+  # sshd's Banner goes to stderr
+  monkeypatch.setattr(accounts, "accounts_command", f"echo 'Welcome: to: the: cluster' >&2; cat {commands / 'passwd.txt'}")
+  assert accounts.refresh()
+  reload()
+  assert sorted(accounts._load().by_name) == ["alice", "bob", "root"]
+  assert accounts.group_ids("alice", 100) == frozenset([100, 2000, 3000])
+  assert accounts.count_groups(noise + GROUP) == 3
+
+
 def test_refresh_only_when_stale(commands):
   assert accounts.refresh()
   (commands / "passwd.txt").write_text(PASSWD + "dave:*:1002:100::/home/dave:/bin/sh\n")
