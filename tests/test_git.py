@@ -8,7 +8,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from qaboard.git import git_head
+
+def git_head(repo_root):
+  # Importing qaboard reads qaboard.yaml from the current directory: import it late,
+  # once the CLI tests changed directory into the sample projects
+  from qaboard.git import git_head
+  return git_head(repo_root)
 
 
 def git(*args, cwd):
