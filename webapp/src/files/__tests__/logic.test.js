@@ -6,7 +6,7 @@ import {
   pathFromUrl, urlFromPath, parentPath, baseName, breadcrumbs, parseLocation, windowsPath, linuxPath,
   sortEntries, filterEntries, makeMatcher, summarize, formatSummary, formatRelativeTime, iconName,
 } from '../logic';
-import { setPathMappings, linux_to_windows, windows_to_linux } from '../../utils/paths';
+import { setPathMappings, linux_to_windows, windows_to_linux, folder_url } from '../../utils/paths';
 
 afterEach(() => setPathMappings([]))
 
@@ -40,6 +40,11 @@ describe('paths and URLs', () => {
       { name: 'x', path: '/algo/x/' },
     ])
     expect(breadcrumbs('/')).toEqual([{ name: '/', path: '/' }])
+  })
+  it('links to folders with a trailing slash, to get the file browser', () => {
+    expect(folder_url('/s/algo/run')).toBe('/s/algo/run/')
+    expect(folder_url('/s/algo/run/')).toBe('/s/algo/run/')
+    expect(folder_url(undefined)).toBeUndefined()
   })
   it('copies paths without the trailing slash', () => {
     expect(linuxPath('/algo/x/')).toBe('/algo/x')

@@ -178,6 +178,38 @@ body {
 .fb-callout {
   margin: 0 16px 8px;
 }
+
+/* The run a folder belongs to, with its actions */
+.fb-run {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 8px 16px 0;
+  padding: 6px 6px 6px 10px;
+  background: #fff;
+  border: 1px solid var(--fb-border);
+  border-radius: 4px;
+}
+.fb-run-what {
+  flex: 1 1 280px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fb-run-what code {
+  font-size: 12px;
+}
+.fb-run-detail {
+  color: var(--fb-muted);
+  margin-left: 8px;
+}
+.fb-run-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
 .fb-loading {
   display: flex;
   justify-content: center;

@@ -62,6 +62,10 @@ services:
     # Users only read the files under /s/ that their Unix account can read, in these folders. The backend must know
     # the users' accounts: mount the output of `getent passwd` and `getent group` (services/backend/passwd is partial)
     # - QABOARD_FILES_UNIX_PERMISSIONS=/home:/raid/users
+    # Users' accounts, refreshed daily (file owners in the file browser, Unix permissions), since /etc/passwd is partial.
+    # Check the command lists *all* the users: with SSSD, `getent passwd` only does if enumeration is enabled.
+    # - QABOARD_ACCOUNTS_COMMAND=ssh ispq@ispq-vdi getent passwd
+    # - QABOARD_GROUPS_COMMAND=ssh ispq@ispq-vdi getent group
 
     volumes:
     - ./services/backend/passwd:/etc/passwd

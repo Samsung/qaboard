@@ -8,6 +8,7 @@ import { LogViewer } from "./LogViewer";
 import { LsfReport, LsfTag } from "./LsfReport";
 import { fetchLsfReport, lsfKilled } from "./lsf";
 import { fetchRange } from "./fetchRange";
+import { folder_url } from "../../utils/paths";
 
 
 // A list of runs, each with its logs
@@ -240,7 +241,7 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, disp
         : <span className="summary" />}
       <span className="actions">
         {!!base && <Tooltip content="Open the output directory" hoverOpenDelay={300}>
-          <AnchorButton size="small" variant="minimal" icon="folder-shared-open" aria-label="Open the output directory" href={base} target="_blank" rel="noopener noreferrer" />
+          <AnchorButton size="small" variant="minimal" icon="folder-shared-open" aria-label="Open the output directory" href={folder_url(base)} target="_blank" rel="noopener noreferrer" />
         </Tooltip>}
         {!is_batch && !!output.id && <PopoverNext placement="bottom-end" content={<RunActionsMenu output={output} project={project} commit={commit} dispatch={dispatch} />}>
           <Button size="small" variant="minimal" icon="more" aria-label="Run actions" />

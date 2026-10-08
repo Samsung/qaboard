@@ -2,9 +2,12 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import copy from "copy-to-clipboard";
 import {
+  Alert,
+  AnchorButton,
   Button,
   ButtonGroup,
   Callout,
+  Checkbox,
   Classes,
   Dialog,
   DialogBody,
@@ -22,12 +25,13 @@ import {
   AlignLeftIcon, ArrowUpIcon, ChevronRightIcon, ClipboardIcon, CodeIcon, CompressedIcon, ConsoleIcon, CrossIcon, CubeIcon,
   DisableIcon, DocumentIcon, DownloadIcon, DuplicateIcon, ErrorIcon, EyeOffIcon, EyeOpenIcon, FolderCloseIcon,
   FolderSharedIcon, HelpIcon, HomeIcon, LockIcon, LogInIcon, LogOutIcon, MediaIcon, NumericalIcon,
-  RefreshIcon, SearchIcon, ThIcon, TimelineLineChartIcon, VideoIcon, WarningSignIcon,
+  RedoIcon, RefreshIcon, SearchIcon, ShareIcon, StopIcon, ThIcon, TimelineLineChartIcon, TrashIcon, VideoIcon,
+  WarningSignIcon,
 } from "@blueprintjs/icons";
 
 import { toaster } from "../toaster";
 import { setPathMappings, hasPathMappings } from "../utils/paths";
-import { fetchAccess, fetchJson, fetchListing, signIn, signOut } from "./api";
+import { fetchAccess, fetchJson, fetchListing, fetchRun, runAction, signIn, signOut } from "./api";
 import {
   baseName, breadcrumbs, filterEntries, formatAbsoluteTime, formatRelativeTime, formatSize, formatSummary, iconName,
   joinPath, linuxPath, parentPath, parseLocation, pathFromUrl, sortEntries, summarize, urlFromPath, windowsPath,
@@ -99,6 +103,18 @@ export default function FileBrowser() {
   const restoreScroll = useRef(null)
 
   const isFolder = path.endsWith('/')
+
+  // The run this folder belongs to, if any: users can redo or delete it from here
+  const [run, setRun] = useState(null)
+  const [runReloads, setRunReloads] = useState(0)
+  useEffect(() => {
+    if (!isFolder) return
+    const controller = new AbortController()
+    fetchRun(path, { signal: controller.signal }).then(setRun).catch(() => {})
+    return () => controller.abort()
+  }, [path, isFolder, runReloads])
+  // Don't show the previous folder's run while we look for this one's
+  const currentRun = run && (path === `${run.folder}/` || path.startsWith(`${run.folder}/`)) ? run : null
 
   const updatePreferences = update => setPreferences(previous => {
     const preferences = { ...previous, ...update }
@@ -335,6 +351,23 @@ export default function FileBrowser() {
 
     {isFolder
       ? <main className="fb-main">
+          {currentRun && <RunBar
+            run={currentRun}
+            path={path}
+            user={user}
+            navigate={navigate}
+            onSignIn={requestSignIn}
+            onDone={action => {
+              setRunReloads(n => n + 1)
+              if (action === 'delete') {
+                // The run's folder is gone
+                cache.current.clear()
+                navigate(parentPath(`${currentRun.folder}/`) ?? '/', { focus: baseName(currentRun.folder) })
+              } else if (action === 'delete-files') {
+                refresh()
+              }
+            }}
+          />}
           <Toolbar
             filterRef={filterRef}
             query={query}
@@ -397,6 +430,99 @@ export default function FileBrowser() {
 
     <SignInDialog isOpen={isSigningIn} onClose={() => setIsSigningIn(false)} onSignedIn={onSignedIn}/>
   </div>
+}
+
+
+const RUN_ACTIONS = {
+  redo: {
+    icon: <RedoIcon/>, text: 'Redo', intent: Intent.WARNING, done: 'Redo started',
+    confirm: 'Run it again? Its current files are replaced when it starts.',
+  },
+  'mark-failed': {
+    icon: <StopIcon/>, text: 'Mark as failed', intent: Intent.WARNING, done: 'Marked as failed',
+    title: "For runs stuck as pending or running: their job is gone and will never report",
+  },
+  delete: {
+    icon: <TrashIcon/>, text: 'Delete…', intent: Intent.DANGER, done: 'Deleted',
+    confirm: 'Delete this run? Its folder and its results in QA-Board are deleted.',
+  },
+}
+
+// The run whose output folder we're in: its status, a link to its results, and what users can do with it.
+// Like in the web app, we act on whole runs, never on single files.
+function RunBar({ run, path, user, navigate, onSignIn, onDone }) {
+  const [confirming, setConfirming] = useState(null)
+  const [onlyFiles, setOnlyFiles] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const signedIn = !!user?.is_authenticated
+  const status = run.deleted ? ['Deleted', Intent.NONE]
+    : run.is_failed ? ['Failed', Intent.DANGER]
+    : run.is_running ? ['Running', Intent.PRIMARY]
+    : run.is_pending ? ['Pending', Intent.WARNING]
+    : ['Done', Intent.SUCCESS]
+  const actions = run.is_pending ? ['mark-failed', 'delete'] : run.deleted ? ['redo'] : ['redo', 'delete']
+
+  const execute = async name => {
+    const action = name === 'delete' && onlyFiles ? 'delete-files' : name
+    setConfirming(null)
+    setBusy(true)
+    try {
+      await runAction(action, run.id)
+      toaster.show({ message: RUN_ACTIONS[name].done, intent: Intent.SUCCESS, icon: RUN_ACTIONS[name].icon })
+      onDone(action)
+    } catch (error) {
+      if (error.status === 401) onSignIn()
+      toaster.show({ message: error.message ?? `Failed (HTTP ${error.status})`, intent: Intent.DANGER, icon: <ErrorIcon/> })
+    } finally {
+      setBusy(false)
+    }
+  }
+  const request = name => {
+    if (!signedIn) return onSignIn()
+    if (RUN_ACTIONS[name].confirm) setConfirming(name)
+    else execute(name)
+  }
+
+  const runFolder = `${run.folder}/`
+  return <section className="fb-run" aria-label="Run">
+    <Tag intent={status[1]} minimal={status[1] === Intent.NONE}>{status[0]}</Tag>
+    <span className="fb-run-what" title={[run.input, ...(run.configurations ?? []).map(c => typeof c === 'string' ? c : JSON.stringify(c))].join('\n')}>
+      {path === runFolder
+        ? <>Run on <code>{run.input}</code></>
+        : <>In the run on <a href={urlFromPath(runFolder)} onClick={event => {
+            if (!isPlainLeftClick(event)) return
+            event.preventDefault()
+            navigate(runFolder)
+          }}><code>{run.input}</code></a></>}
+      <span className="fb-run-detail">
+        {run.batch !== 'default' && <>batch {run.batch} · </>}{run.platform}{run.user && <> · by {run.user}</>}
+      </span>
+    </span>
+    <span className="fb-run-actions">
+      <AnchorButton size="small" variant="minimal" icon={<ShareIcon/>} text="Results" href={run.url} target="_blank" rel="noopener noreferrer"
+        title="Open the run's results and logs in QA-Board"/>
+      {actions.map(name => <Tooltip key={name} content={signedIn ? RUN_ACTIONS[name].title : 'Sign in to change runs'} disabled={signedIn && !RUN_ACTIONS[name].title} placement="bottom">
+        <Button size="small" variant="minimal" icon={RUN_ACTIONS[name].icon} text={RUN_ACTIONS[name].text}
+          intent={RUN_ACTIONS[name].intent} disabled={busy} onClick={() => request(name)}/>
+      </Tooltip>)}
+    </span>
+    <Alert
+      isOpen={confirming !== null}
+      icon={confirming ? RUN_ACTIONS[confirming].icon : undefined}
+      intent={confirming ? RUN_ACTIONS[confirming].intent : undefined}
+      confirmButtonText={confirming === 'delete' && onlyFiles ? 'Delete its files' : confirming ? RUN_ACTIONS[confirming].text.replace('…', '') : ''}
+      cancelButtonText="Cancel"
+      canEscapeKeyCancel
+      canOutsideClickCancel
+      onConfirm={() => execute(confirming)}
+      onCancel={() => setConfirming(null)}
+    >
+      <p>{confirming && RUN_ACTIONS[confirming].confirm}</p>
+      <p><code>{run.folder}</code></p>
+      {confirming === 'delete' && <Checkbox checked={onlyFiles} onChange={event => setOnlyFiles(event.target.checked)}
+        label="Only delete its files, keep the run in QA-Board"/>}
+    </Alert>
+  </section>
 }
 
 

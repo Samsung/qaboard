@@ -31,6 +31,8 @@ export const fetchListing = async (path, { signal } = {}) => {
   const response = await fetch(urlFromPath(path.endsWith('/') ? path : `${path}/`), {
     headers: { Accept: 'application/json' },
     credentials: 'same-origin',
+    // The page has the same URL: if browsers cache the JSON, Back (e.g. after opening a file) shows it instead of the page
+    cache: 'no-store',
     signal,
   })
   const isJson = (response.headers.get('Content-Type') ?? '').includes('application/json')
@@ -45,7 +47,7 @@ export const fetchListing = async (path, { signal } = {}) => {
     throw new FilesError(response.status, 'nginx', "The server doesn't allow you to see this folder.")
   }
   if (response.status === 404)
-    throw new FilesError(404, 'not-found', `${path} doesn't exist (anymore?).`)
+    throw new FilesError(404, 'not-found', `${path} doesn't exist (yet, or anymore).`)
   throw new FilesError(response.status, 'server', `The server failed to list this folder (HTTP ${response.status}). Is the backend running?`)
 }
 
@@ -65,3 +67,29 @@ export const signIn = async (username, password) => {
 }
 
 export const signOut = () => fetch('/api/v1/user/logout/', { method: 'POST', credentials: 'same-origin' })
+
+// The run whose output folder is `path` or contains it: {id, folder, is_failed, is_pending, is_running, input, batch, url...}, or null
+export const fetchRun = async (path, { signal } = {}) => {
+  const response = await fetch(`/api/v1/files/run?path=${encodeURIComponent(path)}`, { credentials: 'same-origin', signal })
+  if (!response.ok) return null
+  return (await response.json()).run ?? null
+}
+
+// Redo, mark as failed or delete a run, with the same API as the web app
+const RUN_ACTIONS = {
+  redo: id => [`/api/v1/output/redo/${id}/`, 'POST', {}],
+  'mark-failed': id => [`/api/v1/output/${id}/`, 'PUT', { is_pending: false, is_running: false, is_failed: true }],
+  delete: id => [`/api/v1/output/${id}/`, 'DELETE'],
+  'delete-files': id => [`/api/v1/output/${id}/?soft=true`, 'DELETE'],
+}
+
+export const runAction = async (action, id) => {
+  const [url, method, body] = RUN_ACTIONS[action](id)
+  const response = await fetch(url, {
+    method,
+    credentials: 'same-origin',
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  })
+  if (!response.ok) throw await readError(response)
+}

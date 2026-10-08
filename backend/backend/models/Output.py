@@ -66,6 +66,8 @@ class Output(Base):
     # https://sqlalche.me/e/14/f405
     Index('idx_outputs_data_user', text("(data->>'user')")),#, postgresql_ops={'user': 'text_pattern_ops'}),
     Index('idx_outputs_filter', "batch_id", "test_input_id", "platform"),
+    # The file browser finds the run a folder belongs to
+    Index('idx_outputs_output_dir_override', "output_dir_override"),
     Index('idx_outputs_batch_user_storage', 
           "batch_id", 
           text("(data->>'user')"),

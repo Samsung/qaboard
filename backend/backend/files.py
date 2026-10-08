@@ -5,13 +5,14 @@ nginx serves the files under /s/ (the URL of /algo/x is /s/algo/x). For folders,
 the web app's file browser, which asks the backend for the listing (see backend/api/files.py).
 """
 import os
-import pwd
+import re
 import stat
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, FrozenSet, NamedTuple, Optional, TypeVar
+from typing import Dict, FrozenSet, List, NamedTuple, Optional, TypeVar
 from urllib.parse import unquote, urlsplit
 
+from . import accounts
 from .config import storage_roots
 from .storage import private_dirs
 
@@ -43,6 +44,37 @@ def is_listable(path: str) -> bool:
   return not any(real.is_relative_to(private_dir) for private_dir in private_dirs())
 
 
+# In folders from the storage settings, e.g. /algo/outputs/{user}/project
+USER_PLACEHOLDER = '{user}'
+
+
+def folder_for(pattern: str, path: str) -> Optional[str]:
+  """
+  The folder matching `pattern` that is `path` or contains it, where {user} matches any folder name.
+  '/algo/outputs/{user}/repo', '/algo/outputs/alice/repo/run' => '/algo/outputs/alice/repo'. None if none.
+  """
+  if USER_PLACEHOLDER not in pattern:
+    return pattern
+  match = _folder_regex(pattern).match(path)
+  return match.group(1) if match else None
+
+
+@lru_cache(maxsize=4096)
+def _folder_regex(pattern: str) -> re.Pattern:
+  regex = re.escape(pattern.rstrip('/')).replace(re.escape(USER_PLACEHOLDER), '[^/]+')
+  return re.compile(f'({regex})(?:/|$)')
+
+
+def folder_and_parents(path: str) -> List[str]:
+  """'/algo/x/y' => ['/algo/x/y', '/algo/x', '/algo']"""
+  folders = []
+  path = normalize(path)
+  while path != '/':
+    folders.append(path)
+    path = os.path.dirname(path)
+  return folders
+
+
 def longest_prefix(path: str, prefixes: Dict[str, T]) -> Optional[T]:
   """The value of the most specific folder in `prefixes` that contains `path` (or is `path`)."""
   best, best_length = None, -1
@@ -61,20 +93,18 @@ class UnixAccount(NamedTuple):
 NOBODY = UnixAccount(uid=-1, gids=frozenset())
 
 
-@lru_cache(maxsize=4096)
 def unix_account(user_name: Optional[str]) -> UnixAccount:
-  """The Unix account of a QA-Board user, from the server's passwd and group files."""
+  """The Unix account of a QA-Board user, see backend/accounts.py"""
+  return _unix_account(user_name, accounts.version())
+
+@lru_cache(maxsize=4096)
+def _unix_account(user_name: Optional[str], accounts_version) -> UnixAccount:
   if not user_name:
     return NOBODY
-  try:
-    entry = pwd.getpwnam(user_name)
-  except KeyError:
+  account = accounts.account(user_name)
+  if not account:
     return NOBODY
-  try:
-    gids = frozenset(os.getgrouplist(user_name, entry.pw_gid))
-  except OSError:
-    gids = frozenset([entry.pw_gid])
-  return UnixAccount(uid=entry.pw_uid, gids=gids)
+  return UnixAccount(uid=account.uid, gids=accounts.group_ids(user_name, account.gid))
 
 
 def _permissions(st: os.stat_result, account: UnixAccount) -> int:
@@ -106,12 +136,13 @@ def unix_can_read(path: str, root: str, account: UnixAccount) -> bool:
   return _permissions(st, account) & needed == needed
 
 
-@lru_cache(maxsize=4096)
 def owner_name(uid: int) -> str:
-  try:
-    return pwd.getpwuid(uid).pw_name
-  except KeyError:
-    return str(uid)
+  """The name of the user with this uid, else the uid"""
+  return _owner_name(uid, accounts.version())
+
+@lru_cache(maxsize=4096)
+def _owner_name(uid: int, accounts_version) -> str:
+  return accounts.user_name(uid) or str(uid)
 
 
 def describe(entry: os.DirEntry) -> dict:

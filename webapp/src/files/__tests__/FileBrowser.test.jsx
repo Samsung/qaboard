@@ -34,7 +34,7 @@ const json = (data, status = 200) => new Response(JSON.stringify(data), { status
 
 let server
 const makeServer = () => {
-  const state = { user: { is_authenticated: false }, restricted: new Set(), config: { login_type: 'LOCAL', path_mappings: [], docs_root: '/' } }
+  const state = { user: { is_authenticated: false }, restricted: new Set(), run: null, actions: [], config: { login_type: 'LOCAL', path_mappings: [], docs_root: '/' } }
   state.fetch = vi.fn(async (url, options = {}) => {
     if (url === '/api/v1/config') return json(state.config)
     if (url === '/api/v1/user/me/') return json(state.user)
@@ -46,6 +46,17 @@ const makeServer = () => {
       const path = decodeURIComponent(url.split('path=')[1])
       if (state.restricted.has(path) && !state.user.is_authenticated) return json({ error: 'Only some users can see the project secret. Sign in to see these files.', reason: 'login' }, 401)
       return new Response(null, { status: 204 })
+    }
+    if (url.startsWith('/api/v1/files/run')) {
+      const path = decodeURIComponent(url.split('path=')[1])
+      const run = state.run && (path === state.run.folder || path.startsWith(`${state.run.folder}/`)) ? state.run : null
+      return json({ run })
+    }
+    if (url.startsWith('/api/v1/output/')) {
+      state.actions.push(`${options.method} ${url}`)
+      if (!state.user.is_authenticated) return json({ error: 'You need to be logged-in to do this.' }, 401)
+      if (url.startsWith('/api/v1/output/redo/')) state.run = { ...state.run, is_failed: false, is_pending: true }
+      return json({ status: 'OK' })
     }
     if (url.startsWith('/s/') && options.headers?.Accept === 'application/json') {
       const path = decodeURIComponent(url.slice(2))
@@ -224,5 +235,62 @@ describe('FileBrowser', () => {
     fireEvent.change(screen.getByLabelText('Filter'), { target: { value: 'frame4999.png' } })
     expect(rowNames()).toEqual(['frame4999.png'])
     await act(async () => {})
+  })
+})
+
+
+describe('runs', () => {
+  const RUN = {
+    id: 42, folder: '/algo/project/outputs', is_failed: true, is_pending: false, is_running: false, deleted: false,
+    input: 'recordings/a.raw', batch: 'tuning', platform: 'linux', user: 'bob', configurations: ['base'],
+    project: 'group/project', commit: 'abc', url: '/group/project/commit/abc?batch=tuning&filter=recordings%2Fa.raw&selected_views=logs',
+  }
+  const signedIn = () => { server.user = { is_authenticated: true, user_name: 'alice' } }
+
+  it("shows the run of the folder, with a link to its results", async () => {
+    server.run = RUN
+    renderAt('/s/algo/project/outputs/')
+    const bar = await screen.findByRole('region', { name: 'Run' })
+    expect(within(bar).getByText('Failed')).toBeTruthy()
+    expect(within(bar).getByText('recordings/a.raw')).toBeTruthy()
+    expect(within(bar).getByText('Results').closest('a').getAttribute('href')).toBe(RUN.url)
+  })
+
+  it("doesn't show a run for other folders", async () => {
+    server.run = RUN
+    renderAt('/s/algo/project/')
+    await screen.findByText('frame2.png')
+    expect(screen.queryByRole('region', { name: 'Run' })).toBeNull()
+  })
+
+  it('redoes the run after a confirmation', async () => {
+    server.run = RUN
+    signedIn()
+    renderAt('/s/algo/project/outputs/')
+    const bar = await screen.findByRole('region', { name: 'Run' })
+    fireEvent.click(within(bar).getByRole('button', { name: /Redo/ }))
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Redo' }))
+    await waitFor(() => expect(server.actions).toEqual(['POST /api/v1/output/redo/42/']))
+    await waitFor(() => expect(within(bar).getByText('Pending')).toBeTruthy())
+  })
+
+  it('deletes only the files if asked', async () => {
+    server.run = RUN
+    signedIn()
+    renderAt('/s/algo/project/outputs/')
+    const bar = await screen.findByRole('region', { name: 'Run' })
+    fireEvent.click(within(bar).getByRole('button', { name: /Delete/ }))
+    fireEvent.click(await screen.findByLabelText(/Only delete its files/))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete its files' }))
+    await waitFor(() => expect(server.actions).toEqual(['DELETE /api/v1/output/42/?soft=true']))
+  })
+
+  it('asks to sign in before changing runs', async () => {
+    server.run = RUN
+    renderAt('/s/algo/project/outputs/')
+    const bar = await screen.findByRole('region', { name: 'Run' })
+    fireEvent.click(within(bar).getByRole('button', { name: /Redo/ }))
+    expect(await screen.findByRole('dialog', { name: /Sign in/ })).toBeTruthy()
+    expect(server.actions).toEqual([])
   })
 })

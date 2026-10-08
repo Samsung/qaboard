@@ -36,16 +36,17 @@ class Project(Base):
   ci_commits = relationship("CiCommit", order_by=CiCommit.authored_datetime, back_populates="project")
 
 
-  def storage_roots(self, default_qaboard_config=None):
+  def storage_roots(self, default_qaboard_config=None, user_name=None):
     """
     The locations where we save outputs and artifacts for this project.
+    `user_name` replaces {user} in the storage settings, by default the server's user.
     """
     id_git = self.id_git
     qaboard_config = self.data.get('qatools_config', {})
     if not qaboard_config.get('storage'):
       qaboard_config = default_qaboard_config
     try:
-      outputs_root, artifacts_root, subproject_for_artifacts = storage_roots(qaboard_config, Path(self.id), Path(self.id_relative))
+      outputs_root, artifacts_root, subproject_for_artifacts = storage_roots(qaboard_config, Path(self.id), Path(self.id_relative), user_name=user_name)
     except Exception as e:
       print(e)
       outputs_root = default_outputs_root

@@ -17,6 +17,15 @@ Results live on a shared storage. QA-Board serves its files under `/s/`: the fol
 
 Files open in the browser, exactly as before: nginx sends them, so large files and logs load fast.
 
+## Runs
+In a run's output folder, or in a folder inside it, a bar shows the run: its status, the input it ran on, its batch and who started it. From there you can:
+- open its **Results** (metrics, logs...) in QA-Board,
+- **Redo** it, e.g. after a failure. Its files are replaced when it starts again,
+- **Delete** it: its folder and its results in QA-Board. Check **Only delete its files** to keep the run in QA-Board, like "Delete Output Files" in the web app,
+- **Mark as failed** a run stuck as pending or running, whose job is gone.
+
+You need to be signed in. You act on whole runs, like in the web app: the file browser doesn't delete single files.
+
 ## Keyboard shortcuts
 Press <kbd>?</kbd> to see them all.
 
