@@ -19,6 +19,7 @@ import {
 
 import { updateSelected } from "./actions/selected";
 import { fetchBranches, fetchCommits } from './actions/projects'
+import { day_range } from './dateRange'
 import { CommitNavbar } from "./components/CommitNavbar";
 import { SelectBatchesNav } from "./components/tuning/SelectBatches";
 
@@ -223,15 +224,15 @@ class AppNavbar extends Component {
               if (new_date_range[0] === null && new_date_range[1] === null)
                 return
               const { project, aggregated_metrics, dispatch } = this.props;
-              let extended_date_range = [
-                new_date_range[0] ?? this.props.date_range[0],
-                new_date_range[1] ?? this.props.date_range[1],
-              ]
-              extended_date_range[0].setHours(0,0,0,0);
-              extended_date_range[1].setHours(23,59,59,999);
+              // While only one end is picked, we still need a full range: the store keeps it for the refreshes.
+              // Like the server, a missing end means today.
+              const to = new_date_range[1] ?? new Date();
+              const previous_from = new Date(this.props.date_range[0]);
+              const from = new_date_range[0] ?? (previous_from <= to ? previous_from : to);
+              const extended_date_range = day_range([from, to])
               const is_dashboard = match.path.startsWith('/:project_id+/history');
               const options = is_dashboard ? {only_ci_batches: selected_batch_new === 'default', with_outputs: true} : {};
-              dispatch(fetchCommits(project, {...match.params}, new_date_range, aggregated_metrics, options))
+              dispatch(fetchCommits(project, {...match.params}, extended_date_range, aggregated_metrics, options))
             }}
             shortcuts
           />}
@@ -241,9 +242,7 @@ class AppNavbar extends Component {
                       minimal
                       onClick={() =>{
                           const { project, aggregated_metrics, dispatch } = this.props;
-                          let extended_date_range = [date_range[0], date_range[1]]
-                          extended_date_range[0].setHours(0,0,0,0);
-                          extended_date_range[1].setHours(23,59,59,999);
+                          const extended_date_range = day_range(date_range)
                           const is_dashboard = match.path.startsWith('/:project_id+/history');
                           const options = is_dashboard ? {only_ci_batches: selected_batch_new === 'default', with_outputs: true} : {};
                           dispatch(fetchCommits(project, {...match.params}, extended_date_range, aggregated_metrics, options))
