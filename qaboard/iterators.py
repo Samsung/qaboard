@@ -3,10 +3,13 @@ Iterators over inputs, parameters...
 """
 import os
 import re
+import ast
 import sys
 import json
+import math
 import numbers
 import fnmatch
+import operator
 import traceback
 from copy import deepcopy
 from pathlib import Path
@@ -367,6 +370,120 @@ def deep_interpolate(value, replaced: str, to_value):
   else:
     return value
 
+# Arithmetic expressions like `${{ 168 * matrix.gain }}`, inspired by GitHub Actions.
+# They are evaluated by `qa batch` when expanding matrices, so `qa run` only sees the results.
+# The syntax is a deliberately small subset that means the same thing in Python, JS, C...
+# so we are not tied to Python semantics if we ever evaluate expressions elsewhere (e.g. in the webapp).
+# Left out on purpose: ** // % (missing or different in other languages), int() (truncation vs floor),
+# strings and booleans.
+expression_regex = re.compile(r'\$\{\{([^}]*)\}\}')
+
+expression_binops = {
+  ast.Add: operator.add,
+  ast.Sub: operator.sub,
+  ast.Mult: operator.mul,
+  ast.Div: operator.truediv,
+}
+expression_unaryops = {ast.UAdd: operator.pos, ast.USub: operator.neg}
+
+def round_half_away_from_zero(x):
+  # Python's round() rounds half to even, JS's Math.round() rounds half up. We follow C.
+  return math.copysign(math.floor(abs(x) + 0.5), x)
+
+expression_functions = {
+  'abs': abs,
+  'min': min,
+  'max': max,
+  'floor': math.floor,
+  'ceil': math.ceil,
+  'round': round_half_away_from_zero,
+}
+
+def is_number(value) -> bool:
+  return isinstance(value, numbers.Real) and not isinstance(value, bool)
+
+def eval_expression(expression: str, variables: Dict):
+  """Evaluates an arithmetic expression like "168 * matrix.gain", raises ValueError if it is not supported."""
+  def number(value):
+    if not is_number(value):
+      raise ValueError(f'expected a number, got {value!r}')
+    return value
+
+  def eval_node(node):
+    node_type = type(node).__name__
+    if isinstance(node, ast.Expression):
+      return eval_node(node.body)
+    if node_type in ('Constant', 'Num'): # ast.Num for python3.7
+      value = node.value if node_type == 'Constant' else node.n
+      return number(value)
+    if isinstance(node, ast.Name):
+      if node.id in variables:
+        return variables[node.id]
+      raise ValueError(f'unknown variable "{node.id}"')
+    if isinstance(node, ast.Attribute):
+      obj = eval_node(node.value)
+      if isinstance(obj, dict) and node.attr in obj:
+        return obj[node.attr]
+      raise ValueError(f'unknown attribute "{node.attr}"')
+    if isinstance(node, ast.Subscript):
+      obj = eval_node(node.value)
+      key = node.slice
+      if type(key).__name__ == 'Index': # python<3.9
+        key = key.value # type: ignore
+      if type(key).__name__ in ('Constant', 'Num', 'Str'):
+        key = getattr(key, 'value', getattr(key, 'n', getattr(key, 's', None)))
+      else:
+        key = number(eval_node(key))
+      try:
+        return obj[key]
+      except (KeyError, IndexError, TypeError):
+        raise ValueError(f'cannot get [{key!r}] in {obj!r}')
+    if isinstance(node, ast.BinOp) and type(node.op) in expression_binops:
+      return expression_binops[type(node.op)](number(eval_node(node.left)), number(eval_node(node.right)))
+    if isinstance(node, ast.UnaryOp) and type(node.op) in expression_unaryops:
+      return expression_unaryops[type(node.op)](number(eval_node(node.operand)))
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in expression_functions and not node.keywords:
+      return expression_functions[node.func.id](*[number(eval_node(a)) for a in node.args])
+    raise ValueError(f'unsupported syntax, only numbers, matrix variables, + - * / ( ) and {"/".join(expression_functions)} are allowed')
+
+  try:
+    tree = ast.parse(expression.strip(), mode='eval')
+  except SyntaxError:
+    raise ValueError('invalid syntax')
+  try:
+    result = number(eval_node(tree))
+  except ZeroDivisionError:
+    raise ValueError('division by zero')
+  # There is no int/float distinction in many languages, so integral results are always ints
+  if isinstance(result, float) and result.is_integer():
+    return int(result)
+  return result
+
+
+def evaluate_expressions(value, variables: Dict):
+  """Recursively evaluates the `${{ <expression> }}` found in strings.
+  If a string is exactly one expression, the value becomes a number, otherwise
+  results are formatted back into the string.
+
+  Unlike `${matrix.param}` interpolation which leaves unknown placeholders as-is,
+  errors raise ValueError: expressions are always intentional, they should never fail silently."""
+  if isinstance(value, dict):
+    return {k: evaluate_expressions(v, variables) for k, v in value.items()}
+  if isinstance(value, list):
+    return [evaluate_expressions(v, variables) for v in value]
+  if not isinstance(value, str):
+    return value
+  def evaluate(match):
+    try:
+      return eval_expression(match.group(1), variables)
+    except ValueError as e:
+      raise ValueError(f'Cannot evaluate <{match.group(0)}>: {e}') from None
+  full_match = expression_regex.fullmatch(value.strip())
+  if full_match:
+    return evaluate(full_match)
+  return expression_regex.sub(lambda match: str(evaluate(match)), value)
+
+
 def parse_batch(batch_name, batch):
   """Returns an empty batch if there is an issue with the batch's content"""
   # Happens often when there is an orphan "my-batch:" in in the yaml file
@@ -477,10 +594,18 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
               matrix_run_context.configurations.append(matrix_config)
             else:
               matrix_run_context.configurations = matrix_config
+          matrix_params = {}
           for param, value in matrix.items():
             if param in ['configuration', 'configurations', 'configs', 'platform']:
               continue
+            matrix_params[param] = value
             matrix_run_context.configurations = deep_interpolate(matrix_run_context.configurations, 'matrix', {param: value})
+          # arithmetic expressions can only be evaluated once all matrix parameters are known
+          try:
+            matrix_run_context.configurations = evaluate_expressions(matrix_run_context.configurations, {'matrix': matrix_params})
+          except ValueError as e:
+            click.secho(f'ERROR: In the batch "{run_context.batch}" with matrix={matrix_params}: {e}', fg='red', bold=True, err=True)
+            raise
           yield from iter_batch(batch_, matrix_run_context, qatools_config, default_inputs_settings, debug, cli_runner_overrides)
       return
 

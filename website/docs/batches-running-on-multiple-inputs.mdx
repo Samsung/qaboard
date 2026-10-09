@@ -224,6 +224,41 @@ my-batch-matrix-object:
     - flags: "-x=${matrix.point[x]} -y=${matrix.point[y]}"
 ```
 
+### Arithmetic expressions
+When parameters are correlated, like a threshold that scales with the gain, you can compute them with `${{ <expression> }}` instead of maintaining lists of pre-computed values:
+
+```yaml
+my-batch-derived-parameters:
+  inputs:
+  - image.raw
+  matrix:
+    gain: [1, 2, 4]
+  configs:
+    - workspace/config_gain${matrix.gain}.cde
+    - SMAP.bp_th_red_min_curve_exp_0: "[${{ 168 * matrix.gain }}, 200, 240, 280, 360, 600, 600]"
+    - SMAP.other_threshold: ${{ min(50 * matrix.gain, 128) }}
+
+# => runs with SMAP.bp_th_red_min_curve_exp_0 == "[168, 200, ...]", "[336, 200, ...]" and "[672, 200, ...]"
+#          and SMAP.other_threshold == 50, 100 and 128
+```
+
+Expressions are deliberately simple, and mean the same thing as they would in Python, Javascript or C:
+- numbers, matrix variables (`matrix.gain`, `matrix.point.x`, `matrix.point['x']`, `matrix.curve[0]`),
+- `+`, `-`, `*`, `/` and parentheses,
+- `min`, `max`, `abs`, `floor`, `ceil` and `round`. `round` rounds halves away from zero, like in C: `round(2.5) == 3`.
+
+There is no int/float distinction: `${{ 168 / 2 }}` is `84`, `${{ 1 / 4 }}` is `0.25`. If an expression is the whole value you get a number, otherwise it is formatted into the string.
+
+:::caution Expressions fail loudly
+Unlike `${matrix.variable}`, which leaves unknown variables as-is, an expression that cannot be evaluated (typo, unsupported syntax, division by zero...) stops `qa batch` with an error.
+:::
+
+**When are expressions evaluated?** By `qa batch`, while it expands the matrix, before any run starts. `qa run` and your `run()` function only see the results: `config["SMAP.other_threshold"] == 100`, never the expression. Those values are also what you see in QA-Board and what is used to name output directories. To check the results, use `qa batch my-batch --list`.
+
+:::tip Need more logic?
+For conditionals, loops or lookups, compute derived values inside `run()` from simple parameters, or generate your batches YAML with a script.
+:::
+
 ## Aliases for groups of batches
 For convenience you can define aliases for batches you often run together. For instance you can do:
 

@@ -82,6 +82,50 @@ class TestIterators(unittest.TestCase):
       "object abcdef"
     )
 
+  def test_expressions(self):
+    from qaboard.iterators import evaluate_expressions
+    variables = {'matrix': {'gain': 2, 'point': {'x': 10}, 'curve': [1, 2, 3]}}
+    # expressions spanning the whole string become numbers
+    self.assertEqual(evaluate_expressions("${{ 168 * matrix.gain }}", variables), 336)
+    self.assertEqual(evaluate_expressions(" ${{ -(matrix.gain + 1) / 4 }} ", variables), -0.75)
+    self.assertEqual(evaluate_expressions("${{ matrix.point.x + matrix.point['x'] + matrix.curve[2] }}", variables), 23)
+    self.assertEqual(evaluate_expressions("${{ min(50 * matrix.gain, 64) }}", variables), 64)
+    # integral results are ints, in any language
+    self.assertEqual(evaluate_expressions("${{ 168 / matrix.gain }}", variables), 84)
+    self.assertIsInstance(evaluate_expressions("${{ 168 / matrix.gain }}", variables), int)
+    # round half away from zero, like C, unlike python's round (half to even) or JS's Math.round (half up)
+    self.assertEqual(evaluate_expressions("${{ round(2.5) }}", variables), 3)
+    self.assertEqual(evaluate_expressions("${{ round(-2.5) }}", variables), -3)
+    self.assertEqual(evaluate_expressions("${{ floor(-0.5) }} ${{ ceil(0.5) }}", variables), "-1 1")
+    # expressions within strings are formatted back, recursively in dicts/lists
+    self.assertEqual(
+      evaluate_expressions([{"SMAP.bp_th": "[${{ 168 * matrix.gain }}, 200, ${{ 1.5 * matrix.gain }}, ${{ 0.5 / matrix.gain }}]"}], variables),
+      [{"SMAP.bp_th": "[336, 200, 3, 0.25]"}]
+    )
+    # values without expressions are left alone
+    self.assertEqual(evaluate_expressions("plain ${matrix.gain} {gain}", variables), "plain ${matrix.gain} {gain}")
+    self.assertEqual(evaluate_expressions(42, variables), 42)
+    # anything else is an error, never a silent pass-through
+    for unsupported in [
+      "${{ matrix.typo }}",               # unknown variable
+      "${{ gain }}",                      # unknown variable
+      "${{ matrix.curve }}",              # not a number
+      "${{ matrix.curve[5] }}",           # out of bounds
+      "${{ 1 / (matrix.gain - 2) }}",     # division by zero
+      "${{ 2 ** matrix.gain }}",          # operators that differ across languages
+      "${{ 7 // matrix.gain }}",
+      "${{ 7 % matrix.gain }}",
+      "${{ int(1.5) }}",                  # truncation, use floor/ceil/round
+      "${{ True + 1 }}",                  # booleans
+      "${{ 'a' + 'b' }}",                 # strings
+      "${{ 1 if matrix.gain else 2 }}",   # conditionals
+      "${{ __import__('os').getcwd() }}", # anything else...
+      "${{ 168 * }}",                     # invalid syntax
+    ]:
+      with self.subTest(unsupported=unsupported):
+        with self.assertRaises(ValueError):
+          evaluate_expressions(unsupported, variables)
+
   def test_match(self):
     from qaboard.iterators import match
     metadata = {"Sensor": "HM4"}
@@ -224,6 +268,11 @@ class TestIterators(unittest.TestCase):
     self.assertEqual(batches[1].configurations, ['base', 'config-v2', {"version": "v2"}])
     batches = get_batch('matrix-interpolate-2')
     self.assertEqual(len(batches), 4)
+
+    batches = get_batch('matrix-expressions')
+    self.assertEqual(len(batches), 2)
+    self.assertEqual(batches[0].configurations, ['base-gain1', {"SMAP.bp_th": "[168, 200]"}, {"threshold": 10}])
+    self.assertEqual(batches[1].configurations, ['base-gain2', {"SMAP.bp_th": "[336, 200]"}, {"threshold": 20}])
 
   def test_input_type_runner_settings(self):
     """Test that input types can specify runner settings"""
@@ -524,6 +573,16 @@ matrix-interpolate-2:
     - base
     - param-v${matrix.param}
     - version: v${matrix.version[major]}
+
+matrix-expressions:
+  inputs:
+  - a.txt
+  matrix:
+    gain: [1, 2]
+  configurations:
+    - base-gain${matrix.gain}
+    - SMAP.bp_th: "[${{ 168 * matrix.gain }}, 200]"
+    - threshold: ${{ 10 * matrix.gain }}
 
 test-vector-batch:
   type: test-vector
