@@ -28,7 +28,8 @@ let default_roi_type = "Full Image"
 //       2. wen trigger find, find for all on view? (or force view) ?
 //     make diff faster
 
-const RoiViewer = ({output_new, output_ref, path, viewer, current_roi, fullyLoaded}) => {
+// manifest (of output_new) and imageServers: as for the image viewer, so the ROI thumbnails show the same image
+const RoiViewer = ({output_new, output_ref, path, manifest, imageServers, viewer, current_roi, fullyLoaded}) => {
     let [selectable_rois, set_selectable_rois] = useState({"Full Image": no_rois})
 
     // Sample ROIs for testing
@@ -185,6 +186,8 @@ const RoiViewer = ({output_new, output_ref, path, viewer, current_roi, fullyLoad
             key={idx}
             output={output_new}
             path={path}
+            manifest={manifest}
+            imageServers={imageServers}
             roi={roi}
             viewer={viewer}
             onSelect={() => {
