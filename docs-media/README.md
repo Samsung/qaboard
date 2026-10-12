@@ -322,6 +322,15 @@ shot('commit/pixel-tooltip', {
   `commit/image-filters` uses brightness and gamma only.
 - The **histograms** of a selected region (`commit/roi-histograms`) are computed from the rendered canvas, at whatever
   resolution the tiles have loaded: they vary slightly between captures, and so does the shot.
+- **Clips never dedupe**: they record the waits (`settle()`, tiles loading) in real time, so their length varies by
+  about 2 s between runs (`commit/deep-zoom`: 14.8 s, then 12.6 s on the same snapshot), over `DURATION_TOLERANCE`.
+  Every run that captures them uploads them again (about 2.5 MB) and changes `media.json`. The fix is to cut the waits
+  out of the recording.
+- **`commit/image-sbs`** alternates between two captures of the same data, the images about half a CSS pixel apart
+  (1.2% of the pixels differ, over the tolerance). The labels don't move: the viewer's zoom or the tile levels drawn
+  differ, probably from wheel zooming around the pointer. To check, by capturing it a few times on one stack.
+- **Rebuilt demo data** (a reseed) changes the runtime metrics, which are measured: the shots that show them change
+  slightly.
 
 ## Budgets
 
