@@ -1,0 +1,6 @@
+{
+  "$schema": "./media.schema.json",
+  "version": 1,
+  "base_url": "https://qaboard-media.sivoov.app",
+  "shots": {}
+}
