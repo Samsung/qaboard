@@ -78,21 +78,23 @@ def run(context):
           f"sharpen x{flags['detail_boost']} (clamp: {flags['sharpen_clamp']}), {flags['tone_curve']} tone curve")
 
     metrics = {}
+    (output_dir / 'stages').mkdir()
     if context.platform == 'hw-model':
         stages, buffers, registers = isp_fxp.process(raw.mosaic, raw.gain, flags)
         (output_dir / 'raw').mkdir()
-        for stage, buffer in buffers.items():
+        for stage, buffer in buffers.items():   # a 256x256 window of each stage's 16-bit buffer
             buffer.astype('<u2').tofile(output_dir / 'raw' / f'{stage}.u16')
         (output_dir / 'regs.txt').write_text(registers.text())
-        metrics['fxp_psnr'] = measures.psnr(stages[5], isp.process(raw.mosaic, raw.gain, flags)[5])
+        metrics['fxp_psnr'] = measures.psnr(stages[5], isp.process(raw.mosaic, raw.gain, flags, all_stages=False)[5])
+        Image.fromarray(stages[5]).save(output_dir / 'out.png')
+        x, y, w, h = registers['DUMP_WINDOW']
+        for stage in (1, 2, 3, 4, 5):   # the window of raw/*.u16, lossless, to be compared bit for bit
+            Image.fromarray(stages[stage][y:y + h, x:x + w]).save(output_dir / 'stages' / f'{stage}.png')
     else:
         stages = isp.process(raw.mosaic, raw.gain, flags, log=print)
-
-    Image.fromarray(stages[5]).save(output_dir / 'out.png')
-    (output_dir / 'stages').mkdir()
-    for stage in (1, 2, 3, 4):
-        Image.fromarray(stages[stage]).save(output_dir / 'stages' / f'{stage}.png')
-    os.link(output_dir / 'out.png', output_dir / 'stages' / '5.png')
+        Image.fromarray(stages[5]).save(output_dir / 'out.png')   # lossless, for Image Diff
+        for stage in (1, 2, 3, 4, 5):
+            Image.fromarray(stages[stage]).save(output_dir / 'stages' / f'{stage}.jpg', quality=85, optimize=True)
 
     # The ideal output: the scene, without blur or noise, through the same tone curve
     reference = isp.display(isp.tone_curve(camera.SRGB_TO_LINEAR[scene] / 65535, flags['tone_curve']))

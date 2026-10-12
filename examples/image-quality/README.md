@@ -8,18 +8,19 @@ charts and photos, runs the ISP on the raw image, saves the output and every sta
 ## Run it
 
 ```bash
-pip install qaboard numpy scipy pillow tifffile pyyaml   # or: uv pip install -r requirements.txt
+pip install qaboard -r requirements.txt   # numpy scipy pillow tifffile imagecodecs pyyaml
 cd examples/image-quality
 
-qa batch ci                                      # 5 charts and 8 photos, at ISO 100 and 3200 (26 runs)
+qa batch ci                                      # 5 charts and 4 photos, at ISO 100 and 3200 (18 runs)
 qa run --input charts/slanted-edge.png           # one run
 qa --config low-light run --input photos/facade.png
 qa --platform hw-model batch bitexact            # the fixed-point model
 qa batch deep-zoom                               # the 113 MP test wall, in tiles, on 4 processes
 ```
 
-- The first time `qa` imports `qa/main.py`, it downloads the photos (`qa/fetch_photos.py`, checked against
-  `inputs.lock.yaml`) and generates the charts (`qa/make_charts.py`, about a minute for the 113 MP wall) in `inputs/`.
+- The first time `qa` imports `qa/main.py`, it downloads the photos (`qa/fetch_photos.py`, from a public mirror,
+  checked against `inputs.lock.yaml`) and generates the charts (`qa/make_charts.py`, about a minute for the 113 MP wall)
+  in `inputs/`.
   To get them before a first `qa run`: `uv run qa/fetch_photos.py && uv run qa/make_charts.py`.
 - Without `--share` or a CI, results are saved in `output/`. To see them in QA-Board, start a server
   ([quickstart](https://samsung.github.io/qaboard/docs/start-server)), and use `qa --share` or run in CI. Results are
@@ -33,7 +34,7 @@ qa batch deep-zoom                               # the 113 MP test wall, in tile
 | `qa/main.py` | `run(context)`: camera simulation, ISP, outputs and metrics. `metadata()`: ROI presets for the image viewer |
 | `qa/camera.py` | The sensor: lens blur, Bayer mosaic, noise, 12-bit raw (integers only) |
 | `qa/isp.py` | The ISP in float: black level, demosaic, denoise, sharpen, tone map |
-| `qa/isp_fxp.py` | The same ISP in fixed point (`--platform hw-model`): `raw/<stage>.u16`, `regs.txt` |
+| `qa/isp_fxp.py` | The same ISP in fixed point (`--platform hw-model`): `regs.txt`, and a 256x256 window of each stage's buffer in `raw/<stage>.u16` |
 | `qa/measures.py`, `qa/plots.py` | PSNR, SSIM, MTF50 and overshoot (slanted edge), noise, ΔE2000; Plotly figures |
 | `qa/deep_zoom.py` | The 113 MP wall in tiles on 4 processes, saved as a tiled multi-resolution TIFF |
 | `qa/metrics.yaml`, `qa/batches.yaml` | Metrics (labels, units, targets) and batches (`ci`, `bitexact`, `deep-zoom`, `nightly`, `sweep-denoise`) |

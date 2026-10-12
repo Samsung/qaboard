@@ -17,9 +17,7 @@ defaults:
     fxp_rounding: truncate
     fxp_bilateral_guard_bits: 0
   runs:
-    - batch: ci
-    - batch: bitexact
-      platform: hw-model
+    - batch: ci    # the hw-model's bitexact batch runs on fxp commits, releases and some others
 
 commits:
   - id: sensor-noise-model
@@ -30,6 +28,10 @@ commits:
       sensor: shot and read noise from the K3 calibration
 
       2.5 e- read noise, 6000 e- full well at ISO 100, measured on the bench.
+    runs:
+      - batch: ci
+      - batch: bitexact
+        platform: hw-model
 
   - id: ci-hw-model
     branch: main
@@ -42,7 +44,7 @@ commits:
     at: -41d 10:25
     author: ines
     message: |
-      demosaic: Hamilton-Adams instead of bilinear (MTF50 +20%)
+      demosaic: Hamilton-Adams instead of bilinear (MTF50 +18%)
 
       Green is interpolated along edges, red and blue as differences with green: sharper, fewer false colors.
     flags: {demosaic: hamilton-adams}
@@ -98,6 +100,10 @@ commits:
 
       Truncating biased the output down by half a code value.
     flags: {fxp_rounding: half-even}
+    runs:
+      - batch: ci
+      - batch: bitexact
+        platform: hw-model
 
   - id: fxp-rounding-vectors
     branch: fxp/round-half-even
@@ -111,6 +117,10 @@ commits:
     at: -30d 15:00
     author: ines
     message: "docs: tuning guide for the gaussian denoiser"
+    runs:
+      - batch: ci
+      - batch: bitexact
+        platform: hw-model
 
   - id: merge-round-half-even
     branch: main
@@ -118,6 +128,10 @@ commits:
     at: -29d 14:15
     author: tobias
     message: Merge branch 'fxp/round-half-even'
+    runs:
+      - batch: ci
+      - batch: bitexact
+        platform: hw-model
 
   - id: ci-nightly-isos
     branch: main
@@ -131,16 +145,14 @@ commits:
     at: -24d 10:05
     author: ines
     message: |
-      denoise: bilateral 7x7 on luma and chroma (+1.3 dB PSNR in low light)
+      denoise: bilateral 7x7 on luma and chroma (+1.6 dB PSNR in low light)
 
-      Weights from the luma, so chroma doesn't bleed across edges. Noise in flat patches -30%. The detail boost goes to
+      Weights from the luma, so chroma doesn't bleed across edges. Half the noise in flat patches. The detail boost goes to
       1.5 to keep textures crisp.
     flags: {denoise: bilateral, denoise_strength: 1.6, detail_boost: 1.5}
     runs:
       - batch: ci
-      - batch: bitexact
-        platform: hw-model
-      - batch: ci
+      - batch: sweep-denoise
         via: local
         label: ines-halo
         after: 3h
@@ -272,8 +284,6 @@ commits:
     flags: {tile_size: 0}
     runs:
       - batch: ci
-      - batch: bitexact
-        platform: hw-model
       - batch: deep-zoom
         after: 40m
     failures:
@@ -287,7 +297,7 @@ commits:
     message: |
       isp: back to 512x512 tiles
 
-      In one tile, the 113 MP wall needs about 10 GB and its job dies over the 3 GB limit.
+      In one tile, the 113 MP wall goes over the job's 3 GB memory limit.
     flags: {tile_size: 512}
     runs:
       - batch: ci
@@ -303,6 +313,10 @@ commits:
     author: tobias
     message: "fxp: 2 guard bits in bilateral LUT and divider"
     flags: {fxp_bilateral_guard_bits: 2}
+    runs:
+      - batch: ci
+      - batch: bitexact
+        platform: hw-model
 
   - id: fxp-guard-bits-vectors
     branch: fxp/guard-bits
@@ -323,6 +337,10 @@ commits:
     at: -1d 10:20
     author: tobias
     message: Merge branch 'fxp/guard-bits'
+    runs:
+      - batch: ci
+      - batch: bitexact
+        platform: hw-model
 
   - id: chroma-low-light
     branch: main

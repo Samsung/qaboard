@@ -3,7 +3,8 @@ The ISP as the camera chip computes it (the `hw-model` platform): the stages of 
 
 12-bit input, 16-bit buffers between stages (linear light in Q14: 1.0 is 16384), Q-format coefficients, LUTs for the
 square root, the bilateral weights and the tone curve, a configurable rounding mode. Integers make every output
-bit-exact across machines. Each stage's buffer is saved in raw/<stage>.u16, and the registers in regs.txt.
+bit-exact across machines. A 256x256 window of each stage's buffer is saved in raw/<stage>.u16 (the window is in
+regs.txt), and the registers in regs.txt.
 """
 import numpy as np
 from scipy import ndimage
@@ -17,6 +18,7 @@ DIVIDER_BITS = 6          # the bilateral filter's divider takes a 6-bit divisor
 RANGE_STEPS = 1           # the bilateral range LUT has 1 entry per sigma and 4-bit weights, more with guard bits
 RANGE_WEIGHT_BITS = 4
 ROUNDING = {'truncate': 0, 'half-up': 1, 'half-even': 2}
+DUMP_SIZE = 256           # the stage buffers are dumped in a window of 256x256 pixels at the center of the frame
 
 
 def round_shift(x, bits, mode):
@@ -54,7 +56,8 @@ def convolve_separable(image, taps, bits=8):
 class Registers(dict):
     """The values the chip is programmed with, written to regs.txt."""
     def text(self):
-        lines = ['# K3 ISP registers (hw-model)']
+        lines = ['# K3 ISP registers (hw-model). raw/<stage>.u16: DUMP_WINDOW (x y width height) of each stage\'s buffer,',
+                 '# little-endian uint16, row by row; stage 1 has one value per pixel (RGGB mosaic), the others R, G, B']
         for name, value in self.items():
             if isinstance(value, (list, tuple, np.ndarray)):
                 value = ' '.join(str(int(v)) for v in value)
@@ -118,23 +121,23 @@ def to_linear(y, c1, c2):
 
 def bilateral(y, c1, c2, regs):
     h, w = y.shape
-    spatial = regs['BILATERAL_SPATIAL_Q8'].reshape(7, 7)
-    lut = np.asarray(regs['BILATERAL_RANGE_LUT'], dtype=np.int64)
-    scale = regs['BILATERAL_RANGE_SCALE']
-    padded = [np.pad(c, 3, mode='reflect') for c in (y, c1, c2)]
+    spatial = regs['BILATERAL_SPATIAL_Q8'].reshape(7, 7).astype(np.int32)
+    lut = np.asarray(regs['BILATERAL_RANGE_LUT'], dtype=np.int32)
+    scale = np.int32(regs['BILATERAL_RANGE_SCALE'])
+    padded = [np.pad(c.astype(np.int32), 3, mode='reflect') for c in (y, c1, c2)]
     center = int(spatial[3, 3]) * int(lut[0])
-    sums = [center * c for c in (y, c1, c2)]
+    sums = [center * c.astype(np.int64) for c in (y, c1, c2)]
     total = np.full(y.shape, center, dtype=np.int64)
     for dy in range(-3, 4):
         for dx in range(-3, 4):
             if dy == dx == 0:
                 continue
             neighbors = [p[3 + dy:3 + dy + h, 3 + dx:3 + dx + w] for p in padded]
-            index = np.minimum((np.abs(neighbors[0] - y) * scale) >> 16, len(lut) - 1)
-            weight = spatial[3 + dy, 3 + dx] * lut[index]
+            index = np.minimum((np.abs(neighbors[0] - padded[0][3:3 + h, 3:3 + w]) * scale) >> 16, len(lut) - 1)
+            weight = spatial[3 + dy, 3 + dx] * lut[index]   # 16 bits at most
             total += weight
             for s, n in zip(sums, neighbors):
-                s += weight * n
+                s += weight * n   # 31 bits at most, summed in 64
     # normalization: the divider takes a (6 + guard bits)-bit divisor, so the sums are scaled down before dividing
     shift = np.maximum(np.frexp(total.astype(np.float64))[1] - (DIVIDER_BITS + regs['BILATERAL_GUARD_BITS']), 0)
     divisor = (total + (np.left_shift(1, shift) >> 1)) >> shift
@@ -215,4 +218,8 @@ def process(mosaic, gain, flags):
     tone_q4 = lut[index] * (32768 - fraction) + lut[index + 1] * fraction   # 4 + 15 fractional bits
     buffers[5] = to_u16(round_shift(tone_q4, 15, rounding))
     stages[5] = np.clip(round_shift(tone_q4, 19, rounding), 0, 255).astype(np.uint8)
+    # like the chip's debug port, dump a window of each buffer
+    y0, x0 = (np.array(mosaic.shape[:2]) - DUMP_SIZE) // 4 * 2   # even: starts on a red pixel
+    regs['DUMP_WINDOW'] = [x0, y0, DUMP_SIZE, DUMP_SIZE]
+    buffers = {stage: buffer[y0:y0 + DUMP_SIZE, x0:x0 + DUMP_SIZE] for stage, buffer in buffers.items()}
     return stages, buffers, regs

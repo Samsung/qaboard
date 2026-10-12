@@ -1,11 +1,14 @@
 # The tests: `qa batch ci`, `qa --platform hw-model batch bitexact`...
 # Inputs are relative to inputs/ (the database in qaboard.yaml). Configurations set the ISO: base, low-light, night.
 
-# CI: every chart and photo, in good and low light
+# CI: the charts and 4 photos, in good and low light
 ci:
   inputs:
   - charts/*.png
-  - photos/*.png
+  - photos/facade.png
+  - photos/backlit-window.png
+  - photos/night-street.png
+  - photos/sky-gradient.png
   matrix:
     configs: [base, low-light]
 
@@ -39,6 +42,7 @@ sweep-denoise:
   - photos/foliage.png
   - photos/stone-texture.png
 
+# Nightly, and on releases: every input at every ISO, and the hw-model
 all-isos:
   inputs:
   - charts/*.png
