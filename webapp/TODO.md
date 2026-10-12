@@ -4,7 +4,6 @@ Follow-ups from the move to Vite 8 / React 19 / Blueprint 6 (October 2026), most
 Check items off or delete them when done, add new ones with enough context for someone else to pick them up.
 
 ## Bugs / risks
-- [ ] **Plotly "Send to Cloud"**: `src/viewers/slam/SlamOutputCard.jsx` sets `showSendToCloud: true` with `plotlyServerURL: chart-studio.plotly.com`. Users can upload internal data to Plotly's public cloud. Turn it off unless someone needs it.
 - [ ] **Old plotly figures**: plotly.js@3 dropped deprecated attributes. `src/components/PlotlyPlot.jsx` upgrades string titles and `titlefont`, but figures with other removed attributes (`bardir`, `annotation.ref`, `autotick`, `heatmapgl`/`pointcloud` traces...) may render differently. Extend `upgradeFigure` if users report it.
 - [ ] **Node on SIRC GitLab runners** is 22.14 (`deployments/sirc/.envrc`), close to the minimum the toolchain supports (22.12). Move them to Node 24 LTS like Docker and GitHub Actions.
 - [ ] Viewers not covered by automated tests with real data: images (OpenSeadragon/IIIF), ToF point clouds (three.js), SLAM, flame graphs, videos. Check them manually on staging after deploys that touch them.
