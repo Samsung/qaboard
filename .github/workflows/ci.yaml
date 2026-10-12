@@ -1,12 +1,14 @@
 ---
 # https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions
-# - python, webapp, docker and helm run in parallel
+# - python, webapp, docker, helm and helm-e2e run in parallel
 # - Docker layers are cached in the GitHub Actions cache: unchanged images build in seconds
-# - The images are built once, tested (smoke tests, backend unit tests, a zero-downtime rolling deploy),
-#   and published to the GitHub container registry, ghcr.io/<owner>/qaboard (no secret needed: GITHUB_TOKEN):
+# - The images are built once, tested (smoke tests, backend unit tests, a zero-downtime rolling deploy; the helm chart
+#   on kind, with a real `qa batch`), and published to the GitHub container registry, ghcr.io/<owner>/qaboard
+#   (no secret needed: GITHUB_TOKEN):
 #   - on master: <service>-<commit> once built and tested, then <service> (latest) once every job passed
 #   - on releases: <service>-<version> (e.g. backend-1.2.0) once every job passed
 #   Docker Hub is an optional mirror (arthurflam/qaboard), when the DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets are set.
+# - Then the helm chart is published to oci://ghcr.io/<owner>/charts/qaboard, see publish-chart
 name: CI
 # Every push to a branch runs CI. Pull requests only do for forks: for our branches it would run twice.
 # Changes to docs alone skip CI, except the release notes: the web app bundles them (patterns apply in order)
@@ -201,11 +203,113 @@ jobs:
             helm template qaboard charts/qaboard -f "$values" | ./kubeconform -strict -summary -ignore-missing-schemas
           done
 
+  # The helm chart installed for real, on a kind cluster, with the images of this run:
+  # the quickstart's commands (website/docs/backend-admin/kubernetes.mdx), a `qa batch` in the cluster, then an upgrade
+  helm-e2e:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    env:
+      KIND_VERSION: v0.32.0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version
+        run: |
+          echo "QABOARD_VERSION=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
+          echo "QABOARD_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard" >> "$GITHUB_ENV"
+      - name: Make room on the disk
+        # The images are stored up to 3 times at once (docker, kind's archive, the node), the runner's disk is small
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h /
+      - uses: docker/setup-buildx-action@v3
+      # The images of the docker job, from its layer cache. The first time a Dockerfile changes, they are built in parallel.
+      - name: Build the images
+        uses: docker/bake-action@v6
+        with:
+          source: .
+          files: docker-compose.yml
+          load: true
+          set: |
+            backend.cache-from=type=gha,scope=backend
+            frontend.cache-from=type=gha,scope=frontend
+            website.cache-from=type=gha,scope=website
+            proxy.cache-from=type=gha,scope=proxy
+            cantaloupe.cache-from=type=gha,scope=cantaloupe
+      - uses: azure/setup-helm@v4
+        with:
+          version: v4.2.1
+      - name: Install kind
+        run: |
+          curl -sSfLo kind "https://kind.sigs.k8s.io/dl/$KIND_VERSION/kind-linux-amd64"
+          sudo install kind /usr/local/bin/ && rm kind
+          kind version && kubectl version --client
+      # The quickstart's commands, with the images built above instead of the published ones (no registry: they are
+      # loaded in the node, and the chart's image.pullPolicy is IfNotPresent)
+      - name: Quickstart
+        run: |
+          mkdir -p /tmp/qaboard
+          kind create cluster --name qaboard --config charts/qaboard/kind.yaml
+          docker buildx prune --all --force > /dev/null
+          images=()
+          for service in backend frontend website proxy cantaloupe; do images+=("$QABOARD_IMAGE:$service-$QABOARD_VERSION"); done
+          kind load docker-image --name qaboard "${images[@]}"
+          docker image rm "${images[@]}" > /dev/null
+          helm install qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --timeout 15m \
+            --set image.repository="$QABOARD_IMAGE" --set-string image.version="$QABOARD_VERSION"
+          kubectl port-forward svc/qaboard-proxy 5151:80 > /tmp/port-forward.log 2>&1 &
+      - name: Smoke tests
+        run: |
+          # The migrations Job ran (helm deletes it once it succeeded)
+          for _ in 1 2 3 4 5; do
+            kubectl get events --field-selector involvedObject.name=qaboard-migrations > /tmp/migrations.txt
+            grep -q Completed /tmp/migrations.txt && break
+            sleep 2
+          done
+          cat /tmp/migrations.txt
+          grep -q Completed /tmp/migrations.txt
+          curl -sSf --retry 10 --retry-all-errors --retry-delay 3 http://localhost:5151/api/v1/health
+          curl -sSf http://localhost:5151/api/v1/projects > /dev/null
+          curl -sSf http://localhost:5151/ | grep -q 'id="root"'
+          curl -sSf http://localhost:5151/docs/ > /dev/null
+      - name: qa batch in the cluster
+        run: python3 .github/scripts/helm_e2e.py http://localhost:5151
+      # The same release again: the migrations run again (pre-upgrade), nothing else may change
+      - name: helm upgrade
+        run: |
+          revision() { kubectl get deploy qaboard-backend qaboard-proxy -o jsonpath='{.items[*].metadata.annotations.deployment\.kubernetes\.io/revision}'; }
+          before=$(revision)
+          helm upgrade qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --timeout 15m \
+            --set image.repository="$QABOARD_IMAGE" --set-string image.version="$QABOARD_VERSION"
+          helm history qaboard
+          if [ "$(revision)" != "$before" ]; then
+            echo "::error::A no-op helm upgrade restarted pods: a template renders differently each time"
+            exit 1
+          fi
+          curl -sSf --retry 10 --retry-all-errors --retry-delay 3 http://localhost:5151/api/v1/health
+          # The results are still there
+          curl -sSf "http://localhost:5151/api/v1/commit/$GITHUB_SHA?project=user/sample_project" > /dev/null
+      - name: Cluster state on failure
+        if: failure()
+        run: |
+          set +e
+          df -h /
+          helm status qaboard && helm history qaboard
+          kubectl get all,pvc,jobs -o wide
+          kubectl get events --sort-by=.lastTimestamp | tail -60
+          kubectl describe pods | grep -v -E '^\s+(Limits|Requests|cpu|memory):'
+          for pod in $(kubectl get pods -o name); do
+            echo "::group::Logs of $pod"
+            kubectl logs "$pod" --all-containers --prefix --tail 200
+            kubectl logs "$pod" --all-containers --prefix --previous --tail 50 2> /dev/null
+            echo "::endgroup::"
+          done
+          cat /tmp/port-forward.log
+
   # The images are only "latest" once everything passed. A release's images get its version.
   publish-docker-images:
     runs-on: ubuntu-latest
     if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
-    needs: [python, webapp, docker, helm]
+    needs: [python, webapp, docker, helm, helm-e2e]
     permissions:
       contents: read
       packages: write
@@ -240,3 +344,42 @@ jobs:
               docker buildx imagetools create -t "$image:$service$suffix" "$image:$service-${GITHUB_SHA::8}"
             done
           done
+
+  # The helm chart, as an OCI artifact: helm install qaboard oci://ghcr.io/<owner>/charts/qaboard
+  # - A release (tag v1.2.0) publishes the chart 1.2.0, whose images are <service>-1.2.0.
+  # - master publishes a development version after the latest release (pyproject.toml's version, e.g. 1.2.0):
+  #   1.2.1-dev.<CI run number>, whose images are <service>-<commit>. As a SemVer pre-release, it never overwrites
+  #   a release, and helm ignores it unless asked for it (--devel, or --version 1.2.1-dev.42).
+  publish-chart:
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
+    needs: [publish-docker-images]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v4.2.1
+      - name: Package and push the chart
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = release ]; then
+            version="${GITHUB_REF_NAME#v}"
+            app_version="$version"
+          else
+            released=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+            IFS=. read -r major minor patch <<< "${released%%[-+]*}"
+            version="$major.$minor.$((patch + 1))-dev.$GITHUB_RUN_NUMBER"
+            app_version="${GITHUB_SHA::8}"
+          fi
+          # Forks publish their own images
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard"
+          sed -i "s#^  repository: ghcr.io/arthur-flam/qaboard\$#  repository: $image#" charts/qaboard/values.yaml
+          grep -q "^  repository: $image\$" charts/qaboard/values.yaml
+          helm package charts/qaboard --version "$version" --app-version "$app_version" --destination dist
+          echo "$GITHUB_TOKEN" | helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          helm push "dist/qaboard-$version.tgz" "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts"
+          echo "::notice::Published the chart oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts/qaboard --version $version (images $image:<service>-$app_version)"
