@@ -822,7 +822,7 @@ class ImgViewer extends React.PureComponent {
             {!!error.data && <p>data: {JSON.stringify(error.data)}</p>}
           </div>}
       >
-          <Tag intent={Intent.DANGER}>Image Dowload Error</Tag>
+          <Tag intent={Intent.DANGER}>Image Download Error</Tag>
       </Popover>
     </>;
 
