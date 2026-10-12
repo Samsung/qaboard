@@ -243,7 +243,7 @@ async function shotRegion(page: Page, target: Locator | Locator[] | undefined, p
   const viewport = page.viewportSize() ?? VIEWPORT;
   const targets = target === undefined ? [] : Array.isArray(target) ? target : [target];
   if (targets.length === 0) return { x: 0, y: 0, width: viewport.width, height: viewport.height };
-  const measure = async () => {
+  const measureOnce = async () => {
     const boxes = [];
     for (const t of targets) {
       const box = await t.boundingBox();
@@ -256,6 +256,18 @@ async function shotRegion(page: Page, target: Locator | Locator[] | undefined, p
       right: Math.max(...boxes.map(b => b.x + b.width)) + padding,
       bottom: Math.max(...boxes.map(b => b.y + b.height)) + padding,
     };
+  };
+  // until the boxes stop moving: transitions (a popover that opens) don't keep the network or the spinners busy
+  const measure = async () => {
+    let previous = await measureOnce();
+    for (let i = 0; i < 20; i++) {
+      await sleep(100);
+      const current = await measureOnce();
+      if (JSON.stringify(current) === JSON.stringify(previous)) return current;
+      previous = current;
+    }
+    console.warn('[shots] the target kept moving over 2 s, keeping its last box');
+    return previous;
   };
   await targets[0].scrollIntoViewIfNeeded();
   const bars = await topBarsBottom(page);

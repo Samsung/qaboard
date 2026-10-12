@@ -12,6 +12,9 @@ const newImage = (scope: Page | Locator) => images(scope).nth(0);
 const refImage = (scope: Page | Locator) => images(scope).nth(1);
 // the images (new, Image Diff, reference) with their labels
 const imageRow = (scope: Page | Locator) => newImage(scope).locator('xpath=../..');
+// the line above the images with the hovered pixel's coordinates, color swatches and values (and, with histograms,
+// the info icon above it)
+const pixelValues = (scope: Page | Locator) => scope.getByText(/^x: \d+, y: \d+$/).locator('xpath=../../..');
 const controlsPanel = (page: Page) => page.locator('.bp6-card', { has: page.getByText('Controls', { exact: true }) }).last();
 
 // `commit` against `reference`, the linux runs matching `filter` (the hw-model platform runs the same inputs)
@@ -126,13 +129,14 @@ shot('commit/pixel-tooltip', {
     + 'values in both images; crosshairs mark the pixel on both.',
   caption: 'Hover a pixel: its values in both images show above them, and a crosshair marks the same spot on the reference.',
   actions: async ui => {
+    await showCard(ui);
     const image = newImage(viewer(ui.page));
     const box = await image.boundingBox();
     // on a spoke's edge, where the denoisers differ
     await ui.hover(image, { position: { x: box!.width * 0.21, y: box!.height * 0.3 } });
     await ui.settle();
   },
-  target: page => [viewer(page).getByText(/^x: \d+, y: \d+$/).locator('xpath=..'), imageRow(viewer(page))],
+  target: page => [pixelValues(viewer(page)), imageRow(viewer(page))],
   padding: 4,
 });
 
@@ -156,11 +160,12 @@ shot('commit/roi-histograms', {
     await mouseAway(ui);
     await ui.settle();
   },
-  // the pixel values, the images, the histograms
+  // the pixel values, the images, the histograms (their axes and legend, not the plot's empty margins)
   target: page => [
-    viewer(page).getByText(/^x: \d+, y: \d+$/).locator('xpath=..'),
+    pixelValues(viewer(page)),
     imageRow(viewer(page)),
-    viewer(page).locator('.js-plotly-plot').first(),
+    viewer(page).locator('.js-plotly-plot g.cartesianlayer').first(),
+    viewer(page).locator('.js-plotly-plot g.legend').first(),
   ],
   padding: 4,
 });
@@ -186,8 +191,12 @@ shot('commit/auto-roi', {
     await ui.hover(menu);
     await ui.settle();
   },
-  // the viewer, and the menu that opens over it
-  target: page => [viewer(page), page.locator('.bp6-popover .bp6-menu').last()],
+  // the run's name and metrics, the viewer, and the menu that opens over them
+  target: page => [
+    cards(page).first().getByText('photos/facade.png', { exact: true }),
+    viewer(page),
+    page.locator('.bp6-popover .bp6-menu').last(),
+  ],
   padding: 4,
 });
 
@@ -199,6 +208,7 @@ shot('commit/image-filters', {
   caption: 'Image Tools filters apply to both images at once: here brightness and gamma reveal the noise in the shadows.',
   actions: async ui => {
     const scope = viewer(ui.page);
+    await showCard(ui);
     await preset(ui, scope, 'Shadows (noise)');
     await ui.hover(newImage(scope));
     await ui.click(scope.locator('[title="Image Tools"]').first());
@@ -211,8 +221,15 @@ shot('commit/image-filters', {
     await slider('Gamma').focus();
     for (let i = 0; i < 8; i++) await ui.press('ArrowLeft');
     await ui.settle();
+    const box = (await newImage(scope).boundingBox())!;
+    await ui.hover(newImage(scope), { position: { x: box.width * 0.6, y: box.height * 0.45 } });
+    await ui.settle();
+    // back on the button: the panel and the viewer's buttons hide when the mouse leaves the image
+    await ui.hover(scope.locator('[title="Image Tools"]').first());
+    await ui.settle();
   },
-  target: page => viewer(page),
+  // the run's name and metrics, and the viewer
+  target: page => [cards(page).first().getByText('photos/night-street.png', { exact: true }), viewer(page)],
   padding: 4,
 });
 
@@ -282,15 +299,18 @@ clip('commit/deep-zoom', {
     const at = { x: (3904 / 12288) * 100, y: (8192 / 9216) * 100 };
     const box = await newImage(scope).boundingBox();
     await ui.cursor.moveTo({ x: box!.x + (box!.width * at.x) / 100, y: box!.y + (box!.height * at.y) / 100 });
-    await ui.hold(700);
-    await ui.caption('Down to single pixels, in sync');
-    for (let i = 0; i < 4; i++) {
-      const now = await newImage(scope).boundingBox();
-      await ui.wheel(newImage(scope), -700, { steps: 7, position: { x: now!.width * at.x / 100, y: now!.height * at.y / 100 } });
-      await ui.hold(500);
-    }
+    await ui.hold(1000);
+    await ui.caption('Zoom in one image: the other follows');
+    // a screen pixel is 21 pixels of the wall: the wheel gets close to the row of stars, not onto a 64 px one
+    await ui.wheel(newImage(scope), -600, { steps: 6, position: { x: box!.width * at.x / 100, y: box!.height * at.y / 100 } });
     await ui.tiles();
-    await ui.hold(1800);
+    await ui.hold(1200);
+    // the preset region fits the star exactly
+    await ui.caption('Down to single pixels, in sync');
+    await preset(ui, scope, 'Siemens star 64 px');
+    await ui.tiles();
+    await ui.cursor.moveTo({ x: box!.x + box!.width / 2, y: box!.y + box!.height / 2 });
+    await ui.hold(2500);
   },
 });
 
