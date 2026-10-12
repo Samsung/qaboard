@@ -81,8 +81,9 @@ uv run docs-media/seed.py --story docs-media/tests/fixture/story.yaml   # test s
 uv run docs-media/snapshot.py save                          # snapshots/<key>.tar.zst, with T0 and the shas
 ```
 
-- `--until <commit>` stops early, `--checks-only` reruns the checks, `--t0 2026-10-08T16:00Z` picks T0 (default: the
-  stack's, else the last Thursday 16:00 UTC). All projects of a snapshot share T0.
+- `--fresh` empties the stack first (do it before seeding the projects of a new snapshot), `--until <commit>` stops
+  early, `--checks-only` reruns the checks, `--t0 2026-10-08T16:00Z` picks T0 (default: the stack's, else the last
+  Thursday 16:00 UTC). All projects of a snapshot share T0.
 - `seed.py` writes T0 and each story's shas in `<results>/.qaboard-demo/demo.json`, served at
   http://localhost:5151/s/mnt/qaboard/.qaboard-demo/demo.json. The snapshot's metadata has them too (`snapshot.py info`).
 - How runs, failures and times are simulated: the docstring of [`seed.py`](seed.py).

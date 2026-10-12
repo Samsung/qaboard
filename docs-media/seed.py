@@ -1578,6 +1578,7 @@ def main():
   parser.add_argument('--until', help="Stop after this commit (no milestones, checks of the seeded commits only)")
   parser.add_argument('--resume', action='store_true', help="Continue the last seed of this story where it stopped")
   parser.add_argument('--checks-only', action='store_true', help="Only run the story's checks")
+  parser.add_argument('--fresh', action='store_true', help="Start from an empty stack: delete its database and seeded data first")
   parser.add_argument('--workspace', default='/tmp/kitefin', help="Where the examples are copied and run (default: %(default)s)")
   parser.add_argument('--jobs', type=int, default=os.cpu_count(), help="Runs in parallel in each batch (default: %(default)s)")
   parser.add_argument('--volumes', action='store_true', help="down: also delete the data")
@@ -1594,6 +1595,10 @@ def main():
     stack.down(volumes=args.volumes)
     return
 
+  if args.fresh:
+    log("Deleting the demo stack's data (--fresh)", 'yellow')
+    stack.down(volumes=True)
+    shutil.rmtree(stack.demo_dir(), ignore_errors=True)
   if not stack.is_up():
     if args.server.rstrip('/') != stack.server_url():
       raise SystemExit(f"ERROR: {args.server} doesn't answer")

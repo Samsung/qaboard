@@ -86,9 +86,15 @@ def ensure_results_root():
   try:
     root.mkdir(parents=True, exist_ok=True)
   except PermissionError:
-    log(f"ERROR: Can't create the results storage {root}. Create it with:", 'red')
-    log(f"  sudo mkdir -p {root} && sudo chown $USER {root}", 'red')
-    sys.exit(1)
+    # e.g. in GitHub Actions, sudo doesn't ask for a password
+    sudo = shutil.which('sudo') and subprocess.run(['sudo', '-n', 'true'], capture_output=True).returncode == 0
+    if sudo:
+      subprocess.run(['sudo', '-n', 'mkdir', '-p', str(root)], check=True)
+      subprocess.run(['sudo', '-n', 'chown', f"{os.getuid()}:{os.getgid()}", str(root)], check=True)
+    else:
+      log(f"ERROR: Can't create the results storage {root}. Create it with:", 'red')
+      log(f"  sudo mkdir -p {root} && sudo chown $USER {root}", 'red')
+      sys.exit(1)
   if not os.access(root, os.W_OK):
     log(f"ERROR: Can't write in the results storage {root}: sudo chown $USER {root}", 'red')
     sys.exit(1)
