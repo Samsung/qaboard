@@ -822,7 +822,7 @@ class ImgViewer extends React.PureComponent {
             {!!error.data && <p>data: {JSON.stringify(error.data)}</p>}
           </div>}
       >
-          <Tag intent={Intent.DANGER}>Image Dowload Error</Tag>
+          <Tag intent={Intent.DANGER}>Image Download Error</Tag>
       </Popover>
     </>;
 
@@ -1026,6 +1026,8 @@ class ImgViewer extends React.PureComponent {
             output_new={output_new}
             output_ref={!has_same_data ? output_ref : undefined}
             path={path}
+            manifest={manifests?.new}
+            imageServers={this.props.imageServers}
             viewer={this.viewer_new}
             current_roi={current_roi}
             fullyLoaded={this.state.fullyLoaded.new && (!has_reference || this.state.fullyLoaded.ref)}

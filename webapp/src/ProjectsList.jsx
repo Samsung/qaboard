@@ -107,6 +107,8 @@ class ProjectsList extends Component {
             let data = details.data || {};
             let git = data.git || {};
             let qatools_config_project = data.qatools_config?.project || {};
+            // from qaboard.yaml, else from GitHub/GitLab
+            const description = qatools_config_project.description || git.description;
             if (details.latest_commit_datetime === undefined || details.latest_commit_datetime === null)
               return <span key={project_id}/>
 
@@ -129,7 +131,7 @@ class ProjectsList extends Component {
                 </div>
                 <div style={{'alignSelf': 'center', 'minWidth': 0}}>
                   <h5 className={Classes.HEADING}><Link onClick={() => this.props.dispatch(updateSelected(project_id))} to={`/${project_id}`}>{project_id}</Link></h5>                  
-                  {git.description && <p style={{marginTop: '5px', marginBottom: '0px'}} className={Classes.TEXT_MUTED}>{qatools_config_project.description || git.description}</p>}
+                  {description && <p style={{marginTop: '5px', marginBottom: '0px'}} className={Classes.TEXT_MUTED}>{description}</p>}
                 </div>
                 <div style={{'alignSelf': 'center', 'marginLeft': 'auto', textAlign: 'right', flex: '0 0 auto'}}>
                   <p style={{marginBottom: '5px'}}>
