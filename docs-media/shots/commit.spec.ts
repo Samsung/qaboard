@@ -45,7 +45,8 @@ async function mouseAway(ui: Ui) {
   await ui.hold(500);
 }
 
-// Clicks a region of interest preset under the viewer, by its label
+// Clicks a region of interest preset under the viewer, by its label. The viewer opens on the input's first preset,
+// but how close depends on its size when it opened: click it again for the same zoom every time.
 async function preset(ui: Ui, scope: Page | Locator, label: string) {
   const exact = new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
   await ui.click(scope.locator('a.bp6-button', { hasText: exact }).first());
@@ -69,6 +70,8 @@ shot('commit/visualizations', {
   caption: 'Each run shows its main metrics against the reference, then its outputs, new and reference side by side.',
   actions: async ui => {
     await showCard(ui);
+    await preset(ui, viewer(ui.page), 'Window frame (halos)');
+    await mouseAway(ui);
   },
 });
 
@@ -115,6 +118,8 @@ shot('commit/image-perceptual-diff', {
     + 'yellow and orange, the flat wall stays white.',
   caption: 'Image Diff shows where the images differ; raise its threshold until only the halos stand out.',
   actions: async ui => {
+    await showCard(ui);
+    await preset(ui, viewer(ui.page), 'Window frame (halos)');
     await diffThreshold(ui, viewer(ui.page), 10);
     await mouseAway(ui);
   },
@@ -130,6 +135,7 @@ shot('commit/pixel-tooltip', {
   caption: 'Hover a pixel: its values in both images show above them, and a crosshair marks the same spot on the reference.',
   actions: async ui => {
     await showCard(ui);
+    await preset(ui, viewer(ui.page), 'Center (aliasing)');
     const image = newImage(viewer(ui.page));
     const box = await image.boundingBox();
     // on a spoke's edge, where the denoisers differ
@@ -137,7 +143,8 @@ shot('commit/pixel-tooltip', {
     await ui.settle();
   },
   target: page => [pixelValues(viewer(page)), imageRow(viewer(page))],
-  padding: 4,
+  // flush: the selected preset's thumbnail is right above the values
+  padding: 0,
 });
 
 shot('commit/roi-histograms', {
@@ -258,6 +265,8 @@ clip('commit/image-diff', {
   caption: 'Synced zoom, then Image Diff and its threshold.',
   actions: async ui => {
     await showCard(ui);
+    await preset(ui, viewer(ui.page), 'Window frame (halos)');
+    await mouseAway(ui);
   },
   script: async ui => {
     const scope = viewer(ui.page);
