@@ -4,10 +4,11 @@ import axios, { all, spread, CancelToken } from "axios";
 const { get } = axios;
 import { tsvParse } from "d3-dsv";
 
+// No "Send to Cloud" or "Edit chart" links: they would upload the data to Plotly's public Chart Studio
 const config = {
   displayModeBar: true,
-  plotlyServerURL: "https://chart-studio.plotly.com",
-  showSendToCloud: true,
+  showSendToCloud: false,
+  showLink: false,
 };
 
 var colors = {

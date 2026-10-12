@@ -47,7 +47,7 @@ class Dashboard extends React.Component {
       latest_commit: null,
       selected_metrics: (dashboard_metrics || main_metrics || []).map(
         k => available_metrics[k]
-      )
+      ).filter(m => m !== undefined)
     };
   }
 
@@ -131,7 +131,7 @@ class Dashboard extends React.Component {
     if (is_loading)
       return (
         <Container style={{paddingTop: '50px'}}>
-          <NonIdealState title={`Loading ${!!this.props.match.name ? this.props.match.name : ''}`} icon={<Spinner />} />
+          <NonIdealState title={`Loading ${this.props.match.params.name ?? ''}`} icon={<Spinner />} />
         </Container>
       );
     if (commits.length===0) return <Container style={{paddingTop: '50px'}}>
@@ -227,6 +227,7 @@ class Dashboard extends React.Component {
         <Section>
           <Card>
             <h2 className={Classes.HEADING}>Metrics per-test</h2>
+            {/* Named like the views of the commit pages */}
             <Tabs
               renderActiveTabPanelOnly
               id="tabs-outputs"
@@ -237,12 +238,13 @@ class Dashboard extends React.Component {
             >
               <Tab
                 id="table-kpi"
-                title="vs KPI"
+                title="Metrics Table"
                 panel={
                   <TableKpi
                     new_batch={new_batch}
                     ref_batch={ref_batch}
-                    metrics={selected_metrics}
+                    metrics={selected_metrics.map(m => m.key)}
+                    available_metrics={available_metrics}
                     input={metricTableSelect}
                   />
                 }
@@ -250,11 +252,13 @@ class Dashboard extends React.Component {
               {has_reference && (
                 <Tab
                   id="table-compare"
+                  title="Metrics Diff"
                   panel={
                     <TableCompare
                       new_batch={new_batch}
                       ref_batch={ref_batch}
-                      metrics={selected_metrics}
+                      metrics={selected_metrics.map(m => m.key)}
+                      available_metrics={available_metrics}
                       input={metricTableSelect}
                     />
                   }
