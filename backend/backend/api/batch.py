@@ -1,3 +1,4 @@
+import re
 import json
 
 from flask import request, jsonify, g
@@ -25,6 +26,15 @@ def update_batch():
       check_storage_path(batch_dir)
     except UnsafePathError as e:
       return jsonify({"error": f"{e}"}), 400
+  batch_data = data.get('data') or {}
+  if batch_data.get('optimization'):
+    iteration = batch_data.get('iteration')
+    if not isinstance(iteration, int):
+      return jsonify({"error": "optimization: `iteration` must be an integer"}), 400
+    expected_label = f"{data['batch_label']}|iter{iteration}"
+    if batch_data.get('is_best_iter') and batch_data.get('iteration_label') != expected_label:
+      return jsonify({"error": f"optimization: `iteration_label` must be {expected_label}"}), 400
+
   # git_commit_sha for backward-compatibility
   hexsha = data.get('commit_sha') or data.get('git_commit_sha')
   try:
@@ -64,7 +74,6 @@ def update_batch():
         batch.data[attr_backward_compat] = data[attr]
         flag_modified(batch, "data")
 
-  batch_data = request.json.get('data', {})
   batch.data = {**batch.data, **batch_data}
 
   # Save info on each "qa batch" command in the batch, mainly to list them in logs
@@ -73,16 +82,21 @@ def update_batch():
     batch.data["commands"] = {**batch.data.get('commands', {}), **command}
     flag_modified(batch, "data")
 
-  # It's a `qa optimzize` experiment
+  # It's a `qa optimize` experiment. Like all ingest, this call is unauthenticated (the CLI rarely has a token),
+  # so it may only replace the optimization's own results: the best iteration's runs, moved into this batch by
+  # earlier calls, and the iteration batches named "<label>|iter<N>". Never other runs.
   if batch_data.get('optimization'):
+    optim_prefix = f"{data['batch_label']}|iter"
+    iteration = batch_data['iteration']
     if batch_data.get('is_best_iter'):
-      batch.data['best_iter'] = batch_data['iteration']
+      iteration_label = batch_data['iteration_label']
+      batch.data['best_iter'] = iteration
       flag_modified(batch, "data")
       # we will save the outputs from the best iteration in the batch,
       # so first we need to remove any previous best results
       if not batch_data.get("keep_all_best_iters"):
         for o in batch.outputs:
-          if o.output_type != 'optim_iteration':
+          if o.output_type != 'optim_iteration' and (o.data or {}).get('optimization_best'):
             print(f"  DELETE {o}")
             o.delete(soft=False)
             db_session.delete(o)
@@ -90,22 +104,19 @@ def update_batch():
       db_session.commit()
 
       # Move results from the best iteration in this batch
-      batch_batch_label = batch_data['iteration_label']
-      best_batch = ci_commit.get_or_create_batch(batch_batch_label)
+      best_batch = ci_commit.get_or_create_batch(iteration_label)
       for o in best_batch.outputs:
         o.batch = batch
+        o.data = {**(o.data or {}), 'optimization_best': iteration_label}
         db_session.add(o)
       db_session.commit()
 
     # delete past iterations (we can have "future iters when running in parallel")
     # results from the best iter are already in the "main" batch
-    optim_prefix = f"{data['batch_label']}|iter"
     for b in ci_commit.batches:
-      if not b.label.startswith(optim_prefix):
-        continue
-      iteration = int(b.label.replace(optim_prefix, ""))
-      if iteration <= batch_data['iteration']:
-        print(f'Deleting iteration {iteration} in {b.label}')
+      match = re.fullmatch(re.escape(optim_prefix) + r"(\d+)", b.label)
+      if match and int(match.group(1)) <= iteration:
+        print(f'Deleting iteration {match.group(1)} in {b.label}')
         b.delete(db_session)
         db_session.delete(b)
 

@@ -80,3 +80,10 @@ def test_missing_commit(outputs_api, dummy_app):
   response, status = post(outputs_api, dummy_app, without=["git_commit_sha"])
   assert status == 400
   outputs_api.CiCommit.get_or_create.assert_not_called()
+
+
+def test_clients_cannot_mark_runs_as_replaceable(outputs_api, dummy_app):
+  # Only the server marks the best iteration's runs, which `qa optimize` may later delete (see api/batch.py)
+  notify(outputs_api, dummy_app, data={"optimization_best": "default|iter1", "storage": "nfs"})
+  assert "optimization_best" not in outputs_api.test_output.data
+  assert outputs_api.test_output.data["storage"] == "nfs"

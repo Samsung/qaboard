@@ -71,8 +71,9 @@ Line references are to this branch's tree.
 
 ### 1.3 Gaps that matter once ingest is reachable from the internet
 Fine behind a firewall today. They become real once GitHub-hosted runners can reach the server.
-1. **Ingest is unauthenticated.** That covers `POST /api/v1/output/`, `/batch/` and `/commit/`. `/batch/` even
-   deletes outputs for optimization iterations (`backend/backend/api/batch.py:84`).
+1. **Ingest is unauthenticated.** That covers `POST /api/v1/output/`, `/batch/` and `/commit/`. `/batch/` deletes
+   outputs for `qa optimize`, but only the optimization's own: runs it moved in from its best iteration (marked by the
+   server) and its `<label>|iter<N>` batches (`backend/backend/api/batch.py`).
 2. **Stored XSS.** The HTML viewer injects output HTML with `dangerouslySetInnerHTML` (`webapp/src/viewers/html.jsx:93,96`),
    and nginx serves uploaded HTML and SVG from the app's origin. Whoever can write outputs can run JavaScript
    in reviewers' sessions.
