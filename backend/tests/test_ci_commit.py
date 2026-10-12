@@ -3,6 +3,7 @@ Tests for backend/models/CiCommit.py: the commits created when clients (the CLI,
 """
 import sys
 import types
+import datetime
 import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
@@ -126,3 +127,78 @@ def test_project_name_without_project_root(ci_commit_model):
   del data["project_root"]
   get_or_create(ci_commit_model, project, data)
   assert project.data["git"]["path_with_namespace"] == "group/project"
+
+
+# ==========================================
+# Commit metadata, and commits without a branch
+# ==========================================
+
+def test_commit_metadata_from_client(ci_commit_model):
+  ci_commit = get_or_create(ci_commit_model, make_project(), cli_data(commit_branch="feature", commit_parents=["abc"]))
+  assert (ci_commit.branch, ci_commit.parents, ci_commit.message, ci_commit.committer_name, ci_commit.authored_datetime) == ("feature", ["abc"], "Fix", "arthurf", AUTHORED)
+
+
+@pytest.mark.parametrize("data", [
+  {"commit_authored_datetime": AUTHORED},
+  {"commit_authored_datetime": AUTHORED, "commit_branch": None, "commit_message": None},
+])
+def test_commit_without_git_and_branch(ci_commit_model, data):
+  # The project has no git repository: the client's data is enough
+  ci_commit = get_or_create(ci_commit_model, make_project(), data)
+  assert ci_commit.branch is None
+  assert ci_commit.message == "<NA>"
+  assert ci_commit.committer_name == "unknown"
+  assert ci_commit.authored_datetime == AUTHORED
+
+
+def test_commit_metadata_from_git(ci_commit_model, monkeypatch):
+  authored = datetime.datetime(2026, 10, 1, tzinfo=datetime.timezone.utc)
+  repo = MagicMock()
+  repo.commit.return_value = SimpleNamespace(parents=[SimpleNamespace(hexsha="abc")], message="From git", committer=SimpleNamespace(name="git-user"), authored_datetime=authored)
+  monkeypatch.setattr(ci_commit_model, "find_branch", lambda hexsha, repo: "origin/develop")
+  ci_commit = get_or_create(ci_commit_model, make_project(repo=repo), {"project": "group/project"})
+  repo.commit.assert_called_once_with(HEXSHA)
+  assert (ci_commit.branch, ci_commit.parents, ci_commit.message, ci_commit.committer_name, ci_commit.authored_datetime) == ("origin/develop", ["abc"], "From git", "git-user", authored)
+
+
+def test_commit_unknown_to_client_and_git(ci_commit_model):
+  # e.g. a typo in the commit id, without a git repository
+  with pytest.raises(Exception):
+    get_or_create(ci_commit_model, make_project(), {"project": "group/project"})
+
+
+@pytest.mark.parametrize("branch, expected", [
+  ("feature", "feature"),
+  ("origin/develop", "develop"),
+  (None, ""),
+])
+def test_to_dict_branch(ci_commit_model, branch, expected):
+  ci_commit = ci_commit_model.CiCommit(HEXSHA, project=make_project(), branch=branch, authored_datetime=datetime.datetime(2026, 10, 1))
+  ci_commit.batches = []
+  ci_commit.deleted = False
+  ci_commit.commit_dir_override = None
+  assert ci_commit.to_dict(MagicMock())["branch"] == expected
+
+
+@pytest.fixture
+def api(monkeypatch):
+  """Loads the real backend/api/api.py"""
+  for name in ('func', 'and_', 'asc', 'or_', 'text'):
+    monkeypatch.setattr(sys.modules['sqlalchemy'], name, MagicMock(), raising=False)
+  sa_sql = types.ModuleType('sqlalchemy.sql')
+  sa_sql.label = MagicMock()
+  monkeypatch.setitem(sys.modules, 'sqlalchemy.sql', sa_sql)
+  path = Path(__file__).parent.parent / "backend" / "api" / "api.py"
+  spec = importlib.util.spec_from_file_location("backend.api._api_branches_under_test", path)
+  module = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(module)
+  monkeypatch.setattr(module, "is_authorized_user", lambda user, project: True)
+  monkeypatch.setattr(module, "db_session", MagicMock())
+  return module
+
+
+def test_branches_skip_commits_without_branch(api, dummy_app):
+  query = api.db_session.query.return_value.filter.return_value.distinct.return_value.order_by.return_value
+  query.yield_per.return_value = [("develop",), ("feature",), (None,)]
+  with dummy_app.test_request_context("/api/v1/project/branches?project=group/project"):
+    assert api.get_branches().get_json() == ["develop", "feature"]
