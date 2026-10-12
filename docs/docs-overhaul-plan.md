@@ -1,81 +1,103 @@
 # Docs, screenshots and positioning overhaul: plan
 
-Status: proposal, nothing generated yet. Written 2026-10-12 after a full audit of `website/`, `webapp/`,
-the backend ingest path and CI. Decisions marked **(decide)** need the maintainer; each has a recommendation.
+Status: plan v2 (2026-10-12), approved in principle, nothing generated yet. **(decide)** marks what's still open;
+each has a recommendation. Section 10 lists what's already decided.
+
+Changes since v1:
+- No hosted or static public demo for now. "Try it" means a local quickstart with demo data, on Docker Compose
+  or Kubernetes, and both are tested in CI.
+- A GitHub-first tutorial with a stack picker (tabs that remember your choices).
+- A Kubernetes quickstart that works, owned by its own subagent.
+- Quality gate v1, shipped as experimental.
+- A vision page with a much larger roadmap: N-way comparisons, enterprise, deep learning, a W&B-style SDK.
+- Small product gaps are fixed in phase 0.
+- Media is served from the docs site itself. `sivoov.app` is only used by build tooling and never appears to readers.
 
 ## TL;DR
-- The product is in much better shape than the website. The user guide text is recent and good, the
-  web app got a lot of polish in 2026, but every screenshot and the whole landing page date from 2019-2020
-  (old "KPIs" sidebar, "QA" header, PowerPoint call-outs, real employee names). That is most of why the
+- The product is in much better shape than the website. The user guide text is current and the app got a lot of
+  polish in 2026, but every screenshot and the whole landing page date from 2019-2020. That's most of why the
   project looks inactive.
-- Build **one pipeline** with three payoffs: demo projects + a seeder fill a real stack with a believable
-  story, then a Playwright shot list captures stills and clips to R2. The same seeded snapshot later powers
-  a public read-only demo and a "try it locally with demo data" quickstart.
-- Heavy runs are **opt-in**: manual dispatch, a PR label, release tags, and a monthly refresh. Never on every push.
-- Reposition from "experiment tracker" (a crowded, ML-training category) to **"results review for
-  algorithm teams"**: the thing every team ends up building badly in-house. Agents come in as a
-  roadmap/vision story, backed by one real feature (a CI quality gate) before we market it.
-- Execution is mostly subagents in parallel workstreams with fixed contracts (shot ids, manifest
-  schema, story format), in 4 phases. Phase 1 is a thin vertical slice that proves the pipeline end to end
-  before anything scales.
+- **One pipeline, several payoffs.** Demo projects and a seeder fill a real stack with a believable history.
+  - A Playwright shot list captures stills and clips. They're stored in R2 and served from the docs site.
+  - The same demo data ships as a container image, so anyone can run QA-Board locally with data in minutes, on
+    Compose or Kubernetes. That replaces a hosted demo until hosting is possible.
+- Heavy media runs are opt-in: manual dispatch, a PR label, release tags and a monthly refresh.
+- Reposition from "experiment tracker" to **results review for algorithm teams**: the tool every team ends up
+  building badly in-house. The agent story is a vision page backed by one real, experimental feature: a CI quality gate.
+- Two release-plumbing problems block any quickstart, so we fix them first:
+  - The published Docker images are from 2022, and there's no `proxy` image.
+  - The Helm chart has never been installed in CI.
 
 ---
 
 ## 1. Where we are (audit summary)
 
-**Website** (`website/`, Docusaurus 3.10, GitHub Pages)
-- 51 doc pages in 3 sidebars (User guide / Project integration / Admin). The user guide (Oct 2026) is good;
-  "Getting started" and several guides are 2020-era: `introduction` embeds a SlideShare, links `https://qa`.
-- ~40 web-app screenshots, all 2019-2020 UI, some captioned "older screenshot". 4 GIFs (5 MB). No videos
-  except one YouTube embed. 5 referenced images are missing (4 deep-learning GIFs, the social card).
-- Landing page (`src/pages/index.js`): 2019 slide crops with orange arrows, typos, `<title>` is
-  "Hello from QA-Board", hero CTA goes to the stale intro, "I run the server" goes to a SIRC runbook.
-- Site config still says `url: https://samsung.github.io`, `organizationName: Samsung`, edit links to
-  `Samsung/qaboard`, Algolia DocSearch index `samsung_qaboard`. No analytics, no PR build check.
-- Public docs contain internal runbooks: `backend-admin/{deployment,troubleshooting,host-upgrades,
-  getting-SSL-certiticates-from-IT}` and parts of `start-server`/`kubernetes` (internal hosts, paths,
-  registry). `dag-pipelines` is a design proposal naming colleagues.
-- Blog: 2 posts, both 2020. Release notes: very active (37 notes, monthly in 2026), wired into the app.
-- Root `.gitignore` ignores `*.png *.jpg *.gif *.svg *.ico`: new screenshots are silently not committed.
+**Website** (`website/`, Docusaurus 3.10)
+- **Where it's published:**
+  - The live site is `samsung.github.io/qaboard` and it's current (3.10.2, with release notes).
+  - `arthur-flam.github.io/qaboard` returns 404: this repo's Pages deploy isn't what serves the site. **To confirm:** which workflow publishes it.
+- **Pages:** 51 doc pages in 3 sidebars (User guide / Project integration / Admin).
+  - The user guide is maintained and good.
+  - "Getting started" and several guides are 2020-era: `introduction` embeds a SlideShare and links `https://qa`.
+- **Media:**
+  - ~40 web-app screenshots, all 2019-2020 UI, some captioned "older screenshot".
+  - 4 GIFs (5 MB). No videos except one YouTube embed.
+  - 5 referenced images are missing (4 deep-learning GIFs and the social card).
+- **Landing page** (`src/pages/index.js`):
+  - 2019 slide crops with orange arrows, typos, and a `<title>` of "Hello from QA-Board".
+  - "I run the server" links to an internal runbook.
+- **Internal runbooks on the public site:** `backend-admin/{deployment,troubleshooting,host-upgrades,getting-SSL-certiticates-from-IT}`
+  and parts of `start-server`/`kubernetes` (internal hosts, paths, registry). `dag-pipelines` is a design proposal that names colleagues.
+- **Blog and release notes:** the blog has 2 posts, both from 2020. The release notes are very active (37 notes, monthly in 2026).
+- **`.gitignore`:** the root file ignores `*.png *.jpg *.gif *.svg *.ico`, so new screenshots are silently not committed.
 
-**Web app** (React 19 / Blueprint 6 / Vite 8): rich and screenshot-friendly, since most state is in the URL
-(`selected_views`, `batch`, `reference`, `filter`, `controls`, `#whats-new`...). Notable polish to show off:
-synced zoom/pan + crosshair across cards, perceptual image diff with threshold, pixel tooltip, ROI
-histograms, "Find regions of interest", image filters, IIIF deep zoom on 100MP+ images, dynamic outputs
-with synced sliders, Plotly overlays, differential flame graphs, Monaco text diff, video sync, point clouds,
-6DoF trajectories, bit-accuracy file tree with in-place diff, live log tail with LSF hints, keyboard-driven
-file browser, Monaco batch editor with conflict handling, tuning forms + analysis (convergence,
-sensitivity, parallel coordinates), milestones, integrations menu, What's new dialog/drawer.
-Gaps that screenshots will expose: no dark mode, no command palette, History page sidebar empty and an
-untitled tab, Plotly "Send to Cloud" button in the SLAM viewer (all listed in `webapp/TODO.md`).
+**Web app** (React 19 / Blueprint 6 / Vite 8): rich and screenshot-friendly, because most state lives in the URL.
+- **Polish to show off:**
+  - Images: synced zoom/pan with crosshair, perceptual diff with threshold, pixel tooltip, ROI histograms, auto-ROI, filters, IIIF deep zoom on 100MP+ images.
+  - Other viewers: dynamic outputs with synced sliders, Plotly overlays, differential flame graphs, Monaco text diff, video sync, point clouds, 6DoF trajectories, bit-accuracy tree with in-place diff.
+  - Logs and files: live log tail with LSF hints, keyboard-driven file browser, Monaco batch editor.
+  - Tuning analysis, milestones, What's new.
+- **Gaps:**
+  - No dark mode and no command palette.
+  - History page: the sidebar is empty and one tab has no title.
+  - Plotly "Send to Cloud" button in the SLAM viewer.
 
-**Data**: no demo project (only `qaboard/sample_project`, which computes nothing), no seed data, no
-fixtures beyond tiny inline e2e mocks. But a fresh stack can be filled without git/GitLab/LSF:
-`POST /api/v1/output/` is unauthenticated and git-free when payloads carry the `commit_*` fields, or the
-real `qa` CLI can run with fake CI variables (`CI=1 GITHUB_SHA=... GITHUB_REF=...`). Output files must sit
-under the storage root mounted into backend, nginx and Cantaloupe (`deployments/example.yml`).
-Seeder gotchas found: `commit_branch` must be set (`to_dict` crashes on `None`), and
-`CiCommit.get_or_create` tests `'qatools_config' not in data` against a payload keyed `qaboard_config`, so
-every new commit overwrites the project config (`backend/backend/models/CiCommit.py:265`, a real bug to fix).
-Committer avatars only come from GitLab/GitHub APIs.
+**Data and ingest**
+- No demo project (`qaboard/sample_project` computes nothing), no seed data, and only tiny inline e2e mocks.
+- **A fresh stack is still easy to fill:** `POST /api/v1/output/` doesn't need git when payloads carry the `commit_*`
+  fields, or the real `qa` CLI runs with fake CI variables (`CI=1 GITHUB_SHA=... GITHUB_REF=...`).
+- **Two bugs a seeder will hit:**
+  - `commit_branch=None` crashes `to_dict`.
+  - `CiCommit.get_or_create` tests `'qatools_config' not in data` against a payload keyed `qaboard_config`, so
+    every commit overwrites the project config (`backend/backend/models/CiCommit.py:265`).
+- **The ingest endpoints are unauthenticated.** That's acceptable behind a firewall, but not once a server is exposed so GitHub-hosted runners can reach it.
+- **The CLI never uploads output files.** Runs write to storage shared with the server (NFS-style, same absolute
+  path), so a CI runner must mount that storage. GitHub-hosted runners can't use QA-Board today.
 
-**CI**: GitHub CI already builds every image with a layer cache, brings the full stack up
-(`deploy.py deployments/production.env up --init`) and smoke-tests it on a 4-CPU runner. The screenshot
-job reuses that path. Playwright already runs in CI (mocked API, `webapp/e2e/`).
+**Release plumbing**
+- **PyPI is current:** `qaboard` 1.1.1, Oct 2026.
+- **Docker Hub is stale:** `arthurflam/qaboard` has backend/frontend/website from Feb 2022 and cantaloupe from Jul 2025.
+  There's no `proxy` image. CI pushes only when `DOCKERHUB_*` secrets are set, and they evidently aren't.
+- **The chart was never installed:** CI lints `charts/qaboard` and runs kubeconform, nothing more.
+  Results storage has to be wired by hand into backend, proxy and Cantaloupe through three separate `extraVolumes`.
 
-**Agents/LLMs**: nothing in the code yet. Building blocks: REST API with bearer tokens,
-`qa check-bit-accuracy` (exit code), `target_passfail` metrics. No GitHub check runs or commit statuses
-(`docs/github-support-roadmap.md` lists them as deferred).
+**CI:** GitHub CI already builds every image with a layer cache, brings the full Compose stack up and smoke-tests it
+on a 4-CPU runner. The media job and the quickstart tests build on that.
 
 ---
 
 ## 2. Positioning and narrative
 
 ### Who we're for
-Teams whose output quality can't be captured by pass/fail tests: camera/ISP and imaging, computer vision
-and ML model evaluation, robotics/automotive perception, embedded and HW/SW co-design (bit-accuracy),
-performance engineering. The buyer is the tech lead or manager currently maintaining a pile of scripts,
-spreadsheets, an internal Flask dashboard and screenshots pasted in Slack.
+Teams whose output quality can't be captured by pass/fail tests:
+- camera/ISP and imaging;
+- computer vision and ML model evaluation;
+- robotics and automotive perception;
+- embedded and HW/SW co-design (bit-accuracy);
+- performance engineering.
+
+The buyer is the tech lead or manager who maintains a pile of scripts, spreadsheets, an internal dashboard, and
+screenshots pasted in Slack.
 
 ### The pitch
 > **Tests tell you it runs. QA-Board shows you it's better.**
@@ -83,337 +105,514 @@ spreadsheets, an internal Flask dashboard and screenshots pasted in Slack.
 > (images, plots, flame graphs, logs, metrics) so your team can see what changed, agree it's better and ship it.
 > Self-hosted, git-native, built for heavy data.
 
-Short form for social cards / GitHub description: *"Code review for results."*
-Category we claim: **results review** (or "quality CI"), not "experiment tracking".
+- Short form for social cards and the GitHub description: *"Code review for results."*
+- The category we claim is **results review**, not "experiment tracking".
 
-### Why not X (to be written honestly, as a comparison page)
+### Why not X (an honest comparison page)
 | Alternative | What it's great at | Where QA-Board wins |
 |---|---|---|
-| In-house dashboard + scripts | Fits exactly, at first | Years of polish you won't build: deep zoom, synced diff, tuning, runners, bit-accuracy, file browser, auth |
-| W&B, MLflow, Comet, ClearML | Training runs, scalar curves, model registry | Output-centric (look at the results, not just numbers), commit-centric, any algorithm, self-hosted, no per-seat pricing |
-| CodSpeed, Bencher, asv | Micro-benchmarks on PRs | Perf *and* output quality in one place, flame graph diffs, real workloads on your data |
-| LangSmith, Braintrust | LLM traces and evals | Not limited to text/LLMs; same review loop for every algorithm |
+| In-house dashboard + scripts | Fits exactly, at first | Years of polish you won't build: deep zoom, synced diff, tuning, cluster runners, bit-accuracy, file browser, auth |
+| W&B, MLflow, Comet, ClearML | Training runs, scalar curves, model registry | Output-centric, commit-centric, any algorithm, self-hosted, no per-seat pricing, and you can keep using them (roadmap: W&B-style SDK and importers) |
+| CodSpeed, Bencher, asv | Micro-benchmarks on PRs | Perf and output quality in one place, flame graph diffs, real workloads on your data |
+| LangSmith, Braintrust | LLM traces and evals | Not limited to text/LLMs; the same review loop for every algorithm |
 | Notebooks | Exploration | Persistent, comparable, shareable by link |
 
-Context worth one sentence, not a campaign: Neptune's hosted tracker shut down in March 2026 after its
-acquisition; self-hosted open source is a real argument for buyers who got burned.
+One sentence of context, not a campaign: Neptune's hosted tracker shut down in March 2026 after its acquisition.
+Self-hosted open source is a real argument for buyers who got burned.
 
-### Story spine (used by the landing page, the tour and the tutorials)
-The evaluation loop, one step per section, each with a clip:
-1. **Run**: wrap your code with `qa`, run on a batch of inputs locally, on a cluster or in CI.
-2. **Compare**: every commit against the reference branch or a milestone; metrics diff with targets.
-3. **Look**: the outputs themselves, side by side, synced, diffed, zoomed to the pixel.
+### Story spine (landing page, tour, tutorials)
+1. **Run**: wrap your code with `qa` and run it on a batch of inputs, locally, on a cluster or in CI.
+2. **Compare**: every commit against the reference branch or a milestone, with a metrics diff against targets.
+3. **Look**: the outputs themselves, side by side, synced, diffed and zoomed to the pixel.
 4. **Find**: History across commits; hover to find the commit that regressed.
-5. **Tune**: launch parameter sweeps or black-box optimization from the browser, analyse them.
-6. **Gate**: block merges that regress quality, for humans' and agents' changes alike (roadmap: §8).
+5. **Tune**: launch sweeps or black-box optimization from the browser, then analyse them.
+6. **Gate** (experimental): fail CI when quality regresses, for changes made by people or by agents.
 
 ### Voice
-Confident and concrete, no hype words. Every claim is something you can see in a screenshot or verify
-in the code. Second person, task-first. No internal hostnames, colleague names, ticket ids. A style guide
-(`website/STYLE.md`) gives agents these rules plus terminology from `SIDEBAR.md`
-(Summary / Metrics Table / Metrics Diff / Outputs / Source / Tuning / Integrations).
+- Confident and concrete, with no hype words.
+- Every claim can be seen in a screenshot or verified in the code. Roadmap items live on the vision page, labeled.
+- No internal hostnames, colleague names or ticket ids.
+- Rules live in `website/STYLE.md`, including the terminology from `SIDEBAR.md`.
 
 ---
 
 ## 3. Demo projects (the sample data)
 
-Real, runnable QA-Board projects under `examples/`, deterministic (seeded RNG), small enough for a CI runner,
-with license-clean inputs. They are both the screenshot data and the tutorial material
-("clone `examples/image-quality` and run it").
+Real, runnable QA-Board projects under `examples/`:
+- deterministic (seeded RNG) and small enough for a CI runner;
+- license-clean inputs, listed in each project's `LICENSES.md`;
+- they're both the screenshot data and the tutorial material.
 
 | Project | Use case | What it computes | Showcases |
 |---|---|---|---|
-| `examples/image-quality` | Camera ISP / image enhancement | Simulated sensor (noise, Bayer) → demosaic → denoise → sharpen → tone-map; PSNR, SSIM, noise in flat patches, MTF50 on a slanted edge, runtime | IIIF deep zoom on one 100MP+ image, synced zoom, perceptual diff + threshold, pixel tooltip, ROI histograms, auto-ROI, filters, per-stage dynamic outputs, targets, a fixed-point "HW model" platform for bit-accuracy, tuning denoise strength |
-| `examples/perf-regression` | Software performance | A small library benchmarked on realistic inputs: p50/p95 latency, throughput, peak RSS; sampling-profiler flame graphs | History over 6 weeks, the hover-to-find-the-regression flow, differential flame graph, latency Plotly overlays, logs, metrics with `smaller_is_better` |
-| `examples/detection-eval` | CV / ML model evaluation | A small permissively licensed detector (e.g. torchvision, BSD) at fp32 vs int8 vs input resolutions; mAP, per-class recall, latency | Metrics Table/Diff per class, PR curves overlaid, images with boxes, HTML report, `qa optimize` tuning + Analysis view, milestones as model releases |
-| `examples/robotics-3d` (phase 3) | Robotics / perception | Trajectory estimation vs ground truth, point clouds, camera video | 6DoF viewer, point clouds, synced videos |
-| `examples/agent-evals` (phase 3) | Evaluating LLM/agent features | Text tasks scored by checks; pass rate, cost, latency; transcripts | Monaco text diffs, HTML reports, the gate (§8) |
+| `examples/image-quality` | Camera ISP / image enhancement | Simulated sensor (noise, Bayer) → demosaic → denoise → sharpen → tone-map; PSNR, SSIM, noise in flat patches, MTF50 on a slanted edge, runtime | Deep zoom on one 100MP+ image, synced zoom, perceptual diff + threshold, pixel tooltip, ROI histograms, auto-ROI, filters, per-stage dynamic outputs, targets, a fixed-point "HW model" platform for bit-accuracy, tuning |
+| `examples/perf-regression` | Software performance | A small library benchmarked on realistic inputs: p50/p95 latency, throughput, peak RSS, sampling-profiler flame graphs | History, hover-to-find-the-regression, differential flame graph, latency plots, logs, the gate failing on the bad commit |
+| `examples/detection-eval` | CV / ML model evaluation | A permissively licensed detector (e.g. torchvision, BSD) at fp32 vs int8 vs input sizes; mAP, per-class recall, latency | Metrics Table/Diff per class, PR curves overlaid, images with boxes, HTML report, `qa optimize` + Analysis, milestones as model releases |
+| `examples/robotics-3d` (phase 3) | Robotics / perception | Trajectory vs ground truth, point clouds, camera video | 6DoF viewer, point clouds, synced videos |
+| `examples/agent-evals` (phase 3) | LLM / agent features | Text tasks scored by checks; pass rate, cost, latency, transcripts | Text diffs, HTML reports, the gate |
 
-Inputs: procedurally generated test charts (slanted edge, color checker, Siemens star) are ours outright;
-photos and video from public domain / CC0 sources, listed in each project's `LICENSES.md`. Large inputs live
-in R2 (`demo-inputs/`, content-addressed, checksums in the repo), never in git.
+**Inputs:**
+- Generated test charts (slanted edge, color checker, Siemens star) are ours outright.
+- Photos and video come from public-domain or CC0 sources. Large ones are fetched from their original public URL
+  with a checksum, and mirrored in R2 for CI.
 
-**A story per project** (`examples/<name>/story.yaml`): ~4-6 weeks of history relative to a seed date T0,
-30-60 commits on `main` and 3-4 feature branches, a fictional team of ~6 people with generated avatars,
-2 milestones (releases), and one plot each: a perf regression introduced then fixed; a denoiser change
-that wins PSNR but adds halos (visible in the image diff); a quantized model that regresses on small
-objects and gets tuned back. Plus failed runs with real-looking logs, and one run still in progress at
-capture time (for the live-log clip). The story drives the code changes (parameters/flags per commit), so
-every number on screen is actually computed.
+**A story per project** (`examples/<name>/story.yaml`):
+- ~4-6 weeks of history before a seed date T0.
+- 30-60 commits on `main` and 3-4 feature branches.
+- A fictional company and team of ~6 people with generated avatars, plus 2 milestones.
+- One plot per project:
+  - a perf regression introduced, then fixed;
+  - a denoiser that wins PSNR but adds halos;
+  - a quantized model that regresses on small objects and is tuned back.
+- Failed runs with real-looking logs, and a run still in progress at capture time.
+
+Every number on screen is actually computed.
 
 ---
 
 ## 4. The media pipeline
 
 ```
-examples/*  ──seed.py──►  stack (docker compose, demo overlay)  ──snapshot──►  R2 (private): db.dump + storage.tar.zst
-                                     │
-                         shots/*.spec.ts (Playwright)
-                                     │
-               stills (PNG@2x → AVIF/WebP + LQIP) · clips (CDP screencast → MP4/WebM + poster) · terminal (VHS)
-                                     │
-                         publish.py: perceptual diff vs current → upload changed → website/media.json
-                                     │
-                         <Shot id> / <Clip id> in docs and landing page  ──►  R2 (public): media.<domain>
+examples/*  ──seed.py──►  stack (Compose + demo overlay)  ──snapshot──►  R2 qaboard-ci (private)
+                                    │                                 └─► demo-data image (GHCR) for the quickstarts
+                        shots/*.spec.ts (Playwright)
+                                    │
+             stills (PNG@2x → AVIF/WebP + LQIP) · clips (CDP screencast → MP4/WebM + poster) · terminal (VHS)
+                                    │
+                        publish.py: perceptual diff vs current → upload changed → website/media.json
+                                    │
+           R2 qaboard-media ──(fetched at build time)──► docs build ──► served same-origin to readers
 ```
 
 ### Layout
 ```
 examples/<project>/                 # demo projects + story.yaml
 docs-media/
-  compose.demo.yml                  # overlay: storage mounts for backend/nginx/cantaloupe, demo env, no rabbitmq/flower/pgadmin
+  compose.demo.yml                  # overlay: results storage mounted in backend/nginx/cantaloupe, demo env
   seed.py                           # uv script: replay stories into a running stack (real `qa` CLI + fake CI env)
-  snapshot.py                       # uv script: save/restore db + storage to/from R2, keyed by a content hash
-  shots/*.spec.ts                   # the shot list, one file per area (commit page, history, tuning, files, landing...)
-  shots/lib/                        # clock, waits (IIIF tiles loaded), cursor + caption overlay, shot()/clip() helpers
-  tapes/*.tape                      # terminal recordings (charmbracelet/vhs) for the `qa` CLI
-  publish.py                        # uv script: encode, dedupe by perceptual diff, upload to R2, write the manifest
-website/media.json                  # committed manifest: id → urls, width, height, lqip, alt, captured, app version
-website/src/components/{Shot,Clip,Compare}.tsx
+  snapshot.py                       # uv script: save/restore db + storage (R2), build the demo-data image
+  shots/*.spec.ts                   # the shot list, one file per area
+  shots/lib/                        # clock, waits (IIIF tiles, Plotly), cursor + caption overlay, shot()/clip()
+  tapes/*.tape                      # terminal recordings (charmbracelet/vhs)
+  publish.py                        # uv script: encode, dedupe by perceptual diff, upload, write the manifest
+website/media.json                  # committed manifest: id → key, width, height, lqip, alt, captured, app version
+website/plugins/media/              # downloads the manifest's files into the build (same-origin URLs)
+website/src/components/{Shot,Clip,Compare,StackPicker}.tsx
 .github/workflows/docs-media.yml
 ```
 
-### Determinism (so re-runs only change what really changed)
-- Capture from a **restored snapshot**, not a fresh seed: profiles and timings vary run to run, the snapshot doesn't.
-- `page.clock` frozen at T0 (relative dates, the 3-day default range, the What's new popup).
-- Fixed viewport 1440x900 at deviceScaleFactor 2, pinned fonts in the capture container, `reducedMotion` for stills.
-- Pre-seeded localStorage (What's new seen, controls panel state, log wrap), wait for OpenSeadragon
-  `fully-loaded` and Plotly `afterplot`, mask truly volatile bits (version, durations).
-- `publish.py` compares each new still to the published one (pixelmatch) and keeps the old one under a
-  threshold: no churn, small diffs in review.
+### Determinism
+- **Capture from a restored snapshot**, not a fresh seed, because profiles and timings vary between runs.
+- **Freeze `page.clock` at T0.**
+- **Fixed rendering:** a 1440x900 viewport at 2x, pinned fonts, and `reducedMotion` for stills.
+- **Stable page state:**
+  - Pre-seed localStorage (What's new seen, panel states).
+  - Wait for OpenSeadragon `fully-loaded` and Plotly `afterplot`.
+  - Mask truly volatile bits.
+- **No churn:** `publish.py` keeps the published image when the new one is within a perceptual-diff threshold.
 
 ### Stills, clips, terminal
-- **Stills**: shot specs are code (`shot('commit/image-diff', {url, actions, locator, alt})`). Raw and clean;
-  call-outs are HTML overlays in the docs (`<Shot id callouts=[...]>`), so they stay sharp, editable and
-  don't need a re-capture. No more baked orange arrows.
-- **Clips** (6-20 s, silent, captioned): Playwright's built-in video is low quality, so record with the CDP
-  screencast at 30 fps, inject a fake cursor with click ripples and smooth paths, assemble with ffmpeg:
-  MP4 H.264 (faststart) + WebM, poster JPEG, < 3 MB for the hero. `prefers-reduced-motion` shows the poster.
-- **Terminal**: VHS tapes for `qa run`, `qa batch`, `qa check-bit-accuracy`, rendered to MP4/WebM + a final-frame PNG.
-- Each shot carries its alt text and the doc pages that use it, so a missing or unused shot fails the build.
+- **Stills:**
+  - Shot specs are code: `shot('commit/image-diff', {url, actions, locator, alt})`.
+  - Captures stay clean. Call-outs are HTML overlays in the docs (`<Shot id callouts=[...]>`), so they're editable without re-capturing.
+- **Clips:**
+  - 6-20 s, silent and captioned.
+  - Recorded with the CDP screencast at 30 fps (Playwright's own video is too low quality), with a fake cursor and click ripples.
+  - Encoded to MP4 H.264 + WebM, with a poster frame. The hero clip stays under 2 MB.
+  - With `prefers-reduced-motion`, readers see the poster.
+- **Terminal:** VHS tapes for `qa run`, `qa batch`, `qa check-bit-accuracy`, `qa gate`, and the quickstart commands.
+- **Build checks:** each shot carries its alt text, and a missing or unused shot fails the docs build.
 
-### R2
-- Two buckets: `qaboard-media` (public through a custom domain, e.g. `media.<domain>`) and `qaboard-ci`
-  (private: snapshots, demo inputs, PR preview galleries).
-- Content-addressed keys (`shots/<id>/<hash>.avif`): immutable, cached forever, and a PR's media is
-  live before merge without touching what production uses. The manifest is the only pointer that moves.
-  A lifecycle rule deletes objects no manifest has referenced for 90 days.
-- Upload through the S3-compatible API (`rclone` or `aws s3 --endpoint-url`), not wrangler (one object
-  per call). Secrets: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, scoped to these two
-  buckets with Object Read & Write. A general Cloudflare API token isn't needed.
-- R2's `r2.dev` URLs are rate-limited and meant for development, so a custom domain on Cloudflare is effectively required. **(decide)**
-- **Air-gapped installs**: the docs are also bundled into the app (`QABOARD_DOCS_FOR_WEBAPP=true`) and served
-  inside company networks that may not reach R2. `QABOARD_DOCS_MEDIA=bundle` makes the website image
-  download the manifest's media at build time into `static/media/`. Remote is the default for the public site.
+### Storage and serving (R2 + `sivoov.app`, invisible to readers)
+- **`qaboard-media`:** content-addressed (`shots/<id>/<hash>.avif`), immutable.
+  - Its public hostname on `sivoov.app` (e.g. `qaboard-media.sivoov.app`) is used **only by build tooling**.
+  - The docs plugin downloads the manifest's files into the build, so pages serve them same-origin from wherever
+    the site is hosted, and readers never see the hostname.
+  - Contributors see it in `website/media.json`, and `yarn start` loads from it directly.
+- **`qaboard-ci`:** private; holds snapshots and PR preview galleries.
+- **Why a public hostname at all:** builds then work anywhere without credentials: whatever publishes
+  `samsung.github.io`, the in-app docs image (`QABOARD_DOCS_FOR_WEBAPP`), air-gapped site builds behind a proxy,
+  and contributors' laptops. Only the media workflow writes, through the S3 API.
+- **Secrets:** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, scoped to the two buckets.
+- **Cleanup:** a lifecycle rule deletes objects no manifest has referenced for 90 days.
+- **GitHub Pages limits:** 1 GB per site and ~100 GB/month of soft bandwidth.
+  - Budget: ~60 stills × 2 formats + ~15 clips ≈ 60-100 MB.
+  - Videos use `preload="none"` and only play when in view.
+  - If traffic ever outgrows Pages, media can move to a CDN hostname on a project domain.
+- **Optional:** PR previews of the whole docs site on Cloudflare Pages (`<branch>.<project>.pages.dev`, no custom
+  domain), using a Pages-scoped Cloudflare token.
 
 ### When it runs (`.github/workflows/docs-media.yml`)
 | Trigger | What happens |
 |---|---|
-| `workflow_dispatch` (inputs: `only` glob, `reseed`, `publish`) | The main way: regenerate some or all shots |
-| PR labeled `docs-media` | Capture the shots the PR affects, upload, commit `website/media.json` to the PR branch, comment a before/after gallery |
-| Tag `v*` | Full refresh, opens a PR |
-| Monthly (with the release notes) | Full refresh, opens a PR only if something changed beyond the threshold |
+| `workflow_dispatch` (`only` glob, `reseed`, `publish`) | The main way: regenerate some or all shots |
+| PR labeled `docs-media` | Capture the affected shots, upload, commit `website/media.json` to the PR, comment a before/after gallery |
+| Tag `v*` | Full refresh, rebuild the demo-data image, open a PR |
+| Monthly (with the release notes) | Full refresh; opens a PR only if something changed beyond the threshold |
 
-Never on every push. Expected cost on a GitHub runner: 15-30 min from a snapshot, +20-40 min when the
-stories or the backend models changed and the snapshot must be re-seeded. Fork PRs never see the secrets.
+- Never on every push.
+- Runtime: 15-30 min from a snapshot, plus 20-40 min when the stories, the seeder or the backend models changed.
+- Fork PRs never see the secrets.
 
-Later, as dogfooding: record each capture as a QA-Board run, so UI changes are reviewed with QA-Board's own
-image diff. Nice for the story, not needed for v1.
-
-### The same snapshot, three payoffs
-1. Screenshots and clips (above).
-2. **Try it in 5 minutes**: `docker compose -f docker-compose.yml -f docs-media/compose.demo.yml up` restores
-   the demo snapshot locally. This is the strongest answer to "everyone misses it": let people click around their own copy.
-3. **Public read-only demo** `demo.<domain>` **(decide)**. Recommended: a *static* demo, the app built in a demo
-   mode that serves recorded API responses (captured as HAR during the capture run) through a service worker,
-   plus static IIIF tiles (`vips dzsave --layout iiif3`), hosted on Cloudflare Pages/R2. No server to operate
-   or secure, read-only by construction. Degrades a few features that call the backend (pixel tooltip,
-   auto-ROI): record them for the scripted spots, toast "read-only demo" elsewhere. The alternative, a hosted
-   instance on a VM, means ongoing ops and an attack surface for little gain.
-   Bonus: the recorded fixtures are the "realistic fixtures" `webapp/TODO.md` asks for in the e2e tests.
+### The same demo data, several payoffs
+1. Screenshots and clips.
+2. **Local quickstarts with data** (§5): the demo-data image restores the database and results into Compose or Helm.
+3. **The Kubernetes CI test** installs the chart with that data and checks real pages.
+4. **A hosted demo later**, when hosting is possible: it needs nothing new.
 
 ---
 
-## 5. Website: information architecture and landing page
+## 5. Quickstarts and the GitHub-first tutorial
 
-### Sidebars (navbar: Product · Docs · Use cases · Demo · Release notes · Blog · GitHub)
+### The stack picker
+A `<StackPicker>` at the top of the quickstart and the tutorials sets every tab group at once.
+- **How it works:** Docusaurus `<Tabs groupId=... queryString>`. The choice persists across pages (localStorage), and
+  links carry it (`?server=k8s&ci=github-actions`).
+- **Defaults:** GitHub everywhere, since GitHub comes first.
+
+| Group | Tabs |
+|---|---|
+| `server` | Docker Compose · Kubernetes (Helm) |
+| `forge` | GitHub · GitLab |
+| `ci` | GitHub Actions · GitLab CI · Jenkins |
+| `runner` | Local · LSF · Dask · Celery |
+| `code` | Python · Any executable (C++, shell...) |
+
+**Docs that are tested:** every Compose, Helm and GitHub Actions snippet is copied from files that CI runs.
+- A check fails if a snippet drifts from its source file.
+- GitLab CI and Jenkins snippets are lint-checked and marked "tested manually".
+
+### Quickstart: "QA-Board with demo data in 5 minutes"
+- **Docker Compose:** `curl` one compose file → `docker compose up` → open `localhost:5151`.
+  - The demo-data container restores the database and results on first start.
+- **Kubernetes:**
+  - `kind create cluster --config <ours>`, then `helm install qaboard oci://ghcr.io/.../qaboard -f quickstart.yaml`, then `kubectl port-forward`.
+  - Also k3d, minikube and Docker Desktop; differences live in a tab.
+- **Then:** the same 4-click tour of the demo (screenshots next to each step), then "wrap your own code" → tutorial.
+
+### Kubernetes quickstart that works (own subagent, WS8)
+- **Publish current images and the chart:**
+  - Versioned images (`<service>-<version>` plus release tags) on every master build and release.
+  - The chart as an OCI artifact.
+  - **Recommended registry:** GHCR. It needs no extra secret (the workflow's `GITHUB_TOKEN`) and avoids Docker Hub's strict
+    anonymous pull limits, which bite users behind a corporate NAT. Docker Hub stays as a mirror, once its secrets are set.
+- **Chart: a first-class `results` value:**
+  - A PVC, an existing claim, NFS or hostPath, mounted at the same path into backend, proxy and Cantaloupe.
+  - It sets `QABOARD_STORAGE_ROOTS` automatically.
+  - It replaces three hand-wired `extraVolumes`; the existing values keep working.
+- **`quickstart.yaml` values:** embedded Postgres, single replicas, Cantaloupe on, no ingress (port-forward), and a demo-data Job.
+- **Running `qa` against the cluster:**
+  - From the laptop: a kind `extraMounts` gives the same absolute path on the host and the node.
+  - Or in the cluster: a toolbox Job using the backend image, which already ships the CLI.
+- **CI job `helm-e2e`:**
+  - kind on the GitHub runner, load the images built in the same run, `helm install` with `quickstart.yaml`, wait, then smoke tests.
+  - Run an example batch in-cluster and check it through the API.
+  - Run a Playwright check that the commit page renders the demo data.
+  - Test `helm upgrade` from the previous release.
+- **Real clusters:** a docs page covering RWX storage classes (NFS, EFS, Filestore, Azure Files), ingress + TLS, SSO,
+  CloudNativePG, backups, and why ingest must stay behind the firewall until token auth lands.
+
+### GitHub-first tutorial: "Your project on QA-Board"
+1. **Start a server** (`server` tabs). Or point to an existing one.
+2. **Install the CLI:** `uv tool install qaboard` (pip in a tab).
+3. **Wrap your code:** `qa init --template image-quality`, or your own code (`code` tabs).
+4. **Run and share:** `qa run` on one input, `qa --share batch` on a test set, then open the link.
+5. **Connect the repo** (`forge` tabs): webhook, avatars, links to commits and diffs.
+6. **Run in CI** (`ci` tabs).
+   - Today the runner must see the results storage: a self-hosted GitHub Actions runner, GitLab runners on your
+     cluster, or Jenkins agents.
+   - The tutorial says so plainly. GitHub-hosted runners need **HTTP upload of outputs**, the first "Next" roadmap item.
+7. **Compare and gate:** add `qa gate` (experimental) and get a failing check on a regression.
+8. **Scale out** (`runner` tabs): local multiprocessing, LSF, Dask, Celery.
+
+**Honest constraint:** the tutorial is as GitHub-first as the architecture allows today. HTTP upload plus
+token-authenticated ingest would make GitHub-hosted runners work end to end, so they're the highest-leverage
+product items after this effort. **(decide)** whether to pull them in after phase 2.
+
+---
+
+## 6. Website: information architecture and landing page
+
+### Sidebars
+Navbar: Product · Docs · Use cases · Roadmap · Release notes · Blog · GitHub.
+- **Get started** (new): the quickstart (§5), the GitHub-first tutorial (§5), and concepts in one page.
 - **Product tour** (new): "QA-Board in 5 minutes" following the story spine, one clip per step.
 - **Use cases** (new): one page per demo project: the problem, the workflow, screenshots from that project, the
-  config that produces them, "run this example".
-- **Tutorials** (new): first project in 15 minutes (`examples/image-quality`); hunt a performance regression;
-  tune parameters from the browser; add a quality gate to GitHub Actions / GitLab CI; self-host for your team.
-- **Recipes** (new cookbook, short task pages): compare against a milestone · find the commit that broke
-  a metric · share a link to an exact crop/zoom · metrics with targets and pass/fail · dynamic per-frame
-  outputs · flame graphs from py-spy/perf · side-by-side videos · export results for a report · query the API
-  from a notebook · run on LSF / Dask / Celery / Kubernetes · monorepos · bit-accuracy before a HW handoff ·
-  W&B/TensorBoard alongside · let a coding agent run `qa` and read the Metrics Diff (works today, CLI + API).
-- **User guide** (keep the text, replace every screenshot, add clips).
-- **Project integration** (dedupe: outputs/faq/sharing, milestones/comparing-results, installation/qa-cli, runner precedence).
-- **Admin** (generic self-hosting only: compose, Helm, auth, storage, upgrades, troubleshooting).
-- **Reference** (generated, so it can't drift): CLI from Click (`qa ... --help` → MDX), `qaboard.yaml` and
-  `metrics.yaml` from a JSON Schema (also published for editor autocomplete via yaml-language-server), REST API
-  from an OpenAPI spec (`integrating-qa-in-scripts` already says "TODO: openapi").
-- **Comparison** ("Why QA-Board", §2) and **Vision: QA-Board in the agent era** (§8, clearly labeled roadmap).
-- Redirects for every moved page (`@docusaurus/plugin-client-redirects`); keep the ids the app links to stable
-  (`user-guide/overview`, `user-guide/files`, `visualizations`, `computing-quantitative-metrics`, `installation`,
-  `triggering-third-party-tools`, `batches-running-on-multiple-inputs`, `celery-integration`, `auto-optimization`).
+  config that produces them, and "run this example".
+- **Tutorials** (new):
+  - hunt a performance regression;
+  - tune parameters from the browser;
+  - set up a quality gate (experimental);
+  - self-host for your team (Compose / Helm).
+- **Recipes** (new cookbook, short task pages):
+  - Comparing and investigating:
+    - compare against a milestone;
+    - find the commit that broke a metric;
+    - share a link to an exact crop/zoom;
+    - metrics with targets and pass/fail.
+  - Outputs and visualizations:
+    - dynamic per-frame outputs;
+    - flame graphs from py-spy/perf;
+    - side-by-side videos;
+    - export results for a report.
+  - Running and integrating:
+    - query the API from a notebook;
+    - run on LSF / Dask / Celery / Kubernetes;
+    - monorepos;
+    - bit-accuracy before a HW handoff;
+    - W&B or TensorBoard alongside QA-Board.
+  - Agents: let a coding agent run `qa` and read the Metrics Diff (works today, CLI + API).
+- **User guide:** keep the text, replace every screenshot, add clips.
+- **Project integration:** deduplicate overlapping pages:
+  - outputs / faq / sharing;
+  - milestones / comparing-results;
+  - installation / qa-cli;
+  - runner precedence.
+- **Admin:** generic self-hosting only (Compose, Helm, auth, storage, upgrades, troubleshooting). The SIRC runbooks
+  move next to `deployments/sirc`, as `docs/known-issues.md` already intends.
+- **Reference** (generated, so it can't drift):
+  - the CLI from Click;
+  - `qaboard.yaml` and `metrics.yaml` from a JSON Schema, also published for editor autocomplete;
+  - the REST API from an OpenAPI spec.
+- **Why QA-Board** (the comparison, §2) and **Roadmap / vision** (§8).
+- **Moves and links:**
+  - Every moved page gets a redirect.
+  - The ids the app links to stay stable: `user-guide/overview`, `user-guide/files`, `visualizations`,
+    `computing-quantitative-metrics`, `installation`, `triggering-third-party-tools`,
+    `batches-running-on-multiple-inputs`, `celery-integration`, `auto-optimization`.
 
 ### Landing page (rebuilt from scratch)
-1. **Hero**: headline + one-line subhead; CTAs "Try the demo" (or "Run it locally") and "Get started";
-   GitHub stars. Visual: a 15-20 s muted loop of the commit page (synced zoom on an image diff → threshold →
-   Metrics Diff), poster first, video lazy.
-2. **Proof strip**: open source (Apache 2.0), self-hosted, years in production, project counts if we may say so **(decide)**.
+1. **Hero:**
+   - Headline and a one-line subhead.
+   - CTAs: **"Run it locally in 5 minutes"** (the quickstart) and "Get started", plus GitHub stars.
+   - Visual: a 15-20 s muted loop of the commit page (synced zoom on an image diff → threshold → Metrics Diff), poster first.
+2. **Proof strip:** open source (Apache 2.0), self-hosted, years in production. Project counts and the Samsung origin if we may **(decide)**.
 3. **"You already built half of this"**: the in-house pain, in the reader's words.
-4. **The loop**: Run · Compare · Look · Find · Tune · Gate, tabs with one clip each.
-5. **Use cases**: 5 cards (image quality, ML eval, performance, embedded/bit-accuracy, robotics) → use-case pages.
-6. **"Polish you'd never build in-house"**: a grid of ~12 micro-clips/stills (synced zoom, perceptual diff,
-   pixel tooltip, ROI histograms, flame graph diff, live logs with LSF hints, keyboard file browser, Monaco
-   batch editor, tuning analysis, milestones, Windows/Linux path copy, What's new).
-7. **Fits your stack**: GitLab/GitHub/Jenkins, LSF/Dask/Celery/Kubernetes, LDAP/SAML, Docker/Helm.
-8. **Agent era teaser** → vision page.
-9. **Quotes** from people who used it and miss it (with permission) **(decide)**.
-10. **CTA** + "What's new" (latest release note highlights, already a component).
+4. **The loop:** Run · Compare · Look · Find · Tune · Gate, as tabs with one clip each.
+5. **Use cases:** 5 cards linking to the use-case pages.
+6. **"Polish you'd never build in-house"**: a grid of ~12 micro-clips and stills.
+7. **Fits your stack:** GitHub/GitLab/Jenkins, LSF/Dask/Celery/Kubernetes, LDAP/SAML, Compose/Helm, air-gapped installs.
+8. **Where we're going:** 3 roadmap highlights → roadmap page.
+9. **Quotes** from people who used it and miss it, with permission.
+10. **CTA,** plus the latest release-note highlights (the component already exists).
 
-Performance budget: LCP < 2.5 s on 4G (poster image, not video, is the LCP element), no layout shift (manifest
-has dimensions), total landing weight < 4 MB with lazy clips.
+**Budgets:**
+- LCP under 2.5 s on 4G (the poster is the LCP element).
+- No layout shift: the manifest has dimensions.
+- Under 4 MB total with lazy clips.
 
 ### Site plumbing
-Own domain on Cloudflare **(decide)**; update `url/baseUrl/organizationName/editUrl`; replace Algolia (tied to the
-old Samsung index) with `@easyops-cn/docusaurus-search-local` or re-apply to DocSearch; Cloudflare Web Analytics
-(cookie-free) to see whether any of this works; a `yarn build` check on PRs; `onBrokenLinks: 'throw'`; a weekly
-external link check (lychee); a new social card generated from a shot; light/dark aware media
-(`<picture>` with `prefers-color-scheme`, if the app gets dark mode).
+- **Canonical URL** **(decide)**:
+  - Keep `samsung.github.io/qaboard`, since it's live, indexed and lends credibility.
+  - Or move to `arthur-flam.github.io/qaboard`, or later a project domain.
+  - Media works the same either way (§4).
+- **Deploys:** use `actions/deploy-pages` (artifact-based) rather than committing builds to a `gh-pages` branch.
+- **Search:** keep Algolia if the `samsung_qaboard` index still crawls the live site; otherwise `docusaurus-search-local`.
+- **Analytics:** Cloudflare Web Analytics (cookie-free, no custom domain involved).
+- **Build checks:** `yarn build` on PRs, `onBrokenLinks: 'throw'`, and a weekly external link check.
+- **Social card:** a new one generated from a shot.
 
 ---
 
-## 6. Product fixes and polish to do before the shoot
+## 7. Product work in this effort
 
-Screenshots will show these; fixing them is cheaper than hiding them.
+### Small gaps (phase 0, one PR)
+| Item | Size |
+|---|---|
+| `qatools_config`/`qaboard_config` key bug in `CiCommit.get_or_create`; `commit_branch=None` crash | S |
+| History page: empty sidebar, untitled compare tab, `href`s that reload the app (`webapp/TODO.md`) | S |
+| Turn off the SLAM viewer's Plotly "Send to Cloud" (also a data-leak risk) | XS |
+| Avatars without GitLab: accept an avatar URL or email (Gravatar) in the payload, plus GitHub-hosted projects | S |
+| Broken links from the app (`lsf-cluster-integration`, spectrum.chat) and the missing images | XS |
+| `.gitignore` image rule scoped so `website/static/img/` brand assets can be committed | XS |
+| `qa init --template <example>` scaffolds from `examples/` | S |
 
-| Item | Size | Why |
+Dark mode and a command palette go on the roadmap, not into this effort: early screenshots without them are fine.
+
+### Release plumbing (phase 0-1, part of WS8)
+- Publish versioned images and the chart (GHCR recommended), and attach the demo-data image to releases.
+- Add a first-class `results` storage value to the chart.
+
+### Quality gate v1, experimental (phase 2, WS9)
+```yaml
+# qaboard.yaml (experimental: may change without notice)
+gate:
+  reference: main              # branch, milestone or commit; default: project.reference_branch
+  batches: [ci]
+  rules:
+    - {metric: psnr, max_regression: 1%}              # median over tests, vs the reference
+    - {metric: latency_p95, max_regression: 5%}
+    - {metric: map, min: 0.42}                        # absolute floor
+    - {metric: psnr, per_test_max_regression: 5%}     # no single test worse than this
+  max_failed_runs: 0
+  require_bit_accuracy: false
+```
+
+**`qa gate`:**
+- **Exit codes:**
+  - 0: pass.
+  - 1: regression.
+  - 2: undecidable (reference missing or still running; `--wait` polls).
+- **Output:** a text, Markdown or JSON table. On GitHub it's also written to `$GITHUB_STEP_SUMMARY`.
+- **`--post-status github|gitlab`:** posts a commit status that links to the Metrics Diff. On GitHub this uses
+  `GITHUB_TOKEN` with `statuses: write`; GitLab uses a token. The job's own exit code already acts as the check.
+
+**Backend:**
+- A new `GET /api/v1/commit/<sha>/compare?reference=&batch=` returns per-metric aggregates: medians, per-test deltas, pass rates.
+- Tests prove it gives the same numbers as the Summary and Metrics Diff views.
+- The CLI, the future MCP server and API users all share this one endpoint.
+
+**Labelled experimental everywhere:** docs page badge, CLI notice, release note.
+
+**Tested in CI:** the `perf-regression` story has a commit where the gate must fail and a fix where it must pass.
+
+---
+
+## 8. Vision and roadmap page
+
+A public page, "Where QA-Board is going", plus a GitHub Project board for discussion and votes. Statuses are honest:
+**Shipped**, **Experimental**, **Next**, **Exploring**. The landing page only claims Shipped and Experimental items.
+
+**Principles:**
+- Your data stays yours: self-hosted, air-gap friendly.
+- Look at outputs, not just numbers.
+- Fit existing workflows: QA-Board shouldn't need to be the entrypoint.
+- Humans and agents review quality together.
+
+| Theme | Items | Status (proposed) |
 |---|---|---|
-| `qatools_config`/`qaboard_config` key bug in `CiCommit.get_or_create`; `commit_branch=None` crash | S | Seeding and real users both hit them |
-| History page: empty sidebar, untitled compare tab, `href` reloads (`webapp/TODO.md`) | S | It's the regression-hunting hero shot |
-| SLAM viewer "Send to Cloud" button | XS | Also a data-leak risk |
-| Avatars without GitLab: accept an avatar URL / email (Gravatar) in the payload; GitHub-hosted projects | S | Empty avatars everywhere look abandoned; also helps every non-GitLab user |
-| Broken links from the app (`lsf-cluster-integration`, spectrum.chat, `samsung.github.io`) | XS | |
-| `qa init --template <example>` scaffolds from `examples/` | S | Makes tutorials one command |
-| Dark mode for the app (Blueprint has it; logs/files already have `.bp6-dark` styles) **(decide)** | M | "2026 style" is hard to claim without it; doubles the screenshot set |
-| Command palette (Cmd-K: projects, branches, commits, views) **(decide)** | M | Expected polish in 2026; optional |
+| **Compare more than two** | N-way comparisons: pick N commits, batches or tuning runs and see outputs in a grid per input, metrics tables with N columns, plots overlaid; "this vs the last 5 milestones"; saved, shareable comparison views | Next |
+| **Deep learning** | Step-indexed metrics per run (training curves, not only final scalars); overlay convergence plots from N runs on one graph; hyper-parameter tables and parallel coordinates across runs (exists for tuning, generalize); evaluate every checkpoint; dataset slices; confusion-matrix viewer | Exploring (overlays: Next) |
+| **Log from your code** | A Python SDK with a W&B-style API (`qaboard.init()`, `run.log({...})`, `run.log_image()`, `run.finish()`) that works in training loops, notebooks and pytest, without `qa run`; a shim that mirrors existing `wandb.log` calls; importers for W&B/MLflow/TensorBoard runs; MLflow tracking-API compatibility to evaluate | Next (SDK), Exploring (shim, compat) |
+| **Cloud-native** | HTTP upload of outputs (unlocks GitHub-hosted runners and clusters without shared volumes); token-authenticated ingest; object storage for results (S3/R2/GCS/MinIO; Cantaloupe can read S3); a Kubernetes Job runner; published images and chart | Next (upload, ingest auth); images/chart Shipped in this effort |
+| **Enterprise** | Admin UI for users and groups; project-level roles and permissions; OIDC SSO next to LDAP/SAML; SCIM provisioning; API tokens UI; audit log; retention and quota policies UI; usage analytics; HA and backups (chart supports CloudNativePG); air-gapped installs | Exploring (air-gapped, HA: Shipped) |
+| **Collaboration** | Comments pinned to an output region or log line; review and "approve as new reference" with who/when; notifications (Slack/Teams/email) on regressions and finished batches | Exploring |
+| **Agents** | Quality gate (v1); OpenAPI spec and `--json` outputs; an MCP server (`qa mcp`: read results, metrics diffs, failing tests, image crops; then start batches); an agent kit (`AGENTS.md`/skill template: "run the batch and read the Metrics Diff before claiming it's better"); agent-authored badges; agents proposing tuning experiments; Metrics Diff summaries on PRs | Experimental (gate), Next (OpenAPI, MCP read-only), Exploring (rest) |
+| **Polish** | Dark mode; command palette (projects, branches, commits, views); date ranges in the URL; faster huge batches | Next (dark mode), Exploring (rest) |
+
+The statuses are my proposal; you curate them before the page goes live.
 
 ---
 
-## 7. Execution with subagents
+## 9. Execution with subagents
 
-Agents work in parallel against fixed contracts, each in its own worktree and PR. I coordinate, review
-and merge; you review at the checkpoints.
+Agents work in parallel against fixed contracts. I coordinate, review and merge; you review at the checkpoints.
 
-### Contracts (written in phase 0, before any fan-out)
-- `website/media.json` schema and the `<Shot>/<Clip>` component API.
-- Shot id naming (`<area>/<subject>`, e.g. `commit/image-diff`, `history/find-regression`) and the shot
-  list (appendix), each shot tagged with its demo project and the pages using it.
-- `story.yaml` format and the persona/company bible (fictional company, ~6 people, avatars, dates relative to T0).
-- `website/STYLE.md`: voice, terminology, claim-verification rule, screenshot captions say what to notice.
+### Contracts (phase 0, before any fan-out)
+- The `website/media.json` schema, and the `<Shot>/<Clip>/<StackPicker>` component APIs.
+- Shot id naming (`<area>/<subject>`) and the shot list (appendix).
+- The `story.yaml` format and the persona/company bible (fictional, trademark-checked name, generated avatars).
+- `website/STYLE.md`: voice, terminology, the claim-verification rule, captions that say what to notice.
 - Docs can be written before the media exist: `<Shot id>` renders a labeled placeholder until the manifest has it.
 
 ### Workstreams
 | # | Workstream | Agents | Depends on | Output |
 |---|---|---|---|---|
-| WS0 | Groundwork | me | decisions | `.gitignore` fix, site config/domain, broken/missing images, SIRC content moved out, contracts above |
-| WS1 | Demo projects | 1 per project, parallel | contracts | `examples/*` runnable, deterministic, licensed, story, README |
-| WS2 | Seeder + demo stack | 1 | WS1 (one project) | `compose.demo.yml`, `seed.py`, `snapshot.py`, backend fixes from §6 |
-| WS3 | Capture + publish | 1 | WS2 | shot/clip helpers, VHS tapes, `publish.py`, R2, `docs-media.yml` |
-| WS4 | Website platform | 1 | contracts | components, IA + redirects, landing page, search, analytics, generated references |
-| WS5 | Content | 4-6, parallel by section | WS4 contracts (not media) | tour, use cases, tutorials, recipes, user-guide refresh, dedupe, comparison, vision, blog posts |
-| WS6 | Product polish | 1-2 | none | §6 items as separate PRs |
-| WS7 | Review | 3 standing reviewers | each PR | claims vs code (every feature claim traced to code), visual QA (each image read: no internal data, spinners, empty or error states), links/build |
+| WS0 | Groundwork | me | decisions | contracts, small gaps (§7), SIRC runbooks moved, site config |
+| WS1 | Demo projects | 1 per project | contracts | `examples/*` runnable, deterministic, licensed, story, README |
+| WS2 | Seeder + demo data | 1 | WS1 (one project) | `compose.demo.yml`, `seed.py`, `snapshot.py`, demo-data image |
+| WS3 | Capture + publish | 1 | WS2 | shot/clip helpers, VHS tapes, `publish.py`, R2, docs build plugin, `docs-media.yml` |
+| WS4 | Website platform | 1 | contracts | components, stack picker, IA + redirects, landing page, search, analytics, generated references |
+| WS5 | Content | 4-6 by section | WS4 contracts | quickstart and tutorial text, tour, use cases, recipes, user-guide refresh, dedupe, comparison, roadmap page, blog |
+| WS8 | Kubernetes quickstart | 1 | none (demo data from WS2 later) | published images + chart, `results` storage value, `quickstart.yaml`, `helm-e2e` CI job, cluster docs |
+| WS9 | Quality gate v1 | 1 | none (`perf-regression` story for e2e) | compare endpoint, `qa gate`, statuses, docs, release note |
+| WS7 | Review | 3 standing | each PR | claims vs code, visual QA of every image (no internal data, spinners, empty or error states), links/build |
 
 ### Phases
-- **Phase 0, decisions + groundwork** (one session): your answers to the **(decide)** items, WS0, contracts.
-- **Phase 1, vertical slice** (the risky part): `examples/image-quality` + seeder + snapshot + ~8 stills, 2 clips,
-  1 VHS tape → R2 → `<Shot>` on two user-guide pages, triggered by `workflow_dispatch`. Checkpoint: you look at the
-  images and the workflow run. Risks retired here: storage mounts with Cantaloupe, determinism, clip quality, R2.
-- **Phase 2, breadth**: perf + detection projects, the full shot list (~60 stills, ~12 clips), the landing page,
-  user guide fully re-illustrated, tour, use-case pages, 2 tutorials, §6 fixes. Checkpoint: landing page preview.
-- **Phase 3, story and reach**: recipes, comparison, vision page, generated references, blog relaunch
-  ("QA-Board in 2026", "Why every algorithm team builds a worse QA-Board", "Reviewing agents' changes like
-  algorithms"), static demo, robotics/agent demo projects, optional 2-min narrated tour assembled from the clips.
-- **Phase 4, agent features** (product, §8), in parallel with phase 3 if you want it.
+- **Phase 0, groundwork** (one session):
+  - Open decisions, contracts, small gaps.
+  - WS8 starts right away: publishing images and the chart doesn't depend on anything.
+- **Phase 1, vertical slice:**
+  - `examples/image-quality`, the seeder, a snapshot, ~8 stills, 2 clips and 1 tape → R2 → served from the
+    docs build on two user-guide pages, triggered by `workflow_dispatch`.
+  - In parallel: the roadmap page (no media needed) and the first `helm-e2e` green run.
+  - **Checkpoint:** you look at the images, the clip and the workflow run.
+- **Phase 2, breadth:**
+  - Perf and detection projects, the full shot list (~60 stills, ~15 clips).
+  - Quickstart and GitHub-first tutorial with stack tabs, on top of a working Kubernetes quickstart.
+  - Landing page, user guide fully re-illustrated, tour, use-case pages, gate v1.
+  - **Checkpoint:** landing page preview, plus you run both quickstarts yourself.
+- **Phase 3, story and reach:**
+  - Recipes, the comparison page, generated references.
+  - Blog relaunch: "QA-Board in 2026", "Why every algorithm team builds a worse QA-Board", "Reviewing agents' changes like algorithms".
+  - Robotics and agent demo projects; an optional 2-min tour assembled from the clips.
+- **Later:**
+  - A hosted demo when hosting is possible: the demo-data image + Helm values are all it needs.
+  - HTTP upload and ingest auth if you pull them in **(decide)**.
 
-Rough size: phases 1-2 are most of the work; I'd expect several working sessions each, mostly agent time,
-with your review at the checkpoints. Multi-agent fan-outs are run as workflows of under 10 agents each.
+Multi-agent fan-outs run as workflows of under 10 agents each, each agent in its own worktree.
 
-### What I need from you
-- Answers to the **(decide)** items below.
-- Cloudflare: the two buckets, the custom domain, an R2 token scoped to them → GitHub secrets
-  `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`.
-- Optional but valuable: photos/videos you own and can release (CC-BY) for the image-quality demo, and 3-5 quotes
-  from former colleagues.
-
----
-
-## 8. The agent era: vision now, one real feature first
-
-What's honest today: a coding agent can already use QA-Board like any script, running `qa batch` and reading
-results through the REST API with a token. That becomes a recipe in phase 3.
-
-What to build before marketing "quality gates for agents" (phase 4, roughly in order):
-1. **Quality gate**: `gates:` in `qaboard.yaml` (thresholds on metric deltas vs the reference or a milestone,
-   bit-accuracy required, max failed runs) + `qa gate` (exit code, Markdown summary) + **GitHub check runs /
-   GitLab commit statuses** with the Metrics Diff and links. This closes the deferred item in
-   `docs/github-support-roadmap.md` and serves human CI on day one.
-2. **Machine-readable surface**: OpenAPI spec, `--json` output for `qa` commands that report.
-3. **MCP server** (`qa mcp`): read tools (projects, commits, batch metrics diff, failing tests, fetch an output or
-   an image crop), then authenticated actions (start a batch, mark failed). Lets Claude Code, Codex or Cursor
-   check their own changes against the quality bar.
-4. **Agent workflow kit**: an `AGENTS.md`/skill template ("before claiming a change is better, run the batch and
-   read the Metrics Diff"), runs badged as agent-authored, and a human "approve as new reference" step for
-   visual changes. Humans review what agents can't judge (does it *look* right?), agents do the legwork.
-
-The vision page tells this as a roadmap, and the landing page teaser only claims what's shipped.
+**Branches:** this session can only push to `claude/qaboard-docs-overhaul-z0u9rt`. For reviewable PRs, allow me one
+branch per workstream (`claude/docs-<ws>`); otherwise everything lands here, phase by phase.
 
 ---
 
-## 9. Decisions (with recommendations)
+## 10. Decisions
 
-1. **Domain and hosting**: buy a short domain on Cloudflare; docs on GitHub Pages or Cloudflare Pages, media on
-   `media.<domain>`. *Recommend: own domain, Cloudflare Pages for docs + demo, R2 for media.*
-2. **Samsung/SIRC on the public site**: what can we say ("born at Samsung", years in production, project counts,
-   quotes, logos)? Internal runbooks and hostnames should leave the public docs (moved next to
-   `deployments/sirc`, in line with `docs/known-issues.md`). *Recommend: check with the OSS office; move the runbooks either way.*
-3. **Public demo**: static recorded demo vs hosted instance vs none. *Recommend: static, phase 3.*
-4. **App polish before the shoot**: §6 small fixes (yes), dark mode, command palette. *Recommend: fixes + dark mode; palette later.*
-5. **Agent features**: vision page only, or build the gate + MCP. *Recommend: build the gate (needed for CI anyway), MCP after.*
-6. **Demo fiction**: a fictional company and team (name to pick, trademark-checked), generated avatars, no real names. *Recommend: yes.*
+**Decided:**
+- **Demo:** no hosted or static demo for now. Local quickstarts (Compose + Kubernetes) with demo data instead.
+- **Tutorial:** GitHub-first, with a stack picker.
+- **Kubernetes quickstart:** its own workstream, tested in CI.
+- **Polish:** small gaps get fixed; early screenshots may lack the bigger polish.
+- **`sivoov.app`:** OK as long as readers never see it: build-time media host only.
+- **Gate:** v1 ships as experimental.
+- **Roadmap page:** includes N-way comparisons, enterprise, deep-learning overlays and a W&B-style SDK.
+
+**Open:**
+1. **Canonical docs URL:** keep `samsung.github.io/qaboard` (recommended for now; credibility and search ranking),
+   or move it. Also: which workflow publishes it today?
+2. **Image registry:** GHCR (recommended) and/or set the Docker Hub secrets.
+3. **Samsung/SIRC on the public site:** what may we claim (origin, years, project counts, quotes, logos)?
+   Moving the internal runbooks out happens either way.
+4. **HTTP upload + token-authenticated ingest:** pull into this effort after phase 2? (recommended: yes, it makes "GitHub-first" true end to end)
+5. **Branches:** one per workstream (recommended).
+6. **Demo fiction:** a fictional company and team (recommended), with a name to pick.
+
+**From you:**
+- The R2 buckets and token (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`).
+- A `sivoov.app` hostname for `qaboard-media`.
+- Optionally a Pages-scoped Cloudflare token for PR previews.
+- Photos you own and can release, and 3-5 quotes from former colleagues.
 
 ---
 
-## 10. Risks
-- **Heavy stack in CI** (backend compiles uwsgi/lxml/xmlsec; Cantaloupe is Java). Mitigated by the existing bake
-  cache and by capturing from snapshots; phase 1 measures it.
-- **Pretty but untrue docs**: a claims reviewer traces every feature claim to code; vision content is labeled.
-- **Fixture rot**: the snapshot is re-seeded when `examples/`, the seeder or backend models change (hash key).
-- **Clip quality and weight**: hard budgets (resolution, duration, size) enforced by `publish.py`.
-- **Adoption isn't only docs**: time-to-first-value for self-hosting (10 services, GitLab-first defaults) matters
-  as much as screenshots. The demo-data quickstart and a GitHub-first tutorial address it; a minimal compose
-  profile (no rabbitmq/flower/pgadmin) would help further.
+## 11. Risks
+- **Heavy stack in CI:** the backend compiles uwsgi/lxml/xmlsec and Cantaloupe is Java.
+  - Mitigated by the existing bake cache, capturing from snapshots, and reusing built images in `helm-e2e`.
+- **Pretty but untrue docs:** a claims reviewer traces every feature claim to code, and roadmap content is labeled.
+- **Snippet drift:** snippets are generated from tested files, and CI fails when they differ.
+- **Fixture rot:** the snapshot is re-seeded when `examples/`, the seeder or the backend models change (hash key).
+- **Clip weight and Pages bandwidth:** hard budgets enforced by `publish.py`; the CDN escape hatch is in §4.
+- **Unauthenticated ingest:** quickstart and cluster docs say to keep the server behind the firewall until token auth ships.
+- **The gate's credibility:** noisy metrics make flaky gates. Rules use medians and per-test thresholds, "undecidable"
+  is a distinct exit code, and the feature stays experimental until it has been used on real projects.
 
 ---
 
-## Appendix: shot list (first cut, ~60 stills / ~12 clips)
-Legend: **IQ** image-quality, **PERF** perf-regression, **DET** detection-eval, **R3D** robotics-3d, **AG** agent-evals. 🎬 = clip.
+## Appendix: shot list (first cut, ~60 stills / ~15 clips)
+**Legend:**
+- Demo projects: **IQ** image-quality, **PERF** perf-regression, **DET** detection-eval, **R3D** robotics-3d, **AG** agent-evals.
+- 🎬 marks a clip; 🖥 marks a terminal tape.
+
+**Quickstart and CLI**
+- 🖥 `quickstart/compose`: `docker compose up` to a running server with data
+- 🖥 `quickstart/kind`: kind + `helm install` + port-forward
+- 🖥 `cli/first-run`: `qa run` on one input, link printed (IQ)
+- 🖥 `cli/batch`: `qa batch` with progress (DET)
+- 🖥 `cli/bit-accuracy`: `qa check-bit-accuracy` failing, then passing (IQ)
+- 🖥 `cli/gate`: `qa gate` failing on the regression commit (PERF)
+- `ci/step-summary`: the gate's Markdown summary, rendered (PERF)
 
 **Projects and commits**
-- `projects/home`: project cards, favorites, filter (all)
+- `projects/home`: cards, favorites, filter
 - `commits/feed`: commits grouped by day, branch tags, crashed/pending tags (PERF)
 - `commits/branch-evolution`: metrics over time on a branch (PERF)
-- `commits/filter`: filter box suggesting branches and "go to commit" (PERF)
+- `commits/filter`: branch suggestions and "go to commit" (PERF)
 - `integrations/menu`: integrations with statuses (IQ)
 
 **Commit page: metrics**
 - `commit/summary`: metric tiles, deltas, pass-rate bars, new vs ref histograms (DET)
-- `commit/metrics-table`: per-test quality report vs targets (DET)
-- `commit/metrics-diff`: improvement report vs reference (DET)
+- `commit/metrics-table`, `commit/metrics-diff`: quality and improvement reports (DET)
 - `commit/milestone`: star a commit as a milestone (DET)
 - `commit/batch-picker`, `commit/output-filter`: batch selector, negative/regex filters (IQ)
 
@@ -421,47 +620,36 @@ Legend: **IQ** image-quality, **PERF** perf-regression, **DET** detection-eval, 
 - `commit/image-sbs`: new vs ref side by side (IQ)
 - 🎬 `commit/image-diff`: synced zoom → perceptual diff → threshold slider (IQ)
 - `commit/pixel-tooltip`, `commit/roi-histograms`, `commit/auto-roi`, `commit/image-filters` (IQ)
-- 🎬 `commit/deep-zoom`: 100MP+ image from overview to pixels (IQ)
-- 🎬 `commit/dynamic-outputs`: synced slider across ISP stages / frames (IQ)
-- `commit/plotly-overlay`: PR curves with dashed reference (DET)
+- 🎬 `commit/deep-zoom`: a 100MP+ image from overview to pixels (IQ)
+- 🎬 `commit/dynamic-outputs`: a synced slider across ISP stages (IQ)
+- `commit/plotly-overlay`: PR curves with a dashed reference (DET)
 - `commit/flame-diff`: differential flame graph (PERF)
 - `commit/text-diff`: Monaco diff with "Next Diff" (AG or PERF config dumps)
 - `commit/html-report` (DET), `commit/video-sync` (R3D), `commit/pointcloud` (R3D), `commit/trajectory-6dof` (R3D)
 - `commit/output-files`: bit-accuracy tree, "Bit-accurate" tag (IQ fixed-point)
-- 🎬 `commit/bit-accuracy-diff`: Ctrl-click two files to diff in place (IQ)
-- `commit/controls-panel`: floating controls (IQ), `commit/export`: export files to a shared dir (IQ)
-- `commit/run-menu`: redo, mark failed, delete (PERF)
-- `commit/artifacts-configs`: config tree diff (DET)
+- 🎬 `commit/bit-accuracy-diff`: Ctrl-click two files to diff them in place (IQ)
+- `commit/controls-panel`, `commit/export` (IQ), `commit/run-menu` (PERF), `commit/artifacts-configs` (DET)
 
 **Logs**
-- 🎬 `logs/live-tail`: live log, error count, jump to next error (PERF)
-- `logs/lsf-hints`: LSF report with exit reason and hints (PERF), `logs/batch-commands` (PERF)
+- 🎬 `logs/live-tail`: live log, error count, jump to the next error (PERF)
+- `logs/lsf-hints` and `logs/batch-commands` (PERF)
 
 **History**
-- `history/performance-over-time`: per-test lines with target (PERF)
+- `history/performance-over-time`: per-test lines with a target (PERF)
 - 🎬 `history/find-regression`: hover across commits, inline output card, freeze the reference (PERF)
-- `history/relative`: relative to start (PERF), `history/image-diff`: show output files over time (IQ)
+- `history/relative` (PERF), `history/image-diff`: output files over time (IQ)
 
 **Tuning**
-- `tuning/available-tests`: Monaco batches editor, problems panel (DET)
-- `tuning/which-tests-run`: tests drawer (DET)
-- `tuning/manual-form`, `tuning/auto-form`: tuning forms (DET)
+- `tuning/available-tests`: Monaco batches editor and problems panel (DET)
+- `tuning/which-tests-run`, `tuning/manual-form`, `tuning/auto-form` (DET)
 - 🎬 `tuning/launch-to-analysis`: launch a sweep, see the Analysis (DET)
 - `tuning/analysis`: convergence, sensitivity, parallel coordinates, frontier (DET)
 
-**Files**
-- `files/browser`: keyboard-driven file browser (PERF)
-- `files/runbar`: run folder with redo/mark failed (PERF), `files/hotkeys`: `?` dialog
-
-**Global**
-- `whats-new/dialog`, `whats-new/drawer` (real release notes)
-- `auth/login`
-
-**CLI and CI** (VHS terminal recordings)
-- 🎬 `cli/first-run`: `qa run` on one input, link printed (IQ)
-- 🎬 `cli/batch`: `qa batch` with progress (DET)
-- `cli/bit-accuracy`: `qa check-bit-accuracy` failing then passing (IQ)
-- `ci/github-check`: the gate's check run summary (after §8.1)
+**Files and global**
+- `files/browser`, `files/runbar`, `files/hotkeys` (PERF)
+- `whats-new/dialog`, `whats-new/drawer`, `auth/login`
 
 **Landing**
-- 🎬 `landing/hero` (15-20 s loop), one 🎬 per loop step reused from above, `landing/social-card`
+- 🎬 `landing/hero` (15-20 s loop)
+- One 🎬 per loop step, reused from above
+- `landing/social-card`
