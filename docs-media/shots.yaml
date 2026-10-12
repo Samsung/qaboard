@@ -11,6 +11,8 @@
 #             `landing` is the home page (website/src/pages/index).
 #   features  web app polish it demonstrates (keys of `features` below); every feature needs at least one shot
 #   needs     the story state it depends on (commit ids from examples/<project>/story.yaml), when it matters
+#   anchors   names the spec must record with ui.anchor(), because pages use them in <Shot callouts>
+#             (the docs build checks callouts against this list, then against the manifest's anchors)
 #   phase     1 (vertical slice), 2 or 3
 #   status    planned | captured | published | retired
 #   experimental  true when it shows an experimental feature
@@ -229,6 +231,7 @@ shots:
     project: image-quality
     shows: The Controls panel open, with the visualization switches (hidden ones included), Image Diff and Sorting.
     pages: [user-guide/commit-page, visualizations]
+    anchors: [visualizations, image-diff, sorting]
     phase: 1
     status: planned
   - id: commit/image-sbs

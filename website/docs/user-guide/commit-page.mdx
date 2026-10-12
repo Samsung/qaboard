@@ -42,6 +42,16 @@ On the right edge of the page, the **Controls** panel (click the dark tab to ope
 - **Sorting**: sort runs by name, id, storage, a tuning parameter or a metric, ascending or descending. It applies to tables and cards.
 - **Metrics**: which metrics to show in the tables.
 
+<Shot
+  id="commit/controls-panel"
+  caption="The switches include the visualizations hidden by default. Image Diff and Sorting apply to every card."
+  callouts={[
+    {anchor: 'visualizations', label: 'Visualizations'},
+    {anchor: 'image-diff', label: 'Image Diff'},
+    {anchor: 'sorting', label: 'Sorting'},
+  ]}
+/>
+
 ## Views
 The sidebar of a commit page lists the views. Each one answers a different question.
 
@@ -96,7 +106,10 @@ Yellow **Input**, **Config**, **Platform** or **Tuning** tags (with a `≠` icon
 ### Visualizations
 One card per run, with its main metrics (and their change vs the reference) and the visualizations configured for the project: images, plots, videos, text, HTML, flame graphs, point clouds... The reference is shown next to the new result.
 
-<img alt="Visualizations" src={useBaseUrl('img/quantitative-metrics-on-viz.png')} />
+<Shot
+  id="commit/visualizations"
+  caption="Each card starts with the run's main metrics and their change against the reference, then its output images, new next to reference."
+/>
 
 On each card:
 - **The run name**: hover for its batch, input path and database (click to copy), metadata, compute time, date and storage. Click it to see that input's [history](history-and-dashboards.mdx).
@@ -112,7 +125,10 @@ Above the cards, **Export** gathers matching files from all runs in one shared d
 ### Output Files
 All the files each run created, as a tree, diffed against the reference run. It shows the total storage used.
 
-<img alt="Output Files" src={useBaseUrl('img/output-files.png')} />
+<Shot
+  id="commit/output-files"
+  caption="Only the files that differ from the reference are listed: here, the pipeline stages that a rounding change touched. Hover Help for what the icons mean."
+/>
 
 - By default only files that are **different, added or removed** are shown. Use **Show all files**, **Hide runs without files**, **Expand all folders**, **Color-blind friendly** and the path filter to change that.
 - **Click a file** to see its diff with the reference. Press <kbd>Ctrl</kbd> or <kbd>Shift</kbd> to select several files.

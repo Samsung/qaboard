@@ -79,18 +79,70 @@ Private milestones are stored in your browser: they don't follow you to another 
 ## Image viewers
 Images are shown side by side: **new** on one side, **reference** on the other.
 
-<img alt="Image viewer with perceptual diff and regions of interest" src={useBaseUrl('img/image-viewer-autoroi.png')} />
+<Shot
+  id="commit/image-sbs"
+  caption="Both images at the same zoom on the facade's windows: only the new one has halos along the frames."
+/>
 
-- **Synced zoom and pan**: zoom (mouse wheel) or pan (drag) in one image and the others follow. All the viewers of the same input with the same image proportions stay in sync, including the other visualizations of the run.
-- **Pixel values**: hover to see coordinates and RGB values, in the new and reference images, with a cross at the same spot on the other images.
-- **Switch**: click the **new** or **reference** label, or press <kbd>t</kbd>, to swap the two images in place. Flip back and forth to spot differences. Press <kbd>h</kbd> to hide the labels.
-- **Image Diff**: turn it on in the controls panel to show a perceptual color difference between the images. The slider sets the saturation threshold.
-- **Regions of interest**: the ROI menu above the image zooms on preset regions (when the inputs have them) or **Auto ROIs**, regions found automatically where the images differ most. **Copy current ROI** copies the current view's coordinates.
-- **Filters**: a button in the viewer's toolbar opens Brightness, Contrast, Gamma and Sharpen sliders, applied to all viewers of the same visualization.
-- **Histograms**: the selection button in the toolbar (or <kbd>c</kbd>) lets you select a region and see its RGB and luminance histograms.
-- **Copy**: copy the new, reference or diff image to your clipboard, to paste it in a chat or a slide.
+### Synced zoom and pan
+Zoom (mouse wheel) or pan (drag) in one image and the others follow. All the viewers of the same input with the same image proportions stay in sync, including the other visualizations of the run. Images of different sizes are still synced as long as their proportions match.
 
-Images of different sizes are still synced as long as their proportions match. Large images are streamed tile by tile, so zooming in a 100MP image stays fast.
+<Clip
+  id="commit/image-diff"
+  caption="Zoom in one image and the reference follows. With Image Diff on, raising the threshold leaves only the halos."
+/>
+
+To flip between the two images in place, click the **new** or **reference** label, or press <kbd>t</kbd>: differences jump out. Press <kbd>h</kbd> to hide the labels.
+
+### Image Diff
+Turn on **Image Diff** in the **Controls** panel to show a perceptual color difference between the images. The slider sets the saturation threshold.
+
+<Shot
+  id="commit/image-perceptual-diff"
+  caption="With the threshold raised, the halos around the edges stand out while noise differences stay dark."
+/>
+
+### Pixel values
+Hover an image to see the pixel's coordinates and RGB values, in the new and reference images, with a cross at the same spot on the other images.
+
+<Shot
+  id="commit/pixel-tooltip"
+  caption="Hover a pixel of the Siemens star: the tooltip shows its values in both images, and a crosshair marks the same spot on the reference."
+/>
+
+### Regions of interest
+The ROI menu above the image (**View ROIs**) zooms on preset regions, when the inputs have them, or on **Auto ROIs**: **Find Regions of Interest** looks for the regions where the images differ most, by the measure of difference you pick (SSIM, CIE 2000...). Step through the regions with the arrows, or click their thumbnails. **Copy current ROI** copies the current view's coordinates.
+
+<Shot
+  id="commit/auto-roi"
+  caption="Auto ROIs take you straight to the spots where new and reference differ most, next to the input's preset regions."
+/>
+
+### Histograms
+The selection button in the toolbar (or <kbd>c</kbd>) lets you select a region and see its RGB and luminance histograms.
+
+<Shot
+  id="commit/roi-histograms"
+  caption="A region of the sky gradient, with its RGB and luminance histograms for the new and the reference image."
+/>
+
+### Filters
+A button in the viewer's toolbar opens Brightness, Contrast, Gamma and Sharpen sliders. They apply to all the viewers of the same visualization, so new and reference stay comparable.
+
+<Shot
+  id="commit/image-filters"
+  caption="Brightness, gamma and sharpen on both images of the night street reveal the noise hidden in the shadows."
+/>
+
+### Large images
+Large images are streamed tile by tile, so zooming in a 100 MP image stays fast.
+
+<Clip
+  id="commit/deep-zoom"
+  caption="From the whole 113 MP test wall down to single pixels of a Siemens star, with both images in sync."
+/>
+
+You can also copy the new, reference or diff image to your clipboard, to paste it in a chat or a slide.
 
 Other viewers compare too: videos play in sync, text files show a diff (press <kbd>t</kbd> to swap sides), plots overlay the reference (dashed or faded) on the new results. See [the list of viewers](../visualizations.mdx#available-file-viewers).
 

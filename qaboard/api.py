@@ -193,7 +193,8 @@ def notify_qa_database(object_type='output', **kwargs):
         del data[k]
     click.secho(str(data), fg='yellow', err=True)
     try:
-      click.secho(str(r.request.headers), fg='yellow', dim=True, err=True)
+      request_headers = {k: '<redacted>' if k.lower() == 'authorization' else v for k, v in r.request.headers.items()}
+      click.secho(str(request_headers), fg='yellow', dim=True, err=True)
       # click.secho(str(r.request.body), fg='yellow', dim=True, err=True)
       click.secho(f'{r.status_code}: {r.text}', fg='yellow', dim=True, err=True)
     except Exception:
