@@ -31,9 +31,16 @@ docs-media/
     package.json       # pinned @playwright/test, same version as webapp/
     playwright.config.ts
     lib/               # index.ts (the only import for specs), demo.ts, waits.ts, overlay.ts, record.ts, ids.ts
+                       # capture.setup.ts (checks before capturing), test/ (the lib's tests, on fixture pages)
     <area>.spec.ts     # one file per area: commit.spec.ts, history.spec.ts...
   tapes/
     <area>-<subject>.tape   # VHS tapes; the shot id is <area>/<subject>
+    _settings.tape     # the settings every tape starts with
+    record.py          # uv script: records the tapes, writes their meta.json
+  install-tools.sh     # the pinned encoders and recorders (oxipng, avifenc, cwebp, VHS, ttyd, actionlint)
+  fonts.conf           # the only fonts captures see (FONTCONFIG_FILE)
+  affected.py          # the shots a pull request affects
+  test_publish.py      # publish.py's tests, on synthetic captures
   out/                 # capture output, gitignored: out/<area>/<subject>/...
 website/
   media.json           # committed manifest, schema: website/media.schema.json
@@ -60,6 +67,31 @@ website/
 All captures run against a stack restored from a snapshot (never a fresh seed: profiles and timings differ between
 seeds), from the demo world of [`examples/README.md`](../examples/README.md). The snapshot's metadata gives `T0`.
 
+```bash
+docs-media/install-tools.sh                     # once: pinned oxipng, avifenc, cwebp, VHS, ttyd in ~/.cache/qaboard-docs-media/bin
+sudo apt-get install ffmpeg fonts-roboto fonts-dejavu-core fonts-noto-color-emoji fonts-jetbrains-mono
+(cd docs-media/shots && npm ci && npx playwright install chromium)
+uv run docs-media/snapshot.py restore           # the demo stack at http://localhost:5151
+(cd docs-media/shots && SHOTS_ONLY='commit/*' npm run capture)   # stills and clips -> docs-media/out/
+uv run docs-media/tapes/record.py --only 'cli/*'                 # tapes -> docs-media/out/
+uv run docs-media/publish.py --only 'commit/*,cli/*' --dry-run   # encode, check budgets, compare; then without --dry-run
+```
+
+- **The demo facts** (T0, project ids, commits) come from what `seed.py` writes in
+  `$QABOARD_DEMO_RESULTS/.qaboard-demo/demo.json` (default `/mnt/qaboard`, restored with the snapshot). The environment
+  can override them: `DEMO_META` (another file), `DEMO_T0`, `DEMO_BASE_URL` (default `http://localhost:5151`),
+  `DEMO_APP_VERSION` (default: *pyproject.toml*'s version and the checkout's short sha; CI asks the stack's backend).
+  `demo.sha()` uses the snapshot's shas, and fails on a commit id the snapshot doesn't have.
+- **Selection:** `SHOTS_ONLY` (captures), `--only` (tapes, publish) take comma-separated globs over ids.
+- **`out/<area>/<subject>/meta.json`** is what `publish.py` reads: `id`, `kind`, `width`/`height` (CSS px of the
+  shot), `scale`, `alt`, `caption`, `project`, `app_version`, `source_spec`, `captured` (ISO time), `t0`,
+  `dedupe_tolerance`, `anchors`, `files`; clips add `region` (their box in the viewport, CSS px), `duration`, `frames`,
+  `poster`, `loop`; tapes add `duration`, `poster`.
+- `npm test` in `shots/` runs the lib's own tests on fixture pages (an OpenSeadragon viewer on a slow fake IIIF server,
+  Plotly redraws, spinners, a page to click, type, wheel and drag on), without the demo stack.
+  `uv run docs-media/test_publish.py` tests `publish.py` on synthetic captures.
+- Locally, `PLAYWRIGHT_CHROMIUM_EXECUTABLE` uses a Chromium that's already installed.
+
 ### Stills
 1. A spec calls `shot(id, options)` (API below), which registers one Playwright test named after the id.
 2. The test opens `options.url`, runs `options.actions`, waits until the page is settled, then screenshots the viewport
@@ -79,19 +111,25 @@ The one exception is `landing/social-card`: a spec renders an HTML template (log
   `out/<id>/frames/NNNNN.jpg` and an ffmpeg concat list with each frame's duration.
 - **Encoding** (in `publish.py`): resample to constant 30 fps, scale to at most 1920 px wide.
   - MP4: H.264 High, `-crf 26 -preset slow -pix_fmt yuv420p -movflags +faststart`, no audio track.
-  - WebM: VP9, `-crf 36 -b:v 0 -row-mt 1`, no audio track.
-  - Poster: WebP of the frame given by `poster` (default: the last frame).
+  - WebM: VP9, `-crf 36 -b:v 0 -row-mt 1 -cpu-used 2` (the default `-cpu-used 0` takes minutes per clip), no audio track.
+  - Poster: WebP (`-q 80`) of the frame given by `poster` (default: the last frame), at the video's size.
 - **Cursor:** a fake cursor (SVG arrow, injected by `addInitScript`) moves along eased paths; clicks show a ripple.
-  It is burned into the video. Stills never show it.
+  It is burned into the video. Stills never show it. The real mouse follows the same path, so hovers happen.
 - **Captions** are not burned in: each `ui.caption(text)` adds a WebVTT cue (`out/<id>/captions.vtt`) starting at that
   moment. `<Clip>` overlays the current cue and adds a `<track kind="captions">`. Keep cues under 60 characters.
 
 ### Terminal tapes
-- [charmbracelet/vhs](https://github.com/charmbracelet/vhs), pinned version, in the capture container. File
-  `tapes/<area>-<subject>.tape` makes shot `<area>/<subject>`.
-- Each tape starts with the shared settings: `Set Shell bash`, `Set FontFamily "JetBrains Mono"`, `Set FontSize 18`,
-  `Set Width 1280`, `Set Height 720`, `Set Padding 24`, `Set Framerate 30`, `Set TypingSpeed 35ms`, and the same theme.
-  `Output out/<area>/<subject>/tape.mp4` and `tape.webm`.
+- [charmbracelet/vhs](https://github.com/charmbracelet/vhs) 0.11.0 (`install-tools.sh`; 0.12 writes no video), with
+  ttyd, ffmpeg and a Chromium. `uv run docs-media/tapes/record.py [--only GLOB]` runs VHS from `docs-media/`, then
+  writes `meta.json`. File `tapes/<area>-<subject>.tape` makes shot `<area>/<subject>`.
+- Each tape starts with `# key: value` lines: `alt` (required), `caption`, `project`, `user` (the persona, default
+  `ines`), `env` (extra `KEY=VALUE`s, e.g. CI variables), `poster`, `dedupe_tolerance`.
+- Then the shared settings, `Source "tapes/_settings.tape"`: `Set Shell bash`, `Set FontFamily "JetBrains Mono"`,
+  `Set FontSize 18`, `Set Width 1280`, `Set Height 720`, `Set Padding 24`, `Set Framerate 30`, `Set TypingSpeed 35ms`,
+  and a theme from Blueprint's dark palette. Then `Output out/<area>/<subject>/tape.mp4` and `tape.webm`.
+- `HOME` is `/home/<user>`, where `~/kitefin/<repo>` is the seeder's workspace (`/tmp/kitefin/<repo>`, whose `.venv` has
+  `qa` and the example's dependencies) or a git copy of the example. `QABOARD_URL` is the stack's, `QA_USER` and the
+  git identity are the persona's. Wait for a command with `Wait@60s /\$$/` (the prompt is back).
 - Commands run for real: `qa` against the restored stack, with the env of the [demo world](../examples/README.md)
   (CI variables for "CI" tapes). Long waits are cut with `Hide`/`Show`; a tape lasts at most 45 s.
 - The prompt is `$ ` and the working directory looks like `~/kitefin/<repo>`. No real hostnames: the server is
@@ -112,6 +150,8 @@ export type View = 'summary' | 'table-kpi' | 'table-compare' | 'output-list' | '
 /** Facts about the restored demo snapshot (examples/README.md). */
 export interface Demo {
   t0: Date;
+  baseUrl: string;                                       // http://localhost:5151
+  appVersion: string;                                    // 1.1.1+78813fe, recorded with each shot
   slug(project: ProjectKey): string;                     // 'kitefin/inference-gateway'
   sha(project: ProjectKey, commit: string): string;      // story commit id -> 40-hex sha (see examples/STORY.md)
   url(project: ProjectKey, path?: string, query?: Record<string, string | number | boolean>): string;
@@ -196,7 +236,9 @@ shot('commit/pixel-tooltip', {
 - Selectors: roles and visible text first. When none is stable, add a `data-shot="..."` attribute in the web app in
   the same PR, with a test.
 - `*.kitefin.example` requests (integration links, git links) are routed to stub `200` responses, so links don't
-  render as unreachable.
+  render as unreachable. Other requests outside the stack are blocked, with a warning.
+- `shot()` and `clip()` register tests tagged `@still` and `@clip`; the config's `stills` and `clips` projects set
+  `reducedMotion`. Stills are taken until two screenshots in a row are identical.
 
 ## Determinism
 
@@ -207,8 +249,10 @@ shot('commit/pixel-tooltip', {
   recording.
 - **Rendering:** Chromium from the pinned Playwright image; viewport 1440x900 at scale 2; `locale: 'en-US'`,
   `timezoneId: 'UTC'`, `colorScheme: 'light'`; `reducedMotion: 'reduce'` for stills.
-  Fonts are pinned in the capture image (Roboto, JetBrains Mono, DejaVu Sans Mono, Noto Color Emoji, nothing else
-  that matches the app's font stack); `fc-match` checks run before capturing.
+  Fonts are pinned: Chromium and VHS only see [`fonts.conf`](fonts.conf) (`FONTCONFIG_FILE`): Roboto, DejaVu Sans
+  (fallback) and Sans Mono, Noto Color Emoji, JetBrains Mono, with aliases so that the app's font stack resolves to
+  Roboto whatever the host has. Before capturing, the `setup` project checks with `fc-match`, then asks Chromium which
+  fonts it really draws the app's stacks with.
 - **Page state:** every page starts with this `localStorage`, plus `options.storage`:
   - `qaboard.release-notes.last-seen`: the slug of the newest release note whose period ended before T0 (a
     `YYYY-MM-DD` date works too), so What's new doesn't pop up (except in `whats-new/*`);
@@ -216,7 +260,8 @@ shot('commit/pixel-tooltip', {
   - no redux-persist state (favorites and date ranges come from the URL or the actions).
 - **Waits** (`ui.settle()`, called after navigation and after `actions`):
   1. `document.fonts.ready`;
-  2. no request in flight for 500 ms, ignoring long-polling;
+  2. no request in flight for 500 ms, ignoring long-polling (a request in flight for over 10 s); the page's load
+     events count as activity;
   3. no `.bp6-spinner`, `.bp6-skeleton` or `.bp6-progress-bar` visible;
   4. `ui.tiles()`: no `/iiif/` request in flight for 750 ms and every `.openseadragon-canvas` has drawn. The viewer
      tracks OpenSeadragon's `fully-loaded-change` internally but doesn't expose it: until it does (a `data-shot`
@@ -224,6 +269,8 @@ shot('commit/pixel-tooltip', {
   5. `ui.plots()`: every `.js-plotly-plot` has `_fullLayout`, and no `plotly_afterplot` event fired for 300 ms
      (listeners are attached with `gd.on`).
 - **Masks:** only for what is truly volatile (a live log's elapsed time, a running batch's spinner). Never mask data.
+  Masked elements are hidden (`visibility: hidden`), so what's behind them shows, and spinners in them don't block
+  `settle()`.
 - **No churn:** `publish.py` keeps the published file when the new capture is within the dedupe tolerance.
 
 ## Budgets
@@ -240,26 +287,37 @@ shot('commit/pixel-tooltip', {
 
 ## Publishing (`publish.py`)
 
-`uv run docs-media/publish.py [--only GLOB] [--dry-run]`, then `publish.py gc`.
+`uv run docs-media/publish.py [--only GLOBS] [--dry-run] [--base-url URL] [--manifest PATH]`, then
+`publish.py gc [--dry-run] [--days 90] [--no-prs]`. Encoders: `install-tools.sh` (oxipng 10.2.0, libavif 1.4.2,
+libwebp 1.6.0) and the distribution's ffmpeg (Ubuntu 24.04: 6.1.1). Budgets count 1 KB = 1000 bytes.
 
 1. **Encode** each `out/<id>/`:
    - stills: PNG (oxipng), AVIF (`avifenc -q 60 --yuv 444 -s 4`), WebP (`cwebp -q 82 -m 6 -sharp_yuv`),
      LQIP (16 px wide WebP, base64);
    - clips and tapes: MP4, WebM, poster, and `captions.vtt` when there are captions.
-2. **Dedupe** against the current manifest entry, downloaded from `base_url`:
-   - stills: same dimensions, and [pixelmatch](https://github.com/mapbox/pixelmatch) (`threshold 0.1`, anti-aliasing
-     ignored) finds at most `dedupeTolerance` of the pixels different on the PNG masters;
-   - clips and tapes: duration within ±10%, and the poster plus one frame per second pass the same test.
+2. **Dedupe** against the current manifest entry, downloaded from `base_url` (the S3 API when it isn't reachable),
+   cached in `website/.media-cache/media/<key>` like the docs plugin does:
+   - stills: same dimensions, and [pixelmatch](https://github.com/mapbox/pixelmatch) 7 (`threshold 0.1`, anti-aliasing
+     ignored; a numpy port, checked against the JS one) finds at most `dedupeTolerance` of the pixels different on
+     the PNG masters;
+   - clips and tapes: duration within ±10%, and the poster plus one frame per second pass the same test. Recordings
+     run in real time, so a frame passes if the old video shows it within ±0.4 s.
    - If unchanged, the entry is kept as it is: no upload, no manifest change.
 3. **Upload** changed files to the `qaboard-media` bucket (S3 API) at `shots/<id>/<hash>.<ext>`:
    - `<hash>`: the first 16 hex characters of the file's SHA-256;
    - `Cache-Control: public, max-age=31536000, immutable`, the right `Content-Type`;
-   - objects are never overwritten (`If-None-Match: *`).
+   - objects are never overwritten (`If-None-Match: *`, which R2 honors: 412 when the key exists).
+   - `base_url`'s path, if any, prefixes the object keys (`https://<host>/_test` writes `_test/shots/...`), to try
+     `publish.py` without touching real shots.
 4. **Manifest:** write `website/media.json` (sorted keys, 2-space indent, final newline), valid against
    `website/media.schema.json`. `captured` is the capture date; `app_version` is the stack's `qaboard` version plus its
    short git sha (e.g. `1.1.1+78813fe`).
 5. **`gc`:** R2 lifecycle rules can't see references, so `gc` deletes objects under `shots/` older than 90 days that no
    `website/media.json` references, on `master`, on an open PR branch or at a release tag of the last 90 days.
+   It needs `origin/master` and the tags fetched, and lists pull requests with `gh api` (`GH_TOKEN`).
+6. **Gallery:** `out/gallery.md` (before/after from `base_url`, for the PR comment), `out/gallery/index.html` (local
+   files, a workflow artifact) and `out/publish-report.json`.
+7. A shot fails if `shots.yaml` lists `anchors` its capture didn't record.
 
 ## Serving: the docs build fetches media
 
@@ -392,6 +450,8 @@ Canonical values (`stack.ts`, the only place they're defined; the first one is t
 | Monthly (`17 6 2 * *`, with the release notes) | Full refresh from the snapshot; opens a PR only if something changed beyond the tolerance; runs `publish.py gc` |
 
 - Never on push. One run per ref at a time (`concurrency`), PR runs cancel the previous one.
+- The stack runs this checkout's images (built like CI's, from its layer cache), so web app changes show.
+  `affected.py` computes the affected shots of a pull request.
 - **Affected shots** on a PR: all of them if `webapp/**` or `docs-media/shots/lib/**` changed; an area if its
   `shots/<area>.spec.ts` changed; a project's shots, with a reseed, if `examples/<project>/**` changed; a tape if its
   `.tape` changed.
