@@ -1550,6 +1550,41 @@ def run_checks(seeder: Seeder) -> bool:
 
 # ------------------------------------------------------------------------------------------------ CLI
 
+def print_plan(story: Story):
+  """What the story does, commit by commit: when, who, what changes in the flags, which runs"""
+  def changes(before: dict, after: dict) -> str:
+    keys = sorted(set(before) | set(after))
+    return ', '.join(
+      f"-{k}" if k not in after else f"{k}={json.dumps(after[k])}"
+      for k in keys if before.get(k, MISSING) != after.get(k, MISSING)
+    )
+  defaults = story.data.get('defaults', {}).get('flags', {})
+  print(f"{story.id}: {len(story.order)} commits, T0 {iso(story.t0)} ({story.t0:%A})")
+  for commit_id in story.order:
+    c = story.commits[commit_id]
+    parent = story.commits[c.parents[0]].flags if c.parents else defaults
+    runs = ', '.join(
+      f"{r.batch}{'/' + r.platform if r.platform != 'linux' else ''}"
+      f"{' via ' + r.via if r.via != 'ci' else ''}{' [' + r.label + ']' if r.label != 'default' else ''}"
+      f"{' +' + str(r.after) if r.via != 'ci' or r.after != datetime.timedelta(minutes=6) else ''}"
+      f"{' (in progress)' if r.progress else ''}"
+      for r in c.runs
+    ) or 'no runs'
+    merge = f" merge of {c.parents[1]}" if len(c.parents) > 1 else ''
+    print(f"{c.at:%a %m-%d %H:%M} {c.id:<24} {c.branch:<22} {c.author:<7}{merge}")
+    flags = changes(parent, c.flags)
+    if flags:
+      print(f"{'':16}flags: {flags}")
+    if c.patches:
+      print(f"{'':16}patches: {', '.join(c.patches)}")
+    print(f"{'':16}runs: {runs}")
+    for f in c.failures:
+      print(f"{'':16}fails: {f['batch']} {f.get('inputs', '')} {f['kind']}")
+  for m in story.milestones:
+    print(f"milestone {m['label']} on {m['commit']} by {m['by']}")
+  print(f"{len(story.checks)} checks")
+
+
 def find_story(args) -> Path:
   if args.story:
     return Path(args.story)
@@ -1579,6 +1614,7 @@ def main():
   parser.add_argument('--resume', action='store_true', help="Continue the last seed of this story where it stopped")
   parser.add_argument('--checks-only', action='store_true', help="Only run the story's checks")
   parser.add_argument('--fresh', action='store_true', help="Start from an empty stack: delete its database and seeded data first")
+  parser.add_argument('--validate', action='store_true', help="Only check the story and print what it does (no stack needed)")
   parser.add_argument('--workspace', default='/tmp/kitefin', help="Where the examples are copied and run (default: %(default)s)")
   parser.add_argument('--jobs', type=int, default=os.cpu_count(), help="Runs in parallel in each batch (default: %(default)s)")
   parser.add_argument('--volumes', action='store_true', help="down: also delete the data")
@@ -1595,6 +1631,10 @@ def main():
     stack.down(volumes=args.volumes)
     return
 
+  if args.validate:
+    story = Story(find_story(args), parse_t0(args.t0) if args.t0 else default_t0())
+    print_plan(story)
+    return
   if args.fresh:
     log("Deleting the demo stack's data (--fresh)", 'yellow')
     stack.down(volumes=True)

@@ -81,6 +81,7 @@ uv run docs-media/seed.py --story docs-media/tests/fixture/story.yaml   # test s
 uv run docs-media/snapshot.py save                          # snapshots/<key>.tar.zst, with T0 and the shas
 ```
 
+- `--validate` checks a story and prints what it does, without a stack: use it while writing one.
 - `--fresh` empties the stack first (do it before seeding the projects of a new snapshot), `--until <commit>` stops
   early, `--checks-only` reruns the checks, `--t0 2026-10-08T16:00Z` picks T0 (default: the stack's, else the last
   Thursday 16:00 UTC). All projects of a snapshot share T0.
