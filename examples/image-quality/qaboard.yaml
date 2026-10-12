@@ -16,6 +16,9 @@ inputs:
 
 outputs:
   metrics: qa/metrics.yaml
+  # Run cards as wide as a laptop's screen allows: new and reference images are about 600 px wide each
+  style:
+    width: 1180px
   visualizations:
     - name: Output
       path: out.png                      # the 113 MP wall has out.tiff instead, streamed through IIIF
