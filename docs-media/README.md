@@ -317,6 +317,12 @@ shot('commit/pixel-tooltip', {
   `settle()`.
 - **No churn:** `publish.py` keeps the published file when the new capture is within the dedupe tolerance.
 
+### Known issues
+- The image viewer's **Sharpen** filter draws seams at the borders of the tiles (it filters each tile on its own):
+  `commit/image-filters` uses brightness and gamma only.
+- The **histograms** of a selected region (`commit/roi-histograms`) are computed from the rendered canvas, at whatever
+  resolution the tiles have loaded: they vary slightly between captures, and so does the shot.
+
 ## Budgets
 
 `publish.py` fails, before uploading anything, when a file is over budget.
