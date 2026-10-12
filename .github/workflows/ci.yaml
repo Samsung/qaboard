@@ -193,7 +193,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
         with:
-          version: v4.2.1
+          version: v4.3.0
       - name: Lint and validate the chart
         run: |
           curl -sSfL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz | tar xz kubeconform
@@ -239,7 +239,7 @@ jobs:
             cantaloupe.cache-from=type=gha,scope=cantaloupe
       - uses: azure/setup-helm@v4
         with:
-          version: v4.2.1
+          version: v4.3.0
       - name: Install kind
         run: |
           curl -sSfLo kind "https://kind.sigs.k8s.io/dl/$KIND_VERSION/kind-linux-amd64"
@@ -256,8 +256,16 @@ jobs:
           for service in backend frontend website proxy cantaloupe; do images+=("$QABOARD_IMAGE:$service-$QABOARD_VERSION"); done
           kind load docker-image --name qaboard "${images[@]}"
           docker image rm "${images[@]}" > /dev/null
+          # Helm 4.2.1 waited out the full --timeout after deleting hooks, then reported success anyway
+          # (https://github.com/helm/helm/issues/32214): an install of a few minutes took 30. Fail instead.
+          start=$SECONDS
           helm install qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --timeout 15m \
             --set image.repository="$QABOARD_IMAGE" --set-string image.version="$QABOARD_VERSION"
+          echo "helm install took $((SECONDS - start))s"
+          if [ $((SECONDS - start)) -gt 600 ]; then
+            echo "::error::helm install took over 10 minutes: is helm waiting out its timeout (helm/helm#32214)?"
+            exit 1
+          fi
           kubectl port-forward svc/qaboard-proxy 5151:80 > /tmp/port-forward.log 2>&1 &
       - name: Smoke tests
         run: |
@@ -283,9 +291,15 @@ jobs:
         run: |
           revision() { kubectl get deploy qaboard-backend qaboard-proxy -o jsonpath='{.items[*].metadata.annotations.deployment\.kubernetes\.io/revision}'; }
           before=$(revision)
+          start=$SECONDS
           helm upgrade qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --timeout 15m \
             --set image.repository="$QABOARD_IMAGE" --set-string image.version="$QABOARD_VERSION"
+          echo "helm upgrade took $((SECONDS - start))s"
           helm history qaboard
+          if [ $((SECONDS - start)) -gt 600 ]; then
+            echo "::error::helm upgrade took over 10 minutes: is helm waiting out its timeout (helm/helm#32214)?"
+            exit 1
+          fi
           if [ "$(revision)" != "$before" ]; then
             echo "::error::A no-op helm upgrade restarted pods: a template renders differently each time"
             exit 1
@@ -294,7 +308,8 @@ jobs:
           # The results are still there
           curl -sSf "http://localhost:5151/api/v1/commit/$GITHUB_SHA?project=user/sample_project" > /dev/null
       - name: Cluster state on failure
-        if: failure()
+        # also when the job's timeout cancels it
+        if: failure() || cancelled()
         run: |
           set +e
           df -h /
@@ -366,7 +381,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
         with:
-          version: v4.2.1
+          version: v4.3.0
       - name: Package and push the chart
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

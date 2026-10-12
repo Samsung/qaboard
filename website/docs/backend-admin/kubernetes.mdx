@@ -6,7 +6,7 @@ title: Running QA-Board on Kubernetes
 QA-Board has a Helm chart. Each release publishes it at `oci://ghcr.io/samsung/charts/qaboard`, with images built and tested by CI (`ghcr.io/samsung/qaboard`). The chart's source is in [`charts/qaboard`](https://github.com/Samsung/qaboard/tree/master/charts/qaboard), and `helm show values oci://ghcr.io/samsung/charts/qaboard` lists all its settings, with comments.
 
 ## Quickstart on your laptop (kind)
-You need [docker](https://docs.docker.com/get-docker/), [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation), [kubectl](https://kubernetes.io/docs/tasks/tools/) and [helm](https://helm.sh/docs/intro/install/) (3.8 or later). Then:
+You need [docker](https://docs.docker.com/get-docker/), [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation), [kubectl](https://kubernetes.io/docs/tasks/tools/) and [helm](https://helm.sh/docs/intro/install/) (3.8 or later; with helm 4, avoid 4.2.1: it waits out the whole `--timeout` after running the chart's migrations, see [helm#32214](https://github.com/helm/helm/issues/32214)). Then:
 
 ```bash
 git clone https://github.com/Samsung/qaboard.git
