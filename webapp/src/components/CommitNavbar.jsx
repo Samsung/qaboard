@@ -149,11 +149,37 @@ class CommitNavbar extends React.Component {
       });
   }
 
+  // Redo the batch's runs, or those matching the filter. QA-Board starts them with a single `qa batch`.
+  redo = ({only_failed = false, only_deleted = false} = {}) => {
+    const { project, batch, selected, type, dispatch } = this.props;
+    const filter = selected[`filter_batch_${type}`]
+    const output_ids = filter ? (batch.filtered?.outputs ?? []) : undefined
+    const show_logs = { text: "Show the logs", onClick: () => dispatch(updateSelected(project, { selected_views: 'logs' })) }
+    this.setState({waiting: true})
+    toaster.show({message: "Redo requested."});
+    axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_failed, only_deleted, output_ids})
+      .then(response => {
+        this.setState({waiting: false})
+        const runs = response.data?.submission?.runs
+        toaster.show({message: `Redoing ${runs ?? 'the'} run${runs === 1 ? '' : 's'} from ${batch.label}.`, intent: Intent.SUCCESS, action: show_logs});
+        this.refresh()
+        setTimeout(this.refresh,  5*1000)
+        setTimeout(this.refresh, 10*1000)
+      })
+      .catch(error => {
+        this.setState({waiting: false });
+        toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER, action: error.response?.data?.submission ? show_logs : undefined});
+        this.refresh()
+      });
+  }
+
   render() {
     const { project, project_data, commit, batch, selected, type, dispatch, update } = this.props;
     const { project_input, soft_delete, files_delete_filter } = this.state;
     const project_attr = `${type}_project`
     const filter = selected[`filter_batch_${type}`]
+    // With a filter, we only redo the runs that match it
+    const redo_counts = (filter ? batch?.filtered : batch) ?? {}
 
     const qatools_config = project_data?.data?.qatools_config
     const reference_branch = qatools_config?.project?.reference_branch ?? 'master';
@@ -382,71 +408,29 @@ class CommitNavbar extends React.Component {
               shouldDismissPopover={false}
               onClick={() => this.setState({show_rename_dialog: true})}
             />
-            {batch.deleted_outputs > 0 && <MenuItem
+            {redo_counts.deleted_outputs > 0 && <MenuItem
               icon="redo"
-              text="Redo Deleted Outputs"
+              text={filter ? "Redo Filtered Deleted Outputs" : "Redo Deleted Outputs"}
               intent={Intent.WARNING}
               minimal
               disabled={this.state.waiting || commit?.deleted}
-              onClick={() => {
-                this.setState({waiting: true})
-                toaster.show({message: "Redo of deleted outputs requested."});
-                axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: true})
-                  .then(() => {
-                    this.setState({waiting: false})
-                    toaster.show({message: `Redo ${batch.label}.`, intent: Intent.SUCCESS});
-                    this.refresh()
-                  })
-                  .catch(error => {
-                    this.setState({waiting: false });
-                    toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
-                  });
-              }}
+              onClick={() => this.redo({only_deleted: true})}
             />}
-            {batch.failed_outputs > 0 && <MenuItem
+            {redo_counts.failed_outputs > 0 && <MenuItem
               icon="redo"
-              text="Redo Failed Outputs"
+              text={filter ? "Redo Filtered Failed Outputs" : "Redo Failed Outputs"}
               intent={Intent.WARNING}
               minimal
               disabled={this.state.waiting || commit?.deleted}
-              onClick={() => {
-                this.setState({waiting: true})
-                toaster.show({message: "Redo of failed outputs requested."});
-                axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_failed: true})
-                  .then(() => {
-                    this.setState({waiting: false})
-                    toaster.show({message: `Redo ${batch.label}.`, intent: Intent.SUCCESS});
-                    this.refresh()
-                  })
-                  .catch(error => {
-                    this.setState({waiting: false });
-                    toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
-                  });
-              }}
+              onClick={() => this.redo({only_failed: true})}
             />}
             <MenuItem
               icon="redo"
-              text="Redo All Outputs"
+              text={filter ? `Redo the ${batch.filtered?.outputs?.length ?? 0} Filtered Outputs` : "Redo All Outputs"}
               intent={Intent.WARNING}
               minimal
-              disabled={this.state.waiting || commit?.deleted}
-              onClick={() => {
-                this.setState({waiting: true})
-                toaster.show({message: "Redo requested."});
-                axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: false})
-                  .then(() => {
-                    this.setState({waiting: false})
-                    toaster.show({message: `Redo ${batch.label}.`, intent: Intent.SUCCESS});
-                    this.refresh()
-                    setTimeout(this.refresh,  1*1000)
-                    setTimeout(this.refresh,  5*1000)
-                    setTimeout(this.refresh, 10*1000)
-                  })
-                  .catch(error => {
-                    this.setState({waiting: false });
-                    toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
-                  });
-              }}
+              disabled={this.state.waiting || commit?.deleted || (!!filter && !batch.filtered?.outputs?.length)}
+              onClick={() => this.redo()}
             />
             <MenuDivider/>
             <MenuItem

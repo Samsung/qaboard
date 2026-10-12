@@ -16,7 +16,6 @@ from typing import Dict, Any
 import yaml
 from flask import request, jsonify, g
 from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy.orm.attributes import flag_modified
 
 from qaboard.utils import merge
 from qaboard.iterators import iter_inputs, resolve_aliases
@@ -27,6 +26,7 @@ from ..models import CiCommit, Project
 from ..config import qaboard_data_shared_dir
 from ..shell_utils import safe_user_name, lsf_bridge_command
 from ..storage import check_storage_path, UnsafePathError
+from ..submissions import record_submission, MAX_SUBMISSIONS, user_batch_dir, submission_dir # noqa: F401
 from .auth import login_required
 
 
@@ -359,23 +359,6 @@ def _dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize):
     return {"lsf_job_id": parse_bsub_job_id(out.stdout), "queue": queue}
 
 
-# We keep the history of the last batches started from QA-Board
-MAX_SUBMISSIONS = 20
-
-def record_submission(batch, submission):
-    """
-    Remember in batch.data.submissions how users started the batch from QA-Board.
-    QA-Board uses it to show the status of `qa batch`, and its logs.
-    """
-    data = batch.data or {}
-    submissions = {**data.get('submissions', {}), submission['id']: submission}
-    if len(submissions) > MAX_SUBMISSIONS:
-        recent = sorted(submissions.values(), key=lambda s: s.get('created_at', ''))[-MAX_SUBMISSIONS:]
-        submissions = {s['id']: s for s in recent}
-    batch.data = {**data, 'submissions': submissions}
-    flag_modified(batch, "data")
-
-
 @app.route("/api/v1/commit/<hexsha>/batch", methods=["POST"], strict_slashes=False)
 @login_required
 def start_tuning(hexsha):
@@ -454,11 +437,9 @@ def start_tuning(hexsha):
     # Or even store the metadata in the database itself...
     prev_mask = os.umask(000)
 
-    batch_dir = batch.batch_dir
     # FIXME: if the output directory includes "{user}", we will use the current user (qaboard)
     # but it's likely better to use the user that requested the tuning
-    default_user = os.environ.get('QABOARD_DEFAULT_USER', 'qaboard')
-    batch_dir = Path(str(batch_dir).replace(f'/outputs/{default_user}/', f'/outputs/{user}/'))
+    batch_dir = user_batch_dir(batch.batch_dir, user)
     # We write scripts in the batch's folder, and run code from the artifacts folder
     try:
         check_storage_path(batch_dir)
@@ -478,7 +459,7 @@ def start_tuning(hexsha):
     command_id = str(uuid.uuid4())
     # Each batch started from QA-Board has its own scripts and logs
     created_at = datetime.datetime.utcnow()
-    log_dir = batch_dir / 'qaboard-batches' / f"{created_at.strftime('%Y%m%d-%H%M%S')}-{command_id[:8]}"
+    log_dir = submission_dir(batch_dir, created_at, command_id)
     prev_mask = os.umask(000)
     log_dir.mkdir(parents=True, exist_ok=True)
     os.umask(prev_mask)
