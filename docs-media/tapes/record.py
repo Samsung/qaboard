@@ -16,7 +16,8 @@ A tape starts with `# key: value` lines, then `Source "tapes/_settings.tape"`:
   alt       required alt text (website/STYLE.md); caption: the default caption; poster: first, last or ms
 Commands run for real, against the restored demo stack (QABOARD_URL, from the demo facts), from ~/kitefin/<repo>:
 HOME is /home/<user> (TAPES_HOME), where ~/kitefin/<repo> is the seeder's workspace ($DEMO_WORKSPACES/<repo>, default
-/tmp/kitefin/<repo>, whose .venv has `qa` and the example's dependencies), or else a git copy of examples/<project>.
+/tmp/kitefin/<repo>, whose .venv has `qa` and the example's dependencies), or one built like it (see workspace()).
+CI and QA-Board variables of the environment are dropped, unless the tape's `env` sets them.
 Tools: VHS, ttyd and ffmpeg from docs-media/install-tools.sh or PATH, a Chromium (PLAYWRIGHT_CHROMIUM_EXECUTABLE,
 Playwright's, or `chromium` in PATH), and `qa` in PATH.
 """
@@ -26,6 +27,7 @@ import argparse
 import datetime as dt
 import fnmatch
 import glob
+import hashlib
 import json
 import os
 import re
@@ -106,27 +108,67 @@ def chromium() -> str:
     raise SystemExit("No Chromium for VHS: set PLAYWRIGHT_CHROMIUM_EXECUTABLE, or run `npx playwright install chromium` in docs-media/shots")
 
 
-def workspace(project: str, home: Path, user: str) -> Path:
-    """~/kitefin/<repo>: the seeder's workspace for the project ($DEMO_WORKSPACES/<repo>, default /tmp/kitefin/<repo>,
-    with the venv where `qa` and the example's dependencies are), else a git copy of the example"""
+# Variables that tell `qa` it runs in a CI, or about a commit: never inherited (a tape's `env` can set them)
+SCRUBBED_ENV = re.compile(r"^(CI|CI_.*|GITHUB_.*|GITLAB_.*|GIT_.*|gitlab.*|CIRCLE.*|TRAVIS.*|BUILD_URL|JENKINS_.*|QA_.*|QABOARD_.*|RUNNER_.*|VIRTUAL_ENV)$")
+
+
+def main_head(facts: dict, project: str) -> str | None:
+    """The sha of the reference branch's last commit at T0, from the demo facts"""
+    commits = facts.get("projects", {}).get(project, {}).get("commits", {})
+    on_main = [c for c in commits.values() if c.get("branch") == "main"]
+    return max(on_main, key=lambda c: c["at"])["sha"] if on_main else None
+
+
+def workspace(project: str, home: Path, facts: dict) -> Path:
+    """~/kitefin/<repo>, where the tape's commands run.
+    - The seeder's workspace when it's there ($DEMO_WORKSPACES/<repo>, default /tmp/kitefin/<repo>): its .venv has `qa`
+      and the example's dependencies, its inputs are generated, its git HEAD is a story commit.
+    - Else (CI, after a restore) the same, built here: a copy of the example, git HEAD on the reference branch's last
+      commit at T0 (like the seeder, a ref to a sha the repository doesn't have), a venv with this checkout's qaboard and
+      the example's requirements.txt, and the inputs generated (the first import of qa/main.py does it).
+    """
     project_id = PROJECT_IDS[project]
-    target = home / project_id
-    seeded = Path(os.environ.get("DEMO_WORKSPACES") or "/tmp/kitefin") / project_id.split("/")[-1]
-    if target.is_symlink() and not target.exists():
+    repo = project_id.split("/")[-1]
+    target = home / "kitefin" / repo
+    seeded = Path(os.environ.get("DEMO_WORKSPACES") or "/tmp/kitefin") / repo
+    if target.is_symlink() and not target.resolve().exists():
         target.unlink()
-    if target.exists() or target.is_symlink():
-        return target
     target.parent.mkdir(parents=True, exist_ok=True)
-    if seeded.exists():
-        target.symlink_to(seeded)
+    if (seeded / ".venv" / "bin" / "qa").exists():
+        if not target.is_symlink() or target.resolve() != seeded.resolve():
+            if target.is_symlink():
+                target.unlink()
+            elif target.exists():
+                shutil.rmtree(target)
+            target.symlink_to(seeded)
         return target
-    shutil.copytree(REPO / "examples" / project, target, ignore=shutil.ignore_patterns("build", "output", "__pycache__"))
-    name = PEOPLE.get(user, user)
-    env = {**os.environ, "GIT_AUTHOR_NAME": name, "GIT_COMMITTER_NAME": name, "GIT_AUTHOR_EMAIL": f"{user}@kitefin.example",
-           "GIT_COMMITTER_EMAIL": f"{user}@kitefin.example", "GIT_AUTHOR_DATE": "2026-01-01T12:00:00Z",
-           "GIT_COMMITTER_DATE": "2026-01-01T12:00:00Z"}
-    for cmd in (["init", "-q", "-b", "main"], ["add", "-A"], ["commit", "-q", "-m", "Initial commit"]):
-        subprocess.run(["git", *cmd], cwd=target, env=env, check=True)
+    if target.is_symlink():
+        target.unlink()
+    example = REPO / "examples" / project
+    log(f"  building the workspace {target} from {example.relative_to(REPO)}")
+    shutil.copytree(example, target, dirs_exist_ok=True,
+                    ignore=shutil.ignore_patterns(".venv", "build", "output", "__pycache__", "*.pyc", ".git"))
+    sha = main_head(facts, project)
+    if sha:
+        git = target / ".git"
+        (git / "refs" / "heads").mkdir(parents=True, exist_ok=True)
+        (git / "HEAD").write_text("ref: refs/heads/main\n")
+        (git / "refs" / "heads" / "main").write_text(sha + "\n")
+    venv = target / ".venv"
+    requirements = example / "requirements.txt"
+    stamp = venv / ".record-stamp"
+    wanted = hashlib.sha256(((requirements.read_text() if requirements.exists() else "")
+                             + (REPO / "pyproject.toml").read_text()).encode()).hexdigest()
+    if not stamp.exists() or stamp.read_text() != wanted:
+        log(f"  installing qaboard and the example's requirements in {venv}")
+        subprocess.run(["uv", "venv", "-q", "--allow-existing", "--python", "3.12", str(venv)], check=True)
+        deps = ["-r", str(requirements)] if requirements.exists() else []
+        subprocess.run(["uv", "pip", "install", "-q", "--python", str(venv / "bin" / "python"), "-e", str(REPO), *deps], check=True)
+        stamp.write_text(wanted)
+    # the inputs (photos, charts) are fetched and generated the first time qa/main.py is imported
+    env = {k: v for k, v in os.environ.items() if not SCRUBBED_ENV.match(k)}
+    subprocess.run([str(venv / "bin" / "python"), "-c", "import sys; sys.path.insert(0, 'qa'); import main"],
+                   cwd=target, env=env, check=True)
     return target
 
 
@@ -166,12 +208,11 @@ def record(tape: Path, facts: dict) -> Path:
     project = meta.get("project", "none")
     path = [str(shim), str(TOOLS_BIN), os.environ.get("PATH", "")]
     if project in PROJECT_IDS:
-        venv = workspace(project, home, user) / ".venv"
-        if (venv / "bin" / "qa").exists():
-            path.insert(1, str(venv / "bin"))
+        venv = workspace(project, home, facts) / ".venv"
+        path.insert(1, str(venv / "bin"))
     name = PEOPLE.get(user, user)
     env = {
-        **os.environ,
+        **{k: v for k, v in os.environ.items() if not SCRUBBED_ENV.match(k)},
         "HOME": str(home),
         "PATH": os.pathsep.join(path),
         "PS1": "$ ",

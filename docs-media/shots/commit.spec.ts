@@ -200,7 +200,7 @@ shot('commit/output-files', {
     await ui.click(ui.page.getByText('stages', { exact: true }).first());
     await ui.click(ui.page.getByText('raw', { exact: true }).first());
     await ui.settle();
-    await ui.click(ui.page.getByRole('button', { name: 'Help' }));
+    await ui.hover(ui.page.getByText('Help', { exact: true }));
     await ui.settle();
   },
 });
@@ -228,7 +228,12 @@ clip('commit/image-diff', {
     await ui.click(ui.page.locator('[title="Toggle Controls Panel"]'));
     await ui.hold(1500);
     await ui.caption('A higher threshold keeps only the halos');
-    await diffThreshold(ui, scope, 10);
+    // from 5% to 15%: the slider spans 0-30% over the width of an image
+    const handle = scope.locator('.bp6-slider-handle').first();
+    const track = (await scope.locator('.bp6-slider').first().boundingBox())!;
+    const from = (await handle.boundingBox())!;
+    await ui.drag(handle, { x: from.x + from.width / 2 + track.width / 3, y: from.y + from.height / 2 });
+    await ui.settle();
     await ui.hold(2500);
   },
 });

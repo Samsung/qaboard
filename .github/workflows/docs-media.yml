@@ -110,8 +110,6 @@ jobs:
           sudo apt-get install -y -q --no-install-recommends ffmpeg fonts-roboto fonts-dejavu-core fonts-noto-color-emoji fonts-jetbrains-mono
           docs-media/install-tools.sh >> "$GITHUB_PATH"
           (cd docs-media/shots && npm ci --no-audit --no-fund && npx playwright install --with-deps chromium)
-          # the qa CLI, for the tapes
-          uv tool install --quiet .
           # the demo stack's results storage, and the personas' homes for the tapes
           sudo install -d -o "$USER" /mnt/qaboard /home/ines /home/tobias /home/arjun /home/mira /home/adaeze /home/kaito
 
