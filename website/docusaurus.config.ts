@@ -143,6 +143,8 @@ let config: Config = {
           {type: 'docSidebar', sidebarId: 'admin', label: 'Admin', position: 'left'},
           ...(site ? [{type: 'docSidebar', docsPluginId: 'site', sidebarId: 'defaultSidebar', label: site.label, position: 'left'} as const] : []),
           {to: '/release-notes', label: "What's new", position: 'left'},
+          // Where QA-Board is going: a docs page outside the sidebars, for every audience
+          {type: 'doc', docId: 'roadmap', label: 'Roadmap', position: 'left'},
           {
             to: '/blog',
             position: 'left',
@@ -172,6 +174,7 @@ let config: Config = {
             items: [
               {label: 'Release notes', to: '/release-notes'},
               {label: 'RSS feed', href: 'pathname:///release-notes/rss.xml'},
+              {label: 'Roadmap', to: '/docs/roadmap'},
             ],
           },
           // {
