@@ -3,12 +3,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 // @ts-check
 // Note: type annotations allow type checking and IDEs autocompletion
-const publish_github_samsung_private = process.env.PUBLISH === 'github_samsung_private' 
-const publish_github_samsung_public  = process.env.PUBLISH === 'github_samsung_public' 
 const is_for_webapp = process.env.QABOARD_DOCS_FOR_WEBAPP === "true"
-// console.log("is_for_webapp", is_for_webapp)
-// console.log("publish_github_samsung_private", publish_github_samsung_private)
-// console.log("publish_github_samsung_public", publish_github_samsung_public)
 
 import {themes as prismThemes} from 'prism-react-renderer';
 
@@ -210,16 +205,6 @@ if (is_for_webapp) {
     baseUrl: '/docs/',
   }
   config.presets[0][1].docs.routeBasePath = '/';
-} else {
-  if (publish_github_samsung_private) {
-    config = {
-      ...config,
-      url: 'https://github.sec.samsung.net',
-      baseUrl: '/pages/arthur-flam/qaboard/',
-      githubHost: 'github.sec.samsung.net',
-      organizationName: 'arthur-flam',
-    }
-  }
 }
 
 module.exports = config;
