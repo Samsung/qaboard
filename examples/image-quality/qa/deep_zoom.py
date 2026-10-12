@@ -81,7 +81,9 @@ def write_pyramid(path, image, tile=256, layout='pages'):
     levels = [image]
     while max(levels[-1].shape[:2]) > tile:
         levels.append(downsample(levels[-1]))
-    options = dict(tile=(tile, tile), compression='jpeg', compressionargs={'level': 90}, photometric='ycbcr', maxworkers=WORKERS)
+    # photometric='rgb': tifffile converts the RGB pixels and stores YCbCr JPEG tiles. With 'ycbcr' it would take the
+    # pixels as YCbCr already, and every reader would show false colors (magenta and green)
+    options = dict(tile=(tile, tile), compression='jpeg', compressionargs={'level': 90}, photometric='rgb', maxworkers=WORKERS)
     with tifffile.TiffWriter(path) as tiff:
         tiff.write(levels[0], subifds=len(levels) - 1 if layout == 'subifds' else None, **options)
         for level in levels[1:]:
