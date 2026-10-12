@@ -51,28 +51,11 @@ Commit subjects stay under 72 characters, in English, imperative mood. Bodies, w
   `Add a shared result cache for repeated requests` / "Requested by Kaito. p50 at 4k rps: 3.1 ms -> 2.2 ms."
 
 ### Avatars
-No photos. An avatar is the persona's initials (first letter of the first and last words of the name), in white, on a
-color picked from the name:
-
-```
-color = PALETTE[md5(utf8(name))[3] & 15]     # byte 3 of the digest, low 4 bits
-PALETTE = #2563EB #0F766E #15803D #B45309 #B91C1C #BE185D #7C3AED #475569
-          #A21CAF #0369A1 #0E7490 #C2410C #1D4ED8 #9F1239 #4D7C0F #57534E   # all >= 4.99:1 with white text
-```
-
-| Name | Initials | Color |
-|---|---|---|
-| Ines Marchetti | IM | `#B91C1C` |
-| Tobias Wendt | TW | `#1D4ED8` |
-| Arjun Sethuraman | AS | `#7C3AED` |
-| Mira Kowalczyk | MK | `#0E7490` |
-| Adaeze Nwankwo | AN | `#7C3AED` |
-| Kaito Nishimaki | KN | `#C2410C` |
-| Kitefin Agent | KA | `#4D7C0F` |
-
-People who share a project have different colors. The web app renders this when a commit has no avatar URL, which is
-the case for the demo stack (no GitLab token, no GitHub webhook). Today the fallback is the first letter on a fixed
-light blue: the phase-0 avatar change implements the rule above.
+No photos. Commits from the demo stack have no avatar URL (no GitLab token, no GitHub webhook), so the web app draws its
+fallback: the person's initials in white on a color derived from the name, the same everywhere
+(`avatarColor()` in `webapp/src/components/avatars.tsx`: 12 Blueprint colors, all >= 4.5:1 with white text).
+That function is the source of truth: when seeding, check that people who share a project get different colors, and
+change a persona's display name (not the function) if two collide.
 
 Never connect the demo projects to GitHub (webhook or `hosting_type: github`): the backend then searches GitHub users
 by committer name for avatars, and could show a real person's photo next to a fictional name.

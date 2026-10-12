@@ -174,7 +174,17 @@ Real, runnable QA-Board projects under `examples/`:
   - a quantized model that regresses on small objects and is tuned back.
 - Failed runs with real-looking logs, and a run still in progress at capture time.
 
-Every number on screen is actually computed.
+Every number on screen is actually computed. The contracts are in `examples/README.md` (the company and people),
+`examples/STORY.md` (the story format) and `examples/<project>/SPEC.md`; the shot list is `docs-media/shots.yaml`.
+
+Notes from the specs:
+- The shared-cache commit that the gate catches is authored by "Kitefin Agent", the team's coding agent: the gate story
+  is also the agent story. A second, subtler regression stays on `main` (it only hurts the heavy-tail test) so History
+  has something to find.
+- No CC0 detection dataset exists: detection labels come from a larger reference model, and the docs say so, unless a
+  person reviews them (~1 hour for ~150 images).
+- The demo projects are never connected to GitHub: the backend would look up avatars by committer name and could show
+  a real person's photo next to a fictional name.
 
 ---
 
@@ -259,7 +269,8 @@ website/src/components/{Shot,Clip,Compare,StackPicker}.tsx
 | Monthly (with the release notes) | Full refresh; opens a PR only if something changed beyond the threshold |
 
 - Never on every push.
-- Runtime: 15-30 min from a snapshot, plus 20-40 min when the stories, the seeder or the backend models changed.
+- Runtime: 15-30 min from a snapshot. Re-seeding the three phase-2 stories takes ~70 min on a 4-CPU runner (serving-latency
+  measures performance, so it must run alone): seed each project in its own parallel job and merge the snapshots.
 - Fork PRs never see the secrets.
 
 ### The same demo data, several payoffs
@@ -448,7 +459,7 @@ gate:
   batches: [ci]
   rules:
     - {metric: psnr, max_regression: 1%}              # median over tests, vs the reference
-    - {metric: latency_p95, max_regression: 5%}
+    - {metric: latency_p99, max_regression: 5%}
     - {metric: map, min: 0.42}                        # absolute floor
     - {metric: psnr, per_test_max_regression: 5%}     # no single test worse than this
   max_failed_runs: 0
