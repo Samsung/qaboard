@@ -15,8 +15,8 @@ A tape starts with `# key: value` lines, then `Source "tapes/_settings.tape"`:
   env       extra environment, KEY=VALUE separated by spaces (CI variables for CI tapes)
   alt       required alt text (website/STYLE.md); caption: the default caption; poster: first, last or ms
 Commands run for real, against the restored demo stack (QABOARD_URL, from the demo facts), from ~/kitefin/<repo>:
-HOME is /home/<user> (TAPES_HOME), where ~/kitefin/<repo> is the seeder's workspace ($DEMO_WORKSPACES/<repo>, default
-/tmp/kitefin/<repo>, whose .venv has `qa` and the example's dependencies), or one built like it (see workspace()).
+HOME is /home/<user> (TAPES_HOME), where ~/kitefin/<repo> is a workspace like the seeder's, built by workspace(): a .venv
+with `qa` and the example's dependencies, the inputs, and git HEAD on a story commit.
 CI and QA-Board variables of the environment are dropped, unless the tape's `env` sets them.
 Tools: VHS, ttyd and ffmpeg from docs-media/install-tools.sh or PATH, a Chromium (PLAYWRIGHT_CHROMIUM_EXECUTABLE,
 Playwright's, or `chromium` in PATH), and `qa` in PATH.
@@ -127,30 +127,18 @@ def runs_qa(venv: Path) -> bool:
 
 
 def workspace(project: str, home: Path, facts: dict) -> Path:
-    """~/kitefin/<repo>, where the tape's commands run.
-    - The seeder's workspace when it's there ($DEMO_WORKSPACES/<repo>, default /tmp/kitefin/<repo>) and its .venv runs
-      `qa`: it has the example's dependencies, its inputs are generated, its git HEAD is a story commit.
-    - Else (CI, after a restore) the same, built here: a copy of the example, git HEAD on the reference branch's last
-      commit at T0 (like the seeder, a ref to a sha the repository doesn't have), a venv with this checkout's qaboard and
-      the example's requirements.txt, and the inputs generated (the first import of qa/main.py does it).
+    """~/kitefin/<repo>, where the tape's commands run, built like the seeder's workspace: a copy of the example, git HEAD
+    on the reference branch's last commit at T0 (like the seeder, a ref to a sha the repository doesn't have), a venv with
+    this checkout's qaboard and the example's requirements.txt, and the inputs generated (the first import of qa/main.py
+    does it). Always a real directory, never a link to the seeder's workspace: `qa` prints paths from os.getcwd(), which
+    resolves links, so the tape would show /tmp/kitefin/<repo>.
     """
     project_id = PROJECT_IDS[project]
     repo = project_id.split("/")[-1]
     target = home / "kitefin" / repo
-    seeded = Path(os.environ.get("DEMO_WORKSPACES") or "/tmp/kitefin") / repo
-    if target.is_symlink() and not target.resolve().exists():
-        target.unlink()
-    target.parent.mkdir(parents=True, exist_ok=True)
-    if runs_qa(seeded / ".venv"):
-        if not target.is_symlink() or target.resolve() != seeded.resolve():
-            if target.is_symlink():
-                target.unlink()
-            elif target.exists():
-                shutil.rmtree(target)
-            target.symlink_to(seeded)
-        return target
     if target.is_symlink():
         target.unlink()
+    target.parent.mkdir(parents=True, exist_ok=True)
     example = REPO / "examples" / project
     log(f"  building the workspace {target} from {example.relative_to(REPO)}")
     shutil.copytree(example, target, dirs_exist_ok=True,
@@ -166,7 +154,7 @@ def workspace(project: str, home: Path, facts: dict) -> Path:
     stamp = venv / ".record-stamp"
     wanted = hashlib.sha256(((requirements.read_text() if requirements.exists() else "")
                              + (REPO / "pyproject.toml").read_text()).encode()).hexdigest()
-    if not stamp.exists() or stamp.read_text() != wanted:
+    if not stamp.exists() or stamp.read_text() != wanted or not runs_qa(venv):
         log(f"  installing qaboard and the example's requirements in {venv}")
         subprocess.run(["uv", "venv", "-q", "--allow-existing", "--python", "3.12", str(venv)], check=True)
         deps = ["-r", str(requirements)] if requirements.exists() else []
