@@ -116,6 +116,9 @@ module.exports = function qaboardMediaPlugin(context, options = {}) {
           const stats = await syncMedia(wanted, {baseUrl, destDir: cacheDir, log: m => logger.info(`[qaboard-media] ${m}`)});
           if (stats.removed)
             logger.info(`[qaboard-media] removed ${stats.removed} cached files no page uses`);
+          // A static directory with folders but no files makes the build fail
+          if (!wanted.length)
+            fs.rmSync(path.join(siteDir, CACHE_DIR), {recursive: true, force: true});
         } else {
           content.base = `${baseUrl}/`;
         }
