@@ -1,6 +1,350 @@
 {
   "$schema": "./media.schema.json",
-  "version": 1,
   "base_url": "https://qaboard-media.sivoov.app",
-  "shots": {}
+  "shots": {
+    "cli/first-run": {
+      "alt": "A terminal runs qa run on the slanted-edge chart: the pipeline logs each ISP stage, prints the run's metrics, then a link to the results in QA-Board.",
+      "app_version": "1.1.1",
+      "caption": "qa run runs your code on one input, prints its metrics, and links to the results.",
+      "captured": "2026-10-12",
+      "duration": 9.56,
+      "files": {
+        "mp4": {
+          "bytes": 102644,
+          "key": "shots/cli/first-run/3fc7a95d25128311.mp4"
+        },
+        "poster": {
+          "bytes": 51464,
+          "key": "shots/cli/first-run/3956911fec2d731c.webp"
+        },
+        "webm": {
+          "bytes": 119293,
+          "key": "shots/cli/first-run/ff8454d6af99b7e0.webm"
+        }
+      },
+      "height": 720,
+      "kind": "tape",
+      "lqip": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAABwAQCdASoQAAkAA4BaJZwCdAFAAAD+8P4nwhex1FmJ89GAAAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/tapes/cli-first-run.tape",
+      "width": 1280
+    },
+    "commit/auto-roi": {
+      "alt": "The View ROIs menu open over the facade run, with Full Image, ROI Presets and Auto ROIs checked; below it, the twenty regions where new and reference differ most, found automatically, and the images zoomed on the first.",
+      "app_version": "1.1.1",
+      "caption": "Jump between the regions of interest preset for the input, or let QA-Board find where the images differ most.",
+      "captured": "2026-10-12",
+      "files": {
+        "avif": {
+          "bytes": 35667,
+          "key": "shots/commit/auto-roi/d70924ef3ab3a663.avif"
+        },
+        "png": {
+          "bytes": 219623,
+          "key": "shots/commit/auto-roi/9c7db72d1bec170a.png"
+        },
+        "webp": {
+          "bytes": 62346,
+          "key": "shots/commit/auto-roi/e5d03f6a6b4f9bf9.webp"
+        }
+      },
+      "height": 741,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRm4AAABXRUJQVlA4IGIAAABQAgCdASoQAAsAA4BaJYgCdH8AGBvOeu44oAAA/u4dHNV/x9SKLuye8mTWNbCeeYeQDREqj3317UeXlN034Kd8shrajN3KIO9G/ljsbD6M8B2FGmeWRUTh7LkUkUIHK4AAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1178
+    },
+    "commit/controls-panel": {
+      "alt": "The Controls panel open on the right of the run cards: an Image Diff switch, a switch per visualization, including the hidden Color errors and Noise vs signal, and the sorting options.",
+      "anchors": {
+        "image-diff": {
+          "h": 1.71,
+          "w": 16.11,
+          "x": 81.67,
+          "y": 52.88
+        },
+        "sorting": {
+          "h": 1.71,
+          "w": 3.76,
+          "x": 81.67,
+          "y": 78.39
+        },
+        "visualizations": {
+          "h": 1.71,
+          "w": 7.04,
+          "x": 81.67,
+          "y": 44.24
+        }
+      },
+      "app_version": "1.1.1",
+      "caption": "The Controls panel shows or hides visualizations, turns Image Diff on, and sorts the runs.",
+      "captured": "2026-10-12",
+      "files": {
+        "avif": {
+          "bytes": 77762,
+          "key": "shots/commit/controls-panel/f59ef3e68132b9b2.avif"
+        },
+        "png": {
+          "bytes": 644533,
+          "key": "shots/commit/controls-panel/00b1484908158859.png"
+        },
+        "webp": {
+          "bytes": 143018,
+          "key": "shots/commit/controls-panel/6e769d5a89577bcd.webp"
+        }
+      },
+      "height": 900,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkQAAABXRUJQVlA4IDgAAADQAQCdASoQAAoAA4BaJZwAAudmlleOAAD2v/wngCQHcULfV7z3AK8kI05ZP4yGvjet19XReAAAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1440
+    },
+    "commit/deep-zoom": {
+      "alt": "The 113-megapixel test wall, new and reference side by side: zooming from the whole wall to a small Siemens star until single pixels show, both images in sync.",
+      "app_version": "1.1.1",
+      "caption": "Deep zoom on a 113 MP image: the viewers load only the tiles they show.",
+      "captured": "2026-10-12",
+      "duration": 12.8,
+      "files": {
+        "mp4": {
+          "bytes": 721062,
+          "key": "shots/commit/deep-zoom/4d036ac5094fcf35.mp4"
+        },
+        "poster": {
+          "bytes": 70516,
+          "key": "shots/commit/deep-zoom/7721d3d47f566a44.webp"
+        },
+        "vtt": {
+          "bytes": 206,
+          "key": "shots/commit/deep-zoom/8f63ed9dd3c49ee9.vtt"
+        },
+        "webm": {
+          "bytes": 915507,
+          "key": "shots/commit/deep-zoom/1b95e9b7c4b834d6.webm"
+        }
+      },
+      "height": 900,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAADQAQCdASoQAAoAA4BaJaQAAt4+3AvHwAD2v/wfB/n8+N2nhBs03M5MvklebPo6WS3By75ZslGDKpMQAAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1440
+    },
+    "commit/image-diff": {
+      "alt": "Zooming into the new image of the facade, the reference follows; the Controls panel opens and Image Diff turns on; raising the threshold leaves only the window frame's halos.",
+      "app_version": "1.1.1",
+      "caption": "Synced zoom, then Image Diff and its threshold.",
+      "captured": "2026-10-12",
+      "duration": 16.27,
+      "files": {
+        "mp4": {
+          "bytes": 516754,
+          "key": "shots/commit/image-diff/4ac650129d90b636.mp4"
+        },
+        "poster": {
+          "bytes": 70120,
+          "key": "shots/commit/image-diff/ad531e4a20cbb0f8.webp"
+        },
+        "vtt": {
+          "bytes": 207,
+          "key": "shots/commit/image-diff/2b1f5ce7fce3af0a.vtt"
+        },
+        "webm": {
+          "bytes": 720012,
+          "key": "shots/commit/image-diff/ec4831d6c6ccdbc2.webm"
+        }
+      },
+      "height": 900,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRlQAAABXRUJQVlA4IEgAAADQAQCdASoQAAoAA4BaJZQAAlxS1uvMmAD8Pzod3+XcttK85yJb7CBZHDZXYYn/2+NHNVintagR08U5hkTfuh9yi1HQKaAAAAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1440
+    },
+    "commit/image-filters": {
+      "alt": "The Image Tools panel over the night street's shadows, with brightness raised and gamma lowered: the noise of both images shows.",
+      "app_version": "1.1.1",
+      "caption": "Image Tools filters apply to both images at once: here brightness and gamma reveal the noise in the shadows.",
+      "captured": "2026-10-12",
+      "files": {
+        "avif": {
+          "bytes": 155298,
+          "key": "shots/commit/image-filters/f1985d1fd58f521a.avif"
+        },
+        "png": {
+          "bytes": 477896,
+          "key": "shots/commit/image-filters/49c8b66ac916c71c.png"
+        },
+        "webp": {
+          "bytes": 210572,
+          "key": "shots/commit/image-filters/fa393772ba3819b0.webp"
+        }
+      },
+      "height": 625,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRk4AAABXRUJQVlA4IEIAAADQAQCdASoQAAkAA4BaJQBOkCYjAOrKsAD+5/791+cjoiT3fLztUX46Vcqp2DZ1p7g9FshXUcYnp2064THRuDQAAAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1178
+    },
+    "commit/image-perceptual-diff": {
+      "alt": "New image, Image Diff and reference image of the facade window: in the diff, the window frame's edges show in yellow and orange, the flat wall stays white.",
+      "app_version": "1.1.1",
+      "caption": "Image Diff shows where the images differ; raise its threshold until only the halos stand out.",
+      "captured": "2026-10-12",
+      "files": {
+        "avif": {
+          "bytes": 45370,
+          "key": "shots/commit/image-perceptual-diff/f9c3098b2c907e26.avif"
+        },
+        "png": {
+          "bytes": 247098,
+          "key": "shots/commit/image-perceptual-diff/0b0d7d83790bafad.png"
+        },
+        "webp": {
+          "bytes": 65162,
+          "key": "shots/commit/image-perceptual-diff/a03158529a710aff.webp"
+        }
+      },
+      "height": 357,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAACQAQCdASoQAAUAA4BaJZQCdACCbOAA/gnTkf+NseaFwkanj/jls83YpvEsckGiIYRWQAAA",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1178
+    },
+    "commit/image-sbs": {
+      "alt": "New and reference images of the facade, zoomed on leaves in front of the wall: in the new image, dark halos outline every leaf.",
+      "app_version": "1.1.1",
+      "caption": "Both images at the same zoom: only the new denoiser outlines the leaves with dark halos.",
+      "captured": "2026-10-12",
+      "files": {
+        "avif": {
+          "bytes": 51495,
+          "key": "shots/commit/image-sbs/44e092d619b952da.avif"
+        },
+        "png": {
+          "bytes": 100475,
+          "key": "shots/commit/image-sbs/66b40c22025dee34.png"
+        },
+        "webp": {
+          "bytes": 60766,
+          "key": "shots/commit/image-sbs/10894fac1397b260.webp"
+        }
+      },
+      "height": 415,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRlQAAABXRUJQVlA4IEgAAADQAQCdASoQAAYAA4BaJQBOj+ACLGPnoAD+GUupfzITJe0KFA3iogjetrQ/58b6IFQXtyS3Mmld+DI/8xn7gB79gzvVQSFyAAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1170
+    },
+    "commit/output-files": {
+      "alt": "Output Files of the facade run on the hw-model platform: the stages folder open, its changed files marked, and the help that explains the icons.",
+      "app_version": "1.1.1",
+      "caption": "Output Files lists what changed in each run: here the fixed-point model's stage buffers after a rounding change.",
+      "captured": "2026-10-12",
+      "files": {
+        "avif": {
+          "bytes": 73467,
+          "key": "shots/commit/output-files/b601d76e0d6155b7.avif"
+        },
+        "png": {
+          "bytes": 344684,
+          "key": "shots/commit/output-files/fe68699c79b2283b.png"
+        },
+        "webp": {
+          "bytes": 149084,
+          "key": "shots/commit/output-files/664cb9f36b19cb20.webp"
+        }
+      },
+      "height": 900,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkYAAABXRUJQVlA4IDoAAADQAQCdASoQAAoAA4BaJZwAAudZJfg0AAD2v/wngCP0dtCcDSY3yUvdv82w34vjBjJvkYQkhAJuwAAA",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1440
+    },
+    "commit/pixel-tooltip": {
+      "alt": "The center of a Siemens star, new and reference: above the images, the hovered pixel's coordinates and its RGB values in both images; crosshairs mark the pixel on both.",
+      "app_version": "1.1.1",
+      "caption": "Hover a pixel: its values in both images show above them, and a crosshair marks the same spot on the reference.",
+      "captured": "2026-10-12",
+      "files": {
+        "avif": {
+          "bytes": 84784,
+          "key": "shots/commit/pixel-tooltip/f943924828554aa3.avif"
+        },
+        "png": {
+          "bytes": 192529,
+          "key": "shots/commit/pixel-tooltip/c60eb4b5c7aa0edc.png"
+        },
+        "webp": {
+          "bytes": 132918,
+          "key": "shots/commit/pixel-tooltip/aeba55e7aea38ee7.webp"
+        }
+      },
+      "height": 440,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAACwAQCdASoQAAcAA4BaJaQAAudWWxaAAP6YJpXMLdkMHWqHXAAAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1170
+    },
+    "commit/roi-histograms": {
+      "alt": "A rectangle selected on the sky gradient; below the images, the red, green, blue and luma histograms of the region, new and reference overlaid.",
+      "app_version": "1.1.1",
+      "caption": "Select a region to compare its histograms, new against reference.",
+      "captured": "2026-10-12",
+      "files": {
+        "avif": {
+          "bytes": 187275,
+          "key": "shots/commit/roi-histograms/fde7cc1183a58fbf.avif"
+        },
+        "png": {
+          "bytes": 2685667,
+          "key": "shots/commit/roi-histograms/44b8a23c2fb18c51.png"
+        },
+        "webp": {
+          "bytes": 222546,
+          "key": "shots/commit/roi-histograms/218cfb51d719fea2.webp"
+        }
+      },
+      "height": 752,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkoAAABXRUJQVlA4ID4AAAAQAgCdASoQAAsAA4BaJYwCdH8AGBTiu8aAAP6ak6+RDjr2R7rd7Px1MZW6JQA6thFVNcumXDOrH+CZN2QAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1178
+    },
+    "commit/visualizations": {
+      "alt": "A run card of the facade photo: PSNR, SSIM and runtime with their changes against the reference, preset regions of interest, and the new and reference images side by side, zoomed on a window.",
+      "app_version": "1.1.1",
+      "caption": "Each run shows its main metrics against the reference, then its outputs, new and reference side by side.",
+      "captured": "2026-10-12",
+      "files": {
+        "avif": {
+          "bytes": 99647,
+          "key": "shots/commit/visualizations/238175ece48d9927.avif"
+        },
+        "png": {
+          "bytes": 576007,
+          "key": "shots/commit/visualizations/d25ecd5c222c71ae.png"
+        },
+        "webp": {
+          "bytes": 164498,
+          "key": "shots/commit/visualizations/4a5134d1d4674acd.webp"
+        }
+      },
+      "height": 900,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRlYAAABXRUJQVlA4IEoAAADQAQCdASoQAAoAA4BaJYwCw7ED+xc2gAD8Pzod3+XsINs/zZ9SWW8zvm7tcHMQ6IyVqM0Ubf44e6+uIo4MKozKxVAeU7sDw64AAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1440
+    }
+  },
+  "version": 1
 }
