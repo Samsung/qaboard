@@ -1650,6 +1650,11 @@ def main():
   if args.fresh:
     log("Deleting the demo stack's data (--fresh)", 'yellow')
     stack.down(volumes=True)
+    # and the results of what was seeded
+    old = stack.demo_dir() / 'demo.json'
+    for project in (json.loads(old.read_text()).get('projects', {}) if old.exists() else {}).values():
+      for commit in project.get('commits', {}).values():
+        shutil.rmtree(stack.results_root() / project['id'] / commit['sha'][:2] / commit['sha'][2:16], ignore_errors=True)
     shutil.rmtree(stack.demo_dir(), ignore_errors=True)
   if not stack.is_up():
     if args.server.rstrip('/') != stack.server_url():
