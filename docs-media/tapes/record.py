@@ -119,10 +119,17 @@ def main_head(facts: dict, project: str) -> str | None:
     return max(on_main, key=lambda c: c["at"])["sha"] if on_main else None
 
 
+def runs_qa(venv: Path) -> bool:
+    """The venv's `qa` starts: its qaboard is an editable install, broken once the checkout it points to is gone"""
+    python = venv / "bin" / "python"
+    return (venv / "bin" / "qa").exists() and python.exists() \
+        and subprocess.run([str(python), "-I", "-c", "import qaboard.qa"], capture_output=True).returncode == 0  # -I: not from the cwd
+
+
 def workspace(project: str, home: Path, facts: dict) -> Path:
     """~/kitefin/<repo>, where the tape's commands run.
-    - The seeder's workspace when it's there ($DEMO_WORKSPACES/<repo>, default /tmp/kitefin/<repo>): its .venv has `qa`
-      and the example's dependencies, its inputs are generated, its git HEAD is a story commit.
+    - The seeder's workspace when it's there ($DEMO_WORKSPACES/<repo>, default /tmp/kitefin/<repo>) and its .venv runs
+      `qa`: it has the example's dependencies, its inputs are generated, its git HEAD is a story commit.
     - Else (CI, after a restore) the same, built here: a copy of the example, git HEAD on the reference branch's last
       commit at T0 (like the seeder, a ref to a sha the repository doesn't have), a venv with this checkout's qaboard and
       the example's requirements.txt, and the inputs generated (the first import of qa/main.py does it).
@@ -134,7 +141,7 @@ def workspace(project: str, home: Path, facts: dict) -> Path:
     if target.is_symlink() and not target.resolve().exists():
         target.unlink()
     target.parent.mkdir(parents=True, exist_ok=True)
-    if (seeded / ".venv" / "bin" / "qa").exists():
+    if runs_qa(seeded / ".venv"):
         if not target.is_symlink() or target.resolve() != seeded.resolve():
             if target.is_symlink():
                 target.unlink()
