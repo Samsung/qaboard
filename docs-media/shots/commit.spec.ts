@@ -44,7 +44,8 @@ async function mouseAway(ui: Ui) {
 
 // Clicks a region of interest preset under the viewer, by its label
 async function preset(ui: Ui, scope: Page | Locator, label: string) {
-  await ui.click(scope.getByRole('button', { name: label, exact: true }).first());
+  const exact = new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+  await ui.click(scope.locator('a.bp6-button', { hasText: exact }).first());
   await ui.settle();
 }
 
@@ -165,10 +166,13 @@ shot('commit/auto-roi', {
     await ui.click(ui.page.getByRole('menuitem', { name: 'Auto ROIs' }));
     await ui.click(scope.getByRole('button', { name: 'Find Regions of Interest' }));
     await ui.settle();
+    // the menu again, over the regions found
+    await mouseAway(ui);
     await ui.hover(menu);
     await ui.settle();
   },
-  target: page => viewer(page),
+  // the viewer, and the menu that opens over it
+  target: page => [viewer(page), page.locator('.bp6-popover .bp6-menu').last()],
   padding: 4,
 });
 
