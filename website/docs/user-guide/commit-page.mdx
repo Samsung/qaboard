@@ -123,17 +123,25 @@ This is the view for [bit-accuracy tests](../bit-accuracy.mdx).
 ### Logs
 When runs failed, the sidebar's **Logs** entry says how many (it also shows runs still running or pending).
 
-One line per run: its status, its name, and its configuration in short (hover it to read it all). On the right, open the run's output directory, or use the **⋯** menu to redo, mark as failed or delete it. Filter the runs with **All**, **Failed** or **Running**, and use **Open failed runs** to expand the logs of the failed ones at once. Big batches are paginated.
+One line per run: its status, its name, and its configuration in short (hover it to read it all). On the right, copy the path of the run's output directory (when your server has Windows path mappings, the confirmation offers the Windows path too), open it, or use the **⋯** menu to redo, mark as failed or delete it. Filter the runs with **All**, **Failed** or **Running**, and use **Open failed runs** to expand the logs of the failed ones at once. Big batches are paginated.
 
 Click a run to see its full configuration (hover a tag to copy it) and read its log:
 - it updates **live** while the run is running (only the new lines are downloaded), and follows the end like a terminal until you scroll up;
 - colors, line numbers, progress bars shown like in a terminal, error and warning lines highlighted, with a button to jump to the **next error**;
 - **search** (with previous/next match), wrap lines, copy, download, or open the raw file;
-- switch between the run's `log.txt` and, when they exist, `log.lsf.txt` (what LSF captured, with its job report) and `log.dask.txt`.
+- switch between the run's `log.txt` and, when they exist, `log.lsf.txt` (what LSF captured, with its job report) and `log.dask.txt`;
+- very long logs show their last 50,000 lines, to keep the page fast: show more when you need them. If the hidden lines have errors, or matches for your search, it says how many.
 
 For runs on LSF, a summary shows why the job ended (e.g. out of memory, run time limit), the host, the run time and the memory used vs requested, with hints on which `lsf:` options of your batch to change. Failed runs are tagged with the reason.
 
-Batches started from QA-Board (tuning, **Run Tests**) show a callout on every view while `qa batch` is waiting for LSF or running, and when it failed or didn't start any run, with the error and a link to its logs. The **Batch logs** list those submissions, and the commands that started the batch: when, by whom, on which host, with a link to the CI or cluster job when there is one.
+Batches started from QA-Board (tuning, **Run Tests**) show a callout on every view while `qa batch` is waiting for LSF or running, and when it failed or didn't start any run, with the error and a link to its logs. In the Logs view, **Started from QA-Board** lists them with their status, command and logs, and buttons to copy or open their folder (it also has the script QA-Board ran).
+
+At the bottom, the **Batch** section has buttons to copy or open the batch directory, and lists the `qa batch` commands that started the batch, most recent first: when, by whom, and where their logs are:
+- **Logs in the CI job**: a link to the CI job;
+- **Show its logs**: it was started from a terminal with `qa --share batch` (or `qa optimize`), which saved what it printed in the batch directory; it was started from QA-Board; or it is an older batch that wrote its logs in the batch directory's `log.txt` (shown as **Batch logs**, only when it exists);
+- **Logs not saved**: e.g. it was started from a terminal by an older version of `qaboard`, which only printed its logs there.
+
+Whatever started the batch, each run's own logs are saved, in the list above. With the Dask runner, a link opens the logs of the Dask workers.
 
 :::tip
 The **Logs** sidebar item turns red when the batch has crashed runs, and the **Outputs** section shows the number of crashes.

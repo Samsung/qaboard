@@ -29,6 +29,7 @@ from .utils import getenvs
 from .api import url_to_dir, print_url
 from .api import get_outputs, notify_qa_database, serialize_paths
 from .iterators import iter_inputs, iter_parameters
+from .batch_logs import saves_logs, batch_log
 
 from .config import config_has_error, ignore_config_errors
 from .config import project, project_root, subproject, config
@@ -543,6 +544,7 @@ default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
 @click.argument('batch_names', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
+@saves_logs
 def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, local_timeout, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_resources, lsf_priority, lsf_options, lsf_concurrency, dask_concurrency, action_on_existing, action_on_pending, prefix_outputs_path, batch_names):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
   from .runners import runners
@@ -575,7 +577,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
   print_url(ctx)
   # if the commit does not exist or there are network errors it will return empty data
   existing_outputs = get_outputs(ctx.obj, ignore_errors=True)
-  command_id = os.environ.get('QA_BATCH_COMMAND_ID', str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
+  log = batch_log(ctx)
+  command_id = os.environ.get('QA_BATCH_COMMAND_ID', log['command_id'] if log else str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
   if 'QA_BATCH_COMMAND_ID' in os.environ:
     # some projects have run() trigger further "qa batch" commands, notably in "pipelines"
     # so if we keep it defined we'll end up with deadlocks as those batch wait for the current batch to end...
@@ -592,6 +595,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       "runner": runner,
       **ctx.obj,
     }
+    if log:
+      command_data['log'] = log['path'] # relative to the batch directory
     if runner == 'dask' and dask_config.get('scheduler_address'):
       # so that the backend can stop the batch
       command_data['scheduler_address'] = dask_config['scheduler_address']

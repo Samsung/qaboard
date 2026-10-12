@@ -15,6 +15,7 @@ from .api import makeNumpyEncoder, batch_info, notify_qa_database, print_url, ma
 from .config import project, subproject, commit_id, outputs_commit, available_metrics, default_batches_files, default_platform
 from .conventions import batch_dir
 from .utils import PathType, getenvs
+from .batch_logs import saves_logs, batch_log
 from .run import RunContext
 
 seed = int(os.environ.get('QA_SEED', 101))
@@ -30,18 +31,22 @@ seed = int(os.environ.get('QA_SEED', 101))
 @click.option('--parallel-param-sampling', type=int, help="Parallel paramater sampling.")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
+@saves_logs
 def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_param_sampling, forwarded_args):
   import random
   random.seed(seed)
   import numpy as np
   np.random.seed(seed)
 
-  command_id = os.environ.get('QA_BATCH_COMMAND_ID', str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
+  log = batch_log(ctx)
+  command_id = os.environ.get('QA_BATCH_COMMAND_ID', log['command_id'] if log else str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
   command_data = {
     "command_created_at_datetime":  datetime.datetime.utcnow().isoformat(),
     "argv": sys.argv,
     **ctx.obj,
   }
+  if log:
+    command_data['log'] = log['path'] # relative to the batch directory
   job_url = getenvs(('BUILD_URL', 'CI_JOB_URL', 'CIRCLE_BUILD_URL', 'TRAVIS_BUILD_WEB_URL')) # jenkins, gitlabCI, cirlceCI, travisCI
   if job_url:
     command_data['job_url'] = job_url
