@@ -25,7 +25,9 @@ docs-media/
   compose.demo.yml     # overlay on docker-compose.yml: results storage in backend/nginx/cantaloupe, demo env
   seed.py              # uv script: replays examples/*/story.yaml into a running stack (real `qa`, fake CI env)
   snapshot.py          # uv script: save/restore the database + results (R2 qaboard-ci), build the demo-data image
-                       # (ghcr.io/samsung/qaboard, tag demo-data-<version>)
+                       # (ghcr.io/samsung/qaboard, tag demo-data-<version>, phase 2)
+  demo/                # stack.py (the stack, for seed.py and snapshot.py), kitefin_stub.py (*.kitefin.example)
+  tests/fixture/       # a tiny project and story that exercise everything seed.py does, in about 2 minutes
   publish.py           # uv script: encode, dedupe, upload, write website/media.json; `gc` subcommand
   shots/
     package.json       # pinned @playwright/test, same version as webapp/
@@ -54,6 +56,41 @@ website/
 - The subject names what's shown, not how: `commit/flame-diff`, not `commit/flame-graph-2`.
 - An id is permanent. If what it shows changes meaning, retire it (`status: retired` in `shots.yaml`) and pick a new id.
 - The id is the Playwright test title, the `out/` folder, the R2 prefix and the manifest key.
+
+## The demo stack and its data
+
+The stack is the root `docker-compose.yml` with [`compose.demo.yml`](compose.demo.yml), Compose project `qaboard-demo`,
+at http://localhost:5151. It runs the published images (`QABOARD_IMAGE`, default `ghcr.io/<owner>/qaboard` in
+GitHub Actions, else `ghcr.io/samsung/qaboard`), and shares the results storage with the host at the same path
+(`QABOARD_DEMO_RESULTS`, default `/mnt/qaboard`, which you may have to create: `sudo mkdir -p /mnt/qaboard && sudo chown
+$USER /mnt/qaboard`). Every persona of the demo world can log in, with the password `kitefin-demo`.
+To capture a web app or Cantaloupe that isn't published yet, build its image and point one service at it:
+`QABOARD_DEMO_FRONTEND_IMAGE=qaboard-demo-local:frontend-<sha>` (also `_BACKEND_`, `_PROXY_`, `_CANTALOUPE_`), e.g.
+`docker compose build frontend` from that checkout, then `docker tag`. Restores and seeds use it while it's set.
+
+Restore the current snapshot (needs the R2 variables, see [When it runs](#when-it-runs-githubworkflowsdocs-mediayml)):
+
+```bash
+uv run docs-media/snapshot.py restore            # the snapshot of this checkout's key; --latest for the newest one
+uv run docs-media/seed.py down --volumes         # when you're done
+```
+
+Seed a story yourself, e.g. after changing an example, the seeder, the models or the CLI (the snapshot key changed):
+
+```bash
+uv run docs-media/seed.py --project image-quality           # starts the stack if needed, then checks the story
+uv run docs-media/seed.py --project image-quality --resume  # after a failure: continue where it stopped
+uv run docs-media/seed.py --story docs-media/tests/fixture/story.yaml   # test seed.py itself
+uv run docs-media/snapshot.py save                          # snapshots/<key>.tar.zst, with T0 and the shas
+```
+
+- `--validate` checks a story and prints what it does, without a stack: use it while writing one.
+- `--fresh` empties the stack first (do it before seeding the projects of a new snapshot), `--until <commit>` stops
+  early, `--checks-only` reruns the checks, `--t0 2026-10-08T16:00Z` picks T0 (default: the stack's, else the last
+  Thursday 16:00 UTC). All projects of a snapshot share T0.
+- `seed.py` writes T0 and each story's shas in `<results>/.qaboard-demo/demo.json`, served at
+  http://localhost:5151/s/mnt/qaboard/.qaboard-demo/demo.json. The snapshot's metadata has them too (`snapshot.py info`).
+- How runs, failures and times are simulated: the docstring of [`seed.py`](seed.py).
 
 ## Producing media
 

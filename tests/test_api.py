@@ -31,5 +31,27 @@ class TestNotifyQaDatabase(unittest.TestCase):
     self.assertNotIn("secret-token", stderr.getvalue())
 
 
+class TestServerUrl(unittest.TestCase):
+  def stderr_of_import(self, **env):
+    import os
+    import sys
+    import subprocess
+    import tempfile
+    clean_env = {k: v for k, v in os.environ.items() if not k.startswith('QABOARD_')}
+    with tempfile.TemporaryDirectory() as tmp:
+      process = subprocess.run(
+        [sys.executable, '-c', 'import qaboard.api'],
+        cwd=tmp, capture_output=True, text=True, check=True,
+        env={**clean_env, 'QA_NO_CHECK_FOR_UPDATES': '1', **env},
+      )
+    return process.stderr
+
+  def test_warns_without_a_server(self):
+    self.assertIn('not sure where to find your QA-Board server', self.stderr_of_import())
+
+  def test_no_warning_for_a_server_on_localhost(self):
+    self.assertNotIn('not sure where', self.stderr_of_import(QABOARD_URL='http://localhost:5151'))
+
+
 if __name__ == '__main__':
   unittest.main()
