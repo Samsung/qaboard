@@ -1,7 +1,7 @@
 """
 The 113 MP test wall: the camera and the ISP run in tiles of `tile_size` (from the flags) on a pool of 4 processes,
 and the output is saved as a tiled, multi-resolution TIFF (out.tiff), that the IIIF server can stream without decoding
-the whole image. With `tile_size: 0`, the whole frame is processed at once, in one process: it needs ~10 GB.
+the whole image. With `tile_size: 0`, the whole frame is processed at once, in one process: it needs well over 3 GB.
 
 Tiles overlap by isp.MARGIN pixels, and the noise is seeded per cell of a fixed grid, so the output doesn't depend on
 the tile size.
@@ -75,12 +75,12 @@ def downsample(image):
 
 
 def write_pyramid(path, image, tile=256, layout='pages'):
-    """Tiled TIFF, full resolution then each level at half the size, down to one tile.
+    """Tiled TIFF, JPEG-compressed (quality 90), full resolution then each level at half the size, down to one tile.
     layout='pages': each level in its own IFD (page), 'subifds': the levels in SubIFDs of the first page."""
     levels = [image]
     while max(levels[-1].shape[:2]) > tile:
         levels.append(downsample(levels[-1]))
-    options = dict(tile=(tile, tile), compression='zlib', compressionargs={'level': 6}, photometric='rgb', maxworkers=WORKERS)
+    options = dict(tile=(tile, tile), compression='jpeg', compressionargs={'level': 90}, photometric='ycbcr', maxworkers=WORKERS)
     with tifffile.TiffWriter(path) as tiff:
         tiff.write(levels[0], subifds=len(levels) - 1 if layout == 'subifds' else None, **options)
         for level in levels[1:]:

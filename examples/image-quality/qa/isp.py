@@ -15,10 +15,10 @@ WB_GAINS = np.array([256 / s for s in SENSITIVITY_Q8], dtype=np.float32)
 MARGIN = 32   # how far, in pixels, an output pixel's value depends on the raw: tiles overlap that much
 
 # Tuning, in units of the noise profile's sigma where it applies
-GAUSSIAN_SIGMA = (0.8, 4)           # spatial sigma = strength * (a + b * noise)
+GAUSSIAN_SIGMA = (0.6, 4)           # spatial sigma = strength * (a + b * noise)
 BILATERAL_SIGMA = (1.0, 0.6, 2.0)   # spatial sigma = a + b * strength, range sigma = c * strength * noise
 SHARPEN_RADIUS = 1.4                # sigma of the blur the details are measured against
-SHARPEN_AMOUNT = 0.5                # per unit of detail_boost
+SHARPEN_AMOUNT = 0.42               # per unit of detail_boost
 SHARPEN_CORING = 0.2                # details smaller than this many noise sigmas are left alone
 CLAMP_MARGIN = 0.1                  # overshoot allowed by the clamp, share of the local range
 
