@@ -189,11 +189,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
+        with:
+          version: v4.2.1
       - name: Lint and validate the chart
         run: |
           curl -sSfL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz | tar xz kubeconform
           helm lint charts/qaboard -f charts/qaboard/ci/minimal.yaml
-          for values in charts/qaboard/ci/*.yaml; do
+          helm lint charts/qaboard -f charts/qaboard/quickstart.yaml
+          for values in charts/qaboard/ci/*.yaml charts/qaboard/quickstart.yaml; do
             echo "--- $values"
             helm template qaboard charts/qaboard -f "$values" | ./kubeconform -strict -summary -ignore-missing-schemas
           done

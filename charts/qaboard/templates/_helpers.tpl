@@ -22,15 +22,50 @@ app.kubernetes.io/instance: {{ $.Release.Name }}
 app.kubernetes.io/component: {{ index . 1 }}
 {{- end -}}
 
+{{/* The version of the images: image.version, else the chart's appVersion. Empty for "latest". */}}
+{{- define "qaboard.imageVersion" -}}
+{{- $version := .Values.image.version | default .Chart.AppVersion | toString -}}
+{{- if ne $version "latest" -}}
+{{ $version }}
+{{- end -}}
+{{- end -}}
+
 {{/* Usage: include "qaboard.image" (list . "backend") */}}
 {{- define "qaboard.image" -}}
 {{- $ := index . 0 -}}
 {{- $service := index . 1 -}}
-{{- if $.Values.image.version -}}
-{{ $.Values.image.repository }}:{{ $service }}-{{ $.Values.image.version }}
-{{- else -}}
-{{ $.Values.image.repository }}:{{ $service }}
+{{- $version := include "qaboard.imageVersion" $ -}}
+{{ $.Values.image.repository }}:{{ $service }}{{ if $version }}-{{ $version }}{{ end }}
 {{- end -}}
+
+{{/* Where the results storage is mounted (results.mountPath), without a trailing slash */}}
+{{- define "qaboard.resultsPath" -}}
+{{- $path := .Values.results.mountPath | trimSuffix "/" -}}
+{{- if or (not (hasPrefix "/" $path)) (hasPrefix "/var/qaboard" $path) -}}
+{{- fail (printf "results.mountPath must be an absolute folder, other than / and the backend's /var/qaboard, not %q" .Values.results.mountPath) -}}
+{{- end -}}
+{{- $path -}}
+{{- end -}}
+
+{{/* The volume of the results storage, mounted by the backend, the proxy and cantaloupe */}}
+{{- define "qaboard.resultsVolume" -}}
+{{- with .Values.results -}}
+{{- if gt (len (compact (list .existingClaim (and .nfs "nfs") (and .hostPath "hostPath")))) 1 -}}
+{{- fail "Set only one of results.existingClaim, results.nfs and results.hostPath" -}}
+{{- end -}}
+- name: qaboard-results
+{{- if .existingClaim }}
+  persistentVolumeClaim: {claimName: {{ .existingClaim }}}
+{{- else if .nfs }}
+  nfs: {{- toYaml .nfs | nindent 4 }}
+{{- else if .hostPath }}
+  hostPath:
+    path: {{ required "Set results.hostPath.path" .hostPath.path }}
+    type: {{ .hostPath.type | default "DirectoryOrCreate" }}
+{{- else }}
+  persistentVolumeClaim: {claimName: {{ include "qaboard.fullname" $ }}-results}
+{{- end }}
+{{- end }}
 {{- end -}}
 
 {{- define "qaboard.secretName" -}}
