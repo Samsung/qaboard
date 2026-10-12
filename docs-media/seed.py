@@ -564,6 +564,7 @@ class Workspace:
       'LC_ALL': 'C.UTF-8', 'LANG': 'C.UTF-8',
       'PYTHONUNBUFFERED': '1',
       'MPLBACKEND': 'agg',
+      'QA_NO_CHECK_FOR_UPDATES': '1',   # no "a new version is available" in the logs
     })
     local_config = (commit.files['qaboard.yaml'].get('runners') or {}).get('local') or {}
     if 'concurrency' not in local_config:
@@ -1408,7 +1409,8 @@ class CheckContext:
     code, output = self.seeder.ws.qa(list(args), self.seeder.ws.env(c, 'ci', 'ci'), quiet=True)
     if check and code != 0:
       raise SeedError(f"`qa {' '.join(args)}` failed ({code}):\n{tail(output)}")
-    return subprocess.CompletedProcess(['qa', *args], code, output, '')
+    # without colors: qa colors its output in CI
+    return subprocess.CompletedProcess(['qa', *args], code, re.sub(r'\x1b\[[0-9;]*m', '', output), '')
 
 
 def aggregate(values: List[float], how: str) -> float:

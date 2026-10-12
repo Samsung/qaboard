@@ -283,7 +283,8 @@ ctx.runs(commit=None, label=None, platform=None, inputs=None, configs=None) -> l
                                   # a batch's runs, by default the commit and filters of the check
 ctx.qa(*args, commit=None) -> subprocess.CompletedProcess        # the real `qa` CLI, as the CI on that commit
                                   # (default: the check's), e.g. ctx.qa('check-bit-accuracy', '--batch', 'ci',
-                                  # '--reference', ctx.sha('isp-4-1')). .returncode, .stdout (stdout and stderr)
+                                  # '--reference', ctx.sha('isp-4-1')). .returncode, .stdout (stdout and
+                                  # stderr, without colors)
 ctx.t0, ctx.workspace, ctx.results  # T0, where the example runs, the results storage
 Run: .input (path in the database), .platform, .configurations, .extra_parameters (tuning), .metrics, .failed,
      .pending, .output_dir, .file(name) -> Path, .log() -> str (log.txt and log.lsf.txt), .key (identifies the run)
