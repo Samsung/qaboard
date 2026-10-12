@@ -922,7 +922,7 @@ class Seeder:
     tee = None
     if started_from_app:
       # like backend/api/tuning.py: the batch's scripts and logs, in its folder
-      log_dir = batch_dir / 'qaboard-batches' / f"{real_start:%Y%m%d-%H%M%S}-{command_id[:8]}"
+      log_dir = batch_dir / 'qaboard-batches' / f"{run.start.astimezone(UTC):%Y%m%d-%H%M%S}-{command_id[:8]}"
       log_dir.mkdir(parents=True, exist_ok=True)
       os.chmod(log_dir, 0o777)
       tee = log_dir / 'log.txt'
@@ -1053,7 +1053,7 @@ class Seeder:
         raise SeedError(f"{commit.id}: the finished runs of `{run.batch}` failed:\n{tail(output)}")
     rest = expected[finished:]
     if not rest:
-      return
+      return self.as_one_command(commit, run, extra)
     def kill_when_started(process):
       # `qa batch` tells QA-Board about all its runs (pending), then starts `running` of them at once.
       # We stop everything as soon as they say they're running: they must take more than a few 100ms.
@@ -1081,6 +1081,24 @@ class Seeder:
       ids = [str(o['id']) for o in states if o['is_running']]
       if ids:
         stack.psql(f"UPDATE outputs SET is_running = false WHERE id IN ({','.join(ids)});")
+    self.as_one_command(commit, run, extra)
+
+  def as_one_command(self, commit: Commit, run: Run, extra: List[str]):
+    """The CI starts one `qa batch`: the seeder's commands (the finished runs, then the rest) show as that one"""
+    t0 = self.story.t0.astimezone(UTC).replace(tzinfo=None)
+    data = self.batch_data(commit, run)
+    commands = data.get('commands') or {}
+    ours = {k: c for k, c in commands.items() if datetime.datetime.fromisoformat(c.get('command_created_at_datetime') or '1970-01-01') > t0}
+    if not ours:
+      return
+    first = min(ours, key=lambda k: ours[k]['command_created_at_datetime'])
+    argv0 = (ours[first].get('argv') or ['qa'])[0]
+    ours[first]['argv'] = [argv0, *self.batch_args(run, [e for e in extra if e not in ('--action-on-existing', 'run')])]
+    data['commands'] = {k: c for k, c in commands.items() if k not in ours or k == first}
+    stack.psql(f"""
+      UPDATE batches b SET data = {sql_json(data)} FROM ci_commits c
+      WHERE b.ci_commit_id = c.id AND c.project_id = {sql_str(self.story.id)} AND c.hexsha = {sql_str(commit.sha)} AND b.label = {sql_str(run.db_label)};
+    """)
 
   # -- simulated time
   def simulate_times(self, commit: Commit, run: Run, real_start: datetime.datetime, real_end: datetime.datetime):
@@ -1103,9 +1121,12 @@ class Seeder:
       UPDATE batches b SET created_date = {sql_str(sim_start.isoformat())}::timestamp + GREATEST(interval '0', b.created_date - {real}::timestamp)
       FROM ci_commits c WHERE b.ci_commit_id = c.id AND {commit_filter} AND b.created_date > {sql_str(t0.isoformat())};
     """)
-    rows = stack.psql(f"SELECT b.id, b.data FROM batches b JOIN ci_commits c ON b.ci_commit_id = c.id WHERE {commit_filter}")
+    rows = stack.psql(f"""
+      SELECT b.id, b.data, coalesce(b.batch_dir_override, '') FROM batches b JOIN ci_commits c ON b.ci_commit_id = c.id WHERE {commit_filter}
+    """)
     for line in rows.splitlines():
-      batch_id, data = line.split('|', 1)
+      batch_id, rest = line.split('|', 1)
+      data, batch_dir = rest.rsplit('|', 1)
       data = json.loads(data)
       changed = False
       for key, field_name, suffix in (('commands', 'command_created_at_datetime', ''), ('submissions', 'created_at', 'Z')):
@@ -1117,6 +1138,15 @@ class Seeder:
           if t > t0:
             item[field_name] = simulated(t).isoformat() + suffix
             changed = True
+            # `qa --share batch` saves its logs in qa-batch-logs/<date>-<id>/: their folder gets the simulated date
+            log_path = item.get('log') or ''
+            if key == 'commands' and re.match(r'^qa-batch-logs/\d{8}-\d{6}-', log_path):
+              batch_dir = batch_dir or str(self.batch_dir(commit, run))
+              old = Path(batch_dir) / Path(log_path).parent
+              new_name = f"{simulated(t):%Y%m%d-%H%M%S}-{old.name.split('-')[-1]}"
+              if old.exists() and old.name != new_name:
+                old.rename(old.with_name(new_name))
+                item['log'] = f"qa-batch-logs/{new_name}/{Path(log_path).name}"
       if changed:
         stack.psql(f"UPDATE batches SET data = {sql_json(data)} WHERE id = {int(batch_id)};")
     self.update_latest_output_datetimes()

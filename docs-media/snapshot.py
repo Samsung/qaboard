@@ -10,7 +10,7 @@ Saves and restores the demo stack's data (the database and the seeded results) a
   uv run docs-media/snapshot.py save                   # the running demo stack -> snapshots/<key>.tar.zst
   uv run docs-media/snapshot.py restore                # snapshots/<key>.tar.zst -> a fresh demo stack
   uv run docs-media/snapshot.py restore --latest       # the most recent snapshot, whatever its key
-  uv run docs-media/snapshot.py list | info [KEY]
+  uv run docs-media/snapshot.py list | info [KEY] | delete KEY
 
 - The key is a hash of what the data depends on: examples/**, docs-media/seed.py, backend/backend/models/** and
   qaboard/** (git-tracked and untracked files, not ignored ones). When it changes, the stories must be seeded again.
@@ -374,8 +374,8 @@ def commit_outputs(pid: str, sha: str):
 
 def main():
   parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-  parser.add_argument('command', choices=['key', 'save', 'restore', 'list', 'info'])
-  parser.add_argument('key_arg', nargs='?', help="info: the snapshot's key (default: this checkout's)")
+  parser.add_argument('command', choices=['key', 'save', 'restore', 'list', 'info', 'delete'])
+  parser.add_argument('key_arg', nargs='?', help="info, delete: the snapshot's key (info: default to this checkout's)")
   parser.add_argument('--key', help="save/restore: another key than this checkout's")
   parser.add_argument('--latest', action='store_true', help="restore: the most recent snapshot")
   parser.add_argument('--file', help="restore: from this archive instead of R2")
@@ -402,6 +402,13 @@ def main():
     key = args.key_arg or args.key or snapshot_key()
     body = r2().get_object(Bucket=BUCKET, Key=f"{PREFIX}{key}.json")['Body'].read()
     print(body.decode())
+  elif args.command == 'delete':
+    if not args.key_arg:
+      raise SystemExit("ERROR: give the key of the snapshot to delete")
+    client = r2()
+    for suffix in ('.tar.zst', '.json'):
+      client.delete_object(Bucket=BUCKET, Key=f"{PREFIX}{args.key_arg}{suffix}")
+    log(f"Deleted {PREFIX}{args.key_arg}", 'green')
 
 
 if __name__ == '__main__':
