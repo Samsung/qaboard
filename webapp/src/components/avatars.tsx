@@ -34,20 +34,20 @@ export const avatarColor = (name?: string | null) => {
 };
 
 // "Alice Martin", "alice.martin" or "alice.martin@example.com" => "AM", a project like "group/repo" => "R"
-export const initials = (name?: string | null) => {
+export const initials = (name?: string | null, max_letters = 2) => {
   const last_part = (name ?? "").split("/").pop() ?? "";
   const letters = last_part.split("@")[0].split(/[\s._-]+/)
     .map(word => word.match(/[\p{L}\p{N}]/u)?.[0])
     .filter(letter => !!letter);
   if (letters.length === 0) return "";
-  return (letters.length > 1 ? `${letters[0]}${letters[letters.length - 1]}` : `${letters[0]}`).toUpperCase();
+  return (letters.length > 1 && max_letters > 1 ? `${letters[0]}${letters[letters.length - 1]}` : `${letters[0]}`).toUpperCase();
 };
 
 const font_family = `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`;
 
 // An image, so that the fallback is laid out, styled and described (alt) exactly like a picture
-export const initialsImage = (name?: string | null) => {
-  const text = initials(name);
+export const initialsImage = (name?: string | null, max_letters = 2) => {
+  const text = initials(name, max_letters);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">`
     + `<rect width="40" height="40" fill="${avatarColor(name)}"/>`
     + `<text x="20" y="20" dy=".35em" text-anchor="middle" fill="#fff" font-family='${font_family}' font-size="${text.length > 1 ? 16 : 19}" font-weight="600">${text}</text>`
@@ -96,9 +96,11 @@ export function Avatar({ name, src, href, onClick, size = "45px", className, sty
   // We try again if the URL changes
   const [failed_src, setFailedSrc] = useState<string | null>(null);
   const has_image = !!src && src !== failed_src;
+  // two letters would be too small to read
+  const max_letters = parseFloat(size) < 24 ? 1 : 2;
   const avatar = <AvatarImg
     $size={size}
-    src={has_image ? src : initialsImage(name)}
+    src={has_image ? src : initialsImage(name, max_letters)}
     alt={name ?? ""}
     title={name ?? undefined}
     style={has_image ? img_style ?? undefined : undefined}

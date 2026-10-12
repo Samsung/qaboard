@@ -33,6 +33,10 @@ describe('initials', () => {
     expect(initials('  Élodie  (QA) ')).toBe('ÉQ');
   });
 
+  it('can use only the first name', () => {
+    expect(initials('Alice Martin', 1)).toBe('A');
+  });
+
   it('uses the last part of project ids', () => {
     expect(initials('group/repo')).toBe('R');
     expect(initials('dvs/psp_swip')).toBe('PS');
@@ -79,6 +83,11 @@ describe('Avatar', () => {
     expect(img).toHaveAttribute('title', 'Alice Martin');
     expect(svg(img)).toContain('>AM</text>');
     expect(svg(img)).toContain(`fill="${avatarColor('Alice Martin')}"`);
+  });
+
+  it('shows a single letter on small avatars', () => {
+    render(<Avatar name="Alice Martin" size="20px" />);
+    expect(svg(screen.getByRole('img', { name: 'Alice Martin' }))).toContain('>A</text>');
   });
 
   it('shows initials when the picture fails to load, and retries new pictures', () => {
