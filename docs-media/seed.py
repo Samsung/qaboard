@@ -822,7 +822,7 @@ class Seeder:
       DELETE FROM projects WHERE id = {pid};
     """)
     for commit in self.story.commits.values():
-      shutil.rmtree(self.ws.outputs_commit(commit), ignore_errors=True)
+      remove_results(self.ws.outputs_commit(commit))
 
   def ensure_users(self):
     for handle, person in self.story.people.items():
@@ -1299,6 +1299,16 @@ class Seeder:
     os.chmod(path, 0o666)
 
 
+def remove_results(commit_dir: Path):
+  """Deletes a commit's results, and the folders above it that end up empty"""
+  shutil.rmtree(commit_dir, ignore_errors=True)
+  for parent in list(commit_dir.parents)[:3]:   # <xx>/, <project>/, <group>/
+    try:
+      parent.rmdir()
+    except OSError:
+      break
+
+
 def copy_if_changed(src, dst):
   """Like rsync: big inputs aren't copied again"""
   s, d = Path(src), Path(dst)
@@ -1654,7 +1664,7 @@ def main():
     old = stack.demo_dir() / 'demo.json'
     for project in (json.loads(old.read_text()).get('projects', {}) if old.exists() else {}).values():
       for commit in project.get('commits', {}).values():
-        shutil.rmtree(stack.results_root() / project['id'] / commit['sha'][:2] / commit['sha'][2:16], ignore_errors=True)
+        remove_results(stack.results_root() / project['id'] / commit['sha'][:2] / commit['sha'][2:16])
     shutil.rmtree(stack.demo_dir(), ignore_errors=True)
   if not stack.is_up():
     if args.server.rstrip('/') != stack.server_url():
