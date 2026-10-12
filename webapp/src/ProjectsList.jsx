@@ -75,7 +75,7 @@ class ProjectsList extends Component {
         icon="heatmap"
         title="No projects yet."
         intent={Intent.PRIMARY}
-        description={<p>Learn how to <a href={`${this.props.docs_root}docs/installation`}>get started</a>,<br/>and <a href="https://github.com/arthur-flam/qaboard/issues">ask the maintainers</a> if you run into issues.</p>}
+        description={<p>Learn how to <a href={`${this.props.docs_root}docs/installation`}>get started</a>,<br/>and <a href={this.props.support_url}>ask the maintainers</a> if you run into issues.</p>}
       />
     </div>;
 
@@ -215,6 +215,7 @@ const mapStateToProps = state => {
     projects: state.projects.data,
     user: state.user ?? null,
     docs_root: state.siteConfig.docs_root,
+    support_url: state.siteConfig.support_url,
     quota_url_template: state.siteConfig.quota_url_template,
   }
 }
