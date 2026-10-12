@@ -25,8 +25,12 @@ let config: Config = {
   customFields: {is_for_webapp},
   tagline: "Algorithm engineering is hard enough.<br/>Don't waste time with logistics.",
   url: 'https://samsung.github.io',
-  onBrokenLinks: 'warn', // log
-  onBrokenMarkdownLinks: 'warn',
+  onBrokenLinks: 'throw',
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: 'throw',
+    },
+  },
   // https://realfavicongenerator.net/
   favicon: 'img/favicon/favicon-32x32.png',
   projectName: 'qaboard', // Usually your repo name.
@@ -38,7 +42,7 @@ let config: Config = {
     [
       'classic', {
         docs: {
-          sidebarPath: require.resolve('./sidebars.js'),
+          sidebarPath: './sidebars.ts',
           // Please change this to your repo.
           editUrl: 'https://github.com/Samsung/qaboard/edit/master/website/docs',
         },
