@@ -3,57 +3,57 @@
   "base_url": "https://qaboard-media.sivoov.app",
   "shots": {
     "cli/first-run": {
-      "alt": "A terminal runs qa run on the slanted-edge chart: the pipeline logs each ISP stage, prints the run's metrics, then a link to the results in QA-Board.",
+      "alt": "A terminal runs qa run on the slanted-edge chart: qa prints where the outputs go, the pipeline logs each ISP stage and its time, then the run's metrics.",
       "app_version": "1.1.1",
-      "caption": "qa run runs your code on one input, prints its metrics, and links to the results.",
+      "caption": "qa run runs your code on one input, saves its outputs and prints its metrics.",
       "captured": "2026-10-12",
-      "duration": 9.56,
+      "duration": 9.32,
       "files": {
         "mp4": {
-          "bytes": 102644,
-          "key": "shots/cli/first-run/3fc7a95d25128311.mp4"
+          "bytes": 79671,
+          "key": "shots/cli/first-run/e5551d82f1816c79.mp4"
         },
         "poster": {
-          "bytes": 51464,
-          "key": "shots/cli/first-run/3956911fec2d731c.webp"
+          "bytes": 41104,
+          "key": "shots/cli/first-run/3782884b731e0c8a.webp"
         },
         "webm": {
-          "bytes": 119293,
-          "key": "shots/cli/first-run/ff8454d6af99b7e0.webm"
+          "bytes": 94817,
+          "key": "shots/cli/first-run/76314fc72d660109.webm"
         }
       },
       "height": 720,
       "kind": "tape",
-      "lqip": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAABwAQCdASoQAAkAA4BaJZwCdAFAAAD+8P4nwhex1FmJ89GAAAA=",
+      "lqip": "data:image/webp;base64,UklGRiwAAABXRUJQVlA4ICAAAABwAQCdASoQAAkABIBaJZwC7AGIQAD+8Q5K978ZRjQAAA==",
       "project": "image-quality",
       "source_spec": "docs-media/tapes/cli-first-run.tape",
       "width": 1280
     },
     "commit/auto-roi": {
-      "alt": "The View ROIs menu open over the facade run, with Full Image, ROI Presets and Auto ROIs checked; below it, the twenty regions where new and reference differ most, found automatically, and the images zoomed on the first.",
+      "alt": "The View ROIs menu open over the facade run, with Full Image, ROI Presets and Auto ROIs checked; below it, thumbnails of the twenty regions where new and reference differ most, found automatically, a dot colored by how much.",
       "app_version": "1.1.1",
       "caption": "Jump between the regions of interest preset for the input, or let QA-Board find where the images differ most.",
       "captured": "2026-10-12",
       "files": {
         "avif": {
-          "bytes": 35667,
-          "key": "shots/commit/auto-roi/d70924ef3ab3a663.avif"
+          "bytes": 23007,
+          "key": "shots/commit/auto-roi/2e8a21f61166645d.avif"
         },
         "png": {
-          "bytes": 219623,
-          "key": "shots/commit/auto-roi/9c7db72d1bec170a.png"
+          "bytes": 199320,
+          "key": "shots/commit/auto-roi/133b84c229e8b0b8.png"
         },
         "webp": {
-          "bytes": 62346,
-          "key": "shots/commit/auto-roi/e5d03f6a6b4f9bf9.webp"
+          "bytes": 41138,
+          "key": "shots/commit/auto-roi/5a60e9b975ca80fe.webp"
         }
       },
-      "height": 741,
+      "height": 318,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRm4AAABXRUJQVlA4IGIAAABQAgCdASoQAAsAA4BaJYgCdH8AGBvOeu44oAAA/u4dHNV/x9SKLuye8mTWNbCeeYeQDREqj3317UeXlN034Kd8shrajN3KIO9G/ljsbD6M8B2FGmeWRUTh7LkUkUIHK4AAAA==",
+      "lqip": "data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAADQAQCdASoQAAUAA4BaJZQC7AEQBwc0AAD+7h0dGaNrXcmiD92ah1FEQ5mcUUPFGJ46DwAA",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
-      "width": 1178
+      "width": 1170
     },
     "commit/controls-panel": {
       "alt": "The Controls panel open on the right of the run cards: an Image Diff switch, a switch per visualization, including the hidden Color errors and Noise vs signal, and the sorting options.",
@@ -242,30 +242,30 @@
       "width": 1170
     },
     "commit/output-files": {
-      "alt": "Output Files of the facade run on the hw-model platform: the stages folder open, its changed files marked, and the help that explains the icons.",
+      "alt": "The files of the facade run on the hw-model platform that differ from the reference: metrics.json, out.png, stages 4 and 5 in raw/ and stages/, and regs.txt, whose diff below shows the ROUNDING register going from 0 to 2.",
       "app_version": "1.1.1",
-      "caption": "Output Files lists what changed in each run: here the fixed-point model's stage buffers after a rounding change.",
+      "caption": "Output Files lists only the files that changed: a rounding change in the fixed-point model shows in its register dump, then in the last two stages' buffers.",
       "captured": "2026-10-12",
       "files": {
         "avif": {
-          "bytes": 73467,
-          "key": "shots/commit/output-files/b601d76e0d6155b7.avif"
+          "bytes": 59339,
+          "key": "shots/commit/output-files/dad1d10704218837.avif"
         },
         "png": {
-          "bytes": 344684,
-          "key": "shots/commit/output-files/fe68699c79b2283b.png"
+          "bytes": 186128,
+          "key": "shots/commit/output-files/c1d3b81ad4d1cdc9.png"
         },
         "webp": {
-          "bytes": 149084,
-          "key": "shots/commit/output-files/664cb9f36b19cb20.webp"
+          "bytes": 162386,
+          "key": "shots/commit/output-files/0738a6b4ee51d6c5.webp"
         }
       },
-      "height": 900,
+      "height": 748,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRkYAAABXRUJQVlA4IDoAAADQAQCdASoQAAoAA4BaJZwAAudZJfg0AAD2v/wngCP0dtCcDSY3yUvdv82w34vjBjJvkYQkhAJuwAAA",
+      "lqip": "data:image/webp;base64,UklGRkYAAABXRUJQVlA4IDoAAADQAQCdASoQAAsAA4BaJZzuGuqCKADyAAD+8ptSjdTNMnbgfuqbb7vvBpo1F/ji3J92pYACAIAKrwAA",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
-      "width": 1440
+      "width": 1188
     },
     "commit/pixel-tooltip": {
       "alt": "The center of a Siemens star, new and reference: above the images, the hovered pixel's coordinates and its RGB values in both images; crosshairs mark the pixel on both.",
