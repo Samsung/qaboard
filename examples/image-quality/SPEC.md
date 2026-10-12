@@ -83,7 +83,10 @@ gain and exposure, so they show as tags on runs.
   `qa/main.py`, so the viewer's ROI menu has presets next to the auto-ROIs.
 - **113 MP output:** written as a tiled (256x256), multi-resolution TIFF with JPEG tiles (quality 90), `out.tiff`
   (about 25 MB), which the viewer prefers over `out.png` and Cantaloupe can serve as a pyramid without decoding the
-  whole image per tile. Nothing else is written for the wall (no stages, no `raw/`).
+  whole image per tile. Nothing else is written for the wall (no stages, no `raw/`). Checked in phase 1 with the
+  `cantaloupe` image (5.0.5, Java2dProcessor, GeoSolutions TIFF reader): it uses the levels stored as successive IFDs,
+  and ignores SubIFDs. With successive IFDs, zoomed-out IIIF requests take 0.04-0.3 s; with SubIFDs (or one level) they
+  decode the full resolution, 1-2 s each. `out.tiff` stores its levels as successive IFDs.
 
 ## Metrics (`qa/metrics.yaml`)
 
@@ -149,7 +152,7 @@ guide on `kitefin.example`) and a webhook, "Send to the tuning bench", answered 
 |---|---|---|---|
 | `ci` | 5 charts + 4 photos (`facade`, `backlit-window`, `night-street`, `sky-gradient`) × `base`, `low-light` (18 runs) | ≤ 15 s | ~40 MB |
 | `bitexact` | `hw-model` platform: 5 charts + `facade` + `night-street`, `base` (7 runs) | ≤ 10 s | ~22 MB |
-| `deep-zoom` | the 113 MP wall, `base`, tiled over 4 processes (`lsf: {max_memory: 3072}`) | ≤ 1 min, ≤ 3 GB | ~25 MB |
+| `deep-zoom` | the 113 MP wall, `base`, tiled over 4 processes (`lsf: {max_memory: 3072}`) | 45-80 s, ≤ 2 GB | ~25 MB |
 | `nightly` | alias: `all-isos` (every input × `base`, `low-light`, `night`, 39 runs) and `bitexact` | ≤ 40 s | ~130 MB |
 | `sweep-denoise` | 4 photos + slanted edge, `low-light`; meant for `--tuning-search` | ≤ 5 s per combination | ~14 MB per combination |
 
@@ -184,13 +187,16 @@ half-even rounding; with the bilateral denoiser, `low-light` PSNR +1.6 dB, noise
 - Every commit runs `ci`. `bitexact` runs on the root commit, the releases, the `fxp/` commits and their merges, the
   parent of `fxp-guard-bits`, and one filler (`docs-tuning-guide`, for the "same" bit-accuracy check). Fillers (docs,
   refactors, CI) keep their parent's flags, so their outputs are byte for byte their parent's.
-- **Checks:** the "Shows" column, plus a hook `bit_accuracy(commit, vs, expect)` that runs `qa check-bit-accuracy`
-  and expects `differ` on `fxp-round-half-even` and `fxp-guard-bits`, `same` on a filler.
+- **Checks:** the "Shows" column, plus a hook `bit_accuracy(ctx, vs, expect, only)` that runs `qa check-bit-accuracy`
+  and expects `differ` on `fxp-round-half-even` (only stage 4 and 5 files, `out.png` and `regs.txt`) and
+  `fxp-guard-bits`, `same` on a filler.
 - **Milestones:** `isp-4.1` on `isp-4-1` and `isp-4.2` on `isp-4-2`, by ines.
 
 ## Determinism and budget
 - Fully deterministic except `runtime`: noise is seeded per input and the story seed, the integer pipeline is
-  bit-exact, the float pipeline is deterministic on one machine (and close across machines).
+  bit-exact, the float pipeline is deterministic on one machine (and close across machines). Checked: two runs of
+  `ci` and `bitexact` give the same 204 output files, byte for byte. PNG bytes also depend on the zlib Pillow was built
+  with; `raw/*.u16` and `regs.txt` don't.
 - The whole story: ≤ 30 min on a 4-CPU runner (35 `ci`, 10 `bitexact`, 2 `nightly`, 5 `deep-zoom`, one sweep), and
   ≤ 2 GB of results (about 1.4 GB of it is `ci`; fillers' outputs are identical to their parent's, so a dedupe by
   hardlinks would save most of it).
