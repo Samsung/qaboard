@@ -21,9 +21,9 @@ const compare = (d: Demo, commit: string, reference: string, filter: string, opt
 const halos = (d: Demo, filter: string, controls?: Record<string, unknown>) =>
   compare(d, 'merge-bilateral', 'isp-4-1', `${filter} linux`, { controls });
 
-// Scrolls the first run card right below the commit bars
-async function showCard(ui: Ui, index = 0) {
-  await cards(ui.page).nth(index).evaluate(card => window.scrollBy(0, card.getBoundingClientRect().top - 160));
+// Scrolls a run card right below the commit bars, or to `top`
+async function showCard(ui: Ui, index = 0, top = 160) {
+  await cards(ui.page).nth(index).evaluate((card, top) => window.scrollBy(0, card.getBoundingClientRect().top - top), top);
   await ui.settle();
 }
 
@@ -91,12 +91,14 @@ shot('commit/controls-panel', {
 shot('commit/image-sbs', {
   project: IQ,
   url: d => halos(d, 'photos/facade base'),
-  alt: 'New and reference images of the facade, zoomed on the corner of a window frame: the new image has light halos '
-    + 'along the dark frame.',
-  caption: 'Zoom on one image and the other follows: the new denoiser leaves halos along the window frame.',
+  alt: 'New and reference images of the facade, zoomed on leaves in front of the wall: in the new image, dark halos '
+    + 'outline every leaf.',
+  caption: 'Both images at the same zoom: only the new denoiser outlines the leaves with dark halos.',
   actions: async ui => {
-    // the viewer opens on the input's first preset region, the window frame: closer on its corner
-    await zoom(ui, viewer(ui.page), { x: 25, y: 25 }, 4);
+    const scope = viewer(ui.page);
+    await preset(ui, scope, 'Leaves over a window');
+    // closer on the leaves at the top right of the region, where the halos are strongest
+    await zoom(ui, scope, { x: 82, y: 42 }, 4);
     await mouseAway(ui);
   },
   target: page => imageRow(viewer(page)),
@@ -106,8 +108,8 @@ shot('commit/image-sbs', {
 shot('commit/image-perceptual-diff', {
   project: IQ,
   url: d => halos(d, 'photos/facade base', { diff: true }),
-  alt: 'New image, Image Diff and reference image of the facade window: in the diff, the window frame\'s edges glow, '
-    + 'the flat wall stays dark.',
+  alt: 'New image, Image Diff and reference image of the facade window: in the diff, the window frame\'s edges show in '
+    + 'yellow and orange, the flat wall stays white.',
   caption: 'Image Diff shows where the images differ; raise its threshold until only the halos stand out.',
   actions: async ui => {
     await diffThreshold(ui, viewer(ui.page), 10);
@@ -120,9 +122,9 @@ shot('commit/image-perceptual-diff', {
 shot('commit/pixel-tooltip', {
   project: IQ,
   url: d => compare(d, 'bilateral-denoise', 'isp-4-1', 'charts/siemens-star base linux'),
-  alt: 'The center of a Siemens star, new and reference: the cursor is on the new image, the pixel\'s coordinates and '
-    + 'RGB values of both images show above, and a crosshair marks the same pixel on the reference.',
-  caption: 'Hover a pixel: its values in both images, and a crosshair at the same spot on the reference.',
+  alt: 'The center of a Siemens star, new and reference: above the images, the hovered pixel\'s coordinates and its RGB '
+    + 'values in both images; crosshairs mark the pixel on both.',
+  caption: 'Hover a pixel: its values in both images show above them, and a crosshair marks the same spot on the reference.',
   actions: async ui => {
     const image = newImage(viewer(ui.page));
     const box = await image.boundingBox();
@@ -130,7 +132,7 @@ shot('commit/pixel-tooltip', {
     await ui.hover(image, { position: { x: box!.width * 0.21, y: box!.height * 0.3 } });
     await ui.settle();
   },
-  target: page => [viewer(page).getByText(/^x: \d+, y: \d+$/), imageRow(viewer(page))],
+  target: page => [viewer(page).getByText(/^x: \d+, y: \d+$/).locator('xpath=..'), imageRow(viewer(page))],
   padding: 4,
 });
 
@@ -140,8 +142,11 @@ shot('commit/roi-histograms', {
   alt: 'A rectangle selected on the sky gradient; below the images, the red, green, blue and luma histograms of the '
     + 'region, new and reference overlaid.',
   caption: 'Select a region to compare its histograms, new against reference.',
+  // the images and the histograms under them
+  viewport: { width: 1440, height: 1200 },
   actions: async ui => {
     const scope = viewer(ui.page);
+    await showCard(ui);
     await preset(ui, scope, 'Full Image');
     await ui.hover(newImage(scope));
     await ui.click(scope.locator('[title="Select a region to see its histogram"]').first());
@@ -151,18 +156,26 @@ shot('commit/roi-histograms', {
     await mouseAway(ui);
     await ui.settle();
   },
-  target: page => viewer(page),
+  // the pixel values, the images, the histograms
+  target: page => [
+    viewer(page).getByText(/^x: \d+, y: \d+$/).locator('xpath=..'),
+    imageRow(viewer(page)),
+    viewer(page).locator('.js-plotly-plot').first(),
+  ],
   padding: 4,
 });
 
 shot('commit/auto-roi', {
   project: IQ,
   url: d => halos(d, 'photos/facade base'),
-  alt: 'The View ROIs menu open over the facade run, with Full Image, ROI Presets and Auto ROIs, and below it the '
-    + 'regions where new and reference differ most, found automatically.',
+  alt: 'The View ROIs menu open over the facade run, with Full Image, ROI Presets and Auto ROIs checked; below it, the '
+    + 'twenty regions where new and reference differ most, found automatically, and the images zoomed on the first.',
   caption: 'Jump between the regions of interest preset for the input, or let QA-Board find where the images differ most.',
+  viewport: { width: 1440, height: 1100 },
   actions: async ui => {
     const scope = viewer(ui.page);
+    // lower than the other shots: the menu opens upwards, it must clear the commit bars
+    await showCard(ui, 0, 260);
     const menu = scope.getByText(/^View /).first();
     await ui.hover(menu);
     await ui.click(ui.page.getByRole('menuitem', { name: 'Auto ROIs' }));
@@ -181,9 +194,9 @@ shot('commit/auto-roi', {
 shot('commit/image-filters', {
   project: IQ,
   url: d => halos(d, 'photos/night-street low-light'),
-  alt: 'The Image Tools panel over the night street\'s shadows, with brightness, gamma and sharpen raised: the noise '
+  alt: 'The Image Tools panel over the night street\'s shadows, with brightness raised and gamma lowered: the noise '
     + 'of both images shows.',
-  caption: 'Brightness, gamma and sharpen apply to both images at once: here they reveal the noise in the shadows.',
+  caption: 'Image Tools filters apply to both images at once: here brightness and gamma reveal the noise in the shadows.',
   actions: async ui => {
     const scope = viewer(ui.page);
     await preset(ui, scope, 'Shadows (noise)');
@@ -197,8 +210,6 @@ shot('commit/image-filters', {
     await ui.press('PageUp');
     await slider('Gamma').focus();
     for (let i = 0; i < 8; i++) await ui.press('ArrowLeft');
-    await slider('Sharpen').focus();
-    for (let i = 0; i < 10; i++) await ui.press('ArrowRight');
     await ui.settle();
   },
   target: page => viewer(page),
@@ -271,15 +282,15 @@ clip('commit/deep-zoom', {
     const at = { x: (3904 / 12288) * 100, y: (8192 / 9216) * 100 };
     const box = await newImage(scope).boundingBox();
     await ui.cursor.moveTo({ x: box!.x + (box!.width * at.x) / 100, y: box!.y + (box!.height * at.y) / 100 });
-    await ui.hold(1000);
+    await ui.hold(700);
     await ui.caption('Down to single pixels, in sync');
     for (let i = 0; i < 4; i++) {
       const now = await newImage(scope).boundingBox();
       await ui.wheel(newImage(scope), -700, { steps: 7, position: { x: now!.width * at.x / 100, y: now!.height * at.y / 100 } });
-      await ui.hold(900);
+      await ui.hold(500);
     }
     await ui.tiles();
-    await ui.hold(2000);
+    await ui.hold(1800);
   },
 });
 

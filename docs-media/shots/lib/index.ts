@@ -218,22 +218,58 @@ async function stableScreenshot(page: Page, clip: Box, attempts = 6): Promise<Bu
   return previous;
 }
 
-// The shot's box in viewport coordinates: the target and its padding, within the viewport
+// The bottom of the bars fixed at the top of the viewport (e.g. the commit page's header): what scrolls under them is hidden
+async function topBarsBottom(page: Page): Promise<number> {
+  return page.evaluate(() => {
+    const bars: DOMRect[] = [];
+    for (const el of document.querySelectorAll('body *')) {
+      const position = getComputedStyle(el).position;
+      if (position !== 'fixed' && position !== 'sticky') continue;
+      const r = el.getBoundingClientRect();
+      if (r.height > 0 && r.height < innerHeight / 2 && r.width > innerWidth / 2) bars.push(r);
+    }
+    // bars stacked from the top of the viewport (the commit page has one per commit)
+    let bottom = 0;
+    for (const r of bars.sort((a, b) => a.top - b.top))
+      if (r.top <= bottom + 1) bottom = Math.max(bottom, r.bottom);
+    return bottom;
+  });
+}
+
+// The shot's box in viewport coordinates: the target and its padding, within the viewport and below the fixed top bars.
+// When the target isn't all visible, the page scrolls its top right under the bars. Scrolling moves what's under the
+// mouse, and closes the popovers that open on hover: to shoot one, scroll first, in the actions.
 async function shotRegion(page: Page, target: Locator | Locator[] | undefined, padding: number): Promise<Box> {
   const viewport = page.viewportSize() ?? VIEWPORT;
   const targets = target === undefined ? [] : Array.isArray(target) ? target : [target];
   if (targets.length === 0) return { x: 0, y: 0, width: viewport.width, height: viewport.height };
+  const measure = async () => {
+    const boxes = [];
+    for (const t of targets) {
+      const box = await t.boundingBox();
+      if (!box) throw new Error(`[shots] the target ${t} has no box`);
+      boxes.push(box);
+    }
+    return {
+      left: Math.min(...boxes.map(b => b.x)) - padding,
+      top: Math.min(...boxes.map(b => b.y)) - padding,
+      right: Math.max(...boxes.map(b => b.x + b.width)) + padding,
+      bottom: Math.max(...boxes.map(b => b.y + b.height)) + padding,
+    };
+  };
   await targets[0].scrollIntoViewIfNeeded();
-  const boxes = [];
-  for (const t of targets) {
-    const box = await t.boundingBox();
-    if (!box) throw new Error(`[shots] the target ${t} has no box`);
-    boxes.push(box);
+  const bars = await topBarsBottom(page);
+  let union = await measure();
+  if (union.top < bars || union.bottom > viewport.height) {
+    if (union.bottom - union.top > viewport.height - bars)
+      console.warn(`[shots] the target is ${Math.round(union.bottom - union.top)}px high, the viewport shows ${viewport.height - bars}px of it`);
+    await page.evaluate(dy => window.scrollBy(0, dy), union.top - bars);
+    union = await measure();
   }
-  const x0 = Math.max(0, Math.floor(Math.min(...boxes.map(b => b.x)) - padding));
-  const y0 = Math.max(0, Math.floor(Math.min(...boxes.map(b => b.y)) - padding));
-  const x1 = Math.min(viewport.width, Math.ceil(Math.max(...boxes.map(b => b.x + b.width)) + padding));
-  const y1 = Math.min(viewport.height, Math.ceil(Math.max(...boxes.map(b => b.y + b.height)) + padding));
+  const x0 = Math.max(0, Math.floor(union.left));
+  const y0 = Math.max(Math.ceil(bars), Math.floor(union.top));
+  const x1 = Math.min(viewport.width, Math.ceil(union.right));
+  const y1 = Math.min(viewport.height, Math.ceil(union.bottom));
   return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
 }
 

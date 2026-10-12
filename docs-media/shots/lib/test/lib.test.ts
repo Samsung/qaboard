@@ -231,6 +231,41 @@ test('a target of several elements crops to their union', async ({ browser }, te
   expect(Math.abs(meta.height - expected.height)).toBeLessThanOrEqual(2);
 });
 
+test('a target under a fixed header scrolls below it', async ({ browser }, testInfo) => {
+  let card = { x: 0, y: 0, width: 0, height: 0 };
+  const options = (anchorHeader: boolean): ShotOptions => ({
+    ...base,
+    url: '/app.html',
+    padding: 0,
+    target: page => page.locator('#card'),
+    actions: async ui => {
+      // a header like the commit page's, two bars, and the card scrolled half under it
+      await ui.page.evaluate(() => {
+        for (const [id, top] of [['header', 0], ['header-2', 60]] as const) {
+          const bar = document.createElement('div');
+          bar.id = id;
+          bar.style.cssText = `position: fixed; top: ${top}px; left: 0; right: 0; height: 60px; background: #cd4246; z-index: 10`;
+          document.body.prepend(bar);
+        }
+        document.body.style.padding = '160px 24px 2000px';
+        window.scrollTo(0, 120);
+      });
+      card = (await ui.page.locator('#card').boundingBox())!;
+      expect(card.y).toBeLessThan(120);
+      await ui.anchor('card', ui.page.locator('#card'));
+      if (anchorHeader) await ui.anchor('header', ui.page.locator('#header-2'));
+    },
+  });
+  const { meta } = await captureStill(browser, 'commit/under-header', options(false), env(testInfo.outputPath('under-header')));
+  // the whole card...
+  expect(Math.abs(meta.height - card.height)).toBeLessThanOrEqual(2);
+  expect(meta.anchors.card).toMatchObject({ x: 0, y: 0, w: 100 });
+  expect(meta.anchors.card.h).toBeGreaterThan(98);
+  // ...and none of the header
+  await expect(captureStill(browser, 'commit/under-header', options(true), env(testInfo.outputPath('under-header-2'))))
+    .rejects.toThrow('anchor "header" is outside the shot');
+});
+
 test.describe('login', () => {
   test("the project's persona is logged in by default", async ({ browser }, testInfo) => {
     const cookies = async (options: Partial<ShotOptions>) => {
