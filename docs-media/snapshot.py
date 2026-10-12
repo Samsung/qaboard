@@ -91,7 +91,7 @@ def git_info() -> Dict:
 def image_digests() -> Dict[str, str]:
   digests = {}
   for service in ('backend', 'frontend', 'proxy', 'cantaloupe'):
-    tag = f"{stack.image()}:{service}{'-' + os.environ['QABOARD_VERSION'] if os.environ.get('QABOARD_VERSION') else ''}"
+    tag = stack.service_image(service)
     r = subprocess.run(['docker', 'image', 'inspect', '--format', '{{json .RepoDigests}}', tag], capture_output=True, text=True)
     try:
       repo_digests = json.loads(r.stdout) if r.returncode == 0 else []

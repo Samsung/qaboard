@@ -7,6 +7,8 @@
 # - Images: ${QABOARD_IMAGE}:<service>. The scripts default QABOARD_IMAGE to ghcr.io/<owner>/qaboard with the GitHub
 #   repository's owner in CI (GITHUB_REPOSITORY_OWNER), so forks use the images they publish; else to the root
 #   docker-compose.yml's default, the official ghcr.io/samsung/qaboard. QABOARD_VERSION picks a release.
+#   QABOARD_DEMO_<SERVICE>_IMAGE replaces one service's image, e.g. a web app built from a branch:
+#   QABOARD_DEMO_FRONTEND_IMAGE=qaboard-demo-local:frontend-<sha> (also BACKEND, PROXY, CANTALOUPE).
 # - Results: the `qa` CLI runs on the host and tells the server where it saved its results, so everything sees the
 #   results storage at the same absolute path, QABOARD_DEMO_RESULTS (default /mnt/qaboard): read-write in the
 #   backend, read-only in nginx (/s/<path>) and Cantaloupe (/iiif/2/<path>).
@@ -21,6 +23,7 @@ services:
     logging: {driver: none}
 
   backend:
+    image: "${QABOARD_DEMO_BACKEND_IMAGE:-${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:backend${QABOARD_VERSION:+-$QABOARD_VERSION}}"
     # Not the repository's .env: it may hold another deployment's secrets
     env_file: !reset []
     environment:
@@ -32,6 +35,7 @@ services:
       - ${QABOARD_DEMO_RESULTS:-/mnt/qaboard}:${QABOARD_DEMO_RESULTS:-/mnt/qaboard}
 
   proxy:
+    image: "${QABOARD_DEMO_PROXY_IMAGE:-${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:proxy${QABOARD_VERSION:+-$QABOARD_VERSION}}"
     depends_on: !override [backend, cantaloupe]
     ports: !override
       - ${QABOARD_DEMO_PORT:-5151}:80
@@ -39,6 +43,7 @@ services:
       - ${QABOARD_DEMO_RESULTS:-/mnt/qaboard}:/var/qaboard${QABOARD_DEMO_RESULTS:-/mnt/qaboard}:ro
 
   cantaloupe:
+    image: "${QABOARD_DEMO_CANTALOUPE_IMAGE:-${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:cantaloupe${QABOARD_VERSION:+-$QABOARD_VERSION}}"
     # Only the results, not the host's / like the root docker-compose.yml
     volumes: !override
       - cache_cantaloupe:/var/cache/cantaloupe
@@ -50,7 +55,7 @@ services:
 
   # Answers every request to the demo world's hosts with a small JSON (docs-media/demo/kitefin_stub.py)
   kitefin-stub:
-    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:backend${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    image: "${QABOARD_DEMO_BACKEND_IMAGE:-${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:backend${QABOARD_VERSION:+-$QABOARD_VERSION}}"
     entrypoint: ["python", "/stub/kitefin_stub.py"]
     volumes:
       - ./docs-media/demo/kitefin_stub.py:/stub/kitefin_stub.py:ro
@@ -74,6 +79,7 @@ services:
       retries: 3
 
   frontend:
+    image: "${QABOARD_DEMO_FRONTEND_IMAGE:-${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:frontend${QABOARD_VERSION:+-$QABOARD_VERSION}}"
     # Copies the web app's build in the frontend_builds volume, then exits
     restart: "no"
 

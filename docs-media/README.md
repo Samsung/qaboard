@@ -64,6 +64,9 @@ at http://localhost:5151. It runs the published images (`QABOARD_IMAGE`, default
 GitHub Actions, else `ghcr.io/samsung/qaboard`), and shares the results storage with the host at the same path
 (`QABOARD_DEMO_RESULTS`, default `/mnt/qaboard`, which you may have to create: `sudo mkdir -p /mnt/qaboard && sudo chown
 $USER /mnt/qaboard`). Every persona of the demo world can log in, with the password `kitefin-demo`.
+To capture a web app or Cantaloupe that isn't published yet, build its image and point one service at it:
+`QABOARD_DEMO_FRONTEND_IMAGE=qaboard-demo-local:frontend-<sha>` (also `_BACKEND_`, `_PROXY_`, `_CANTALOUPE_`), e.g.
+`docker compose build frontend` from that checkout, then `docker tag`. Restores and seeds use it while it's set.
 
 Restore the current snapshot (needs the R2 variables, see [When it runs](#when-it-runs-githubworkflowsdocs-mediayml)):
 

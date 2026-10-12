@@ -41,6 +41,15 @@ def image() -> str:
   return 'ghcr.io/samsung/qaboard'
 
 
+def service_image(service: str) -> str:
+  """A service's image, as compose.demo.yml picks it: $QABOARD_DEMO_<SERVICE>_IMAGE, else $QABOARD_IMAGE:<service>"""
+  override = os.environ.get(f"QABOARD_DEMO_{service.upper()}_IMAGE")
+  if override:
+    return override
+  version = os.environ.get('QABOARD_VERSION')
+  return f"{image()}:{service}{'-' + version if version else ''}"
+
+
 def results_root() -> Path:
   return Path(os.environ.get('QABOARD_DEMO_RESULTS', '/mnt/qaboard'))
 
@@ -132,7 +141,10 @@ def wait_healthy(timeout=300):
 def up(*services: str, pull=False):
   """Starts the stack (or some services) and waits until the web app answers."""
   ensure_results_root()
-  log(f"Starting the demo stack ({image()}:<service>, results in {results_root()}, {server_url()})", 'blue')
+  overrides = [f"{s}: {os.environ[f'QABOARD_DEMO_{s.upper()}_IMAGE']}" for s in ('backend', 'frontend', 'proxy', 'cantaloupe')
+               if os.environ.get(f"QABOARD_DEMO_{s.upper()}_IMAGE")]
+  log(f"Starting the demo stack ({image()}:<service>{', ' + ', '.join(overrides) if overrides else ''}, "
+      f"results in {results_root()}, {server_url()})", 'blue')
   if pull:
     compose('pull', '--quiet', '--ignore-buildable', *services)
   compose('up', '-d', '--remove-orphans', *services)
@@ -164,7 +176,7 @@ def backend_version() -> str:
   r = compose('exec', '-T', 'backend', 'python', '-c', 'import importlib.metadata as m; print(m.version("qaboard"))', capture=True, check=False)
   version = r.stdout.decode().strip() if r.returncode == 0 else 'unknown'
   inspect = subprocess.run(
-    ['docker', 'inspect', '--format', '{{json .Config.Labels}}', f"{image()}:backend{'-' + os.environ['QABOARD_VERSION'] if os.environ.get('QABOARD_VERSION') else ''}"],
+    ['docker', 'inspect', '--format', '{{json .Config.Labels}}', service_image('backend')],
     capture_output=True, text=True,
   )
   try:
