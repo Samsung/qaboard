@@ -58,7 +58,7 @@ function Audiences() {
     {
       title: 'I run the server',
       text: 'Deploy QA-Board with docker compose or Kubernetes, upgrade without downtime, manage storage and users.',
-      to: docs('backend-admin/deployment'),
+      to: docs('deploy'),
       cta: 'Admin guide',
     },
   ];
@@ -83,11 +83,10 @@ function Audiences() {
 
 
 export default function Home() {
-  const {siteConfig} = useDocusaurusContext();
   return (
     <Layout
-      title={`Hello from ${siteConfig.title}`}
-      description={siteConfig.tagline.replace("<br/>", " ")}>
+      title="Results review for algorithm teams"
+      description="QA-Board is an open-source, self-hosted platform to run your algorithms, compare their results with a reference across commits (metrics, images, plots, logs), tune their parameters and catch regressions.">
       <HomepageHeader />
       <main>
         <Audiences />

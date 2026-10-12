@@ -65,7 +65,7 @@ you-can-override-the-default-database:
 Make sure you read [the section on configurations](specifying-configurations)
 :::
 
-Let's look at examples from the `HW_ALG` project to illustrate how configurations can be given:
+Let's look at examples from an image processing project to illustrate how configurations can be given:
 
 ```yaml {2-3}
 using-a-custom-configuration:
@@ -75,7 +75,7 @@ using-a-custom-configuration:
   - Bayer/A.dng
   - Bayer/B.dng
 # => configs == ["base"]
-# => the code would load base/config.cde
+# => the code would load base/config.yaml
 ```
 
 ```yaml {2-4}
@@ -87,7 +87,7 @@ multiple-configs:
   - Bayer/A.dng
   - Bayer/B.dng
 #=> configs == ["base", "low-light"]
-#=> we merge 2 CDE configs 
+#=> the code merges 2 configs
 ```
 
 ```yaml {2-8}
@@ -95,15 +95,15 @@ configs-can-be-complex-objects:
   configs:
     - base
     - low-light
-    - cde:
+    - simulator:
       - "-w 9920"
       - "-h 2448"
       - "-it BAYER10"
   inputs:
   - Bayer/A.dng
   - Bayer/B.dng
-# configs == ["base", "low-light", {"cde": ["-w 9920", "-h 2448", "-it BAYER10"]}]
-# => Here we use the "cde" config parameter to pass CLI arguments to CDE.
+# configs == ["base", "low-light", {"simulator": ["-w 9920", "-h 2448", "-it BAYER10"]}]
+# => Here we use the "simulator" config parameter to pass CLI arguments to a hardware simulator.
 ```
 
 ```yaml {5,7-10}
@@ -115,9 +115,9 @@ each-input-can-have-its-own-configuration:
     #=> configs == ["base"]
   - Bayer/B.dng:
       - low-light
-      - cde:
+      - simulator:
         - "-DD"
-    #=> configs == ["base", "low-light", {"cde": ["-DD"]}]
+    #=> configs == ["base", "low-light", {"simulator": ["-DD"]}]
 
 
 each-input-can-have-its-own-configuration-and-appear-twice:
