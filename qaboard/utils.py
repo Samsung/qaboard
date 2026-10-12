@@ -165,10 +165,15 @@ class TeeStream():
     return written
   def flush(self):
     self.stream.flush()
-  # click uses them to choose colors and encodings. Without `fileno` and `buffer`,
-  # it can't bypass us and write to the console directly (e.g. on Windows)
+  # click and colorama (on Windows) use them to choose colors and encodings.
+  # Without `buffer`, click can't bypass us and write to the console directly.
   def isatty(self):
     return isatty(self.stream)
+  def fileno(self):
+    return self.stream.fileno()
+  @property
+  def closed(self):
+    return getattr(self.stream, 'closed', False)
   @property
   def encoding(self):
     return getattr(self.stream, 'encoding', None)
@@ -195,7 +200,7 @@ def tee_std_streams(file):
         file.write('\nAborted!\n')
       elif isinstance(e, click.ClickException):
         file.write(f'Error: {e.format_message()}\n')
-      elif not isinstance(e, SystemExit):
+      elif not isinstance(e, (SystemExit, click.exceptions.Exit)):
         file.write(traceback.format_exc())
       file.flush()
     except (OSError, ValueError):

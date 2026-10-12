@@ -15,14 +15,13 @@ import {
 } from "@blueprintjs/core";
 
 import { pretty_label } from '../utils'
-import { toaster } from "../toaster";
 import { folder_url } from "../utils/paths";
 import { RunList, RunLogs } from './logs/RunLogs'
 import { LogViewer } from './logs/LogViewer'
 import { BatchSubmissions } from './logs/BatchSubmissions'
 import { batchSubmissions } from './logs/submissions'
 import { DirectoryActions } from './logs/DirectoryActions'
-import { copyText } from './logs/clipboard'
+import { copyWithToast } from '../utils/clipboard'
 import { fileExists } from './logs/fetchRange'
 
 
@@ -90,11 +89,6 @@ const Command = styled.div`
   }
 `
 
-const copy = text => copyText(text).then(copied => toaster.show(copied
-  ? { message: 'Copied', icon: 'tick', intent: Intent.SUCCESS, timeout: 1500 }
-  : { message: 'Could not copy', intent: Intent.DANGER }))
-
-
 /**
  * Where are the logs of a `qa batch` command?
  * - ci: in the CI job
@@ -104,10 +98,13 @@ const copy = text => copyText(text).then(copied => toaster.show(copied
  * - terminal: started with `qa --share batch` by an older qaboard, it only printed its logs in the terminal
  * - unknown: e.g. a CI that doesn't tell us the job's URL
  */
+// Where `qa batch` saves its logs, relative to the batch directory. Anyone can save commands: we only follow these paths
+const SAVED_LOG = /^qa-batch-logs\/\d{8}-\d{6}-[0-9a-f]{8}\/log\.txt$/
+
 export function commandLogs(id, command, { submission_ids = new Set(), has_batch_log = false } = {}) {
   if (command.job_url) return 'ci'
   if (submission_ids.has(id)) return 'qaboard'
-  if (command.log) return 'saved'
+  if (SAVED_LOG.test(command.log ?? '')) return 'saved'
   // They ran as CI jobs (CI=true), not with --share
   if (has_batch_log && !command.share) return 'batch-log'
   if (command.share) return 'terminal'
@@ -156,9 +153,6 @@ const CommandLogs = ({ id, command, logs, batch_dir_url, expanded, onShowLogs })
   }
 }
 
-// command.log is relative to the batch directory
-const logUrl = (batch_dir_url, path) => `${batch_dir_url}/${path.split('/').map(encodeURIComponent).join('/')}`
-
 /**
  * A `qa batch` command, and where its logs are. `live` while it may still write its logs.
  */
@@ -182,12 +176,12 @@ const BatchCommand = ({ id, command, logs, batch_dir_url, live, onShowLogs }) =>
     <pre className={`command ${Classes.MONOSPACE_TEXT}`}>
       <code>{text}</code>
       <Tooltip content="Copy the command">
-        <Button size="small" variant="minimal" icon="duplicate" aria-label="Copy the command" onClick={() => copy(text)} />
+        <Button size="small" variant="minimal" icon="duplicate" aria-label="Copy the command" onClick={() => copyWithToast(text, { what: 'the command' })} />
       </Tooltip>
     </pre>
     {logs === 'saved' && <Collapse isOpen={expanded} transitionDuration={150}>
       <div style={{ marginTop: 8 }}>
-        <LogViewer files={[{ name: 'log.txt', url: logUrl(batch_dir_url, command.log) }]} live={live} />
+        <LogViewer files={[{ name: 'log.txt', url: `${batch_dir_url}/${command.log}` }]} live={live} />
       </div>
     </Collapse>}
   </Command>

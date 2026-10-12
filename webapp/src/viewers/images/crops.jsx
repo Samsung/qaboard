@@ -1,5 +1,4 @@
 import React from "react";
-import copy from 'copy-to-clipboard';
 
 import {
   AnchorButton,
@@ -9,7 +8,7 @@ import {
   Tooltip,
   IconSize,
 } from "@blueprintjs/core";
-import { toaster } from "../../toaster"
+import { copyWithToast } from "../../utils/clipboard"
 
 
 import { iiif_url } from "./utils";
@@ -151,10 +150,7 @@ const CropSelection = ({ roiCoords, image_width, image_height }) => {
         <Button
           minimal="true"
           style={{ marginRight: '5px', marginLeft: '5px' }}
-          onClick={() => {
-            copy(to_clipboard)
-            toaster.show({ message: "Copied!", intent: Intent.SUCCESS, timeout: 3000 });
-          }}
+          onClick={() => copyWithToast(to_clipboard, { what: 'the ROI' })}
         >
           <Icon
             icon="clipboard"

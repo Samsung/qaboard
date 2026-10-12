@@ -3,19 +3,17 @@ import {
     Tag,
     Popover,
     Icon,
-    Intent,
     MenuItem,
     Menu,
     Colors,
     Spinner,
     SpinnerSize,
 } from "@blueprintjs/core";
-import copy from 'copy-to-clipboard';
 
 import { output_rois, Crop, fitTo } from "./crops"
 import AutoCrops from "./AutoCrops";
 
-import { toaster } from "../../toaster"
+import { copyWithToast } from "../../utils/clipboard"
 const no_rois = {
     label: "Full Image",
     icon: "zoom-out",
@@ -125,8 +123,7 @@ const RoiViewer = ({output_new, output_ref, path, viewer, current_roi, fullyLoad
             onClick={() => {
                 const { x, y, w, h, width, height } = current_roi
                 const to_clipboard = `width: ${width}\nheight: ${height}\n- {x: ${Math.round(x)}, y: ${Math.round(y)}, w: ${Math.round(w)}, h: ${Math.round(h)}, label: ""}`;
-                copy(to_clipboard)
-                toaster.show({ message: "Copied!", intent: Intent.SUCCESS, timeout: 3000 });          
+                copyWithToast(to_clipboard, { what: 'the ROI' })
             }}
         />
     </Menu>

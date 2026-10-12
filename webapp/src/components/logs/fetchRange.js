@@ -55,11 +55,8 @@ export const decodeText = bytes => new TextDecoder().decode(bytes)
 
 // Whether a file exists, without downloading it. Throws for other errors than 404 (e.g. 403).
 export async function fileExists(url, { signal } = {}) {
-  try {
-    await fetchRange(url, 'bytes=0-0', { signal })
-    return true
-  } catch (error) {
-    if (error.status === 404) return false
-    throw error
-  }
+  const response = await fetch(url, { method: 'HEAD', cache: 'no-store', signal })
+  if (response.status === 404) return false
+  if (!response.ok) throw new HttpError(response.status, url)
+  return true
 }

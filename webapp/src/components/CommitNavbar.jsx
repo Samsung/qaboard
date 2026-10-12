@@ -1,5 +1,4 @@
 import React from "react";
-import copy from 'copy-to-clipboard';
 import axios from "axios";
 
 import {
@@ -28,10 +27,11 @@ import { DoneAtTag } from "./DoneAtTag";
 import { SelectBatchesNav } from "./tuning/SelectBatches";
 import { has_milestones, MilestonesMenu, CommitMilestoneEditor } from "./milestones"
 
-import { shortId, linux_to_windows } from "../utils";
+import { shortId } from "../utils";
 import { fetchCommit } from "../actions/commit";
 import { updateSelected } from "../actions/selected";
 import { toaster } from "../toaster"
+import { copyDirectory } from "./logs/DirectoryActions"
 
 
 class CommitMessage extends React.PureComponent {
@@ -304,13 +304,13 @@ class CommitNavbar extends React.Component {
           />
           <Popover placement="bottom" hoverCloseDelay={500} interactionKind={"hover"} content={<Menu>
             <MenuDivider title="Commit"/>
-            <MenuItem text="Copy Artifact Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(commit.artifacts_url))}} />
-            <MenuItem text="Copy Artifact Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(commit.artifacts_url).slice(2))}} />
+            <MenuItem text="Copy Artifact Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url, { windows: true })} />
+            <MenuItem text="Copy Artifact Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url)} />
             <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
             {has_selected_batch && <>
             <MenuDivider title="Batch"/>
-            <MenuItem text="Copy Output Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(batch.batch_dir_url))}} />
-            <MenuItem text="Copy Output Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(batch.batch_dir_url).slice(2))}} />
+            <MenuItem text="Copy Output Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(batch.batch_dir_url, { windows: true })} />
+            <MenuItem text="Copy Output Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(batch.batch_dir_url)} />
             <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={batch.batch_dir_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
             <MenuDivider/>
             <Dialog

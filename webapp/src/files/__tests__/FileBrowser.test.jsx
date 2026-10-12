@@ -9,7 +9,7 @@ import copy from 'copy-to-clipboard';
 import FileBrowser from '../FileBrowser';
 import { setPathMappings } from '../../utils/paths';
 
-vi.mock('copy-to-clipboard', () => ({ default: vi.fn() }))
+vi.mock('copy-to-clipboard', () => ({ default: vi.fn(() => true) }))
 vi.mock('../../toaster', () => ({ toaster: { show: vi.fn() } }))
 
 const now = Date.now() / 1000
@@ -155,7 +155,7 @@ describe('FileBrowser', () => {
     fireEvent.keyDown(document.body, { key: 'j' })
     expect(screen.getByRole('row', { name: /^outputs/ })).toHaveAttribute('aria-selected', 'true')
     fireEvent.keyDown(document.body, { key: 'c' })
-    expect(copy).toHaveBeenCalledWith('/algo/project/outputs')
+    expect(copy).toHaveBeenCalledWith('/algo/project/outputs', expect.anything())
     fireEvent.keyDown(document.body, { key: 'Enter' })
     await screen.findByText('log.txt')
     fireEvent.keyDown(document.body, { key: 'Backspace' })
@@ -172,11 +172,11 @@ describe('FileBrowser', () => {
     await screen.findByText('frame2.png')
     await screen.findAllByRole('button', { name: /Copy the Windows path of/ })
     fireEvent.click(screen.getByRole('button', { name: 'Copy the path of frame2.png' }))
-    expect(copy).toHaveBeenLastCalledWith('/algo/project/frame2.png')
+    expect(copy).toHaveBeenLastCalledWith('/algo/project/frame2.png', expect.anything())
     fireEvent.click(screen.getByRole('button', { name: 'Copy the Windows path of frame2.png' }))
-    expect(copy).toHaveBeenLastCalledWith('\\\\netapp\\algo\\project\\frame2.png')
+    expect(copy).toHaveBeenLastCalledWith('\\\\netapp\\algo\\project\\frame2.png', expect.anything())
     fireEvent.click(screen.getByRole('button', { name: 'Windows' }))
-    expect(copy).toHaveBeenLastCalledWith('\\\\netapp\\algo\\project')
+    expect(copy).toHaveBeenLastCalledWith('\\\\netapp\\algo\\project', expect.anything())
   })
 
   it('only offers Windows paths when the server knows them', async () => {

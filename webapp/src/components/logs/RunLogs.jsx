@@ -7,7 +7,7 @@ import { hidden_keys, ConfigurationsTags, ExtraParametersTags, PlatformTag, RunA
 import { LogViewer } from "./LogViewer";
 import { LsfReport, LsfTag } from "./LsfReport";
 import { fetchLsfReport, lsfKilled } from "./lsf";
-import { fetchRange } from "./fetchRange";
+import { fileExists } from "./fetchRange";
 import { DirectoryActions } from "./DirectoryActions";
 
 
@@ -179,10 +179,10 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, disp
     const controller = new AbortController()
     const url = `${base}/log.lsf.txt`
     const check = is_failed
-      ? fetchLsfReport(url, { signal: controller.signal })
-      : fetchRange(url, 'bytes=0-0', { signal: controller.signal }).then(() => null)
+      ? fetchLsfReport(url, { signal: controller.signal }).then(report => ({ status: 'present', report }))
+      : fileExists(url, { signal: controller.signal }).then(exists => ({ status: exists ? 'present' : 'missing', report: null }))
     check
-      .then(report => setLsf({ status: 'present', report }))
+      .then(setLsf)
       .catch(error => {
         if (!controller.signal.aborted)
           setLsf(lsf => error.status === 404 ? { status: 'missing', report: null } : lsf)
@@ -201,8 +201,8 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, disp
   useEffect(() => {
     if (!expanded || !base) return
     const controller = new AbortController()
-    fetchRange(`${base}/log.dask.txt`, 'bytes=0-0', { signal: controller.signal })
-      .then(() => setHasDaskLog(true))
+    fileExists(`${base}/log.dask.txt`, { signal: controller.signal })
+      .then(exists => { if (exists) setHasDaskLog(true) })
       .catch(() => {})
     return () => controller.abort()
   }, [expanded, base])
