@@ -11,10 +11,6 @@ Check items off or delete them when done, add new ones with enough context for s
 
 ## UX
 - [ ] **Date ranges in the URL**: the commit list reads `?from=YYYY-MM-DD&to=YYYY-MM-DD` on load, but changing the dates (`DateRangeInput3` in `src/AppNavbar.jsx`) only refetches commits, so date ranges can't be shared or bookmarked. Write them to the URL (replace, not push) and keep the History page consistent.
-- [ ] **History page layout** (`src/Dashboard.jsx`, `/:project/history/:branch`):
-  - the sidebar has no navigation (`src/AppSider.jsx` hides it on `/history/`): no History/Code/Integrations/Milestones, no way back to the branch's commits;
-  - under "Metrics per-test", the second tab (`table-compare`) has no `title`;
-  - the sidebar's "History" and "Code" entries are plain `href`s that reload the whole app instead of client-side navigation.
 - [ ] `selected_metrics` is written to the URL but not read back on load.
 
 ## Testing / CI
