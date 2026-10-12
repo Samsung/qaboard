@@ -13,9 +13,11 @@
 
 # Container names will be prefixed with "qaboard-"
 
-# Images are tagged per service (arthurflam/qaboard:backend...).
-# Set QABOARD_VERSION to use the images built for a given version (arthurflam/qaboard:backend-$QABOARD_VERSION),
-# CI pushes them tagged with the git commit. deployments/deploy.py sets it.
+# Images are tagged per service: $QABOARD_IMAGE:<service>, by default ghcr.io/arthur-flam/qaboard:backend...
+# - GitHub CI publishes them there (.github/workflows/ci.yaml): <service>-<commit> for each commit on master,
+#   <service> once all its tests passed (the latest master), and <service>-<version> for each release (e.g. 1.2.0)
+# - QABOARD_VERSION picks a version ($QABOARD_IMAGE:backend-$QABOARD_VERSION). deployments/deploy.py sets it.
+# - QABOARD_IMAGE picks another registry, e.g. a mirror, or where your own CI pushes the images it builds.
 
 # Usage:
 # - The application is served on port 5151 by default
@@ -65,7 +67,7 @@ services:
       retries: 5
 
   backend:
-    image: "arthurflam/qaboard:backend${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    image: "${QABOARD_IMAGE:-ghcr.io/arthur-flam/qaboard}:backend${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -108,7 +110,7 @@ services:
     stop_grace_period: 60s
 
   frontend:
-    image: "arthurflam/qaboard:frontend${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    image: "${QABOARD_IMAGE:-ghcr.io/arthur-flam/qaboard}:frontend${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       # the root, to include website/release-notes/: see webapp/Dockerfile
       context: .
@@ -138,7 +140,7 @@ services:
   # Note: flower 2.x registers via the `celery.commands` entry point, so it is launched through celery. It shares the backend
   # image (which installs flower>=2.1.0), so only backend needs building.
   flower:
-    image: "arthurflam/qaboard:backend${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    image: "${QABOARD_IMAGE:-ghcr.io/arthur-flam/qaboard}:backend${QABOARD_VERSION:+-$QABOARD_VERSION}"
     environment:
       - CELERY_BROKER_URL=pyamqp://guest@rabbitmq//
       - CELERY_BROKER_API=http://guest:guest@rabbitmq:15672/api/
@@ -152,7 +154,7 @@ services:
         - rabbitmq
 
   website:
-    image: "arthurflam/qaboard:website${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    image: "${QABOARD_IMAGE:-ghcr.io/arthur-flam/qaboard}:website${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       context: website
       shm_size: 4gb
@@ -166,7 +168,7 @@ services:
   # nginx as reverse-proxy
   # https://hub.docker.com/_/nginx
   proxy:
-    image: "arthurflam/qaboard:proxy${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    image: "${QABOARD_IMAGE:-ghcr.io/arthur-flam/qaboard}:proxy${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       context: services/nginx
     # # https://github.com/docker-library/docs/tree/master/nginx#using-environment-variables-in-nginx-configuration
@@ -191,7 +193,7 @@ services:
 
   # IIIF image server to serve images as tiles
   cantaloupe:
-    image: "arthurflam/qaboard:cantaloupe${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    image: "${QABOARD_IMAGE:-ghcr.io/arthur-flam/qaboard}:cantaloupe${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       context: ./services/cantaloupe
     expose:

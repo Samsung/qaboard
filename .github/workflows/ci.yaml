@@ -3,24 +3,36 @@
 # - python, webapp, docker and helm run in parallel
 # - Docker layers are cached in the GitHub Actions cache: unchanged images build in seconds
 # - The images are built once, tested (smoke tests, backend unit tests, a zero-downtime rolling deploy),
-#   and on master pushed as arthurflam/qaboard:<service>-<commit>, then tagged arthurflam/qaboard:<service>
+#   and published to the GitHub container registry, ghcr.io/<owner>/qaboard (no secret needed: GITHUB_TOKEN):
+#   - on master: <service>-<commit> once built and tested, then <service> (latest) once every job passed
+#   - on releases: <service>-<version> (e.g. backend-1.2.0) once every job passed
+#   Docker Hub is an optional mirror (arthurflam/qaboard), when the DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets are set.
 name: CI
-# Every push runs CI. Pull requests only do for forks: for our branches it would run twice.
+# Every push to a branch runs CI. Pull requests only do for forks: for our branches it would run twice.
 # Changes to docs alone skip CI, except the release notes: the web app bundles them (patterns apply in order)
 on:
   push:
+    # Not tags: releases run CI with the `release` event
+    branches: ['**']
     paths: ['**', '!docs/**', '!drafts/**', '!**.md', 'website/release-notes/**']
   pull_request:
     paths: ['**', '!docs/**', '!drafts/**', '!**.md', 'website/release-notes/**']
+  # Publishing a GitHub release (tag v1.2.0, see pypy.yml) tests its commit again, then publishes its images
+  release:
+    types: [published]
   workflow_dispatch:
 
-# A new push cancels the outdated CI of the branch (but every commit on master is published)
+# A new push cancels the outdated CI of the branch (but every commit on master and every release is published)
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' && github.event_name != 'release' }}
 
 permissions:
   contents: read
+
+env:
+  # The optional mirror on Docker Hub
+  DOCKERHUB_IMAGE: arthurflam/qaboard
 
 jobs:
   python:
@@ -85,6 +97,9 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    permissions:
+      contents: read
+      packages: write # pushes the images to ghcr.io
     env:
       # Small uwsgi pools: the runner has 4 CPUs
       QABOARD_UWSGI_PROCESSES: "2"
@@ -93,7 +108,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Version
-        run: echo "QABOARD_VERSION=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
+        run: |
+          echo "QABOARD_VERSION=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
+          # The image names in docker-compose.yml. They must be lowercase, unlike some owners
+          echo "QABOARD_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard" >> "$GITHUB_ENV"
       - uses: docker/setup-buildx-action@v3
       - name: Build the images
         uses: docker/bake-action@v6
@@ -101,8 +119,10 @@ jobs:
           source: .
           files: docker-compose.yml
           load: true
-          # One cache scope per image, or they overwrite each other
+          # One cache scope per image, or they overwrite each other.
+          # The label links the published images to this repository on GitHub.
           set: |
+            *.labels.org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             backend.cache-from=type=gha,scope=backend
             backend.cache-to=type=gha,scope=backend,mode=max
             frontend.cache-from=type=gha,scope=frontend
@@ -129,7 +149,7 @@ jobs:
         run: |
           # A "new version" with the same images: the backend replicas are replaced
           for service in backend frontend website proxy cantaloupe; do
-            docker tag "arthurflam/qaboard:$service-$QABOARD_VERSION" "arthurflam/qaboard:$service-$QABOARD_VERSION-next"
+            docker tag "$QABOARD_IMAGE:$service-$QABOARD_VERSION" "$QABOARD_IMAGE:$service-$QABOARD_VERSION-next"
           done
           export STOP_FILE=/tmp/deployed
           .github/scripts/load.py http://localhost:5151/api/v1/health 300 POST 405 &
@@ -143,18 +163,25 @@ jobs:
         run: |
           ./deployments/deploy.py deployments/production.env status
           ./deployments/deploy.py deployments/production.env compose logs --tail 200 backend proxy
+      # As <service>-<commit>: publish-docker-images tags them as latest, or with the release's version, once every job passed
       - name: Push the images
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker compose push backend frontend website proxy cantaloupe
           if [ -z "$DOCKERHUB_TOKEN" ]; then
-            echo "::notice::DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets are not set, not publishing images"
+            echo "::notice::DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets are not set, not mirroring the images to Docker Hub"
             exit 0
           fi
           echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-          docker compose push backend frontend website proxy cantaloupe
+          for service in backend frontend website proxy cantaloupe; do
+            docker tag "$QABOARD_IMAGE:$service-$QABOARD_VERSION" "$DOCKERHUB_IMAGE:$service-$QABOARD_VERSION"
+            docker push "$DOCKERHUB_IMAGE:$service-$QABOARD_VERSION"
+          done
 
   helm:
     runs-on: ubuntu-latest
@@ -171,23 +198,42 @@ jobs:
             helm template qaboard charts/qaboard -f "$values" | ./kubeconform -strict -summary -ignore-missing-schemas
           done
 
-  # The images are only "latest" once everything passed
+  # The images are only "latest" once everything passed. A release's images get its version.
   publish-docker-images:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
     needs: [python, webapp, docker, helm]
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - name: Tag the images as latest
+      - name: Tag the images
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          if [ -z "$DOCKERHUB_TOKEN" ]; then
-            echo "::notice::DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets are not set, not publishing images"
-            exit 0
+          # master: <service> (latest). A release (tag v1.2.0): <service>-1.2.0
+          suffix=""
+          if [ "$GITHUB_EVENT_NAME" = release ]; then
+            version="${GITHUB_REF_NAME#v}"
+            if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "::error::The release's tag ($GITHUB_REF_NAME) is not a version like v1.2.0"
+              exit 1
+            fi
+            suffix="-$version"
           fi
-          echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          images=("ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard")
+          if [ -n "$DOCKERHUB_TOKEN" ]; then
+            echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+            images+=("$DOCKERHUB_IMAGE")
+          else
+            echo "::notice::DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets are not set, not mirroring the images to Docker Hub"
+          fi
           # Retags in the registry, nothing is rebuilt or uploaded again
-          for service in backend frontend website proxy cantaloupe; do
-            docker buildx imagetools create -t "arthurflam/qaboard:$service" "arthurflam/qaboard:$service-${GITHUB_SHA::8}"
+          for image in "${images[@]}"; do
+            for service in backend frontend website proxy cantaloupe; do
+              docker buildx imagetools create -t "$image:$service$suffix" "$image:$service-${GITHUB_SHA::8}"
+            done
           done
