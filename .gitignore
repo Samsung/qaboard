@@ -24,11 +24,15 @@ image.batches.yaml
 iter.batches.yaml
 sub.batches.yaml
 
+# Images are mostly generated outputs (runs, tests)...
 *.png
 *.jpg
 *.ico
 *.svg
 *.gif
+# ...except the assets of the docs website and of the web app
+!/website/static/**
+!/webapp/public/**
 
 # ssh-agent files to build container images
 ssh-agent.pid
