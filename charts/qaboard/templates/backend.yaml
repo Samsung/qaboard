@@ -17,7 +17,9 @@ spec:
     metadata:
       labels: {{- include "qaboard.selectorLabels" (list . "backend") | nindent 8 }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+        # Restart when the settings change. Not over secret.yaml: on a first install its generated SECRET_KEY would
+        # render differently here, and the first upgrade would restart pods for nothing. The key never changes later.
+        checksum/config: {{ list (include (print $.Template.BasePath "/config.yaml") .) .Values.secret.values | toYaml | sha256sum }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets: {{- toYaml . | nindent 8 }}
