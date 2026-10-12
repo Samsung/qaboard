@@ -71,7 +71,7 @@ export default defineConfig(({ mode }) => ({
   test: {
     environment: 'jsdom',
     // e2e/ has the playwright tests
-    include: ['src/**/*.test.{js,jsx}'],
+    include: ['src/**/*.test.{js,jsx,ts,tsx}'],
     globals: true,
     setupFiles: ['./src/setupTests.js'],
     reporters: process.env.CI ? ['default', 'junit'] : ['default'],
@@ -80,7 +80,7 @@ export default defineConfig(({ mode }) => ({
       provider: 'v8',
       // not the markdown, css, json... files in src/: they can't be parsed as code
       include: ['src/**/*.{js,jsx,ts,tsx}'],
-      exclude: ['src/**/__tests__/**', 'src/**/*.test.{js,jsx}'],
+      exclude: ['src/**/__tests__/**', 'src/**/*.test.{js,jsx,ts,tsx}'],
       reporter: ['text-summary', 'cobertura'],
     },
   },

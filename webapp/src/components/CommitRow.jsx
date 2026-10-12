@@ -22,7 +22,7 @@ import {
 import { updateSelected } from "../actions/selected";
 import { fetchCommit } from "../actions/commit";
 
-import { Avatar } from "./avatars";
+import { CommitAvatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
 import { format, shortId, pretty_label } from "../utils";
 import { git_hostname, default_git_hostname } from "../utils"
@@ -268,18 +268,13 @@ class CommitRow extends React.Component {
     const commit_url = `${git.web_url}/commit/${commit.id}`
     const has_data = !!commit?.authored_datetime
     let maybe_skeletton = has_data ? null : Classes.SKELETON;
-    let avatar_url = commit?.committer_avatar_url
-    if (!!avatar_url) {
-      avatar_url = encodeURI(`/api/v1/gitlab/proxy?url=${avatar_url}`)
-    }
     const commit_has_milestones = has_milestones({commit, project, project_data})
     return (
       <CommitRowWrapper className={className}>
-        <Avatar
-          src={avatar_url}
-          href={!!commit.committer_name ? `/${project}/committer/${commit.committer_name}` : null}
+        <CommitAvatar
+          commit={commit}
+          project={project}
           onClick={() => dispatch(updateSelected(project, {branch: null, committer: commit.committer_name}))}
-          alt={commit.committer_name || commit.id || '?'}
         />
 
         <CommitDetails>

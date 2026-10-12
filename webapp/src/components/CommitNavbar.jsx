@@ -199,7 +199,13 @@ class CommitNavbar extends React.Component {
           <div style={{ 'marginRight': '10px', display: 'block', position: 'relative', width: '600px', marginBottom: '6px' }}>
             <span style={{ display: 'flex' }}>
               <Tag style={{ flex: '0 1 auto', alignSelf: 'center', marginRight: '5px', fontFamily: 'monospace' }} minimal>{type}</Tag>
-              <CommitAvatar size='20px' commit={commit} style={{ marginRight: '5px' }} />
+              <CommitAvatar
+                size='20px'
+                commit={commit}
+                project={project}
+                onClick={() => dispatch(updateSelected(project, {branch: null, committer: commit.committer_name}))}
+                style={{ marginRight: '5px' }}
+              />
               <CommitMessage
                 project={project}
                 commit={commit}

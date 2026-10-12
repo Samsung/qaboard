@@ -16,7 +16,7 @@ import {
   Tooltip,
 } from "@blueprintjs/core";
 
-import { Avatar } from "./components/avatars";
+import { ProjectAvatar } from "./components/avatars";
 import { IntegrationsMenus } from "./components/integrations";
 import { MilestonesMenu } from "./components/milestones"
 import AuthButton from "./components/authentication/Auth"
@@ -33,7 +33,7 @@ import {
 } from './selectors/projects'
 import { updateSelected } from "./actions/selected";
 import { fetchCommit } from "./actions/commit";
-import { git_hostname, default_git_hostname, project_avatar_style, quota_url } from "./utils"
+import { git_hostname, default_git_hostname, quota_url } from "./utils"
 import { make_eval_templates_recursively } from "./utils"
 import { toaster } from "./toaster"
 
@@ -87,7 +87,7 @@ const SiderSection = styled.div`
     }
 `;
 
-const ProjectAvatar = styled.div`
+const SiderProjectAvatar = styled.div`
     display: flex;
     align-items: center;
     gap: ${spacing.xs};
@@ -378,31 +378,18 @@ class ProjectSideAvatar extends React.Component {
 
   render() {
     const { project, project_data={} } = this.props;
-    const git = project_data.data?.git || {};
     let project_name = project.split('/').slice(-1)[0];
-    const is_subproject = git.path_with_namespace !== project;
-    const has_custom_avatar = !!project_data.data?.qatools_config?.project?.avatar_url
-    const should_tweak_image = is_subproject && !has_custom_avatar;
-    const avatar_style = should_tweak_image ? project_avatar_style(project) : null;
-
-    const project_git_hostname = git_hostname(project_data?.data?.qatools_config) ?? default_git_hostname
-    git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
-    let avatar_url = git.avatar_url
-    if (!!avatar_url) {
-      avatar_url = encodeURI(`/api/v1/gitlab/proxy?url=${avatar_url}`)
-    }
     return (
-      <ProjectAvatar>
+      <SiderProjectAvatar>
         <Link onClick={this.toHome} to={`/${project}`} style={{display: 'flex', alignItems: 'center', gap: '12px', width: '100%', color: 'inherit'}}>
-          <Avatar
+          <ProjectAvatar
             className="avatar"
-            src={avatar_url}
-            alt={project_name}
-            img_style={avatar_style}
+            project={project}
+            data={project_data.data}
           />
           <span className="project-name">{project_name}</span>
         </Link>
-      </ProjectAvatar>
+      </SiderProjectAvatar>
     )
 
   }
