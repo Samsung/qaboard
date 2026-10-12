@@ -162,8 +162,11 @@ The one exception is `landing/social-card`: a spec renders an HTML template (log
   `Set FontSize 18`, `Set Width 1280`, `Set Height 720`, `Set Padding 24`, `Set Framerate 30`, `Set TypingSpeed 35ms`,
   and a theme from Blueprint's dark palette. Then `Output out/<area>/<subject>/tape.mp4` and `tape.webm`.
 - `HOME` is `/home/<user>`, where `~/kitefin/<repo>` is the seeder's workspace (`/tmp/kitefin/<repo>`, whose `.venv` has
-  `qa` and the example's dependencies) or a git copy of the example. `QABOARD_URL` is the stack's, `QA_USER` and the
-  git identity are the persona's. Wait for a command with `Wait@60s /\$$/` (the prompt is back).
+  `qa` and the example's dependencies). After a restore (CI), `record.py` builds the same: a copy of the example, its
+  git HEAD on the reference branch's last commit at T0, a `.venv` with this checkout's qaboard and the example's
+  `requirements.txt`, and its inputs (about a minute). Don't run `git` in tapes: the commit objects don't exist.
+- `QABOARD_URL` is the stack's, `QA_USER` and the git identity are the persona's; CI and QA-Board variables of the
+  environment are dropped. Wait for a command with `Wait@60s /\$$/` (the prompt is back).
 - Commands run for real: `qa` against the restored stack, with the env of the [demo world](../examples/README.md)
   (CI variables for "CI" tapes). Long waits are cut with `Hide`/`Show`; a tape lasts at most 45 s.
 - The prompt is `$ ` and the working directory looks like `~/kitefin/<repo>`. No real hostnames: the server is
