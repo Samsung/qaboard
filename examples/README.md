@@ -27,12 +27,12 @@ Story times are UTC. Each persona works on weekdays within the hours given, in U
 | Handle | Name (`committer_name`) | Team, role | Projects (main, also) | Works (UTC) |
 |---|---|---|---|---|
 | `ines` | Ines Marchetti | Imaging, lead imaging scientist | `camera-isp` | 07:00-16:00 |
-| `tobias` | Tobias Wendt | Imaging, fixed-point and silicon bring-up | `camera-isp` | 06:30-15:30 |
+| `tobias` | Tobias M. Wendt | Imaging, fixed-point and silicon bring-up | `camera-isp` | 06:30-15:30 |
 | `arjun` | Arjun Sethuraman | Perception, ML engineer: detection, quantization | `detector`; `slam`, `fleet-assistant` | 13:00-22:00 |
 | `mira` | Mira Kowalczyk | Perception, robotics engineer: odometry, sensor fusion | `slam`; `detector` | 07:00-16:00 |
 | `adaeze` | Adaeze Nwankwo | Fleet platform, tech lead | `inference-gateway` | 08:00-17:00 |
 | `kaito` | Kaito Nishimaki | Fleet platform, performance engineer | `inference-gateway`; `fleet-assistant` | 00:00-09:00 |
-| `agent` | Kitefin Agent | A coding agent account the platform team assigns tasks to | `inference-gateway`, `fleet-assistant` | any time |
+| `agent` | Kitefin Coding Agent | A coding agent account the platform team assigns tasks to | `inference-gateway`, `fleet-assistant` | any time |
 
 Emails are `<handle>@kitefin.example`. CI runs are started by the user `ci`.
 
@@ -47,7 +47,7 @@ Commit subjects stay under 72 characters, in English, imperative mood. Bodies, w
 - **Adaeze:** `gateway:` prefix, a body that explains the trade-off.
   `gateway: shard the result cache by key hash` / "One mutex for the whole cache serialized every worker under load."
 - **Kaito:** perf numbers in the subject. `batcher: reuse the batch buffer (-8% CPU at 6k rps)`.
-- **Kitefin Agent:** plain descriptive subjects, a body with what it measured and who asked.
+- **Kitefin Coding Agent:** plain descriptive subjects, a body with what it measured and who asked.
   `Add a shared result cache for repeated requests` / "Requested by Kaito. p50 at 4k rps: 3.1 ms -> 2.2 ms."
 
 ### Avatars
@@ -55,7 +55,8 @@ No photos. Commits from the demo stack have no avatar URL (no GitLab token, no G
 fallback: the person's initials in white on a color derived from the name, the same everywhere
 (`avatarColor()` in `webapp/src/components/avatars.tsx`: 12 Blueprint colors, all >= 4.5:1 with white text).
 That function is the source of truth: when seeding, check that people who share a project get different colors, and
-change a persona's display name (not the function) if two collide.
+change a persona's display name (not the function) if two collide. `seed.py` checks it: "Tobias M. Wendt" and "Kitefin
+Coding Agent" have their middle initial and "Coding" so that they don't share Ines's and Kaito's colors.
 
 Never connect the demo projects to GitHub (webhook or `hosting_type: github`): the backend then searches GitHub users
 by committer name for avatars, and could show a real person's photo next to a fictional name.
@@ -94,7 +95,7 @@ In prose, call them by their role: "the camera ISP project", "the inference gate
 ### Branches
 - `main` is the reference branch everywhere, set explicitly in *qaboard.yaml*.
 - Feature branches are `<area>/<topic>` in kebab-case. Areas: `isp/`, `fxp/` (camera ISP), `gateway/`, `perf/`
-  (gateway), `det/`, `quant/` (detector), `slam/`, `assistant/`, and `agent/` for the Kitefin Agent's branches.
+  (gateway), `det/`, `quant/` (detector), `slam/`, `assistant/`, and `agent/` for the Kitefin Coding Agent's branches.
 - 3-4 feature branches per project, merged with `Merge branch '<branch>'` by the branch's author, or abandoned.
   No pull request numbers or ticket ids in messages.
 

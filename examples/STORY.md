@@ -6,7 +6,8 @@ replays it into a running stack with the real `qa` CLI and fake CI environment v
 Then it checks the story's assertions, so a story whose plot doesn't show up fails loudly instead of producing
 misleading screenshots.
 
-Schema: [`story.schema.json`](story.schema.json) (JSON Schema 2020-12, for the YAML content). People, branch names
+Schema: [`story.schema.json`](story.schema.json) (JSON Schema 2020-12, for the YAML content). The seeder's own test story
+(`docs-media/tests/fixture/`) may use another `project` and `id`. People, branch names
 and milestone names follow [the demo world](README.md).
 
 ## Example
@@ -156,7 +157,7 @@ checks:
 | `version` | yes | `1` |
 | `project` | yes | The example's folder name: `serving-latency` |
 | `id` | yes | The QA-Board project id, equal to `project.name` in *qaboard.yaml* |
-| `seed` | yes | Base seed. A run's seed is derived from it, the commit id, the batch and the input |
+| `seed` | yes | Base seed. The seeder gives it to the code as `$QA_SEED`: runs derive their random seeds from it and their input (not the commit: commits that don't change the code give the same results) |
 | `defaults.flags` | no | Flags at the first commit, merged over the code's own defaults |
 | `defaults.runs` | no | Runs for every commit that doesn't list `runs`. Default: `[{batch: ci}]` |
 | `commits` | yes | In chronological order; parents come before their children |
@@ -200,15 +201,15 @@ tags on runs and change how new and reference runs are matched, which would make
 | Key | Default | Meaning |
 |---|---|---|
 | `batch` | (required) | A batch from *qa/batches.yaml* |
-| `via` | `ci` | `ci`: the CI batch, label `default`, user `ci`, with `CI=1 GITHUB_SHA GITHUB_REF`. `local`: `qa --share` from a workspace (shown as a local run). `webapp`: started like **Run Tests** in the web app (shows in **Started from QA-Board**). `tuning`: a grid or sampled sweep with `--tuning-search`. `optimize`: `qa optimize` |
+| `via` | `ci` | `ci`: the CI batch, label `default`, user `ci`, with `CI=1 GITHUB_SHA GITHUB_REF`. `local`: `qa --share` from a workspace (shown as a local run: QA-Board records the label as `@<user>\| <label>`). `webapp`: started like **Run Tests** in the web app (shows in **Started from QA-Board**). `tuning`: a grid or sampled sweep with `--tuning-search`. `optimize`: `qa optimize`. `webapp`, `tuning` and `optimize` get the environment QA-Board's backend gives the `qa batch` it starts, and show in **Started from QA-Board** |
 | `label` | `default` for `ci`, required otherwise | The batch label (`tune-batching`, `kaito-cache-probe`) |
 | `platform` | `linux` | `qa --platform` |
 | `user` | `ci` for `via: ci`, else the commit's author | Who started it |
 | `after` | `6m` for `ci`, `1h` otherwise | Start time after the commit, as a [duration](#time-offsets) |
 | `tuning` | | `via: tuning`: parameter name → list of values (all combinations) |
-| `sample` | | `via: tuning`: run this many random combinations instead of all |
+| `sample` | | `via: tuning`: run this many random combinations instead of all (picked with the story's seed) |
 | `optimize` | | `via: optimize`: path of the search-space file, relative to the example |
-| `progress` | finished | `{finished: <0..1>, running: <n>}`: the batch is still running at T0; the rest is pending |
+| `progress` | finished | `{finished: <0..1>, running: <n>}`: the batch is still running at T0; the rest is pending. The seeder stops `qa batch` once `n` runs started: they must take more than a second |
 
 The seeder runs each batch at its own simulated time, in story order. Performance batches never run in parallel with
 anything else.
@@ -226,7 +227,9 @@ failures:
 - `inputs` globs (here and in checks) match input paths like *.gitignore* patterns: without a `/`, against the file
   name (`bursty-*` matches `profiles/bursty-high.yaml`).
 - `bug`: the code crashes on its own, on a path enabled by `flags`. The entry is an expectation the seeder checks.
-- `oom`, `timeout`: the seeder enforces a memory cap or a time limit on the run, which really dies.
+- `oom`, `timeout`: the seeder enforces a memory cap or a time limit on the run, which really dies. The limits come from
+  the batch's definition in *qa/batches.yaml*: `lsf: {max_memory: <MB>}` (default 2048) and `local: {timeout: <seconds>}`
+  (default 60). A watchdog kills the run (SIGKILL) when its processes' resident memory or its run time goes over.
 - `lsf-memlimit`: like `oom`, plus a `log.lsf.txt` written from a template with the run's measured peak memory and the
   "requested" limit, so the web app shows LSF's report and its hints. The only templated log.
 - Runs not listed must succeed: an unexpected failure stops the seeder.
@@ -269,7 +272,22 @@ seeder prints every failing check with the actual numbers and exits with an erro
 | `vs_label`, `vs_configs` | `label`, `configs` | The reference's runs, when they differ from the new side's: a tuning batch vs CI, `int8` vs `fp32`. Runs are matched like the web app does: same input, then the closest configuration, same platform |
 | `metric`, `agg` | `agg: median` | The metric, aggregated over the runs with `median`, `mean`, `min`, `max` or `p90` |
 | `expect` | | One or more of: `value` (the new aggregate), `delta` (new − ref, in the metric's unit), `change_pct` ((new − ref) / \|ref\| × 100), each with `gt`, `gte`, `lt`, `lte` or `between: [a, b]`; `failed` (a count, same comparators); `log` (a regex every failed run's log matches); `gate: pass\|fail\|undecidable` (`qa gate`'s verdict with the example's `gate:` rules, against `vs` or else its default reference; skipped with a warning until `qa gate` exists) |
-| `hook`, `args` | | A function in the example's `story_checks.py`: `hook(ctx, **args) -> tuple[bool, str]`. `ctx` gives the runs, their metrics and their output files |
+| `hook`, `args` | | A function in the example's `story_checks.py`: `hook(ctx, **args) -> tuple[bool, str]`. `ctx` gives the runs, their metrics and their output files (below) |
+
+What hooks get as `ctx`:
+
+```python
+ctx.check, ctx.commit             # the check (dict), and its commit's id
+ctx.sha(commit_id), ctx.parent(commit_id), ctx.flags(commit_id)   # sha, first parent's id, effective flags
+ctx.runs(commit=None, label=None, platform=None, inputs=None, configs=None) -> list[Run]
+                                  # a batch's runs, by default the commit and filters of the check
+ctx.qa(*args, commit=None) -> subprocess.CompletedProcess        # the real `qa` CLI, as the CI on that commit
+                                  # (default: the check's), e.g. ctx.qa('check-bit-accuracy', '--batch', 'ci',
+                                  # '--reference', ctx.sha('isp-4-1')). .returncode, .stdout (stdout and stderr)
+ctx.t0, ctx.workspace, ctx.results  # T0, where the example runs, the results storage
+Run: .input (path in the database), .platform, .configurations, .extra_parameters (tuning), .metrics, .failed,
+     .pending, .output_dir, .file(name) -> Path, .log() -> str (log.txt and log.lsf.txt), .key (identifies the run)
+```
 
 Checks say what the reader must see. "p99 regresses more than 30%" is a good check for a story told with a 45%
 regression: it passes despite noise, and fails if the effect disappears.

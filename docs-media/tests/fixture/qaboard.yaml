@@ -1,0 +1,32 @@
+# A tiny project that tests docs-media/seed.py (see docs-media/README.md). Not a demo project: it is never captured.
+root: true
+project:
+  name: kitefin/seeder-fixture
+  url: https://git.kitefin.example/kitefin/seeder-fixture
+  description: Tests the seeder of the docs' demo data.
+  entrypoint: qa/main.py
+  reference_branch: main
+inputs:
+  database:
+    linux: inputs
+  batches: qa/batches.yaml
+outputs:
+  metrics: qa/metrics.yaml
+  visualizations:
+    - name: Output
+      path: out.png
+storage:
+  linux: /mnt/qaboard
+artifacts:
+  build:
+    glob: build/flags.json
+runners:
+  default: local
+integrations:
+  - text: Send to the tuning bench
+    icon: send-to
+    webhook:
+      url: https://tuning-bench.kitefin.example/jobs
+      method: POST
+      json:
+        commit: ${commit.id}
