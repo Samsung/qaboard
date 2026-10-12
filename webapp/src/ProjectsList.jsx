@@ -75,7 +75,7 @@ class ProjectsList extends Component {
         icon="heatmap"
         title="No projects yet."
         intent={Intent.PRIMARY}
-        description={<p>Learn how to to <a href="https://samsung.github.io/qaboard/docs/installation">get started, and<br/><a href="https://spectrum.chat/qaboard">chat with the maintainers</a> if you run into issues</a>.</p>}
+        description={<p>Learn how to <a href={`${this.props.docs_root}docs/installation`}>get started</a>,<br/>and <a href="https://github.com/arthur-flam/qaboard/issues">ask the maintainers</a> if you run into issues.</p>}
       />
     </div>;
 
