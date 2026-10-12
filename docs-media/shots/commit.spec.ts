@@ -50,6 +50,8 @@ async function mouseAway(ui: Ui) {
 async function preset(ui: Ui, scope: Page | Locator, label: string) {
   const exact = new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
   await ui.click(scope.locator('a.bp6-button', { hasText: exact }).first());
+  // no focus ring left around the thumbnail
+  await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await ui.settle();
 }
 
@@ -248,8 +250,11 @@ shot('commit/output-files', {
     + 'and the help that explains the icons.',
   caption: 'Output Files lists what changed in each run: here the fixed-point model\'s stage buffers after a rounding change.',
   actions: async ui => {
-    await ui.click(ui.page.getByText('stages', { exact: true }).first());
-    await ui.click(ui.page.getByText('raw', { exact: true }).first());
+    // folders open with their caret (a click on the name does nothing)
+    const caret = (folder: string) => ui.page.locator('.bp6-tree-node-content')
+      .filter({ has: ui.page.getByText(folder, { exact: true }) }).locator('.bp6-tree-node-caret').first();
+    await ui.click(caret('stages'));
+    await ui.click(caret('raw'));
     await ui.settle();
     await ui.hover(ui.page.getByText('Help', { exact: true }));
     await ui.settle();
