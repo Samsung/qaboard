@@ -213,7 +213,12 @@ def test_wall(photos):
         x += size + 64
     place('Slanted edges', slanted_edge(WALL_WIDTH - x - 64, 2048, side=1200, angle=5)[0], x + 64, 7168)
     rois = [r for r in rois if r['label'].startswith(('Siemens star, 144', 'Text', 'Photo: facade', 'Siemens star 64'))]
-    return wall, {'photos': [Path(p).stem for p in photos[:8]], 'roi': rois}
+    return wall, {'photos': photo_hashes(photos), 'roi': rois}
+
+
+def photo_hashes(photos):
+    """Identifies the photos in the wall, cheaply: their names and sizes."""
+    return {Path(p).stem: Path(p).stat().st_size for p in photos[:8]}
 
 
 def save(image, meta, path):
@@ -239,7 +244,7 @@ def ensure_charts(database, force=False, log=print):
     photos = sorted((Path(database) / 'photos').glob('*.png'))
     wall_meta = charts / WALL.replace('.tiff', '.metadata.yaml')
     used = yaml.safe_load(wall_meta.read_text()).get('photos') if wall_meta.exists() else None
-    if force or not (charts / WALL).exists() or used != [p.stem for p in photos[:8]]:
+    if force or not (charts / WALL).exists() or used != photo_hashes(photos):
         log(f'Generating charts/{WALL} (12288x9216, about a minute)')
         save(*test_wall(photos), charts / WALL)
 
