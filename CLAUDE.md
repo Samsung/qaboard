@@ -32,8 +32,12 @@ docker compose -f docker-compose.yml -f development.yml -f deployments/sirc/sirc
 # Zero-downtime deploys, one env file per environment (compose files, project, replicas...)
 deployments/deploy.py deployments/sirc/production.env up|status|rollback|restore-db|compose ...
 docker compose --env-file deployments/sirc/production.env ps
-# Kubernetes: helm chart in charts/qaboard, SIRC values in deployments/sirc/values.yaml
+# Kubernetes: helm chart in charts/qaboard, laptop quickstart: charts/qaboard/quickstart.yaml + kind.yaml
+# (installed by the helm-e2e CI job, .github/scripts/helm_e2e.py). SIRC values in deployments/sirc/values.yaml
 ```
+GitHub CI publishes the images to `ghcr.io/<owner>/qaboard` (`<service>-<sha8>` on master, `<service>` once every job passed,
+`<service>-<version>` for releases) and the chart to `oci://ghcr.io/<owner>/charts/qaboard`; compose and the chart default to
+`ghcr.io/samsung/qaboard`, `QABOARD_IMAGE` / `image.repository` override it.
 GitLab CI deploys master to staging then production automatically. Runbooks: `website/docs/backend-admin/`.
 
 ### Frontend Development (React)
