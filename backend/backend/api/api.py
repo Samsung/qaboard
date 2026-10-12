@@ -35,7 +35,7 @@ def _parse_json_env(key, default):
     except (json.JSONDecodeError, ValueError):
         return json.loads(default)
 
-_image_servers = _parse_json_env('QABOARD_IMAGE_SERVERS', '{"default": "/iiif"}')
+_image_servers = _parse_json_env('QABOARD_IMAGE_SERVERS', '{"default": "/iiif/2/"}')
 
 
 @app.route("/api/v1/config")

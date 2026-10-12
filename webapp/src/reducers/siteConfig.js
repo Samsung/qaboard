@@ -3,7 +3,7 @@ import { FETCH_SITE_CONFIG, RECEIVE_SITE_CONFIG } from '../actions/config';
 const initialState = {
   is_loaded: false,
   is_loading: false,
-  image_servers: { default: '/iiif' },
+  image_servers: { default: '/iiif/2/' },
   login_type: 'LOCAL',
   login_required: false,
   sentry_dsn: null,

@@ -1,0 +1,11 @@
+# Used by CI to validate the templates: results on NFS, at another path, with more storage roots
+database:
+  host: postgres.example.com
+results:
+  enabled: true
+  mountPath: /srv/results/
+  nfs: {server: nas.example.com, path: /exports/qaboard}
+config:
+  QABOARD_STORAGE_ROOTS: /srv/results:/algo
+cantaloupe:
+  enabled: true
