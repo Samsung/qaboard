@@ -955,7 +955,10 @@ class Seeder:
         'data': {'submissions': {**self.batch_data(commit, run).get('submissions', {}), command_id: submission}},
       })
     real_end = db_now()
-    self.timings[f"{commit.id}/{run.index}"] = time.time() - t
+    elapsed = time.time() - t
+    self.timings[f"{commit.id}: {' '.join(self.batch_args(run, []))}"] = elapsed
+    self.state.setdefault('timings', {})[f"{commit.id}/{run.index}"] = round(elapsed, 1)
+    log(f"    done in {elapsed:.0f}s", 'dim')
     self.simulate_times(commit, run, real_start, real_end)
 
   def batch_dir(self, commit: Commit, run: Run) -> Path:
@@ -1258,6 +1261,9 @@ class Seeder:
     self.settle_mtimes()
     self.write_demo_metadata()
     log(f"Seeded {story.id} in {time.time() - start:.0f}s", 'green')
+    if self.timings:
+      slowest = sorted(self.timings.items(), key=lambda kv: -kv[1])[:5]
+      log("Slowest batches: " + ', '.join(f"{what} ({seconds:.0f}s)" for what, seconds in slowest), 'dim')
 
   def write_demo_metadata(self):
     """<results>/.qaboard-demo/demo.json: T0 and what each project's story became. Part of the snapshots."""
