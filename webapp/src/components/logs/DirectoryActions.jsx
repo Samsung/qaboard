@@ -1,10 +1,9 @@
 import React from "react";
-import { AnchorButton, Button, Classes, Intent, Tooltip } from "@blueprintjs/core";
+import { AnchorButton, Button, Classes, Tooltip } from "@blueprintjs/core";
 
-import { toaster } from "../../toaster";
 import { folder_url, hasPathMappings } from "../../utils/paths";
 import { linuxPath, pathFromUrl, windowsPath } from "../../files/logic";
-import { copyText } from "./clipboard";
+import { copyWithToast } from "../../utils/clipboard";
 
 
 // "/s/algo/a%20b/" => "/algo/a b", or with path mappings "\\netapp\algo\a b"
@@ -17,17 +16,13 @@ export const directoryPath = (url, { windows = false } = {}) => {
 // Copies the path of a folder served under /s/. With path mappings, the Windows path is one click away.
 export function copyDirectory(url, { windows = false } = {}) {
   const path = directoryPath(url, { windows })
-  return copyText(path).then(copied => toaster.show(copied
-    ? {
-        message: <>Copied {windows ? 'the Windows path' : 'the path'}: <code className={Classes.MONOSPACE_TEXT} style={{ overflowWrap: 'anywhere' }}>{path}</code></>,
-        icon: 'tick',
-        intent: Intent.SUCCESS,
-        timeout: 4000,
-        action: !windows && hasPathMappings() ? { text: 'Copy the Windows path', onClick: () => copyDirectory(url, { windows: true }) } : undefined,
-      }
-    : { message: 'Could not copy the path', intent: Intent.DANGER },
-  // repeated copies update the same toast
-  'copy-directory'))
+  const what = windows ? 'the Windows path' : 'the path'
+  return copyWithToast(path, {
+    what,
+    message: <>Copied {what}: <code className={Classes.MONOSPACE_TEXT} style={{ overflowWrap: 'anywhere' }}>{path}</code></>,
+    timeout: 4000,
+    action: !windows && hasPathMappings() ? { text: 'Copy the Windows path', onClick: () => copyDirectory(url, { windows: true }) } : undefined,
+  })
 }
 
 

@@ -4,7 +4,6 @@ import { connect } from 'react-redux'
 import axios from "axios";
 
 import styled from "styled-components";
-import copy from 'copy-to-clipboard';
 
 import {
   Classes,
@@ -25,10 +24,11 @@ import { fetchCommit } from "../actions/commit";
 
 import { Avatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
-import { CopyToClipboard } from "react-copy-to-clipboard";
-import { format, shortId, pretty_label, linux_to_windows } from "../utils";
+import { format, shortId, pretty_label } from "../utils";
 import { git_hostname, default_git_hostname } from "../utils"
 import { has_milestones } from './milestones'
+import { copyDirectory } from './logs/DirectoryActions'
+import { copyWithToast } from '../utils/clipboard'
 
 const CommitDetails = styled.div`
   display: flex;
@@ -294,22 +294,13 @@ class CommitRow extends React.Component {
                 </CommitShortId>
               </Tooltip>
               <Tooltip content="Copy to clipboard">
-                <CopyToClipboard
-                  text={commit.id}
-                  onCopy={() => {
-                    toaster.show({
-                      message: "Copied to clipboard!",
-                      intent: Intent.SUCCESS
-                    });
-                  }}
-                >
-                  <Icon
-                    style={{marginLeft: '4px', marginRight: '4px'}}
-                    title="Copy hash to clipboard"
-                    intent={Intent.PRIMARY}
-                    icon="duplicate"
-                  />
-                </CopyToClipboard>
+                <Icon
+                  style={{marginLeft: '4px', marginRight: '4px'}}
+                  title="Copy hash to clipboard"
+                  intent={Intent.PRIMARY}
+                  icon="duplicate"
+                  onClick={() => copyWithToast(commit.id, { what: 'the commit hash' })}
+                />
               </Tooltip>
 
             <Popover
@@ -317,8 +308,8 @@ class CommitRow extends React.Component {
               hoverCloseDelay={500}
               interactionKind={"hover"}
               content={<Menu>
-                <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(commit.artifacts_url))}} />
-                <MenuItem text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(commit.artifacts_url).slice(2))}} />
+                <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url, { windows: true })} />
+                <MenuItem text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url)} />
                 <MenuItem text="View files in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
                 <MenuDivider title="Manage"/>
                 <MenuItem

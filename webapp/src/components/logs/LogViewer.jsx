@@ -15,10 +15,9 @@ import {
   Tooltip,
 } from "@blueprintjs/core";
 
-import { toaster } from "../../toaster";
 import { useLogTail } from "./useLogTail";
 import { createLineParser } from "./logLines";
-import { copyText } from "./clipboard";
+import { copyWithToast } from "../../utils/clipboard";
 
 
 // Rendering more lines gets slow: we show the last ones, and more when users ask
@@ -502,12 +501,10 @@ export const LogViewer = ({ files, file, onFileChange, live = false, emptyHint, 
   const copy = () => {
     const text = all_lines.map(line => line.plain).join('\n')
     // We only copy what we read
-    const what = log.start > 0
+    const lines = log.start > 0
       ? `the last ${all_lines.length.toLocaleString()} lines (${formatBytes(log.end - log.start)} of ${formatBytes(log.total)})`
       : `${all_lines.length.toLocaleString()} lines`
-    copyText(text).then(copied => toaster.show(copied
-      ? { message: `Copied ${what}`, icon: 'tick', intent: Intent.SUCCESS, timeout: 2000 }
-      : { message: 'Could not copy the logs', intent: Intent.DANGER }))
+    copyWithToast(text, { what: 'the logs', message: `Copied ${lines}` })
   }
 
   const is_missing = log.status === 'error' && log.error?.status === 404

@@ -15,14 +15,13 @@ import {
 } from "@blueprintjs/core";
 
 import { pretty_label } from '../utils'
-import { toaster } from "../toaster";
 import { folder_url } from "../utils/paths";
 import { RunList, RunLogs } from './logs/RunLogs'
 import { LogViewer } from './logs/LogViewer'
 import { BatchSubmissions } from './logs/BatchSubmissions'
 import { batchSubmissions } from './logs/submissions'
 import { DirectoryActions } from './logs/DirectoryActions'
-import { copyText } from './logs/clipboard'
+import { copyWithToast } from '../utils/clipboard'
 import { fileExists } from './logs/fetchRange'
 
 
@@ -89,11 +88,6 @@ const Command = styled.div`
     padding-top: 3px;
   }
 `
-
-const copy = text => copyText(text).then(copied => toaster.show(copied
-  ? { message: 'Copied', icon: 'tick', intent: Intent.SUCCESS, timeout: 1500 }
-  : { message: 'Could not copy', intent: Intent.DANGER }))
-
 
 /**
  * Where are the logs of a `qa batch` command?
@@ -182,7 +176,7 @@ const BatchCommand = ({ id, command, logs, batch_dir_url, live, onShowLogs }) =>
     <pre className={`command ${Classes.MONOSPACE_TEXT}`}>
       <code>{text}</code>
       <Tooltip content="Copy the command">
-        <Button size="small" variant="minimal" icon="duplicate" aria-label="Copy the command" onClick={() => copy(text)} />
+        <Button size="small" variant="minimal" icon="duplicate" aria-label="Copy the command" onClick={() => copyWithToast(text, { what: 'the command' })} />
       </Tooltip>
     </pre>
     {logs === 'saved' && <Collapse isOpen={expanded} transitionDuration={150}>

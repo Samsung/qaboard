@@ -3,7 +3,6 @@ import styled from "styled-components";
 import { DateTime } from "luxon";
 import { Button, Callout, Classes, Collapse, Colors, Intent, Spinner, Tag, Tooltip } from "@blueprintjs/core";
 
-import { toaster } from "../../toaster";
 import { updateSelected } from "../../actions/selected";
 import { LogViewer } from "./LogViewer";
 import { LsfReport, withCode } from "./LsfReport";
@@ -11,7 +10,7 @@ import { lsfHint, lsfKilled, lsfReason } from "./lsf";
 import { RunList, Header, Content, INTERACTIVE } from "./RunLogs";
 import { batchSubmissions, is_final, useSubmissionStatus } from "./submissions";
 import { DirectoryActions } from "./DirectoryActions";
-import { copyText } from "./clipboard";
+import { copyWithToast } from "../../utils/clipboard";
 
 
 const Meta = styled.span`
@@ -101,11 +100,6 @@ const waitingHint = submission => submission.runner === 'lsf'
 const lsfJob = submission => submission.lsf_job_id ? `LSF job ${submission.lsf_job_id}${submission.queue ? ` (${submission.queue})` : ''}` : null
 
 
-const copy = text => copyText(text).then(copied => toaster.show(copied
-  ? { message: 'Copied', icon: 'tick', intent: Intent.SUCCESS, timeout: 1500 }
-  : { message: 'Could not copy', intent: Intent.DANGER }))
-
-
 // The requests to show a submission that we scrolled to: rows that mount again don't scroll again
 const scrolled = new WeakSet()
 
@@ -172,7 +166,7 @@ const SubmissionRow = ({ submission, expanded, onToggle, focus }) => {
         {!!submission.command && <Command className={Classes.MONOSPACE_TEXT}>
           <code>{submission.command}</code>
           <Tooltip content="Copy the command">
-            <Button size="small" variant="minimal" icon="duplicate" aria-label="Copy the command" onClick={() => copy(submission.command)} />
+            <Button size="small" variant="minimal" icon="duplicate" aria-label="Copy the command" onClick={() => copyWithToast(submission.command, { what: 'the command' })} />
           </Tooltip>
         </Command>}
         {base

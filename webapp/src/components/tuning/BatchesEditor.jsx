@@ -3,7 +3,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import styled from "styled-components";
 import axios from "axios";
 import { DateTime } from "luxon";
-import { CopyToClipboard } from "react-copy-to-clipboard";
 import {
   Alert,
   Button,
@@ -29,6 +28,7 @@ import {
 
 import MonacoEditor, { MonacoDiffEditor } from "../MonacoEditor";
 import { toaster } from "../../toaster";
+import { copyWithToast } from "../../utils/clipboard";
 import { updateSelected } from "../../actions/selected";
 import { updateTuningForm } from "../../actions/tuning";
 import { analyzeBatches, newBatchSnippet, unusedBatchName } from "./batches_file";
@@ -740,9 +740,7 @@ export function BatchesEditor({ project, commit, config, git, available_tests_fi
             <div className={Classes.TEXT_MUTED} style={{ marginBottom: 4 }}>Relative input paths start from</div>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
               <code style={{ wordBreak: "break-all" }}>{database_path}</code>
-              <CopyToClipboard text={database_path} onCopy={() => toaster.show({ message: "Copied!", intent: Intent.SUCCESS, timeout: 1500 })}>
-                <Button size="small" variant="minimal" icon="duplicate" aria-label="Copy the path" />
-              </CopyToClipboard>
+              <Button size="small" variant="minimal" icon="duplicate" aria-label="Copy the path" onClick={() => copyWithToast(database_path, { what: 'the path' })} />
             </div>
           </SectionCard>}
           <SectionCard>

@@ -2,7 +2,6 @@ import React from "react";
 import axios, { all, CancelToken } from "axios";
 const { get } = axios;
 import qs from "qs";
-import copy from 'copy-to-clipboard';
 
 import {
   Classes,
@@ -17,9 +16,8 @@ import {
 } from "@blueprintjs/core";
 
 import { bit_accuracy_help, humanFileSize } from "../viewers/bit_accuracy/utils";
-import { linux_to_windows } from "../utils";
 import { OutputViewer } from "../viewers/OutputViewer";
-import { toaster } from "../toaster"
+import { copyDirectory } from "./logs/DirectoryActions";
 
 class CommitParameters extends React.Component {
   constructor(props) {
@@ -233,10 +231,10 @@ class CommitParameters extends React.Component {
                    : viewer
       }
       <div style={{margin: '10px'}}>
-        <Button style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(new_commit.artifacts_url))}}>
+        <Button style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => copyDirectory(new_commit.artifacts_url, { windows: true })}>
           Copy Path <Tag minimal>windows</Tag>
         </Button>
-        <Button style={{margin: '10px'}} label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(new_commit.artifacts_url).slice(2))}}>
+        <Button style={{margin: '10px'}} label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => copyDirectory(new_commit.artifacts_url)}>
           Copy Path <Tag minimal>linux</Tag>
         </Button>
         <a rel="noopener noreferrer" target="_blank" href={new_commit.artifacts_url}><Button style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="folder-shared-open">
