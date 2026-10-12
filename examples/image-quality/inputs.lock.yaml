@@ -1,0 +1,3 @@
+# Inputs downloaded the first time `qa` imports qa/main.py (qa/fetch_photos.py), checked against these hashes.
+resize: {width: 1224, height: 816, method: Pillow LANCZOS}
+photos: {}
