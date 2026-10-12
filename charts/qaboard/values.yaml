@@ -2,9 +2,10 @@
 # Docs: website/docs/backend-admin/kubernetes.mdx (https://samsung.github.io/qaboard/docs/backend-admin/kubernetes)
 
 image:
-  # Images are <repository>:<service>-<version> (e.g. ghcr.io/arthur-flam/qaboard:backend-1.2.0), as published by CI:
+  # Images are <repository>:<service>-<version> (e.g. ghcr.io/samsung/qaboard:backend-1.2.0), as published by CI:
   # <version> is a release (1.2.0) or a commit on master (1a2b3c4d). See .github/workflows/ci.yaml
-  repository: ghcr.io/arthur-flam/qaboard
+  # Forks publish to ghcr.io/<owner>/qaboard, and the charts they publish default to it.
+  repository: ghcr.io/samsung/qaboard
   # Default: the chart's appVersion, the release it was published with (`helm show chart` tells it).
   # "latest": the latest images from master (<repository>:<service>), the default of a chart installed from git.
   version: ""

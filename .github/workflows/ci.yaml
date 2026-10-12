@@ -4,7 +4,8 @@
 # - Docker layers are cached in the GitHub Actions cache: unchanged images build in seconds
 # - The images are built once, tested (smoke tests, backend unit tests, a zero-downtime rolling deploy; the helm chart
 #   on kind, with a real `qa batch`), and published to the GitHub container registry, ghcr.io/<owner>/qaboard
-#   (no secret needed: GITHUB_TOKEN):
+#   (no secret needed: GITHUB_TOKEN). The official repository publishes to ghcr.io/samsung/qaboard, the default
+#   of docker-compose.yml and of the chart; forks publish to their own namespace.
 #   - on master: <service>-<commit> once built and tested, then <service> (latest) once every job passed
 #   - on releases: <service>-<version> (e.g. backend-1.2.0) once every job passed
 #   Docker Hub is an optional mirror (arthurflam/qaboard), when the DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets are set.
@@ -375,9 +376,9 @@ jobs:
             version="$major.$minor.$((patch + 1))-dev.$GITHUB_RUN_NUMBER"
             app_version="${GITHUB_SHA::8}"
           fi
-          # Forks publish their own images
+          # The chart defaults to the images published with it: ghcr.io/samsung/qaboard, or a fork's
           image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard"
-          sed -i "s#^  repository: ghcr.io/arthur-flam/qaboard\$#  repository: $image#" charts/qaboard/values.yaml
+          sed -i "s#^  repository: ghcr.io/samsung/qaboard\$#  repository: $image#" charts/qaboard/values.yaml
           grep -q "^  repository: $image\$" charts/qaboard/values.yaml
           helm package charts/qaboard --version "$version" --app-version "$app_version" --destination dist
           echo "$GITHUB_TOKEN" | helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
