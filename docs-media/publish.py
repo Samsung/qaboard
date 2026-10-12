@@ -59,6 +59,7 @@ CACHE = REPO / "website" / ".media-cache" / "media"
 TOOLS_BIN = Path(os.environ.get("DOCS_MEDIA_BIN", Path.home() / ".cache" / "qaboard-docs-media" / "bin"))
 BUCKET = os.environ.get("R2_BUCKET", "qaboard-media")
 DEFAULT_BASE_URL = "https://qaboard-media.sivoov.app"
+USER_AGENT = "qaboard-docs-media"
 ID_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*/[a-z0-9]+(-[a-z0-9]+)*$")
 
 CACHE_CONTROL = "public, max-age=31536000, immutable"
@@ -539,7 +540,9 @@ class Storage:
         data = None
         if self.public_reachable is not False:
             try:
-                with urllib.request.urlopen(f"{self.base_url}/{key}", timeout=15) as response:
+                # the CDN answers 403 to urllib's default User-Agent
+                request = urllib.request.Request(f"{self.base_url}/{key}", headers={"User-Agent": USER_AGENT})
+                with urllib.request.urlopen(request, timeout=15) as response:
                     data = response.read()
                 self.public_reachable = True
             except (urllib.error.URLError, TimeoutError, OSError) as error:
