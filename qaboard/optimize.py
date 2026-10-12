@@ -184,7 +184,11 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
     return
 
   # tuning plots are saved in the label directory
-  make_plots(results, optim_dir)
+  try:
+    make_plots(results, optim_dir)
+  except ImportError as e:
+    # matplotlib isn't one of our dependencies
+    click.secho(f"WARNING: No convergence plot ({e}). Install matplotlib to get it.", fg='yellow', err=True)
 
 
 

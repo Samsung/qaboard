@@ -123,9 +123,11 @@ jobs:
           files: docker-compose.yml
           load: true
           # One cache scope per image, or they overwrite each other.
-          # The label links the published images to this repository on GitHub.
+          # The labels link the published images to this repository on GitHub, and to their commit
+          # (docs-media/snapshot.py records it as the demo data's app version).
           set: |
             *.labels.org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            *.labels.org.opencontainers.image.revision=${{ github.sha }}
             backend.cache-from=type=gha,scope=backend
             backend.cache-to=type=gha,scope=backend,mode=max
             frontend.cache-from=type=gha,scope=frontend

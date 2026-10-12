@@ -1,0 +1,15 @@
+# `qa optimize` search space and objective (story runs `via: optimize`)
+evaluations: 3
+solver:
+  random_state: 7
+  n_initial_points: 2
+objective:
+  noise:
+    weight: 1
+    reduce: sum
+    loss: identity
+search_space:
+  - Real:
+      name: strength
+      low: 0.5
+      high: 2.0

@@ -1,0 +1,165 @@
+# Exercises everything the seeder does, in a few minutes: uv run docs-media/seed.py --story docs-media/tests/fixture/story.yaml
+version: 1
+project: seeder-fixture
+id: kitefin/seeder-fixture
+seed: 7
+
+defaults:
+  flags: {gain: 1.0, denoise: box}
+
+commits:
+  - id: base
+    branch: main
+    at: -9d 09:10
+    author: ines
+    message: "pipeline: first version (box denoise)"
+
+  - id: stronger-gain
+    branch: main
+    at: -8d 10:02
+    author: tobias
+    message: "fxp: digital gain 1.5 (+50% score)"
+    flags: {gain: 1.5}
+    runs:
+      - batch: ci
+      - batch: bitexact
+        platform: hw-model
+
+  - id: median
+    branch: isp/median-denoise
+    parents: [stronger-gain]
+    at: -7d 11:00
+    author: ines
+    message: "denoise: median filter (-25% noise)"
+    flags: {denoise: median, bug_crash: true}
+    failures:
+      - batch: ci
+        inputs: "b-*"
+        kind: bug
+        log: "index out of bounds"
+
+  - id: median-fix
+    branch: isp/median-denoise
+    at: -7d 13:40
+    author: ines
+    message: "denoise: pad the frame before the median filter"
+    flags: {bug_crash: null}
+    runs:
+      - batch: ci
+      - batch: ci
+        via: local
+        label: ines-probe
+        after: 40m
+      - batch: sweep
+        via: tuning
+        label: tune-strength
+        tuning: {strength: [0.5, 1.0, 2.0], gain: [1.0, 1.5]}
+      - batch: sweep
+        via: tuning
+        label: tune-sampled
+        sample: 3
+        tuning: {strength: [0.5, 1.0, 2.0], gain: [1.0, 1.5]}
+      - batch: ci
+        via: webapp
+        label: from-the-app
+        user: tobias
+      - batch: sweep
+        via: optimize
+        label: optim-strength
+        optimize: qa/optimize.yaml
+
+  - id: merge-median
+    branch: main
+    parents: [stronger-gain, median-fix]
+    at: -6d 09:30
+    author: ines
+    message: "Merge branch 'isp/median-denoise'"
+    patches:
+      qa/metrics.yaml: {available_metrics: {noise: {target: 2}}}
+
+  - id: whole-frame
+    branch: main
+    at: -2d 10:00
+    author: tobias
+    message: "fxp: process the frame at once (no tiles)"
+    flags: {whole_frame: true}
+    runs:
+      - batch: ci
+      - batch: big
+      - batch: big
+        label: big-local
+        via: local
+        after: 2h
+    failures:
+      - batch: big
+        kind: lsf-memlimit
+        log: "whole frame"
+      - batch: big
+        label: big-local
+        kind: oom
+
+  - id: whole-frame-fix
+    branch: main
+    at: -2d 13:10
+    author: tobias
+    message: "fxp: back to 512 px tiles"
+    flags: {whole_frame: null, slow: true}
+    runs:
+      - batch: slow
+    failures:
+      - batch: slow
+        kind: timeout
+
+  - id: in-progress
+    branch: main
+    at: -0d 14:00
+    author: ines
+    message: "tone: filmic curve"
+    flags: {slow: null}
+    runs:
+      - batch: ci
+        progress: {finished: 0.5, running: 2}
+
+milestones:
+  - commit: base
+    label: fx-1.0
+    notes: First version
+    by: ines
+  - commit: merge-median
+    label: fx-1.1
+    notes: Median denoise
+    by: ines
+
+checks:
+  - name: the gain raises the score
+    commit: stronger-gain
+    vs: parent
+    metric: score
+    expect: {change_pct: {gt: 30}}
+  - name: the median crashes on edges
+    commit: median
+    expect: {failed: {between: [2, 2]}, log: "index out of bounds"}
+  - name: the median filter lowers the noise
+    commit: median-fix
+    vs: stronger-gain
+    metric: noise
+    agg: mean
+    expect: {change_pct: {lt: -15}}
+  - name: the tuning beats the defaults
+    commit: median-fix
+    label: tune-strength
+    vs_label: default
+    vs: median-fix
+    metric: score
+    agg: max
+    expect: {delta: {gt: 0}}
+  - name: a custom hook sees the runs
+    commit: merge-median
+    hook: same_outputs
+    args: {vs: median-fix}
+  - name: the whole frame runs out of memory
+    commit: whole-frame
+    expect: {failed: {gte: 1}}
+  - name: gate placeholder
+    commit: merge-median
+    expect: {gate: pass}
