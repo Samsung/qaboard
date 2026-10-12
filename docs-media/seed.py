@@ -499,7 +499,7 @@ class Workspace:
 
   def prepare(self):
     self.dir.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(self.story.example, self.dir, ignore=self.IGNORE, dirs_exist_ok=True)
+    shutil.copytree(self.story.example, self.dir, ignore=self.IGNORE, dirs_exist_ok=True, copy_function=copy_if_changed)
     if not (self.dir / '.git').exists():
       subprocess.run(['git', 'init', '-q', '-b', 'main', str(self.dir)], check=True)
     self.ensure_venv()
@@ -529,12 +529,15 @@ class Workspace:
     """The workspace as of this commit: flags, patched YAML files, git HEAD"""
     self.current = commit
     for rel, doc in commit.files.items():
+      original = self.story.example / rel
       if rel == 'qaboard.yaml':
-        doc = deepcopy(doc)
         # results go to the demo stack's storage
-        if str(doc.get('storage')) != str(stack.results_root()) and doc.get('storage', {}) != {'linux': str(stack.results_root())}:
-          doc['storage'] = {'linux': str(stack.results_root())}
-      if doc or (self.story.example / rel).exists():
+        storage = str(stack.results_root())
+        if doc.get('storage') not in (storage, {'linux': storage}):
+          doc = {**doc, 'storage': {'linux': storage}}
+      if original.exists() and doc == self.story.base_files[rel]:
+        shutil.copy2(original, self.dir / rel)   # with its comments
+      elif doc or original.exists():
         (self.dir / rel).parent.mkdir(parents=True, exist_ok=True)
         (self.dir / rel).write_text(yaml.safe_dump(doc, sort_keys=False, allow_unicode=True))
     build = self.dir / 'build'
@@ -556,7 +559,6 @@ class Workspace:
       'NO_PROXY': no_proxy, 'no_proxy': no_proxy,
       'QA_USER': user,
       'QA_SEED': str(self.story.seed),
-      'QA_STORY_COMMIT': commit.id,   # what the story calls the commit
       'QA_BATCH_RUNNER': 'local',
       'TZ': 'UTC',
       'LC_ALL': 'C.UTF-8', 'LANG': 'C.UTF-8',
@@ -1284,6 +1286,14 @@ class Seeder:
     }
     path.write_text(json.dumps(demo, indent=2, sort_keys=True) + '\n')
     os.chmod(path, 0o666)
+
+
+def copy_if_changed(src, dst):
+  """Like rsync: big inputs aren't copied again"""
+  s, d = Path(src), Path(dst)
+  if d.exists() and s.stat().st_size == d.stat().st_size and int(s.stat().st_mtime) == int(d.stat().st_mtime):
+    return dst
+  return shutil.copy2(src, dst)
 
 
 def walk(root: Path):
