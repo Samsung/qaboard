@@ -71,7 +71,8 @@ def get_users_per_name(search_filter):
 
 def gravatar_url(name):
   name_hash = md5(name.encode('utf8')).hexdigest()
-  return f'http://gravatar.com/avatar/{name_hash}'
+  # d=404: no default picture, so that the web app shows the user's initials instead
+  return f'https://gravatar.com/avatar/{name_hash}?d=404'
 
 
 @cache

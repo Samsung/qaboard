@@ -4,18 +4,14 @@ Follow-ups from the move to Vite 8 / React 19 / Blueprint 6 (October 2026), most
 Check items off or delete them when done, add new ones with enough context for someone else to pick them up.
 
 ## Bugs / risks
-- [ ] **Plotly "Send to Cloud"**: `src/viewers/slam/SlamOutputCard.jsx` sets `showSendToCloud: true` with `plotlyServerURL: chart-studio.plotly.com`. Users can upload internal data to Plotly's public cloud. Turn it off unless someone needs it.
 - [ ] **Old plotly figures**: plotly.js@3 dropped deprecated attributes. `src/components/PlotlyPlot.jsx` upgrades string titles and `titlefont`, but figures with other removed attributes (`bardir`, `annotation.ref`, `autotick`, `heatmapgl`/`pointcloud` traces...) may render differently. Extend `upgradeFigure` if users report it.
 - [ ] **Node on SIRC GitLab runners** is 22.14 (`deployments/sirc/.envrc`), close to the minimum the toolchain supports (22.12). Move them to Node 24 LTS like Docker and GitHub Actions.
 - [ ] Viewers not covered by automated tests with real data: images (OpenSeadragon/IIIF), ToF point clouds (three.js), SLAM, flame graphs, videos. Check them manually on staging after deploys that touch them.
 
 ## UX
 - [ ] **Date ranges in the URL**: the commit list reads `?from=YYYY-MM-DD&to=YYYY-MM-DD` on load, but changing the dates (`DateRangeInput3` in `src/AppNavbar.jsx`) only refetches commits, so date ranges can't be shared or bookmarked. Write them to the URL (replace, not push) and keep the History page consistent.
-- [ ] **History page layout** (`src/Dashboard.jsx`, `/:project/history/:branch`):
-  - the sidebar has no navigation (`src/AppSider.jsx` hides it on `/history/`): no History/Code/Integrations/Milestones, no way back to the branch's commits;
-  - under "Metrics per-test", the second tab (`table-compare`) has no `title`;
-  - the sidebar's "History" and "Code" entries are plain `href`s that reload the whole app instead of client-side navigation.
 - [ ] `selected_metrics` is written to the URL but not read back on load.
+- [ ] **Two history entries per branch change**: `updateSelected` (`src/actions/selected.js`) pushes its own URL, so going to a branch's commits or history from the sidebar or the branch selector adds two entries (Back must be pressed twice) and leaves `?branch=...&committer=` in the URL. Let it replace the current entry, or derive `selected.branch`/`committer` from the route.
 
 ## Testing / CI
 - [ ] Run the Playwright smoke tests (`npm run e2e`) in GitLab CI too. They run in GitHub Actions; the LSF runners need Chromium (`npx playwright install chromium` through the proxy, or use `PLAYWRIGHT_CHROMIUM_EXECUTABLE`).

@@ -1,7 +1,7 @@
 import React from "react";
 import { connect, useSelector } from 'react-redux'
 import { withRouter } from "./router";
-import { Link } from "./router";
+import { Link, useLinkClickHandler } from "./router";
 import styled from "styled-components";
 import axios from "axios";
 
@@ -16,7 +16,7 @@ import {
   Tooltip,
 } from "@blueprintjs/core";
 
-import { Avatar } from "./components/avatars";
+import { ProjectAvatar } from "./components/avatars";
 import { IntegrationsMenus } from "./components/integrations";
 import { MilestonesMenu } from "./components/milestones"
 import AuthButton from "./components/authentication/Auth"
@@ -33,7 +33,7 @@ import {
 } from './selectors/projects'
 import { updateSelected } from "./actions/selected";
 import { fetchCommit } from "./actions/commit";
-import { git_hostname, default_git_hostname, project_avatar_style, quota_url } from "./utils"
+import { git_hostname, default_git_hostname, quota_url } from "./utils"
 import { make_eval_templates_recursively } from "./utils"
 import { toaster } from "./toaster"
 
@@ -87,7 +87,7 @@ const SiderSection = styled.div`
     }
 `;
 
-const ProjectAvatar = styled.div`
+const SiderProjectAvatar = styled.div`
     display: flex;
     align-items: center;
     gap: ${spacing.xs};
@@ -378,34 +378,32 @@ class ProjectSideAvatar extends React.Component {
 
   render() {
     const { project, project_data={} } = this.props;
-    const git = project_data.data?.git || {};
     let project_name = project.split('/').slice(-1)[0];
-    const is_subproject = git.path_with_namespace !== project;
-    const has_custom_avatar = !!project_data.data?.qatools_config?.project?.avatar_url
-    const should_tweak_image = is_subproject && !has_custom_avatar;
-    const avatar_style = should_tweak_image ? project_avatar_style(project) : null;
-
-    const project_git_hostname = git_hostname(project_data?.data?.qatools_config) ?? default_git_hostname
-    git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
-    let avatar_url = git.avatar_url
-    if (!!avatar_url) {
-      avatar_url = encodeURI(`/api/v1/gitlab/proxy?url=${avatar_url}`)
-    }
     return (
-      <ProjectAvatar>
+      <SiderProjectAvatar>
         <Link onClick={this.toHome} to={`/${project}`} style={{display: 'flex', alignItems: 'center', gap: '12px', width: '100%', color: 'inherit'}}>
-          <Avatar
+          <ProjectAvatar
             className="avatar"
-            src={avatar_url}
-            alt={project_name}
-            img_style={avatar_style}
+            project={project}
+            data={project_data.data}
           />
           <span className="project-name">{project_name}</span>
         </Link>
-      </ProjectAvatar>
+      </SiderProjectAvatar>
     )
 
   }
+}
+
+// A menu entry that navigates like <Link>: within the app, without reloading it, but ctrl/cmd+click still opens a new tab.
+// onNavigate is only called when we navigate within the app.
+const MenuItemLink = ({ to, onNavigate, ...props }) => {
+  const handleClick = useLinkClickHandler(to)
+  return <MenuItem {...props} href={to} onClick={event => {
+    handleClick(event)
+    if (event.defaultPrevented)
+      onNavigate?.()
+  }}/>
 }
 
 // Only shown if the site has a quota dashboard (QABOARD_QUOTA_URL_TEMPLATE)
@@ -423,9 +421,9 @@ const QuotaMenuItem = ({ user, project }) => {
 }
 
 class ProjectSideCommitList extends React.Component {
-  updateBranch = branch => {
-    const { project, history, dispatch } = this.props;
-    history.push(`/${project}/commits/${branch}`);
+  // The commit list and the history page show the selected branch's commits
+  selectBranch = branch => () => {
+    const { project, dispatch } = this.props;
     dispatch(updateSelected(project, {branch, committer: null}))
   }
 
@@ -455,6 +453,7 @@ class ProjectSideCommitList extends React.Component {
     const private_milestones = project_data.milestones || {}
 
     let is_project_home = this.props.match.path === "/:project_id+/commits" || this.props.match.path === "/:project_id+";
+    let is_history = match.path.startsWith("/:project_id+/history") || match.path.startsWith("/:project_id+/dashboard");
     let is_committer = !!match.params.committer;
     let is_branch = !!match.params.name;
     if (is_branch || is_committer) {
@@ -467,21 +466,25 @@ class ProjectSideCommitList extends React.Component {
 
     const project_git_hostname = git_hostname(project_data?.data?.qatools_config) ?? default_git_hostname
     git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
-    let code_url = subproject.length > 0 ? `${git.web_url}/tree/${is_branch ? match.params.name : reference_branch}/${subproject}` : git.web_url;
+    const branch = is_branch ? match.params.name : reference_branch;
+    let code_url = subproject.length > 0 ? `${git.web_url}/tree/${branch}/${subproject}` : git.web_url;
+    const commits_url = branch ? `/${project}/commits/${branch}` : `/${project}/commits`;
+    const history_url = branch ? `/${project}/history/${branch}` : `/${project}/history`;
     return <>
-      {is_project_home ? <div><MenuItem text={reference_branch} icon='git-branch' style={{marginRight: '5px'}} onClick={() => this.updateBranch(reference_branch)}/></div>
+      {/* The branch's commits: highlighted on their page, a link elsewhere */}
+      {(is_project_home || is_history) ? <div><MenuItemLink to={commits_url} onNavigate={this.selectBranch(branch)} text={branch} title={branch && `Commits on ${branch}`} icon='git-branch' style={{marginRight: '5px'}}/></div>
                         : <MenuItem icon={is_branch ? "git-branch" : 'user'} intent='primary' text={tag} title={tag}/>
       }
       {!is_committer && <>
-        <MenuItem href={code_url} icon="git-repo" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
-        <MenuItem href={`/${project}/history/${is_branch ? match.params.name : reference_branch}`} icon="history" text="History"/>
+        <MenuItem href={code_url} icon="git-repo" target="_blank" rel="noopener noreferrer" labelElement={<Icon icon="share" />} text="Code"/>
+        <MenuItemLink to={history_url} onNavigate={this.selectBranch(branch)} active={is_history} icon="history" text="History"/>
         <SectionDivider />
         <IntegrationsMenus
           single_menu
           integrations={integrations}
           project={project}
           project_data={project_data}
-          branch={is_branch ? match.params.name : reference_branch}
+          branch={branch}
           commit={commit}
           ref_commit={ref_commit}
           user={user}
@@ -596,7 +599,7 @@ class ProjectSideResults extends React.Component {
         <span>Source</span>
       </SectionHeader>
       <MenuItem icon="settings" text="Artifacts & Configs" active={active('parameters')} onClick={this.set('selected_views', 'parameters')} />
-      <MenuItem href={code_url} icon="git-commit" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
+      <MenuItem href={code_url} icon="git-commit" target="_blank" rel="noopener noreferrer" labelElement={<Icon icon="share" />} text="Code"/>
 
       {/* Tuning Section */}
       <SectionHeader>
@@ -955,6 +958,8 @@ class AppSider extends React.Component {
       stopUpdateIntegrationStatuses: this.stopUpdateIntegrationStatuses,
     };
 
+    // Commit pages show views of their results, other pages (commit lists, history) the project's pages
+    const is_commit_page = ['/:project_id+/commit/:name+', '/:project_id+/commit'].includes(this.props.match.path)
     return (
       <Sider className={`${Classes.DARK}`}>
         {/* Header Section */}
@@ -997,7 +1002,7 @@ class AppSider extends React.Component {
 
         {/* Navigation Section */}
         <SiderSection>
-          {!window.location.pathname.includes('/commit/') && !window.location.pathname.includes('/history/') && (
+          {!is_commit_page && (
             <>
               <SectionHeader>Project Navigation</SectionHeader>
               <EnhancedMenuItem>
@@ -1016,7 +1021,7 @@ class AppSider extends React.Component {
             </>
           )}
           
-          {window.location.pathname.includes('/commit/') && (
+          {is_commit_page && (
             <>
               <EnhancedMenuItem>
                 <ProjectSideResults
