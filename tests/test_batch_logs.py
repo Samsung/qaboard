@@ -40,7 +40,21 @@ class TestTeeStdStreams(unittest.TestCase):
           with tee_std_streams(file):
             click.secho('3 runs failed', fg='red', err=True)
             sys.exit(1)
-      self.assertEqual(path.read_text(), '3 runs failed\n')
+        with self.assertRaises(click.exceptions.Exit):
+          with tee_std_streams(file):
+            raise click.exceptions.Exit(0)
+      # colors depend on the terminal, but there is no traceback
+      self.assertEqual(click.unstyle(path.read_text()), '3 runs failed\n')
+
+  def test_stream(self):
+    from qaboard.utils import TeeStream
+    with tempfile.TemporaryFile('w+') as stream, tempfile.TemporaryFile('w+') as file:
+      tee = TeeStream(stream, file)
+      self.assertEqual(tee.fileno(), stream.fileno())
+      self.assertFalse(tee.closed)
+      self.assertFalse(tee.isatty())
+      # click would write to it instead of us
+      self.assertFalse(hasattr(tee, 'buffer'))
 
 
 @click.command()
@@ -61,7 +75,7 @@ class TestSavesLogs(unittest.TestCase):
     tmp = tempfile.TemporaryDirectory()
     self.addCleanup(tmp.cleanup)
     obj = {'share': True, 'offline': False, 'dryrun': False, 'batch_dir': Path(tmp.name), **obj}
-    environ = {k: v for k, v in os.environ.items() if k not in ('QA_BATCH', 'QA_BATCH_COMMAND_HIDE_LOGS', 'QA_NO_STREAM_REDIRECT')}
+    environ = {k: v for k, v in os.environ.items() if k not in ('QA_BATCH', 'QA_OPTIM_DIR', 'QA_BATCH_COMMAND_HIDE_LOGS', 'QA_NO_STREAM_REDIRECT')}
     with mock.patch('qaboard.batch_logs.is_ci', is_ci), mock.patch.dict(os.environ, {**environ, **(env or {})}, clear=True):
       result = CliRunner().invoke(fake_batch, args, obj=obj)
     self.assertEqual(result.exit_code, 0, result.output)
@@ -72,7 +86,7 @@ class TestSavesLogs(unittest.TestCase):
     result, logs = self.invoke()
     self.assertEqual(len(logs), 1)
     self.assertIn('starting 2 runs', result.output)
-    path = result.output.splitlines()[-1].replace('log: ', '')
+    path = next(line for line in result.output.splitlines() if line.startswith('log: ')).replace('log: ', '')
     self.assertRegex(path, r'^qa-batch-logs/\d{8}-\d{6}-[0-9a-f]{8}/log\.txt$')
     self.assertEqual(logs[0].read_text(), f'starting 2 runs\nlog: {path}\n')
 
@@ -83,13 +97,27 @@ class TestSavesLogs(unittest.TestCase):
     self.assertEqual(self.invoke(share=False)[1], [])
     self.assertEqual(self.invoke(offline=True)[1], [])
     self.assertEqual(self.invoke('--list-inputs')[1], [])
-    # a run started the batch, our logs are in its log
-    self.assertEqual(self.invoke(env={'QA_BATCH': 'true'})[1], [])
+    # an iteration of `qa optimize`, our logs are in its log
+    self.assertEqual(self.invoke(env={'QA_OPTIM_DIR': '/tmp/optim'})[1], [])
+    # a run started the batch: with the local runner, its log doesn't have our output
+    self.assertEqual(len(self.invoke(env={'QA_BATCH': 'true'})[1]), 1)
 
   def test_unwritable_batch_dir(self):
     result, logs = self.invoke(batch_dir=Path('/proc/qaboard-tests'))
     self.assertIn('WARNING: Could not save the logs', result.output)
     self.assertIn('log: None', result.output)
+
+
+class TestRunInLog(unittest.TestCase):
+  def test_output_in_log(self):
+    from qaboard.utils import tee_std_streams
+    from qaboard.batch_logs import run_in_log
+    with tempfile.TemporaryDirectory() as tmp:
+      path = Path(tmp) / 'log.txt'
+      with path.open('a') as file, tee_std_streams(file):
+        code = run_in_log('echo iteration 1; echo oops >&2; exit 3')
+      self.assertEqual(code, 3)
+      self.assertEqual(path.read_text(), 'iteration 1\noops\n')
 
 
 if __name__ == '__main__':

@@ -35,6 +35,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  delete Element.prototype.scrollIntoView
   resetIntersectionMocking()
   vi.unstubAllGlobals()
 })
@@ -46,7 +47,10 @@ describe('commandLogs', () => {
   it('knows where the logs of qa batch are', () => {
     expect(commandLogs('a', { job_url: 'https://ci/1' })).toBe('ci')
     expect(commandLogs('a', {}, { submission_ids: new Set(['a']) })).toBe('qaboard')
-    expect(commandLogs('a', { share: true, log: 'qa-batch-logs/x/log.txt' }, { has_batch_log: true })).toBe('saved')
+    expect(commandLogs('a', { share: true, log: 'qa-batch-logs/20261011-100000-c4000000/log.txt' }, { has_batch_log: true })).toBe('saved')
+    // anyone can save commands: we only follow the paths qa batch saves logs to
+    expect(commandLogs('a', { share: true, log: '../../../api/v1/user/me/' })).toBe('terminal')
+    expect(commandLogs('a', { share: true, log: 'qa-batch-logs/../../../api/v1/x/log.txt' })).toBe('terminal')
     expect(commandLogs('a', { share: false }, { has_batch_log: true })).toBe('batch-log')
     expect(commandLogs('a', { share: true }, { has_batch_log: true })).toBe('terminal')
     expect(commandLogs('a', { share: false })).toBe('unknown')
@@ -95,6 +99,8 @@ describe('BatchLogs', () => {
   })
 
   it('shows the logs of older submissions, hidden by default', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
     const submissions = Object.fromEntries([1, 2, 3, 4].map(day => [`s${day}`, {
       id: `s${day}`, created_at: `2026-10-0${day}T08:00:00Z`, runner: 'local', command: `qa batch ${day}`, status: 'done', log_dir_url: `/s/b/qaboard-batches/${day}`,
     }]))
@@ -103,7 +109,12 @@ describe('BatchLogs', () => {
     expect(screen.getByText('Show 1 older')).toBeInTheDocument()
     fireEvent.click(screen.getByText('Show its logs'))
     expect(await screen.findByText('the oldest')).toBeInTheDocument()
-    expect(screen.getByText('Show less')).toBeInTheDocument()
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
+    // the row mounts again: we don't scroll to it again
+    fireEvent.click(screen.getByText('Show less'))
+    fireEvent.click(screen.getByText('Show 1 older'))
+    expect(await screen.findByText('the oldest')).toBeInTheDocument()
+    expect(scrollIntoView).toHaveBeenCalledTimes(1)
   })
 
   it('shows the logs that qa batch saved', async () => {

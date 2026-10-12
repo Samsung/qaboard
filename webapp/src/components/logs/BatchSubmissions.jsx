@@ -106,6 +106,9 @@ const copy = text => copyText(text).then(copied => toaster.show(copied
   : { message: 'Could not copy', intent: Intent.DANGER }))
 
 
+// The requests to show a submission that we scrolled to: rows that mount again don't scroll again
+const scrolled = new WeakSet()
+
 /**
  * A batch started from QA-Board: the status of `qa batch`, and its logs.
  * `focus` changes when users ask to see this submission: we scroll to it.
@@ -114,7 +117,9 @@ const SubmissionRow = ({ submission, expanded, onToggle, focus }) => {
   const status = useSubmissionStatus(submission)
   const ref = useRef(null)
   useEffect(() => {
-    if (focus) ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+    if (!focus || scrolled.has(focus)) return
+    scrolled.add(focus)
+    ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
   }, [focus])
   const [file, setFile] = useState('log.txt')
   const base = submission.log_dir_url

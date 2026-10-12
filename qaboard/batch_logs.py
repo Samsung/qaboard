@@ -1,12 +1,14 @@
 """
 `qa batch` and `qa optimize` started from a terminal with --share save their logs in the batch directory,
 QA-Board shows them with the batch. We don't save them when they are already saved elsewhere:
-by the CI, by QA-Board for the batches it starts, or by the run that started a batch.
+by the CI, by QA-Board for the batches it starts, or by `qa optimize` for its iterations.
 """
 import os
+import sys
 import uuid
 import datetime
 import functools
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -30,8 +32,8 @@ def should_save_logs(ctx: click.Context) -> bool:
   # e.g. `qa batch --list`
   if any(ctx.params.get(flag) for flag in ('list_contexts', 'list_output_dirs', 'list_inputs')):
     return False
-  # A run started this batch, our output is in its log
-  if 'QA_BATCH' in os.environ:
+  # An iteration of `qa optimize`, our output is in its log (see run_in_log)
+  if 'QA_OPTIM_DIR' in os.environ:
     return False
   return not (os.environ.get('QA_BATCH_COMMAND_HIDE_LOGS') or os.environ.get('QA_NO_STREAM_REDIRECT'))
 
@@ -43,7 +45,7 @@ def saves_logs(command):
     if not should_save_logs(ctx):
       return command(ctx, *args, **kwargs)
     command_id = str(uuid.uuid4())
-    created_at = datetime.datetime.utcnow()
+    created_at = datetime.datetime.now(datetime.timezone.utc)
     path = f"qa-batch-logs/{created_at.strftime('%Y%m%d-%H%M%S')}-{command_id[:8]}/log.txt"
     log_path = Path(ctx.obj['batch_dir']) / path
     try:
@@ -60,3 +62,24 @@ def saves_logs(command):
 
 def batch_log(ctx: click.Context) -> Optional[dict]:
   return ctx.meta.get(BATCH_LOG)
+
+
+def run_in_log(command: str) -> int:
+  """
+  Runs a shell command, and prints its output ourselves: it ends up in our saved logs.
+  Otherwise subprocesses write to the terminal directly. Returns the exit code.
+  """
+  with subprocess.Popen(
+    command,
+    shell=True,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT,
+    encoding='utf-8',
+    errors='replace',
+    # we want to see the output as it's printed
+    env={**os.environ, 'PYTHONUNBUFFERED': '1'},
+  ) as process:
+    assert process.stdout
+    for line in process.stdout:
+      sys.stdout.write(line)
+  return process.returncode

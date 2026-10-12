@@ -15,7 +15,7 @@ from .api import makeNumpyEncoder, batch_info, notify_qa_database, print_url, ma
 from .config import project, subproject, commit_id, outputs_commit, available_metrics, default_batches_files, default_platform
 from .conventions import batch_dir
 from .utils import PathType, getenvs
-from .batch_logs import saves_logs, batch_log
+from .batch_logs import saves_logs, batch_log, run_in_log
 from .run import RunContext
 
 seed = int(os.environ.get('QA_SEED', 101))
@@ -223,7 +223,7 @@ def init_optimization(optim_config_file, checkpoint, ctx):
   click.secho(str(preset_params), fg="blue", dim=True, err=True)
 
   # we use the iteration step in the objective function, to store results at the right place
-  from skopt.utils import Integer
+  from skopt.space import Integer
   dim_iteration = Integer(name='iteration', low=0, high=2^16)
   dims = [*space, dim_iteration]
 
@@ -258,13 +258,17 @@ def init_optimization(optim_config_file, checkpoint, ctx):
       command = f"cd {subproject} && {command}"
 
     if not ctx.obj['dryrun']:
-      p = subprocess.run(
-          command,
-          shell=True,
-          encoding="utf-8",
-      )
-      if p.returncode != 0:
-        click.secho(f'[ERROR ({p.returncode})] Check the logs in QA-Board to know what output failed', fg='red', bold=True)
+      if batch_log(ctx):
+        # The iterations don't save their own logs, they would be lost with their batches
+        returncode = run_in_log(command)
+      else:
+        returncode = subprocess.run(
+            command,
+            shell=True,
+            encoding="utf-8",
+        ).returncode
+      if returncode != 0:
+        click.secho(f'[ERROR ({returncode})] Check the logs in QA-Board to know what output failed', fg='red', bold=True)
 
     # Now that we finished computing all the results, we will download the results and
     # compute the objective function:
