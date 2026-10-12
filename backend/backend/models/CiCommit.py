@@ -262,8 +262,10 @@ class CiCommit(Base):
         from backend.models import Project
         project = Project.get_or_create(session=session, id=project_id)
         if data and data.get('qaboard_config'):
-          is_initialization = not project.data or 'qatools_config' not in data 
-          reference_branch = data["qaboard_config"]['project'].get('reference_branch', 'master')
+          project_config = data["qaboard_config"].get('project') or {}
+          # The project's configuration comes from its reference branch, or from the first commit we see
+          is_initialization = not project.data or 'qatools_config' not in project.data
+          reference_branch = project_config.get('reference_branch', 'master')
           is_reference = data.get("commit_branch") == reference_branch
           if is_initialization or is_reference:
             # FIXME: We put in Project.data.git the content of
@@ -271,21 +273,22 @@ class CiCommit(Base):
             # FIXME: We should really have Project.data.gitlab/github/...
             if "git" not in project.data:
               project.data["git"] = {}
-            if "path_with_namespace" not in project.data["git"] and "name" in data["qaboard_config"].get("project", {}): # FIXME: it really should be Project.root
-              project.data["git"]["path_with_namespace"] = data['project_root'] or data["qaboard_config"]["project"]["name"]
+            if "path_with_namespace" not in project.data["git"] and "name" in project_config: # FIXME: it really should be Project.root
+              project.data["git"]["path_with_namespace"] = data.get('project_root') or project_config["name"]
             project.data.update({'qatools_config': data['qaboard_config']})
             if "qaboard_metrics" in data:
               project.data.update({'qatools_metrics': data["qaboard_metrics"]})
             flag_modified(project, "data")
-        try:
-          git_parents = data["commit_parents"]
-          git_message = data["commit_message"]
-          git_committer_name = data["commit_committer_name"]
+        # Clients like the CLI tell us about the commit, then we don't need its git repository.
+        # Only the date is required, they can leave out what they don't know (e.g. the branch).
+        if data and data.get("commit_authored_datetime"):
+          git_parents = data.get("commit_parents")
+          git_message = data.get("commit_message")
+          git_committer_name = data.get("commit_committer_name")
           git_authored_datetime = data["commit_authored_datetime"]
-          git_branch = data["commit_branch"]
-        except Exception as e:
+          git_branch = data.get("commit_branch")
+        else:
           # If the project is connected to a git repo, we try to use it
-          # But it is not required...
           git_commit = project.repo.commit(hexsha)
           git_parents = [c.hexsha for c in git_commit.parents]
           git_message = git_commit.message
@@ -353,7 +356,8 @@ class CiCommit(Base):
     out = {
         'id': self.hexsha,
         # 'type': self.commit_type,
-        'branch': re.sub('origin/', '', self.branch),
+        # Clients may not know the branch. The web app expects a string, it treats '' as no branch
+        'branch': re.sub('origin/', '', self.branch) if self.branch else '',
         # Not used anywhere in the web application, and it's not all that useful (see earlier comment)
         # 'parents': [p for p in self.parents] if self.parents else [],
         'message': self.message,

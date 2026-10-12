@@ -30,16 +30,21 @@ def outputs_api(monkeypatch):
   return module
 
 
-def notify(outputs_api, dummy_app, **data):
+def post(outputs_api, dummy_app, without=(), **data):
   body = {
     "git_commit_sha": "0" * 40, "project": "group/project", "batch_label": "default", "job_type": "ci",
     "user": "ci", "platform": "linux", "configurations": [], "extra_parameters": {},
     "input_path": "a.jpg", "database": "/datasets", "output_directory": "/storage/project/output",
     **data,
   }
+  for key in without:
+    del body[key]
   with dummy_app.test_request_context("/api/v1/output/", method="POST", json=body):
-    response = outputs_api.new_output_webhook()
-  return response.get_json()
+    return outputs_api.new_output_webhook()
+
+
+def notify(outputs_api, dummy_app, **data):
+  return post(outputs_api, dummy_app, **data).get_json()
 
 
 @pytest.mark.parametrize("status", [{"is_pending": True}, {"is_pending": True, "is_running": True}])
@@ -56,3 +61,22 @@ def test_failed_output_running_again_is_not_failed(outputs_api, dummy_app, statu
 def test_finished_output_status(outputs_api, dummy_app, data, is_failed):
   notify(outputs_api, dummy_app, is_pending=True)
   assert notify(outputs_api, dummy_app, is_pending=False, **data)["is_failed"] == is_failed
+
+
+@pytest.mark.parametrize("metrics", [None, {}, {"psnr": 30}])
+def test_finished_output_without_is_failed(outputs_api, dummy_app, metrics):
+  # not None: batches would count it as neither valid nor failed
+  assert notify(outputs_api, dummy_app, is_pending=False, metrics=metrics)["is_failed"] is False
+
+
+def test_commit_sha_without_legacy_key(outputs_api, dummy_app):
+  # The CLI also sends git_commit_sha for backward-compatibility, other clients don't have to
+  response = post(outputs_api, dummy_app, without=["git_commit_sha"], commit_sha="1" * 40)
+  assert response.status_code == 200
+  assert outputs_api.CiCommit.get_or_create.call_args.kwargs["hexsha"] == "1" * 40
+
+
+def test_missing_commit(outputs_api, dummy_app):
+  response, status = post(outputs_api, dummy_app, without=["git_commit_sha"])
+  assert status == 400
+  outputs_api.CiCommit.get_or_create.assert_not_called()

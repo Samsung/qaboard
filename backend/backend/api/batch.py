@@ -25,15 +25,17 @@ def update_batch():
       check_storage_path(batch_dir)
     except UnsafePathError as e:
       return jsonify({"error": f"{e}"}), 400
+  # git_commit_sha for backward-compatibility
+  hexsha = data.get('commit_sha') or data.get('git_commit_sha')
   try:
     ci_commit = CiCommit.get_or_create(
       session=db_session,
-      hexsha=request.json['git_commit_sha'],
+      hexsha=hexsha,
       project_id=request.json['project'],
       data=data,
     )
   except:
-    return f"404 ERROR:\n ({request.json['project']}): There is an issue with your commit id ({request.json['git_commit_sha']})", 404
+    return f"404 ERROR:\n ({request.json['project']}): There is an issue with your commit id ({hexsha})", 404
 
   batch = ci_commit.get_or_create_batch(data['batch_label'])
   batch.batch_dir_override = batch_dir

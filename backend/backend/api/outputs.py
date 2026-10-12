@@ -125,7 +125,10 @@ def get_output_manifest(output_id):
 def new_output_webhook():
   """Updates the database when we get new results."""
   data = request.get_json()
-  hexsha = data.get('commit_sha', data['git_commit_sha'])
+  # git_commit_sha for backward-compatibility
+  hexsha = data.get('commit_sha') or data.get('git_commit_sha')
+  if not hexsha:
+    return jsonify({"error": "the commit (commit_sha) was not provided"}), 400
 
   # The server will write, delete and run code in those folders
   output_directory = data.get('output_directory')
@@ -150,7 +153,7 @@ def new_output_webhook():
       data=data,
     )
   except Exception as e:
-    return jsonify({"error": f"Could not find your commit ({data['git_commit_sha']}). {e}"}), 404
+    return jsonify({"error": f"Could not find your commit ({hexsha}). {e}"}), 404
 
   # update the last_output times, with a crude debouncing to avoid
   # keeping locks on the tables too long
@@ -233,9 +236,10 @@ def new_output_webhook():
     output.is_failed = False
   # We save the output's metrics
   else:
-    metrics = data.get('metrics', {})
+    metrics = data.get('metrics') or {}
     output.metrics = metrics
-    output.is_failed = data.get('is_failed', False) or metrics.get('is_failed')
+    # False when the metrics don't say: batches count NULL as neither valid nor failed
+    output.is_failed = bool(data.get('is_failed', False) or metrics.get('is_failed'))
 
   db_session.add(ci_commit)
   db_session.add(output)
