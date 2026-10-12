@@ -273,22 +273,36 @@ tooling and contributors only: it never appears in a page.
   - adds `.media-cache` to `staticDirectories`, so a file is served at `useBaseUrl('/media/' + key)`;
   - downloads AVIF, WebP, MP4, WebM, posters and VTT. PNG masters only for ids in the plugin's `png` option
     (default `['landing/social-card']`).
-- **Remote** mode (default for `yarn start`): components load straight from `base_url`, nothing is downloaded.
+  - removes cached files the manifest no longer references, so they don't end up in the build;
+  - only fetches the shots pages use.
+- **Remote** mode (default for `yarn start`): components load straight from `base_url`, nothing is downloaded. The
+  bucket's CORS headers let clips load their captions cross-origin.
 - `QABOARD_MEDIA=local|remote|placeholder` overrides the mode. `placeholder` builds without network access (every
-  shot renders as a placeholder). `QABOARD_MEDIA_BASE_URL` points at a mirror for air-gapped builds.
-- The plugin exposes `{mode, base, shots}` as global data for the components.
+  shot renders as a placeholder). `QABOARD_MEDIA_BASE_URL` points at a mirror for air-gapped builds. The website
+  image passes both as build args.
+- The plugin exposes `{mode, base, shots, planned}` as global data for the components (`planned`: what placeholders
+  show).
+- After a build in local or placeholder mode, the build fails if the media hostname (or the mirror's) appears in the
+  built site.
 - **Build checks** (a remark plugin collects literal `id`/`before`/`after` props from MDX, plus a scan of
   `website/src/**/*.{tsx,js}`):
   - an id that is neither in `media.json` nor in `docs-media/shots.yaml` fails the build (typo);
   - an id in `shots.yaml` but not yet in `media.json` renders a placeholder; strict builds (`QABOARD_MEDIA_STRICT=1`:
     release tags and the monthly refresh) fail instead;
   - a `media.json` entry no page uses is a warning, an error in strict builds;
-  - an entry without `alt` can't exist: the schema requires it.
+  - a component with the wrong kind (`<Shot>` of a clip), a non-literal id, or a `<Compare>` of two sizes fails;
+  - a callout `anchor` must be listed under the shot's `anchors` in `shots.yaml`, then recorded in `media.json`
+    (a warning, an error in strict builds);
+  - `media.json` is validated against its schema, so an entry without `alt` can't exist.
+- The checks parse every page themselves (webpack's persistent cache can skip the MDX loader). With `yarn start`,
+  problems are warnings and the page shows them. Without `docs-media/shots.yaml` (the website image is built with
+  `website/` as its context), ids missing from `media.json` render as placeholders without checks.
 
 ## Website components (spec; WS4 implements)
 
 Files: `website/src/components/{Shot,Clip,Compare,StackPicker}.tsx`, values in `website/src/components/stack.ts`.
-Props must be literals in MDX (`id="commit/flame-diff"`), so the build checks can read them.
+Props must be literals in MDX (`id="commit/flame-diff"`), so the build checks can read them. `Shot`, `Clip` and
+`Compare` are available in every MDX page without an import (`website/src/theme/MDXComponents.tsx`).
 
 ### `<Shot>`
 

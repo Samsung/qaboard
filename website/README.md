@@ -48,6 +48,19 @@ from the public pages. To preview them:
 QABOARD_SITE=sirc yarn start
 ```
 
+### Screenshots and clips
+Pages show the web app with `<Shot id="commit/image-sbs" />`, `<Clip id="commit/image-diff" />` and
+`<Compare before="..." after="..." />`, no import needed. The ids come from `docs-media/shots.yaml`, the published files
+from `media.json` (see `docs-media/README.md` and `STYLE.md`). A shot that isn't published yet shows as a placeholder.
+
+- `yarn start` loads the media from the bucket's public URL (`base_url` in `media.json`).
+- `yarn build` downloads the media the pages use into `.media-cache/`, and serves them with the site.
+- `QABOARD_MEDIA=placeholder yarn build` needs no network access; `QABOARD_MEDIA_BASE_URL=<mirror>` downloads from a
+  mirror instead.
+- `QABOARD_MEDIA_STRICT=1 yarn build` fails on shots that aren't published yet and on unused ones.
+
+The build fails on unknown shot ids.
+
 ### Command commands
 #### Build
 

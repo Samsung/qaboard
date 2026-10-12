@@ -51,6 +51,11 @@ ENV QABOARD_URL=$QABOARD_URL
 # Adds the docs for the users of your site, from site-docs/$QABOARD_SITE/ (e.g. sirc)
 ARG QABOARD_SITE=""
 ENV QABOARD_SITE=$QABOARD_SITE
+# The build downloads the docs' screenshots and clips (docs-media/README.md): without network access, set
+# QABOARD_MEDIA=placeholder, or QABOARD_MEDIA_BASE_URL to a mirror of the media bucket
+ARG QABOARD_MEDIA=""
+ARG QABOARD_MEDIA_BASE_URL=""
+ENV QABOARD_MEDIA=$QABOARD_MEDIA QABOARD_MEDIA_BASE_URL=$QABOARD_MEDIA_BASE_URL
 RUN yarn build
 
 # When upgrading, we want to enable clients to continue using a previous bundle

@@ -1,0 +1,51 @@
+// How the docs get their screenshots and clips (docs-media/README.md#serving-the-docs-build-fetches-media).
+// Read by docusaurus.config.ts (static directories) and by the plugin, so both agree on the mode.
+const path = require('path');
+
+const MODES = ['local', 'remote', 'placeholder'];
+
+// Downloaded files, served at <baseUrl>media/<key> (the folder is a static directory in local mode)
+const CACHE_DIR = '.media-cache';
+const SERVED_PREFIX = 'media';
+
+// The manifest and the shot list, relative to the website's folder
+const MANIFEST = 'media.json';
+const SCHEMA = 'media.schema.json';
+const SHOT_LIST = path.join('..', 'docs-media', 'shots.yaml');
+
+// `docusaurus build` and `docusaurus deploy` (which builds) download the media; `start` and the rest don't
+function isBuildCommand(argv = process.argv) {
+  return argv.slice(2).some(arg => arg === 'build' || arg === 'deploy');
+}
+
+const truthy = value => ['1', 'true', 'yes', 'on'].includes(String(value ?? '').trim().toLowerCase());
+
+/**
+ * QABOARD_MEDIA=local|remote|placeholder overrides the mode (default: local for builds, remote otherwise),
+ * QABOARD_MEDIA_BASE_URL points at a mirror of the bucket, QABOARD_MEDIA_STRICT=1 turns warnings into errors.
+ */
+function resolveMediaConfig(env = process.env, argv = process.argv) {
+  const requested = String(env.QABOARD_MEDIA ?? '').trim().toLowerCase();
+  if (requested && !MODES.includes(requested))
+    throw new Error(`QABOARD_MEDIA=${env.QABOARD_MEDIA}: expected one of ${MODES.join(', ')}`);
+  const isBuild = isBuildCommand(argv);
+  const baseUrlOverride = String(env.QABOARD_MEDIA_BASE_URL ?? '').trim().replace(/\/+$/, '');
+  if (baseUrlOverride && !/^https?:\/\/[^/]+/.test(baseUrlOverride))
+    throw new Error(`QABOARD_MEDIA_BASE_URL=${baseUrlOverride}: expected an http(s) URL`);
+  return {
+    mode: requested || (isBuild ? 'local' : 'remote'),
+    strict: truthy(env.QABOARD_MEDIA_STRICT),
+    baseUrlOverride: baseUrlOverride || null,
+    isBuild,
+  };
+}
+
+// For docusaurus.config.ts: in local mode, the downloaded files are a static directory
+function mediaStaticDirectories() {
+  return resolveMediaConfig().mode === 'local' ? [CACHE_DIR] : [];
+}
+
+module.exports = {
+  MODES, CACHE_DIR, SERVED_PREFIX, MANIFEST, SCHEMA, SHOT_LIST,
+  isBuildCommand, resolveMediaConfig, mediaStaticDirectories,
+};
