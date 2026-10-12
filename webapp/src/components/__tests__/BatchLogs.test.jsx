@@ -46,6 +46,7 @@ describe('commandLogs', () => {
   it('knows where the logs of qa batch are', () => {
     expect(commandLogs('a', { job_url: 'https://ci/1' })).toBe('ci')
     expect(commandLogs('a', {}, { submission_ids: new Set(['a']) })).toBe('qaboard')
+    expect(commandLogs('a', { share: true, log: 'qa-batch-logs/x/log.txt' }, { has_batch_log: true })).toBe('saved')
     expect(commandLogs('a', { share: false }, { has_batch_log: true })).toBe('batch-log')
     expect(commandLogs('a', { share: true }, { has_batch_log: true })).toBe('terminal')
     expect(commandLogs('a', { share: false })).toBe('unknown')
@@ -103,6 +104,31 @@ describe('BatchLogs', () => {
     fireEvent.click(screen.getByText('Show its logs'))
     expect(await screen.findByText('the oldest')).toBeInTheDocument()
     expect(screen.getByText('Show less')).toBeInTheDocument()
+  })
+
+  it('shows the logs that qa batch saved', async () => {
+    const log = 'qa-batch-logs/20261011-100000-c4000000/log.txt'
+    files[`/s/b/${log}`] = 'starting 3 runs\n'
+    renderLogs(makeBatch({ commands: { 'c4000000-saved': { command_created_at_datetime: created_at, argv: ['qa', '--share', 'batch', 'nightly'], share: true, log } } }))
+    expect(screen.queryByText('starting 3 runs')).toBeNull()
+    fireEvent.click(screen.getByText('Show its logs'))
+    expect(await screen.findByText('starting 3 runs')).toBeInTheDocument()
+    // the batch's runs are done
+    expect(screen.queryByText('Live')).toBeNull()
+    fireEvent.click(screen.getByText('Hide its logs'))
+    await waitFor(() => expect(screen.queryByText('starting 3 runs')).toBeNull())
+  })
+
+  it('follows the logs of the latest command while runs are pending', async () => {
+    const log = 'qa-batch-logs/20261011-100000-c4000000/log.txt'
+    files[`/s/b/${log}`] = 'waiting for 3 runs\n'
+    renderLogs({
+      ...makeBatch({ commands: { 'c4000000-saved': { command_created_at_datetime: created_at, argv: ['qa', 'batch'], share: true, log } } }),
+      outputs: { 1: { id: 1, is_pending: true } },
+    })
+    fireEvent.click(screen.getByText('Show its logs'))
+    expect(await screen.findByText('waiting for 3 runs')).toBeInTheDocument()
+    expect(screen.getByText('Live')).toBeInTheDocument()
   })
 
   it('says when no command was saved', async () => {

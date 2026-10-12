@@ -5,6 +5,7 @@ import {
   AnchorButton,
   Button,
   Classes,
+  Collapse,
   Colors,
   Icon,
   Intent,
@@ -17,6 +18,7 @@ import { pretty_label } from '../utils'
 import { toaster } from "../toaster";
 import { folder_url } from "../utils/paths";
 import { RunList, RunLogs } from './logs/RunLogs'
+import { LogViewer } from './logs/LogViewer'
 import { BatchSubmissions } from './logs/BatchSubmissions'
 import { batchSubmissions } from './logs/submissions'
 import { DirectoryActions } from './logs/DirectoryActions'
@@ -97,13 +99,15 @@ const copy = text => copyText(text).then(copied => toaster.show(copied
  * Where are the logs of a `qa batch` command?
  * - ci: in the CI job
  * - qaboard: it was started from QA-Board, with its own logs
+ * - saved: started from a terminal, it saved its logs in the batch directory (command.log)
  * - batch-log: in the batch directory's log.txt (batches started from QA-Board before 2026-10)
- * - terminal: started with `qa --share batch`, it printed its logs in the terminal
+ * - terminal: started with `qa --share batch` by an older qaboard, it only printed its logs in the terminal
  * - unknown: e.g. a CI that doesn't tell us the job's URL
  */
 export function commandLogs(id, command, { submission_ids = new Set(), has_batch_log = false } = {}) {
   if (command.job_url) return 'ci'
   if (submission_ids.has(id)) return 'qaboard'
+  if (command.log) return 'saved'
   // They ran as CI jobs (CI=true), not with --share
   if (has_batch_log && !command.share) return 'batch-log'
   if (command.share) return 'terminal'
@@ -114,7 +118,7 @@ const NotSaved = ({ text, why }) => <Tooltip content={<div style={{ maxWidth: 36
   <span className="hint"><Icon icon="info-sign" size={12} />{text}</span>
 </Tooltip>
 
-const CommandLogs = ({ id, command, logs, batch_dir_url, onShowLogs }) => {
+const CommandLogs = ({ id, command, logs, batch_dir_url, expanded, onShowLogs }) => {
   // Without a scheduler, the dask runner starts workers on LSF, they log in the batch directory
   const dask_logs = command.runner === 'dask' && !command.scheduler_address && !!batch_dir_url && <AnchorButton
     size="small"
@@ -138,16 +142,32 @@ const CommandLogs = ({ id, command, logs, batch_dir_url, onShowLogs }) => {
         {dask_logs}
         <Button size="small" variant="minimal" intent={Intent.PRIMARY} icon="console" onClick={onShowLogs}>Show its logs</Button>
       </>
+    case 'saved':
+      return <>
+        {dask_logs}
+        <Button size="small" variant="minimal" intent={Intent.PRIMARY} icon={expanded ? "chevron-up" : "console"} aria-expanded={expanded} onClick={onShowLogs}>
+          {expanded ? 'Hide its logs' : 'Show its logs'}
+        </Button>
+      </>
     case 'terminal':
-      return <>{dask_logs}<NotSaved text="Logs not saved: started from a terminal" why="qa batch printed its logs in the terminal it was started from." /></>
+      return <>{dask_logs}<NotSaved text="Logs not saved: started from a terminal" why="qa batch printed its logs in the terminal it was started from. Recent versions of qaboard save them." /></>
     default:
       return <>{dask_logs}<NotSaved text="Logs not saved" why="QA-Board doesn't have the logs of this qa batch." /></>
   }
 }
 
-const BatchCommand = ({ id, command, logs, batch_dir_url, onShowLogs }) => {
+// command.log is relative to the batch directory
+const logUrl = (batch_dir_url, path) => `${batch_dir_url}/${path.split('/').map(encodeURIComponent).join('/')}`
+
+/**
+ * A `qa batch` command, and where its logs are. `live` while it may still write its logs.
+ */
+const BatchCommand = ({ id, command, logs, batch_dir_url, live, onShowLogs }) => {
+  const [expanded, setExpanded] = useState(false)
   const created_at = DateTime.fromISO(command.command_created_at_datetime, { zone: 'utc' })
   const text = (command.argv ?? []).join(" ")
+  // its logs are here, or elsewhere on the page
+  const showLogs = logs === 'saved' ? () => setExpanded(!expanded) : onShowLogs
   return <Command>
     <div className={`meta ${Classes.TEXT_MUTED}`}>
       <span>
@@ -157,7 +177,7 @@ const BatchCommand = ({ id, command, logs, batch_dir_url, onShowLogs }) => {
       {!!command.user && <span><Icon icon="user" size={12} />{command.user}</span>}
       {!!command.HOST && <span><Icon icon="desktop" size={12} />{command.HOST}</span>}
       <span className="spacer" />
-      <CommandLogs id={id} command={command} logs={logs} batch_dir_url={batch_dir_url} onShowLogs={onShowLogs} />
+      <CommandLogs id={id} command={command} logs={logs} batch_dir_url={batch_dir_url} expanded={expanded} onShowLogs={showLogs} />
     </div>
     <pre className={`command ${Classes.MONOSPACE_TEXT}`}>
       <code>{text}</code>
@@ -165,6 +185,11 @@ const BatchCommand = ({ id, command, logs, batch_dir_url, onShowLogs }) => {
         <Button size="small" variant="minimal" icon="duplicate" aria-label="Copy the command" onClick={() => copy(text)} />
       </Tooltip>
     </pre>
+    {logs === 'saved' && <Collapse isOpen={expanded} transitionDuration={150}>
+      <div style={{ marginTop: 8 }}>
+        <LogViewer files={[{ name: 'log.txt', url: logUrl(batch_dir_url, command.log) }]} live={live} />
+      </div>
+    </Collapse>}
   </Command>
 }
 
@@ -223,6 +248,7 @@ export const BatchLogs = ({ batch, project, commit, dispatch }) => {
   // most recent first, like the submissions
   const commands = Object.entries(batch.data?.commands ?? {})
     .sort(([, a], [, b]) => (b.command_created_at_datetime ?? '').localeCompare(a.command_created_at_datetime ?? ''))
+  const has_pending_runs = Object.values(batch.outputs ?? {}).some(output => output.is_pending)
   const showBatchLog = () => {
     setExpanded(expanded => new Set(expanded).add('batch'))
     batch_log_ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
@@ -309,12 +335,14 @@ export const BatchLogs = ({ batch, project, commit, dispatch }) => {
       />
     </RunList>}
     {commands.length > 0 && <RunList>
-      {commands.map(([id, command]) => <BatchCommand
+      {commands.map(([id, command], index) => <BatchCommand
         key={id}
         id={id}
         command={command}
         logs={commandLogs(id, command, { submission_ids, has_batch_log })}
         batch_dir_url={batch.batch_dir_url}
+        // qa batch usually waits for its runs
+        live={index === 0 && has_pending_runs}
         onShowLogs={submission_ids.has(id) ? () => setFocusedSubmission({ id }) : showBatchLog}
       />)}
     </RunList>}

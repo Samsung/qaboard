@@ -97,6 +97,25 @@ describe('LogViewer', () => {
     expect(container.querySelector('.line.current')).toBeNull()
   })
 
+  it('shows more lines when users ask, and says what the hidden lines have', async () => {
+    files['/s/long/log.txt'] = ['frame 0', 'frame 1', 'frame 2', 'ValueError: bad frame', 'frame 3', 'frame 4', 'frame 5', 'frame 6', 'frame 7', 'frame 8', 'end 1', 'end 2', ''].join('\n')
+    const { container } = render(<LogViewer files={[{ name: 'log.txt', url: '/s/long/log.txt' }]} maxLines={4} />)
+    await waitFor(() => expect(screen.getByText('end 2')).toBeInTheDocument())
+    expect(container.querySelectorAll('.line')).toHaveLength(4)
+    expect(container.querySelector('.line .number').textContent).toBe('9')
+    expect(screen.getByText(/The first 8 lines are hidden/).textContent).toMatch(/They have 1 error\.$/)
+    fireEvent.change(screen.getByPlaceholderText('Search…'), { target: { value: 'frame' } })
+    await waitFor(() => expect(screen.getByText(/The first 8 lines are hidden/).textContent).toMatch(/They have 1 error and 8 matches for “frame”\.$/))
+    // the visible lines have 2 matches
+    expect(screen.getByText('1/2')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Show 4 more'))
+    expect(container.querySelectorAll('.line')).toHaveLength(8)
+    fireEvent.click(screen.getByText('Show them'))
+    expect(container.querySelectorAll('.line')).toHaveLength(12)
+    expect(screen.queryByText(/lines are hidden/)).toBeNull()
+    delete files['/s/long/log.txt']
+  })
+
   it('copies the logs, also without navigator.clipboard (http)', async () => {
     const copied = []
     const original = document.execCommand

@@ -29,6 +29,8 @@ export QA_SHARE=true
 ```
 :::
 
+With `--share`, `qa batch` and `qa optimize` also save what they print, errors included, in the batch directory, under `qa-batch-logs/`. QA-Board shows these logs with the batch, in the *Logs* view. They are not saved in the CI (it keeps the logs), or when a run starts the batch (its own log has them).
+
 
 ## `qa --dryrun`
 `qa` commmands support a `--dryrun` mode, where they print actions they would take, but don't actually do anything. In particular it helps see quickly what inputs you defined in a batch:
