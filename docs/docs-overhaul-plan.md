@@ -1,6 +1,6 @@
 # Docs, screenshots and positioning overhaul: plan
 
-Status: plan v2 (2026-10-12), approved in principle, nothing generated yet. **(decide)** marks what's still open;
+Status: plan v2.1 (2026-10-12), approved; phase 0 in progress. **(decide)** marks what's still open;
 each has a recommendation. Section 10 lists what's already decided.
 
 Changes since v1:
@@ -128,6 +128,12 @@ Self-hosted open source is a real argument for buyers who got burned.
 5. **Tune**: launch sweeps or black-box optimization from the browser, then analyse them.
 6. **Gate** (experimental): fail CI when quality regresses, for changes made by people or by agents.
 
+### Origin story (paraphrased, not a quote)
+At Samsung Israel R&D Center since 2018, QA-Board is still the central platform, used by ~50 projects in production.
+It gave image-quality engineers the tools to put their energy into the algorithms and software, not into QA logistics.
+Today a team might start by forking MLflow; QA-Board is what you get after years of solving the problems that
+forking a training tracker doesn't.
+
 ### Voice
 - Confident and concrete, with no hype words.
 - Every claim can be seen in a screenshot or verified in the code. Roadmap items live on the vision page, labeled.
@@ -146,7 +152,7 @@ Real, runnable QA-Board projects under `examples/`:
 | Project | Use case | What it computes | Showcases |
 |---|---|---|---|
 | `examples/image-quality` | Camera ISP / image enhancement | Simulated sensor (noise, Bayer) → demosaic → denoise → sharpen → tone-map; PSNR, SSIM, noise in flat patches, MTF50 on a slanted edge, runtime | Deep zoom on one 100MP+ image, synced zoom, perceptual diff + threshold, pixel tooltip, ROI histograms, auto-ROI, filters, per-stage dynamic outputs, targets, a fixed-point "HW model" platform for bit-accuracy, tuning |
-| `examples/perf-regression` | Software performance | A small library benchmarked on realistic inputs: p50/p95 latency, throughput, peak RSS, sampling-profiler flame graphs | History, hover-to-find-the-regression, differential flame graph, latency plots, logs, the gate failing on the bad commit |
+| `examples/serving-latency` | Server performance / tail latency | A small Rust inference gateway (request queue, dynamic batching, worker pool, CPU "model") driven by an open-loop load generator; p50/p90/p99/p99.9, max, variance across repeats, throughput, CPU, batch sizes; knobs: workers, max batch, max batch delay, allocator, CPU pinning, queue policy | Latency CDF overlays (log tail), throughput-vs-p99 curves, flame graphs (CPU), per-core utilization, History, hover-to-find-the-regression, tuning sweep + efficient frontier, the gate failing on p99 |
 | `examples/detection-eval` | CV / ML model evaluation | A permissively licensed detector (e.g. torchvision, BSD) at fp32 vs int8 vs input sizes; mAP, per-class recall, latency | Metrics Table/Diff per class, PR curves overlaid, images with boxes, HTML report, `qa optimize` + Analysis, milestones as model releases |
 | `examples/robotics-3d` (phase 3) | Robotics / perception | Trajectory vs ground truth, point clouds, camera video | 6DoF viewer, point clouds, synced videos |
 | `examples/agent-evals` (phase 3) | LLM / agent features | Text tasks scored by checks; pass rate, cost, latency, transcripts | Text diffs, HTML reports, the gate |
@@ -161,7 +167,8 @@ Real, runnable QA-Board projects under `examples/`:
 - 30-60 commits on `main` and 3-4 feature branches.
 - A fictional company and team of ~6 people with generated avatars, plus 2 milestones.
 - One plot per project:
-  - a perf regression introduced, then fixed;
+  - a shared cache that makes p50 faster but p99 45% worse (lock contention, visible in the flame graph), caught by the
+    gate, fixed by sharding, then a tuning sweep picks the batching config on the efficient frontier;
   - a denoiser that wins PSNR but adds halos;
   - a quantized model that regresses on small objects and is tuned back.
 - Failed runs with real-looking logs, and a run still in progress at capture time.
@@ -386,7 +393,8 @@ Navbar: Product · Docs · Use cases · Roadmap · Release notes · Blog · GitH
    - Headline and a one-line subhead.
    - CTAs: **"Run it locally in 5 minutes"** (the quickstart) and "Get started", plus GitHub stars.
    - Visual: a 15-20 s muted loop of the commit page (synced zoom on an image diff → threshold → Metrics Diff), poster first.
-2. **Proof strip:** open source (Apache 2.0), self-hosted, years in production. Project counts and the Samsung origin if we may **(decide)**.
+2. **Proof strip:** open source (Apache 2.0), self-hosted, born at Samsung Israel R&D Center in 2018, the central
+   quality platform for ~50 projects in production there.
 3. **"You already built half of this"**: the in-house pain, in the reader's words.
 4. **The loop:** Run · Compare · Look · Find · Tune · Gate, as tabs with one clip each.
 5. **Use cases:** 5 cards linking to the use-case pages.
@@ -464,7 +472,7 @@ gate:
 
 **Labelled experimental everywhere:** docs page badge, CLI notice, release note.
 
-**Tested in CI:** the `perf-regression` story has a commit where the gate must fail and a fix where it must pass.
+**Tested in CI:** the `serving-latency` story has a commit where the gate must fail on p99 and a fix where it must pass.
 
 ---
 
@@ -515,7 +523,7 @@ Agents work in parallel against fixed contracts. I coordinate, review and merge;
 | WS4 | Website platform | 1 | contracts | components, stack picker, IA + redirects, landing page, search, analytics, generated references |
 | WS5 | Content | 4-6 by section | WS4 contracts | quickstart and tutorial text, tour, use cases, recipes, user-guide refresh, dedupe, comparison, roadmap page, blog |
 | WS8 | Kubernetes quickstart | 1 | none (demo data from WS2 later) | published images + chart, `results` storage value, `quickstart.yaml`, `helm-e2e` CI job, cluster docs |
-| WS9 | Quality gate v1 | 1 | none (`perf-regression` story for e2e) | compare endpoint, `qa gate`, statuses, docs, release note |
+| WS9 | Quality gate v1 | 1 | none (`serving-latency` story for e2e) | compare endpoint, `qa gate`, statuses, docs, release note |
 | WS7 | Review | 3 standing | each PR | claims vs code, visual QA of every image (no internal data, spinners, empty or error states), links/build |
 
 ### Phases
@@ -558,15 +566,17 @@ branch per workstream (`claude/docs-<ws>`); otherwise everything lands here, pha
 - **Gate:** v1 ships as experimental.
 - **Roadmap page:** includes N-way comparisons, enterprise, deep-learning overlays and a W&B-style SDK.
 
+- **Registry:** GHCR (Docker Hub stays an optional mirror).
+- **What we may say:** born at Samsung Israel R&D Center in 2018, ~50 projects in production, still the central platform.
+  No quotes for now.
+- **HTTP upload:** yes, designed properly first (design doc in phase 0, `docs/design/http-upload.md`), built after phase 2.
+- **Demo fiction:** Kitefin Robotics (working name, no collision found), a company building camera robots with a model-serving
+  backend: image quality, perception, serving latency, SLAM and agent evals all fit one believable team.
+
 **Open:**
 1. **Canonical docs URL:** keep `samsung.github.io/qaboard` (recommended for now; credibility and search ranking),
    or move it. Also: which workflow publishes it today?
-2. **Image registry:** GHCR (recommended) and/or set the Docker Hub secrets.
-3. **Samsung/SIRC on the public site:** what may we claim (origin, years, project counts, quotes, logos)?
-   Moving the internal runbooks out happens either way.
-4. **HTTP upload + token-authenticated ingest:** pull into this effort after phase 2? (recommended: yes, it makes "GitHub-first" true end to end)
-5. **Branches:** one per workstream (recommended).
-6. **Demo fiction:** a fictional company and team (recommended), with a name to pick.
+2. **Branches:** one per workstream (recommended): say so in the chat, or I run workstreams as separate cloud sessions.
 
 **From you:**
 - The R2 buckets and token (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`).
@@ -591,7 +601,7 @@ branch per workstream (`claude/docs-<ws>`); otherwise everything lands here, pha
 
 ## Appendix: shot list (first cut, ~60 stills / ~15 clips)
 **Legend:**
-- Demo projects: **IQ** image-quality, **PERF** perf-regression, **DET** detection-eval, **R3D** robotics-3d, **AG** agent-evals.
+- Demo projects: **IQ** image-quality, **PERF** serving-latency, **DET** detection-eval, **R3D** robotics-3d, **AG** agent-evals.
 - 🎬 marks a clip; 🖥 marks a terminal tape.
 
 **Quickstart and CLI**
