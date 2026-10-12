@@ -1,0 +1,22 @@
+---
+id: installation
+title: Installing qa at SIRC
+sidebar_label: Installation
+sidebar_position: 1
+---
+At SIRC, install `qaboard` and SIRC's site package, `qaboard-site-sirc`:
+
+```bash
+pip install --upgrade git+ssh://git@gitlab-srv/common-infrastructure/qaboard
+pip install --upgrade 'qaboard-site-sirc @ git+ssh://git@gitlab-srv/common-infrastructure/qaboard#subdirectory=deployments/sirc/cli'
+```
+
+**When you upgrade `qaboard`, upgrade `qaboard-site-sirc` too**: it holds SIRC's settings.
+
+The site package configures `qa` for SIRC, you don't need to set environment variables:
+- `qa` connects to QA-Board at [https://qa](https://qa).
+- Runs go to LSF by default, on the `alg_isp_q` queue. On Windows, `qa` runs them locally.
+- Windows paths of the shared storage (`\\netapp\...`, `\\mars\...`) are converted to their Linux paths.
+- Every project's *qaboard.yaml* is merged on top of SIRC's defaults (`qaboard_site_sirc/qaboard.yaml` in the site package): run `qa get config` to see the configuration a project ends up with. See [site defaults](/docs/project-init#site-defaults).
+
+Environment variables still override the site package, e.g. `QABOARD_URL` to try another server. For the rest, follow the [client installation](/docs/installation) docs.

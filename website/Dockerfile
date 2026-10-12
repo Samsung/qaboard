@@ -48,6 +48,9 @@ COPY . ./
 ENV QABOARD_DOCS_FOR_WEBAPP true
 ARG QABOARD_URL
 ENV QABOARD_URL=$QABOARD_URL
+# Adds the docs for the users of your site, from site-docs/$QABOARD_SITE/ (e.g. sirc)
+ARG QABOARD_SITE=""
+ENV QABOARD_SITE=$QABOARD_SITE
 RUN yarn build
 
 # When upgrading, we want to enable clients to continue using a previous bundle

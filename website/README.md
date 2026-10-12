@@ -2,11 +2,11 @@
 This website is built using [Docusaurus](https://docusaurus.io/), a modern static website generator.
 
 ### Usage with docker
-To open a shell in the docker environment: 
+To open a shell in the docker environment (add your site's overlay if you have one, e.g. `-f deployments/sirc/sirc.yml`): 
 ```bash
 # to just build:
-# docker compose -f docker-compose.yml -f development.yml -f sirc.yml build website
-docker compose -f docker-compose.yml -f development.yml -f sirc.yml run -p6051:3000 --entrypoint /bin/sh website
+# docker compose -f docker-compose.yml -f development.yml build website
+docker compose -f docker-compose.yml -f development.yml run -p6051:3000 --entrypoint /bin/sh website
 ```
 
 Now you can do all the commands of the regular setup:
@@ -38,6 +38,15 @@ export QABOARD_DOCS_FOR_WEBAPP=1
 NODE_TLS_REJECT_UNAUTHORIZED=0 CHOKIDAR_USEPOLLING=true DANGEROUSLY_DISABLE_HOST_CHECK=true HOST=0.0.0.0 PORT=3001 yarn start --host 0.0.0.0
 ```
 
+
+### Site docs
+`site-docs/<site>/` holds pages for the users of one site (e.g. how to install its site package). They are only built
+into that site's web app: set `QABOARD_SITE=<site>` (e.g. in its env file, it's a build arg of the `website` image).
+They get their own navbar item (the `label` in `site-docs/<site>/_site.json`), and `<SiteInstructions />` links to them
+from the public pages. To preview them:
+```bash
+QABOARD_SITE=sirc yarn start
+```
 
 ### Command commands
 #### Build

@@ -50,3 +50,6 @@ Starting the server:
 ```bash
 docker compose -f docker-compose.yml -f production.yml -f deployments/dsk/dsk.yml up -d
 ```
+
+To build the DSK instructions for users (`website/site-docs/dsk/`) into the web app's docs, set `QABOARD_SITE=dsk`
+in `.env` (or the shell) before building the images. SIRC's env files set `QABOARD_SITE=sirc`.
