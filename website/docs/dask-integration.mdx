@@ -86,7 +86,7 @@ runners:
 ```
 
 - `qa batch` doesn't start or stop workers: the cluster size is the global limit, `concurrency` the per-batch limit.
-- With `--no-wait`, all runs are sent at once and `concurrency` is not enforced.
+- With `--no-wait`, the driver LSF job connects to the cluster and keeps at most `concurrency` runs in flight. If LSF isn't available (no `bsub`, no `QA_RUNNERS_LSF_BRIDGE`), all runs are sent at once and `concurrency` is not enforced.
 - To stop batches from QA-Board, the QA-Board server needs `distributed` installed and access to the scheduler.
 
 ## Troubleshooting
