@@ -16,7 +16,7 @@ This document covers breaking changes from the branch unification
 
 ### Server
 - Deployed by GitLab CI (staging, then production). By hand: `deployments/deploy.py deployments/sirc/production.env up`,
-  see `website/docs/backend-admin/deployment.mdx`
+  see `deployments/sirc/runbooks/deployment.md`
 
 ### Docker Builds
 Proxy/cert configuration is no longer hardcoded in Dockerfiles. Instead, `sirc.yml`

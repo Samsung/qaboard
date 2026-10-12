@@ -60,6 +60,7 @@ const sidebars: SidebarsConfig = {
         "using-the-qa-cli",
         "references-and-milestones",
         "tuning-from-the-webapp",
+        "auto-optimization",
         {
             type: 'category',
             label: 'Distributed Task Queues',
@@ -88,8 +89,6 @@ const sidebars: SidebarsConfig = {
         "bit-accuracy",
         "faq",
         "apis",
-        // "tuning-workflows",
-        "dag-pipelines",
         // "history"
         "monorepo-subprojects",
         // "docker-integration",
@@ -115,10 +114,8 @@ const sidebars: SidebarsConfig = {
         "deploy",
         "backend-admin/deployment",
         "backend-admin/kubernetes",
-        "backend-admin/troubleshooting",
-        "backend-admin/host-upgrades",
         "backend-admin/user-management",
-        "backend-admin/getting-SSL-certiticates-from-IT",
+        "backend-admin/troubleshooting",
     ]
   }
 };

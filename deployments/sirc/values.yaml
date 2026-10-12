@@ -117,7 +117,7 @@ ingress:
   # TODO(sirc): the ingress class and hostname IT gives us. Users and the CLI use https://qa: keep it as a DNS alias.
   className: ""
   host: qa
-  # The certificate from IT (website/docs/backend-admin/getting-SSL-certificates-from-IT.mdx):
+  # The certificate from IT (deployments/sirc/runbooks/ssl-certificates.md):
   #   kubectl -n qaboard create secret tls qaboard-tls --cert=cert.pem --key=qa.key
   tls:
     - secretName: qaboard-tls
