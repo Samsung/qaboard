@@ -21,7 +21,7 @@ export interface Ui {
   type(target: Locator, text: string, opts?: { delayMs?: number }): Promise<void>;   // default 60 ms per key in clips
   press(key: string): Promise<void>;
   wheel(target: Locator, deltaY: number, opts?: { steps?: number; position?: Point }): Promise<void>;
-  drag(from: Locator, to: Locator | Point, opts?: { steps?: number }): Promise<void>;
+  drag(from: Locator | Point, to: Locator | Point, opts?: { steps?: number }): Promise<void>;
   cursor: {
     moveTo(target: Locator | Point, opts?: { durationMs?: number }): Promise<void>;  // default 600 ms, eased
     hide(): Promise<void>;
@@ -226,8 +226,8 @@ export class UiImpl implements Ui {
     }
   }
 
-  async drag(from: Locator, to: Locator | Point, opts: { steps?: number } = {}) {
-    const start = await this.point(from);
+  async drag(from: Locator | Point, to: Locator | Point, opts: { steps?: number } = {}) {
+    const start = isPoint(from) ? from : await this.point(from);
     await this.moveTo(start);
     await this.page.mouse.down();
     const end = isPoint(to) ? to : await this.point(to);

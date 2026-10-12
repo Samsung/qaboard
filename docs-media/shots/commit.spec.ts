@@ -145,8 +145,10 @@ shot('commit/roi-histograms', {
     await preset(ui, scope, 'Full Image');
     await ui.hover(newImage(scope));
     await ui.click(scope.locator('[title="Select a region to see its histogram"]').first());
-    const box = await newImage(scope).boundingBox();
-    await ui.drag(newImage(scope), { x: box!.x + box!.width * 0.15, y: box!.y + box!.height * 0.2 });
+    // a band of the sky, where the gradient's banding shows
+    const box = (await newImage(scope).boundingBox())!;
+    await ui.drag({ x: box.x + box.width * 0.2, y: box.y + box.height * 0.15 }, { x: box.x + box.width * 0.6, y: box.y + box.height * 0.45 });
+    await mouseAway(ui);
     await ui.settle();
   },
   target: page => viewer(page),
@@ -187,6 +189,16 @@ shot('commit/image-filters', {
     await preset(ui, scope, 'Shadows (noise)');
     await ui.hover(newImage(scope));
     await ui.click(scope.locator('[title="Image Tools"]').first());
+    // the new image's tools (the reference viewer has its own, synced)
+    const tools = ui.page.locator('[id^="osd-imagetools-"]').first();
+    const slider = (name: string) => tools.locator(`input[type="range"][id^="osd-filter-${name}-"]`);
+    // keyboard on the range inputs: a click would jump to where it lands
+    await slider('Brightness').focus();
+    await ui.press('PageUp');
+    await slider('Gamma').focus();
+    for (let i = 0; i < 8; i++) await ui.press('ArrowLeft');
+    await slider('Sharpen').focus();
+    for (let i = 0; i < 10; i++) await ui.press('ArrowRight');
     await ui.settle();
   },
   target: page => viewer(page),

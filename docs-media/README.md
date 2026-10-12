@@ -214,7 +214,7 @@ export interface Ui {
   type(target: Locator, text: string, opts?: { delayMs?: number }): Promise<void>;   // default 60 ms per key in clips
   press(key: string): Promise<void>;
   wheel(target: Locator, deltaY: number, opts?: { steps?: number; position?: { x: number; y: number } }): Promise<void>;
-  drag(from: Locator, to: Locator | { x: number; y: number }, opts?: { steps?: number }): Promise<void>;
+  drag(from: Locator | { x: number; y: number }, to: Locator | { x: number; y: number }, opts?: { steps?: number }): Promise<void>;
   cursor: {
     moveTo(target: Locator | { x: number; y: number }, opts?: { durationMs?: number }): Promise<void>;  // default 600 ms, eased
     hide(): Promise<void>;
