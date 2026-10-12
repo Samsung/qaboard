@@ -12,6 +12,15 @@ const is_for_webapp = process.env.QABOARD_DOCS_FOR_WEBAPP === "true"
 
 import {themes as prismThemes} from 'prism-react-renderer';
 
+// Docs URLs, relative to the baseUrl. For the web app, the docs are served at the root of the /docs/ baseUrl
+const docsPath = (id: string) => is_for_webapp ? `/${id}` : `/docs/${id}`
+
+// Pages that moved or were removed: their old URLs are in search engines, bookmarks, and old versions of the web app
+const redirects = [
+  {from: 'backend-admin/host-upgrades', to: 'backend-admin/deployment#host-maintenance'},
+  {from: 'backend-admin/getting-SSL-certiticates-from-IT', to: 'deploy#using-ssl--hosting-behind-a-reverse-proxy'},
+].map(({from, to}) => ({from: docsPath(from), to: docsPath(to)}))
+
 const logo = {
   alt: 'QA-Board Logo',
   // https://commons.wikimedia.org/wiki/File:Twemoji_1f429.svg
@@ -59,6 +68,7 @@ let config: Config = {
   ],
 
   plugins: [
+    ['@docusaurus/plugin-client-redirects', {redirects}],
     [
       // The release notes, also shown in the web app's "What's new" panel. See CLAUDE.md
       '@docusaurus/plugin-content-blog', {
@@ -120,7 +130,7 @@ let config: Config = {
             items: [
               {label: 'User guide', to: '/docs/user-guide/overview'},
               {label: 'Project integration', to: '/docs/introduction'},
-              {label: 'Server admin', to: '/docs/backend-admin/deployment'},
+              {label: 'Server admin', to: '/docs/deploy'},
             ],
           },
           {

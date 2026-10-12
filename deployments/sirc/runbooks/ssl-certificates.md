@@ -1,8 +1,7 @@
----
-id: getting-SSL-certiticates-from-IT
-sidebar_label: SSL Certificates
-title: Getting SSL certificates from IT
----
+# Getting SSL certificates from IT (SIRC)
+
+SIRC's runbook. For the generic HTTPS setup, see
+[Using SSL / hosting behind a reverse proxy](https://samsung.github.io/qaboard/docs/deploy#using-ssl--hosting-behind-a-reverse-proxy).
 
 At SIRC, `deployments/sirc/sirc.yml` mounts the certificates from `services/nginx/ssl/` in the server's checkout (the `ssl/` folders are gitignored).
 

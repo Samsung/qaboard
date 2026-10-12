@@ -58,7 +58,7 @@ function Audiences() {
     {
       title: 'I run the server',
       text: 'Deploy QA-Board with docker compose or Kubernetes, upgrade without downtime, manage storage and users.',
-      to: docs('backend-admin/deployment'),
+      to: docs('deploy'),
       cta: 'Admin guide',
     },
   ];

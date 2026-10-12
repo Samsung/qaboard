@@ -3,81 +3,73 @@ id: troubleshooting
 sidebar_label: Troubleshooting
 title: Troubleshooting common issues
 ---
-Assuming you work on the QA-Board server:
-```bash
-ssh qa
-cd /home/ispq/qaboard_prod
-source deployments/sirc/.envrc
-```
-
-The examples use SIRC's production environment, `deployments/sirc/production.env`. It tells docker compose which compose files and project to use. For other environments, see [Deployments](deployment).
+The examples use docker compose and the env file of your environment, here `deployments/production.env`: it tells docker compose which compose files and project to use (see [Deployments](deployment.mdx#environments)). Run them from the root of your checkout, on the QA-Board host.
 
 ## Talking to the different services
 ```bash
 # status: deployed version, containers and their health
-deployments/deploy.py deployments/sirc/production.env status
+deployments/deploy.py deployments/production.env status
 
 # read logs from a specific service
-deployments/deploy.py deployments/sirc/production.env compose logs -f --tail 100 backend
+deployments/deploy.py deployments/production.env compose logs -f --tail 100 backend
 
 # get a shell in a service
-deployments/deploy.py deployments/sirc/production.env compose exec backend bash
+deployments/deploy.py deployments/production.env compose exec backend bash
 # check the backend directly, without nginx
-deployments/deploy.py deployments/sirc/production.env compose exec backend wget -qO- localhost:3001/api/v1/health
+deployments/deploy.py deployments/production.env compose exec backend wget -qO- localhost:3001/api/v1/health
 ```
 
-`deploy.py ... compose` is `docker compose --env-file ...` with the images of the deployed version. Plain `docker compose --env-file deployments/sirc/production.env ...` works for anything that doesn't (re)create containers.
+`deploy.py ... compose` is `docker compose --env-file ...` with the images of the deployed version. Plain `docker compose --env-file deployments/production.env ...` works for anything that doesn't (re)create containers.
 
 :::tip
-The backend runs several replicas. `compose exec`/`logs` pick one; add `--index N` for another. With old docker compose versions, `exec` can complain that "container #1" is not running after a deploy: use `--index` with the numbers from `docker compose ps`.
+The backend can run several replicas. `compose exec`/`logs` pick one; add `--index N` for another. With old docker compose versions, `exec` can complain that "container #1" is not running after a deploy: use `--index` with the numbers from `docker compose ps`.
 :::
 
 ## Questions to ask if things don't work
 - Is the container even running? Is it restarting all the time? Is it unhealthy?
 ```bash
-docker compose --env-file deployments/sirc/production.env ps -a
+docker compose --env-file deployments/production.env ps -a
 ```
 - Is the disk full?
 ```bash
 df -h
 ```
-- Did a deploy just happen? Check the [GitLab environments page](deployment#rollbacks), and roll back if needed.
+- Did a deploy just happen? Roll back if needed (see [Rollbacks](deployment.mdx#rollbacks)).
 
 ## How to restart the containers
-Symptom:
-- Cannot load the web application
-- 500 errors
-- Often necessary if the disk got full...
+Symptoms:
+- the web application doesn't load;
+- 500 errors;
+- often needed after the disk got full.
 
 ```bash
-# At SIRC we need to make sure important folders are mounted before starting containers...
-./at-sirc-before-up.py
-docker compose --env-file deployments/sirc/production.env restart backend
+docker compose --env-file deployments/production.env restart backend
 # or everything (downtime!)
-docker compose --env-file deployments/sirc/production.env restart
+docker compose --env-file deployments/production.env restart
 ```
+
+If your site needs something before the containers start (e.g. mounting network volumes), do it first: `deploy.py` runs your `QABOARD_DEPLOY_PRE_HOOK`, but plain `docker compose` doesn't.
 
 ### How to recreate all the containers
 ```bash
 # Redeploys the current version: only what changed is recreated, the backend without downtime
-deployments/deploy.py deployments/sirc/production.env up
+deployments/deploy.py deployments/production.env up
 # From scratch (downtime!). Never add --volumes/-v: it deletes the database
-docker compose --env-file deployments/sirc/production.env down
-deployments/deploy.py deployments/sirc/production.env up
+docker compose --env-file deployments/production.env down
+deployments/deploy.py deployments/production.env up
 ```
 
 ### Quick wins when the disk is full
-Symptom:
-- 500 errors
-- database unreachable in the logs
-- `no space left on device` in the logs
+Symptoms:
+- 500 errors;
+- database unreachable in the logs;
+- `no space left on device` in the logs.
 
 Remove the IIIF image cache:
 ```bash
-docker compose --env-file deployments/sirc/production.env stop cantaloupe
-docker compose --env-file deployments/sirc/production.env rm -v cantaloupe
-./at-sirc-before-up.py
-deployments/deploy.py deployments/sirc/production.env compose up -d cantaloupe
+docker compose --env-file deployments/production.env stop cantaloupe
+docker compose --env-file deployments/production.env rm -v cantaloupe
+deployments/deploy.py deployments/production.env compose up -d cantaloupe
 ```
 
 Remove unused docker images (`deploy.py` already removes the images of old versions, it keeps the last 3):
@@ -86,7 +78,7 @@ docker image prune # -a
 ```
 
 ### Re-build and start the containers
-Normally CI builds the images. To build and deploy on the host:
+To build the images on the host and deploy them:
 ```bash
-deployments/deploy.py deployments/sirc/production.env up --build
+deployments/deploy.py deployments/production.env up --build
 ```

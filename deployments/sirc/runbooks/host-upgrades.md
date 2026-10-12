@@ -1,0 +1,56 @@
+# Upgrading the QA-Board host (SIRC)
+
+SIRC's runbook. The generic version is on the docs website:
+[Host maintenance](https://samsung.github.io/qaboard/docs/backend-admin/deployment#host-maintenance).
+
+First connect to the QA-Board host:
+```bash
+ssh qa
+cd /home/ispq/qaboard_prod
+source deployments/sirc/.envrc
+```
+
+The examples use SIRC's production environment, `deployments/sirc/production.env`, see [Deployments](deployment.md).
+
+## Pause automatic deploys
+Set the GitLab CI/CD variable `QABOARD_PROD_DEPLOY=manual`, or create a deploy freeze.
+
+## Check the latest daily backup
+Backups are made daily by the `cron-backup-db` service.
+```bash
+# check the latest backup worked
+ls -lht /home/ispq/qaboard_data_prod/database_backups/ | head
+```
+
+## Stop the server and create a backup
+```bash
+# disconnect clients to avoid anyone writing
+docker compose --env-file deployments/sirc/production.env stop
+# we need the database to create a backup
+docker compose --env-file deployments/sirc/production.env up -d db
+# manually start a backup
+docker compose --env-file deployments/sirc/production.env run --rm cron-backup-db /etc/periodic/daily/backup before-upgrade.dump
+```
+
+## Maintenance Period
+> CPU/Memory/Storage upgrade...
+
+## Restart
+After the boot, make sure everything is up:
+```bash
+./at-sirc-before-up.py
+deployments/deploy.py deployments/sirc/production.env up
+deployments/deploy.py deployments/sirc/production.env status
+```
+
+**Checks**:
+- [ ] you can access the web application
+- [ ] `status` shows all containers running, and the backends healthy
+- [ ] the logs are all right
+- [ ] remove `QABOARD_PROD_DEPLOY=manual` in GitLab
+
+## Restoring from a backup
+In case of issues, recover from a backup. The backend is stopped meanwhile:
+```bash
+deployments/deploy.py deployments/sirc/production.env restore-db before-upgrade.dump
+```
