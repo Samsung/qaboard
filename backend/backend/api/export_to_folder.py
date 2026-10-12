@@ -145,7 +145,7 @@ def matching_output(output_reference, outputs):
     # the string edit distance scales quadratically
     # we tried to mitigate it
     # print(json_str)
-    json_str = re.sub("(workspace|[{}\", '/.\-_]|global|sim|partial_config|image_writer|config|raw|bmp)", "", json_str)
+    json_str = re.sub(r"(workspace|[{}\", '/.\-_]|global|sim|partial_config|image_writer|config|raw|bmp)", "", json_str)
     # print(json_str)
     return json_str
   possible_matching_outputs = [o for o in outputs if compatible(o, output_reference)]
