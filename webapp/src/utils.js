@@ -113,7 +113,8 @@ const matching_output = ({ output, batch }) => {
       if (dist_extra_parameters !== 0) {
         return dist_extra_parameters;
       }
-      return (a.platform === output.platform) - (b.platform === output.platform)
+      // the same platform first
+      return (b.platform === output.platform) - (a.platform === output.platform)
   });
   
   // const t1 = performance.now();
