@@ -1,6 +1,6 @@
 # Docs, screenshots and positioning overhaul: plan
 
-Status: plan v2.1 (2026-10-12), approved; phase 0 in progress. **(decide)** marks what's still open;
+Status: plan v2.2 (2026-10-12), approved; phase 0 in progress. **(decide)** marks what's still open;
 each has a recommendation. Section 10 lists what's already decided.
 
 Changes since v1:
@@ -35,7 +35,8 @@ Changes since v1:
 **Website** (`website/`, Docusaurus 3.10)
 - **Where it's published:**
   - The live site is `samsung.github.io/qaboard` and it's current (3.10.2, with release notes).
-  - `arthur-flam.github.io/qaboard` returns 404: this repo's Pages deploy isn't what serves the site. **To confirm:** which workflow publishes it.
+  - The official repository is `Samsung/qaboard`, which deploys that site. `arthur-flam/qaboard` is the maintainer's
+    working fork (merges are re-pushed to Samsung), so its own Pages URL is 404 by design.
 - **Pages:** 51 doc pages in 3 sidebars (User guide / Project integration / Admin).
   - The user guide is maintained and good.
   - "Getting started" and several guides are 2020-era: `introduction` embeds a SlideShare and links `https://qa`.
@@ -410,10 +411,8 @@ Navbar: Product · Docs · Use cases · Roadmap · Release notes · Blog · GitH
 - Under 4 MB total with lazy clips.
 
 ### Site plumbing
-- **Canonical URL** **(decide)**:
-  - Keep `samsung.github.io/qaboard`, since it's live, indexed and lends credibility.
-  - Or move to `arthur-flam.github.io/qaboard`, or later a project domain.
-  - Media works the same either way (§4).
+- **Canonical URL:** `samsung.github.io/qaboard`, deployed from the official `Samsung/qaboard` repository. Media works the
+  same wherever the site is built (§4).
 - **Deploys:** use `actions/deploy-pages` (artifact-based) rather than committing builds to a `gh-pages` branch.
 - **Search:** keep Algolia if the `samsung_qaboard` index still crawls the live site; otherwise `docusaurus-search-local`.
 - **Analytics:** Cloudflare Web Analytics (cookie-free, no custom domain involved).
@@ -566,17 +565,21 @@ branch per workstream (`claude/docs-<ws>`); otherwise everything lands here, pha
 - **Gate:** v1 ships as experimental.
 - **Roadmap page:** includes N-way comparisons, enterprise, deep-learning overlays and a W&B-style SDK.
 
-- **Registry:** GHCR (Docker Hub stays an optional mirror).
+- **Official repository:** `Samsung/qaboard`; `arthur-flam/qaboard` is a working fork. Every user-facing link, image and chart
+  points to the official one: `ghcr.io/samsung/qaboard`, issues on `Samsung/qaboard`. Workflows derive the owner from the
+  repository, so forks publish to their own namespace.
+- **Registry:** GHCR (Docker Hub stays an optional mirror). A Samsung org admin must allow Actions to publish packages and make
+  the packages public.
 - **What we may say:** born at Samsung Israel R&D Center in 2018, ~50 projects in production, still the central platform.
   No quotes for now.
 - **HTTP upload:** yes, designed properly first (design doc in phase 0, `docs/design/http-upload.md`), built after phase 2.
 - **Demo fiction:** Kitefin Robotics (working name, no collision found), a company building camera robots with a model-serving
   backend: image quality, perception, serving latency, SLAM and agent evals all fit one believable team.
 
-**Open:**
-1. **Canonical docs URL:** keep `samsung.github.io/qaboard` (recommended for now; credibility and search ranking),
-   or move it. Also: which workflow publishes it today?
-2. **Branches:** one per workstream (recommended): say so in the chat, or I run workstreams as separate cloud sessions.
+- **Docs URL:** `samsung.github.io/qaboard` stays canonical.
+- **Branches:** one per workstream, `claude/docs-*`, each with its own PR.
+
+**Open:** none in this plan; the HTTP upload design (`docs/design/http-upload.md` §12) has its own questions for when it's built.
 
 **From you:**
 - The R2 buckets and token (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`).
