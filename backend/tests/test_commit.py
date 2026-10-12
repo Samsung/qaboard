@@ -17,6 +17,7 @@ import pytest
 
 PROJECT = 'CDE-Users/HW_ALG/CIS/tests/products/HPC'
 BAD_REF = 'CIS/HPC/feature/smap_test_0706/batch'
+HEXSHA = '0123456789abcdef0123456789abcdef01234567'
 
 # ==========================================
 # Fixtures
@@ -65,3 +66,15 @@ class TestCommitErrorHandler:
         with dummy_app.test_request_context(f'/api/v1/commit/{BAD_REF}?project={PROJECT}', method='POST', json={}):
             response = api_ci_commit(commit_id=BAD_REF)
             assert response[1] == 404
+
+    def test_commit_sha_without_legacy_key(self, dummy_app, mock_ci_commit):
+        """POST with 'commit_sha' but no 'git_commit_sha' (only sent for backward-compatibility)."""
+        mock_ci_commit.get_or_create.return_value.data = {}
+
+        from backend.api.commit import api_ci_commit
+
+        body = {'project': PROJECT, 'commit_sha': HEXSHA}
+        with dummy_app.test_request_context('/api/v1/commit/', method='POST', json=body):
+            response = api_ci_commit()
+            assert response.get_json() == {"status": "OK"}
+        assert mock_ci_commit.get_or_create.call_args.kwargs['hexsha'] == HEXSHA

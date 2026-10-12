@@ -179,7 +179,8 @@ def get_branches():
 
   if not is_authorized_user(None, project_id): 
     return f"Forbidden: You don't have permission to access this project", 403
-  return jsonify([b[0] for b in branches.yield_per(1000)])
+  # Commits from clients that don't know their branch have none
+  return jsonify([b[0] for b in branches.yield_per(1000) if b[0]])
 
 
 
