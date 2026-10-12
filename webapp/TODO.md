@@ -11,6 +11,7 @@ Check items off or delete them when done, add new ones with enough context for s
 ## UX
 - [ ] **Date ranges in the URL**: the commit list reads `?from=YYYY-MM-DD&to=YYYY-MM-DD` on load, but changing the dates (`DateRangeInput3` in `src/AppNavbar.jsx`) only refetches commits, so date ranges can't be shared or bookmarked. Write them to the URL (replace, not push) and keep the History page consistent.
 - [ ] `selected_metrics` is written to the URL but not read back on load.
+- [ ] **Two history entries per branch change**: `updateSelected` (`src/actions/selected.js`) pushes its own URL, so going to a branch's commits or history from the sidebar or the branch selector adds two entries (Back must be pressed twice) and leaves `?branch=...&committer=` in the URL. Let it replace the current entry, or derive `selected.branch`/`committer` from the route.
 
 ## Testing / CI
 - [ ] Run the Playwright smoke tests (`npm run e2e`) in GitLab CI too. They run in GitHub Actions; the LSF runners need Chromium (`npx playwright install chromium` through the proxy, or use `PLAYWRIGHT_CHROMIUM_EXECUTABLE`).
