@@ -210,7 +210,8 @@ def new_output_webhook():
   if "data" in data: # e.g. storage, job_options, batch name
     if not output.data:
       output.data = {}
-    output.data.update(data['data'])
+    # optimization_best is set by the server only: it allows `qa optimize` to replace this run (see api/batch.py)
+    output.data.update({k: v for k, v in data['data'].items() if k != 'optimization_best'})
     flag_modified(output, "data")
   output.data["user"] = data['user']
   # we can only trust CI outputs to run on the exact code from the commit
