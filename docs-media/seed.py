@@ -1269,6 +1269,10 @@ class Seeder:
       demo = {}
     story = self.story
     demo['t0'] = iso(story.t0)
+    # for the captures (docs-media/shots/lib/demo.ts)
+    demo['app_version'] = stack.backend_version()
+    demo['base_url'] = self.server.url
+    demo['storage'] = str(stack.results_root())
     demo.setdefault('projects', {})[story.project] = {
       'id': story.id,
       'seed': story.seed,

@@ -309,6 +309,12 @@ def restore(args):
   log("Starting the stack...", 'blue')
   stack.up()
   verify(metadata)
+  # The captures read the demo facts there: the app is now the restored stack's
+  demo_path = stack.demo_dir() / 'demo.json'
+  demo = json.loads(demo_path.read_text())
+  demo.update({'app_version': stack.backend_version(), 'base_url': stack.server_url(), 'storage': str(root), 'snapshot': metadata['key']})
+  demo_path.write_text(json.dumps(demo, indent=2, sort_keys=True) + '\n')
+  log(f"  demo facts: {demo_path} (T0 {demo['t0']}, app {demo['app_version']})", 'green')
   log(f"Restored in {time.time() - start:.0f}s: {stack.server_url()}", 'green')
 
 
@@ -399,8 +405,14 @@ def main():
         if o['Key'].endswith('.tar.zst'):
           print(f"{o['Key'][len(PREFIX):-8]}  {o['LastModified']:%Y-%m-%d %H:%M}  {human(o['Size'])}")
   elif args.command == 'info':
+    # exits with 1 when there is no such snapshot (the docs-media workflow seeds then)
     key = args.key_arg or args.key or snapshot_key()
-    body = r2().get_object(Bucket=BUCKET, Key=f"{PREFIX}{key}.json")['Body'].read()
+    client = r2()
+    try:
+      body = client.get_object(Bucket=BUCKET, Key=f"{PREFIX}{key}.json")['Body'].read()
+    except client.exceptions.NoSuchKey:
+      log(f"No snapshot {key} in {BUCKET}", 'yellow')
+      sys.exit(1)
     print(body.decode())
   elif args.command == 'delete':
     if not args.key_arg:
