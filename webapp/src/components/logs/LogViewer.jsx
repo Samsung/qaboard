@@ -18,6 +18,7 @@ import {
 import { toaster } from "../../toaster";
 import { useLogTail } from "./useLogTail";
 import { createLineParser } from "./logLines";
+import { copyText } from "./clipboard";
 
 
 // Rendering more lines gets slow
@@ -299,6 +300,16 @@ export const LogViewer = ({ files, file, onFileChange, live = false, emptyHint, 
   const body = useRef(null)
   const search_input = useRef(null)
 
+  // Another file: start from its end, and forget the lines we jumped to (we keep the search)
+  const [shown_url, setShownUrl] = useState(url)
+  if (url !== shown_url) {
+    setShownUrl(url)
+    setFollow(true)
+    setCurrentError(-1)
+    setFocusedLine(null)
+    setSelection({ query: '', index: 0 })
+  }
+
   // Lines
   // a new parser for each file
   const parser = useMemo(() => url && createLineParser(), [url])
@@ -410,10 +421,13 @@ export const LogViewer = ({ files, file, onFileChange, live = false, emptyHint, 
 
   const copy = () => {
     const text = all_lines.map(line => line.plain).join('\n')
-    navigator.clipboard?.writeText(text).then(
-      () => toaster.show({ message: `Copied ${all_lines.length.toLocaleString()} lines`, icon: 'tick', intent: Intent.SUCCESS, timeout: 2000 }),
-      () => toaster.show({ message: 'Could not copy the logs', intent: Intent.DANGER }),
-    )
+    // We only copy what we read
+    const what = log.start > 0
+      ? `the last ${all_lines.length.toLocaleString()} lines (${formatBytes(log.end - log.start)} of ${formatBytes(log.total)})`
+      : `${all_lines.length.toLocaleString()} lines`
+    copyText(text).then(copied => toaster.show(copied
+      ? { message: `Copied ${what}`, icon: 'tick', intent: Intent.SUCCESS, timeout: 2000 }
+      : { message: 'Could not copy the logs', intent: Intent.DANGER }))
   }
 
   const is_missing = log.status === 'error' && log.error?.status === 404
@@ -424,7 +438,7 @@ export const LogViewer = ({ files, file, onFileChange, live = false, emptyHint, 
     content = <NonIdealState
       icon={is_missing && live ? <Spinner size={20} /> : (is_missing ? "document" : "error")}
       iconSize={is_missing && live ? undefined : 32}
-      title={is_missing ? `No ${selected.name} yet` : `Could not read ${selected.name}`}
+      title={is_missing ? `No ${selected.name}${live ? ' yet' : ''}` : `Could not read ${selected.name}`}
       description={is_missing
         ? (live ? (waitingHint ?? "The run hasn't written it yet, we'll show it as soon as it does.") : (emptyHint?.[selected.name] ?? "This file doesn't exist."))
         : log.error?.message}

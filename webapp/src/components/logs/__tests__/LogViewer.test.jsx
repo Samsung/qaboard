@@ -77,8 +77,44 @@ describe('LogViewer', () => {
 
   it('explains missing files', async () => {
     render(<LogViewer files={[{ name: 'log.lsf.txt', url: '/s/other/log.lsf.txt' }]} emptyHint={{ 'log.lsf.txt': 'Only runs on LSF have it.' }} />)
-    await waitFor(() => expect(screen.getByText('No log.lsf.txt yet')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('No log.lsf.txt')).toBeInTheDocument())
     expect(screen.getByText('Only runs on LSF have it.')).toBeInTheDocument()
+  })
+
+  it('waits for the logs of runs that are starting', async () => {
+    render(<LogViewer live files={[{ name: 'log.txt', url: '/s/other/log.txt' }]} waitingHint="LSF hasn't started the job yet." />)
+    await waitFor(() => expect(screen.getByText('No log.txt yet')).toBeInTheDocument())
+    expect(screen.getByText("LSF hasn't started the job yet.")).toBeInTheDocument()
+  })
+
+  it('forgets the error we jumped to when switching files', async () => {
+    const { container } = render(<Viewer />)
+    await waitFor(() => expect(screen.getByText('frame 2')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: /2 errors/ }))
+    expect(container.querySelector('.line.current').textContent).toMatch(/Traceback/)
+    fireEvent.click(screen.getByText('log.lsf.txt'))
+    await waitFor(() => expect(screen.getByText('Successfully completed.')).toBeInTheDocument())
+    expect(container.querySelector('.line.current')).toBeNull()
+  })
+
+  it('copies the logs, also without navigator.clipboard (http)', async () => {
+    const copied = []
+    const original = document.execCommand
+    document.execCommand = vi.fn(command => {
+      if (command === 'copy') copied.push(document.getSelection().toString())
+      return true
+    })
+    try {
+      render(<Viewer />)
+      await waitFor(() => expect(screen.getByText('frame 2')).toBeInTheDocument())
+      expect(navigator.clipboard).toBeUndefined()
+      fireEvent.click(screen.getByLabelText('Copy the logs'))
+      expect(copied).toHaveLength(1)
+      expect(copied[0]).toMatch(/^Outputs: \/s\/run\nloading <model>\nframe 1/)
+      await screen.findByText('Copied 6 lines')
+    } finally {
+      document.execCommand = original
+    }
   })
 })
 

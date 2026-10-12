@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
 import { DateTime } from 'luxon';
 import {
@@ -15,9 +15,13 @@ import {
 
 import { pretty_label } from '../utils'
 import { toaster } from "../toaster";
+import { folder_url } from "../utils/paths";
 import { RunList, RunLogs } from './logs/RunLogs'
 import { BatchSubmissions } from './logs/BatchSubmissions'
 import { batchSubmissions } from './logs/submissions'
+import { DirectoryActions } from './logs/DirectoryActions'
+import { copyText } from './logs/clipboard'
+import { fileExists } from './logs/fetchRange'
 
 
 // Rendering many runs is slow
@@ -34,6 +38,17 @@ const ListToolbar = styled.div`
   }
 `
 
+const SectionHeading = styled.div`
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 28px 0 10px 0;
+  h3 {
+    margin: 0 6px 0 0;
+  }
+`
+
 const Command = styled.div`
   padding: 8px 12px;
   .meta {
@@ -44,7 +59,7 @@ const Command = styled.div`
     margin-bottom: 6px;
     font-size: 12px;
   }
-  .meta > span {
+  .meta > span, .meta .hint {
     display: inline-flex;
     align-items: center;
     gap: 5px;
@@ -73,13 +88,66 @@ const Command = styled.div`
   }
 `
 
-const copy = text => navigator.clipboard?.writeText(text).then(
-  () => toaster.show({ message: 'Copied', icon: 'tick', intent: Intent.SUCCESS, timeout: 1500 }),
-)
+const copy = text => copyText(text).then(copied => toaster.show(copied
+  ? { message: 'Copied', icon: 'tick', intent: Intent.SUCCESS, timeout: 1500 }
+  : { message: 'Could not copy', intent: Intent.DANGER }))
 
-const BatchCommand = ({ command }) => {
+
+/**
+ * Where are the logs of a `qa batch` command?
+ * - ci: in the CI job
+ * - qaboard: it was started from QA-Board, with its own logs
+ * - batch-log: in the batch directory's log.txt (batches started from QA-Board before 2026-10)
+ * - terminal: started with `qa --share batch`, it printed its logs in the terminal
+ * - unknown: e.g. a CI that doesn't tell us the job's URL
+ */
+export function commandLogs(id, command, { submission_ids = new Set(), has_batch_log = false } = {}) {
+  if (command.job_url) return 'ci'
+  if (submission_ids.has(id)) return 'qaboard'
+  // They ran as CI jobs (CI=true), not with --share
+  if (has_batch_log && !command.share) return 'batch-log'
+  if (command.share) return 'terminal'
+  return 'unknown'
+}
+
+const NotSaved = ({ text, why }) => <Tooltip content={<div style={{ maxWidth: 360 }}>{why} QA-Board saves the logs of each run, they are above.</div>}>
+  <span className="hint"><Icon icon="info-sign" size={12} />{text}</span>
+</Tooltip>
+
+const CommandLogs = ({ id, command, logs, batch_dir_url, onShowLogs }) => {
+  // Without a scheduler, the dask runner starts workers on LSF, they log in the batch directory
+  const dask_logs = command.runner === 'dask' && !command.scheduler_address && !!batch_dir_url && <AnchorButton
+    size="small"
+    variant="minimal"
+    icon="folder-shared-open"
+    href={folder_url(`${batch_dir_url}/dask/${id.slice(0, 8)}`)}
+    target="_blank"
+    rel="noopener noreferrer"
+  >
+    Dask workers' logs
+  </AnchorButton>
+  switch (logs) {
+    case 'ci':
+      return <>{dask_logs}<AnchorButton size="small" variant="minimal" intent={Intent.PRIMARY} icon="share" href={command.job_url} target="_blank" rel="noopener noreferrer">
+        Logs in the CI job
+      </AnchorButton></>
+    case 'qaboard':
+    case 'batch-log':
+      return <>
+        {logs === 'qaboard' && <span><Icon icon="application" size={12} />Started from QA-Board</span>}
+        {dask_logs}
+        <Button size="small" variant="minimal" intent={Intent.PRIMARY} icon="console" onClick={onShowLogs}>Show its logs</Button>
+      </>
+    case 'terminal':
+      return <>{dask_logs}<NotSaved text="Logs not saved: started from a terminal" why="qa batch printed its logs in the terminal it was started from." /></>
+    default:
+      return <>{dask_logs}<NotSaved text="Logs not saved" why="QA-Board doesn't have the logs of this qa batch." /></>
+  }
+}
+
+const BatchCommand = ({ id, command, logs, batch_dir_url, onShowLogs }) => {
   const created_at = DateTime.fromISO(command.command_created_at_datetime, { zone: 'utc' })
-  const text = command.argv.join(" ")
+  const text = (command.argv ?? []).join(" ")
   return <Command>
     <div className={`meta ${Classes.TEXT_MUTED}`}>
       <span>
@@ -89,9 +157,7 @@ const BatchCommand = ({ command }) => {
       {!!command.user && <span><Icon icon="user" size={12} />{command.user}</span>}
       {!!command.HOST && <span><Icon icon="desktop" size={12} />{command.HOST}</span>}
       <span className="spacer" />
-      {!!command.job_url && <AnchorButton size="small" variant="minimal" icon="share" href={command.job_url} target="_blank" rel="noopener noreferrer">
-        CI job
-      </AnchorButton>}
+      <CommandLogs id={id} command={command} logs={logs} batch_dir_url={batch_dir_url} onShowLogs={onShowLogs} />
     </div>
     <pre className={`command ${Classes.MONOSPACE_TEXT}`}>
       <code>{text}</code>
@@ -103,6 +169,23 @@ const BatchCommand = ({ command }) => {
 }
 
 
+// null while we check, then true, false, or 'error' (e.g. 403)
+const useFileExists = url => {
+  const [state, setState] = useState({ url: null, exists: null })
+  useEffect(() => {
+    if (!url) return
+    const controller = new AbortController()
+    fileExists(url, { signal: controller.signal })
+      .then(exists => setState({ url, exists }))
+      .catch(() => {
+        if (!controller.signal.aborted) setState({ url, exists: 'error' })
+      })
+    return () => controller.abort()
+  }, [url])
+  return state.url === url ? state.exists : null
+}
+
+
 /**
  * The logs of all the runs in a batch, and of the commands that started it.
  */
@@ -110,6 +193,11 @@ export const BatchLogs = ({ batch, project, commit, dispatch }) => {
   const [filter, setFilter] = useState('all')
   const [expanded, setExpanded] = useState(() => new Set())
   const [limit, setLimit] = useState(PAGE_SIZE)
+  // Asks BatchSubmissions to show a submission's logs
+  const [focused_submission, setFocusedSubmission] = useState(null)
+  const batch_log_ref = useRef(null)
+  // Before 2026-10, batches started from QA-Board logged in the batch directory
+  const batch_log = useFileExists(batch?.batch_dir_url ? `${batch.batch_dir_url}/log.txt` : null)
 
   const outputs = useMemo(() => (batch?.filtered?.outputs ?? [])
     .map(id => batch.outputs[id])
@@ -129,10 +217,16 @@ export const BatchLogs = ({ batch, project, commit, dispatch }) => {
 
   const shown = filter === 'failed' ? failed : (filter === 'pending' ? pending : outputs)
 
-  const commands = Object.values(batch.data?.commands ?? {})
-  // Before 2026-10, batches started from QA-Board all logged in the batch directory
-  const has_submissions = batchSubmissions(batch).length > 0
-  const has_legacy_logs = !has_submissions && (batch.data?.optimization ?? commands.some(c => !c.job_url))
+  const submission_ids = new Set(batchSubmissions(batch).map(submission => submission.id))
+  const has_submissions = submission_ids.size > 0
+  const has_batch_log = batch_log === true || batch_log === 'error'
+  // most recent first, like the submissions
+  const commands = Object.entries(batch.data?.commands ?? {})
+    .sort(([, a], [, b]) => (b.command_created_at_datetime ?? '').localeCompare(a.command_created_at_datetime ?? ''))
+  const showBatchLog = () => {
+    setExpanded(expanded => new Set(expanded).add('batch'))
+    batch_log_ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  }
   const batch_output = {
     is_failed: false,
     is_pending: false,
@@ -145,7 +239,7 @@ export const BatchLogs = ({ batch, project, commit, dispatch }) => {
   }
 
   return <>
-    <BatchSubmissions key={batch.id} batch={batch} has_runs={Object.keys(batch.outputs ?? {}).length > 0} />
+    <BatchSubmissions key={batch.id} batch={batch} has_runs={Object.keys(batch.outputs ?? {}).length > 0} focus={focused_submission} />
     {has_submissions && <h3 className={Classes.HEADING}>Runs</h3>}
     {outputs.length > 0 && <ListToolbar>
       <SegmentedControl
@@ -198,8 +292,11 @@ export const BatchLogs = ({ batch, project, commit, dispatch }) => {
       Show {Math.min(PAGE_SIZE, shown.length - limit)} more ({(shown.length - limit).toLocaleString()} hidden)
     </Button>}
 
-    <h3 className={Classes.HEADING} style={{ marginTop: 28 }}>Batch: {pretty_label(batch)}</h3>
-    {has_legacy_logs && <RunList style={{ marginBottom: 12 }}>
+    <SectionHeading>
+      <h3 className={Classes.HEADING}>Batch: {pretty_label(batch)}</h3>
+      {!!batch.batch_dir_url && <DirectoryActions url={batch.batch_dir_url} what="the batch directory" />}
+    </SectionHeading>
+    {has_batch_log && <RunList ref={batch_log_ref} style={{ marginBottom: 12, scrollMarginTop: 16 }}>
       <RunLogs
         id="batch"
         output={batch_output}
@@ -212,7 +309,17 @@ export const BatchLogs = ({ batch, project, commit, dispatch }) => {
       />
     </RunList>}
     {commands.length > 0 && <RunList>
-      {commands.map((command, index) => <BatchCommand key={index} command={command} />)}
+      {commands.map(([id, command]) => <BatchCommand
+        key={id}
+        id={id}
+        command={command}
+        logs={commandLogs(id, command, { submission_ids, has_batch_log })}
+        batch_dir_url={batch.batch_dir_url}
+        onShowLogs={submission_ids.has(id) ? () => setFocusedSubmission({ id }) : showBatchLog}
+      />)}
     </RunList>}
+    {!commands.length && !has_batch_log && batch_log !== null && <p className={Classes.TEXT_MUTED}>
+      No <code className={Classes.CODE}>qa batch</code> command was saved for this batch.
+    </p>}
   </>
 }
