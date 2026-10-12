@@ -182,10 +182,9 @@ shot('commit/roi-histograms', {
 shot('commit/auto-roi', {
   project: IQ,
   url: d => halos(d, 'photos/facade base'),
-  alt: 'The View ROIs menu open over the facade run, with Full Image, ROI Presets and Auto ROIs checked; below it, the '
-    + 'twenty regions where new and reference differ most, found automatically, and the images zoomed on the first.',
+  alt: 'The View ROIs menu open over the facade run, with Full Image, ROI Presets and Auto ROIs checked; below it, '
+    + 'thumbnails of the twenty regions where new and reference differ most, found automatically, a dot colored by how much.',
   caption: 'Jump between the regions of interest preset for the input, or let QA-Board find where the images differ most.',
-  viewport: { width: 1440, height: 1100 },
   actions: async ui => {
     const scope = viewer(ui.page);
     // lower than the other shots: the menu opens upwards, it must clear the commit bars
@@ -200,13 +199,15 @@ shot('commit/auto-roi', {
     await ui.hover(menu);
     await ui.settle();
   },
-  // the run's name and metrics, the viewer, and the menu that opens over them
+  // the run's name and metrics, the menu, and the thumbnails of the regions found (not the images below, zoomed on the
+  // first region until its pixels show)
   target: page => [
     cards(page).first().getByText('photos/facade.png', { exact: true }),
-    viewer(page),
     page.locator('.bp6-popover .bp6-menu').last(),
+    viewer(page).locator('a.bp6-button').last().locator('xpath=ancestor::div[1]'),
   ],
-  padding: 4,
+  // flush: the images' labels start right below the thumbnails
+  padding: 0,
 });
 
 shot('commit/image-filters', {
@@ -246,19 +247,26 @@ shot('commit/output-files', {
   project: IQ,
   login: 'tobias',
   url: d => compare(d, 'fxp-round-half-even', 'isp-4-1', 'photos/facade hw-model', { view: 'bit_accuracy' }),
-  alt: 'Output Files of the facade run on the hw-model platform: the stages folder open, its changed files marked, '
-    + 'and the help that explains the icons.',
-  caption: 'Output Files lists what changed in each run: here the fixed-point model\'s stage buffers after a rounding change.',
+  alt: 'The files of the facade run on the hw-model platform that differ from the reference: metrics.json, out.png, '
+    + 'stages 4 and 5 in raw/ and stages/, and regs.txt, whose diff below shows the ROUNDING register going from 0 to 2.',
+  caption: 'Output Files lists only the files that changed: a rounding change in the fixed-point model shows in its '
+    + 'register dump, then in the last two stages\' buffers.',
+  // the card, its diff below the tree
+  viewport: { width: 1440, height: 1300 },
   actions: async ui => {
+    await showCard(ui);
     // folders open with their caret (a click on the name does nothing)
     const caret = (folder: string) => ui.page.locator('.bp6-tree-node-content')
       .filter({ has: ui.page.getByText(folder, { exact: true }) }).locator('.bp6-tree-node-caret').first();
     await ui.click(caret('stages'));
     await ui.click(caret('raw'));
+    // a file's diff with the reference opens below the tree
+    await ui.click(ui.page.locator('.bp6-tree-node-content').getByText('regs.txt', { exact: true }).first());
     await ui.settle();
-    await ui.hover(ui.page.getByText('Help', { exact: true }));
-    await ui.settle();
+    await mouseAway(ui);
   },
+  target: page => cards(page).first(),
+  padding: 4,
 });
 
 
