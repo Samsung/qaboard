@@ -76,11 +76,14 @@ def downsample(image):
 
 def write_pyramid(path, image, tile=256, layout='pages'):
     """Tiled TIFF, JPEG-compressed (quality 90), full resolution then each level at half the size, down to one tile.
-    layout='pages': each level in its own IFD (page), 'subifds': the levels in SubIFDs of the first page."""
+    layout='pages': each level in its own IFD (page), 'subifds': the levels in SubIFDs of the first page.
+    Cantaloupe 5's TIFF reader uses the levels in successive IFDs, and ignores SubIFDs: 'pages' it is."""
     levels = [image]
     while max(levels[-1].shape[:2]) > tile:
         levels.append(downsample(levels[-1]))
-    options = dict(tile=(tile, tile), compression='jpeg', compressionargs={'level': 90}, photometric='ycbcr', maxworkers=WORKERS)
+    # photometric='rgb': tifffile converts the RGB pixels and stores YCbCr JPEG tiles. With 'ycbcr' it would take the
+    # pixels as YCbCr already, and every reader would show false colors (magenta and green)
+    options = dict(tile=(tile, tile), compression='jpeg', compressionargs={'level': 90}, photometric='rgb', maxworkers=WORKERS)
     with tifffile.TiffWriter(path) as tiff:
         tiff.write(levels[0], subifds=len(levels) - 1 if layout == 'subifds' else None, **options)
         for level in levels[1:]:
@@ -109,9 +112,8 @@ def run(path, output_dir, config, flags, seed_key, start):
                 ssim_sum += tile_ssim
                 if done % 48 == 0 or done == len(jobs):
                     print(f'  {done}/{len(jobs)} tiles, {time.time() - start:.0f}s')
-    layout = os.environ.get('QA_TIFF_LAYOUT', 'pages')
-    write_pyramid(output_dir / 'out.tiff', output, layout=layout)
-    print(f'Saved out.tiff: tiled, multi-resolution ({layout}), {os.path.getsize(output_dir / "out.tiff") / 1e6:.0f} MB')
+    write_pyramid(output_dir / 'out.tiff', output)
+    print(f'Saved out.tiff: tiled, multi-resolution, {os.path.getsize(output_dir / "out.tiff") / 1e6:.0f} MB')
     pixels = height * width
     metrics = {
         'psnr': float(10 * np.log10(255 ** 2 / (sse / (3 * pixels)))),
