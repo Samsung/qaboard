@@ -12,7 +12,7 @@ from copy import deepcopy
 from pathlib import Path
 from itertools import chain, product
 from dataclasses import replace
-from typing import List, Union, Dict, Tuple, Iterator, cast
+from typing import List, Union, Dict, Tuple, Iterator, Any, Optional, cast
 
 import yaml
 import click
@@ -543,6 +543,58 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
       yield from (replace(location_run_context, input_path=i, database=d) for i, d in inputs_iter)
 
 
+
+
+def load_runs_file(path) -> List[Dict[str, Any]]:
+  """
+  Reads the runs listed for `qa batch --runs-file`, e.g. when QA-Board redoes runs:
+    {"runs": [{"input_path", "database", "type", "platform", "configurations", "extra_parameters", "job_options", "batch"}]}
+  input_path is relative to the database. Only input_path and database are required.
+  """
+  try:
+    with Path(path).open() as f:
+      data = json.load(f)
+  except (OSError, ValueError) as e:
+    raise click.UsageError(f"Could not read the runs file {path}: {e}")
+  runs = data.get('runs') if isinstance(data, dict) else None
+  is_run = lambda run: isinstance(run, dict) and 'input_path' in run and 'database' in run and isinstance(run.get('job_options') or {}, dict)
+  if not isinstance(runs, list) or not all(is_run(run) for run in runs):
+    raise click.UsageError(f'Invalid runs file {path}: expected {{"runs": [{{"input_path": ..., "database": ..., ...}}]}}')
+  return runs
+
+
+# Job options that depend on who runs `qa batch`, from where, and for which command.
+# When we redo runs, we don't reuse the values they were started with.
+local_job_options = ('command_id', 'batch_dir', 'cwd', 'user', 'bridge')
+
+def rerun_job_options(job_options: Optional[Dict[str, Any]], default_job_options: Dict[str, Any], cli_runner_overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+  """The job options to redo a run that was started with `job_options`, from a `qa batch` that would use `default_job_options`."""
+  job_options = job_options or {}
+  cli_runner_overrides = cli_runner_overrides or {}
+  if 'type' in cli_runner_overrides and job_options.get('type') != cli_runner_overrides['type']:
+    # They were options for another runner
+    job_options = {}
+  settings = {k: v for k, v in job_options.items() if k not in local_job_options}
+  local = {k: v for k, v in default_job_options.items() if k in local_job_options}
+  return {**default_job_options, **settings, **local, **cli_runner_overrides}
+
+
+def iter_runs(runs: List[Dict[str, Any]], default_type: str, default_platform: str, default_job_options: Dict[str, Any], cli_runner_overrides=None) -> Iterator[RunContext]:
+  """The runs from a runs file (see load_runs_file), with the job options they were started with."""
+  for run in runs:
+    database = Path(run['database'])
+    if database.is_absolute():
+      database = database.resolve()
+    yield RunContext(
+      type=run.get('type') or default_type,
+      input_path=database / run['input_path'],
+      database=database,
+      platform=run.get('platform') or default_platform,
+      configurations=list(run.get('configurations') or []),
+      extra_parameters=dict(run.get('extra_parameters') or {}),
+      batch=run.get('batch'),
+      job_options=rerun_job_options(run.get('job_options'), default_job_options, cli_runner_overrides),
+    )
 
 
 def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):

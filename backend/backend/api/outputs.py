@@ -11,6 +11,7 @@ from qaboard.api import dir_to_url
 from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
 from ..storage import check_storage_path, UnsafePathError
+from ..redo import redo_response
 from .auth import login_required, is_authorized_user
 
 
@@ -86,14 +87,7 @@ def output_redo(output_id):
     return jsonify({"error": f"Cannot find output {output_id}"}), 400
   if not is_authorized_user(g.user, output.batch.ci_commit.project_id):
     return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
-  try:
-    success = output.redo(user=g.user['user_name'])
-  except Exception as e:
-    return jsonify({"error": f"{e}"}), 500
-  if success:
-    return '{"status": "OK"}'
-  else:
-    return jsonify({"error": "The run failed to start. Check the 'redo.log' files in the output directories to know more."}), 500
+  return redo_response(output.batch, [output], g.user['user_name'])
 
 
 @app.route("/api/v1/output/<output_id>/manifest", methods=['GET'])

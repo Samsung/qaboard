@@ -6,8 +6,9 @@ from sqlalchemy.orm.attributes import flag_modified
 from backend import app, db_session
 from ..models import CiCommit, Batch
 from ..storage import check_storage_path, UnsafePathError
+from ..redo import redo_response
 from .export_to_folder import filter_outputs
-from .auth import login_required
+from .auth import login_required, is_authorized_user
 
 
 
@@ -130,23 +131,26 @@ def stop_batch():
 @app.route('/api/v1/batch/redo/', methods=['POST'])
 @login_required
 def redo_batch():
+  """Redo the batch's runs: all of them, or only those that failed, were deleted, and/or are listed in output_ids."""
   data = request.get_json()
   try:
     batch = Batch.query.filter(Batch.id == data['id']).one()
   except:
     return f"404 ERROR:\n Not found", 404
+  if not is_authorized_user(g.user, batch.ci_commit.project_id):
+    return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
+  only_failed = data.get('only_failed', False)
+  only_deleted = data.get('only_deleted', False)
   try:
-    success = batch.redo(
-      user=g.user['user_name'],
-      only_failed=data.get('only_failed', False),
-      only_deleted=data.get('only_deleted', False),
-    )
-  except Exception as e:
-    return jsonify({"error": f"{e}"}), 500
-  if success:
-    return '{"status": "OK"}'
-  else:
-    return jsonify({"error": "Some runs failed to start. Check the 'redo.log' files in the output directories to know more."}), 500
+    # the web application sends the runs users see, e.g. those matching a filter
+    output_ids = {int(id) for id in data['output_ids']} if data.get('output_ids') is not None else None
+  except (TypeError, ValueError):
+    return jsonify({"error": "output_ids must be a list of output IDs"}), 400
+  outputs = [
+    o for o in batch.outputs
+    if (not only_failed or o.is_failed) and (not only_deleted or o.deleted) and (output_ids is None or o.id in output_ids)
+  ]
+  return redo_response(batch, outputs, g.user['user_name'])
 
 @app.route('/api/v1/batch/rename', methods=['POST'])
 @app.route('/api/v1/batch/rename/', methods=['POST'])
