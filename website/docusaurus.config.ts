@@ -19,6 +19,8 @@ const docsPath = (id: string) => is_for_webapp ? `/${id}` : `/docs/${id}`
 const redirects = [
   {from: 'backend-admin/host-upgrades', to: 'backend-admin/deployment#host-maintenance'},
   {from: 'backend-admin/getting-SSL-certiticates-from-IT', to: 'deploy#using-ssl--hosting-behind-a-reverse-proxy'},
+  {from: 'dag-pipelines', to: 'batches-running-on-multiple-inputs'},
+  {from: 'tuning-workflows', to: 'tuning-from-the-webapp#other-tuning-workflows'},
 ].map(({from, to}) => ({from: docsPath(from), to: docsPath(to)}))
 
 const logo = {

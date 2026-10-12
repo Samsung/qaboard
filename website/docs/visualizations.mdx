@@ -134,6 +134,8 @@ We love Brendan Gregg's [flame charts](http://www.brendangregg.com/flamegraphs.h
 ### More Viewers?
 Tell us what you need! The next we'll implement is likely [**vega**](https://vega.github.io/vega/) specs. It would notably allow us to display `altair` visualizations. We could also have a minimal integration with notebooks, [visdom](https://github.com/facebookresearch/visdom), [webiz](https://webviz.io/)...
 
+You can also write your own viewer: viewers are React components that download a run's files and display them. They live in [`webapp/src/viewers`](https://github.com/Samsung/qaboard/tree/master/webapp/src/viewers), and [`OutputViewer.jsx`](https://github.com/Samsung/qaboard/blob/master/webapp/src/viewers/OutputViewer.jsx) picks one for each visualization `type`. Start from an existing viewer, and run the web app's dev server as described in its [README](https://github.com/Samsung/qaboard/tree/master/webapp). Contributions are welcome!
+
 
 ## Dynamic visualizations
 You can use a [special syntax](https://github.com/pillarjs/path-to-regexp) to create dynamic visualizations at display-time. Users will be able to choose what to display using sliders / select options:

@@ -60,6 +60,7 @@ const sidebars: SidebarsConfig = {
         "using-the-qa-cli",
         "references-and-milestones",
         "tuning-from-the-webapp",
+        "auto-optimization",
         {
             type: 'category',
             label: 'Distributed Task Queues',
@@ -88,8 +89,6 @@ const sidebars: SidebarsConfig = {
         "bit-accuracy",
         "faq",
         "apis",
-        // "tuning-workflows",
-        "dag-pipelines",
         // "history"
         "monorepo-subprojects",
         // "docker-integration",
