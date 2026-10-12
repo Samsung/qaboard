@@ -75,7 +75,8 @@ const Crop = ({roi, output, path, manifest, imageServers, viewer, selected, onSe
     minimal={!selected}
     style={{ margin: "5px" }}
   >
-    <div><img src={src} alt={roi.label} height={height} width={height} /></div>
+    {/* an invalid ROI's thumbnail request would only fail */}
+    <div>{is_valid ? <img src={src} alt={roi.label} height={height} width={height} /> : <div style={{height, width: height}} />}</div>
     <div>{!is_valid && <span style={{color: "red"}}>invalid</span>}{roi.label}</div>
     {roi.color && <Icon
       icon="full-circle"

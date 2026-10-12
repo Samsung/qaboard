@@ -63,6 +63,13 @@ describe('Crop', () => {
       'src', 'https://iip.example.com/iipsrv.fcgi?IIIF=/mnt%2Fqaboard%2Fproject%2Frun%2Fframe.raw/full/,50/0/default.jpg',
     );
   });
+
+  it("doesn't request thumbnails of ROIs outside the image", () => {
+    const outside = { x: 5000, y: 50, w: 400, h: 200, label: 'Outside' };
+    render(<Crop roi={outside} output={output} path="out.png" viewer={fakeViewer()} />);
+    expect(screen.queryByRole('img', { name: 'Outside' })).toBeNull();
+    expect(screen.getByText('invalid')).toBeInTheDocument();
+  });
 });
 
 

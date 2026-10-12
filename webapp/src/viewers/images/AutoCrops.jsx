@@ -205,8 +205,7 @@ class AutoCrops extends React.Component {
     let {y, x, r, diff} = blob;
     // console.log(diff)
     // let scaled_diff = 1 - (diff / 35215 / (20));
-    scaled_diff = Math.max(0, Math.min(1, diff));
-    let scaled_diff = 1 - diff;
+    let scaled_diff = 1 - Math.max(0, Math.min(1, diff));
     let color = rgb(interpolateInferno(scaled_diff))
     let roi = {
       r,
