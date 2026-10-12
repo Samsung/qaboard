@@ -4,22 +4,22 @@
   "shots": {
     "cli/first-run": {
       "alt": "A terminal runs qa run on the slanted-edge chart: qa prints where the outputs go, the pipeline logs each ISP stage and its time, then the run's metrics.",
-      "app_version": "1.1.1+b117508",
+      "app_version": "1.1.1+36ac4c6",
       "caption": "qa run runs your code on one input, saves its outputs and prints its metrics.",
       "captured": "2026-10-12",
-      "duration": 8.36,
+      "duration": 7.92,
       "files": {
         "mp4": {
-          "bytes": 77175,
-          "key": "shots/cli/first-run/784294bb775170f9.mp4"
+          "bytes": 77792,
+          "key": "shots/cli/first-run/02d5d2dca94518e3.mp4"
         },
         "poster": {
-          "bytes": 40594,
-          "key": "shots/cli/first-run/4ac09f96d860fd66.webp"
+          "bytes": 41106,
+          "key": "shots/cli/first-run/e795ed945754b44d.webp"
         },
         "webm": {
-          "bytes": 116226,
-          "key": "shots/cli/first-run/e3e4d225868b1cfc.webm"
+          "bytes": 117196,
+          "key": "shots/cli/first-run/7d1d580158b9db80.webm"
         }
       },
       "height": 720,
@@ -103,62 +103,62 @@
     },
     "commit/deep-zoom": {
       "alt": "The 113-megapixel test wall, new and reference side by side: zooming from the whole wall to a small Siemens star until single pixels show, both images in sync.",
-      "app_version": "1.1.1+b117508",
+      "app_version": "1.1.1+36ac4c6",
       "caption": "Deep zoom on a 113 MP image: the viewers load only the tiles they show.",
       "captured": "2026-10-12",
-      "duration": 14.83,
+      "duration": 12.63,
       "files": {
         "mp4": {
-          "bytes": 808591,
-          "key": "shots/commit/deep-zoom/504f65f142c3ff58.mp4"
+          "bytes": 784953,
+          "key": "shots/commit/deep-zoom/6a3d0fd00c07e0c2.mp4"
         },
         "poster": {
-          "bytes": 70668,
-          "key": "shots/commit/deep-zoom/765417cea256c920.webp"
+          "bytes": 70694,
+          "key": "shots/commit/deep-zoom/374e63c5a5bffd4d.webp"
         },
         "vtt": {
           "bytes": 206,
-          "key": "shots/commit/deep-zoom/fd6c6277a52a5eea.vtt"
+          "key": "shots/commit/deep-zoom/28a5f95a020c1fe0.vtt"
         },
         "webm": {
-          "bytes": 1125446,
-          "key": "shots/commit/deep-zoom/4b8f2d0d9bcca15c.webm"
+          "bytes": 1082553,
+          "key": "shots/commit/deep-zoom/1b647b33c8a5b6f0.webm"
         }
       },
       "height": 900,
       "kind": "clip",
-      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAADQAQCdASoQAAoAA4BaJaQAAt4+3AvHwAD2v/wfB/n8+N2nhBs03M5MvklebPo6WS3By75ZslGDKpMQAAA=",
+      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAADQAQCdASoQAAoAA4BaJZwAAt4+3AvHwAD2v/wfB/n8+N2nhBs03M5MvklebPo6WS3By75ZslGDKpMQAAA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
     },
     "commit/image-diff": {
       "alt": "Zooming into the new image of the facade, the reference follows; the Controls panel opens and Image Diff turns on; raising the threshold leaves only the window frame's halos.",
-      "app_version": "1.1.1+b117508",
+      "app_version": "1.1.1+36ac4c6",
       "caption": "Synced zoom, then Image Diff and its threshold.",
       "captured": "2026-10-12",
-      "duration": 15.33,
+      "duration": 13.37,
       "files": {
         "mp4": {
-          "bytes": 501591,
-          "key": "shots/commit/image-diff/d6b0e361d1a44b23.mp4"
+          "bytes": 464988,
+          "key": "shots/commit/image-diff/08540e0bcb564ba6.mp4"
         },
         "poster": {
-          "bytes": 70190,
-          "key": "shots/commit/image-diff/7cde016531b4d446.webp"
+          "bytes": 70200,
+          "key": "shots/commit/image-diff/b38ef83a2528b652.webp"
         },
         "vtt": {
           "bytes": 207,
-          "key": "shots/commit/image-diff/0677bc8eaaccf571.vtt"
+          "key": "shots/commit/image-diff/ab2b6f2d41a0deb5.vtt"
         },
         "webm": {
-          "bytes": 705672,
-          "key": "shots/commit/image-diff/654554fb77b9ba72.webm"
+          "bytes": 658010,
+          "key": "shots/commit/image-diff/bdf443e3c1ec9d08.webm"
         }
       },
       "height": 900,
       "kind": "clip",
-      "lqip": "data:image/webp;base64,UklGRlYAAABXRUJQVlA4IEoAAADQAQCdASoQAAoAA4BaJZQAAlxS1qgIAAD8Pzod3+XcttK85yJb767TTCYk3/131H9A2xQvuetu1WM4/2MmtPXICx6ZvfOAbSAAAA==",
+      "lqip": "data:image/webp;base64,UklGRlYAAABXRUJQVlA4IEoAAADQAQCdASoQAAoAA4BaJZQAAlxS1qgIAAD8Pzod3+XcttK85yJb767TTCYk3/131H9A2xQvuetu1WM4/2MmtPXIJDHpm984BtIAAA==",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
@@ -217,26 +217,26 @@
     },
     "commit/image-sbs": {
       "alt": "New and reference images of the facade, zoomed on leaves in front of the wall: in the new image, dark halos outline every leaf.",
-      "app_version": "1.1.1+b117508",
+      "app_version": "1.1.1+36ac4c6",
       "caption": "Both images at the same zoom: only the new denoiser outlines the leaves with dark halos.",
       "captured": "2026-10-12",
       "files": {
         "avif": {
-          "bytes": 51227,
-          "key": "shots/commit/image-sbs/e9cd561f5f0faaaf.avif"
+          "bytes": 51033,
+          "key": "shots/commit/image-sbs/a22f14293daa5e32.avif"
         },
         "png": {
-          "bytes": 100550,
-          "key": "shots/commit/image-sbs/2db362e907f1046c.png"
+          "bytes": 100729,
+          "key": "shots/commit/image-sbs/4ee86dd383e6cb2f.png"
         },
         "webp": {
-          "bytes": 60774,
-          "key": "shots/commit/image-sbs/6ca9675102df7a08.webp"
+          "bytes": 60784,
+          "key": "shots/commit/image-sbs/45605c3169a430bc.webp"
         }
       },
       "height": 415,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRlQAAABXRUJQVlA4IEgAAAAQAgCdASoQAAYAA4BaJQBOj+AQQBE73boAAP4Z5asrKMNV/SGfvZD18FTIs5WUv6Qz97Hk5Z3KupL6RXeUCMxH3yMzClLdAAA=",
+      "lqip": "data:image/webp;base64,UklGRlQAAABXRUJQVlA4IEgAAADQAQCdASoQAAYAA4BaJQBOj+ACLGPnoAD+GUupfzITJe0KFA3iogjetrQ/58b6IFQXtyS3Mmld+DI/8xn7gFyoa+dUT1vZ/AA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1170
