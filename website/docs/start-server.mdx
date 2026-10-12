@@ -133,7 +133,7 @@ QA-Board can connect to external authentifications systems (LDAP, SAML). If need
 | `QABOARD_TUNING_RUNNER` | local  | How tuning/"redo" runs started from the webapp are dispatched: `local`, `celery` or `lsf` |
 | `QA_RUNNERS_LSF_BRIDGE` | _none_ | With `lsf`: the command used to submit LSF jobs, e.g. `ssh user@lsf-host 'bsub_su {user} -I {bsub_command}'` |
 | `QABOARD_DASK_SCHEDULERS` | _none_ | Comma-separated dask scheduler addresses the backend trusts (to stop dask jobs from the webapp) |
-| `QABOARD_IMAGE_SERVERS` | `{"default": "/iiif"}` | JSON map of file extensions to IIIF image servers |
+| `QABOARD_IMAGE_SERVERS` | `{"default": "/iiif/2/"}` | JSON map of file extensions to IIIF image servers, e.g. `{"default": "/iiif/2/", "raw,dng": "https://iip.example.com/fcgi-bin/iipsrv.fcgi?IIIF=/"}`. Each URL is followed directly by the image's path |
 | `QABOARD_PATH_MAPPINGS` | `[]` | JSON list of `["windows_prefix", "linux_prefix"]` pairs, used to show Windows paths to results (`qa` reads it too, from the environment or a site package, to convert Windows paths), e.g. `[["\\\\server\\share", "/mnt/share"]]` |
 | `QABOARD_DEFAULT_USER` | qaboard | The user CI runs are saved under (with `{user}` in `storage`). Runs started from the webapp replace it with the logged-in user in output paths |
 | `QABOARD_DOCS_ROOT`    | */* | Where the webapp's links to the docs point. By default, the docs served by this server at `/docs/`, which match its version |
