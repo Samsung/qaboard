@@ -511,16 +511,21 @@ class Workspace:
       import tomllib
       return tomllib.loads(pyproject.read_text()).get('project', {}).get('dependencies', [])
     if requirements.exists():
-      return [l.strip() for l in requirements.read_text().splitlines() if l.strip() and not l.startswith('#')]
+      return ['-r', str(requirements)]   # uv understands its comments, options...
     return []
 
   def ensure_venv(self):
     deps = self.dependencies()
     stamp = self.venv / '.seed-stamp'
-    wanted = json.dumps({'deps': deps, 'qaboard': hashlib.sha256((REPO / 'pyproject.toml').read_bytes()).hexdigest()})
+    requirements = self.story.example / 'requirements.txt'
+    wanted = json.dumps({
+      'deps': deps,
+      'requirements': hashlib.sha256(requirements.read_bytes()).hexdigest() if requirements.exists() else None,
+      'qaboard': hashlib.sha256((REPO / 'pyproject.toml').read_bytes()).hexdigest(),
+    })
     if stamp.exists() and stamp.read_text() == wanted:
       return
-    log(f"Installing qaboard (from {REPO}) and {', '.join(deps) or 'no other dependency'} in {self.venv}", 'blue')
+    log(f"Installing qaboard (from {REPO}) and the example's dependencies ({' '.join(deps) or 'none'}) in {self.venv}", 'blue')
     subprocess.run(['uv', 'venv', '-q', '--allow-existing', '--python', '3.12', str(self.venv)], check=True)
     subprocess.run(['uv', 'pip', 'install', '-q', '--python', str(self.venv / 'bin' / 'python'), '-e', str(REPO), *deps], check=True)
     stamp.write_text(wanted)
