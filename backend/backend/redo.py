@@ -74,41 +74,7 @@ def run_spec(output) -> dict:
   }
 
 
-def legacy_command(output, label) -> str:
-  """How we redid an output before `qa batch --runs-file`, with 1 `qa batch` per output. Used with older `qa` versions."""
-  extra_parameters = json.dumps(output.extra_parameters, sort_keys=True)
-  job_options = (output.data or {}).get("job_options", {}) or {}
-  job_options_cli = []
-  if not job_options:
-    # for backward compatibility, it's a good defaut at SIRC
-    job_options_cli = ["--lsf-max-memory", "20000"]
-  elif job_options.get('type') == "lsf":
-    if 'queue' in job_options:
-      job_options_cli += ["--lsf-queue", quote(str(job_options['queue']))]
-    if 'max_memory' in job_options and job_options['max_memory'] != 0:
-      job_options_cli += ["--lsf-max-memory", quote(str(job_options['max_memory']))]
-    if 'resources' in job_options and job_options['resources']:
-      job_options_cli += ["--lsf-resources", quote(str(job_options['resources']))]
-    if 'max_threads' in job_options and job_options['max_threads'] != 0:
-      job_options_cli += ["--lsf-max-threads", quote(str(job_options['max_threads']))]
-  return ' '.join([
-    'qa',
-    '--label', quote(label),
-    '--configuration', quote(output.configuration),
-    '--database', quote(str(output.test_input.database)),
-    '--type', quote(str(output.output_type)),
-    '--tuning', quote(extra_parameters),
-    'batch',
-    '--no-wait',
-    *job_options_cli,
-    '--action-on-existing=run',
-    '--action-on-pending=run',
-    # one word, so that an input path can't be parsed as an option. Not "--": qa gives what follows to the user's code
-    '--batch=' + quote(str(output.test_input.path)),
-  ])
-
-
-def redo_script(ci_commit, user, command_id, batch_command, legacy_commands) -> str:
+def redo_script(ci_commit, user, command_id, batch_command) -> str:
   # CI results are saved under the CI user's folder (QABOARD_DEFAULT_USER), runs started here under the user's
   outputs_dir_prefix = str(user_batch_dir(ci_commit.outputs_dir, user))
   artifacts_dir = str(ci_commit.artifacts_dir)
@@ -136,16 +102,7 @@ def redo_script(ci_commit, user, command_id, batch_command, legacy_commands) -> 
     '[[ -f "../../../.envrc" ]] && source ../../../.envrc',
     'set -ex',
     "",
-    'if qa batch --help 2>/dev/null | grep -q -- --runs-file; then',
-    f'  {batch_command}',
-    'else',
-    '  set +x',
-    '  echo "[qaboard] WARNING: This version of qa cannot redo runs together (qa batch --runs-file): we redo them one by one, so the batch runner settings (e.g. its concurrency) do not apply. Update qaboard to fix it."',
-    '  set -x',
-    '  failed=0',
-    *[f'  {command} || failed=1' for command in legacy_commands],
-    '  exit $failed',
-    'fi',
+    batch_command,
     "",
   ])
 
@@ -188,7 +145,7 @@ def redo_outputs(batch, outputs, user) -> dict:
     '--action-on-pending=run',
     '--runs-file', quote(str(runs_path)),
   ])
-  script = redo_script(ci_commit, user, command_id, batch_command, [legacy_command(output, batch.label) for output in outputs])
+  script = redo_script(ci_commit, user, command_id, batch_command)
   script_path = log_dir / 'redo.sh'
   with script_path.open('w') as f:
     f.write(script)

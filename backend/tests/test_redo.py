@@ -66,10 +66,6 @@ def test_run_spec():
 
 
 FAKE_QA = """#!/bin/bash
-if [[ "$*" == "batch --help" ]]; then
-  echo "{help}"
-  exit 0
-fi
 echo "$QA_BATCH_COMMAND_ID $QA_OUTPUTS_COMMIT $*" >> "{calls}"
 [[ "$*" != *"{fail_on}"* ]]
 """
@@ -91,9 +87,9 @@ def setup(tmp_path, monkeypatch):
   batch = SimpleNamespace(label="my label", batch_dir=outputs_dir / "output" / "my-label", data={"commands": {"x": {}}}, ci_commit=ci_commit)
   calls = tmp_path / "calls.txt"
 
-  def fake_qa(supports_runs_file=True, fail_on="NEVER"):
+  def fake_qa(fail_on="NEVER"):
     qa = bin_dir / "qa"
-    qa.write_text(FAKE_QA.format(help="--runs-file" if supports_runs_file else "--batch", calls=calls, fail_on=fail_on))
+    qa.write_text(FAKE_QA.format(calls=calls, fail_on=fail_on))
     qa.chmod(qa.stat().st_mode | stat.S_IEXEC)
     return batch, calls
   return fake_qa
@@ -123,23 +119,6 @@ def test_redo_outputs(setup, tmp_path):
   assert outputs_commit == str(tmp_path / "outputs" / "arthurf" / "project" / "abcdef")
   assert " ".join(args) == f"--label my label batch --no-wait --action-on-existing=run --action-on-pending=run --runs-file {log_dir}/runs.json"
   assert "[qaboard] qa batch exited with code 0" in redo.log_tail(submission)
-
-
-def test_redo_outputs_with_older_qa(setup):
-  """Older `qa` versions don't know --runs-file: we redo the runs one by one"""
-  batch, calls = setup(supports_runs_file=False, fail_on="images/a.jpg")
-  outputs = [make_output("images/a.jpg"), make_output("images/b.jpg")]
-  submission = redo.redo_outputs(batch, outputs, "arthurf")
-  # all runs are started even if one fails, but users know something went wrong
-  lines = calls.read_text().splitlines()
-  assert len(lines) == 2
-  assert all(line.split(" ")[0] == submission["id"] for line in lines)
-  assert lines[1].endswith("--batch=images/b.jpg")
-  assert submission["status"] == "failed"
-  assert submission["exit_code"] == 1
-  logs = redo.log_tail(submission)
-  assert "cannot redo runs together" in logs
-  assert "[qaboard] qa batch exited with code 1" in logs
 
 
 def test_redo_outputs_refuses_unsafe_users(setup):
