@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { test } from '@playwright/test';
 import type { Browser, BrowserContext, BrowserContextOptions, Locator, Page, TestInfo } from '@playwright/test';
-import { demo as loadDemo, type Demo, type ProjectKey } from './demo';
+import { DEMO_PASSWORD, demo as loadDemo, PROJECT_PERSONAS, type Demo, type ProjectKey } from './demo';
 import { callerFile, checkId, isSelected, outDir, sourceSpec, type ShotId } from './ids';
 import { anchorsInPercent, cursorInitScript, UiImpl, type Box, type Ui } from './overlay';
 import { Recorder } from './record';
@@ -13,6 +13,7 @@ import { NetworkTracker, settle } from './waits';
 export type { Demo, ProjectKey, View, CommitUrlOptions } from './demo';
 export type { ShotId } from './ids';
 export type { Ui } from './overlay';
+export type { Locator, Page } from '@playwright/test';
 
 export interface ShotOptions {
   project: ProjectKey | null;                          // null: not tied to a demo project (login, What's new)
@@ -20,17 +21,18 @@ export interface ShotOptions {
   alt: string;                                         // required, see website/STYLE.md
   caption?: string;                                    // default caption; pages can override it
   actions?: (ui: Ui) => Promise<void>;
-  target?: (page: Page) => Locator;                    // crop to this element; default: the viewport
+  target?: (page: Page) => Locator | Locator[];        // crop to this element (or these: their union); default: the viewport
   padding?: number;                                    // CSS px around target, default 16
   mask?: (page: Page) => Locator[];                    // painted over with the surrounding background color
   viewport?: { width: number; height: number };        // default 1440x900
   storage?: Record<string, string>;                    // localStorage entries, merged over the defaults
+  login?: string | null;                               // persona logged in; default: the project's main author, none without a project
   dedupeTolerance?: number;                            // share of differing pixels still "unchanged", default 0.0005
 }
 
-export interface ClipOptions extends Omit<ShotOptions, 'actions' | 'target'> {
+export interface ClipOptions extends Omit<ShotOptions, 'target'> {   // actions: before the recording starts, not drawn
   script: (ui: Ui) => Promise<void>;
-  region?: (page: Page) => Locator;                    // crop the recording to this element's box at start
+  region?: (page: Page) => Locator | Locator[];        // crop the recording to this element's box at start
   poster?: 'first' | 'last' | number;                  // ms into the clip, default 'last'
   loop?: boolean;                                      // the last frame must match the first (landing loops)
 }
@@ -151,6 +153,14 @@ async function setupContext(context: BrowserContext, demo: Demo, kind: Kind, sto
 async function openPage(browser: Browser, kind: Kind, id: string, options: ShotOptions, env: CaptureEnv) {
   const context = await browser.newContext(contextOptions(kind, env.contextOptions, options.viewport));
   await setupContext(context, env.demo, kind, { ...defaultStorage(env.demo), ...options.storage });
+  const login = options.login === undefined ? (options.project ? PROJECT_PERSONAS[options.project] : null) : options.login;
+  if (login) {
+    // the session cookie the web app's login form would get
+    const response = await context.request.post(`${env.demo.baseUrl}/api/v1/user/auth/`, {
+      form: { username: login, password: DEMO_PASSWORD },
+    });
+    if (!response.ok()) throw new Error(`[shots] could not log in as ${login}: ${response.status()} ${await response.text()}`);
+  }
   const page = await context.newPage();
   page.on('pageerror', error => console.warn(`[shots] ${id}: page error: ${error.message}`));
   const tracker = new NetworkTracker(page);
@@ -209,16 +219,21 @@ async function stableScreenshot(page: Page, clip: Box, attempts = 6): Promise<Bu
 }
 
 // The shot's box in viewport coordinates: the target and its padding, within the viewport
-async function shotRegion(page: Page, target: Locator | undefined, padding: number): Promise<Box> {
+async function shotRegion(page: Page, target: Locator | Locator[] | undefined, padding: number): Promise<Box> {
   const viewport = page.viewportSize() ?? VIEWPORT;
-  if (!target) return { x: 0, y: 0, width: viewport.width, height: viewport.height };
-  await target.scrollIntoViewIfNeeded();
-  const box = await target.boundingBox();
-  if (!box) throw new Error(`[shots] the target ${target} has no box`);
-  const x0 = Math.max(0, Math.floor(box.x - padding));
-  const y0 = Math.max(0, Math.floor(box.y - padding));
-  const x1 = Math.min(viewport.width, Math.ceil(box.x + box.width + padding));
-  const y1 = Math.min(viewport.height, Math.ceil(box.y + box.height + padding));
+  const targets = target === undefined ? [] : Array.isArray(target) ? target : [target];
+  if (targets.length === 0) return { x: 0, y: 0, width: viewport.width, height: viewport.height };
+  await targets[0].scrollIntoViewIfNeeded();
+  const boxes = [];
+  for (const t of targets) {
+    const box = await t.boundingBox();
+    if (!box) throw new Error(`[shots] the target ${t} has no box`);
+    boxes.push(box);
+  }
+  const x0 = Math.max(0, Math.floor(Math.min(...boxes.map(b => b.x)) - padding));
+  const y0 = Math.max(0, Math.floor(Math.min(...boxes.map(b => b.y)) - padding));
+  const x1 = Math.min(viewport.width, Math.ceil(Math.max(...boxes.map(b => b.x + b.width)) + padding));
+  const y1 = Math.min(viewport.height, Math.ceil(Math.max(...boxes.map(b => b.y + b.height)) + padding));
   return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
 }
 
@@ -261,6 +276,12 @@ export async function captureClip(browser: Browser, id: ShotId, options: ClipOpt
   const dir = prepareDir(id, env);
   const { context, page, tracker } = await openPage(browser, 'clip', id, options, env);
   try {
+    if (options.actions) {
+      // set the scene: these actions aren't recorded, and draw nothing
+      await options.actions(new UiImpl(page, env.demo, tracker, 'still'));
+      await applyMasks(page, options);
+      await settle(page, tracker, { timeout: env.settleTimeout });
+    }
     const region = await shotRegion(page, options.region?.(page), 0);
     if (options.mask) await page.addStyleTag({ content: MASK_STYLE });
     const recorder = new Recorder(page, dir);

@@ -63,6 +63,16 @@ export async function startServer(): Promise<FixtureServer> {
         res.end(fs.readFileSync(VENDOR[url.pathname]));
         return;
       }
+      // like QA-Board's login form: a session cookie for the right password
+      if (url.pathname === '/api/v1/user/auth/' && req.method === 'POST') {
+        let body = '';
+        for await (const chunk of req) body += chunk;
+        const form = new URLSearchParams(body);
+        const ok = form.get('password') === 'kitefin-demo';
+        res.writeHead(ok ? 200 : 401, { 'content-type': 'application/json', ...(ok ? { 'set-cookie': `session=${form.get('username')}; Path=/` } : {}) });
+        res.end(JSON.stringify({ login_success: ok }));
+        return;
+      }
       if (url.pathname === '/api/slow') {
         await sleep(Number(url.searchParams.get('ms') ?? 800));
         res.writeHead(200, { 'content-type': 'application/json' });

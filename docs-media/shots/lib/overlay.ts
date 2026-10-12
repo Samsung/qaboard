@@ -51,20 +51,23 @@ export function cursorInitScript() {
   let x = 0;
   let y = 0;
   let visible = false;
+  // In full screen, only the full screen element's subtree is drawn: the cursor goes there
+  const layer = () => document.fullscreenElement ?? document.documentElement;
   const render = () => {
-    if (!el || !el.isConnected) {
+    if (!el) {
       el = document.createElement('div');
       el.id = '__shot-cursor';
       el.setAttribute('aria-hidden', 'true');
       el.style.cssText = 'position:fixed;left:0;top:0;width:26px;height:26px;pointer-events:none;'
         + 'z-index:2147483647;will-change:transform;filter:drop-shadow(0 1px 1.5px rgba(0,0,0,.35));';
       el.innerHTML = SVG;
-      document.documentElement.appendChild(el);
     }
+    if (el.parentNode !== layer()) layer().appendChild(el);
     // the arrow's tip is at (3, 2) in the SVG
     el.style.transform = `translate(${x - 3}px, ${y - 2}px)`;
     el.style.display = visible ? 'block' : 'none';
   };
+  document.addEventListener('fullscreenchange', () => { if (el) render(); });
   w.__shotCursor = {
     move(nx, ny) { x = nx; y = ny; visible = true; render(); },
     hide() { visible = false; render(); },
@@ -74,7 +77,7 @@ export function cursorInitScript() {
       r.setAttribute('aria-hidden', 'true');
       r.style.cssText = `position:fixed;left:${rx - 22}px;top:${ry - 22}px;width:44px;height:44px;border-radius:50%;`
         + 'pointer-events:none;z-index:2147483646;background:rgba(45,114,210,.28);border:2px solid rgba(45,114,210,.85);';
-      document.documentElement.appendChild(r);
+      layer().appendChild(r);
       const animation = r.animate(
         [{ transform: 'scale(.25)', opacity: 1 }, { transform: 'scale(1.3)', opacity: 0 }],
         { duration: 500, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'forwards' },

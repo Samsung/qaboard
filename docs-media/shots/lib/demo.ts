@@ -42,6 +42,18 @@ export const PROJECT_IDS: Record<ProjectKey, string> = {
   'agent-evals': 'kitefin/fleet-assistant',
 };
 
+// Who is logged in by default when a shot shows a project: its main author (examples/README.md#people)
+export const PROJECT_PERSONAS: Record<ProjectKey, string> = {
+  'image-quality': 'ines',
+  'serving-latency': 'adaeze',
+  'detection-eval': 'arjun',
+  'robotics-3d': 'mira',
+  'agent-evals': 'kaito',
+};
+
+// Every persona's password in the demo stack (docs-media/seed.py)
+export const DEMO_PASSWORD = process.env.DEMO_PASSWORD || 'kitefin-demo';
+
 /**
  * The demo facts: what docs-media/seed.py writes in <results>/.qaboard-demo/demo.json (snapshots restore it):
  * T0, and each project's id and commits. The environment can override or complete them:

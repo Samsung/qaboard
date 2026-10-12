@@ -227,17 +227,18 @@ export interface ShotOptions {
   alt: string;                                         // required, see website/STYLE.md
   caption?: string;                                    // default caption; pages can override it
   actions?: (ui: Ui) => Promise<void>;
-  target?: (page: Page) => Locator;                    // crop to this element; default: the viewport
+  target?: (page: Page) => Locator | Locator[];        // crop to this element (several: their union); default: the viewport
   padding?: number;                                    // CSS px around target, default 16
   mask?: (page: Page) => Locator[];                    // painted over with the surrounding background color
   viewport?: { width: number; height: number };        // default 1440x900
   storage?: Record<string, string>;                    // localStorage entries, merged over the defaults
+  login?: string | null;                               // persona logged in (password kitefin-demo); default: the project's main author
   dedupeTolerance?: number;                            // share of differing pixels still "unchanged", default 0.0005
 }
 
-export interface ClipOptions extends Omit<ShotOptions, 'actions' | 'target'> {
+export interface ClipOptions extends Omit<ShotOptions, 'target'> {  // actions: set the scene before recording, not drawn
   script: (ui: Ui) => Promise<void>;
-  region?: (page: Page) => Locator;                    // crop the recording to this element's box at start
+  region?: (page: Page) => Locator | Locator[];        // crop the recording to this box at start
   poster?: 'first' | 'last' | number;                  // ms into the clip, default 'last'
   loop?: boolean;                                      // the last frame must match the first (landing loops)
 }

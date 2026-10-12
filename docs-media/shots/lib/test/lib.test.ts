@@ -37,6 +37,7 @@ const pngSize = (file: string) => {
 const base: Omit<ShotOptions, 'url'> = {
   project: 'image-quality',
   alt: 'A fixture page with a run card, a button and a text field.',
+  login: null,
 };
 
 test.describe('ids and demo facts', () => {
@@ -210,6 +211,42 @@ test.describe('stills', () => {
   });
 });
 
+test('a target of several elements crops to their union', async ({ browser }, testInfo) => {
+  let expected = { width: 0, height: 0 };
+  const { meta } = await captureStill(browser, 'commit/union', {
+    ...base,
+    url: '/app.html',
+    padding: 0,
+    target: page => [page.locator('#counter-button'), page.locator('#hover-target')],
+    actions: async ui => {
+      const a = (await ui.page.locator('#counter-button').boundingBox())!;
+      const b = (await ui.page.locator('#hover-target').boundingBox())!;
+      expected = {
+        width: Math.max(a.x + a.width, b.x + b.width) - Math.min(a.x, b.x),
+        height: Math.max(a.y + a.height, b.y + b.height) - Math.min(a.y, b.y),
+      };
+    },
+  }, env(testInfo.outputPath('union')));
+  expect(Math.abs(meta.width - expected.width)).toBeLessThanOrEqual(2);
+  expect(Math.abs(meta.height - expected.height)).toBeLessThanOrEqual(2);
+});
+
+test.describe('login', () => {
+  test("the project's persona is logged in by default", async ({ browser }, testInfo) => {
+    const cookies = async (options: Partial<ShotOptions>) => {
+      let value = '';
+      await captureStill(browser, 'commit/login', {
+        ...base, url: '/app.html', ...options,
+        actions: async ui => { value = await ui.page.evaluate(() => document.cookie); },
+      }, env(testInfo.outputPath('login')));
+      return value;
+    };
+    expect(await cookies({ login: undefined })).toBe('session=ines');
+    expect(await cookies({ login: 'tobias' })).toBe('session=tobias');
+    expect(await cookies({ login: undefined, project: null })).toBe('');
+  });
+});
+
 test.describe('clips', () => {
   test('cursor, ripples, captions and frames', async ({ browser }, testInfo) => {
     let ripples = 0;
@@ -219,8 +256,14 @@ test.describe('clips', () => {
       url: '/app.html',
       region: page => page.locator('body'),
       poster: 1500,
+      // before the recording: not drawn
+      actions: async ui => {
+        await ui.click(ui.page.locator('#counter-button'));
+        expect(await ui.page.locator('#__shot-cursor').count()).toBe(0);
+      },
       script: async ui => {
         const page = ui.page;
+        expect(await page.locator('#count').textContent()).toBe('1');
         await ui.caption('Hover the box');
         await ui.cursor.moveTo(page.locator('#hover-target'));
         expect(await page.locator('#__shot-cursor').isVisible()).toBe(true);
@@ -235,7 +278,13 @@ test.describe('clips', () => {
         await ui.cursor.hide();
         expect(await page.locator('#__shot-cursor').isVisible()).toBe(false);
         await ui.hold(600);
-        expect(await page.locator('#count').textContent()).toBe('1');
+        expect(await page.locator('#count').textContent()).toBe('2');
+        // in full screen, the cursor is drawn in the full screen element
+        await ui.click(page.locator('#fullscreen'));
+        await ui.cursor.moveTo({ x: 300, y: 300 });
+        expect(await page.evaluate(() => document.getElementById('__shot-cursor')?.parentElement?.id)).toBe('card');
+        await ui.page.evaluate(() => document.exitFullscreen());
+        await ui.hold(300);
         expect(await page.locator('#field').inputValue()).toBe('abc');
         // Chromium scales wheel deltas with the device scale factor: count the events
         expect(Number(await page.locator('#wheel-area').getAttribute('data-events'))).toBe(3);
