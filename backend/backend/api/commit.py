@@ -21,7 +21,8 @@ from ..storage import UnsafePathError
 @app.route("/api/v1/commit/<path:commit_id>", methods=['GET', 'POST'])
 def api_ci_commit(commit_id=None):
   if request.method == 'POST':
-    hexsha = request.json.get('commit_sha', request.json['git_commit_sha']) if not commit_id else commit_id
+    # git_commit_sha for backward-compatibility
+    hexsha = commit_id or request.json.get('commit_sha') or request.json.get('git_commit_sha')
     try:
       commit = CiCommit.get_or_create(
         session=db_session,
