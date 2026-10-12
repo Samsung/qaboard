@@ -84,6 +84,27 @@ The default can be set in *qaboard.yaml* with `outputs.action_on_existing`.
 
 Similarly, `--action-on-pending` (or `outputs.action_on_pending`) decides what to do when the same runs are already pending: `wait` (default, then run), `sync` (use those runs' results), `skip` or `run` (run as usual, can cause races).
 
+### Running a list of runs
+Instead of batches, `qa batch --runs-file runs.json` does the runs listed in a JSON file. QA-Board uses it to redo runs: they are started together, so the batch's runner settings (e.g. its concurrency) apply to all of them.
+
+```json title="runs.json"
+{
+  "runs": [
+    {
+      "input_path": "images/A.jpg",
+      "database": "/datasets",
+      "type": "image",
+      "platform": "linux",
+      "configurations": ["base", {"threshold": 0.5}],
+      "extra_parameters": {"iterations": 3},
+      "job_options": {"type": "dask", "concurrency": 20}
+    }
+  ]
+}
+```
+
+Only `input_path` (relative to `database`) and `database` are required. Runs are done with the runner and options in `job_options`, completed by the defaults from *qaboard.yaml*. Options you give on the command line, like `--runner` or `--lsf-queue`, win.
+
 ---
 
 ## Connecting to a custom QA-Board instance

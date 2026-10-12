@@ -3,7 +3,6 @@ Represents runs belonging to the same commit.
 It might by a CI job, or tuning experiments.
 """
 import os
-import uuid
 import datetime
 from pathlib import Path
 
@@ -118,23 +117,6 @@ class Batch(Base):
     self.label = label
     db_session.add(self)
     db_session.commit()
-
-  def redo(self, user, only_failed=False, only_deleted=False):
-    # in case it was deleted without QA-Board being made aware
-    if not self.ci_commit.artifacts_dir.exists():
-      print("Restoring artifacts")
-      self.ci_commit.save_artifacts()
-
-    success = True
-    command_id = uuid.uuid4()
-    for output in self.outputs:
-      if only_failed and not output.is_failed:
-        continue
-      if only_deleted and not output.deleted:
-        continue
-      output_success = output.redo(user=user, command_id=command_id)
-      success = success and output_success
-    return success
 
   def stop(self, session):
     if not any([o.is_pending for o in self.outputs]):

@@ -365,6 +365,49 @@ class TestDaskRunner(unittest.TestCase):
     for index, job in enumerate(jobs):
       self.assertEqual((job.run_context.output_dir / 'log.dask.txt').read_text(), f'run-{index}\n')
 
+  def test_no_wait_existing_cluster(self):
+    """With --no-wait and an existing cluster, the driver job connects to it and enforces the concurrency."""
+    import json
+    from distributed import LocalCluster
+    from qaboard.runners.dask_runner import DaskRunner
+    counter = self.root / 'counter'
+    commands = [
+      f'mkdir -p output{i} && cd output{i} && echo start >> "{counter}"; grep -c start "{counter}" > started; grep -c end "{counter}" > ended; sleep 0.5; echo end >> "{counter}"'
+      for i in range(5)
+    ]
+    with LocalCluster(n_workers=1, threads_per_worker=4, processes=True, dashboard_address=None) as cluster:
+      batch_dir = self.root / 'batch'
+      jobs = make_jobs('dask', commands, self.root, scheduler_address=cluster.scheduler_address, concurrency=2, batch_dir=str(batch_dir))
+      bsub = FakeBsub()
+      with mock.patch('qaboard.runners.lsf.subprocess.run', bsub), has_bsub(), mock.patch('qaboard.runners.dask_runner.shutil.which', return_value='/usr/bin/bsub'):
+        DaskRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
+      self.assertEqual(bsub.names(), ['abcdefgh_dask_driver'])
+      logs_dir = batch_dir / 'dask' / 'abcdefgh'
+      self.assertEqual(json.loads((logs_dir / 'tasks.json').read_text())['job_options']['scheduler_address'], cluster.scheduler_address)
+      script = bsub.commands[0].split('<< "EOF"\n', 1)[1].rsplit('\nEOF', 1)[0]
+      out = subprocess.run(['bash', '-c', script], timeout=120)
+    self.assertEqual(out.returncode, 0, (logs_dir / 'driver.log').read_text())
+    self.assertIn('5 runs done, 0 failed', (logs_dir / 'driver.log').read_text())
+    for job in jobs:
+      output_dir = job.run_context.output_dir
+      in_flight = int((output_dir / 'started').read_text()) - int((output_dir / 'ended').read_text())
+      self.assertLessEqual(in_flight, 2)
+
+  def test_no_wait_existing_cluster_without_lsf(self):
+    """Without LSF to send a driver, all runs are sent at once to the existing cluster."""
+    from qaboard.runners.dask_runner import DaskRunner
+    jobs = make_jobs('dask', [f'echo run-{i}' for i in range(3)], self.root, scheduler_address=self.cluster.scheduler_address, concurrency=1)
+    with mock.patch.dict(os.environ, {'QA_RUNNERS_LSF_BRIDGE': ''}), mock.patch('qaboard.runners.dask_runner.shutil.which', return_value=None), \
+         mock.patch('qaboard.runners.lsf.subprocess.run') as run, mock.patch('qaboard.runners.dask_runner.secho'):
+      DaskRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=False)
+    run.assert_not_called()
+    logs = [job.run_context.output_dir / 'log.dask.txt' for job in jobs]
+    deadline = time.time() + 30
+    while time.time() < deadline and not all(log.exists() and log.read_text() for log in logs):
+      time.sleep(0.1)
+    for index, log in enumerate(logs):
+      self.assertEqual(log.read_text(), f'run-{index}\n')
+
 
 if __name__ == '__main__':
   unittest.main()
