@@ -21,6 +21,8 @@ const redirects = [
   {from: 'backend-admin/getting-SSL-certiticates-from-IT', to: 'deploy#using-ssl--hosting-behind-a-reverse-proxy'},
   {from: 'dag-pipelines', to: 'batches-running-on-multiple-inputs'},
   {from: 'tuning-workflows', to: 'tuning-from-the-webapp#other-tuning-workflows'},
+  // the page's file name, linked by the web app's LSF hints (the anchor is kept)
+  {from: 'lsf-cluster-integration', to: 'lsf-integration'},
 ].map(({from, to}) => ({from: docsPath(from), to: docsPath(to)}))
 
 const logo = {
@@ -97,7 +99,8 @@ let config: Config = {
   ],
 
   themeConfig: {
-      image: "img/share.jpg",
+      // TODO: a social card made from a screenshot of the web app
+      image: "img/share-github.png",
       docs: {
         sidebar: {hideable: true},
       },
