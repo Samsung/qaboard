@@ -1,5 +1,8 @@
 // The commit page's Logs view (docs-media/shots.yaml: logs/*).
-import { shot, type Page } from './lib';
+import { spawn, type ChildProcess } from 'node:child_process';
+import path from 'node:path';
+import { test, type APIRequestContext } from '@playwright/test';
+import { clip, shot, type Demo, type Page } from './lib';
 
 const IQ = 'image-quality';
 
@@ -73,4 +76,82 @@ shot('logs/batch-commands', {
   ],
   // the Controls panel's button is on the viewport's edge, 4 px from the sections
   padding: 4,
+});
+
+// A run that really runs while the clip records (examples/serving-latency/SPEC.md: logs/live-tail): bursty-high on the
+// head of main at T0 (tuned-batching), in its own batch. Its bursts overload the gateway, which logs the requests that
+// missed their deadline as errors. It runs this checkout's qa from the example's folder (`uv`; the first time, its
+// qa/build.py builds gateway-bench with cargo, about 2 minutes), and shares its results with the demo stack: the batch
+// is deleted once the clip is recorded. What it measures changes with every recording: so does the clip.
+const LIVE = 'live-tail';
+const REPO = path.resolve(import.meta.dirname, '..', '..');
+let liveRun: ChildProcess | undefined;
+
+function startLiveRun(d: Demo) {
+  const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(CI|CI_.*|GITHUB_.*|GITLAB_.*|QA_.*|QABOARD_.*|VIRTUAL_ENV)$/.test(k)));
+  liveRun = spawn('uv', ['run', '-q', '--no-project', '--with-editable', REPO, 'qa', '--share', '--label', LIVE, 'run', '--input', 'profiles/bursty-high.yaml'], {
+    cwd: path.join(REPO, 'examples', SL),
+    // as the CI of the commit: the run is saved under its sha
+    env: { ...env, CI: 'true', GITHUB_SHA: d.sha(SL, 'tuned-batching'), GITHUB_REF: 'refs/heads/main', QABOARD_URL: d.baseUrl, QA_USER: 'adaeze' },
+    stdio: 'ignore',
+  });
+}
+
+// Deletes the live batch, with its output files (it's not part of the demo snapshot)
+async function deleteLiveBatch(request: APIRequestContext, d: Demo) {
+  const commit = await request.get(`${d.baseUrl}/api/v1/commit/${d.sha(SL, 'tuned-batching')}`, { params: { project: d.slug(SL) } });
+  const batch = commit.ok() ? (await commit.json()).batches?.[LIVE] : undefined;
+  if (!batch?.id) return;
+  const login = await request.post(`${d.baseUrl}/api/v1/user/auth/`, { form: { username: 'adaeze', password: 'kitefin-demo' } });
+  if (!login.ok()) throw new Error(`[logs.spec] could not log in to delete the ${LIVE} batch: ${login.status()}`);
+  const deleted = await request.delete(`${d.baseUrl}/api/v1/batch/${batch.id}/`);
+  if (!deleted.ok()) throw new Error(`[logs.spec] could not delete the ${LIVE} batch: ${deleted.status()} ${await deleted.text()}`);
+}
+
+test.afterAll(async ({ playwright }) => {
+  if (!liveRun) return;
+  if (liveRun.exitCode === null) await new Promise(resolve => liveRun!.once('exit', resolve));
+  const { demo } = await import('./lib/demo');
+  const request = await playwright.request.newContext();
+  await deleteLiveBatch(request, demo());
+  await request.dispose();
+});
+
+clip('logs/live-tail', {
+  project: SL,
+  url: d => d.commitUrl(SL, 'tuned-batching', { view: 'logs', batch: LIVE }),
+  alt: 'The Logs view of a bursty-high run while it runs: its log follows the end as the gateway prints its repeats, the '
+    + 'error count grows with every burst\'s missed deadlines, and a click on it jumps to the first error.',
+  caption: 'While a run runs, its log follows the end; the error count jumps to each error.',
+  // a real run: its timings, deadlines and request ids change from one recording to the next
+  dedupeTolerance: 0.05,
+  actions: async ui => {
+    await deleteLiveBatch(ui.page.request, ui.demo);
+    startLiveRun(ui.demo);
+    // the batch shows once qa has started the run
+    const running = ui.page.getByText(/^Running · 1$/);
+    for (let attempt = 0; ; attempt++) {
+      await ui.page.reload();
+      await ui.settle();
+      if (await running.isVisible()) break;
+      if (attempt === 60) throw new Error(`[logs.spec] the ${LIVE} run didn't start`);
+      await ui.page.waitForTimeout(500);
+    }
+    // its log
+    await ui.click(ui.page.getByText('profiles/bursty-high.yaml', { exact: true }).first());
+    await ui.page.locator('input[placeholder="Search…"]').first().waitFor();
+    // the Logs title right below the commit bar: more of the log shows
+    await ui.page.getByRole('heading', { name: 'Logs', exact: true }).evaluate(h => window.scrollBy(0, h.getBoundingClientRect().top - 100));
+    await ui.settle();
+    await ui.cursor.moveTo({ x: 1300, y: 860 });
+  },
+  script: async ui => {
+    await ui.caption('A running run\'s log follows the end');
+    await ui.hold(3500);
+    await ui.caption('Missed deadlines count as errors');
+    await ui.hold(3500);
+    await ui.caption('Click the count to jump to an error');
+    await ui.click(ui.page.getByRole('button', { name: /\d+ errors?$/ }).first());
+    await ui.hold(2500);
+  },
 });
