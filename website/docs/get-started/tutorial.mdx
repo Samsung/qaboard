@@ -11,9 +11,9 @@ next to your reference branch's. Pick your stack: the steps follow your choices.
 
 :::info Where results go
 `qa` runs your code where you start it, saves each run's output files in a storage the server reads at the same path
-(by default `/mnt/qaboard`, usually an NFS share), and sends the metrics to the server. Every machine that runs
-`qa`, CI runners included, must mount that storage. Uploading outputs over HTTP, so that any machine can save
-results, is on the [roadmap](/docs/roadmap#http-upload-of-outputs).
+(by default `/mnt/qaboard`, usually an NFS share), and sends the metrics to the server. Every machine that saves
+results with `qa`, CI runners included, must mount that storage. Uploading outputs over HTTP, so that any machine can
+save results, is on the [roadmap](/docs/roadmap#http-upload-of-outputs).
 :::
 
 ## 1. Start a server
@@ -70,7 +70,7 @@ uv tool install qaboard
 </TabItem>
 </Tabs>
 
-Then point it to your server, e.g. in your shell's profile, and check that it works:
+Then point it to your server, e.g. in your shell's profile, and check that `qa` is installed:
 
 ```bash
 export QABOARD_URL=http://<your-qaboard>
@@ -140,10 +140,13 @@ def run(context):
 
 {/* TODO: `qa init --template image-quality` copies the example, once it ships (plan §7) */}
 
-Then tell `qa` where your inputs are and which outputs to show. In the camera ISP example, the inputs are images in
-`inputs/`, and each run's `out.png` shows side by side with the reference's:
+Then tell `qa` about your project and where your inputs are. In the camera ISP example, the inputs are the images in
+its `inputs/` folder (the `database`), and its batches are in `qa/batches.yaml`:
 
 <RepoFile path="examples/image-quality/qaboard.yaml" title="qaboard.yaml" section="project,inputs" />
+
+Under `outputs:`, list the files to show, like images side by side with the reference's: see the example's
+[configuration](/docs/use-cases/image-quality#the-configuration).
 
 A batch lists inputs and configurations. The example's `ci` batch runs 9 images in 2 configurations:
 
@@ -158,6 +161,8 @@ Run your code on one input. `qa` prints your code's log and the metrics, and sav
 ```bash
 qa run --input <an-input>
 ```
+
+`<an-input>` is the path of one of your inputs, relative to the `database` folder.
 
 <Clip id="cli/first-run" />
 
@@ -200,7 +205,7 @@ GitHub has to reach your server for this. Posting commit statuses to GitHub isn'
    - **URL:** `http://<your-qaboard>/webhook/gitlab`
    - **Secret token:** the server's `QABOARD_WEBHOOK_SECRET`
    - **Trigger:** push events
-3. Click **Test > Push events**: GitLab shows `200 OK`.
+3. Click **Test > Push events**: GitLab shows that the hook answered with HTTP 200.
 
 </TabItem>
 </Tabs>
@@ -259,8 +264,8 @@ allows PSNR to get at most 1% worse, and the halos 20%:
 {/* TODO link quality-gate */}
 
 ## 8. Scale out
-By default `qa batch` runs on the machine where you start it. Runners send the runs elsewhere; each needs the results
-storage too.
+By default `qa batch` runs on the machine where you start it. Other runners send the runs elsewhere: the machines that
+run them need the results storage too.
 
 <Tabs groupId="runner" queryString>
 <TabItem value="local" label="Local" default>

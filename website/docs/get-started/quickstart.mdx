@@ -80,8 +80,8 @@ With Helm 4, avoid 4.2.1: it waits out the whole `--timeout` after the chart's d
 <Clip id="quickstart/kind" />
 
 :::note Tested in CI
-On every commit, GitHub CI runs these commands with the images it just built, runs a `qa batch` in the cluster,
-checks its results through the web server, then upgrades the release (the `helm-e2e` job).
+On every commit, GitHub CI runs these commands with the images it built in the same run, runs a `qa batch` in
+the cluster, checks its results through the web server, then upgrades the release (the `helm-e2e` job).
 :::
 
 </TabItem>
