@@ -3,7 +3,6 @@ id: tuning-from-the-webapp
 sidebar_label: Tuning from QA-Board
 title: Starting tuning experiments from QA-Board
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
 
 
 ## How to do tuning or trigger extra runs from QA-Board
@@ -11,7 +10,10 @@ When doing QA or during development, you often want to run the code/configs from
 
 <iframe style={{maxWidth: "560px"}} height="315" src="https://www.youtube.com/embed/XN71PBr0Rvg" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
-<!-- <img alt="Tuning from the UI" src={useBaseUrl('img/tuning-from-the-ui.jpg')} /> -->
+<Shot
+  id="tuning/manual-form"
+  caption="A grid over a detector's score_threshold and nms_iou: the form says how many runs it will start."
+/>
 
 ## When the batch doesn't start
 QA-Board starts your batch by running `qa batch` (as an LSF job, with Celery, or locally on the server). If it fails or takes a while, there are no runs to look at, so the batch's page tells you what's going on:

@@ -7,6 +7,11 @@ description: Browse the output and artifacts folders in your browser, copy Linux
 
 Results live on a shared storage. QA-Board serves its files under `/s/`: the folder `/mnt/qaboard/my-project/outputs` is at `https://<qaboard>/s/mnt/qaboard/my-project/outputs/`. When you open a folder in your browser, you get QA-Board's **file browser**. You land there from the folder icons of the web app (e.g. on each run's card), from the links printed by the `qa` CLI, or by typing a path.
 
+<Shot
+  id="files/browser"
+  caption="A run's output folder: frame2 comes before frame10, and every file has its size and date."
+/>
+
 ## What you can do
 - **Navigate**: click a folder, or a part of the path at the top. The browser's back and forward buttons work, and links open in new tabs as usual.
 - **Go to a path**: click next to the path at the top, or press <kbd>g</kbd>, and type or paste a **Linux path**, a **Windows path** (`\\server\share\...`) or a **QA-Board URL**.
@@ -24,10 +29,20 @@ In a run's output folder, or in a folder inside it, a bar shows the run: its sta
 - **Delete** it: its folder and its results in QA-Board. Check **Only delete its files** to keep the run in QA-Board, like "Delete Output Files" in the web app,
 - **Mark as failed** a run stuck as pending or running, whose job is gone.
 
+<Shot
+  id="files/runbar"
+  caption="In a run's folder, the run bar says which run it is and how it went, with Results, Redo and Delete at hand."
+/>
+
 You need to be signed in. You act on whole runs, like in the web app: the file browser doesn't delete single files.
 
 ## Keyboard shortcuts
 Press <kbd>?</kbd> to see them all.
+
+<Shot
+  id="files/hotkeys"
+  caption="Press ? anywhere in the file browser to list its shortcuts."
+/>
 
 | Key | What it does |
 |---|---|
@@ -40,6 +55,11 @@ Press <kbd>?</kbd> to see them all.
 | <kbd>w</kbd> | Copy the Windows path |
 | <kbd>.</kbd> | Show or hide hidden files |
 | <kbd>r</kbd> | Refresh, e.g. while a run is writing files |
+
+<Clip
+  id="files/keyboard"
+  caption="j and k move through the files, / filters them, Enter opens the selection and c copies its path."
+/>
 
 ## Restricted folders
 Your admins can restrict who can see the files of some projects or folders. If you see **Sign in to see these files**, sign in with the button. If you see **You don't have access**, ask them for access.

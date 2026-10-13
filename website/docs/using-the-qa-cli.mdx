@@ -3,7 +3,6 @@ id: using-the-qa-cli
 sidebar_label: QA CLI Tips
 title: Tips for CLI usage
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
 
 ## CLI flags worth knowing
 ## `qa --help`
@@ -15,7 +14,7 @@ qa batch --help
 ```
 
 ## `qa --share`
-When you run `qa batch` or `qa run` on your terminal, results are saved locally under **output/**, and *they are not visible in QA-Board*. To make them visible:
+When you run `qa batch` or `qa run` on your terminal, results are saved locally under **output/**, and *they are not visible in QA-Board*. To make them visible, add `--share`: `qa --share run ...`.
 
 :::tip
 If you don't like this default, make `--share` the default via  
@@ -53,7 +52,12 @@ qa --label without-optimizations batch validation-images
 qa --label    with-optimizations batch validation-images
 ```
 
-<img alt="select-batch" src={useBaseUrl('img/select-batch.png')} />
+Each label is a batch of its own: pick it in the web app's batch selector.
+
+<Shot
+  id="commit/batch-picker"
+  caption="The CI batch, someone's local runs (🏠) and a tuning experiment, each with how many of its runs succeeded."
+/>
 
 :::tip
 To keep previous output files, use `qa run --keep-previous` (or `export QABOARD_RUN_KEEP=true`). It can be useful if you are debugging long runs and implemented a caching mecanism. *(Experimental)*

@@ -4,11 +4,12 @@ title: Comparing results
 sidebar_label: Comparing results
 description: New vs reference, picking a reference, milestones, synced image viewers and metric colors.
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
-
 QA-Board always shows the results of a **new** commit next to a **reference** (`ref`). Knowing what you compare to is half the job.
 
-<img alt="The new and reference bars" src={useBaseUrl('img/comparing-new-and-reference.png')} />
+<Shot
+  id="commit/visualizations"
+  caption="The new commit's bar on top, the reference's below, each with its batch and filter. Every run is shown against its reference run."
+/>
 
 ## The default reference
 When you open a commit without choosing a reference, the reference is the **latest commit with results on the project's reference branch** (often `master` or `develop`, set in the project's *qaboard.yaml*).
@@ -22,7 +23,10 @@ In the **ref** bar (or the **new** bar, it works the same way):
 - **Click the branch name** to select the latest commit of that branch.
 - **Hover Change** next to the commit field for a menu:
 
-<img alt="The Change menu" src={useBaseUrl('img/commit-select-menu.png')} />
+<Shot
+  id="commit/change-menu"
+  caption="The Change menu swaps new and reference, or picks the reference branch's latest commit or a milestone."
+/>
 
 | Menu item | What it does |
 |---|---|
@@ -59,13 +63,12 @@ There are three kinds:
 | **Shared** (crown icon) | Everyone | The star in a commit bar, with **Shared** on. |
 | **Private** (star icon) | Only you, in this browser | The star in a commit bar, with **Shared** off. |
 
-To save a milestone, click the **star** next to the commit hash in the new or ref bar:
+To save a milestone, click the **star** next to the commit hash in the new or ref bar. Give it an optional **label** and **notes**, choose whether it's **Shared**, then **Save**:
 
-<img alt="Save as Milestone" src={useBaseUrl('img/save-as-milestone.png')} />
-
-Give it an optional **label** and **notes**, choose whether it's **Shared**, then **Save**:
-
-<img alt="Milestone details" src={useBaseUrl('img/milestone-details.png')} />
+<Shot
+  id="commit/milestone"
+  caption="A shared milestone for a release: its label and notes tell everyone why it's worth comparing with."
+/>
 
 - A milestone remembers the commit, the selected **batch** and **filter**.
 - Click the star again to edit or **Delete** it. You can only edit or delete shared milestones that you created, and you need to be logged in.
@@ -156,5 +159,10 @@ Colors follow the same rules everywhere:
 | Metrics Table, card tags | Meets the metric's target | Misses the target | No target defined |
 
 "Better" depends on the metric: the project's configuration sets whether **smaller is better** (the default) and the **target** for each metric. Hover a metric's name to see its full label and description, and hover a value for its exact number.
+
+<Shot
+  id="commit/metrics-diff"
+  caption="Green where int8 is better than fp32 (the model size), red where it's worse: mAP and AP on small objects, on the slices that suffer."
+/>
 
 Learn how projects define metrics in [Computing quantitative metrics](../computing-quantitative-metrics.mdx).
