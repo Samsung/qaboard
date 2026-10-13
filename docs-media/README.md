@@ -152,6 +152,9 @@ uv run docs-media/publish.py --only 'commit/*,cli/*' --dry-run   # encode, check
   can override them: `DEMO_META` (another file), `DEMO_T0`, `DEMO_BASE_URL` (default `http://localhost:5151`),
   `DEMO_APP_VERSION` (default: *pyproject.toml*'s version and the checkout's short sha; CI asks the stack's backend).
   `demo.sha()` uses the snapshot's shas, and fails on a commit id the snapshot doesn't have.
+- **A second stack** next to the first (e.g. to seed one project while another captures): give it its own
+  `QABOARD_DEMO_PROJECT` (compose project, default `qaboard-demo`), `QABOARD_DEMO_PORT` and `QABOARD_DEMO_RESULTS`,
+  and its own `seed.py --workspace`.
 - **Selection:** `SHOTS_ONLY` (captures), `--only` (tapes, publish) take comma-separated globs over ids.
 - **`out/<area>/<subject>/meta.json`** is what `publish.py` reads: `id`, `kind`, `width`/`height` (CSS px of the
   shot), `scale`, `alt`, `caption`, `project`, `app_version`, `source_spec`, `captured` (ISO time), `t0`,
