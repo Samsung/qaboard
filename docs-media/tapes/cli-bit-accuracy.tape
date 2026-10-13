@@ -16,10 +16,10 @@ Source "tapes/_settings.tape"
 Output out/cli/bit-accuracy/tape.mp4
 Output out/cli/bit-accuracy/tape.webm
 
-# qa check-bit-accuracy asks git for the remotes: `git init` makes the workspace's .git (a HEAD and a ref, see
-# record.py) a repository, still without the commits. The outputs it compares are the stack's, in <results>.
+# The workspace is a git repository (record.py), as qa check-bit-accuracy needs, without the story's commits: the
+# outputs it compares are the stack's, in <results>.
 Hide
-Type "cd ~/kitefin/camera-isp && git init -q && export RELEASE=6e0be1abc1659bbdb80f773ecccb1e6c1a32259d && clear"
+Type "cd ~/kitefin/camera-isp && export RELEASE=6e0be1abc1659bbdb80f773ecccb1e6c1a32259d && clear"
 Enter
 Show
 

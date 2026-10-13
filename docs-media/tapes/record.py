@@ -17,7 +17,7 @@ A tape starts with `# key: value` lines, then `Source "tapes/_settings.tape"`:
   dedupe_tolerance, dedupe_mask   how publish.py compares a new recording with the published one (README.md#determinism)
 Commands run for real, against the restored demo stack (QABOARD_URL, from the demo facts), from ~/kitefin/<repo>:
 HOME is /home/<user> (TAPES_HOME), where ~/kitefin/<repo> is a workspace like the seeder's, built by workspace(): a .venv
-with `qa` and the example's dependencies, the inputs, and git HEAD on a story commit.
+with `qa` and the example's dependencies, the inputs, and a git repository whose HEAD is on a story commit.
 CI and QA-Board variables of the environment are dropped, unless the tape's `env` sets them.
 Tools: VHS, ttyd and ffmpeg from docs-media/install-tools.sh or PATH, a Chromium (PLAYWRIGHT_CHROMIUM_EXECUTABLE,
 Playwright's, or `chromium` in PATH), and `qa` in PATH.
@@ -130,6 +130,17 @@ def main_head(facts: dict, project: str) -> str | None:
     return max(on_main, key=lambda c: c["at"])["sha"] if on_main else None
 
 
+def head_commit(facts: dict, project: str, env: dict[str, str]) -> tuple[str, str] | None:
+    """The (branch, sha) the workspace's git HEAD is on: the commit the tape's CI variables name, else the reference
+    branch's last commit at T0"""
+    sha = env.get("GITHUB_SHA") or env.get("CI_COMMIT_SHA") or env.get("GIT_COMMIT")
+    if sha:
+        branch = env.get("GITHUB_REF") or env.get("CI_COMMIT_REF_NAME") or env.get("GIT_BRANCH") or "main"
+        return re.sub(r"^(refs/heads/|origin/)", "", branch), sha
+    sha = main_head(facts, project)
+    return ("main", sha) if sha else None
+
+
 def runs_qa(venv: Path) -> bool:
     """The venv's `qa` starts: its qaboard is an editable install, broken once the checkout it points to is gone"""
     python = venv / "bin" / "python"
@@ -137,12 +148,13 @@ def runs_qa(venv: Path) -> bool:
         and subprocess.run([str(python), "-I", "-c", "import qaboard.qa"], capture_output=True).returncode == 0  # -I: not from the cwd
 
 
-def workspace(project: str, home: Path, facts: dict) -> Path:
-    """~/kitefin/<repo>, where the tape's commands run, built like the seeder's workspace: a copy of the example, git HEAD
-    on the reference branch's last commit at T0 (like the seeder, a ref to a sha the repository doesn't have), a venv with
-    this checkout's qaboard and the example's requirements.txt, and the inputs generated (the first import of qa/main.py
-    does it). Always a real directory, never a link to the seeder's workspace: `qa` prints paths from os.getcwd(), which
-    resolves links, so the tape would show /tmp/kitefin/<repo>.
+def workspace(project: str, home: Path, facts: dict, head: tuple[str, str] | None) -> Path:
+    """~/kitefin/<repo>, where the tape's commands run, built like the seeder's workspace: a copy of the example, a git
+    repository (`git init`, so that git commands like `qa check-bit-accuracy`'s work) whose HEAD is on `head`, the
+    story commit (like the seeder, a ref to a sha the repository doesn't have: the story's shas aren't real commits), a
+    venv with this checkout's qaboard and the example's requirements.txt, and the inputs generated (the first import of
+    qa/main.py does it). Always a real directory, never a link to the seeder's workspace: `qa` prints paths from
+    os.getcwd(), which resolves links, so the tape would show /tmp/kitefin/<repo>.
     """
     project_id = PROJECT_IDS[project]
     repo = project_id.split("/")[-1]
@@ -154,12 +166,15 @@ def workspace(project: str, home: Path, facts: dict) -> Path:
     log(f"  building the workspace {target} from {example.relative_to(REPO)}")
     shutil.copytree(example, target, dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns(".venv", "build", "target", "output", "__pycache__", "*.pyc", ".git"))
-    sha = main_head(facts, project)
-    if sha:
+    # a repository without commits or remotes: re-initializing one keeps its HEAD and refs
+    subprocess.run(["git", "-c", "init.defaultBranch=main", "init", "-q", str(target)], check=True)
+    if head:
+        branch, sha = head
         git = target / ".git"
-        (git / "refs" / "heads").mkdir(parents=True, exist_ok=True)
-        (git / "HEAD").write_text("ref: refs/heads/main\n")
-        (git / "refs" / "heads" / "main").write_text(sha + "\n")
+        (git / "HEAD").write_text(f"ref: refs/heads/{branch}\n")
+        ref = git / "refs" / "heads" / branch
+        ref.parent.mkdir(parents=True, exist_ok=True)
+        ref.write_text(sha + "\n")
     venv = target / ".venv"
     requirements = example / "requirements.txt"
     stamp = venv / ".record-stamp"
@@ -212,9 +227,10 @@ def record(tape: Path, facts: dict) -> Path:
     (shim / "chromium").unlink(missing_ok=True)
     (shim / "chromium").symlink_to(chromium())
     project = meta.get("project", "none")
+    tape_env = dict(pair.partition("=")[::2] for pair in meta.get("env", "").split())
     path = [str(shim), str(TOOLS_BIN), os.environ.get("PATH", "")]
     if project in PROJECT_IDS:
-        venv = workspace(project, home, facts) / ".venv"
+        venv = workspace(project, home, facts, head_commit(facts, project, tape_env)) / ".venv"
         path.insert(1, str(venv / "bin"))
     name = PEOPLE.get(user, user)
     env = {
@@ -231,9 +247,7 @@ def record(tape: Path, facts: dict) -> Path:
         "GIT_AUTHOR_NAME": name, "GIT_COMMITTER_NAME": name,
         "GIT_AUTHOR_EMAIL": f"{user}@kitefin.example", "GIT_COMMITTER_EMAIL": f"{user}@kitefin.example",
     }
-    for pair in meta.get("env", "").split():
-        key, _, value = pair.partition("=")
-        env[key] = value
+    env.update(tape_env)
     if os.geteuid() == 0:
         env["VHS_NO_SANDBOX"] = "true"   # Chromium refuses to run as root with its sandbox
     if not shutil.which("qa", path=env["PATH"]):
