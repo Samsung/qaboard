@@ -7,11 +7,10 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 
 You often want to integrate various tools into your workflow, or show [status badges](https://shields.io/index.html). QA-Board lets you connect to those third-party tools on each commit's page and on commit index pages:
 
-<img alt="Allowing triggered build" src={useBaseUrl('img/ui-triggers.png')} />
-
-:::note
-The screenshots are not up-to-date; the menu is now named **"Integrations"**
-:::
+<Shot
+  id="integrations/menu"
+  caption="The Integrations menu with links and a webhook: after a click, the webhook's tag shows its job's status."
+/>
 
 
 ## Adding badges and external links
@@ -119,6 +118,8 @@ integrations:
       job_name: build-linux
 ```
 <img alt="jenkins-and-gitlab-integrations" src={useBaseUrl('img/gitlab-jenkins.gif')} />
+
+*An older recording: the menu is now named **Integrations**.*
 
 
 ## Trigger Jenkins builds

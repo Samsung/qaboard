@@ -12,6 +12,13 @@ QA-Board offers a user management system. It can be used to block access to anon
 - `LDAP`
 - `SAML`: SSO via SAML
 
+Users sign in from the **Login** button at the top right of the web app. With `LOCAL` and `LDAP`, it opens a form; with `SAML`, it redirects them to your identity provider.
+
+<Shot
+  id="auth/login"
+  caption="With local or LDAP accounts, users sign in with their user name and password."
+/>
+
 > **To register a new `LOCAL` user**, either:
 > - add an entry to the database under `users` table.<br />
 > - use the signup endpoint (_signup()_ in _backend/backend/api/auth.py_). It is enabled unless `QABOARD_DISABLE_SIGNUP=True`:

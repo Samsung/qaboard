@@ -43,8 +43,8 @@ percentile is a hundred times slower or more.
 
 <Shot id="commit/throughput-p99" />
 
-**Flame graph diff**: frames that got slower are red, faster ones blue. Rendering responses under the cache's lock is
-new.
+**Flame graph diff**: frames that got slower are red, faster ones blue, new ones orange. Rendering responses under the
+cache's lock is new.
 
 <Shot id="commit/flame-diff" />
 
@@ -57,6 +57,11 @@ fixed, open-loop load, throughput is the load itself.) With batching off, the ma
 runs land apart only by noise, which shows how far apart two configurations must be to differ.
 
 <Shot id="tuning/frontier" />
+
+**History** finds the payload copy: filtered on the heavy-tailed profile, the p99 line jumps at that commit, and
+hovering along it shows each commit's results next to the commit before.
+
+<Clip id="history/find-regression" />
 
 **The quality gate** (experimental) fails CI on the agent's commit: p99 is over its limit.
 
