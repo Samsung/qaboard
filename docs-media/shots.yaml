@@ -70,7 +70,7 @@ shots:
     kind: tape
     project: detection-eval
     shows: "`qa batch ci`: runs start, progress, the link to the results."
-    pages: [batches-running-on-multiple-inputs, get-started/tutorial, landing]
+    pages: [batches-running-on-multiple-inputs, get-started/tutorial, landing, tour]
     phase: 2
     status: planned
   - id: cli/bit-accuracy
@@ -85,7 +85,7 @@ shots:
     kind: tape
     project: serving-latency
     shows: "`qa gate` on the shared-cache commit: the rules table, p99 45% worse against a 10% limit, exit code 1."
-    pages: [quality-gate, use-cases/serving-latency, landing]
+    pages: [quality-gate, use-cases/serving-latency, landing, tour]
     needs: cache-shared vs batch-overflow-fix
     phase: 2
     status: planned
@@ -112,7 +112,7 @@ shots:
     kind: still
     project: serving-latency
     shows: Commits grouped by day, branch tags, a crashed CI batch, a batch still running, the p99 median of each commit.
-    pages: [user-guide/finding-results, ci-integration, tour]
+    pages: [user-guide/finding-results, ci-integration]
     needs: batch-overflow (crashed), tuned-batching (running)
     phase: 2
     status: planned
@@ -151,7 +151,7 @@ shots:
     kind: still
     project: detection-eval
     shows: "Summary of int8 against fp32: mAP and latency with their changes, AP small in red, pass-rate bars, box plots."
-    pages: [user-guide/commit-page, computing-quantitative-metrics, tour]
+    pages: [user-guide/commit-page, computing-quantitative-metrics]
     needs: int8-minmax vs kd-1-2
     phase: 2
     status: planned
@@ -166,7 +166,7 @@ shots:
     kind: still
     project: detection-eval
     shows: "int8 against fp32 per slice: latency green everywhere, AP small red on the small-objects slice."
-    pages: [user-guide/commit-page, user-guide/comparing-results, tour, use-cases/detection-eval]
+    pages: [user-guide/commit-page, user-guide/comparing-results, use-cases/detection-eval, get-started/tutorial]
     needs: int8-minmax
     phase: 2
     status: planned
@@ -256,7 +256,7 @@ shots:
     kind: still
     project: image-quality
     shows: "Image Diff on, threshold set: halos stand out around edges, noise differences stay dark."
-    pages: [visualizations, user-guide/comparing-results]
+    pages: [visualizations, user-guide/comparing-results, landing]
     features: [image-diff]
     needs: merge-bilateral vs isp-4-1
     phase: 1
@@ -265,7 +265,7 @@ shots:
     kind: still
     project: image-quality
     shows: Hovering a Siemens star shows the pixel's values in both images, with a crosshair at the same spot on the reference.
-    pages: [user-guide/comparing-results, visualizations]
+    pages: [user-guide/comparing-results, visualizations, landing]
     features: [pixel-tooltip, image-synced-zoom]
     needs: bilateral-denoise vs isp-4-1
     phase: 1
@@ -274,7 +274,7 @@ shots:
     kind: still
     project: image-quality
     shows: A region of the sky gradient selected, with its RGB and luma histograms, new against reference.
-    pages: [user-guide/comparing-results, visualizations]
+    pages: [user-guide/comparing-results, visualizations, landing]
     features: [roi-histograms]
     phase: 1
     status: published
@@ -282,7 +282,7 @@ shots:
     kind: still
     project: image-quality
     shows: The ROI menu with the input's preset regions and the Auto ROIs where the images differ most.
-    pages: [user-guide/comparing-results, visualizations]
+    pages: [user-guide/comparing-results, visualizations, landing]
     features: [auto-roi]
     phase: 1
     status: published
@@ -290,7 +290,7 @@ shots:
     kind: still
     project: image-quality
     shows: Brightness, gamma and sharpen applied to both images of the night street, revealing noise in the shadows.
-    pages: [user-guide/comparing-results, visualizations]
+    pages: [user-guide/comparing-results, visualizations, landing]
     features: [image-filters]
     phase: 1
     status: published
@@ -307,7 +307,7 @@ shots:
     kind: clip
     project: image-quality
     shows: The ISP stage slider moves from the raw mosaic to the tone-mapped image, and every run's card follows.
-    pages: [visualizations, recipes/dynamic-outputs, use-cases/image-quality]
+    pages: [visualizations, recipes/dynamic-outputs, use-cases/image-quality, landing]
     features: [dynamic-outputs]
     phase: 2
     status: planned
@@ -323,7 +323,7 @@ shots:
     kind: still
     project: image-quality
     shows: The facade's window edge at isp-4-1, clean. Same geometry as commit/halo-after, for <Compare>.
-    pages: [use-cases/image-quality, landing]
+    pages: [use-cases/image-quality]
     needs: isp-4-1
     phase: 2
     status: planned
@@ -331,7 +331,7 @@ shots:
     kind: still
     project: image-quality
     shows: The same window edge after the bilateral denoiser, with halos. Same geometry as commit/halo-before.
-    pages: [use-cases/image-quality, landing]
+    pages: [use-cases/image-quality]
     needs: merge-bilateral
     phase: 2
     status: planned
@@ -339,7 +339,7 @@ shots:
     kind: still
     project: detection-eval
     shows: Precision-recall curves per class, int8 over the fp32 reference drawn dashed.
-    pages: [visualizations, use-cases/detection-eval]
+    pages: [visualizations, use-cases/detection-eval, landing]
     features: [plotly-overlay]
     needs: int8-minmax
     phase: 2
@@ -365,7 +365,7 @@ shots:
     kind: still
     project: serving-latency
     shows: A differential flame graph where the cache lock and the clone under it are red, the skipped model work blue.
-    pages: [visualizations, recipes/flame-graphs, tutorials/perf-regression, use-cases/serving-latency]
+    pages: [visualizations, recipes/flame-graphs, tutorials/perf-regression, use-cases/serving-latency, landing]
     features: [flame-diff]
     needs: cache-shared vs batch-overflow-fix
     phase: 2
@@ -405,7 +405,7 @@ shots:
     kind: still
     project: image-quality
     shows: Output Files of a hw-model run, the tree with the changed stage files highlighted, the help for the icons.
-    pages: [user-guide/commit-page, bit-accuracy, creating-and-viewing-outputs-files]
+    pages: [user-guide/commit-page, bit-accuracy, creating-and-viewing-outputs-files, landing]
     features: [bit-accuracy-tree]
     needs: fxp-round-half-even vs its parent, hw-model platform
     phase: 1
@@ -496,7 +496,7 @@ shots:
     kind: clip
     project: serving-latency
     shows: A running run's log follows the end, the error count grows, Next error jumps to a missed deadline.
-    pages: [user-guide/commit-page, tour]
+    pages: [user-guide/commit-page, tour, landing]
     features: [live-log-tail]
     needs: a ramp run started during the recording
     phase: 2
@@ -596,7 +596,7 @@ shots:
     kind: still
     project: detection-eval
     shows: "The tune-int8 Analysis: convergence, sensitivity to each parameter, parallel coordinates, best parameters."
-    pages: [user-guide/commit-page, auto-optimization, tutorials/tuning]
+    pages: [user-guide/commit-page, auto-optimization, tutorials/tuning, use-cases/detection-eval]
     features: [tuning-analysis]
     needs: int8-percentile (tune-int8)
     phase: 2

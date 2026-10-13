@@ -61,6 +61,16 @@ from `media.json` (see `docs-media/README.md` and `STYLE.md`). A shot that isn't
 
 The build fails on unknown shot ids.
 
+### Stack tabs and repository files
+- `<StackPicker />` sets every stack-dependent tab group at once (`<Tabs groupId="server" queryString>`): the
+  groups and values are in `src/components/stack.ts`, and the build checks the tabs against it (`plugins/stack`).
+  See `STYLE.md`.
+- `<RepoFile path="charts/qaboard/kind.yaml" />` shows a file of the repository in a code block. It's imported at
+  build time (`plugins/snippets`), so the docs show the file as it is. CI configurations no CI of ours runs live in
+  `snippets/` and are shown with `untested`.
+- The website's docker image is built from the repository's root, and only gets the files listed in
+  `Dockerfile.dockerignore`: add a file there before showing it.
+
 ### Command commands
 #### Build
 

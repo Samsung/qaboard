@@ -1,0 +1,22 @@
+// Runs your test set on every push, and saves the results to QA-Board.
+// qa saves results where the server reads them (e.g. /mnt/qaboard, an NFS share), at the same
+// path: run it on agents that mount it.
+pipeline {
+  agent { label 'qaboard' }
+  environment {
+    QABOARD_URL = 'http://<your-qaboard>'
+  }
+  stages {
+    stage('QA-Board') {
+      steps {
+        sh '''
+          python3 -m venv .venv
+          . .venv/bin/activate
+          pip install qaboard -r requirements.txt
+          # qa reads the commit and the branch from GIT_COMMIT and GIT_BRANCH (Jenkins' git plugin)
+          qa batch ci
+        '''
+      }
+    }
+  }
+}
