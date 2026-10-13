@@ -360,6 +360,16 @@ class TestIterators(unittest.TestCase):
     self.assertEqual(batches[0].job_options['max_memory'], 8000)
 
 
+  def test_iter_parameters_defaults_to_a_grid(self):
+    from qaboard.iterators import iter_parameters
+    search = {'parameter_search': {'a': [1, 2], 'b': ['x']}}
+    expected = [({'a': 1, 'b': 'x'}, '{"a": 1, "b": "x"}'), ({'a': 2, 'b': 'x'}, '{"a": 2, "b": "x"}')]
+    self.assertEqual([p[:2] for p in iter_parameters(search)], expected)
+    self.assertEqual([p[:2] for p in iter_parameters({**search, 'search_type': 'grid'})], expected)
+    with self.assertRaises(ValueError):
+      list(iter_parameters({**search, 'search_type': 'random'}))
+
+
 class TestRunsFile(unittest.TestCase):
   defaults = {"type": "dask", "command_id": "new", "batch_dir": "/new/batch", "concurrency": 10, "lsf": {"queue": "q"}}
 

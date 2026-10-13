@@ -46,3 +46,8 @@ results:
   enabled: true
   mountPath: /tmp/qaboard
   hostPath: {path: /tmp/qaboard}
+
+# The docs' demo projects, restored the first time QA-Board starts. Their results are in a volume of their own.
+demoData:
+  enabled: true
+  accessMode: ReadWriteOnce

@@ -8,6 +8,9 @@
 # - tags v*: every shot, strict (no retry), then a pull request.
 # - monthly, with the release notes: every shot, a pull request only if something changed beyond the tolerance, gc.
 # Never on push. Fork pull requests never run it: they would need the R2 secrets.
+# It also builds the quickstarts' demo-data image from the snapshot, and tests it with the Docker Compose quickstart:
+# published to ghcr.io/<owner>/qaboard from master (demo-data) and release tags (demo-data-<version>), never from
+# pull requests or other branches.
 name: Docs media
 
 on:
@@ -40,6 +43,7 @@ concurrency:
 permissions:
   contents: write       # pushes website/media.json
   pull-requests: write  # opens pull requests, comments galleries
+  packages: write       # pushes the demo-data image to ghcr.io
 
 jobs:
   media:
@@ -102,6 +106,13 @@ jobs:
           cache: npm
           cache-dependency-path: docs-media/shots/package-lock.json
 
+      - name: Make room on the disk
+        if: steps.scope.outputs.only != ''
+        # The images, the snapshot, the restored results, and the demo-data image with its own quickstart
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h /
+
       - name: Install the encoders, recorders and fonts
         if: steps.scope.outputs.only != ''
         run: |
@@ -137,6 +148,7 @@ jobs:
             cantaloupe.cache-from=type=gha,scope=cantaloupe
 
       - name: Restore the demo data
+        id: restore
         if: steps.scope.outputs.only != ''
         env:
           RESEED: ${{ steps.scope.outputs.reseed }}
@@ -241,6 +253,42 @@ jobs:
       - name: Delete media no manifest uses
         if: steps.scope.outputs.gc == 'true'
         run: uv run docs-media/publish.py gc
+
+      # The quickstarts' demo data (deployments/quickstart/compose.yml, the chart's demoData), from this snapshot. Whether
+      # the captures failed or not; while the demo stack runs, on another port.
+      - name: Demo-data image
+        id: demo-data
+        if: ${{ !cancelled() && steps.restore.outcome == 'success' }}
+        run: uv run docs-media/snapshot.py image --tag "$QABOARD_IMAGE:demo-data-$QABOARD_VERSION"
+      - name: Test the demo-data image with the Docker Compose quickstart
+        id: quickstart
+        if: ${{ !cancelled() && steps.demo-data.outcome == 'success' }}
+        env:
+          QABOARD_PORT_HTTP: '5252'
+          QABOARD_RESULTS: /tmp/qaboard-quickstart
+        run: |
+          mkdir -p "$QABOARD_RESULTS"
+          compose() { docker compose -p qaboard-quickstart -f deployments/quickstart/compose.yml "$@"; }
+          compose up -d --wait || { compose logs --tail 100; exit 1; }
+          uvx --from playwright==1.56.0 playwright install chromium
+          uv run .github/scripts/demo_data_e2e.py http://localhost:5252 || { compose logs --tail 100; exit 1; }
+          compose down --volumes
+      - name: Publish the demo-data image
+        if: >-
+          !cancelled() && steps.quickstart.outcome == 'success' &&
+          (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          built="$QABOARD_IMAGE:demo-data-$QABOARD_VERSION"
+          # master: demo-data (the latest), and demo-data-<commit> like the other images. A release: demo-data-<version>
+          if [ "$GITHUB_REF_TYPE" = tag ]; then tags=("demo-data-${GITHUB_REF_NAME#v}"); else tags=(demo-data "demo-data-$QABOARD_VERSION"); fi
+          for tag in "${tags[@]}"; do
+            docker tag "$built" "$QABOARD_IMAGE:$tag"
+            docker push "$QABOARD_IMAGE:$tag"
+          done
+          echo "::notice::Published the demo data: ${tags[*]/#/$QABOARD_IMAGE:}"
 
       - name: Stack logs on failure
         if: failure()

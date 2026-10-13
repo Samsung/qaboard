@@ -1,0 +1,132 @@
+# QA-Board on your computer, with demo projects: https://samsung.github.io/qaboard/docs/get-started/quickstart
+#
+#   mkdir -p /tmp/qaboard
+#   curl -fsSLO https://raw.githubusercontent.com/Samsung/qaboard/master/deployments/quickstart/compose.yml
+#   docker compose up -d --wait
+#
+# Then open http://localhost:5151 (QABOARD_PORT_HTTP picks another port). The first start downloads the images (about
+# 2 GB) and restores the demo data.
+#
+# Not for production: the database has a default password, and the API that saves results doesn't require a login.
+# QA-Board only answers on this computer (127.0.0.1). If you open it to your network, keep it behind a firewall.
+# To run QA-Board for a team: https://samsung.github.io/qaboard/docs/deploy
+#
+# - Images: ghcr.io/samsung/qaboard:<service>, the latest version. QABOARD_VERSION picks a release (e.g. 1.2.0),
+#   QABOARD_IMAGE another registry, e.g. the images a fork publishes (ghcr.io/<owner>/qaboard).
+# - demo-data restores the demo projects the first time, then exits: their database, and their results in the
+#   demo-results volume, mounted at /mnt/qaboard, the path the database has.
+# - Your own results: `qa` saves them in /tmp/qaboard (QA_STORAGE=/tmp/qaboard), and QA-Board reads them there, at
+#   the same path. Create the folder first, or Docker creates it, owned by root. QABOARD_RESULTS picks another folder.
+# - `docker compose down` stops QA-Board and keeps its data; `docker compose down --volumes` deletes it, except
+#   what's in /tmp/qaboard.
+# - Tested in CI: the quickstart job of .github/workflows/ci.yaml.
+name: qaboard
+
+volumes:
+  db: {}
+  data: {}            # the backend's own files
+  demo-results: {}    # the demo projects' results
+  frontend: {}        # the web app, copied by the frontend image
+  cantaloupe-cache: {}
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: qaboard
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: qaboard
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U qaboard -d qaboard"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  # Restores the demo projects into the database and the demo-results volume, unless they're there already, then exits.
+  # It never touches a database that already has QA-Board's tables.
+  demo-data:
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:demo-data${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    depends_on:
+      db: {condition: service_healthy}
+    volumes:
+      - demo-results:/mnt/qaboard
+    # It's built on the postgres image (for psql), which declares a volume there: nothing is written to it
+    tmpfs: [/var/lib/postgresql/data]
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+
+  backend:
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:backend${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    depends_on:
+      demo-data: {condition: service_completed_successfully}
+      redis: {condition: service_started}
+    environment:
+      QABOARD_URL: http://localhost:${QABOARD_PORT_HTTP:-5151}
+      # Where results are: the backend only lists, deletes or runs code there
+      QABOARD_STORAGE_ROOTS: /mnt/qaboard:${QABOARD_RESULTS:-/tmp/qaboard}
+      # The web app links to the online docs
+      QABOARD_DOCS_ROOT: https://samsung.github.io/qaboard/
+      REDIS_HOST: redis
+      UWSGI_PROCESSES: 2
+      UWSGI_LISTEN_QUEUE_SIZE: 100
+      QA_NO_CHECK_FOR_UPDATES: 1
+    volumes:
+      - data:/var/qaboard
+      - demo-results:/mnt/qaboard
+      - ${QABOARD_RESULTS:-/tmp/qaboard}:${QABOARD_RESULTS:-/tmp/qaboard}
+    networks:
+      default:
+        # nginx's configuration has a /flower/ location (the task queue's UI), and nginx only starts if its host
+        # resolves. There's no task queue here: /flower/ answers 502.
+        aliases: [flower]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.build_opener(u.ProxyHandler({})).open('http://127.0.0.1:3001/api/v1/health', timeout=5)"]
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    restart: unless-stopped
+
+  # Copies the web app where nginx serves it, then exits
+  frontend:
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:frontend${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    volumes:
+      - frontend:/builds
+
+  # Image tiles for the image viewers (IIIF): it reads /iiif/2/<path> from /repository/<path>
+  cantaloupe:
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:cantaloupe${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    command: sh -c 'java -Dcantaloupe.config=/etc/cantaloupe.properties -Dcom.sun.media.jai.disableMediaLib=true -Xms256m -Xmx1g -jar /usr/local/cantaloupe/cantaloupe-$${VERSION}.jar'
+    volumes:
+      - cantaloupe-cache:/var/cache/cantaloupe
+      - demo-results:/repository/mnt/qaboard:ro
+      - ${QABOARD_RESULTS:-/tmp/qaboard}:/repository${QABOARD_RESULTS:-/tmp/qaboard}:ro
+    restart: unless-stopped
+
+  # nginx: serves the web app, proxies the API and the image server, and serves results under /s/<path>
+  proxy:
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:proxy${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    command: ["/bin/bash", "-c", "sh /tmp/etc/nginx/configure.sh && exec nginx -g 'daemon off;'"]
+    environment:
+      NGINX_USER: nginx
+    depends_on:
+      backend: {condition: service_healthy}
+      frontend: {condition: service_completed_successfully}
+      cantaloupe: {condition: service_started}
+    ports:
+      - 127.0.0.1:${QABOARD_PORT_HTTP:-5151}:80
+    volumes:
+      - frontend:/builds:ro
+      - demo-results:/var/qaboard/mnt/qaboard:ro
+      - ${QABOARD_RESULTS:-/tmp/qaboard}:/var/qaboard${QABOARD_RESULTS:-/tmp/qaboard}:ro
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/80"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped

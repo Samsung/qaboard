@@ -25,8 +25,8 @@ docs-media/
   compose.demo.yml     # overlay on docker-compose.yml: results storage in backend/nginx/cantaloupe, demo env
   seed.py              # uv script: replays examples/*/story.yaml into a running stack (real `qa`, fake CI env)
   snapshot.py          # uv script: save/restore the database + results (R2 qaboard-ci), build the demo-data image
-                       # (ghcr.io/samsung/qaboard, tag demo-data-<version>, phase 2)
   demo/                # stack.py (the stack, for seed.py and snapshot.py), kitefin_stub.py (*.kitefin.example)
+  demo-data/           # the demo-data image: Dockerfile, restore.sh (see "The demo-data image")
   tests/fixture/       # a tiny project and story that exercise everything seed.py does, in about 2 minutes
   publish.py           # uv script: encode, dedupe, upload, write website/media.json; `gc` subcommand
   shots/
@@ -98,6 +98,36 @@ uv run docs-media/snapshot.py save                          # snapshots/<key>.ta
 - `seed.py` writes T0 and each story's shas in `<results>/.qaboard-demo/demo.json`, served at
   http://localhost:5151/s/mnt/qaboard/.qaboard-demo/demo.json. The snapshot's metadata has them too (`snapshot.py info`).
 - How runs, failures and times are simulated: the docstring of [`seed.py`](seed.py).
+
+### The demo-data image
+
+The quickstarts start QA-Board with the demo projects: Docker Compose
+([`deployments/quickstart/compose.yml`](../deployments/quickstart/compose.yml)) and the Helm chart (`demoData` in
+[`charts/qaboard/quickstart.yaml`](../charts/qaboard/quickstart.yaml)). Their data comes from the
+`ghcr.io/<owner>/qaboard:demo-data` image, built from a snapshot:
+
+```bash
+uv run docs-media/snapshot.py image --tag ghcr.io/samsung/qaboard:demo-data   # this checkout's snapshot; --key, --latest, --file
+```
+
+- The image is `postgres:16-alpine` (the quickstarts' database, so its layers are already there) with the snapshot's
+  `db.sql`, its results as `results.tar`, and [`demo-data/restore.sh`](demo-data/restore.sh) as entrypoint.
+- `results.tar` stores files with the same content and mode once: the others are hard links, and stay hard links
+  when restored. Most outputs don't change from one commit to the next: the 2.2 GB of results of the image-quality
+  snapshot take 0.6 GB. Duplicates share the modification time of the first copy.
+- `restore.sh` restores the results into `/mnt/qaboard` (the snapshot's results root, the path the database has),
+  unless `.qaboard-demo/restored` is there, then the database, unless it already has QA-Board's tables, then exits.
+  The backend must start after it: it creates empty tables when it starts. It holds a PostgreSQL advisory lock while
+  it restores, so concurrent restores (backend replicas, the chart's migrations Job) wait, then skip.
+- [`.github/workflows/docs-media.yml`](../.github/workflows/docs-media.yml) builds it from the snapshot it restores
+  or seeds, tests it with the Compose quickstart (on port 5252, next to the demo stack) and this run's images, then
+  pushes it from master (`demo-data`, `demo-data-<commit>`) and release tags (`demo-data-<version>`). Pull requests
+  and other branches only build and test it. CI's `publish-docker-images` gives every other published version a
+  `demo-data-<version>` tag, from the latest `demo-data`.
+- CI's `quickstart` and `helm-e2e` jobs can't read the snapshots: they build the image from the seeder's test story
+  instead ([`.github/scripts/demo_data_fixture.sh`](../.github/scripts/demo_data_fixture.sh)), then check the
+  quickstart with [`.github/scripts/demo_data_e2e.py`](../.github/scripts/demo_data_e2e.py): the API, the files, the
+  image server, and the pages in Chromium.
 
 ## Producing media
 
@@ -557,7 +587,7 @@ Canonical values (`stack.ts`, the only place they're defined; the first one is t
 |---|---|
 | `workflow_dispatch`, inputs `only` (glob over ids, default `*`), `reseed` (default false), `publish` (default true) | The main way: capture the matching shots; with `publish`, upload and open a PR with `website/media.json` |
 | PR labeled `docs-media` (same-repo branches only) | Capture the affected shots, upload, commit `website/media.json` to the PR branch, comment a before/after gallery |
-| Tag `v*` | Reseed if the snapshot key changed, full refresh in strict mode, rebuild the demo-data image, open a PR |
+| Tag `v*` | Reseed if the snapshot key changed, full refresh in strict mode, build and push the demo-data image (`demo-data-<version>`), open a PR |
 | Monthly (`17 6 2 * *`, with the release notes) | Full refresh from the snapshot; opens a PR only if something changed beyond the tolerance; runs `publish.py gc` |
 
 - Never on push. One run per ref at a time (`concurrency`), PR runs cancel the previous one.
@@ -575,4 +605,6 @@ Canonical values (`stack.ts`, the only place they're defined; the first one is t
   performance and must run alone. Seeding each project in its own job and merging the results would bring it down.
 - **Secrets:** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, scoped to `qaboard-media` and
   `qaboard-ci`. Fork PRs never get them, and the workflow doesn't run for them.
-- **Permissions:** `contents: write`, `pull-requests: write`.
+- **Demo-data image:** every run that restores or seeds the snapshot builds and tests it; runs on master and tags
+  publish it (see [The demo-data image](#the-demo-data-image)).
+- **Permissions:** `contents: write`, `pull-requests: write`, `packages: write` (the demo-data image).
