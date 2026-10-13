@@ -218,7 +218,7 @@ anything else.
 
 ```yaml
 failures:
-  - batch: ci            # which runs: batch, optional `inputs` glob and `platform`
+  - batch: ci            # which runs: batch, optional `inputs` glob, `configs` glob and `platform`
     inputs: "bursty-*"
     kind: bug            # bug | oom | timeout | lsf-memlimit
     log: "panicked at .*index out of bounds"   # regex the run's log must match
@@ -226,6 +226,8 @@ failures:
 
 - `inputs` globs (here and in checks) match input paths like *.gitignore* patterns: without a `/`, against the file
   name (`bursty-*` matches `profiles/bursty-high.yaml`).
+- `configs` globs match the run's configurations rendered as JSON, like in checks (`*"int8"*`): when a batch runs
+  each input in several configurations, and only some of them fail. `bug` failures only.
 - `bug`: the code crashes on its own, on a path enabled by `flags`. The entry is an expectation the seeder checks.
 - `oom`, `timeout`: the seeder enforces a memory cap or a time limit on the run, which really dies. The limits come from
   the batch's definition in *qa/batches.yaml*: `lsf: {max_memory: <MB>}` (default 2048) and `local: {timeout: <seconds>}`

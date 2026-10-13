@@ -79,5 +79,14 @@ def test_the_fixture_story():
   assert (local.via, local.user, local.db_label) == ('local', 'ines', '@ines| ines-probe')
 
 
+def test_failures_can_select_configurations():
+  story = seed.Story(seed.EXAMPLES / 'detection-eval' / 'story.yaml', T0)
+  commit = story.commits['qdq-se-gates']
+  ci = commit.runs[0]
+  # Seeder.expected_failure doesn't use the seeder's state
+  assert seed.Seeder.expected_failure(None, commit, ci, 'slices/indoor', ['int8', 'size-320'])
+  assert not seed.Seeder.expected_failure(None, commit, ci, 'slices/indoor', ['fp32', 'size-320'])
+
+
 if __name__ == '__main__':
   sys.exit(pytest.main([__file__, '-q']))

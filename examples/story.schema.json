@@ -94,6 +94,7 @@
         "label": {"$ref": "#/$defs/batchLabel"},
         "platform": {"enum": ["linux", "hw-model"]},
         "inputs": {"$ref": "#/$defs/glob"},
+        "configs": {"description": "Glob over the run's configurations rendered as JSON, like in checks.", "$ref": "#/$defs/glob"},
         "kind": {"enum": ["bug", "oom", "timeout", "lsf-memlimit"]},
         "log": {"description": "Regex the failed run's log must match.", "type": "string", "minLength": 1}
       }

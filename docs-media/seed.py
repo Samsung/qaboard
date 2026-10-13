@@ -984,9 +984,11 @@ class Seeder:
     batch = self.server.batch(self.story.id, commit.sha, run.db_label) or {}
     return {unquote_url(o['output_dir_url']): o for o in batch.get('outputs', {}).values()}
 
-  def expected_failure(self, commit: Commit, run: Run, rel_input: str) -> Optional[dict]:
+  def expected_failure(self, commit: Commit, run: Run, rel_input: str, configurations: Optional[list] = None) -> Optional[dict]:
     for f in commit.failures:
-      if Story.failure_matches_run(f, run) and glob_matches(f.get('inputs'), rel_input):
+      if Story.failure_matches_run(f, run) and glob_matches(f.get('inputs'), rel_input) and (
+        not f.get('configs') or fnmatch.fnmatch(json.dumps(configurations or []), f['configs'])
+      ):
         return f
     return None
 
@@ -1003,7 +1005,7 @@ class Seeder:
       if o is None:
         errors.append(f"{rel_input} {r['configurations']}: no run in QA-Board for {output_dir}")
         continue
-      failure = self.expected_failure(commit, run, rel_input)
+      failure = self.expected_failure(commit, run, rel_input, r['configurations'])
       if o['is_pending']:
         errors.append(f"{rel_input} {r['configurations']}: still pending")
         continue
@@ -1606,7 +1608,7 @@ def print_plan(story: Story):
       print(f"{'':16}patches: {', '.join(c.patches)}")
     print(f"{'':16}runs: {runs}")
     for f in c.failures:
-      print(f"{'':16}fails: {f['batch']} {f.get('inputs', '')} {f['kind']}")
+      print(f"{'':16}fails: {f['batch']} {f.get('inputs', '')} {f.get('configs', '')} {f['kind']}")
   for m in story.milestones:
     print(f"milestone {m['label']} on {m['commit']} by {m['by']}")
   print(f"{len(story.checks)} checks")
