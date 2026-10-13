@@ -28,21 +28,18 @@ class CommitParameters extends React.Component {
       manifests: {},
       is_loaded: false,
       error: {},
-      cancel_source: {
-        new: CancelToken.source(),
-        reference: CancelToken.source(),
-      },
       show_all_files: params.get("params_show_all_files") === 'true' || false,
       expand_all: params.get("params_expand_all") === 'true' || true,
       files_filter: params.get("params_files_filter") || '',
       color_blind_friendly: params.get("params_color_blind_friendly") || '',
     };
+    // the requests in flight, by label (new, reference)
+    this.cancel_sources = {};
   }
 
   componentWillUnmount() {
     ["new", "reference"].forEach(label => {
-      if (!!this.state.cancel_source[label])
-        this.state.cancel_source[label].cancel();      
+      this.cancel_sources[label]?.cancel();
     })
   }
 
@@ -53,6 +50,8 @@ class CommitParameters extends React.Component {
 
     this.setState({is_loaded: false})
     let results = [];
+    // A new token for each request: a cancelled token would cancel any request made with it, before it's sent
+    const cancel_source = this.cancel_sources;
     const should_get_all = label === undefined || label === null;
     if (should_get_all || label === 'new') {
       results.push(['new', `${new_commit.artifacts_url}/manifests/${this.state.artifact}.json`])
@@ -81,10 +80,16 @@ class CommitParameters extends React.Component {
         }
       }))
     }
+    results.forEach(([label]) => {
+      cancel_source[label]?.cancel();
+      cancel_source[label] = CancelToken.source();
+    });
     all(results.map( ([label, url]) => {
-      return () =>  get(url, {cancelToken: this.state.cancel_source[label].token})
+      return () =>  get(url, {cancelToken: cancel_source[label].token})
                     .then(load_data(label))
                     .catch(response => {
+                     // a newer request replaced this one
+                     if (axios.isCancel(response)) return;
                      load_data(label)(
                         {load_data  : {}},
                         response,
@@ -110,16 +115,11 @@ class CommitParameters extends React.Component {
       const has_ref = this.props.ref_commit !== undefined && this.props.ref_commit !== null;
       let updated_new = has_new && (prevProps.new_commit === null || prevProps.new_commit === undefined || prevProps.new_commit.id !== this.props.new_commit.id || prevProps.new_commit.artifacts_url !== this.props.new_commit.artifacts_url);
       let updated_ref = has_ref && (prevProps.ref_commit === null || prevProps.ref_commit === undefined || prevProps.ref_commit.id !== this.props.ref_commit.id || prevProps.ref_commit.artifacts_url !== this.props.ref_commit.artifacts_url);
-      if (updated_new) {
-        if (!!this.state.cancel_source.new)
-          this.state.cancel_source.new.cancel();
+      // fetchData cancels the previous requests
+      if (updated_new)
         this.fetchData(this.props, 'new');
-      }
-      if (updated_ref) {
-        if (!!this.state.cancel_source.reference)
-          this.state.cancel_source.reference.cancel();
+      if (updated_ref)
         this.fetchData(this.props, 'reference');
-      }
   }
 
 

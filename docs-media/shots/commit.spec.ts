@@ -596,3 +596,264 @@ for (const [id, commit, alt, caption] of [
   });
 
 void refImage;
+
+
+// The object detector (examples/detection-eval): the first int8 model (int8-minmax) is 3.5x smaller than fp32, but
+// loses much of the indoor slice and some small objects. CI runs both models on every commit, on 4 slices of the test
+// set; the int8 runs compare with the fp32 release kd-1.2's runs on the same slice. Visualizations, in qaboard.yaml's
+// order: 0 Detections (images/:image.jpg), 1 Precision-recall, 2 Recall by object size, 3 Report, then hidden by
+// default: Confusions, Detections (JSON)
+const DE = 'detection-eval';
+const DET_VIZ = ['Detections', 'Precision-recall', 'Recall by object size', 'Report'] as const;
+const showOnly = (...names: Array<(typeof DET_VIZ)[number]>) => ({ show: Object.fromEntries(DET_VIZ.map(v => [v, names.includes(v)])) });
+// int8-minmax against the fp32 release
+const int8 = (d: Demo, opts: { view?: 'summary' | 'table-kpi' | 'table-compare' | 'output-list'; filter?: string; controls?: Record<string, unknown> } = {}) =>
+  d.commitUrl(DE, 'int8-minmax', { reference: 'kd-1-2', view: opts.view ?? 'output-list', filter: opts.filter, controls: opts.controls });
+// The view's card: Summary, Quality report (Metrics Table), Improvement report (Metrics Diff)...
+const viewCard = (page: Page, heading: string) =>
+  page.locator('.bp6-card', { has: page.locator('h1, h2, h3', { hasText: new RegExp(`^${heading}$`) }) }).first();
+
+// The metrics a view shows: a tag input above it. Replaces one metric with another
+async function swapMetric(ui: Ui, scope: Locator, remove: string, add: string) {
+  const input = scope.locator('.bp6-tag-input').first();
+  await ui.click(input.locator('.bp6-tag', { hasText: remove }).locator('.bp6-tag-remove'));
+  await ui.click(input.locator('input'));
+  await ui.type(input.locator('input'), add);
+  await ui.page.getByRole('menuitem', { name: new RegExp(add) }).first().waitFor();
+  await ui.press('Enter');
+  await input.locator('.bp6-tag', { hasText: add }).waitFor();
+  // the query stays in the box once the metric is picked
+  await input.locator('input').fill('');
+  await ui.press('Escape');
+  await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await ui.settle();
+}
+
+shot('commit/summary', {
+  project: DE,
+  url: d => int8(d, { view: 'summary', filter: 'int8' }),
+  alt: 'The Summary of the int8 runs against the fp32 release: median mAP -5%, AP small -21% and recall of small '
+    + 'objects -4% in red, model size 3.86 MB against 13.8 MB (-72%) in green; pass-rate bars under the metrics with a '
+    + 'target, box plots on the right.',
+  caption: 'The Summary compares the medians over the runs: the int8 model is much smaller, and finds fewer small objects.',
+  actions: async ui => {
+    await swapMetric(ui, viewCard(ui.page, 'Summary'), 'Latency per image', 'Model size');
+    await ui.plots();
+    await ui.cursor.moveTo({ x: 1400, y: 880 });
+  },
+  target: page => viewCard(page, 'Summary'),
+  padding: 0,
+});
+
+shot('commit/metrics-table', {
+  project: DE,
+  url: d => int8(d, { view: 'table-kpi' }),
+  alt: 'The Metrics Table of the first int8 commit: one row per slice and model, mAP, AP50, AP small and latency, new '
+    + 'and reference. The mAP cells go from green on small-objects to orange on indoor, by their distance to the 0.15 '
+    + 'target shown in the header; latency cells are green, under the 25 ms target.',
+  caption: 'One row per test, colored by the distance to the targets set in metrics.yaml, shown in the headers.',
+  actions: async ui => {
+    await ui.cursor.moveTo({ x: 1420, y: 880 });
+    await ui.settle();
+  },
+  target: page => viewCard(page, 'Quality report'),
+  padding: 0,
+});
+
+shot('commit/metrics-diff', {
+  project: DE,
+  url: d => int8(d, { view: 'table-compare', filter: 'int8' }),
+  alt: 'The Metrics Diff of the int8 runs against the fp32 release, slice by slice: indoor mAP -35% and AP small -34% in '
+    + 'orange, AP small -7% on small-objects and -15% outdoor, warehouse better, and the model size -72% in green on '
+    + 'every slice.',
+  caption: 'The Metrics Diff shows each test\'s change: the int8 model is smaller everywhere, and much worse indoors.',
+  actions: async ui => {
+    await swapMetric(ui, viewCard(ui.page, 'Improvement report'), 'Latency per image', 'Model size');
+    await ui.cursor.moveTo({ x: 1420, y: 880 });
+  },
+  target: page => viewCard(page, 'Improvement report'),
+  padding: 0,
+});
+
+clip('commit/compare-tour', {
+  project: DE,
+  url: d => int8(d, { view: 'summary', filter: 'int8' }),
+  alt: 'The Summary of the int8 runs against the fp32 release; a click on Metrics Diff in the sidebar shows each slice\'s '
+    + 'change; in the Controls panel, sorting by mAP from the lowest brings the indoor slice, -35%, to the top.',
+  caption: 'From the Summary to each test\'s change, sorted to bring the worst slice to the top.',
+  actions: async ui => {
+    await ui.plots();
+    await ui.cursor.moveTo({ x: 700, y: 600 });
+  },
+  script: async ui => {
+    const { page } = ui;
+    await ui.caption('The Summary: int8 against the fp32 release');
+    await ui.hold(2500);
+    await ui.caption('The Metrics Diff: the change on each test');
+    await ui.click(page.getByRole('link', { name: 'Metrics Diff' }).or(page.getByText('Metrics Diff', { exact: true })).first());
+    await ui.settle();
+    await ui.hold(2500);
+    await ui.caption('Sort by mAP, the worst slice first');
+    await ui.click(page.locator('[title="Toggle Controls Panel"]'));
+    await ui.hold(400);
+    const panel = controlsPanel(page);
+    const select = (label: string) => panel.locator('.bp6-control-group', { hasText: label }).locator('select');
+    await ui.cursor.moveTo(select('Sort By'));
+    await select('Sort By').selectOption('map');
+    await ui.settle();
+    await ui.hold(600);
+    await ui.cursor.moveTo(select('Order'));
+    await select('Order').selectOption('1');
+    await ui.settle();
+    await ui.hold(600);
+    await ui.click(page.locator('[title="Toggle Controls Panel"]'));
+    await ui.settle();
+    await ui.cursor.moveTo(viewCard(page, 'Improvement report').getByText('slices/indoor').first());
+    await ui.hold(2500);
+  },
+});
+
+shot('commit/milestone', {
+  project: DE,
+  url: d => d.commitUrl(DE, 'kd-1-3', { reference: 'kd-1-2', view: 'table-kpi' }),
+  alt: 'The milestone dialog of the kd-1.3 release commit, opened from the crown next to its hash: Shared on, the label '
+    + 'kd-1.3, the notes "int8, per-channel, recalibrated", and the Delete and Save buttons.',
+  caption: 'A commit\'s star makes it a milestone: give it a label and notes, and share it with everyone on the project.',
+  actions: async ui => {
+    // the new commit's bar: a crown, it's a shared milestone
+    await ui.click(ui.page.locator('button:has(.bp6-icon-crown)').first());
+    await ui.page.locator('.bp6-popover', { hasText: 'Milestone Info' }).waitFor();
+    await ui.settle();
+    await ui.anchor('shared', ui.page.locator('.bp6-popover label', { hasText: 'Shared' }));
+  },
+  // the crown, and the dialog next to it
+  target: page => [page.locator('button:has(.bp6-icon-crown)').first(), page.locator('.bp6-popover', { hasText: 'Milestone Info' })],
+  padding: 8,
+});
+
+shot('commit/change-menu', {
+  project: DE,
+  url: d => d.commitUrl(DE, 'kd-1-3', { reference: 'kd-1-2', view: 'table-kpi' }),
+  alt: 'The reference commit\'s Change menu: a project box, Switch new/reference, Also Select as New, Remove from '
+    + 'comparison, then the reference branch main and the shared milestones kd-1.3 and kd-1.2 with their commits.',
+  caption: 'Change the reference from its commit bar: swap new and reference, or pick the reference branch or a milestone.',
+  actions: async ui => {
+    await ui.hover(ui.page.locator('.bp6-navbar').nth(1).getByText('Change', { exact: true }));
+    await ui.page.locator('.bp6-popover .bp6-menu', { hasText: 'Switch new/reference' }).waitFor();
+    await ui.settle();
+  },
+  // the reference's hash and Change, and the menu under them
+  target: page => [
+    page.locator('.bp6-navbar').nth(1).locator('.bp6-input-group', { hasText: 'Change' }),
+    page.locator('.bp6-popover .bp6-menu', { hasText: 'Switch new/reference' }),
+  ],
+  padding: 8,
+});
+
+shot('commit/run-badges', {
+  project: DE,
+  url: d => d.commitUrl(DE, 'kd-1-3', {
+    reference: 'kd-1-2', view: 'output-list', filter: 'small-objects int8', controls: showOnly('Precision-recall'),
+  }),
+  alt: 'The header of a run card: the input slices/small-objects with its int8 and size-320 configuration tags, Config '
+    + 'and Tuning tags in orange, then a "Model card kd-1.3" badge with a link icon next to the run\'s model parameter, '
+    + 'and its metrics against the reference.',
+  caption: 'Runs can return badges, like a link to the model card of the model they evaluated.',
+  actions: async ui => {
+    await showCard(ui);
+    await mouseAway(ui);
+    await ui.anchor('badge', cards(ui.page).first().getByText('Model card kd-1.3'));
+  },
+  // the card's header: its title and tags, the badges, the metrics (the card is wider than the screen: not its h5)
+  target: page => [
+    cards(page).first().getByText('slices/small-objects', { exact: true }),
+    cards(page).first().locator('.bp6-tag', { hasText: /^size-320$/ }).first(),
+    cards(page).first().locator('.bp6-tag', { hasText: 'Model card kd-1.3' }),
+    cards(page).first().locator('.bp6-tag', { hasText: 'model:' }).first(),
+    cards(page).first().locator('.bp6-tag', { hasText: /^Latency/ }).first(),
+  ],
+  padding: 8,
+});
+
+shot('commit/plotly-overlay', {
+  project: DE,
+  url: d => int8(d, { filter: 'indoor int8', controls: showOnly('Precision-recall') }),
+  alt: 'Precision-recall curves of the indoor slice, one per class: the int8 model\'s solid, the fp32 release\'s dashed '
+    + 'in the same color. The legend gives each curve\'s AP50.',
+  caption: 'Plots of the reference are drawn over the new ones, dashed: here the int8 model\'s precision-recall curves '
+    + 'over fp32\'s.',
+  actions: async ui => {
+    await showCard(ui);
+    await ui.plots();
+    await mouseAway(ui);
+  },
+  // the run's metrics, the plot's title and the plot
+  target: page => [
+    cards(page).first().locator('.bp6-tag', { hasText: /^mAP/ }).first(),
+    cards(page).first().locator('.bp6-tag', { hasText: /^Latency/ }).first(),
+    cards(page).first().locator('.js-plotly-plot').first(),
+  ],
+  padding: 8,
+});
+
+shot('commit/detections', {
+  project: DE,
+  // the first image of small-objects: int8 misses two people that fp32 finds (story_checks.py: misses_what_fp32_finds)
+  url: d => int8(d, {
+    filter: 'small-objects int8',
+    controls: { ...showOnly('Detections'), dynamic_options: { image: ['1'] } },
+  }),
+  alt: 'A composite of a hall with people and cars pasted in, side by side: the int8 model (left) finds one person, the '
+    + 'fp32 release (right) three. Objects a model missed are outlined in red: two people more on the left, the cars on both.',
+  caption: 'Each run draws its detections, ground truth in red where it missed: the int8 model misses two people fp32 finds.',
+  actions: async ui => {
+    // The project's cards are 390 px wide (qaboard.yaml sets no width): in full screen, the images fill the screen
+    await cards(ui.page).first().locator('[title="Enter Full Screen"]').evaluate(e => (e as HTMLElement).click());
+    await ui.page.waitForFunction(() => !!document.fullscreenElement);
+    await ui.settle();
+    await ui.tiles();
+    await ui.cursor.moveTo({ x: 1400, y: 880 });
+    await ui.settle();
+  },
+  // the images and their labels
+  target: page => imageRow(page),
+  padding: 0,
+});
+
+shot('commit/html-report', {
+  project: DE,
+  url: d => int8(d, { filter: 'small-objects int8', controls: showOnly('Report') }),
+  alt: 'The int8 run\'s HTML report on small-objects: mAP 0.338, AP50 0.507, AP small 0.341, latency and model size; '
+    + 'AP per class for person and car, AP and recall by object size, latency, then the images with the most missed '
+    + 'objects, boxes drawn.',
+  caption: 'Your code can write an HTML report: it shows in the run\'s card, here with the images where the model missed '
+    + 'the most objects.',
+  viewport: { width: 1440, height: 1400 },
+  actions: async ui => {
+    await showCard(ui);
+    await mouseAway(ui);
+    await ui.settle();
+  },
+  // the new run's report, down to the image with the most missed objects (the card is wider than the screen)
+  target: page => [
+    page.frameLocator('iframe[title="report.html (new)"]').locator('h1'),
+    page.frameLocator('iframe[title="report.html (new)"]').locator('figure').first(),
+  ],
+  padding: 8,
+});
+
+shot('commit/artifacts-configs', {
+  project: DE,
+  url: d => d.commitUrl(DE, 'int8-per-channel', { reference: 'int8-minmax', view: 'parameters', query: { params_artifact: 'build' } }),
+  alt: 'Artifacts & Configurations of the per-channel commit against the first int8 commit: build/flags.json differs, '
+    + 'and its diff shows quant_per_channel going from false to true.',
+  caption: 'Artifacts saved by `qa save-artifacts` are diffed with the reference\'s: here the flags the model was built with.',
+  actions: async ui => {
+    // a file's diff with the reference's opens below the tree
+    await ui.click(treeFile(ui.page, 'flags.json'));
+    await ui.settle();
+    await mouseAway(ui);
+  },
+  target: page => viewCard(page, 'Artifacts & Configurations'),
+  padding: 0,
+});

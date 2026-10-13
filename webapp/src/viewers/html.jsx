@@ -6,12 +6,15 @@ const { get } = axios;
 
 // An HTML output in its own document: its styles stay out of the app, and its relative links (images/1.jpg) resolve
 // from its folder. No scripts: the sandbox only lets the frame be measured (same origin) and open links in a new tab.
-// The frame grows to its document's height once it loaded, images included.
+// Once it loaded, images included, the frame grows to fit its document: as high, and wider if what's in it doesn't fit.
 const HtmlFrame = ({ html, base, width, title }) => {
   const resize = e => {
-    const document = e.currentTarget.contentDocument;
-    if (document?.documentElement)
-      e.currentTarget.style.height = `${document.documentElement.scrollHeight}px`;
+    const frame = e.currentTarget;
+    const root = frame.contentDocument?.documentElement;
+    if (!root) return;
+    if (root.scrollWidth > frame.clientWidth)
+      frame.style.width = `${root.scrollWidth}px`;
+    frame.style.height = `${root.scrollHeight}px`;
   };
   return <iframe
     title={title}
