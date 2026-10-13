@@ -1,6 +1,26 @@
 import React, { PureComponent } from "react";
 import axios, { all, CancelToken } from "axios";
+import { html_base_url, html_with_base } from "./htmlDocument";
 const { get } = axios;
+
+
+// An HTML output in its own document: its styles stay out of the app, and its relative links (images/1.jpg) resolve
+// from its folder. No scripts: the sandbox only lets the frame be measured (same origin) and open links in a new tab.
+// The frame grows to its document's height once it loaded, images included.
+const HtmlFrame = ({ html, base, width, title }) => {
+  const resize = e => {
+    const document = e.currentTarget.contentDocument;
+    if (document?.documentElement)
+      e.currentTarget.style.height = `${document.documentElement.scrollHeight}px`;
+  };
+  return <iframe
+    title={title}
+    srcDoc={html_with_base(html, base)}
+    sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+    onLoad={resize}
+    style={{ width, height: '150px', border: 0, display: 'block' }}
+  />
+}
 
 
 class HtmlViewer extends PureComponent {
@@ -78,23 +98,21 @@ class HtmlViewer extends PureComponent {
 
 
   render() {
-    const { output_ref, style } = this.props;
+    const { output_new, output_ref, path, style } = this.props;
     const { data, is_loaded, error } = this.state;
 
     if (!is_loaded) return <span>loading</span>;
     if (!!error) return <span>{JSON.stringify(error)}</span>
 
-    // https://developer.mozilla.org/fr/docs/Web/HTML/Element/iframe
     const width = (!!style && style.width) || '400px';
     let has_reference = !!output_ref && !!output_ref.output_dir_url;
-    // <iframe width={width} srcDoc={data.new || ""} style={{borderWidth: '0px'}} Ssandbox="" /> 
     return <>
       {has_reference && <h3>New</h3>}
-      <div style={{width}} dangerouslySetInnerHTML={{__html: data.new ?? ""}} /> 
+      <HtmlFrame html={data.new ?? ""} base={html_base_url(output_new.output_dir_url, path)} width={width} title={`${path} (new)`}/>
       {has_reference && <>
         <h3>Reference</h3>
-        <div style={{width}} dangerouslySetInnerHTML={{__html: data.reference || ""}} />
-      </>} 
+        <HtmlFrame html={data.reference || ""} base={html_base_url(output_ref.output_dir_url, path)} width={width} title={`${path} (reference)`}/>
+      </>}
     </>
   }
 
