@@ -514,26 +514,26 @@
     },
     "commit/output-filter": {
       "alt": "The new commit's filter box with \"low-light -gradient\", 8 outputs under it, and the Metrics Table below listing only the low-light runs, the sky gradient left out.",
-      "app_version": "1.1.1+c67f384",
+      "app_version": "1.1.1+414fe1b",
       "caption": "Words narrow down the runs, a minus sign leaves some out; the counters under the box count what's left.",
       "captured": "2026-10-13",
       "files": {
         "avif": {
-          "bytes": 48135,
-          "key": "shots/commit/output-filter/3ee4ebb345c1fac6.avif"
+          "bytes": 48441,
+          "key": "shots/commit/output-filter/a67bb83041fb78f3.avif"
         },
         "png": {
-          "bytes": 204059,
-          "key": "shots/commit/output-filter/6eaf92166fd25208.png"
+          "bytes": 205384,
+          "key": "shots/commit/output-filter/b28dff49141bbca4.png"
         },
         "webp": {
-          "bytes": 115432,
-          "key": "shots/commit/output-filter/6eea0d835bf44bc2.webp"
+          "bytes": 115940,
+          "key": "shots/commit/output-filter/a333447026493f63.webp"
         }
       },
       "height": 728,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAABQAQCdASoQAAwAA4BaJQBdgDEIAP7znUkeJdejpthpHA2Mz+77r4vdVTnA3jT6XgAAAA==",
+      "lqip": "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAABQAQCdASoQAAwAA4BaJQBdgDEIAP7znURednttG77TRwNjM/u+6+L3VU5wN40+l4AAAA==",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1058
