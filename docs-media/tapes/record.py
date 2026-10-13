@@ -215,6 +215,8 @@ def record(tape: Path, facts: dict) -> Path:
     meta = header(tape)
     if not meta.get("alt"):
         raise SystemExit(f"{tape.name}: add a `# alt: ...` line (website/STYLE.md)")
+    if len(meta["alt"]) > 300:
+        raise SystemExit(f"{tape.name}: the alt text has {len(meta['alt'])} characters, at most 300 (website/media.schema.json)")
     out = OUT / id_
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)

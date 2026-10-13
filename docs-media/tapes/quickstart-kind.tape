@@ -1,6 +1,6 @@
 # user: ines
 # passenv: QABOARD_IMAGE QABOARD_VERSION
-# alt: A terminal creates a kind cluster with QA-Board's kind.yaml, installs the Helm chart with the quickstart values, which prints how to open QA-Board and where runs save their results, then forwards port 5151 to QA-Board: the health check answers ok, and the projects API lists the Kitefin demo projects with their number of commits.
+# alt: A terminal creates a kind cluster with QA-Board's kind.yaml and installs the Helm chart with the quickstart values, which prints how to open QA-Board. Through a port-forward on 5151, the health check answers ok and the projects API lists the Kitefin demo projects.
 # caption: helm install waits until QA-Board is ready and prints how to open it; through the port-forward, it answers with the demo projects.
 # poster: last
 # timeout: 1800
