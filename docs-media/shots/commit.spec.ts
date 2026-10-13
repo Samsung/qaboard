@@ -639,7 +639,7 @@ shot('commit/throughput-p99', {
   project: SL,
   url: d => sharedCache(d, 'ramp', only('sweep')),
   alt: 'Throughput against p99 in the ramp run, from 20% to 120% of 6,000 requests/s: the reference\'s p99 stays low '
-    + 'until the last steps, the shared cache\'s takes off at a lower throughput and climbs to seconds.',
+    + 'under the 12 ms SLO until the last steps; the shared cache\'s takes off past 4,600 requests/s, to half a second.',
   caption: 'The ramp raises the load step by step: with the shared cache, p99 takes off at a lower throughput.',
   actions: async ui => {
     await showCard(ui);
@@ -653,25 +653,34 @@ shot('commit/throughput-p99', {
 shot('commit/flame-diff', {
   project: SL,
   url: d => sharedCache(d, 'steady-high', only('flame')),
-  alt: 'A differential CPU flame graph of the steady-high run: the shared cache\'s respond and lookup, and the response '
-    + 'rendering under them, are new and drawn in red and orange; the model\'s forward pass, which runs less, is blue.',
-  caption: 'A differential flame graph: rendering responses under the shared cache\'s lock is new (red), and the '
-    + 'model runs less (blue) since cache hits skip it.',
+  alt: 'A differential CPU flame graph of the steady-high run: in the workers and the ingress, the shared cache\'s '
+    + 'respond and lookup, with the response rendering under them, are new, in orange; the model\'s forward pass, '
+    + 'which runs less, is blue.',
+  caption: 'A differential flame graph: rendering responses under the shared cache\'s lock is new (orange), and the '
+    + 'model runs less (blue): cache hits skip it.',
+  // the card is 1500 px wide (qaboard.yaml sets no width), and the Controls panel's button sits on the viewport's edge
+  viewport: { width: 1760, height: 1000 },
   actions: async ui => {
     await showCard(ui);
     await mouseAway(ui);
     await ui.settle();
   },
-  target: page => [runTitle(page, 'steady-high'), viewer(cards(page).first(), 4)],
+  // the run's name and metrics, the flame graph (narrower than the card) and the comparison picker under it
+  target: page => [
+    runTitle(page, 'steady-high'),
+    viewer(cards(page).first(), 4).locator('.flame-graph svg').first(),
+    viewer(cards(page).first(), 4).locator('select').first(),
+  ],
   padding: 8,
 });
 
 shot('commit/core-heatmap', {
   project: SL,
   url: d => sharedCache(d, 'steady-high', only('cores', 'batches')),
-  alt: 'Per-core CPU heatmaps of the steady-high run, new and reference side by side, cores against time; below, the '
-    + 'histograms of batch sizes, new and reference overlaid.',
-  caption: 'Visualizations hidden by default show on demand: the busy cores over time, and the batch sizes.',
+  alt: 'Per-core CPU heatmaps of the steady-high run, new and reference side by side: with the shared cache the '
+    + 'worker cores stay mostly idle, the reference\'s are busy. Below, the batch sizes overlaid: every new batch is full.',
+  caption: 'With the shared cache, the gateway runs one batch at a time: its cores idle while requests queue, and every '
+    + 'batch is full.',
   actions: async ui => {
     await showCard(ui);
     await ui.plots();
@@ -684,18 +693,27 @@ shot('commit/core-heatmap', {
 shot('commit/text-diff', {
   project: SL,
   url: d => sharedCache(d, 'steady-high', only('percentiles')),
-  alt: 'HdrHistogram\'s percentile distributions of the steady-high run diffed side by side in a text editor: every '
-    + 'latency changed, from milliseconds in the reference to around a second with the shared cache.',
+  alt: 'HdrHistogram\'s percentile distribution of the steady-high run, reference and new side by side in a diff '
+    + 'editor: from the median on, latencies go from 3 ms to over 500 ms.',
   caption: 'Text outputs are diffed with the reference; Next Diff jumps to the next change.',
+  // the card is 1500 px wide (qaboard.yaml sets no width), and the Controls panel's button sits on the viewport's edge
+  viewport: { width: 1760, height: 900 },
   actions: async ui => {
     await showCard(ui);
-    const card = cards(ui.page).first();
-    await ui.click(card.getByRole('button', { name: 'Next Diff' }).first());
-    await ui.settle();
     await mouseAway(ui);
   },
-  target: page => [runTitle(page, 'steady-high'), viewer(cards(page).first(), 8)],
-  padding: 8,
+  // the file's name and buttons, and its first 20 lines, both sides: down to the reference's line 20, and as far right
+  // as the new file's header line goes (the editors are as wide as the card)
+  target: page => {
+    const editor = (side: string) => viewer(cards(page).first(), 8).locator(`.${side}-in-monaco-diff-editor`);
+    return [
+      runTitle(page, 'steady-high'),
+      editor('original').locator('.view-line', { hasText: '0.900000000000' }).first(),
+      editor('modified').locator('.view-line > span', { hasText: 'TotalCount' }).first(),
+    ];
+  },
+  // flush: no sliver of line 21
+  padding: 2,
 });
 
 shot('commit/run-menu', {
@@ -710,6 +728,10 @@ shot('commit/run-menu', {
     await ui.page.locator('.bp6-popover .bp6-menu', { hasText: 'Delete Output Files' }).waitFor();
     await ui.settle();
   },
-  target: page => [runTitle(page, 'steady-high'), page.locator('.bp6-popover .bp6-menu', { hasText: 'Delete Output Files' })],
+  // the card's header: the run's name and its metrics, the menu under it
+  target: page => [
+    runTitle(page, 'steady-high'), cards(page).first().getByText('SLO miss', { exact: true }).locator('xpath=..'),
+    page.locator('.bp6-popover .bp6-menu', { hasText: 'Delete Output Files' }),
+  ],
   padding: 8,
 });
