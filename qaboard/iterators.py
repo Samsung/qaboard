@@ -625,19 +625,21 @@ def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
   #       tuning_search[parameter] = list(range(args['start'], args['stop'], args['step']))
 
   n_iter = tuning_search.get('search_options', {}).get('n_iter')
+  # a grid by default, as the docs show `--tuning-search '{"parameter_search": {...}}'`
+  search_type = tuning_search.get('search_type', 'grid')
   if not parameter_search:
     params_iterator = [{}]
-  elif tuning_search['search_type'] == 'grid':
+  elif search_type == 'grid':
     # http://scikit-learn.org/stable/modules/generated/sklearn.model_selection.ParameterSampler.html#sklearn.model_selection.ParameterSampler
     from sklearn.model_selection import ParameterGrid
     # from search import ParameterGrid
     params_iterator = ParameterGrid(parameter_search)
-  elif tuning_search['search_type'] == 'sampler':
+  elif search_type == 'sampler':
     from sklearn.model_selection import ParameterSampler
     # from search import ParameterSampler
     params_iterator = ParameterSampler(parameter_search, n_iter=n_iter)
   else:
-    raise ValueError
+    raise ValueError(f"Unknown tuning search_type: {search_type!r}, use 'grid' or 'sampler'")
 
   for counter, params_ in enumerate(params_iterator):
     if n_iter and counter >= n_iter and n_iter > 0:

@@ -206,8 +206,83 @@ jobs:
             helm template qaboard charts/qaboard -f "$values" | ./kubeconform -strict -summary -ignore-missing-schemas
           done
 
-  # The helm chart installed for real, on a kind cluster, with the images of this run:
-  # the quickstart's commands (website/docs/backend-admin/kubernetes.mdx), a `qa batch` in the cluster, then an upgrade
+  # The Docker Compose quickstart (deployments/quickstart/compose.yml, website/docs/get-started/quickstart.mdx), with
+  # the images of this run. Its demo data is the seeder's test story, built into a demo-data image like the docs' demo
+  # snapshot is (that one is in a private bucket: .github/workflows/docs-media.yml tests it the same way).
+  quickstart:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            docs-media/*.py
+            .github/scripts/*.py
+            uv.lock
+      - name: Version
+        run: |
+          echo "QABOARD_VERSION=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
+          echo "QABOARD_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard" >> "$GITHUB_ENV"
+      - uses: docker/setup-buildx-action@v3
+      # The images of the docker job, from its layer cache
+      - name: Build the images
+        uses: docker/bake-action@v6
+        with:
+          source: .
+          files: docker-compose.yml
+          targets: backend,frontend,proxy,cantaloupe
+          load: true
+          set: |
+            backend.cache-from=type=gha,scope=backend
+            frontend.cache-from=type=gha,scope=frontend
+            proxy.cache-from=type=gha,scope=proxy
+            cantaloupe.cache-from=type=gha,scope=cantaloupe
+      - name: Demo data
+        run: .github/scripts/demo_data_fixture.sh "$QABOARD_IMAGE:demo-data-$QABOARD_VERSION"
+      # The quickstart's commands, with the images built above
+      - name: Quickstart
+        run: |
+          # Users get the official images
+          env -u QABOARD_IMAGE -u QABOARD_VERSION docker compose -f deployments/quickstart/compose.yml config --images | tee /tmp/images.txt
+          if grep -v -e '^ghcr.io/samsung/qaboard:' -e '^postgres:' -e '^redis:' /tmp/images.txt; then
+            echo "::error::deployments/quickstart/compose.yml must use the official images by default"
+            exit 1
+          fi
+          mkdir -p /tmp/qaboard
+          cp deployments/quickstart/compose.yml /tmp/compose.yml
+          cd /tmp
+          start=$SECONDS
+          docker compose up -d --wait
+          echo "docker compose up took $((SECONDS - start))s"
+      - name: Check the demo data
+        run: |
+          uvx --from playwright==1.56.0 playwright install --with-deps chromium
+          uv run .github/scripts/demo_data_e2e.py http://localhost:5151
+      - name: Start again
+        run: |
+          # The demo data is restored once
+          cd /tmp
+          docker compose down
+          docker compose up -d --wait
+          docker compose logs demo-data | tee /tmp/demo-data.log
+          grep -q "The database already has QA-Board tables" /tmp/demo-data.log
+          grep -q "The results are already in" /tmp/demo-data.log
+          uv run "$GITHUB_WORKSPACE/.github/scripts/demo_data_e2e.py" http://localhost:5151 --no-browser
+      - name: Logs on failure
+        if: failure()
+        run: |
+          docker compose -p qaboard-demo ps -a || true
+          docker compose -p qaboard-demo logs --tail 100 backend || true
+          cd /tmp
+          docker compose ps -a || true
+          docker compose logs --tail 200 || true
+
+  # The helm chart installed for real, on a kind cluster, with the images of this run: the quickstart's commands
+  # (website/docs/get-started/quickstart.mdx), with demo data (see the quickstart job), a `qa batch` in the cluster,
+  # then an upgrade
   helm-e2e:
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
@@ -239,6 +314,16 @@ jobs:
             website.cache-from=type=gha,scope=website
             proxy.cache-from=type=gha,scope=proxy
             cantaloupe.cache-from=type=gha,scope=cantaloupe
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            docs-media/*.py
+            .github/scripts/*.py
+            uv.lock
+      # quickstart.yaml restores the demo data, from the demo-data image of this version
+      - name: Demo data
+        run: .github/scripts/demo_data_fixture.sh "$QABOARD_IMAGE:demo-data-$QABOARD_VERSION"
       - uses: azure/setup-helm@v4
         with:
           version: v4.3.0
@@ -255,7 +340,7 @@ jobs:
           kind create cluster --name qaboard --config charts/qaboard/kind.yaml
           docker buildx prune --all --force > /dev/null
           images=()
-          for service in backend frontend website proxy cantaloupe; do images+=("$QABOARD_IMAGE:$service-$QABOARD_VERSION"); done
+          for service in backend frontend website proxy cantaloupe demo-data; do images+=("$QABOARD_IMAGE:$service-$QABOARD_VERSION"); done
           kind load docker-image --name qaboard "${images[@]}"
           docker image rm "${images[@]}" > /dev/null
           # Helm 4.2.1 waited out the full --timeout after deleting hooks, then reported success anyway
@@ -286,6 +371,11 @@ jobs:
           curl -sSf http://localhost:5151/api/v1/projects > /dev/null
           curl -sSf http://localhost:5151/ | grep -q 'id="root"'
           curl -sSf http://localhost:5151/docs/ > /dev/null
+      - name: Check the demo data
+        run: |
+          kubectl logs deploy/qaboard-backend -c demo-data
+          uvx --from playwright==1.56.0 playwright install --with-deps chromium
+          uv run .github/scripts/demo_data_e2e.py http://localhost:5151
       - name: qa batch in the cluster
         run: python3 .github/scripts/helm_e2e.py http://localhost:5151
       # The same release again: the migrations run again (pre-upgrade), nothing else may change
@@ -307,8 +397,9 @@ jobs:
             exit 1
           fi
           curl -sSf --retry 10 --retry-all-errors --retry-delay 3 http://localhost:5151/api/v1/health
-          # The results are still there
+          # The results are still there, and the demo data
           curl -sSf "http://localhost:5151/api/v1/commit/$GITHUB_SHA?project=user/sample_project" > /dev/null
+          uv run .github/scripts/demo_data_e2e.py http://localhost:5151 --no-browser
       - name: Cluster state on failure
         # also when the job's timeout cancels it
         if: failure() || cancelled()
@@ -331,7 +422,7 @@ jobs:
   publish-docker-images:
     runs-on: ubuntu-latest
     if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
-    needs: [python, webapp, docker, helm, helm-e2e]
+    needs: [python, webapp, docker, helm, helm-e2e, quickstart]
     permissions:
       contents: read
       packages: write
@@ -366,6 +457,18 @@ jobs:
               docker buildx imagetools create -t "$image:$service$suffix" "$image:$service-${GITHUB_SHA::8}"
             done
           done
+          # The demo data of the quickstarts (demo-data<suffix>, which compose.yml and the chart's demoData use) is
+          # built by .github/workflows/docs-media.yml: from master as demo-data, from release tags as demo-data-<version>.
+          # Every version gets one: master's commits and releases it didn't build for get the latest one.
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard"
+          target="$image:demo-data${suffix:--${GITHUB_SHA::8}}"
+          if docker buildx imagetools inspect "$target" > /dev/null 2>&1; then
+            echo "$target exists"
+          elif docker buildx imagetools inspect "$image:demo-data" > /dev/null 2>&1; then
+            docker buildx imagetools create -t "$target" "$image:demo-data"
+          else
+            echo "::warning::No $image:demo-data yet: run the Docs media workflow on master to publish the quickstarts' demo data"
+          fi
 
   # The helm chart, as an OCI artifact: helm install qaboard oci://ghcr.io/<owner>/charts/qaboard
   # - A release (tag v1.2.0) publishes the chart 1.2.0, whose images are <service>-1.2.0.

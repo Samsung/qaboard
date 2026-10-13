@@ -21,10 +21,12 @@ save results, is on the [roadmap](/docs/roadmap#http-upload-of-outputs).
 <Tabs groupId="server" queryString>
 <TabItem value="compose" label="Docker Compose" default>
 
-Follow [Starting a QA-Board server](/docs/deploy) on a Linux host:
-1. Create the results folder, `/mnt/qaboard`, and share it with the machines that will run `qa` (NFS, Samba...).
-2. Add a site overlay that mounts it in the backend and in nginx (start from `deployments/example.yml`).
-3. Start QA-Board with `deployments/deploy.py`. It answers on port 5151.
+- **To try it on your computer:** follow the [quickstart](/docs/get-started/quickstart?server=compose). One Compose
+  file starts QA-Board, with the results folder in `/tmp/qaboard`.
+- **For your team:** follow [Starting a QA-Board server](/docs/deploy) on a Linux host:
+  1. Create the results folder, `/mnt/qaboard`, and share it with the machines that will run `qa` (NFS, Samba...).
+  2. Add a site overlay that mounts it in the backend and in nginx (start from `deployments/example.yml`).
+  3. Start QA-Board with `deployments/deploy.py`. It answers on port 5151.
 
 </TabItem>
 <TabItem value="k8s" label="Kubernetes (Helm)">

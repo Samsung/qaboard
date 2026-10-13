@@ -68,6 +68,42 @@ app.kubernetes.io/component: {{ index . 1 }}
 {{- end }}
 {{- end -}}
 
+{{/* Where the demo data's results are: the path their database has (demoData) */}}
+{{- define "qaboard.demoDataPath" -}}
+{{- if and .Values.results.enabled (eq (include "qaboard.resultsPath" .) "/mnt/qaboard") -}}
+{{- fail "demoData mounts the demo results at /mnt/qaboard: set results.mountPath to another folder" -}}
+{{- end -}}
+/mnt/qaboard
+{{- end -}}
+
+{{- define "qaboard.demoDataImage" -}}
+{{- .Values.demoData.image | default (include "qaboard.image" (list . "demo-data")) -}}
+{{- end -}}
+
+{{/* The init container that restores the demo data. Usage: include "qaboard.demoDataRestore" (list . "all"|"database") */}}
+{{- define "qaboard.demoDataRestore" -}}
+{{- $ := index . 0 -}}
+{{- $what := index . 1 -}}
+- name: demo-data
+  image: {{ include "qaboard.demoDataImage" $ }}
+  imagePullPolicy: {{ $.Values.image.pullPolicy }}
+  {{- if eq $what "database" }}
+  # Only the database: the backend's init container restores the results
+  args: ["database"]
+  {{- end }}
+  # The database settings, like the migrations Job's
+  env: {{- include "qaboard.backendEnv" $ | nindent 4 }}
+    {{- if not (or $.Values.database.cnpg.enabled $.Values.database.embedded.enabled) }}
+    - name: QABOARD_DB_PASSWORD
+      valueFrom: {secretKeyRef: {name: {{ include "qaboard.secretName" $ }}, key: QABOARD_DB_PASSWORD, optional: true}}
+    {{- end }}
+    - {name: QABOARD_DEMO_RESULTS, value: {{ include "qaboard.demoDataPath" $ | quote }}}
+  {{- if ne $what "database" }}
+  volumeMounts:
+    - {name: demo-data, mountPath: {{ include "qaboard.demoDataPath" $ | quote }}}
+  {{- end }}
+{{- end -}}
+
 {{- define "qaboard.secretName" -}}
 {{- .Values.secret.existingSecret | default (printf "%s-secret" (include "qaboard.fullname" .)) -}}
 {{- end -}}
