@@ -15,7 +15,8 @@ from typing import Dict, List, Optional
 
 REPO = Path(__file__).resolve().parents[2]
 COMPOSE_FILES = [REPO / 'docker-compose.yml', REPO / 'docs-media' / 'compose.demo.yml']
-PROJECT = 'qaboard-demo'
+# QABOARD_DEMO_PROJECT runs a second stack next to the first, with its own QABOARD_DEMO_PORT and QABOARD_DEMO_RESULTS
+PROJECT = os.environ.get('QABOARD_DEMO_PROJECT', 'qaboard-demo')
 # Where seed.py writes what it seeded (T0, the stories' shas...), inside the results storage, so that it is part of
 # snapshots. Served at http://localhost:5151/s/<results>/.qaboard-demo/
 DEMO_DIR_NAME = '.qaboard-demo'
