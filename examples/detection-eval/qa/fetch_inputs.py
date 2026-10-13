@@ -12,7 +12,7 @@ Each photo is downloaded from the public mirror (`mirror` in the lock, or $DETEC
 
     uv run qa/fetch_inputs.py            # what main.py does the first time qa imports it
     uv run qa/fetch_inputs.py --check    # check the files already there too
-    uv run qa/fetch_inputs.py --upload   # maintainers: copy them and the weights to the mirror (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID,
+    uv run qa/fetch_inputs.py --upload   # maintainers: copy the photos to the mirror (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID,
                                          # R2_SECRET_ACCESS_KEY, bucket qaboard-media); objects are never overwritten
 """
 import contextlib
@@ -112,11 +112,8 @@ def upload(database):
         's3', region_name='auto', endpoint_url=f"https://{os.environ['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com",
         aws_access_key_id=os.environ['R2_ACCESS_KEY_ID'], aws_secret_access_key=os.environ['R2_SECRET_ACCESS_KEY'],
     )
-    import models
     lock = yaml.safe_load(LOCK.read_text())
     files = [(rel, Path(database) / rel, photo['sha256'], 'jpg', 'image/jpeg') for rel, photo in lock['photos'].items()]
-    # the model's weights, as downloaded from download.pytorch.org: a cache for CI
-    files.append(('weights', models.weights(), lock['weights']['sha256'], 'pth', 'application/octet-stream'))
     for name, path, digest, extension, content_type in files:
         data = path.read_bytes()
         assert sha256(data) == digest, f'{name}: not the locked file'

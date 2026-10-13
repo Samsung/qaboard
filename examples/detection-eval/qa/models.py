@@ -2,7 +2,8 @@
 The model files, built once and cached in models/ (or $DETECTOR_MODELS_DIR):
 
 - the weights: torchvision's SSDlite320 MobileNetV3-Large COCO weights, downloaded and checked by SHA-256 (see
-  inputs.lock.yaml). They aren't redistributed: the mirror is only a cache of the same file, for CI.
+  inputs.lock.yaml), always from download.pytorch.org: their terms come with the data they were trained on, so we
+  don't republish them.
 - fp32-<size>.onnx and anchors-<size>.npy: exported by qa/export_onnx.py (PyTorch for CPU), once per input size.
 - calib-<size>-<method>-<hash>.pkl: activation statistics of the fp32 model on the `calib` slice (min/max, or
   histograms for the percentile and entropy methods), collected once per input size and method.
@@ -73,7 +74,7 @@ def download(url, path, sha256):
 
 
 def weights(log=print) -> Path:
-    """The pretrained weights (.pth): from the mirror, else from download.pytorch.org, checked by SHA-256"""
+    """The pretrained weights (.pth), from download.pytorch.org, checked by SHA-256"""
     lock = yaml.safe_load(LOCK.read_text())
     entry = lock['weights']
     path = models_dir() / Path(entry['url']).name
@@ -82,8 +83,7 @@ def weights(log=print) -> Path:
     with locked('weights'):
         if path.exists():
             return path
-        mirror = os.environ.get('DETECTOR_MIRROR', lock.get('mirror'))
-        sources = ([f"{mirror}{entry['sha256']}.pth"] if mirror else []) + [entry['url']]
+        sources = [entry['url']]
         problems = []
         for url in sources:
             try:

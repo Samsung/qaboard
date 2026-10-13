@@ -1,7 +1,7 @@
 # Inputs fetched at first run by qa/fetch_inputs.py: photos under CC0 or in the public domain (see LICENSES.md), used
 # as they are (the 1024 px renditions of their sources), checked by SHA-256. They come from the public mirror
 # (<mirror><sha256>.jpg, or $DETECTOR_MIRROR), else from their source `url`.
-# `weights` are the detector's pretrained weights, fetched by qa/models.py the same way (<mirror><sha256>.pth).
+# `weights` are the detector's pretrained weights, fetched by qa/models.py from `url` only (not mirrored).
 mirror: https://qaboard-media.sivoov.app/inputs/detection-eval/
 weights:
   url: https://download.pytorch.org/models/ssdlite320_mobilenet_v3_large_coco-a79551df.pth
