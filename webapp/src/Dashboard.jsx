@@ -68,7 +68,8 @@ class Dashboard extends React.Component {
     const extra_params = {
       with_outputs: true,
     }
-    dispatch(fetchCommits(project, {...match.params}, default_date_range(), aggregation_metrics, extra_params))
+    // History picks its metrics (dashboard_metrics), and loads the runs: don't ask again with the latest commit's
+    dispatch(fetchCommits(project, {...match.params}, default_date_range(), aggregation_metrics, extra_params, true))
   }
 
 
@@ -319,7 +320,7 @@ const mapStateToProps = (state, ownProps) => {
     let aggregation_metrics = {};
     (dashboard_metrics || main_metrics || []).filter(m => available_metrics[m] !== undefined)
     .forEach(m => {
-      aggregation_metrics[m] = available_metrics[m].target;
+      aggregation_metrics[m] = available_metrics[m].target ?? 0;
     });
 
     return {
