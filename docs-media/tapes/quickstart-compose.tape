@@ -1,7 +1,7 @@
 # user: ines
 # passenv: QABOARD_IMAGE QABOARD_VERSION
 # alt: A terminal starts QA-Board with docker compose up: the database, the demo data, the backend, the image server and the web server start and turn healthy. The health check answers ok, and the projects API lists the Kitefin demo projects with their number of commits.
-# caption: docker compose up starts QA-Board with the demo projects, on localhost:5151.
+# caption: docker compose up waits until every service is healthy, then QA-Board answers on localhost:5151 with the demo projects.
 # poster: last
 # dedupe_mask: 0,122,1280,310
 # dedupe_tolerance: 0.002

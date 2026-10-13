@@ -7,7 +7,7 @@
 Records the terminal tapes (docs-media/README.md#terminal-tapes) with the pinned VHS:
 docs-media/tapes/<area>-<subject>.tape makes out/<area>/<subject>/tape.mp4, tape.webm and meta.json.
 
-  uv run docs-media/tapes/record.py [--only GLOB]
+  uv run docs-media/tapes/record.py [--only GLOB] [--skip GLOB]
 
 A tape starts with `# key: value` lines, then `Source "tapes/_settings.tape"`:
   project   the demo project (examples/<project>), or none
@@ -17,6 +17,7 @@ A tape starts with `# key: value` lines, then `Source "tapes/_settings.tape"`:
             quickstarts, which run this checkout's images)
   alt       required alt text (website/STYLE.md); caption: the default caption; poster: first, last or ms
   dedupe_tolerance, dedupe_mask   how publish.py compares a new recording with the published one (README.md#determinism)
+  timeout   seconds VHS may take, hidden waits included (default 600)
 Commands run for real, against the restored demo stack (QABOARD_URL, from the demo facts), from ~/kitefin/<repo>:
 HOME is /home/<user> (TAPES_HOME), where ~/kitefin/<repo> is a workspace like the seeder's, built by workspace(): a .venv
 with `qa` and the example's dependencies, the inputs, and a git repository whose HEAD is on a story commit.
@@ -261,7 +262,7 @@ def record(tape: Path, facts: dict) -> Path:
         raise SystemExit("vhs is missing: run docs-media/install-tools.sh")
     log(f"{id_}: recording {tape.relative_to(DOCS_MEDIA)}")
     result = subprocess.run([vhs, str(tape.relative_to(DOCS_MEDIA))], cwd=DOCS_MEDIA, env=env, capture_output=True, text=True,
-                            timeout=600)
+                            timeout=int(meta.get("timeout", 600)))
     if result.returncode != 0 or not (out / "tape.mp4").exists() or not (out / "tape.webm").exists():
         raise SystemExit(f"{id_}: VHS failed ({result.returncode}):\n{result.stdout[-3000:]}\n{result.stderr[-3000:]}")
 
@@ -299,11 +300,14 @@ def record(tape: Path, facts: dict) -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--only", help="comma-separated globs over shot ids, e.g. 'cli/*'")
+    parser.add_argument("--skip", help="comma-separated globs over shot ids not to record, e.g. 'quickstart/*'")
     parser.add_argument("tapes", nargs="*", type=Path, help="tape files (default: every tapes/<area>-<subject>.tape)")
     args = parser.parse_args()
     tapes = [t.resolve() for t in args.tapes] or sorted(t for t in TAPES.glob("*.tape") if not t.name.startswith("_"))
     globs = [g.strip() for g in (args.only or "").split(",") if g.strip() and g.strip() != "*"]
     tapes = [t for t in tapes if not globs or any(fnmatch.fnmatchcase(tape_id(t), g) for g in globs)]
+    skip = [g.strip() for g in (args.skip or "").split(",") if g.strip()]
+    tapes = [t for t in tapes if not any(fnmatch.fnmatchcase(tape_id(t), g) for g in skip)]
     if not tapes:
         log("No tape matches")
         return 0

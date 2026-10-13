@@ -10,7 +10,8 @@
 # Never on push. Fork pull requests never run it: they would need the R2 secrets.
 # It also builds the quickstarts' demo-data image from the snapshot, and tests it with the Docker Compose quickstart:
 # published to ghcr.io/<owner>/qaboard from master (demo-data) and release tags (demo-data-<version>), never from
-# pull requests or other branches.
+# pull requests or other branches. The quickstarts' tapes (quickstart/*) use it: they're recorded last, once the demo
+# stack is stopped, since they answer on its port.
 name: Docs media
 
 on:
@@ -62,6 +63,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       QABOARD_DEMO_RESULTS: /mnt/qaboard
       DOCS_MEDIA_BIN: ${{ github.workspace }}/../docs-media-bin
+      KIND_VERSION: v0.32.0   # the helm-e2e job's (ci.yaml)
     steps:
       - uses: actions/checkout@v4
         with:
@@ -120,6 +122,9 @@ jobs:
           # the fonts captures use, docs-media/fonts.conf
           sudo apt-get install -y -q --no-install-recommends ffmpeg fonts-roboto fonts-dejavu-core fonts-noto-color-emoji fonts-jetbrains-mono
           docs-media/install-tools.sh >> "$GITHUB_PATH"
+          # the quickstart/kind tape (kubectl and jq are on the runner)
+          curl -sSfLo "$DOCS_MEDIA_BIN/kind" "https://kind.sigs.k8s.io/dl/$KIND_VERSION/kind-linux-amd64"
+          chmod +x "$DOCS_MEDIA_BIN/kind"
           (cd docs-media/shots && npm ci --no-audit --no-fund && npx playwright install --with-deps chromium)
           # the demo stack's results storage, and the personas' homes for the tapes
           sudo install -d -o "$USER" /mnt/qaboard /home/ines /home/tobias /home/arjun /home/mira /home/adaeze /home/kaito
@@ -130,6 +135,10 @@ jobs:
         run: |
           echo "QABOARD_VERSION=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
           echo "QABOARD_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard" >> "$GITHUB_ENV"
+      - uses: azure/setup-helm@v4
+        if: steps.scope.outputs.only != ''
+        with:
+          version: v4.3.0   # the helm-e2e job's (ci.yaml)
       - uses: docker/setup-buildx-action@v3
         if: steps.scope.outputs.only != ''
       - name: Build the images
@@ -169,6 +178,7 @@ jobs:
           echo "DEMO_APP_VERSION=$(python3 -c 'import sys; sys.path.insert(0, "docs-media/demo"); import stack; print(stack.backend_version())')" >> "$GITHUB_ENV"
 
       - name: Capture the stills and clips
+        id: capture
         if: steps.scope.outputs.only != ''
         working-directory: docs-media/shots
         env:
@@ -180,13 +190,50 @@ jobs:
           npx playwright test --project stills --project clips --pass-with-no-tests --retries "$retries"
 
       - name: Record the tapes
+        id: tapes
         if: steps.scope.outputs.only != ''
         env:
           ONLY: ${{ steps.scope.outputs.only }}
-        run: uv run docs-media/tapes/record.py --only "$ONLY"
+        # the quickstarts' tapes need the demo-data image, and the demo stack's port: they're recorded below
+        run: uv run docs-media/tapes/record.py --only "$ONLY" --skip 'quickstart/*'
 
+      # The quickstarts' demo data (deployments/quickstart/compose.yml, the chart's demoData), from this snapshot. Whether
+      # the captures failed or not; while the demo stack runs, on another port.
+      - name: Demo-data image
+        id: demo-data
+        if: ${{ !cancelled() && steps.restore.outcome == 'success' }}
+        run: uv run docs-media/snapshot.py image --tag "$QABOARD_IMAGE:demo-data-$QABOARD_VERSION"
+      - name: Test the demo-data image with the Docker Compose quickstart
+        id: quickstart
+        if: ${{ !cancelled() && steps.demo-data.outcome == 'success' }}
+        env:
+          QABOARD_PORT_HTTP: '5252'
+          QABOARD_RESULTS: /tmp/qaboard-quickstart
+        run: |
+          mkdir -p "$QABOARD_RESULTS"
+          compose() { docker compose -p qaboard-quickstart -f deployments/quickstart/compose.yml "$@"; }
+          compose up -d --wait || { compose logs --tail 100; exit 1; }
+          uvx --from playwright==1.56.0 playwright install chromium
+          uv run .github/scripts/demo_data_e2e.py http://localhost:5252 || { compose logs --tail 100; exit 1; }
+          compose down --volumes
+
+      # quickstart/compose and quickstart/kind start QA-Board with this run's images and demo data, on port 5151 like the
+      # docs: the demo stack stops first (its containers and logs stay). The kind cluster needs about 8 GB of disk.
+      - name: Record the quickstarts' tapes
+        id: quickstart-tapes
+        if: ${{ !cancelled() && steps.tapes.outcome == 'success' && steps.quickstart.outcome == 'success' }}
+        env:
+          ONLY: ${{ steps.scope.outputs.only }}
+        run: |
+          docker ps -q --filter label=com.docker.compose.project=qaboard-demo | xargs -r docker stop > /dev/null
+          docker buildx prune --all --force > /dev/null
+          df -h /
+          uv run docs-media/tapes/record.py --only "$ONLY" docs-media/tapes/quickstart-*.tape
+
+      # Whether the quickstarts' tapes were recorded or not (that step fails the job)
       - name: Publish
-        if: steps.scope.outputs.only != ''
+        id: publish
+        if: ${{ !cancelled() && steps.tapes.outcome == 'success' }}
         env:
           ONLY: ${{ steps.scope.outputs.only }}
           PUBLISH: ${{ steps.scope.outputs.publish }}
@@ -211,7 +258,7 @@ jobs:
           retention-days: 14
 
       - name: Commit website/media.json to the pull request
-        if: github.event_name == 'pull_request' && steps.scope.outputs.only != ''
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.publish.outcome == 'success' }}
         env:
           BRANCH: ${{ github.event.pull_request.head.ref }}
           PR: ${{ github.event.pull_request.number }}
@@ -232,7 +279,7 @@ jobs:
             || gh pr comment "$PR" --body-file docs-media/out/gallery.md
 
       - name: Open a pull request with website/media.json
-        if: github.event_name != 'pull_request' && steps.scope.outputs.only != '' && steps.scope.outputs.publish == 'true'
+        if: ${{ !cancelled() && github.event_name != 'pull_request' && steps.publish.outcome == 'success' && steps.scope.outputs.publish == 'true' }}
         env:
           # a dispatch on a branch targets that branch; tags and the monthly refresh target the default branch
           BASE: ${{ github.ref_type == 'branch' && github.ref_name || github.event.repository.default_branch }}
@@ -259,25 +306,6 @@ jobs:
         if: steps.scope.outputs.gc == 'true'
         run: uv run docs-media/publish.py gc
 
-      # The quickstarts' demo data (deployments/quickstart/compose.yml, the chart's demoData), from this snapshot. Whether
-      # the captures failed or not; while the demo stack runs, on another port.
-      - name: Demo-data image
-        id: demo-data
-        if: ${{ !cancelled() && steps.restore.outcome == 'success' }}
-        run: uv run docs-media/snapshot.py image --tag "$QABOARD_IMAGE:demo-data-$QABOARD_VERSION"
-      - name: Test the demo-data image with the Docker Compose quickstart
-        id: quickstart
-        if: ${{ !cancelled() && steps.demo-data.outcome == 'success' }}
-        env:
-          QABOARD_PORT_HTTP: '5252'
-          QABOARD_RESULTS: /tmp/qaboard-quickstart
-        run: |
-          mkdir -p "$QABOARD_RESULTS"
-          compose() { docker compose -p qaboard-quickstart -f deployments/quickstart/compose.yml "$@"; }
-          compose up -d --wait || { compose logs --tail 100; exit 1; }
-          uvx --from playwright==1.56.0 playwright install chromium
-          uv run .github/scripts/demo_data_e2e.py http://localhost:5252 || { compose logs --tail 100; exit 1; }
-          compose down --volumes
       - name: Publish the demo-data image
         if: >-
           !cancelled() && steps.quickstart.outcome == 'success' &&
