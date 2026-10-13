@@ -277,6 +277,31 @@ test('a target under a fixed header scrolls below it', async ({ browser }, testI
     .rejects.toThrow('anchor "header" is outside the shot');
 });
 
+test('a target in a fixed header is shot with it', async ({ browser }, testInfo) => {
+  const { meta } = await captureStill(browser, 'commit/in-header', {
+    ...base,
+    url: '/app.html',
+    padding: 0,
+    // the header's field and the card below it, like the commit bars' filter box and a run card
+    target: page => [page.locator('#header-field'), page.locator('#card')],
+    actions: async ui => {
+      await ui.page.evaluate(() => {
+        const bar = document.createElement('div');
+        bar.id = 'header';
+        bar.style.cssText = 'position: fixed; top: 0; left: 0; right: 0; height: 60px; background: #cd4246; z-index: 10';
+        bar.innerHTML = '<input id="header-field" style="margin: 10px 24px; width: 200px">';
+        document.body.prepend(bar);
+        document.body.style.padding = '160px 24px 2000px';
+      });
+      await ui.anchor('field', ui.page.locator('#header-field'));
+    },
+  }, env(testInfo.outputPath('in-header')));
+  // from the field, at the top of the viewport, to the card
+  const field = meta.anchors.field;
+  expect(field.y).toBeLessThan(5);
+  expect(meta.height).toBeGreaterThan(150);
+});
+
 test.describe('login', () => {
   test("the project's persona is logged in by default", async ({ browser }, testInfo) => {
     const cookies = async (options: Partial<ShotOptions>) => {

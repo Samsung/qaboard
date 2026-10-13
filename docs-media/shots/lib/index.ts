@@ -51,6 +51,8 @@ const ALT_MAX = 300;
 // Volatile elements are marked, then hidden: what's behind them (the surrounding background) shows instead
 const MASK_ATTRIBUTE = 'data-shot-mask';
 const MASK_STYLE = `[${MASK_ATTRIBUTE}], [${MASK_ATTRIBUTE}] * { visibility: hidden !important; }`;
+// The elements of a shot's target, marked while measuring it (shotRegion)
+const TARGET_ATTRIBUTE = 'data-shot-target';
 
 type Kind = 'still' | 'clip';
 
@@ -222,13 +224,15 @@ async function stableScreenshot(page: Page, clip: Box, attempts = 6): Promise<Bu
   return previous;
 }
 
-// The bottom of the bars fixed at the top of the viewport (e.g. the commit page's header): what scrolls under them is hidden
+// The bottom of the bars fixed at the top of the viewport (e.g. the commit page's header): what scrolls under them is
+// hidden. A bar that holds the target (or is part of it) doesn't count: the commit page's filter box is in one.
 async function topBarsBottom(page: Page): Promise<number> {
-  return page.evaluate(() => {
+  return page.evaluate(attribute => {
     const bars: DOMRect[] = [];
     for (const el of document.querySelectorAll('body *')) {
       const position = getComputedStyle(el).position;
       if (position !== 'fixed' && position !== 'sticky') continue;
+      if (el.closest(`[${attribute}]`) || el.querySelector(`[${attribute}]`)) continue;
       const r = el.getBoundingClientRect();
       if (r.height > 0 && r.height < innerHeight / 2 && r.width > innerWidth / 2) bars.push(r);
     }
@@ -237,7 +241,7 @@ async function topBarsBottom(page: Page): Promise<number> {
     for (const r of bars.sort((a, b) => a.top - b.top))
       if (r.top <= bottom + 1) bottom = Math.max(bottom, r.bottom);
     return bottom;
-  });
+  }, TARGET_ATTRIBUTE);
 }
 
 // The shot's box in viewport coordinates: the target and its padding, within the viewport and below the fixed top bars.
@@ -273,6 +277,8 @@ async function shotRegion(page: Page, target: Locator | Locator[] | undefined, p
     console.warn('[shots] the target kept moving over 2 s, keeping its last box');
     return previous;
   };
+  for (const t of targets)
+    await t.evaluateAll((elements, attribute) => elements.forEach(e => e.setAttribute(attribute, '')), TARGET_ATTRIBUTE);
   await targets[0].scrollIntoViewIfNeeded();
   const bars = await topBarsBottom(page);
   let union = await measure();
