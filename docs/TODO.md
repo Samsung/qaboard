@@ -28,6 +28,11 @@ and show a "not captured yet" placeholder until they're published.
     `examples/detection-eval` in the same workspace, or switch the tape to the camera ISP (`qa batch ci` there is quick).
   - The results link only prints with `--share`, which adds a batch to the demo data other shots capture: use a
     label like `--label tape` and delete the batch in the tape's hidden teardown, as `logs/live-tail` does.
+- **`tuning/which-tests-run`, `tuning/manual-form`, `tuning/launch-to-analysis`**: the demo server can't see the
+  examples' inputs (each `qaboard.yaml` uses a relative `inputs` folder), so every batch resolves to 0 tests and the
+  forms show "0 total runs" ("No inputs found" under Send, cropped out of `tuning/auto-form`). Mount
+  `examples/<project>/inputs` in the demo stack's backend at the path the server resolves (or set the projects'
+  `inputs.database` for the demo), then capture; the launch clip also needs a runner with the detector's setup.
 - **`landing/social-card`** (still): needs its template (a page that lays out the logo, tagline and a crop of the
   hero), then a spec like the others.
 - **Phase 3**: the robotics and agent demo projects' shots (`project: robotics-3d`, `agent-evals`).
@@ -53,6 +58,8 @@ and show a "not captured yet" placeholder until they're published.
   reference QDQ arithmetic (e.g. indoor minmax 0.0713 vs 0.0647). Quote only numbers from the published demo data.
   The story's `int8-tuned` commit uses `quant_keep_fp32: first-conv`, while the CI's `qa optimize` ranks
   `quant_keep_fp32: none` best: say "the team picked" rather than "`qa optimize` found" if a page shows the commit.
+- **Detection-eval indoor drop**: `examples/detection-eval/story.yaml`'s header and `SPEC.md` say "-40%" for indoor,
+  the demo data measures -35% (the pages say 35%).
 - **Release notes**: publish October's note at the start of November (see `website/release-notes/_template.md`).
 
 ## Product, small
@@ -63,6 +70,9 @@ and show a "not captured yet" placeholder until they're published.
 - **Analysis view** (tuning): the frontier and plots only use the metrics selected in its tag picker; with another
   metric, the points are null and the plot is empty. (`webapp/src/components/tuning/`)
 - **Commits page**: `from=2026-09-17` showed 9/18 while `from=2026-09-10` showed 9/10: a time zone off-by-one?
+- **Summary**: the box plots of metrics on a log scale (e.g. AP small) overlap their y axis labels.
+- **Detection-eval cards** are 390 px wide: add `outputs.style.width` to `examples/detection-eval/qaboard.yaml`
+  (changes the snapshot key: the next `docs-media` run reseeds).
 - **Run cards** are 1500 px wide without `outputs.style.width` in `qaboard.yaml`, wider than a 1440 px window.
 - **Image viewer**: `Init()` adds `add-item` and `tile-load-failed` handlers on every image change, so they pile up
   (`webapp/src/viewers/images/images.jsx`). `OutputCard` logs React warnings (an unknown DOM prop, a non-boolean
