@@ -7,11 +7,6 @@ where to start. When you finish one, delete it.
 The shot list is `docs-media/shots.yaml`, how to capture is `docs-media/README.md`. Pages already reference these ids
 and show a "not captured yet" placeholder until they're published.
 
-- **`quickstart/kind`** (tape): `docs-media/tapes/quickstart-kind.tape` is written and wired into `docs-media.yml`,
-  but was never recorded (no machine with the ~10 GB it needs: kind's node holds the images twice). On its first CI
-  recording, check the frames (the hidden image loading, the port-forward's readiness wait) and its `dedupe_mask`
-  (computed from the line height: the port-forward's PID, helm's LAST DEPLOYED, kind's random closing line), then set
-  `status: captured` in `shots.yaml`.
 - **`cli/batch`** (tape): `qa batch ci` on the detector, with its progress and the results link.
   - The detector needs PyTorch, its ONNX export and its inputs (about 1 GB): record it after the seeder has built
     `examples/detection-eval` in the same workspace, or switch the tape to the camera ISP (`qa batch ci` there is quick).
@@ -27,6 +22,9 @@ and show a "not captured yet" placeholder until they're published.
 - **Phase 3**: the robotics and agent demo projects' shots (`project: robotics-3d`, `agent-evals`).
 
 ## Shots to improve
+- **`quickstart/kind`**: its `dedupe_mask` (the port-forward's PID, helm's LAST DEPLOYED, kind's random closing line) is
+  computed from the line height, not measured: if a re-recording publishes as changed with nothing new on screen, measure
+  the masks on two recordings.
 - **`commit/bit-accuracy-diff`** could end on "Bit-accurate" now: `docs-tuning-guide` vs `isp-4-1`, the facade run on
   the hw-model platform. The `ui` helpers can't change pages mid-clip: add a `ui.goto(url)` that waits like the
   initial load.

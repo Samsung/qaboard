@@ -58,7 +58,7 @@ shots:
     shows: '`kind create cluster` with kind.yaml, `helm install` with the quickstart values and the notes it prints, a port-forward, then on localhost:5151 the health check answers and the projects API lists the demo projects.'
     pages: [get-started/quickstart, backend-admin/kubernetes, tutorials/self-host]
     phase: 2
-    status: planned
+    status: captured
   - id: cli/first-run
     kind: tape
     project: image-quality
