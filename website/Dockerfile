@@ -1,3 +1,7 @@
+# Built from the repository's root, so the docs can show repository files (<RepoFile path="...">, e.g.
+# charts/qaboard/kind.yaml) and check the shot ids (docs-media/shots.yaml). Dockerfile.dockerignore keeps the rest of
+# the repository out of the build context.
+#   docker build -f website/Dockerfile .
 FROM node:22-alpine
 WORKDIR /website
 
@@ -34,13 +38,17 @@ RUN if [ -n "$PROXY_URL" ]; then \
 # RUN npm install -g yarn
 
 # In the past we had ulimit issues and "ulimit -n 2000 &&"
-COPY package.json yarn.lock ./
+COPY website/package.json website/yarn.lock ./
 # we try multiple times to work around network issues...
 RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
     yarn install --frozen-lockfile --network-timeout 100000 || \
     yarn install --frozen-lockfile --network-timeout 100000 || \
     yarn install --frozen-lockfile --network-timeout 100000
-COPY . ./
+# The files outside website/ keep their place relative to it (/website/../charts/...)
+COPY charts/ /charts/
+COPY examples/ /examples/
+COPY docs-media/shots.yaml /docs-media/shots.yaml
+COPY website/ ./
 
 # On the website we have algolia for the search, but the baseURL (/qaboard) is different than
 # when running from the application (/docs). So we don't use algolia for the app...

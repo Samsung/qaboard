@@ -157,7 +157,9 @@ services:
   website:
     image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:website${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
-      context: website
+      # the root, to include the repository files the docs show: see website/Dockerfile
+      context: .
+      dockerfile: website/Dockerfile
       shm_size: 4gb
       # by default we assume you run the QA-Board on localhost, but will want to change this
       args:

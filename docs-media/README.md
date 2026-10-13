@@ -412,8 +412,8 @@ tooling and contributors only: it never appears in a page.
     (a warning, an error in strict builds);
   - `media.json` is validated against its schema, so an entry without `alt` can't exist.
 - The checks parse every page themselves (webpack's persistent cache can skip the MDX loader). With `yarn start`,
-  problems are warnings and the page shows them. Without `docs-media/shots.yaml` (the website image is built with
-  `website/` as its context), ids missing from `media.json` render as placeholders without checks.
+  problems are warnings and the page shows them. Without `docs-media/shots.yaml` (e.g. a copy of `website/` alone;
+  the website image includes it), ids missing from `media.json` render as placeholders without checks.
 
 ## Website components (spec; WS4 implements)
 
