@@ -25,7 +25,8 @@ docs-media/
   compose.demo.yml     # overlay on docker-compose.yml: results storage in backend/nginx/cantaloupe, demo env
   seed.py              # uv script: replays examples/*/story.yaml into a running stack (real `qa`, fake CI env)
   snapshot.py          # uv script: save/restore the database + results (R2 qaboard-ci), build the demo-data image
-  demo/                # stack.py (the stack, for seed.py and snapshot.py), kitefin_stub.py (*.kitefin.example)
+  demo/                # stack.py (the stack, for seed.py and snapshot.py), kitefin_stub.py (*.kitefin.example),
+                       # webapp_runs.py (the examples' inputs and runs for the web app's tuning forms)
   demo-data/           # the demo-data image: Dockerfile, restore.sh (see "The demo-data image")
   tests/fixture/       # a tiny project and story that exercise everything seed.py does, in about 2 minutes
   publish.py           # uv script: encode, dedupe, upload, write website/media.json; `gc` subcommand
@@ -217,9 +218,9 @@ The one exception is `landing/social-card`: a spec renders an HTML template (log
   writes `meta.json`. File `tapes/<area>-<subject>.tape` makes shot `<area>/<subject>`.
 - Each tape starts with `# key: value` lines: `alt` (required), `caption`, `project`, `user` (the persona, default
   `ines`), `env` (extra `KEY=VALUE`s, e.g. CI variables), `passenv` (names of variables kept from the environment,
-  e.g. `QABOARD_IMAGE`), `poster`, `timeout` (seconds VHS may take, default 600), `dedupe_tolerance`, `dedupe_mask`
-  (rectangles `x,y,w,h` of the video, in pixels, separated by spaces, that dedupe ignores: what the commands measure,
-  like times). `--skip GLOBS` leaves tapes out.
+  e.g. `QABOARD_IMAGE`), `poster`, `timeout` (seconds VHS may take, default 600), `revision`, `dedupe_tolerance`,
+  `dedupe_mask` (rectangles `x,y,w,h` of the video, in pixels, separated by spaces, that dedupe ignores: what the
+  commands measure, like times). `--skip GLOBS` leaves tapes out.
 - Then the shared settings, `Source "tapes/_settings.tape"`: `Set Shell bash`, `Set FontFamily "JetBrains Mono"`,
   `Set FontSize 18`, `Set Width 1280`, `Set Height 720`, `Set Padding 24`, `Set Framerate 30`, `Set TypingSpeed 35ms`,
   and a theme from Blueprint's dark palette. Then `Output out/<area>/<subject>/tape.mp4` and `tape.webm`.
@@ -309,6 +310,7 @@ export interface ShotOptions {
   viewport?: { width: number; height: number };        // default 1440x900
   storage?: Record<string, string>;                    // localStorage entries, merged over the defaults
   login?: string | null;                               // persona logged in (password kitefin-demo); default: the project's main author
+  revision?: number;                                   // bump to publish a capture the dedupe would keep as unchanged
   dedupeTolerance?: number;                            // share of differing pixels still "unchanged", default 0.0005 (clips 0.002)
 }
 
@@ -417,10 +419,21 @@ shot('commit/pixel-tooltip', {
 - **Rebuilt demo data** (a reseed) changes the runtime metrics, which are measured: the shots that show them change
   slightly.
 - **`logs/live-tail`** records a run that really runs: it starts `qa run` (this checkout's, with `uv`) on the inference
-  gateway's `bursty-high`, shared with the stack in a `live-tail` batch of `tuned-batching`, then deletes the batch. It
-  needs cargo (the first capture builds `gateway-bench`, about 2 minutes), and differs from one recording to the next
-  (up to 8% of a frame: timings, request ids): its `dedupeTolerance` is 0.15. `ci/step-summary` also runs `qa`
+  gateway's `bursty-high`, shared with the stack in a `live-tail` batch of `tuned-batching`, measuring for 2 minutes so
+  that it's still running when the clip ends, then stops it and deletes the batch. It needs cargo (the first capture
+  builds `gateway-bench`, about 2 minutes), and differs from one recording to the next (up to 8% of a frame: timings,
+  request ids, how loaded the machine is): its `dedupeTolerance` is 0.15. `ci/step-summary` also runs `qa`
   (`qa gate --format markdown`) with `uv`.
+- **The tuning forms** list a batch's tests from the inputs in the commit's artifacts folder: the examples' `inputs`
+  folder isn't saved there, so `tuning.spec.ts` links it into the detector's commits while it captures, and removes
+  the links afterwards ([`demo/webapp_runs.py`](demo/webapp_runs.py) `link`, `unlink`). **`tuning/launch-to-analysis`**
+  really sends its grid: its 8 runs run in the backend's container (`QABOARD_TUNING_RUNNER=local`), about a minute
+  cut from the clip. `webapp_runs.py build` first prepares them, cached in `<results>/.qaboard-demo-runs/`: the
+  detector's photos and models (the first time, a few minutes: PyTorch for the ONNX export), its Python packages for
+  the backend's Python, and an `.envrc` the backend's `qa batch` sources. The batch is deleted afterwards. Its
+  accuracy metrics are the same from one recording to the next, its latency isn't: the clip's `dedupeTolerance` is 0.01.
+- **`cli/batch`** shares a batch (`--label my-batch`) on the camera ISP's head of `main`, and deletes it in its hidden
+  teardown. It ends while the runs run: its `dedupe_mask` hides their logs.
 
 ## Budgets
 
@@ -454,7 +467,9 @@ libwebp 1.6.0) and the distribution's ffmpeg (Ubuntu 24.04: 6.1.1). Budgets coun
      that the encoder's artifacts on detailed content, which differ between two encodes of recordings that look the
      same (up to 0.1% of the pixels), don't count;
    - a tape's `dedupe_mask` (meta.json, from its header) lists rectangles that don't count.
-   - If unchanged, the entry is kept as it is: no upload, no manifest change.
+   - If unchanged, the entry keeps its files (no upload) and takes the spec's current alt, caption and project. A
+     shot whose `revision` (spec option or tape header) differs from the published one's is never unchanged: bump it
+     when a high `dedupe_tolerance` would keep a worse capture, e.g. a fixed clip of a live run.
 3. **Upload** changed files to the `qaboard-media` bucket (S3 API) at `shots/<id>/<hash>.<ext>`:
    - `<hash>`: the first 16 hex characters of the file's SHA-256;
    - `Cache-Control: public, max-age=31536000, immutable`, the right `Content-Type`;

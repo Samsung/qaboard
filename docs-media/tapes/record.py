@@ -16,6 +16,7 @@ A tape starts with `# key: value` lines, then `Source "tapes/_settings.tape"`:
   passenv   variables kept from the environment when they're set, names separated by spaces (e.g. QABOARD_IMAGE for the
             quickstarts, which run this checkout's images)
   alt       required alt text (website/STYLE.md); caption: the default caption; poster: first, last or ms
+  revision  bump it to publish a recording the dedupe would keep as unchanged
   dedupe_tolerance, dedupe_mask   how publish.py compares a new recording with the published one (README.md#determinism)
   timeout   seconds VHS may take, hidden waits included (default 600)
 Commands run for real, against the restored demo stack (QABOARD_URL, from the demo facts), from ~/kitefin/<repo>:
@@ -294,6 +295,8 @@ def record(tape: Path, facts: dict) -> Path:
         "poster": poster if poster in ("first", "last") else int(poster),
         "files": {"mp4": "tape.mp4", "webm": "tape.webm"},
     }
+    if meta.get("revision"):
+        data["revision"] = int(meta["revision"])
     (out / "meta.json").write_text(json.dumps(data, indent=2) + "\n")
     log(f"  {duration:.1f} s, {stream['width']}x{stream['height']}: {out.relative_to(DOCS_MEDIA)}")
     return out

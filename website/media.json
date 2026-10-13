@@ -54,6 +54,33 @@
       "source_spec": "docs-media/shots/ci.spec.ts",
       "width": 880
     },
+    "cli/batch": {
+      "alt": "A terminal runs qa --share batch ci on the camera pipeline: qa prints the link to the results, then the runs start one after the other, each printing its image, the ISP stages and their times.",
+      "app_version": "1.1.1+6494701",
+      "caption": "qa batch runs your code on each input and configuration of a batch; with --share, it prints the link to the results.",
+      "captured": "2026-10-13",
+      "duration": 5.64,
+      "files": {
+        "mp4": {
+          "bytes": 123469,
+          "key": "shots/cli/batch/66a20161f6e25251.mp4"
+        },
+        "poster": {
+          "bytes": 80802,
+          "key": "shots/cli/batch/c2a762328ffae05e.webp"
+        },
+        "webm": {
+          "bytes": 198937,
+          "key": "shots/cli/batch/ea8838376b1e7f30.webm"
+        }
+      },
+      "height": 720,
+      "kind": "tape",
+      "lqip": "data:image/webp;base64,UklGRiwAAABXRUJQVlA4ICAAAABwAQCdASoQAAkAA4BaJZwCdAFAAAD+8N00gnErh7CAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/tapes/cli-batch.tape",
+      "width": 1280
+    },
     "cli/bit-accuracy": {
       "alt": "A terminal in CI runs qa check-bit-accuracy on the hw-model platform: on the rounding change, it fails and lists the files that differ from the release; on a commit that only changed docs, every file is the same.",
       "app_version": "1.1.1+c67f384",
@@ -839,7 +866,7 @@
       "width": 418
     },
     "commit/output-files": {
-      "alt": "The files of the facade run on the hw-model platform that differ from the reference: metrics.json, out.png, stages 4 and 5 in raw/ and stages/, and regs.txt, whose diff below shows the ROUNDING register going from 0 to 2.",
+      "alt": "The files of the facade run on the hw-model platform that differ from the reference: metrics.json, greyed and tagged \"not checked\", then out.png, stages 4 and 5 in raw/ and stages/, and regs.txt, whose diff below shows the ROUNDING register going from 0 to 2.",
       "app_version": "1.1.1",
       "caption": "Output Files lists only the files that changed: a rounding change in the fixed-point model shows in its register dump, then in the last two stages' buffers.",
       "captured": "2026-10-12",
@@ -1564,33 +1591,34 @@
       "width": 1186
     },
     "logs/live-tail": {
-      "alt": "The Logs view of a bursty-high run while it runs: its log follows the end as the gateway prints its repeats, the error count grows with every burst's missed deadlines, and a click on it jumps to the first error.",
-      "app_version": "1.1.1+d3a0b87",
-      "caption": "While a run runs, its log follows the end; the error count jumps to each error.",
+      "alt": "The Logs view of a bursty-high run while it runs: its log follows the end as the overloaded gateway prints the requests that missed their deadline and its queue warnings, the error count climbs past a hundred, and a click on it jumps to the first missed deadline.",
+      "app_version": "1.1.1+5648119",
+      "caption": "While a run runs, its log follows the end; click the error count to jump from error to error.",
       "captured": "2026-10-13",
-      "duration": 10.47,
+      "duration": 10.53,
       "files": {
         "mp4": {
-          "bytes": 428931,
-          "key": "shots/logs/live-tail/38e60160f7a43728.mp4"
+          "bytes": 441849,
+          "key": "shots/logs/live-tail/f15df34ccd3df520.mp4"
         },
         "poster": {
-          "bytes": 118312,
-          "key": "shots/logs/live-tail/9abe70a4491fc1dd.webp"
+          "bytes": 121004,
+          "key": "shots/logs/live-tail/4e0c96d08650c438.webp"
         },
         "vtt": {
           "bytes": 205,
-          "key": "shots/logs/live-tail/c428d614c9bb0249.vtt"
+          "key": "shots/logs/live-tail/6470d649bd3c8168.vtt"
         },
         "webm": {
-          "bytes": 527189,
-          "key": "shots/logs/live-tail/a0b4e94f9e13582c.webm"
+          "bytes": 581940,
+          "key": "shots/logs/live-tail/ea695adaca7b54c7.webm"
         }
       },
       "height": 900,
       "kind": "clip",
-      "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAACwAQCdASoQAAoAA4BaJaQAAujbbvoAAM4/8k7QkhT8ektmu09JbXy37QAAAA==",
+      "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAACQAQCdASoQAAoAA4BaJaQAAuP3hdAAzj/yTtCSFPxHvZfqfdF1Kx+B7bgAAA==",
       "project": "serving-latency",
+      "revision": 2,
       "source_spec": "docs-media/shots/logs.spec.ts",
       "width": 1440
     },
@@ -1727,30 +1755,30 @@
       "width": 1008
     },
     "tuning/auto-form": {
-      "alt": "The Automated tuning tab of the Run Tests / Tuning form, with the int8 model's tuning in YAML: 20 evaluations, the solver's seed and 8 initial points, then the objective, AP small and mAP, with a small weight on the model size.",
-      "app_version": "1.1.1+46fc148",
+      "alt": "The Automated tuning tab of the Run Tests / Tuning form, with the int8 model's tuning in YAML: 20 evaluations, the solver's seed and 8 initial points, then the objective, AP small and mAP; the Send button below.",
+      "app_version": "1.1.1+6494701",
       "caption": "Automated tuning searches the parameters with `qa optimize`: describe the search space and the objective in YAML.",
       "captured": "2026-10-13",
       "files": {
         "avif": {
-          "bytes": 21094,
-          "key": "shots/tuning/auto-form/0577c82c95b50ff4.avif"
+          "bytes": 24055,
+          "key": "shots/tuning/auto-form/b0995e335ae353e3.avif"
         },
         "png": {
-          "bytes": 74015,
-          "key": "shots/tuning/auto-form/3f9de7496008c60e.png"
+          "bytes": 78694,
+          "key": "shots/tuning/auto-form/0babc0074cf19d0e.png"
         },
         "webp": {
-          "bytes": 52340,
-          "key": "shots/tuning/auto-form/eee30a76a372d6cc.webp"
+          "bytes": 54616,
+          "key": "shots/tuning/auto-form/689aed1f7e462984.webp"
         }
       },
-      "height": 331,
+      "height": 387,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRiYAAABXRUJQVlA4IBoAAAAwAQCdASoQAAUAA4BaJaQAA3AA/vToW6gAAA==",
+      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAACQAQCdASoQAAYAA4BaJaQAAudnt/AA/vcK+FVd75ymAAAA",
       "project": "detection-eval",
       "source_spec": "docs-media/shots/tuning.spec.ts",
-      "width": 1170
+      "width": 1186
     },
     "tuning/available-tests": {
       "alt": "The Available Tests editor on Arjun's private batches: two int8 batches, the second's configs line indented one space too far and underlined in red; under the editor, the error with its line, at the top \"1 error\" and \"Unsaved changes\"; on the side, the Batches panel lists int8-indoor and int8-small.",
@@ -1803,6 +1831,89 @@
       "project": "serving-latency",
       "source_spec": "docs-media/shots/tuning.spec.ts",
       "width": 1032
+    },
+    "tuning/launch-to-analysis": {
+      "alt": "The Run Tests / Tuning form with a grid of score_threshold by nms_iou on quant-search, 8 runs: Send starts it. Then its batch, int8-nms, is picked, and its Analysis shows the runs in parallel coordinates.",
+      "app_version": "1.1.1+6494701",
+      "caption": "Start a sweep from the browser, then compare its runs in the Analysis view.",
+      "captured": "2026-10-13",
+      "duration": 10.33,
+      "files": {
+        "mp4": {
+          "bytes": 200714,
+          "key": "shots/tuning/launch-to-analysis/3df29780351eee85.mp4"
+        },
+        "poster": {
+          "bytes": 49640,
+          "key": "shots/tuning/launch-to-analysis/9297f035176d9802.webp"
+        },
+        "vtt": {
+          "bytes": 236,
+          "key": "shots/tuning/launch-to-analysis/73093e4ca952bc32.vtt"
+        },
+        "webm": {
+          "bytes": 246818,
+          "key": "shots/tuning/launch-to-analysis/1a5f444087a451d9.webm"
+        }
+      },
+      "height": 900,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAACQAQCdASoQAAoAA4BaJaQAAudJzCAAzj/yTtNM4HdI3CmMWrULAXcEAAA=",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/tuning.spec.ts",
+      "width": 1440
+    },
+    "tuning/manual-form": {
+      "alt": "The Run Tests / Tuning form: experiment int8-nms on the quant-search batch (2 tests), the Manual tuning tab with a grid of score_threshold 0.2 and 0.3 by nms_iou 0.5 and 0.7, \"Explores 4 combinations\", \"8 total runs\", and the Send button.",
+      "app_version": "1.1.1+6494701",
+      "caption": "Run a batch with other parameters: here every combination of 2 score thresholds and 2 NMS IoUs, 8 runs.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 25647,
+          "key": "shots/tuning/manual-form/97d41315dee8f211.avif"
+        },
+        "png": {
+          "bytes": 87688,
+          "key": "shots/tuning/manual-form/f809e3d19877482d.png"
+        },
+        "webp": {
+          "bytes": 54142,
+          "key": "shots/tuning/manual-form/89029f11a8358588.webp"
+        }
+      },
+      "height": 792,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAACwAQCdASoQAA0AA4BaJZwAAuabEJYAAP73RpoRmLXP8/gUAAA=",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/tuning.spec.ts",
+      "width": 976
+    },
+    "tuning/which-tests-run": {
+      "alt": "The \"Which tests run?\" panel over the Available Tests view: the ci batch resolves to 8 tests on 4 inputs, the indoor, outdoor, warehouse and small-objects slices, each with the fp32 and the int8 model at size 320.",
+      "app_version": "1.1.1+6494701",
+      "caption": "Check which tests a batch runs on this commit, with all the batch files: its inputs and their configurations.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 30624,
+          "key": "shots/tuning/which-tests-run/e83835b9d2d4e5d6.avif"
+        },
+        "png": {
+          "bytes": 166010,
+          "key": "shots/tuning/which-tests-run/439f35845024dae6.png"
+        },
+        "webp": {
+          "bytes": 64922,
+          "key": "shots/tuning/which-tests-run/c4fc892987ce65f7.webp"
+        }
+      },
+      "height": 560,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAACwAQCdASoQAAcAA4BaJaQAAtz3XAwAAP7vnT0L+FkA/usm1N0XJRYoAAA=",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/tuning.spec.ts",
+      "width": 1440
     },
     "whats-new/dialog": {
       "alt": "The \"What's new in QA-Board\" dialog over the projects list: the latest release note's summary, its highlights as cards with an icon, an audience tag and a link to the docs, and the See all changes and Got it buttons.",
