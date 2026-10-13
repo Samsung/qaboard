@@ -1,0 +1,4 @@
+# The same instruction set on every x86-64 CI runner and laptop of the last ten years (AVX2, FMA):
+# the model's kernels vectorize the same way everywhere, so results compare across machines.
+[target.x86_64-unknown-linux-gnu]
+rustflags = ["-C", "target-cpu=x86-64-v3"]

@@ -88,5 +88,13 @@ def test_failures_can_select_configurations():
   assert not seed.Seeder.expected_failure(None, commit, ci, 'slices/indoor', ['fp32', 'size-320'])
 
 
+def test_runs_files_replace_the_batch_name_only():
+  # the label can be the batch's name: only the name after `batch` goes
+  assert seed.without_batch_name(['--label', 'nightly', 'batch', 'nightly'], [], 'nightly') == ['--label', 'nightly', 'batch']
+  assert seed.without_batch_name(['batch', 'ci', '--tuning-search', '{}'], ['--tuning-search', '{}'], 'ci') == ['batch', '--tuning-search', '{}']
+  with pytest.raises(seed.SeedError):
+    seed.without_batch_name(['optimize', '--batch', 'ci'], [], 'ci')
+
+
 if __name__ == '__main__':
   sys.exit(pytest.main([__file__, '-q']))

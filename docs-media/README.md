@@ -98,6 +98,9 @@ uv run docs-media/snapshot.py save                          # snapshots/<key>.ta
 - `seed.py` writes T0 and each story's shas in `<results>/.qaboard-demo/demo.json`, served at
   http://localhost:5151/s/mnt/qaboard/.qaboard-demo/demo.json. The snapshot's metadata has them too (`snapshot.py info`).
 - How runs, failures and times are simulated: the docstring of [`seed.py`](seed.py).
+- An example with compiled code ships `qa/build.py` (`serving-latency`: `cargo build --release`, about 2 minutes):
+  the seeder runs it once in the workspace before replaying the story, like a CI job's build step, so the build
+  doesn't land in the first run's log. Build outputs (`target/`) stay in the workspace between seeds.
 
 ### The demo-data image
 

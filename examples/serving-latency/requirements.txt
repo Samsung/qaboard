@@ -1,0 +1,2 @@
+# qa/main.py's dependencies, besides the qaboard CLI: none (the standard library, and PyYAML that comes with qaboard).
+# gateway-bench needs Rust (stable, https://rustup.rs): qa/build.py builds it.

@@ -2,20 +2,19 @@
 id: serving-latency
 title: "Serving latency: an inference gateway"
 sidebar_label: Serving latency
-description: An inference server where a cache makes the median faster and the tail much slower. Latency distributions, flame graph diffs, History to find a regression, a tuning sweep's frontier and the quality gate.
+description: An inference server where a shared cache saves CPU, halves capacity and makes requests wait seconds under load. Latency distributions, flame graph diffs, History to find a regression, a tuning sweep's frontier and the quality gate.
 ---
 For backend and performance engineers, and for anyone who reviews "it's faster" claims, including the ones coding
 agents make. This page follows the inference gateway example.
 
-:::info Coming soon
-The example project, [`examples/serving-latency`](https://github.com/Samsung/qaboard/tree/master/examples/serving-latency),
-is being built from its [spec](https://github.com/Samsung/qaboard/blob/master/examples/serving-latency/SPEC.md). Until
-it's there, the screenshots show as placeholders, and the configuration below is the planned one.
+:::info Screenshots coming
+The example project is [`examples/serving-latency`](https://github.com/Samsung/qaboard/tree/master/examples/serving-latency).
+Its screenshots show as placeholders until they're captured.
 :::
 
 ## The problem
-Latency is a distribution, not a number. A change can make the median faster and the tail much slower, and the tail is
-what users and timeouts see. Measurements are noisy, so one run proves little: you need repeats, the same load
+Latency is a distribution, not a number. A change can save CPU, or make the median faster, and still make the tail much
+slower, and the tail is what users and timeouts see. Measurements are noisy, so one run proves little: you need repeats, the same load
 profiles on every commit, and a way to see where the time went.
 
 ## The example
@@ -25,15 +24,18 @@ ramping profiles. Each run measures the latency percentiles from p50 to p99.9, t
 long requests waited in the queue, for a batch or for a lock, and records CPU samples for a flame graph.
 
 Its story:
-1. The team's coding agent adds a shared result cache: p50 gets faster, p99 much slower. The quality gate fails.
-2. The flame graph diff shows the time going to the cache's lock.
-3. Sharding the cache by key fixes p99 and keeps the p50 gain. A tuning sweep then picks the batching settings.
+1. The team's coding agent adds a shared result cache. Its commit message says it saves CPU, and it does, about a third
+   per request. But the workers keep the cache's one lock while they run the model and render responses, so the
+   server does one batch at a time. Its capacity halves: at 6,000 requests/s, requests queue for the lock and wait
+   seconds. The quality gate fails.
+2. The flame graph diff shows the responses rendered under the cache's lock, and the model work the cache saves.
+3. Sharding the cache by key fixes p99 and makes the median faster. A tuning sweep then picks the batching settings.
 4. Later, a commit that copies payloads makes p99 worse on the heavy-tailed profile only: the median over all
    profiles barely moves, and History finds it.
 
 ## What you see
-**Latency percentiles** on a log scale, new over the reference: the shared cache is faster up to p90, much slower from
-p99.
+**Latency percentiles** on a log scale, new over the reference: at 6,000 requests/s, with the shared cache, every
+percentile is a hundred times slower or more.
 
 <Shot id="commit/latency-cdf" />
 
@@ -41,7 +43,8 @@ p99.
 
 <Shot id="commit/throughput-p99" />
 
-**Flame graph diff**: frames that got slower are red, faster ones blue. The cache's lock is red.
+**Flame graph diff**: frames that got slower are red, faster ones blue. Rendering responses under the cache's lock is
+new.
 
 <Shot id="commit/flame-diff" />
 
@@ -49,7 +52,9 @@ p99.
 
 <Shot id="commit/core-heatmap" />
 
-**The tuning sweep's frontier** of throughput against p99, with the chosen batching settings on it.
+**The tuning sweep's frontier** of CPU per request against p99, with the chosen batching settings on it. (Under a
+fixed, open-loop load, throughput is the load itself.) With batching off, the maximum delay changes nothing: those
+runs land apart only by noise, which shows how far apart two configurations must be to differ.
 
 <Shot id="tuning/frontier" />
 
@@ -60,36 +65,26 @@ p99.
 See [Quality gate](/docs/quality-gate) to set rules on your own metrics.
 
 ## The configuration
-Planned, from the example's spec. Plots set their traces' colors, so the web app draws the reference dashed and faded
-when `side_by_side: false` overlays them.
+Plots set their traces' colors, so the web app draws the reference dashed and faded when `side_by_side: false` overlays
+them. The gate's rules are on p99 and throughput.
 
-```yaml title="qaboard.yaml (planned)"
-outputs:
-  metrics: qa/metrics.yaml
-  visualizations:
-    - name: Latency percentiles (log tail)
-      path: latency_cdf.plotly.json
-      side_by_side: false              # overlay: the reference is drawn dashed and faded
-    - name: Where the time goes
-      path: breakdown.plotly.json      # queue, batch wait, lock wait, compute at p50/p90/p99/p99.9
-    - name: Throughput vs p99
-      path: sweep.plotly.json          # ramp runs only
-      side_by_side: false
-    - name: CPU flame graph
-      path: cpu.flame.json
-    - name: CPU per core
-      path: cores.plotly.json
-      default_hidden: true
-```
-
-{/* TODO(serving-latency): show examples/serving-latency/qaboard.yaml with <RepoFile> once it exists (add it to
-    website/Dockerfile.dockerignore if needed), and replace "planned" by what the example really does. */}
+<RepoFile path="examples/serving-latency/qaboard.yaml" title="qaboard.yaml" section="outputs,gate" />
 
 Runs execute one at a time, so they don't measure each other, and each run repeats its measurement: reported
 percentiles are the median over repeats.
 
 ## Run this example
-Coming with the example. The [quickstart](/docs/get-started/quickstart) runs the camera ISP example in the meantime.
+You need [Rust](https://rustup.rs) (stable) and a Linux machine with 4 CPUs or more. The first run builds the gateway
+and sizes its model to your machine, so the load levels mean the same thing everywhere.
+
+```bash
+cd examples/serving-latency
+qa run --input profiles/steady-high.yaml   # 6,000 requests/s, about 10 s
+qa batch ci                                # 5 load profiles, about 45 s
+```
+
+Close what you can while it runs: a busy laptop makes for a slow gateway and noisy tails. See the example's
+[README](https://github.com/Samsung/qaboard/tree/master/examples/serving-latency#readme) for the other batches.
 
 ## Read more
 - [Visualizations](/docs/visualizations): Plotly figures and flame graphs.
