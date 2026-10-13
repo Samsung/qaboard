@@ -89,9 +89,12 @@ PIXELMATCH_THRESHOLD = 0.1
 DURATION_TOLERANCE = 0.10
 VIDEO_MAX_WIDTH = 1920
 DEDUPE_FRAMES_MAX = 45
-# Recordings run in real time (typing, cursor moves): a frame of the new video matches if the old one shows it within
-# 12 frames (0.4 s at 30 fps), nearest first
+# Tapes run in real time (typing), clips can be a frame early or late: a frame of the new video matches if the old one
+# shows it within 12 frames (0.4 s at 30 fps), nearest first
 JITTER_FRAMES = (0, *(sign * k for k in range(1, 13) for sign in (-1, 1)))
+# Video frames are compared at half their size (2x2 pixels averaged): the encoder's artifacts on detailed content
+# (a test chart, zoomed tiles) differ between two encodes of the same frames, by up to 0.1% of the pixels
+VIDEO_COMPARE_SCALE = 2
 
 
 def log(*args: Any) -> None:
@@ -261,22 +264,35 @@ def load_rgba(path: Path) -> np.ndarray:
         return np.asarray(im.convert("RGBA"))
 
 
-def same_image(new: np.ndarray, old: np.ndarray, tolerance: float) -> tuple[bool, float]:
-    """Whether at most `tolerance` of the pixels differ, and the share that does"""
+def same_image(new: np.ndarray, old: np.ndarray, tolerance: float, mask: list | None = None,
+               scale: int = 1) -> tuple[bool, float]:
+    """Whether at most `tolerance` of the pixels differ, and the share that does. The `mask`'s rectangles ([x, y, w, h]
+    in pixels of the full-size image; the images are `scale` times smaller) don't count."""
     if new.shape != old.shape:
         return False, 1.0
+    if mask:
+        new = new.copy()
+        for x, y, w, h in mask:
+            x0, y0, x1, y1 = x // scale, y // scale, -(-(x + w) // scale), -(-(y + h) // scale)
+            new[y0:y1, x0:x1] = old[y0:y1, x0:x1]
     allowed = int(tolerance * new.shape[0] * new.shape[1])
     diff = pixelmatch(new, old, stop_after=allowed)
     return diff <= allowed, diff / (new.shape[0] * new.shape[1])
 
 
-def video_frame(path: Path, t: float) -> np.ndarray:
+def video_frame(path: Path, t: float, scale: int = 1) -> np.ndarray:
+    """The frame at t seconds, RGBA, `scale` times smaller (each scale x scale block averaged)"""
     _, w, h, _, _ = video_info(path)
     raw = subprocess.run([tool("ffmpeg"), "-v", "error", "-ss", f"{t:.3f}", "-i", str(path), "-frames:v", "1",
                           "-f", "rawvideo", "-pix_fmt", "rgba", "-"], capture_output=True)
     if raw.returncode != 0 or len(raw.stdout) < w * h * 4:
         raise PublishError(f"could not read the frame at {t:.2f}s of {path}: {raw.stderr.decode()[-500:]}")
-    return np.frombuffer(raw.stdout[: w * h * 4], dtype=np.uint8).reshape(h, w, 4)
+    frame = np.frombuffer(raw.stdout[: w * h * 4], dtype=np.uint8).reshape(h, w, 4)
+    if scale == 1:
+        return frame
+    h, w = h // scale * scale, w // scale * scale
+    blocks = frame[:h, :w].reshape(h // scale, scale, w // scale, scale, 4).astype(np.float32)
+    return np.round(blocks.mean(axis=(1, 3))).astype(np.uint8)
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -575,27 +591,32 @@ def unchanged(e: Encoded, old: dict | None, storage: Storage) -> tuple[bool, flo
     if old["kind"] != e.kind or (old["width"], old["height"]) != (e.width, e.height):
         return False, None, "size or kind changed"
     tolerance = float(e.meta.get("dedupe_tolerance", DEFAULT_TOLERANCE))
+    mask = e.meta.get("dedupe_mask")
     if e.kind == "still":
-        same, share = same_image(load_rgba(e.master), load_rgba(storage.fetch(old["files"]["png"]["key"])), tolerance)
+        same, share = same_image(load_rgba(e.master), load_rgba(storage.fetch(old["files"]["png"]["key"])), tolerance, mask)
         return same, share, f"{share:.4%} of the pixels differ"
     old_duration = old.get("duration") or 0
     if not old_duration or abs(e.duration - old_duration) > DURATION_TOLERANCE * old_duration:
         return False, None, f"duration {old_duration} s -> {e.duration} s"
-    same, share = same_image(load_rgba(e.files["poster"]), load_rgba(storage.fetch(old["files"]["poster"]["key"])), tolerance)
+    same, share = same_image(load_rgba(e.files["poster"]), load_rgba(storage.fetch(old["files"]["poster"]["key"])), tolerance,
+                             mask)
     if not same:
         return False, share, f"poster: {share:.4%} of the pixels differ"
     old_mp4 = storage.fetch(old["files"]["mp4"]["key"])
     worst = share
     for t in [s + 0.5 for s in range(min(int(min(e.duration, old_duration)), DEDUPE_FRAMES_MAX))]:
-        new_frame = video_frame(e.files["mp4"], t)
-        # recordings run in real time: the same action can land a frame or two earlier or later
+        new_frame = video_frame(e.files["mp4"], t, VIDEO_COMPARE_SCALE)
+        # the same action can land a frame or two earlier or later
+        closest = 1.0
         for jitter in JITTER_FRAMES:
-            same, share = same_image(new_frame, video_frame(old_mp4, max(0.0, t + jitter / 30)), tolerance)
+            old_frame = video_frame(old_mp4, max(0.0, t + jitter / 30), VIDEO_COMPARE_SCALE)
+            same, share = same_image(new_frame, old_frame, tolerance, mask, VIDEO_COMPARE_SCALE)
+            closest = min(closest, share)
             if same:
                 break
-        worst = max(worst, share)
+        worst = max(worst, closest)
         if not same:
-            return False, share, f"frame at {t:.1f} s: {share:.4%} of the pixels differ"
+            return False, closest, f"frame at {t:.1f} s: {closest:.4%} of the pixels differ"
     return True, worst, f"at most {worst:.4%} of the pixels differ"
 
 

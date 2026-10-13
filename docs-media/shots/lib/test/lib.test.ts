@@ -8,7 +8,7 @@ import { expect, test } from '@playwright/test';
 import { captureClip, captureStill, type CaptureEnv, type ClipOptions, type ShotOptions } from '../index';
 import { createDemo, type Demo } from '../demo';
 import { checkId, globToRegExp, isSelected, sourceSpec } from '../ids';
-import { webvtt } from '../record';
+import { clipFrames, webvtt } from '../record';
 import { startServer, type FixtureServer } from './server';
 
 const T0 = '2026-10-08T16:00:00.000Z';
@@ -80,6 +80,17 @@ test.describe('ids and demo facts', () => {
     expect(() => d.sha('image-quality', 'isp-4-l')).toThrow(/isn't a commit of image-quality/);
     // projects the facts don't list: the formula
     expect(d.sha('serving-latency', 'cache-shared')).toBe(createHash('sha1').update('kitefin/inference-gateway:cache-shared').digest('hex'));
+  });
+
+  test("a clip's clock only runs in scripted time", () => {
+    // wall clock: the first frame at 10 s, a hold from 10.5 s to 11.5 s, a wait, then a pause of 0.5 s that slept 0.6 s
+    const rolls = [{ start: 10.5, end: 11.5, clip: 0, duration: 1 }, { start: 13, end: 13.6, clip: 1, duration: 0.5 }];
+    const frames = [10, 10.2, 10.6, 11.2, 11.8, 12.5, 13.55, 14].map((ts, i) => ({ file: `${i}`, ts }));
+    const { kept, dropped } = clipFrames(frames, rolls);
+    // between rolls, only the last frame: the page as the wait left it, shown when the clock runs again
+    expect(dropped.map(f => f.file)).toEqual(['0', '4']);
+    const round = (v: number) => Math.round(v * 1000) / 1000;
+    expect(kept.map(f => [f.file, round(f.t)])).toEqual([['1', 0], ['2', 0.1], ['3', 0.7], ['5', 1], ['6', 1.5], ['7', 1.5]]);
   });
 
   test('captions as WebVTT', () => {
@@ -285,6 +296,8 @@ test.describe('login', () => {
 test.describe('clips', () => {
   test('cursor, ripples, captions and frames', async ({ browser }, testInfo) => {
     let ripples = 0;
+    let scripted = 0;
+    let waited = 0;
     const options: ClipOptions = {
       ...base,
       alt: 'The cursor hovers a box, clicks a button, types in a field and drags a handle.',
@@ -297,6 +310,7 @@ test.describe('clips', () => {
         expect(await ui.page.locator('#__shot-cursor').count()).toBe(0);
       },
       script: async ui => {
+        const started = Date.now();
         const page = ui.page;
         expect(await page.locator('#count').textContent()).toBe('1');
         await ui.caption('Hover the box');
@@ -319,12 +333,19 @@ test.describe('clips', () => {
         await ui.cursor.moveTo({ x: 300, y: 300 });
         expect(await page.evaluate(() => document.getElementById('__shot-cursor')?.parentElement?.id)).toBe('card');
         await ui.page.evaluate(() => document.exitFullscreen());
+        // a wait, and a request during a hold: not recorded
+        await page.evaluate(() => { void fetch('/api/slow?ms=1500'); });
+        const waitStarted = Date.now();
+        await ui.settle();
+        await page.evaluate(() => { setTimeout(() => void fetch('/api/slow?ms=1000'), 100); });
         await ui.hold(300);
+        waited = (Date.now() - waitStarted) / 1000;
         expect(await page.locator('#field').inputValue()).toBe('abc');
         // Chromium scales wheel deltas with the device scale factor: count the events
         expect(Number(await page.locator('#wheel-area').getAttribute('data-events'))).toBe(3);
         expect(Number(await page.locator('#wheel-area').getAttribute('data-total'))).toBeGreaterThan(0);
         ripples = await page.evaluate(() => (window as any).__ripples);
+        scripted = (Date.now() - started) / 1000;
       },
     };
     const { dir, meta } = await captureClip(browser, 'commit/interactions', options, env(testInfo.outputPath('clip')));
@@ -334,6 +355,9 @@ test.describe('clips', () => {
     expect(meta.duration).toBeGreaterThan(3);
     expect(meta.duration).toBeLessThan(15);
     expect(meta.frames).toBeGreaterThan(30);
+    // the clip lasts its scripted time, without the waits
+    expect(waited).toBeGreaterThan(2.5);
+    expect(meta.duration).toBeLessThan(scripted - waited + 0.5);
     expect(meta.anchors.field.w).toBeGreaterThan(0);
 
     // the concat list covers the whole clip

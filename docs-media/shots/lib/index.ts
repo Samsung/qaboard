@@ -27,7 +27,7 @@ export interface ShotOptions {
   viewport?: { width: number; height: number };        // default 1440x900
   storage?: Record<string, string>;                    // localStorage entries, merged over the defaults
   login?: string | null;                               // persona logged in; default: the project's main author, none without a project
-  dedupeTolerance?: number;                            // share of differing pixels still "unchanged", default 0.0005
+  dedupeTolerance?: number;                            // share of differing pixels still "unchanged", default 0.0005 (clips 0.002)
 }
 
 export interface ClipOptions extends Omit<ShotOptions, 'target'> {   // actions: before the recording starts, not drawn
@@ -40,6 +40,9 @@ export interface ClipOptions extends Omit<ShotOptions, 'target'> {   // actions:
 export const VIEWPORT = { width: 1440, height: 900 };
 export const DEFAULT_PADDING = 16;
 export const DEFAULT_DEDUPE_TOLERANCE = 0.0005;
+// Clips: in a cursor move, a frame can show what the page drew for the previous point of the path (the hovered pixel's
+// values, up to 0.11% of the frame, compared at half size): docs-media/README.md#determinism
+export const DEFAULT_CLIP_DEDUPE_TOLERANCE = 0.002;
 export const CLIP_MIN_S = 6;
 export const CLIP_MAX_S = 20;
 const ALT_MIN = 10;
@@ -90,7 +93,8 @@ export function clip(id: ShotId, options: ClipOptions): void {
   if (!isSelected(id)) return;
   const specFile = callerFile();
   test(id, { tag: '@clip' }, async ({ browser }, testInfo) => {
-    test.setTimeout(Math.max(testInfo.timeout, 180_000));
+    // recording a clip takes 3-6 times its length: each point of a cursor move waits for the page to draw it
+    test.setTimeout(Math.max(testInfo.timeout, 300_000));
     await captureClip(browser, id, options, envFor(testInfo, specFile));
   });
 }
@@ -198,7 +202,7 @@ function baseMeta(id: ShotId, kind: Kind | 'tape', options: ShotOptions, env: Ca
     source_spec: sourceSpec(env.specFile),
     captured: new Date().toISOString(),
     t0: env.demo.t0.toISOString(),
-    dedupe_tolerance: options.dedupeTolerance ?? DEFAULT_DEDUPE_TOLERANCE,
+    dedupe_tolerance: options.dedupeTolerance ?? (kind === 'clip' ? DEFAULT_CLIP_DEDUPE_TOLERANCE : DEFAULT_DEDUPE_TOLERANCE),
   };
 }
 
@@ -335,8 +339,10 @@ export async function captureClip(browser: Browser, id: ShotId, options: ClipOpt
     const recorder = new Recorder(page, dir);
     const ui = new UiImpl(page, env.demo, tracker, 'clip', recorder);
     await recorder.start();
+    await ui.startRecording();
     await options.script(ui);
     const recording = await recorder.stop();
+    console.log(`[shots] ${id}: ${recording.duration.toFixed(2)} s, ${recording.frames} frames (${recording.cut.toFixed(1)} s of waits cut out)`);
     const anchors = await anchorsInPercent(ui.anchors, region, false);
     const scale = (await page.evaluate(() => window.devicePixelRatio)) || 1;
     if (recording.duration < CLIP_MIN_S || recording.duration > CLIP_MAX_S)
