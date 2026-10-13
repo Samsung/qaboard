@@ -653,6 +653,15 @@ class SeedError(Exception):
   pass
 
 
+def without_batch_name(args: List[str], extra: List[str], batch: str) -> List[str]:
+  """`qa [options] batch <name> [extra]` without the batch's name, for `qa batch --runs-file`. Only that argument goes:
+  the label can be the same string (`qa --label nightly batch nightly`)."""
+  i = len(args) - len(extra) - 1
+  if i < 1 or args[i] != batch or args[i - 1] != 'batch':
+    raise SeedError(f"can't find the batch's name {batch!r} in: qa {' '.join(args)}")
+  return args[:i] + args[i + 1:]
+
+
 def tail(text: str, n=40) -> str:
   return '\n'.join(text.rstrip().splitlines()[-n:])
 
@@ -1062,7 +1071,7 @@ class Seeder:
         'configurations': r['configurations'], 'extra_parameters': r['extra_parameters'], 'batch': r.get('batch'),
       } for r in runs]}))
       return path
-    batch_args = [a for a in self.batch_args(run, extra) if a != run.batch]
+    batch_args = without_batch_name(self.batch_args(run, extra), extra, run.batch)
     if finished:
       code, output = self.ws.qa(batch_args + ['--runs-file', str(runs_file('finished.json', expected[:finished]))], env)
       if code != 0:
