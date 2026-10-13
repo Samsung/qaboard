@@ -400,6 +400,11 @@ shot('commit/pixel-tooltip', {
   each point of a cursor move waits for the page to draw it.
 - **Rebuilt demo data** (a reseed) changes the runtime metrics, which are measured: the shots that show them change
   slightly.
+- **`logs/live-tail`** records a run that really runs: it starts `qa run` (this checkout's, with `uv`) on the inference
+  gateway's `bursty-high`, shared with the stack in a `live-tail` batch of `tuned-batching`, then deletes the batch. It
+  needs cargo (the first capture builds `gateway-bench`, about 2 minutes), and differs from one recording to the next
+  (up to 8% of a frame: timings, request ids): its `dedupeTolerance` is 0.15. `ci/step-summary` also runs `qa`
+  (`qa gate --format markdown`) with `uv`.
 
 ## Budgets
 
