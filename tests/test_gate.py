@@ -2,8 +2,8 @@
 Tests for `qa gate` (qaboard/gate.py).
 
 The numbers the gate checks come from GET /api/v1/commit/<sha>/compare. Here they are those of the fixture shared with
-the backend's tests (tests/fixtures/metrics-compare.json). The server is faked: by mocks, or by a local HTTP server for
-the CLI itself.
+the backend's and the web app's tests (tests/fixtures/metrics-compare.json): the gate decides on the numbers the
+Summary and Metrics Diff views show. The server is faked: by mocks, or by a local HTTP server for the CLI itself.
 """
 import os
 import sys

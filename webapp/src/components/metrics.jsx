@@ -18,7 +18,8 @@ import { MultiSelect } from "@blueprintjs/select";
 
 import { noMetrics } from "./metricSelect";
 import { RunBadge } from "./tags";
-import { format, median, plotly_palette, match_query } from "../utils";
+import { format, plotly_palette, match_query } from "../utils";
+import { summary_outputs, metric_values, summary_stats } from "../utils/compare";
 
 
 
@@ -277,20 +278,6 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
   );
 };
 
-// -${JSON.stringify(output.extra_parameters)}
-const run_type = output => `${output.test_input_path}-${output.platform}-${JSON.stringify(output.configurations)}`;
-
-const pc_under_threshold = (array, threshold) => {
-  if (threshold === null || threshold === undefined)
-    return 0
-  return array.filter(x => x <= threshold).length / array.length;
-};
-const pc_over_threshold = (array, threshold) => {
-  if (threshold === null || threshold === undefined)
-    return 0
-  return array.filter(x => x >= threshold).length / array.length;
-};
-
 const disable_axe = {
   fixedrange: true,
   zeroline: false,
@@ -457,18 +444,7 @@ class MetricsSummary extends Component {
     if (new_batch === null) return <span />;
 
     let xaxis_labels = this.props.xaxis_labels || ["New", "Reference"];
-    let outputs_new = new_batch.filtered.outputs
-                     .map(id => new_batch.outputs[id])
-                     .filter(o => !o.is_pending)
-                     .filter(o => o.output_type!=="optim_iteration");                    
-    let run_types_new = new Set(outputs_new.map(o => run_type(o)));
-    run_types_new = new Set(outputs_new.map(o => o.test_input_path));
-    // we only how ref outputs with a matching input+config+platform
-    // it's debatable, maybe we should show all, or filter also on tuning params...
-    let outputs_ref = ref_batch.filtered.outputs
-      .map(id => ref_batch.outputs[id])
-      .filter(o => run_types_new.has(o.test_input_path))
-      .filter(o => !o.is_pending);
+    const { outputs_new, outputs_ref } = summary_outputs(new_batch, ref_batch);
 
     const { selected_metrics=[] } = this.state;
 
@@ -531,22 +507,11 @@ class MetricsSummary extends Component {
             </Tag>
           })}
         {selected_metrics.map((m, idx) => {
-          let new_values = outputs_new
-            .map(o => o.metrics[m.key])
-            .filter(x => x !== undefined && x !== null && typeof x !== 'string' )
-            .map(o => 1 * o);
+          // The same numbers as GET /api/v1/commit/<sha>/compare, see utils/compare.js
+          const new_values = metric_values(outputs_new, m.key);
           if (new_values.length === 0) return <Fragment key={idx} />;
-          let ref_values = outputs_ref.map(o => o.metrics[m.key]).filter(v => v !== undefined && v !== null && typeof v !== 'string');
-          let new_med = median(new_values);
-          let ref_med = median(ref_values);
-          let new_pc_good = m.smaller_is_better
-            ? pc_under_threshold(new_values, m.target)
-            : pc_over_threshold(new_values, m.target);
-          let ref_pc_good = m.smaller_is_better
-            ? pc_under_threshold(ref_values, m.target)
-            : pc_over_threshold(ref_values, m.target);
-          let delta = new_med - ref_med;
-          let delta_relative = delta / Math.abs(ref_med);
+          const ref_values = metric_values(outputs_ref, m.key);
+          const { new_med, ref_med, delta_relative, new_pc_good, ref_pc_good } = summary_stats(new_values, ref_values, m);
 
           var intent;
           if (m.smaller_is_better) {

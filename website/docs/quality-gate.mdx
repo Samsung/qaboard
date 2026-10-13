@@ -71,7 +71,7 @@ Each rule names a metric, and one or more limits:
   a new one, skips its regression rules.
 
 ### Which numbers
-The gate computes its numbers like the commit page does, so that what it says matches what reviewers see:
+The gate uses the numbers of the commit page, so that what it says is what reviewers see:
 - **Medians**, as in the **Summary**: over the batch's finished runs, including failed runs that returned the metric
   (tuning iterations are left out), and over the reference's runs on the same inputs.
 - **Each test**, as in the **Metrics Diff**: each run is compared with the reference run that matches it best (the

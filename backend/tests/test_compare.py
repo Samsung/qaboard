@@ -1,8 +1,8 @@
 """
 Tests for GET /api/v1/commit/<sha>/compare (backend/api/compare.py) and its numbers (backend/compare.py).
 
-The expected numbers are in tests/fixtures/metrics-compare.json, computed by hand like the web app's Summary and
-Metrics Diff views would.
+The numbers must be the web app's: tests/fixtures/metrics-compare.json is shared with the web app's tests
+(webapp/src/utils/__tests__/compare.test.jsx), that check its Summary and Metrics Diff views give the same.
 """
 import sys
 import json

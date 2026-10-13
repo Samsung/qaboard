@@ -1,8 +1,8 @@
 {
   "_comment": [
     "Two batches of runs, as GET /api/v1/commit returns them, and the numbers the commit page shows when it compares them.",
-    "Used by the backend's tests (backend/tests/test_compare.py: GET /api/v1/commit/<sha>/compare, which `qa gate` uses)",
-    "and the gate's (tests/test_gate.py).",
+    "Shared by the web app's tests (webapp/src/utils/__tests__/compare.test.jsx: the Summary and Metrics Diff views)",
+    "and the backend's (backend/tests/test_compare.py: GET /api/v1/commit/<sha>/compare, which `qa gate` uses).",
     "summary: per metric, the Summary's medians over the runs, the change, and the share of runs that meet the target.",
     "diff: per run, the reference run it is matched with, how they differ, and the Metrics Diff's cells.",
     "What the runs exercise: 102 has tuning parameters (data.params) its reference doesn't; 103 has a reference run on two",
