@@ -33,7 +33,21 @@ and show a "not captured yet" placeholder until they're published.
   forms show "0 total runs" ("No inputs found" under Send, cropped out of `tuning/auto-form`). Mount
   `examples/<project>/inputs` in the demo stack's backend at the path the server resolves (or set the projects'
   `inputs.database` for the demo), then capture; the launch clip also needs a runner with the detector's setup.
-- **Phase 3**: the robotics and agent demo projects' shots (`project: robotics-3d`, `agent-evals`).
+- **Phase 3**: the robotics and agent demo projects and their shots (`project: robotics-3d`, `agent-evals`), postponed.
+  Work in progress on two branches, not merged:
+  - `claude/docs-robotics-3d`: world, trajectories, sensors, ground truth (only `loop` generated), ICP odometry, loop
+    closure and evaluation. The odometry crashes on `loop` (an invalid rotation matrix) and frame-to-frame ICP is 17-37
+    mm off with 1% depth noise (normals from noisy points). Missing: `qa/main.py` and the outputs, configs, story.
+    The SPEC's plot (`keyframe_dist: 0.6` doubles the fast figure-8's error) has no obvious mechanism: rethink it.
+    The viewers may need small changes (6DoF plots fixed at 350 px; the point cloud viewer reads the ground truth from
+    the inputs and plots a hard-coded `pcmd`); check that Playwright's Chromium plays the H.264 camera video.
+  - `claude/docs-agent-evals`: the agent loop (llama-cpp-python, grammar-constrained tool calls, memoized), tools,
+    fleet, checks, metrics, pinned GGUF downloads, 24 tasks. Qwen2.5-0.5B passes 1-3 of 6 lookup tasks with the v5
+    prompt (wrong tools, repeated calls): the prompt or tasks need work before the story's effects show. Missing: the
+    report and plots, prompts v1-v4, configs, story, the actions/cache step.
+  - **`qa gate` on pass/fail metrics**: rules compare the median over runs, which is meaningless for 0/1 per-test
+    metrics (`unsafe_actions` with `max: 0` passes while fewer than half the tests are unsafe). Add an aggregate option
+    to the rules (mean, max), computed client-side from the per-test values the compare endpoint already returns.
 
 ## Shots to improve
 - **Clips are 1x**: the CDP screencast of headless Chromium sends frames at CSS size (1440x900), not at the device
