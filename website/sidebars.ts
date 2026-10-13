@@ -83,6 +83,7 @@ const sidebars: SidebarsConfig = {
         },
         "triggering-third-party-tools",
         "ci-integration",
+        "quality-gate",
         "deep-learning",
         "debugging-runs-with-an-IDE",
         "metadata-integration-external-databases",
