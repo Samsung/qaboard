@@ -54,14 +54,15 @@ class App extends React.Component {
       this.initPostHog(config);
     });
     this.props.store.dispatch(fetchProjects())
+    // the projects' data the list of projects leaves out, like their metrics: History's chart needs them
     const state = this.props.store.getState()
     if (state.selected.project !== null)
-      fetchProject(state.selected.project)
+      this.props.store.dispatch(fetchProject(state.selected.project))
     const selected = state.selected[state.selected.project]
-    if (selected.new_project !== null)
-      fetchProject(selected.new_project)
-    if (selected.ref_project !== null)
-      fetchProject(selected.ref_project)
+    if (!!selected?.new_project && selected.new_project !== state.selected.project)
+      this.props.store.dispatch(fetchProject(selected.new_project))
+    if (!!selected?.ref_project && selected.ref_project !== state.selected.project)
+      this.props.store.dispatch(fetchProject(selected.ref_project))
   }
 
   async initSentry(config) {

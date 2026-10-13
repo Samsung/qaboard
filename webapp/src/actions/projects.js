@@ -41,7 +41,8 @@ export const fetchProject = project => {
     dispatch({ type: FETCH_PROJECT })
     get(`/api/v1/project?project=${project}`)
       .then(response => {
-        dispatch(updateProjects({project: response.data}))
+        // the project's data: its configuration and metrics, which the list of projects leaves out
+        dispatch(updateProjects({[project]: {data: response.data}}))
       })
       .catch(error => {
         dispatch(updateProjects(null, error))
