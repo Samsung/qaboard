@@ -60,7 +60,7 @@ function tuning(state = { [default_project_id]: {} }, action) {
 // precompute useful data
 // like str representaton of their configs or merged "outputs.params"
 // params: str -> {config: str}
-const preprocess_output = output => {
+export const preprocess_output = output => {
   // output.configurations = output.configurations.slice(0, 2)
   const run_params = output.data?.params
   // const run_params = {

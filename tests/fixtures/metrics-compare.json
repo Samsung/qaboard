@@ -1,0 +1,91 @@
+{
+  "_comment": [
+    "Two batches of runs, as GET /api/v1/commit returns them, and the numbers the commit page shows when it compares them.",
+    "Shared by the web app's tests (webapp/src/utils/__tests__/compare.test.jsx: the Summary and Metrics Diff views)",
+    "and the backend's (backend/tests/test_compare.py: GET /api/v1/commit/<sha>/compare, which `qa gate` uses).",
+    "summary: per metric, the Summary's medians over the runs, the change, and the share of runs that meet the target.",
+    "diff: per run, the reference run it is matched with, how they differ, and the Metrics Diff's cells.",
+    "What the runs exercise: 102 has tuning parameters (data.params) its reference doesn't; 103 has a reference run on two",
+    "platforms; 104 failed (its numbers still count, like in the web app); 106 is still running and 107 is a tuning",
+    "iteration (both left out); 108's input was renamed (matched by its metadata id); 109 has no reference run and a",
+    "metric that is a string; 207 has another configuration; 206 and 209 are on inputs the new batch doesn't have."
+  ],
+  "available_metrics": {
+    "psnr": {"label": "PSNR", "suffix": " dB", "smaller_is_better": false, "target": 30},
+    "latency_p99": {"label": "Latency p99", "suffix": " ms", "smaller_is_better": true, "target": 12},
+    "runtime": {"label": "Runtime", "suffix": " s", "smaller_is_better": true}
+  },
+  "new": {
+    "outputs": {
+      "101": {"id": 101, "output_type": null, "platform": "linux", "configurations": ["base"], "extra_parameters": {}, "data": {}, "is_failed": false, "is_pending": false, "is_running": false, "deleted": false, "test_input_database": "/inputs", "test_input_path": "charts/edge.png", "test_input_metadata": {}, "metrics": {"psnr": 31.0, "latency_p99": 10.0, "runtime": 2.0}},
+      "102": {"id": 102, "output_type": null, "platform": "linux", "configurations": ["base"], "extra_parameters": {}, "data": {"params": {"denoise": 2}}, "is_failed": false, "is_pending": false, "is_running": false, "deleted": false, "test_input_database": "/inputs", "test_input_path": "charts/flat.png", "test_input_metadata": {}, "metrics": {"psnr": 29.0, "latency_p99": 13.0, "runtime": 3.0}},
+      "103": {"id": 103, "output_type": null, "platform": "linux", "configurations": ["base"], "extra_parameters": {}, "data": {}, "is_failed": false, "is_pending": false, "is_running": false, "deleted": false, "test_input_database": "/inputs", "test_input_path": "photos/street.jpg", "test_input_metadata": {}, "metrics": {"psnr": 33.0, "latency_p99": 11.0, "runtime": null}},
+      "104": {"id": 104, "output_type": null, "platform": "linux", "configurations": ["base"], "extra_parameters": {}, "data": {}, "is_failed": true, "is_pending": false, "is_running": false, "deleted": false, "test_input_database": "/inputs", "test_input_path": "photos/night.jpg", "test_input_metadata": {}, "metrics": {"is_failed": true, "psnr": 20.0}},
+      "105": {"id": 105, "output_type": null, "platform": "hw-model", "configurations": ["base"], "extra_parameters": {}, "data": {}, "is_failed": false, "is_pending": false, "is_running": false, "deleted": false, "test_input_database": "/inputs", "test_input_path": "photos/street.jpg", "test_input_metadata": {}, "metrics": {"psnr": 32.0, "latency_p99": 15.0}},
+      "106": {"id": 106, "output_type": null, "platform": "linux", "configurations": ["low-light"], "extra_parameters": {}, "data": {}, "is_failed": false, "is_pending": true, "is_running": true, "deleted": false, "test_input_database": "/inputs", "test_input_path": "charts/edge.png", "test_input_metadata": {}, "metrics": {"psnr": 1.0}},
+      "107": {"id": 107, "output_type": "optim_iteration", "platform": "linux", "configurations": ["base"], "extra_parameters": {}, "data": {}, "is_failed": false, "is_pending": false, "is_running": false, "deleted": false, "test_input_database": "/inputs", "test_input_path": "charts/edge.png", "test_input_metadata": {}, "metrics": {"psnr": 50.0}},
+      "108": {"id": 108, "output_type": null, "platform": "linux", "configurations": ["base"], "extra_parameters": {}, "data": {}, "is_failed": false, "is_pending": false, "is_running": false, "deleted": false, "test_input_database": "/inputs", "test_input_path": "photos/new-scene.jpg", "test_input_metadata": {"id": "scene-7", "label": "Scene 7"}, "metrics": {"psnr": 30.0, "latency_p99": 9.0}},
+      "109": {"id": 109, "output_type": null, "platform": "linux", "configurations": ["base"], "extra_parameters": {}, "data": {}, "is_failed": false, "is_pending": false, "is_running": false, "deleted": false, "test_input_database": "/inputs", "test_input_path": "charts/siemens.png", "test_input_metadata": {}, "metrics": {"psnr": "n/a", "latency_p99": 12.0, "runtime": 1.0}}
+    }
+  },
+  "ref": {
+    "outputs": {
+      "201": {"id": 201, "output_type": null, "platform": "linux", "configurations": ["base"], "extra_parameters": {}, "data": {}, "is_failed": false, "is_pending": false, "is_running": false, "deleted": false, "test_input_database": "/inputs", "test_input_path": "charts/edge.png", "test_input_metadata": {}, "metrics": {"psnr": 30.0, "latency_p99": 9.0, "runtime": 2.5}},
+      "202": {"id": 202, "output_type": null, "platform": "linux", "configurations": ["base"], "extra_parameters": {}, "data": {}, "is_failed": false, "is_pending": false, "is_running": false, "deleted": false, "test_input_database": "/inputs", "test_input_path": "charts/flat.png", "test_input_metadata": {}, "metrics": {"psnr": 29.5, "latency_p99": 12.0, "runtime": 2.5}},
+      "203": {"id": 203, "output_type": null, "platform": "hw-model", "configurations": ["base"], "extra_parameters": {}, "data": {}, "is_failed": false, "is_pending": false, "is_running": false, "deleted": false, "test_input_database": "/inputs", "test_input_path": "photos/street.jpg", "test_input_metadata": {}, "metrics": {"psnr": 32.5, "latency_p99": 14.0}},
+      "204": {"id": 204, "output_type": null, "platform": "linux", "configurations": ["base"], "extra_parameters": {}, "data": {}, "is_failed": false, "is_pending": false, "is_running": false, "deleted": false, "test_input_database": "/inputs", "test_input_path": "photos/street.jpg", "test_input_metadata": {}, "metrics": {"psnr": 33.0, "latency_p99": 10.0, "runtime": 4.0}},
+      "205": {"id": 205, "output_type": null, "platform": "linux", "configurations": ["base"], "extra_parameters": {}, "data": {}, "is_failed": false, "is_pending": false, "is_running": false, "deleted": false, "test_input_database": "/inputs", "test_input_path": "photos/night.jpg", "test_input_metadata": {}, "metrics": {"psnr": 25.0, "latency_p99": 20.0}},
+      "206": {"id": 206, "output_type": null, "platform": "linux", "configurations": ["base"], "extra_parameters": {}, "data": {}, "is_failed": false, "is_pending": false, "is_running": false, "deleted": false, "test_input_database": "/inputs", "test_input_path": "photos/old-scene.jpg", "test_input_metadata": {}, "metrics": {"psnr": 10.0}},
+      "207": {"id": 207, "output_type": null, "platform": "linux", "configurations": ["low-light"], "extra_parameters": {}, "data": {}, "is_failed": false, "is_pending": false, "is_running": false, "deleted": false, "test_input_database": "/inputs", "test_input_path": "charts/edge.png", "test_input_metadata": {}, "metrics": {"psnr": 5.0}},
+      "208": {"id": 208, "output_type": null, "platform": "linux", "configurations": ["base"], "extra_parameters": {}, "data": {}, "is_failed": false, "is_pending": true, "is_running": false, "deleted": false, "test_input_database": "/inputs", "test_input_path": "charts/flat.png", "test_input_metadata": {}, "metrics": {}},
+      "209": {"id": 209, "output_type": null, "platform": "linux", "configurations": ["base"], "extra_parameters": {}, "data": {}, "is_failed": false, "is_pending": false, "is_running": false, "deleted": false, "test_input_database": "/inputs", "test_input_path": "photos/renamed-scene.jpg", "test_input_metadata": {"id": "scene-7"}, "metrics": {"psnr": 29.0, "latency_p99": 8.0}}
+    }
+  },
+  "expected": {
+    "summary": {
+      "psnr": {
+        "new": {"median": 30.5, "count": 6, "pass_rate": 0.6666666666666666},
+        "ref": {"median": 29.75, "count": 6, "pass_rate": 0.5},
+        "delta": 0.75, "delta_relative": 0.025210084033613446
+      },
+      "latency_p99": {
+        "new": {"median": 11.5, "count": 6, "pass_rate": 0.6666666666666666},
+        "ref": {"median": 12.0, "count": 5, "pass_rate": 0.6},
+        "delta": -0.5, "delta_relative": -0.041666666666666664
+      },
+      "runtime": {
+        "new": {"median": 2.0, "count": 3, "pass_rate": null},
+        "ref": {"median": 2.5, "count": 3, "pass_rate": null},
+        "delta": -0.5, "delta_relative": -0.2
+      }
+    },
+    "diff": {
+      "101": {"reference_id": 201, "reference_mismatch": null, "metrics": {
+        "psnr": {"delta": 1.0, "delta_relative": 0.033333322222225924},
+        "latency_p99": {"delta": 1.0, "delta_relative": 0.11111098765445816},
+        "runtime": {"delta": -0.5, "delta_relative": -0.19999920000319998}
+      }},
+      "102": {"reference_id": 202, "reference_mismatch": {"test_input_path": null, "configurations": null, "platform": null, "extra_parameters": {}}, "metrics": {
+        "psnr": {"delta": -0.5, "delta_relative": -0.016949146796899392},
+        "latency_p99": {"delta": 1.0, "delta_relative": 0.08333326388894677},
+        "runtime": {"delta": 0.5, "delta_relative": 0.19999920000319998}
+      }},
+      "103": {"reference_id": 204, "reference_mismatch": null, "metrics": {
+        "psnr": {"delta": 0.0, "delta_relative": 0.0},
+        "latency_p99": {"delta": 1.0, "delta_relative": 0.0999999000001}
+      }},
+      "104": {"reference_id": 205, "reference_mismatch": null, "metrics": {
+        "psnr": {"delta": -5.0, "delta_relative": -0.199999920000032}
+      }},
+      "105": {"reference_id": 203, "reference_mismatch": null, "metrics": {
+        "psnr": {"delta": -0.5, "delta_relative": -0.015384610650889028},
+        "latency_p99": {"delta": 1.0, "delta_relative": 0.0714285204081997}
+      }},
+      "108": {"reference_id": 209, "reference_mismatch": {"test_input_path": "photos/renamed-scene.jpg", "configurations": null, "platform": null, "extra_parameters": null}, "metrics": {
+        "psnr": {"delta": 1.0, "delta_relative": 0.03448274673008733},
+        "latency_p99": {"delta": 1.0, "delta_relative": 0.12499984375019532}
+      }},
+      "109": {"reference_id": null, "reference_mismatch": null, "metrics": {}}
+    }
+  }
+}
