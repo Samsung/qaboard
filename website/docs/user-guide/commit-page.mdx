@@ -133,6 +133,7 @@ All the files each run created, as a tree, diffed against the reference run. It 
 - By default only files that are **different, added or removed** are shown. Use **Show all files**, **Hide runs without files**, **Expand all folders**, **Color-blind friendly** and the path filter to change that.
 - **Click a file** to see its diff with the reference. Press <kbd>Ctrl</kbd> or <kbd>Shift</kbd> to select several files.
 - Hover **Help** for the meaning of the icons and colors: bit-accurate, different, missing in the reference, only in the reference...
+- When all the files your project checks for bit-accuracy are identical to the reference's, the run is tagged **Bit-accurate**. Files your project doesn't check (*qaboard.yaml*'s `bit_accuracy.patterns`) are greyed and tagged **not checked**, like *metrics.json*, which has the run time.
 
 This is the view for [bit-accuracy tests](../bit-accuracy.mdx).
 
