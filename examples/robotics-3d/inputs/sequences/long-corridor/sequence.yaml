@@ -1,0 +1,5 @@
+# a corridor with flat walls and a U-turn: few features along the direction of travel, degenerate for ICP
+# The path and its speed are in qa/trajectory.py; the warehouse comes from the layout and world_seed (qa/world.py).
+# qa/make_sequences.py generates truth.npz next to this file: the true poses and depth images.
+sequence: long-corridor
+world_seed: 505

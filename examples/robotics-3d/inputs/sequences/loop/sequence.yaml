@@ -1,0 +1,5 @@
+# a closed loop around a block of shelves: loop closure
+# The path and its speed are in qa/trajectory.py; the warehouse comes from the layout and world_seed (qa/world.py).
+# qa/make_sequences.py generates truth.npz next to this file: the true poses and depth images.
+sequence: loop
+world_seed: 202
