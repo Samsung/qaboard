@@ -8,7 +8,7 @@ import { render, screen, within } from '@testing-library/react';
 import { metrics_fill_defaults } from '../../utils';
 import { normalize_commit } from '../../api/normalize';
 import { compute_batches } from '../../selectors/batches';
-import { summary_outputs, metric_values, summary_stats, diff_cell } from '../compare';
+import { summary_outputs, metric_values, summary_stats, diff_cell, mixed_parameters } from '../compare';
 import { TableCompare } from '../../components/tables';
 import fixture from '../../../../tests/fixtures/metrics-compare.json';
 
@@ -102,5 +102,23 @@ describe('the Metrics Diff', () => {
     expect(cells[2]).toEqual(['=', '1 (10%)']);
     // run 109 has no reference run
     expect(cells[6]).toEqual(['', '']);
+  });
+});
+
+
+describe('mixed_parameters', () => {
+  it('ignores the parameters every run shares', () => {
+    const runs = [{ params: { model: 'kd-1.2-int8-320' } }, { params: { model: 'kd-1.2-int8-320' } }];
+    expect(mixed_parameters(runs)).toEqual([]);
+    expect(mixed_parameters([])).toEqual([]);
+    expect(mixed_parameters([{}, { params: {} }])).toEqual([]);
+  });
+
+  it('lists the parameters with several values, or missing in some runs', () => {
+    const runs = [
+      { params: { model: 'fp32', nms: { iou: 0.5 }, seed: 1 } },
+      { params: { model: 'int8', nms: { iou: 0.7 }, seed: 1, extra: true } },
+    ];
+    expect(mixed_parameters(runs).sort()).toEqual(['extra', 'model', 'nms.iou']);
   });
 });

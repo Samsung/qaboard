@@ -31,7 +31,7 @@ Runtime's int8 kernels, which round differently from one CPU to another. Its met
 the next, which is what a regression test needs.
 
 Its story:
-1. The first int8 model is 3.5 times smaller, which is what the robot's accelerator needs. It loses 40% of its mAP
+1. The first int8 model is 3.5 times smaller, which is what the robot's accelerator needs. It loses 35% of its mAP
    on the indoor slice, and some of the small objects.
 2. Per-channel weights and percentile calibration bring the indoor slice back.
 3. `qa optimize` searches the quantization and post-processing settings; the Analysis view shows which ones matter.
@@ -48,7 +48,7 @@ the indoor slice.
 
 <Shot id="commit/plotly-overlay" />
 
-**Detections on the images**: the int8 model misses far people and cars that fp32 finds (in red).
+**Detections on the images**: the int8 model misses people that fp32 finds (in red).
 
 <Shot id="commit/detections" />
 

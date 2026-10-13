@@ -46,6 +46,26 @@ describe('CommitParameters', () => {
     expect(JSON.parse(screen.getByTestId('viewer').textContent).show_all_files).toBe(true);
   });
 
+  it('loads the artifacts of commits that load after it shows, and of the next commit', async () => {
+    history.replace('/p/commit/a?params_artifact=build');
+    const manifests = {
+      '/a/manifests/build.json': { 'build/flags.json': { st_size: 1, md5: 'a' } },
+      '/b/manifests/build.json': { 'build/flags.json': { st_size: 2, md5: 'b' } },
+    };
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(url => url in manifests ? json(manifests[url]) : json({}, 404));
+    const config = { artifacts: { build: { glob: 'build/flags.json' } } };
+    const page = commit => <HistoryRouter history={history}>
+      <CommitParameters config={config} new_commit={commit} ref_commit={{ id: 'r' }}/>
+    </HistoryRouter>;
+    const { rerender } = renderWithProviders(page({ id: 'a' }));
+    rerender(page({ id: 'a', artifacts_url: '/a' }));
+    expect(await screen.findByTestId('viewer')).toHaveTextContent('"md5":"a"');
+    rerender(page({ id: 'b', artifacts_url: '/b' }));
+    expect(await screen.findByText(/"md5":"b"/)).toBeInTheDocument();
+    expect(screen.queryByText(/Could not find/)).not.toBeInTheDocument();
+    expect(fetch.mock.calls.map(([url]) => url)).toContain('/b/manifests/build.json');
+  });
+
   it('explains how to save missing artifacts', async () => {
     history.replace('/p/commit/new');
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({}, 404));

@@ -18,7 +18,7 @@ import { MultiSelect } from "@blueprintjs/select";
 
 import { RunBadge } from "./tags";
 import { format, plotly_palette, match_query } from "../utils";
-import { summary_outputs, metric_values, summary_stats } from "../utils/compare";
+import { summary_outputs, metric_values, summary_stats, mixed_parameters } from "../utils/compare";
 
 
 
@@ -378,7 +378,8 @@ const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: 
   const batch_data = new_batch.data || {};
   return (
     <div>
-      {(!batch_data.optimization && new_batch.sorted_extra_parameters.length > 0) && (
+      {/* only the runs we aggregate: e.g. not after filtering on one configuration */}
+      {(!batch_data.optimization && mixed_parameters(outputs_new).length > 0) && (
         <Callout intent={Intent.WARNING}>
           The aggregation below contains all runs, possibly with tuning <strong>parameters mixed together.</strong>
         </Callout>

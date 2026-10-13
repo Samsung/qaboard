@@ -7,6 +7,7 @@ import { screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { TuningForm, combinations_info, eval_combinations } from '../forms';
 import { renderWithProviders } from '../../../test-utils';
 import { usePrefsStore } from '../../../stores/prefs';
+import { userQuery } from '../../../api/queries';
 
 vi.mock('../../MonacoEditor', () => ({
   default: ({ value, onChange, name }) => <textarea data-testid={name} value={value} onChange={e => onChange(e.target.value)}/>,
@@ -64,6 +65,19 @@ describe('TuningForm', () => {
       overwrite: true,
       tuning_search: { search_type: 'grid', parameter_search: { a: [1, 2, 3] } },
     });
+  });
+
+  it('runs as the logged-in user, even when they are known after the form showed', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
+    const local_config = { project: { reference_branch: 'main' }, runners: { local: {} }, inputs: {} };
+    const { queryClient } = renderWithProviders(
+      <TuningForm project="proj" config={local_config} metrics={metrics} commit={commit} available_tests_files={{}}/>,
+      { user: { is_logged: false, user_name: null }, siteConfig: {} },
+    );
+    expect(screen.getByText('Please provide a user in the input below')).toBeInTheDocument();
+    act(() => queryClient.setQueryData(userQuery.queryKey, { is_logged: true, user_name: 'arjun' }));
+    await waitFor(() => expect(screen.queryByText('Please provide a user in the input below')).not.toBeInTheDocument());
+    expect(screen.getByText(/Please give a name to the tuning experiment/)).toBeInTheDocument();
   });
 
   it('links to the docs of the site', () => {
