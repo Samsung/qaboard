@@ -769,6 +769,7 @@ class OutputCard extends React.Component {
           output_new={output_new}
           output_ref={output_ref}
           manifests={this.state.manifests}
+          config={config}
           style={style}
           show_all_files={this.props.show_all_files}
           hide_runs_without_files={this.props.hide_runs_without_files}

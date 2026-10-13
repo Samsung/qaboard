@@ -1,8 +1,9 @@
 import React from "react";
 
-import { Tree, Classes, Colors, Tag, Icon, Popover, Menu, MenuItem } from "@blueprintjs/core";
+import { Tree, Classes, Colors, Tag, Icon, Popover, Menu, MenuItem, Tooltip } from "@blueprintjs/core";
 import { OutputViewer } from "../OutputViewer"
 import { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, updateMissingFrom, humanFileSize } from "./utils"
+import { bitAccuracyChecker, markChecked, bitAccuracySummary } from "./checked"
 import { match_query, is_same_data } from "../../utils"
 
 
@@ -75,13 +76,16 @@ const icon_style = {
 }
 
 const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref) => node => {
-    const { match, missing_from_reference, missing_from_new} = node.nodeData;
+    const { match, missing_from_reference, missing_from_new, checked } = node.nodeData;
     const is_folder = node.childNodes !== undefined;
+    // files that bit_accuracy.patterns don't check (and folders with only those) are greyed
+    if (!checked)
+      node.className = Classes.TEXT_MUTED;
 
     let color = Colors.GREY1;
     if (is_folder) {
       // console.log(node.id, node, !match, missing_from_new, missing_from_reference)
-      if (has_reference) {
+      if (has_reference && checked) {
         if (!match && missing_from_new && missing_from_reference) {
           color = Colors.SEPIA1;
         } else if (!match && missing_from_new) {
@@ -128,7 +132,9 @@ const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref)
       }
     }
 
-    if (has_reference) {
+    if (!checked) {
+      color = Colors.GRAY4;
+    } else if (has_reference) {
       if (missing_from_reference) {
         color = Colors.GREEN1;
       } else if (missing_from_new) {
@@ -200,7 +206,7 @@ const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref)
       </span>
     );
 
-    node.secondaryLabel = hasDownloadOptions ? (
+    const size = hasDownloadOptions ? (
       <Popover
         content={downloadMenu}
         placement="right"
@@ -210,10 +216,14 @@ const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref)
         {sizeLabel}
       </Popover>
     ) : sizeLabel;
+    node.secondaryLabel = checked ? size : <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <Tooltip content="Not checked for bit-accuracy: see bit_accuracy.patterns in qaboard.yaml">
+        <Tag minimal>not checked</Tag>
+      </Tooltip>
+      {size}
+    </span>;
 }
 
-
-const hash_metrics = metrics => JSON.stringify({...metrics, compute_time: undefined})
 
 
 class BitAccuracyViewer extends React.Component {
@@ -226,7 +236,7 @@ class BitAccuracyViewer extends React.Component {
         if (!!manifest)
           tree[label] = to_tree(manifest)
       })
-      tree.mixed = this.mergeTrees(tree.new, tree.reference, props);      
+      Object.assign(tree, this.mergeTrees(tree.new, tree.reference, props));
     }
     this.state = {
       tree,
@@ -238,10 +248,11 @@ class BitAccuracyViewer extends React.Component {
   render() {
     const { tree, selected } = this.state;
     const has_files = !!tree.mixed && tree.mixed.length !== 0
+    const { bit_accurate } = tree.summary ?? {};
     const { type, ...props } = this.props;
     return <div className={(!has_files && this.props.hide_runs_without_files) ? "viewer-no-files" : undefined}>
-      {!has_files && <em className={Classes.TEXT_MUTED}>all files filtered</em>}
-      {has_files && tree.mixed.every(node => node.nodeData.match && !node.nodeData.missing_from_new && !node.nodeData.missing_from_reference) && <Tag>Bit-accurate</Tag>}
+      {bit_accurate && <Tag>Bit-accurate</Tag>}
+      {!has_files && !bit_accurate && <em className={Classes.TEXT_MUTED}>all files filtered</em>}
       <Tree
        contents={tree.mixed}
        onNodeClick={this.handleNodeClick}
@@ -320,15 +331,14 @@ class BitAccuracyViewer extends React.Component {
 
     // find match / mismatches
     visitDepthFirst(tree_compared, updateMatch(tree_ref))
+    // only the files matching bit_accuracy.patterns count, like `qa check-bit-accuracy`
+    markChecked(tree_compared, bitAccuracyChecker(props.config?.bit_accuracy))
+    const summary = bitAccuracySummary(tree_compared)
 
     const has_filter = !!props.files_filter && props.files_filter.length > 0;
     if (!props.show_all_files && !has_filter) {
-      tree_compared = filterNodes(tree_compared, node => !node.nodeData.match || node.nodeData.missing_from_new || node.nodeData.missing_from_reference )
-      const has_new = props.output_new !== undefined && props.output_new !== null;
-      const has_ref = props.output_ref !== undefined && props.output_ref !== null;
+      tree_compared = filterNodes(tree_compared, node => node.nodeData.differs)
       tree_compared = tree_compared.filter(node => node.id !== 'logs.txt')
-      if (has_new && has_ref && getNodeById(tree_compared, 'metrics.json') && hash_metrics(props.output_new.metrics) === hash_metrics(props.output_ref.metrics))
-        tree_compared = tree_compared.filter(node => node.id !== 'metrics.json')
     }
     const matcher = match_query(props.files_filter)
     if (has_filter) {
@@ -352,7 +362,7 @@ class BitAccuracyViewer extends React.Component {
       forEachNode(tree_compared, node => {node.isExpanded = true} )    	
     }
 
-    return tree_compared;
+    return { mixed: tree_compared, summary };
   }
 
 
@@ -414,28 +424,24 @@ class BitAccuracyViewer extends React.Component {
       if (updated_new || updated_ref) {
         const tree_new = updated_new ? to_tree(this.props.manifests.new) : this.state.tree.new;
         const tree_reference = updated_ref ? to_tree(this.props.manifests.reference) : this.state.tree.reference;
-        const tree_mixed = this.mergeTrees(
-          tree_new,
-          tree_reference,
-          this.props
-        );
         this.setState({
           tree: {
             new: tree_new,
             reference: tree_reference,
-            mixed: tree_mixed,
+            ...this.mergeTrees(tree_new, tree_reference, this.props),
           }
-        })        
+        })
       } else {
         let change_show_all_files = prevProps.show_all_files !== this.props.show_all_files && !!this.state.tree.new;
         let change_files_filter = prevProps.files_filter !== this.props.files_filter && !!this.state.tree.new;
         let change_expand_all = prevProps.expand_all !== this.props.expand_all && !!this.state.tree.new;
         let change_color_blind_friendly = prevProps.color_blind_friendly !== this.props.color_blind_friendly && !!this.state.tree.new;
-        if (change_show_all_files || change_files_filter || change_expand_all || change_color_blind_friendly)
+        let change_bit_accuracy_config = prevProps.config?.bit_accuracy !== this.props.config?.bit_accuracy && !!this.state.tree.new;
+        if (change_show_all_files || change_files_filter || change_expand_all || change_color_blind_friendly || change_bit_accuracy_config)
           this.setState({
             tree: {
               ...this.state.tree,
-              mixed: this.mergeTrees(this.state.tree.new, this.state.tree.reference, this.props),
+              ...this.mergeTrees(this.state.tree.new, this.state.tree.reference, this.props),
             }
           })        
       }
