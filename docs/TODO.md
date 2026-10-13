@@ -7,10 +7,11 @@ where to start. When you finish one, delete it.
 The shot list is `docs-media/shots.yaml`, how to capture is `docs-media/README.md`. Pages already reference these ids
 and show a "not captured yet" placeholder until they're published.
 
-- **`quickstart/kind`** (tape): `kind create cluster --config charts/qaboard/kind.yaml`, `helm install` with
-  `charts/qaboard/quickstart.yaml`, a port-forward, then the demo. `.github/scripts/helm_e2e.py` does all of it in the
-  `helm-e2e` CI job: copy its commands. Needs kind, helm and kubectl on the runner (the `helm-e2e` job installs them)
-  and about 6 GB of disk.
+- **`quickstart/kind`** (tape): `docs-media/tapes/quickstart-kind.tape` is written and wired into `docs-media.yml`,
+  but was never recorded (no machine with the ~10 GB it needs: kind's node holds the images twice). On its first CI
+  recording, check the frames (the hidden image loading, the port-forward's readiness wait) and its `dedupe_mask`
+  (computed from the line height: the port-forward's PID, helm's LAST DEPLOYED, kind's random closing line), then set
+  `status: captured` in `shots.yaml`.
 - **`cli/batch`** (tape): `qa batch ci` on the detector, with its progress and the results link.
   - The detector needs PyTorch, its ONNX export and its inputs (about 1 GB): record it after the seeder has built
     `examples/detection-eval` in the same workspace, or switch the tape to the camera ISP (`qa batch ci` there is quick).

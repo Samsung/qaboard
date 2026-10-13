@@ -4,6 +4,7 @@
 # caption: helm install waits until QA-Board is ready and prints how to open it; through the port-forward, it answers with the demo projects.
 # poster: last
 # timeout: 1800
+# dedupe_mask: 0,50,320,26 180,74,300,26 0,380,1280,26
 # dedupe_tolerance: 0.002
 #
 # quickstart/kind (docs-media/shots.yaml). Recorded by: uv run docs-media/tapes/record.py --only quickstart/kind
@@ -17,7 +18,9 @@
 #   node under the names the chart uses by default (ghcr.io/samsung/qaboard:<service>), so the visible commands are
 #   the page's. Without QABOARD_IMAGE, the cluster pulls the published images.
 # - The waits are cut: creating the cluster, loading the images, helm install (a few minutes).
-# - helm install prints when it deployed: dedupe_mask hides that line from publish.py's comparison.
+# - dedupe_mask hides from publish.py's comparison what changes from one recording to the next: the port-forward's job
+#   id and PID (line 2 of the last screen), when helm deployed (line 3), and kind's closing line, picked at random
+#   (line 16). These positions are computed from the line height (23.6 px from y=28), not yet checked on a recording.
 # The dedupe tolerance: VHS types in real time, a character can show a frame later (up to 0.1% of a frame).
 Source "tapes/_settings.tape"
 Output out/quickstart/kind/tape.mp4
