@@ -47,7 +47,7 @@ docs-media/
 website/
   media.json           # committed manifest, schema: website/media.schema.json
   plugins/media/       # Docusaurus plugin: downloads the manifest's files into the build, build checks
-  src/components/{Shot,Clip,Compare,StackPicker}.tsx, stack.ts
+  src/components/{Shot,Clip,Compare}.tsx, StackPicker/, stack.ts
 .github/workflows/docs-media.yml
 ```
 
@@ -449,12 +449,12 @@ tooling and contributors only: it never appears in a page.
     (a warning, an error in strict builds);
   - `media.json` is validated against its schema, so an entry without `alt` can't exist.
 - The checks parse every page themselves (webpack's persistent cache can skip the MDX loader). With `yarn start`,
-  problems are warnings and the page shows them. Without `docs-media/shots.yaml` (the website image is built with
-  `website/` as its context), ids missing from `media.json` render as placeholders without checks.
+  problems are warnings and the page shows them. Without `docs-media/shots.yaml` (e.g. a copy of `website/` alone;
+  the website image includes it), ids missing from `media.json` render as placeholders without checks.
 
 ## Website components (spec; WS4 implements)
 
-Files: `website/src/components/{Shot,Clip,Compare,StackPicker}.tsx`, values in `website/src/components/stack.ts`.
+Files: `website/src/components/{Shot,Clip,Compare}.tsx` and `StackPicker/`, values in `website/src/components/stack.ts`.
 Props must be literals in MDX (`id="commit/flame-diff"`), so the build checks can read them. `Shot`, `Clip` and
 `Compare` are available in every MDX page without an import (`website/src/theme/MDXComponents.tsx`).
 
@@ -540,7 +540,7 @@ Canonical values (`stack.ts`, the only place they're defined; the first one is t
 | `code` | `python` (Python), `executable` (Any executable) |
 
 - Pages use plain Docusaurus tabs with those values: `<Tabs groupId="ci" queryString>` and
-  `<TabItem value="github-actions" label="GitHub Actions" default>`. A build check rejects unknown groups or values.
+  `<TabItem value="github-actions" label="GitHub Actions" default>`. A build check (`website/plugins/stack`) rejects unknown groups or values.
 - The picker shows one segmented control per group. A choice:
   - writes the same storage slot as Docusaurus tabs (`docusaurus.tab.<group>`, through `createStorageSlot` from
     `@docusaurus/theme-common`), so every tab group on the page switches at once and later pages remember it;

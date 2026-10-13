@@ -1,0 +1,87 @@
+---
+id: detection-eval
+title: "Detection: evaluating a model"
+sidebar_label: Detection evaluation
+description: An object detector quantized to int8 that loses small objects, then is tuned back. Metrics per class and object size, PR curves over the reference, detections drawn on images, HTML reports, automated tuning and milestones as model releases.
+---
+For computer vision and ML engineers who ship models to devices, where quantization, input size and latency trade off
+against accuracy. This page follows the detector example.
+
+:::info Coming soon
+The example project, [`examples/detection-eval`](https://github.com/Samsung/qaboard/tree/master/examples/detection-eval),
+is being built from its [spec](https://github.com/Samsung/qaboard/blob/master/examples/detection-eval/SPEC.md). Until
+it's there, the screenshots show as placeholders, and the configuration below is the planned one.
+:::
+
+## The problem
+One mAP number hides where a model got worse. Quantizing a detector to int8 makes it faster, and the average barely
+moves, while small objects quietly disappear. You need metrics per class and per object size, on slices of your data,
+next to the reference model's, and the images where it went wrong.
+
+## The example
+An off-the-shelf detector (torchvision's SSDlite, BSD-licensed) runs on CPU with ONNX Runtime, in fp32 and in int8,
+at several input sizes. It's evaluated on four slices of images: indoor, outdoor, warehouse, and small objects. Each
+run measures COCO-style AP, AP per object size and per class, recall on small objects, and latency.
+
+Its story:
+1. The first int8 model is much faster, and its AP on small objects drops by a fifth or more.
+2. Per-channel weights and better calibration shrink the gap.
+3. `qa optimize` searches the quantization settings; the Analysis view shows which ones matter.
+4. The tuned model ships as a milestone, the next reference.
+
+## What you see
+**Metrics Diff per slice**: int8 against fp32, latency green everywhere, AP on small objects red on the small-objects
+slice.
+
+<Shot id="commit/metrics-diff" />
+
+**Precision-recall curves** per class, int8 over the fp32 reference drawn dashed.
+
+<Shot id="commit/plotly-overlay" />
+
+**Detections on the images**: fp32 finds the small bottles, int8 misses them.
+
+<Shot id="commit/detections" />
+
+**An HTML report** per run, with AP per class and object size, and the worst images.
+
+<Shot id="commit/html-report" />
+
+**Automated tuning**: `qa optimize` tries quantization settings; the Analysis view shows their convergence, each
+parameter's effect, and the trade-offs.
+
+<Shot id="tuning/analysis" />
+
+## The configuration
+Planned, from the example's spec. `:image` in a path gives a slider over the slice's images, synced across runs.
+
+```yaml title="qaboard.yaml (planned)"
+outputs:
+  metrics: qa/metrics.yaml
+  visualizations:
+    - name: Detections
+      path: "images/:image.jpg"          # a synced slider over the slice's images
+    - name: Precision-recall
+      path: pr.plotly.json               # one curve per class: the reference is dashed
+      side_by_side: false
+    - name: Recall by object size
+      path: size_recall.plotly.json
+      side_by_side: false
+    - name: Report
+      path: report.html
+```
+
+{/* TODO(detection-eval): show examples/detection-eval/qaboard.yaml with <RepoFile> once it exists (add it to
+    website/Dockerfile.dockerignore if needed), and replace "planned" by what the example really does. */}
+
+The variants are configurations (`fp32`, `int8`, `size-320`...), so each run shows them as tags. To compare int8
+with fp32 on the same commit, select the commit as the reference too (**Also Select as Reference**), then filter each
+bar's runs by configuration. See [Picking a reference](/docs/user-guide/comparing-results#picking-a-reference).
+
+## Run this example
+Coming with the example. The [quickstart](/docs/get-started/quickstart) runs the camera ISP example in the meantime.
+
+## Read more
+- [The commit page](/docs/user-guide/commit-page#views): Summary, Metrics Table and Metrics Diff.
+- [Visualizations](/docs/visualizations): Plotly figures, HTML reports, dynamic outputs.
+- [Auto-optimization](/docs/auto-optimization) and [milestones](/docs/references-and-milestones).

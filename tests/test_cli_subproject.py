@@ -38,7 +38,7 @@ class TestQaCliSubproject(unittest.TestCase):
     os.environ['QA_STORAGE'] = str(root_repo.resolve())
 
   @classmethod
-  def TearDownClass(self):
+  def tearDownClass(self):
     os.chdir(self.previous_cwd)
 
   def setUp(self):

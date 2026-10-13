@@ -127,8 +127,11 @@ At most one per section, never two in a row. A title only when it adds informati
 - Shell blocks hold commands only, without a `$` prompt, so they can be copied. Show output in a separate `text`
   block.
 - Placeholders look like `<your-qaboard>` and are explained right after the block.
-- Compose, Helm and GitHub Actions snippets are copied from files CI runs (a check fails when they drift). GitLab CI
-  and Jenkins snippets are marked "tested manually".
+- A snippet that shows a file of the repository is that file: `<RepoFile path="charts/qaboard/kind.yaml" />`
+  imports it at build time, so it can't drift (`lines="3-10"` shows a part, `title` names it for the reader).
+- CI configurations that no CI of ours runs (GitLab CI, Jenkins, the reader's GitHub Actions workflow) are files in
+  `website/snippets/`, shown with `<RepoFile ... untested />`, which says "Not run in our CI". The website
+  workflow lints the GitHub Actions ones (`github-actions*.yml`) with actionlint.
 - Lines under 100 characters when possible.
 
 ## Tabs and the stack picker
@@ -136,7 +139,11 @@ At most one per section, never two in a row. A title only when it adds informati
   links carry the choice (`?server=k8s&ci=github-actions`).
 - Tabs that depend on the reader's stack use the shared groups and values from `website/src/components/stack.ts`:
   `<Tabs groupId="ci" queryString>` with `<TabItem value="github-actions" label="GitHub Actions" default>`.
-  Groups: `server`, `forge`, `ci`, `runner`, `code`. The GitHub option is the default.
+  Groups: `server`, `forge`, `ci`, `runner`, `code`. The GitHub option is the default. `<StackPicker>`, `<Tabs>`
+  and `<TabItem>` need no import.
+- The build fails on a stack tab group without `queryString`, an unknown value, a label that differs from
+  `stack.ts`, or `default` on another value than the group's default.
+- `<StackPicker groups={['server', 'ci']} />` shows only some groups, `compact` makes it one line.
 - Every tab of a group has the same steps in the same order; only the content differs.
 - Don't nest tabs, and don't use tabs for one differing line: write a sentence.
 
