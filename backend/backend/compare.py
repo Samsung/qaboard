@@ -1,11 +1,11 @@
 """
-Compares the runs of two batches with the same numbers as the web app's views:
+Compares the runs of two batches like the web app's views do:
 - **Summary** (`webapp/src/components/metrics.jsx`): the median of each metric over the runs, the change vs the
   reference, and the share of runs that meet the metric's target;
 - **Metrics Diff** (`webapp/src/components/tables.jsx`): each run next to its reference run, matched like the web app
   does (`matching_output` in `webapp/src/utils.js`).
-The web app's own helpers are in `webapp/src/utils/compare.js`. Both are tested against the same fixture,
-`tests/fixtures/metrics-compare.json`: change one, change the other.
+The web app computes its own numbers in the browser: this follows the same logic, but nothing ties the two, so they
+can differ in edge cases (e.g. here booleans aren't metric values). Tested against `tests/fixtures/metrics-compare.json`.
 
 Outputs are dicts like `Output.to_dict()`, the API's representation of runs, without any database access here.
 """

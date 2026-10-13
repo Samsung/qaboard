@@ -43,7 +43,7 @@ base_url=http://localhost:5151/api/v1
 curl "$base_url/commits?project=group/my-project" | jq
 ```
 
-To compare a commit's results with a reference, with the numbers of the **Summary** and **Metrics Diff** views, use
+To compare a commit's results with a reference, computed like the **Summary** and **Metrics Diff** views, use
 `/commit/<sha>/compare` (experimental, see [Quality gate](/docs/quality-gate#from-scripts-and-agents)).
 
 ### Authentication
