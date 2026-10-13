@@ -12,7 +12,6 @@ import {
   UPDATE_FAVORITE,
   UPDATE_MILESTONES,
 } from "./constants";
-import { metrics_fill_defaults } from "../utils"
 
 
 export const updateProjects = (projects, error) => ({
@@ -75,7 +74,26 @@ export const updateBranches = (project, branches, error) => ({
 })
 
 
-export const fetchCommits = (project, branch, date_range, aggregation_metrics, extra_params, fetch_once) => {
+// The metrics the commits endpoint aggregates per batch (median, average), with their targets:
+// the project's default and main metrics, those the commit list and the branch's chart show
+export const aggregation_metrics = qatools_metrics => {
+  const available_metrics = qatools_metrics?.available_metrics || {};
+  let metrics = {};
+  [qatools_metrics?.default_metric, ...(qatools_metrics?.main_metrics || [])].forEach(m => {
+    if (available_metrics[m] !== undefined)
+      metrics[m] = available_metrics[m]?.target ?? 0
+  });
+  return metrics
+}
+
+// The server only reads the metrics' names
+const same_metrics = (a, b) => {
+  const names = metrics => Object.keys(metrics || {}).sort().join('\n')
+  return names(a) === names(b)
+}
+
+
+export const fetchCommits = (project, branch, date_range, aggregated_metrics, extra_params, fetch_once) => {
   return dispatch => {
     dispatch({ type: FETCH_COMMITS, project, branch, date_range })
     var url
@@ -91,21 +109,18 @@ export const fetchCommits = (project, branch, date_range, aggregation_metrics, e
         project,
         from: date_range[0],
         to: date_range[1],
-        metrics: JSON.stringify(aggregation_metrics),
+        metrics: JSON.stringify(aggregated_metrics || {}),
         ...extra_params,
       }
     })
       .then(response => {
         dispatch({ type: UPDATE_COMMITS, project, branch, commits: response.data })
+        // A branch's metrics are those of its latest commit, which we may not have known when asking:
+        // ask once more for them, e.g. for the chart above the branch's commits
         if (!!branch.name && response.data && response.data.length > 0 && !fetch_once) {
-          const latest_commit = response.data[0]
-          const available_metrics = metrics_fill_defaults(latest_commit.data.qatools_metrics?.available_metrics);
-          let aggregated_metrics = {};
-          (latest_commit.data.qatools_metrics?.main_metrics || []).forEach(m => {
-            if (available_metrics[m] !== undefined)
-              aggregated_metrics[m] = available_metrics[m].target ?? 0
-          });
-          fetchCommits(project, branch, date_range, aggregated_metrics, extra_params, false)
+          const latest_commit_metrics = aggregation_metrics(response.data[0].data?.qatools_metrics)
+          if (!same_metrics(latest_commit_metrics, aggregated_metrics))
+            dispatch(fetchCommits(project, branch, date_range, latest_commit_metrics, extra_params, true))
         }
       })
       .catch(error => {

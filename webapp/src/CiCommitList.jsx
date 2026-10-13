@@ -19,7 +19,7 @@ import CommitsEvolution from "./CommitsEvolution";
 import { groupBy, match_query } from "./utils";
 import { toaster } from "./toaster"
 
-import { fetchCommits } from './actions/projects'
+import { fetchCommits, aggregation_metrics } from './actions/projects'
 import { default_date_range } from './defaults'
 import { day_range } from './dateRange'
 import {
@@ -55,6 +55,10 @@ const CommitRows = ({ commits, project, project_data, className }) => (
     </li>
   </div>
 );
+
+// "Today — 1 commit", "3 days ago — 2 commits"
+const count_commits = n => `${n} commit${n === 1 ? '' : 's'}`
+const capitalize = text => text ? text.charAt(0).toUpperCase() + text.slice(1) : text
 
 class CiCommitList extends React.Component {
 
@@ -143,13 +147,10 @@ class CiCommitList extends React.Component {
       <>
         {Object.keys(commits_by_day).map(day => (
           <Card key={day} elevation={0} style={{marginBottom: '15px'}}>
-            <h4 className={Classes.HEADING} style={{textTransform: 'capitalize'}}>
-              {(!!day && day !== "undefined") ? <>
-                  {DateTime.fromISO(day, { zone: 'utc' }).toRelativeCalendar({unit: "days"})}
-                  {" "}
-                  &#8212; {commits_by_day[day].length} commits
-                </>
-               : `${commits_by_day[day].length} commits`}
+            <h4 className={Classes.HEADING}>
+              {(!!day && day !== "undefined")
+                ? `${capitalize(DateTime.fromISO(day, { zone: 'utc' }).toRelativeCalendar({unit: "days"}))} \u2014 ${count_commits(commits_by_day[day].length)}`
+                : capitalize(count_commits(commits_by_day[day].length))}
             </h4>
             <CommitRows project={project} project_data={project_data} commits={commits_by_day[day]} />
           </Card>
@@ -183,13 +184,8 @@ const mapStateToProps = (state, ownProps) => {
     let is_branch = !!ownProps.match.params.name;
     let some_commits_loaded = !!commits && commits.length > 0;
     let project_data_ = (is_branch && some_commits_loaded && commits[0]) || project_data
-    let project_metrics = project_data_.data?.qatools_metrics || {};
 
-    let aggregated_metrics = {};
-    (project_metrics.main_metrics || []).forEach(m => {
-      if (project_metrics.available_metrics[m] !== undefined)
-        aggregated_metrics[m] = project_metrics.available_metrics[m].target ?? 0
-    });
+    let aggregated_metrics = aggregation_metrics(project_data_.data?.qatools_metrics);
 
 
     const { search } = selectedSelector(state)
