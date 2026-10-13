@@ -4,10 +4,12 @@
 # caption: qa run runs your code on one input, saves its outputs and prints its metrics.
 # poster: last
 # dedupe_mask: 410,146,75,120 795,264,485,24 278,312,1002,24
+# dedupe_tolerance: 0.001
 #
 # cli/first-run (docs-media/shots.yaml). Recorded by: uv run docs-media/tapes/record.py --only cli/first-run
 # The times are measured, so they change with every run (README.md#determinism): dedupe_mask hides from publish.py's
 # comparison the stages' times, the runtime on the metrics line, and the end of the metrics printed below it.
+# The dedupe tolerance: VHS types in real time, a character can show a frame later (0.06% of a frame).
 Source "tapes/_settings.tape"
 Output out/cli/first-run/tape.mp4
 Output out/cli/first-run/tape.webm

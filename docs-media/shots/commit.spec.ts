@@ -256,8 +256,20 @@ shot('commit/image-filters', {
     await ui.settle();
     await ui.hover(newImage(scope), { position: await hoverImage(ui, scope, { x: 60, y: 45 }) });
     await ui.settle();
-    // back on the button: the panel and the viewer's buttons hide when the mouse leaves the image
-    await ui.hover(scope.locator('[title="Image Tools"]').first());
+    // back on the button: the panel and the viewer's buttons hide when the mouse leaves the image. OpenSeadragon shows
+    // the button's hover image (its third <img>) when it sees the mouse enter: a viewer redrawn under the mouse misses
+    // that, so enter again until it shows
+    const button = scope.locator('[title="Image Tools"]').first();
+    for (let attempt = 1; ; attempt++) {
+      await ui.hover(button);
+      try {
+        await button.locator('img').nth(2).waitFor({ state: 'visible', timeout: 1000 });
+        break;
+      } catch (error) {
+        if (attempt === 3) throw error;
+        await ui.hover(newImage(scope), { position: { x: 20, y: 20 } });
+      }
+    }
     await ui.settle();
   },
   // the run's name and metrics, and the viewer
