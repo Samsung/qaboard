@@ -10,7 +10,8 @@ const tls = require('tls');
 const crypto = require('crypto');
 
 const PARALLEL = 8;
-const ATTEMPTS = 4;
+// with backoffs of 1, 2, 4, 8 and 16 s: a build shouldn't fail on a short network outage
+const ATTEMPTS = 6;
 const TIMEOUT_MS = 60_000;
 
 const env = name => process.env[name] ?? process.env[name.toLowerCase()] ?? '';
@@ -150,6 +151,15 @@ async function verify(file, {key, bytes}) {
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+// Connection errors can have no message: an AggregateError (one error per address tried) or a bare code
+function describe(error, href) {
+  const inner = error instanceof AggregateError ? error.errors : [];
+  const detail = error.message
+    || [error.code, ...inner.map(e => e.code || e.message)].filter(Boolean).join(', ')
+    || String(error);
+  return detail.includes(href) ? detail : `${href}: ${detail}`;
+}
+
 async function fetchOne(file, baseUrl, destDir) {
   const dest = path.join(destDir, file.key);
   const url = new URL(`${baseUrl}/${file.key}`);
@@ -174,10 +184,10 @@ async function fetchOne(file, baseUrl, destDir) {
       if (error.permanent)
         break;
       if (attempt < ATTEMPTS)
-        await sleep(500 * 2 ** (attempt - 1));
+        await sleep(1000 * 2 ** (attempt - 1));
     }
   }
-  throw lastError;
+  throw new Error(describe(lastError, url.href));
 }
 
 function prune(dir, keep) {
