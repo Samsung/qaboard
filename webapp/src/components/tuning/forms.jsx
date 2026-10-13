@@ -320,7 +320,7 @@ class TuningForm extends Component {
         ? this.props.parameter_search_auto
         : templates['optimize'](config, metrics),
 
-      user: this.props.redux_user.user_name || this.props.user || default_user,
+      user: this.props.redux_user?.user_name || this.props.user || default_user,
       android_device: "openstf",
 
     };
@@ -346,6 +346,10 @@ class TuningForm extends Component {
     const has_commit = this.props.commit !== undefined && this.props.commit !== null;
     let updated_commit = has_commit && (prevProps.commit === null || prevProps.commit === undefined || prevProps.commit.id !== this.props.commit.id);
     if (updated_commit && selected_group) this.getGroupInfo(selected_group);
+    // The logged-in user can arrive after the form showed (e.g. a link straight to this view)
+    const user_name = this.props.redux_user?.user_name;
+    if (!!user_name && user_name !== prevProps.redux_user?.user_name && !this.state.user)
+      this.setState({ user: user_name });
   }
 
   getGroupInfo(group) {
@@ -842,4 +846,5 @@ const mapStateToProps = (state, ownProps) => {
 
 
 const TuningForm_ = connect(mapStateToProps)(TuningForm);
-export { TuningForm_ as TuningForm };
+// TuningFormView: without the store, for tests
+export { TuningForm_ as TuningForm, TuningForm as TuningFormView };

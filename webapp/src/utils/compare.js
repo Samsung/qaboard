@@ -27,6 +27,28 @@ export const summary_outputs = (new_batch, ref_batch) => {
 };
 
 
+// The parameters that differ between these runs (the Summary warns that it aggregates them together), e.g. a tuning
+// sweep's. Parameters all the runs share, like the model's name, don't count. Only for the web app.
+export const mixed_parameters = outputs => {
+  const values = {};
+  const collect = (params, prefix) => Object.entries(params ?? {}).forEach(([key, value]) => {
+    const key_ = prefix ? `${prefix}.${key}` : key;
+    if (value !== null && typeof value === "object") collect(value, key_);
+    else (values[key_] ??= new Set()).add(JSON.stringify(value));
+  });
+  outputs.forEach(o => collect(o.params, ''));
+  return Object.keys(values).filter(k => values[k].size > 1 || outputs.some(o => !has_key(o.params, k)));
+};
+
+const has_key = (params, key) => {
+  let value = params;
+  for (const part of key.split('.')) {
+    if (value === null || typeof value !== "object" || !(part in value)) return false;
+    value = value[part];
+  }
+  return true;
+};
+
 // The share of runs that meet the metric's target, null without a target
 export const pass_rate = (values, metric) => {
   if (metric.target === undefined || metric.target === null || values.length === 0)

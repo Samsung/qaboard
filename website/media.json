@@ -135,6 +135,32 @@
       "source_spec": "docs-media/tapes/cli-gate.tape",
       "width": 1280
     },
+    "commit/artifacts-configs": {
+      "alt": "Artifacts & Configurations of the per-channel commit against the first int8 commit: build/flags.json differs, and its diff shows quant_per_channel going from false to true.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "Artifacts saved by `qa save-artifacts` are diffed with the reference's: here the flags the model was built with.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 47856,
+          "key": "shots/commit/artifacts-configs/b518e27ed85f3b68.avif"
+        },
+        "png": {
+          "bytes": 135037,
+          "key": "shots/commit/artifacts-configs/1120de0a25214887.png"
+        },
+        "webp": {
+          "bytes": 101932,
+          "key": "shots/commit/artifacts-configs/5cd74f58ff23d867.webp"
+        }
+      },
+      "height": 661,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkIAAABXRUJQVlA4IDYAAADQAQCdASoQAAsAA4BaJZwAAuagGe24AAD+9PuR3m6U+UI1hz61P2w45l/gwv5symL7EIwwAAA=",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1000
+    },
     "commit/auto-roi": {
       "alt": "The View ROIs menu open over the facade run, with Full Image, ROI Presets and Auto ROIs checked; below it, thumbnails of the twenty regions where new and reference differ most, found automatically, a dot colored by how much.",
       "app_version": "1.1.1",
@@ -215,6 +241,63 @@
       "kind": "clip",
       "lqip": "data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAACwAQCdASoQAAoAA4BaJZwAAp0Pb2lAAPa//B8H+gPqMS6xDzXXXlWGPP/8pEuAAAA=",
       "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1440
+    },
+    "commit/change-menu": {
+      "alt": "The reference commit's Change menu: a project box, Switch new/reference, Also Select as New, Remove from comparison, then the reference branch main and the shared milestones kd-1.3 and kd-1.2 with their commits.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "Change the reference from its commit bar: swap new and reference, or pick the reference branch or a milestone.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 21409,
+          "key": "shots/commit/change-menu/20d522dfd6d1f489.avif"
+        },
+        "png": {
+          "bytes": 83832,
+          "key": "shots/commit/change-menu/87589211edf4d68f.png"
+        },
+        "webp": {
+          "bytes": 43550,
+          "key": "shots/commit/change-menu/66afe631944fb7b3.webp"
+        }
+      },
+      "height": 476,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAADwAQCdASoQABAAA4BaJaQAAqH3rmYLLQAA/th5BD/hk/o4J3t+cvRqLXTs7ZucyVH2MAAA",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 494
+    },
+    "commit/compare-tour": {
+      "alt": "The Summary of the int8 runs against the fp32 release; a click on Metrics Diff in the sidebar shows each slice's change; in the Controls panel, sorting by mAP from the lowest brings the indoor slice, -35%, to the top.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "From the Summary to each test's change, sorted to bring the worst slice to the top.",
+      "captured": "2026-10-13",
+      "duration": 13.77,
+      "files": {
+        "mp4": {
+          "bytes": 245401,
+          "key": "shots/commit/compare-tour/4457951c46d69ae8.mp4"
+        },
+        "poster": {
+          "bytes": 64402,
+          "key": "shots/commit/compare-tour/e837534e7fe9acfe.webp"
+        },
+        "vtt": {
+          "bytes": 220,
+          "key": "shots/commit/compare-tour/e715799496fc0138.vtt"
+        },
+        "webm": {
+          "bytes": 403941,
+          "key": "shots/commit/compare-tour/7c21b43e4f968da2.webm"
+        }
+      },
+      "height": 900,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAACQAQCdASoQAAoAA4BaJQAAXOmDeIAAzj/yTtNLM5V9cFbRHwsuvnO4mjvH0iN4ICAAAA==",
+      "project": "detection-eval",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
     },
@@ -320,6 +403,32 @@
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
+    },
+    "commit/detections": {
+      "alt": "A hall with people and cars pasted in, new and reference side by side: the int8 model (left) finds one of the people, the fp32 release (right) three. What each missed is outlined in red: two more people on the left; the faded person and the three cars on both.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "Each run draws its detections, ground truth in red where it missed: the int8 model misses two people fp32 finds.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 243326,
+          "key": "shots/commit/detections/61f6d14409afff40.avif"
+        },
+        "png": {
+          "bytes": 1170613,
+          "key": "shots/commit/detections/6fbb295f79599add.png"
+        },
+        "webp": {
+          "bytes": 362826,
+          "key": "shots/commit/detections/ca70949bb8570db5.webp"
+        }
+      },
+      "height": 302,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkQAAABXRUJQVlA4IDgAAADQAQCdASoQAAYAA4BaJYwC7AEOlliEAAD+wkRr9iUKUSfv3WiTFyZmsrTJE/8zBg9wxgLbyEvgAA==",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 840
     },
     "commit/dynamic-options": {
       "alt": "The Controls panel's Dynamic Options: the stage option, synced, its slider on 3. Next to it, the night street's card shows stages/3.jpg, the denoised image, new and reference.",
@@ -482,6 +591,32 @@
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 585
     },
+    "commit/html-report": {
+      "alt": "The int8 run's HTML report on small-objects: mAP 0.338, AP50 0.507, AP small 0.341, latency and model size; AP per class for person and car, AP and recall by object size, latency, then the images with the most missed objects, boxes drawn.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "Your code can write an HTML report: it shows in the run's card, here with the images where the model missed the most objects.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 48866,
+          "key": "shots/commit/html-report/78e19cdf5c7d403f.avif"
+        },
+        "png": {
+          "bytes": 404094,
+          "key": "shots/commit/html-report/bfa6bc33c75c2a47.png"
+        },
+        "webp": {
+          "bytes": 81044,
+          "key": "shots/commit/html-report/5f0eb3b16b80e710.webp"
+        }
+      },
+      "height": 907,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRpwAAABXRUJQVlA4IJAAAAAQBACdASoQACYAPu1kq04ppaQiKqwBMB2JZ1efACN8mGkgM8HaefKwAAD+8GdcM9lTF/Wmt1spgfwAZqBtkc3gY5ezAat7m5fLzP1VWS/LZBn+7MyInG47VpOP8mahDBWD2jf0fHwc3RkGH3nW08aBvKCqnKSUH/ZPh6IKFYsogrNK7Cj37JknMSl0eYyGKAA=",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 384
+    },
     "commit/image-diff": {
       "alt": "Zooming into the new image of the facade, the reference follows; the Controls panel opens and Image Diff turns on; raising the threshold leaves only the window frame's halos.",
       "app_version": "1.1.1+cd07cf2",
@@ -617,6 +752,92 @@
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 856
     },
+    "commit/metrics-diff": {
+      "alt": "The Metrics Diff of the int8 runs against the fp32 release, slice by slice: indoor mAP -35% and AP small -34% in orange, AP small -7% on small-objects and -15% outdoor, warehouse better, and the model size -72% in green on every slice.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "The Metrics Diff shows each test's change: the int8 model is smaller everywhere, and much worse indoors.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 38030,
+          "key": "shots/commit/metrics-diff/69971df134a8b43a.avif"
+        },
+        "png": {
+          "bytes": 142861,
+          "key": "shots/commit/metrics-diff/becea89c8e98d092.png"
+        },
+        "webp": {
+          "bytes": 90136,
+          "key": "shots/commit/metrics-diff/b951fbfe277edf34.webp"
+        }
+      },
+      "height": 572,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAACwAQCdASoQAAkAA4BaJZAAAp0hzEugAP70/8z/nca9BbHepTfHaOKnqzms6V42eSb/4lWuEUZd1URgAAA=",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1070
+    },
+    "commit/metrics-table": {
+      "alt": "The Metrics Table of the first int8 commit: a row per slice and model, mAP, AP50, AP small and latency, new and reference. mAP cells go from green on small-objects to orange on indoor and warehouse, by their distance to the 0.15 target in the header; latency cells are green.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "One row per test, colored by the distance to the targets set in metrics.yaml, shown in the headers.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 43276,
+          "key": "shots/commit/metrics-table/aad97cb31a67f2ff.avif"
+        },
+        "png": {
+          "bytes": 214263,
+          "key": "shots/commit/metrics-table/41a46d8a9b1a0f76.png"
+        },
+        "webp": {
+          "bytes": 129258,
+          "key": "shots/commit/metrics-table/cf60283d957f4cfe.webp"
+        }
+      },
+      "height": 728,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRloAAABXRUJQVlA4IE4AAAAQAgCdASoQAAsAA4BaJYwBTAAx0xNd7aCAAP704FO/VlyU3GSMyRp8BrSQeZeJnRolWGFlIOk3Cbm3641mhEHfOD3l3Vw7O1Vf8wgAAAA=",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1112
+    },
+    "commit/milestone": {
+      "alt": "The milestone dialog of the kd-1.3 release commit, opened from the crown next to its hash: Shared on, the label kd-1.3, the notes \"int8, per-channel, recalibrated\", and the Delete and Save buttons.",
+      "anchors": {
+        "shared": {
+          "h": 7.32,
+          "w": 47.85,
+          "x": 19.14,
+          "y": 18.68
+        }
+      },
+      "app_version": "1.1.1+46fc148",
+      "caption": "A commit's star makes it a milestone: give it a label and notes, and share it with everyone on the project.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 9851,
+          "key": "shots/commit/milestone/1048f92d0a254c4b.avif"
+        },
+        "png": {
+          "bytes": 38474,
+          "key": "shots/commit/milestone/a9db1eb5c90cab9a.png"
+        },
+        "webp": {
+          "bytes": 16280,
+          "key": "shots/commit/milestone/6b2fcbdb8303c7f8.webp"
+        }
+      },
+      "height": 273,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkYAAABXRUJQVlA4IDoAAADQAQCdASoQAAsAA4BaJZwAAsZ5efwgAAD+9kAiVraLZmffTxOGNjraMKoutSTtf/WGrHyRvZzgDGAA",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 418
+    },
     "commit/output-files": {
       "alt": "The files of the facade run on the hw-model platform that differ from the reference: metrics.json, out.png, stages 4 and 5 in raw/ and stages/, and regs.txt, whose diff below shows the ROUNDING register going from 0 to 2.",
       "app_version": "1.1.1",
@@ -695,6 +916,32 @@
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1170
     },
+    "commit/plotly-overlay": {
+      "alt": "Precision-recall curves of the indoor slice, one per class: the int8 model's solid, the fp32 release's dashed in the same color. The legend gives each curve's AP50: person drops from 0.19 to 0.06.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "Plots of the reference are drawn over the new ones, dashed: here the int8 model's precision-recall curves over fp32's.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 15014,
+          "key": "shots/commit/plotly-overlay/2d61201fdee4f9ba.avif"
+        },
+        "png": {
+          "bytes": 65037,
+          "key": "shots/commit/plotly-overlay/597ecc21c3fb7f17.png"
+        },
+        "webp": {
+          "bytes": 34602,
+          "key": "shots/commit/plotly-overlay/3cd71cd2e9327f45.webp"
+        }
+      },
+      "height": 424,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRioAAABXRUJQVlA4IB4AAACQAQCdASoQAAgAA4BaJaQAAxf7+RAA/vcje1sAAAA=",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 856
+    },
     "commit/roi-histograms": {
       "alt": "A rectangle selected on the sky gradient; below the images, the red, green, blue and luma histograms of the region, new and reference overlaid.",
       "app_version": "1.1.1+eb20b6b",
@@ -721,6 +968,40 @@
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1178
     },
+    "commit/run-badges": {
+      "alt": "The header of a run card: the input slices/small-objects with its int8 and size-320 configuration tags, Config and Tuning tags in orange, then a \"Model card kd-1.3\" badge with a link icon next to the run's model parameter, and its metrics against the reference.",
+      "anchors": {
+        "badge": {
+          "h": 8.94,
+          "w": 18.06,
+          "x": 6.43,
+          "y": 61.88
+        }
+      },
+      "app_version": "1.1.1+46fc148",
+      "caption": "Runs can return badges, like a link to the model card of the model they evaluated.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 9937,
+          "key": "shots/commit/run-badges/61ad115bc1c72650.avif"
+        },
+        "png": {
+          "bytes": 30825,
+          "key": "shots/commit/run-badges/c8b67520e2ab824a.png"
+        },
+        "webp": {
+          "bytes": 17932,
+          "key": "shots/commit/run-badges/1e05678c14502192.webp"
+        }
+      },
+      "height": 179,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAAAwAQCdASoQAAYAA4BaJZwAA3AA/vHR44AEz78usX9guWopYE0uaej/AdCAAA==",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 529
+    },
     "commit/run-menu": {
       "alt": "The menu of the steady-high run's card, open under its menu icon: Redo, Delete, and Delete Output Files.",
       "app_version": "1.1.1+d3a0b87",
@@ -746,6 +1027,32 @@
       "project": "serving-latency",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 689
+    },
+    "commit/summary": {
+      "alt": "The Summary of the int8 runs against the fp32 release: median mAP -5%, AP small -21% and recall of small objects -4% in red, model size 3.86 MB against 13.8 MB (-72%) in green; pass-rate bars under the metrics with a target, box plots on the right.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "The Summary compares the medians over the runs: the int8 model is much smaller, and finds fewer small objects.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 26191,
+          "key": "shots/commit/summary/2d25e650eef5dde7.avif"
+        },
+        "png": {
+          "bytes": 96925,
+          "key": "shots/commit/summary/cf243733b52d9007.png"
+        },
+        "webp": {
+          "bytes": 55266,
+          "key": "shots/commit/summary/9f3c3df17bda58cc.webp"
+        }
+      },
+      "height": 572,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAAAwAQCdASoQAAkAA4BaJZwAA3AA/vQ+IQxeQykER65WFrLj75pXwrxYAB82g7RrAAA=",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1050
     },
     "commit/text-diff": {
       "alt": "HdrHistogram's percentile distribution of the steady-high run, reference and new side by side in a diff editor: from the median on, latencies go from 3 ms to over 500 ms.",
@@ -902,6 +1209,32 @@
       "project": "serving-latency",
       "source_spec": "docs-media/shots/commits.spec.ts",
       "width": 1440
+    },
+    "commits/milestones-menu": {
+      "alt": "The sidebar's Milestones menu on the detector's commits: the shared milestones kd-1.3 and kd-1.2, each with its branch, commit and author, then a private milestone, entropy-try, on the quant/entropy branch.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "The Milestones menu lists the shared milestones, then your private ones: pick one to compare with.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 13350,
+          "key": "shots/commits/milestones-menu/aa76bc98434d035d.avif"
+        },
+        "png": {
+          "bytes": 63484,
+          "key": "shots/commits/milestones-menu/9e9dafbc39bf92f5.png"
+        },
+        "webp": {
+          "bytes": 30140,
+          "key": "shots/commits/milestones-menu/c885d872866c14e3.webp"
+        }
+      },
+      "height": 287,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjoAAABXRUJQVlA4IC4AAADwAQCdASoQAAcAA4BaJZwC7ADdHT+QvgAA/vLKd1yBv1XSGhfo6V9qLOO6AAAA",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commits.spec.ts",
+      "width": 678
     },
     "files/browser": {
       "alt": "The file browser in the images folder of a detector run: the path as breadcrumbs, the run bar, a filter box, and 25 images sorted naturally, 1.jpg, 2.jpg, then 10.jpg after 9.jpg, with their sizes and dates.",
@@ -1312,6 +1645,84 @@
       "project": null,
       "source_spec": "docs-media/shots/projects.spec.ts",
       "width": 1440
+    },
+    "tuning/analysis": {
+      "alt": "The Analysis of the tune-int8 experiment: the best parameters found at iteration 10 of 20 (percentile 99.999, nothing kept in fp32, score 0.2, NMS 0.4) with their mAP, AP small and model size; parallel coordinates of the 20 iterations; the convergence of the objective.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "The Analysis of an automated tuning: the best parameters, every iteration in parallel coordinates, and how the search converged.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 80078,
+          "key": "shots/tuning/analysis/58c2e5c19ba1680b.avif"
+        },
+        "png": {
+          "bytes": 240989,
+          "key": "shots/tuning/analysis/2a862f1757054e06.png"
+        },
+        "webp": {
+          "bytes": 160490,
+          "key": "shots/tuning/analysis/66abdc0830058c89.webp"
+        }
+      },
+      "height": 1017,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAAAwAwCdASoQABEAPu1iqU2ppaOiMAgBMB2JaQAAYfPAM0cAAP7tpt/hGDM9APfNyAAAAA==",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/tuning.spec.ts",
+      "width": 1008
+    },
+    "tuning/auto-form": {
+      "alt": "The Automated tuning tab of the Run Tests / Tuning form, with the int8 model's tuning in YAML: 20 evaluations, the solver's seed and 8 initial points, then the objective, AP small and mAP, with a small weight on the model size.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "Automated tuning searches the parameters with `qa optimize`: describe the search space and the objective in YAML.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 21094,
+          "key": "shots/tuning/auto-form/0577c82c95b50ff4.avif"
+        },
+        "png": {
+          "bytes": 74015,
+          "key": "shots/tuning/auto-form/3f9de7496008c60e.png"
+        },
+        "webp": {
+          "bytes": 52340,
+          "key": "shots/tuning/auto-form/eee30a76a372d6cc.webp"
+        }
+      },
+      "height": 331,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRiYAAABXRUJQVlA4IBoAAAAwAQCdASoQAAUAA4BaJaQAA3AA/vToW6gAAA==",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/tuning.spec.ts",
+      "width": 1170
+    },
+    "tuning/available-tests": {
+      "alt": "The Available Tests editor on Arjun's private batches: two int8 batches, the second's configs line indented one space too far and underlined in red; under the editor, the error with its line, at the top \"1 error\" and \"Unsaved changes\"; on the side, the Batches panel lists int8-indoor and int8-small.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "Edit your private batches, or the shared ones, in the browser: mistakes show as you type, before you save.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 40334,
+          "key": "shots/tuning/available-tests/ff7bab0c3a5b5b25.avif"
+        },
+        "png": {
+          "bytes": 152987,
+          "key": "shots/tuning/available-tests/fce1957ab77b4118.png"
+        },
+        "webp": {
+          "bytes": 91470,
+          "key": "shots/tuning/available-tests/7e94c859eeaf367f.webp"
+        }
+      },
+      "height": 754,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAAAwAQCdASoQAAoAA4BaJaQAA3AA/vQBxQ72FrtHntdUfCAA",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/tuning.spec.ts",
+      "width": 1226
     },
     "tuning/frontier": {
       "alt": "The efficient frontier of the tune-batching sweep: one point per configuration of max batch and max delay, CPU per request against p99, colored by max delay. The hovered point, max batch 16 and max delay 250 µs, sits on the lower left edge.",
