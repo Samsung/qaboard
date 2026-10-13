@@ -65,7 +65,7 @@ shots:
     shows: "`qa run` on the slanted-edge chart: the pipeline's log, the metrics, the link to the results."
     pages: [get-started/tutorial, running-your-code, using-the-qa-cli]
     phase: 1
-    status: planned
+    status: published
   - id: cli/batch
     kind: tape
     project: detection-eval
@@ -225,7 +225,7 @@ shots:
     pages: [user-guide/commit-page, computing-quantitative-metrics, user-guide/overview]
     needs: merge-bilateral vs isp-4-1
     phase: 1
-    status: planned
+    status: published
   - id: commit/controls-panel
     kind: still
     project: image-quality
@@ -233,7 +233,7 @@ shots:
     pages: [user-guide/commit-page, visualizations]
     anchors: [visualizations, image-diff, sorting]
     phase: 1
-    status: planned
+    status: published
   - id: commit/image-sbs
     kind: still
     project: image-quality
@@ -242,7 +242,7 @@ shots:
     features: [image-synced-zoom]
     needs: merge-bilateral vs isp-4-1
     phase: 1
-    status: planned
+    status: published
   - id: commit/image-diff
     kind: clip
     project: image-quality
@@ -251,7 +251,7 @@ shots:
     features: [image-synced-zoom, image-diff]
     needs: merge-bilateral vs isp-4-1
     phase: 1
-    status: planned
+    status: published
   - id: commit/image-perceptual-diff
     kind: still
     project: image-quality
@@ -260,7 +260,7 @@ shots:
     features: [image-diff]
     needs: merge-bilateral vs isp-4-1
     phase: 1
-    status: planned
+    status: published
   - id: commit/pixel-tooltip
     kind: still
     project: image-quality
@@ -269,7 +269,7 @@ shots:
     features: [pixel-tooltip, image-synced-zoom]
     needs: bilateral-denoise vs isp-4-1
     phase: 1
-    status: planned
+    status: published
   - id: commit/roi-histograms
     kind: still
     project: image-quality
@@ -277,7 +277,7 @@ shots:
     pages: [user-guide/comparing-results, visualizations]
     features: [roi-histograms]
     phase: 1
-    status: planned
+    status: published
   - id: commit/auto-roi
     kind: still
     project: image-quality
@@ -285,7 +285,7 @@ shots:
     pages: [user-guide/comparing-results, visualizations]
     features: [auto-roi]
     phase: 1
-    status: planned
+    status: published
   - id: commit/image-filters
     kind: still
     project: image-quality
@@ -293,7 +293,7 @@ shots:
     pages: [user-guide/comparing-results, visualizations]
     features: [image-filters]
     phase: 1
-    status: planned
+    status: published
   - id: commit/deep-zoom
     kind: clip
     project: image-quality
@@ -302,7 +302,7 @@ shots:
     features: [deep-zoom, image-synced-zoom]
     needs: merge-bilateral vs isp-4-1 (deep-zoom batch)
     phase: 1
-    status: planned
+    status: published
   - id: commit/dynamic-outputs
     kind: clip
     project: image-quality
@@ -409,7 +409,7 @@ shots:
     features: [bit-accuracy-tree]
     needs: fxp-round-half-even vs its parent, hw-model platform
     phase: 1
-    status: planned
+    status: published
   - id: commit/bit-accuracy-diff
     kind: clip
     project: image-quality

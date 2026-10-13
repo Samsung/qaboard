@@ -525,3 +525,8 @@ paket-files/
 # End of https://www.gitignore.io/api/linux,python,windows,sublimetext,visualstudio
 .deploy-state.*.json
 users_restrict.yml
+
+# Docs media (docs-media/README.md): capture output and the docs build's download cache
+/docs-media/out/
+/website/.media-cache/
+!/docs-media/shots/lib/
