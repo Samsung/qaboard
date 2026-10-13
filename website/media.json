@@ -866,7 +866,7 @@
       "width": 418
     },
     "commit/output-files": {
-      "alt": "The files of the facade run on the hw-model platform that differ from the reference: metrics.json, out.png, stages 4 and 5 in raw/ and stages/, and regs.txt, whose diff below shows the ROUNDING register going from 0 to 2.",
+      "alt": "The files of the facade run on the hw-model platform that differ from the reference: metrics.json, greyed and tagged \"not checked\", then out.png, stages 4 and 5 in raw/ and stages/, and regs.txt, whose diff below shows the ROUNDING register going from 0 to 2.",
       "app_version": "1.1.1",
       "caption": "Output Files lists only the files that changed: a rounding change in the fixed-point model shows in its register dump, then in the last two stages' buffers.",
       "captured": "2026-10-12",
@@ -1591,33 +1591,34 @@
       "width": 1186
     },
     "logs/live-tail": {
-      "alt": "The Logs view of a bursty-high run while it runs: its log follows the end as the gateway prints its repeats, the error count grows with every burst's missed deadlines, and a click on it jumps to the first error.",
-      "app_version": "1.1.1+d3a0b87",
-      "caption": "While a run runs, its log follows the end; the error count jumps to each error.",
+      "alt": "The Logs view of a bursty-high run while it runs: its log follows the end as the overloaded gateway prints the requests that missed their deadline and its queue warnings, the error count climbs past a hundred, and a click on it jumps to the first missed deadline.",
+      "app_version": "1.1.1+5648119",
+      "caption": "While a run runs, its log follows the end; click the error count to jump from error to error.",
       "captured": "2026-10-13",
-      "duration": 10.47,
+      "duration": 10.53,
       "files": {
         "mp4": {
-          "bytes": 428931,
-          "key": "shots/logs/live-tail/38e60160f7a43728.mp4"
+          "bytes": 441849,
+          "key": "shots/logs/live-tail/f15df34ccd3df520.mp4"
         },
         "poster": {
-          "bytes": 118312,
-          "key": "shots/logs/live-tail/9abe70a4491fc1dd.webp"
+          "bytes": 121004,
+          "key": "shots/logs/live-tail/4e0c96d08650c438.webp"
         },
         "vtt": {
           "bytes": 205,
-          "key": "shots/logs/live-tail/c428d614c9bb0249.vtt"
+          "key": "shots/logs/live-tail/6470d649bd3c8168.vtt"
         },
         "webm": {
-          "bytes": 527189,
-          "key": "shots/logs/live-tail/a0b4e94f9e13582c.webm"
+          "bytes": 581940,
+          "key": "shots/logs/live-tail/ea695adaca7b54c7.webm"
         }
       },
       "height": 900,
       "kind": "clip",
-      "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAACwAQCdASoQAAoAA4BaJaQAAujbbvoAAM4/8k7QkhT8ektmu09JbXy37QAAAA==",
+      "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAACQAQCdASoQAAoAA4BaJaQAAuP3hdAAzj/yTtCSFPxHvZfqfdF1Kx+B7bgAAA==",
       "project": "serving-latency",
+      "revision": 2,
       "source_spec": "docs-media/shots/logs.spec.ts",
       "width": 1440
     },
