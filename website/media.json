@@ -244,26 +244,26 @@
     },
     "commit/dynamic-options": {
       "alt": "The Controls panel's Dynamic Options: the stage option, synced, its slider on 3. Next to it, the night street's card shows stages/3.jpg, the denoised image, new and reference.",
-      "app_version": "1.1.1+c67f384",
+      "app_version": "1.1.1+befbe4b",
       "caption": "Dynamic Options pick the file each card shows, here the ISP stage. Synced, one slider drives every run.",
       "captured": "2026-10-13",
       "files": {
         "avif": {
-          "bytes": 130319,
-          "key": "shots/commit/dynamic-options/db55f49f0d899e12.avif"
+          "bytes": 158710,
+          "key": "shots/commit/dynamic-options/08f3fe9ed4f08d78.avif"
         },
         "png": {
-          "bytes": 674028,
-          "key": "shots/commit/dynamic-options/13d629852cb7dd0a.png"
+          "bytes": 604029,
+          "key": "shots/commit/dynamic-options/b8791915e681df75.png"
         },
         "webp": {
-          "bytes": 205290,
-          "key": "shots/commit/dynamic-options/570a74cc1fb687e6.webp"
+          "bytes": 233478,
+          "key": "shots/commit/dynamic-options/6c2ff88db086e7e4.webp"
         }
       },
       "height": 900,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRl4AAABXRUJQVlA4IFIAAADQAQCdASoQAAoAA4BaJZQAAxO5g9BAAAD9x5n3B9TbIEjM0rN1VSHnvAR1ODgqCrlofTtyZidndHjc7jA6EK5absjXsWhuv4eWVd+Blx1ukAAA",
+      "lqip": "data:image/webp;base64,UklGRlwAAABXRUJQVlA4IFAAAAAQAgCdASoQAAoAA4BaJZQCxC8AGEt7Xz/AAPa//CgBX6zEh2VI4myPGgF+def2eorVJ3nOdK7BCd0iej/tjLjDksTB2dOJJs26Xb4eygAAAA==",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
