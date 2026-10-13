@@ -369,7 +369,8 @@ shot('commit/pixel-tooltip', {
 - **Layout shifts:** hovering an image the first time shows the hovered pixel's values above the images, which pushes
   them 18 px down. A point measured before would land elsewhere, depending on timing: `commit.spec.ts` hovers with
   `hoverImage()`, which measures the image once it stopped moving (`stableBox()`), and clips hover the images in their
-  `actions`, so that the shift isn't recorded.
+  `actions`, so that the shift isn't recorded. The values can show later than two measures of a "stable" box (a busy
+  runner): `commit/roi-histograms` waits for them before it measures, and fails if the image moved during its drag.
 - **Mouse wheel:** OpenSeadragon ignores a wheel event less than 50 ms after the last one it zoomed for
   (`minScrollDeltaTime`): `ui.wheel()` waits 80 ms between steps in stills (it waited 30 ms: steps were dropped or not
   depending on the machine's speed), and the page settles after each step in clips.

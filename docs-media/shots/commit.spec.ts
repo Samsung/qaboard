@@ -187,8 +187,15 @@ shot('commit/roi-histograms', {
     // a band of the sky, where the gradient's banding shows. On the tool's button, the pixel values went away: back on
     // the image, they show again and push the images down, before the drag starts
     await hoverImage(ui, scope, { x: 20, y: 15 });
+    // The values show a moment after the mouse is back on the image, and push it down: measured before, the region
+    // landed 18 px higher in some captures (the hovered pixel at y 329 instead of 367). Once they show, the image stays
+    // in place
+    await pixelValues(scope).waitFor({ state: 'visible' });
     const box = await stableBox(newImage(scope));
     await ui.drag({ x: box.x + box.width * 0.2, y: box.y + box.height * 0.15 }, { x: box.x + box.width * 0.6, y: box.y + box.height * 0.45 });
+    const after = await newImage(scope).boundingBox();
+    if (JSON.stringify(after) !== JSON.stringify(box))
+      throw new Error(`[commit.spec] the image moved during the drag: ${JSON.stringify(box)} then ${JSON.stringify(after)}`);
     await mouseAway(ui);
     await ui.settle();
   },
