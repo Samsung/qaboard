@@ -4,26 +4,26 @@
   "shots": {
     "auth/login": {
       "alt": "The Login dialog over the projects list: a user name field with \"ines\", a password field, and a Log In button.",
-      "app_version": "1.1.1+c67f384",
+      "app_version": "1.1.1+e4b2b05",
       "caption": "Click Login at the top right, then sign in with your user name and password.",
       "captured": "2026-10-13",
       "files": {
         "avif": {
-          "bytes": 3140,
-          "key": "shots/auth/login/8789b9793beebfae.avif"
+          "bytes": 3969,
+          "key": "shots/auth/login/c6c3a1dca6de3418.avif"
         },
         "png": {
-          "bytes": 13126,
-          "key": "shots/auth/login/585596f86cfaa450.png"
+          "bytes": 16827,
+          "key": "shots/auth/login/edc26830179d01da.png"
         },
         "webp": {
-          "bytes": 5964,
-          "key": "shots/auth/login/43bb89568d3b50a7.webp"
+          "bytes": 6732,
+          "key": "shots/auth/login/93608331bef50859.webp"
         }
       },
       "height": 306,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRmAAAABXRUJQVlA4IFQAAADwAQCdASoQAAsAA4BaJYwCdAEO/WkIvQAA/pwHME+UiowK/xtRcDcQVmGs8ZbHD8hcxXAT230Pqeemek0jx87HSRjODuvCDZbPhn3kLXbAxO43AAA=",
+      "lqip": "data:image/webp;base64,UklGRmAAAABXRUJQVlA4IFQAAADwAQCdASoQAAsAA4BaJYwCdAEO/WkIvQAA/pwHME+UiowK/xtRcDcQVmGs8ZbHD8hcxXAT11s5OFS/wnv4suWaja1mIsOZCmXZaeeSjNqRlQpIAAA=",
       "project": null,
       "source_spec": "docs-media/shots/auth.spec.ts",
       "width": 460
@@ -136,31 +136,31 @@
     },
     "commit/bit-accuracy-diff": {
       "alt": "Output Files of the facade run on the hw-model platform: a click on regs.txt shows its diff below the tree, Next Diff jumps to the ROUNDING register, from 0 to 2; a Ctrl-click on metrics.json adds its diff below.",
-      "app_version": "1.1.1+c67f384",
+      "app_version": "1.1.1+e4b2b05",
       "caption": "Click files to diff them with the reference, Ctrl-click to diff several.",
       "captured": "2026-10-13",
       "duration": 8.07,
       "files": {
         "mp4": {
-          "bytes": 318431,
-          "key": "shots/commit/bit-accuracy-diff/08dcd504ab115cfe.mp4"
+          "bytes": 321011,
+          "key": "shots/commit/bit-accuracy-diff/722d889c4d5f54ea.mp4"
         },
         "poster": {
-          "bytes": 99258,
-          "key": "shots/commit/bit-accuracy-diff/a79989e0618c528d.webp"
+          "bytes": 99324,
+          "key": "shots/commit/bit-accuracy-diff/99df527a5c926b31.webp"
         },
         "vtt": {
           "bytes": 230,
-          "key": "shots/commit/bit-accuracy-diff/1ee41b6d23ae7bcf.vtt"
+          "key": "shots/commit/bit-accuracy-diff/f591f77302bdf750.vtt"
         },
         "webm": {
-          "bytes": 371706,
-          "key": "shots/commit/bit-accuracy-diff/5ce22559888cde91.webm"
+          "bytes": 369010,
+          "key": "shots/commit/bit-accuracy-diff/e6f35ec78862025d.webm"
         }
       },
       "height": 900,
       "kind": "clip",
-      "lqip": "data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAADQAQCdASoQAAoAA4BaJZwAAp07BM0oAAD2v/wfB/oD6jEShhzodrdsWgKZHDZAAAA=",
+      "lqip": "data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAACwAQCdASoQAAoAA4BaJZwAAp0Pb2lAAPa//B8H+gPqMS6xDzXXXlWGPP/8pEuAAAA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
@@ -566,26 +566,26 @@
     },
     "commit/roi-histograms": {
       "alt": "A rectangle selected on the sky gradient; below the images, the red, green, blue and luma histograms of the region, new and reference overlaid.",
-      "app_version": "1.1.1+eb20b6b",
+      "app_version": "1.1.1+e4b2b05",
       "caption": "Select a region to compare its histograms, new against reference.",
-      "captured": "2026-10-12",
+      "captured": "2026-10-13",
       "files": {
         "avif": {
-          "bytes": 189091,
-          "key": "shots/commit/roi-histograms/97e7b77e1abdf090.avif"
+          "bytes": 187921,
+          "key": "shots/commit/roi-histograms/8686c8f4b7922c67.avif"
         },
         "png": {
-          "bytes": 2685877,
-          "key": "shots/commit/roi-histograms/1ce4f65c4604cd5b.png"
+          "bytes": 2685702,
+          "key": "shots/commit/roi-histograms/a895e60f5317df7f.png"
         },
         "webp": {
-          "bytes": 222952,
-          "key": "shots/commit/roi-histograms/05622f04adef2d0d.webp"
+          "bytes": 223174,
+          "key": "shots/commit/roi-histograms/e16d409cc4e42eda.webp"
         }
       },
       "height": 752,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRkoAAABXRUJQVlA4ID4AAAAQAgCdASoQAAsAA4BaJYwCdH8AGBTiu4QAAP6apDSCAbHM4D37Px1h5Onhxk5gHvza9FyVenv5CUCecnAAAA==",
+      "lqip": "data:image/webp;base64,UklGRkoAAABXRUJQVlA4ID4AAAAQAgCdASoQAAsAA4BaJYwCdH8AGBTiu4QAAP6apDSCAbHM6qq/DdNN6kU0ipblHVYpy78TwLQcmNfIKroAAA==",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1178
@@ -727,26 +727,26 @@
     },
     "projects/home": {
       "alt": "The QA-Board home page: a filter box, then a card per Kitefin project with its avatar, name, description, a star to pin it, a link to its source, when it last ran and how many commits have results.",
-      "app_version": "1.1.1+c67f384",
+      "app_version": "1.1.1+e4b2b05",
       "caption": "The home page lists every project with results. Pin the ones you follow with their star.",
       "captured": "2026-10-13",
       "files": {
         "avif": {
-          "bytes": 17868,
-          "key": "shots/projects/home/6863065fb82f1311.avif"
+          "bytes": 33445,
+          "key": "shots/projects/home/18f47125a4f53826.avif"
         },
         "png": {
-          "bytes": 56675,
-          "key": "shots/projects/home/c823a56fc35850ba.png"
+          "bytes": 119675,
+          "key": "shots/projects/home/b31d985c7f01fd68.png"
         },
         "webp": {
-          "bytes": 32912,
-          "key": "shots/projects/home/f77bcfdcc5a3b090.webp"
+          "bytes": 69018,
+          "key": "shots/projects/home/669d189fc8cf101e.webp"
         }
       },
-      "height": 309,
+      "height": 579,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAACQAQCdASoQAAQAA4BaJaQAAudVMbgA/vIW4L/ji30eQAAA",
+      "lqip": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAACwAQCdASoQAAcAA4BaJaQAAueGeKgAAP7yFuC/44tik3MzAAA=",
       "project": null,
       "source_spec": "docs-media/shots/projects.spec.ts",
       "width": 1440
