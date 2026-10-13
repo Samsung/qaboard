@@ -604,7 +604,7 @@ shots:
   - id: tuning/frontier
     kind: still
     project: serving-latency
-    shows: The tune-batching sweep's efficient frontier of CPU per request against p99, with the chosen configuration on it.
+    shows: The tune-batching sweep's efficient frontier of CPU per request against p99 (12 configurations), with the chosen one on it, within the noise between identical configurations.
     pages: [use-cases/serving-latency, tutorials/tuning, tutorials/perf-regression]
     features: [tuning-analysis]
     needs: cache-sharded (tune-batching)

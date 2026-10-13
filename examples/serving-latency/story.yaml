@@ -204,8 +204,9 @@ commits:
         user: kaito
         after: 3h
         tuning:
-          max_batch: [1, 4, 8, 16, 32]
-          max_delay_us: [0, 100, 250, 500, 1000, 2000]
+          # neighbors that differ clearly; max_batch 1 turns batching off, so its 4 runs show the noise
+          max_batch: [1, 16, 64]
+          max_delay_us: [0, 250, 1000, 4000]
 
   - id: merge-sharded-cache
     branch: main
@@ -294,8 +295,9 @@ commits:
     message: |
       gateway: max batch 16, max delay 250 us (on the frontier)
 
-      From Kaito's tune-batching sweep, on the frontier of CPU per request and p99: half the wait for a batch to
-      fill, and room for bigger batches when requests pile up.
+      From Kaito's tune-batching sweep, on the frontier of CPU per request and p99: waiting longer for batches to
+      fill saves a few percent of CPU and costs p99. Half the wait for a batch to fill, and room for bigger batches
+      when requests pile up.
     flags: {max_batch: 16, max_delay_us: 250}
     runs:
       - batch: ci
@@ -379,7 +381,7 @@ checks:
     commit: cache-sharded
     label: tune-batching
     hook: on_frontier
-    args: {x: cpu_per_req, y: latency_p99, params: {max_batch: 16, max_delay_us: 250}}
+    args: {x: cpu_per_req, y: latency_p99, params: {max_batch: 16, max_delay_us: 250}, tolerance: {cpu_per_req: 0.05, latency_p99: 0.5}}
 
   - name: fixed slots hurt the heavy-tail test
     commit: payload-copy

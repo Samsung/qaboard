@@ -48,7 +48,7 @@ qa --label nightly batch nightly                # every profile, 3 repeats each
 ```bash
 echo '{"cache": "shared", "cache_entries": 4096}' > build/flags.json   # the coding agent's shared cache
 qa run --input profiles/steady-high.yaml
-qa batch sweep-batching --tuning-search '{"parameter_search": {"max_batch": [8, 16, 32], "max_delay_us": [0, 250, 1000]}}'
+qa batch sweep-batching --tuning-search '{"parameter_search": {"max_batch": [1, 16, 64], "max_delay_us": [0, 250, 1000, 4000]}}'
 ```
 
 **Determinism:** the load (arrival times, keys, payload sizes and contents) depends only on the input and `$QA_SEED`,

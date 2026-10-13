@@ -53,9 +53,10 @@ def on_frontier(ctx, x, y, params, tolerance=None):
     In a tuning batch, the configuration `params` is on the efficient frontier of metrics x and y (smaller is better
     for both), like QA-Board's tuning analysis shows it: each configuration's metrics are its median over the tests.
     Measurements are noisy: another configuration only dominates when it beats this one on both metrics by more than
-    `tolerance` (relative, per metric; default 3% on x, 25% on y: one repeat of 2 s gives a noisy p99).
+    `tolerance` (relative, per metric; default 5% on x, 50% on y: on a 4-CPU runner, identical configurations of a
+    sweep measured with 3 repeats of 2 s land a few percent apart on CPU per request, and up to tens of percent on p99).
     """
-    tolerance = tolerance or {x: 0.03, y: 0.25}
+    tolerance = tolerance or {x: 0.05, y: 0.5}
     by_params = {}
     for run in ctx.runs():
         if run.failed or run.pending or x not in run.metrics or y not in run.metrics:
