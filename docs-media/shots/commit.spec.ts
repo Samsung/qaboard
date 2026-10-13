@@ -807,13 +807,15 @@ shot('commit/detections', {
     + 'people, the fp32 release (right) three. What each missed is outlined in red: two more people on the left; the faded '
     + 'person and the three cars on both.',
   caption: 'Each run draws its detections, ground truth in red where it missed: the int8 model misses two people fp32 finds.',
+  // in full screen, each image is half as wide as the screen: at 2x, a little smaller than the photo (and its budget)
+  viewport: { width: 840, height: 640 },
   actions: async ui => {
     // The project's cards are 390 px wide (qaboard.yaml sets no width): in full screen, the images fill the screen
     await cards(ui.page).first().locator('[title="Enter Full Screen"]').evaluate(e => (e as HTMLElement).click());
     await ui.page.waitForFunction(() => !!document.fullscreenElement);
     await ui.settle();
     await ui.tiles();
-    await ui.cursor.moveTo({ x: 1400, y: 880 });
+    await ui.cursor.moveTo({ x: 830, y: 630 });
     await ui.settle();
   },
   // the images and their labels
