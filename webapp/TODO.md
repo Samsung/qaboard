@@ -10,7 +10,6 @@ Check items off or delete them when done, add new ones with enough context for s
 - [ ] Viewers not covered by automated tests with real data: images (OpenSeadragon/IIIF), ToF point clouds (three.js), SLAM, flame graphs, videos. Check them manually on staging after deploys that touch them.
 
 ## UX
-- [ ] **History page sidebar** (`src/AppSider.jsx`): it only links back to the branch's commits. Integrations and milestones could be shown there too.
 - [ ] Blueprint warns that `<Popover>` positions content incorrectly with React 19: migrate to `<PopoverNext>` (milestones, CommitRow, CommitNavbar...) and check the layouts.
 
 ## Testing / CI

@@ -58,7 +58,7 @@ Harmless for other sites (it only triggers on SIRC project names, paths or files
 - SIRC staging uses the shared storage, the LSF bridge and `/home/ispq/qaboard/shared` like production.
 - The SIRC GitLab pipeline was written without access to SIRC's GitLab/runners: check on the first run that
   the registry is enabled (else `QABOARD_BUILD_ON_HOST=1`), and the one-time host setup in
-  `website/docs/backend-admin/deployment.mdx`.
+  `deployments/sirc/runbooks/deployment.md`.
 - Publishing:
   - PyPI: create a GitHub release with a tag matching the version (`pypy.yml`). Needs trusted publishing
     configured on PyPI, or a `PYPI_API_TOKEN` secret.

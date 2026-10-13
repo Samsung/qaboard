@@ -1,14 +1,23 @@
-name: Deploy to GitHub Pages
+name: Website
 
+# Builds the docs website on pull requests (the build fails on broken links, unknown shot ids, wrong stack tabs and
+# missing repository files), and deploys it to GitHub Pages from master.
 on:
   push:
     branches: [master]
-    paths: [website/**, .github/workflows/website.yml]
+    # with the files the docs show (<RepoFile>) or check
+    paths: [website/**, charts/qaboard/**, deployments/quickstart/**, examples/**, docs-media/shots.yaml, .github/workflows/website.yml]
+  pull_request:
+    paths: [website/**, charts/qaboard/**, deployments/quickstart/**, examples/**, docs-media/shots.yaml, .github/workflows/website.yml]
   workflow_dispatch:
 
+concurrency:
+  group: website-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  deploy:
-    name: Deploy to GitHub Pages
+  build:
+    name: Build, and deploy from master
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,6 +26,11 @@ jobs:
           node-version: 20.x
           cache: yarn
           cache-dependency-path: website/yarn.lock
+      # The GitHub Actions workflows the docs show (no CI of ours runs them)
+      - name: Lint the docs' GitHub Actions examples
+        run: |
+          docs-media/install-tools.sh actionlint
+          ~/.cache/qaboard-docs-media/bin/actionlint website/snippets/ci/github-actions*.yml
       - name: Build website
         working-directory: website
         run: |
@@ -26,6 +40,7 @@ jobs:
       # Popular action to deploy to GitHub Pages:
       # Docs: https://github.com/peaceiris/actions-gh-pages#%EF%B8%8F-docusaurus
       - name: Deploy to GitHub Pages
+        if: github.event_name != 'pull_request'
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

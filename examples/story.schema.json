@@ -1,0 +1,211 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Samsung/qaboard/blob/master/examples/story.schema.json",
+  "title": "Demo project story (examples/<project>/story.yaml)",
+  "description": "The history docs-media/seed.py replays into a QA-Board server. See examples/STORY.md. Checks the schema can't express (unique ids, parents listed first, times increasing, batches existing) are done by the seeder.",
+  "type": "object",
+  "required": ["version", "project", "id", "seed", "commits"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"const": 1},
+    "project": {"enum": ["image-quality", "serving-latency", "detection-eval", "robotics-3d", "agent-evals"]},
+    "id": {
+      "description": "QA-Board project id, equal to project.name in qaboard.yaml.",
+      "enum": ["kitefin/camera-isp", "kitefin/inference-gateway", "kitefin/detector", "kitefin/slam", "kitefin/fleet-assistant"]
+    },
+    "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295},
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "flags": {"$ref": "#/$defs/flags"},
+        "runs": {"type": "array", "items": {"$ref": "#/$defs/run"}}
+      }
+    },
+    "commits": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/commit"}},
+    "milestones": {"type": "array", "items": {"$ref": "#/$defs/milestone"}},
+    "checks": {"type": "array", "items": {"$ref": "#/$defs/check"}}
+  },
+  "$defs": {
+    "id": {"type": "string", "maxLength": 64, "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"},
+    "person": {
+      "description": "A handle from examples/README.md.",
+      "enum": ["ines", "tobias", "arjun", "mira", "adaeze", "kaito", "agent"]
+    },
+    "branch": {"type": "string", "pattern": "^(main|(isp|fxp|gateway|perf|det|quant|slam|assistant|agent)/[a-z0-9]+(-[a-z0-9]+)*|release/[0-9A-Za-z.-]+)$"},
+    "offset": {
+      "description": "Before T0: '-<N>d HH:MM' (UTC on T0's date minus N days) or '-<N>h', '-<N>m', '-<N>h<M>m'.",
+      "type": "string",
+      "pattern": "^-(\\d{1,3}d ([01]\\d|2[0-3]):[0-5]\\d|\\d{1,3}h(\\d{1,2}m)?|\\d{1,4}m)$"
+    },
+    "duration": {
+      "type": "string",
+      "pattern": "^(\\d{1,3}h(\\d{1,2}m)?|\\d{1,4}m)$"
+    },
+    "glob": {"type": "string", "minLength": 1},
+    "flags": {
+      "description": "Flags the project's code reads from build/flags.json. Merged as a JSON Merge Patch: null removes a key.",
+      "type": "object",
+      "propertyNames": {"pattern": "^[a-z][a-z0-9_]*$"}
+    },
+    "mergePatch": {"type": "object"},
+    "batchLabel": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"},
+    "run": {
+      "type": "object",
+      "required": ["batch"],
+      "additionalProperties": false,
+      "properties": {
+        "batch": {"type": "string", "minLength": 1},
+        "via": {"enum": ["ci", "local", "webapp", "tuning", "optimize"], "default": "ci"},
+        "label": {"$ref": "#/$defs/batchLabel"},
+        "platform": {"enum": ["linux", "hw-model"], "default": "linux"},
+        "user": {"anyOf": [{"$ref": "#/$defs/person"}, {"const": "ci"}]},
+        "after": {"$ref": "#/$defs/duration"},
+        "tuning": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^[a-z][a-z0-9_]*$"},
+          "additionalProperties": {"type": "array", "minItems": 1}
+        },
+        "sample": {"type": "integer", "minimum": 1},
+        "optimize": {"type": "string", "minLength": 1},
+        "progress": {
+          "type": "object",
+          "required": ["finished"],
+          "additionalProperties": false,
+          "properties": {
+            "finished": {"type": "number", "minimum": 0, "maximum": 1},
+            "running": {"type": "integer", "minimum": 0}
+          }
+        }
+      },
+      "allOf": [
+        {"if": {"properties": {"via": {"enum": ["local", "webapp", "tuning", "optimize"]}}, "required": ["via"]}, "then": {"required": ["label"]}},
+        {"if": {"properties": {"via": {"const": "tuning"}}, "required": ["via"]}, "then": {"required": ["tuning"]}, "else": {"not": {"anyOf": [{"required": ["tuning"]}, {"required": ["sample"]}]}}},
+        {"if": {"properties": {"via": {"const": "optimize"}}, "required": ["via"]}, "then": {"required": ["optimize"]}, "else": {"not": {"required": ["optimize"]}}}
+      ]
+    },
+    "failure": {
+      "type": "object",
+      "required": ["batch", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "batch": {"type": "string", "minLength": 1},
+        "label": {"$ref": "#/$defs/batchLabel"},
+        "platform": {"enum": ["linux", "hw-model"]},
+        "inputs": {"$ref": "#/$defs/glob"},
+        "configs": {"description": "Glob over the run's configurations rendered as JSON, like in checks.", "$ref": "#/$defs/glob"},
+        "kind": {"enum": ["bug", "oom", "timeout", "lsf-memlimit"]},
+        "log": {"description": "Regex the failed run's log must match.", "type": "string", "minLength": 1}
+      }
+    },
+    "commit": {
+      "type": "object",
+      "required": ["id", "branch", "at", "author", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"$ref": "#/$defs/id"},
+        "branch": {"$ref": "#/$defs/branch"},
+        "parents": {"type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": {"$ref": "#/$defs/id"}},
+        "at": {"$ref": "#/$defs/offset"},
+        "author": {"$ref": "#/$defs/person"},
+        "message": {
+          "description": "Subject (at most 72 characters), then optionally a blank line and a body.",
+          "type": "string",
+          "pattern": "^[^\\n]{1,72}(\\n|$)"
+        },
+        "flags": {"$ref": "#/$defs/flags"},
+        "patches": {
+          "description": "File path, relative to the example -> JSON Merge Patch applied to that YAML file from this commit on.",
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"enum": ["qaboard.yaml", "qa/metrics.yaml", "qa/batches.yaml"]},
+          "additionalProperties": {"$ref": "#/$defs/mergePatch"}
+        },
+        "runs": {"type": "array", "items": {"$ref": "#/$defs/run"}},
+        "failures": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/failure"}}
+      }
+    },
+    "milestone": {
+      "type": "object",
+      "required": ["commit", "label", "by"],
+      "additionalProperties": false,
+      "properties": {
+        "commit": {"$ref": "#/$defs/id"},
+        "label": {"type": "string", "minLength": 1, "maxLength": 40},
+        "notes": {"type": "string", "maxLength": 200},
+        "by": {"$ref": "#/$defs/person"},
+        "batch": {"type": "string", "default": "default"},
+        "filter": {"type": "string"},
+        "kind": {"enum": ["shared", "config"], "default": "shared"},
+        "branch": {"$ref": "#/$defs/branch"}
+      },
+      "if": {"properties": {"kind": {"const": "config"}}, "required": ["kind"]},
+      "then": {"required": ["branch"]},
+      "else": {"not": {"required": ["branch"]}}
+    },
+    "compare": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "gt": {"type": "number"},
+        "gte": {"type": "number"},
+        "lt": {"type": "number"},
+        "lte": {"type": "number"},
+        "between": {"type": "array", "prefixItems": [{"type": "number"}, {"type": "number"}], "minItems": 2, "maxItems": 2}
+      }
+    },
+    "expect": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "value": {"$ref": "#/$defs/compare"},
+        "delta": {"$ref": "#/$defs/compare"},
+        "change_pct": {"$ref": "#/$defs/compare"},
+        "failed": {"$ref": "#/$defs/compare"},
+        "log": {"type": "string", "minLength": 1},
+        "gate": {"enum": ["pass", "fail", "undecidable"]}
+      }
+    },
+    "check": {
+      "type": "object",
+      "required": ["name", "commit"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "minLength": 3},
+        "commit": {"$ref": "#/$defs/id"},
+        "label": {"$ref": "#/$defs/batchLabel"},
+        "platform": {"enum": ["linux", "hw-model"]},
+        "inputs": {"$ref": "#/$defs/glob"},
+        "configs": {"description": "Glob over the run's configurations rendered as JSON.", "$ref": "#/$defs/glob"},
+        "vs": {
+          "type": "string",
+          "pattern": "^(parent|milestone:.+|[a-z0-9]+(-[a-z0-9]+)*)$"
+        },
+        "vs_label": {"$ref": "#/$defs/batchLabel"},
+        "vs_configs": {"$ref": "#/$defs/glob"},
+        "metric": {"type": "string", "pattern": "^[A-Za-z0-9_.]+$"},
+        "agg": {"enum": ["median", "mean", "min", "max", "p90"], "default": "median"},
+        "expect": {"$ref": "#/$defs/expect"},
+        "hook": {"type": "string", "pattern": "^[a-z_][a-z0-9_]*$"},
+        "args": {"type": "object"}
+      },
+      "oneOf": [
+        {"required": ["expect"], "not": {"required": ["hook"]}},
+        {"required": ["hook"], "not": {"required": ["expect"]}}
+      ],
+      "allOf": [
+        {
+          "if": {"required": ["expect"], "properties": {"expect": {"anyOf": [{"required": ["value"]}, {"required": ["delta"]}, {"required": ["change_pct"]}]}}},
+          "then": {"required": ["metric"]}
+        },
+        {
+          "if": {"required": ["expect"], "properties": {"expect": {"anyOf": [{"required": ["delta"]}, {"required": ["change_pct"]}]}}},
+          "then": {"required": ["vs"]}
+        }
+      ]
+    }
+  }
+}

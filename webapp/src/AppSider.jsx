@@ -1,4 +1,4 @@
-import { Link, useRouter } from "./router";
+import { Link, useLinkClickHandler, useRouter } from "./router";
 import { path_segment, stringify_query } from "./selection";
 import styled from "styled-components";
 
@@ -13,7 +13,7 @@ import {
   Tooltip,
 } from "@blueprintjs/core";
 
-import { Avatar } from "./components/avatars";
+import { ProjectAvatar } from "./components/avatars";
 import { IntegrationsMenus } from "./components/integrations";
 import { MilestonesMenu } from "./components/milestones"
 import AuthButton from "./components/authentication/Auth"
@@ -22,7 +22,7 @@ import { LogsMenuItem, logs_hint_class } from "./AppSiderLogsItem"
 
 import { useCommitsList, useComparison, useSiteConfig, useUser, updateSelected } from "./hooks"
 import { useIntegrationStatuses } from "./useIntegrationStatuses"
-import { project_web_url, project_avatar_style, quota_url } from "./utils"
+import { project_web_url, quota_url } from "./utils"
 
 export const sider_width = sidebar.width.default;
 
@@ -74,7 +74,7 @@ const SiderSection = styled.div`
     }
 `;
 
-const ProjectAvatar = styled.div`
+const SiderProjectAvatar = styled.div`
     display: flex;
     align-items: center;
     gap: ${spacing.xs};
@@ -357,39 +357,26 @@ const Sider = styled.div`
 `
 
 
-// A menu item that navigates without reloading the app, and can still be opened in a new tab
-const LinkMenuItem = ({ to, ...props }) => {
-  const { history } = useRouter();
-  const onClick = event => {
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
-    event.preventDefault();
-    history.push(to);
-  };
-  return <MenuItem href={to} onClick={onClick} {...props}/>;
-}
-
-
 const ProjectSideAvatar = ({ project, project_data = {} }) => {
-  const git = project_data.data?.git || {};
   let project_name = project.split('/').slice(-1)[0];
-  const is_subproject = git.path_with_namespace !== project;
-  const has_custom_avatar = !!project_data.data?.qatools_config?.project?.avatar_url
-  const should_tweak_image = is_subproject && !has_custom_avatar;
-  const avatar_style = should_tweak_image ? project_avatar_style(project) : null;
-  const avatar_url = git.avatar_url ? encodeURI(`/api/v1/gitlab/proxy?url=${git.avatar_url}`) : undefined;
   return (
-    <ProjectAvatar>
+    <SiderProjectAvatar>
       <Link to={`/${project}`} style={{display: 'flex', alignItems: 'center', gap: '12px', width: '100%', color: 'inherit'}}>
-        <Avatar
+        <ProjectAvatar
           className="avatar"
-          src={avatar_url}
-          alt={project_name}
-          img_style={avatar_style}
+          project={project}
+          data={project_data.data}
         />
         <span className="project-name">{project_name}</span>
       </Link>
-    </ProjectAvatar>
+    </SiderProjectAvatar>
   )
+}
+
+// A menu entry that navigates like <Link>: within the app, without reloading it, but ctrl/cmd+click still opens a new tab.
+const MenuItemLink = ({ to, ...props }) => {
+  const handleClick = useLinkClickHandler(to)
+  return <MenuItem {...props} href={to} onClick={handleClick}/>
 }
 
 // Only shown if the site has a quota dashboard (QABOARD_QUOTA_URL_TEMPLATE)
@@ -435,6 +422,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
   const private_milestones = project_data.milestones || {}
 
   const is_committer = selected.route.is_committer;
+  const is_history = selected.route.is_history;
   const is_branch = !!selected.branch;
   const is_project_home = selected.route.is_commits && !is_branch;
   const tag = selected.branch ?? selected.committer ?? reference_branch;
@@ -443,14 +431,17 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
   let subproject = project.slice(project_repo.length + 1);
   const web_url = project_web_url(project_data);
   let code_url = subproject.length > 0 ? `${web_url}/tree/${branch}/${subproject}` : web_url;
+  const commits_url = branch ? `/${path_segment(project)}/commits/${path_segment(branch)}` : `/${path_segment(project)}/commits`;
+  const history_url = branch ? `/${path_segment(project)}/history/${path_segment(branch)}` : `/${path_segment(project)}/history`;
   return <>
-    {is_project_home
-      ? <div><LinkMenuItem to={`/${path_segment(project)}/commits/${path_segment(reference_branch)}`} text={reference_branch} icon='git-branch' style={{marginRight: '5px'}}/></div>
+    {/* The branch's commits: highlighted on their page, a link elsewhere */}
+    {(is_project_home || is_history)
+      ? <div><MenuItemLink to={commits_url} text={branch} title={branch && `Commits on ${branch}`} icon='git-branch' style={{marginRight: '5px'}}/></div>
       : <MenuItem icon={is_branch ? "git-branch" : 'user'} intent='primary' text={tag} title={tag}/>
     }
     {!is_committer && <>
-      <MenuItem href={code_url} icon="git-repo" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
-      <LinkMenuItem to={`/${path_segment(project)}/history/${path_segment(branch)}`} icon="history" text="History"/>
+      <MenuItem href={code_url} icon="git-repo" target="_blank" rel="noopener noreferrer" labelElement={<Icon icon="share" />} text="Code"/>
+      <MenuItemLink to={history_url} active={is_history} icon="history" text="History"/>
       <SectionDivider />
       <IntegrationsMenus
         single_menu
@@ -535,7 +526,7 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
       <span>Source</span>
     </SectionHeader>
     <MenuItem icon="settings" text="Artifacts & Configs" active={active('parameters')} onClick={set('parameters')} />
-    <MenuItem href={code_url} icon="git-commit" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
+    <MenuItem href={code_url} icon="git-commit" target="_blank" rel="noopener noreferrer" labelElement={<Icon icon="share" />} text="Code"/>
 
     {/* Tuning Section */}
     <SectionHeader>
@@ -606,9 +597,9 @@ const AppSider = () => {
         <ProjectSideAvatar project={project} project_data={project_data} />
       </SiderSection>
 
-      {/* Navigation Section */}
+      {/* Navigation Section: views of the results on commit pages, else (commit lists, history) the project's pages */}
       <SiderSection>
-        {route.is_list && (
+        {(route.is_list || route.is_history) && (
           <>
             <SectionHeader>Project Navigation</SectionHeader>
             <EnhancedMenuItem>
@@ -623,12 +614,6 @@ const AppSider = () => {
               />
             </EnhancedMenuItem>
           </>
-        )}
-        {route.is_history && (
-          <EnhancedMenuItem>
-            <MenuItem icon="git-branch" intent="primary" text={selected.branch} title={selected.branch}/>
-            <LinkMenuItem to={`/${path_segment(project)}/commits/${path_segment(selected.branch ?? '')}`} icon="git-commit" text="Commits"/>
-          </EnhancedMenuItem>
         )}
         {route.is_commit && (
           <EnhancedMenuItem>

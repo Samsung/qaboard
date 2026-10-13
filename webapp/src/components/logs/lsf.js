@@ -222,7 +222,7 @@ export function lsfReason(report) {
 
 
 // Where the docs explain how to change the LSF options of a batch
-export const LSF_OPTIONS_DOCS = 'docs/lsf-cluster-integration#lsf-options-per-batch'
+export const LSF_OPTIONS_DOCS = 'docs/lsf-integration#lsf-options-per-batch'
 const TERM_WITH_OPTIONS = new Set(['TERM_MEMLIMIT', 'TERM_RUNLIMIT', 'TERM_CPULIMIT', 'TERM_THREADLIMIT'])
 
 // The docs page that helps fix the failure, if any

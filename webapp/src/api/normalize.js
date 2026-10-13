@@ -32,7 +32,7 @@ export const normalize_projects = projects => Object.fromEntries(
 
 
 // Precomputes what's useful to filter, match and compare outputs
-const normalize_output = output => {
+export const normalize_output = output => {
   const run_params = output.data?.params;
   const extra_parameters = run_params !== undefined ? { ...output.extra_parameters, ...run_params } : output.extra_parameters;
   let params = {};

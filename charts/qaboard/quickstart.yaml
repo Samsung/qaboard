@@ -1,0 +1,53 @@
+# QA-Board on your laptop, on a kind cluster created with kind.yaml. Not for production: see values.yaml.
+#   mkdir -p /tmp/qaboard
+#   kind create cluster --name qaboard --config charts/qaboard/kind.yaml
+#   helm install qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --timeout 15m
+#   kubectl port-forward svc/qaboard-proxy 5151:80
+# GitHub CI runs these same commands (the helm-e2e job of .github/workflows/ci.yaml).
+# Docs: website/docs/backend-admin/kubernetes.mdx
+
+config:
+  # For the links QA-Board creates (e.g. in exports), through the port-forward
+  QABOARD_URL: http://localhost:5151
+
+# A single PostgreSQL pod
+database:
+  embedded:
+    enabled: true
+    storage: {size: 2Gi}
+
+# One replica of everything, with small resource requests
+backend:
+  replicas: 1
+  uwsgi: {processes: 2, cheaper: 1, cheaperInitial: 2}
+  resources:
+    requests: {cpu: 100m, memory: 512Mi}
+    limits: {memory: 4Gi}
+  # kind's storage class only supports ReadWriteOnce, enough with a single node
+  data: {size: 1Gi, accessMode: ReadWriteOnce}
+  podDisruptionBudget: null
+proxy:
+  replicas: 1
+  podDisruptionBudget: null
+
+# No ingress: open it with the port-forward above
+ingress:
+  enabled: false
+
+# Image tiles in the image viewer
+cantaloupe:
+  enabled: true
+  memory: {start: 256m, max: 1g}
+
+# Results: kind.yaml shares /tmp/qaboard between your computer and the cluster's node, at the same path.
+# The qa CLI saves results there (`storage: /tmp/qaboard` in qaboard.yaml), the server reads them there.
+# To use another folder, change it here and in kind.yaml.
+results:
+  enabled: true
+  mountPath: /tmp/qaboard
+  hostPath: {path: /tmp/qaboard}
+
+# The docs' demo projects, restored the first time QA-Board starts. Their results are in a volume of their own.
+demoData:
+  enabled: true
+  accessMode: ReadWriteOnce

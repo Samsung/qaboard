@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
 import { http, errorMessage } from "../../api/http";
-import { useUser, useRefreshCommit, updateSelected } from "../../hooks";
+import { useUser, useRefreshCommit, updateSelected, useSiteConfig } from "../../hooks";
 import { usePrefsStore, useTuningForm } from "../../stores/prefs";
 
 import MonacoEditor from "../MonacoEditor";
@@ -302,6 +302,7 @@ const useGroupInfo = ({ project, selected_group, commit_id, available_tests_file
 // Starts tuning experiments. What users enter is remembered per project.
 const TuningForm = ({ project, config, metrics, commit, available_tests_files }) => {
   const logged_user = useUser();
+  const { docs_root } = useSiteConfig();
   const form = useTuningForm(project);
   const updateTuning = usePrefsStore(state => state.updateTuning);
   const refresh = useRefreshCommit();
@@ -514,7 +515,7 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
     
   return <>
     {!any_runner_configured && <Callout intent={Intent.WARNING} title="Please configure async runners" icon="warning-sign" style={{marginBottom: '15px'}}>
-      <p>The simplest way to <a href="https://samsung.github.io/qaboard/docs/celery-integration">get started with async runners is to use Celery</a>.</p>
+      <p>The simplest way to <a href={`${docs_root}docs/celery-integration`}>get started with async runners is to use Celery</a>.</p>
       <p>Otherwise, your runs may be killed if they take too long.</p>
     </Callout>}
     {cannot_tune_on_branch &&  <Callout intent={Intent.WARNING} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
@@ -692,7 +693,7 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
       <Callout icon="info-sign" title="About auto-tuning">
         <ul>
         <li>The solver is <a href="https://github.com/scikit-optimize/scikit-optimize">scikit-optimize</a>. There are lots of choices for black-box optimization (nevergrad, RoBo, MOE, Ray, hyperopt, SMAC, BayesOpt, spearmint, dlib...), all with varying features, maturity, algorithms and popularity.</li>
-        <li>You need to use <a href="https://samsung.github.io/qaboard/docs/computing-quantitative-metrics">QA-Board metrics</a>.</li>
+        <li>You need to use <a href={`${docs_root}docs/computing-quantitative-metrics`}>QA-Board metrics</a>.</li>
         </ul>
         <p><strong>Do send <a href="mailto:arthur.flam@samsung.com">feedback</a>!</strong></p>
       </Callout>

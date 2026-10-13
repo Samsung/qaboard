@@ -237,8 +237,9 @@ const CiCommitResults = () => {
               </Card>
              </Section>}
 
-            {/* as wide as the page, not as its widest log line or run configuration */}
-            {selected_views.includes('logs') && <Section style={{ width: 'auto', minWidth: 0 }}>
+            {/* as wide as the page, not as its widest log line or run configuration.
+                On the right, room for the floating panel's button: it would cover the runs' buttons */}
+            {selected_views.includes('logs') && <Section style={{ width: 'auto', minWidth: 0, paddingRight: 30 }}>
                 <h2 className={Classes.HEADING}>Logs</h2>
                 <BatchLogs
                   project={new_project}

@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { Colors } from "@blueprintjs/core";
 
 import Plot from "../components/Plot";
 import { errorMessage } from "../api/http";
 import { fileQuery } from "../api/queries";
+import { overlay } from "./plotlyOverlay";
 
 
 // TODO: keep the zoom in the state, like explained here
@@ -13,47 +13,7 @@ import { fileQuery } from "../api/queries";
 // TODO: sync zoom across all plots sharing the same path, like we do for images
 // TODO: add magic to e.g. compare tables with a diff  
 
-const colors = {
-  groundtruth: `${Colors.GREEN2}dd`,
-  new: `${Colors.ORANGE2}dd`,
-  ref: `${Colors.BLUE2}dd`
-};
-
-
 // Files are cached: switching between views doesn't fetch them again
-
-
-const adapt = (trace, label) => {
-  let width = (trace.line && trace.line.width) || 2;
-  let size = (trace.marker && trace.marker.size) || 3;
-  if (label === "ref") {
-    width += 1;
-    size += 1;
-  }
-  const trace_has_colors = !!(trace.line || {}).color || !!(trace.marker || {}).color
-  // console.log(trace)
-  return {
-    ...trace,
-    opacity: (trace_has_colors && label === "ref") ? (!!trace.opacity ? trace.opacity / 2 : 0.4) : undefined,
-    name: !!trace.name ? `${label} | ${trace.name}` : label,
-    legendgroup: !!trace.legendgroup ? `${label} | ${trace.legendgroup}` : undefined,
-    line: {
-      ...trace.line,
-      // FIXME: if we already use color, use some alpha like below, or dotted lines?
-      color: !!(trace.line || {}).color ? trace.line.color : colors[label],
-      dash: (!!(trace.line || {}).color && !!!trace.dash && label === "ref") ? 'dashdot' : trace.dash,
-      // The reference is wider to make it easy to identify unchanged results
-      width,
-    },
-    marker: {
-      ...trace.marker,
-      opacity: (!!trace_has_colors && label === "ref") ? (!!(trace.marker || {}).opacity ? trace.marker.opacity / 2 : 0.4) : (trace.marker || {}).opacity,
-      color: !!(trace.marker || {}).color ? trace.marker.color : colors[label],
-      size,
-    },
-    // TODO: make other ajustments for other plot types, like tables...
-  }
-}
 
 
 const px = (value, fallback) => parseFloat(String(value ?? fallback).replace(/px$/, ''));
@@ -108,11 +68,7 @@ const PlotlyViewer = ({ output_new, output_ref, path, path_groundtruth, style, s
       yaxis: { ...layout_.yaxis, automargin: true },
       legend: { ...layout_.legend, traceorder: 'reversed' },
     };
-    const traces = ['groundtruth', 'ref', 'new'].flatMap(label => {
-      const traces = data[label];
-      if (!traces) return [];
-      return has_ref ? traces.map(trace => adapt(trace, label)) : traces;
-    });
+    const traces = overlay(data, has_ref);
     if (traces.length === 0)
       return <span></span>
     return <Plot data={traces} layout={merged_layout}/>;

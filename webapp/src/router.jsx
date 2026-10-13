@@ -11,7 +11,8 @@ import { useLocation } from "react-router";
 import { createBrowserHistory } from "history";
 import pathToRegexp from "path-to-regexp-v1";
 
-export { Link } from "react-router";
+// useLinkClickHandler: for links rendered by other components (e.g. Blueprint's MenuItem), like <Link>
+export { Link, useLinkClickHandler } from "react-router";
 
 export const history = createBrowserHistory();
 

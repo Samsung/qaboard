@@ -3,7 +3,6 @@ id: using-the-qa-cli
 sidebar_label: QA CLI Tips
 title: Tips for CLI usage
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
 
 ## CLI flags worth knowing
 ## `qa --help`
@@ -15,7 +14,7 @@ qa batch --help
 ```
 
 ## `qa --share`
-When you run `qa batch` or `qa run` on your terminal, results are saved locally under **output/**, and *they are not visible in QA-Board*. To make them visible:
+When you run `qa batch` or `qa run` on your terminal, results are saved locally under **output/**, and *they are not visible in QA-Board*. To make them visible, add `--share`: `qa --share run ...`.
 
 :::tip
 If you don't like this default, make `--share` the default via  
@@ -28,6 +27,8 @@ alias qa="qa --share"
 export QA_SHARE=true
 ```
 :::
+
+With `--share`, `qa batch` and `qa optimize` also save what they print, errors included, in the batch directory, under `qa-batch-logs/`. QA-Board shows these logs with the batch, in the *Logs* view. They are not saved in the CI, which keeps the logs. `qa optimize` saves the output of its iterations in its own log.
 
 
 ## `qa --dryrun`
@@ -51,7 +52,12 @@ qa --label without-optimizations batch validation-images
 qa --label    with-optimizations batch validation-images
 ```
 
-<img alt="select-batch" src={useBaseUrl('img/select-batch.png')} />
+Each label is a batch of its own: pick it in the web app's batch selector.
+
+<Shot
+  id="commit/batch-picker"
+  caption="The CI batch, someone's local runs (🏠) and a tuning experiment, each with how many of its runs succeeded."
+/>
 
 :::tip
 To keep previous output files, use `qa run --keep-previous` (or `export QABOARD_RUN_KEEP=true`). It can be useful if you are debugging long runs and implemented a caching mecanism. *(Experimental)*
@@ -81,6 +87,27 @@ When you try to re-run already existing results, The behaviour of `qa batch` can
 The default can be set in *qaboard.yaml* with `outputs.action_on_existing`.
 
 Similarly, `--action-on-pending` (or `outputs.action_on_pending`) decides what to do when the same runs are already pending: `wait` (default, then run), `sync` (use those runs' results), `skip` or `run` (run as usual, can cause races).
+
+### Running a list of runs
+Instead of batches, `qa batch --runs-file runs.json` does the runs listed in a JSON file. QA-Board uses it to redo runs: they are started together, so the batch's runner settings (e.g. its concurrency) apply to all of them.
+
+```json title="runs.json"
+{
+  "runs": [
+    {
+      "input_path": "images/A.jpg",
+      "database": "/datasets",
+      "type": "image",
+      "platform": "linux",
+      "configurations": ["base", {"threshold": 0.5}],
+      "extra_parameters": {"iterations": 3},
+      "job_options": {"type": "dask", "concurrency": 20}
+    }
+  ]
+}
+```
+
+Only `input_path` (relative to `database`) and `database` are required. Runs are done with the runner and options in `job_options`, completed by the defaults from *qaboard.yaml*. Options you give on the command line, like `--runner` or `--lsf-queue`, win.
 
 ---
 

@@ -35,7 +35,7 @@ describe('LsfReport', () => {
     expect(screen.getByText(/Exited with exit code 137 \(SIGKILL\) · TERM_MEMLIMIT/)).toBeInTheDocument()
     expect(screen.getByText(/in the definition of the batch, e\.g\./)).toBeInTheDocument()
     expect(screen.getByText('lsf: {max_memory: 8000}').tagName).toBe('CODE')
-    expect(screen.getByText('Read the docs')).toHaveAttribute('href', 'https://samsung.github.io/qaboard/docs/lsf-cluster-integration#lsf-options-per-batch')
+    expect(screen.getByText('Read the docs')).toHaveAttribute('href', 'https://samsung.github.io/qaboard/docs/lsf-integration#lsf-options-per-batch')
     expect(screen.getByText('1234[3]')).toBeInTheDocument()
     expect(screen.getByText('host-a')).toBeInTheDocument()
     expect(screen.getByText('4000 MB / 4096.00 MB requested')).toBeInTheDocument()
@@ -43,7 +43,7 @@ describe('LsfReport', () => {
 
   it("links to the site's own docs", () => {
     renderWithProviders(<LsfReport report={report} />, { siteConfig: { docs_root: '/qa/' } })
-    expect(screen.getByText('Read the docs')).toHaveAttribute('href', '/qa/docs/lsf-cluster-integration#lsf-options-per-batch')
+    expect(screen.getByText('Read the docs')).toHaveAttribute('href', '/qa/docs/lsf-integration#lsf-options-per-batch')
   })
 
   it('renders nothing without a report', () => {

@@ -19,7 +19,7 @@ import { bit_accuracy_help, humanFileSize } from "../viewers/bit_accuracy/utils"
 import { event_value } from "../utils";
 import { OutputViewer } from "../viewers/OutputViewer";
 import { useSelected, useUrlText, updateSelected } from "../hooks";
-import { copyPath } from "../clipboard";
+import { copyDirectory } from "./logs/DirectoryActions";
 
 
 // The list of files in a commit's artifacts
@@ -161,10 +161,10 @@ const CommitParameters = ({ new_commit, ref_commit, config }) => {
                  : viewer
     }
     <div style={{margin: '10px'}}>
-      <Button style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => copyPath(new_commit.artifacts_url, 'windows')}>
+      <Button style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => copyDirectory(new_commit.artifacts_url, { windows: true })}>
         Copy Path <Tag minimal>windows</Tag>
       </Button>
-      <Button style={{margin: '10px'}} label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => copyPath(new_commit.artifacts_url, 'linux')}>
+      <Button style={{margin: '10px'}} label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => copyDirectory(new_commit.artifacts_url)}>
         Copy Path <Tag minimal>linux</Tag>
       </Button>
       <a rel="noopener noreferrer" target="_blank" href={new_commit.artifacts_url}><Button style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="folder-shared-open">

@@ -19,13 +19,13 @@ import {
 
 import { http, errorMessage } from "../api/http";
 import { useRefreshCommit } from "../hooks";
-import { Avatar } from "./avatars";
+import { CommitAvatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
-import { CopyToClipboard } from "../clipboard";
 import { format, shortId, pretty_label } from "../utils";
 import { project_web_url } from "../utils"
 import { has_milestones } from './milestones'
-import { copyPath } from "../clipboard";
+import { copyDirectory } from './logs/DirectoryActions'
+import { copyWithToast } from '../utils/clipboard'
 import { toaster } from "../toaster";
 
 const CommitDetails = styled.div`
@@ -253,7 +253,6 @@ const CommitRow = ({ commit, project, project_data = {}, className, tag, default
   const commit_url = `${web_url}/commit/${commit.id}`
   const has_data = !!commit?.authored_datetime
   let maybe_skeletton = has_data ? null : Classes.SKELETON;
-  const avatar_url = commit?.committer_avatar_url ? encodeURI(`/api/v1/gitlab/proxy?url=${commit.committer_avatar_url}`) : null
   const commit_has_milestones = has_milestones({commit, project, project_data})
 
   const deleteRuns = url => {
@@ -274,10 +273,9 @@ const CommitRow = ({ commit, project, project_data = {}, className, tag, default
 
   return (
     <CommitRowWrapper className={className}>
-      <Avatar
-        src={avatar_url}
-        href={commit.committer_name ? `/${project}/committer/${commit.committer_name}` : null}
-        alt={commit.committer_name || commit.id || '?'}
+      <CommitAvatar
+        commit={commit}
+        project={project}
       />
 
       <CommitDetails>
@@ -292,22 +290,13 @@ const CommitRow = ({ commit, project, project_data = {}, className, tag, default
               </CommitShortId>
             </Tooltip>
             <Tooltip content="Copy to clipboard">
-              <CopyToClipboard
-                text={commit.id}
-                onCopy={() => {
-                  toaster.show({
-                    message: "Copied to clipboard!",
-                    intent: Intent.SUCCESS
-                  });
-                }}
-              >
-                <Icon
-                  style={{marginLeft: '4px', marginRight: '4px'}}
-                  title="Copy hash to clipboard"
-                  intent={Intent.PRIMARY}
-                  icon="duplicate"
-                />
-              </CopyToClipboard>
+              <Icon
+                style={{marginLeft: '4px', marginRight: '4px'}}
+                title="Copy hash to clipboard"
+                intent={Intent.PRIMARY}
+                icon="duplicate"
+                onClick={() => copyWithToast(commit.id, { what: 'the commit hash' })}
+              />
             </Tooltip>
 
           <Popover
@@ -315,8 +304,8 @@ const CommitRow = ({ commit, project, project_data = {}, className, tag, default
             hoverCloseDelay={500}
             interactionKind={"hover"}
             content={<Menu>
-              <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyPath(commit.artifacts_url, 'windows')} />
-              <MenuItem text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyPath(commit.artifacts_url, 'linux')} />
+              <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url, { windows: true })} />
+              <MenuItem text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url)} />
               <MenuItem text="View files in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
               <MenuDivider title="Manage"/>
               <MenuItem

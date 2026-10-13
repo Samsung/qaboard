@@ -11,11 +11,11 @@ import { groupBy, hash_color, median, average, event_value } from "../../utils";
 // to test selectable metrics...
 // http://alginfra1:6001/CIS_ISP_Algorithms/approximate_computing/sircapproxlib/commit/dd68070ad59b72b00d242959fb235eed8e9ee495?reference=81055b515c71cd3c3557c49ca8e889e7b0028eb4&selected_views=optimization&sort_by=miter.threshold_%25&sort_order=1&selected_parameter=miter.threshold_%25&selected_metric=fitness_last&aggregation=average&selected_parameter_2=resources.evolve_limit_value&selected_metric2=fitness_last&filter=&selected_metrics%5B0%5D=fitness_init&selected_metrics%5B1%5D=fitness_last&selected_metrics%5B2%5D=fitness_improvement&selected_metrics%5B3%5D=wce_%25_actual&selected_metrics%5B4%5D=wce_%25_goal&selected_metrics%5B5%5D=wce_%25_actual_diff_goal&selected_metrics%5B6%5D=no_generations&selected_metrics%5B7%5D=average_generation_runtime
 
+// No "Send to Cloud" or "Edit chart" links: they would upload the data to Plotly's public Chart Studio
 const config = {
   displayModeBar: true,
-  showLink: true,
-  plotlyServerURL: "https://chart-studio.plotly.com",
-  showSendToCloud: true,
+  showSendToCloud: false,
+  showLink: false,
 };
 
 const metric_formatter = new Intl.NumberFormat("en-US", {

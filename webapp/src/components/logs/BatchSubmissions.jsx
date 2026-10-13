@@ -9,7 +9,8 @@ import { LsfReport, withCode } from "./LsfReport";
 import { lsfHint, lsfKilled, lsfReason } from "./lsf";
 import { RunList, Header, Content, INTERACTIVE } from "./RunLogs";
 import { batchSubmissions, is_final, useSubmissionStatus } from "./submissions";
-import { copyText } from "../../clipboard";
+import { DirectoryActions } from "./DirectoryActions";
+import { copyWithToast } from "../../utils/clipboard";
 
 
 const Meta = styled.span`
@@ -99,13 +100,21 @@ const waitingHint = submission => submission.runner === 'lsf'
 const lsfJob = submission => submission.lsf_job_id ? `LSF job ${submission.lsf_job_id}${submission.queue ? ` (${submission.queue})` : ''}` : null
 
 
-
+// The requests to show a submission that we scrolled to: rows that mount again don't scroll again
+const scrolled = new WeakSet()
 
 /**
  * A batch started from QA-Board: the status of `qa batch`, and its logs.
+ * `focus` changes when users ask to see this submission: we scroll to it.
  */
-const SubmissionRow = ({ submission, expanded, onToggle }) => {
+const SubmissionRow = ({ submission, expanded, onToggle, focus }) => {
   const status = useSubmissionStatus(submission)
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!focus || scrolled.has(focus)) return
+    scrolled.add(focus)
+    ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  }, [focus])
   const [file, setFile] = useState('log.txt')
   const base = submission.log_dir_url
   const files = [
@@ -118,7 +127,7 @@ const SubmissionRow = ({ submission, expanded, onToggle }) => {
     onToggle()
   }
 
-  return <div>
+  return <div ref={ref} style={{ scrollMarginTop: 16 }}>
     <Header onClick={toggle} $expanded={expanded} $failed={failed}>
       <Button
         size="small"
@@ -142,6 +151,9 @@ const SubmissionRow = ({ submission, expanded, onToggle }) => {
           </React.Fragment>)}
         </span>
       </Meta>
+      {!!base && <span className="actions">
+        <DirectoryActions url={base} what="the folder with qa batch's script and logs" />
+      </span>}
     </Header>
     <Collapse isOpen={expanded} transitionDuration={150}>
       <Content $failed={failed}>
@@ -154,7 +166,7 @@ const SubmissionRow = ({ submission, expanded, onToggle }) => {
         {!!submission.command && <Command className={Classes.MONOSPACE_TEXT}>
           <code>{submission.command}</code>
           <Tooltip content="Copy the command">
-            <Button size="small" variant="minimal" icon="duplicate" aria-label="Copy the command" onClick={() => copyText(submission.command)} />
+            <Button size="small" variant="minimal" icon="duplicate" aria-label="Copy the command" onClick={() => copyWithToast(submission.command, { what: 'the command' })} />
           </Tooltip>
         </Command>}
         {base
@@ -171,11 +183,21 @@ const SHOWN = 3
 /**
  * The batches started from QA-Board, most recent first.
  * If the batch has no runs yet, we open the most recent: it's likely why.
+ * `focus` ({id}, a new object each time) opens a submission's logs and scrolls to it. We ignore the requests made before we rendered.
  */
-export const BatchSubmissions = ({ batch, has_runs }) => {
+export const BatchSubmissions = ({ batch, has_runs, focus }) => {
   const submissions = batchSubmissions(batch)
   const [expanded, setExpanded] = useState(() => new Set(!has_runs && submissions.length ? [submissions[0].id] : []))
   const [show_all, setShowAll] = useState(false)
+  const [last_focus, setLastFocus] = useState(focus)
+  const [focused, setFocused] = useState(null)
+  if (focus && focus !== last_focus) {
+    setLastFocus(focus)
+    setFocused(focus)
+    setExpanded(expanded => new Set(expanded).add(focus.id))
+    if (submissions.findIndex(submission => submission.id === focus.id) >= SHOWN)
+      setShowAll(true)
+  }
   if (!submissions.length) return null
 
   const toggle = id => setExpanded(expanded => {
@@ -193,6 +215,7 @@ export const BatchSubmissions = ({ batch, has_runs }) => {
         submission={submission}
         expanded={expanded.has(submission.id)}
         onToggle={() => toggle(submission.id)}
+        focus={focused?.id === submission.id ? focused : null}
       />)}
     </RunList>
     {submissions.length > SHOWN && <Button style={{ marginTop: 6 }} size="small" variant="minimal" onClick={() => setShowAll(!show_all)}>

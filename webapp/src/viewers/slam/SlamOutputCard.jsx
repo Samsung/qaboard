@@ -5,9 +5,11 @@ import { tsvParse } from "d3-dsv";
 import Plot from "../../components/Plot";
 import { fileQuery } from "../../api/queries";
 
-// We don't send data to Plotly's public cloud (chart-studio): outputs can be confidential
+// No "Send to Cloud" or "Edit chart" links: they would upload the data to Plotly's public Chart Studio
 const config = {
   displayModeBar: true,
+  showSendToCloud: false,
+  showLink: false,
 };
 
 const colors = {

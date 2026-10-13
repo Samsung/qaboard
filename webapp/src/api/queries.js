@@ -11,7 +11,7 @@ import { setPathMappings, setDefaultGitHostname } from "../utils";
 
 
 export const default_site_config = {
-  image_servers: { default: '/iiif' },
+  image_servers: { default: '/iiif/2/' },
   login_type: 'LOCAL',
   login_required: false,
   sentry_dsn: null,

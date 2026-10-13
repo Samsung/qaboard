@@ -44,6 +44,10 @@ const CommitRows = ({ commits, project, project_data, className }) => (
   </div>
 );
 
+// "Today — 1 commit", "3 days ago — 2 commits"
+const count_commits = n => `${n} commit${n === 1 ? '' : 's'}`
+const capitalize = text => text ? text.charAt(0).toUpperCase() + text.slice(1) : text
+
 const commit_search = c => {
   const batches = Object.keys(c.batches).join('|')
   return `${c.committer_name} ${c.message} ${c.branch} ${batches}`
@@ -105,13 +109,10 @@ const CiCommitList = () => {
       />}
       {Object.keys(commits_by_day).map(day => (
         <Card key={day} elevation={0} style={{marginBottom: '15px'}}>
-          <h4 className={Classes.HEADING} style={{textTransform: 'capitalize'}}>
-            {(!!day && day !== "undefined") ? <>
-                {DateTime.fromISO(day, { zone: 'utc' }).toRelativeCalendar({unit: "days"})}
-                {" "}
-                &#8212; {commits_by_day[day].length} commits
-              </>
-             : `${commits_by_day[day].length} commits`}
+          <h4 className={Classes.HEADING}>
+            {(!!day && day !== "undefined")
+              ? `${capitalize(DateTime.fromISO(day, { zone: 'utc' }).toRelativeCalendar({unit: "days"}))} \u2014 ${count_commits(commits_by_day[day].length)}`
+              : capitalize(count_commits(commits_by_day[day].length))}
           </h4>
           <CommitRows project={project} project_data={project_data} commits={commits_by_day[day]} />
         </Card>

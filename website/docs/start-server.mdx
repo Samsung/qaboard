@@ -5,10 +5,20 @@ sidebar_label: Server Bringup
 ---
 QA-Board's run-wrapper, `qa`, will sync with a central server that tracks and displays results.
 
+:::tip Try it first
+The [quickstart](/docs/get-started/quickstart) starts QA-Board on your computer with one Compose file, and demo
+projects to look at.
+:::
+
+<Clip
+  id="quickstart/compose"
+  caption="The quickstart: download one Compose file, start it, and the server answers on localhost:5151 with the demo projects."
+/>
+
 :::note Need a hosted version?
 We're considering offering a hosted solution to help you get started. If you are interested, contact the <a href="mailto:arthur.flam@gmail.com">maintainers</a>.
 
-Until then, please [fill issues](https://github.com/Samsung/qaboard/issues) or <a href="mailto:arthur.flam@samsung.com">send an email</a> to maintainers if you run into issues starting a server. We're responsive.
+Until then, please [create an issue](https://github.com/Samsung/qaboard/issues) if you run into problems starting a server. We're responsive.
 
 :::
 
@@ -63,7 +73,7 @@ git clone https://github.com/Samsung/qaboard.git
 cd qaboard
 ```
 
-**Open-source (default):** add your overlay to `COMPOSE_FILE` in a copy of `deployments/production.env`, then:
+Add your overlay to `COMPOSE_FILE` in a copy of `deployments/production.env` (the examples use the file as it is), then:
 ```bash
 # first time
 deployments/deploy.py deployments/production.env up --build --init
@@ -73,14 +83,7 @@ deployments/deploy.py deployments/production.env up --build
 
 If you prefer plain docker compose, `docker compose -f docker-compose.yml -f production.yml up -d` still works, without zero-downtime upgrades.
 
-**SIRC:** deployed by GitLab CI, see [Deployments](backend-admin/deployment). By hand: `deployments/deploy.py deployments/sirc/production.env up`.
-
-**DSK:**
-```bash
-docker compose -f docker-compose.yml -f production.yml -f deployments/dsk/dsk.yml up -d
-```
-
-The overlay files in `deployments/` add site-specific services, volumes, environment variables, and nginx configuration without modifying the base `docker-compose.yml`. See `deployments/example.yml` as a template for creating your own overlay, and `deployments/production.env` or `deployments/sirc/production.env` for the env file.
+A site overlay adds your site's services, volumes, environment variables and nginx configuration without modifying the base `docker-compose.yml`. Start from `deployments/example.yml` for the overlay, and from `deployments/production.env` for the env file.
 
 `deployments/deploy.py` runs several backend replicas and replaces them one version at a time, runs database migrations once, and keeps the previous images for rollbacks. Read [Deployments, rollbacks and high availability](backend-admin/deployment) for the details.
 
@@ -104,7 +107,7 @@ QA-Board can connect to external authentifications systems (LDAP, SAML). If need
 -------------------------|-------- |------------------------------------------------------|
 | `GITLAB_ACCESS_TOKEN`  | _none_  | Optional for some extra features. Get it with a `read_repository` scope at https://$gitlab-server/profile/personal_access_tokens |
 | `SECRET_KEY`           | _generated_ | Signs the sessions. If unset, a key is generated once and saved in the backend's data volume. With several hosts/kubernetes, set the same value everywhere. |
-| `GITLAB_HOST`          | *https://gitlab.com* | e.g. *https://gitlab.com* or *http://my-gitlab-srv/*. Also used for git links in the UI |
+| `GITLAB_HOST`          | *https://gitlab.com* | e.g. *https://gitlab.com* or *https://gitlab.example.com*. Also used for git links in the UI |
 | `QABOARD_GITLAB_HOSTS` | _none_  | Comma-separated extra gitlab hostnames the backend may send `GITLAB_ACCESS_TOKEN` to |
 | `QABOARD_PROXY_HOSTS` | _none_  | Comma-separated hostnames the web app may load avatars and badges from through the backend, besides your gitlab hosts and gravatar. Add the hosts of your projects' `project.avatar_url` and `integrations[].src` images |
 | `GITHUB_ACCESS_TOKEN`  | _none_  | Token used to clone private GitHub repositories and look up committers' avatars (see [GitHub integration](project-init#optional-integration-with-github)) |
@@ -140,7 +143,7 @@ QA-Board can connect to external authentifications systems (LDAP, SAML). If need
 | `QABOARD_TUNING_RUNNER` | local  | How tuning/"redo" runs started from the webapp are dispatched: `local`, `celery` or `lsf` |
 | `QA_RUNNERS_LSF_BRIDGE` | _none_ | With `lsf`: the command used to submit LSF jobs, e.g. `ssh user@lsf-host 'bsub_su {user} -I {bsub_command}'` |
 | `QABOARD_DASK_SCHEDULERS` | _none_ | Comma-separated dask scheduler addresses the backend trusts (to stop dask jobs from the webapp) |
-| `QABOARD_IMAGE_SERVERS` | `{"default": "/iiif"}` | JSON map of file extensions to IIIF image servers |
+| `QABOARD_IMAGE_SERVERS` | `{"default": "/iiif/2/"}` | JSON map of file extensions to IIIF image servers, e.g. `{"default": "/iiif/2/", "raw,dng": "https://iip.example.com/fcgi-bin/iipsrv.fcgi?IIIF=/"}`. Each URL is followed directly by the image's path |
 | `QABOARD_PATH_MAPPINGS` | `[]` | JSON list of `["windows_prefix", "linux_prefix"]` pairs, used to show Windows paths to results (`qa` reads it too, from the environment or a site package, to convert Windows paths), e.g. `[["\\\\server\\share", "/mnt/share"]]` |
 | `QABOARD_DEFAULT_USER` | qaboard | The user CI runs are saved under (with `{user}` in `storage`). Runs started from the webapp replace it with the logged-in user in output paths |
 | `QABOARD_DOCS_ROOT`    | */* | Where the webapp's links to the docs point. By default, the docs served by this server at `/docs/`, which match its version |
@@ -168,7 +171,7 @@ In the future we plan to introduce a proper "secret" store, per user and per pro
 
 ## (Optional) For "production"
 ### Backups
-The `cron-backup-db` service in *production.yml* makes daily backups of the database. Mount a host directory at `/backups` in your site overlay (see `deployments/sirc/prod.yml`), and copy the backups off the host. To restore one: `deployments/deploy.py <env file> restore-db <file>.dump`.
+The `cron-backup-db` service in *production.yml* makes daily backups of the database. Mount a host directory at `/backups` in your site overlay, and copy the backups off the host. To restore one: `deployments/deploy.py <env file> restore-db <file>.dump`. See [Backups](backend-admin/deployment#backups).
 
 ### Using SSL / hosting behind a reverse proxy
 What we do is use our own copy of *services/nginx/conf.d/qaboard.conf* in the site overlay (keep its `include snippets/...` lines: they serve the files and the file browser). Files mounted under `/tmp/deployment/nginx/conf.d/` in the `proxy` container are added to (or replace) *services/nginx/conf.d/*:
@@ -195,6 +198,15 @@ services:
     - "somewhere/cert.key:/ssl/cert.key"
     - "somewhere/cert.pem:/ssl/cert.pem"
 ```
+
+:::tip Getting a certificate from your IT
+Generate a key and a certificate signing request (CSR), and send the CSR to your IT:
+```bash
+openssl genrsa -out cert.key 2048
+openssl req -new -sha256 -key cert.key -out cert.csr
+```
+If they send back a `.cer` certificate in the DER format, convert it to PEM: `openssl x509 -in cert.cer -inform der -outform pem -out cert.pem`.
+:::
 
 If you want to use your own reverse proxy, with `nginx` for instance you can set `QABOARD_PORT_HTTP=8080` and:
 

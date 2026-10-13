@@ -1,0 +1,14 @@
+# The build context is the repository's root (see Dockerfile): only send what the docs need.
+# <RepoFile path="..."> can only show files listed here.
+*
+!website/
+!charts/qaboard/*.yaml
+!deployments/quickstart/compose.yml
+!examples/*/qaboard.yaml
+!examples/*/qa/*.yaml
+!docs-media/shots.yaml
+website/node_modules/
+website/build/
+website/.docusaurus/
+website/.media-cache/
+website/Dockerfile*

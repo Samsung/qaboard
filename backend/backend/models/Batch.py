@@ -3,11 +3,9 @@ Represents runs belonging to the same commit.
 It might by a CI job, or tuning experiments.
 """
 import os
-import uuid
 import datetime
 from pathlib import Path
 
-import numpy as np
 from sqlalchemy import ForeignKey, Integer, String, DateTime, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import UniqueConstraint, Column
@@ -18,6 +16,7 @@ from qaboard.conventions import batch_folder_name
 from qaboard.api import dir_to_url
 
 from backend.models import Base, Output
+from backend.metrics_aggregation import aggregated_metrics
 from backend.shell_utils import shell_safe, safe_user_name
 from backend.storage import UnsafePathError
 
@@ -71,9 +70,14 @@ class Batch(Base):
       return self.ci_commit.outputs_dir / batch_folder_name(self.label)
 
 
-  def to_dict(self, session, with_outputs=False, with_aggregation=None):
-    # TODO: limit outputs? avoid loading all?
-    metrics_to_aggregate  = with_aggregation if with_aggregation else {}
+  def to_dict(self, session, with_outputs=False, with_aggregation=None, aggregation=None):
+    """
+    with_aggregation: {metric: target}, the metrics to aggregate over the batch's runs (median, average).
+    aggregation: those aggregates when they're already known, e.g. from one query for the batches of many commits
+    (backend.metrics_aggregation.aggregated_metrics).
+    """
+    if aggregation is None:
+      aggregation = aggregated_metrics(session, [self.id], with_aggregation).get(self.id, {}) if with_aggregation else {}
     if with_outputs:
       outputs = {'outputs': {o.id: o.to_dict() for o in self.outputs}}
     else:
@@ -99,7 +103,7 @@ class Batch(Base):
         'created_date': self.created_date.isoformat(),
         'data': data,
         'batch_dir_url': dir_to_url(self.batch_dir),
-        'aggregated_metrics': {}, # aggregated_metrics(self.outputs, metrics_to_aggregate),
+        'aggregated_metrics': aggregation,
         'valid_outputs': result.valid_outputs or 0,
         'pending_outputs': result.pending_outputs or 0,
         'running_outputs': result.running_outputs or 0,
@@ -118,23 +122,6 @@ class Batch(Base):
     self.label = label
     db_session.add(self)
     db_session.commit()
-
-  def redo(self, user, only_failed=False, only_deleted=False):
-    # in case it was deleted without QA-Board being made aware
-    if not self.ci_commit.artifacts_dir.exists():
-      print("Restoring artifacts")
-      self.ci_commit.save_artifacts()
-
-    success = True
-    command_id = uuid.uuid4()
-    for output in self.outputs:
-      if only_failed and not output.is_failed:
-        continue
-      if only_deleted and not output.deleted:
-        continue
-      output_success = output.redo(user=user, command_id=command_id)
-      success = success and output_success
-    return success
 
   def stop(self, session):
     if not any([o.is_pending for o in self.outputs]):
@@ -213,27 +200,3 @@ class Batch(Base):
       session.delete(self)
     session.commit()
 
-
-# TODO: refactor with proper SQL, or use triggers to keep updated
-def aggregated_metrics(outputs, metrics_to_aggregate):
-  if not metrics_to_aggregate:
-    return {}
-
-  valid_outputs = [o for o in outputs if not o.is_failed and not o.is_pending]
-  aggregated = {}
-  for metric, treshold in metrics_to_aggregate.items():
-    values = np.array([
-        o.metrics[metric] for o in valid_outputs
-        if metric in o.metrics and not o.metrics[metric] is None
-    ])
-    has_values = values.shape[0]>0
-    try:
-      aggregated[f'{metric}_median'] = np.median(values) if has_values else np.NaN
-      aggregated[f'{metric}_average'] = np.average(values) if has_values else np.NaN
-      # aggregated[f'{metric}_pc_bad'] = np.mean(values < treshold) if has_values else np.NaN
-    except:
-      continue
-    # TODO: Use metric metadata to know if smaller_is_better, or pass the info in metrics_to_aggregate 
-    # aggregated[f'{metric}_threshold_bad'] = treshold
-  # Remove NaN values
-  return {k: v for k, v in aggregated.items() if v == v}

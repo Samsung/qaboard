@@ -37,7 +37,7 @@ Edit _development.yml_ as suits your needs to e.g. change connect to another dat
 Consult also:
 - [Starting QA-Board Guide](https://samsung.github.io/qaboard/docs/deploy).
 - [Troubleshooting Guide](https://samsung.github.io/qaboard/docs/backend-admin/troubleshooting).
-- To learn how to restore from a backup, read the [upgrade guide](https://samsung.github.io/qaboard/docs/backend-admin/host-upgrades).
+- To learn how to restore from a backup, read [Backups](https://samsung.github.io/qaboard/docs/backend-admin/deployment#backups).
 
 At SIRC:
 ```bash

@@ -4,8 +4,6 @@ title: Running from the web app
 sidebar_label: Running from the web app
 description: Redo runs, start tests and tuning experiments, and trigger CI jobs from the web app.
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
-
 You don't need a terminal to start runs: the web app can redo runs, run a commit's code on new tests, start tuning experiments and trigger CI jobs.
 
 :::info Before you start
@@ -26,7 +24,16 @@ You don't need a terminal to start runs: the web app can redo runs, run a commit
 | Unblock a run stuck as pending | On its card, ☰ menu → **Mark as Failed** |
 | Delete runs or only their files | Card ☰ menu (one run), or commit bar menu (failed runs, the batch, several batches) |
 
-Redone runs use the commit's saved artifacts and the same input, configuration and parameters. The page refreshes by itself while runs are pending: follow their progress with the counters next to the filter box, or in the [Logs](commit-page.mdx#logs) view.
+Redone runs use the commit's saved artifacts and the same input, configuration and parameters. They also use the runner they were started with, and the batch's runner settings, like how many runs can run at the same time: QA-Board starts them together, with a single `qa batch`. Its logs are in the [Logs](commit-page.mdx#logs) view, under "Started from QA-Board".
+
+<Shot
+  id="commit/run-menu"
+  caption="A run card's menu: redo it, delete it, or delete only its output files. While a run is pending or running, Mark as Failed replaces Redo."
+/>
+
+When you filter the batch's runs, the commit bar menu's redo actions only redo the runs that match the filter: **Redo the N Filtered Outputs**, **Redo Filtered Failed Outputs**...
+
+The page refreshes by itself while runs are pending: follow their progress with the counters next to the filter box, or in the [Logs](commit-page.mdx#logs) view.
 
 :::caution
 Delete actions are immediate. Milestones are protected: QA-Board won't delete batches or commits saved as [milestones](comparing-results.mdx#milestones).
@@ -34,10 +41,6 @@ Delete actions are immediate. Milestones are protected: QA-Board won't delete ba
 
 ## Running tests and tuning
 To run a commit's code on other inputs, or with other parameters, open the commit page and select **Run Tests / Tuning** in the sidebar.
-
-<img alt="Starting runs from the web app" src={useBaseUrl('img/tuning-from-the-ui.jpg')} />
-
-*Older screenshot: the fields are the same, some labels changed.*
 
 1. **Experiment name**: the label of the new batch. Reusing the name of an existing experiment adds runs to it.
 2. **Batch of inputs+configurations**: the name of a batch of tests, like `my-batch`, or several, like `batch-*`. Hover **N tests** to check which inputs and configurations it includes. The [Available Tests](commit-page.mdx#available-tests) view lists the batches you can use, and lets you define your own.
@@ -48,9 +51,26 @@ To run a commit's code on other inputs, or with other parameters, open the commi
    - To just run the tests, without tuning, use the *no tuning* example.
 5. **Send**. The runs start as you (the "Will run as" tag), and a message confirms the request.
 
+<Shot
+  id="tuning/manual-form"
+  caption="A grid over two parameters of a detector: the form says how many runs it will start before you send."
+/>
+
+<Shot
+  id="tuning/auto-form"
+  caption="Automated tuning: the search space and the objective in YAML, the optimizer picks the parameters to try."
+/>
+
 Then select the new batch in the batch selector to follow it. When it's done:
 - compare it with the CI batch (see the [tip in Comparing results](comparing-results.mdx#picking-a-reference)),
 - open the **Analysis** view to see how metrics depend on the parameters, and the best parameters found by an automated tuning.
+
+Batches started from QA-Board are listed in the [Logs](commit-page.mdx#logs) view with the command QA-Board ran and its logs:
+
+<Shot
+  id="logs/batch-commands"
+  caption="The sweep started from QA-Board: its qa batch command and its own logs."
+/>
 
 :::tip
 Turn on **Overwrite previous identical runs** to redo runs that already exist with the same input, configuration and parameters. Otherwise they are kept and not run again.
@@ -66,7 +86,10 @@ Projects can add buttons to the sidebar's **Integrations** menu (hover it to ope
 - **GitLab CI manual jobs** and **Jenkins builds**: click to start them for this commit. A status tag shows whether the job is pending, running, successful or failed; click the tag to open the job's page and its logs. Once started, the icon changes to *repeat* so you can start it again.
 - **Webhooks** that call other tools, with a tag showing the response.
 
-<img alt="Triggering CI jobs from QA-Board" src={useBaseUrl('img/gitlab-jenkins.gif')} />
+<Shot
+  id="integrations/menu"
+  caption="Links to the project's reports and guides, and a webhook: after a click, its tag shows the job's status."
+/>
 
 Good to know:
 - On the commit list, integrations act on the branch you're looking at. On a commit page, on the selected commit and batch.

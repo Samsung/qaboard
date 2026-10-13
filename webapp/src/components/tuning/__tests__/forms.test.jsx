@@ -43,7 +43,7 @@ describe('TuningForm', () => {
       : json({}));
     renderWithProviders(
       <TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{ usr: 'usr.yaml' }}/>,
-      { user: { is_logged: true, user_name: 'alice' } },
+      { user: { is_logged: true, user_name: 'alice' }, siteConfig: {} },
     );
     expect(screen.getByDisplayValue('exp')).toBeInTheDocument();
     expect(await screen.findByText(/4 total runs/)).toBeInTheDocument();
@@ -64,6 +64,12 @@ describe('TuningForm', () => {
       overwrite: true,
       tuning_search: { search_type: 'grid', parameter_search: { a: [1, 2, 3] } },
     });
+  });
+
+  it('links to the docs of the site', () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
+    renderWithProviders(<TuningForm project="proj" config={{ inputs: {} }} metrics={metrics} commit={commit} available_tests_files={{}}/>, { siteConfig: { docs_root: '/qa/' } });
+    expect(screen.getByText(/get started with async runners/).closest('a')).toHaveAttribute('href', '/qa/docs/celery-integration');
   });
 
   it('opens the list of tests', async () => {

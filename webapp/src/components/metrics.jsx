@@ -17,7 +17,8 @@ import {
 import { MultiSelect } from "@blueprintjs/select";
 
 import { RunBadge } from "./tags";
-import { format, median, plotly_palette, match_query } from "../utils";
+import { format, plotly_palette, match_query } from "../utils";
+import { summary_outputs, metric_values, summary_stats } from "../utils/compare";
 
 
 
@@ -251,17 +252,6 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
   );
 };
 
-const pc_under_threshold = (array, threshold) => {
-  if (threshold === null || threshold === undefined)
-    return 0
-  return array.filter(x => x <= threshold).length / array.length;
-};
-const pc_over_threshold = (array, threshold) => {
-  if (threshold === null || threshold === undefined)
-    return 0
-  return array.filter(x => x >= threshold).length / array.length;
-};
-
 const disable_axe = {
   fixedrange: true,
   zeroline: false,
@@ -358,6 +348,8 @@ const tags_breakdown = outputs => {
   return { tags, outputs_by_tag };
 };
 
+const no_runs = { outputs: {}, filtered: { outputs: [] } };
+
 const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: xaxis_labels_, metrics, selected_metrics: selected_metrics_ }) => {
   const { available_metrics = {}, summary_metrics = [] } = metrics ?? {};
   // By default we show the metrics we were given, or the project's summary metrics.
@@ -370,18 +362,11 @@ const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: 
   const selected_metrics = selected_keys.map(k => available_metrics[k]).filter(Boolean);
   const setSelectedKeys = keys => setUserSelection({ default_signature, keys });
 
-  const outputs_new = useMemo(() => (new_batch?.filtered?.outputs ?? [])
-    .map(id => new_batch.outputs[id])
-    .filter(o => !o.is_pending && o.output_type !== "optim_iteration"),
-  [new_batch]);
-  // we only show ref outputs with a matching input
-  // it's debatable, maybe we should show all, or filter also on tuning params...
-  const outputs_ref = useMemo(() => {
-    const inputs_new = new Set(outputs_new.map(o => o.test_input_path));
-    return (ref_batch?.filtered?.outputs ?? [])
-      .map(id => ref_batch.outputs[id])
-      .filter(o => inputs_new.has(o.test_input_path) && !o.is_pending);
-  }, [outputs_new, ref_batch]);
+  // The same runs as GET /api/v1/commit/<sha>/compare, see utils/compare.js
+  const { outputs_new, outputs_ref } = useMemo(
+    () => new_batch?.filtered ? summary_outputs(new_batch, ref_batch?.filtered ? ref_batch : no_runs) : { outputs_new: [], outputs_ref: [] },
+    [new_batch, ref_batch],
+  );
   const { tags, outputs_by_tag } = useMemo(
     () => breakdown_by_tag ? tags_breakdown(outputs_new) : { tags: {}, outputs_by_tag: {} },
     [breakdown_by_tag, outputs_new],
@@ -473,21 +458,11 @@ const breakdown_layout = {
 
 const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, xaxis_labels }) => {
   const breakdown_by_tag = outputs_by_tag !== undefined;
-  const new_values = outputs_new
-    .map(o => o.metrics[m.key])
-    .filter(x => x !== undefined && typeof x !== 'string')
-    .map(o => 1 * o);
+  // The same numbers as GET /api/v1/commit/<sha>/compare, see utils/compare.js
+  const new_values = metric_values(outputs_new, m.key);
   if (new_values.length === 0) return null;
-  const ref_values = outputs_ref.map(o => o.metrics[m.key]).filter(v => v !== undefined && v !== null && typeof v !== 'string');
-  const new_med = median(new_values);
-  const ref_med = median(ref_values);
-  const new_pc_good = m.smaller_is_better
-    ? pc_under_threshold(new_values, m.target)
-    : pc_over_threshold(new_values, m.target);
-  const ref_pc_good = m.smaller_is_better
-    ? pc_under_threshold(ref_values, m.target)
-    : pc_over_threshold(ref_values, m.target);
-  const delta_relative = (new_med - ref_med) / ref_med;
+  const ref_values = metric_values(outputs_ref, m.key);
+  const { new_med, ref_med, delta_relative, new_pc_good, ref_pc_good } = summary_stats(new_values, ref_values, m);
   const intent = delta_intent(delta_relative, m.smaller_is_better);
 
   return (

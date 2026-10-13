@@ -1,0 +1,21 @@
+available_metrics:
+  score:
+    label: Score
+    smaller_is_better: false
+    target: 10
+  noise:
+    label: Noise
+    suffix: ' DN'
+    smaller_is_better: true
+  runtime:
+    label: Runtime
+    suffix: ' s'
+    smaller_is_better: true
+  is_failed:
+    label: Crashed
+    suffix: '%'
+    scale: 100
+    target: 0
+default_metric: score
+summary_metrics: [score, noise]
+main_metrics: [score, noise, runtime]

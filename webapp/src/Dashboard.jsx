@@ -131,6 +131,7 @@ const Dashboard = () => {
       <Section>
         <Card>
           <h2 className={Classes.HEADING}>Metrics per-test</h2>
+          {/* Named like the views of the commit pages */}
           <Tabs
             renderActiveTabPanelOnly
             id="tabs-outputs"
@@ -139,7 +140,7 @@ const Dashboard = () => {
           >
             <Tab
               id="table-kpi"
-              title="vs KPI"
+              title="Metrics Table"
               panel={
                 <TableKpi
                   new_batch={new_batch}
@@ -153,7 +154,7 @@ const Dashboard = () => {
             {has_reference && (
               <Tab
                 id="table-compare"
-                title="vs reference"
+                title="Metrics Diff"
                 panel={
                   <TableCompare
                     new_batch={new_batch}

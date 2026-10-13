@@ -204,7 +204,7 @@ const UserMenu = ({ user, logout, avatar_url_template }) => {
           <UserMenuTrigger>
             <Avatar 
               src={avatarUrl}
-              alt={display_name}
+              name={display_name}
               size="28px"
             />
             <span className="user-display">{display_name}</span>
@@ -233,7 +233,7 @@ const UserMenu = ({ user, logout, avatar_url_template }) => {
           <UserProfileHeader>
             <Avatar 
               src={avatarUrl}
-              alt={display_name}
+              name={display_name}
               size="36px"
             />
             <UserInfo>

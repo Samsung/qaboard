@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fixture: OpenSeadragon</title>
+  <style>
+    body { margin: 0; padding: 16px; font-family: Roboto, sans-serif; display: flex; gap: 16px; }
+    .viewer { width: 640px; height: 420px; background: #111418; }
+  </style>
+  <script src="/vendor/openseadragon.min.js"></script>
+</head>
+<body>
+  <div id="new" class="viewer"></div>
+  <div id="ref" class="viewer"></div>
+  <script>
+    // Like the web app's image viewer (webapp/src/viewers/images/images.jsx): two IIIF viewers, synced
+    const options = id => ({
+      id,
+      prefixUrl: '',
+      showNavigationControl: false,
+      animationTime: 1.2,
+      springStiffness: 6,
+      immediateRender: false,
+      tileSources: `/iiif/2/${id}/info.json`,
+    });
+    window.viewers = [OpenSeadragon(options('new')), OpenSeadragon(options('ref'))];
+    window.fullyLoaded = () => window.viewers.every(v => v.world.getItemCount() > 0 && v.world.getItemAt(0).getFullyLoaded());
+    // the first viewer zooms in after it opens, like a URL with a viewport: more tiles, while springs animate
+    window.viewers[0].addOnceHandler('open', () => {
+      setTimeout(() => {
+        for (const v of window.viewers) v.viewport.zoomTo(3, new OpenSeadragon.Point(0.3, 0.2));
+      }, 300);
+    });
+  </script>
+</body>
+</html>

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import copy from 'copy-to-clipboard';
 
 import { http, errorMessage } from "../api/http";
 import { linux_to_windows, are_on_same_filesystem, extract_drive_and_folder } from '../utils'
@@ -16,6 +15,7 @@ import {
 } from "@blueprintjs/core";
 
 import { toaster } from "../toaster"
+import { copyWithToast } from "../utils/clipboard"
 
 
 // By default we export the files of the first visualization
@@ -65,7 +65,7 @@ const ExportPlugin = props => {
     http.get('/api/v1/export/', { params })
       .then(({ data }) => {
         const windows_export_dir = linux_to_windows(data.export_dir);
-        copy(windows_export_dir);
+        copyWithToast(windows_export_dir, { what: 'the export directory' });
         setLoading(false);
         setResult({
           linux_export_dir: data.export_dir,
@@ -73,10 +73,6 @@ const ExportPlugin = props => {
           nb_files_exported: data.nb_files_exported,
           nb_outputs_exported: data.nb_outputs,
           errors: data.errors ?? no_errors,
-        });
-        toaster.show({
-          message: "Export directory copied to clipboard!",
-          intent: Intent.SUCCESS,
         });
       })
       .catch(error => {

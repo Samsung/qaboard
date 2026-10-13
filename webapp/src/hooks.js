@@ -37,7 +37,9 @@ export function useProjectData(project) {
   const is_favorite = usePrefsStore(state => !!state.favorites[project]);
   const milestones = usePrivateMilestones(project);
   return useMemo(() => {
-    const base = from_project ?? from_list ?? {};
+    // The list of projects has their dates and number of commits, and only qaboard.yaml's `project` from their
+    // configuration; /api/v1/project has their whole configuration and metrics.
+    const base = { ...from_list, ...from_project, data: { ...from_list?.data, ...from_project?.data } };
     return {
       ...default_project,
       ...base,
@@ -88,9 +90,12 @@ export function useRefreshCommit() {
 }
 
 
-const aggregation_metrics = (qatools_metrics, { dashboard }) => {
-  const { available_metrics = {}, main_metrics = [], dashboard_metrics } = qatools_metrics ?? {};
-  const keys = dashboard ? (dashboard_metrics ?? main_metrics) : main_metrics;
+// The metrics the commits endpoint aggregates per batch (median, average), with their targets:
+// History's (dashboard_metrics), else the default and main metrics, which the commit list and the branch's chart show.
+// Metrics without a target need one: JSON leaves out undefined values, and the server would not aggregate them.
+export const aggregation_metrics = (qatools_metrics, { dashboard = false } = {}) => {
+  const { available_metrics = {}, default_metric, main_metrics = [], dashboard_metrics } = qatools_metrics ?? {};
+  const keys = dashboard ? (dashboard_metrics ?? main_metrics) : [default_metric, ...main_metrics];
   return Object.fromEntries(keys
     .filter(m => available_metrics[m] !== undefined)
     .map(m => [m, available_metrics[m].target ?? 0]));
@@ -103,13 +108,16 @@ const has_batches = c => Object.keys(c.batches ?? {}).length > 0;
 function useCommitsListState(selected, project_data, { enabled, refetchInterval }) {
   const { project, branch, committer, date_range, route, selected_batch_new } = selected;
   const dashboard = route.is_history;
-  // On branches, metrics can differ from the project's: once we know the latest commit, we ask for its metrics.
+  // On branches, metrics can differ from the project's: once we know the latest commit, we ask once more with its metrics.
   const [branch_metrics, setBranchMetrics] = useState({ key: null, qatools_metrics: undefined });
   const list_key = `${project}|${branch}`;
-  const qatools_metrics = (branch && branch_metrics.key === list_key && branch_metrics.qatools_metrics) || project_data.data?.qatools_metrics;
+  const known_branch_metrics = branch && branch_metrics.key === list_key ? branch_metrics.qatools_metrics : undefined;
+  const project_metrics = project_data.data?.qatools_metrics;
+  // History picks its metrics and loads every run: asking again with the latest commit's would load them twice
+  const requested_metrics = (!dashboard && known_branch_metrics) || project_metrics;
   const metrics = useMemo(
-    () => aggregation_metrics(qatools_metrics, { dashboard }),
-    [qatools_metrics, dashboard],
+    () => aggregation_metrics(requested_metrics, { dashboard }),
+    [requested_metrics, dashboard],
   );
   const params = {
     project,
@@ -127,8 +135,10 @@ function useCommitsListState(selected, project_data, { enabled, refetchInterval 
   const default_branch = project_data.data?.git?.default_branch ?? project_data.data?.qatools_config?.project?.reference_branch;
   const { data, isPlaceholderData } = query;
   const latest_metrics = branch && !isPlaceholderData ? data?.[0]?.data?.qatools_metrics : undefined;
-  if (latest_metrics && (branch_metrics.key !== list_key || branch_metrics.qatools_metrics !== latest_metrics))
+  // once per branch, even if its latest commit's metrics keep changing
+  if (latest_metrics && branch_metrics.key !== list_key)
     setBranchMetrics({ key: list_key, qatools_metrics: latest_metrics });
+  const qatools_metrics = latest_metrics ?? known_branch_metrics ?? project_metrics;
   // Thanks to TanStack Query's structural sharing, refetches that bring nothing new keep the same arrays
   const derived = useMemo(() => {
     const all = data ?? [];

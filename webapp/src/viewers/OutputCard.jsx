@@ -20,7 +20,6 @@ import {
   MenuDivider,
   PopoverInteractionKind,
 } from "@blueprintjs/core";
-import copy from 'copy-to-clipboard'
 
 import { OutputViewer } from "./OutputViewer";
 import { MetricsTags } from "../components/metrics";
@@ -33,7 +32,7 @@ import { output_files_stale_time, invalidateOutputFiles } from "../api/queries";
 import { parse_query, path_segment, stringify_query } from "../selection";
 import { linux_to_windows, is_same_data } from '../utils'
 import { is_image } from "./images/utils"
-import { toaster } from "../toaster"
+import { copyWithToast } from "../utils/clipboard"
 import {
   parseVisualizationOptions,
   calculateOptionValues,
@@ -43,13 +42,9 @@ import {
 } from "../utils/dynamicOptions"
 
 
-const on_copy = e => {
-  const text = e.target.textContent
-  copy(text)
-  toaster.show({
-    message: <span className={Classes.TEXT_OVERFLOW_ELLIPSIS}><strong>Copied:</strong> {text}</span>,
-  });
-}
+const on_copy = text => () => copyWithToast(text, {
+  message: <span className={Classes.TEXT_OVERFLOW_ELLIPSIS}><strong>Copied:</strong> {text}</span>,
+})
 
 
 const manifest_url = (output, { refresh = false } = {}) => (output?.is_running || refresh)
@@ -176,16 +171,16 @@ const OutputHeader = ({ project, commit, output, output_ref, type, manifests, st
   const popover_content = <Menu>
     {!!output.data?.batch && <>
       <MenuDivider key={"Batch"} title="Batch" />
-      <MenuItem key="batch" text={output.data.batch} icon="group-objects" onClick={on_copy} />
+      <MenuItem key="batch" text={output.data.batch} icon="group-objects" onClick={on_copy(output.data.batch)} />
     </>}
     {!!output.test_input_database && <>
       <MenuDivider key={"Database"} title="Database" />
-      <MenuItem key="database-linux" text={output.test_input_database} icon="duplicate" onClick={on_copy} />
-      <MenuItem key="database-windows" text={linux_to_windows(output.test_input_database)} icon="duplicate" onClick={on_copy} />
+      <MenuItem key="database-linux" text={output.test_input_database} icon="duplicate" onClick={on_copy(output.test_input_database)} />
+      <MenuItem key="database-windows" text={linux_to_windows(output.test_input_database)} icon="duplicate" onClick={on_copy(linux_to_windows(output.test_input_database))} />
     </>}
     {!!output.test_input_path && <>
       <MenuDivider key={"Input path"} title="Input path" />
-      <MenuItem key="input-linux" text={output.test_input_path} icon="duplicate" onClick={on_copy} />
+      <MenuItem key="input-linux" text={output.test_input_path} icon="duplicate" onClick={on_copy(output.test_input_path)} />
     </>}
     {has_metadata && <>
       <MenuDivider key={"Properties"} title="Properties" />
@@ -534,6 +529,7 @@ const OutputCard = memo(function OutputCard(props) {
       output_new={output_new}
       output_ref={output_ref}
       manifests={manifests}
+      config={config}
       style={style}
       show_all_files={show_all_files}
       hide_runs_without_files={hide_runs_without_files}

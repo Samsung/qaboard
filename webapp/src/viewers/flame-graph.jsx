@@ -12,6 +12,7 @@ import {
 } from "@blueprintjs/core";
 import { select } from 'd3-selection'
 import * as flameGraph from 'd3-flame-graph';
+import { forEachInTree, selfDelta } from './flameDeltas';
 
 import { errorMessage } from "../api/http";
 import { fileQuery } from "../api/queries";
@@ -73,6 +74,9 @@ const FlameGraphComponent = ({ data, title, differential = false }) => {
                                .onClick(frame => { if (frame.parent) setZoomed(true) })
                                .computeDelta(differential)
                                .inverted(true) // icicle plot
+    // red for frames that take more time, blue for less, orange for new ones
+    if (differential)
+      instance.setColorMapper(flameGraph.differentialColorMapper)
     // d3-flame-graph writes in the data (e.g. to hide frames when zooming), we give it a copy
     select(container.current).datum(structuredClone(data)).call(instance);
     instance.setDetailsElement(legend.current);
@@ -110,27 +114,19 @@ const FlameGraphComponent = ({ data, title, differential = false }) => {
 }
 
 
-// Walk depth first, starting by the root
-const forEachInTree = (tree, callback, id) => {
-  if (tree === undefined || tree === null)
-    return;
-  const current_id = `${id ?? ''}/${tree.name}`
-  callback(tree, current_id)
-  tree.children?.forEach(t => forEachInTree(t, callback, current_id))
-}
-
 const index_tree = tree => {
   const map = {};
   forEachInTree(tree, (node, id) => map[id] = node);
   return map;
 }
 
-// A copy of the tree, where each frame's delta is its value minus its value in the other tree
+// A copy of the tree, where each frame's delta is its self delta versus the other tree:
+// d3-flame-graph's computeDelta adds up the children's deltas
 const with_deltas = (tree, map_other, invert, id) => {
   if (tree === undefined || tree === null)
     return tree;
   const current_id = `${id ?? ''}/${tree.name}`
-  const delta = tree.value - (map_other[current_id]?.value || 0);
+  const delta = selfDelta(tree, map_other[current_id]);
   return {
     ...tree,
     delta: invert ? -delta : delta,

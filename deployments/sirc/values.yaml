@@ -1,7 +1,7 @@
 # QA-Board on kubernetes at SIRC (helm chart: charts/qaboard)
 #   helm upgrade --install qaboard charts/qaboard -n qaboard -f deployments/sirc/values.yaml \
 #        --set image.version=<commit> --atomic --wait --timeout 15m
-# Runbook: website/docs/backend-admin/kubernetes.mdx
+# Runbook: deployments/sirc/runbooks/kubernetes.md
 #
 # TODO(sirc) marks what we need from IT / what is still specific to the docker hosts.
 # Translated from deployments/sirc/sirc.yml and prod.yml
@@ -117,7 +117,7 @@ ingress:
   # TODO(sirc): the ingress class and hostname IT gives us. Users and the CLI use https://qa: keep it as a DNS alias.
   className: ""
   host: qa
-  # The certificate from IT (website/docs/backend-admin/getting-SSL-certificates-from-IT.mdx):
+  # The certificate from IT (deployments/sirc/runbooks/ssl-certificates.md):
   #   kubectl -n qaboard create secret tls qaboard-tls --cert=cert.pem --key=qa.key
   tls:
     - secretName: qaboard-tls

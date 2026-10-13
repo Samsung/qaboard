@@ -17,6 +17,7 @@ import { useViewerControls } from "./viewers/controls";
 import { BitAccuracyForm, bit_accuracy_url_defaults } from "./viewers/bit_accuracy/utils";
 import { is_image } from "./viewers/images/utils"
 import { hash_color, match_query, average, median, matching_output } from "./utils";
+import { yAxisSuffix } from "./evolutionAxis";
 import CommitRow from "./components/CommitRow";
 
 
@@ -223,7 +224,7 @@ const make_layout = ({ metric = {}, aggregation, relative, hovered_commit, hover
     height: !!aggregation ? 180 : 250,
     yaxis: {
       ...default_layout.yaxis,
-      ticksuffix: metric.suffix || '',
+      ticksuffix: yAxisSuffix(metric, relative),
       showticksuffix: 'last',
       type: metric.plot_scale || 'linear',
     },
