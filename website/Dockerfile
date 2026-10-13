@@ -46,6 +46,7 @@ RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
     yarn install --frozen-lockfile --network-timeout 100000
 # The files outside website/ keep their place relative to it (/website/../charts/...)
 COPY charts/ /charts/
+COPY deployments/quickstart/compose.yml /deployments/quickstart/compose.yml
 COPY examples/ /examples/
 COPY docs-media/shots.yaml /docs-media/shots.yaml
 COPY website/ ./
