@@ -223,6 +223,11 @@ jobs:
             git push origin "HEAD:$BRANCH"
           fi
           # one gallery comment per pull request, updated by each run
+          # (none when no shot was captured, e.g. the affected shots have no spec yet)
+          if [ ! -f docs-media/out/gallery.md ]; then
+            echo "::notice::No shot was captured: no gallery to comment"
+            exit 0
+          fi
           gh pr comment "$PR" --edit-last --body-file docs-media/out/gallery.md 2>/dev/null \
             || gh pr comment "$PR" --body-file docs-media/out/gallery.md
 
