@@ -281,6 +281,9 @@ def _generate_batch_script(ci_commit, user, working_directory, command_id, batch
         f'cd {quote(str(working_directory))};\n\n',
         f"\nexport CI=true;\n",
         f"\nexport GIT_COMMIT={quote(ci_commit.hexsha)};\n",
+        # the runs are the logged-in user's
+        f"export QA_USER={quote(user)};\n",
+
         f"export QABOARD_TUNING=true;\n\n",
         f"export QA_OUTPUTS_COMMIT={quote(outputs_dir_prefix)};\n\n",
         f"export QATOOLS_CI_COMMIT_DIR={quote(str(ci_commit.outputs_dir))};\n\n",
