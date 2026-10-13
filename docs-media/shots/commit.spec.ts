@@ -30,12 +30,35 @@ async function showCard(ui: Ui, index = 0, top = 160) {
   await ui.settle();
 }
 
+// An element's box once it stopped moving. Hovering an image shows the hovered pixel's values above the images, which
+// pushes them down: measured before, a point on the image would land elsewhere, depending on timing.
+async function stableBox(target: Locator) {
+  let previous = await target.boundingBox();
+  for (let i = 0; i < 20; i++) {
+    await target.page().waitForTimeout(150);
+    const box = await target.boundingBox();
+    if (box && JSON.stringify(box) === JSON.stringify(previous)) return box;
+    previous = box;
+  }
+  if (!previous) throw new Error(`[commit.spec] ${target} has no box`);
+  return previous;
+}
+
+// Hovers a point of the new image, given in % of its box, once the images stopped moving
+async function hoverImage(ui: Ui, scope: Page | Locator, at: { x: number; y: number }) {
+  const image = newImage(scope);
+  const position = async () => {
+    const box = await stableBox(image);
+    return { x: (box.width * at.x) / 100, y: (box.height * at.y) / 100 };
+  };
+  await ui.hover(image, { position: await position() });
+  return position();
+}
+
 // Zooms the synced viewers with the mouse wheel, at a point of the new image given in % of its box
 async function zoom(ui: Ui, scope: Page | Locator, at: { x: number; y: number }, steps: number) {
-  const image = newImage(scope);
-  const box = await image.boundingBox();
-  if (!box) throw new Error('[commit.spec] the new image has no box');
-  await ui.wheel(image, -100 * steps, { steps, position: { x: (box.width * at.x) / 100, y: (box.height * at.y) / 100 } });
+  const position = await hoverImage(ui, scope, at);
+  await ui.wheel(newImage(scope), -100 * steps, { steps, position });
   await ui.settle();
 }
 
@@ -138,10 +161,8 @@ shot('commit/pixel-tooltip', {
   actions: async ui => {
     await showCard(ui);
     await preset(ui, viewer(ui.page), 'Center (aliasing)');
-    const image = newImage(viewer(ui.page));
-    const box = await image.boundingBox();
     // on a spoke's edge, where the denoisers differ
-    await ui.hover(image, { position: { x: box!.width * 0.21, y: box!.height * 0.3 } });
+    await ui.hover(newImage(viewer(ui.page)), { position: await hoverImage(ui, viewer(ui.page), { x: 21, y: 30 }) });
     await ui.settle();
   },
   target: page => [pixelValues(viewer(page)), imageRow(viewer(page))],
@@ -161,10 +182,12 @@ shot('commit/roi-histograms', {
     const scope = viewer(ui.page);
     await showCard(ui);
     await preset(ui, scope, 'Full Image');
-    await ui.hover(newImage(scope));
+    await hoverImage(ui, scope, { x: 50, y: 50 });
     await ui.click(scope.locator('[title="Select a region to see its histogram"]').first());
-    // a band of the sky, where the gradient's banding shows
-    const box = (await newImage(scope).boundingBox())!;
+    // a band of the sky, where the gradient's banding shows. On the tool's button, the pixel values went away: back on
+    // the image, they show again and push the images down, before the drag starts
+    await hoverImage(ui, scope, { x: 20, y: 15 });
+    const box = await stableBox(newImage(scope));
     await ui.drag({ x: box.x + box.width * 0.2, y: box.y + box.height * 0.15 }, { x: box.x + box.width * 0.6, y: box.y + box.height * 0.45 });
     await mouseAway(ui);
     await ui.settle();
@@ -220,7 +243,7 @@ shot('commit/image-filters', {
     const scope = viewer(ui.page);
     await showCard(ui);
     await preset(ui, scope, 'Shadows (noise)');
-    await ui.hover(newImage(scope));
+    await hoverImage(ui, scope, { x: 50, y: 50 });
     await ui.click(scope.locator('[title="Image Tools"]').first());
     // the new image's tools (the reference viewer has its own, synced)
     const tools = ui.page.locator('[id^="osd-imagetools-"]').first();
@@ -231,8 +254,7 @@ shot('commit/image-filters', {
     await slider('Gamma').focus();
     for (let i = 0; i < 8; i++) await ui.press('ArrowLeft');
     await ui.settle();
-    const box = (await newImage(scope).boundingBox())!;
-    await ui.hover(newImage(scope), { position: { x: box.width * 0.6, y: box.height * 0.45 } });
+    await ui.hover(newImage(scope), { position: await hoverImage(ui, scope, { x: 60, y: 45 }) });
     await ui.settle();
     // back on the button: the panel and the viewer's buttons hide when the mouse leaves the image
     await ui.hover(scope.locator('[title="Image Tools"]').first());
@@ -276,9 +298,14 @@ clip('commit/image-diff', {
   alt: 'Zooming into the new image of the facade, the reference follows; the Controls panel opens and Image Diff turns '
     + 'on; raising the threshold leaves only the window frame\'s halos.',
   caption: 'Synced zoom, then Image Diff and its threshold.',
+  // While the Controls panel is open, its text lands 1 pixel apart in about a third of the recordings (0.27-0.30% of
+  // the frames differ, cause unknown): docs-media/README.md#known-issues
+  dedupeTolerance: 0.005,
   actions: async ui => {
     await showCard(ui);
     await preset(ui, viewer(ui.page), 'Window frame (halos)');
+    // the pixel values show above the images from the first hover on: not while recording, they'd push them down
+    await hoverImage(ui, viewer(ui.page), { x: 50, y: 50 });
     await mouseAway(ui);
   },
   script: async ui => {
@@ -313,6 +340,9 @@ clip('commit/deep-zoom', {
   actions: async ui => {
     await showCard(ui);
     await preset(ui, viewer(ui.page), 'Full Image');
+    // the pixel values show above the images from the first hover on: not while recording, they'd push them down
+    await hoverImage(ui, viewer(ui.page), { x: 50, y: 50 });
+    await mouseAway(ui);
   },
   script: async ui => {
     const scope = viewer(ui.page);

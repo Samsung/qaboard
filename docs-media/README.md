@@ -123,7 +123,7 @@ uv run docs-media/publish.py --only 'commit/*,cli/*' --dry-run   # encode, check
 - **`out/<area>/<subject>/meta.json`** is what `publish.py` reads: `id`, `kind`, `width`/`height` (CSS px of the
   shot), `scale`, `alt`, `caption`, `project`, `app_version`, `source_spec`, `captured` (ISO time), `t0`,
   `dedupe_tolerance`, `anchors`, `files`; clips add `region` (their box in the viewport, CSS px), `duration`, `frames`,
-  `poster`, `loop`; tapes add `duration`, `poster`.
+  `poster`, `loop`; tapes add `duration`, `poster`, `dedupe_mask`.
 - `npm test` in `shots/` runs the lib's own tests on fixture pages (an OpenSeadragon viewer on a slow fake IIIF server,
   Plotly redraws, spinners, a page to click, type, wheel and drag on), without the demo stack.
   `uv run docs-media/test_publish.py` tests `publish.py` on synthetic captures.
@@ -149,6 +149,21 @@ The one exception is `landing/social-card`: a spec renders an HTML template (log
 - **Recording:** the CDP screencast (`Page.startScreencast`, JPEG quality 92, every frame), not Playwright's video,
   which is too blurry. Frames arrive only when the page repaints, each with a timestamp: `record.ts` writes
   `out/<id>/frames/NNNNN.jpg` and an ffmpeg concat list with each frame's duration.
+- **Only scripted time is recorded**, so a clip lasts the same and shows the same frames whatever the server's latency
+  or the machine's speed (two recordings on one snapshot dedupe as unchanged):
+  - the clip's clock runs only in the script's scripted time: cursor moves (a point per frame of the clip, 30 fps), the
+    pauses in clicks (120 ms before, 70 ms pressed, 150 ms after), key presses (150 ms), wheel steps (70 ms), typing
+    (60 ms per key) and `ui.hold(ms)` (`Recorder.roll()`);
+  - everything else is cut out: the page handling an input, the waits (`ui.settle()`, `ui.tiles()`, `ui.plots()`, and
+    the one after each click, key press and wheel step), and any request the page starts during scripted time (a
+    debounced fetch, tiles): the clock stops until it's done and drawn. Only the last frame before the clock runs
+    again is kept: what an action does appears at once, loaded, without spinners;
+  - the page's own time follows the clip's: `page.clock` is paused, and advanced in step with the clip's clock
+    (timers, `Date`, `requestAnimationFrame`, aligned on its 16 ms frames), so debounces and fades take the same clip
+    time in every recording. Waits run it in real time (at least 400 ms: what an action started with a delay is done).
+    CSS and Web animations (and the click ripples) are paused outside scripted time; CSS transitions are finished;
+  - `SHOTS_DEBUG=1` writes `out/<id>/timeline.json`: every frame's timestamp, the stretches of scripted time, the
+    frames kept.
 - **Encoding** (in `publish.py`): resample to constant 30 fps, scale to at most 1920 px wide.
   - MP4: H.264 High, `-crf 26 -preset slow -pix_fmt yuv420p -movflags +faststart`, no audio track.
   - WebM: VP9, `-crf 36 -b:v 0 -row-mt 1 -cpu-used 2` (the default `-cpu-used 0` takes minutes per clip), no audio track.
@@ -156,14 +171,16 @@ The one exception is `landing/social-card`: a spec renders an HTML template (log
 - **Cursor:** a fake cursor (SVG arrow, injected by `addInitScript`) moves along eased paths; clicks show a ripple.
   It is burned into the video. Stills never show it. The real mouse follows the same path, so hovers happen.
 - **Captions** are not burned in: each `ui.caption(text)` adds a WebVTT cue (`out/<id>/captions.vtt`) starting at that
-  moment. `<Clip>` overlays the current cue and adds a `<track kind="captions">`. Keep cues under 60 characters.
+  moment of the clip. `<Clip>` overlays the current cue and adds a `<track kind="captions">`. Keep cues under 60
+  characters.
 
 ### Terminal tapes
 - [charmbracelet/vhs](https://github.com/charmbracelet/vhs) 0.11.0 (`install-tools.sh`; 0.12 writes no video), with
   ttyd, ffmpeg and a Chromium. `uv run docs-media/tapes/record.py [--only GLOB]` runs VHS from `docs-media/`, then
   writes `meta.json`. File `tapes/<area>-<subject>.tape` makes shot `<area>/<subject>`.
 - Each tape starts with `# key: value` lines: `alt` (required), `caption`, `project`, `user` (the persona, default
-  `ines`), `env` (extra `KEY=VALUE`s, e.g. CI variables), `poster`, `dedupe_tolerance`.
+  `ines`), `env` (extra `KEY=VALUE`s, e.g. CI variables), `poster`, `dedupe_tolerance`, `dedupe_mask` (rectangles
+  `x,y,w,h` of the video, in pixels, separated by spaces, that dedupe ignores: what the commands measure, like times).
 - Then the shared settings, `Source "tapes/_settings.tape"`: `Set Shell bash`, `Set FontFamily "JetBrains Mono"`,
   `Set FontSize 18`, `Set Width 1280`, `Set Height 720`, `Set Padding 24`, `Set Framerate 30`, `Set TypingSpeed 35ms`,
   and a theme from Blueprint's dark palette. Then `Output out/<area>/<subject>/tape.mp4` and `tape.webm`.
@@ -212,9 +229,9 @@ export interface Demo {
 export interface Ui {
   page: Page;
   demo: Demo;
-  settle(opts?: { timeout?: number }): Promise<void>;  // the default wait, see Determinism
-  tiles(opts?: { timeout?: number }): Promise<void>;   // OpenSeadragon images fully loaded
-  plots(opts?: { timeout?: number }): Promise<void>;   // Plotly graphs drawn and quiet
+  settle(opts?: { timeout?: number }): Promise<void>;  // the default wait, see Determinism; not recorded in clips
+  tiles(opts?: { timeout?: number }): Promise<void>;   // OpenSeadragon images fully loaded; not recorded in clips
+  plots(opts?: { timeout?: number }): Promise<void>;   // Plotly graphs drawn and quiet; not recorded in clips
   hover(target: Locator, opts?: { position?: { x: number; y: number } }): Promise<void>;
   click(target: Locator, opts?: { modifiers?: Array<'Control' | 'Shift' | 'Meta'>; position?: { x: number; y: number } }): Promise<void>;
   type(target: Locator, text: string, opts?: { delayMs?: number }): Promise<void>;   // default 60 ms per key in clips
@@ -226,7 +243,7 @@ export interface Ui {
     hide(): Promise<void>;
   };
   caption(text: string, opts?: { durationMs?: number }): Promise<void>;  // WebVTT cue; ends at the next cue or after durationMs
-  hold(ms: number): Promise<void>;                     // let the viewer read; recorded as-is in clips
+  hold(ms: number): Promise<void>;                     // let the viewer read; in clips, ms of the clip
   anchor(name: string, target: Locator): Promise<void>; // records target's box, in % of the shot, for <Shot callouts>
 }
 
@@ -242,7 +259,7 @@ export interface ShotOptions {
   viewport?: { width: number; height: number };        // default 1440x900
   storage?: Record<string, string>;                    // localStorage entries, merged over the defaults
   login?: string | null;                               // persona logged in (password kitefin-demo); default: the project's main author
-  dedupeTolerance?: number;                            // share of differing pixels still "unchanged", default 0.0005
+  dedupeTolerance?: number;                            // share of differing pixels still "unchanged", default 0.0005 (clips 0.002)
 }
 
 export interface ClipOptions extends Omit<ShotOptions, 'target'> {  // actions: set the scene before recording, not drawn
@@ -290,7 +307,7 @@ shot('commit/pixel-tooltip', {
 - **Clock:** `page.clock.install({ time: T0 })` then `page.clock.resume()`: time starts at T0 and flows normally.
   Don't use `setFixedTime`: OpenSeadragon's springs and Plotly transitions read `Date.now()` and stall on a frozen clock.
   Stories keep the newest data at least 10 minutes before T0, so relative times ("12 minutes ago") don't flip while
-  recording.
+  recording. While a clip records, the page's clock follows the clip's instead ([Clips](#clips)).
 - **Rendering:** Chromium from the pinned Playwright image; viewport 1440x900 at scale 2; `locale: 'en-US'`,
   `timezoneId: 'UTC'`, `colorScheme: 'light'`; `reducedMotion: 'reduce'` for stills.
   Fonts are pinned: Chromium and VHS only see [`fonts.conf`](fonts.conf) (`FONTCONFIG_FILE`): Roboto, DejaVu Sans
@@ -315,20 +332,37 @@ shot('commit/pixel-tooltip', {
 - **Masks:** only for what is truly volatile (a live log's elapsed time, a running batch's spinner). Never mask data.
   Masked elements are hidden (`visibility: hidden`), so what's behind them shows, and spinners in them don't block
   `settle()`.
-- **No churn:** `publish.py` keeps the published file when the new capture is within the dedupe tolerance.
+- **Layout shifts:** hovering an image the first time shows the hovered pixel's values above the images, which pushes
+  them 18 px down. A point measured before would land elsewhere, depending on timing: `commit.spec.ts` hovers with
+  `hoverImage()`, which measures the image once it stopped moving (`stableBox()`), and clips hover the images in their
+  `actions`, so that the shift isn't recorded.
+- **Mouse wheel:** OpenSeadragon ignores a wheel event less than 50 ms after the last one it zoomed for
+  (`minScrollDeltaTime`): `ui.wheel()` waits 80 ms between steps in stills (it waited 30 ms: steps were dropped or not
+  depending on the machine's speed), and the page settles after each step in clips.
+- **Clips** only record scripted time ([Clips](#clips)): the same snapshot gives the same duration (±20 ms) and the same
+  frames. What's left: in a cursor move, a frame can show what the page drew for the previous point of the path (the
+  hovered pixel's values: up to 0.11% of a frame compared at half size), so clips default to a `dedupeTolerance` of
+  0.002.
+- **Tapes:** the commands run for real, so what they measure changes with every run (`qa run` prints each stage's time
+  and the runtime): a tape's `dedupe_mask` hides those rectangles from the comparison, and `Hide`/`Show` around a
+  `Wait` cuts a command's run time out of the video (its output appears at once).
+- **No churn:** `publish.py` keeps the published file when the new capture is within the dedupe tolerance. Two captures
+  on one snapshot, with one stack, dedupe as unchanged (the 12 phase 1 media, checked locally): compare captures from
+  the same machine, never a local capture with one from Actions (different host rendering).
 
 ### Known issues
 - The image viewer's **Sharpen** filter draws seams at the borders of the tiles (it filters each tile on its own):
   `commit/image-filters` uses brightness and gamma only.
 - The **histograms** of a selected region (`commit/roi-histograms`) are computed from the rendered canvas, at whatever
-  resolution the tiles have loaded: they vary slightly between captures, and so does the shot.
-- **Clips never dedupe**: they record the waits (`settle()`, tiles loading) in real time, so their length varies by
-  about 2 s between runs (`commit/deep-zoom`: 14.8 s, then 12.6 s on the same snapshot), over `DURATION_TOLERANCE`.
-  Every run that captures them uploads them again (about 2.5 MB) and changes `media.json`. The fix is to cut the waits
-  out of the recording.
-- **`commit/image-sbs`** alternates between two captures of the same data, the images about half a CSS pixel apart
-  (1.2% of the pixels differ, over the tolerance). The labels don't move: the viewer's zoom or the tile levels drawn
-  differ, probably from wheel zooming around the pointer. To check, by capturing it a few times on one stack.
+  resolution the tiles have loaded. Once the tiles are loaded (`settle()`), they're the same from one capture to the
+  next: the shot varied (0.04-0.39%) because the region was dragged while the images moved down (layout shifts above).
+- In **`commit/image-diff`**, while the Controls panel is open, its text lands 1 pixel apart in about a third of the
+  recordings (0.27-0.30% of the frames differ, compared at half size; the panel's `right` and the page's scroll are the
+  same). The clip's `dedupeTolerance` is 0.005 until the cause is found.
+- In clips, the sidebar's user name can be drawn half a pixel apart from one recording to the next (0.01% of a frame,
+  constant within a recording).
+- Clips take about 3-6 times their length to record (`commit/image-diff`: 11 s of clip, 40-55 s of waits cut out):
+  each point of a cursor move waits for the page to draw it.
 - **Rebuilt demo data** (a reseed) changes the runtime metrics, which are measured: the shots that show them change
   slightly.
 
@@ -359,8 +393,11 @@ libwebp 1.6.0) and the distribution's ffmpeg (Ubuntu 24.04: 6.1.1). Budgets coun
    - stills: same dimensions, and [pixelmatch](https://github.com/mapbox/pixelmatch) 7 (`threshold 0.1`, anti-aliasing
      ignored; a numpy port, checked against the JS one) finds at most `dedupeTolerance` of the pixels different on
      the PNG masters;
-   - clips and tapes: duration within ±10%, and the poster plus one frame per second pass the same test. Recordings
-     run in real time, so a frame passes if the old video shows it within ±0.4 s.
+   - clips and tapes: duration within ±10%, and the poster plus one frame per second pass the same test. A frame
+     passes if the old video shows it within ±0.4 s; frames are compared at half their size (2x2 pixels averaged), so
+     that the encoder's artifacts on detailed content, which differ between two encodes of recordings that look the
+     same (up to 0.1% of the pixels), don't count;
+   - a tape's `dedupe_mask` (meta.json, from its header) lists rectangles that don't count.
    - If unchanged, the entry is kept as it is: no upload, no manifest change.
 3. **Upload** changed files to the `qaboard-media` bucket (S3 API) at `shots/<id>/<hash>.<ext>`:
    - `<hash>`: the first 16 hex characters of the file's SHA-256;

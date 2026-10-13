@@ -131,6 +131,33 @@ def test_same_image_tolerance():
     assert publish.same_image(rgba(a), rgba(ui_image(400, 301)), 0.0005) == (False, 1.0)
 
 
+def test_same_image_mask():
+    # a measured time changes between two recordings of a tape: its rectangle doesn't count, the rest still does
+    a = ui_image(400, 300)
+    b = a.copy()
+    ImageDraw.Draw(b).rectangle((300, 20, 360, 40), fill=(255, 0, 0))
+    assert not publish.same_image(rgba(a), rgba(b), 0.0005)[0]
+    assert publish.same_image(rgba(a), rgba(b), 0.0005, [[295, 15, 70, 30]]) == (True, 0)
+    ImageDraw.Draw(b).rectangle((20, 200, 60, 220), fill=(255, 0, 0))
+    assert not publish.same_image(rgba(a), rgba(b), 0.0005, [[295, 15, 70, 30]])[0]
+    # on frames compared at half their size, the mask is in pixels of the full-size frame
+    half = lambda im: np.asarray(im.convert("RGBA").resize((200, 150), Image.BOX))  # noqa: E731
+    c = a.copy()
+    ImageDraw.Draw(c).rectangle((300, 20, 360, 40), fill=(255, 0, 0))
+    assert publish.same_image(half(a), half(c), 0.0005, [[295, 15, 70, 30]], scale=2) == (True, 0)
+
+
+def test_video_frames_compared_at_half_size(tmp_path):
+    folder = clip_capture(tmp_path / "out", "commit/half", 6.5, size=(320, 200))
+    work = tmp_path / "work"
+    work.mkdir()
+    e = publish.encode_clip("commit/half", json.loads((folder / "meta.json").read_text()), folder, work)
+    full = publish.video_frame(e.files["mp4"], 1.0)
+    half = publish.video_frame(e.files["mp4"], 1.0, publish.VIDEO_COMPARE_SCALE)
+    assert half.shape == (full.shape[0] // 2, full.shape[1] // 2, 4)
+    assert abs(int(half[10, 10, 0]) - int(full[20:22, 20:22, 0].mean())) <= 1
+
+
 # --- encoding, budgets, manifest ------------------------------------------------------------------------------------
 
 def run_publish(tmp_path: Path, manifest: Path | None = None, **kwargs) -> int:
