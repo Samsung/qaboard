@@ -228,7 +228,14 @@ jobs:
           docker ps -q --filter label=com.docker.compose.project=qaboard-demo | xargs -r docker stop > /dev/null
           docker buildx prune --all --force > /dev/null
           df -h /
-          uv run docs-media/tapes/record.py --only "$ONLY" docs-media/tapes/quickstart-*.tape
+          uv run docs-media/tapes/record.py --only "$ONLY" docs-media/tapes/quickstart-*.tape || {
+            # what the tapes left: the images loaded in kind, its pods (the tapes' HOME is /home/ines)
+            tail -20 /tmp/qaboard-kind-load.log 2> /dev/null
+            KUBECONFIG=/home/ines/.kube/config kubectl get pods -A 2> /dev/null
+            docker compose -p qaboard-quickstart -f deployments/quickstart/compose.yml logs --tail 50 2> /dev/null
+            df -h /
+            exit 1
+          }
 
       # Whether the quickstarts' tapes were recorded or not (that step fails the job)
       - name: Publish
