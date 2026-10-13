@@ -80,21 +80,51 @@ shot('logs/batch-commands', {
 
 // A run that really runs while the clip records (examples/serving-latency/SPEC.md: logs/live-tail): bursty-high on the
 // head of main at T0 (tuned-batching), in its own batch. Its bursts overload the gateway, which logs the requests that
-// missed their deadline as errors. It runs this checkout's qa from the example's folder (`uv`; the first time, its
-// qa/build.py builds gateway-bench with cargo, about 2 minutes), and shares its results with the demo stack: the batch
-// is deleted once the clip is recorded. What it measures changes with every recording: so does the clip.
+// missed their deadline as errors, every 2 s. It runs this checkout's qa from the example's folder (`uv`; the first
+// time, its qa/build.py builds gateway-bench with cargo, about 2 minutes), and shares its results with the demo stack.
+// It measures for 2 minutes instead of 8 s (LIVE_SETTINGS), so that it's still running when the clip ends, whatever the
+// machine's speed: it's stopped then, and its batch deleted. What it measures changes with every recording: so does the
+// clip.
 const LIVE = 'live-tail';
+// main.py's settings (qa/main.py: DEFAULT_SETTINGS), given as tuning parameters: one long repeat
+const LIVE_SETTINGS = JSON.stringify({ repeats: 1, duration_s: 120 });
 const REPO = path.resolve(import.meta.dirname, '..', '..');
 let liveRun: ChildProcess | undefined;
 
 function startLiveRun(d: Demo) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^(CI|CI_.*|GITHUB_.*|GITLAB_.*|QA_.*|QABOARD_.*|VIRTUAL_ENV)$/.test(k)));
-  liveRun = spawn('uv', ['run', '-q', '--no-project', '--with-editable', REPO, 'qa', '--share', '--label', LIVE, 'run', '--input', 'profiles/bursty-high.yaml'], {
+  liveRun = spawn('uv', ['run', '-q', '--no-project', '--with-editable', REPO, 'qa', '--share', '--label', LIVE, '--tuning', LIVE_SETTINGS, 'run', '--input', 'profiles/bursty-high.yaml'], {
     cwd: path.join(REPO, 'examples', SL),
     // as the CI of the commit: the run is saved under its sha
     env: { ...env, CI: 'true', GITHUB_SHA: d.sha(SL, 'tuned-batching'), GITHUB_REF: 'refs/heads/main', QABOARD_URL: d.baseUrl, QA_USER: 'adaeze' },
     stdio: 'ignore',
+    // its own process group: stopping it stops qa and gateway-bench
+    detached: true,
   });
+}
+
+// Stops the live run (uv, qa, gateway-bench) and waits until it's gone
+async function stopLiveRun() {
+  const run = liveRun;
+  if (!run?.pid) return;
+  if (run.exitCode === null && run.signalCode === null) {
+    const exited = new Promise(resolve => run.once('exit', resolve));
+    try {
+      process.kill(-run.pid, 'SIGTERM');
+    } catch {
+      // already gone
+    }
+    await Promise.race([exited, new Promise(resolve => setTimeout(resolve, 10_000))]);
+    if (run.exitCode === null && run.signalCode === null) {
+      try {
+        process.kill(-run.pid, 'SIGKILL');
+      } catch {
+        // already gone
+      }
+      await exited;
+    }
+  }
+  liveRun = undefined;
 }
 
 // Deletes the live batch, with its output files (it's not part of the demo snapshot)
@@ -110,7 +140,7 @@ async function deleteLiveBatch(request: APIRequestContext, d: Demo) {
 
 test.afterAll(async ({ playwright }) => {
   if (!liveRun) return;
-  if (liveRun.exitCode === null) await new Promise(resolve => liveRun!.once('exit', resolve));
+  await stopLiveRun();
   const { demo } = await import('./lib/demo');
   const request = await playwright.request.newContext();
   await deleteLiveBatch(request, demo());
@@ -120,12 +150,15 @@ test.afterAll(async ({ playwright }) => {
 clip('logs/live-tail', {
   project: SL,
   url: d => d.commitUrl(SL, 'tuned-batching', { view: 'logs', batch: LIVE }),
-  alt: 'The Logs view of a bursty-high run while it runs: its log follows the end as the gateway prints its repeats, the '
-    + 'error count grows with every burst\'s missed deadlines, and a click on it jumps to the first error.',
-  caption: 'While a run runs, its log follows the end; the error count jumps to each error.',
+  alt: 'The Logs view of a bursty-high run while it runs: its log follows the end as the overloaded gateway prints the '
+    + 'requests that missed their deadline and its queue warnings, the error count climbs past a hundred, and a click on '
+    + 'it jumps to the first missed deadline.',
+  caption: 'While a run runs, its log follows the end; click the error count to jump from error to error.',
   // A real run: its timings, deadlines and request ids change from one recording to the next, and so do how many lines
   // each frame shows (6% of the pixels from one recording to the next). Unchanged unless the page itself changes
   dedupeTolerance: 0.15,
+  // 2: the run lasts long enough to be running during the clip (the first recording started after it had ended)
+  revision: 2,
   actions: async ui => {
     // gateway-bench, built once per checkout (cargo, about 2 minutes): before the run, which would build it first
     test.setTimeout(900_000);

@@ -29,3 +29,23 @@ def test_record_submission_keeps_the_most_recent():
     ids = set(batch.data["submissions"])
     assert len(ids) == MAX_SUBMISSIONS
     assert "s0" not in ids and f"s{MAX_SUBMISSIONS + 4}" in ids
+
+
+def test_commit_database_relative_to_the_artifacts():
+    from pathlib import Path
+    from backend.api.tuning import commit_database
+    commit = SimpleNamespace(artifacts_dir=Path("/mnt/qaboard/kitefin/detector/94/d909ca8934d5f2"))
+    # inputs in the project: next to the code the batches started from QA-Board run
+    assert commit_database(Path("inputs"), commit) == Path("/mnt/qaboard/kitefin/detector/94/d909ca8934d5f2/inputs")
+    assert commit_database(Path("/mnt/datasets"), commit) == Path("/mnt/datasets")
+    # without a commit, as before
+    assert commit_database(Path("inputs")) == Path("inputs")
+
+
+def test_batch_script_runs_as_the_user(tmp_path):
+    from pathlib import Path
+    from backend.api.tuning import _generate_batch_script
+    commit = SimpleNamespace(hexsha="94d909ca8934d5f214bd2280ff9ec7a4093f6ea2", outputs_dir=Path("/mnt/qaboard/outputs/qaboard/x"))
+    script = _generate_batch_script(commit, "arjun", tmp_path, "id", "qa batch ci", {})
+    assert "export QA_USER=arjun;" in script
+    assert script.index("export QA_USER") < script.index("qa batch ci")

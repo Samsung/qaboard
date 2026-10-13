@@ -23,16 +23,6 @@ and show a "not captured yet" placeholder until they're published.
   `charts/qaboard/quickstart.yaml`, a port-forward, then the demo. `.github/scripts/helm_e2e.py` does all of it in the
   `helm-e2e` CI job: copy its commands. Needs kind, helm and kubectl on the runner (the `helm-e2e` job installs them)
   and about 6 GB of disk.
-- **`cli/batch`** (tape): `qa batch ci` on the detector, with its progress and the results link.
-  - The detector needs PyTorch, its ONNX export and its inputs (about 1 GB): record it after the seeder has built
-    `examples/detection-eval` in the same workspace, or switch the tape to the camera ISP (`qa batch ci` there is quick).
-  - The results link only prints with `--share`, which adds a batch to the demo data other shots capture: use a
-    label like `--label tape` and delete the batch in the tape's hidden teardown, as `logs/live-tail` does.
-- **`tuning/which-tests-run`, `tuning/manual-form`, `tuning/launch-to-analysis`**: the demo server can't see the
-  examples' inputs (each `qaboard.yaml` uses a relative `inputs` folder), so every batch resolves to 0 tests and the
-  forms show "0 total runs" ("No inputs found" under Send, cropped out of `tuning/auto-form`). Mount
-  `examples/<project>/inputs` in the demo stack's backend at the path the server resolves (or set the projects'
-  `inputs.database` for the demo), then capture; the launch clip also needs a runner with the detector's setup.
 - **`landing/social-card`** (still): needs its template (a page that lays out the logo, tagline and a crop of the
   hero), then a spec like the others.
 - **Phase 3**: the robotics and agent demo projects' shots (`project: robotics-3d`, `agent-evals`).

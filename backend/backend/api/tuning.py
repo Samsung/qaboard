@@ -108,6 +108,17 @@ def get_commit_batches_paths(ci_commit):
   return batches_paths
 
 
+def commit_database(database, ci_commit=None):
+    """
+    The inputs database of a commit's runs. A relative one (`inputs.database: inputs` in qaboard.yaml: inputs in the
+    project) is relative to the commit's artifacts folder: the batches started from QA-Board run from there.
+    """
+    database = Path(database)
+    if ci_commit is None or database.is_absolute():
+        return database
+    return ci_commit.artifacts_dir / database
+
+
 @app.route("/api/v1/tests/group", methods=["POST"])
 @login_required
 def get_group():
@@ -227,7 +238,7 @@ def get_group():
     from qaboard.config import get_default_configuration, get_default_database
     default_configuration = get_default_configuration(input_settings)
     default_configurations = deserialize_config(default_configuration)
-    default_database = get_default_database(input_settings)
+    default_database = commit_database(get_default_database(input_settings), ci_commit if commit_id else None)
     print('group', request.args["name"], batches_paths)
     try:
         tests = list(
@@ -270,6 +281,9 @@ def _generate_batch_script(ci_commit, user, working_directory, command_id, batch
         f'cd {quote(str(working_directory))};\n\n',
         f"\nexport CI=true;\n",
         f"\nexport GIT_COMMIT={quote(ci_commit.hexsha)};\n",
+        # the runs are the logged-in user's
+        f"export QA_USER={quote(user)};\n",
+
         f"export QABOARD_TUNING=true;\n\n",
         f"export QA_OUTPUTS_COMMIT={quote(outputs_dir_prefix)};\n\n",
         f"export QATOOLS_CI_COMMIT_DIR={quote(str(ci_commit.outputs_dir))};\n\n",

@@ -242,3 +242,14 @@ def test_selection_and_frames(tmp_path):
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q", "-p", "no:cacheprovider", *sys.argv[1:]]))
+
+
+def test_revision_forces_a_new_capture_and_texts_follow_the_spec():
+    meta = {"alt": "New alt", "caption": "New caption", "project": "serving-latency", "source_spec": "docs-media/shots/x.spec.ts"}
+    e = publish.Encoded(id="logs/x", kind="clip", meta={**meta, "revision": 2}, files={}, width=1440, height=900, lqip="")
+    old = {"kind": "clip", "width": 1440, "height": 900, "alt": "Old alt", "duration": 10}
+    # checked before any file is compared: no storage needed
+    assert publish.unchanged(e, old, storage=None) == (False, None, "revision 0 -> 2")
+    assert publish.unchanged(e, {**old, "revision": 1}, storage=None)[2] == "revision 1 -> 2"
+    assert publish.text_fields(meta) == meta
+    assert "caption" not in publish.text_fields({**meta, "caption": None})

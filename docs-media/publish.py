@@ -590,6 +590,8 @@ def unchanged(e: Encoded, old: dict | None, storage: Storage) -> tuple[bool, flo
         return False, None, "new"
     if old["kind"] != e.kind or (old["width"], old["height"]) != (e.width, e.height):
         return False, None, "size or kind changed"
+    if (e.meta.get("revision") or 0) != (old.get("revision") or 0):
+        return False, None, f"revision {old.get('revision') or 0} -> {e.meta.get('revision') or 0}"
     tolerance = float(e.meta.get("dedupe_tolerance", DEFAULT_TOLERANCE))
     mask = e.meta.get("dedupe_mask")
     if e.kind == "still":
@@ -620,6 +622,14 @@ def unchanged(e: Encoded, old: dict | None, storage: Storage) -> tuple[bool, flo
     return True, worst, f"at most {worst:.4%} of the pixels differ"
 
 
+def text_fields(meta: dict) -> dict:
+    """What a spec can change without a new capture"""
+    fields = {"alt": meta["alt"], "project": meta.get("project"), "source_spec": meta["source_spec"]}
+    if meta.get("caption"):
+        fields["caption"] = meta["caption"]
+    return fields
+
+
 def build_entry(e: Encoded) -> dict:
     meta = e.meta
     entry: dict[str, Any] = {
@@ -638,6 +648,8 @@ def build_entry(e: Encoded) -> dict:
         entry["caption"] = meta["caption"]
     if e.duration is not None:
         entry["duration"] = e.duration
+    if meta.get("revision"):
+        entry["revision"] = meta["revision"]
     if meta.get("anchors") and e.kind != "tape":
         entry["anchors"] = meta["anchors"]
     return entry
@@ -795,7 +807,9 @@ def publish(args: argparse.Namespace) -> int:
         e.diff = share
         if same:
             e.status = "unchanged"
-            e.entry = old
+            # the published files, with the spec's current texts
+            e.entry = {**old, **text_fields(e.meta)}
+            new_manifest["shots"][e.id] = e.entry
         else:
             e.status = "updated" if old else "new"
             e.entry = build_entry(e)
