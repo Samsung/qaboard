@@ -1,6 +1,6 @@
-# .github/workflows/qaboard.yml: runs your test set on every push and saves the results to QA-Board.
-# qa saves the results in the storage the server reads (e.g. /mnt/qaboard, an NFS share), at the same path:
-# use a self-hosted runner that mounts it. GitHub-hosted runners can't reach it yet.
+# Runs your test set on every push, and saves the results to QA-Board.
+# qa saves results where the server reads them (e.g. /mnt/qaboard, an NFS share), at the same
+# path: use a self-hosted runner that mounts it. GitHub-hosted runners can't reach it yet.
 name: QA-Board
 on: push
 
