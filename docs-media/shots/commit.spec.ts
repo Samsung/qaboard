@@ -480,6 +480,7 @@ clip('commit/dynamic-outputs', {
         await ui.settle();
       }
     };
+    await pin(0);
     await ui.caption('1: the raw sensor data');
     await ui.click(handle);
     await pin(0);

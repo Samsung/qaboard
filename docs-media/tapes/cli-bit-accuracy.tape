@@ -3,7 +3,7 @@
 # env: CI=true GITHUB_SHA=a155692ff9ddf8c2f0580965b26648942dc8b4fe GITHUB_REF=refs/heads/fxp/round-half-even PYTHONHASHSEED=0
 # alt: A terminal in CI runs qa check-bit-accuracy on the hw-model platform: on the rounding change, it fails and lists the files that differ from the release; on a commit that only changed docs, every file is the same.
 # caption: qa check-bit-accuracy compares a commit's output files with the reference's, byte for byte.
-# poster: 11000
+# poster: 9000
 # dedupe_tolerance: 0.001
 #
 # cli/bit-accuracy (docs-media/shots.yaml). Recorded by: uv run docs-media/tapes/record.py --only cli/bit-accuracy
