@@ -19,15 +19,26 @@ metrics and visualizations (plain JSON, no plotting library).
 **Gateway**
 - **Ingress** (2 threads): receives requests, looks up the result cache, enqueues misses with a deadline
   (arrival + 12 ms).
-- **Queue and batcher** (1 thread): a bounded queue (4,096). Policy `fifo`, `lifo`, `edf` (earliest deadline first) or
-  `drop-late` (drop requests already past their deadline). Batches close at `max_batch` requests or `max_delay_us`
+- **Queue and batcher** (1 thread): a bounded queue (4,096). Policy `fifo`, `lifo`, `edf` (earliest deadline first
+  among the requests that can still make it; those already late go after them) or `drop-late` (drop requests already
+  past their deadline). Batches close at `max_batch` requests or `max_delay_us`
   after their first request.
-- **Workers** (`workers` threads): run the "model" on a batch, insert results in the cache, complete the requests.
-- **Model:** a 2-layer MLP, 256 → 1024 → 256 with ReLU, per token of the payload. `int8` (i32 accumulation) or
-  `fp32`. Weights are generated from a fixed seed. Sized so the default configuration saturates around 7,000
-  requests/s on a 4-CPU CI runner.
-- **Result cache:** `none`, `shared` (one `Mutex<LruCache>`; the LRU update and the clone of the 4 KB response happen
-  under the lock) or `sharded` (`cache_shards` independent LRUs, by key hash).
+- **Workers** (`workers` threads): run the "model" on a batch, then answer each request: store its outputs in the
+  cache and render its response.
+- **Model:** a 2-layer MLP, 256 → H → 256 with ReLU, per token of the payload. `int8` (AVX2 `vpmaddwd`, i32
+  accumulation) or `fp32` (FMA). Weights are generated from a fixed seed.
+- **Responses:** JSON bodies with each token's strongest K outputs (indices and scores, about 5 KB for 8 tokens).
+  Rendering them (float formatting) is about a quarter of a request's CPU.
+- **Sized per machine:** the load levels are fixed numbers of requests/s, so how loaded the gateway is depends on the
+  machine's speed, and the story's effects depend on how loaded it is. `gateway-bench --calibrate` (run once by
+  `qa/build.py`, kept in `gateway/target/calibration.json`) measures the model and the rendering on one core and picks
+  H and K so that, in the running gateway, an 8-token request costs about 250 µs of model and 110 µs of rendering: the
+  gateway without cache saturates around 7,000 requests/s on any 4-CPU machine.
+- **Result cache:** `none`, `shared` or `sharded`. It stores the model's outputs per key (16-bit fixed point, 4 KB for
+  8 tokens), and every response goes through it (`Cache::respond`): a hit at the ingress, fresh outputs from a worker.
+  `shared` is one `Mutex<LruCache>`, and the response is rendered while the guard is alive: every response in the
+  gateway is rendered behind this one lock. `sharded` has `cache_shards` independent LRUs, by key hash, copies the
+  outputs out and renders without a lock.
 
 **Load generator** (open loop, no coordinated omission)
 - The arrival schedule and the payloads are generated from the input's profile and seed before the run.
@@ -49,14 +60,14 @@ metrics and visualizations (plain JSON, no plotting library).
 | `max_batch` | 1-64 | `16` |
 | `max_delay_us` | 0-5000 | `250` |
 | `queue_policy` | `fifo`, `lifo`, `edf`, `drop-late` | `edf` |
-| `allocator` | `system`, `jemalloc`, `mimalloc` (one binary per cargo feature) | `mimalloc` |
+| `allocator` | `system`, `jemalloc`, `mimalloc` (one binary for the 3, picked at startup: `$GATEWAY_ALLOCATOR`) | `mimalloc` |
 | `pin` | `none`, `workers` (workers on cores 1-3, load generator on 0) | `workers` |
 | `model_dtype` | `fp32`, `int8` | `int8` |
 | `cache` | `none`, `shared`, `sharded` | `sharded` |
 | `cache_entries`, `cache_shards` | | `16384`, `16` |
 | `batch_buffer` | `alloc`, `reuse` | `reuse` |
-| `payload_copy` | `true` copies payloads into the batch buffer instead of borrowing them | absent |
-| `bug_batch_overflow` | `true` makes the batcher write past a full batch (a real panic) | absent |
+| `payload_copy` | `true` copies payloads into the batch buffer instead of borrowing them: one slot per request, as long as the batch's longest payload, and the model runs on the padding too | absent |
+| `bug_batch_overflow` | `true`: with a backlog (over 1,024 queued requests), the batcher writes past a full batch (a real panic) | absent |
 
 Tuning parameters (`--tuning-search`) override flags of the same name for that run, so sweeps don't need commits.
 
@@ -66,10 +77,12 @@ gives the arrival process, the request rate, the payload size distribution and t
 
 | Profile | Arrivals | Payload tokens | Keys |
 |---|---|---|---|
-| `steady` | Poisson | 8 | Zipf(1.1) over 100,000 keys |
+| `steady` | Poisson | 8 | Zipf(0.9) over 100,000 keys |
 | `bursty` | On/off (Markov-modulated Poisson): 5x the rate for 200 ms, every 2 s on average | 8 | same |
 | `heavy-tail` | Poisson | Pareto (α = 1.3), 1 to 256 | same |
 | `ramp` | Poisson, rate from 20% to 120% of `high` in 10 steps of 0.5 s | 8 | same |
+
+9 profile × level inputs (`steady-low`... `heavy-tail-high`) and `ramp`.
 
 Levels: `low` 2,000, `mid` 4,000, `high` 6,000 requests/s; fixed numbers, so a commit that changes capacity shows up as
 a change, not as a different test. No downloads, no licenses to track.
@@ -142,20 +155,24 @@ outputs:
   (`webapp/src/viewers/flame-graph.jsx`): a tree of `{"name": str, "value": int, "children": [...]}`.
   - `value` is inclusive: a node's own samples plus its children's.
   - The viewer matches new and reference nodes by their path of names, so names must be stable: demangled Rust
-    symbols without the hash suffix (`gateway::cache::Shared::get`), no addresses; siblings with the same name are
-    merged; thread names lose their index (`worker-2` → `worker`), and are the root's children.
-  - The viewer subtracts raw values, so `value` is CPU time in µs **per 1,000 requests** (samples × 10⁶ / 997 ÷
-    requests × 1,000, rounded), comparable across runs of different lengths.
+    symbols without the hash suffix (`<gateway::cache::Shared>::respond`), no addresses; siblings with the same name
+    are merged; thread names lose their index (`worker-2` → `worker`), and are the root's children.
+  - The viewer subtracts raw values, so `value` is CPU time in µs **per 1,000 requests**, comparable across runs of
+    different lengths: samples × (the process's CPU time in the measured windows ÷ samples) ÷ requests × 1,000. The
+    profiler asks for 997 Hz, but the kernel's timer delivers fewer samples per CPU second: weighting each sample by
+    the measured CPU time keeps the values right.
+  - Sampling starts with the repeat (starting it costs a stall), and only the samples taken in the measured window
+    count (counts at its end minus counts at its start).
   - Nodes under 0.1% of the root are folded into their parent; the file stays under 1 MB.
 
 ## Batches (`qa/batches.yaml`)
 
 | Batch | Runs | Time on a 4-CPU runner |
 |---|---|---|
-| `ci` | `steady-mid`, `steady-high`, `bursty-high`, `heavy-tail-high`; 2 repeats of 1 s + 3 s | ~40 s |
+| `ci` | `steady-low`, `steady-mid`, `steady-high`, `bursty-high`, `heavy-tail-high`; 2 repeats of 1 s + 3 s | ~45 s |
 | `capacity` | `ramp` | ~15 s |
-| `nightly` | all 12 profile × level inputs and `ramp`, 3 repeats of 1 s + 4 s | ~3.5 min |
-| `sweep-batching` | `steady-high`, `heavy-tail-high`, 1 repeat each; meant for `--tuning-search` | 2 inputs × 4 s per combination |
+| `nightly` | all 9 profile × level inputs and `ramp`, 3 repeats of 1 s + 4 s | ~3 min |
+| `sweep-batching` | `steady-high`, `heavy-tail-high`, 1 repeat of 1 s + 2 s; meant for `--tuning-search` | 2 inputs × 4 s per combination |
 
 Runs execute one at a time (`runners.local.concurrency: 1`): parallel runs would measure each other.
 
@@ -166,19 +183,19 @@ About 30 commits over 6 weeks. Commit ids in **bold** are the ones checks and sh
 |---|---|---|---|---|
 | -41d | `main` | adaeze | **`dyn-batching`**: `batching: dynamic` | |
 | -38d | `main` | kaito | **`int8`**: `model_dtype: int8` | CPU per request −30% or more |
-| -36d | `main` | kaito | `pin: workers` | small p99 gain |
+| -36d | `main` | kaito | `pin: workers` | |
 | -34d | `main` | kaito | **`v2-3-0`**: `batch_buffer: reuse` | milestone `v2.3.0` |
-| -31d to -28d | `perf/allocators` | kaito | `allocator: jemalloc`, then `mimalloc`; merged | heavy-tail p99 −8% or more |
-| -29d to -24d | `gateway/queue-policy` | adaeze | `queue_policy: edf`; merged | bursty p99.9 −15% or more |
+| -31d to -28d | `perf/allocators` | kaito | `allocator: jemalloc`, then `mimalloc`; merged | (within noise: no check) |
+| -29d to -24d | `gateway/queue-policy` | adaeze | `queue_policy: edf`; merged | (no check) |
 | -27d | `main` | kaito | **`batch-overflow`**: `bug_batch_overflow: true`; **`batch-overflow-fix`** 3 h later | `bursty-*` runs crash with a panic |
-| -20d | `agent/result-cache` | agent | **`cache-shared`**: `cache: shared, cache_entries: 4096` | p50 −10% or more; p99 +30% or more (target +45%); lock frames in the flame graph; gate fails |
-| -19d | `agent/result-cache` | agent | `cache_entries: 16384` | still failing: History shows it |
-| -15d | `perf/sharded-cache` | kaito | **`cache-sharded`**: `cache: sharded, cache_shards: 16`; then the `tune-batching` sweep (`max_batch` × `max_delay_us`, 30 combinations) | p99 back within 5% of `batch-overflow-fix`, p50 gain kept; gate passes |
+| -20d | `agent/result-cache` | agent | **`cache-shared`** (from `batch-overflow-fix`): `cache: shared, cache_entries: 4096` | CPU per request −20% or more; `steady-high` p99 +30% or more; the cache's frames (rendering under the lock) take 8% or more of the CPU profile; gate fails |
+| -17d | `agent/result-cache` | agent | **`cache-entries`**: `cache_entries: 16384` | still failing: `steady-high` p99 +30% or more against `batch-overflow-fix` |
+| -15d | `perf/sharded-cache` | kaito | **`cache-sharded`**: `cache: sharded, cache_shards: 16`; then the `tune-batching` sweep (`max_batch` × `max_delay_us`, 30 combinations) | `steady-high` p99 back within 5% of `batch-overflow-fix`; `steady-mid` p50 −25% or more; gate passes; (16, 250 µs) on the sweep's frontier |
 | -14d | `main` | adaeze | **`merge-sharded-cache`** | |
 | -13d | `main` | adaeze | **`v2-4-0`**: release commit, no change | milestone `v2.4.0` |
-| -9d | `main` | kaito | **`payload-copy`**: `payload_copy: true` ("simpler lifetimes") | `heavy-tail-high` p99 +25% or more while the median over `ci` tests moves less than 10%: a regression only History's per-test lines show |
-| -3d | `main` | kaito | **`payload-borrow`**: `payload_copy: null` | `heavy-tail-high` back within 5% of `v2-4-0` |
-| -0d 13:20 | `main` | kaito | **`tuned-batching`**: `max_batch: 16, max_delay_us: 250` | goodput +5% or more; `nightly` still running at T0 (60% done, 2 running) |
+| -9d | `main` | kaito | **`payload-copy`**: `payload_copy: true` ("simpler lifetimes") | `heavy-tail-high` p99 +25% or more and its CPU per request +15% or more; the steady tests' CPU per request within 10% |
+| -3d | `main` | kaito | **`payload-borrow`**: `payload_copy: null` | `heavy-tail-high` p99 within 10% of `v2-4-0` |
+| -0d 13:20 | `main` | adaeze | **`tuned-batching`**: `max_batch: 16, max_delay_us: 250` | `nightly` still running at T0 (60% done, 2 running) |
 
 `defaults.flags` is the state before the story: `batching: none, model_dtype: fp32, pin: none, allocator: system,
 queue_policy: fifo, cache: none, batch_buffer: alloc, workers: 3`.
@@ -187,9 +204,10 @@ Fillers (refactors, docs, CI tweaks) keep their parent's flags and run `ci`: the
 like. The excerpt in [STORY.md](../STORY.md) is this story's skeleton.
 
 **Checks:** the "Shows" column, as `checks` (thresholds there), plus two hooks in `story_checks.py`:
-`flame_share` (frames matching `lock_contended|lock_slow` take at least 8% of the root in `cache-shared`'s
-`steady-high` run, and less than 1% in its parent's) and `on_frontier` (in `tune-batching`, `max_batch 16,
-max_delay_us 250` is on the throughput/p99 Pareto frontier).
+`flame_share` (frames matching `cache::Shared>::respond|lock_contended` take at least 8% of the CPU samples in
+`cache-shared`'s `steady-high` runs, and less than 1% in its parent's) and `on_frontier` (in `tune-batching`,
+`max_batch 16, max_delay_us 250` is on the CPU-per-request/p99 frontier: no configuration beats it by more than 3% on
+CPU and 25% on p99 at once). Gate checks name their reference (`vs`).
 
 **Milestones:** `v2.3.0` on `v2-3-0`, `v2.4.0` on `v2-4-0`, by adaeze.
 
@@ -200,12 +218,12 @@ their `qa batch ci` command with a link to `https://ci.kitefin.example/...`.
 ## Determinism and budget
 - Schedules, payloads and keys are deterministic per input and seed; everything measured varies. Captures use the
   snapshot, and checks have margins (a 30% threshold for a 45% effect).
-- `cargo build --release` once per stack image (cached); every commit uses the same binaries, its flags select the
-  behavior.
+- `cargo build --release` once per workspace (`qa/build.py`: the seeder runs it before the story, about 2 min); every
+  commit uses the same binary, its flags select the behavior.
 - The whole story: ≤ 40 min on a 4-CPU runner (about 30 `ci` batches, `capacity` on the 6 commits the shots compare,
   `nightly` on the two releases and the last commit, one sweep), with nothing else running. It is the longest story.
 - Dependencies: Rust stable; crates `hdrhistogram`, `pprof`, `core_affinity`, `tikv-jemallocator`, `mimalloc`, `lru`
-  (all MIT or Apache-2.0). Python: standard library only.
+  (all MIT or Apache-2.0), see LICENSES.md. Python: the standard library, and PyYAML (with qaboard).
 
 ## Shots it must make possible
 `cli/gate`, `ci/step-summary`, `commits/feed`, `commits/branch-evolution`, `commits/filter`, `commit/latency-cdf`,
@@ -213,5 +231,48 @@ their `qa batch ci` command with a link to `https://ci.kitefin.example/...`.
 `logs/crash`, `logs/live-tail`, `logs/batch-commands`, `history/performance-over-time`, `history/find-regression`,
 `history/relative`, `tuning/frontier`, `files/browser`, `files/runbar`, `files/hotkeys`, `files/keyboard`.
 
-`logs/live-tail` needs a run that is really running while it records: the spec starts a `ramp` run of
-`tuned-batching` through the stack right before recording.
+`logs/live-tail` needs a run that is really running while it records, with errors: start a `bursty-high` run of
+`tuned-batching` through the stack right before recording (its bursts overload the gateway: deadline misses and queue
+warnings). A `ramp` of `tuned-batching` barely misses deadlines: with the cache, the gateway has headroom at 7,200
+requests/s.
+
+## As built: differences from the first draft
+- **Sized per machine** (`gateway-bench --calibrate`): the story's effects depend on how loaded the gateway is, and with
+  fixed request rates that depends on the machine's speed. Without it, a runner 20% faster or slower than expected tells
+  another story (no regression, or a collapse). It gave H 1,472 to 1,984 and K 40 to 86 on the (busy) machine this
+  was built on: on a quiet runner it's stable.
+- **Responses are rendered**, and the shared cache renders them under its lock: a shared `Mutex<LruCache>` whose
+  critical section is a lookup and the clone of 4 KB is idle 98% of the time at 6,000 requests/s and hurts nothing.
+  With the rendering of every response behind it, it's a real convoy: requests queue at the ingress for the lock.
+  The flame graph shows `<gateway::cache::Shared>::respond` → `gateway::response::render` (red) where rendering used
+  to run outside it, and `lock_contended` (std's futex mutex); waits are off-CPU, so the "Where the time goes" plot
+  shows them better (lock wait at p99).
+- **The shared cache doesn't make p50 faster at 6k rps**: its hits are fast, but every request waits for the lock at
+  the ingress. It is faster for the cheap part of the distribution (hits, up to about p40) and saves ~30% of CPU; p99
+  is several times worse. The agent's commit message claims the CPU saving, which is true. Sharding brings the p50
+  gain (−50% at `steady-mid`).
+- **Keys: Zipf(0.9)** instead of 1.1: with 1.1, 78% of requests hit a 4,096-entry cache and the story is about the
+  cache only. 0.9 gives ~50% hits (4,096 entries) to ~57% (16,384) in a 4 s run.
+- **`edf`** with all deadlines at arrival + 12 ms would be FIFO: it serves first the requests that can still make it,
+  and the late ones after. Its gain on bursts (more requests on time, a longer worst case) wasn't measured reliably on
+  the shared machine this was built on: no check.
+- **Allocators**: within noise of each other here (±5% CPU on `heavy-tail-high`): messages say so, no check.
+- **`payload_copy`** pads each request to the batch's longest payload: the cost of a memcpy is nothing next to the
+  model, the padding is the classic cost of dense batches with ragged inputs. Only `heavy-tail` has ragged payloads.
+- **`ci` has 5 tests** (`steady-low` added): the gate and the commit list use the median over the batch's runs. With 4
+  tests the median is the mean of the middle two, and `heavy-tail-high` is one of them: its regression at
+  `payload-copy` would move the median by half its own change. With 5, the median is one test's value, and a single
+  test's regression moves it at most to its neighbor's. Whether the gate passes at `payload-copy` isn't asserted: it
+  depends on how close `heavy-tail-high`'s and `steady-high`'s p99 are on the runner. A `per_test_max_regression` rule
+  catches it.
+- **Throughput is the offered load** in an open-loop test unless the gateway can't keep up, so the tuning sweep's
+  frontier is CPU per request against p99 (what batching trades), not throughput against p99.
+- **Dropped claims**: `pin: workers` (small p99 gain), `edf` (bursty p99.9 −15%), allocators (heavy-tail p99 −8%),
+  `tuned-batching` (goodput +5%): not measurable reliably, or not true, in this gateway. `tuned-batching` is by adaeze
+  (13:20 UTC is outside kaito's hours), `cache_entries: 16384` on -17d (-19d is a Saturday).
+- **Inputs**: 9 profile × level inputs and `ramp` (the draft said 12).
+
+**What couldn't be validated where this was built** (a 4-CPU machine shared with other jobs): magnitudes at
+`steady-high` and `bursty-high`, where other processes' load made the gateway collapse in some runs. The directions
+and mechanisms were (CPU per request, lock waits, the crash, the padding's cost, the ramp, the sweep), at `steady-mid`
+and `heavy-tail-high`. The checks' thresholds are set for a quiet 4-CPU runner; the first seed in CI tells.

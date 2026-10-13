@@ -1,0 +1,73 @@
+# The inference gateway of the K3 fleet: a QA-Board demo project, see README.md.
+project:
+  name: kitefin/inference-gateway
+  url: https://git.kitefin.example/kitefin/inference-gateway
+  description: "The fleet's inference gateway: request queue, dynamic batching and CPU workers for the models robots call."
+  entrypoint: qa/main.py
+  reference_branch: main
+
+inputs:
+  # relative to this folder: the load profiles written by qa/make_profiles.py
+  database:
+    linux: inputs
+  globs: ['*.yaml']
+  batches: qa/batches.yaml
+
+outputs:
+  metrics: qa/metrics.yaml
+  visualizations:
+    - name: Latency percentiles (log tail)
+      path: latency_cdf.plotly.json      # x: 1/(1-p) on a log axis, labeled 50% 90% 99% 99.9%; y: ms, log
+      side_by_side: false                # overlaid: the reference is dashed and faded
+    - name: Where the time goes
+      path: breakdown.plotly.json        # stacked bars at p50/p90/p99/p99.9: queue, batch wait, lock wait, compute
+    - name: Latency over time
+      path: timeline.plotly.json         # p50, p99 and max per 100 ms, queue depth on a second axis
+    - name: Throughput vs p99
+      path: sweep.plotly.json            # ramp runs only: achieved req/s vs p99, one point per step
+      side_by_side: false
+    - name: CPU flame graph
+      path: cpu.flame.json               # µs of CPU per 1,000 requests
+    - name: CPU per core
+      path: cores.plotly.json            # heatmap, cores x time, % busy
+      default_hidden: true
+    - name: Batch sizes
+      path: batch_sizes.plotly.json
+      side_by_side: false
+      default_hidden: true
+    - name: Latency histogram
+      path: latency_hist.plotly.json     # log-spaced bins
+      side_by_side: false
+      default_hidden: true
+    - name: Percentiles
+      path: percentiles.txt              # HdrHistogram's percentile distribution, for text diffs
+      default_hidden: true
+
+# `qa save-artifacts` saves what each commit changed in the code
+artifacts:
+  build:
+    glob: build/flags.json
+
+integrations:
+  - text: Gateway dashboard
+    icon: dashboard
+    href: https://grafana.kitefin.example/d/inference-gateway
+  - text: Load testing runbook
+    icon: manual
+    href: https://docs.kitefin.example/fleet/gateway-load-testing
+
+# Experimental: may change without notice
+gate:
+  reference: main
+  batches: [ci]
+  rules:
+    - {metric: latency_p99, max_regression: 10%}
+    - {metric: throughput, max_regression: 5%}
+  max_failed_runs: 0
+
+runners:
+  local:
+    concurrency: 1   # performance runs never run in parallel: they would measure each other
+
+storage:
+  linux: /mnt/qaboard

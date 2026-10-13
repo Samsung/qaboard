@@ -1,0 +1,106 @@
+# Metrics returned by run() in qa/main.py: medians over the run's repeats. Latencies are in ms, measured from each
+# request's scheduled send time (open loop), over the requests scheduled in the measured window.
+available_metrics:
+  latency_p50:
+    label: Latency p50
+    short_label: p50
+    description: Median latency.
+    suffix: ' ms'
+    smaller_is_better: true
+    target: 3
+  latency_p90:
+    label: Latency p90
+    short_label: p90
+    description: 90th percentile of latency.
+    suffix: ' ms'
+    smaller_is_better: true
+  latency_p99:
+    label: Latency p99
+    short_label: p99
+    description: 99th percentile of latency, the gateway's SLO is 12 ms.
+    suffix: ' ms'
+    smaller_is_better: true
+    target: 12
+  latency_p999:
+    label: Latency p99.9
+    short_label: p99.9
+    description: 99.9th percentile of latency.
+    suffix: ' ms'
+    smaller_is_better: true
+    target: 25
+  latency_max:
+    label: Latency max
+    short_label: max
+    description: The slowest request of all the repeats.
+    suffix: ' ms'
+    smaller_is_better: true
+  throughput:
+    label: Throughput
+    description: Requests completed per second (the offered load, unless the gateway can't keep up or drops requests).
+    suffix: ' req/s'
+    smaller_is_better: false
+  goodput:
+    label: Goodput (≤ 12 ms)
+    short_label: Goodput
+    description: Requests completed within their 12 ms deadline, per second.
+    suffix: ' req/s'
+    smaller_is_better: false
+  slo_miss:
+    label: Requests over 12 ms
+    short_label: SLO miss
+    description: Share of the requests that took more than 12 ms, or were dropped.
+    suffix: '%'
+    scale: 100
+    smaller_is_better: true
+    target: 0.01
+  dropped:
+    label: Dropped
+    description: Share of the requests dropped, because the queue was full or (drop-late) they were already late.
+    suffix: '%'
+    scale: 100
+    smaller_is_better: true
+    target: 0
+  p99_spread:
+    label: p99 spread over repeats
+    short_label: p99 spread
+    description: (max - min) / median of the repeats' p99. Large values mean the p99 is noisy.
+    suffix: '%'
+    scale: 100
+    smaller_is_better: true
+    target: 0.10
+  cpu_per_req:
+    label: CPU per request
+    short_label: CPU/req
+    description: CPU time of the gateway's threads (not the load generator's) per completed request.
+    suffix: ' µs'
+    smaller_is_better: true
+  lock_wait_p99:
+    label: Cache lock wait p99
+    short_label: Lock wait p99
+    description: 99th percentile of the time a request waited for result cache locks.
+    suffix: ' ms'
+    smaller_is_better: true
+  cache_hit:
+    label: Cache hit rate
+    short_label: Cache hits
+    description: Share of the requests answered from the result cache.
+    suffix: '%'
+    scale: 100
+    smaller_is_better: false
+  batch_mean:
+    label: Mean batch size
+    short_label: Batch size
+    description: Requests per batch the workers ran, on average.
+    smaller_is_better: false
+  is_failed:
+    label: Crashed
+    short_label: Crashed
+    description: The gateway crashed.
+    suffix: '%'
+    scale: 100
+    smaller_is_better: true
+    target: 0
+
+default_metric: latency_p99
+summary_metrics: [latency_p99, latency_p50, throughput, cpu_per_req]
+main_metrics: [latency_p50, latency_p99, latency_p999, throughput, slo_miss]
