@@ -1,5 +1,5 @@
 // The commit page's Logs view (docs-media/shots.yaml: logs/*).
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import path from 'node:path';
 import { test, type APIRequestContext } from '@playwright/test';
 import { clip, shot, type Demo, type Page } from './lib';
@@ -123,9 +123,13 @@ clip('logs/live-tail', {
   alt: 'The Logs view of a bursty-high run while it runs: its log follows the end as the gateway prints its repeats, the '
     + 'error count grows with every burst\'s missed deadlines, and a click on it jumps to the first error.',
   caption: 'While a run runs, its log follows the end; the error count jumps to each error.',
-  // a real run: its timings, deadlines and request ids change from one recording to the next
-  dedupeTolerance: 0.05,
+  // A real run: its timings, deadlines and request ids change from one recording to the next, and so do how many lines
+  // each frame shows (6% of the pixels from one recording to the next). Unchanged unless the page itself changes
+  dedupeTolerance: 0.15,
   actions: async ui => {
+    // gateway-bench, built once per checkout (cargo, about 2 minutes): before the run, which would build it first
+    test.setTimeout(900_000);
+    execFileSync('uv', ['run', '-q', 'qa/build.py'], { cwd: path.join(REPO, 'examples', SL), stdio: 'ignore', timeout: 600_000 });
     await deleteLiveBatch(ui.page.request, ui.demo);
     startLiveRun(ui.demo);
     // the batch shows once qa has started the run
