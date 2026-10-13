@@ -1,130 +1,472 @@
-/**
- * CSS files with the .module.css suffix will be treated as CSS modules
- * and scoped locally.
- */
-
-.heroBanner {
-  padding: 4rem 0;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
+/* The landing page. Light and dark mode, phone width (16px gutters from Infima's .container). */
+.hero {
+  --hero-bg-1: #eef4fc;
+  --hero-bg-2: var(--ifm-background-surface-color);
+  padding: 3.5rem 0 3rem;
+  background: linear-gradient(180deg, var(--hero-bg-1) 0%, var(--hero-bg-2) 100%);
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+[data-theme='dark'] .hero {
+  --hero-bg-1: #18233a;
 }
 
-@media screen and (max-width: 966px) {
-  .heroBanner {
-    padding: 2rem;
-  }
-}
-
-.buttons {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-
-
-.features {
-  display: flex;
-  align-items: center;
-  padding: 2rem 0;
-  width: 100%;
-}
-
-.featureImage {
-  height: 200px;
-  width: 200px;
-}
-
-
-
-.indexCtas {
-  display: flex;
-  align-items: center;
-  margin-top: 24px;
-}
-
-.indexCtasGetStartedButton {
-  border: 1px solid var(--ifm-color-primary);
-  display: inline-block;
-  line-height: 1.2em;
-  text-decoration: none !important;
-  text-transform: uppercase;
-  transition: background 0.3s, color 0.3s;
-  border-radius: 8px;
-  border-width: 2px;
-  color: #fff;
-  font-size: 24px;
-  font-weight: bold;
-  padding: 18px 36px;
-}
-
-.indexCtasGitHubButtonWrapper {
-  display: flex;
-}
-
-.indexCtasGitHubButton {
-  border: none;
-  margin-left: 24px;
-  overflow: hidden;
-}
-
-@media only screen and (max-width: 768px) {
-  .indexCtas {
-    justify-content: center;
-  }
-
-  .indexCtasGitHubButton {
-    display: none;
-  }
-}
-
-/* "Where do you start?" cards, one per audience */
-.audiences {
-  padding: 2.5rem var(--ifm-spacing-horizontal) 0.5rem;
-}
-
-.audienceGrid {
+.heroInner {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.25rem;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 2.5rem;
+  align-items: center;
 }
 
-.audienceCard {
-  display: flex;
-  flex-direction: column;
-  padding: 1.25rem 1.4rem;
-  border: 1px solid var(--ifm-color-emphasis-300);
-  border-radius: 12px;
-  color: inherit;
-  background: var(--ifm-card-background-color);
-  transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+.heroText {
+  min-width: 0;
 }
 
-.audienceCard:hover {
-  color: inherit;
-  text-decoration: none;
-  border-color: var(--ifm-color-primary);
-  box-shadow: var(--ifm-global-shadow-md);
-  transform: translateY(-2px);
+.eyebrow {
+  margin-bottom: 0.6rem;
+  color: var(--ifm-color-primary);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.audienceCard h3 {
-  margin-bottom: 0.5rem;
+.heroTitle {
+  margin-bottom: 1rem;
+  font-size: clamp(2rem, 1.3rem + 2.4vw, 3.1rem);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
 }
 
-.audienceCard p {
-  flex: 1;
-  color: var(--ifm-color-emphasis-800);
-}
-
-.audienceCta {
-  font-weight: 600;
+.heroAccent {
   color: var(--ifm-color-primary);
 }
 
-.whatsNew {
-  margin: 1.5rem 0 0;
-  text-align: center;
+.heroLead {
+  margin-bottom: 0.75rem;
+  font-size: 1.15rem;
+  line-height: 1.55;
+  color: var(--ifm-color-emphasis-800);
+}
+
+.heroTags {
+  margin-bottom: 1.5rem;
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.ctas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+
+.ctasCentered {
+  justify-content: center;
+}
+
+.githubLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--ifm-font-color-base);
+  font-weight: 600;
+}
+.githubLink:hover {
+  color: var(--ifm-color-primary);
+  text-decoration: none;
+}
+
+/* The hero clip: its frame, or its placeholder, keeps its size before it loads */
+.heroMedia {
+  min-width: 0;
+}
+.heroMedia figure {
+  margin: 0;
+}
+
+/* Proof strip */
+.proof {
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.proofList {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0 auto;
+  padding: 0 var(--ifm-spacing-horizontal);
+  list-style: none;
+}
+
+.proofItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.proofItem strong {
   font-size: 1.05rem;
+}
+.proofItem span {
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.9rem;
+}
+
+/* Sections */
+.section {
+  padding: 4rem 0;
+}
+
+.sectionAlt {
+  background: var(--ifm-color-emphasis-100);
+}
+[data-theme='dark'] .sectionAlt {
+  background: #202124;
+}
+
+.sectionHeader {
+  max-width: 46rem;
+  margin-bottom: 2rem;
+}
+
+.sectionTitle {
+  margin-bottom: 0.6rem;
+  font-size: clamp(1.6rem, 1.2rem + 1.2vw, 2.2rem);
+  line-height: 1.2;
+}
+
+.sectionLead {
+  margin-bottom: 0;
+  color: var(--ifm-color-emphasis-800);
+  font-size: 1.1rem;
+  line-height: 1.55;
+}
+
+.sectionMore {
+  margin: 1.5rem 0 0;
+}
+
+/* You already built half of this */
+.painList {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.pain {
+  padding: 1rem 1.1rem;
+  border-left: 3px solid var(--ifm-color-emphasis-400);
+  background: var(--ifm-color-emphasis-100);
+  border-radius: 0 var(--ifm-global-radius) var(--ifm-global-radius) 0;
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.painAnswer {
+  max-width: 46rem;
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+/* The loop: tabs on the left, the step on the right */
+.loop {
+  display: grid;
+  grid-template-columns: minmax(10rem, 13rem) minmax(0, 1fr);
+  gap: 2rem;
+  align-items: start;
+}
+
+.loopTabs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.loopTab {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid transparent;
+  border-radius: var(--ifm-global-radius);
+  background: transparent;
+  color: var(--ifm-font-color-base);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.loopTab:hover {
+  background: var(--ifm-color-emphasis-200);
+}
+.loopTab:focus-visible {
+  outline: 2px solid var(--ifm-color-primary);
+  outline-offset: 2px;
+}
+
+.loopTabSelected,
+.loopTabSelected:hover {
+  border-color: var(--ifm-color-primary);
+  background: var(--ifm-background-surface-color);
+  color: var(--ifm-color-primary);
+}
+
+.loopNumber {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: var(--ifm-color-emphasis-300);
+  color: var(--ifm-font-color-base);
+  font-size: 0.8rem;
+}
+.loopTabSelected .loopNumber {
+  background: var(--ifm-color-primary);
+  color: var(--qb-on-primary);
+}
+
+.loopName {
+  font-size: 1.05rem;
+}
+
+.loopExperimental {
+  margin-left: auto;
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.loopPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  min-width: 0;
+}
+
+.loopTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.35rem;
+}
+
+.loopText p {
+  max-width: 44rem;
+  margin-bottom: 0.5rem;
+  font-size: 1.05rem;
+  line-height: 1.55;
+}
+
+.loopMedia figure {
+  margin: 0.5rem 0 0;
+}
+
+/* Cards: use cases and roadmap */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: var(--ifm-card-border-radius, 8px);
+  background: var(--ifm-card-background-color);
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.card:hover,
+.card:focus-within {
+  border-color: var(--ifm-color-primary);
+  box-shadow: var(--ifm-global-shadow-lw);
+}
+
+.cardAudience {
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+@media (min-width: 997px) {
+  .cardsThree {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* The whole card is clickable, through its title's link */
+.cardLink::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+.cardLink:hover {
+  text-decoration: none;
+}
+
+.cardText {
+  margin: 0;
+  color: var(--ifm-color-emphasis-800);
+  line-height: 1.5;
+}
+
+/* Polish grid */
+.polishGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.75rem 1.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Every media gets the same box, whatever its shape, so the rows line up */
+.polishMedia {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 16 / 10;
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+  border-radius: var(--ifm-global-radius);
+  background: var(--ifm-background-surface-color);
+  box-shadow: 0 0 0 1px var(--ifm-color-emphasis-200);
+}
+.polishMedia figure {
+  width: 100%;
+  margin: 0;
+}
+
+.polishTitle {
+  margin-bottom: 0.25rem;
+  font-size: 1.05rem;
+}
+
+.polishText {
+  margin: 0;
+  color: var(--ifm-color-emphasis-800);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+/* Fits your stack */
+.stackGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stackTitle {
+  margin-bottom: 0.4rem;
+  font-size: 1.1rem;
+}
+
+.stackList {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--ifm-color-emphasis-800);
+  line-height: 1.6;
+}
+
+/* The last call to action, and what's new */
+.finalCta {
+  max-width: 40rem;
+  margin: 0 auto 3rem;
+  text-align: center;
+}
+.finalCta .sectionLead {
+  margin-bottom: 1.5rem;
+}
+
+.whatsNew {
+  padding-top: 2.5rem;
+  border-top: 1px solid var(--ifm-color-emphasis-200);
+}
+
+.whatsNewTitle {
+  margin-bottom: 1rem;
+  font-size: 1.35rem;
+}
+
+@media (max-width: 996px) {
+  .heroInner {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2rem;
+  }
+  .proofList,
+  .painList {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .loop {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1rem;
+  }
+  /* The steps scroll sideways above the clip */
+  .loopTabs {
+    flex-direction: row;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    scrollbar-width: thin;
+  }
+  .loopTab {
+    width: auto;
+    flex: none;
+  }
+  .loopExperimental {
+    display: none;
+  }
+  .polishGrid,
+  .stackGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .hero {
+    padding: 2rem 0;
+  }
+  .section {
+    padding: 2.5rem 0;
+  }
+  .proofList,
+  .painList,
+  .polishGrid,
+  .stackGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ctas :global(.button) {
+    flex: 1 1 100%;
+  }
 }
