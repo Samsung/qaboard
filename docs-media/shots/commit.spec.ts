@@ -901,10 +901,9 @@ const plotOf = (page: Page, index: number) => viewer(cards(page).first(), index)
 shot('commit/latency-cdf', {
   project: SL,
   url: d => sharedCache(d, 'steady-high', only('cdf')),
-  alt: 'The steady-high run of the shared cache against its parent: p50 around half a second and p99 over a second, a hundred times the '
-    + 'reference\'s or more. The '
-    + 'latency percentiles on log axes: the new line sits near a second from the median on, the reference\'s stays '
-    + 'under the 12 ms SLO line until the far tail.',
+  alt: 'The steady-high run of the shared cache against its parent: p50 and p99 a hundred times the reference\'s or '
+    + 'more. On log axes, the new line sits near a second from the median on, the reference\'s stays under the 12 ms '
+    + 'SLO line until the far tail.',
   caption: 'Latency percentiles on a log tail: at 6,000 requests/s, with the shared cache every percentile is a hundred '
     + 'times slower or more. Requests queue for its lock.',
   actions: async ui => {

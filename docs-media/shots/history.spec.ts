@@ -111,8 +111,8 @@ shot('history/performance-over-time', {
   // bursty-high's p99 is around 200 ms: its line would flatten the others
   url: d => lastTwoWeeks(d, '-bursty'),
   alt: 'Performance over time on main, the last two weeks: Latency p99, a line per test, and the 12 ms target dashed. '
-    + 'One line jumps from about 3 ms to over 10 ms and comes back down four commits later; hovered, its point at the jump names the '
-    + 'heavy-tail-high test, and the commit below copies payloads into fixed slots.',
+    + 'One line jumps from about 3 ms to over 10 ms and comes back four commits later; hovered, its point at the jump '
+    + 'names heavy-tail-high, and the commit below copies payloads into fixed slots.',
   caption: 'A metric over a branch\'s commits, a line per test: hover the jump to see the test and the commit.',
   actions: async ui => {
     const plot = performanceOverTime(ui.page).locator('.js-plotly-plot').first();
@@ -153,8 +153,8 @@ clip('history/find-regression', {
   project: SL,
   url: d => lastTwoWeeks(d, 'heavy-tail-high'),
   alt: 'History filtered on the heavy-tail-high test: the cursor moves along its p99 line and the commits below follow; '
-    + 'at the batcher change that copies payloads into fixed slots, p99 jumps from about 3 ms to over 10 ms. A click keeps it as the '
-    + 'reference: the commit that borrows payloads again brings it back to about 3 ms.',
+    + 'where the batcher copies payloads into fixed slots, p99 jumps from about 3 ms to over 10 ms. A click keeps it as '
+    + 'the reference: the commit that borrows payloads again is back near 3 ms.',
   caption: 'Hover along a test\'s line to find the commit that changed it, click to compare later ones with it.',
   // the chart, the commits and the hovered run's latency percentiles
   viewport: { width: 1440, height: 1100 },
