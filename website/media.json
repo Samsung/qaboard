@@ -4,26 +4,26 @@
   "shots": {
     "auth/login": {
       "alt": "The Login dialog over the projects list: a user name field with \"ines\", a password field, and a Log In button.",
-      "app_version": "1.1.1+c67f384",
+      "app_version": "1.1.1+4dffb32",
       "caption": "Click Login at the top right, then sign in with your user name and password.",
       "captured": "2026-10-13",
       "files": {
         "avif": {
-          "bytes": 3140,
-          "key": "shots/auth/login/8789b9793beebfae.avif"
+          "bytes": 3969,
+          "key": "shots/auth/login/c6c3a1dca6de3418.avif"
         },
         "png": {
-          "bytes": 13126,
-          "key": "shots/auth/login/585596f86cfaa450.png"
+          "bytes": 16827,
+          "key": "shots/auth/login/edc26830179d01da.png"
         },
         "webp": {
-          "bytes": 5964,
-          "key": "shots/auth/login/43bb89568d3b50a7.webp"
+          "bytes": 6732,
+          "key": "shots/auth/login/93608331bef50859.webp"
         }
       },
       "height": 306,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRmAAAABXRUJQVlA4IFQAAADwAQCdASoQAAsAA4BaJYwCdAEO/WkIvQAA/pwHME+UiowK/xtRcDcQVmGs8ZbHD8hcxXAT230Pqeemek0jx87HSRjODuvCDZbPhn3kLXbAxO43AAA=",
+      "lqip": "data:image/webp;base64,UklGRmAAAABXRUJQVlA4IFQAAADwAQCdASoQAAsAA4BaJYwCdAEO/WkIvQAA/pwHME+UiowK/xtRcDcQVmGs8ZbHD8hcxXAT11s5OFS/wnv4suWaja1mIsOZCmXZaeeSjNqRlQpIAAA=",
       "project": null,
       "source_spec": "docs-media/shots/auth.spec.ts",
       "width": 460
@@ -727,26 +727,26 @@
     },
     "projects/home": {
       "alt": "The QA-Board home page: a filter box, then a card per Kitefin project with its avatar, name, description, a star to pin it, a link to its source, when it last ran and how many commits have results.",
-      "app_version": "1.1.1+c67f384",
+      "app_version": "1.1.1+4dffb32",
       "caption": "The home page lists every project with results. Pin the ones you follow with their star.",
       "captured": "2026-10-13",
       "files": {
         "avif": {
-          "bytes": 17868,
-          "key": "shots/projects/home/6863065fb82f1311.avif"
+          "bytes": 33445,
+          "key": "shots/projects/home/18f47125a4f53826.avif"
         },
         "png": {
-          "bytes": 56675,
-          "key": "shots/projects/home/c823a56fc35850ba.png"
+          "bytes": 119675,
+          "key": "shots/projects/home/b31d985c7f01fd68.png"
         },
         "webp": {
-          "bytes": 32912,
-          "key": "shots/projects/home/f77bcfdcc5a3b090.webp"
+          "bytes": 69018,
+          "key": "shots/projects/home/669d189fc8cf101e.webp"
         }
       },
-      "height": 309,
+      "height": 579,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAACQAQCdASoQAAQAA4BaJaQAAudVMbgA/vIW4L/ji30eQAAA",
+      "lqip": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAACwAQCdASoQAAcAA4BaJaQAAueGeKgAAP7yFuC/44tik3MzAAA=",
       "project": null,
       "source_spec": "docs-media/shots/projects.spec.ts",
       "width": 1440
