@@ -452,11 +452,17 @@ shot('commit/dynamic-options', {
   caption: 'Dynamic Options pick the file each card shows, here the ISP stage. Synced, one slider drives every run.',
   actions: async ui => {
     const card = cards(ui.page).filter({ hasText: 'photos/night-street.png' }).first();
-    await card.evaluate(card => window.scrollBy(0, card.getBoundingClientRect().top - 160));
+    const scrollToCard = () => card.evaluate(card => window.scrollBy(0, card.getBoundingClientRect().top - 160));
+    // the browser keeps what's in view in place when the page above changes, more or less depending on the timing
+    await ui.page.evaluate(() => { document.documentElement.style.overflowAnchor = 'none'; });
+    await scrollToCard();
     await ui.settle();
     // the ISP stage, the card's second visualization (Output is hidden)
     await preset(ui, viewer(card, 1), 'Shadows (noise)');
     await mouseAway(ui);
+    // the facade's card above grows when its images show, sometimes after the first scroll: back in place
+    await scrollToCard();
+    await ui.settle();
   },
 });
 
