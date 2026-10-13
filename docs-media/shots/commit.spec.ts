@@ -825,7 +825,7 @@ shot('commit/detections', {
   // in full screen, each image is half as wide as the screen: at 2x, a little smaller than the photo (and its budget)
   viewport: { width: 840, height: 640 },
   actions: async ui => {
-    // The project's cards are 390 px wide (qaboard.yaml sets no width): in full screen, the images fill the screen
+    // In full screen, the images fill the screen, whatever the cards' width (qaboard.yaml: outputs.style.width)
     await cards(ui.page).first().locator('[title="Enter Full Screen"]').evaluate(e => (e as HTMLElement).click());
     await ui.page.waitForFunction(() => !!document.fullscreenElement);
     await ui.settle();

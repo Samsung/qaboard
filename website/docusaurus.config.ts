@@ -26,7 +26,7 @@ const site = loadSite(process.env.QABOARD_SITE)
 import {themes as prismThemes} from 'prism-react-renderer';
 
 // Screenshots and clips (<Shot>, <Clip>, <Compare>): see docs-media/README.md and plugins/media/
-const {mediaStaticDirectories} = require('./plugins/media/config');
+const {mediaStaticDirectories, socialCardImage} = require('./plugins/media/config');
 const mediaRemark = require('./plugins/media/remark');
 // Repository files in code blocks (<RepoFile path="...">): see plugins/snippets/
 const repoFileRemark = require('./plugins/snippets/remark');
@@ -135,8 +135,8 @@ let config: Config = {
   ],
 
   themeConfig: {
-      // TODO: a social card made from a screenshot of the web app
-      image: "img/share-github.png",
+      // The social card (docs-media/shots/landing.spec.ts: landing/social-card) once it's published, else the old one
+      image: socialCardImage(__dirname) ?? "img/share-github.png",
       docs: {
         sidebar: {hideable: true},
       },

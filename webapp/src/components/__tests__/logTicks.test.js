@@ -19,6 +19,8 @@ describe("the ticks of the Summary's box plots on a log scale", () => {
 
   it("ignore what a log axis can't show", () => {
     expect(logTickValues([0, -1, NaN, null, 2])).toEqual([2]);
+    // too close for two labels: one
+    expect(logTickValues([6.2, 7.32])).toEqual([6.7]);
     expect(logTickValues([0, null])).toBeUndefined();
   });
 });

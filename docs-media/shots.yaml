@@ -268,7 +268,7 @@ shots:
     kind: still
     project: image-quality
     shows: Hovering a Siemens star shows the pixel's values in both images, with a crosshair at the same spot on the reference.
-    pages: [user-guide/comparing-results, landing]
+    pages: [user-guide/comparing-results]
     features: [pixel-tooltip, image-synced-zoom]
     needs: bilateral-denoise vs isp-4-1
     phase: 1
@@ -301,7 +301,7 @@ shots:
     kind: clip
     project: image-quality
     shows: The 113 MP test wall from the full view down to single pixels of a Siemens star, both images in sync.
-    pages: [user-guide/comparing-results, visualizations, use-cases/image-quality, landing]
+    pages: [user-guide/comparing-results, visualizations, use-cases/image-quality]
     features: [deep-zoom, image-synced-zoom]
     needs: merge-bilateral vs isp-4-1 (deep-zoom batch)
     phase: 1
@@ -309,8 +309,8 @@ shots:
   - id: commit/dynamic-outputs
     kind: clip
     project: image-quality
-    shows: The ISP stage slider of the Controls panel steps from the raw mosaic to the tone-mapped image; scrolling down, the next run's card follows the slider too.
-    pages: [visualizations, recipes/dynamic-outputs, use-cases/image-quality, landing]
+    shows: The ISP stage slider of the Controls panel steps from the raw mosaic to the tone-mapped image of the facade's window (its "Window frame (halos)" region); scrolling down, the next run's card follows the slider too.
+    pages: [visualizations, recipes/dynamic-outputs, use-cases/image-quality]
     features: [dynamic-outputs]
     phase: 2
     status: captured
@@ -416,10 +416,10 @@ shots:
   - id: commit/bit-accuracy-diff
     kind: clip
     project: image-quality
-    shows: Click regs.txt in the tree to diff it in place, Next Diff jumps to the rounding register; Ctrl-click metrics.json to add its diff.
-    pages: [bit-accuracy, user-guide/commit-page, recipes/bit-accuracy-handoff, use-cases/image-quality, landing]
+    shows: Click regs.txt in the tree to diff it in place, Next Diff jumps to the rounding register; Ctrl-click metrics.json to add its diff. Then the same run of a docs-only commit (docs-tuning-guide), tagged Bit-accurate.
+    pages: [bit-accuracy, user-guide/commit-page, recipes/bit-accuracy-handoff, use-cases/image-quality]
     features: [bit-accuracy-tree]
-    needs: fxp-round-half-even
+    needs: fxp-round-half-even and docs-tuning-guide vs isp-4-1, hw-model platform
     phase: 2
     status: captured
   - id: commit/export
@@ -687,7 +687,45 @@ shots:
   - id: landing/social-card
     kind: still
     project: image-quality
-    shows: "The 1200x630 social card, rendered from an HTML template: logo, \"Code review for results\", a crop of commit/image-sbs."
+    shows: "The 1200x630 social card (every page's Open Graph image), rendered from docs-media/shots/templates/social-card.html: the logo, the tagline, and a crop of the commit page like the hero's: the facade's run, its metrics, the new image and its Image Diff."
     pages: [landing]
+    needs: merge-bilateral vs isp-4-1
     phase: 2
-    status: planned
+    status: captured
+  # The tiles of the landing's "Polish" grid: 16:10 crops, readable at about 370 px wide
+  - id: landing/deep-zoom
+    kind: clip
+    project: image-quality
+    shows: The new image of the 113 MP test wall, from the full view down to single pixels of a Siemens star.
+    pages: [landing]
+    features: [deep-zoom]
+    needs: merge-bilateral vs isp-4-1 (deep-zoom batch)
+    phase: 2
+    status: captured
+  - id: landing/pixel-values
+    kind: still
+    project: image-quality
+    shows: The facade's window frame, new image and the start of the reference, a pixel hovered on the frame's edge; its values in both images above, crosshairs on both.
+    pages: [landing]
+    features: [pixel-tooltip]
+    needs: merge-bilateral vs isp-4-1
+    phase: 2
+    status: captured
+  - id: landing/every-stage
+    kind: clip
+    project: image-quality
+    shows: The facade's window, new image, stage by stage of the ISP (the Controls panel's stage slider, out of the crop), from the raw mosaic to the tone-mapped output; captions name the stages.
+    pages: [landing]
+    features: [dynamic-outputs]
+    needs: merge-bilateral vs isp-4-1
+    phase: 2
+    status: captured
+  - id: landing/bit-accuracy
+    kind: clip
+    project: image-quality
+    shows: Output Files of the facade's hw-model run, the files that changed; regs.txt's diff, inline, at the rounding register (0 → 2); then the docs-only commit's run, Bit-accurate.
+    pages: [landing]
+    features: [bit-accuracy-tree]
+    needs: fxp-round-half-even and docs-tuning-guide vs isp-4-1, hw-model platform
+    phase: 2
+    status: captured

@@ -28,6 +28,7 @@ export interface ShotOptions {
   padding?: number;                                    // CSS px around target, default 16
   mask?: (page: Page) => Locator[];                    // painted over with the surrounding background color
   viewport?: { width: number; height: number };        // default 1440x900
+  scale?: number;                                      // device scale factor, default 2 (the social card: 1)
   storage?: Record<string, string>;                    // localStorage entries, merged over the defaults
   login?: string | null;                               // persona logged in; default: the project's main author, none without a project
   dedupeTolerance?: number;                            // share of differing pixels still "unchanged", default 0.0005 (clips 0.002)
@@ -109,10 +110,10 @@ function envFor(testInfo: TestInfo, specFile: string): CaptureEnv {
 }
 
 // The context options of docs-media/shots/playwright.config.ts, whatever the project
-function contextOptions(kind: Kind, base: BrowserContextOptions = {}, viewport?: { width: number; height: number }): BrowserContextOptions {
+function contextOptions(kind: Kind, base: BrowserContextOptions = {}, viewport?: { width: number; height: number }, scale?: number): BrowserContextOptions {
   return {
     viewport: viewport ?? base.viewport ?? VIEWPORT,
-    deviceScaleFactor: base.deviceScaleFactor ?? 2,
+    deviceScaleFactor: scale ?? base.deviceScaleFactor ?? 2,
     locale: base.locale ?? 'en-US',
     timezoneId: base.timezoneId ?? 'UTC',
     colorScheme: base.colorScheme ?? 'light',
@@ -160,7 +161,7 @@ async function setupContext(context: BrowserContext, demo: Demo, kind: Kind, sto
 }
 
 async function openPage(browser: Browser, kind: Kind, id: string, options: ShotOptions, env: CaptureEnv) {
-  const context = await browser.newContext(contextOptions(kind, env.contextOptions, options.viewport));
+  const context = await browser.newContext(contextOptions(kind, env.contextOptions, options.viewport, options.scale));
   await setupContext(context, env.demo, kind, { ...defaultStorage(env.demo), ...options.storage });
   const login = options.login === undefined ? (options.project ? PROJECT_PERSONAS[options.project] : null) : options.login;
   if (login) {

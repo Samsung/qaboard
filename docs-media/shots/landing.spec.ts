@@ -1,5 +1,7 @@
 // The home page of the docs (docs-media/shots.yaml: landing/*). The hero is a muted loop of the commit page, on the
 // camera ISP project: the new denoiser wins PSNR but adds halos (examples/image-quality/story.yaml: merge-bilateral).
+import fs from 'node:fs';
+import path from 'node:path';
 import { clip, shot, type Box, type Demo, type Locator, type Page, type Ui } from './lib';
 
 const IQ = 'image-quality';
@@ -184,7 +186,6 @@ clip('landing/every-stage', {
   alt: 'The facade\'s window, stage by stage of the camera pipeline: the raw sensor mosaic, demosaiced, denoised, '
     + 'sharpened, then tone-mapped.',
   caption: 'A slider over the camera pipeline\'s stages, from the raw mosaic to the output.',
-  poster: 'last',
   actions: async ui => {
     await showCard(ui);
     // the ISP stage, the card's second visualization (Output is hidden)
@@ -227,6 +228,8 @@ clip('landing/bit-accuracy', {
   alt: 'The files of a run on the hardware model that differ from the reference; a click on regs.txt shows its diff: '
     + 'the ROUNDING register went from 0 to 2. Then a commit that only changed the docs: its run is bit-accurate.',
   caption: 'Only the output files that changed, and their diff; a commit that changes none is bit-accurate.',
+  // the diff, rounding 0 → 2
+  poster: 5500,
   // the card's files and the diff below them
   region: async page => {
     const card = (await cards(page).first().boundingBox())!;
@@ -260,7 +263,7 @@ shot('landing/pixel-values', {
   project: IQ,
   url: d => compare(d, 'merge-bilateral', 'isp-4-1', 'photos/facade base linux'),
   alt: 'The facade\'s window frame, new and reference images: above them, the hovered pixel\'s coordinates and its RGB '
-    + 'values in both, darker in the new image\'s halo; crosshairs mark the pixel in both.',
+    + 'values in both images, with their colors; crosshairs mark the pixel in both.',
   caption: 'Hover a pixel: its values in both images, and a crosshair on the other.',
   actions: async ui => {
     await showCard(ui);
@@ -277,5 +280,42 @@ shot('landing/pixel-values', {
     const width = 784;
     const height = Math.round(width / TILE_RATIO);
     return { x: image.x - 4, y: image.y + image.height + 4 - height, width, height };
+  },
+});
+
+// The social card (Open Graph image of the docs: website/docusaurus.config.ts), 1200x630 at scale 1: the logo and the
+// tagline (templates/social-card.html), and a crop of the commit page like the hero's, the facade's run with Image Diff
+const SOCIAL_CARD = { width: 1200, height: 630 };
+const TEMPLATES = path.join(import.meta.dirname, 'templates');
+const LOGO = path.join(import.meta.dirname, '..', '..', 'website', 'static', 'img', 'twemoji_poodle.svg');
+
+shot('landing/social-card', {
+  project: IQ,
+  url: d => compare(d, 'merge-bilateral', 'isp-4-1', 'photos/facade base linux', { controls: { diff: true } }),
+  scale: 1,
+  alt: 'QA-Board, "Tests tell you it runs. QA-Board shows you it\'s better." Next to it, a run on the commit page: PSNR '
+    + 'and SSIM up, the new image of a window and its Image Diff, where the frame\'s halos stand out.',
+  caption: 'The social card of the docs.',
+  actions: async ui => {
+    const scope = viewer(ui.page);
+    await showCard(ui);
+    await preset(ui, scope, 'Window frame (halos)');
+    // a higher diff threshold leaves the halos (like commit/image-perceptual-diff)
+    await ui.click(scope.locator('.bp6-slider-handle').first());
+    for (let i = 0; i < 10; i++) await ui.press('ArrowRight');
+    await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await ui.page.mouse.move(1000, 140);
+    await ui.settle();
+    // the card's metrics, presets and its first two images, down to their bottom, at 1:1 in the template
+    const card = (await cards(ui.page).first().boundingBox())!;
+    const image = await stableBox(newImage(scope));
+    const clip = { x: card.x, y: card.y, width: 640, height: Math.round(image.y + image.height - card.y) };
+    const crop = await ui.page.screenshot({ clip, animations: 'disabled', caret: 'hide' });
+    const html = fs.readFileSync(path.join(TEMPLATES, 'social-card.html'), 'utf8')
+      .replace('{{logo}}', fs.readFileSync(LOGO, 'utf8').replace(/<\?xml[^>]*>/, ''))
+      .replace('{{shot}}', `data:image/png;base64,${crop.toString('base64')}`);
+    await ui.page.setViewportSize(SOCIAL_CARD);
+    await ui.page.setContent(html);
+    await ui.settle();
   },
 });

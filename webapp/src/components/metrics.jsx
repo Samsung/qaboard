@@ -239,9 +239,13 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
   var ydata = series.map(values => values.map(x => metric.scale * x));
   // a few round ticks: on a log scale, Plotly's pile up and overlap in such a small plot
   if (layout_.yaxis?.type === "log" && layout_.yaxis.tickvals === undefined) {
-    const tickvals = logTickValues(ydata.flat());
-    if (tickvals)
+    // the target's shading is part of the range
+    const tickvals = logTickValues([...ydata.flat(), ...(metric.target ? [metric.target * metric.scale] : [])]);
+    if (tickvals) {
       layout_.yaxis = { ...layout_.yaxis, tickvals };
+      // room for the label of a tick at the top (e.g. the target): Plotly hides labels that don't fit
+      layout_.margin = { ...layout_.margin, t: Math.max(layout_.margin?.t ?? 0, 8) };
+    }
   }
 
   var data = [];

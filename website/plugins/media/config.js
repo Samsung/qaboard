@@ -45,7 +45,21 @@ function mediaStaticDirectories() {
   return resolveMediaConfig().mode === 'local' ? [CACHE_DIR] : [];
 }
 
+// The social card for themeConfig.image, once published: its PNG master, served with the site in local mode (the
+// plugin downloads the PNG of the ids in its `png` option). Else null: the media hostname never appears in a page.
+function socialCardImage(siteDir, id = 'landing/social-card') {
+  if (resolveMediaConfig().mode !== 'local')
+    return null;
+  try {
+    const manifest = JSON.parse(require('fs').readFileSync(path.join(siteDir, MANIFEST), 'utf8'));
+    const key = manifest.shots?.[id]?.files?.png?.key;
+    return key ? `${SERVED_PREFIX}/${key}` : null;
+  } catch {
+    return null;
+  }
+}
+
 module.exports = {
   MODES, CACHE_DIR, SERVED_PREFIX, MANIFEST, SCHEMA, SHOT_LIST,
-  isBuildCommand, resolveMediaConfig, mediaStaticDirectories,
+  isBuildCommand, resolveMediaConfig, mediaStaticDirectories, socialCardImage,
 };
