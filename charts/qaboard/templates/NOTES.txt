@@ -16,6 +16,11 @@ Runs must save their results in {{ include "qaboard.resultsPath" . }} (`storage`
 WARNING: QA-Board has no storage for results: set results.* (see the chart's values.yaml),
          or mount your storage with backend/proxy/cantaloupe.extraVolumes.
 {{- end }}
+{{- if .Values.demoData.enabled }}
+
+The demo projects are restored before the backend first starts:
+  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "qaboard.fullname" . }}-backend -c demo-data
+{{- end }}
 
 Check the rollout:
   kubectl -n {{ .Release.Namespace }} rollout status deploy/{{ include "qaboard.fullname" . }}-backend

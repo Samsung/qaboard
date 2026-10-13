@@ -20,10 +20,10 @@ kubectl port-forward svc/qaboard-proxy 5151:80
 Open [http://localhost:5151](http://localhost:5151). The first install downloads QA-Board's images, which can take a few minutes.
 
 :::note Tested in CI
-GitHub CI runs these same commands on every commit (the `helm-e2e` job), with the images it just built. Then it runs a `qa batch` in the cluster, checks its results through the web server, and upgrades the release.
+GitHub CI runs these same commands on every commit (the `helm-e2e` job), with the images it just built. Then it checks the demo data (a small test project) through the API and in a browser, runs a `qa batch` in the cluster, checks its results through the web server, and upgrades the release.
 :::
 
-What `quickstart.yaml` sets up: a PostgreSQL pod, one replica of each service, the Cantaloupe image server, no ingress (hence the port-forward), and the results storage in `/tmp/qaboard`.
+What `quickstart.yaml` sets up: a PostgreSQL pod, one replica of each service, the Cantaloupe image server, no ingress (hence the port-forward), the results storage in `/tmp/qaboard`, and the docs' demo projects (`demoData`). Before the backend first starts, an init container restores their database, unless it already has QA-Board's tables, and their results, in a volume of their own mounted at `/mnt/qaboard`, the path their database has. Without `demoData`, the projects list is empty until you save results.
 
 ### Save results from your laptop
 The `qa` CLI saves results in a folder, and tells the server where they are: the server must see them at the same absolute path. `kind.yaml` shares your computer's `/tmp/qaboard` with the cluster at the same path, and the chart mounts it in QA-Board's pods. Point the CLI to the server and to this folder:

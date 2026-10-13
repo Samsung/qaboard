@@ -15,9 +15,12 @@ data:
   UWSGI_CHEAPER_OVERLOAD: "15"
   UWSGI_CHEAPER_RSS_LIMIT_SOFT: "17179869184"
   UWSGI_LISTEN_QUEUE_SIZE: "1024"
-  {{- if and .Values.results.enabled (not (hasKey .Values.config "QABOARD_STORAGE_ROOTS")) }}
-  # The results storage: the backend only writes, deletes or runs code there
-  QABOARD_STORAGE_ROOTS: {{ include "qaboard.resultsPath" . | quote }}
+  {{- $roots := list }}
+  {{- if .Values.results.enabled }}{{ $roots = append $roots (include "qaboard.resultsPath" .) }}{{ end }}
+  {{- if .Values.demoData.enabled }}{{ $roots = append $roots (include "qaboard.demoDataPath" .) }}{{ end }}
+  {{- if and $roots (not (hasKey .Values.config "QABOARD_STORAGE_ROOTS")) }}
+  # The results storage (and the demo data's): the backend only writes, deletes or runs code there
+  QABOARD_STORAGE_ROOTS: {{ join ":" $roots | quote }}
   {{- end }}
   {{- if and .Values.cantaloupe.enabled (not (hasKey .Values.config "QABOARD_IMAGE_SERVERS")) }}
   # The web app gets image tiles from /iiif/2/<path of the image> (see cantaloupe.yaml)

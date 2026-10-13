@@ -11,6 +11,7 @@ Saves and restores the demo stack's data (the database and the seeded results) a
   uv run docs-media/snapshot.py restore                # snapshots/<key>.tar.zst -> a fresh demo stack
   uv run docs-media/snapshot.py restore --latest       # the most recent snapshot, whatever its key
   uv run docs-media/snapshot.py list | info [KEY] | delete KEY
+  uv run docs-media/snapshot.py image --tag ghcr.io/<owner>/qaboard:demo-data   # the demo-data image, from a snapshot
 
 - The key is a hash of what the data depends on: examples/**, docs-media/seed.py, backend/backend/models/** and
   qaboard/** (git-tracked and untracked files, not ignored ones). When it changes, the stories must be seeded again.
@@ -21,6 +22,11 @@ Saves and restores the demo stack's data (the database and the seeded results) a
   relative to the results storage. It restores at the same path ($QABOARD_DEMO_RESULTS, default /mnt/qaboard),
   since the database has absolute paths.
 - Archives are cached in ~/.cache/qaboard-demo/snapshots (--cache-dir).
+- The demo-data image (docs-media/demo-data/) restores a snapshot into the quickstarts' servers: Docker Compose
+  (deployments/quickstart/compose.yml) and the Helm chart's demoData. It holds the database dump and the results,
+  where files with the same content are hard links (most outputs don't change from one commit to the next, so it's
+  several times smaller than the snapshot). `image` takes the snapshot like `restore`
+  (this checkout's key, --key, --latest or --file), and tags the image with each --tag.
 """
 import os
 import io
@@ -376,15 +382,111 @@ def commit_outputs(pid: str, sha: str):
     yield from batch.get('outputs', {}).values()
 
 
+# ------------------------------------------------------------------------------------------------ demo-data image
+
+DEMO_DATA = Path(__file__).resolve().parent / 'demo-data'
+# Where deployments/quickstart/compose.yml and the chart's demoData mount the demo results
+DEMO_DATA_RESULTS = '/mnt/qaboard'
+
+
+def demo_data_context(archive: Path, metadata: Dict, context: Path) -> Dict:
+  """
+  Writes the image's files next to its Dockerfile: db.sql, results.tar (relative to the results storage, files with
+  the same content and mode as hard links), metadata.json and demo-data.txt (what restore.sh logs).
+  """
+  shutil.copy(DEMO_DATA / 'Dockerfile', context / 'Dockerfile')
+  shutil.copy(DEMO_DATA / 'restore.sh', context / 'restore.sh')
+  (context / 'restore.sh').chmod(0o755)
+  stats = {'files': 0, 'bytes': 0, 'links': 0, 'linked_bytes': 0}
+  seen: Dict[tuple, str] = {}
+  with (context / 'results.tar').open('wb') as out_file, tarfile.open(fileobj=out_file, mode='w|', format=tarfile.PAX_FORMAT) as out:
+    for tar, member in members(archive):
+      if member.name == 'db.sql':
+        with (context / 'db.sql').open('wb') as f:
+          shutil.copyfileobj(tar.extractfile(member), f)
+        continue
+      if not member.name.startswith('results/') or member.name == 'results':
+        continue
+      info = tarfile.TarInfo(member.name[len('results/'):])
+      info.type, info.mode, info.mtime = member.type, member.mode, int(member.mtime)
+      info.uname = info.gname = 'root'
+      if member.issym() or member.islnk():
+        info.linkname = member.linkname[len('results/'):] if member.islnk() else member.linkname
+      if not member.isfile():
+        out.addfile(info)
+        continue
+      data = tar.extractfile(member).read()
+      stats['files'] += 1
+      stats['bytes'] += len(data)
+      key = (hashlib.sha256(data).digest(), member.mode & 0o7777)
+      if data and key in seen:
+        info.type, info.linkname = tarfile.LNKTYPE, seen[key]
+        out.addfile(info)
+        stats['links'] += 1
+        stats['linked_bytes'] += len(data)
+      else:
+        seen[key] = info.name
+        info.size = len(data)
+        out.addfile(info, io.BytesIO(data))
+  projects = {name: {'id': p['id'], 'commits': len(p['commits'])} for name, p in metadata['projects'].items()}
+  summary = {k: metadata.get(k) for k in ('key', 'created_at', 't0', 'app_version', 'results_root')}
+  (context / 'metadata.json').write_text(json.dumps({**summary, 'projects': projects, **stats}, indent=2) + '\n')
+  listed = ', '.join(f"{p['id']} ({p['commits']} commits)" for p in projects.values())
+  (context / 'demo-data.txt').write_text(f"QA-Board demo data: {listed}; snapshot {metadata['key']}, T0 {metadata['t0']}\n")
+  # The same snapshot gives the same files, so that rebuilding the image can give the same data layer
+  created = datetime.datetime.fromisoformat(metadata['created_at']).timestamp()
+  for name in ('db.sql', 'results.tar', 'metadata.json', 'demo-data.txt'):
+    os.utime(context / name, (created, created))
+  return stats
+
+
+def build_image(args):
+  archive = fetch(args)
+  metadata = read_metadata(archive)
+  if metadata['results_root'] != DEMO_DATA_RESULTS:
+    raise SystemExit(f"ERROR: the snapshot's results are in {metadata['results_root']}, the quickstarts mount them at {DEMO_DATA_RESULTS}")
+  tags = args.tag or [f"{stack.image()}:demo-data"]
+  labels = {
+    'org.opencontainers.image.title': 'QA-Board demo data',
+    'org.opencontainers.image.description': "The docs' demo projects, restored into a QA-Board server by the quickstarts",
+    'org.qaboard.demo-data.snapshot': metadata['key'],
+    'org.qaboard.demo-data.t0': metadata['t0'],
+  }
+  # Links the package to its repository on GitHub, like the other images (.github/workflows/ci.yaml)
+  if os.environ.get('GITHUB_REPOSITORY'):
+    labels['org.opencontainers.image.source'] = f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/{os.environ['GITHUB_REPOSITORY']}"
+  revision = git_info()['sha']
+  if revision:
+    labels['org.opencontainers.image.revision'] = revision
+  cache = Path(args.cache_dir)
+  cache.mkdir(parents=True, exist_ok=True)
+  with tempfile.TemporaryDirectory(prefix='demo-data-', dir=cache.parent) as tmp:
+    context = Path(tmp)
+    log(f"Preparing the demo data of snapshot {metadata['key']} (T0 {metadata['t0']}, {', '.join(metadata['projects'])})...", 'blue')
+    start = time.time()
+    stats = demo_data_context(archive, metadata, context)
+    log(f"  {stats['files']} files, {human(stats['bytes'])}: {stats['links']} are copies of others ({human(stats['linked_bytes'])}), "
+        f"stored as hard links. results.tar: {human((context / 'results.tar').stat().st_size)} ({time.time() - start:.0f}s)", 'green')
+    command = ['docker', 'build', '--progress', 'plain']
+    for tag in tags:
+      command += ['--tag', tag]
+    for key, value in labels.items():
+      command += ['--label', f"{key}={value}"]
+    subprocess.run([*command, str(context)], check=True)
+  size = subprocess.run(['docker', 'image', 'inspect', '--format', '{{.Size}}', tags[0]], capture_output=True, text=True).stdout.strip()
+  log(f"Built {', '.join(tags)} ({human(int(size)) if size.isdigit() else '?'})", 'green')
+
+
 # ------------------------------------------------------------------------------------------------ CLI
 
 def main():
   parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-  parser.add_argument('command', choices=['key', 'save', 'restore', 'list', 'info', 'delete'])
+  parser.add_argument('command', choices=['key', 'save', 'restore', 'list', 'info', 'delete', 'image'])
   parser.add_argument('key_arg', nargs='?', help="info, delete: the snapshot's key (info: default to this checkout's)")
-  parser.add_argument('--key', help="save/restore: another key than this checkout's")
-  parser.add_argument('--latest', action='store_true', help="restore: the most recent snapshot")
-  parser.add_argument('--file', help="restore: from this archive instead of R2")
+  parser.add_argument('--key', help="save, restore, image: another key than this checkout's")
+  parser.add_argument('--latest', action='store_true', help="restore, image: the most recent snapshot")
+  parser.add_argument('--file', help="restore, image: from this archive instead of R2")
+  parser.add_argument('--tag', action='append', help="image: tag the image (repeat for several), default: $QABOARD_IMAGE:demo-data")
   parser.add_argument('--force', action='store_true', help="save: replace an existing snapshot")
   parser.add_argument('--no-upload', action='store_true', help="save: only create the archive in the cache")
   parser.add_argument('--only', nargs='+', help="save: only these projects (e.g. image-quality)")
@@ -398,6 +500,8 @@ def main():
     save(args)
   elif args.command == 'restore':
     restore(args)
+  elif args.command == 'image':
+    build_image(args)
   elif args.command == 'list':
     client = r2()
     for page in client.get_paginator('list_objects_v2').paginate(Bucket=BUCKET, Prefix=PREFIX):
