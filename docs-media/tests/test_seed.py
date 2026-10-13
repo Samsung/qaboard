@@ -79,6 +79,14 @@ def test_the_fixture_story():
   assert (local.via, local.user, local.db_label) == ('local', 'ines', '@ines| ines-probe')
 
 
+def test_failures_can_select_configurations():
+  story = seed.Story(seed.EXAMPLES / 'detection-eval' / 'story.yaml', T0)
+  commit = story.commits['qdq-se-gates']
+  ci = commit.runs[0]
+  # Seeder.expected_failure doesn't use the seeder's state
+  assert seed.Seeder.expected_failure(None, commit, ci, 'slices/indoor', ['int8', 'size-320'])
+  assert not seed.Seeder.expected_failure(None, commit, ci, 'slices/indoor', ['fp32', 'size-320'])
+
 
 def test_runs_files_replace_the_batch_name_only():
   # the label can be the batch's name: only the name after `batch` goes
@@ -86,6 +94,7 @@ def test_runs_files_replace_the_batch_name_only():
   assert seed.without_batch_name(['batch', 'ci', '--tuning-search', '{}'], ['--tuning-search', '{}'], 'ci') == ['batch', '--tuning-search', '{}']
   with pytest.raises(seed.SeedError):
     seed.without_batch_name(['optimize', '--batch', 'ci'], [], 'ci')
+
 
 if __name__ == '__main__':
   sys.exit(pytest.main([__file__, '-q']))

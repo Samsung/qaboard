@@ -1,0 +1,96 @@
+# Metrics returned by run() in qa/main.py, for one slice of the test set. AP is COCO-style (qa/evaluate.py), against
+# labels proposed by a larger reference model. Object sizes are measured in the 320x320 frame the model sees at
+# size-320: small objects are smaller than 64x64 px there (the detector's smallest anchor box), large ones larger than
+# 128x128.
+available_metrics:
+  map:
+    label: mAP
+    description: Average precision over IoU 0.50:0.05:0.95 and over the classes labeled in the slice (COCO's AP).
+    smaller_is_better: false
+    target: 0.15
+  map50:
+    label: AP50
+    description: Average precision at IoU 0.5, over the classes labeled in the slice.
+    smaller_is_better: false
+  ap_small:
+    label: AP small
+    description: mAP over the objects smaller than 64x64 px in the 320x320 frame, the detector's smallest anchor box.
+    smaller_is_better: false
+  ap_medium:
+    label: AP medium
+    description: mAP over the objects between 64x64 and 128x128 px in the 320x320 frame.
+    smaller_is_better: false
+  ap_large:
+    label: AP large
+    description: mAP over the objects larger than 128x128 px in the 320x320 frame.
+    smaller_is_better: false
+  recall_small:
+    label: Recall, small objects
+    short_label: Recall small
+    description: Share of the small objects found at IoU 0.5, among the detections kept (above the score threshold).
+    suffix: '%'
+    scale: 100
+    smaller_is_better: false
+    target: 0.5
+  recall_medium:
+    label: Recall, medium objects
+    short_label: Recall medium
+    description: Share of the medium objects found at IoU 0.5, among the detections kept.
+    suffix: '%'
+    scale: 100
+    smaller_is_better: false
+  recall_large:
+    label: Recall, large objects
+    short_label: Recall large
+    description: Share of the large objects found at IoU 0.5, among the detections kept.
+    suffix: '%'
+    scale: 100
+    smaller_is_better: false
+  ap_person:
+    label: AP person
+    smaller_is_better: false
+  ap_bicycle:
+    label: AP bicycle
+    smaller_is_better: false
+  ap_car:
+    label: AP car
+    smaller_is_better: false
+  ap_truck:
+    label: AP truck
+    smaller_is_better: false
+  ap_chair:
+    label: AP chair
+    smaller_is_better: false
+  ap_bottle:
+    label: AP bottle
+    smaller_is_better: false
+  ap_backpack:
+    label: AP backpack
+    smaller_is_better: false
+  ap_potted_plant:
+    label: AP potted plant
+    smaller_is_better: false
+  latency_ms:
+    label: Latency per image
+    short_label: Latency
+    description: Median time of the model per image (ONNX Runtime on the CPU, 4 threads, after 5 warmup runs; int8 with its int8 kernels), without pre- and post-processing.
+    suffix: ' ms'
+    smaller_is_better: true
+    target: 25
+  model_mb:
+    label: Model size
+    description: Size of the ONNX model file.
+    suffix: ' MB'
+    smaller_is_better: true
+  is_failed:
+    label: Crashed
+    short_label: Crashed
+    description: The run crashed.
+    suffix: '%'
+    scale: 100
+    smaller_is_better: true
+    target: 0
+
+default_metric: map
+summary_metrics: [map, ap_small, recall_small, latency_ms]
+main_metrics: [map, map50, ap_small, latency_ms]

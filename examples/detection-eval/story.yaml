@@ -1,0 +1,369 @@
+# Six weeks of the K3's object detector: the fp32 model ships as kd-1.2; the first int8 model is 3.5x smaller, loses 40%
+# of the indoor slice's mAP and some small objects; per-channel weights and percentile calibration fix indoor, a
+# `qa optimize` run brings small objects back to kd-1.2's level, and int8 ships as kd-1.3. An evaluation fix moves AP a
+# little. Format: ../STORY.md. What the flags do: SPEC.md (and its "As built" section). The int8 numbers are the
+# quantized model's reference arithmetic, the same on every CPU with FMA (qa/detector.py).
+version: 1
+project: detection-eval
+id: kitefin/detector
+seed: 3141
+
+defaults:
+  # the code before the story; qa/main.py's defaults are the head of main at T0
+  flags:
+    model_version: '1.1'
+    score_threshold: 0.3
+    nms_iou: 0.5
+    eval_crowd_many: false
+  runs:
+    - batch: ci
+
+commits:
+  - id: eval-coco
+    branch: main
+    at: -42d 14:10
+    author: arjun
+    message: |
+      feat(eval): COCO-style AP per class and object size
+
+      Labels come from a bigger model for now (Faster R-CNN v2, score 0.6 and up). Boxes it isn't sure about, and
+      objects under 24 px at 320, are crowd boxes: detections there don't count.
+    patches:
+      # before the small-objects slice and the int8 model
+      qa/batches.yaml:
+        ci:
+          inputs: [slices/indoor, slices/outdoor, slices/warehouse]
+          matrix: {model: [fp32]}
+        sizes:
+          inputs: [slices/indoor, slices/outdoor, slices/warehouse]
+          matrix: {model: [fp32], size: [320, 416, 512]}
+
+  - id: pr-curves
+    branch: main
+    at: -42d 18:35
+    author: arjun
+    message: "feat(eval): precision-recall curve per class at IoU 0.5"
+
+  - id: html-report
+    branch: main
+    at: -41d 15:50
+    author: arjun
+    message: "feat(report): HTML report with per-class AP and the worst images"
+
+  - id: small-objects
+    branch: main
+    at: -38d 10:20
+    author: mira
+    message: |
+      small-objects: 30 composites of far objects (fixes no-far-objects)
+
+      Objects cut out of the other slices, 40 to 64 px at 320, pasted on empty aisles and lots. Labels are exact.
+    patches:
+      qa/batches.yaml:
+        ci:
+          inputs: [slices/indoor, slices/outdoor, slices/warehouse, slices/small-objects]
+        sizes:
+          inputs: [slices/indoor, slices/outdoor, slices/warehouse, slices/small-objects]
+
+  - id: nms-055
+    branch: main
+    at: -37d 16:40
+    author: arjun
+    message: "fix(post): NMS at IoU 0.55, like the model was trained"
+    flags: {nms_iou: 0.55}
+
+  - id: draw-missed
+    branch: main
+    at: -37d 19:05
+    author: arjun
+    message: "feat(report): draw missed objects in red"
+
+  - id: kd-1-2
+    branch: main
+    at: -36d 16:20
+    author: arjun
+    message: "chore(release): kd-1.2"
+    flags: {model_version: '1.2'}
+
+  - id: sizes-sweep
+    branch: main
+    at: -34d 14:45
+    author: arjun
+    message: |
+      docs: input size sweep, 320 stays
+
+      The model was trained at 320: at 416 it finds a few more small objects and loses the others' boxes, at 512
+      the anchors no longer fit what it learned.
+    runs:
+      - batch: ci
+      - batch: sizes
+        via: local
+        label: arjun-sizes
+        after: 50m
+
+  - id: labels-doc
+    branch: main
+    at: -31d 09:15
+    author: mira
+    message: "labels: document the reference model and the crowd boxes"
+
+  - id: confusions
+    branch: det/confusions
+    parents: [sizes-sweep]
+    at: -31d 15:30
+    author: arjun
+    message: "feat(report): confusion matrix, background included"
+
+  - id: merge-confusions
+    branch: main
+    parents: [labels-doc, confusions]
+    at: -30d 14:10
+    author: arjun
+    message: Merge branch 'det/confusions'
+
+  - id: int8-minmax
+    branch: quant/int8
+    parents: [merge-confusions]
+    at: -28d 15:40
+    author: arjun
+    message: |
+      feat(quant): static int8 with minmax calibration
+
+      ONNX Runtime, QDQ: uint8 activations, int8 weights, one scale per tensor, calibrated on 40 images.
+      The model goes from 13.8 MB to 3.9 MB, for the K3's NPU. CI runs both.
+    flags: {quant_calibration: minmax, quant_per_channel: false, quant_keep_fp32: none}
+    patches:
+      qa/batches.yaml:
+        ci: {matrix: {model: [fp32, int8]}}
+        sizes: {matrix: {model: [fp32, int8], size: [320, 416, 512]}}
+
+  - id: qdq-se-gates
+    branch: quant/int8
+    at: -27d 14:20
+    author: arjun
+    message: "perf(quant): keep the SE gates in uint8, one dequantize less per block"
+    flags: {bug_qdq_se_gate: true}
+    failures:
+      - batch: ci
+        configs: '*"int8"*'
+        kind: bug
+        log: "Type parameter \\(T\\) of Optype \\(Mul\\) bound to different types"
+
+  - id: qdq-se-gates-revert
+    branch: quant/int8
+    at: -27d 17:55
+    author: arjun
+    message: "revert(quant): dequantize the SE gates again, ORT can't load it"
+    flags: {bug_qdq_se_gate: null}
+
+  - id: int8-per-channel
+    branch: quant/int8
+    at: -24d 16:10
+    author: arjun
+    message: |
+      feat(quant): per-channel int8 weights (indoor mAP -40% -> -18%)
+
+      One scale per tensor didn't fit the depthwise convolutions: their channels' weights differ by 100x.
+    flags: {quant_per_channel: true}
+
+  - id: readme-slices
+    branch: main
+    parents: [merge-confusions]
+    at: -23d 10:30
+    author: mira
+    message: "readme: how to add a slice and its labels"
+
+  - id: int8-percentile
+    branch: quant/int8
+    at: -21d 15:25
+    author: arjun
+    message: |
+      feat(quant): percentile calibration (99.99)
+
+      Minmax let a few outliers set the scale of every activation. Indoor is back to fp32's mAP; small objects still
+      lose 7% of their AP. tune-int8 searches the rest.
+    flags: {quant_calibration: percentile, quant_percentile: 99.99}
+    runs:
+      - batch: ci
+      - batch: quant-search
+        via: optimize
+        label: tune-int8
+        optimize: qa/tune-int8.yaml
+        after: 2h
+
+  - id: int8-tuned
+    branch: quant/int8
+    at: -17d 14:50
+    author: arjun
+    message: |
+      feat(quant): int8 settings from tune-int8
+
+      The best of its 20 evaluations: percentile 99.999, the first convolution in fp32 (it costs nothing), score 0.2,
+      NMS 0.7. Keeping the head in fp32 doubles the model's size for nothing. Small objects are found better than with
+      kd-1.2.
+    flags: {quant_percentile: 99.999, quant_keep_fp32: first-conv, score_threshold: 0.2, nms_iou: 0.7}
+
+  - id: merge-int8
+    branch: main
+    parents: [readme-slices, int8-tuned]
+    at: -14d 15:30
+    author: arjun
+    message: Merge branch 'quant/int8'
+
+  - id: kd-1-3
+    branch: main
+    at: -13d 16:05
+    author: arjun
+    message: "chore(release): kd-1.3, int8"
+    flags: {model_version: '1.3'}
+    runs:
+      - batch: ci
+      - batch: sizes
+        label: release
+        after: 1h
+
+  - id: entropy-calib
+    branch: quant/entropy
+    parents: [kd-1-3]
+    at: -10d 15:00
+    author: arjun
+    message: "feat(quant): try entropy calibration"
+    flags: {quant_calibration: entropy}
+
+  - id: crowd-boxes
+    branch: main
+    parents: [kd-1-3]
+    at: -9d 14:40
+    author: arjun
+    message: |
+      fix(eval): ignore every detection on a crowd box, not just the first
+
+      Like pycocotools: a crowd box absorbs any number of detections. Ours stopped after the first one, and the
+      others counted as false alarms. Every slice's AP goes up a little: the model didn't change.
+    flags: {eval_crowd_many: true}
+
+  - id: report-latency
+    branch: main
+    at: -7d 15:15
+    author: arjun
+    message: "feat(report): latency p90 next to the median"
+
+  - id: composites-doc
+    branch: main
+    at: -3d 11:00
+    author: mira
+    message: "small-objects: document the composites' recipe"
+
+  - id: sizes-nightly
+    branch: main
+    at: -0d 14:50
+    author: arjun
+    message: "ci: run the size sweep on main every night"
+    runs:
+      - batch: ci
+      - batch: sizes
+        label: nightly
+        after: 40m
+        progress: {finished: 0.5, running: 1}
+
+milestones:
+  - commit: kd-1-2
+    label: kd-1.2
+    notes: fp32, 320 px
+    by: arjun
+  - commit: kd-1-3
+    label: kd-1.3
+    notes: int8, per-channel, recalibrated
+    by: arjun
+
+checks:
+  - name: the int8 model is much smaller
+    commit: int8-minmax
+    vs: int8-minmax
+    configs: '*"int8"*'
+    vs_configs: '*"fp32"*'
+    metric: model_mb
+    expect: {change_pct: {lt: -60}}
+  - name: the first int8 model loses small objects
+    commit: int8-minmax
+    vs: int8-minmax
+    inputs: small-objects
+    configs: '*"int8"*'
+    vs_configs: '*"fp32"*'
+    metric: ap_small
+    expect: {change_pct: {lt: -4}}
+  - name: and int8 misses objects fp32 finds
+    commit: int8-minmax
+    hook: misses_what_fp32_finds
+    args: {inputs: small-objects, min_objects: 5}
+  - name: the first int8 model is much worse indoors
+    commit: int8-minmax
+    vs: int8-minmax
+    inputs: indoor
+    configs: '*"int8"*'
+    vs_configs: '*"fp32"*'
+    metric: map
+    expect: {change_pct: {lt: -20}}
+
+  - name: the SE gates in uint8 break every int8 run
+    commit: qdq-se-gates
+    configs: '*"int8"*'
+    expect: {failed: {gte: 4}, log: "Type parameter \\(T\\) of Optype \\(Mul\\) bound to different types"}
+  - name: and not the fp32 runs
+    commit: qdq-se-gates
+    configs: '*"fp32"*'
+    expect: {failed: {lte: 0}}
+  - name: the gate fails on the broken int8 model
+    commit: qdq-se-gates
+    vs: parent
+    expect: {gate: fail}
+  - name: the revert brings int8 back
+    commit: qdq-se-gates-revert
+    expect: {failed: {lte: 0}}
+
+  - name: per-channel weights bring back much of the indoor slice
+    commit: int8-per-channel
+    vs: int8-minmax
+    inputs: indoor
+    configs: '*"int8"*'
+    metric: map
+    expect: {change_pct: {gt: 20}}
+  - name: with percentile calibration, indoor is as good as fp32
+    commit: int8-percentile
+    vs: int8-percentile
+    inputs: indoor
+    configs: '*"int8"*'
+    vs_configs: '*"fp32"*'
+    metric: map
+    expect: {change_pct: {between: [-10, 10]}}
+  - name: qa optimize converges
+    commit: int8-percentile
+    label: tune-int8
+    hook: optimize_converged
+    args: {min_gain: 0.04, initial_points: 8}
+  - name: the tuned int8 model finds small objects as well as the fp32 release
+    commit: int8-tuned
+    vs: kd-1-2
+    inputs: small-objects
+    configs: '*"int8"*'
+    vs_configs: '*"fp32"*'
+    metric: ap_small
+    expect: {change_pct: {gt: 0}}
+
+  - name: the larger input sizes don't help this model
+    commit: kd-1-3
+    label: release
+    configs: '*"fp32", "size-512"*'
+    vs: kd-1-3
+    vs_configs: '*"fp32", "size-320"*'
+    metric: map
+    expect: {change_pct: {lt: -20}}
+
+  - name: ignoring every detection on crowd boxes raises AP a little, never lowers it
+    commit: crowd-boxes
+    hook: every_slice
+    args: {metric: map, min_change_pct: 0, max_change_pct: 10}
+  - name: the gate passes on the evaluation fix
+    commit: crowd-boxes
+    vs: parent
+    expect: {gate: pass}

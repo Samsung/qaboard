@@ -1,0 +1,10 @@
+# downloaded photos and generated composites (labels.json files are ours, committed)
+inputs/**/*.jpg
+inputs/.fetch.lock
+*.tmp
+# the model: weights, ONNX exports, calibration statistics, int8 models
+models/
+# results of local runs, and the flags of the build
+output/
+build/
+inputs/slices/small-objects/donors.json
