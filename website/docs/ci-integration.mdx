@@ -79,6 +79,10 @@ jobs:
 `qa` detects that it runs in a CI when the `CI` environment variable is set (by GitlabCI, GitHub Actions, CircleCI, TravisCI...), or `GIT_COMMIT` (by Jenkins' git plugin).
 :::
 
+## Failing the CI on regressions
+`qa batch` fails when runs fail. To also fail when metrics regress against a reference, run `qa gate` after it. It's
+experimental, see [Quality gate](/docs/quality-gate).
+
 ## Optionnal CI helpers
 QA-Board is not a CI tool, but it provide some utilities to run code only in some branches:
 
