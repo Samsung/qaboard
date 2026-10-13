@@ -84,7 +84,7 @@ shots:
   - id: cli/gate
     kind: tape
     project: serving-latency
-    shows: "`qa gate` on the shared-cache commit: the rules table, p99 45% worse against a 10% limit, exit code 1."
+    shows: "`qa gate` on the shared-cache commit: the rules table, p99 much worse than the 10% limit, exit code 1."
     pages: [quality-gate, use-cases/serving-latency, landing, tour]
     needs: cache-shared vs batch-overflow-fix
     phase: 2
@@ -347,7 +347,7 @@ shots:
   - id: commit/latency-cdf
     kind: still
     project: serving-latency
-    shows: "Latency percentiles on a log tail: the shared cache is faster up to p90 and much slower from p99."
+    shows: "Latency percentiles on a log tail at 6,000 requests/s: with the shared cache, every percentile is a hundred times slower or more (requests queue for its lock)."
     pages: [use-cases/serving-latency, tutorials/perf-regression, visualizations]
     features: [plotly-overlay]
     needs: cache-shared vs batch-overflow-fix
@@ -364,7 +364,7 @@ shots:
   - id: commit/flame-diff
     kind: still
     project: serving-latency
-    shows: A differential flame graph where the cache lock and the clone under it are red, the skipped model work blue.
+    shows: A differential flame graph where the response rendering under the shared cache's lock is new (orange), the skipped model work blue.
     pages: [visualizations, recipes/flame-graphs, tutorials/perf-regression, use-cases/serving-latency, landing]
     features: [flame-diff]
     needs: cache-shared vs batch-overflow-fix
@@ -495,10 +495,10 @@ shots:
   - id: logs/live-tail
     kind: clip
     project: serving-latency
-    shows: A running run's log follows the end, the error count grows, Next error jumps to a missed deadline.
+    shows: A running run's log follows the end, the error count grows, Next error jumps to a missed deadline (a bursty-high run of tuned-batching started during the recording).
     pages: [user-guide/commit-page, tour, landing]
     features: [live-log-tail]
-    needs: a ramp run started during the recording
+    needs: a bursty-high run started during the recording
     phase: 2
     status: planned
   - id: logs/lsf-hints
@@ -604,7 +604,7 @@ shots:
   - id: tuning/frontier
     kind: still
     project: serving-latency
-    shows: The tune-batching sweep's efficient frontier of throughput against p99, with the chosen configuration on it.
+    shows: The tune-batching sweep's efficient frontier of CPU per request against p99 (12 configurations), with the chosen one on it, within the noise between identical configurations.
     pages: [use-cases/serving-latency, tutorials/tuning, tutorials/perf-regression]
     features: [tuning-analysis]
     needs: cache-sharded (tune-batching)

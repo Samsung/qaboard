@@ -1,0 +1,5 @@
+# cargo build output (qa/build.py)
+gateway/target/
+# results of local runs, and the flags of the build
+output/
+build/

@@ -267,7 +267,7 @@ const USE_CASES = [
   {
     audience: 'Performance engineering',
     title: 'Serving latency',
-    text: 'A cache makes p50 faster and p99 much slower: latency distributions, flame graph diffs, History, a tuning frontier.',
+    text: 'A cache saves CPU and takes p99 from milliseconds to seconds: latency distributions, flame graph diffs, History, a tuning frontier.',
     to: '/docs/use-cases/serving-latency',
   },
   {
