@@ -648,9 +648,9 @@ shot('commit/summary', {
 shot('commit/metrics-table', {
   project: DE,
   url: d => int8(d, { view: 'table-kpi' }),
-  alt: 'The Metrics Table of the first int8 commit: one row per slice and model, mAP, AP50, AP small and latency, new '
-    + 'and reference. The mAP cells go from green on small-objects to orange on indoor, by their distance to the 0.15 '
-    + 'target shown in the header; latency cells are green, under the 25 ms target.',
+  alt: 'The Metrics Table of the first int8 commit: a row per slice and model, mAP, AP50, AP small and latency, new and '
+    + 'reference. mAP cells go from green on small-objects to orange on indoor and warehouse, by their distance to the '
+    + '0.15 target in the header; latency cells are green.',
   caption: 'One row per test, colored by the distance to the targets set in metrics.yaml, shown in the headers.',
   actions: async ui => {
     await ui.cursor.moveTo({ x: 1420, y: 880 });
@@ -696,8 +696,8 @@ clip('commit/compare-tour', {
     await ui.caption('Sort by mAP, the worst slice first');
     await ui.click(page.locator('[title="Toggle Controls Panel"]'));
     await ui.hold(400);
-    const panel = controlsPanel(page);
-    const select = (label: string) => panel.locator('.bp6-control-group', { hasText: label }).locator('select');
+    // the Controls panel's Sorting: a select after each label
+    const select = (label: string) => page.getByText(label, { exact: true }).last().locator('xpath=following::select[1]');
     await ui.cursor.moveTo(select('Sort By'));
     await select('Sort By').selectOption('map');
     await ui.settle();
@@ -779,7 +779,7 @@ shot('commit/plotly-overlay', {
   project: DE,
   url: d => int8(d, { filter: 'indoor int8', controls: showOnly('Precision-recall') }),
   alt: 'Precision-recall curves of the indoor slice, one per class: the int8 model\'s solid, the fp32 release\'s dashed '
-    + 'in the same color. The legend gives each curve\'s AP50.',
+    + 'in the same color. The legend gives each curve\'s AP50: person drops from 0.19 to 0.06.',
   caption: 'Plots of the reference are drawn over the new ones, dashed: here the int8 model\'s precision-recall curves '
     + 'over fp32\'s.',
   actions: async ui => {
@@ -803,8 +803,9 @@ shot('commit/detections', {
     filter: 'small-objects int8',
     controls: { ...showOnly('Detections'), dynamic_options: { image: ['1'] } },
   }),
-  alt: 'A composite of a hall with people and cars pasted in, side by side: the int8 model (left) finds one person, the '
-    + 'fp32 release (right) three. Objects a model missed are outlined in red: two people more on the left, the cars on both.',
+  alt: 'A hall with people and cars pasted in, new and reference side by side: the int8 model (left) finds one of the '
+    + 'people, the fp32 release (right) three. What each missed is outlined in red: two more people on the left; the faded '
+    + 'person and the three cars on both.',
   caption: 'Each run draws its detections, ground truth in red where it missed: the int8 model misses two people fp32 finds.',
   actions: async ui => {
     // The project's cards are 390 px wide (qaboard.yaml sets no width): in full screen, the images fill the screen

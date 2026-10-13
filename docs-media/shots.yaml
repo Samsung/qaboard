@@ -66,6 +66,8 @@ shots:
     pages: [get-started/tutorial, running-your-code]
     phase: 1
     status: published
+  # Planned: `qa batch ci` needs the detector's setup in the tape's workspace (PyTorch for the ONNX export, the photos),
+  # and adds a batch to the demo data, to delete afterwards.
   - id: cli/batch
     kind: tape
     project: detection-eval
@@ -133,11 +135,11 @@ shots:
   - id: commits/milestones-menu
     kind: still
     project: detection-eval
-    shows: The sidebar's Milestones menu with the kd-1.2 and kd-1.3 releases, and a private milestone.
+    shows: 'The sidebar''s Milestones menu with the kd-1.3 and kd-1.2 releases, then a private milestone (entropy-try, saved by the spec in the browser only).'
     pages: [user-guide/finding-results, references-and-milestones]
     features: [milestones]
     phase: 2
-    status: planned
+    status: captured
   - id: integrations/menu
     kind: still
     project: image-quality
@@ -150,34 +152,34 @@ shots:
   - id: commit/summary
     kind: still
     project: detection-eval
-    shows: "Summary of int8 against fp32: model size -72% in green, AP small in red while the median mAP barely moves, pass-rate bars, box plots."
+    shows: 'Summary of the first int8 model (int8 runs) against the fp32 release kd-1.2, with Model size added to the metrics: model size -72% in green; AP small -21% and recall of small objects -4% in red while the median mAP barely moves (-5%); pass-rate bars, box plots.'
     pages: [user-guide/commit-page, computing-quantitative-metrics]
     needs: int8-minmax vs kd-1-2
     phase: 2
-    status: planned
+    status: captured
   - id: commit/metrics-table
     kind: still
     project: detection-eval
     shows: One row per slice and variant, cells colored by their distance to the targets, units in the headers.
     pages: [user-guide/commit-page, computing-quantitative-metrics, recipes/metric-targets]
     phase: 2
-    status: planned
+    status: captured
   - id: commit/metrics-diff
     kind: still
     project: detection-eval
-    shows: "int8 against fp32 per slice: model size green everywhere, mAP and AP small red on the indoor slice, AP small red on small-objects."
+    shows: 'The int8 runs against the fp32 release, per slice, with Model size added: model size -72% green everywhere, mAP -35% and AP small -34% orange on indoor, AP small -7% on small-objects and -15% outdoor; warehouse gets better.'
     pages: [user-guide/commit-page, user-guide/comparing-results, use-cases/detection-eval, get-started/tutorial]
     needs: int8-minmax
     phase: 2
-    status: planned
+    status: captured
   - id: commit/compare-tour
     kind: clip
     project: detection-eval
-    shows: From the Summary to the Metrics Diff, then sorting by AP small to bring the worst slice to the top.
+    shows: 'From the Summary (int8 runs against the fp32 release) to the Metrics Diff, then sorting by mAP, ascending, in the Controls panel brings the worst slice, indoor (-35%), to the top.'
     pages: [tour, landing]
     needs: int8-minmax
     phase: 2
-    status: planned
+    status: captured
   - id: commit/milestone
     kind: still
     project: detection-eval
@@ -185,7 +187,7 @@ shots:
     pages: [user-guide/comparing-results, references-and-milestones, recipes/compare-milestone, use-cases/detection-eval]
     features: [milestones]
     phase: 2
-    status: planned
+    status: captured
   - id: commit/change-menu
     kind: still
     project: detection-eval
@@ -193,7 +195,7 @@ shots:
     pages: [user-guide/comparing-results, references-and-milestones]
     features: [milestones]
     phase: 2
-    status: planned
+    status: captured
   - id: commit/batch-picker
     kind: still
     project: image-quality
@@ -213,10 +215,10 @@ shots:
   - id: commit/run-badges
     kind: still
     project: detection-eval
-    shows: A run card with its model badge (a link to the model card) next to its configuration tags.
+    shows: 'A run card''s header with its model badge ("Model card kd-1.3", a link to the model card) next to its configuration tags and metrics.'
     pages: [computing-quantitative-metrics]
     phase: 2
-    status: planned
+    status: captured
 
   # Commit page: outputs
   - id: commit/visualizations
@@ -339,12 +341,12 @@ shots:
   - id: commit/plotly-overlay
     kind: still
     project: detection-eval
-    shows: Precision-recall curves per class, int8 over the fp32 reference drawn dashed.
+    shows: 'Precision-recall curves per class on the indoor slice, int8 over the fp32 reference drawn dashed: person AP50 from 0.19 to 0.06.'
     pages: [visualizations, use-cases/detection-eval, landing]
     features: [plotly-overlay]
     needs: int8-minmax
     phase: 2
-    status: planned
+    status: captured
   - id: commit/latency-cdf
     kind: still
     project: serving-latency
@@ -390,18 +392,18 @@ shots:
   - id: commit/detections
     kind: still
     project: detection-eval
-    shows: "A small-objects image with boxes: int8 misses far people and cars that fp32 finds (red ground truth). The story check names the image."
+    shows: 'The first small-objects image (images/1.jpg, the one story_checks.py names), the run card in full screen: int8 finds one person where fp32 finds three; the objects each missed are drawn in red (the cars on both).'
     pages: [use-cases/detection-eval, visualizations]
     needs: int8-minmax
     phase: 2
-    status: planned
+    status: captured
   - id: commit/html-report
     kind: still
     project: detection-eval
-    shows: A run's HTML report with per-class AP, AP by object size and the worst images.
+    shows: 'The int8 run''s HTML report on small-objects (shown in a frame): its metrics, per-class AP, AP by object size, latency, and the first of the images with the most missed objects.'
     pages: [visualizations, use-cases/detection-eval]
     phase: 2
-    status: planned
+    status: captured
   - id: commit/output-files
     kind: still
     project: image-quality
@@ -437,11 +439,11 @@ shots:
   - id: commit/artifacts-configs
     kind: still
     project: detection-eval
-    shows: "Artifacts & Configs: the build/flags.json diff between two quantization commits."
+    shows: 'Artifacts & Configs: the build/flags.json diff between two quantization commits (quant_per_channel false to true).'
     pages: [user-guide/commit-page, storage/artifacts]
     needs: int8-per-channel vs int8-minmax
     phase: 2
-    status: planned
+    status: captured
   - id: commit/video-sync
     kind: clip
     project: robotics-3d
@@ -557,11 +559,12 @@ shots:
   - id: tuning/available-tests
     kind: still
     project: detection-eval
-    shows: The batches editor with a YAML mistake underlined and listed in the problems panel, the Batches panel on the side.
+    shows: 'The batches editor with a YAML mistake (an indentation) underlined and listed under the editor, "1 error" and "Unsaved changes" above it, the Batches panel on the side.'
     pages: [user-guide/commit-page, batches-running-on-multiple-inputs]
     features: [batch-editor]
     phase: 2
-    status: planned
+    status: captured
+  # Planned: the demo server can't list a batch's tests (the examples' inputs, a relative `inputs` database, aren't on it).
   - id: tuning/which-tests-run
     kind: still
     project: detection-eval
@@ -570,6 +573,7 @@ shots:
     features: [batch-editor]
     phase: 2
     status: planned
+  # Planned: the run count needs the batch's tests, which the demo server can't list (see tuning/which-tests-run).
   - id: tuning/manual-form
     kind: still
     project: detection-eval
@@ -580,10 +584,11 @@ shots:
   - id: tuning/auto-form
     kind: still
     project: detection-eval
-    shows: Automated tuning with the search space and objective in YAML.
+    shows: 'Automated tuning with the search space and objective in YAML (the top of qa/tune-int8.yaml: evaluations, solver, objective).'
     pages: [user-guide/running-from-the-webapp, auto-optimization, tutorials/tuning]
     phase: 2
-    status: planned
+    status: captured
+  # Planned: a real launch needs the server to see the inputs and a runner with the detector's setup (~1 GB, ONNX export).
   - id: tuning/launch-to-analysis
     kind: clip
     project: detection-eval
@@ -596,12 +601,12 @@ shots:
   - id: tuning/analysis
     kind: still
     project: detection-eval
-    shows: "The tune-int8 Analysis: convergence, sensitivity to each parameter, parallel coordinates, best parameters."
+    shows: 'The tune-int8 Analysis: the best parameters (found at iteration 10 of 20: percentile 99.999, nothing kept in fp32, score 0.2, NMS 0.4, which is not what int8-tuned picked), parallel coordinates of the iterations, the convergence of the objective.'
     pages: [user-guide/commit-page, auto-optimization, tutorials/tuning, use-cases/detection-eval]
     features: [tuning-analysis]
     needs: int8-percentile (tune-int8)
     phase: 2
-    status: planned
+    status: captured
   - id: tuning/frontier
     kind: still
     project: serving-latency
