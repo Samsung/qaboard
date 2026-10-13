@@ -12,7 +12,7 @@ const {collectFromTree, collectFromJs} = require('./collect');
 const CONTENT_DIRS = ['docs', 'blog', 'release-notes', 'src/pages', 'site-docs'];
 const SOURCE_DIR = 'src';
 // The components themselves, and the theme's mapping, use ids as variables
-const SOURCE_EXCLUDES = /(^|\/)(components\/(Shot|Clip|Compare|StackPicker)\.[jt]sx?|components\/media\/|theme\/MDXComponents\.[jt]sx?)/;
+const SOURCE_EXCLUDES = /(^|\/)(components\/(Shot|Clip|Compare|StackPicker)(\.[jt]sx?|\/)|components\/media\/|theme\/MDXComponents\.[jt]sx?)/;
 
 function walk(dir, extensions, files = []) {
   if (!fs.existsSync(dir))
@@ -82,4 +82,4 @@ async function scanSite(siteDir) {
   return {files, strings, parseErrors};
 }
 
-module.exports = {scanSite, getParser};
+module.exports = {scanSite, getParser, walk, CONTENT_DIRS};

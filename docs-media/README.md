@@ -47,7 +47,7 @@ docs-media/
 website/
   media.json           # committed manifest, schema: website/media.schema.json
   plugins/media/       # Docusaurus plugin: downloads the manifest's files into the build, build checks
-  src/components/{Shot,Clip,Compare,StackPicker}.tsx, stack.ts
+  src/components/{Shot,Clip,Compare}.tsx, StackPicker/, stack.ts
 .github/workflows/docs-media.yml
 ```
 
@@ -417,7 +417,7 @@ tooling and contributors only: it never appears in a page.
 
 ## Website components (spec; WS4 implements)
 
-Files: `website/src/components/{Shot,Clip,Compare,StackPicker}.tsx`, values in `website/src/components/stack.ts`.
+Files: `website/src/components/{Shot,Clip,Compare}.tsx` and `StackPicker/`, values in `website/src/components/stack.ts`.
 Props must be literals in MDX (`id="commit/flame-diff"`), so the build checks can read them. `Shot`, `Clip` and
 `Compare` are available in every MDX page without an import (`website/src/theme/MDXComponents.tsx`).
 
@@ -503,7 +503,7 @@ Canonical values (`stack.ts`, the only place they're defined; the first one is t
 | `code` | `python` (Python), `executable` (Any executable) |
 
 - Pages use plain Docusaurus tabs with those values: `<Tabs groupId="ci" queryString>` and
-  `<TabItem value="github-actions" label="GitHub Actions" default>`. A build check rejects unknown groups or values.
+  `<TabItem value="github-actions" label="GitHub Actions" default>`. A build check (`website/plugins/stack`) rejects unknown groups or values.
 - The picker shows one segmented control per group. A choice:
   - writes the same storage slot as Docusaurus tabs (`docusaurus.tab.<group>`, through `createStorageSlot` from
     `@docusaurus/theme-common`), so every tab group on the page switches at once and later pages remember it;

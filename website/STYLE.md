@@ -136,7 +136,11 @@ At most one per section, never two in a row. A title only when it adds informati
   links carry the choice (`?server=k8s&ci=github-actions`).
 - Tabs that depend on the reader's stack use the shared groups and values from `website/src/components/stack.ts`:
   `<Tabs groupId="ci" queryString>` with `<TabItem value="github-actions" label="GitHub Actions" default>`.
-  Groups: `server`, `forge`, `ci`, `runner`, `code`. The GitHub option is the default.
+  Groups: `server`, `forge`, `ci`, `runner`, `code`. The GitHub option is the default. `<StackPicker>`, `<Tabs>`
+  and `<TabItem>` need no import.
+- The build fails on a stack tab group without `queryString`, an unknown value, a label that differs from
+  `stack.ts`, or `default` on another value than the group's default.
+- `<StackPicker groups={['server', 'ci']} />` shows only some groups, `compact` makes it one line.
 - Every tab of a group has the same steps in the same order; only the content differs.
 - Don't nest tabs, and don't use tabs for one differing line: write a sentence.
 
