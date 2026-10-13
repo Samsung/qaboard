@@ -183,7 +183,7 @@ const STEPS: Step[] = [
         agents. Experimental: it may change without notice.
       </>
     ),
-    link: '/docs/roadmap#quality-gate',
+    link: '/docs/quality-gate',
     linkLabel: 'The quality gate',
     media: <Clip id="cli/gate" caption="" />,
     experimental: true,

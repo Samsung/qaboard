@@ -1039,6 +1039,10 @@ from .optimize import optimize
 qa.add_command(optimize)
 
 
+from .gate import gate
+qa.add_command(gate)
+
+
 @qa.command()
 @click.pass_context
 def init(ctx):

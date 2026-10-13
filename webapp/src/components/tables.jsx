@@ -13,6 +13,7 @@ import {
 import { Section } from "./layout";
 import { PlatformTag, ConfigurationsTags, ExtraParametersTags, RunBadges, RunBadge, MismatchTags } from './tags'
 import { metric_formatter, percent_formatter, MetricHeader } from "./metrics"
+import { diff_cell } from "../utils/compare"
 
 
 
@@ -49,8 +50,8 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
 
   const is_numeric = !isNaN(metric_new) || !isNaN(metric_ref)
   if (is_numeric) {
-    let delta = metric_new - metric_ref;
-    let delta_relative = delta / (Math.abs(metric_ref) + 0.00001);
+    // The same numbers as GET /api/v1/commit/<sha>/compare, see utils/compare.js
+    const { delta, delta_relative } = diff_cell(metric_new, metric_ref);
     let quality = metric.smaller_is_better ? (0.5 - delta_relative/2) : (0.5 + delta_relative/2);
     quality = Math.max(Math.min(quality, 0.9), 0.08)
     return <td style={{ background: metric_ref && interpolateRdYlGn(quality) }}>

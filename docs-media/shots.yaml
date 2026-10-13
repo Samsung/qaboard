@@ -85,7 +85,7 @@ shots:
     kind: tape
     project: serving-latency
     shows: "`qa gate` on the shared-cache commit: the rules table, p99 45% worse against a 10% limit, exit code 1."
-    pages: [tutorials/quality-gate, use-cases/serving-latency, landing, tour]
+    pages: [quality-gate, use-cases/serving-latency, landing, tour]
     needs: cache-shared vs batch-overflow-fix
     phase: 2
     status: planned
@@ -94,7 +94,7 @@ shots:
     kind: still
     project: serving-latency
     shows: The gate's Markdown summary as a CI job summary shows it (rendered locally with GitHub's markdown CSS, no GitHub page around it).
-    pages: [tutorials/quality-gate, ci-integration]
+    pages: [quality-gate, ci-integration]
     needs: cache-shared
     phase: 2
     status: planned

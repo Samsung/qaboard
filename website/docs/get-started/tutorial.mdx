@@ -194,7 +194,8 @@ Connecting the repository adds the committers' avatars, and lets QA-Board read e
    - **Events:** just the push event
 3. Push a commit: GitHub shows a green check next to the webhook's latest delivery.
 
-GitHub has to reach your server for this. Posting commit statuses to GitHub isn't supported yet.
+GitHub has to reach your server for this. To get a check on each commit, `qa gate --post-status github` posts a
+commit status that links to the Metrics Diff (step 7).
 
 </TabItem>
 <TabItem value="gitlab" label="GitLab">
@@ -261,7 +262,7 @@ allows PSNR to get at most 1% worse, and the halos 20%:
 
 <RepoFile path="examples/image-quality/qaboard.yaml" title="qaboard.yaml" section="gate" />
 
-{/* TODO link quality-gate */}
+The [quality gate](/docs/quality-gate) page lists the rules, the exit codes and the CI examples.
 
 ## 8. Scale out
 By default `qa batch` runs on the machine where you start it. Other runners send the runs elsewhere: the machines that
