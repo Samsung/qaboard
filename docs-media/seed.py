@@ -16,7 +16,8 @@ real `qa` CLI and fake CI environment variables, then checks the story's claims.
 
 How it works, per commit, in story order:
 - The example is copied to a workspace (--workspace, default /tmp/kitefin/<repo>), with a venv that has the repository's
-  qaboard and the example's dependencies. Each commit writes its effective flags to build/flags.json, its patched
+  qaboard and the example's dependencies; an example with compiled code builds it there once with its qa/build.py.
+  Each commit writes its effective flags to build/flags.json, its patched
   YAML files, and points the workspace's git HEAD at the commit's sha (sha1("<project id>:<commit id>")).
 - The commit is created with POST /api/v1/commit (branch, committer, date, message, parents, and the configuration
   the CLI would send), like CI tools that know the commit do. The `qa` calls that follow find it.
@@ -484,8 +485,8 @@ def db_now() -> datetime.datetime:
 # ------------------------------------------------------------------------------------------------ the workspace
 
 class Workspace:
-  """A copy of the example, where `qa` runs. It keeps its inputs and venv between seeds."""
-  IGNORE = staticmethod(shutil.ignore_patterns('.venv', 'build', '__pycache__', 'output', '*.pyc', '.git', '.seed-state.json'))
+  """A copy of the example, where `qa` runs. It keeps its inputs, venv and build outputs between seeds."""
+  IGNORE = staticmethod(shutil.ignore_patterns('.venv', 'build', 'target', '__pycache__', 'output', '*.pyc', '.git', '.seed-state.json'))
 
   def __init__(self, story: Story, root: Path, server: str, jobs: int, verbose: bool):
     self.story = story
@@ -503,6 +504,10 @@ class Workspace:
     if not (self.dir / '.git').exists():
       subprocess.run(['git', 'init', '-q', '-b', 'main', str(self.dir)], check=True)
     self.ensure_venv()
+    # Examples with compiled code build it once, like a CI job's build step, before any run (and its log) starts
+    if (self.dir / 'qa' / 'build.py').exists():
+      log(f"Building {self.story.project} (qa/build.py)", 'blue')
+      subprocess.run([str(self.venv / 'bin' / 'python'), 'qa/build.py'], cwd=self.dir, check=True)
 
   def dependencies(self) -> List[str]:
     requirements = self.story.example / 'requirements.txt'

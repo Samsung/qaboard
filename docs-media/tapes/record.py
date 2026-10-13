@@ -142,7 +142,7 @@ def workspace(project: str, home: Path, facts: dict) -> Path:
     example = REPO / "examples" / project
     log(f"  building the workspace {target} from {example.relative_to(REPO)}")
     shutil.copytree(example, target, dirs_exist_ok=True,
-                    ignore=shutil.ignore_patterns(".venv", "build", "output", "__pycache__", "*.pyc", ".git"))
+                    ignore=shutil.ignore_patterns(".venv", "build", "target", "output", "__pycache__", "*.pyc", ".git"))
     sha = main_head(facts, project)
     if sha:
         git = target / ".git"
