@@ -150,7 +150,7 @@ shots:
   - id: commit/summary
     kind: still
     project: detection-eval
-    shows: "Summary of int8 against fp32: model size -72% in green, mAP and AP small in red, pass-rate bars, box plots."
+    shows: "Summary of int8 against fp32: model size -72% in green, AP small in red while the median mAP barely moves, pass-rate bars, box plots."
     pages: [user-guide/commit-page, computing-quantitative-metrics]
     needs: int8-minmax vs kd-1-2
     phase: 2

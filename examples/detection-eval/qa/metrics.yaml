@@ -73,7 +73,7 @@ available_metrics:
   latency_ms:
     label: Latency per image
     short_label: Latency
-    description: Median time of the model per image (ONNX Runtime on the CPU, 4 threads, after 5 warmup runs), without pre- and post-processing.
+    description: Median time of the model per image (ONNX Runtime on the CPU, 4 threads, after 5 warmup runs; int8 with its int8 kernels), without pre- and post-processing.
     suffix: ' ms'
     smaller_is_better: true
     target: 25

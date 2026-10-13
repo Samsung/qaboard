@@ -98,31 +98,64 @@ def postprocess(deltas, logits, anchors, size, image_size, score_threshold, nms_
     return [(c, s, [float(v) for v in b]) for c, s, b in candidates[:MAX_DETECTIONS]]
 
 
-class Detector:
-    """An ONNX Runtime session for one model file, at one input size"""
+def session(model_path, threads=4, reference=False):
+    """
+    An ONNX Runtime session on the CPU. ONNX Runtime refuses broken models here.
 
-    def __init__(self, model_path, anchors_path, size, threads=4):
-        import onnxruntime as ort
-        options = ort.SessionOptions()
-        options.intra_op_num_threads = threads
-        options.inter_op_num_threads = 1
-        options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
-        options.log_severity_level = 3
-        self.session = ort.InferenceSession(str(model_path), options, providers=['CPUExecutionProvider'])
+    With `reference`, a quantized (QDQ) model computes what its graph says: each QuantizeLinear rounds and clips in
+    float, each DequantizeLinear scales back, and the operators between them run in fp32. The outputs are the same, bit
+    for bit, on x86-64 CPUs with FMA (AVX2 or AVX-512: CI runners, PCs since 2013). By default, ONNX Runtime fuses the
+    QuantizeLinear/DequantizeLinear pairs around an operator into an int8 kernel (QLinearConv...), which it picks for
+    the CPU (AVX2, AVX-512 VNNI, AMX...). Those kernels round and saturate differently: on another CPU, an int8 model's
+    mAP on a slice moved by a fifth. The extended optimizations keep the plain fp32 kernels, not the NCHWc ones, which
+    ONNX Runtime lays out for the CPU's vector width.
+    """
+    import onnxruntime as ort
+    options = ort.SessionOptions()
+    options.intra_op_num_threads = threads
+    options.inter_op_num_threads = 1
+    options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+    options.log_severity_level = 3
+    if reference:
+        options.add_session_config_entry('session.disable_quant_qdq', '1')
+        options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_EXTENDED
+    return ort.InferenceSession(str(model_path), options, providers=['CPUExecutionProvider'])
+
+
+class Detector:
+    """
+    ONNX Runtime sessions for one model file, at one input size. A quantized model's detections come from its
+    reference arithmetic (see session()), the same on CPUs with FMA; its latency is that of ONNX Runtime's int8
+    kernels on this CPU, what a CPU deployment would run.
+    """
+
+    def __init__(self, model_path, anchors_path, size, threads=4, quantized=False):
+        self.session = session(model_path, threads, reference=quantized)
+        self.timed = session(model_path, threads) if quantized else self.session
         self.anchors = np.load(anchors_path)
         self.size = size
         self.input_name = self.session.get_inputs()[0].name
 
+    def latency(self, images, warmup=5):
+        """Seconds per image (PIL images) of the deployed model, after `warmup` runs, without pre- and post-processing"""
+        inputs = [preprocess(image, self.size) for image in images]
+        for _ in range(warmup):
+            self.timed.run(None, {self.input_name: inputs[0]})
+        seconds = []
+        for x in inputs:
+            start = time.perf_counter()
+            self.timed.run(None, {self.input_name: x})
+            seconds.append(time.perf_counter() - start)
+        return seconds
+
     def infer(self, image):
-        """-> (deltas, logits, seconds) for a PIL image"""
-        x = preprocess(image, self.size)
-        start = time.perf_counter()
-        deltas, logits = self.session.run(None, {self.input_name: x})
-        return deltas[0], logits[0], time.perf_counter() - start
+        """-> (deltas, logits) for a PIL image"""
+        deltas, logits = self.session.run(None, {self.input_name: preprocess(image, self.size)})
+        return deltas[0], logits[0]
 
     def detect(self, image, score_threshold, nms_iou):
-        deltas, logits, seconds = self.infer(image)
-        return postprocess(deltas, logits, self.anchors, self.size, image.size, score_threshold, nms_iou), seconds
+        deltas, logits = self.infer(image)
+        return postprocess(deltas, logits, self.anchors, self.size, image.size, score_threshold, nms_iou)
 
 
 def default_threads():

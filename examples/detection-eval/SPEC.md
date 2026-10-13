@@ -153,7 +153,8 @@ a hook `optimize_converged` (the best `tune-int8` iteration beats the first by 0
 
 ## As built: differences from the first draft
 Numbers below were measured on the (shared, busy) 4-CPU machine this was built on. Accuracy metrics are the same from
-run to run there; int8 ones may move a little on another CPU (see the end).
+run to run, and on other x86-64 machines with FMA: fp32 ones were the same to 6 digits on a GitHub runner, and int8
+ones are the quantized model's reference arithmetic (below). Latency isn't.
 
 - **Photos come from Flickr**, found through Openverse, CC0 or Public Domain Mark, each license checked on the photo's
   page: Wikimedia Commons' API refused the build machine's requests. They are the 1024 px renditions, used as they
@@ -173,15 +174,40 @@ run to run there; int8 ones may move a little on another CPU (see the end).
   convolutions keep many quantize/dequantize pairs) wasn't faster than fp32 on the busy machine this was built on
   (within 10% on one thread, slower on 4), and a shared machine's timings don't carry over to a quiet runner anyway.
   The story's reason to quantize is size (13.8 MB to 3.9-4.2 MB, for the K3's NPU); no message or check is about
-  latency. It is still measured (4 threads, median per image) and shown.
-- **The regression, as measured**: the first int8 model (minmax, one scale per tensor, everything quantized) loses a
-  third of the indoor slice's mAP (0.109 to 0.072: people indoors almost disappear) and 7% of AP small on
-  `small-objects` (0.368 to 0.343). Per-channel weights bring indoor back (0.103), percentile calibration too
-  (0.111). Small objects stay about 8% below fp32 at the same commit. `tune-int8` (`qa optimize`, 20 evaluations, the
-  objective also penalizes model size) finds percentile 99.999, score 0.2, NMS 0.7: int8's AP small on
-  `small-objects` is then 0.380, above the fp32 release kd-1.2's 0.368, and the model stays at 4.2 MB (keeping the
-  head in fp32 doubles it for nothing). That's "tuned back": the new int8 release finds small objects like the old
-  fp32 one did.
+  latency. It is still measured (4 threads, median per image, int8 with ONNX Runtime's int8 kernels) and shown.
+- **int8 accuracy is the quantized model's reference arithmetic, the same on every CPU with FMA.** ONNX Runtime fuses
+  the QuantizeLinear/DequantizeLinear pairs around an operator into an int8 kernel that it picks for the CPU: AVX2,
+  AVX-512 VNNI, AMX. With those kernels, the first seed on a GitHub runner
+  got other int8 numbers than this machine (an Intel Xeon with AVX-512 VNNI and AMX): per-channel weights won back
+  +10% of the indoor slice's mAP there, +43% here, and the story's check failed. So `qa/detector.py` computes an int8
+  run's detections with QDQ fusion off (`session.disable_quant_qdq`) and ONNX Runtime's extended optimizations, which keep
+  the plain fp32 kernels rather than the NCHWc ones: QuantizeLinear rounds and clips in float,
+  DequantizeLinear scales back, the operators between run in fp32, as the graph says. That's what a quantized model
+  means, and what a device toolchain's results are checked against. Latency is still measured with the int8 kernels:
+  what a CPU deployment would run. Checked on the per-channel model and the indoor slice, with QEMU's user-mode
+  emulation for the other CPUs:
+
+  | Where | ONNX Runtime's int8 kernels | Reference arithmetic |
+  |---|---|---|
+  | this machine (Intel Xeon: AVX-512 VNNI, AMX) | 0.1029 | 0.0888852 |
+  | emulated AMD EPYC Milan (AVX2 and FMA, like many GitHub runners) | 0.0900 | 0.0888852, bit for bit |
+  | the first CI seed's GitHub runner (its CPU isn't logged) | 0.0808 | |
+  | emulated Intel Nehalem (SSE 4.2, no FMA) | 0.1029, bit for bit | 0.1022 |
+
+  AVX2's u8 x s8 multiply-adds (`vpmaddubsw`) can saturate at 16 bits, the SSE, VNNI and AMX kernels can't. The
+  reference arithmetic is exact on CPUs with FMA, whose fp32 kernels sum in the same order; without FMA, the sums round
+  differently, and quantization amplifies it on this small slice. The calibration (fp32, no graph optimization) and
+  the quantization (numpy) make the same model files on both FMA CPUs (same SHA-256, calibrated on 2 images). On this machine, the reference arithmetic is
+  also the same with no graph optimization, basic or extended; with all of them, ONNX Runtime's NCHWc fp32 kernels
+  sum in another order (0.0889064).
+- **The regression, as measured**: the first int8 model (minmax, one scale per tensor, everything quantized) loses 40%
+  of the indoor slice's mAP (0.109 to 0.065: people indoors almost disappear) and 6% of AP small on `small-objects`
+  (0.368 to 0.346). Per-channel weights bring indoor back to 0.089 (+37%), percentile calibration to 0.111, fp32's
+  level. Small objects stay 7% below fp32 at the same commit. `tune-int8` (`qa optimize`, 20 evaluations, the
+  objective also penalizes model size) finds percentile 99.999, the first convolution in fp32 (it costs nothing),
+  score 0.2, NMS 0.7: int8's AP small on `small-objects` is then 0.389, above the fp32 release kd-1.2's 0.368, and
+  the model stays at 4.2 MB (keeping the head in fp32 doubles it for nothing). That's "tuned back": the new int8
+  release finds small objects better than the old fp32 one did. `main`'s defaults (`qa/main.py`) are those settings.
 - **`bug_qdq_resize` is `bug_qdq_se_gate`**: SSDlite has no Resize node. The bug feeds the squeeze-excite gates'
   uint8 output straight to their Mul, and ONNX Runtime refuses the model: "Type parameter (T) of Optype (Mul) bound
   to different types". Only the int8 runs fail: story failures now take a `configs` glob (`docs-media/seed.py`,
@@ -199,17 +225,22 @@ run to run there; int8 ones may move a little on another CPU (see the end).
   the evaluation fix; `sizes-nightly` at T0. Milestones as planned.
 - **Gate rules** (experimental): `{metric: map, min: 0.15}` (median over the `ci` runs), `{metric: ap_small,
   max_regression: 10%}`, `{metric: map, per_test_max_regression: 25%}`, `max_failed_runs: 0`. It fails on
-  `qdq-se-gates` (crashed runs) and passes on `crowd-boxes`. It can't see the int8 regression at `int8-minmax`: the
-  reference has no int8 runs to compare with.
+  `qdq-se-gates` (crashed runs) and passes on `crowd-boxes` (median mAP 0.19, every slice a little better): the seeder
+  runs `qa gate` for those checks. It can't see the int8 regression at `int8-minmax`: the reference has no int8 runs
+  to compare with.
 - **Targets**: mAP 0.15 (against the reference model's labels, SSDlite's mAP is 0.08 to 0.4 depending on the slice),
   recall small 0.5, latency 25 ms.
 - **Also**: a `model_version` flag gives runs their `params.model` (`kd-1.3-int8-320`) and a model card badge; a
   confusion matrix (`confusion.plotly.json`) and the raw detections (`detections.json`) are extra outputs; calibration
   statistics are cached per input size and method, so each tuning evaluation only re-quantizes (about 2 s).
-- **Budget**: about 240 runs in the story, ~3 s each with `qa`'s overhead, plus calibrations (~2 min in all) and the
-  first export (PyTorch for CPU, ~1 min): about 20 minutes on a 4-CPU machine.
+- **Budget**: about 240 runs in the story, ~3 s each with `qa`'s overhead (int8 ones 1 to 2 s more: they run the model
+  twice, with the int8 kernels for the latency and in reference arithmetic for the detections), plus calibrations
+  (~2 min in all) and the first export (PyTorch for CPU, ~1 min): about 20 minutes on a 4-CPU machine. The first CI
+  seed took 12 minutes, before the int8 runs' second pass.
 
-**Not validated where this was built**: seeding into a stack (the server-side parts: `qa optimize` through the API,
-the gate checks, the Analysis view); `qa optimize` was emulated with scikit-optimize and the same search space and
-seed (AP small 0.184 at the first evaluation, 0.223 at the best). int8 results on GitHub's runners (AVX2 without
-VNNI: ONNX Runtime picks other int8 kernels), so the checks' thresholds keep margins. Latency on a quiet machine.
+**Checked on CI**: the first seed on a GitHub runner passed the fp32 checks with this machine's numbers, and showed
+the int8 difference above. `qa optimize` only stores each iteration's `objective` and `iteration` (the server
+doesn't return the other metrics' aggregates), so `optimize_converged` checks the objective, -(AP small + mAP) + 0.005
+per MB, means over `outdoor` and `small-objects`: -0.451 at the first evaluation, -0.481 at the best of the 8 random
+ones, -0.535 at the best (iteration 15), as emulated here with scikit-optimize, the same search space and seed. The
+check wants a gain of 0.04 or more, after the random points. Not validated: latency on a quiet machine.

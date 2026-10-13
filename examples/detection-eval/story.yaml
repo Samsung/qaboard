@@ -1,7 +1,8 @@
-# Six weeks of the K3's object detector: the fp32 model ships as kd-1.2; the first int8 model is 3.5x smaller, loses a
-# third of the indoor slice's mAP and some small objects; per-channel weights and percentile calibration fix indoor, a
+# Six weeks of the K3's object detector: the fp32 model ships as kd-1.2; the first int8 model is 3.5x smaller, loses 40%
+# of the indoor slice's mAP and some small objects; per-channel weights and percentile calibration fix indoor, a
 # `qa optimize` run brings small objects back to kd-1.2's level, and int8 ships as kd-1.3. An evaluation fix moves AP a
-# little. Format: ../STORY.md. What the flags do: SPEC.md (and its "As built" section).
+# little. Format: ../STORY.md. What the flags do: SPEC.md (and its "As built" section). The int8 numbers are the
+# quantized model's reference arithmetic, the same on every CPU with FMA (qa/detector.py).
 version: 1
 project: detection-eval
 id: kitefin/detector
@@ -160,7 +161,7 @@ commits:
     at: -24d 16:10
     author: arjun
     message: |
-      feat(quant): per-channel int8 weights (indoor mAP -34% -> -5%)
+      feat(quant): per-channel int8 weights (indoor mAP -40% -> -18%)
 
       One scale per tensor didn't fit the depthwise convolutions: their channels' weights differ by 100x.
     flags: {quant_per_channel: true}
@@ -180,7 +181,7 @@ commits:
       feat(quant): percentile calibration (99.99)
 
       Minmax let a few outliers set the scale of every activation. Indoor is back to fp32's mAP; small objects still
-      lose 9% of their AP. tune-int8 searches the rest.
+      lose 7% of their AP. tune-int8 searches the rest.
     flags: {quant_calibration: percentile, quant_percentile: 99.99}
     runs:
       - batch: ci
@@ -197,9 +198,10 @@ commits:
     message: |
       feat(quant): int8 settings from tune-int8
 
-      The best of its 20 evaluations: percentile 99.999, score 0.2, NMS 0.7. Keeping the head in fp32 doubles the
-      model's size for nothing. Small objects are now as good as kd-1.2's.
-    flags: {quant_percentile: 99.999, score_threshold: 0.2, nms_iou: 0.7}
+      The best of its 20 evaluations: percentile 99.999, the first convolution in fp32 (it costs nothing), score 0.2,
+      NMS 0.7. Keeping the head in fp32 doubles the model's size for nothing. Small objects are found better than with
+      kd-1.2.
+    flags: {quant_percentile: 99.999, quant_keep_fp32: first-conv, score_threshold: 0.2, nms_iou: 0.7}
 
   - id: merge-int8
     branch: main
@@ -319,7 +321,7 @@ checks:
     commit: qdq-se-gates-revert
     expect: {failed: {lte: 0}}
 
-  - name: per-channel weights fix the indoor slice
+  - name: per-channel weights bring back much of the indoor slice
     commit: int8-per-channel
     vs: int8-minmax
     inputs: indoor
@@ -338,15 +340,15 @@ checks:
     commit: int8-percentile
     label: tune-int8
     hook: optimize_converged
-    args: {metric: ap_small, min_gain: 0.02}
-  - name: the tuned int8 model finds small objects like the fp32 release
+    args: {min_gain: 0.04, initial_points: 8}
+  - name: the tuned int8 model finds small objects as well as the fp32 release
     commit: int8-tuned
     vs: kd-1-2
     inputs: small-objects
     configs: '*"int8"*'
     vs_configs: '*"fp32"*'
     metric: ap_small
-    expect: {change_pct: {gt: -5}}
+    expect: {change_pct: {gt: 0}}
 
   - name: the larger input sizes don't help this model
     commit: kd-1-3

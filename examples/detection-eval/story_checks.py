@@ -6,24 +6,27 @@ import json
 import statistics
 
 
-def optimize_converged(ctx, metric='ap_small', min_gain=0.02, label='tune-int8'):
+def optimize_converged(ctx, min_gain=0.04, initial_points=8, label='tune-int8'):
     """
-    In a `qa optimize` batch, the best iteration (by the objective) beats the first one by `min_gain` or more on
-    `metric` (each iteration's metric is the mean over its runs, as QA-Board's Analysis shows it).
+    In a `qa optimize` batch, the best iteration's objective is lower than the first iteration's by `min_gain` or more,
+    and the optimizer found it after its `initial_points` random ones: the search did better than chance.
+
+    What `qa optimize` stores for each iteration is its `objective` (the value it minimizes, see qa/tune-int8.yaml:
+    -(AP small + mAP) + 0.005 per MB, means over the runs) and its `iteration`: the Analysis view plots them.
     """
     iterations = sorted((r for r in ctx.runs(label=label) if 'iteration' in r.metrics and 'objective' in r.metrics),
                         key=lambda r: r.metrics['iteration'])
-    if len(iterations) < 2:
-        return False, f'{len(iterations)} iterations in {label}'
+    if len(iterations) <= initial_points:
+        return False, f'{len(iterations)} iterations in {label}, expected more than {initial_points}'
     first = iterations[0]
     best = min(iterations, key=lambda r: r.metrics['objective'])
-    if metric not in best.metrics or metric not in first.metrics:
-        return False, f'no {metric} in the iterations of {label}'
-    gain = best.metrics[metric] - first.metrics[metric]
+    best_random = min(iterations[:initial_points], key=lambda r: r.metrics['objective'])
+    gain = first.metrics['objective'] - best.metrics['objective']
     params = {k: v for k, v in best.extra_parameters.items() if not k.startswith('_')}
-    message = (f'{len(iterations)} iterations: {metric} {first.metrics[metric]:.3f} at the first, {best.metrics[metric]:.3f} at the best '
-               f'(iteration {best.metrics["iteration"]:.0f}: {json.dumps(params, sort_keys=True)})')
-    return gain >= min_gain, message
+    message = (f"{len(iterations)} iterations: objective {first.metrics['objective']:.4f} at the first, "
+               f"{best_random.metrics['objective']:.4f} at the best of the {initial_points} random ones, "
+               f"{best.metrics['objective']:.4f} at the best (iteration {best.metrics['iteration']:.0f}: {json.dumps(params, sort_keys=True)})")
+    return gain >= min_gain and best.metrics['iteration'] > initial_points, message
 
 
 def _iou(a, b):

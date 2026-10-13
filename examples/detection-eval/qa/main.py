@@ -33,7 +33,7 @@ DEFAULT_FLAGS = {
     'quant_calibration': 'percentile',   # minmax, percentile, entropy
     'quant_percentile': 99.999,          # 99.9-99.999, for percentile calibration
     'quant_per_channel': True,           # int8 weights per output channel, or one scale per tensor
-    'quant_keep_fp32': 'none',           # none, first-conv, head, first-conv+head: nodes left in fp32
+    'quant_keep_fp32': 'first-conv',     # none, first-conv, head, first-conv+head: nodes left in fp32
     'score_threshold': 0.2,              # 0.05-0.6: detections kept above this score
     'nms_iou': 0.7,                      # 0.3-0.8: per-class non-maximum suppression
     'eval_crowd_many': True,             # false: the evaluation bug the story fixes (a crowd box absorbs one detection)
@@ -92,16 +92,15 @@ def run(context):
         model_path, anchors = models.int8(size, flags, calibration_images())
     else:
         model_path, anchors = models.fp32(size)
-    detector = Detector(model_path, anchors, size, threads=THREADS)   # ONNX Runtime refuses broken models here
+    # int8: detections from the quantized model's reference arithmetic, the same on every CI runner (detector.session)
+    detector = Detector(model_path, anchors, size, threads=THREADS, quantized=kind == 'int8')   # ONNX Runtime refuses broken models here
 
     pictures = [Image.open(i['path']).convert('RGB') for i in images]
-    for _ in range(WARMUP):
-        detector.infer(pictures[0])
-    detections, seconds = {}, []
+    seconds = detector.latency(pictures, warmup=WARMUP)
+    detections = {}
     for image, picture in zip(images, pictures):
-        found, elapsed = detector.detect(picture, flags['score_threshold'], flags['nms_iou'])
+        found = detector.detect(picture, flags['score_threshold'], flags['nms_iou'])
         detections[image['id']] = [{'category_id': c, 'score': s, 'box': b} for c, s, b in found]
-        seconds.append(elapsed)
 
     results = evaluate.evaluate(images, detections, list(CLASSES), crowd_many=flags['eval_crowd_many'])
     metrics = evaluate.summary_metrics(results)

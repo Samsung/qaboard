@@ -54,9 +54,11 @@ qa --config int8 --config size-320 run --input slices/small-objects      # the f
 qa batch quant-search --tuning-search '{"search_type": "grid", "parameter_search": {"score_threshold": [0.2, 0.3], "nms_iou": [0.5, 0.7]}}'
 ```
 
-**Determinism:** detections and metrics are the same from run to run on a machine. The int8 model's numbers depend on
-the CPU's instruction set (ONNX Runtime picks its int8 kernels for it): expect small differences between machines.
-Latency is measured, so it varies.
+**Determinism:** detections and metrics are the same from run to run, and on other x86-64 machines with AVX2 or
+AVX-512 (any CI runner). The int8 model's detections come from its reference arithmetic: quantize and dequantize in
+float, as its graph says, and fp32 in between (`qa/detector.py`). ONNX Runtime's int8 kernels, which it picks for the
+CPU (AVX2, AVX-512 VNNI...), round and saturate differently: with them, a slice's mAP moved by a fifth between two
+machines. Latency is measured with those kernels, so it varies.
 
 ## Inputs
 
