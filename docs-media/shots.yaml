@@ -66,15 +66,13 @@ shots:
     pages: [get-started/tutorial, running-your-code]
     phase: 1
     status: published
-  # Planned: `qa batch ci` needs the detector's setup in the tape's workspace (PyTorch for the ONNX export, the photos),
-  # and adds a batch to the demo data, to delete afterwards.
   - id: cli/batch
     kind: tape
-    project: detection-eval
-    shows: "`qa batch ci`: runs start, progress, the link to the results."
+    project: image-quality
+    shows: "`qa --share batch ci` on the camera ISP: the link to the results, then the runs start one after the other, each printing its image, the ISP stages and their times."
     pages: [batches-running-on-multiple-inputs, get-started/tutorial, landing, tour]
     phase: 2
-    status: planned
+    status: captured
   - id: cli/bit-accuracy
     kind: tape
     project: image-quality
