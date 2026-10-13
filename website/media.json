@@ -1646,6 +1646,60 @@
       "source_spec": "docs-media/shots/projects.spec.ts",
       "width": 1440
     },
+    "quickstart/compose": {
+      "alt": "A terminal starts QA-Board with docker compose up: the database, the demo data, the backend, the image server and the web server start and turn healthy. The health check answers ok, and the projects API lists the Kitefin demo projects with their number of commits.",
+      "app_version": "1.1.1+312be1c",
+      "caption": "docker compose up waits until every service is healthy, then QA-Board answers on localhost:5151 with the demo projects.",
+      "captured": "2026-10-13",
+      "duration": 19.84,
+      "files": {
+        "mp4": {
+          "bytes": 252873,
+          "key": "shots/quickstart/compose/380977a9bf7e9151.mp4"
+        },
+        "poster": {
+          "bytes": 63200,
+          "key": "shots/quickstart/compose/56c48c6ef4c9c219.webp"
+        },
+        "webm": {
+          "bytes": 279714,
+          "key": "shots/quickstart/compose/33c442e4797715b2.webm"
+        }
+      },
+      "height": 720,
+      "kind": "tape",
+      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAABwAQCdASoQAAkAA4BaJZwCdAFAAAD+8O86QTBMdiENfNAA",
+      "project": null,
+      "source_spec": "docs-media/tapes/quickstart-compose.tape",
+      "width": 1280
+    },
+    "quickstart/kind": {
+      "alt": "A terminal creates a kind cluster with QA-Board's kind.yaml and installs the Helm chart with the quickstart values, which prints how to open QA-Board. Through a port-forward on 5151, the health check answers ok and the projects API lists the Kitefin demo projects.",
+      "app_version": "1.1.1+312be1c",
+      "caption": "helm install waits until QA-Board is ready and prints how to open it; through the port-forward, it answers with the demo projects.",
+      "captured": "2026-10-13",
+      "duration": 35.48,
+      "files": {
+        "mp4": {
+          "bytes": 282936,
+          "key": "shots/quickstart/kind/48e8592bcd411586.mp4"
+        },
+        "poster": {
+          "bytes": 21224,
+          "key": "shots/quickstart/kind/533128c252014e38.webp"
+        },
+        "webm": {
+          "bytes": 306205,
+          "key": "shots/quickstart/kind/3bb62ae9127c2f44.webm"
+        }
+      },
+      "height": 720,
+      "kind": "tape",
+      "lqip": "data:image/webp;base64,UklGRioAAABXRUJQVlA4IB4AAABwAQCdASoQAAkAA4BaJZwCdAFAAAD+8Q4ZrE2NcAA=",
+      "project": null,
+      "source_spec": "docs-media/tapes/quickstart-kind.tape",
+      "width": 1280
+    },
     "tuning/analysis": {
       "alt": "The Analysis of the tune-int8 experiment: the best parameters found at iteration 10 of 20 (percentile 99.999, nothing kept in fp32, score 0.2, NMS 0.4) with their mAP, AP small and model size; parallel coordinates of the 20 iterations; the convergence of the objective.",
       "app_version": "1.1.1+46fc148",
