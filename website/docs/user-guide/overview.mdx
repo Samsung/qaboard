@@ -4,8 +4,6 @@ title: QA-Board for users
 sidebar_label: Overview
 description: Who the user guide is for, QA-Board's key concepts in plain words, and a map of the web app.
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
-
 This guide is for the engineers who **use the QA-Board web app every day** to look at results: check what a commit changed, compare it to a reference, dig into images and logs, start a few extra runs, and share what they found.
 
 You don't need to know how the project was set up to use it.
@@ -47,6 +45,11 @@ Projects list  ─►  Commit list  ─►  Commit page  ─►  views (Summary,
 | **Commit page** | Everything about one commit's results, compared to a reference. | [The commit page](commit-page.mdx) |
 | **History** | Metrics over time for a branch, run by run. Find which commit caused a regression. | [History](history-and-dashboards.mdx) |
 
+<Shot
+  id="projects/home"
+  caption="The projects list is the home page: pin the projects you follow with their star, and open one to see its commits."
+/>
+
 ### Anatomy of a page
 - **Left sidebar**:
   - The **QA-Board** title goes back to the projects list. Next to it, the **What's new** button opens the [release notes](whats-new.mdx), and the **i** icon opens this guide.
@@ -55,9 +58,10 @@ Projects list  ─►  Commit list  ─►  Commit page  ─►  views (Summary,
 - **Top bar**: on the commit list, the date range and a filter box. On a commit page, two bars: the **new** commit on top, the **reference** below.
 - **Controls panel**: on the commit page, a panel on the right edge to toggle visualizations, sync options between runs, and sort runs. Click the dark tab on the right edge to show or hide it.
 
-<img alt="The commit page: new and reference commits in the top bars" src={useBaseUrl('img/quantitative-metrics.png')} />
-
-*A commit page (older screenshot: the "KPIs" and "KPI diff" views are now called "Metrics Table" and "Metrics Diff", and "Actions & Links" is now "Integrations").*
+<Shot
+  id="commit/visualizations"
+  caption="A commit page: the new commit's bar on top, the reference's below, the views in the sidebar, and a card per run with its metrics and outputs next to the reference's."
+/>
 
 ## Where to go next
 1. [Finding results](finding-results.mdx): projects, commits, branches, batches and filters.
