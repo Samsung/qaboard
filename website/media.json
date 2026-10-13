@@ -4,22 +4,22 @@
   "shots": {
     "cli/first-run": {
       "alt": "A terminal runs qa run on the slanted-edge chart: qa prints where the outputs go, the pipeline logs each ISP stage and its time, then the run's metrics.",
-      "app_version": "1.1.1+36ac4c6",
+      "app_version": "1.1.1+eb20b6b",
       "caption": "qa run runs your code on one input, saves its outputs and prints its metrics.",
       "captured": "2026-10-12",
-      "duration": 7.92,
+      "duration": 8.64,
       "files": {
         "mp4": {
-          "bytes": 77792,
-          "key": "shots/cli/first-run/02d5d2dca94518e3.mp4"
+          "bytes": 78662,
+          "key": "shots/cli/first-run/7cd4f2a6ab6816e8.mp4"
         },
         "poster": {
-          "bytes": 41106,
-          "key": "shots/cli/first-run/e795ed945754b44d.webp"
+          "bytes": 41108,
+          "key": "shots/cli/first-run/f8c51828fc89a026.webp"
         },
         "webm": {
-          "bytes": 117196,
-          "key": "shots/cli/first-run/7d1d580158b9db80.webm"
+          "bytes": 115950,
+          "key": "shots/cli/first-run/a4324e1457179d3f.webm"
         }
       },
       "height": 720,
@@ -103,83 +103,83 @@
     },
     "commit/deep-zoom": {
       "alt": "The 113-megapixel test wall, new and reference side by side: zooming from the whole wall to a small Siemens star until single pixels show, both images in sync.",
-      "app_version": "1.1.1+36ac4c6",
+      "app_version": "1.1.1+eb20b6b",
       "caption": "Deep zoom on a 113 MP image: the viewers load only the tiles they show.",
       "captured": "2026-10-12",
-      "duration": 12.63,
+      "duration": 15.73,
       "files": {
         "mp4": {
-          "bytes": 784953,
-          "key": "shots/commit/deep-zoom/6a3d0fd00c07e0c2.mp4"
+          "bytes": 808178,
+          "key": "shots/commit/deep-zoom/937427a03bcc80c0.mp4"
         },
         "poster": {
-          "bytes": 70694,
-          "key": "shots/commit/deep-zoom/374e63c5a5bffd4d.webp"
+          "bytes": 70680,
+          "key": "shots/commit/deep-zoom/e08135c19c71be6b.webp"
         },
         "vtt": {
           "bytes": 206,
-          "key": "shots/commit/deep-zoom/28a5f95a020c1fe0.vtt"
+          "key": "shots/commit/deep-zoom/089ce21be0841b0b.vtt"
         },
         "webm": {
-          "bytes": 1082553,
-          "key": "shots/commit/deep-zoom/1b647b33c8a5b6f0.webm"
+          "bytes": 1104958,
+          "key": "shots/commit/deep-zoom/5c9b21d250f9c007.webm"
         }
       },
       "height": 900,
       "kind": "clip",
-      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAADQAQCdASoQAAoAA4BaJZwAAt4+3AvHwAD2v/wfB/n8+N2nhBs03M5MvklebPo6WS3By75ZslGDKpMQAAA=",
+      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAADQAQCdASoQAAoAA4BaJaQAAt4+3AvHwAD2v/wfB/n8+N2nhBs03M5MvklebPo6WS3By75ZslGDKpMQAAA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
     },
     "commit/image-diff": {
       "alt": "Zooming into the new image of the facade, the reference follows; the Controls panel opens and Image Diff turns on; raising the threshold leaves only the window frame's halos.",
-      "app_version": "1.1.1+36ac4c6",
+      "app_version": "1.1.1+eb20b6b",
       "caption": "Synced zoom, then Image Diff and its threshold.",
       "captured": "2026-10-12",
-      "duration": 13.37,
+      "duration": 15.37,
       "files": {
         "mp4": {
-          "bytes": 464988,
-          "key": "shots/commit/image-diff/08540e0bcb564ba6.mp4"
+          "bytes": 499639,
+          "key": "shots/commit/image-diff/473ed5cb9e77af5b.mp4"
         },
         "poster": {
-          "bytes": 70200,
-          "key": "shots/commit/image-diff/b38ef83a2528b652.webp"
+          "bytes": 70190,
+          "key": "shots/commit/image-diff/7cde016531b4d446.webp"
         },
         "vtt": {
           "bytes": 207,
-          "key": "shots/commit/image-diff/ab2b6f2d41a0deb5.vtt"
+          "key": "shots/commit/image-diff/4d1468c7314093c4.vtt"
         },
         "webm": {
-          "bytes": 658010,
-          "key": "shots/commit/image-diff/bdf443e3c1ec9d08.webm"
+          "bytes": 701793,
+          "key": "shots/commit/image-diff/b5a71246f3af864b.webm"
         }
       },
       "height": 900,
       "kind": "clip",
-      "lqip": "data:image/webp;base64,UklGRlYAAABXRUJQVlA4IEoAAADQAQCdASoQAAoAA4BaJZQAAlxS1qgIAAD8Pzod3+XcttK85yJb767TTCYk3/131H9A2xQvuetu1WM4/2MmtPXIJDHpm984BtIAAA==",
+      "lqip": "data:image/webp;base64,UklGRlYAAABXRUJQVlA4IEoAAADQAQCdASoQAAoAA4BaJZQAAlxS1qgIAAD8Pzod3+XcttK85yJb767TTCYk3/131H9A2xQvuetu1WM4/2MmtPXICx6ZvfOAbSAAAA==",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
     },
     "commit/image-filters": {
       "alt": "The Image Tools panel over the night street's shadows, with brightness raised and gamma lowered: the noise of both images shows.",
-      "app_version": "1.1.1+b117508",
+      "app_version": "1.1.1+eb20b6b",
       "caption": "Image Tools filters apply to both images at once: here brightness and gamma reveal the noise in the shadows.",
       "captured": "2026-10-12",
       "files": {
         "avif": {
-          "bytes": 155308,
-          "key": "shots/commit/image-filters/82b360f9cb0a000f.avif"
+          "bytes": 155365,
+          "key": "shots/commit/image-filters/8073ad3d68293598.avif"
         },
         "png": {
-          "bytes": 480849,
-          "key": "shots/commit/image-filters/3f69358a9fa081f2.png"
+          "bytes": 478989,
+          "key": "shots/commit/image-filters/f70b04adacc5ced7.png"
         },
         "webp": {
-          "bytes": 210244,
-          "key": "shots/commit/image-filters/4db95d9ad868cc99.webp"
+          "bytes": 210750,
+          "key": "shots/commit/image-filters/e1a1a3cefbdece93.webp"
         }
       },
       "height": 625,
@@ -217,26 +217,26 @@
     },
     "commit/image-sbs": {
       "alt": "New and reference images of the facade, zoomed on leaves in front of the wall: in the new image, dark halos outline every leaf.",
-      "app_version": "1.1.1+36ac4c6",
+      "app_version": "1.1.1+eb20b6b",
       "caption": "Both images at the same zoom: only the new denoiser outlines the leaves with dark halos.",
       "captured": "2026-10-12",
       "files": {
         "avif": {
-          "bytes": 51033,
-          "key": "shots/commit/image-sbs/a22f14293daa5e32.avif"
+          "bytes": 51227,
+          "key": "shots/commit/image-sbs/e9cd561f5f0faaaf.avif"
         },
         "png": {
-          "bytes": 100729,
-          "key": "shots/commit/image-sbs/4ee86dd383e6cb2f.png"
+          "bytes": 100550,
+          "key": "shots/commit/image-sbs/2db362e907f1046c.png"
         },
         "webp": {
-          "bytes": 60784,
-          "key": "shots/commit/image-sbs/45605c3169a430bc.webp"
+          "bytes": 60774,
+          "key": "shots/commit/image-sbs/6ca9675102df7a08.webp"
         }
       },
       "height": 415,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRlQAAABXRUJQVlA4IEgAAADQAQCdASoQAAYAA4BaJQBOj+ACLGPnoAD+GUupfzITJe0KFA3iogjetrQ/58b6IFQXtyS3Mmld+DI/8xn7gFyoa+dUT1vZ/AA=",
+      "lqip": "data:image/webp;base64,UklGRlQAAABXRUJQVlA4IEgAAAAQAgCdASoQAAYAA4BaJQBOj+AQQBE73boAAP4Z5asrKMNV/SGfvZD18FTIs5WUv6Qz97Hk5Z3KupL6RXeUCMxH3yMzClLdAAA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1170
@@ -295,26 +295,26 @@
     },
     "commit/roi-histograms": {
       "alt": "A rectangle selected on the sky gradient; below the images, the red, green, blue and luma histograms of the region, new and reference overlaid.",
-      "app_version": "1.1.1+b117508",
+      "app_version": "1.1.1+eb20b6b",
       "caption": "Select a region to compare its histograms, new against reference.",
       "captured": "2026-10-12",
       "files": {
         "avif": {
-          "bytes": 187243,
-          "key": "shots/commit/roi-histograms/ba6388264017c871.avif"
+          "bytes": 189091,
+          "key": "shots/commit/roi-histograms/97e7b77e1abdf090.avif"
         },
         "png": {
-          "bytes": 2685651,
-          "key": "shots/commit/roi-histograms/23f3ac317ace7ec4.png"
+          "bytes": 2685877,
+          "key": "shots/commit/roi-histograms/1ce4f65c4604cd5b.png"
         },
         "webp": {
-          "bytes": 222452,
-          "key": "shots/commit/roi-histograms/542e1fd304beb3ec.webp"
+          "bytes": 222952,
+          "key": "shots/commit/roi-histograms/05622f04adef2d0d.webp"
         }
       },
       "height": 752,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRkoAAABXRUJQVlA4ID4AAAAQAgCdASoQAAsAA4BaJYwCdH8AGBTiu8aAAP6ak6+RDjr2R7rd7Px1MZW6JQA6thFVNcumXDOrH+CZN2QAAA==",
+      "lqip": "data:image/webp;base64,UklGRkoAAABXRUJQVlA4ID4AAAAQAgCdASoQAAsAA4BaJYwCdH8AGBTiu4QAAP6apDSCAbHM4D37Px1h5Onhxk5gHvza9FyVenv5CUCecnAAAA==",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1178
