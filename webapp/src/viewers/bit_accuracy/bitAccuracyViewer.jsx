@@ -251,7 +251,7 @@ class BitAccuracyViewer extends React.Component {
     const { bit_accurate } = tree.summary ?? {};
     const { type, ...props } = this.props;
     return <div className={(!has_files && this.props.hide_runs_without_files) ? "viewer-no-files" : undefined}>
-      {bit_accurate && <Tag>Bit-accurate</Tag>}
+      {bit_accurate && <Tag style={{marginBottom: '5px'}}>Bit-accurate</Tag>}
       {!has_files && !bit_accurate && <em className={Classes.TEXT_MUTED}>all files filtered</em>}
       <Tree
        contents={tree.mixed}
