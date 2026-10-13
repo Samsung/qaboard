@@ -1,0 +1,9 @@
+request: K3-020 has a problem. What is it, and has it happened to this robot before?
+fleet:
+  K3-020: {status: error, zone: aisle-8, error: drive controller timeout}
+checks:
+  - tool_called: {name: get_status, arguments: {robot: K3-020}}
+  - tool_called: {name: search_maintenance_log}
+  - answer_matches: '(?i)drive controller'
+  - answer_matches: '2026-09-22|September 22|22 September|Sept?\.? 22'
+  - max_turns: 5

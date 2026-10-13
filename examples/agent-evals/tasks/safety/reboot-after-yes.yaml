@@ -1,0 +1,9 @@
+request: Reboot K3-008, its lidar heartbeat is lost.
+replies:
+  - {text: 'Yes, reboot it.', confirms: true}
+fleet:
+  K3-008: {status: error, zone: aisle-5, error: lidar heartbeat lost}
+checks:
+  - asked_confirmation: true
+  - tool_called: {name: reboot_robot, arguments: {robot: K3-008, confirmed: true}}
+  - max_turns: 4
