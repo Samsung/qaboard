@@ -9,12 +9,14 @@ const header = (page: Page) => page.locator('.fb-header');
 const runBar = (page: Page) => page.locator('section.fb-run');
 const table = (page: Page) => page.locator('table.fb-table');
 
+// Natural sort shows in a folder of numbered files: the detector's images of a slice, with its detections drawn
+// (examples/detection-eval, the merge of the int8 model)
 shot('files/browser', {
-  project: SL,
-  url: runFolder,
-  alt: 'The file browser in a run\'s output folder: the path as breadcrumbs, the run bar, a filter box, and the run\'s '
-    + '15 files sorted by name with an icon for their type, their size and modification date.',
-  caption: 'The file browser lists a run\'s output files, with their sizes and dates; click a header to sort.',
+  project: 'detection-eval',
+  url: d => d.filesUrl('detection-eval', 'merge-int8', 'output/7622c337-20/slices-indoor/images/'),
+  alt: 'The file browser in the images folder of a detector run: the path as breadcrumbs, the run bar, a filter box, '
+    + 'and 25 images sorted naturally, 1.jpg, 2.jpg, then 10.jpg after 9.jpg, with their sizes and dates.',
+  caption: 'The file browser sorts names naturally (2 before 10) and shows each file\'s size and date.',
   actions: async ui => {
     await ui.cursor.moveTo({ x: 1300, y: 880 });
     await ui.settle();
