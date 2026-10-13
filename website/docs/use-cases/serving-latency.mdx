@@ -1,0 +1,97 @@
+---
+id: serving-latency
+title: "Serving latency: an inference gateway"
+sidebar_label: Serving latency
+description: An inference server where a cache makes the median faster and the tail much slower. Latency distributions, flame graph diffs, History to find a regression, a tuning sweep's frontier and the quality gate.
+---
+For backend and performance engineers, and for anyone who reviews "it's faster" claims, including the ones coding
+agents make. This page follows the inference gateway example.
+
+:::info Coming soon
+The example project, [`examples/serving-latency`](https://github.com/Samsung/qaboard/tree/master/examples/serving-latency),
+is being built from its [spec](https://github.com/Samsung/qaboard/blob/master/examples/serving-latency/SPEC.md). Until
+it's there, the screenshots show as placeholders, and the configuration below is the planned one.
+:::
+
+## The problem
+Latency is a distribution, not a number. A change can make the median faster and the tail much slower, and the tail is
+what users and timeouts see. Measurements are noisy, so one run proves little: you need repeats, the same load
+profiles on every commit, and a way to see where the time went.
+
+## The example
+A small inference gateway, in Rust: a request queue, dynamic batching, a pool of workers running a CPU model, and a
+result cache. An open-loop load generator sends it requests at a fixed rate, with steady, bursty, heavy-tailed and
+ramping profiles. Each run measures the latency percentiles from p50 to p99.9, throughput, CPU per request, and how
+long requests waited in the queue, for a batch or for a lock, and records CPU samples for a flame graph.
+
+Its story:
+1. The team's coding agent adds a shared result cache: p50 gets faster, p99 much slower. The quality gate fails.
+2. The flame graph diff shows the time going to the cache's lock.
+3. Sharding the cache by key fixes p99 and keeps the p50 gain. A tuning sweep then picks the batching settings.
+4. Later, a commit that copies payloads makes p99 worse on the heavy-tailed profile only: the median over all
+   profiles barely moves, and History finds it.
+
+## What you see
+**Latency percentiles** on a log scale, new over the reference: the shared cache is faster up to p90, much slower from
+p99.
+
+<Shot id="commit/latency-cdf" />
+
+**Throughput against p99**, from the ramping profile: with the shared cache, p99 takes off at a lower throughput.
+
+<Shot id="commit/throughput-p99" />
+
+**Flame graph diff**: frames that got slower are red, faster ones blue. The cache's lock is red.
+
+<Shot id="commit/flame-diff" />
+
+**CPU per core** over time, side by side, and the batch sizes.
+
+<Shot id="commit/core-heatmap" />
+
+**The tuning sweep's frontier** of throughput against p99, with the chosen batching settings on it.
+
+<Shot id="tuning/frontier" />
+
+**The quality gate** (experimental) fails CI on the agent's commit: p99 is over its limit.
+
+<Clip id="cli/gate" />
+
+{/* TODO link quality-gate */}
+
+## The configuration
+Planned, from the example's spec. Plots set their traces' colors, so the web app draws the reference dashed and faded
+when `side_by_side: false` overlays them.
+
+```yaml title="qaboard.yaml (planned)"
+outputs:
+  metrics: qa/metrics.yaml
+  visualizations:
+    - name: Latency percentiles (log tail)
+      path: latency_cdf.plotly.json
+      side_by_side: false              # overlay: the reference is drawn dashed and faded
+    - name: Where the time goes
+      path: breakdown.plotly.json      # queue, batch wait, lock wait, compute at p50/p90/p99/p99.9
+    - name: Throughput vs p99
+      path: sweep.plotly.json          # ramp runs only
+      side_by_side: false
+    - name: CPU flame graph
+      path: cpu.flame.json
+    - name: CPU per core
+      path: cores.plotly.json
+      default_hidden: true
+```
+
+{/* TODO(serving-latency): show examples/serving-latency/qaboard.yaml with <RepoFile> once it exists (add it to
+    website/Dockerfile.dockerignore if needed), and replace "planned" by what the example really does. */}
+
+Runs execute one at a time, so they don't measure each other, and each run repeats its measurement: reported
+percentiles are the median over repeats.
+
+## Run this example
+Coming with the example. The [quickstart](/docs/get-started/quickstart) runs the camera ISP example in the meantime.
+
+## Read more
+- [Visualizations](/docs/visualizations): Plotly figures and flame graphs.
+- [History](/docs/user-guide/history-and-dashboards): metrics across commits.
+- [Tuning from the web app](/docs/tuning-from-the-webapp).

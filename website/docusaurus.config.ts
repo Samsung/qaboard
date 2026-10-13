@@ -55,7 +55,7 @@ const logo = {
 let config: Config = {
   title: 'QA-Board',
   customFields: {is_for_webapp, ...(site ? {site: {id: site.id, name: site.name, label: site.label}} : {})},
-  tagline: "Algorithm engineering is hard enough.<br/>Don't waste time with logistics.",
+  tagline: "Tests tell you it runs. QA-Board shows you it's better.",
   url: 'https://samsung.github.io',
   onBrokenLinks: 'throw',
   markdown: {
@@ -143,14 +143,28 @@ let config: Config = {
         logo,
         hideOnScroll: true,
         items: [
-          // One sidebar per audience: people looking at results, project integration, server admins
-          {type: 'docSidebar', sidebarId: 'userGuide', label: 'User guide', position: 'left'},
-          {type: 'docSidebar', sidebarId: 'docs', label: 'Project integration', position: 'left'},
-          {type: 'docSidebar', sidebarId: 'admin', label: 'Admin', position: 'left'},
+          // The landing page (src/pages/index.tsx), in both builds: /qaboard/ and, for the web app, /docs/
+          {to: '/', label: 'Product', position: 'left', activeBaseRegex: '^/(qaboard|docs)/?$'},
+          // Get started, then one sidebar per audience: people looking at results, project integration, server admins
+          {
+            type: 'dropdown',
+            label: 'Docs',
+            to: '/docs/get-started/quickstart',
+            position: 'left',
+            items: [
+              {type: 'docSidebar', sidebarId: 'start', label: 'Get started'},
+              {type: 'doc', docId: 'tour', label: 'Product tour'},
+              {type: 'docSidebar', sidebarId: 'userGuide', label: 'User guide'},
+              {type: 'docSidebar', sidebarId: 'docs', label: 'Project integration'},
+              {type: 'docSidebar', sidebarId: 'admin', label: 'Admin'},
+            ],
+          },
           ...(site ? [{type: 'docSidebar', docsPluginId: 'site', sidebarId: 'defaultSidebar', label: site.label, position: 'left'} as const] : []),
-          {to: '/release-notes', label: "What's new", position: 'left'},
+          // The generated index of the "Use cases" category (sidebars.ts)
+          {to: '/docs/use-cases', label: 'Use cases', position: 'left'},
           // Where QA-Board is going: a docs page outside the sidebars, for every audience
           {type: 'doc', docId: 'roadmap', label: 'Roadmap', position: 'left'},
+          {to: '/release-notes', label: 'Release notes', position: 'left'},
           {
             to: '/blog',
             position: 'left',
@@ -167,6 +181,15 @@ let config: Config = {
       footer: {
         style: 'dark',
         links: [
+          {
+            title: 'Get started',
+            items: [
+              {label: 'Quickstart', to: '/docs/get-started/quickstart'},
+              {label: 'Your project on QA-Board', to: '/docs/get-started/tutorial'},
+              {label: 'Product tour', to: '/docs/tour'},
+              {label: 'Use cases', to: '/docs/use-cases'},
+            ],
+          },
           {
             title: 'Docs',
             items: [
