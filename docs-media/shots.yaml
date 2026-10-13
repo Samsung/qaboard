@@ -182,7 +182,7 @@ shots:
     kind: still
     project: detection-eval
     shows: The star's dialog on kd-1-3, with a label, notes and Shared on.
-    pages: [user-guide/comparing-results, references-and-milestones, recipes/compare-milestone]
+    pages: [user-guide/comparing-results, references-and-milestones, recipes/compare-milestone, use-cases/detection-eval]
     features: [milestones]
     phase: 2
     status: planned
@@ -223,7 +223,7 @@ shots:
     kind: still
     project: image-quality
     shows: Run cards with their main metrics and changes, the output images new and reference side by side.
-    pages: [user-guide/commit-page, computing-quantitative-metrics, user-guide/overview, user-guide/comparing-results, references-and-milestones]
+    pages: [user-guide/commit-page, computing-quantitative-metrics, user-guide/overview, user-guide/comparing-results, references-and-milestones, use-cases/image-quality]
     needs: merge-bilateral vs isp-4-1
     phase: 1
     status: published
@@ -406,7 +406,7 @@ shots:
     kind: still
     project: image-quality
     shows: Output Files of a hw-model run, the tree with the changed stage files highlighted, the help for the icons.
-    pages: [user-guide/commit-page, bit-accuracy, creating-and-viewing-outputs-files, landing]
+    pages: [user-guide/commit-page, bit-accuracy, creating-and-viewing-outputs-files]
     features: [bit-accuracy-tree]
     needs: fxp-round-half-even vs its parent, hw-model platform
     phase: 1
@@ -415,7 +415,7 @@ shots:
     kind: clip
     project: image-quality
     shows: Click regs.txt in the tree to diff it in place, Next Diff jumps to the rounding register; Ctrl-click metrics.json to add its diff.
-    pages: [bit-accuracy, user-guide/commit-page, recipes/bit-accuracy-handoff]
+    pages: [bit-accuracy, user-guide/commit-page, recipes/bit-accuracy-handoff, use-cases/image-quality, landing]
     features: [bit-accuracy-tree]
     needs: fxp-round-half-even
     phase: 2
@@ -533,7 +533,7 @@ shots:
     kind: clip
     project: serving-latency
     shows: Filtered on heavy-tail-high, hovering along the line until the card changes at payload-copy, then a click freezes it as the reference.
-    pages: [user-guide/history-and-dashboards, recipes/find-regression, tutorials/perf-regression, tour, landing]
+    pages: [user-guide/history-and-dashboards, recipes/find-regression, tutorials/perf-regression, tour, landing, use-cases/serving-latency]
     needs: payload-copy
     phase: 2
     status: planned

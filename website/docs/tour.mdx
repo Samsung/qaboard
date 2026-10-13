@@ -11,8 +11,7 @@ better.
 This tour follows the teams of Kitefin Robotics, a fictional company that builds camera robots. They use QA-Board for
 a camera pipeline, an object detector and an inference server. Their projects are real code, in
 [`examples/`](https://github.com/Samsung/qaboard/tree/master/examples): the history is made up, but every number and
-image comes from running them. The detector and the inference server are still being built: their clips show as
-placeholders until then.
+image comes from running them. Some clips are still being recorded: they show as placeholders until then.
 
 ## 1. Run
 Wrap your code with `qa`, then run it on a batch of inputs: on your computer, on a cluster, or in CI on every push.
@@ -83,6 +82,8 @@ See [Quality gate](/docs/quality-gate).
   [Browsing files](/docs/user-guide/files).
 - **Bit accuracy:** check that a change didn't alter any output file, e.g. before handing a model to a hardware team.
   See [Bit accuracy](/docs/bit-accuracy).
+
+A run's log, live: it follows the end, counts the errors, and jumps to the next one.
 
 <Clip id="logs/live-tail" />
 

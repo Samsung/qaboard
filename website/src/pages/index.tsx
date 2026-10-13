@@ -331,7 +331,7 @@ const POLISH: Polish[] = [
   {title: 'Every stage', text: 'Sliders over a pipeline’s stages or a video’s frames, synced across runs.', media: <Clip id="commit/dynamic-outputs" caption="" />},
   {title: 'Flame graph diffs', text: 'The functions that got slower in red, the faster ones in blue.', media: <Shot id="commit/flame-diff" caption="" />},
   {title: 'Plot overlays', text: 'Your Plotly figures, with the reference drawn dashed on the same axes.', media: <Shot id="commit/plotly-overlay" caption="" />},
-  {title: 'Bit accuracy', text: 'Only the output files that changed, with a diff of each one.', media: <Shot id="commit/output-files" caption="" />},
+  {title: 'Bit accuracy', text: 'Only the output files that changed: click one to diff it with the reference.', media: <Clip id="commit/bit-accuracy-diff" caption="" />},
   {title: 'Live logs', text: 'Follow a running log, count its errors, jump to the next one.', media: <Clip id="logs/live-tail" caption="" />},
   {title: 'File browser', text: 'Every run’s folder in the browser, driven from the keyboard.', media: <Clip id="files/keyboard" caption="" />},
 ];

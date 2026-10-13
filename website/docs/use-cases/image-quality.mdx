@@ -27,6 +27,11 @@ Its story, six weeks of commits replayed into QA-Board:
 4. On the fixed-point model, rounding changes are checked bit for bit before they reach the chip.
 
 ## What you see
+**Metrics, then images.** Each run's card starts with its metrics against the reference: on the facade, the merged
+denoiser gains PSNR and SSIM. Below, its images sit next to the reference's.
+
+<Shot id="commit/visualizations" />
+
 **Side by side, in sync.** Zoom into one image and the reference follows. The new denoiser outlines edges with dark
 halos.
 
@@ -59,6 +64,11 @@ the facade jumps when the denoiser is merged, and its leaves get halos.
 here the rounding change touches the last two stages. On a commit that only changed docs, every file is the same.
 
 <Clip id="cli/bit-accuracy" />
+
+In the web app, **Output Files** lists the files that changed: click one to diff it with the reference. The register
+dump shows the rounding mode that changed.
+
+<Clip id="commit/bit-accuracy-diff" />
 
 ## The configuration
 *qaboard.yaml* says where the inputs are, which files to show and how, and which files must stay bit-accurate. Paths
