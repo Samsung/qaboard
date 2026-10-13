@@ -369,7 +369,8 @@ shot('commit/pixel-tooltip', {
 - **Layout shifts:** hovering an image the first time shows the hovered pixel's values above the images, which pushes
   them 18 px down. A point measured before would land elsewhere, depending on timing: `commit.spec.ts` hovers with
   `hoverImage()`, which measures the image once it stopped moving (`stableBox()`), and clips hover the images in their
-  `actions`, so that the shift isn't recorded.
+  `actions`, so that the shift isn't recorded. The values can show later than two measures of a "stable" box (a busy
+  runner): `commit/roi-histograms` waits for them before it measures, and fails if the image moved during its drag.
 - **Mouse wheel:** OpenSeadragon ignores a wheel event less than 50 ms after the last one it zoomed for
   (`minScrollDeltaTime`): `ui.wheel()` waits 80 ms between steps in stills (it waited 30 ms: steps were dropped or not
   depending on the machine's speed), and the page settles after each step in clips.
@@ -399,6 +400,11 @@ shot('commit/pixel-tooltip', {
   each point of a cursor move waits for the page to draw it.
 - **Rebuilt demo data** (a reseed) changes the runtime metrics, which are measured: the shots that show them change
   slightly.
+- **`logs/live-tail`** records a run that really runs: it starts `qa run` (this checkout's, with `uv`) on the inference
+  gateway's `bursty-high`, shared with the stack in a `live-tail` batch of `tuned-batching`, then deletes the batch. It
+  needs cargo (the first capture builds `gateway-bench`, about 2 minutes), and differs from one recording to the next
+  (up to 8% of a frame: timings, request ids): its `dedupeTolerance` is 0.15. `ci/step-summary` also runs `qa`
+  (`qa gate --format markdown`) with `uv`.
 
 ## Budgets
 
