@@ -71,7 +71,7 @@ class BatchTags extends React.PureComponent {
     return <>
       {valid_outputs > 0 && (
         <Tag intent={Intent.SUCCESS} minimal round>
-          {valid_outputs} outputs
+          {valid_outputs} output{valid_outputs === 1 ? '' : 's'}
         </Tag>
       )}{" "}
       {running_outputs > 0 && (
@@ -724,4 +724,4 @@ class CommitNavbar extends React.Component {
 }
 
 
-export { CommitNavbar };
+export { CommitNavbar, BatchTags };

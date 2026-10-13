@@ -256,8 +256,20 @@ shot('commit/image-filters', {
     await ui.settle();
     await ui.hover(newImage(scope), { position: await hoverImage(ui, scope, { x: 60, y: 45 }) });
     await ui.settle();
-    // back on the button: the panel and the viewer's buttons hide when the mouse leaves the image
-    await ui.hover(scope.locator('[title="Image Tools"]').first());
+    // back on the button: the panel and the viewer's buttons hide when the mouse leaves the image. OpenSeadragon shows
+    // the button's hover image (its third <img>) when it sees the mouse enter: a viewer redrawn under the mouse misses
+    // that, so enter again until it shows
+    const button = scope.locator('[title="Image Tools"]').first();
+    for (let attempt = 1; ; attempt++) {
+      await ui.hover(button);
+      try {
+        await button.locator('img').nth(2).waitFor({ state: 'visible', timeout: 1000 });
+        break;
+      } catch (error) {
+        if (attempt === 3) throw error;
+        await ui.hover(newImage(scope), { position: { x: 20, y: 20 } });
+      }
+    }
     await ui.settle();
   },
   // the run's name and metrics, and the viewer
@@ -365,5 +377,221 @@ clip('commit/deep-zoom', {
     await ui.hold(2500);
   },
 });
+
+
+// The commit bars, fixed at the top of the page: the new commit's, then the reference's. On the right of each, the
+// filter box with the counters under it, then the batch selector.
+const filterBox = (page: Page, type: 'new' | 'ref') =>
+  page.locator('.bp6-form-group', { has: page.locator(`input[placeholder="filter ${type} outputs"]`) });
+const barRight = (page: Page, type: 'new' | 'ref') =>
+  page.locator('.bp6-navbar-group.bp6-align-right', { has: page.locator(`input[placeholder="filter ${type} outputs"]`) });
+// The Controls panel's Dynamic Options: one entry per option, here the ISP stage
+const dynamicOptions = (page: Page) => controlsPanel(page).getByText('Dynamic Options', { exact: true }).locator('xpath=../..');
+
+shot('commit/batch-picker', {
+  project: IQ,
+  url: d => d.commitUrl(IQ, 'bilateral-denoise', { reference: 'isp-4-1', view: 'output-list' }),
+  alt: 'The new commit\'s batch selector open: the CI batch, run by ci, 18 of 18 runs successful; ines 🏠 ines-halo, '
+    + 'Ines\'s local runs, 5 of 5; and the tune-denoise tuning experiment, 60 of 60.',
+  caption: 'Each commit can have several batches: CI\'s, your local runs (🏠) and tuning experiments. Pick one to see '
+    + 'its runs.',
+  actions: async ui => {
+    await ui.click(barRight(ui.page, 'new').locator('.bp6-popover-target button').first());
+    await ui.page.locator('.bp6-popover', { hasText: 'tune-denoise' }).waitFor();
+    await ui.settle();
+  },
+  target: page => [barRight(page, 'new'), page.locator('.bp6-popover', { hasText: 'tune-denoise' })],
+  padding: 8,
+});
+
+shot('commit/output-filter', {
+  project: IQ,
+  url: d => d.commitUrl(IQ, 'merge-bilateral', { reference: 'isp-4-1', view: 'table-kpi' }),
+  alt: 'The new commit\'s filter box with "low-light -gradient", 8 outputs under it, and the Metrics Table below listing '
+    + 'only the low-light runs, the sky gradient left out.',
+  caption: 'Words narrow down the runs, a minus sign leaves some out; the counters under the box count what\'s left.',
+  actions: async ui => {
+    await ui.type(ui.page.locator('input[placeholder="filter new outputs"]'), 'low-light -gradient');
+    await ui.settle();
+    await ui.cursor.moveTo({ x: 1300, y: 860 });
+  },
+  // the filter box and its counters, and the table of the runs left
+  target: page => [filterBox(page, 'new'), page.locator('.bp6-card', { hasText: 'Quality report' })],
+  padding: 8,
+});
+
+shot('commit/export', {
+  project: IQ,
+  url: d => d.commitUrl(IQ, 'merge-bilateral', { reference: 'isp-4-1', view: 'output-list', filter: 'photos low-light' }),
+  alt: 'The filter box with "photos low-light" and 4 outputs; below, the Export box with the pattern *.png, the Windows '
+    + 'and Linux paths of the export folder, and "8 files exported from 4 runs".',
+  caption: 'Export gathers the files matching a pattern from the filtered runs into one folder, as links.',
+  actions: async ui => {
+    await ui.click(ui.page.getByRole('button', { name: 'Export' }));
+    await ui.page.getByText(/files exported from/).waitFor();
+    await ui.settle();
+    await ui.cursor.moveTo({ x: 1300, y: 860 });
+  },
+  // the commit bars' filter box, and the Export box
+  target: page => [filterBox(page, 'new'), page.locator('.bp6-callout', { has: page.getByRole('button', { name: 'Export' }) })],
+  padding: 8,
+});
+
+// Dynamic outputs: `stages/:stage.jpg` in qaboard.yaml gives a slider over the ISP's stages, synced across runs
+const stages = (d: Demo, filter: string, stage: number) => d.commitUrl(IQ, 'merge-bilateral', {
+  reference: 'isp-4-1', view: 'output-list', filter,
+  controls: { show: { Output: false }, dynamic_options: { stage: [String(stage)] }, dynamic_options_sync: { stage: true } },
+});
+
+shot('commit/dynamic-options', {
+  project: IQ,
+  url: d => stages(d, 'night-street|facade low-light', 3),
+  storage: { 'controls-panel-expanded': 'true' },
+  alt: 'The Controls panel\'s Dynamic Options: the stage option, synced, its slider on 3. Next to it, the night street\'s '
+    + 'card shows stages/3.jpg, the denoised image, new and reference.',
+  caption: 'Dynamic Options pick the file each card shows, here the ISP stage. Synced, one slider drives every run.',
+  actions: async ui => {
+    const card = cards(ui.page).filter({ hasText: 'photos/night-street.png' }).first();
+    const scrollToCard = () => card.evaluate(card => window.scrollBy(0, card.getBoundingClientRect().top - 160));
+    // the browser keeps what's in view in place when the page above changes, more or less depending on the timing
+    await ui.page.evaluate(() => { document.documentElement.style.overflowAnchor = 'none'; });
+    await scrollToCard();
+    await ui.settle();
+    // the ISP stage, the card's second visualization (Output is hidden)
+    await preset(ui, viewer(card, 1), 'Shadows (noise)');
+    await mouseAway(ui);
+    // the facade's card above grows when its images show, sometimes after the first scroll: back in place
+    await scrollToCard();
+    await ui.settle();
+  },
+});
+
+clip('commit/dynamic-outputs', {
+  project: IQ,
+  url: d => stages(d, 'night-street|facade low-light', 1),
+  storage: { 'controls-panel-expanded': 'true' },
+  alt: 'The stage slider of the Controls panel steps from the raw sensor mosaic to the tone-mapped image of the facade\'s '
+    + 'window, new and reference changing together; scrolling down, the night street\'s card follows the slider too.',
+  caption: 'One slider over the ISP\'s stages drives every run\'s card.',
+  // the facade's tone-mapped output, new and reference
+  poster: 7000,
+  actions: async ui => {
+    // The facade's card, then the night street's below, both on the full image: the viewers zoom out when the
+    // reference's image appears (stages 1 and 2 are the same in both commits, the reference shows only from stage 3)
+    for (const index of [1, 0]) {
+      await showCard(ui, index);
+      await preset(ui, viewer(cards(ui.page).nth(index), 1), 'Full Image');
+    }
+    // the pixel values show above the images from the first hover on: not while recording, they'd push them down
+    await hoverImage(ui, viewer(cards(ui.page).first(), 1), { x: 50, y: 50 });
+    await mouseAway(ui);
+    // the browser keeps what's in view in place when the page above changes, more or less depending on the timing
+    await ui.page.evaluate(() => { document.documentElement.style.overflowAnchor = 'none'; });
+  },
+  script: async ui => {
+    const handle = dynamicOptions(ui.page).locator('.bp6-slider-handle').first();
+    // Not recorded: a card right below the commit bars. Twice: the cards change height when the reference's image
+    // shows (from stage 3), and load their images once in view, which makes the page longer
+    const pin = async (index: number) => {
+      for (let i = 0; i < 2; i++) {
+        await cards(ui.page).nth(index).evaluate(card => window.scrollBy(0, card.getBoundingClientRect().top - 160));
+        await ui.settle();
+      }
+    };
+    await pin(0);
+    await ui.caption('1: the raw sensor data');
+    await ui.click(handle);
+    await pin(0);
+    await ui.hold(1300);
+    for (const label of ['2: demosaic', '3: denoise', '4: sharpen', '5: tone map, the output']) {
+      await ui.caption(label);
+      await ui.press('ArrowRight');
+      await pin(0);
+      await ui.hold(1200);
+    }
+    await ui.caption('Every run\'s card follows');
+    // down to the next card, at once (with the mouse wheel, what's under the mouse would change)
+    await pin(1);
+    await ui.hold(300);
+    await ui.cursor.moveTo(handle);
+    await ui.press('ArrowLeft');
+    await ui.press('ArrowLeft');
+    await pin(1);
+    await ui.hold(2000);
+  },
+});
+
+// Output Files: the tree of a run's files, only those that differ from the reference's by default. A folder opens with
+// its caret (a click on its name does nothing), a file shows its diff below the tree.
+const treeCaret = (scope: Locator, folder: string) => scope.locator('.bp6-tree-node-content')
+  // the inner locator is relative to each node: from the page
+  .filter({ has: scope.page().getByText(folder, { exact: true }) }).locator('.bp6-tree-node-caret').first();
+const treeFile = (scope: Page | Locator, label: string) =>
+  scope.locator('.bp6-tree-node-content').getByText(label, { exact: true }).first();
+
+clip('commit/bit-accuracy-diff', {
+  project: IQ,
+  login: 'tobias',
+  // the rounding change of the fixed-point model, on the hw-model platform
+  url: d => compare(d, 'fxp-round-half-even', 'isp-4-1', 'photos/facade hw-model', { view: 'bit_accuracy' }),
+  alt: 'Output Files of the facade run on the hw-model platform: a click on regs.txt shows its diff below the tree, Next '
+    + 'Diff jumps to the ROUNDING register, from 0 to 2; a Ctrl-click on metrics.json adds its diff below.',
+  caption: 'Click files to diff them with the reference, Ctrl-click to diff several.',
+  actions: async ui => {
+    await showCard(ui);
+    await ui.click(treeCaret(cards(ui.page).first(), 'stages'));
+    await ui.settle();
+    await mouseAway(ui);
+  },
+  script: async ui => {
+    const card = cards(ui.page).first();
+    // The page scrolls down to the diffs, at once: a mouse wheel would scroll the diff editor when it's under the
+    // mouse, more or less depending on the recording
+    const scroll = async (dy: number) => {
+      await ui.page.evaluate(dy => window.scrollBy(0, dy), dy);
+      await ui.settle();
+      await ui.hold(200);
+    };
+    await ui.caption('Click a file to diff it with the reference');
+    await ui.click(treeFile(card, 'regs.txt'));
+    await ui.settle();
+    await scroll(360);
+    await ui.hold(800);
+    await ui.caption('Next Diff jumps to the change: rounding 0 → 2');
+    await ui.click(card.getByRole('button', { name: 'Next Diff' }).first());
+    await ui.settle();
+    await ui.hold(1800);
+    await ui.caption('Ctrl-click another file to diff it too');
+    await ui.click(treeFile(card, 'metrics.json'), { modifiers: ['Control'] });
+    await ui.settle();
+    await scroll(300);
+    await ui.hold(2200);
+  },
+});
+
+// The halos, on the leaves in front of the facade's window, before and after the clamp: the same crop as
+// commit/image-sbs, the new image only, for <Compare>
+for (const [id, commit, alt, caption] of [
+  ['commit/halo-before', 'merge-bilateral',
+    'Leaves in front of the facade, after the bilateral denoiser: a dark rim outlines every leaf against the wall.',
+    'With the bilateral denoiser and its detail boost, dark halos outline the leaves.'],
+  ['commit/halo-after', 'merge-halo-clamp',
+    'The same leaves once the sharpening is clamped: the edges stay crisp, with only faint rims.',
+    'With the clamp, the edges stay crisp and the halos fade.'],
+] as const)
+  shot(id, {
+    project: IQ,
+    url: d => compare(d, commit, 'isp-4-1', 'photos/facade base linux'),
+    alt,
+    caption,
+    actions: async ui => {
+      const scope = viewer(ui.page);
+      await preset(ui, scope, 'Leaves over a window');
+      await zoom(ui, scope, { x: 82, y: 42 }, 4);
+      await mouseAway(ui);
+    },
+    target: page => newImage(viewer(page)),
+    padding: 0,
+  });
 
 void refImage;

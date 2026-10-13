@@ -133,7 +133,7 @@ const TableCompare = ({
           <tr>
             <th scope="col">
               <span className={Classes.TEXT_MUTED}>
-                {outputs.length} runs
+                {outputs.length} run{outputs.length === 1 ? '' : 's'}
               </span>
             </th>
             {metrics_.map(m => (
@@ -194,7 +194,7 @@ const TableKpi = ({
               <th colSpan={new_batch.metrics_with_refs.has(m.key) ? 2 : 1} key={m.key}>
                 <MetricHeader condensed {...m}/>
                 {(!!m.target || !!m.suffix) && <span className={Classes.TEXT_MUTED}>
-                  [{!!m.target ? metric_formatter(m.target * m.scale, m) : ''}{m.suffix}]
+                  [{!!m.target ? <>{metric_formatter(m.target * m.scale, m)}{m.suffix}</> : m.suffix.trim()}]
                 </span>}
               </th>
             ))}
@@ -202,15 +202,16 @@ const TableKpi = ({
           <tr>
             <th scope="col">
               <span className={Classes.TEXT_MUTED}>
-                {outputs.length} runs
+                {outputs.length} run{outputs.length === 1 ? '' : 's'}
               </span>
             </th>
+            {/* a cell per column of the rows below: metrics without references have one, empty */}
             {metrics_.map(m => (
               <Fragment key={m.key}>
-                {new_batch.metrics_with_refs.has(m.key) && <>
+                {new_batch.metrics_with_refs.has(m.key) ? <>
                   <th scope="col">{label_new}</th>
                   <th scope="col">{label_ref}</th>
-                </>}
+                </> : <th scope="col" aria-label={label_new} />}
               </Fragment>
             ))}
           </tr>

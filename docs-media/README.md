@@ -167,8 +167,9 @@ uv run docs-media/publish.py --only 'commit/*,cli/*' --dry-run   # encode, check
 2. The test opens `options.url`, runs `options.actions`, waits until the page is settled, then screenshots the viewport
    or `options.target` (plus `padding`), at 1440x900 and `deviceScaleFactor: 2`. A target is measured once its box stops
    moving (a popover still opening), and never crops in the bars fixed at the top of the viewport (the commit page's
-   header): if it's under them, the page scrolls it below. Scrolling moves what's under the mouse and closes the popovers
-   that open on hover: before hovering, scroll the target in place in the actions.
+   header): if it's under them, the page scrolls it below. A bar that holds part of the target is part of the shot (the
+   commit bars' filter box and batch selector). Scrolling moves what's under the mouse and closes the popovers that
+   open on hover: before hovering, scroll the target in place in the actions.
 3. It writes `out/<id>/still.png` and `out/<id>/meta.json` (`kind`, `width`/`height` in CSS pixels, `alt`, `caption`,
    `project`, `app_version`, `source_spec`, `anchors`).
 

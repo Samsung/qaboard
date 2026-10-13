@@ -39,13 +39,18 @@ function update_project(state = default_project, data) {
     data.data.qatools_metrics.available_metrics = metrics_fill_defaults(data.data.qatools_metrics.available_metrics  || {});
     data.data.qatools_metrics.main_metrics = (data.data.qatools_metrics.main_metrics || []).filter(m => !!data.data.qatools_metrics.available_metrics[m]);
   }
+  // The list of projects only sends each project's own settings (qaboard.yaml's `project`), GET /api/v1/project the
+  // whole configuration: whichever answers last, the visualizations and the rest of the configuration stay
+  const qatools_config = (state.data?.qatools_config || data.data?.qatools_config)
+    && { ...state.data?.qatools_config, ...data.data?.qatools_config }
   return {
     ...state,
     ...data,
     // for some reason we get null for projects that are not configured with qatools
     data: {
       ...state.data,
-      ...data.data
+      ...data.data,
+      ...(qatools_config ? { qatools_config } : {}),
     },
   }
 }

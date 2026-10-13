@@ -2,29 +2,82 @@
   "$schema": "./media.schema.json",
   "base_url": "https://qaboard-media.sivoov.app",
   "shots": {
+    "auth/login": {
+      "alt": "The Login dialog over the projects list: a user name field with \"ines\", a password field, and a Log In button.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "Click Login at the top right, then sign in with your user name and password.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 3140,
+          "key": "shots/auth/login/8789b9793beebfae.avif"
+        },
+        "png": {
+          "bytes": 13126,
+          "key": "shots/auth/login/585596f86cfaa450.png"
+        },
+        "webp": {
+          "bytes": 5964,
+          "key": "shots/auth/login/43bb89568d3b50a7.webp"
+        }
+      },
+      "height": 306,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRmAAAABXRUJQVlA4IFQAAADwAQCdASoQAAsAA4BaJYwCdAEO/WkIvQAA/pwHME+UiowK/xtRcDcQVmGs8ZbHD8hcxXAT230Pqeemek0jx87HSRjODuvCDZbPhn3kLXbAxO43AAA=",
+      "project": null,
+      "source_spec": "docs-media/shots/auth.spec.ts",
+      "width": 460
+    },
+    "cli/bit-accuracy": {
+      "alt": "A terminal in CI runs qa check-bit-accuracy on the hw-model platform: on the rounding change, it fails and lists the files that differ from the release; on a commit that only changed docs, every file is the same.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "qa check-bit-accuracy compares a commit's output files with the reference's, byte for byte.",
+      "captured": "2026-10-13",
+      "duration": 20.24,
+      "files": {
+        "mp4": {
+          "bytes": 345627,
+          "key": "shots/cli/bit-accuracy/bb076ddc559d1da1.mp4"
+        },
+        "poster": {
+          "bytes": 64222,
+          "key": "shots/cli/bit-accuracy/1c6224dd6bca80c7.webp"
+        },
+        "webm": {
+          "bytes": 333141,
+          "key": "shots/cli/bit-accuracy/6574be218621a739.webm"
+        }
+      },
+      "height": 720,
+      "kind": "tape",
+      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAAAwAQCdASoQAAkAA4BaJZwAA3AA/vDdLBhh6kFQ9otuRQAA",
+      "project": "image-quality",
+      "source_spec": "docs-media/tapes/cli-bit-accuracy.tape",
+      "width": 1280
+    },
     "cli/first-run": {
       "alt": "A terminal runs qa run on the slanted-edge chart: qa prints where the outputs go, the pipeline logs each ISP stage and its time, then the run's metrics.",
-      "app_version": "1.1.1+cd07cf2",
+      "app_version": "1.1.1+c67f384",
       "caption": "qa run runs your code on one input, saves its outputs and prints its metrics.",
       "captured": "2026-10-13",
       "duration": 6.76,
       "files": {
         "mp4": {
-          "bytes": 85857,
-          "key": "shots/cli/first-run/c23336a057f044b1.mp4"
+          "bytes": 85524,
+          "key": "shots/cli/first-run/b142b82cd7cda7ec.mp4"
         },
         "poster": {
-          "bytes": 41358,
-          "key": "shots/cli/first-run/02bf3c361125e0df.webp"
+          "bytes": 41346,
+          "key": "shots/cli/first-run/67b51b216b863337.webp"
         },
         "webm": {
-          "bytes": 117597,
-          "key": "shots/cli/first-run/f36833e515a46f1d.webm"
+          "bytes": 115043,
+          "key": "shots/cli/first-run/d5e916323aa4a20d.webm"
         }
       },
       "height": 720,
       "kind": "tape",
-      "lqip": "data:image/webp;base64,UklGRiwAAABXRUJQVlA4ICAAAABwAQCdASoQAAkABIBaJZwCdAFAAAD+8Q5K978PQwAAAA==",
+      "lqip": "data:image/webp;base64,UklGRiwAAABXRUJQVlA4ICAAAABwAQCdASoQAAkABIBaJZwC7AGIQAD+8Q5K978ZRjQAAA==",
       "project": "image-quality",
       "source_spec": "docs-media/tapes/cli-first-run.tape",
       "width": 1280
@@ -55,6 +108,63 @@
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1170
     },
+    "commit/batch-picker": {
+      "alt": "The new commit's batch selector open: the CI batch, run by ci, 18 of 18 runs successful; ines 🏠 ines-halo, Ines's local runs, 5 of 5; and the tune-denoise tuning experiment, 60 of 60.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "Each commit can have several batches: CI's, your local runs (🏠) and tuning experiments. Pick one to see its runs.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 9247,
+          "key": "shots/commit/batch-picker/3f3338ae90ee4752.avif"
+        },
+        "png": {
+          "bytes": 42142,
+          "key": "shots/commit/batch-picker/bd42e84310c39fb2.png"
+        },
+        "webp": {
+          "bytes": 17238,
+          "key": "shots/commit/batch-picker/453b9613cd2ed4bd.webp"
+        }
+      },
+      "height": 239,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAABQAQCdASoQAAoAA4BaJZwABAAAAP7y3TJV59wp1mqIF/BGO/inFqCgAAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 415
+    },
+    "commit/bit-accuracy-diff": {
+      "alt": "Output Files of the facade run on the hw-model platform: a click on regs.txt shows its diff below the tree, Next Diff jumps to the ROUNDING register, from 0 to 2; a Ctrl-click on metrics.json adds its diff below.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "Click files to diff them with the reference, Ctrl-click to diff several.",
+      "captured": "2026-10-13",
+      "duration": 8.07,
+      "files": {
+        "mp4": {
+          "bytes": 318431,
+          "key": "shots/commit/bit-accuracy-diff/08dcd504ab115cfe.mp4"
+        },
+        "poster": {
+          "bytes": 99258,
+          "key": "shots/commit/bit-accuracy-diff/a79989e0618c528d.webp"
+        },
+        "vtt": {
+          "bytes": 230,
+          "key": "shots/commit/bit-accuracy-diff/1ee41b6d23ae7bcf.vtt"
+        },
+        "webm": {
+          "bytes": 371706,
+          "key": "shots/commit/bit-accuracy-diff/5ce22559888cde91.webm"
+        }
+      },
+      "height": 900,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAADQAQCdASoQAAoAA4BaJZwAAp07BM0oAAD2v/wfB/oD6jEShhzodrdsWgKZHDZAAAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1440
+    },
     "commit/controls-panel": {
       "alt": "The Controls panel open on the right of the run cards: an Image Diff switch, a switch per visualization, including the hidden Color errors and Noise vs signal, and the sorting options.",
       "anchors": {
@@ -77,21 +187,21 @@
           "y": 44.24
         }
       },
-      "app_version": "1.1.1",
+      "app_version": "1.1.1+c67f384",
       "caption": "The Controls panel shows or hides visualizations, turns Image Diff on, and sorts the runs.",
-      "captured": "2026-10-12",
+      "captured": "2026-10-13",
       "files": {
         "avif": {
-          "bytes": 77762,
-          "key": "shots/commit/controls-panel/f59ef3e68132b9b2.avif"
+          "bytes": 78719,
+          "key": "shots/commit/controls-panel/1d775ac783bdbd30.avif"
         },
         "png": {
-          "bytes": 644533,
-          "key": "shots/commit/controls-panel/00b1484908158859.png"
+          "bytes": 519443,
+          "key": "shots/commit/controls-panel/bef951962fc66728.png"
         },
         "webp": {
-          "bytes": 143018,
-          "key": "shots/commit/controls-panel/6e769d5a89577bcd.webp"
+          "bytes": 143604,
+          "key": "shots/commit/controls-panel/d8390ca0418ef650.webp"
         }
       },
       "height": 900,
@@ -132,6 +242,141 @@
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
     },
+    "commit/dynamic-options": {
+      "alt": "The Controls panel's Dynamic Options: the stage option, synced, its slider on 3. Next to it, the night street's card shows stages/3.jpg, the denoised image, new and reference.",
+      "app_version": "1.1.1+befbe4b",
+      "caption": "Dynamic Options pick the file each card shows, here the ISP stage. Synced, one slider drives every run.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 158710,
+          "key": "shots/commit/dynamic-options/08f3fe9ed4f08d78.avif"
+        },
+        "png": {
+          "bytes": 604029,
+          "key": "shots/commit/dynamic-options/b8791915e681df75.png"
+        },
+        "webp": {
+          "bytes": 233478,
+          "key": "shots/commit/dynamic-options/6c2ff88db086e7e4.webp"
+        }
+      },
+      "height": 900,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRlwAAABXRUJQVlA4IFAAAAAQAgCdASoQAAoAA4BaJZQCxC8AGEt7Xz/AAPa//CgBX6zEh2VI4myPGgF+def2eorVJ3nOdK7BCd0iej/tjLjDksTB2dOJJs26Xb4eygAAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1440
+    },
+    "commit/dynamic-outputs": {
+      "alt": "The stage slider of the Controls panel steps from the raw sensor mosaic to the tone-mapped image of the facade's window, new and reference changing together; scrolling down, the night street's card follows the slider too.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "One slider over the ISP's stages drives every run's card.",
+      "captured": "2026-10-13",
+      "duration": 10.87,
+      "files": {
+        "mp4": {
+          "bytes": 759501,
+          "key": "shots/commit/dynamic-outputs/5c05910e82d62cee.mp4"
+        },
+        "poster": {
+          "bytes": 113316,
+          "key": "shots/commit/dynamic-outputs/296db08589f06553.webp"
+        },
+        "vtt": {
+          "bytes": 299,
+          "key": "shots/commit/dynamic-outputs/e320a88c2584285c.vtt"
+        },
+        "webm": {
+          "bytes": 691514,
+          "key": "shots/commit/dynamic-outputs/7591b37d9b93953f.webm"
+        }
+      },
+      "height": 900,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRlYAAABXRUJQVlA4IEoAAAAwAgCdASoQAAoAA4BaJZQC7H8AGBrl3oGGAAD2v/wnU/6ALDda03EiFWvKu+Rr4IDxrQf+4KNUpb2RHnlAR5fDjXlohno1k0AAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1440
+    },
+    "commit/export": {
+      "alt": "The filter box with \"photos low-light\" and 4 outputs; below, the Export box with the pattern *.png, the Windows and Linux paths of the export folder, and \"8 files exported from 4 runs\".",
+      "app_version": "1.1.1+c67f384",
+      "caption": "Export gathers the files matching a pattern from the filtered runs into one folder, as links.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 39398,
+          "key": "shots/commit/export/1a32c62cf32e4438.avif"
+        },
+        "png": {
+          "bytes": 138231,
+          "key": "shots/commit/export/2765bbebeea8860b.png"
+        },
+        "webp": {
+          "bytes": 75572,
+          "key": "shots/commit/export/71f36ca00c035fca.webp"
+        }
+      },
+      "height": 505,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAACwAQCdASoQAAcAA4BaJZwAAxZiFt2AAP72JW1Jja7laUCAAAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1226
+    },
+    "commit/halo-after": {
+      "alt": "The same leaves once the sharpening is clamped: the edges stay crisp, with only faint rims.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "With the clamp, the edges stay crisp and the halos fade.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 22429,
+          "key": "shots/commit/halo-after/f5500f0b2f3b7a39.avif"
+        },
+        "png": {
+          "bytes": 44376,
+          "key": "shots/commit/halo-after/a0581e4905acb575.png"
+        },
+        "webp": {
+          "bytes": 26400,
+          "key": "shots/commit/halo-after/220e4fb4a1955d1e.webp"
+        }
+      },
+      "height": 390,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRnoAAABXRUJQVlA4IG4AAABQAgCdASoQAAsAA4BaJZgCdAYuvwj/D68y7wAA/oodx8Gtqw75qvlFxG7xDJNbtbMiKFgYMVjklHdnEG6nUhX5s77OMPwNvFidzReofCI+kmZFRh04jk1nl6mwQArI7iloB73xB6ZIUNg6OAAAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 585
+    },
+    "commit/halo-before": {
+      "alt": "Leaves in front of the facade, after the bilateral denoiser: a dark rim outlines every leaf against the wall.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "With the bilateral denoiser and its detail boost, dark halos outline the leaves.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 23947,
+          "key": "shots/commit/halo-before/b45d82586a414464.avif"
+        },
+        "png": {
+          "bytes": 46103,
+          "key": "shots/commit/halo-before/3697dbd8e2d34ce1.png"
+        },
+        "webp": {
+          "bytes": 28538,
+          "key": "shots/commit/halo-before/de653174a493a9f7.webp"
+        }
+      },
+      "height": 390,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRnwAAABXRUJQVlA4IHAAAABQAgCdASoQAAsAA4BaJZgCdAYvDzF3Sfp0ZgAA/ood7tB5gwpyC8CzwCOmXZzzTxmnXIlXGGtDMD9lb0o54UejbHf8i0VM3ty4cwG4IFRaJprxosHkicINGLH0B70JXqahtDtnCUehoUPpDWdQyQAA",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 585
+    },
     "commit/image-diff": {
       "alt": "Zooming into the new image of the facade, the reference follows; the Controls panel opens and Image Diff turns on; raising the threshold leaves only the window frame's halos.",
       "app_version": "1.1.1+cd07cf2",
@@ -165,21 +410,21 @@
     },
     "commit/image-filters": {
       "alt": "The Image Tools panel over the night street's shadows, with brightness raised and gamma lowered: the noise of both images shows.",
-      "app_version": "1.1.1+cd07cf2",
+      "app_version": "1.1.1+c67f384",
       "caption": "Image Tools filters apply to both images at once: here brightness and gamma reveal the noise in the shadows.",
       "captured": "2026-10-13",
       "files": {
         "avif": {
-          "bytes": 155407,
-          "key": "shots/commit/image-filters/03408f693cbe9b10.avif"
+          "bytes": 155205,
+          "key": "shots/commit/image-filters/7bcf625976eebeeb.avif"
         },
         "png": {
-          "bytes": 480538,
-          "key": "shots/commit/image-filters/0cc521ee8ec3e47d.png"
+          "bytes": 478318,
+          "key": "shots/commit/image-filters/9ad4fd05fb4a63c8.png"
         },
         "webp": {
-          "bytes": 210016,
-          "key": "shots/commit/image-filters/a278e635defcb93a.webp"
+          "bytes": 209510,
+          "key": "shots/commit/image-filters/00378f8a092f836f.webp"
         }
       },
       "height": 625,
@@ -267,6 +512,32 @@
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1188
     },
+    "commit/output-filter": {
+      "alt": "The new commit's filter box with \"low-light -gradient\", 8 outputs under it, and the Metrics Table below listing only the low-light runs, the sky gradient left out.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "Words narrow down the runs, a minus sign leaves some out; the counters under the box count what's left.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 48135,
+          "key": "shots/commit/output-filter/3ee4ebb345c1fac6.avif"
+        },
+        "png": {
+          "bytes": 204059,
+          "key": "shots/commit/output-filter/6eaf92166fd25208.png"
+        },
+        "webp": {
+          "bytes": 115432,
+          "key": "shots/commit/output-filter/6eea0d835bf44bc2.webp"
+        }
+      },
+      "height": 728,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAABQAQCdASoQAAwAA4BaJQBdgDEIAP7znUkeJdejpthpHA2Mz+77r4vdVTnA3jT6XgAAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1058
+    },
     "commit/pixel-tooltip": {
       "alt": "The center of a Siemens star, new and reference: above the images, the hovered pixel's coordinates and its RGB values in both images; crosshairs mark the pixel on both.",
       "app_version": "1.1.1",
@@ -344,6 +615,193 @@
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
+    },
+    "history/image-diff": {
+      "alt": "PSNR of the facade photo over six weeks of main, a point per commit, with a jump at the merge of the bilateral denoiser. Below, that commit and the one before, and their output images: only the new one outlines the leaves.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "Hover a point to compare its commit's outputs with the commit before: the PSNR jumps when the bilateral denoiser is merged, and the leaves get halos.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 102795,
+          "key": "shots/history/image-diff/6ae55921b97200c7.avif"
+        },
+        "png": {
+          "bytes": 323250,
+          "key": "shots/history/image-diff/99714cbf55391fcf.png"
+        },
+        "webp": {
+          "bytes": 169954,
+          "key": "shots/history/image-diff/1cdd7ca3a054b3bc.webp"
+        }
+      },
+      "height": 1188,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRmYAAABXRUJQVlA4IFoAAAAwAgCdASoQABAAA4BaJZQAD4wRf+zxN6nlwAD+9ypZF1sbwY0H0e6IT+FAm5v//BM/orxwuAeuz0JBp7mKsyiN8GJt1nVLCO4zrmrEvTfMSzcWz1Aa8xrngAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/history.spec.ts",
+      "width": 1208
+    },
+    "integrations/menu": {
+      "alt": "The sidebar's Integrations menu open on a commit: links to the K3 calibration report and the ISP tuning guide, and the \"Send to the tuning bench\" webhook, with a status tag saying its job is queued.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "Integrations link to your tools and trigger them: after a click, the webhook's tag shows the job's status.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 7526,
+          "key": "shots/integrations/menu/c1d269ef248189fa.avif"
+        },
+        "png": {
+          "bytes": 34405,
+          "key": "shots/integrations/menu/c67f6f301fcde307.png"
+        },
+        "webp": {
+          "bytes": 13554,
+          "key": "shots/integrations/menu/56183542d710e94f.webp"
+        }
+      },
+      "height": 118,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAACwAQCdASoQAAUAA4BaJZwAAuddqDkAAP7wzjX2Dxu7Y5xjE21CAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/integrations.spec.ts",
+      "width": 438
+    },
+    "landing/hero": {
+      "alt": "The Metrics Diff of a new denoiser: PSNR up, edge overshoot up 163%. In the facade's images, zooming into one zooms the other, Image Diff turns on, and a higher threshold leaves only the halos; then back to the Metrics Diff.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "Metrics and images side by side: the new denoiser wins PSNR, and the images show the halos it adds.",
+      "captured": "2026-10-13",
+      "duration": 15.97,
+      "files": {
+        "mp4": {
+          "bytes": 490075,
+          "key": "shots/landing/hero/8c863c77f808d8f2.mp4"
+        },
+        "poster": {
+          "bytes": 96740,
+          "key": "shots/landing/hero/e43f1dcf0f30f313.webp"
+        },
+        "vtt": {
+          "bytes": 361,
+          "key": "shots/landing/hero/58b080ccd04ae58c.vtt"
+        },
+        "webm": {
+          "bytes": 655581,
+          "key": "shots/landing/hero/8bf779317791315b.webm"
+        }
+      },
+      "height": 900,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRlIAAABXRUJQVlA4IEYAAADwAQCdASoQAAoAA4BaJZQC7ADdKNsrsEgA/D86Hd/l3LbSvOdSVvT9PeuXXPmKg8XdtyxXiFyBzfIIRiNddga8GxzAAAAA",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/landing.spec.ts",
+      "width": 1440
+    },
+    "logs/lsf-hints": {
+      "alt": "The Logs view with the 113 MP test wall's run open: tagged \"LSF: out of memory\", a red summary says the job was killed at its memory limit (TERM_MEMLIMIT), 3113 MB used for 3072 MB requested, and how to ask for more.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "When LSF stops a run, its logs say why, compare what it used with what it asked for, and say what to change.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 42675,
+          "key": "shots/logs/lsf-hints/e5aa25dcc167b5c3.avif"
+        },
+        "png": {
+          "bytes": 118777,
+          "key": "shots/logs/lsf-hints/8898842a0919b48e.png"
+        },
+        "webp": {
+          "bytes": 91988,
+          "key": "shots/logs/lsf-hints/79926cb24faaac69.webp"
+        }
+      },
+      "height": 368,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAAAwAQCdASoQAAUAA4BaJZwAA3AA/vOdSRFz4xusbKn3rsAgAAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/logs.spec.ts",
+      "width": 1186
+    },
+    "projects/home": {
+      "alt": "The QA-Board home page: a filter box, then a card per Kitefin project with its avatar, name, description, a star to pin it, a link to its source, when it last ran and how many commits have results.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "The home page lists every project with results. Pin the ones you follow with their star.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 17868,
+          "key": "shots/projects/home/6863065fb82f1311.avif"
+        },
+        "png": {
+          "bytes": 56675,
+          "key": "shots/projects/home/c823a56fc35850ba.png"
+        },
+        "webp": {
+          "bytes": 32912,
+          "key": "shots/projects/home/f77bcfdcc5a3b090.webp"
+        }
+      },
+      "height": 309,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAACQAQCdASoQAAQAA4BaJaQAAudVMbgA/vIW4L/ji30eQAAA",
+      "project": null,
+      "source_spec": "docs-media/shots/projects.spec.ts",
+      "width": 1440
+    },
+    "whats-new/dialog": {
+      "alt": "The \"What's new in QA-Board\" dialog over the projects list: the latest release note's summary, its highlights as cards with an icon, an audience tag and a link to the docs, and the See all changes and Got it buttons.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "Once a month is over, What's new pops up with its highlights, tagged with who they matter to.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 42800,
+          "key": "shots/whats-new/dialog/c746398564c53d2b.avif"
+        },
+        "png": {
+          "bytes": 121217,
+          "key": "shots/whats-new/dialog/c817f83ad564116e.png"
+        },
+        "webp": {
+          "bytes": 89678,
+          "key": "shots/whats-new/dialog/ed4352093a7fcef9.webp"
+        }
+      },
+      "height": 490,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAADQAQCdASoQAAsAA4BaJZwAAudI61cQAAD+9OZEe5bfMrUE4eU4Io8TfxYG3XYgAAA=",
+      "project": null,
+      "source_spec": "docs-media/shots/whats-new.spec.ts",
+      "width": 720
+    },
+    "whats-new/drawer": {
+      "alt": "The What's new panel: a search box, then the release notes newest first. The current month's note is tagged In progress and open on its highlights; the notes not seen yet are tagged New.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "The What's new panel keeps every release note, newest first, with a search box. The current month shows as In progress.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 73011,
+          "key": "shots/whats-new/drawer/708d0086665b645c.avif"
+        },
+        "png": {
+          "bytes": 210924,
+          "key": "shots/whats-new/drawer/106599345e1ccbad.png"
+        },
+        "webp": {
+          "bytes": 150692,
+          "key": "shots/whats-new/drawer/7485ddb90e8c5a6b.webp"
+        }
+      },
+      "height": 900,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAABQAwCdASoQABQAPu1iqU2ppaOiMAgBMB2JaWDrADc4RMatgAD+8Ge+yXB+bTIcl4zM5KeI/YpQo2h8AAA=",
+      "project": null,
+      "source_spec": "docs-media/shots/whats-new.spec.ts",
+      "width": 720
     }
   },
   "version": 1

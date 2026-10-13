@@ -36,7 +36,7 @@ halos.
 
 <Clip id="commit/image-diff" />
 
-Before and after the clamp, on the same window edge:
+Before and after the clamp, on the same leaves: the dark rims fade, the edges stay crisp.
 
 <Compare before="commit/halo-before" after="commit/halo-after" beforeLabel="Bilateral denoiser" afterLabel="With the clamp" />
 
@@ -50,11 +50,13 @@ every run's card at once.
 
 <Clip id="commit/dynamic-outputs" />
 
-**History** of one input's output across commits: hovering shows where it changed.
+**History** of one input across commits: hover a point to compare its output with the commit before. The PSNR of
+the facade jumps when the denoiser is merged, and its leaves get halos.
 
 <Shot id="history/image-diff" />
 
-**Bit accuracy.** On the fixed-point model, `qa check-bit-accuracy` fails when output files change, and lists them.
+**Bit accuracy.** On the fixed-point model, `qa check-bit-accuracy` fails when output files change, and lists them:
+here the rounding change touches the last two stages. On a commit that only changed docs, every file is the same.
 
 <Clip id="cli/bit-accuracy" />
 

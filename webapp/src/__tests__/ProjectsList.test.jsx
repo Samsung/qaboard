@@ -52,4 +52,9 @@ describe('ProjectsList', () => {
     renderProjects({ 'kitefin/camera-isp': project(undefined, { description: 'Mirror of the ISP repo' }) });
     expect(screen.getByText('Mirror of the ISP repo')).toBeInTheDocument();
   });
+
+  it('counts the projects', () => {
+    renderProjects({ 'kitefin/camera-isp': project('Camera ISP pipeline') });
+    expect(screen.getByText('1 project')).toBeInTheDocument();
+  });
 });

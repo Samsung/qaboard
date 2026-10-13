@@ -80,7 +80,7 @@ shots:
     pages: [bit-accuracy, recipes/bit-accuracy-handoff, use-cases/image-quality]
     needs: fxp-round-half-even (fails), a filler commit (passes)
     phase: 2
-    status: planned
+    status: captured
   - id: cli/gate
     kind: tape
     project: serving-latency
@@ -107,7 +107,7 @@ shots:
     shows: The projects list with the Kitefin projects, their avatars and descriptions, one pinned as a favorite, the filter box.
     pages: [user-guide/finding-results, user-guide/overview, get-started/quickstart]
     phase: 2
-    status: planned
+    status: captured
   - id: commits/feed
     kind: still
     project: serving-latency
@@ -144,7 +144,7 @@ shots:
     shows: The Integrations menu with links and a webhook, and the webhook's status tag after a click.
     pages: [user-guide/running-from-the-webapp, triggering-third-party-tools]
     phase: 2
-    status: planned
+    status: captured
 
   # Commit page: metrics
   - id: commit/summary
@@ -201,14 +201,15 @@ shots:
     pages: [user-guide/finding-results, using-the-qa-cli]
     needs: bilateral-denoise
     phase: 2
-    status: planned
+    status: captured
   - id: commit/output-filter
     kind: still
     project: image-quality
-    shows: The filter `low-light -sky` keeps the matching runs, and the counters update.
+    shows: "The filter `low-light -gradient` keeps the low-light runs but the sky gradient's; the counter under the box and the Metrics Table count what's left."
     pages: [user-guide/finding-results]
+    needs: merge-bilateral
     phase: 2
-    status: planned
+    status: captured
   - id: commit/run-badges
     kind: still
     project: detection-eval
@@ -306,35 +307,35 @@ shots:
   - id: commit/dynamic-outputs
     kind: clip
     project: image-quality
-    shows: The ISP stage slider moves from the raw mosaic to the tone-mapped image, and every run's card follows.
+    shows: The ISP stage slider of the Controls panel steps from the raw mosaic to the tone-mapped image; scrolling down, the next run's card follows the slider too.
     pages: [visualizations, recipes/dynamic-outputs, use-cases/image-quality, landing]
     features: [dynamic-outputs]
     phase: 2
-    status: planned
+    status: captured
   - id: commit/dynamic-options
     kind: still
     project: image-quality
-    shows: Dynamic Options in the Controls panel, with the stage option synced, and a card with its own selector.
+    shows: "Dynamic Options in the Controls panel: the stage option, synced across runs, on stage 3; the card shows `stages/3.jpg`, new and reference."
     pages: [visualizations, user-guide/commit-page, recipes/dynamic-outputs]
     features: [dynamic-outputs]
     phase: 2
-    status: planned
+    status: captured
   - id: commit/halo-before
     kind: still
     project: image-quality
-    shows: The facade's window edge at isp-4-1, clean. Same geometry as commit/halo-after, for <Compare>.
-    pages: [use-cases/image-quality]
-    needs: isp-4-1
-    phase: 2
-    status: planned
-  - id: commit/halo-after
-    kind: still
-    project: image-quality
-    shows: The same window edge after the bilateral denoiser, with halos. Same geometry as commit/halo-before.
+    shows: "Leaves in front of the facade after the bilateral denoiser: dark halos outline them. Same geometry as commit/halo-after, for <Compare>."
     pages: [use-cases/image-quality]
     needs: merge-bilateral
     phase: 2
-    status: planned
+    status: captured
+  - id: commit/halo-after
+    kind: still
+    project: image-quality
+    shows: "The same leaves once the clamp is merged: the halos fade, the edges stay crisp. Same geometry as commit/halo-before."
+    pages: [use-cases/image-quality]
+    needs: merge-halo-clamp
+    phase: 2
+    status: captured
   - id: commit/plotly-overlay
     kind: still
     project: detection-eval
@@ -413,19 +414,19 @@ shots:
   - id: commit/bit-accuracy-diff
     kind: clip
     project: image-quality
-    shows: Ctrl-click two files of the tree to diff them in place, then a run whose files are all identical shows Bit-accurate.
+    shows: Click regs.txt in the tree to diff it in place, Next Diff jumps to the rounding register; Ctrl-click metrics.json to add its diff.
     pages: [bit-accuracy, user-guide/commit-page, recipes/bit-accuracy-handoff]
     features: [bit-accuracy-tree]
     needs: fxp-round-half-even
     phase: 2
-    status: planned
+    status: captured
   - id: commit/export
     kind: still
     project: image-quality
     shows: Export gathers `*.png` from the filtered runs; the export directory's paths are shown.
     pages: [user-guide/sharing, recipes/export]
     phase: 2
-    status: planned
+    status: captured
   - id: commit/run-menu
     kind: still
     project: serving-latency
@@ -509,7 +510,7 @@ shots:
     features: [lsf-hints]
     needs: one-tile (lsf-memlimit)
     phase: 2
-    status: planned
+    status: captured
   - id: logs/batch-commands
     kind: still
     project: serving-latency
@@ -546,11 +547,11 @@ shots:
   - id: history/image-diff
     kind: still
     project: image-quality
-    shows: The facade input's history; hovering shows its output change at merge-bilateral.
+    shows: "The facade's PSNR over six weeks of main; hovering merge-bilateral compares its output with the commit before: the leaves get halos."
     pages: [user-guide/history-and-dashboards, use-cases/image-quality]
     needs: merge-bilateral
     phase: 2
-    status: planned
+    status: captured
 
   # Tuning
   - id: tuning/available-tests
@@ -651,7 +652,7 @@ shots:
     pages: [user-guide/whats-new]
     features: [whats-new]
     phase: 2
-    status: planned
+    status: captured
   - id: whats-new/drawer
     kind: still
     project: null
@@ -659,25 +660,25 @@ shots:
     pages: [user-guide/whats-new]
     features: [whats-new]
     phase: 2
-    status: planned
+    status: captured
   - id: auth/login
     kind: still
     project: null
     shows: The sign-in form.
     pages: [backend-admin/user-management]
     phase: 2
-    status: planned
+    status: captured
 
   # Landing
   - id: landing/hero
     kind: clip
     project: image-quality
-    shows: "A 15-20 s loop: synced zoom on the facade, Image Diff, the threshold, then the Metrics Diff."
+    shows: "A 16 s loop: the Metrics Diff (PSNR and edge overshoot up), then synced zoom on the facade, Image Diff and its threshold, and back to the Metrics Diff."
     pages: [landing]
     features: [image-synced-zoom, image-diff]
     needs: merge-bilateral vs isp-4-1
     phase: 2
-    status: planned
+    status: captured
   - id: landing/social-card
     kind: still
     project: image-quality
