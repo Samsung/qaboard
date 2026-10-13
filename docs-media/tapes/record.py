@@ -7,18 +7,22 @@
 Records the terminal tapes (docs-media/README.md#terminal-tapes) with the pinned VHS:
 docs-media/tapes/<area>-<subject>.tape makes out/<area>/<subject>/tape.mp4, tape.webm and meta.json.
 
-  uv run docs-media/tapes/record.py [--only GLOB]
+  uv run docs-media/tapes/record.py [--only GLOB] [--skip GLOB]
 
 A tape starts with `# key: value` lines, then `Source "tapes/_settings.tape"`:
   project   the demo project (examples/<project>), or none
   user      the persona running the commands (examples/README.md#people): QA_USER and git identity
   env       extra environment, KEY=VALUE separated by spaces (CI variables for CI tapes)
+  passenv   variables kept from the environment when they're set, names separated by spaces (e.g. QABOARD_IMAGE for the
+            quickstarts, which run this checkout's images)
   alt       required alt text (website/STYLE.md); caption: the default caption; poster: first, last or ms
+  revision  bump it to publish a recording the dedupe would keep as unchanged
   dedupe_tolerance, dedupe_mask   how publish.py compares a new recording with the published one (README.md#determinism)
+  timeout   seconds VHS may take, hidden waits included (default 600)
 Commands run for real, against the restored demo stack (QABOARD_URL, from the demo facts), from ~/kitefin/<repo>:
 HOME is /home/<user> (TAPES_HOME), where ~/kitefin/<repo> is a workspace like the seeder's, built by workspace(): a .venv
 with `qa` and the example's dependencies, the inputs, and a git repository whose HEAD is on a story commit.
-CI and QA-Board variables of the environment are dropped, unless the tape's `env` sets them.
+CI and QA-Board variables of the environment are dropped, unless the tape's `env` sets them or `passenv` names them.
 Tools: VHS, ttyd and ffmpeg from docs-media/install-tools.sh or PATH, a Chromium (PLAYWRIGHT_CHROMIUM_EXECUTABLE,
 Playwright's, or `chromium` in PATH), and `qa` in PATH.
 """
@@ -212,6 +216,8 @@ def record(tape: Path, facts: dict) -> Path:
     meta = header(tape)
     if not meta.get("alt"):
         raise SystemExit(f"{tape.name}: add a `# alt: ...` line (website/STYLE.md)")
+    if len(meta["alt"]) > 300:
+        raise SystemExit(f"{tape.name}: the alt text has {len(meta['alt'])} characters, at most 300 (website/media.schema.json)")
     out = OUT / id_
     shutil.rmtree(out, ignore_errors=True)
     out.mkdir(parents=True)
@@ -247,10 +253,11 @@ def record(tape: Path, facts: dict) -> Path:
         "GIT_AUTHOR_NAME": name, "GIT_COMMITTER_NAME": name,
         "GIT_AUTHOR_EMAIL": f"{user}@kitefin.example", "GIT_COMMITTER_EMAIL": f"{user}@kitefin.example",
     }
+    env.update({name: os.environ[name] for name in meta.get("passenv", "").split() if name in os.environ})
     env.update(tape_env)
     if os.geteuid() == 0:
         env["VHS_NO_SANDBOX"] = "true"   # Chromium refuses to run as root with its sandbox
-    if not shutil.which("qa", path=env["PATH"]):
+    if project in PROJECT_IDS and not shutil.which("qa", path=env["PATH"]):
         log("  warning: `qa` isn't in PATH: the tape's commands will fail")
 
     vhs = shutil.which("vhs", path=env["PATH"])
@@ -258,7 +265,7 @@ def record(tape: Path, facts: dict) -> Path:
         raise SystemExit("vhs is missing: run docs-media/install-tools.sh")
     log(f"{id_}: recording {tape.relative_to(DOCS_MEDIA)}")
     result = subprocess.run([vhs, str(tape.relative_to(DOCS_MEDIA))], cwd=DOCS_MEDIA, env=env, capture_output=True, text=True,
-                            timeout=600)
+                            timeout=int(meta.get("timeout", 600)))
     if result.returncode != 0 or not (out / "tape.mp4").exists() or not (out / "tape.webm").exists():
         raise SystemExit(f"{id_}: VHS failed ({result.returncode}):\n{result.stdout[-3000:]}\n{result.stderr[-3000:]}")
 
@@ -288,6 +295,8 @@ def record(tape: Path, facts: dict) -> Path:
         "poster": poster if poster in ("first", "last") else int(poster),
         "files": {"mp4": "tape.mp4", "webm": "tape.webm"},
     }
+    if meta.get("revision"):
+        data["revision"] = int(meta["revision"])
     (out / "meta.json").write_text(json.dumps(data, indent=2) + "\n")
     log(f"  {duration:.1f} s, {stream['width']}x{stream['height']}: {out.relative_to(DOCS_MEDIA)}")
     return out
@@ -296,11 +305,14 @@ def record(tape: Path, facts: dict) -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--only", help="comma-separated globs over shot ids, e.g. 'cli/*'")
+    parser.add_argument("--skip", help="comma-separated globs over shot ids not to record, e.g. 'quickstart/*'")
     parser.add_argument("tapes", nargs="*", type=Path, help="tape files (default: every tapes/<area>-<subject>.tape)")
     args = parser.parse_args()
     tapes = [t.resolve() for t in args.tapes] or sorted(t for t in TAPES.glob("*.tape") if not t.name.startswith("_"))
     globs = [g.strip() for g in (args.only or "").split(",") if g.strip() and g.strip() != "*"]
     tapes = [t for t in tapes if not globs or any(fnmatch.fnmatchcase(tape_id(t), g) for g in globs)]
+    skip = [g.strip() for g in (args.skip or "").split(",") if g.strip()]
+    tapes = [t for t in tapes if not any(fnmatch.fnmatchcase(tape_id(t), g) for g in skip)]
     if not tapes:
         log("No tape matches")
         return 0

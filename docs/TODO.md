@@ -7,32 +7,6 @@ where to start. When you finish one, delete it.
 The shot list is `docs-media/shots.yaml`, how to capture is `docs-media/README.md`. Pages already reference these ids
 and show a "not captured yet" placeholder until they're published.
 
-- **`quickstart/compose`** (tape): the Docker Compose quickstart from a clean machine, `docker compose -f
-  deployments/quickstart/compose.yml up -d` then the demo in the browser.
-  - The demo stack holds port 5151, locally and in the `docs-media` workflow, so record it on another port:
-    `QABOARD_PORT_HTTP=5252` (the compose file reads it, and `QABOARD_URL` follows). Use a separate compose project
-    name (`-p qaboard-quickstart`) so it doesn't touch `qaboard-demo`, and `down -v` it at the end of the tape's
-    hidden teardown.
-  - The tape should hide the image pulls (`Hide` / `Show` around a `docker compose pull`), show `up -d`, then
-    `curl -sSf http://localhost:5252/api/v1/health` and the projects list.
-  - The demo-data image must exist: `ghcr.io/<owner>/qaboard:demo-data` is published by a `workflow_dispatch` run of
-    `docs-media.yml` on master. In CI, build it locally first (the workflow's "Demo-data image" step does) and point
-    the compose file at it with `QABOARD_IMAGE`.
-  - Docker Hub rate-limits anonymous pulls: CI runners are fine, shared dev machines often aren't.
-- **`quickstart/kind`** (tape): `kind create cluster --config charts/qaboard/kind.yaml`, `helm install` with
-  `charts/qaboard/quickstart.yaml`, a port-forward, then the demo. `.github/scripts/helm_e2e.py` does all of it in the
-  `helm-e2e` CI job: copy its commands. Needs kind, helm and kubectl on the runner (the `helm-e2e` job installs them)
-  and about 6 GB of disk.
-- **`cli/batch`** (tape): `qa batch ci` on the detector, with its progress and the results link.
-  - The detector needs PyTorch, its ONNX export and its inputs (about 1 GB): record it after the seeder has built
-    `examples/detection-eval` in the same workspace, or switch the tape to the camera ISP (`qa batch ci` there is quick).
-  - The results link only prints with `--share`, which adds a batch to the demo data other shots capture: use a
-    label like `--label tape` and delete the batch in the tape's hidden teardown, as `logs/live-tail` does.
-- **`tuning/which-tests-run`, `tuning/manual-form`, `tuning/launch-to-analysis`**: the demo server can't see the
-  examples' inputs (each `qaboard.yaml` uses a relative `inputs` folder), so every batch resolves to 0 tests and the
-  forms show "0 total runs" ("No inputs found" under Send, cropped out of `tuning/auto-form`). Mount
-  `examples/<project>/inputs` in the demo stack's backend at the path the server resolves (or set the projects'
-  `inputs.database` for the demo), then capture; the launch clip also needs a runner with the detector's setup.
 - **Phase 3**: the robotics and agent demo projects and their shots (`project: robotics-3d`, `agent-evals`), postponed.
   Work in progress on two branches, not merged:
   - `claude/docs-robotics-3d`: world, trajectories, sensors, ground truth (only `loop` generated), ICP odometry, loop
@@ -70,6 +44,8 @@ and show a "not captured yet" placeholder until they're published.
 - **Release notes**: publish October's note at the start of November (see `website/release-notes/_template.md`).
 
 ## Product, small
+- **`qa batch`**: on success, the "Results" link only prints at the start: `print_url` returns early because `qa batch`
+  sets `QA_BATCH` itself (`cli/batch` shows the first one). Changes `qaboard/`: the next `docs-media` run reseeds.
 - **Analysis view** (tuning): the frontier and plots only use the metrics selected in its tag picker; with another
   metric, the points are null and the plot is empty. (`webapp/src/components/tuning/`)
 - **Commits page**: `from=2026-09-17` showed 9/18 while `from=2026-09-10` showed 9/10: a time zone off-by-one?

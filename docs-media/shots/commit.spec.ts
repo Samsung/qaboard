@@ -901,7 +901,8 @@ const plotOf = (page: Page, index: number) => viewer(cards(page).first(), index)
 shot('commit/latency-cdf', {
   project: SL,
   url: d => sharedCache(d, 'steady-high', only('cdf')),
-  alt: 'The steady-high run of the shared cache against its parent: p50 545 ms, p99 1150 ms, over 18,000% worse. The '
+  alt: 'The steady-high run of the shared cache against its parent: p50 around half a second and p99 over a second, a hundred times the '
+    + 'reference\'s or more. The '
     + 'latency percentiles on log axes: the new line sits near a second from the median on, the reference\'s stays '
     + 'under the 12 ms SLO line until the far tail.',
   caption: 'Latency percentiles on a log tail: at 6,000 requests/s, with the shared cache every percentile is a hundred '
@@ -919,7 +920,7 @@ shot('commit/throughput-p99', {
   project: SL,
   url: d => sharedCache(d, 'ramp', only('sweep')),
   alt: 'Throughput against p99 in the ramp run, from 20% to 120% of 6,000 requests/s: the reference\'s p99 stays low '
-    + 'under the 12 ms SLO until the last steps; the shared cache\'s takes off past 4,600 requests/s, to half a second.',
+    + 'under the 12 ms SLO until the last steps; the shared cache\'s takes off well before full load, to hundreds of milliseconds.',
   caption: 'The ramp raises the load step by step: with the shared cache, p99 takes off at a lower throughput.',
   actions: async ui => {
     await showCard(ui);

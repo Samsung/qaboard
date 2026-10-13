@@ -28,7 +28,7 @@ Runs started by `qa batch` remember the name of their batch: the web application
 
 <Clip
   id="cli/batch"
-  caption="qa batch starts a run per input and configuration, shows their progress, and prints the link to the results."
+  caption="qa --share batch ci on the camera pipeline: qa prints the link to the results, then runs each input and configuration of the batch."
 />
 
 Arguments after `--` are forwarded to each `qa run`, and to your code as `context.forwarded_args` (it works the same with `qa run` and `qa postprocess`):
@@ -50,7 +50,7 @@ In the web app, the [Available Tests](/docs/user-guide/commit-page#available-tes
 
 <Shot
   id="tuning/which-tests-run"
-  caption="Hover a batch to see the inputs and configurations it resolves to on this commit."
+  caption="The ci batch resolves to 8 tests on this commit: 4 inputs, each with the fp32 and the int8 model."
 />
 
 ## Setting a custom database

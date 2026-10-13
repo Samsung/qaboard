@@ -1,7 +1,7 @@
 # project: serving-latency
 # user: kaito
 # env: CI=true GITHUB_SHA=702abb3bcc4684e2809bd3cd38d5df39cd7e8441 GITHUB_REF=refs/heads/agent/result-cache
-# alt: A terminal in CI runs qa gate on the coding agent's shared cache against its parent: in the rules table, p99 is 4109.7% worse where 10% is allowed, and the gate fails with exit code 1. On the sharded cache, p99 is 52.7% better, every rule passes and it exits with 0.
+# alt: A terminal in CI runs qa gate on the coding agent's shared cache against its parent: in the rules table, p99 is thousands of percent worse where 10% is allowed, and the gate fails with exit code 1. On the sharded cache, p99 is better than the parent's, every rule passes and it exits with 0.
 # caption: qa gate compares a commit's CI batch with a reference, rule by rule, and fails the job when one breaks.
 # poster: 9000
 # dedupe_tolerance: 0.001

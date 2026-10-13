@@ -179,7 +179,7 @@ Click a run to see its full configuration (hover a tag to copy it) and read its 
 
 <Clip
   id="logs/live-tail"
-  caption="A run still running: its log follows the end as lines arrive, the error count grows, and Next error jumps to a missed deadline."
+  caption="A run still running: its log follows the end as lines arrive, the error count grows, and a click on it jumps to the first missed deadline."
 />
 
 For runs on LSF, a summary shows why the job ended (e.g. out of memory, run time limit), the host, the run time and the memory used vs requested, with hints on which `lsf:` options of your batch to change. Failed runs are tagged with the reason.
@@ -242,7 +242,7 @@ The commit's own batch files (`inputs.batches` in *qaboard.yaml*) are linked in 
 
 <Shot
   id="tuning/which-tests-run"
-  caption="Hover a batch to list the tests it resolves to on this commit, before you run it."
+  caption="Which tests run? lists the tests a batch resolves to on this commit, before you run it: here the ci batch, 4 slices with the fp32 and int8 models."
 />
 
 - **New** adds an example batch to start from.

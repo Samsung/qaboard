@@ -25,7 +25,8 @@ docs-media/
   compose.demo.yml     # overlay on docker-compose.yml: results storage in backend/nginx/cantaloupe, demo env
   seed.py              # uv script: replays examples/*/story.yaml into a running stack (real `qa`, fake CI env)
   snapshot.py          # uv script: save/restore the database + results (R2 qaboard-ci), build the demo-data image
-  demo/                # stack.py (the stack, for seed.py and snapshot.py), kitefin_stub.py (*.kitefin.example)
+  demo/                # stack.py (the stack, for seed.py and snapshot.py), kitefin_stub.py (*.kitefin.example),
+                       # webapp_runs.py (the examples' inputs and runs for the web app's tuning forms)
   demo-data/           # the demo-data image: Dockerfile, restore.sh (see "The demo-data image")
   tests/fixture/       # a tiny project and story that exercise everything seed.py does, in about 2 minutes
   publish.py           # uv script: encode, dedupe, upload, write website/media.json; `gc` subcommand
@@ -225,8 +226,10 @@ master the docs build downloads).
   ttyd, ffmpeg and a Chromium. `uv run docs-media/tapes/record.py [--only GLOB]` runs VHS from `docs-media/`, then
   writes `meta.json`. File `tapes/<area>-<subject>.tape` makes shot `<area>/<subject>`.
 - Each tape starts with `# key: value` lines: `alt` (required), `caption`, `project`, `user` (the persona, default
-  `ines`), `env` (extra `KEY=VALUE`s, e.g. CI variables), `poster`, `dedupe_tolerance`, `dedupe_mask` (rectangles
-  `x,y,w,h` of the video, in pixels, separated by spaces, that dedupe ignores: what the commands measure, like times).
+  `ines`), `env` (extra `KEY=VALUE`s, e.g. CI variables), `passenv` (names of variables kept from the environment,
+  e.g. `QABOARD_IMAGE`), `poster`, `timeout` (seconds VHS may take, default 600), `revision`, `dedupe_tolerance`,
+  `dedupe_mask` (rectangles `x,y,w,h` of the video, in pixels, separated by spaces, that dedupe ignores: what the
+  commands measure, like times). `--skip GLOBS` leaves tapes out.
 - Then the shared settings, `Source "tapes/_settings.tape"`: `Set Shell bash`, `Set FontFamily "JetBrains Mono"`,
   `Set FontSize 18`, `Set Width 1280`, `Set Height 720`, `Set Padding 24`, `Set Framerate 30`, `Set TypingSpeed 35ms`,
   and a theme from Blueprint's dark palette. Then `Output out/<area>/<subject>/tape.mp4` and `tape.webm`.
@@ -240,6 +243,17 @@ master the docs build downloads).
   (CI variables for "CI" tapes). Long waits are cut with `Hide`/`Show`; a tape lasts at most 45 s.
 - The prompt is `$ ` and the working directory looks like `~/kitefin/<repo>`. No real hostnames: the server is
   `http://localhost:5151`.
+- **The quickstarts' tapes** (`quickstart/compose`, `quickstart/kind`) run the commands of
+  [the quickstart](../website/docs/get-started/quickstart.mdx) from a clean state, with this checkout's images
+  (`QABOARD_IMAGE`, `QABOARD_VERSION`; for kind, `QABOARD_IMAGE` must name a registry, e.g. `localhost/qaboard`) and
+  a demo-data image built from the snapshot (`snapshot.py image --tag $QABOARD_IMAGE:demo-data-$QABOARD_VERSION`).
+  They answer on port 5151, like the docs: stop the demo stack first. Docker Compose runs as project
+  `qaboard-quickstart`, kind as cluster `qaboard`; both are deleted at the end. kind needs `kind`, `kubectl`, `helm`
+  and about 8 GB of disk, and loads the images in the node under the chart's default names, out of the video.
+  `docs-media.yml` records them last, once the demo stack is stopped (not CI's `helm-e2e` job, which has a cluster but
+  the seeder's test story as demo data, and neither VHS nor the R2 secrets). To try one while the demo stack runs, record
+  a copy with another port: `sed 's/5151/5555/g' tapes/quickstart-compose.tape > out/.local/quickstart-compose.tape`,
+  with `# env: QABOARD_PORT_HTTP=5555` for Compose (kind: only the port-forward and the URLs change).
 
 ## Playwright helpers
 
@@ -310,6 +324,7 @@ export interface ShotOptions {
   scale?: number;                                      // device scale factor, default 2
   storage?: Record<string, string>;                    // localStorage entries, merged over the defaults
   login?: string | null;                               // persona logged in (password kitefin-demo); default: the project's main author
+  revision?: number;                                   // bump to publish a capture the dedupe would keep as unchanged
   dedupeTolerance?: number;                            // share of differing pixels still "unchanged", default 0.0005 (clips 0.002)
 }
 
@@ -355,6 +370,10 @@ shot('commit/pixel-tooltip', {
 ## Determinism
 
 - **Data:** restored snapshot; story commit ids resolved by `demo.sha()`. Never capture from a fresh seed.
+- **Texts of measured values:** serving-latency's latencies, throughputs and their changes are measured, so every
+  reseed moves them. Alt texts, captions, `ui.caption` overlays and pages say what holds on every seed ("p99 dozens of
+  times the reference's", "jumps from about 3 ms to over 10 ms"), never one seed's values. The stories' checks
+  (`story.yaml`) are what make those claims hold.
 - **Clock:** `page.clock.install({ time: T0 })` then `page.clock.resume()`: time starts at T0 and flows normally.
   Don't use `setFixedTime`: OpenSeadragon's springs and Plotly transitions read `Date.now()` and stall on a frozen clock.
   Stories keep the newest data at least 10 minutes before T0, so relative times ("12 minutes ago") don't flip while
@@ -418,10 +437,21 @@ shot('commit/pixel-tooltip', {
 - **Rebuilt demo data** (a reseed) changes the runtime metrics, which are measured: the shots that show them change
   slightly.
 - **`logs/live-tail`** records a run that really runs: it starts `qa run` (this checkout's, with `uv`) on the inference
-  gateway's `bursty-high`, shared with the stack in a `live-tail` batch of `tuned-batching`, then deletes the batch. It
-  needs cargo (the first capture builds `gateway-bench`, about 2 minutes), and differs from one recording to the next
-  (up to 8% of a frame: timings, request ids): its `dedupeTolerance` is 0.15. `ci/step-summary` also runs `qa`
+  gateway's `bursty-high`, shared with the stack in a `live-tail` batch of `tuned-batching`, measuring for 2 minutes so
+  that it's still running when the clip ends, then stops it and deletes the batch. It needs cargo (the first capture
+  builds `gateway-bench`, about 2 minutes), and differs from one recording to the next (up to 8% of a frame: timings,
+  request ids, how loaded the machine is): its `dedupeTolerance` is 0.15. `ci/step-summary` also runs `qa`
   (`qa gate --format markdown`) with `uv`.
+- **The tuning forms** list a batch's tests from the inputs in the commit's artifacts folder: the examples' `inputs`
+  folder isn't saved there, so `tuning.spec.ts` links it into the detector's commits while it captures, and removes
+  the links afterwards ([`demo/webapp_runs.py`](demo/webapp_runs.py) `link`, `unlink`). **`tuning/launch-to-analysis`**
+  really sends its grid: its 8 runs run in the backend's container (`QABOARD_TUNING_RUNNER=local`), about a minute
+  cut from the clip. `webapp_runs.py build` first prepares them, cached in `<results>/.qaboard-demo-runs/`: the
+  detector's photos and models (the first time, a few minutes: PyTorch for the ONNX export), its Python packages for
+  the backend's Python, and an `.envrc` the backend's `qa batch` sources. The batch is deleted afterwards. Its
+  accuracy metrics are the same from one recording to the next, its latency isn't: the clip's `dedupeTolerance` is 0.01.
+- **`cli/batch`** shares a batch (`--label my-batch`) on the camera ISP's head of `main`, and deletes it in its hidden
+  teardown. It ends while the runs run: its `dedupe_mask` hides their logs.
 
 ## Budgets
 
@@ -455,7 +485,9 @@ libwebp 1.6.0) and the distribution's ffmpeg (Ubuntu 24.04: 6.1.1). Budgets coun
      that the encoder's artifacts on detailed content, which differ between two encodes of recordings that look the
      same (up to 0.1% of the pixels), don't count;
    - a tape's `dedupe_mask` (meta.json, from its header) lists rectangles that don't count.
-   - If unchanged, the entry is kept as it is: no upload, no manifest change.
+   - If unchanged, the entry keeps its files (no upload) and takes the spec's current alt, caption and project. A
+     shot whose `revision` (spec option or tape header) differs from the published one's is never unchanged: bump it
+     when a high `dedupe_tolerance` would keep a worse capture, e.g. a fixed clip of a live run.
 3. **Upload** changed files to the `qaboard-media` bucket (S3 API) at `shots/<id>/<hash>.<ext>`:
    - `<hash>`: the first 16 hex characters of the file's SHA-256;
    - `Cache-Control: public, max-age=31536000, immutable`, the right `Content-Type`;
@@ -632,5 +664,6 @@ Canonical values (`stack.ts`, the only place they're defined; the first one is t
 - **Secrets:** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, scoped to `qaboard-media` and
   `qaboard-ci`. Fork PRs never get them, and the workflow doesn't run for them.
 - **Demo-data image:** every run that restores or seeds the snapshot builds and tests it; runs on master and tags
-  publish it (see [The demo-data image](#the-demo-data-image)).
+  publish it (see [The demo-data image](#the-demo-data-image)). Then the demo stack stops, and the quickstarts' tapes
+  are recorded with it and this run's images (about 10 minutes with kind), before `publish.py`.
 - **Permissions:** `contents: write`, `pull-requests: write`, `packages: write` (the demo-data image).
