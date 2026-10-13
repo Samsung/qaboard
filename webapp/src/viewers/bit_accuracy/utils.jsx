@@ -202,6 +202,7 @@ const file_types = [
   {color: Colors.ORANGE1, label: 'Different', icon: 'cross'},
   {color: Colors.GREEN1, label: 'Missing in the reference', icon: 'plus'},
   {color: Colors.RED1, label: 'Present only in the reference', icon: 'minus'},
+  {color: Colors.GRAY4, label: 'Not checked for bit-accuracy (bit_accuracy.patterns in qaboard.yaml)', icon: 'document'},
 ]
 const folder_types = [
   {color: Colors.GREY1, label: 'All files match', icon: 'folder-close'},
@@ -217,6 +218,8 @@ const icon_style = {'marginRight': '10px'};
 let help = <>
   <h3>Showing diffs</h3>
   <p>Click on a file to show its diff versus the reference. Press <kbd>control</kbd> or <kbd>shift</kbd> to select multiple files</p>
+  <h3>Bit-accuracy</h3>
+  <p>Like <code>qa check-bit-accuracy</code>, only the files matching <code>bit_accuracy.patterns</code> in qaboard.yaml are checked (by default all files, except logs, <code>run.json</code> and <code>metrics.json</code>).</p>
   <h3>File icons</h3>
   <ul>{file_types.map( ({color, label, icon}) =>
     <li key={label} style={bullet_style}><Icon icon={icon} style={{...icon_style, color}}></Icon> {label}</li>)}
@@ -239,7 +242,7 @@ class BitAccuracyForm extends React.Component {
       <FormGroup
         inline
         labelFor="show-all-files"
-        helperText="By default the only files shown are those that are different/added/removed."
+        helperText="By default the only files shown are the checked files that are different/added/removed."
         style={{flex: '50 1 auto'}}
       >
         <Switch
