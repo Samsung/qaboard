@@ -52,6 +52,23 @@ results:
   storageClass: ""
   accessMode: ReadWriteMany
 
+# The docs' demo projects, to try QA-Board (quickstart.yaml enables them). They're restored once, before the backend
+# first starts, by an init container of the backend and of the migrations Job (the demo-data image's restore.sh):
+# - their results in a volume of their own, mounted at /mnt/qaboard (the path their database has) in the backend,
+#   the proxy and cantaloupe; results.mountPath must be another folder. If you set config.QABOARD_STORAGE_ROOTS,
+#   add /mnt/qaboard to it.
+# - their database, unless it already has QA-Board's tables: existing data is never touched.
+demoData:
+  enabled: false
+  # Default: <image.repository>:demo-data-<version> ("latest": <image.repository>:demo-data), see image above.
+  # Built from the docs' demo data by .github/workflows/docs-media.yml (docs-media/README.md)
+  image: ""
+  # The PersistentVolumeClaim of their results, deleted with the release
+  size: 5Gi
+  storageClass: ""
+  # ReadWriteMany: pods can run on several nodes
+  accessMode: ReadWriteMany
+
 # Secret backend settings: SECRET_KEY (signs sessions, must be the same for all replicas),
 # QABOARD_DB_PASSWORD (unless database.cnpg.enabled), GITLAB_ACCESS_TOKEN, QABOARD_LDAP_PASSWORD...
 secret:
