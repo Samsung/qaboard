@@ -27,8 +27,8 @@ The detector team's CI runs `qa batch ci` on each commit: the evaluation slices,
 Every commit is compared with a reference: by default, the latest results of the reference branch, or a milestone like
 the last release. The **Summary** shows each metric's change, the **Metrics Diff** each run's.
 
-When the detector moved to int8, it got faster. Sorting the Metrics Diff by AP on small objects brings the slice that
-got worse to the top.
+When the detector moved to int8, its model got 3.5 times smaller, and its median mAP barely moved. Sorting the Metrics
+Diff by AP on small objects brings the slice that got worse to the top.
 
 <Clip id="commit/compare-tour" />
 

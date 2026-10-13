@@ -150,7 +150,7 @@ shots:
   - id: commit/summary
     kind: still
     project: detection-eval
-    shows: "Summary of int8 against fp32: mAP and latency with their changes, AP small in red, pass-rate bars, box plots."
+    shows: "Summary of int8 against fp32: model size -72% in green, mAP and AP small in red, pass-rate bars, box plots."
     pages: [user-guide/commit-page, computing-quantitative-metrics]
     needs: int8-minmax vs kd-1-2
     phase: 2
@@ -165,7 +165,7 @@ shots:
   - id: commit/metrics-diff
     kind: still
     project: detection-eval
-    shows: "int8 against fp32 per slice: latency green everywhere, AP small red on the small-objects slice."
+    shows: "int8 against fp32 per slice: model size green everywhere, mAP and AP small red on the indoor slice, AP small red on small-objects."
     pages: [user-guide/commit-page, user-guide/comparing-results, use-cases/detection-eval, get-started/tutorial]
     needs: int8-minmax
     phase: 2
@@ -389,7 +389,7 @@ shots:
   - id: commit/detections
     kind: still
     project: detection-eval
-    shows: A small-objects image with boxes; fp32 finds the small bottles, int8 misses them (red ground truth).
+    shows: "A small-objects image with boxes: int8 misses far people and cars that fp32 finds (red ground truth). The story check names the image."
     pages: [use-cases/detection-eval, visualizations]
     needs: int8-minmax
     phase: 2
