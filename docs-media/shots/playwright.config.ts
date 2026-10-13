@@ -28,7 +28,8 @@ const rendering: PlaywrightTestConfig['use'] = {
 export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  // Clips are recorded in real time: one capture at a time keeps the frame rate and timings steady
+  // One capture at a time: clips record scripted time only (lib/record.ts), but their waits for the page to draw are
+  // shorter on a machine that isn't busy
   workers: process.env.SHOTS_WORKERS ? Number(process.env.SHOTS_WORKERS) : 1,
   timeout: 120_000,
   reporter: process.env.CI ? [['list'], ['junit', { outputFile: '../out/junit.xml' }]] : 'list',

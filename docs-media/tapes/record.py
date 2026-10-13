@@ -14,6 +14,7 @@ A tape starts with `# key: value` lines, then `Source "tapes/_settings.tape"`:
   user      the persona running the commands (examples/README.md#people): QA_USER and git identity
   env       extra environment, KEY=VALUE separated by spaces (CI variables for CI tapes)
   alt       required alt text (website/STYLE.md); caption: the default caption; poster: first, last or ms
+  dedupe_tolerance, dedupe_mask   how publish.py compares a new recording with the published one (README.md#determinism)
 Commands run for real, against the restored demo stack (QABOARD_URL, from the demo facts), from ~/kitefin/<repo>:
 HOME is /home/<user> (TAPES_HOME), where ~/kitefin/<repo> is a workspace like the seeder's, built by workspace(): a .venv
 with `qa` and the example's dependencies, the inputs, and git HEAD on a story commit.
@@ -79,6 +80,16 @@ def header(path: Path) -> dict[str, str]:
         if match:
             values[match.group(1)] = match.group(2)
     return values
+
+
+def dedupe_mask(tape: Path, value: str) -> list[list[int]]:
+    """`x,y,w,h x,y,w,h`: rectangles of the video (pixels) that publish.py's dedupe ignores"""
+    rects = []
+    for rect in value.split():
+        if not re.fullmatch(r"\d+,\d+,\d+,\d+", rect):
+            raise SystemExit(f"{tape.name}: dedupe_mask is `x,y,w,h` rectangles in pixels, separated by spaces, not {rect!r}")
+        rects.append([int(v) for v in rect.split(",")])
+    return rects
 
 
 def demo_facts() -> dict:
@@ -255,6 +266,7 @@ def record(tape: Path, facts: dict) -> Path:
         "captured": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "t0": facts.get("t0"),
         "dedupe_tolerance": float(meta.get("dedupe_tolerance", 0.0005)),
+        "dedupe_mask": dedupe_mask(tape, meta.get("dedupe_mask", "")),
         "width": int(stream["width"]),
         "height": int(stream["height"]),
         "scale": 1,

@@ -13,6 +13,7 @@ import {
 } from "@blueprintjs/core";
 import { select } from 'd3-selection'
 import * as flameGraph from 'd3-flame-graph';
+import { forEachInTree, selfDelta } from './flameDeltas';
 
 // Integrates 
 // We love Brendan Gregg's flame charts
@@ -77,6 +78,9 @@ class FlameGraphComponent extends React.Component {
                            .onClick(this.onClick)
                            .computeDelta(props.differential ?? false)
     this.chart.inverted(true) // icicle plot
+    // red for frames that take more time, blue for less, orange for new ones
+    if (props.differential)
+      this.chart.setColorMapper(flameGraph.differentialColorMapper)
   }
   onClick = frame => {
     if (!!frame.parent)
@@ -109,10 +113,12 @@ class FlameGraphComponent extends React.Component {
     }
     if (prevProps.differential !== this.props.differential) {
       const differential = this.props.differential ?? false;
-      // console.log("diff =>", differential)
-      this.chart = this.chart.differential(differential)
-      // TODP: check out what this does exactly...
-      // this.chart.elided(this.props.differential)
+      this.chart.computeDelta(differential)
+      if (differential)
+        this.chart.setColorMapper(flameGraph.differentialColorMapper)
+      else
+        this.chart.setColorMapper()
+      this.chart.update(this.props.data)
     }
   }
 
@@ -241,8 +247,7 @@ class FlameGraphViewer extends React.PureComponent {
     // console.log(data.new)
     const makeDelta = (map_ref, invert) => {
       return (node, id) => {
-        const node_ref = map_ref[id]
-        node.delta = node.value - (node_ref?.value || 0)
+        node.delta = selfDelta(node, map_ref[id])
         if (invert)
           node.delta = -node.delta
       }
@@ -293,21 +298,5 @@ class FlameGraphViewer extends React.PureComponent {
     </>      
   }
 }
-
-// Walk depth depth, starting by the root
-const forEachInTree = (tree, callback, id) => {
-  if (tree === undefined || tree === null)
-    return;
-  const current_id = `${id ?? ''}/${tree.name}`
-  callback(tree, current_id)
-  if (tree.children === undefined || tree.children === null) {
-    return;
-  }
-  tree.children.forEach(t => {
-    forEachInTree(t, callback, current_id);
-  })
- }
-
-
 
 export default FlameGraphViewer;
