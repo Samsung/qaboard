@@ -11,7 +11,7 @@ for SHOTS_ONLY, tapes/record.py --only and publish.py --only. Prints nothing whe
   uv run docs-media/affected.py --files webapp/src/App.jsx examples/image-quality/qa/main.py
 
 - webapp/**, docs-media/shots/lib/**, the shots' config, fonts and packages: every shot (*)
-- docs-media/shots/<area>.spec.ts: <area>/*
+- docs-media/shots/<area>.spec.ts: <area>/*; docs-media/shots/templates/<subject>.html: */<subject>
 - examples/<project>/**: the project's shots (shots.yaml), which need a reseed
 - docs-media/tapes/<area>-<subject>.tape: <area>/<subject>; tapes/_settings.tape or tapes/record.py: every tape
 """
@@ -47,6 +47,8 @@ def affected(files: list[str]) -> list[str]:
             return ["*"]
         if m := re.match(r"^docs-media/shots/([a-z0-9-]+)\.spec\.ts$", f):
             globs.add(f"{m.group(1)}/*")
+        elif m := re.match(r"^docs-media/shots/templates/([a-z0-9-]+)\.html$", f):
+            globs.update(s["id"] for s in shots if s["id"].split("/")[1] == m.group(1))
         elif m := re.match(r"^examples/([a-z0-9-]+)/", f):
             globs.update(s["id"] for s in shots if s.get("project") == m.group(1) and s.get("status") != "retired")
         elif m := re.match(r"^docs-media/tapes/([a-z0-9-]+)\.tape$", f):

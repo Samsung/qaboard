@@ -779,7 +779,7 @@ shot('commit/run-badges', {
     await mouseAway(ui);
     await ui.anchor('badge', cards(ui.page).first().getByText('Model card kd-1.3'));
   },
-  // the card's header: its title and tags, the badges, the metrics (the card is wider than the screen: not its h5)
+  // the card's header: its title and tags, the badges, the metrics (not its h5, as wide as the card)
   target: page => [
     cards(page).first().getByText('slices/small-objects', { exact: true }),
     cards(page).first().locator('.bp6-tag', { hasText: /^size-320$/ }).first(),
@@ -852,7 +852,7 @@ shot('commit/html-report', {
     await mouseAway(ui);
     await ui.settle();
   },
-  // the new run's report, down to the image with the most missed objects (the card is wider than the screen)
+  // the new run's report, down to the image with the most missed objects
   target: page => [
     page.frameLocator('iframe[title="report.html (new)"]').locator('h1'),
     page.frameLocator('iframe[title="report.html (new)"]').locator('figure').first(),
@@ -938,7 +938,7 @@ shot('commit/flame-diff', {
     + 'which runs less, is blue.',
   caption: 'A differential flame graph: rendering responses under the shared cache\'s lock is new (orange), and the '
     + 'model runs less (blue): cache hits skip it.',
-  // the card is 1500 px wide (qaboard.yaml sets no width), and the Controls panel's button sits on the viewport's edge
+  // the Controls panel's button sits on the viewport's edge: a wider window keeps it away from the flame graph
   viewport: { width: 1760, height: 1000 },
   actions: async ui => {
     await showCard(ui);
@@ -976,14 +976,13 @@ shot('commit/text-diff', {
   alt: 'HdrHistogram\'s percentile distribution of the steady-high run, reference and new side by side in a diff '
     + 'editor: from the median on, latencies go from 3 ms to over 500 ms.',
   caption: 'Text outputs are diffed with the reference; Next Diff jumps to the next change.',
-  // the card is 1500 px wide (qaboard.yaml sets no width), and the Controls panel's button sits on the viewport's edge
-  viewport: { width: 1760, height: 900 },
   actions: async ui => {
     await showCard(ui);
     await mouseAway(ui);
   },
   // the file's name and buttons, and its first 20 lines, both sides: down to the reference's line 20, and as far right
-  // as the new file's header line goes (the editors are as wide as the card)
+  // as the new file's header line goes (the editors are as wide as the card, which fits the window: qaboard.yaml sets
+  // no width)
   target: page => {
     const editor = (side: string) => viewer(cards(page).first(), 8).locator(`.${side}-in-monaco-diff-editor`);
     return [

@@ -620,7 +620,7 @@ Canonical values (`stack.ts`, the only place they're defined; the first one is t
 - The stack runs this checkout's images (built like CI's, from its layer cache), so web app changes show.
   `affected.py` computes the affected shots of a pull request.
 - **Affected shots** on a PR: all of them if `webapp/**` or `docs-media/shots/lib/**` changed; an area if its
-  `shots/<area>.spec.ts` changed; a project's shots, with a reseed, if `examples/<project>/**` changed; a tape if its
+  `shots/<area>.spec.ts` changed; a shot if its template (`shots/templates/<subject>.html`) changed; a project's shots, with a reseed, if `examples/<project>/**` changed; a tape if its
   `.tape` changed.
 - **Reseed** when `reseed` is set, or when the snapshot key changes: a hash of `examples/**`, `docs-media/seed.py`,
   `backend/backend/models/**` and `qaboard/**`. Snapshots are `snapshots/<key>.tar.zst` in `qaboard-ci`.
