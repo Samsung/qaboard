@@ -217,8 +217,10 @@ The one exception is `landing/social-card`: a spec renders an HTML template (log
   ttyd, ffmpeg and a Chromium. `uv run docs-media/tapes/record.py [--only GLOB]` runs VHS from `docs-media/`, then
   writes `meta.json`. File `tapes/<area>-<subject>.tape` makes shot `<area>/<subject>`.
 - Each tape starts with `# key: value` lines: `alt` (required), `caption`, `project`, `user` (the persona, default
-  `ines`), `env` (extra `KEY=VALUE`s, e.g. CI variables), `poster`, `revision`, `dedupe_tolerance`, `dedupe_mask` (rectangles
-  `x,y,w,h` of the video, in pixels, separated by spaces, that dedupe ignores: what the commands measure, like times).
+  `ines`), `env` (extra `KEY=VALUE`s, e.g. CI variables), `passenv` (names of variables kept from the environment,
+  e.g. `QABOARD_IMAGE`), `poster`, `timeout` (seconds VHS may take, default 600), `revision`, `dedupe_tolerance`,
+  `dedupe_mask` (rectangles `x,y,w,h` of the video, in pixels, separated by spaces, that dedupe ignores: what the
+  commands measure, like times). `--skip GLOBS` leaves tapes out.
 - Then the shared settings, `Source "tapes/_settings.tape"`: `Set Shell bash`, `Set FontFamily "JetBrains Mono"`,
   `Set FontSize 18`, `Set Width 1280`, `Set Height 720`, `Set Padding 24`, `Set Framerate 30`, `Set TypingSpeed 35ms`,
   and a theme from Blueprint's dark palette. Then `Output out/<area>/<subject>/tape.mp4` and `tape.webm`.
@@ -232,6 +234,17 @@ The one exception is `landing/social-card`: a spec renders an HTML template (log
   (CI variables for "CI" tapes). Long waits are cut with `Hide`/`Show`; a tape lasts at most 45 s.
 - The prompt is `$ ` and the working directory looks like `~/kitefin/<repo>`. No real hostnames: the server is
   `http://localhost:5151`.
+- **The quickstarts' tapes** (`quickstart/compose`, `quickstart/kind`) run the commands of
+  [the quickstart](../website/docs/get-started/quickstart.mdx) from a clean state, with this checkout's images
+  (`QABOARD_IMAGE`, `QABOARD_VERSION`; for kind, `QABOARD_IMAGE` must name a registry, e.g. `localhost/qaboard`) and
+  a demo-data image built from the snapshot (`snapshot.py image --tag $QABOARD_IMAGE:demo-data-$QABOARD_VERSION`).
+  They answer on port 5151, like the docs: stop the demo stack first. Docker Compose runs as project
+  `qaboard-quickstart`, kind as cluster `qaboard`; both are deleted at the end. kind needs `kind`, `kubectl`, `helm`
+  and about 8 GB of disk, and loads the images in the node under the chart's default names, out of the video.
+  `docs-media.yml` records them last, once the demo stack is stopped (not CI's `helm-e2e` job, which has a cluster but
+  the seeder's test story as demo data, and neither VHS nor the R2 secrets). To try one while the demo stack runs, record
+  a copy with another port: `sed 's/5151/5555/g' tapes/quickstart-compose.tape > out/.local/quickstart-compose.tape`,
+  with `# env: QABOARD_PORT_HTTP=5555` for Compose (kind: only the port-forward and the URLs change).
 
 ## Playwright helpers
 
@@ -633,5 +646,6 @@ Canonical values (`stack.ts`, the only place they're defined; the first one is t
 - **Secrets:** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, scoped to `qaboard-media` and
   `qaboard-ci`. Fork PRs never get them, and the workflow doesn't run for them.
 - **Demo-data image:** every run that restores or seeds the snapshot builds and tests it; runs on master and tags
-  publish it (see [The demo-data image](#the-demo-data-image)).
+  publish it (see [The demo-data image](#the-demo-data-image)). Then the demo stack stops, and the quickstarts' tapes
+  are recorded with it and this run's images (about 10 minutes with kind), before `publish.py`.
 - **Permissions:** `contents: write`, `pull-requests: write`, `packages: write` (the demo-data image).

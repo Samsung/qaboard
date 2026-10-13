@@ -48,17 +48,17 @@ shots:
   - id: quickstart/compose
     kind: tape
     project: null
-    shows: Download the compose file, `docker compose up`, the demo data restores, the server answers on localhost:5151.
+    shows: '`docker compose up -d --wait` in a folder with the quickstart''s compose.yml: the services start and turn healthy (the demo data restores first), then on localhost:5151 the health check answers and the projects API lists the demo projects.'
     pages: [get-started/quickstart, deploy, tutorials/self-host]
     phase: 2
-    status: planned
+    status: captured
   - id: quickstart/kind
     kind: tape
     project: null
-    shows: A kind cluster, `helm install` with the quickstart values, a port-forward, then the demo in the browser.
+    shows: '`kind create cluster` with kind.yaml, `helm install` with the quickstart values and the notes it prints, a port-forward, then on localhost:5151 the health check answers and the projects API lists the demo projects.'
     pages: [get-started/quickstart, backend-admin/kubernetes, tutorials/self-host]
     phase: 2
-    status: planned
+    status: captured
   - id: cli/first-run
     kind: tape
     project: image-quality
