@@ -562,23 +562,24 @@ shots:
     features: [batch-editor]
     phase: 2
     status: captured
-  # Planned: the demo server can't list a batch's tests (the examples' inputs, a relative `inputs` database, aren't on it).
+  # The server lists the detector's tests from the example's inputs, linked while capturing (docs-media/demo/webapp_runs.py)
   - id: tuning/which-tests-run
     kind: still
     project: detection-eval
-    shows: Hovering a batch lists the tests it resolves to on this commit.
+    shows: 'Available Tests'' "Which tests run?" on int8-percentile: the ci batch resolves to 8 tests, the 4 slices with the fp32 and the int8 model at size 320.'
     pages: [user-guide/commit-page, batches-running-on-multiple-inputs]
     features: [batch-editor]
+    needs: int8-percentile
     phase: 2
-    status: planned
-  # Planned: the run count needs the batch's tests, which the demo server can't list (see tuning/which-tests-run).
+    status: captured
   - id: tuning/manual-form
     kind: still
     project: detection-eval
-    shows: Run Tests / Tuning with a grid over score_threshold and nms_iou, and the number of runs it will start.
+    shows: Run Tests / Tuning on int8-percentile, experiment int8-nms on quant-search (2 tests), with a grid over score_threshold and nms_iou, 4 combinations, "8 total runs", and Send.
     pages: [user-guide/running-from-the-webapp, tuning-from-the-webapp]
+    needs: int8-percentile
     phase: 2
-    status: planned
+    status: captured
   - id: tuning/auto-form
     kind: still
     project: detection-eval
@@ -586,16 +587,16 @@ shots:
     pages: [user-guide/running-from-the-webapp, auto-optimization, tutorials/tuning]
     phase: 2
     status: captured
-  # Planned: a real launch needs the server to see the inputs and a runner with the detector's setup (~1 GB, ONNX export).
+  # A real launch: its 8 runs run in the backend's container (docs-media/demo/webapp_runs.py build), then it's deleted
   - id: tuning/launch-to-analysis
     kind: clip
     project: detection-eval
-    shows: Start the sweep, pick its batch, open the Analysis.
+    shows: The manual-form grid (8 runs) is sent, its int8-nms batch picked in the batch selector once its runs are done, and its Analysis opened, with the runs in parallel coordinates.
     pages: [tutorials/tuning, tour, landing]
     features: [tuning-analysis]
-    needs: int8-percentile (tune-int8)
+    needs: int8-percentile
     phase: 2
-    status: planned
+    status: captured
   - id: tuning/analysis
     kind: still
     project: detection-eval

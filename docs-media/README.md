@@ -25,7 +25,8 @@ docs-media/
   compose.demo.yml     # overlay on docker-compose.yml: results storage in backend/nginx/cantaloupe, demo env
   seed.py              # uv script: replays examples/*/story.yaml into a running stack (real `qa`, fake CI env)
   snapshot.py          # uv script: save/restore the database + results (R2 qaboard-ci), build the demo-data image
-  demo/                # stack.py (the stack, for seed.py and snapshot.py), kitefin_stub.py (*.kitefin.example)
+  demo/                # stack.py (the stack, for seed.py and snapshot.py), kitefin_stub.py (*.kitefin.example),
+                       # webapp_runs.py (the examples' inputs and runs for the web app's tuning forms)
   demo-data/           # the demo-data image: Dockerfile, restore.sh (see "The demo-data image")
   tests/fixture/       # a tiny project and story that exercise everything seed.py does, in about 2 minutes
   publish.py           # uv script: encode, dedupe, upload, write website/media.json; `gc` subcommand
@@ -409,6 +410,16 @@ shot('commit/pixel-tooltip', {
   builds `gateway-bench`, about 2 minutes), and differs from one recording to the next (up to 8% of a frame: timings,
   request ids, how loaded the machine is): its `dedupeTolerance` is 0.15. `ci/step-summary` also runs `qa`
   (`qa gate --format markdown`) with `uv`.
+- **The tuning forms** list a batch's tests from the inputs in the commit's artifacts folder: the examples' `inputs`
+  folder isn't saved there, so `tuning.spec.ts` links it into the detector's commits while it captures, and removes
+  the links afterwards ([`demo/webapp_runs.py`](demo/webapp_runs.py) `link`, `unlink`). **`tuning/launch-to-analysis`**
+  really sends its grid: its 8 runs run in the backend's container (`QABOARD_TUNING_RUNNER=local`), about a minute
+  cut from the clip. `webapp_runs.py build` first prepares them, cached in `<results>/.qaboard-demo-runs/`: the
+  detector's photos and models (the first time, a few minutes: PyTorch for the ONNX export), its Python packages for
+  the backend's Python, and an `.envrc` the backend's `qa batch` sources. The batch is deleted afterwards. Its
+  accuracy metrics are the same from one recording to the next, its latency isn't: the clip's `dedupeTolerance` is 0.01.
+- **`cli/batch`** shares a batch (`--label my-batch`) on the camera ISP's head of `main`, and deletes it in its hidden
+  teardown. It ends while the runs run: its `dedupe_mask` hides their logs.
 
 ## Budgets
 

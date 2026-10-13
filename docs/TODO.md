@@ -23,11 +23,6 @@ and show a "not captured yet" placeholder until they're published.
   `charts/qaboard/quickstart.yaml`, a port-forward, then the demo. `.github/scripts/helm_e2e.py` does all of it in the
   `helm-e2e` CI job: copy its commands. Needs kind, helm and kubectl on the runner (the `helm-e2e` job installs them)
   and about 6 GB of disk.
-- **`tuning/which-tests-run`, `tuning/manual-form`, `tuning/launch-to-analysis`**: the demo server can't see the
-  examples' inputs (each `qaboard.yaml` uses a relative `inputs` folder), so every batch resolves to 0 tests and the
-  forms show "0 total runs" ("No inputs found" under Send, cropped out of `tuning/auto-form`). Mount
-  `examples/<project>/inputs` in the demo stack's backend at the path the server resolves (or set the projects'
-  `inputs.database` for the demo), then capture; the launch clip also needs a runner with the detector's setup.
 - **`landing/social-card`** (still): needs its template (a page that lays out the logo, tagline and a crop of the
   hero), then a spec like the others.
 - **Phase 3**: the robotics and agent demo projects' shots (`project: robotics-3d`, `agent-evals`).
