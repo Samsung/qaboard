@@ -503,7 +503,7 @@ shots:
     features: [live-log-tail]
     needs: a bursty-high run started during the recording
     phase: 2
-    status: planned
+    status: captured
   - id: logs/lsf-hints
     kind: still
     project: image-quality

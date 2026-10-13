@@ -404,9 +404,10 @@ shot('commit/pixel-tooltip', {
 - **Rebuilt demo data** (a reseed) changes the runtime metrics, which are measured: the shots that show them change
   slightly.
 - **`logs/live-tail`** records a run that really runs: it starts `qa run` (this checkout's, with `uv`) on the inference
-  gateway's `bursty-high`, shared with the stack in a `live-tail` batch of `tuned-batching`, then deletes the batch. It
-  needs cargo (the first capture builds `gateway-bench`, about 2 minutes), and differs from one recording to the next
-  (up to 8% of a frame: timings, request ids): its `dedupeTolerance` is 0.15. `ci/step-summary` also runs `qa`
+  gateway's `bursty-high`, shared with the stack in a `live-tail` batch of `tuned-batching`, measuring for 2 minutes so
+  that it's still running when the clip ends, then stops it and deletes the batch. It needs cargo (the first capture
+  builds `gateway-bench`, about 2 minutes), and differs from one recording to the next (up to 8% of a frame: timings,
+  request ids, how loaded the machine is): its `dedupeTolerance` is 0.15. `ci/step-summary` also runs `qa`
   (`qa gate --format markdown`) with `uv`.
 
 ## Budgets
