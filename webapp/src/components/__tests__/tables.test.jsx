@@ -3,6 +3,7 @@
  * Run with: cd webapp && npm test -- tables
  */
 import { render } from '@testing-library/react';
+import { Classes } from '@blueprintjs/core';
 
 import { TableKpi } from '../tables';
 import { metrics_fill_defaults } from '../../utils';
@@ -11,7 +12,7 @@ import { metrics_fill_defaults } from '../../utils';
 const available_metrics = metrics_fill_defaults({
   psnr: { label: 'PSNR', target: 30, smaller_is_better: false },
   overshoot: { label: 'Edge overshoot', target: 0.05 },
-  runtime: { label: 'Runtime' },
+  runtime: { label: 'Runtime', suffix: ' s' },
 });
 
 const output = (id, metrics, extra = {}) => ({
@@ -39,5 +40,12 @@ describe('TableKpi', () => {
     // New and Ref over PSNR and Runtime, an empty cell over the overshoot
     expect([...labels.children].slice(1).map(th => th.textContent)).toEqual(['New', 'Ref', '', 'New', 'Ref']);
     expect(labels.children[0].textContent).toBe('1 run');
+  });
+
+  it('shows the unit of metrics without a target, without a stray space', () => {
+    const { container } = render(<TableKpi {...batches()} metrics={['psnr', 'overshoot', 'runtime']} available_metrics={available_metrics} />);
+    const [headers] = container.querySelectorAll('thead tr');
+    const units = [...headers.children].slice(1).map(th => th.querySelector(`span.${Classes.TEXT_MUTED}`)?.textContent ?? null);
+    expect(units).toEqual(['[30]', '[0.05]', '[s]']);
   });
 });

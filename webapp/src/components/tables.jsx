@@ -194,7 +194,7 @@ const TableKpi = ({
               <th colSpan={new_batch.metrics_with_refs.has(m.key) ? 2 : 1} key={m.key}>
                 <MetricHeader condensed {...m}/>
                 {(!!m.target || !!m.suffix) && <span className={Classes.TEXT_MUTED}>
-                  [{!!m.target ? metric_formatter(m.target * m.scale, m) : ''}{m.suffix}]
+                  [{!!m.target ? <>{metric_formatter(m.target * m.scale, m)}{m.suffix}</> : m.suffix.trim()}]
                 </span>}
               </th>
             ))}
