@@ -157,6 +157,8 @@ clip('logs/live-tail', {
   // A real run: its timings, deadlines and request ids change from one recording to the next, and so do how many lines
   // each frame shows (6% of the pixels from one recording to the next). Unchanged unless the page itself changes
   dedupeTolerance: 0.15,
+  // 2: the run lasts long enough to be running during the clip (the first recording started after it had ended)
+  revision: 2,
   actions: async ui => {
     // gateway-bench, built once per checkout (cargo, about 2 minutes): before the run, which would build it first
     test.setTimeout(900_000);

@@ -27,6 +27,7 @@ export interface ShotOptions {
   viewport?: { width: number; height: number };        // default 1440x900
   storage?: Record<string, string>;                    // localStorage entries, merged over the defaults
   login?: string | null;                               // persona logged in; default: the project's main author, none without a project
+  revision?: number;                                   // bump to publish a capture the dedupe would keep as unchanged
   dedupeTolerance?: number;                            // share of differing pixels still "unchanged", default 0.0005 (clips 0.002)
 }
 
@@ -205,6 +206,7 @@ function baseMeta(id: ShotId, kind: Kind | 'tape', options: ShotOptions, env: Ca
     captured: new Date().toISOString(),
     t0: env.demo.t0.toISOString(),
     dedupe_tolerance: options.dedupeTolerance ?? (kind === 'clip' ? DEFAULT_CLIP_DEDUPE_TOLERANCE : DEFAULT_DEDUPE_TOLERANCE),
+    ...(options.revision ? { revision: options.revision } : {}),
   };
 }
 

@@ -217,7 +217,7 @@ The one exception is `landing/social-card`: a spec renders an HTML template (log
   ttyd, ffmpeg and a Chromium. `uv run docs-media/tapes/record.py [--only GLOB]` runs VHS from `docs-media/`, then
   writes `meta.json`. File `tapes/<area>-<subject>.tape` makes shot `<area>/<subject>`.
 - Each tape starts with `# key: value` lines: `alt` (required), `caption`, `project`, `user` (the persona, default
-  `ines`), `env` (extra `KEY=VALUE`s, e.g. CI variables), `poster`, `dedupe_tolerance`, `dedupe_mask` (rectangles
+  `ines`), `env` (extra `KEY=VALUE`s, e.g. CI variables), `poster`, `revision`, `dedupe_tolerance`, `dedupe_mask` (rectangles
   `x,y,w,h` of the video, in pixels, separated by spaces, that dedupe ignores: what the commands measure, like times).
 - Then the shared settings, `Source "tapes/_settings.tape"`: `Set Shell bash`, `Set FontFamily "JetBrains Mono"`,
   `Set FontSize 18`, `Set Width 1280`, `Set Height 720`, `Set Padding 24`, `Set Framerate 30`, `Set TypingSpeed 35ms`,
@@ -297,6 +297,7 @@ export interface ShotOptions {
   viewport?: { width: number; height: number };        // default 1440x900
   storage?: Record<string, string>;                    // localStorage entries, merged over the defaults
   login?: string | null;                               // persona logged in (password kitefin-demo); default: the project's main author
+  revision?: number;                                   // bump to publish a capture the dedupe would keep as unchanged
   dedupeTolerance?: number;                            // share of differing pixels still "unchanged", default 0.0005 (clips 0.002)
 }
 
@@ -453,7 +454,9 @@ libwebp 1.6.0) and the distribution's ffmpeg (Ubuntu 24.04: 6.1.1). Budgets coun
      that the encoder's artifacts on detailed content, which differ between two encodes of recordings that look the
      same (up to 0.1% of the pixels), don't count;
    - a tape's `dedupe_mask` (meta.json, from its header) lists rectangles that don't count.
-   - If unchanged, the entry is kept as it is: no upload, no manifest change.
+   - If unchanged, the entry keeps its files (no upload) and takes the spec's current alt, caption and project. A
+     shot whose `revision` (spec option or tape header) differs from the published one's is never unchanged: bump it
+     when a high `dedupe_tolerance` would keep a worse capture, e.g. a fixed clip of a live run.
 3. **Upload** changed files to the `qaboard-media` bucket (S3 API) at `shots/<id>/<hash>.<ext>`:
    - `<hash>`: the first 16 hex characters of the file's SHA-256;
    - `Cache-Control: public, max-age=31536000, immutable`, the right `Content-Type`;
