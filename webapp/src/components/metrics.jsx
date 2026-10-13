@@ -17,6 +17,7 @@ import {
 import { MultiSelect } from "@blueprintjs/select";
 
 import { noMetrics } from "./metricSelect";
+import { logTickValues } from "./logTicks";
 import { RunBadge } from "./tags";
 import { format, plotly_palette, match_query } from "../utils";
 import { summary_outputs, metric_values, summary_stats, mixed_parameters } from "../utils/compare";
@@ -236,6 +237,12 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
   }
 
   var ydata = series.map(values => values.map(x => metric.scale * x));
+  // a few round ticks: on a log scale, Plotly's pile up and overlap in such a small plot
+  if (layout_.yaxis?.type === "log" && layout_.yaxis.tickvals === undefined) {
+    const tickvals = logTickValues(ydata.flat());
+    if (tickvals)
+      layout_.yaxis = { ...layout_.yaxis, tickvals };
+  }
 
   var data = [];
   for (var i = 0; i < xdata.length; i++) {

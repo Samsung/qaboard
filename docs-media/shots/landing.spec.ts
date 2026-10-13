@@ -1,13 +1,13 @@
 // The home page of the docs (docs-media/shots.yaml: landing/*). The hero is a muted loop of the commit page, on the
 // camera ISP project: the new denoiser wins PSNR but adds halos (examples/image-quality/story.yaml: merge-bilateral).
-import { clip, type Locator, type Page, type Ui } from './lib';
+import { clip, shot, type Box, type Demo, type Locator, type Page, type Ui } from './lib';
 
 const IQ = 'image-quality';
 
 // The sidebar's views
 const sidebar = (page: Page, view: string) => page.getByRole('menuitem', { name: view, exact: true }).first();
 const cards = (page: Page) => page.locator('.output-card.bp6-card');
-const viewer = (scope: Page | Locator) => scope.locator('[id="0-0"]').first();
+const viewer = (scope: Page | Locator, index = 0) => scope.locator(`[id="${index}-0"]`).first();
 const newImage = (scope: Page | Locator) => scope.locator('[id^="image-viewer-"]').first();
 const controlsPanel = (page: Page) => page.locator('.bp6-card', { has: page.getByText('Controls', { exact: true }) }).last();
 
@@ -98,5 +98,184 @@ clip('landing/hero', {
     await ui.cursor.hide();
     await ui.settle();
     await ui.hold(1400);
+  },
+});
+
+
+// The tiles of the landing's "Polish you'd never build in-house" grid (website/src/pages/index.tsx): 16:10 crops of
+// the commit page, shown about 370 px wide, so that their text stays readable. Their captions are short, for the same
+// reason. commit/* shots show the same features in context, for the docs.
+const TILE_RATIO = 16 / 10;
+
+// `commit` against `reference`, the runs matching `filter`
+const compare = (d: Demo, commit: string, reference: string, filter: string, opts: { view?: 'output-list' | 'bit_accuracy'; controls?: Record<string, unknown> } = {}) =>
+  d.commitUrl(IQ, commit, { reference, view: opts.view ?? 'output-list', filter, controls: opts.controls });
+
+// Scrolls a run card right below the commit bars
+async function showCard(ui: Ui, index = 0) {
+  await cards(ui.page).nth(index).evaluate(card => window.scrollBy(0, card.getBoundingClientRect().top - 160));
+  await ui.settle();
+}
+
+// Clicks a region of interest preset under the viewer, by its label: the same zoom every time
+async function preset(ui: Ui, scope: Page | Locator, label: string) {
+  const exact = new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+  await ui.click(scope.locator('a.bp6-button', { hasText: exact }).first());
+  await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await ui.settle();
+}
+
+// A 16:10 box of `width` in a box, horizontally from its left, vertically at `align` (0 top, 0.5 middle, 1 bottom)
+function tileIn(box: Box, width: number, align: number): Box {
+  const height = Math.round(width / TILE_RATIO);
+  return { x: box.x, y: box.y + (box.height - height) * align, width, height };
+}
+
+clip('landing/deep-zoom', {
+  project: IQ,
+  url: d => compare(d, 'merge-bilateral', 'isp-4-1', 'charts/test-wall base linux'),
+  alt: 'The 113-megapixel test wall: zooming from the whole wall into a small Siemens star until single pixels show.',
+  caption: 'Deep zoom on a 113 MP image: the viewer loads only the tiles it shows.',
+  actions: async ui => {
+    await showCard(ui);
+    await preset(ui, viewer(ui.page), 'Full Image');
+    // the pixel values show above the images from the first hover on: not while recording, they'd push them down
+    await newImage(ui.page).hover({ position: await imagePoint(ui.page, { x: 50, y: 50 }) });
+    await ui.settle();
+    await ui.page.mouse.move(1000, 140);
+    await ui.settle();
+  },
+  // the new image, its bottom: the row of small stars is near the bottom of the wall
+  region: async page => {
+    const box = await stableBox(newImage(page));
+    return tileIn(box, box.width, 1);
+  },
+  script: async ui => {
+    const scope = viewer(ui.page);
+    await ui.caption('A 113 MP image');
+    // the 64 px Siemens star at (3904, 8192) of the 12288x9216 wall
+    const at = await imagePoint(ui.page, { x: (3904 / 12288) * 100, y: (8192 / 9216) * 100 });
+    const box = (await newImage(ui.page).boundingBox())!;
+    await ui.cursor.moveTo({ x: box.x + at.x, y: box.y + at.y });
+    await ui.hold(900);
+    await ui.caption('Zoom in: tiles load as needed');
+    await ui.wheel(newImage(scope), -600, { steps: 6, position: at });
+    await ui.tiles();
+    await ui.hold(1100);
+    await ui.caption('Down to single pixels');
+    await ui.click(scope.locator('a.bp6-button', { hasText: /^Siemens star 64 px$/ }).first());
+    await ui.tiles();
+    await ui.cursor.moveTo({ x: box.x + box.width / 2, y: box.y + box.height * 0.6 });
+    await ui.hold(2600);
+  },
+});
+
+// Dynamic outputs: `stages/:stage.jpg` in qaboard.yaml gives a slider over the ISP's stages, synced across runs
+const dynamicOptions = (page: Page) => controlsPanel(page).getByText('Dynamic Options', { exact: true }).locator('xpath=../..');
+
+clip('landing/every-stage', {
+  project: IQ,
+  url: d => d.commitUrl(IQ, 'merge-bilateral', {
+    reference: 'isp-4-1', view: 'output-list', filter: 'facade low-light',
+    controls: { show: { Output: false }, dynamic_options: { stage: ['1'] }, dynamic_options_sync: { stage: true } },
+  }),
+  // the stage slider is in the Controls panel, out of the tile
+  storage: { 'controls-panel-expanded': 'true' },
+  alt: 'The facade\'s window, stage by stage of the camera pipeline: the raw sensor mosaic, demosaiced, denoised, '
+    + 'sharpened, then tone-mapped.',
+  caption: 'A slider over the camera pipeline\'s stages, from the raw mosaic to the output.',
+  poster: 'last',
+  actions: async ui => {
+    await showCard(ui);
+    // the ISP stage, the card's second visualization (Output is hidden)
+    await preset(ui, viewer(ui.page, 1), 'Window frame (halos)');
+    await newImage(viewer(ui.page, 1)).hover({ position: { x: 100, y: 100 } });
+    await ui.settle();
+    await ui.page.mouse.move(1000, 140);
+    await ui.settle();
+  },
+  // the new image, its middle: the window
+  region: async page => {
+    const box = await stableBox(newImage(viewer(page, 1)));
+    return tileIn(box, box.width, 0.5);
+  },
+  script: async ui => {
+    const handle = dynamicOptions(ui.page).locator('.bp6-slider-handle').first();
+    await ui.caption('1: raw sensor data');
+    await ui.click(handle);
+    await ui.cursor.hide();
+    await ui.hold(1500);
+    for (const label of ['2: demosaic', '3: denoise', '4: sharpen', '5: tone map']) {
+      await ui.caption(label);
+      await ui.press('ArrowRight');
+      await ui.tiles();
+      await ui.hold(label.startsWith('5') ? 2600 : 1400);
+    }
+  },
+});
+
+// Output Files on the fixed-point model: the rounding change (fxp-round-half-even), then a docs-only commit
+const treeFile = (scope: Locator, label: string) => scope.locator('.bp6-tree-node-content').getByText(label, { exact: true }).first();
+const bitAccuracy = (d: Demo, commit: string) => compare(d, commit, 'isp-4-1', 'photos/facade hw-model', { view: 'bit_accuracy' });
+
+clip('landing/bit-accuracy', {
+  project: IQ,
+  login: 'tobias',
+  url: d => bitAccuracy(d, 'fxp-round-half-even'),
+  // the card and the diff under its files
+  viewport: { width: 1440, height: 1300 },
+  alt: 'The files of a run on the hardware model that differ from the reference; a click on regs.txt shows its diff: '
+    + 'the ROUNDING register went from 0 to 2. Then a commit that only changed the docs: its run is bit-accurate.',
+  caption: 'Only the output files that changed, and their diff; a commit that changes none is bit-accurate.',
+  // the card's files and the diff below them
+  region: async page => {
+    const card = (await cards(page).first().boundingBox())!;
+    return { x: card.x, y: card.y, width: 720, height: 720 / TILE_RATIO };
+  },
+  script: async ui => {
+    const card = cards(ui.page).first();
+    await ui.caption('The files that changed');
+    await ui.hold(1300);
+    await ui.caption('Click one: its diff');
+    await ui.click(treeFile(card, 'regs.txt'));
+    await ui.settle();
+    // one column: the tile shows both sides of the change
+    await ui.click(card.getByText('Side-by-side', { exact: true }).first());
+    await ui.click(card.getByRole('button', { name: 'Next Diff' }).first());
+    await ui.settle();
+    await ui.caption('Rounding 0 → 2');
+    await ui.hold(2200);
+    await ui.caption('A docs-only commit: bit-accurate');
+    await ui.cursor.moveTo({ x: 1000, y: 1200 });
+    await ui.goto(bitAccuracy(ui.demo, 'docs-tuning-guide'));
+    await ui.hold(2400);
+  },
+});
+
+// On the window frame's left edge, where the new denoiser adds a halo; near the image's left, so that the
+// reference's crosshair is in the tile too
+const PIXEL = { x: 24.3, y: 50 };
+
+shot('landing/pixel-values', {
+  project: IQ,
+  url: d => compare(d, 'merge-bilateral', 'isp-4-1', 'photos/facade base linux'),
+  alt: 'The facade\'s window frame, new and reference images: above them, the hovered pixel\'s coordinates and its RGB '
+    + 'values in both, darker in the new image\'s halo; crosshairs mark the pixel in both.',
+  caption: 'Hover a pixel: its values in both images, and a crosshair on the other.',
+  actions: async ui => {
+    await showCard(ui);
+    await preset(ui, viewer(ui.page), 'Window frame (halos)');
+    // the pixel values show above the images on the first hover, and push them down: then the image stays in place
+    await newImage(ui.page).hover({ position: { x: 100, y: 100 } });
+    await ui.settle();
+    await ui.hover(newImage(ui.page), { position: await imagePoint(ui.page, PIXEL) });
+    await ui.settle();
+  },
+  // the values above the images, the new image and the start of the reference, where its crosshair is
+  target: async page => {
+    const image = await stableBox(newImage(page));
+    const width = 784;
+    const height = Math.round(width / TILE_RATIO);
+    return { x: image.x - 4, y: image.y + image.height + 4 - height, width, height };
   },
 });

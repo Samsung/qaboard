@@ -484,11 +484,11 @@ clip('commit/dynamic-outputs', {
   // the facade's tone-mapped output, new and reference
   poster: 7000,
   actions: async ui => {
-    // The facade's card, then the night street's below, both on the full image: the viewers zoom out when the
-    // reference's image appears (stages 1 and 2 are the same in both commits, the reference shows only from stage 3)
-    for (const index of [1, 0]) {
+    // The night street's card on the full image, then the facade's on its window, where the halos show. The reference's
+    // image only shows from stage 3 (stages 1 and 2 are the same in both commits): the viewers keep their region
+    for (const [index, region] of [[1, 'Full Image'], [0, 'Window frame (halos)']] as const) {
       await showCard(ui, index);
-      await preset(ui, viewer(cards(ui.page).nth(index), 1), 'Full Image');
+      await preset(ui, viewer(cards(ui.page).nth(index), 1), region);
     }
     // the pixel values show above the images from the first hover on: not while recording, they'd push them down
     await hoverImage(ui, viewer(cards(ui.page).first(), 1), { x: 50, y: 50 });
@@ -543,8 +543,10 @@ clip('commit/bit-accuracy-diff', {
   // the rounding change of the fixed-point model, on the hw-model platform
   url: d => compare(d, 'fxp-round-half-even', 'isp-4-1', 'photos/facade hw-model', { view: 'bit_accuracy' }),
   alt: 'Output Files of the facade run on the hw-model platform: a click on regs.txt shows its diff below the tree, Next '
-    + 'Diff jumps to the ROUNDING register, from 0 to 2; a Ctrl-click on metrics.json adds its diff below.',
-  caption: 'Click files to diff them with the reference, Ctrl-click to diff several.',
+    + 'Diff jumps to the ROUNDING register, from 0 to 2; a Ctrl-click on metrics.json adds its diff below. Then a commit '
+    + 'that only changed the docs: its run is bit-accurate.',
+  caption: 'Click files to diff them with the reference, Ctrl-click to diff several. A commit that leaves every file '
+    + 'identical is bit-accurate.',
   actions: async ui => {
     await showCard(ui);
     await ui.click(treeCaret(cards(ui.page).first(), 'stages'));
@@ -574,6 +576,12 @@ clip('commit/bit-accuracy-diff', {
     await ui.settle();
     await scroll(300);
     await ui.hold(2200);
+    // a commit that didn't touch the fixed-point model (story.yaml: docs-tuning-guide), on the same run
+    await ui.caption('A docs-only commit: every file identical');
+    await ui.cursor.moveTo({ x: 1000, y: 140 });
+    await ui.goto(compare(ui.demo, 'docs-tuning-guide', 'isp-4-1', 'photos/facade hw-model', { view: 'bit_accuracy' }));
+    await showCard(ui);
+    await ui.hold(2500);
   },
 });
 

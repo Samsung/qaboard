@@ -18,7 +18,7 @@ The web application lets you view and compare all files created by your algorith
 
 <Clip
   id="commit/bit-accuracy-diff"
-  caption="Click a file to diff it with the reference: Next Diff jumps to the register that changed. Ctrl-click another file to add its diff."
+  caption="Click a file to diff it with the reference: Next Diff jumps to the register that changed. Ctrl-click another file to add its diff. On a commit that only changed docs, the run is Bit-accurate."
 />
 
 Like `qa check-bit-accuracy`, the web app only checks the files selected by `bit_accuracy.patterns` (see [what files are checked](#what-files-are-checked)). When all of them are identical, the run is tagged **Bit-accurate**. The other files are still listed when they differ, greyed and tagged **not checked**: for instance *metrics.json*, which has the run's measured run time. Unlike `qa check-bit-accuracy` without `--strict`, checked files that exist in only one of the runs also make the web app show differences.

@@ -8,7 +8,7 @@ import { expect, test } from '@playwright/test';
 import { captureClip, captureStill, type CaptureEnv, type ClipOptions, type ShotOptions } from '../index';
 import { createDemo, type Demo } from '../demo';
 import { checkId, globToRegExp, isSelected, sourceSpec } from '../ids';
-import { clipFrames, webvtt } from '../record';
+import { clipFrames, jpegSize, webvtt } from '../record';
 import { startServer, type FixtureServer } from './server';
 
 const T0 = '2026-10-08T16:00:00.000Z';
@@ -242,6 +242,25 @@ test('a target of several elements crops to their union', async ({ browser }, te
   expect(Math.abs(meta.height - expected.height)).toBeLessThanOrEqual(2);
 });
 
+test('a target box crops to it, within the viewport', async ({ browser }, testInfo) => {
+  const { dir, meta } = await captureStill(browser, 'commit/box', {
+    ...base,
+    url: '/app.html',
+    target: async page => {
+      const card = (await page.locator('#card').boundingBox())!;
+      return { x: card.x + 0.4, y: card.y, width: 320, height: 200 };
+    },
+  }, env(testInfo.outputPath('box')));
+  expect([meta.width, meta.height]).toEqual([320, 200]);
+  expect(pngSize(path.join(dir, 'still.png'))).toEqual({ width: 640, height: 400 });
+  const { meta: clamped } = await captureStill(browser, 'commit/box-clamped', {
+    ...base,
+    url: '/app.html',
+    target: () => ({ x: 1300, y: 800, width: 400, height: 400 }),
+  }, env(testInfo.outputPath('box-clamped')));
+  expect([clamped.width, clamped.height]).toEqual([140, 100]);
+});
+
 test('a target under a fixed header scrolls below it', async ({ browser }, testInfo) => {
   let card = { x: 0, y: 0, width: 0, height: 0 };
   const options = (anchorHeader: boolean): ShotOptions => ({
@@ -391,6 +410,11 @@ test.describe('clips', () => {
     expect(durations.length).toBe(meta.frames);
     expect(durations.reduce((a, b) => a + b, 0)).toBeCloseTo(meta.duration, 1);
     expect(fs.readdirSync(path.join(dir, 'frames')).length).toBe(meta.frames);
+    // the scale is the frames' (publish.py crops the region with it): within them
+    const frame = jpegSize(fs.readFileSync(path.join(dir, 'frames', fs.readdirSync(path.join(dir, 'frames')).sort()[0])));
+    expect(meta.scale).toBeCloseTo(frame.width / 1440, 2);
+    expect((meta.region.x + meta.region.width) * meta.scale).toBeLessThanOrEqual(frame.width + 1);
+    expect((meta.region.y + meta.region.height) * meta.scale).toBeLessThanOrEqual(frame.height + 1);
 
     // captions: two cues, timed from the first frame
     const vtt = fs.readFileSync(path.join(dir, 'captions.vtt'), 'utf8');
@@ -407,5 +431,41 @@ test.describe('clips', () => {
       '-vf', 'fps=30,scale=480:-2', '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', probe]);
     const duration = Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', probe], { encoding: 'utf8' }));
     expect(Math.abs(duration - meta.duration)).toBeLessThan(0.15);
+  });
+
+  test('ui.goto opens another page: loaded at once, the cursor where it was, masks applied', async ({ browser }, testInfo) => {
+    let waited = 0;
+    let scripted = 0;
+    let content = '';
+    let cursor = '';
+    let maskedVisible = true;
+    const { meta } = await captureClip(browser, 'commit/goto', {
+      ...base,
+      alt: 'The cursor moves over a run card, then another page opens, loaded.',
+      url: '/app.html',
+      // the spinner page's running batch spins forever: masked, it doesn't keep the page busy
+      mask: page => [page.locator('#running')],
+      script: async ui => {
+        const started = Date.now();
+        await ui.cursor.moveTo({ x: 400, y: 300 });
+        await ui.hold(300);
+        const navigating = Date.now();
+        await ui.goto('/spinner.html');
+        waited = (Date.now() - navigating) / 1000;
+        content = (await ui.page.locator('#content').textContent()) ?? '';
+        expect(await ui.page.locator('#content').isVisible()).toBe(true);
+        cursor = await ui.page.locator('#__shot-cursor').evaluate(el => (el as HTMLElement).style.transform);
+        maskedVisible = await ui.page.locator('#running').evaluate(el => getComputedStyle(el).visibility !== 'hidden');
+        await ui.hold(300);
+        scripted = (Date.now() - started) / 1000;
+      },
+    }, env(testInfo.outputPath('goto')));
+    expect(content).toBe('Loaded');
+    // the arrow's tip is at (3, 2) in its box
+    expect(cursor).toBe('translate(397px, 298px)');
+    expect(maskedVisible).toBe(false);
+    // the page loads in a second (spinner.html's requests): not recorded
+    expect(waited).toBeGreaterThan(1);
+    expect(meta.duration).toBeLessThan(scripted - waited + 0.3);
   });
 });
