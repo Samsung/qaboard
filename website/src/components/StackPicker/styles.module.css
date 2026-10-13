@@ -26,15 +26,17 @@
   font-size: 0.875rem;
 }
 
+/* Each group as wide as its options, so they stay on one line when they can */
 .groups {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
-  gap: 0.75rem 1.25rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 2rem;
 }
 
 /* A fieldset without the browser's frame */
 .group {
   min-width: 0;
+  max-width: 100%;
   margin: 0;
   padding: 0;
   border: 0;
@@ -79,7 +81,7 @@
   padding: 0.3rem 0.75rem;
   border: 1px solid var(--ifm-color-emphasis-400);
   border-radius: 999px;
-  background: var(--ifm-background-color);
+  background: var(--ifm-background-surface-color);
   color: var(--ifm-font-color-base);
   font-size: 0.875rem;
   font-weight: 600;
@@ -95,7 +97,7 @@
 .input:checked + .pill {
   border-color: var(--ifm-color-primary);
   background: var(--ifm-color-primary);
-  color: var(--ifm-background-color);
+  color: var(--qb-on-primary);
 }
 
 .input:focus-visible + .pill {
@@ -111,8 +113,6 @@
   margin-bottom: 0.5rem;
 }
 .compact .groups {
-  display: flex;
-  flex-wrap: wrap;
   gap: 0.5rem 1.5rem;
 }
 .optionsCompact .pill {
