@@ -271,7 +271,7 @@ seeder prints every failing check with the actual numbers and exits with an erro
 | `vs` | | The reference commit: `parent` (first parent), a commit id (the same commit compares two batches or configurations), or `milestone:<label>` |
 | `vs_label`, `vs_configs` | `label`, `configs` | The reference's runs, when they differ from the new side's: a tuning batch vs CI, `int8` vs `fp32`. Runs are matched like the web app does: same input, then the closest configuration, same platform |
 | `metric`, `agg` | `agg: median` | The metric, aggregated over the runs with `median`, `mean`, `min`, `max` or `p90` |
-| `expect` | | One or more of: `value` (the new aggregate), `delta` (new − ref, in the metric's unit), `change_pct` ((new − ref) / \|ref\| × 100), each with `gt`, `gte`, `lt`, `lte` or `between: [a, b]`; `failed` (a count, same comparators); `log` (a regex every failed run's log matches); `gate: pass\|fail\|undecidable` (`qa gate`'s verdict with the example's `gate:` rules, against `vs` or else its default reference; skipped with a warning until `qa gate` exists) |
+| `expect` | | One or more of: `value` (the new aggregate), `delta` (new − ref, in the metric's unit), `change_pct` ((new − ref) / \|ref\| × 100), each with `gt`, `gte`, `lt`, `lte` or `between: [a, b]`; `failed` (a count, same comparators); `log` (a regex every failed run's log matches); `gate: pass\|fail\|undecidable` (`qa gate`'s verdict with the example's `gate:` rules, against `vs` or else its default reference) |
 | `hook`, `args` | | A function in the example's `story_checks.py`: `hook(ctx, **args) -> tuple[bool, str]`. `ctx` gives the runs, their metrics and their output files (below) |
 
 What hooks get as `ctx`:

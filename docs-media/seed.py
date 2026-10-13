@@ -1518,7 +1518,24 @@ def run_checks(seeder: Seeder) -> bool:
         continue
       expect = check['expect']
       if 'gate' in expect:
-        results.append(('SKIP', name, '`gate` checks wait for `qa gate`'))
+        # `qa gate` against the seeded server, like the project's CI would run it; its JSON says the verdict
+        commit = story.commits[check['commit']]
+        args = ['gate', '--json', '--commit', commit.sha, '--batch', ctx.db_label(check['commit'], check.get('label', 'default'))]
+        if vs:
+          args += ['--reference', ctx.sha(vs)]
+        code, output = seeder.ws.qa(args, seeder.ws.env(commit, 'cli', commit.author), quiet=True, stdout_only=True)
+        try:
+          verdict = json.loads(output)['verdict']
+        except (ValueError, KeyError, TypeError):
+          verdict = None
+        if verdict is None:
+          results.append(('FAIL', name, f"`qa {' '.join(args)}` exited with {code} without a verdict:\n{tail(output, 15)}"))
+        else:
+          failed_checks = [f"{c.get('metric') or c.get('rule') or c.get('name')}: {c.get('message') or c['status']}"
+                           for b in json.loads(output).get('batches', []) for c in b.get('checks', []) if c.get('status') == 'fail']
+          ok = verdict == expect['gate']
+          results.append(('PASS' if ok else 'FAIL', name,
+                          f"gate: {verdict} (expected {expect['gate']}, exit code {code})" + (f"; failed: {'; '.join(failed_checks)}" if failed_checks else '')))
         expect = {k: v for k, v in expect.items() if k != 'gate'}
         if not expect:
           continue

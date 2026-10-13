@@ -69,7 +69,7 @@ The quality gate may change without notice.
 :::
 
 Coding agents write a growing share of changes, and "it's faster" needs checking. The inference server team's coding
-agent added a cache that made the median latency better and p99 much worse. `qa gate` compares the commit with the
+agent added a cache that saved CPU and made p99 several times worse. `qa gate` compares the commit with the
 reference, rule by rule, and fails the CI job.
 
 <Clip id="cli/gate" />
