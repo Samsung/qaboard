@@ -596,3 +596,120 @@ for (const [id, commit, alt, caption] of [
   });
 
 void refImage;
+
+
+// The inference gateway (examples/serving-latency): the coding agent's shared result cache (cache-shared) holds its
+// one lock while workers run the model and render responses, against its parent, batch-overflow-fix. Visualizations,
+// in qaboard.yaml's order: 0 latency percentiles, 1 where the time goes, 2 latency over time, 3 throughput vs p99
+// (ramp runs only), 4 CPU flame graph, then hidden by default: 5 CPU per core, 6 batch sizes, 7 latency histogram,
+// 8 percentiles.txt
+const SL = 'serving-latency';
+const VIZ = {
+  cdf: 'Latency percentiles (log tail)', breakdown: 'Where the time goes', timeline: 'Latency over time',
+  sweep: 'Throughput vs p99', flame: 'CPU flame graph', cores: 'CPU per core', batches: 'Batch sizes',
+  histogram: 'Latency histogram', percentiles: 'Percentiles',
+} as const;
+// Only these visualizations
+const only = (...names: Array<keyof typeof VIZ>) => ({ show: Object.fromEntries(Object.entries(VIZ).map(([k, v]) => [v, names.includes(k as keyof typeof VIZ)])) });
+const sharedCache = (d: Demo, filter: string, controls?: Record<string, unknown>) =>
+  d.commitUrl(SL, 'cache-shared', { reference: 'batch-overflow-fix', view: 'output-list', filter, controls });
+// A run card's input name, its tags and metrics are on the lines below
+const runTitle = (page: Page, input: string) => cards(page).first().getByText(`profiles/${input}.yaml`, { exact: true });
+// What a card shows of a visualization: its title and its plot (Plotly's title is in the plot)
+const plotOf = (page: Page, index: number) => viewer(cards(page).first(), index).locator('.js-plotly-plot').first();
+
+shot('commit/latency-cdf', {
+  project: SL,
+  url: d => sharedCache(d, 'steady-high', only('cdf')),
+  alt: 'The steady-high run of the shared cache against its parent: p50 545 ms, p99 1150 ms, over 18,000% worse. The '
+    + 'latency percentiles on log axes: the new line sits near a second from the median on, the reference\'s stays '
+    + 'under the 12 ms SLO line until the far tail.',
+  caption: 'Latency percentiles on a log tail: at 6,000 requests/s, with the shared cache every percentile is a hundred '
+    + 'times slower or more. Requests queue for its lock.',
+  actions: async ui => {
+    await showCard(ui);
+    await ui.plots();
+    await mouseAway(ui);
+  },
+  target: page => [runTitle(page, 'steady-high'), plotOf(page, 0)],
+  padding: 8,
+});
+
+shot('commit/throughput-p99', {
+  project: SL,
+  url: d => sharedCache(d, 'ramp', only('sweep')),
+  alt: 'Throughput against p99 in the ramp run, from 20% to 120% of 6,000 requests/s: the reference\'s p99 stays low '
+    + 'until the last steps, the shared cache\'s takes off at a lower throughput and climbs to seconds.',
+  caption: 'The ramp raises the load step by step: with the shared cache, p99 takes off at a lower throughput.',
+  actions: async ui => {
+    await showCard(ui);
+    await ui.plots();
+    await mouseAway(ui);
+  },
+  target: page => [runTitle(page, 'ramp'), plotOf(page, 3)],
+  padding: 8,
+});
+
+shot('commit/flame-diff', {
+  project: SL,
+  url: d => sharedCache(d, 'steady-high', only('flame')),
+  alt: 'A differential CPU flame graph of the steady-high run: the shared cache\'s respond and lookup, and the response '
+    + 'rendering under them, are new and drawn in red and orange; the model\'s forward pass, which runs less, is blue.',
+  caption: 'A differential flame graph: rendering responses under the shared cache\'s lock is new (red), and the '
+    + 'model runs less (blue) since cache hits skip it.',
+  actions: async ui => {
+    await showCard(ui);
+    await mouseAway(ui);
+    await ui.settle();
+  },
+  target: page => [runTitle(page, 'steady-high'), viewer(cards(page).first(), 4)],
+  padding: 8,
+});
+
+shot('commit/core-heatmap', {
+  project: SL,
+  url: d => sharedCache(d, 'steady-high', only('cores', 'batches')),
+  alt: 'Per-core CPU heatmaps of the steady-high run, new and reference side by side, cores against time; below, the '
+    + 'histograms of batch sizes, new and reference overlaid.',
+  caption: 'Visualizations hidden by default show on demand: the busy cores over time, and the batch sizes.',
+  actions: async ui => {
+    await showCard(ui);
+    await ui.plots();
+    await mouseAway(ui);
+  },
+  target: page => [runTitle(page, 'steady-high'), plotOf(page, 6)],
+  padding: 8,
+});
+
+shot('commit/text-diff', {
+  project: SL,
+  url: d => sharedCache(d, 'steady-high', only('percentiles')),
+  alt: 'HdrHistogram\'s percentile distributions of the steady-high run diffed side by side in a text editor: every '
+    + 'latency changed, from milliseconds in the reference to around a second with the shared cache.',
+  caption: 'Text outputs are diffed with the reference; Next Diff jumps to the next change.',
+  actions: async ui => {
+    await showCard(ui);
+    const card = cards(ui.page).first();
+    await ui.click(card.getByRole('button', { name: 'Next Diff' }).first());
+    await ui.settle();
+    await mouseAway(ui);
+  },
+  target: page => [runTitle(page, 'steady-high'), viewer(cards(page).first(), 8)],
+  padding: 8,
+});
+
+shot('commit/run-menu', {
+  project: SL,
+  url: d => sharedCache(d, 'steady-high', only('cdf')),
+  alt: 'The menu of the steady-high run\'s card, open under its menu icon: Redo, Delete, and Delete Output Files.',
+  caption: 'From a run\'s menu: redo it, delete it, or delete only its output files.',
+  actions: async ui => {
+    await showCard(ui);
+    const card = cards(ui.page).first();
+    await ui.hover(card.locator('.bp6-icon-menu').first());
+    await ui.page.locator('.bp6-popover .bp6-menu', { hasText: 'Delete Output Files' }).waitFor();
+    await ui.settle();
+  },
+  target: page => [runTitle(page, 'steady-high'), page.locator('.bp6-popover .bp6-menu', { hasText: 'Delete Output Files' })],
+  padding: 8,
+});
