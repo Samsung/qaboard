@@ -281,8 +281,9 @@ shot('commit/output-files', {
   project: IQ,
   login: 'tobias',
   url: d => compare(d, 'fxp-round-half-even', 'isp-4-1', 'photos/facade hw-model', { view: 'bit_accuracy' }),
-  alt: 'The files of the facade run on the hw-model platform that differ from the reference: metrics.json, out.png, '
-    + 'stages 4 and 5 in raw/ and stages/, and regs.txt, whose diff below shows the ROUNDING register going from 0 to 2.',
+  alt: 'The files of the facade run on the hw-model platform that differ from the reference: metrics.json, greyed and '
+    + 'tagged "not checked", then out.png, stages 4 and 5 in raw/ and stages/, and regs.txt, whose diff below shows the '
+    + 'ROUNDING register going from 0 to 2.',
   caption: 'Output Files lists only the files that changed: a rounding change in the fixed-point model shows in its '
     + 'register dump, then in the last two stages\' buffers.',
   // the card, its diff below the tree

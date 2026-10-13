@@ -136,31 +136,31 @@
     },
     "commit/bit-accuracy-diff": {
       "alt": "Output Files of the facade run on the hw-model platform: a click on regs.txt shows its diff below the tree, Next Diff jumps to the ROUNDING register, from 0 to 2; a Ctrl-click on metrics.json adds its diff below.",
-      "app_version": "1.1.1+c67f384",
+      "app_version": "1.1.1+e4b2b05",
       "caption": "Click files to diff them with the reference, Ctrl-click to diff several.",
       "captured": "2026-10-13",
       "duration": 8.07,
       "files": {
         "mp4": {
-          "bytes": 318431,
-          "key": "shots/commit/bit-accuracy-diff/08dcd504ab115cfe.mp4"
+          "bytes": 321011,
+          "key": "shots/commit/bit-accuracy-diff/722d889c4d5f54ea.mp4"
         },
         "poster": {
-          "bytes": 99258,
-          "key": "shots/commit/bit-accuracy-diff/a79989e0618c528d.webp"
+          "bytes": 99324,
+          "key": "shots/commit/bit-accuracy-diff/99df527a5c926b31.webp"
         },
         "vtt": {
           "bytes": 230,
-          "key": "shots/commit/bit-accuracy-diff/1ee41b6d23ae7bcf.vtt"
+          "key": "shots/commit/bit-accuracy-diff/f591f77302bdf750.vtt"
         },
         "webm": {
-          "bytes": 371706,
-          "key": "shots/commit/bit-accuracy-diff/5ce22559888cde91.webm"
+          "bytes": 369010,
+          "key": "shots/commit/bit-accuracy-diff/e6f35ec78862025d.webm"
         }
       },
       "height": 900,
       "kind": "clip",
-      "lqip": "data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAADQAQCdASoQAAoAA4BaJZwAAp07BM0oAAD2v/wfB/oD6jEShhzodrdsWgKZHDZAAAA=",
+      "lqip": "data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAACwAQCdASoQAAoAA4BaJZwAAp0Pb2lAAPa//B8H+gPqMS6xDzXXXlWGPP/8pEuAAAA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
