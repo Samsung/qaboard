@@ -181,7 +181,7 @@ fn ingress_loop(rx: Receiver<Request>, events: Sender<Event>, cache: &Cache, liv
     for mut r in rx {
         r.t_ingress = now();
         if cache.enabled() {
-            let answer = cache.respond(r.id, r.key, None);
+            let answer = cache.lookup(r.id, r.key);
             r.lock_ns = answer.waited;
             if let Some(body) = answer.body {
                 let t_done = now();
@@ -214,6 +214,12 @@ fn worker(id: usize, rx: Receiver<Batch>, events: Sender<Event>, model: &Model, 
     let mut kept_out: Vec<f32> = Vec::with_capacity(cfg.max_batch * 8 * D_OUT);
     let mut kept_copy: Vec<f32> = Vec::new();
     for batch in rx {
+        // The shared cache is locked here, and stays locked until `held` is dropped, once the batch is answered: the
+        // model runs and the responses are rendered under its lock (see cache.rs)
+        let (mut held, held_wait) = cache.hold();
+        // Requests answered since the ingress missed them (shared cache only): no need to run the model on them
+        let cached: Vec<bool> = batch.requests.iter().map(|r| held.cached(r.key)).collect();
+        let todo: Vec<&Request> = batch.requests.iter().zip(&cached).filter(|(_, &c)| !c).map(|(r, _)| r).collect();
         let t_start = now();
         let (mut fresh_scratch, mut fresh_out, mut fresh_copy);
         let (scratch, out, copy) = if cfg.reuse_batch_buffer {
@@ -225,36 +231,45 @@ fn worker(id: usize, rx: Receiver<Batch>, events: Sender<Event>, model: &Model, 
             (&mut fresh_scratch, &mut fresh_out, &mut fresh_copy)
         };
         // borrowed: the payloads' tokens, back to back; copied: one slot per request, as long as the longest payload
-        let slot = if cfg.payload_copy { copy_payloads(&batch.requests, copy) } else { 0 };
+        let slot = if cfg.payload_copy { copy_payloads(&todo, copy) } else { 0 };
         let tokens: Vec<&[f32]> = if cfg.payload_copy {
             copy.chunks_exact(D_IN).collect()
         } else {
-            batch.requests.iter().flat_map(|r| r.payload.chunks_exact(D_IN)).collect()
+            todo.iter().flat_map(|r| r.payload.chunks_exact(D_IN)).collect()
         };
-        model.forward(&tokens, scratch, out);
+        if !tokens.is_empty() {
+            model.forward(&tokens, scratch, out);
+        }
         drop(tokens);
         let model_ns = now() - t_start;
         // Each request is answered as soon as its body is rendered (through the cache, which stores the outputs)
         let mut offset = 0;
-        for r in &batch.requests {
-            let n = r.tokens as usize * D_OUT;
-            let outputs = to_outputs(&out[offset..offset + n]);
-            offset += if cfg.payload_copy { slot * D_OUT } else { n };
+        for (r, &cached) in batch.requests.iter().zip(&cached) {
+            let outputs = if cached {
+                None
+            } else {
+                let n = r.tokens as usize * D_OUT;
+                let outputs = to_outputs(&out[offset..offset + n]);
+                offset += if cfg.payload_copy { slot * D_OUT } else { n };
+                Some(outputs)
+            };
             let t_respond = now();
-            let answer = cache.respond(r.id, r.key, Some(outputs));
+            let answer = cache.respond(&mut held, r.id, r.key, outputs);
             let t_done = now();
             send_response(answer.body.unwrap_or_default());
             let batch_wait = batch.t_close.saturating_sub(r.t_queued.max(batch.t_open));
             let total = t_done - r.t_sched;
-            let lock = r.lock_ns + answer.waited;
+            let lock = r.lock_ns + held_wait + answer.waited;
             let compute = model_ns + (t_done - t_respond).saturating_sub(answer.waited);
             let d = Done {
                 id: r.id, t_sched: r.t_sched, t_done, batch: batch_wait, lock, compute,
-                queue: total.saturating_sub(batch_wait + lock + compute), hit: false, dropped: false,
+                queue: total.saturating_sub(batch_wait + lock + compute), hit: cached, dropped: false,
             };
             live.completed(&d, r.deadline);
             done.push(d);
         }
+        drop(held);
+        drop(todo);
         drop(batch);
         if events.send(Event::Free(id, now())).is_err() {
             break;
@@ -266,7 +281,7 @@ fn worker(id: usize, rx: Receiver<Batch>, events: Sender<Event>, model: &Model, 
 /// `payload_copy`: the batch's payloads copied into one [requests x longest payload x D_IN] buffer, zero-padded.
 /// Simpler than a list of borrowed slices, but the model runs on the padding too. Returns the slot's length (tokens).
 #[inline(never)]
-fn copy_payloads(requests: &[Request], buffer: &mut Vec<f32>) -> usize {
+fn copy_payloads(requests: &[&Request], buffer: &mut Vec<f32>) -> usize {
     let slot = requests.iter().map(|r| r.tokens as usize).max().unwrap_or(0);
     buffer.clear();
     buffer.resize(requests.len() * slot * D_IN, 0.0);

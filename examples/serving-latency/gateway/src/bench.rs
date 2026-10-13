@@ -42,6 +42,10 @@ pub struct Repeat {
     pub batches: Vec<(u64, u16)>,
     /// CPU time of the gateway's threads in the window
     pub cpu_ns: u64,
+    /// When the CPU times were read: what was served between these two times cost cpu_ns
+    pub cpu_window: (u64, u64),
+    /// Shared cache: how long its lock was held in cpu_window (ns)
+    pub lock_held_ns: Option<u64>,
     /// CPU time of the whole process in the window (with the load generator), for the samples' weights
     pub process_cpu_ns: u64,
     /// per 100 ms from the start of the repeat
@@ -51,6 +55,21 @@ pub struct Repeat {
     pub steps: Vec<crate::load::Step>,
     pub bursts: Vec<(u64, u64)>,
     pub start: u64,
+}
+
+impl Repeat {
+    /// Requests answered while the CPU time was measured: what it paid for. Under overload, requests scheduled in the
+    /// window are answered after it, and their CPU time isn't in cpu_ns.
+    pub fn served(&self) -> u64 {
+        let (t0, t1) = self.cpu_window;
+        self.done.iter().filter(|d| !d.dropped && d.t_done >= t0 && d.t_done < t1).count() as u64
+    }
+
+    /// Shared cache: the share of the measured window its lock was held
+    pub fn lock_busy(&self) -> Option<f64> {
+        let (t0, t1) = self.cpu_window;
+        self.lock_held_ns.filter(|_| t1 > t0).map(|held| held as f64 / (t1 - t0) as f64)
+    }
 }
 
 /// Token vectors payloads are made of: a request's tokens are rows picked from its key, so a key always has the same
@@ -105,7 +124,7 @@ pub fn run_repeat(spec: &RunSpec, model: &Arc<Model>, pool: &Arc<Vec<f32>>, inde
     let cfg = &spec.gateway;
     let cache = Arc::new(Cache::new(&cfg.cache, cfg.cache_entries, cfg.cache_shards, cfg.top_k));
     let live = Arc::new(Live::default());
-    let running = gateway::start(cfg, model.clone(), cache, live.clone(), cores);
+    let running = gateway::start(cfg, model.clone(), cache.clone(), live.clone(), cores);
     let mut sampler = if spec.profile { Some(Sampler::start()) } else { None };
     let base = now() + 20_000_000;
     let loader = {
@@ -134,6 +153,8 @@ pub fn run_repeat(spec: &RunSpec, model: &Arc<Model>, pool: &Arc<Vec<f32>>, inde
     let mut folded = HashMap::new();
     let mut cpu_start = 0u64;
     let mut cpu_ns = 0u64;
+    let mut cpu_window = (0u64, 0u64);
+    let mut lock_held = (None, None);
     let mut process_start = 0u64;
     let mut process_cpu_ns = 0u64;
     let mut tick = 0u64;
@@ -169,6 +190,8 @@ pub fn run_repeat(spec: &RunSpec, model: &Arc<Model>, pool: &Arc<Vec<f32>>, inde
         in_burst = bursting;
         if elapsed >= window.0 && elapsed < window.1 && cpu_start == 0 {
             cpu_start = running.threads.iter().map(|&(_, tid)| sys::thread_cpu_ns(tid)).sum();
+            cpu_window.0 = now();
+            lock_held.0 = cache.lock_held_ns();
             process_start = profile::process_cpu_ns();
             if let Some(s) = sampler.as_mut() {
                 s.window_start();
@@ -176,6 +199,8 @@ pub fn run_repeat(spec: &RunSpec, model: &Arc<Model>, pool: &Arc<Vec<f32>>, inde
         }
         if elapsed >= window.1 && cpu_ns == 0 && cpu_start > 0 {
             cpu_ns = running.threads.iter().map(|&(_, tid)| sys::thread_cpu_ns(tid)).sum::<u64>() - cpu_start;
+            cpu_window.1 = now();
+            lock_held.1 = cache.lock_held_ns();
             process_cpu_ns = profile::process_cpu_ns() - process_start;
             if let Some(s) = sampler.take() {
                 folded = s.stop();
@@ -195,7 +220,8 @@ pub fn run_repeat(spec: &RunSpec, model: &Arc<Model>, pool: &Arc<Vec<f32>>, inde
     }
     Repeat {
         seed, schedule_window: (base + window.0, base + window.1), done: finished.done, batches: finished.batches, cpu_ns,
-        process_cpu_ns, depth, cores: core_busy, folded, steps, bursts, start: base,
+        cpu_window, lock_held_ns: lock_held.1.zip(lock_held.0).map(|(end, start)| end - start), process_cpu_ns, depth,
+        cores: core_busy, folded, steps, bursts, start: base,
     }
 }
 
@@ -334,7 +360,8 @@ pub fn summarize(r: &Repeat, deadline: u64) -> Summary {
         ("dropped_share", Json::Num(if sent > 0.0 { dropped / sent } else { 0.0 })),
         ("cache_hit", Json::Num(if completed.is_empty() { 0.0 } else { hits / completed.len() as f64 })),
         ("cpu_s", Json::Num(r.cpu_ns as f64 / 1e9)),
-        ("cpu_per_req_us", Json::Num(if completed.is_empty() { 0.0 } else { r.cpu_ns as f64 / 1e3 / completed.len() as f64 })),
+        ("cpu_per_req_us", Json::Num(match r.served() { 0 => 0.0, served => r.cpu_ns as f64 / 1e3 / served as f64 })),
+        ("lock_busy", r.lock_busy().map_or(Json::Null, Json::Num)),
         ("percentiles_ms", Json::obj(pct)),
         ("lock_wait_p99_ms", Json::Num(ms(lock.value_at_quantile(0.99)))),
         ("batch_mean", Json::Num(batch_mean)),
@@ -380,8 +407,8 @@ pub fn run(spec: &RunSpec, model: Arc<Model>, cores: &[usize]) -> Outcome {
         let r = run_repeat(spec, &model, &pool, i, cores);
         let s = summarize(&r, spec.gateway.deadline_ns);
         let (w0, w1) = r.schedule_window;
-        let completed = r.done.iter().filter(|d| !d.dropped && d.t_sched >= w0 && d.t_sched < w1).count() as u64;
-        requests_profiled += completed;
+        let served = r.served();
+        requests_profiled += served;
         cpu_ns += r.cpu_ns;
         process_cpu_ns += r.process_cpu_ns;
         for (k, v) in &r.folded {
@@ -397,11 +424,12 @@ pub fn run(spec: &RunSpec, model: Arc<Model>, cores: &[usize]) -> Outcome {
             }
         }
         println!(
-            "repeat {}: p50 {:.2} ms, p99 {:.2} ms, p99.9 {:.2} ms, max {:.2} ms | {:.0} req/s, cpu {:.0} us/req",
+            "repeat {}: p50 {:.2} ms, p99 {:.2} ms, p99.9 {:.2} ms, max {:.2} ms | {:.0} req/s, cpu {:.0} us/req{}",
             i + 1,
             ms(s.latency.value_at_quantile(0.5)), s.p99_ms, ms(s.latency.value_at_quantile(0.999)), ms(s.latency.max()),
             s.latency.len() as f64 / ((w1 - w0) as f64 / 1e9),
-            if completed > 0 { r.cpu_ns as f64 / 1e3 / completed as f64 } else { 0.0 },
+            if served > 0 { r.cpu_ns as f64 / 1e3 / served as f64 } else { 0.0 },
+            r.lock_busy().map(|busy| format!(", cache lock held {:.0}% of the time", busy * 100.0)).unwrap_or_default(),
         );
         summaries.push(s);
         repeats.push(r.seed);

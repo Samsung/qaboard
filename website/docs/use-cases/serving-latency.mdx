@@ -2,7 +2,7 @@
 id: serving-latency
 title: "Serving latency: an inference gateway"
 sidebar_label: Serving latency
-description: An inference server where a shared cache saves CPU and makes the tail much slower. Latency distributions, flame graph diffs, History to find a regression, a tuning sweep's frontier and the quality gate.
+description: An inference server where a shared cache saves CPU, halves capacity and makes requests wait seconds under load. Latency distributions, flame graph diffs, History to find a regression, a tuning sweep's frontier and the quality gate.
 ---
 For backend and performance engineers, and for anyone who reviews "it's faster" claims, including the ones coding
 agents make. This page follows the inference gateway example.
@@ -25,16 +25,17 @@ long requests waited in the queue, for a batch or for a lock, and records CPU sa
 
 Its story:
 1. The team's coding agent adds a shared result cache. Its commit message says it saves CPU, and it does, about a third
-   per request. But every response is rendered while holding the cache's one lock, and p99 gets several times worse.
-   The quality gate fails.
+   per request. But the workers keep the cache's one lock while they run the model and render responses, so the
+   server does one batch at a time. Its capacity halves: at 6,000 requests/s, requests queue for the lock and wait
+   seconds. The quality gate fails.
 2. The flame graph diff shows the responses rendered under the cache's lock, and the model work the cache saves.
 3. Sharding the cache by key fixes p99 and makes the median faster. A tuning sweep then picks the batching settings.
 4. Later, a commit that copies payloads makes p99 worse on the heavy-tailed profile only: the median over all
    profiles barely moves, and History finds it.
 
 ## What you see
-**Latency percentiles** on a log scale, new over the reference: the shared cache answers its hits faster (the low
-percentiles), and is much slower from p90 on.
+**Latency percentiles** on a log scale, new over the reference: at 6,000 requests/s, with the shared cache, every
+percentile is a hundred times slower or more.
 
 <Shot id="commit/latency-cdf" />
 

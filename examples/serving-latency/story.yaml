@@ -1,7 +1,8 @@
 # Six weeks of the inference gateway: dynamic batching and int8 ship in v2.3.0; the coding agent adds a shared result
-# cache that saves CPU but serializes every response behind one lock, the gate catches the p99, sharding fixes it
-# (v2.4.0); a change for "simpler lifetimes" pads every batch to its longest request, which only the heavy-tail test
-# shows, in History; a sweep picks the batching defaults. Format: ../STORY.md. What the flags do: SPEC.md.
+# cache that saves CPU but holds its one lock while workers run the model and render: the gateway does one batch at a
+# time, its queue grows without bound at 6k rps, the gate catches the p99, sharding fixes it (v2.4.0); a change for
+# "simpler lifetimes" pads every batch to its longest request, which only the heavy-tail test shows, in History; a
+# sweep picks the batching defaults. Format: ../STORY.md. What the flags do: SPEC.md.
 version: 1
 project: serving-latency
 id: kitefin/inference-gateway
@@ -168,7 +169,8 @@ commits:
       Add a shared result cache for repeated requests
 
       Requested by Kaito. Robots resend the same payloads: the gateway now keeps the model's outputs for the last
-      4,096 keys and answers repeats without running the model. CPU per request at 4k rps: -30%.
+      4,096 keys and answers repeats without running the model. Workers look their batch up again under the cache's
+      lock before running the model, so a key is never computed twice. CPU per request at 4k rps: -30%.
     flags: {cache: shared, cache_entries: 4096}
     runs:
       - batch: ci
@@ -182,7 +184,7 @@ commits:
     message: |
       Keep 16,384 entries in the result cache
 
-      Requested by Kaito after the gate failed on p99. More entries, more hits: 50% to 55% at 6k rps.
+      Requested by Kaito after the gate failed on p99. More entries, more hits, fewer model runs.
     flags: {cache_entries: 16384}
 
   - id: cache-sharded
@@ -190,7 +192,7 @@ commits:
     parents: [cache-entries]
     at: -15d 02:10
     author: kaito
-    message: "cache: 16 shards, render outside the lock (p99 under 12 ms at 6k)"
+    message: "cache: 16 shards, model and rendering outside locks (p99 < 12 ms at 6k)"
     flags: {cache: sharded, cache_shards: 16}
     runs:
       - batch: ci
@@ -213,8 +215,9 @@ commits:
     message: |
       Merge branch 'perf/sharded-cache'
 
-      One mutex for the whole cache serialized the rendering of every response behind it: fine at 2k rps, a queue
-      at 6k. 16 shards, and the body rendered outside the lock.
+      Workers held the cache's one mutex while they ran the model and rendered their batch: the gateway did one
+      batch at a time. Fine at 2k rps, a queue that never drains at 6k. 16 shards, and nothing held while the model
+      runs or a response renders.
 
   - id: v2-4-0
     branch: main

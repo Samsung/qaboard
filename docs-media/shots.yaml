@@ -347,7 +347,7 @@ shots:
   - id: commit/latency-cdf
     kind: still
     project: serving-latency
-    shows: "Latency percentiles on a log tail: the shared cache answers its hits faster (the low percentiles) and is much slower from p90 on."
+    shows: "Latency percentiles on a log tail at 6,000 requests/s: with the shared cache, every percentile is a hundred times slower or more (requests queue for its lock)."
     pages: [use-cases/serving-latency, tutorials/perf-regression, visualizations]
     features: [plotly-overlay]
     needs: cache-shared vs batch-overflow-fix

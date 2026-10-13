@@ -35,20 +35,27 @@ metrics and visualizations (plain JSON, no plotting library).
   H and K so that, in the running gateway, an 8-token request costs about 250 µs of model and 110 µs of rendering: the
   gateway without cache saturates around 7,000 requests/s on any 4-CPU machine.
 - **Result cache:** `none`, `shared` or `sharded`. It stores the model's outputs per key (16-bit fixed point, 4 KB for
-  8 tokens), and every response goes through it (`Cache::respond`): a hit at the ingress, fresh outputs from a worker.
-  `shared` is one `Mutex<LruCache>`, and the response is rendered while the guard is alive: every response in the
-  gateway is rendered behind this one lock. `sharded` has `cache_shards` independent LRUs, by key hash, copies the
-  outputs out and renders without a lock.
+  8 tokens), and every response goes through it: a hit at the ingress (`Cache::lookup`), the model's fresh outputs in
+  a worker (`Cache::hold` for the batch, then `Cache::respond` for each request).
+  - `shared` (the coding agent's design) is one `Mutex<LruCache>`. A worker locks it to look its batch up again
+    (another worker may have answered a key since the ingress missed it: a key is never computed twice), and the guard
+    lives until the batch is answered: the model runs, and every response is rendered, while it holds the lock. The
+    ingress renders its hits under the lock too. However many workers there are, the gateway does one batch at a time.
+  - `sharded` has `cache_shards` independent LRUs, by key hash, and holds nothing across a batch: the model runs
+    without a lock, outputs are copied in or out of a shard under its lock, and rendered without one.
 
 **Load generator** (open loop, no coordinated omission)
 - The arrival schedule and the payloads are generated from the input's profile and seed before the run.
 - Requests are sent at their scheduled time whether or not earlier ones completed. Latency = completion time −
-  *scheduled* send time, recorded in an HDR histogram (1 µs to 10 s, 3 significant digits).
+  *scheduled* send time, recorded in an HDR histogram (1 µs to 60 s, 3 significant digits).
 - Each run does 2 or 3 repeats (1 s warmup, then 3-4 s measured, see Batches), each with a fresh gateway and a seed
   derived from the run's.
   Reported percentiles are the median over repeats; `p99_spread` says how much they disagree.
+- CPU per request: the CPU time of the gateway's threads in the measured window ÷ the requests answered in it (not
+  the requests scheduled in it: past its capacity, the gateway answers those after the window).
 - Also recorded: per-request time in queue, waiting for the batch, waiting for the cache lock, and computing; queue
-  depth and percentiles per 100 ms; per-core CPU use from `/proc/stat` every 100 ms; batch sizes; CPU samples with
+  depth and percentiles per 100 ms; per-core CPU use from `/proc/stat` every 100 ms; batch sizes; how much of the time
+  the shared cache's lock was held (`lock_busy`, in the log); CPU samples with
   [pprof-rs](https://github.com/tikv/pprof-rs) (Apache-2.0) at 997 Hz on all threads during the measured windows.
 
 **Flags** (`build/flags.json`; defaults are the head of `main` at T0):
@@ -158,9 +165,9 @@ outputs:
     symbols without the hash suffix (`<gateway::cache::Shared>::respond`), no addresses; siblings with the same name
     are merged; thread names lose their index (`worker-2` → `worker`), and are the root's children.
   - The viewer subtracts raw values, so `value` is CPU time in µs **per 1,000 requests**, comparable across runs of
-    different lengths: samples × (the process's CPU time in the measured windows ÷ samples) ÷ requests × 1,000. The
-    profiler asks for 997 Hz, but the kernel's timer delivers fewer samples per CPU second: weighting each sample by
-    the measured CPU time keeps the values right.
+    different lengths: samples × (the process's CPU time in the measured windows ÷ samples) ÷ requests answered in
+    them × 1,000. The profiler asks for 997 Hz, but the kernel's timer delivers fewer samples per CPU second:
+    weighting each sample by the measured CPU time keeps the values right.
   - Sampling starts with the repeat (starting it costs a stall), and only the samples taken in the measured window
     count (counts at its end minus counts at its start).
   - Nodes under 0.1% of the root are folded into their parent; the file stays under 1 MB.
@@ -188,7 +195,7 @@ About 30 commits over 6 weeks. Commit ids in **bold** are the ones checks and sh
 | -31d to -28d | `perf/allocators` | kaito | `allocator: jemalloc`, then `mimalloc`; merged | (within noise: no check) |
 | -29d to -24d | `gateway/queue-policy` | adaeze | `queue_policy: edf`; merged | (no check) |
 | -27d | `main` | kaito | **`batch-overflow`**: `bug_batch_overflow: true`; **`batch-overflow-fix`** 3 h later | `bursty-*` runs crash with a panic |
-| -20d | `agent/result-cache` | agent | **`cache-shared`** (from `batch-overflow-fix`): `cache: shared, cache_entries: 4096` | CPU per request −20% or more; `steady-high` p99 +30% or more; the cache's frames (rendering under the lock) take 8% or more of the CPU profile; gate fails |
+| -20d | `agent/result-cache` | agent | **`cache-shared`** (from `batch-overflow-fix`): `cache: shared, cache_entries: 4096` | CPU per request −20% or more; `steady-high` p99 +30% or more (its lock saturates); the cache's frames (rendering under the lock) take 8% or more of the CPU profile; gate fails |
 | -17d | `agent/result-cache` | agent | **`cache-entries`**: `cache_entries: 16384` | still failing: `steady-high` p99 +30% or more against `batch-overflow-fix` |
 | -15d | `perf/sharded-cache` | kaito | **`cache-sharded`**: `cache: sharded, cache_shards: 16`; then the `tune-batching` sweep (`max_batch` × `max_delay_us`, 30 combinations) | `steady-high` p99 back within 5% of `batch-overflow-fix`; `steady-mid` p50 −25% or more; gate passes; (16, 250 µs) on the sweep's frontier |
 | -14d | `main` | adaeze | **`merge-sharded-cache`** | |
@@ -241,16 +248,29 @@ requests/s.
   fixed request rates that depends on the machine's speed. Without it, a runner 20% faster or slower than expected tells
   another story (no regression, or a collapse). It gave H 1,472 to 1,984 and K 40 to 86 on the (busy) machine this
   was built on: on a quiet runner it's stable.
-- **Responses are rendered**, and the shared cache renders them under its lock: a shared `Mutex<LruCache>` whose
-  critical section is a lookup and the clone of 4 KB is idle 98% of the time at 6,000 requests/s and hurts nothing.
-  With the rendering of every response behind it, it's a real convoy: requests queue at the ingress for the lock.
+- **Responses are rendered, and the shared cache's lock is held while the model runs.** A shared `Mutex<LruCache>`
+  whose critical section is a lookup and the clone of 4 KB is idle 98% of the time at 6,000 requests/s and hurts
+  nothing. With the rendering of every response under it (90 to 110 µs each), it is about half busy at 6,000
+  requests/s: on a quiet CI runner it never saturated, the cache's CPU savings won, and p99 got 20% *better*. The
+  convoy measured on the busy machine this was first built on came from lock holders being preempted, not from the
+  design. So the agent's worker keeps the lock for its whole batch: it looks the keys up again (two workers never
+  compute the same key), and the guard lives until the batch is answered. The gateway does one batch at a time.
+  Per request, the lock is held for half a model run (hits skip it) and a rendering, about 230 µs: at 6,000
+  requests/s it would have to be held 1.2 to 1.4 s per second (still 1.2 with 30% less work per request than
+  calibrated, as on a machine faster than its calibration says), 0.9 to 1 s at 4,000, 0.5 s at 2,000. The lock's work
+  and the gateway's capacity are made of the same model runs and renderings, so how busy the lock is against the
+  workers without cache (about twice as busy) doesn't depend on the machine's speed. Past 1, the queue for the lock
+  grows for as long as the load lasts: at `steady-high`, p50 is about a second and p99 2 to 3 s by the end of a 4 s
+  repeat, against 3 and 12 ms without the cache.
   The flame graph shows `<gateway::cache::Shared>::respond` → `gateway::response::render` (red) where rendering used
-  to run outside it, and `lock_contended` (std's futex mutex); waits are off-CPU, so the "Where the time goes" plot
-  shows them better (lock wait at p99).
-- **The shared cache doesn't make p50 faster at 6k rps**: its hits are fast, but every request waits for the lock at
-  the ingress. It is faster for the cheap part of the distribution (hits, up to about p40) and saves ~30% of CPU; p99
-  is several times worse. The agent's commit message claims the CPU saving, which is true. Sharding brings the p50
-  gain (−50% at `steady-mid`).
+  to run outside it, `lock_contended` (std's futex mutex), and less of the model (blue): a CPU profile doesn't show
+  what runs while a lock is held, the code does. Requests wait off-CPU, at the ingress: "Where the time goes" shows it
+  as queue time, and the log says how much of the time the lock was held (`cache lock held 96% of the time`).
+- **The shared cache saves a third of the CPU per request and halves the gateway's capacity**: its lock saturates
+  around 4,000 to 4,500 requests/s, the gateway without it above 7,000 (in `ramp`, p99 takes off from about 3,500).
+  At 2,000 requests/s it's on par with no cache; at 6,000 every percentile is a hundred times slower or more. The
+  agent's commit message claims the CPU saving, which is true. Sharding keeps the saving and makes p50 faster (−50% or
+  more at `steady-mid`): hits skip the batch.
 - **Keys: Zipf(0.9)** instead of 1.1: with 1.1, 78% of requests hit a 4,096-entry cache and the story is about the
   cache only. 0.9 gives ~50% hits (4,096 entries) to ~57% (16,384) in a 4 s run.
 - **`edf`** with all deadlines at arrival + 12 ms would be FIFO: it serves first the requests that can still make it,
@@ -275,4 +295,7 @@ requests/s.
 **What couldn't be validated where this was built** (a 4-CPU machine shared with other jobs): magnitudes at
 `steady-high` and `bursty-high`, where other processes' load made the gateway collapse in some runs. The directions
 and mechanisms were (CPU per request, lock waits, the crash, the padding's cost, the ramp, the sweep), at `steady-mid`
-and `heavy-tail-high`. The checks' thresholds are set for a quiet 4-CPU runner; the first seed in CI tells.
+and `heavy-tail-high`. The checks' thresholds are set for a quiet 4-CPU runner. The first seed in CI passed 13 of 17
+checks: the shared cache's lock didn't saturate there (above). With the model under it, direct `gateway-bench` runs
+on the busy machine measured how busy the lock would be: 1.35 to 1.45 at `steady-high` with the calibrated sizes,
+1.2 with 30% less work per request.
