@@ -20,6 +20,7 @@ from qaboard.conventions import get_commit_dirs
 from qaboard.api import dir_to_url
 
 from backend.models import Base, Batch, Output
+from backend.metrics_aggregation import aggregated_metrics
 from ..utils import get_avatar_url, get_github_avatar_url
 from ..fs_utils import rm_empty_parents, rmtree
 from ..storage import check_storage_path, check_inside, UnsafePathError
@@ -350,7 +351,14 @@ class CiCommit(Base):
       return get_github_avatar_url(self.committer_name, web_url)
     return get_avatar_url(self.committer_name)
 
-  def to_dict(self, db_session, with_aggregation=None, with_batches=None, with_outputs=False):
+  def to_dict(self, db_session, with_aggregation=None, with_batches=None, with_outputs=False, aggregations=None):
+    """
+    with_aggregation: {metric: target}, the metrics to aggregate over each batch's runs.
+    aggregations: {batch_id: aggregates} when they're already known (one query for many commits), else they're queried.
+    """
+    batches = [b for b in self.batches if not with_batches or b.label in with_batches]
+    if aggregations is None:
+      aggregations = aggregated_metrics(db_session, [b.id for b in batches], with_aggregation)
     repo_artifacts_url = self.repo_artifacts_url
     artifacts_url = self.artifacts_url
     out = {
@@ -374,9 +382,8 @@ class CiCommit(Base):
         'commit_dir_url': artifacts_url,           # backward compat for a while if projects using QA-Board rely on the API...
         'repo_commit_dir_url': repo_artifacts_url, # idem
         'batches': {
-          b.label: b.to_dict(db_session, with_outputs=with_outputs, with_aggregation=with_aggregation)
-          for b in self.batches
-          if not with_batches or b.label in with_batches
+          b.label: b.to_dict(db_session, with_outputs=with_outputs, aggregation=aggregations.get(b.id, {}))
+          for b in batches
         },
     }
     if with_outputs:

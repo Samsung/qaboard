@@ -20,6 +20,7 @@ from qaboard.compat import mappings as _path_mappings
 
 from backend import app, db_session
 from ..models import Project, CiCommit, Batch, Output
+from ..metrics_aggregation import aggregated_metrics
 from ..utils import profiled
 from ..config import git_server
 from .auth import is_authorized_user
@@ -119,7 +120,8 @@ def get_commits(branch=None):
 
   with_outputs = False if request.args.get('with_outputs', 'false')=='false' else True
   ci_commits = db_session.query(CiCommit)
-  if True: # with_outputs: do this when we pre-aggregated counts of Outputs per status...
+  # Without outputs, batches count their runs per status and aggregate their metrics with SQL queries
+  if with_outputs:
     ci_commits = ci_commits.options(selectinload(CiCommit.batches).selectinload(Batch.outputs))
   else:
     ci_commits = ci_commits.options(selectinload(CiCommit.batches))
@@ -150,17 +152,23 @@ def get_commits(branch=None):
     only_ci_batches = False if request.args.get('only_ci_batches', 'false')=='false' else True
     if only_ci_batches:
       with_batches = ['default']
-  serializable_commits = []
-  # with profiled():
-  for c in ci_commits.yield_per(1000).limit(1000):
-    if not c.batches:
-      continue
-    serializable_commits.append(c.to_dict(
+  commits = [c for c in ci_commits.yield_per(1000).limit(1000) if c.batches]
+  # One query aggregates the metrics of all the batches we return
+  aggregations = aggregated_metrics(
+    db_session,
+    [b.id for c in commits for b in c.batches if not with_batches or b.label in with_batches],
+    metrics_to_aggregate,
+  )
+  serializable_commits = [
+    c.to_dict(
       db_session,
       with_aggregation=metrics_to_aggregate,
       with_batches=with_batches,
-      with_outputs=with_outputs
-    ))
+      with_outputs=with_outputs,
+      aggregations=aggregations,
+    )
+    for c in commits
+  ]
   response = make_response(ujson.dumps(serializable_commits))
   response.headers['Content-Type'] = 'application/json'
   return response
