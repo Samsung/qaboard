@@ -130,7 +130,7 @@ On each card:
 
 <Shot
   id="commit/run-menu"
-  caption="Each run card's menu redoes the run, marks it as failed when its job is gone, or deletes it, or only its files."
+  caption="Each run card's menu redoes the run, or deletes it, or only its output files. While a run is pending or running, Mark as Failed replaces Redo."
 />
 - **Folder icon**: open the output directory (or the reference's) in the browser. **Copy icon**: copy the new or reference output directory, as a Windows or Linux path.
 - **Fullscreen** button at the top right of the card.
@@ -167,7 +167,7 @@ One line per run: its status, its name, and its configuration in short (hover it
 
 <Shot
   id="logs/crash"
-  caption="Filtered on Failed, the crashed run's log opens on its panic, highlighted, with the source line that raised it."
+  caption="Filtered on Failed, the crashed run's log, searched for its panic: the match is highlighted, with the source line that raised it."
 />
 
 Click a run to see its full configuration (hover a tag to copy it) and read its log:
@@ -198,7 +198,7 @@ At the bottom, the **Batch** section has buttons to copy or open the batch direc
 
 <Shot
   id="logs/batch-commands"
-  caption="The CI's qa batch command links to its job; the sweep started from QA-Board shows its own logs."
+  caption="A tuning sweep started from QA-Board: its qa batch command, with its own logs."
 />
 
 Whatever started the batch, each run's own logs are saved, in the list above. With the Dask runner, a link opens the logs of the Dask workers.

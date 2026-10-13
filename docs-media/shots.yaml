@@ -84,11 +84,11 @@ shots:
   - id: cli/gate
     kind: tape
     project: serving-latency
-    shows: "`qa gate` on the shared-cache commit: the rules table, p99 much worse than the 10% limit, exit code 1."
+    shows: '`qa gate` in CI on the shared-cache commit against its parent: the rules table, p99 4109.7% worse where 10% is allowed, exit code 1; then the sharded cache, p99 52.7% better, exit code 0.'
     pages: [quality-gate, use-cases/serving-latency, landing, tour]
-    needs: cache-shared vs batch-overflow-fix
+    needs: cache-shared, cache-sharded vs batch-overflow-fix
     phase: 2
-    status: planned
+    status: captured
     experimental: true
   - id: ci/step-summary
     kind: still
@@ -97,7 +97,7 @@ shots:
     pages: [quality-gate, ci-integration]
     needs: cache-shared
     phase: 2
-    status: planned
+    status: captured
     experimental: true
 
   # Projects and commits
@@ -111,25 +111,25 @@ shots:
   - id: commits/feed
     kind: still
     project: serving-latency
-    shows: Commits grouped by day, branch tags, a crashed CI batch, a batch still running, the p99 median of each commit.
+    shows: 'Commits of every branch grouped by day, with their branch, their CI batch''s median and p99, and a crashed CI batch in red. (A running batch only shows as running when it''s the CI batch: the running nightly is one of "1 other batch".)'
     pages: [user-guide/finding-results, ci-integration]
-    needs: batch-overflow (crashed), tuned-batching (running)
+    needs: batch-overflow (crashed)
     phase: 2
-    status: planned
+    status: captured
   - id: commits/branch-evolution
     kind: still
     project: serving-latency
-    shows: The chart above main's commit list, p99 and p50 over six weeks, a point hovered with its commit and reference.
+    shows: 'The chart above main''s commit list: the median p99 of each commit''s CI batch, and of the nightly batches, over six weeks; the int8 commit''s point hovered, with its commit (New) and the one before (Reference) below.'
     pages: [user-guide/finding-results]
     phase: 2
-    status: planned
+    status: captured
   - id: commits/filter
     kind: still
     project: serving-latency
-    shows: Typing in the filter box suggests branches, and a pasted hash offers "Go to commit".
+    shows: 'Typing "cache" in the filter box suggests the two cache branches, and "Go to commit" for what was typed, as for a pasted hash.'
     pages: [user-guide/finding-results]
     phase: 2
-    status: planned
+    status: captured
   - id: commits/milestones-menu
     kind: still
     project: detection-eval
@@ -353,7 +353,7 @@ shots:
     features: [plotly-overlay]
     needs: cache-shared vs batch-overflow-fix
     phase: 2
-    status: planned
+    status: captured
   - id: commit/throughput-p99
     kind: still
     project: serving-latency
@@ -361,7 +361,7 @@ shots:
     pages: [use-cases/serving-latency, tutorials/perf-regression]
     needs: cache-shared vs batch-overflow-fix
     phase: 2
-    status: planned
+    status: captured
   - id: commit/flame-diff
     kind: still
     project: serving-latency
@@ -370,23 +370,23 @@ shots:
     features: [flame-diff]
     needs: cache-shared vs batch-overflow-fix
     phase: 2
-    status: planned
+    status: captured
   - id: commit/core-heatmap
     kind: still
     project: serving-latency
-    shows: Per-core CPU heatmaps side by side, and the batch-size histograms overlaid.
+    shows: 'Per-core CPU heatmaps side by side, and the batch sizes overlaid: with the shared cache the worker cores idle while requests queue, and every batch is full.'
     pages: [use-cases/serving-latency]
     phase: 2
-    status: planned
+    status: captured
   - id: commit/text-diff
     kind: still
     project: serving-latency
-    shows: The percentile distribution files diffed in Monaco, with Next Diff.
+    shows: 'The percentile distribution files diffed in Monaco (every line changed: from milliseconds to around a second), with Next Diff.'
     pages: [visualizations]
     features: [text-diff]
     needs: cache-shared vs batch-overflow-fix
     phase: 2
-    status: planned
+    status: captured
   - id: commit/detections
     kind: still
     project: detection-eval
@@ -430,10 +430,10 @@ shots:
   - id: commit/run-menu
     kind: still
     project: serving-latency
-    shows: A run card's menu with Redo, Mark as Failed, Delete and Delete Output Files.
+    shows: 'A finished run card''s menu with Redo, Delete and Delete Output Files (runs stuck pending or running get Mark as Failed instead of Redo).'
     pages: [user-guide/running-from-the-webapp, user-guide/commit-page]
     phase: 2
-    status: planned
+    status: captured
   - id: commit/artifacts-configs
     kind: still
     project: detection-eval
@@ -488,11 +488,11 @@ shots:
   - id: logs/crash
     kind: still
     project: serving-latency
-    shows: The Logs view filtered on failed runs, a panic highlighted in the log with its source line.
+    shows: 'The crashed run open in the Logs view (Open failed runs), its log searched for "panicked": the panic highlighted with its source line, then the backtrace.'
     pages: [user-guide/commit-page]
     needs: batch-overflow
     phase: 2
-    status: planned
+    status: captured
   - id: logs/live-tail
     kind: clip
     project: serving-latency
@@ -514,36 +514,36 @@ shots:
   - id: logs/batch-commands
     kind: still
     project: serving-latency
-    shows: The Batch section with the CI's `qa batch` command and its job link, and a sweep started from QA-Board.
+    shows: 'The Logs view of the tune-batching sweep, started from QA-Board: its `qa batch` command and log, its runs (filtered on one configuration), and the Batch section with the command. (The CI batch''s command and job link show in the CI batch''s Logs view, one batch at a time.)'
     pages: [user-guide/commit-page, user-guide/running-from-the-webapp]
     needs: cache-sharded (tune-batching)
     phase: 2
-    status: planned
+    status: captured
 
   # History
   - id: history/performance-over-time
     kind: still
     project: serving-latency
-    shows: p99 per test on main over six weeks with its target line; the heavy-tail line jumps at payload-copy.
+    shows: 'p99 per test on main over the last two weeks (bursty-high left out: around 200 ms), with the 12 ms target line; the point where heavy-tail-high jumps, at payload-copy, hovered. Before the sharded cache, p99 at 6,000 requests/s swings from 6 to 1,000 ms and hides it.'
     pages: [user-guide/history-and-dashboards, recipes/find-regression]
     needs: payload-copy
     phase: 2
-    status: planned
+    status: captured
   - id: history/find-regression
     kind: clip
     project: serving-latency
-    shows: Filtered on heavy-tail-high, hovering along the line until the card changes at payload-copy, then a click freezes it as the reference.
+    shows: 'Filtered on heavy-tail-high, the last two weeks of main: hovering along the line until the commits change at payload-copy (p99 3 to 12 ms), a click freezes it as the reference, then payload-borrow is 76% faster.'
     pages: [user-guide/history-and-dashboards, recipes/find-regression, tutorials/perf-regression, tour, landing, use-cases/serving-latency]
     needs: payload-copy
     phase: 2
-    status: planned
+    status: captured
   - id: history/relative
     kind: still
     project: serving-latency
-    shows: Relative to start (@100), every test's p99 on the same scale.
+    shows: 'Relative to start (@100), every test''s p99 on the same scale, over the last two weeks.'
     pages: [user-guide/history-and-dashboards]
     phase: 2
-    status: planned
+    status: captured
   - id: history/image-diff
     kind: still
     project: image-quality
@@ -605,30 +605,30 @@ shots:
   - id: tuning/frontier
     kind: still
     project: serving-latency
-    shows: The tune-batching sweep's efficient frontier of CPU per request against p99 (12 configurations), with the chosen one on it, within the noise between identical configurations.
+    shows: 'The tune-batching sweep''s efficient frontier of CPU per request (added to the Analysis view''s metrics) against p99, 12 configurations colored by max delay, the chosen one (16, 250 µs) hovered on it, next to (64, 250 µs): within the noise between identical configurations.'
     pages: [use-cases/serving-latency, tutorials/tuning, tutorials/perf-regression]
     features: [tuning-analysis]
     needs: cache-sharded (tune-batching)
     phase: 2
-    status: planned
+    status: captured
 
   # Files and global
   - id: files/browser
     kind: still
-    project: serving-latency
-    shows: The file browser in a run's output folder, sorted naturally, with sizes and dates.
+    project: detection-eval
+    shows: 'The file browser in a detector run''s images folder: 25 images sorted naturally (2.jpg before 10.jpg), with sizes and dates. (The gateway''s runs have no numbered files.)'
     pages: [user-guide/files]
     features: [file-browser]
     phase: 2
-    status: planned
+    status: captured
   - id: files/runbar
     kind: still
     project: serving-latency
-    shows: The run bar on top of a run's folder, with its status, input, batch, and Results, Redo and Delete.
+    shows: 'The run bar on top of a run''s folder, with its status, input, platform and who ran it, and Results, Redo and Delete.'
     pages: [user-guide/files]
     features: [file-browser]
     phase: 2
-    status: planned
+    status: captured
   - id: files/hotkeys
     kind: still
     project: serving-latency
@@ -636,15 +636,15 @@ shots:
     pages: [user-guide/files]
     features: [file-browser]
     phase: 2
-    status: planned
+    status: captured
   - id: files/keyboard
     kind: clip
     project: serving-latency
-    shows: Moving with j and k, filtering with `/`, opening a file with Enter, copying its path with c.
+    shows: 'In a commit''s output folder, moving with j and k, opening a run''s folder with Enter, filtering with `/`, selecting with the down arrow and copying the path with c.'
     pages: [user-guide/files, landing]
     features: [file-browser]
     phase: 2
-    status: planned
+    status: captured
   - id: whats-new/dialog
     kind: still
     project: null

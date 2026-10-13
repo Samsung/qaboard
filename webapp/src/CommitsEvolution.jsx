@@ -21,6 +21,7 @@ import { controls_defaults, updateQueryUrl } from "./viewers/controls";
 import { BitAccuracyForm } from "./viewers/bit_accuracy/utils";
 import { is_image } from "./viewers/images/utils"
 import { hash_color, match_query, average, median } from "./utils";
+import { yAxisSuffix } from "./evolutionAxis";
 import { toaster } from "./toaster"
 import CommitRow from "./components/CommitRow";
 
@@ -410,7 +411,7 @@ class CommitsEvolutionPerTest extends React.Component {
       height: !!aggregation ? 180 : 250,
       shapes: [],
     };
-    layout.yaxis.ticksuffix = metric.suffix || '';
+    layout.yaxis.ticksuffix = yAxisSuffix(metric, relative);
     layout.yaxis.showticksuffix = 'last';
     layout.yaxis.type = metric.plot_scale || 'linear'
     if (!relative && !!threshold)

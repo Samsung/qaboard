@@ -28,6 +28,32 @@
       "source_spec": "docs-media/shots/auth.spec.ts",
       "width": 460
     },
+    "ci/step-summary": {
+      "alt": "The quality gate's summary in a CI job: \"Quality gate: fail\", the commit against its reference with a link to the Metrics Diff, and a table of the checks: p99 264.7 ms against 6.288 ms, 4109.7% worse for a 10% limit, FAIL; throughput and failed runs pass.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "In GitHub Actions, qa gate adds its verdict and table to the job's summary.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 24466,
+          "key": "shots/ci/step-summary/b8734d4c55262657.avif"
+        },
+        "png": {
+          "bytes": 62704,
+          "key": "shots/ci/step-summary/aa283f0cc0b056e1.png"
+        },
+        "webp": {
+          "bytes": 44614,
+          "key": "shots/ci/step-summary/1299bd7f0e2ef6f1.webp"
+        }
+      },
+      "height": 318,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRiwAAABXRUJQVlA4ICAAAAAwAQCdASoQAAYAA4BaJaQAA3AA/vRJdpei0ndUGwAAAA==",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/ci.spec.ts",
+      "width": 880
+    },
     "cli/bit-accuracy": {
       "alt": "A terminal in CI runs qa check-bit-accuracy on the hw-model platform: on the rounding change, it fails and lists the files that differ from the release; on a commit that only changed docs, every file is the same.",
       "app_version": "1.1.1+c67f384",
@@ -80,6 +106,33 @@
       "lqip": "data:image/webp;base64,UklGRiwAAABXRUJQVlA4ICAAAABwAQCdASoQAAkABIBaJZwC7AGIQAD+8Q5K978ZRjQAAA==",
       "project": "image-quality",
       "source_spec": "docs-media/tapes/cli-first-run.tape",
+      "width": 1280
+    },
+    "cli/gate": {
+      "alt": "A terminal in CI runs qa gate on the coding agent's shared cache against its parent: in the rules table, p99 is 4109.7% worse where 10% is allowed, and the gate fails with exit code 1. On the sharded cache, p99 is 52.7% better, every rule passes and it exits with 0.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "qa gate compares a commit's CI batch with a reference, rule by rule, and fails the job when one breaks.",
+      "captured": "2026-10-13",
+      "duration": 18.76,
+      "files": {
+        "mp4": {
+          "bytes": 183798,
+          "key": "shots/cli/gate/756216d5f7d49ef2.mp4"
+        },
+        "poster": {
+          "bytes": 45724,
+          "key": "shots/cli/gate/1c8990837810a9cc.webp"
+        },
+        "webm": {
+          "bytes": 221194,
+          "key": "shots/cli/gate/928d5ae5d2677011.webm"
+        }
+      },
+      "height": 720,
+      "kind": "tape",
+      "lqip": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAADQAQCdASoQAAkAA4BaJZwC7AEO/ae0AAD+8MyXW64B717Lj4AAAA==",
+      "project": "serving-latency",
+      "source_spec": "docs-media/tapes/cli-gate.tape",
       "width": 1280
     },
     "commit/auto-roi": {
@@ -211,6 +264,32 @@
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
     },
+    "commit/core-heatmap": {
+      "alt": "Per-core CPU heatmaps of the steady-high run, new and reference side by side: with the shared cache the worker cores stay mostly idle, the reference's are busy. Below, the batch sizes overlaid: every new batch is full.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "With the shared cache, the gateway runs one batch at a time: its cores idle while requests queue, and every batch is full.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 26837,
+          "key": "shots/commit/core-heatmap/1799d280a93b864f.avif"
+        },
+        "png": {
+          "bytes": 82341,
+          "key": "shots/commit/core-heatmap/d6f211cb4d3788a7.png"
+        },
+        "webp": {
+          "bytes": 53970,
+          "key": "shots/commit/core-heatmap/f4e707bbe665449e.webp"
+        }
+      },
+      "height": 739,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRmwAAABXRUJQVlA4IGAAAADwAQCdASoQAA4AA4BaJZACdH8AD5Y7YQAA/sqegIeRpecwzx1b04foOP7rQAKferFyH4YOOZ4Gcb7aKTy/d+q8bCQIzxmQ9FmUYNaBt4WWT/5fUzglF6sHfJpXA8UsAAA=",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 856
+    },
     "commit/deep-zoom": {
       "alt": "The 113-megapixel test wall, new and reference side by side: zooming from the whole wall to a small Siemens star until single pixels show, both images in sync.",
       "app_version": "1.1.1+cd07cf2",
@@ -324,6 +403,32 @@
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1226
+    },
+    "commit/flame-diff": {
+      "alt": "A differential CPU flame graph of the steady-high run: in the workers and the ingress, the shared cache's respond and lookup, with the response rendering under them, are new, in orange; the model's forward pass, which runs less, is blue.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "A differential flame graph: rendering responses under the shared cache's lock is new (orange), and the model runs less (blue): cache hits skip it.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 58329,
+          "key": "shots/commit/flame-diff/3246e873b236d94d.avif"
+        },
+        "png": {
+          "bytes": 218969,
+          "key": "shots/commit/flame-diff/059cea7a4d47b716.png"
+        },
+        "webp": {
+          "bytes": 179580,
+          "key": "shots/commit/flame-diff/580040dd4b277df4.webp"
+        }
+      },
+      "height": 769,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRl4AAABXRUJQVlA4IFIAAAAwAgCdASoQAAsAA4BaJYgCdDBKwZBtAQsEAAD+mF+NqrM6/3TQV8LiTUl6Nga2HcPDv3Jeoygn8YuhWXGSQZIk8VQ3rPfn2rIpik0MXgo28AAA",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1197
     },
     "commit/halo-after": {
       "alt": "The same leaves once the sharpening is clamped: the edges stay crisp, with only faint rims.",
@@ -486,6 +591,32 @@
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1170
     },
+    "commit/latency-cdf": {
+      "alt": "The steady-high run of the shared cache against its parent: p50 545 ms, p99 1150 ms, over 18,000% worse. The latency percentiles on log axes: the new line sits near a second from the median on, the reference's stays under the 12 ms SLO line until the far tail.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "Latency percentiles on a log tail: at 6,000 requests/s, with the shared cache every percentile is a hundred times slower or more. Requests queue for its lock.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 21174,
+          "key": "shots/commit/latency-cdf/95e0e92904991cde.avif"
+        },
+        "png": {
+          "bytes": 74658,
+          "key": "shots/commit/latency-cdf/cdc2fc4091b46713.png"
+        },
+        "webp": {
+          "bytes": 44316,
+          "key": "shots/commit/latency-cdf/837e36aa031dab36.webp"
+        }
+      },
+      "height": 454,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRioAAABXRUJQVlA4IB4AAAAwAQCdASoQAAkAA4BaJaQAA3AA/vSsYbVdUowAAAA=",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 856
+    },
     "commit/output-files": {
       "alt": "The files of the facade run on the hw-model platform that differ from the reference: metrics.json, out.png, stages 4 and 5 in raw/ and stages/, and regs.txt, whose diff below shows the ROUNDING register going from 0 to 2.",
       "app_version": "1.1.1",
@@ -590,6 +721,84 @@
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1178
     },
+    "commit/run-menu": {
+      "alt": "The menu of the steady-high run's card, open under its menu icon: Redo, Delete, and Delete Output Files.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "From a run's menu: redo it, delete it, or delete only its output files.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 12029,
+          "key": "shots/commit/run-menu/5768ce7b302d17f6.avif"
+        },
+        "png": {
+          "bytes": 41253,
+          "key": "shots/commit/run-menu/42bf1642831b6360.png"
+        },
+        "webp": {
+          "bytes": 23342,
+          "key": "shots/commit/run-menu/ad5ff0f0bf3f64e7.webp"
+        }
+      },
+      "height": 145,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAAAwAQCdASoQAAQAA4BaJaQAA3AA/vMdzecjutWxV3ZU8MAA",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 689
+    },
+    "commit/text-diff": {
+      "alt": "HdrHistogram's percentile distribution of the steady-high run, reference and new side by side in a diff editor: from the median on, latencies go from 3 ms to over 500 ms.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "Text outputs are diffed with the reference; Next Diff jumps to the next change.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 55746,
+          "key": "shots/commit/text-diff/60596e18506183cf.avif"
+        },
+        "png": {
+          "bytes": 278158,
+          "key": "shots/commit/text-diff/446246e46703fed6.png"
+        },
+        "webp": {
+          "bytes": 207224,
+          "key": "shots/commit/text-diff/7141fec4384570ad.webp"
+        }
+      },
+      "height": 479,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAADQAQCdASoQAAcAA4BaJZACdAD0jPcVIAD+8m/8OWhwK+ph6M6RquxRGzqHOktF9wVYkAAA",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1251
+    },
+    "commit/throughput-p99": {
+      "alt": "Throughput against p99 in the ramp run, from 20% to 120% of 6,000 requests/s: the reference's p99 stays low under the 12 ms SLO until the last steps; the shared cache's takes off past 4,600 requests/s, to half a second.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "The ramp raises the load step by step: with the shared cache, p99 takes off at a lower throughput.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 29397,
+          "key": "shots/commit/throughput-p99/61c728927c79a594.avif"
+        },
+        "png": {
+          "bytes": 106097,
+          "key": "shots/commit/throughput-p99/24d92243acb94b3a.png"
+        },
+        "webp": {
+          "bytes": 60396,
+          "key": "shots/commit/throughput-p99/c2fe899b8e2eba10.webp"
+        }
+      },
+      "height": 454,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRioAAABXRUJQVlA4IB4AAAAwAQCdASoQAAkAA4BaJaQAA3AA/vR1V0kDBSmAAAA=",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 856
+    },
     "commit/visualizations": {
       "alt": "A run card of the facade photo: PSNR, SSIM and runtime with their changes against the reference, preset regions of interest, and the new and reference images side by side, zoomed on a window.",
       "app_version": "1.1.1",
@@ -614,6 +823,224 @@
       "lqip": "data:image/webp;base64,UklGRlYAAABXRUJQVlA4IEoAAADQAQCdASoQAAoAA4BaJYwCw7ED+xc2gAD8Pzod3+XsINs/zZ9SWW8zvm7tcHMQ6IyVqM0Ubf44e6+uIo4MKozKxVAeU7sDw64AAA==",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1440
+    },
+    "commits/branch-evolution": {
+      "alt": "Above main's commits, a chart of the median p99 of each commit's CI batch over six weeks, falling from 40 ms to a few. The point of the int8 commit is hovered: below the chart, it shows as New, the commit before it as Reference.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "A branch's page charts a metric over its commits. Hover a point: its commit and the one before show below the chart, a click opens their comparison.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 39822,
+          "key": "shots/commits/branch-evolution/437daeb910cdeefa.avif"
+        },
+        "png": {
+          "bytes": 140360,
+          "key": "shots/commits/branch-evolution/b62344d33a4da55e.png"
+        },
+        "webp": {
+          "bytes": 89272,
+          "key": "shots/commits/branch-evolution/c1c56c5de6077f4e.webp"
+        }
+      },
+      "height": 516,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAACwAQCdASoQAAcAA4BaJaQAAu18OKwAAP73PmKAY28xzAcy1WxbLAAA",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/commits.spec.ts",
+      "width": 1240
+    },
+    "commits/feed": {
+      "alt": "The inference gateway's commits from all branches, grouped by day: each with its message, author, branch, the median and p99 of its CI batch, and \"1 crashed\" in red on the batcher change that panics under bursts.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "The commits of every branch, grouped by day, with their CI batch's results: here a commit that crashed some runs.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 63838,
+          "key": "shots/commits/feed/495c96d246b8287f.avif"
+        },
+        "png": {
+          "bytes": 319661,
+          "key": "shots/commits/feed/3129f6de92a16dec.png"
+        },
+        "webp": {
+          "bytes": 166604,
+          "key": "shots/commits/feed/05ff6b7f83cd3153.webp"
+        }
+      },
+      "height": 900,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjoAAABXRUJQVlA4IC4AAACQAQCdASoQAAoAA4BaJaQAApJrbgAA9r/8J4AkV5lXYrY3oANADOPqQhhQAAAA",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/commits.spec.ts",
+      "width": 1440
+    },
+    "commits/filter": {
+      "alt": "The filter box of the commits page with \"cache\" typed in: it suggests the agent/result-cache and perf/sharded-cache branches, and \"Go to commit: cache\"; below, only the commits that mention the cache.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "The filter box narrows down the commits, suggests branches, and goes straight to a commit from its hash.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 44220,
+          "key": "shots/commits/filter/81c2a9c78e328849.avif"
+        },
+        "png": {
+          "bytes": 166741,
+          "key": "shots/commits/filter/94f66356dd9bb8e8.png"
+        },
+        "webp": {
+          "bytes": 88986,
+          "key": "shots/commits/filter/43b7c32d2e482aa8.webp"
+        }
+      },
+      "height": 406,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAACQAQCdASoQAAUAA4BaJaQAAu18LYAAzj/yTtC4/srq/uAAAAA=",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/commits.spec.ts",
+      "width": 1440
+    },
+    "files/browser": {
+      "alt": "The file browser in the images folder of a detector run: the path as breadcrumbs, the run bar, a filter box, and 25 images sorted naturally, 1.jpg, 2.jpg, then 10.jpg after 9.jpg, with their sizes and dates.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "The file browser sorts names naturally (2 before 10) and shows each file's size and date.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 26161,
+          "key": "shots/files/browser/01191ee93802020e.avif"
+        },
+        "png": {
+          "bytes": 211171,
+          "key": "shots/files/browser/9a737a53ffe0db2f.png"
+        },
+        "webp": {
+          "bytes": 95494,
+          "key": "shots/files/browser/64c7271e8a6bd2e8.webp"
+        }
+      },
+      "height": 862,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAACQAQCdASoQAAoAA4BaJaQAAueFBcAA/vJl6NFIJ1NegAAA",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/files.spec.ts",
+      "width": 1440
+    },
+    "files/hotkeys": {
+      "alt": "The keyboard shortcuts dialog of the file browser: filter, go to a path, next and previous, open, parent folder, copy the path, show hidden files, refresh.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "Press ? for the keyboard shortcuts.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 12538,
+          "key": "shots/files/hotkeys/a097de7d45acea71.avif"
+        },
+        "png": {
+          "bytes": 64510,
+          "key": "shots/files/hotkeys/5f15ce402fa5c000.png"
+        },
+        "webp": {
+          "bytes": 24950,
+          "key": "shots/files/hotkeys/90916ec3050fef09.webp"
+        }
+      },
+      "height": 574,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRlQAAABXRUJQVlA4IEgAAACQAwCdASoQABIAPu1iqU2ppaOiMAgBMB2JaQAAW+j9dyXK6TAAAP7X8iXZuCHwvnbag4Rf5z2+mnRvf5jcF78u2rFnCb3MgAA=",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/files.spec.ts",
+      "width": 532
+    },
+    "files/keyboard": {
+      "alt": "In the folder of a commit's runs, the selection moves down the folders with j and back with k, Enter opens steady-high's, / filters its files to percentiles.txt, the down arrow selects it and c copies its path.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "Browse the results from the keyboard.",
+      "captured": "2026-10-13",
+      "duration": 9.37,
+      "files": {
+        "mp4": {
+          "bytes": 102371,
+          "key": "shots/files/keyboard/0f46080659bdbd5c.mp4"
+        },
+        "poster": {
+          "bytes": 15318,
+          "key": "shots/files/keyboard/cae4a27ef6a03615.webp"
+        },
+        "vtt": {
+          "bytes": 231,
+          "key": "shots/files/keyboard/6b60f1255d482753.vtt"
+        },
+        "webm": {
+          "bytes": 138509,
+          "key": "shots/files/keyboard/97d6f0f26dc8ee62.webm"
+        }
+      },
+      "height": 560,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAACQAQCdASoQAAcAA4BaJaQAAudFrAAA/vAb2LN3RiUAAAAA",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/files.spec.ts",
+      "width": 1440
+    },
+    "files/runbar": {
+      "alt": "The run bar above a run's files: Done, run on profiles/steady-high.yaml on linux by ci, and the Results, Redo and Delete buttons.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "In a run's folder, the run bar says what ran and links back to its results.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 11380,
+          "key": "shots/files/runbar/bd51096cc8d3eb38.avif"
+        },
+        "png": {
+          "bytes": 40324,
+          "key": "shots/files/runbar/04cdddc27998040e.png"
+        },
+        "webp": {
+          "bytes": 19858,
+          "key": "shots/files/runbar/668fcbe4d8fb2215.webp"
+        }
+      },
+      "height": 90,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAACQAQCdASoQAAIAA4BaJZwAAudP4OAA/uGr7X0a1WmOFt7b1D1HAAAA",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/files.spec.ts",
+      "width": 1100
+    },
+    "history/find-regression": {
+      "alt": "History filtered on the heavy-tail-high test: the cursor moves along its p99 line and the commits below follow; at the batcher change that copies payloads into fixed slots, p99 jumps from 3 to 12 ms. A click keeps it as the reference: the commit that borrows payloads again is 75% faster.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "Hover along a test's line to find the commit that changed it, click to compare later ones with it.",
+      "captured": "2026-10-13",
+      "duration": 14.87,
+      "files": {
+        "mp4": {
+          "bytes": 402653,
+          "key": "shots/history/find-regression/6528bd104e08bfb8.mp4"
+        },
+        "poster": {
+          "bytes": 76666,
+          "key": "shots/history/find-regression/7b89b1d7e7f30d80.webp"
+        },
+        "vtt": {
+          "bytes": 307,
+          "key": "shots/history/find-regression/0826543f68ac3577.vtt"
+        },
+        "webm": {
+          "bytes": 551339,
+          "key": "shots/history/find-regression/97c93da0a4efc44a.webm"
+        }
+      },
+      "height": 1100,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAADwAQCdASoQAA0AA4BaJaQAAudme4zkgAAAzj/yTtB5RHQQXutgNIdKK9IAAA==",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/history.spec.ts",
       "width": 1440
     },
     "history/image-diff": {
@@ -641,6 +1068,58 @@
       "project": "image-quality",
       "source_spec": "docs-media/shots/history.spec.ts",
       "width": 1208
+    },
+    "history/performance-over-time": {
+      "alt": "Performance over time on main, the last two weeks: Latency p99, a line per test, and the 12 ms target dashed. One line jumps from 3 to 12 ms and comes back down four commits later; hovered, its point at the jump names the heavy-tail-high test, and the commit below copies payloads into fixed slots.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "A metric over a branch's commits, a line per test: hover the jump to see the test and the commit.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 63967,
+          "key": "shots/history/performance-over-time/2223e26acb3c8c82.avif"
+        },
+        "png": {
+          "bytes": 214836,
+          "key": "shots/history/performance-over-time/25e1b256965330fc.png"
+        },
+        "webp": {
+          "bytes": 139086,
+          "key": "shots/history/performance-over-time/8f5bd88cb3ed1cbc.webp"
+        }
+      },
+      "height": 678,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAABwAQCdASoQAAkAA4BaJaVnyAGIAAD+89dHy0Oh17QZmHFxUoX2wwT2AAA=",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/history.spec.ts",
+      "width": 1221
+    },
+    "history/relative": {
+      "alt": "The same chart Relative to start: every test's p99 as a percentage of its value at the first commit, so that the 200 ms bursty test and the 2 ms steady ones share a scale. Heavy-tail-high climbs to about 400 for four commits.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "Relative to start puts every test on the same scale, whatever its units: 100 is its value at the first commit.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 21314,
+          "key": "shots/history/relative/acc44ef13dc88b0f.avif"
+        },
+        "png": {
+          "bytes": 77409,
+          "key": "shots/history/relative/a7199995a4b14ebc.png"
+        },
+        "webp": {
+          "bytes": 47666,
+          "key": "shots/history/relative/324b6fb7892068ac.webp"
+        }
+      },
+      "height": 368,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRigAAABXRUJQVlA4IBwAAAAwAQCdASoQAAUAA4BaJaQAA3AA/vRETbgogAAA",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/history.spec.ts",
+      "width": 1213
     },
     "integrations/menu": {
       "alt": "The sidebar's Integrations menu open on a commit: links to the K3 calibration report and the ISP tuning guide, and the \"Send to the tuning bench\" webhook, with a status tag saying its job is queued.",
@@ -699,6 +1178,89 @@
       "source_spec": "docs-media/shots/landing.spec.ts",
       "width": 1440
     },
+    "logs/batch-commands": {
+      "alt": "The Logs view of the tune-batching sweep: under \"Started from QA-Board\", the qa batch command kaito's tuning request ran, with its grid of max batch and max delay, and the end of its log; then the two runs left by the filter, and the Batch section with the command again.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "A batch started from QA-Board keeps the command it ran and its log, next to its runs' logs.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 149907,
+          "key": "shots/logs/batch-commands/466250eb65e0a63a.avif"
+        },
+        "png": {
+          "bytes": 429525,
+          "key": "shots/logs/batch-commands/2d420035fe11f586.png"
+        },
+        "webp": {
+          "bytes": 350168,
+          "key": "shots/logs/batch-commands/1a767780162f0ef7.webp"
+        }
+      },
+      "height": 1056,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRioAAABXRUJQVlA4IB4AAAAwAQCdASoQAA8AA4BaJaQAA3AA/vMiO05NHlbgAAA=",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/logs.spec.ts",
+      "width": 1188
+    },
+    "logs/crash": {
+      "alt": "The Logs view of the batcher change, its crashed bursty-high run open: searching the log for \"panicked\" highlights the panic, an index out of bounds in src/batcher.rs at line 163, then its backtrace.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "A crashed run's log opens on its last lines; search it to jump to the panic and the line of code it names.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 79504,
+          "key": "shots/logs/crash/9bc77ae512dabe21.avif"
+        },
+        "png": {
+          "bytes": 274502,
+          "key": "shots/logs/crash/26a5f1651b27adc1.png"
+        },
+        "webp": {
+          "bytes": 210856,
+          "key": "shots/logs/crash/0fd2da6797d52e6a.webp"
+        }
+      },
+      "height": 609,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAAAwAQCdASoQAAkAA4BaJaQAA3AA/vNhRZB4QrHpXqAxnDAA",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/logs.spec.ts",
+      "width": 1186
+    },
+    "logs/live-tail": {
+      "alt": "The Logs view of a bursty-high run while it runs: its log follows the end as the gateway prints its repeats, the error count grows with every burst's missed deadlines, and a click on it jumps to the first error.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "While a run runs, its log follows the end; the error count jumps to each error.",
+      "captured": "2026-10-13",
+      "duration": 10.47,
+      "files": {
+        "mp4": {
+          "bytes": 428931,
+          "key": "shots/logs/live-tail/38e60160f7a43728.mp4"
+        },
+        "poster": {
+          "bytes": 118312,
+          "key": "shots/logs/live-tail/9abe70a4491fc1dd.webp"
+        },
+        "vtt": {
+          "bytes": 205,
+          "key": "shots/logs/live-tail/c428d614c9bb0249.vtt"
+        },
+        "webm": {
+          "bytes": 527189,
+          "key": "shots/logs/live-tail/a0b4e94f9e13582c.webm"
+        }
+      },
+      "height": 900,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAACwAQCdASoQAAoAA4BaJaQAAujbbvoAAM4/8k7QkhT8ektmu09JbXy37QAAAA==",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/logs.spec.ts",
+      "width": 1440
+    },
     "logs/lsf-hints": {
       "alt": "The Logs view with the 113 MP test wall's run open: tagged \"LSF: out of memory\", a red summary says the job was killed at its memory limit (TERM_MEMLIMIT), 3113 MB used for 3072 MB requested, and how to ask for more.",
       "app_version": "1.1.1+c67f384",
@@ -750,6 +1312,32 @@
       "project": null,
       "source_spec": "docs-media/shots/projects.spec.ts",
       "width": 1440
+    },
+    "tuning/frontier": {
+      "alt": "The efficient frontier of the tune-batching sweep: one point per configuration of max batch and max delay, CPU per request against p99, colored by max delay. The hovered point, max batch 16 and max delay 250 µs, sits on the lower left edge.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "Each configuration's CPU per request against its p99: the defaults picked, max batch 16 and 250 µs of delay, are on the frontier.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 21874,
+          "key": "shots/tuning/frontier/36fdffe8cb735f27.avif"
+        },
+        "png": {
+          "bytes": 72552,
+          "key": "shots/tuning/frontier/250645756ff83def.png"
+        },
+        "webp": {
+          "bytes": 34250,
+          "key": "shots/tuning/frontier/261041400f28a40d.webp"
+        }
+      },
+      "height": 582,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAACwAQCdASoQAAoAA4BaJZwAAudQS9xAAP74AywE43OEzHvXrLp1YJ3BgxCMAA==",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/tuning.spec.ts",
+      "width": 1032
     },
     "whats-new/dialog": {
       "alt": "The \"What's new in QA-Board\" dialog over the projects list: the latest release note's summary, its highlights as cards with an icon, an audience tag and a link to the docs, and the See all changes and Got it buttons.",
