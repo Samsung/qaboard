@@ -63,7 +63,7 @@ shots:
     kind: tape
     project: image-quality
     shows: "`qa run` on the slanted-edge chart: the pipeline's log, the metrics, the link to the results."
-    pages: [get-started/tutorial, running-your-code, using-the-qa-cli]
+    pages: [get-started/tutorial, running-your-code]
     phase: 1
     status: published
   - id: cli/batch
@@ -105,7 +105,7 @@ shots:
     kind: still
     project: null
     shows: The projects list with the Kitefin projects, their avatars and descriptions, one pinned as a favorite, the filter box.
-    pages: [user-guide/finding-results, user-guide/overview, get-started/quickstart]
+    pages: [user-guide/finding-results, user-guide/overview, get-started/quickstart, ci-integration]
     phase: 2
     status: captured
   - id: commits/feed
@@ -223,7 +223,7 @@ shots:
     kind: still
     project: image-quality
     shows: Run cards with their main metrics and changes, the output images new and reference side by side.
-    pages: [user-guide/commit-page, computing-quantitative-metrics, user-guide/overview]
+    pages: [user-guide/commit-page, computing-quantitative-metrics, user-guide/overview, user-guide/comparing-results, references-and-milestones]
     needs: merge-bilateral vs isp-4-1
     phase: 1
     status: published
@@ -239,7 +239,7 @@ shots:
     kind: still
     project: image-quality
     shows: New and reference zoomed on the facade's windows; the new image has halos along the edges.
-    pages: [user-guide/comparing-results, visualizations, use-cases/image-quality]
+    pages: [user-guide/comparing-results, use-cases/image-quality]
     features: [image-synced-zoom]
     needs: merge-bilateral vs isp-4-1
     phase: 1
@@ -257,7 +257,7 @@ shots:
     kind: still
     project: image-quality
     shows: "Image Diff on, threshold set: halos stand out around edges, noise differences stay dark."
-    pages: [visualizations, user-guide/comparing-results, landing]
+    pages: [user-guide/comparing-results, landing]
     features: [image-diff]
     needs: merge-bilateral vs isp-4-1
     phase: 1
@@ -266,7 +266,7 @@ shots:
     kind: still
     project: image-quality
     shows: Hovering a Siemens star shows the pixel's values in both images, with a crosshair at the same spot on the reference.
-    pages: [user-guide/comparing-results, visualizations, landing]
+    pages: [user-guide/comparing-results, landing]
     features: [pixel-tooltip, image-synced-zoom]
     needs: bilateral-denoise vs isp-4-1
     phase: 1
@@ -275,7 +275,7 @@ shots:
     kind: still
     project: image-quality
     shows: A region of the sky gradient selected, with its RGB and luma histograms, new against reference.
-    pages: [user-guide/comparing-results, visualizations, landing]
+    pages: [user-guide/comparing-results, landing]
     features: [roi-histograms]
     phase: 1
     status: published
@@ -291,7 +291,7 @@ shots:
     kind: still
     project: image-quality
     shows: Brightness, gamma and sharpen applied to both images of the night street, revealing noise in the shadows.
-    pages: [user-guide/comparing-results, visualizations, landing]
+    pages: [user-guide/comparing-results, landing]
     features: [image-filters]
     phase: 1
     status: published

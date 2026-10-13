@@ -19,6 +19,11 @@ kubectl port-forward svc/qaboard-proxy 5151:80
 
 Open [http://localhost:5151](http://localhost:5151). The first install downloads QA-Board's images, which can take a few minutes.
 
+<Clip
+  id="quickstart/kind"
+  caption="A kind cluster, helm install with the quickstart values, a port-forward, and the demo projects in the browser."
+/>
+
 :::note Tested in CI
 GitHub CI runs these same commands on every commit (the `helm-e2e` job), with the images it just built. Then it checks the demo data (a small test project) through the API and in a browser, runs a `qa batch` in the cluster, checks its results through the web server, and upgrades the release.
 :::

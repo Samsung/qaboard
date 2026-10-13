@@ -3,14 +3,16 @@ id: references-and-milestones
 title: References & Milestones
 sidebar_label: References & Milestones
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
 
 when looking at results, it is important to *compare* them to a reference.  It could to a previous version, results from a benchmark
 
 ## Comparing versus a reference
 In results pages, QA-Board always compares the commit you selected (labeled `new`) versus a reference (`ref`):
 
-<img alt="new-vs-reference" src={useBaseUrl('img/comparing-new-and-reference.png')} />
+<Shot
+  id="commit/visualizations"
+  caption="The new commit's bar on top, the reference's below; each run is shown against its reference run."
+/>
 
 The reference is by default the latest commit from the project's reference branch:
 
@@ -23,8 +25,12 @@ project:
 Set `reference_branch` explicitly: when it's missing, the web application uses `develop`, while the `qa` CLI (e.g. `qa check-bit-accuracy`) uses `master`.
 :::
 
-To change the selected `new` or `ref` commit, you can edit the commit ID field in the navbar. Hovering it gives you a menu with other options:
-<img alt="commit-select-menu.png" src={useBaseUrl('img/commit-select-menu.png')} />
+To change the selected `new` or `ref` commit, you can edit the commit ID field in the navbar. Hovering **Change** gives you a menu with other options:
+
+<Shot
+  id="commit/change-menu"
+  caption="Switch new and reference, or pick the reference branch's latest commit or a milestone."
+/>
 
 :::tip
 Clicking on the branch name in the navbar will select the latest commit on the branch.
@@ -43,15 +49,19 @@ project:
 ```
 
 ## Defining Milestones from QA-Board
-Every user can save milestones with the “star” icon in each commit navbar:
+Every user can save milestones with the “star” icon in each commit navbar. If needed, you can give them a name and leave notes:
 
-<img alt="save-as-milestone" src={useBaseUrl('img/save-as-milestone.png')} />
+<Shot
+  id="commit/milestone"
+  caption="A release saved as a shared milestone, with its label and notes."
+/>
 
-If needed, you can give them a name and leave notes:
+You'll now be able to select them in the **Change** menu, and in the sidebar's **Milestones** menu:
 
-<img alt="milestone-details" src={useBaseUrl('img/milestone-details.png')} />
-
-You'll now be able to select them in the commit ID hover menu.
+<Shot
+  id="commits/milestones-menu"
+  caption="Shared milestones for the releases, and a private one."
+/>
 
 :::tip
 Milestones can be shared with everybody - or kept private.
@@ -62,4 +72,4 @@ Milestones can be shared with everybody - or kept private.
 - In the milestones menus, you can filter milestones by label, branch, owner or committer.
 - Milestones are kept by the [cleanup of old results](storage/deleting-old-data), and the web application won't delete all the runs of a milestone's batch.
 
-See the user guide on [milestones](/docs/user-guide/comparing-results#milestones).
+See the user guide on [milestones](/docs/user-guide/comparing-results#milestones).
