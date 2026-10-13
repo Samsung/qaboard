@@ -13,12 +13,14 @@ A tape starts with `# key: value` lines, then `Source "tapes/_settings.tape"`:
   project   the demo project (examples/<project>), or none
   user      the persona running the commands (examples/README.md#people): QA_USER and git identity
   env       extra environment, KEY=VALUE separated by spaces (CI variables for CI tapes)
+  passenv   variables kept from the environment when they're set, names separated by spaces (e.g. QABOARD_IMAGE for the
+            quickstarts, which run this checkout's images)
   alt       required alt text (website/STYLE.md); caption: the default caption; poster: first, last or ms
   dedupe_tolerance, dedupe_mask   how publish.py compares a new recording with the published one (README.md#determinism)
 Commands run for real, against the restored demo stack (QABOARD_URL, from the demo facts), from ~/kitefin/<repo>:
 HOME is /home/<user> (TAPES_HOME), where ~/kitefin/<repo> is a workspace like the seeder's, built by workspace(): a .venv
 with `qa` and the example's dependencies, the inputs, and a git repository whose HEAD is on a story commit.
-CI and QA-Board variables of the environment are dropped, unless the tape's `env` sets them.
+CI and QA-Board variables of the environment are dropped, unless the tape's `env` sets them or `passenv` names them.
 Tools: VHS, ttyd and ffmpeg from docs-media/install-tools.sh or PATH, a Chromium (PLAYWRIGHT_CHROMIUM_EXECUTABLE,
 Playwright's, or `chromium` in PATH), and `qa` in PATH.
 """
@@ -247,10 +249,11 @@ def record(tape: Path, facts: dict) -> Path:
         "GIT_AUTHOR_NAME": name, "GIT_COMMITTER_NAME": name,
         "GIT_AUTHOR_EMAIL": f"{user}@kitefin.example", "GIT_COMMITTER_EMAIL": f"{user}@kitefin.example",
     }
+    env.update({name: os.environ[name] for name in meta.get("passenv", "").split() if name in os.environ})
     env.update(tape_env)
     if os.geteuid() == 0:
         env["VHS_NO_SANDBOX"] = "true"   # Chromium refuses to run as root with its sandbox
-    if not shutil.which("qa", path=env["PATH"]):
+    if project in PROJECT_IDS and not shutil.which("qa", path=env["PATH"]):
         log("  warning: `qa` isn't in PATH: the tape's commands will fail")
 
     vhs = shutil.which("vhs", path=env["PATH"])
