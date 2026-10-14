@@ -26,6 +26,9 @@ type MediaData = {
   base: string | null;
   shots: Record<string, MediaEntry>;
   planned: Record<string, PlannedEntry>;
+  // QABOARD_MEDIA_MISSING=remote: shots the build couldn't download, loaded from remoteBase
+  remoteBase?: string | null;
+  remoteShots?: string[];
 };
 
 export type Callout = {
@@ -59,10 +62,12 @@ function useMediaData(): MediaData {
 export function useShot(id: string): ShotState {
   const data = useMediaData();
   const {withBaseUrl} = useBaseUrlUtils();
-  const url = useCallback((key: string) => withBaseUrl(`${data.base}${key}`), [withBaseUrl, data.base]);
+  const fallback = !!data.remoteBase && !!data.remoteShots?.includes(id);
+  const base = fallback ? data.remoteBase : data.base;
+  const url = useCallback((key: string) => withBaseUrl(`${base}${key}`), [withBaseUrl, base]);
   const entry = data.shots[id];
-  if (entry && data.base !== null)
-    return {status: 'published', id, entry, url, remote: data.mode === 'remote'};
+  if (entry && base !== null)
+    return {status: 'published', id, entry, url, remote: data.mode === 'remote' || fallback};
   const planned = data.planned[id];
   return planned ? {status: 'planned', id, planned} : {status: 'unknown', id};
 }
@@ -73,9 +78,18 @@ const PLANNED_LABEL: Record<Kind, string> = {
   tape: 'Terminal recording not recorded yet',
 };
 
-/** The box shown until a shot is published: the planned aspect ratio, what it will show, and its id. */
-export function Placeholder({shots, kind = 'still'}: {shots: ShotState[]; kind?: Kind}) {
-  const known = shots.map(s => (s.status === 'planned' ? s.planned : null));
+const UNAVAILABLE_LABEL: Record<Kind, string> = {
+  still: 'Screenshot unavailable',
+  clip: 'Clip unavailable',
+  tape: 'Terminal recording unavailable',
+};
+
+/**
+ * The box shown until a shot is published: the planned aspect ratio, what it will show, and its id.
+ * `unavailable`: the shot is published, but the browser couldn't load it (e.g. a proxy blocks the media host).
+ */
+export function Placeholder({shots, kind = 'still', unavailable = false}: {shots: ShotState[]; kind?: Kind; unavailable?: boolean}) {
+  const known = shots.map(s => (s.status === 'planned' ? s.planned : s.status === 'published' ? {kind: s.entry.kind, shows: s.entry.alt} : null));
   // The planned size when it's known (e.g. the published half of a <Compare>), else 16:10
   const sized = shots.map(s => (s.status === 'published' ? s.entry : s.status === 'planned' ? s.planned : null)).find(s => s?.width);
   const width = sized?.width ?? 16;
@@ -83,7 +97,7 @@ export function Placeholder({shots, kind = 'still'}: {shots: ShotState[]; kind?:
   const unknown = shots.filter(s => s.status === 'unknown');
   // With `yarn start`, a typo shows here instead of stopping the server. Builds fail before.
   const isError = unknown.length > 0 && process.env.NODE_ENV === 'development';
-  const label = PLANNED_LABEL[known.find(k => k?.kind)?.kind ?? kind];
+  const label = (unavailable ? UNAVAILABLE_LABEL : PLANNED_LABEL)[known.find(k => k?.kind)?.kind ?? kind];
   const shows = known.map(k => k?.shows).filter(Boolean).join(' / ');
   return (
     <div
@@ -112,20 +126,24 @@ export function Placeholder({shots, kind = 'still'}: {shots: ShotState[]; kind?:
 }
 
 /** <picture> with AVIF and WebP sources, its intrinsic size (no layout shift), and the LQIP until it loads. */
-export function Picture({entry, url, alt, priority = false, className, lazy = true}: {
+export function Picture({entry, url, alt, priority = false, className, lazy = true, onError}: {
   entry: MediaEntry;
   url: (key: string) => string;
   alt: string;
   priority?: boolean;
   className?: string;
   lazy?: boolean;
+  /** The browser couldn't load the image */
+  onError?: () => void;
 }) {
   const ref = useRef<HTMLImageElement>(null);
   const [loaded, setLoaded] = useState(false);
-  // The image may have loaded before hydration, when React wasn't listening yet
+  // The image may have loaded, or failed, before hydration, when React wasn't listening yet
   useEffect(() => {
     if (ref.current?.complete && ref.current.naturalWidth > 0)
       setLoaded(true);
+    else if (ref.current?.complete && ref.current.currentSrc)
+      onError?.();
   }, []);
   const {files} = entry;
   const fallback = files.webp ?? files.png ?? files.avif;
@@ -144,6 +162,7 @@ export function Picture({entry, url, alt, priority = false, className, lazy = tr
         decoding="async"
         fetchPriority={priority ? 'high' : undefined}
         onLoad={() => setLoaded(true)}
+        onError={onError}
         style={loaded || !entry.lqip ? undefined : {backgroundImage: `url("${entry.lqip}")`}}
       />
     </picture>

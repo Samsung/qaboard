@@ -34,10 +34,12 @@ function useReducedMotion() {
 
 const cueText = (cue: TextTrackCue) => ((cue as VTTCue).text ?? '').replace(/<[^>]+>/g, '');
 
-function Player({entry, url, remote, alt, priority, autoplay, loop}: {
+function Player({entry, url, remote, alt, priority, autoplay, loop, onError}: {
   entry: MediaEntry;
   url: (key: string) => string;
   remote: boolean;
+  /** The browser couldn't load any of the video's sources */
+  onError: () => void;
   alt: string;
   priority: boolean;
   autoplay: 'inview' | 'never';
@@ -57,6 +59,12 @@ function Player({entry, url, remote, alt, priority, autoplay, loop}: {
   const canAutoplay = autoplay === 'inview' && !reducedMotion;
 
   useEffect(() => setHydrated(true), []);
+
+  // The sources may have failed before hydration, when React wasn't listening yet
+  useEffect(() => {
+    if (video.current?.networkState === HTMLMediaElement.NETWORK_NO_SOURCE)
+      onError();
+  }, []);
 
   const play = useCallback(() => {
     const v = video.current;
@@ -151,8 +159,9 @@ function Player({entry, url, remote, alt, priority, autoplay, loop}: {
             toggle();
           }
         }}>
-        {files.webm && <source src={url(files.webm)} type="video/webm" />}
-        {files.mp4 && <source src={url(files.mp4)} type="video/mp4" />}
+        {/* The browser tries the sources in order: the last one's error means none could play */}
+        {files.webm && <source src={url(files.webm)} type="video/webm" onError={files.mp4 ? undefined : onError} />}
+        {files.mp4 && <source src={url(files.mp4)} type="video/mp4" onError={onError} />}
         {files.vtt && <track ref={track} kind="captions" src={url(files.vtt)} srcLang="en" label="English" default />}
       </video>
       {started && cue && (
@@ -180,19 +189,20 @@ function Player({entry, url, remote, alt, priority, autoplay, loop}: {
 
 export default function Clip({id, caption, alt, maxWidth, priority = false, autoplay = 'inview', loop = true}: ClipProps) {
   const shot = useShot(id);
-  if (shot.status !== 'published') {
+  const [unavailable, setUnavailable] = useState(false);
+  if (shot.status !== 'published' || unavailable) {
     const planned = shot.status === 'planned' ? shot.planned : null;
     return (
       <figure className={styles.figure} style={maxWidth ? {maxWidth} : undefined}>
-        <Placeholder shots={[shot]} kind="clip" />
-        <Caption caption={caption ?? planned?.caption} />
+        <Placeholder shots={[shot]} kind={shot.status === 'published' ? shot.entry.kind : 'clip'} unavailable={unavailable} />
+        <Caption caption={caption ?? (shot.status === 'published' ? shot.entry.caption : planned?.caption)} />
       </figure>
     );
   }
   const {entry, url, remote} = shot;
   const isTape = entry.kind === 'tape';
   const width = Math.min(maxWidth ?? entry.width, entry.width);
-  const player = <Player entry={entry} url={url} remote={remote} alt={alt ?? entry.alt} priority={priority} autoplay={autoplay} loop={loop} />;
+  const player = <Player entry={entry} url={url} remote={remote} alt={alt ?? entry.alt} priority={priority} autoplay={autoplay} loop={loop} onError={() => setUnavailable(true)} />;
   return (
     <figure className={styles.figure} style={{maxWidth: isTape ? `calc(${width}px + 2 * var(--qbm-tape-padding))` : width}}>
       {isTape ? (

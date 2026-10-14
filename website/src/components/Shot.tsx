@@ -21,12 +21,13 @@ export type ShotProps = {
 export default function Shot({id, caption, alt, callouts = [], maxWidth, priority = false, zoom = true}: ShotProps) {
   const shot = useShot(id);
   const [zoomed, setZoomed] = useState(false);
-  if (shot.status !== 'published') {
+  const [unavailable, setUnavailable] = useState(false);
+  if (shot.status !== 'published' || unavailable) {
     const planned = shot.status === 'planned' ? shot.planned : null;
     return (
       <figure className={styles.figure} style={maxWidth ? {maxWidth} : undefined}>
-        <Placeholder shots={[shot]} kind="still" />
-        <Caption caption={caption ?? planned?.caption} callouts={callouts} />
+        <Placeholder shots={[shot]} kind="still" unavailable={unavailable} />
+        <Caption caption={caption ?? (shot.status === 'published' ? shot.entry.caption : planned?.caption)} callouts={callouts} />
       </figure>
     );
   }
@@ -36,7 +37,7 @@ export default function Shot({id, caption, alt, callouts = [], maxWidth, priorit
   return (
     <figure className={styles.figure} style={{maxWidth: Math.min(maxWidth ?? entry.width, entry.width)}}>
       <div className={styles.frame} onClick={zoom ? open : undefined} data-zoom={zoom || undefined}>
-        <Picture entry={entry} url={url} alt={altText} priority={priority} />
+        <Picture entry={entry} url={url} alt={altText} priority={priority} onError={() => setUnavailable(true)} />
         <CalloutMarkers callouts={callouts} anchors={entry.anchors} />
         {zoom && (
           <button

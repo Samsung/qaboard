@@ -119,6 +119,11 @@ async function get(url, dest, redirects = 5) {
         request.destroy();
         return resolve(statusCode);
       }
+      // Proxies that inspect HTTPS answer 200 with their own "blocked" page: don't retry it
+      if (/^text\/html\b/i.test(headers['content-type'] ?? '') && !/\.html?$/i.test(url.pathname)) {
+        request.destroy();
+        return reject(Object.assign(new Error(`${url.href}: got an HTML page instead of the file, probably a proxy blocking it`), {permanent: true}));
+      }
       const out = fs.createWriteStream(dest);
       response.pipe(out);
       response.on('error', reject);
@@ -210,9 +215,10 @@ function prune(dir, keep) {
 
 /**
  * Makes destDir/<key> hold exactly `files` ([{key, bytes}]), downloading the missing ones from baseUrl.
- * Returns {downloaded, cached, removed, bytes}.
+ * Returns {downloaded, cached, removed, bytes, failed}. Files that can't be downloaded fail the sync,
+ * unless allowFailures: then their keys are in `failed`.
  */
-async function syncMedia(files, {baseUrl, destDir, log = () => {}}) {
+async function syncMedia(files, {baseUrl, destDir, log = () => {}, allowFailures = false}) {
   const keep = new Set(files.map(f => path.join(destDir, f.key)));
   const removed = prune(path.join(destDir, 'shots'), keep);
   const missing = [];
@@ -234,16 +240,20 @@ async function syncMedia(files, {baseUrl, destDir, log = () => {}}) {
       try {
         await fetchOne(file, baseUrl, destDir);
       } catch (error) {
-        failures.push(error.message);
+        failures.push({key: file.key, message: error.message});
       }
     }
   }));
-  if (failures.length) {
-    const list = failures.slice(0, 10).map(f => `  ${f}`).join('\n');
+  if (failures.length && allowFailures) {
+    failures.forEach(f => log(`could not download ${f.message}`));
+  } else if (failures.length) {
+    const list = failures.slice(0, 10).map(f => `  ${f.message}`).join('\n');
     throw new Error(`[qaboard-media] ${failures.length} of ${missing.length} files could not be downloaded:\n${list}\n`
-      + 'Build without network access with QABOARD_MEDIA=placeholder, or use a mirror with QABOARD_MEDIA_BASE_URL.');
+      + 'Build without network access with QABOARD_MEDIA=placeholder, use a mirror with QABOARD_MEDIA_BASE_URL, '
+      + 'or render the shots whose files are missing as placeholders with QABOARD_MEDIA_MISSING=placeholder.');
   }
-  return {downloaded: missing.length, cached: files.length - missing.length, removed, bytes};
+  const failed = failures.map(f => f.key);
+  return {downloaded: missing.length - failed.length, cached: files.length - missing.length, removed, bytes, failed};
 }
 
 module.exports = {syncMedia, verify, get, bypassesProxy};
