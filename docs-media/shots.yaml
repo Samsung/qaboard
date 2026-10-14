@@ -32,6 +32,7 @@ features:
   flame-diff: Differential flame graphs
   text-diff: Monaco text diff with Next Diff
   video-sync: Videos played in sync with the reference
+  video-compare: Videos compared frame by frame, side by side, with a wipe, toggled or as their difference, synced zoom
   pointcloud: Point cloud viewer
   trajectory-6dof: 6DoF trajectories against ground truth
   bit-accuracy-tree: Bit-accuracy tree of output files with in-place diff
@@ -304,6 +305,15 @@ shots:
     needs: merge-bilateral vs isp-4-1 (deep-zoom batch)
     phase: 1
     status: published
+  - id: commit/video-compare
+    kind: clip
+    project: image-quality
+    shows: 'The camera''s video driving down the warehouse aisle in low light, new and reference on either side of a wipe, stepped frame by frame in sync; the divider moves, a zoom on a white package where the new denoiser draws dark rims, the toggle flips them in place, then their difference.'
+    pages: [user-guide/comparing-results, visualizations, use-cases/image-quality]
+    features: [video-compare]
+    needs: merge-bilateral vs isp-4-1 (video batch)
+    phase: 2
+    status: planned
   - id: commit/dynamic-outputs
     kind: clip
     project: image-quality
@@ -446,7 +456,7 @@ shots:
     kind: clip
     project: robotics-3d
     shows: The depth camera videos of new and reference playing in sync on figure8-fast.
-    pages: [visualizations, recipes/side-by-side-videos, use-cases/robotics-3d]
+    pages: [recipes/side-by-side-videos, use-cases/robotics-3d]
     features: [video-sync]
     phase: 3
     status: planned

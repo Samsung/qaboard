@@ -386,6 +386,66 @@ clip('commit/deep-zoom', {
   },
 });
 
+// Videos: the camera driving down the aisle in low light, every frame through the ISP (qa/video.py), in their own
+// `video` batch. The viewer's keys act on the viewer under the mouse. Side by side, the stage is half as high as in the
+// other modes: the clip stays in the others, so that nothing moves on the page.
+const videos = (page: Page) => page.getByRole('application', { name: /^Videos/ }).first();
+
+clip('commit/video-compare', {
+  project: IQ,
+  url: d => d.commitUrl(IQ, 'merge-bilateral', { reference: 'isp-4-1', view: 'output-list', batch: 'video', batch_ref: 'video' }),
+  alt: 'A video down a warehouse aisle in low light, new left of a divider, reference right, stepping frame by frame '
+    + 'together; then zoomed on a white package where the new one draws dark rims, flipped in place, and their difference.',
+  caption: 'Videos in sync, frame by frame: with a wipe, zoomed in, flipped in place, and their difference.',
+  // the viewer remembers its mode in the browser
+  storage: { 'qaboard:video-viewer:mode': '"wipe"', 'qaboard:video-viewer:gain': '4' },
+  actions: async ui => {
+    await showCard(ui);
+    await ui.page.waitForFunction(() => [...document.querySelectorAll('video')].every(v => v.readyState >= 2));
+    // a few frames in: the camera starts moving
+    await ui.hover(videos(ui.page));
+    for (let i = 0; i < 24; i++) await ui.press('ArrowRight');
+    await ui.settle();
+    await mouseAway(ui);
+  },
+  script: async ui => {
+    const stage = videos(ui.page);
+    const box = (await stage.boundingBox())!;
+    const at = (x: number, y: number) => ({ x: box.x + box.width * x, y: box.y + box.height * y });
+    // the white package, where the halos are
+    const zoomAt = { x: 0.6, y: 0.62 };
+
+    await ui.caption('New and reference, in sync frame by frame');
+    await ui.cursor.moveTo(at(0.3, 0.4));
+    for (let i = 0; i < 10; i++) await ui.press('ArrowRight');
+    await ui.hold(500);
+
+    await ui.caption('Wipe: drag the divider');
+    await ui.drag(at(0.5, 0.5), at(0.25, 0.5));
+    await ui.drag(at(0.25, 0.5), at(zoomAt.x, 0.5));
+    await ui.hold(400);
+
+    await ui.caption('Zoom in: both videos follow');
+    await ui.wheel(stage, -1000, { steps: 5, position: { x: box.width * zoomAt.x, y: box.height * zoomAt.y } });
+    await ui.hold(1200);
+
+    await ui.caption('Toggle: press t to flip them in place');
+    await ui.click(ui.page.getByRole('radio', { name: 'Toggle' }));
+    await ui.settle();
+    await ui.cursor.moveTo(at(zoomAt.x + 0.08, zoomAt.y + 0.1));
+    await ui.hold(400);
+    for (let i = 0; i < 4; i++) {
+      await ui.press('t');
+      await ui.hold(600);
+    }
+
+    await ui.caption('Their difference shows what changed');
+    await ui.click(ui.page.getByRole('radio', { name: 'Difference' }));
+    await ui.settle();
+    await ui.hold(2000);
+  },
+});
+
 
 // The commit bars, fixed at the top of the page: the new commit's, then the reference's. On the right of each, the
 // filter box with the counters under it, then the batch selector.
