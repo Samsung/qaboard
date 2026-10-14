@@ -34,6 +34,12 @@ function plannedEntry(entry, listed) {
   };
 }
 
+function hasFiles(dir) {
+  if (!fs.existsSync(dir))
+    return false;
+  return fs.readdirSync(dir, {withFileTypes: true}).some(dirent => dirent.isFile() || (dirent.isDirectory() && hasFiles(path.join(dir, dirent.name))));
+}
+
 function textFiles(dir, files = []) {
   for (const dirent of fs.readdirSync(dir, {withFileTypes: true})) {
     const file = path.join(dir, dirent.name);
@@ -140,8 +146,9 @@ module.exports = function qaboardMediaPlugin(context, options = {}) {
             }
             logger.warn(`[qaboard-media] ${incomplete.length} shots render as placeholders, some of their files could not be downloaded: ${incomplete.join(', ')}`);
           }
-          // A static directory with folders but no files makes the build fail
-          if (!wanted.length)
+          // A static directory with folders but no files makes the build fail: no page uses media, or none could
+          // be downloaded (QABOARD_MEDIA_MISSING=remote|placeholder behind a proxy that blocks the media host)
+          if (!hasFiles(path.join(siteDir, CACHE_DIR)))
             fs.rmSync(path.join(siteDir, CACHE_DIR), {recursive: true, force: true});
         } else {
           content.base = `${baseUrl}/`;
