@@ -21,10 +21,12 @@ export type CompareProps = {
 
 const clamp = (value: number) => Math.min(100, Math.max(0, value));
 
-function Slider({before, after, url, beforeLabel, afterLabel, initial, vertical}: {
+function Slider({before, after, beforeUrl, afterUrl, onError, beforeLabel, afterLabel, initial, vertical}: {
   before: MediaEntry;
   after: MediaEntry;
-  url: (key: string) => string;
+  beforeUrl: (key: string) => string;
+  afterUrl: (key: string) => string;
+  onError: () => void;
   beforeLabel: string;
   afterLabel: string;
   initial: number;
@@ -74,9 +76,9 @@ function Slider({before, after, url, beforeLabel, afterLabel, initial, vertical}
       onPointerMove={event => dragging && moveTo(event)}
       onPointerUp={() => setDragging(false)}
       onPointerCancel={() => setDragging(false)}>
-      <Picture entry={before} url={url} alt={before.alt} />
+      <Picture entry={before} url={beforeUrl} alt={before.alt} onError={onError} />
       <div className={styles.compareAfter} style={{clipPath: clip}}>
-        <Picture entry={after} url={url} alt={after.alt} />
+        <Picture entry={after} url={afterUrl} alt={after.alt} onError={onError} />
       </div>
       <span className={clsx(styles.compareLabel, styles.compareLabelBefore)} aria-hidden="true">{beforeLabel}</span>
       <span className={clsx(styles.compareLabel, vertical ? styles.compareLabelAfterVertical : styles.compareLabelAfter)} aria-hidden="true">{afterLabel}</span>
@@ -108,10 +110,11 @@ export default function Compare({
 }: CompareProps) {
   const shots = [useShot(before), useShot(after)];
   const [a, b] = shots;
-  if (a.status !== 'published' || b.status !== 'published') {
+  const [unavailable, setUnavailable] = useState(false);
+  if (a.status !== 'published' || b.status !== 'published' || unavailable) {
     return (
       <figure className={styles.figure} style={maxWidth ? {maxWidth} : undefined}>
-        <Placeholder shots={shots} kind="still" />
+        <Placeholder shots={shots} kind="still" unavailable={unavailable} />
         <Caption caption={caption} />
       </figure>
     );
@@ -122,7 +125,9 @@ export default function Compare({
       <Slider
         before={a.entry}
         after={b.entry}
-        url={a.url}
+        beforeUrl={a.url}
+        afterUrl={b.url}
+        onError={() => setUnavailable(true)}
         beforeLabel={beforeLabel}
         afterLabel={afterLabel}
         initial={position}

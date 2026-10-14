@@ -83,7 +83,7 @@ def resolve_poll_settings(timeout_seconds: Optional[float] = None, interval_seco
       return default
 
     # resolve value according to the precedence ladder
-    raw = val if val is not None else os.environ.get(env_var)
+    raw: Any = val if val is not None else os.environ.get(env_var)
     try:
       result = int(float(raw))
       if result <= 0:

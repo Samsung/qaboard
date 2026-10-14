@@ -168,16 +168,16 @@ def get(ctx, input_path, output_path, variable):
     variable = "artifacts_branch_root"
   if variable == "commit_ci_dir":
     variable = "outputs_commit"
-  locals().update(globals())
-  locals().update(ctx.obj)
+  # Not locals().update(): since python 3.13 (PEP 667) it doesn't change the function's variables
+  variables = {**globals(), **locals(), **ctx.obj}
   try:
     run_context = RunContext.from_click_run_context(ctx, config)
-    locals().update(run_context.asdict())
+    variables.update(run_context.asdict())
   except Exception:
     pass
 
-  if variable in locals():
-    print(locals().get(variable))
+  if variable in variables:
+    print(variables[variable])
   else:
     click.secho(f"Could not find {variable}", err=True, fg='red')
     exit(1)
@@ -512,7 +512,8 @@ default_lsf_concurrency = lsf_config.get('concurrency', 0)
 dask_config = config.get('runners', {}).get('dask', {})
 default_dask_concurrency = dask_config.get('concurrency')
 
-default_local_concurrency = os.environ.get('QA_BATCH_CONCURRENCY', local_config.get('concurrency'))
+# An int like --local-concurrency's: a string would differ from it, and count as given on the command line
+default_local_concurrency = int(os.environ['QA_BATCH_CONCURRENCY']) if os.environ.get('QA_BATCH_CONCURRENCY') else local_config.get('concurrency')
 default_local_timeout = float(os.environ.get('QA_BATCH_TIMEOUT', local_config.get('timeout', 0)))
 default_action_on_existing = config.get('outputs', {}).get('action_on_existing', "run")
 default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "wait")

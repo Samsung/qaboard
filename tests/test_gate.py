@@ -399,6 +399,8 @@ class TestGateCommand(unittest.TestCase):
 
   def qa_gate(self, *args, **env):
     clean_env = {k: v for k, v in os.environ.items() if not k.startswith(('QABOARD_', 'QA_', 'GITHUB_', 'CI', 'GITLAB_'))}
+    # The fake server is on 127.0.0.1: a web proxy would refuse to reach it
+    clean_env = {k: v for k, v in clean_env.items() if k.lower() not in ('http_proxy', 'https_proxy', 'all_proxy', 'no_proxy')}
     environment = {
       **clean_env, 'QA_NO_CHECK_FOR_UPDATES': '1', 'CI': 'true', 'GITHUB_SHA': SHA, 'GITHUB_REF': 'refs/heads/feature',
       'QABOARD_URL': self.server.url, 'GITHUB_STEP_SUMMARY': str(self.summary), **env,
