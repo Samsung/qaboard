@@ -194,3 +194,12 @@ def test_missing_inputs_from_qa_batch_logs():
         {"input": "night/*.raw", "database": "/stage/datasets"},
         {"input": "day", "database": "/stage/datasets/v2"},
     ]
+
+
+def test_says_which_input_is_wrong(dummy_app, batches_setup):
+    (batches_setup.artifacts / "qa/tests/tests.yaml").write_text("ci:\n  inputs:\n  - a\n  -\n")
+    data = list_tests(dummy_app, "ci")
+    assert data["tests"] == []
+    # the file as in qaboard.yaml, not its path in the artifacts
+    assert data["error"] == 'qa/tests/tests.yaml:4: The batch "ci" has an empty input, after "a": a "-" with nothing after it. Remove the "-", or write the input after it.'
+    assert data["definitions"] == [{"name": "ci", "file": "qa/tests/tests.yaml"}]

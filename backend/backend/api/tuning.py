@@ -311,6 +311,13 @@ def get_group():
     batches_paths = [f["location"] for f, batches in files_batches if batches is not None]
     print(f"[tests/group] {project_id} {commit_id} {name}: {[(f['path'], f['status']) for f in files]}", file=sys.stderr)
 
+    def as_in_qaboard_yaml(message):
+        """Errors name batch files by their path in the artifacts: show them as users wrote them."""
+        for f in files:
+            if f["location"]:
+                message = message.replace(str(f["location"]), f["path"])
+        return message
+
     def response(tests, missing_inputs, **extra):
         batch_warnings, definitions = batches_warnings(name, files, defined, aliases, tests, missing_inputs, artifacts_dir)
         all_warnings = [*warnings, *batch_warnings]
@@ -369,7 +376,10 @@ def get_group():
             process.check_returncode()
             runs = json.loads(process.stdout)
         except Exception:
-            return jsonify({"error": process.stderr[-5000:] or process.stdout[-5000:], "cmd": str(cmd)}), 500
+            # `qa` ends with "Error: <message>" for errors it understands
+            errors = re.findall(r'^Error: (.*)$', process.stderr, re.MULTILINE)
+            error = errors[-1] if errors else (process.stderr[-5000:] or process.stdout[-5000:])
+            return jsonify({"error": as_in_qaboard_yaml(error), "cmd": str(cmd)}), 500
         tests = [SimpleNamespace(rel_input_path=r.get("rel_input_path", r.get("input_path")), configurations=r.get("configurations", []), batch=r.get("batch")) for r in runs]
         return response(tests, missing_inputs_from_logs(process.stderr))
 
@@ -402,7 +412,7 @@ def get_group():
             )
     except Exception as e:
         print(f'Error: {e}', file=sys.stderr)
-        return response([], [], error=f"{type(e).__name__}: {e}" if not str(e) else str(e))
+        return response([], [], error=as_in_qaboard_yaml(str(e)) or f"{type(e).__name__} while listing the tests, see the server's logs")
     return response(tests, missing)
 
 

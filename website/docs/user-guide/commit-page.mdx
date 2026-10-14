@@ -249,6 +249,7 @@ Below the tests, *Which tests run?* says which file defines the batch, and lists
 - a file listed in `inputs.batches` is not in the commit's artifacts: the list shows where QA-Board looked for it. Check its name, and run `qa save-artifacts` on the commit (the CI usually does it),
 - a file is not valid YAML,
 - no file defines the batch,
+- the batch has an input `qa batch` can't use, like an empty `-` or a number that should be in quotes: the error gives the file and line,
 - the batch's inputs were not found under the database, as the QA-Board server sees it: for instance when the database is not mounted on the server.
 
 - **New** adds an example batch to start from.

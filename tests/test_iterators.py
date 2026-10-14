@@ -266,6 +266,48 @@ class TestIterators(unittest.TestCase):
       list(iter_inputs_at_path('photos', database, ['*.png'], False, {}))
       self.assertEqual(len(missing), 2)
 
+  def test_batch_errors_say_where(self):
+    """Batches qa can't use say which input is wrong, in which file and at which line"""
+    import tempfile
+    from qaboard.iterators import iter_inputs, BatchError
+    with tempfile.TemporaryDirectory() as tmp:
+      batches_file = Path(tmp) / 'batches.yaml'
+      batches_file.write_text('\n'.join([
+        'ok:',              # 1
+        '  inputs: a',      # 2: a single input is fine
+        'empty-item:',      # 3
+        '  inputs:',        # 4
+        '  - a',            # 5
+        '  - b',            # 6
+        '  -',              # 7
+        'number:',          # 8
+        '  inputs: [20260223]', # 9
+        'listed: [a, b]',   # 10
+        'not-a-list:',      # 11
+        '  inputs: 3',      # 12
+      ]))
+      def batch(name):
+        return list(iter_inputs([name], [batches_file], Path(tmp), [], 'linux', {"type": "local"}, {}))
+      self.assertEqual(batch('ok'), [])  # no input "a" in the database
+      with self.assertRaises(BatchError) as error:
+        batch('empty-item')
+      self.assertEqual(str(error.exception), f'{batches_file}:7: The batch "empty-item" has an empty input, after "b": a "-" with nothing after it. Remove the "-", or write the input after it.')
+      # existing callers expect ValueErrors
+      self.assertIsInstance(error.exception, ValueError)
+      with self.assertRaises(BatchError) as error:
+        batch('number')
+      self.assertEqual(str(error.exception), f'{batches_file}:9: The batch "number" has an input that YAML reads as a number, not a path: 20260223 (the first one). Write it in quotes.')
+      with self.assertRaises(BatchError) as error:
+        batch('listed')
+      self.assertTrue(str(error.exception).startswith(f'{batches_file}: The batch "listed" must be a mapping'))
+      with self.assertRaises(BatchError) as error:
+        batch('not-a-list')
+      self.assertIn('must be a list of paths, not: 3', str(error.exception))
+      # also with patterns
+      with self.assertRaises(BatchError) as error:
+        batch('empty-*')
+      self.assertIn(':7: The batch "empty-item"', str(error.exception))
+
   def test_input_type_runner_settings(self):
     """Test that input types can specify runner settings"""
     from qaboard.iterators import iter_inputs
