@@ -2,7 +2,7 @@
 QA-Board runs this file: `qa run --input charts/slanted-edge.png` calls run(context).
 
 It simulates the K3 camera on the input (the "scene"), runs the ISP on the raw image, saves the output and each stage,
-and measures the result against the scene it started from.
+and measures the result against the scene it started from. Videos (clips/*.yaml) do the same on every frame.
 - configurations (`--config base|low-light|night`) set the ISO,
 - the code's flags come from build/flags.json (what a commit changed), tuning parameters override them,
 - the `hw-model` platform runs the fixed-point model of the camera chip instead of the float pipeline.
@@ -70,6 +70,10 @@ def run(context):
     if context.input_path.suffix == '.tiff':   # the 113 MP test wall
         import deep_zoom
         return deep_zoom.run(context.input_path, output_dir, config, flags, seed_key, start)
+    if context.input_path.suffix == '.yaml':   # a video: clips/<name>.yaml
+        import video
+        metrics = video.run(context.input_path, ROOT / context.database, output_dir, config, flags, seed_key)
+        return {**metrics, 'runtime': time.time() - start, 'is_failed': False}
 
     scene = np.asarray(Image.open(context.input_path).convert('RGB'))
     raw = camera.capture(scene, config, seed_key)
