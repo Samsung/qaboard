@@ -16,6 +16,9 @@ services:
   proxy:
     ports:
     - ${QABOARD_DEV_PROXY_PORT_5001:-5001}:5001
+    environment:
+    # The dev backend only runs flask, not the uwsgi that nginx asks who can read files (snippets/qaboard-files-auth.conf)
+    - QABOARD_FILES_AUTH=off
 
   backend:
     volumes:
