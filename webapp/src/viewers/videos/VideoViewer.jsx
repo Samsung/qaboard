@@ -70,14 +70,14 @@ const Shortcuts = () => <table className={`${Classes.HTML_TABLE} ${Classes.COMPA
   </tbody>
 </table>;
 
-// The play hint before the first play, a spinner while buffering,
+// The play hint until the videos play or move, a spinner while buffering,
 // and how many frames the reference is off while it catches up (it shouldn't be visible)
 const StageOverlay = memo(({ controller }) => {
   const s = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const drift = s.drift !== null && s.frameDuration ? Math.round(s.drift / s.frameDuration) : 0;
   return <>
     {s.buffering && <div className="video-overlay-center"><Spinner size={36} aria-label="Loading" /></div>}
-    {!s.buffering && !s.played && s.ready && <div className="video-overlay-center video-play-hint"><Icon icon="play" size={32} /></div>}
+    {!s.buffering && !s.played && s.ready && s.time < 1e-3 && <div className="video-overlay-center video-play-hint"><Icon icon="play" size={32} /></div>}
     {Math.abs(drift) >= 2 && <span className="video-drift" title="The reference is catching up with the new video">
       reference {drift > 0 ? '+' : ''}{drift} frames
     </span>}
@@ -193,8 +193,8 @@ const VideoViewer = ({
   const main = info_new?.width ? info_new : info_ref?.width ? info_ref : null;
   const aspect = main ? main.width / main.height : 16 / 9;
   const side_by_side = mode === 'side-by-side';
-  // leave room for the toolbar and the timeline, and in the page for the commits' bars
-  const max_height = Math.max(160, window_height - (fullscreen ? 130 : 220));
+  // the toolbar and the timeline fit in the window too, under the commit page's bars
+  const max_height = Math.max(160, window_height - (fullscreen ? 130 : 300));
   const width_per_pane = Math.max(0, side_by_side ? (available - GAP) / 2 : available);
   const pane_width = Math.floor(Math.min(width_per_pane, max_height * aspect));
   const pane = { width: pane_width, height: Math.floor(pane_width / aspect) };
@@ -542,7 +542,11 @@ const VideoViewer = ({
           aria-label="Comparison"
           options={modes.map(({ value, label, icon }) => ({ value, label, icon }))}
           value={mode}
-          onValueChange={setMode}
+          onValueChange={value => {
+            setMode(value);
+            // the keys go to the videos, not to the buttons (arrows would change the mode)
+            stage.current.focus({ preventScroll: true });
+          }}
         />}
         {comparing && mode !== 'difference' && <Button
           size="small"

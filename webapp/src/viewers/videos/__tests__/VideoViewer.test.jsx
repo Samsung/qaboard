@@ -89,6 +89,13 @@ describe('VideoViewer', () => {
     expect(again.container.querySelector('.video-wipe')).not.toBeNull();
   });
 
+  it('gives the keyboard back to the videos after picking a mode', () => {
+    viewer({ output_ref: output('ref') });
+    fireEvent.click(screen.getByRole('radio', { name: 'Wipe' }));
+    // else the arrow keys would change the mode instead of stepping frames
+    expect(document.activeElement).toHaveAttribute('role', 'application');
+  });
+
   it('has keyboard shortcuts for the viewer under the mouse', () => {
     const { container } = viewer({ output_ref: output('ref') });
     const video_new = screen.getByLabelText('New video');
