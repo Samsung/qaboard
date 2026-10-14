@@ -1,0 +1,7 @@
+# qa/main.py's dependencies, besides the qaboard CLI
+numpy>=1.24
+scipy>=1.10
+pillow>=10.1
+tifffile>=2023.7.10
+imagecodecs  # JPEG tiles in the 113 MP TIFF
+pyyaml

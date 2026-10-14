@@ -21,7 +21,7 @@ import {
   Alignment,
 } from "@blueprintjs/core";
 import { Container } from "./components/layout";
-import { Avatar } from "./components/avatars";
+import { ProjectAvatar } from "./components/avatars";
 import { LoadMore } from "./components/LoadMore";
 import AuthButton from "./components/authentication/Auth"
 import PrivateContent from "./components/authentication/PrivateContent"
@@ -29,8 +29,7 @@ import { WhatsNewLink } from './releaseNotes/ReleaseNotes'
 import { useProjects, useSiteConfig, useUser } from './hooks'
 import { usePrefsStore } from './stores/prefs'
 import { match_query } from "./utils"
-import { project_avatar_style, quota_url } from "./utils"
-import { repo_url, image_url } from "./git"
+import { project_web_url, quota_url } from "./utils"
 
 
 const LastCommitAt = ({ project, className }) => {
@@ -68,13 +67,9 @@ const ProjectCard = ({ project_id, details }) => {
   const data = details.data || {};
   const git = data.git || {};
   const qatools_config_project = data.qatools_config?.project || {};
-
-  const web_url = repo_url(details)
-  const avatar_url = image_url(qatools_config_project.avatar_url ?? git.avatar_url)
-  const is_subproject = git.path_with_namespace !== project_id;
-  const has_custom_avatar = !!data.qatools_config?.project?.avatar_url
-  const should_tweak_image = is_subproject && !has_custom_avatar;
-  const avatar_style = should_tweak_image ? project_avatar_style(project_id) : null;
+  // from qaboard.yaml, else from GitHub/GitLab
+  const description = qatools_config_project.description || git.description;
+  const web_url = project_web_url(details)
 
   return (
     <Card
@@ -82,16 +77,15 @@ const ProjectCard = ({ project_id, details }) => {
       elevation={2}
     >
       <div style={{'alignSelf': 'center', flex: '0 0 auto', 'marginRight': '10px'}}>
-        <Avatar
-          src={avatar_url}
-          img_style={avatar_style}
+        <ProjectAvatar
+          project={project_id}
+          data={data}
           href={`/${project_id}`}
-          alt={git.name || project_id}
         />
       </div>
       <div style={{'alignSelf': 'center', 'minWidth': 0}}>
         <h5 className={Classes.HEADING}><Link to={`/${project_id}`}>{project_id}</Link></h5>
-        {git.description && <p style={{marginTop: '5px', marginBottom: '0px'}} className={Classes.TEXT_MUTED}>{qatools_config_project.description || git.description}</p>}
+        {description && <p style={{marginTop: '5px', marginBottom: '0px'}} className={Classes.TEXT_MUTED}>{description}</p>}
       </div>
       <div style={{'alignSelf': 'center', 'marginLeft': 'auto', textAlign: 'right', flex: '0 0 auto'}}>
         <p style={{marginBottom: '5px'}}>
@@ -106,7 +100,7 @@ const ProjectCard = ({ project_id, details }) => {
         </p>
         <p style={{marginBottom: '5px'}}><LastCommitAt project={details} /></p>
         <p style={{marginBottom: '0px'}}><span style={{ color: "#555" }}>
-          {details.total_commits} commits
+          {details.total_commits} commit{details.total_commits === 1 ? '' : 's'}
         </span></p>
       </div>
     </Card>
@@ -114,18 +108,17 @@ const ProjectCard = ({ project_id, details }) => {
 }
 
 
-const github_cat = <>
-  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#fff">
+// Not in a fragment: Blueprint gives icons a className
+const github_cat = <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#fff">
     <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
   </svg>
-</>
 
 const EmptyProjects = ({ docs_root, support_url }) => <div style={{marginTop: '10vh'}}>
   <NonIdealState
     icon="heatmap"
     title="No projects yet."
     intent={Intent.PRIMARY}
-    description={<p>Learn how to <a href={`${docs_root}docs/installation`}>get started</a>, and <a href={support_url}>ask for help</a> if you run into issues.</p>}
+    description={<p>Learn how to <a href={`${docs_root}docs/installation`}>get started</a>,<br/>and <a href={support_url}>ask the maintainers</a> if you run into issues.</p>}
   />
 </div>;
 
@@ -136,7 +129,7 @@ const page_size = 50;
 const ProjectsList = () => {
   const { data: projects = {}, error, isPending } = useProjects();
   const user = useUser();
-  const { docs_root, quota_url_template, support_url } = useSiteConfig();
+  const { docs_root, support_url, quota_url_template } = useSiteConfig();
   const favorites = usePrefsStore(state => state.favorites);
   const [query, setQuery] = useState('');
   const [nb_shown, setNbShown] = useState(page_size);
@@ -193,7 +186,7 @@ const ProjectsList = () => {
                 />
               </div>
             <div>
-              <Tag intent={!!query ? Intent.PRIMARY : undefined} minimal>{rendered_projects.length} {!!query ? 'filtered ' : ''}projects</Tag>
+              <Tag intent={!!query ? Intent.PRIMARY : undefined} minimal>{rendered_projects.length} {!!query ? 'filtered ' : ''}project{rendered_projects.length === 1 ? '' : 's'}</Tag>
             </div>
           </div>
           {warnings}

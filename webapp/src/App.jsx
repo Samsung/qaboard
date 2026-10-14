@@ -10,9 +10,9 @@ import { StyleSheetManager } from "styled-components";
 import isPropValid from "@emotion/is-prop-valid";
 
 import { history, matchRoutes, RouteMatch } from "./router";
-import { queryClient, persistOptions } from "./api/queryClient";
+import { queryClient, persistOptions, onCacheRestored } from "./api/queryClient";
 import { siteConfigQuery } from "./api/queries";
-import { useSiteConfig } from "./hooks";
+import { ComparisonProvider, useSiteConfig } from "./hooks";
 import { initSentry, initPostHog } from "./analytics";
 import { Layout } from "./components/layout";
 import ProjectsList from "./ProjectsList";
@@ -31,7 +31,8 @@ import "./App.css";
 import { routes } from './routes'
 import { ReleaseNotesProvider, WhatsNewLink } from "./releaseNotes/ReleaseNotes"
 import PrivateContent from "./components/authentication/PrivateContent"
-import { sider_width } from './AppSider'
+import AppSider, { sider_width } from './AppSider'
+import AppNavbar from './AppNavbar'
 
 // In development, inspect queries and their cache: https://tanstack.com/query/latest/docs/framework/react/devtools
 const ReactQueryDevtools = import.meta.env.DEV
@@ -71,7 +72,7 @@ const Fallback = ({ error, componentStack }) => {
 const App = ({ persist = true }) => {
   // Tests don't have IndexedDB: they don't persist the cache
   const Provider = persist ? PersistQueryClientProvider : QueryClientProvider;
-  const providerProps = persist ? { client: queryClient, persistOptions } : { client: queryClient };
+  const providerProps = persist ? { client: queryClient, persistOptions, onSuccess: onCacheRestored } : { client: queryClient };
   return <Provider {...providerProps}>
     <Sentry.ErrorBoundary fallback={props => <Fallback {...props}/>}>
       <Analytics/>
@@ -101,12 +102,13 @@ const Routes = () => {
 const ProjectApp = ({ pathname }) => {
   const matched = matchRoutes(routes, pathname);
   if (!matched) return null;
-  const { route: { sider: Sider, navbar: Navbar, main: Main }, match } = matched;
+  const { route: { main: Main }, match } = matched;
   return <RouteMatch match={match}>
+    <ComparisonProvider>
     <Layout className={Classes.UI_TEXT}>
-      <Sider/>
+      <AppSider/>
       <div style={{width: '100%'}}>
-        <Navbar/>
+        <AppNavbar/>
         <div style={{paddingLeft: sider_width}}>
           <Suspense fallback={<EmptyLoading/>}>
             <Main/>
@@ -115,6 +117,7 @@ const ProjectApp = ({ pathname }) => {
         </div>
       </div>
     </Layout>
+    </ComparisonProvider>
   </RouteMatch>
 }
 

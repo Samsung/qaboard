@@ -43,8 +43,9 @@ const ReleaseNotesContext = createContext({
 export const useReleaseNotes = () => useContext(ReleaseNotesContext);
 
 
-// The notes are in their own chunk: they are not needed for the first render
-const loadNotes = () => import(/* webpackChunkName: "release-notes" */ "./release-notes.json")
+// The notes are in their own chunk: they are not needed for the first render.
+// They come from website/release-notes/, see webapp/releaseNotes.js
+const loadNotes = () => import("virtual:release-notes")
   .then(m => (m.default || m).notes);
 
 

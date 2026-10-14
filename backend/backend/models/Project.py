@@ -38,16 +38,17 @@ class Project(Base):
   ci_commits = relationship("CiCommit", order_by=CiCommit.authored_datetime, back_populates="project")
 
 
-  def storage_roots(self, default_qaboard_config=None):
+  def storage_roots(self, default_qaboard_config=None, user_name=None):
     """
     The locations where we save outputs and artifacts for this project.
+    `user_name` replaces {user} in the storage settings, by default the server's user.
     """
     qaboard_config = self.data.get('qatools_config', {})
     if not qaboard_config.get('storage'):
       qaboard_config = default_qaboard_config
     # We need it for every commit and batch we serialize, and only those keys matter
     storage_config = {k: qaboard_config[k] for k in ('storage', 'ci_root') if k in qaboard_config} if qaboard_config is not None else None
-    args = (self.id, self.id_git, self.id_relative, json.dumps(storage_config, sort_keys=True), os.environ.get('QA_STORAGE'))
+    args = (self.id, self.id_git, self.id_relative, json.dumps(storage_config, sort_keys=True), os.environ.get('QA_STORAGE'), user_name)
     # Scripts that set QABOARD_NO_CACHE_USER change the {user} of storage paths as they go (e.g. scripts/migrate.py)
     if 'QABOARD_NO_CACHE_USER' in os.environ:
       return dict(_storage_roots.__wrapped__(*args))
@@ -154,10 +155,10 @@ class Project(Base):
 
 
 @lru_cache(maxsize=1024)
-def _storage_roots(project_id, id_git, id_relative, storage_config_json, qa_storage):
+def _storage_roots(project_id, id_git, id_relative, storage_config_json, qa_storage, user_name=None):
   # qa_storage: $QA_STORAGE overrides the storage config, it's part of the cache key
   try:
-    outputs_root, artifacts_root, subproject_for_artifacts = storage_roots(json.loads(storage_config_json), Path(project_id), Path(id_relative))
+    outputs_root, artifacts_root, subproject_for_artifacts = storage_roots(json.loads(storage_config_json), Path(project_id), Path(id_relative), user_name=user_name)
   except Exception as e:
     print(e)
     outputs_root = default_outputs_root

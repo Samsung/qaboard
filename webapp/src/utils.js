@@ -13,6 +13,8 @@ const { median: mathjs_median, format } = create({
 })
 
 import { memoized_levenshtein } from "./levenshtein";
+import { setPathMappings, linux_to_windows } from "./utils/paths";
+import { repo_url } from "./git";
 
 
 const calendarStrings = {
@@ -78,6 +80,11 @@ const matching_output = ({ output, batch, index }) => {
     2 * ((o.platform !== output.platform) | 0) +
     1 * ((o.extra_parameters_str !== output.extra_parameters_str) | 0);
 
+  // Most of the time there's an identical run: no need to measure how different the others are
+  const exact = index.exact.get(run_key(output));
+  if (exact !== undefined)
+    return { output_ref: index.outputs[exact], mismatch: null };
+
   // Candidates run on the same input, in the batch's order
   const positions = new Set([
     ...(index.by_input_path.get(output.input_path) ?? []),
@@ -114,6 +121,8 @@ const matching_output = ({ output, batch, index }) => {
   return { output_ref, mismatch };
 };
 
+const run_key = o => `${o.input_path}\u0000${o.configurations_str}\u0000${o.extra_parameters_str}\u0000${o.platform}`;
+
 // Lookups by input, for the outputs of a batch that are shown and not pending
 const index_outputs = batch => {
   const outputs = (batch.filtered?.outputs ?? Object.keys(batch.outputs ?? {}))
@@ -122,6 +131,7 @@ const index_outputs = batch => {
   const by_input_path = new Map();
   const by_test_input_path = new Map();
   const by_metadata_id = new Map();
+  const exact = new Map();
   const add = (map, key, i) => {
     if (key === undefined || key === null) return;
     if (!map.has(key)) map.set(key, []);
@@ -131,8 +141,9 @@ const index_outputs = batch => {
     add(by_input_path, o.input_path, i);
     add(by_test_input_path, o.test_input_path, i);
     if (o.test_input_metadata?.id) add(by_metadata_id, o.test_input_metadata.id, i);
+    if (!exact.has(run_key(o))) exact.set(run_key(o), i);
   });
-  return { outputs, by_input_path, by_test_input_path, by_metadata_id };
+  return { outputs, by_input_path, by_test_input_path, by_metadata_id, exact };
 };
 
 const safe_regex = s => {
@@ -273,29 +284,8 @@ const quota_url = (template, user_name, project) => {
     .replace('{project}', encodeURIComponent(project ?? ''))
 }
 
-// Path mappings populated from /api/v1/config (via setPathMappings).
-// Each entry is [windows_prefix, linux_prefix].
-let _path_mappings = [];
-
-const setPathMappings = (mappings) => {
-  _path_mappings = mappings || [];
-};
-
-const linux_to_windows = path => {
-  if (path === undefined || path === null)
-    return path
-  let result = decodeURI(path).replace(/\/s\//, '/')
-  for (const [windows_prefix, linux_prefix] of _path_mappings) {
-    if (result.startsWith(linux_prefix)) {
-      // Convert backslashes in windows_prefix to forward slashes for matching,
-      // then convert everything to backslashes at the end
-      const win = windows_prefix.replace(/\\/g, '/')
-      result = win + result.slice(linux_prefix.length)
-      return result.replace(/\//g, '\\')
-    }
-  }
-  return result.replace(/\//g, '\\')
-}
+// The project's page on its git server
+const project_web_url = project_data => repo_url(project_data);
 
 
 const path_regex = /^(\\\\[^\\]+)(\\[^\\]+)/;
@@ -369,7 +359,8 @@ const make_eval_templates_recursively = ({project, project_data, branch, commit,
   let project_name = project_parts[project_parts.length-1];
   let project_name_tolower = project_name.toLowerCase();
   let context = {
-      git: project_data && project_data.data && project_data.data.git,
+      // integrations' templates use e.g. ${git.web_url}
+      git: { ...project_data?.data?.git, web_url: project_web_url(project_data) },
       project,                  // "group/project/my/Subproject"
       subproject,               // "my/Subproject"
       project_name,             // "Subproject"
@@ -429,6 +420,9 @@ const slug = text => {
 
 // Returns a new mapping of metrics, with defaults for label, scale, suffix...
 // Metrics whose key starts with a dot are hidden.
+// The value of input events, or the value itself
+const event_value = e => (e?.target && e.target.value !== undefined) ? e.target.value : e;
+
 const metrics_fill_defaults = available_metrics => {
   const filled = {};
   Object.entries(available_metrics || {}).forEach(([key, m]) => {
@@ -530,6 +524,8 @@ export {
   are_on_same_filesystem, extract_drive_and_folder,
   make_eval_templates_recursively,
   metrics_fill_defaults,
+  event_value,
+  project_web_url,
   is_same_data,
   copyElementToClipboard,
 };

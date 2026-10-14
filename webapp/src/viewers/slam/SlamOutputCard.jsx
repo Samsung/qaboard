@@ -3,11 +3,13 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { tsvParse } from "d3-dsv";
 
 import Plot from "../../components/Plot";
-import { http } from "../../api/http";
+import { fileQuery } from "../../api/queries";
 
-// We don't send data to Plotly's public cloud (chart-studio): outputs can be confidential
+// No "Send to Cloud" or "Edit chart" links: they would upload the data to Plotly's public Chart Studio
 const config = {
   displayModeBar: true,
+  showSendToCloud: false,
+  showLink: false,
 };
 
 const colors = {
@@ -19,9 +21,7 @@ const colors = {
 
 // The files are tab-separated values
 const text_file_query = url => ({
-  queryKey: ['file', url, 'text'],
-  queryFn: ({ signal }) => http.get(url, { signal, responseType: 'text' }).then(r => r.data),
-  enabled: !!url,
+  ...fileQuery(url, { responseType: 'text' }),
   // while we load other outputs, we keep showing the current ones
   placeholderData: keepPreviousData,
 });

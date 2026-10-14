@@ -38,10 +38,11 @@ net use \\mars\raid
 "%task%"" 
 ```
 """
+import math
 import os
 import re
 import time
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
 
 from click import secho
 
@@ -52,6 +53,49 @@ from ..compat import linux_to_windows, linux_to_windows_path
 from ..config import config
 
 from ..api import api_prefix, api_verify
+
+# Valid values for PowerShell's $ErrorActionPreference (case-insensitive)
+ERROR_ACTION_PREFERENCES = frozenset({"continue", "stop", "silentlycontinue", "inquire", "ignore"})
+DEFAULT_ERROR_ACTION = "Stop"
+
+
+def get_error_action(job_options: Optional[Dict[str, Any]]) -> str:
+  # ErrorActionPreference can be configured per-job, with an env var, and defaults to "Stop"
+  preference = (job_options or {}).get('error_action') or os.environ.get('QA_RUNNER_ERROR_ACTION') or DEFAULT_ERROR_ACTION
+  if preference.lower() not in ERROR_ACTION_PREFERENCES:
+    secho(f'[WARNING] Invalid ErrorActionPreference: {preference}! Falling back to "{DEFAULT_ERROR_ACTION}"', fg='yellow')
+    preference = DEFAULT_ERROR_ACTION
+  return preference
+
+
+# Defaults for polling Jenkins builds
+DEFAULT_POLL_TIMEOUT_SECONDS = 2 * 60 * 60  # 2 hours
+DEFAULT_POLL_INTERVAL_SECONDS = 30          # 0.5 minute
+# Statuses while a Jenkins build is not finished yet
+ACTIVE_BUILD_STATUSES = frozenset({"BLOCKED", "STUCK", "running"})
+
+
+def resolve_poll_settings(timeout_seconds: Optional[float] = None, interval_seconds: Optional[float] = None) -> Tuple[int, int]:
+  """Resolve the polling timeout and interval: explicit params > environment variables > defaults."""
+  def resolve(val: Any, env_var: str, default: int, param_name: str) -> int:
+    # fallback to defaults
+    if val is None and env_var not in os.environ:
+      return default
+
+    # resolve value according to the precedence ladder
+    raw: Any = val if val is not None else os.environ.get(env_var)
+    try:
+      result = int(float(raw))
+      if result <= 0:
+        raise ValueError
+    except (TypeError, ValueError, OverflowError):
+      source = env_var if val is None else param_name
+      secho(f"[WARNING] Invalid value for {source}: {raw}. Falling back to the default ({default} seconds)", fg='yellow')
+      return default
+    return result
+
+  return (resolve(timeout_seconds, 'QA_JENKINS_TIMEOUT', DEFAULT_POLL_TIMEOUT_SECONDS, 'timeout_seconds'),
+          resolve(interval_seconds, 'QA_JENKINS_STATUS_INTERVAL', DEFAULT_POLL_INTERVAL_SECONDS, 'interval_seconds'))
 
 
 def get_jenkins_config():
@@ -153,25 +197,38 @@ def build_status(build_info):
   return r.json()['status']
 
 
-def wait_for_build(build_info, should_print_log=True):
-    sleep =       5 # s
-    timeout = 15*60 # s 
-    max_tries = timeout / sleep
+def _poll_jenkins_status(build_info: Dict[str, Any], timeout_seconds: Optional[float] = None, interval_seconds: Optional[float] = None) -> str:
+  """Wait for a Jenkins build to finish, and return its final status.
+  Timeout / interval defaults to 2h / 30s, overridable with env vars, and explicit parameters take precedence."""
+  timeout, interval = resolve_poll_settings(timeout_seconds, interval_seconds)
+  max_tries = math.ceil(timeout / interval)
+
+  status = build_status(build_info)
+  tries = 0
+  while status in ACTIVE_BUILD_STATUSES and tries < max_tries:
+    secho(f"status: {status}", dim=True)
+    time.sleep(interval)
     status = build_status(build_info)
-    tries = 0
-    while status in ["BLOCKED", "STUCK", "running"] and tries < max_tries: 
-        tries += 1
-        time.sleep(5) # seconds
-        status = build_status(build_info)
-        if status != "success":
-            secho(status, dim=True)
-    if should_print_log:
-        log_url = f"{build_info['web_url']}consoleText" if 'web_url' in build_info else build_info['url']
-        print_log(log_url)
-    if status != 'success':
-        secho(f'[ERROR] There was an issue while waiting for the end of: {build_info["web_url"] if "web_url" in build_info else build_info["url"]}', fg='red')
-        secho(f'        The job is marked as: {status}', fg='red')
-        raise Exception
+    tries += 1
+  secho(f"Jenkins job finished with status: {status}")
+  return status
+
+
+def poll_jenkins_status(build_info: Dict[str, Any], timeout_seconds: Optional[float] = None, interval_seconds: Optional[float] = None) -> bool:
+  """Wait for a Jenkins build to finish. Returns whether its final status is 'success'.
+  You must pass `build_info`, which is returned by `JenkinsWindowsRunner.start()`, so we can identify your jenkins job."""
+  return _poll_jenkins_status(build_info, timeout_seconds, interval_seconds) == 'success'
+
+
+def wait_for_build(build_info, should_print_log=True):
+  status = _poll_jenkins_status(build_info)
+  if should_print_log:
+    log_url = f"{build_info['web_url']}consoleText" if 'web_url' in build_info else build_info['url']
+    print_log(log_url)
+  if status != 'success':
+    secho(f'[ERROR] There was an issue while waiting for the end of: {build_info["web_url"] if "web_url" in build_info else build_info["url"]}', fg='red')
+    secho(f'        The job is marked as: {status}', fg='red')
+    raise Exception
 
 
 def print_log(log_url):
@@ -204,6 +261,8 @@ class JenkinsWindowsRunner(BaseRunner):
     # Can't use commands with more than 256 characters, so we use a script to save space
     command = self.run_context.command
     assert command
+    # external callers may pass a duck-typed context without a job_options attribute
+    job_options = getattr(self.run_context, 'job_options', None)
 
     if not log_path:
       log_path = self.run_context.output_dir / 'log.txt'
@@ -219,12 +278,12 @@ class JenkinsWindowsRunner(BaseRunner):
 
     from ..config import user
     script = "\n".join([
-      # TODO: use this? self.run_context.job_options.get('user', user)
+      # TODO: use this? job_options.get('user', user)
       f'cd "{linux_to_windows(os.getcwd())}"',
       f"$Env:QA_USER = '{user}'",
       # https://stackoverflow.com/questions/40098771/changing-powershells-default-output-encoding-to-utf-8
       "$PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'",
-      "$ErrorActionPreference = \"Stop\"",
+      f"$ErrorActionPreference = \"{get_error_action(job_options)}\"",
       command,
       'exit $lastExitCode',
     ])

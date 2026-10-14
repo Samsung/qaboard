@@ -1,0 +1,234 @@
+---
+id: quality-gate
+title: Quality gate
+sidebar_label: Quality gate
+description: Fail the CI when a commit's metrics regress against a reference, with qa gate and rules in qaboard.yaml.
+---
+import StatusBadge from '@site/src/components/StatusBadge';
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<StatusBadge status="experimental" />
+
+:::caution Experimental
+`qa gate` and the `gate:` section of *qaboard.yaml* may change without notice: their names, defaults and output.
+Tell us how it works for you in [GitHub issues](https://github.com/Samsung/qaboard/issues).
+:::
+
+`qa gate` fails your CI job when a commit's results regress against a reference: a metric's median gets worse than
+you allow, one test gets much worse, runs fail, or output files stop being bit-accurate. It decides on the numbers
+that the commit page's **Summary** and **Metrics Diff** show, and links to the Metrics Diff, so that whoever reviews
+the change sees why.
+
+<Clip
+  id="cli/gate"
+  caption="On the commit that added a shared cache, the p99 latency is far worse than on main: the gate fails and exits with 1."
+  alt="A terminal runs qa gate. A table lists each rule with the new and reference values: the p99 latency row says FAIL, then the link to the Metrics Diff."
+/>
+
+## Set the rules
+Add a `gate:` section to *qaboard.yaml*:
+
+```yaml title="qaboard.yaml"
+# Experimental: may change without notice
+gate:
+  reference: main               # a branch, a milestone or a commit. Default: project.reference_branch
+  batches: [ci]                 # the batches to check. Default: the CI batch
+  rules:
+    - {metric: psnr, max_regression: 1%}            # the median over the runs, vs the reference
+    - {metric: latency_p99, max_regression: 5%}
+    - {metric: map, min: 0.42}                      # an absolute floor for the median
+    - {metric: psnr, per_test_max_regression: 5%}   # no single test worse than this
+  max_failed_runs: 0
+  require_bit_accuracy: false
+```
+
+| Key | Default | Meaning |
+|---|---|---|
+| `reference` | `project.reference_branch` | What to compare with: the label of a shared [milestone](/docs/references-and-milestones), a commit's sha, or a branch. A branch means its latest commit with runs in the batch, other than the commit you check. If that commit is on the same branch, the latest one before it. |
+| `batches` | `[default]` | The labels of the batches to check, as `qa --label` sets them. The CI batch's label is `default`, and the web app shows it as **CI**: `ci` names it too. Each batch is compared with the reference's batch that has the same label. |
+| `rules` | none | Limits on metrics, see below. |
+| `max_failed_runs` | `0` | How many runs may fail in each batch. `null` doesn't check. |
+| `require_bit_accuracy` | `false` | Fail when a run's output files differ from its reference run's, like [`qa check-bit-accuracy`](/docs/bit-accuracy): files that match `bit_accuracy.patterns`, ignoring the logs. Runs without a *manifest.outputs.json* make the gate undecidable. |
+
+### Rules
+Each rule names a metric, and one or more limits:
+
+| Limit | Fails when |
+|---|---|
+| `max_regression: 5%` | The metric's median over the batch's runs is more than 5% worse than the reference's. |
+| `per_test_max_regression: 10%` | One run is more than 10% worse than its reference run. |
+| `min: 0.42` | The median is under 0.42. |
+| `max: 12` | The median is over 12. |
+
+- **Worse** comes from your metrics' definitions (`outputs.metrics` in *qaboard.yaml*, see
+  [Metrics](/docs/computing-quantitative-metrics)): with `smaller_is_better: false`, a smaller value is worse. Like in
+  the web app, metrics are "smaller is better" by default. Regression rules need the metric to be declared there.
+- Give regressions as percentages (`5%`) or fractions (`0.05`), relative to the magnitude of the reference's value.
+- Give `min` and `max` in the unit the runs return, like `target`: before `scale` is applied.
+- Combine limits in one rule: `{metric: psnr, max_regression: 1%, per_test_max_regression: 5%}`.
+- A metric that none of the new runs return fails its rules. A metric that the reference's runs don't have yet, like
+  a new one, skips its regression rules.
+
+### Which numbers
+The gate uses the numbers of the commit page, so that what it says is what reviewers see:
+- **Medians**, as in the **Summary**: over the batch's finished runs, including failed runs that returned the metric
+  (tuning iterations are left out), and over the reference's runs on the same inputs.
+- **Each test**, as in the **Metrics Diff**: each run is compared with the reference run that matches it best (the
+  same input, then the closest configuration and tuning parameters, then the same platform).
+- The table shows each check's values, and how much worse or better they are.
+
+Medians and per-test limits keep noisy metrics from failing the gate: one slow run moves a mean, not a median. Use
+`per_test_max_regression` for regressions that only hurt a few inputs, which a median hides.
+
+## Run it in the CI
+Run `qa gate` after `qa batch`. Its exit code fails the job. `qa batch` already fails when runs fail: run the gate
+anyway, so that it reports them too.
+
+<Tabs groupId="ci" queryString>
+<TabItem value="github-actions" label="GitHub Actions" default>
+
+```yaml title=".github/workflows/qa.yml"
+on: push
+
+permissions:
+  contents: read
+  statuses: write   # for --post-status github
+
+jobs:
+  qa:
+    # a runner that can write in QA-Board's results storage
+    runs-on: self-hosted
+    env:
+      QABOARD_URL: <your-qaboard>
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install qaboard
+      - run: qa batch ci
+      - run: qa gate --post-status github
+        # also when runs failed
+        if: ${{ !cancelled() }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
+
+`<your-qaboard>` is your server's URL, like `http://localhost:5151`. The gate also writes its table to the job's
+summary. GitHub-hosted runners can't save results in QA-Board yet: see the [roadmap](/docs/roadmap).
+
+</TabItem>
+<TabItem value="gitlab-ci" label="GitLab CI">
+
+```yaml title=".gitlab-ci.yml"
+stages: [test, gate]
+
+variables:
+  QABOARD_URL: <your-qaboard>
+
+default:
+  before_script:
+    - pip install qaboard
+
+qa:
+  stage: test
+  script:
+    - qa batch ci
+
+quality-gate:
+  stage: gate
+  # also when runs failed
+  when: always
+  script:
+    - qa gate --post-status gitlab
+  # optional: when the gate can't decide, warn instead of failing the pipeline
+  allow_failure:
+    exit_codes: 2
+```
+
+`<your-qaboard>` is your server's URL, like `http://localhost:5151`. To post the commit status, add a project access
+token with the `api` scope (role Developer or more) as a masked CI/CD variable named `GITLAB_ACCESS_TOKEN`.
+
+</TabItem>
+</Tabs>
+
+<Shot
+  id="ci/step-summary"
+  caption="In the job's summary, the gate's table shows which rule failed, with a link to the Metrics Diff."
+  alt="A CI job summary titled Quality gate: fail, with a table of checks: the p99 latency's median is much worse than the reference's, over its limit."
+/>
+
+### Exit codes
+
+| Code | Verdict | When |
+|---|---|---|
+| `0` | pass | Every rule passes. |
+| `1` | fail | A rule fails, or the `gate:` section has an error. |
+| `2` | undecidable | There is no reference (or no runs to check), runs are still running, or QA-Board can't be reached. |
+
+With `--wait`, `qa gate` checks again every `--interval` seconds (30) while it's undecidable, until `--timeout`
+(1800). Use it when the reference's CI may still be running.
+
+### Commit statuses
+The job's exit code already acts as a check. `--post-status` also posts a commit status named `qaboard/gate`
+(`qaboard/gate/<subproject>` in a [subproject](/docs/monorepo-subprojects)), that links to the Metrics Diff. Require
+it in your branch protection rules if you like.
+
+- **GitHub:** set `GITHUB_TOKEN`, and give the workflow `statuses: write`. `qa gate` reads the repository and the API's
+  URL from `GITHUB_REPOSITORY` and `GITHUB_API_URL`, that GitHub Actions sets (GitHub Enterprise included). The
+  status is `success`, `failure`, or `error` when undecidable.
+- **GitLab:** set `GITLAB_ACCESS_TOKEN`. In GitLab CI, `qa gate` uses `CI_API_V4_URL` and `CI_PROJECT_ID`.
+  Elsewhere it uses `GITLAB_HOST` (default `https://gitlab.com`) and the project's name from *qaboard.yaml*. The
+  status is `success`, or `failed`.
+
+:::note
+With `on: pull_request`, GitHub Actions runs on a temporary merge commit (`GITHUB_SHA`): `qa` uses the pull request's
+last commit instead, for the results and the status. Check it out too, see the
+[GitHub Actions example](/docs/ci-integration#example-with-github-actions). `on: push` is usually enough.
+:::
+
+## Options
+
+| Option | Meaning |
+|---|---|
+| `--reference <ref>` | Compare with this branch, milestone or commit instead of `gate.reference`. |
+| `--batch <label>`, `-b` | Check this batch instead of `gate.batches`. Repeat it for several batches. |
+| `--commit <sha>` | Check this commit instead of the current one. |
+| `--format text\|markdown\|json`, `--json` | The output: a table (default), a Markdown table, or JSON for scripts and agents. |
+| `--wait`, `--timeout`, `--interval` | Check again while undecidable, see [exit codes](#exit-codes). |
+| `--post-status github\|gitlab` | Post a commit status, see [commit statuses](#commit-statuses). |
+| `--server <url>` | The QA-Board server, instead of `QABOARD_URL` or your site's settings. |
+
+`qa gate` prints a reminder that it's experimental on stderr: stdout only has the result.
+
+## From scripts and agents
+`qa gate --json` prints the verdict, each check with its values, and the link to the Metrics Diff. The numbers come
+from an HTTP API that you can use too:
+
+```bash
+curl "http://localhost:5151/api/v1/commit/<sha>/compare?project=<project>&reference=main&batch=default"
+```
+
+| Parameter | Default | Meaning |
+|---|---|---|
+| `project` | required | The project's name, as in *qaboard.yaml*. |
+| `batch` | `default` | The batch's label. |
+| `reference` | the commit's `gate.reference`, else `project.reference_branch` | A shared milestone's label, a commit or a branch. |
+| `reference_batch` | `batch` | The reference's batch label, to compare two different batches. |
+| `metrics` | all | Metrics to compare, separated by commas. |
+| `bit_accuracy` | `false` | `true` compares the runs' output files. |
+
+The answer has the `status` of the comparison (`complete`, `running`, or `missing` with `messages` saying why), the
+`commit` and `reference` with their counts of runs, and:
+- `metrics`: for each metric, the median, the number of values and the share of runs that meet the target, for the
+  new and the reference runs, and the change (`delta`, `delta_relative`);
+- `tests`: each run, its reference run (`reference_id`, and `reference_mismatch` when they don't have the same input,
+  configuration, platform or parameters), and the change of each metric.
+
+Like the rest of the API, reading doesn't need a login unless your server restricts the project. Scripts can send
+an API token, see [APIs](/docs/apis).
+
+## Known limitations
+- Tags can't be references yet: use the tagged commit's sha.
+- A branch's commits are those QA-Board first saw on that branch. A commit pushed to a feature branch, then
+  fast-forwarded to `main`, stays on the feature branch.
+- Milestones must be shared, and the gate compares the batches with the same label, whatever batch the milestone was
+  saved on.

@@ -1,26 +1,41 @@
 ---
 # https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions
-# - python, webapp, docker and helm run in parallel
+# - python, webapp, docker, helm and helm-e2e run in parallel
 # - Docker layers are cached in the GitHub Actions cache: unchanged images build in seconds
-# - The images are built once, tested (smoke tests, backend unit tests, a zero-downtime rolling deploy),
-#   and on master pushed as arthurflam/qaboard:<service>-<commit>, then tagged arthurflam/qaboard:<service>
+# - The images are built once, tested (smoke tests, backend unit tests, a zero-downtime rolling deploy; the helm chart
+#   on kind, with a real `qa batch`), and published to the GitHub container registry, ghcr.io/<owner>/qaboard
+#   (no secret needed: GITHUB_TOKEN). The official repository publishes to ghcr.io/samsung/qaboard, the default
+#   of docker-compose.yml and of the chart; forks publish to their own namespace.
+#   - on master: <service>-<commit> once built and tested, then <service> (latest) once every job passed
+#   - on releases: <service>-<version> (e.g. backend-1.2.0) once every job passed
+#   Docker Hub is an optional mirror (arthurflam/qaboard), when the DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets are set.
+# - Then the helm chart is published to oci://ghcr.io/<owner>/charts/qaboard, see publish-chart
 name: CI
-# Every push runs CI. Pull requests only do for forks: for our branches it would run twice.
+# Every push to a branch runs CI. Pull requests only do for forks: for our branches it would run twice.
 # Changes to docs alone skip CI, except the release notes: the web app bundles them (patterns apply in order)
 on:
   push:
+    # Not tags: releases run CI with the `release` event
+    branches: ['**']
     paths: ['**', '!docs/**', '!drafts/**', '!**.md', 'website/release-notes/**']
   pull_request:
     paths: ['**', '!docs/**', '!drafts/**', '!**.md', 'website/release-notes/**']
+  # Publishing a GitHub release (tag v1.2.0, see pypy.yml) tests its commit again, then publishes its images
+  release:
+    types: [published]
   workflow_dispatch:
 
-# A new push cancels the outdated CI of the branch (but every commit on master is published)
+# A new push cancels the outdated CI of the branch (but every commit on master and every release is published)
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' && github.event_name != 'release' }}
 
 permissions:
   contents: read
+
+env:
+  # The optional mirror on Docker Hub
+  DOCKERHUB_IMAGE: arthurflam/qaboard
 
 jobs:
   python:
@@ -36,11 +51,11 @@ jobs:
         run: uv sync --locked --extra dev
       - name: Lint with flake8
         # stop the build if there are Python syntax errors or undefined names
-        run: uv run --no-sync flake8 backend qaboard --count --select=E9,F63,F7,F82 --show-source --statistics
+        run: uv run --no-sync flake8 backend qaboard --count --select=E9,F63,F7,F82,W605 --show-source --statistics
       - name: Type Checks with MyPy
         run: uv run --no-sync mypy -p qaboard --ignore-missing-imports
       - name: Release notes
-        # valid frontmatter and docs links, and the web app's bundle is up to date
+        # valid frontmatter and docs links
         run: uv run website/release-notes/release_notes.py check
       - name: Unit Tests
         run: |
@@ -85,6 +100,9 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    permissions:
+      contents: read
+      packages: write # pushes the images to ghcr.io
     env:
       # Small uwsgi pools: the runner has 4 CPUs
       QABOARD_UWSGI_PROCESSES: "2"
@@ -93,7 +111,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Version
-        run: echo "QABOARD_VERSION=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
+        run: |
+          echo "QABOARD_VERSION=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
+          # The image names in docker-compose.yml. They must be lowercase, unlike some owners
+          echo "QABOARD_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard" >> "$GITHUB_ENV"
       - uses: docker/setup-buildx-action@v3
       - name: Build the images
         uses: docker/bake-action@v6
@@ -101,8 +122,12 @@ jobs:
           source: .
           files: docker-compose.yml
           load: true
-          # One cache scope per image, or they overwrite each other
+          # One cache scope per image, or they overwrite each other.
+          # The labels link the published images to this repository on GitHub, and to their commit
+          # (docs-media/snapshot.py records it as the demo data's app version).
           set: |
+            *.labels.org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            *.labels.org.opencontainers.image.revision=${{ github.sha }}
             backend.cache-from=type=gha,scope=backend
             backend.cache-to=type=gha,scope=backend,mode=max
             frontend.cache-from=type=gha,scope=frontend
@@ -124,12 +149,16 @@ jobs:
           curl -sSf http://localhost:5151/api/v1/config > /dev/null
           curl -sSf --retry 5 --retry-delay 2 http://localhost:5151/docs/ > /dev/null
       - name: Backend unit tests
-        run: ./deployments/deploy.py deployments/production.env compose exec -T backend python -m pytest -q -p no:cacheprovider tests
+        # The database tests (e.g. the metrics' aggregation) use temporary tables in transactions they roll back
+        run: >-
+          ./deployments/deploy.py deployments/production.env compose exec -T
+          -e QABOARD_TEST_DATABASE_URL=postgresql://qaboard:password@db:5432/qaboard
+          backend python -m pytest -q -p no:cacheprovider tests
       - name: Zero-downtime rolling deploy
         run: |
           # A "new version" with the same images: the backend replicas are replaced
           for service in backend frontend website proxy cantaloupe; do
-            docker tag "arthurflam/qaboard:$service-$QABOARD_VERSION" "arthurflam/qaboard:$service-$QABOARD_VERSION-next"
+            docker tag "$QABOARD_IMAGE:$service-$QABOARD_VERSION" "$QABOARD_IMAGE:$service-$QABOARD_VERSION-next"
           done
           export STOP_FILE=/tmp/deployed
           .github/scripts/load.py http://localhost:5151/api/v1/health 300 POST 405 &
@@ -143,18 +172,25 @@ jobs:
         run: |
           ./deployments/deploy.py deployments/production.env status
           ./deployments/deploy.py deployments/production.env compose logs --tail 200 backend proxy
+      # As <service>-<commit>: publish-docker-images tags them as latest, or with the release's version, once every job passed
       - name: Push the images
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker compose push backend frontend website proxy cantaloupe
           if [ -z "$DOCKERHUB_TOKEN" ]; then
-            echo "::notice::DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets are not set, not publishing images"
+            echo "::notice::DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets are not set, not mirroring the images to Docker Hub"
             exit 0
           fi
           echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
-          docker compose push backend frontend website proxy cantaloupe
+          for service in backend frontend website proxy cantaloupe; do
+            docker tag "$QABOARD_IMAGE:$service-$QABOARD_VERSION" "$DOCKERHUB_IMAGE:$service-$QABOARD_VERSION"
+            docker push "$DOCKERHUB_IMAGE:$service-$QABOARD_VERSION"
+          done
 
   helm:
     runs-on: ubuntu-latest
@@ -162,32 +198,317 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: azure/setup-helm@v4
+        with:
+          version: v4.3.0
       - name: Lint and validate the chart
         run: |
           curl -sSfL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz | tar xz kubeconform
           helm lint charts/qaboard -f charts/qaboard/ci/minimal.yaml
-          for values in charts/qaboard/ci/*.yaml; do
+          helm lint charts/qaboard -f charts/qaboard/quickstart.yaml
+          for values in charts/qaboard/ci/*.yaml charts/qaboard/quickstart.yaml; do
             echo "--- $values"
             helm template qaboard charts/qaboard -f "$values" | ./kubeconform -strict -summary -ignore-missing-schemas
           done
 
-  # The images are only "latest" once everything passed
+  # The Docker Compose quickstart (deployments/quickstart/compose.yml, website/docs/get-started/quickstart.mdx), with
+  # the images of this run. Its demo data is the seeder's test story, built into a demo-data image like the docs' demo
+  # snapshot is (that one is in a private bucket: .github/workflows/docs-media.yml tests it the same way).
+  quickstart:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            docs-media/*.py
+            .github/scripts/*.py
+            uv.lock
+      - name: Version
+        run: |
+          echo "QABOARD_VERSION=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
+          echo "QABOARD_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard" >> "$GITHUB_ENV"
+      - uses: docker/setup-buildx-action@v3
+      # The images of the docker job, from its layer cache
+      - name: Build the images
+        uses: docker/bake-action@v6
+        with:
+          source: .
+          files: docker-compose.yml
+          targets: backend,frontend,proxy,cantaloupe
+          load: true
+          set: |
+            backend.cache-from=type=gha,scope=backend
+            frontend.cache-from=type=gha,scope=frontend
+            proxy.cache-from=type=gha,scope=proxy
+            cantaloupe.cache-from=type=gha,scope=cantaloupe
+      - name: Demo data
+        run: .github/scripts/demo_data_fixture.sh "$QABOARD_IMAGE:demo-data-$QABOARD_VERSION"
+      # The quickstart's commands, with the images built above
+      - name: Quickstart
+        run: |
+          # Users get the official images
+          env -u QABOARD_IMAGE -u QABOARD_VERSION docker compose -f deployments/quickstart/compose.yml config --images | tee /tmp/images.txt
+          if grep -v -e '^ghcr.io/samsung/qaboard:' -e '^postgres:' -e '^redis:' /tmp/images.txt; then
+            echo "::error::deployments/quickstart/compose.yml must use the official images by default"
+            exit 1
+          fi
+          mkdir -p /tmp/qaboard
+          cp deployments/quickstart/compose.yml /tmp/compose.yml
+          cd /tmp
+          start=$SECONDS
+          docker compose up -d --wait
+          echo "docker compose up took $((SECONDS - start))s"
+      - name: Check the demo data
+        run: |
+          uvx --from playwright==1.56.0 playwright install --with-deps chromium
+          uv run .github/scripts/demo_data_e2e.py http://localhost:5151
+      - name: Start again
+        run: |
+          # The demo data is restored once
+          cd /tmp
+          docker compose down
+          docker compose up -d --wait
+          docker compose logs demo-data | tee /tmp/demo-data.log
+          grep -q "The database already has QA-Board tables" /tmp/demo-data.log
+          grep -q "The results are already in" /tmp/demo-data.log
+          uv run "$GITHUB_WORKSPACE/.github/scripts/demo_data_e2e.py" http://localhost:5151 --no-browser
+      - name: Logs on failure
+        if: failure()
+        run: |
+          docker compose -p qaboard-demo ps -a || true
+          docker compose -p qaboard-demo logs --tail 100 backend || true
+          cd /tmp
+          docker compose ps -a || true
+          docker compose logs --tail 200 || true
+
+  # The helm chart installed for real, on a kind cluster, with the images of this run: the quickstart's commands
+  # (website/docs/get-started/quickstart.mdx), with demo data (see the quickstart job), a `qa batch` in the cluster,
+  # then an upgrade
+  helm-e2e:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    timeout-minutes: 45
+    env:
+      KIND_VERSION: v0.32.0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version
+        run: |
+          echo "QABOARD_VERSION=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
+          echo "QABOARD_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard" >> "$GITHUB_ENV"
+      - name: Make room on the disk
+        # The images are stored up to 3 times at once (docker, kind's archive, the node), the runner's disk is small
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h /
+      - uses: docker/setup-buildx-action@v3
+      # The images of the docker job, from its layer cache. The first time a Dockerfile changes, they are built in parallel.
+      - name: Build the images
+        uses: docker/bake-action@v6
+        with:
+          source: .
+          files: docker-compose.yml
+          load: true
+          set: |
+            backend.cache-from=type=gha,scope=backend
+            frontend.cache-from=type=gha,scope=frontend
+            website.cache-from=type=gha,scope=website
+            proxy.cache-from=type=gha,scope=proxy
+            cantaloupe.cache-from=type=gha,scope=cantaloupe
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            docs-media/*.py
+            .github/scripts/*.py
+            uv.lock
+      # quickstart.yaml restores the demo data, from the demo-data image of this version
+      - name: Demo data
+        run: .github/scripts/demo_data_fixture.sh "$QABOARD_IMAGE:demo-data-$QABOARD_VERSION"
+      - uses: azure/setup-helm@v4
+        with:
+          version: v4.3.0
+      - name: Install kind
+        run: |
+          curl -sSfLo kind "https://kind.sigs.k8s.io/dl/$KIND_VERSION/kind-linux-amd64"
+          sudo install kind /usr/local/bin/ && rm kind
+          kind version && kubectl version --client
+      # The quickstart's commands, with the images built above instead of the published ones (no registry: they are
+      # loaded in the node, and the chart's image.pullPolicy is IfNotPresent)
+      - name: Quickstart
+        run: |
+          mkdir -p /tmp/qaboard
+          kind create cluster --name qaboard --config charts/qaboard/kind.yaml
+          docker buildx prune --all --force > /dev/null
+          images=()
+          for service in backend frontend website proxy cantaloupe demo-data; do images+=("$QABOARD_IMAGE:$service-$QABOARD_VERSION"); done
+          kind load docker-image --name qaboard "${images[@]}"
+          docker image rm "${images[@]}" > /dev/null
+          # Helm 4.2.1 waited out the full --timeout after deleting hooks, then reported success anyway
+          # (https://github.com/helm/helm/issues/32214): an install of a few minutes took 30. Fail instead.
+          start=$SECONDS
+          helm install qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --timeout 15m \
+            --set image.repository="$QABOARD_IMAGE" --set-string image.version="$QABOARD_VERSION"
+          echo "helm install took $((SECONDS - start))s"
+          if [ $((SECONDS - start)) -gt 600 ]; then
+            echo "::error::helm install took over 10 minutes: is helm waiting out its timeout (helm/helm#32214)?"
+            exit 1
+          fi
+          kubectl port-forward svc/qaboard-proxy 5151:80 > /tmp/port-forward.log 2>&1 &
+      - name: Smoke tests
+        run: |
+          # The migrations Job ran (helm deletes it once it succeeded)
+          for _ in 1 2 3 4 5; do
+            kubectl get events --field-selector involvedObject.name=qaboard-migrations > /tmp/migrations.txt
+            grep -q Completed /tmp/migrations.txt && break
+            sleep 2
+          done
+          cat /tmp/migrations.txt
+          if ! grep -q Completed /tmp/migrations.txt; then
+            echo "::error::No event says the migrations Job completed"
+            exit 1
+          fi
+          curl -sSf --retry 10 --retry-all-errors --retry-delay 3 http://localhost:5151/api/v1/health
+          curl -sSf http://localhost:5151/api/v1/projects > /dev/null
+          curl -sSf http://localhost:5151/ | grep -q 'id="root"'
+          curl -sSf http://localhost:5151/docs/ > /dev/null
+      - name: Check the demo data
+        run: |
+          kubectl logs deploy/qaboard-backend -c demo-data
+          uvx --from playwright==1.56.0 playwright install --with-deps chromium
+          uv run .github/scripts/demo_data_e2e.py http://localhost:5151
+      - name: qa batch in the cluster
+        run: python3 .github/scripts/helm_e2e.py http://localhost:5151
+      # The same release again: the migrations run again (pre-upgrade), nothing else may change
+      - name: helm upgrade
+        run: |
+          revision() { kubectl get deploy qaboard-backend qaboard-proxy -o jsonpath='{.items[*].metadata.annotations.deployment\.kubernetes\.io/revision}'; }
+          before=$(revision)
+          start=$SECONDS
+          helm upgrade qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --timeout 15m \
+            --set image.repository="$QABOARD_IMAGE" --set-string image.version="$QABOARD_VERSION"
+          echo "helm upgrade took $((SECONDS - start))s"
+          helm history qaboard
+          if [ $((SECONDS - start)) -gt 600 ]; then
+            echo "::error::helm upgrade took over 10 minutes: is helm waiting out its timeout (helm/helm#32214)?"
+            exit 1
+          fi
+          if [ "$(revision)" != "$before" ]; then
+            echo "::error::A no-op helm upgrade restarted pods: a template renders differently each time"
+            exit 1
+          fi
+          curl -sSf --retry 10 --retry-all-errors --retry-delay 3 http://localhost:5151/api/v1/health
+          # The results are still there, and the demo data
+          curl -sSf "http://localhost:5151/api/v1/commit/$GITHUB_SHA?project=user/sample_project" > /dev/null
+          uv run .github/scripts/demo_data_e2e.py http://localhost:5151 --no-browser
+      - name: Cluster state on failure
+        # also when the job's timeout cancels it
+        if: failure() || cancelled()
+        run: |
+          set +e
+          df -h /
+          helm status qaboard && helm history qaboard
+          kubectl get all,pvc,jobs -o wide
+          kubectl get events --sort-by=.lastTimestamp | tail -60
+          kubectl describe pods | grep -v -E '^\s+(Limits|Requests|cpu|memory):'
+          for pod in $(kubectl get pods -o name); do
+            echo "::group::Logs of $pod"
+            kubectl logs "$pod" --all-containers --prefix --tail 200
+            kubectl logs "$pod" --all-containers --prefix --previous --tail 50 2> /dev/null
+            echo "::endgroup::"
+          done
+          cat /tmp/port-forward.log
+
+  # The images are only "latest" once everything passed. A release's images get its version.
   publish-docker-images:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    needs: [python, webapp, docker, helm]
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
+    needs: [python, webapp, docker, helm, helm-e2e, quickstart]
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - name: Tag the images as latest
+      - name: Tag the images
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          if [ -z "$DOCKERHUB_TOKEN" ]; then
-            echo "::notice::DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets are not set, not publishing images"
-            exit 0
+          # master: <service> (latest). A release (tag v1.2.0): <service>-1.2.0
+          suffix=""
+          if [ "$GITHUB_EVENT_NAME" = release ]; then
+            version="${GITHUB_REF_NAME#v}"
+            if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+              echo "::error::The release's tag ($GITHUB_REF_NAME) is not a version like v1.2.0"
+              exit 1
+            fi
+            suffix="-$version"
           fi
-          echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          images=("ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard")
+          if [ -n "$DOCKERHUB_TOKEN" ]; then
+            echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+            images+=("$DOCKERHUB_IMAGE")
+          else
+            echo "::notice::DOCKERHUB_USERNAME/DOCKERHUB_TOKEN secrets are not set, not mirroring the images to Docker Hub"
+          fi
           # Retags in the registry, nothing is rebuilt or uploaded again
-          for service in backend frontend website proxy cantaloupe; do
-            docker buildx imagetools create -t "arthurflam/qaboard:$service" "arthurflam/qaboard:$service-${GITHUB_SHA::8}"
+          for image in "${images[@]}"; do
+            for service in backend frontend website proxy cantaloupe; do
+              docker buildx imagetools create -t "$image:$service$suffix" "$image:$service-${GITHUB_SHA::8}"
+            done
           done
+          # The demo data of the quickstarts (demo-data<suffix>, which compose.yml and the chart's demoData use) is
+          # built by .github/workflows/docs-media.yml: from master as demo-data, from release tags as demo-data-<version>.
+          # Every version gets one: master's commits and releases it didn't build for get the latest one.
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard"
+          target="$image:demo-data${suffix:--${GITHUB_SHA::8}}"
+          if docker buildx imagetools inspect "$target" > /dev/null 2>&1; then
+            echo "$target exists"
+          elif docker buildx imagetools inspect "$image:demo-data" > /dev/null 2>&1; then
+            docker buildx imagetools create -t "$target" "$image:demo-data"
+          else
+            echo "::warning::No $image:demo-data yet: run the Docs media workflow on master to publish the quickstarts' demo data"
+          fi
+
+  # The helm chart, as an OCI artifact: helm install qaboard oci://ghcr.io/<owner>/charts/qaboard
+  # - A release (tag v1.2.0) publishes the chart 1.2.0, whose images are <service>-1.2.0.
+  # - master publishes a development version after the latest release (pyproject.toml's version, e.g. 1.2.0):
+  #   1.2.1-dev.<CI run number>, whose images are <service>-<commit>. As a SemVer pre-release, it never overwrites
+  #   a release, and helm ignores it unless asked for it (--devel, or --version 1.2.1-dev.42).
+  publish-chart:
+    runs-on: ubuntu-latest
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'release'
+    needs: [publish-docker-images]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v4.3.0
+      - name: Package and push the chart
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = release ]; then
+            version="${GITHUB_REF_NAME#v}"
+            app_version="$version"
+          else
+            released=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+            IFS=. read -r major minor patch <<< "${released%%[-+]*}"
+            version="$major.$minor.$((patch + 1))-dev.$GITHUB_RUN_NUMBER"
+            app_version="${GITHUB_SHA::8}"
+          fi
+          # The chart defaults to the images published with it: ghcr.io/samsung/qaboard, or a fork's
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard"
+          sed -i "s#^  repository: ghcr.io/samsung/qaboard\$#  repository: $image#" charts/qaboard/values.yaml
+          grep -q "^  repository: $image\$" charts/qaboard/values.yaml
+          helm package charts/qaboard --version "$version" --app-version "$app_version" --destination dist
+          echo "$GITHUB_TOKEN" | helm registry login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          helm push "dist/qaboard-$version.tgz" "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts"
+          echo "::notice::Published the chart oci://ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/charts/qaboard --version $version (images $image:<service>-$app_version)"

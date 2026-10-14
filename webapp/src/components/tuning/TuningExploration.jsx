@@ -1,19 +1,19 @@
 import { memo, useMemo, useState } from "react";
-import { useRouter } from "../../router";
-import qs from "qs";
+import { useSelected, updateSelected } from "../../hooks";
 import { get as _get } from "es-toolkit/compat";
 
 import Plot from "../Plot";
 import { Classes, Callout, Colors, Intent, Tag, FormGroup, Switch, HTMLSelect } from "@blueprintjs/core";
 
 import { Section } from "../../components/layout";
-import { groupBy, hash_color, median, average } from "../../utils";
+import { groupBy, hash_color, median, average, event_value } from "../../utils";
+import { convergence, convergence_traces } from "./convergence";
 
+// No "Send to Cloud" or "Edit chart" links: they would upload the data to Plotly's public Chart Studio
 const config = {
   displayModeBar: true,
-  showLink: true,
-  plotlyServerURL: "https://chart-studio.plotly.com",
-  showSendToCloud: true,
+  showSendToCloud: false,
+  showLink: false,
 };
 
 const metric_formatter = new Intl.NumberFormat("en-US", {
@@ -72,6 +72,23 @@ const aggregate_by_params = (outputs, metrics, aggregation) => {
 
 
 const is_ok = o => !o.is_pending && !o.is_failed;
+
+
+// Each iteration's objective, and the best one so far: qa optimize minimizes it.
+// We plot it from the iterations: the batch's plot_convergence.png needs matplotlib where qa optimize ran.
+const ConvergencePlot = ({ outputs }) => {
+  const points = convergence(outputs);
+  if (points.length === 0) return <p className={Classes.TEXT_MUTED}>No iteration yet.</p>;
+  const layout = {
+    height: 300,
+    margin: { t: 10, r: 10, b: 50, l: 70 },
+    showlegend: true,
+    legend: { orientation: 'h', x: 0, y: 1.1 },
+    xaxis: { title: { text: 'Iteration' }, dtick: points.length > 25 ? undefined : 1 },
+    yaxis: { title: { text: 'Objective (lower is better)' } },
+  };
+  return <Plot data={convergence_traces(points, { dots: Colors.GRAY3, line: Colors.BLUE3 })} layout={layout} config={config}/>;
+};
 
 const Sensibility1DLines = memo(({
   outputs,
@@ -409,20 +426,13 @@ const no_metric = { label: 'NA' };
 const default_layout = { xaxis: { type: "linear" } };
 
 const TuningExploration = ({ batch, selected_metrics: selected_metrics_, available_metrics: available_metrics_, input }) => {
-  const { history, location } = useRouter();
+  const { query } = useSelected();
   const [relative, setRelative] = useState(true);
   const [layout, setLayout] = useState(default_layout);
 
   // The plots' settings are in the URL
-  const query = useMemo(() => qs.parse(location.search.replace(/^\?/, '')), [location.search]);
   const aggregation = query.aggregation || 'median';
-  const select = attribute => e => {
-    const value = (e.target && e.target.value !== undefined) ? e.target.value : e;
-    history.push({
-      pathname: location.pathname,
-      search: qs.stringify({ ...query, [attribute]: value }, { arrayFormat: 'repeat' }),
-    });
-  };
+  const select = attribute => e => updateSelected({ [attribute]: event_value(e) }, { defaults: { aggregation: 'median' } });
 
   const is_optimization_batch = batch?.data?.best_metrics !== undefined;
   const { selected_metrics, available_metrics } = useMemo(() => {
@@ -535,7 +545,7 @@ const TuningExploration = ({ batch, selected_metrics: selected_metrics_, availab
 
       {batch_data.optimization && <>
         <h4>Convergence</h4>
-        <img height={250} alt="not yet available" src={`${batch.batch_dir_url}/plot_convergence.png?iter=${batch_data.best_iter}`}/>
+        <ConvergencePlot outputs={outputs}/>
       </>}
 
 

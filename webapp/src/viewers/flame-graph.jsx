@@ -12,8 +12,10 @@ import {
 } from "@blueprintjs/core";
 import { select } from 'd3-selection'
 import * as flameGraph from 'd3-flame-graph';
+import { forEachInTree, selfDelta } from './flameDeltas';
 
-import { http, errorMessage } from "../api/http";
+import { errorMessage } from "../api/http";
+import { fileQuery } from "../api/queries";
 
 // Integrates 
 // We love Brendan Gregg's flame charts
@@ -53,12 +55,6 @@ import { http, errorMessage } from "../api/http";
 
 
 // Files are cached: switching between views doesn't fetch them again
-const fileQuery = (url, output) => ({
-  queryKey: ['file', url],
-  queryFn: ({ signal }) => http.get(url, { signal }).then(r => r.data),
-  enabled: !!url,
-  staleTime: output?.is_running ? 0 : Infinity,
-});
 
 
 // Wraps d3-flame-graph, which renders imperatively in a DOM element.
@@ -78,6 +74,9 @@ const FlameGraphComponent = ({ data, title, differential = false }) => {
                                .onClick(frame => { if (frame.parent) setZoomed(true) })
                                .computeDelta(differential)
                                .inverted(true) // icicle plot
+    // red for frames that take more time, blue for less, orange for new ones
+    if (differential)
+      instance.setColorMapper(flameGraph.differentialColorMapper)
     // d3-flame-graph writes in the data (e.g. to hide frames when zooming), we give it a copy
     select(container.current).datum(structuredClone(data)).call(instance);
     instance.setDetailsElement(legend.current);
@@ -115,27 +114,19 @@ const FlameGraphComponent = ({ data, title, differential = false }) => {
 }
 
 
-// Walk depth first, starting by the root
-const forEachInTree = (tree, callback, id) => {
-  if (tree === undefined || tree === null)
-    return;
-  const current_id = `${id ?? ''}/${tree.name}`
-  callback(tree, current_id)
-  tree.children?.forEach(t => forEachInTree(t, callback, current_id))
-}
-
 const index_tree = tree => {
   const map = {};
   forEachInTree(tree, (node, id) => map[id] = node);
   return map;
 }
 
-// A copy of the tree, where each frame's delta is its value minus its value in the other tree
+// A copy of the tree, where each frame's delta is its self delta versus the other tree:
+// d3-flame-graph's computeDelta adds up the children's deltas
 const with_deltas = (tree, map_other, invert, id) => {
   if (tree === undefined || tree === null)
     return tree;
   const current_id = `${id ?? ''}/${tree.name}`
-  const delta = tree.value - (map_other[current_id]?.value || 0);
+  const delta = selfDelta(tree, map_other[current_id]);
   return {
     ...tree,
     delta: invert ? -delta : delta,
@@ -148,9 +139,9 @@ const FlameGraphViewer = ({ output_new, output_ref, path }) => {
   const [comparaison, setComparaison] = useState('diff-what-did-happen'); // 'diff-what-will-happen' | 'new' | 'ref' | 'both'
   const url_new = output_new?.output_dir_url && path ? `${output_new.output_dir_url}/${path}` : undefined;
   const url_ref = url_new && output_ref?.output_dir_url ? `${output_ref.output_dir_url}/${path}` : undefined;
-  const query_new = useQuery(fileQuery(url_new, output_new));
+  const query_new = useQuery(fileQuery(url_new, { is_running: output_new?.is_running }));
   // we don't really care about errors for the reference
-  const query_ref = useQuery(fileQuery(url_ref, output_ref));
+  const query_ref = useQuery(fileQuery(url_ref, { is_running: output_ref?.is_running }));
 
   const data_new = query_new.data || undefined;
   const data_ref = query_ref.data || undefined;

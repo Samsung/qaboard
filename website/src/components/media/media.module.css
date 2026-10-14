@@ -1,0 +1,483 @@
+/* <Shot>, <Clip>, <Compare> and their placeholders. Light and dark mode. */
+.figure {
+  --qbm-radius: 8px;
+  --qbm-border: var(--ifm-color-emphasis-300);
+  --qbm-callout: #e8590c;
+  --qbm-callout-text: #fff;
+  --qbm-overlay: rgba(15, 18, 24, 0.78);
+  --qbm-tape-padding: 12px;
+  margin: 1.5rem auto 2rem;
+  width: 100%;
+}
+
+.frame {
+  position: relative;
+  container-type: inline-size;
+  overflow: hidden;
+  border: 1px solid var(--qbm-border);
+  border-radius: var(--qbm-radius);
+  background: var(--ifm-background-surface-color);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 16px rgba(0, 0, 0, 0.06);
+  line-height: 0;
+}
+[data-theme='dark'] .frame {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+.frame[data-zoom] {
+  cursor: zoom-in;
+}
+
+.image {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* The LQIP, until the image loads: the browser's smooth upscaling blurs it */
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+/* Call-outs */
+.markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.markerBox {
+  position: absolute;
+  border: 2px solid var(--qbm-callout);
+  border-radius: 6px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85);
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: 1.5em;
+  height: 1.5em;
+  padding: 0 0.35em;
+  border-radius: 999px;
+  background: var(--qbm-callout);
+  color: var(--qbm-callout-text);
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.markers .badge {
+  position: absolute;
+  font-size: clamp(11px, 1.9cqw, 16px);
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  transform: translate(-50%, -50%);
+}
+.markers .badgeLeft {
+  left: 0;
+  top: 0;
+  transform: translate(calc(-100% - 5px), -2px);
+}
+.markers .badgeTop {
+  left: -2px;
+  top: 0;
+  transform: translate(0, calc(-100% - 5px));
+}
+.markers .badgeInside {
+  left: 4px;
+  top: 4px;
+  transform: none;
+}
+.badgeDot {
+  /* left/top come from the call-out */
+  outline: 6px solid color-mix(in srgb, var(--qbm-callout) 30%, transparent);
+}
+
+/* Caption, then the call-outs' labels */
+.caption {
+  margin-top: 0.6rem;
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.calloutList {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+}
+.calloutList li {
+  display: flex;
+  gap: 0.5em;
+  align-items: baseline;
+  margin: 0.2rem 0;
+}
+.calloutList .badge {
+  transform: translateY(-0.05em);
+}
+
+/* Enlarge button: shown on hover and keyboard focus, always on touch screens */
+.zoomButton {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--qbm-overlay);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.frame:hover .zoomButton,
+.zoomButton:focus-visible {
+  opacity: 1;
+}
+.zoomButton:focus-visible,
+.playButton:focus-visible,
+.dialogClose:focus-visible {
+  outline: 3px solid var(--ifm-color-primary-lightest);
+  outline-offset: 2px;
+}
+/* No hover on touch screens: a smaller button, out of the way (a tap on the image opens it too) */
+@media (hover: none) {
+  .zoomButton {
+    top: auto;
+    bottom: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    opacity: 0.85;
+  }
+  .zoomButton svg {
+    width: 15px;
+    height: 15px;
+  }
+}
+
+/* Zoom dialog */
+.dialog {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  max-width: 96vw;
+  max-height: 94vh;
+  overflow: visible;
+}
+.dialog::backdrop {
+  background: rgba(8, 10, 14, 0.82);
+}
+.dialogBody {
+  position: relative;
+  line-height: 0;
+}
+.dialogFrame {
+  position: relative;
+  container-type: inline-size;
+  /* The largest size that fits the window, keeping the image's proportions */
+  width: min(96vw, calc(94vh * var(--qbm-ratio, 1.6)));
+  max-width: 96vw;
+  max-height: 94vh;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.dialogImage {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  cursor: zoom-out;
+}
+.dialogClose {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--qbm-overlay);
+  color: #fff;
+  cursor: pointer;
+}
+
+/* Placeholder: the planned aspect ratio, what the shot will show, its id */
+.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  border: 2px dashed var(--ifm-color-emphasis-400);
+  border-radius: var(--qbm-radius);
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--ifm-color-emphasis-100),
+    var(--ifm-color-emphasis-100) 12px,
+    var(--ifm-background-color) 12px,
+    var(--ifm-background-color) 24px
+  );
+  color: var(--ifm-color-emphasis-800);
+  container-type: inline-size;
+}
+.placeholderBody {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: min(36rem, 90%);
+  padding: 1rem 1.25rem;
+  border-radius: var(--qbm-radius);
+  background: var(--ifm-background-color);
+  box-shadow: 0 0 0 1px var(--ifm-color-emphasis-200);
+  text-align: center;
+}
+.placeholderLabel {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ifm-color-emphasis-600);
+}
+.placeholderShows {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+.placeholderIds {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+}
+.placeholderIds code {
+  font-size: 0.75rem;
+}
+.placeholderError {
+  border-color: var(--ifm-color-danger);
+}
+.placeholderError .placeholderLabel {
+  color: var(--ifm-color-danger-dark);
+}
+@container (max-width: 420px) {
+  .placeholderShows {
+    font-size: 0.8rem;
+  }
+}
+
+/* Clips */
+.videoFrame {
+  background: #000;
+}
+.video {
+  display: block;
+  width: 100%;
+  height: auto;
+  cursor: pointer;
+}
+.video:focus-visible {
+  outline: 3px solid var(--ifm-color-primary-lightest);
+  outline-offset: -3px;
+}
+.cue {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: clamp(8px, 4cqw, 28px);
+  display: flex;
+  justify-content: center;
+  padding: 0 64px;
+  pointer-events: none;
+  line-height: 1.35;
+}
+.cue span {
+  padding: 0.3em 0.7em;
+  border-radius: 6px;
+  background: var(--qbm-overlay);
+  color: #fff;
+  font-size: clamp(12px, 2.1cqw, 20px);
+  font-weight: 500;
+  text-align: center;
+  white-space: pre-line;
+}
+.bigPlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(48px, 9cqw, 76px);
+  height: clamp(48px, 9cqw, 76px);
+  border-radius: 999px;
+  background: var(--qbm-overlay);
+  color: #fff;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+.bigPlay svg {
+  margin-left: 4px;
+}
+.playButton {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--qbm-overlay);
+  color: #fff;
+  cursor: pointer;
+}
+
+/* Terminal recordings: a dark frame, in light and dark mode */
+.terminal {
+  padding: 0 var(--qbm-tape-padding) var(--qbm-tape-padding);
+  border-radius: 10px;
+  background: #1b1d23;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2), 0 10px 30px rgba(0, 0, 0, 0.18);
+}
+.terminalBar {
+  display: flex;
+  gap: 7px;
+  padding: 11px 2px;
+}
+.terminalBar span {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #ff5f57;
+}
+.terminalBar span:nth-child(2) {
+  background: #febc2e;
+}
+.terminalBar span:nth-child(3) {
+  background: #28c840;
+}
+.terminal .frame {
+  border-color: #2c2f36;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+/* Compare */
+.compare {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.compareHorizontal {
+  cursor: ew-resize;
+  touch-action: pan-y;
+}
+.compareVertical {
+  cursor: ns-resize;
+  touch-action: pan-x;
+}
+.compare .image {
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+.compareAfter {
+  position: absolute;
+  inset: 0;
+}
+.compareLabel {
+  position: absolute;
+  padding: 0.25em 0.6em;
+  border-radius: 6px;
+  background: var(--qbm-overlay);
+  color: #fff;
+  font-size: clamp(11px, 1.6cqw, 14px);
+  font-weight: 600;
+  line-height: 1.3;
+  pointer-events: none;
+}
+.compareLabelBefore {
+  top: 10px;
+  left: 10px;
+}
+.compareLabelAfter {
+  top: 10px;
+  right: 10px;
+}
+.compareLabelAfterVertical {
+  bottom: 10px;
+  left: 10px;
+}
+.divider {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+}
+.compareHorizontal .divider {
+  top: 0;
+  bottom: 0;
+  width: 44px;
+  transform: translateX(-50%);
+}
+.compareVertical .divider {
+  left: 0;
+  right: 0;
+  height: 44px;
+  transform: translateY(-50%);
+}
+.divider::before {
+  content: '';
+  position: absolute;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 0 6px rgba(0, 0, 0, 0.35);
+}
+.compareHorizontal .divider::before {
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+}
+.compareVertical .divider::before {
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+}
+.dividerHandle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 2px solid #fff;
+  border-radius: 999px;
+  background: var(--qbm-overlay);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+}
+.compareVertical .dividerHandle svg {
+  transform: rotate(90deg);
+}
+.divider:focus-visible .dividerHandle {
+  outline: 3px solid var(--ifm-color-primary-lightest);
+  outline-offset: 2px;
+}
+.dragging .dividerHandle {
+  transform: scale(1.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zoomButton {
+    transition: none;
+  }
+}

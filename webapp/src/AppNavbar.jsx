@@ -16,6 +16,7 @@ import {
 
 import { useState } from "react";
 import { useRouter } from "./router";
+import { path_segment } from "./selection";
 import { CommitNavbar } from "./components/CommitNavbar";
 import { SelectBatchesNav } from "./components/tuning/SelectBatches";
 import { useBranches, useCommitsList, useComparison, useUrlText, updateSelected } from "./hooks";
@@ -96,7 +97,7 @@ const CommitsNavbars = () => {
   const update = attribute => e => {
     const value = (e?.target && e.target.value !== undefined) ? e.target.value : e;
     // typing filters shouldn't add browser history entries
-    updateSelected(project, { [attribute]: value }, { replace: attribute.startsWith('filter') })
+    updateSelected({ [attribute]: value }, { replace: attribute.startsWith('filter') })
   }
   const show_ref_navbar = !(selected_views.includes('logs') || selected_views.includes('tuning') || selected_views.includes('groups'))
   return <>
@@ -132,7 +133,7 @@ const CommitsNavbars = () => {
 
 // Lists of commits: pick the dates, filter, go to a branch or a commit
 const CommitsListNavbar = () => {
-  const { history, match } = useRouter();
+  const { history } = useRouter();
   const list = useCommitsList();
   const { project, date_range } = list;
   const { project_data, selected, new_commit, new_batch } = useComparison();
@@ -140,26 +141,24 @@ const CommitsListNavbar = () => {
   const [wants_branches, setWantsBranches] = useState(false);
   const [today] = useState(() => new Date());
   // The search goes in the URL when users pause typing: it searches commits (CiCommitList) and branches
-  const [search, onSearchChange] = useUrlText(selected.search, query => updateSelected(project, { search: query || undefined }, { replace: true }), 300);
-  const [filter, onFilterChange] = useUrlText(selected.filter_batch_new, value => updateSelected(project, { filter_batch_new: value }, { replace: true }));
+  const [search, onSearchChange] = useUrlText(selected.search, query => updateSelected({ search: query || undefined }, { replace: true }), 300);
+  const [filter, onFilterChange] = useUrlText(selected.filter_batch_new, value => updateSelected({ filter_batch_new: value }, { replace: true }));
   const branch_search = branch_query(selected.search);
   const { data: branches = [] } = useBranches(project, branch_search, { enabled: wants_branches && (!!branch_search || !selected.search.trim()) });
 
   const handleBranchChange = branch => {
     if (branch.commit !== undefined && branch.commit !== null)
-      history.push(`/${project}/commit/${branch.commit}`);
+      history.push(`/${path_segment(project)}/commit/${path_segment(branch.commit)}`);
     else
-      history.push(`/${project}/commits/${branch}`);
+      updateSelected({ branch });
   };
   const changeDates = new_date_range => {
     if (new_date_range[0] === null && new_date_range[1] === null)
       return
-    updateSelected(project, { from: new_date_range[0] ?? date_range[0], to: new_date_range[1] ?? date_range[1] }, { replace: true })
+    updateSelected({ from: new_date_range[0] ?? date_range[0], to: new_date_range[1] ?? date_range[1] }, { replace: true })
   }
 
-  const is_project_home = match.path === "/:project_id+/commits" || match.path === "/:project_id+"
-  const is_project_branch_home = match.path === "/:project_id+/commits/:name+"
-  const is_dashboard = match.path.startsWith('/:project_id+/history/');
+  const { route } = selected;
   const date_input_props = {style: {width:'100px'}}
   return (
     <StyledNavbar>
@@ -182,15 +181,15 @@ const CommitsListNavbar = () => {
         {list.isFetching && <div style={{marginLeft: '15px'}}><Spinner size={16} /></div>}
       </NavbarGroup>
       <NavbarGroup align="right">
-        {is_dashboard && <SelectBatchesNav
+        {route.is_history && <SelectBatchesNav
           commit={new_commit}
           batch={new_batch}
           project={project}
           project_data={project_data}
-          onChange={event => updateSelected(project, { selected_batch_new: event.target.value, selected_batch_ref: event.target.value })}
+          onChange={event => updateSelected({ selected_batch_new: event.target.value, selected_batch_ref: event.target.value })}
           hide_counts
         />}
-        {(is_project_home || is_project_branch_home) &&
+        {route.is_commits &&
             <Suggest
               query={search}
               itemPredicate={filterBranch}
@@ -213,7 +212,7 @@ const CommitsListNavbar = () => {
               }}
             />
         }
-        {is_dashboard &&
+        {route.is_history &&
           <InputGroup
             value={filter}
             placeholder="Path, configuration, platform, tag, tuning parameters (key:value)..."
@@ -229,11 +228,8 @@ const CommitsListNavbar = () => {
 
 
 const AppNavbar = () => {
-  const { match } = useRouter();
-  const is_commit = match.path.startsWith('/:project_id+/commit')
-                 && !match.path.startsWith('/:project_id+/commits')
-                 && !match.path.startsWith('/:project_id+/committer');
-  return is_commit ? <CommitsNavbars/> : <CommitsListNavbar/>;
+  const { selected } = useComparison();
+  return selected.route.is_commit ? <CommitsNavbars/> : <CommitsListNavbar/>;
 }
 
 export default AppNavbar;

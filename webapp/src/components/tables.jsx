@@ -13,6 +13,7 @@ import { Section } from "./layout";
 import { VirtualTbody } from "./VirtualTbody";
 import { PlatformTag, ConfigurationsTags, ExtraParametersTags, RunBadges, RunBadge, MismatchTags } from './tags'
 import { metric_formatter, percent_formatter, MetricHeader } from "./metrics"
+import { diff_cell } from "../utils/compare"
 
 
 
@@ -52,8 +53,8 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
 
   const is_numeric = !isNaN(metric_new) || !isNaN(metric_ref)
   if (is_numeric) {
-    const delta = metric_new - metric_ref;
-    const delta_relative = delta / (Math.abs(metric_ref) + 0.00001);
+    // The same numbers as GET /api/v1/commit/<sha>/compare, see utils/compare.js
+    const { delta, delta_relative } = diff_cell(metric_new, metric_ref);
     const quality = Math.max(Math.min(metric.smaller_is_better ? (0.5 - delta_relative/2) : (0.5 + delta_relative/2), 0.9), 0.08);
     // native tooltips: tables can have thousands of cells
     return <td
@@ -118,8 +119,8 @@ const useTableData = ({ new_batch, metrics, available_metrics, with_refs_only })
 };
 
 
-const CompareRow = memo(({ output, output_ref, metrics, row_props }) =>
-  <Row {...row_props}>
+const CompareRow = memo(({ output, output_ref, metrics, index, measure }) =>
+  <Row data-index={index} ref={measure}>
     <RowHeaderCell output={output} />
     {metrics.map(m => (
       <ColumnsMetricImprovement
@@ -163,7 +164,7 @@ const TableCompare = ({
           <tr>
             <th scope="col">
               <span className={Classes.TEXT_MUTED}>
-                {outputs.length} runs
+                {outputs.length} run{outputs.length === 1 ? '' : 's'}
               </span>
             </th>
             {metrics_.map(m => (
@@ -173,8 +174,8 @@ const TableCompare = ({
             ))}
           </tr>
         </thead>
-        <VirtualTbody items={outputs} renderRow={([id, output], row_props) =>
-          <CompareRow key={id} row_props={row_props} output={output} output_ref={ref_batch?.outputs?.[output.reference_id]} metrics={metrics_}/>
+        <VirtualTbody items={outputs} renderRow={([id, output], index, measure) =>
+          <CompareRow key={id} index={index} measure={measure} output={output} output_ref={ref_batch?.outputs?.[output.reference_id]} metrics={metrics_}/>
         }/>
       </HTMLTable>
     </Section>
@@ -182,8 +183,8 @@ const TableCompare = ({
 };
 
 
-const KpiRow = memo(({ output, output_ref, metrics, metrics_with_refs, row_props }) =>
-  <Row {...row_props}>
+const KpiRow = memo(({ output, output_ref, metrics, metrics_with_refs, index, measure }) =>
+  <Row data-index={index} ref={measure}>
     <RowHeaderCell output={output} />
     {metrics.map(m => (
       <Fragment key={m.key}>
@@ -216,7 +217,7 @@ const TableKpi = ({
               <th colSpan={new_batch.metrics_with_refs.has(m.key) ? 2 : 1} key={m.key}>
                 <MetricHeader condensed {...without_key(m)}/>
                 {(!!m.target || !!m.suffix) && <span className={Classes.TEXT_MUTED}>
-                  [{m.target ? metric_formatter(m.target * m.scale, m) : ''}{m.suffix}]
+                  [{m.target ? <>{metric_formatter(m.target * m.scale, m)}{m.suffix}</> : m.suffix.trim()}]
                 </span>}
               </th>
             ))}
@@ -224,21 +225,22 @@ const TableKpi = ({
           <tr>
             <th scope="col">
               <span className={Classes.TEXT_MUTED}>
-                {outputs.length} runs
+                {outputs.length} run{outputs.length === 1 ? '' : 's'}
               </span>
             </th>
+            {/* a cell per column of the rows below: metrics without references have one, empty */}
             {metrics_.map(m => (
               <Fragment key={m.key}>
-                {new_batch.metrics_with_refs.has(m.key) && <>
+                {new_batch.metrics_with_refs.has(m.key) ? <>
                   <th scope="col">{label_new}</th>
                   <th scope="col">{label_ref}</th>
-                </>}
+                </> : <th scope="col" aria-label={label_new} />}
               </Fragment>
             ))}
           </tr>
         </thead>
-        <VirtualTbody items={outputs} renderRow={([id, output], row_props) =>
-          <KpiRow key={id} row_props={row_props} output={output} output_ref={ref_batch?.outputs?.[output.reference_id]} metrics={metrics_} metrics_with_refs={new_batch.metrics_with_refs}/>
+        <VirtualTbody items={outputs} renderRow={([id, output], index, measure) =>
+          <KpiRow key={id} index={index} measure={measure} output={output} output_ref={ref_batch?.outputs?.[output.reference_id]} metrics={metrics_} metrics_with_refs={new_batch.metrics_with_refs}/>
         }/>
       </HTMLTable>
     </Section>

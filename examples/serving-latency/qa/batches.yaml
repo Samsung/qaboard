@@ -1,0 +1,35 @@
+# The tests: `qa batch ci`, `qa batch capacity`... Inputs are relative to inputs/ (the database in qaboard.yaml).
+# Runs execute one at a time (runners.local.concurrency: 1 in qaboard.yaml): parallel runs would measure each other.
+# Configurations set how long each run measures; without any: 2 repeats of 1 s warmup + 3 s.
+
+# CI, on every commit: about 45 s on a 4-CPU runner. Five tests, so that the median over them (what the gate and
+# the commit list show) is one test's value, and a regression in a single test doesn't move it much.
+ci:
+  inputs:
+  - profiles/steady-low.yaml
+  - profiles/steady-mid.yaml
+  - profiles/steady-high.yaml
+  - profiles/bursty-high.yaml
+  - profiles/heavy-tail-high.yaml
+
+# Throughput against latency as the load ramps up to 120% of the high level: about 15 s
+capacity:
+  inputs:
+  - profiles/ramp.yaml
+
+# Nightly, and on releases: every profile at every level, and the ramp. About 3 min.
+nightly:
+  configs:
+  - {repeats: 3, duration_s: 4}
+  inputs:
+  - profiles/*.yaml
+
+# For tuning, 2 inputs x 3 repeats of 1 s + 2 s per combination (about 20 s): the median of 3 repeats keeps one bad
+# second from moving a configuration's p99
+#   qa batch sweep-batching --tuning-search '{"parameter_search": {"max_batch": [1, 16, 64], "max_delay_us": [0, 250, 1000, 4000]}}'
+sweep-batching:
+  configs:
+  - {repeats: 3, duration_s: 2}
+  inputs:
+  - profiles/steady-high.yaml
+  - profiles/heavy-tail-high.yaml

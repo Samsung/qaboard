@@ -1,0 +1,10 @@
+# The build context is the repository's root (see Dockerfile): only send what the web app needs
+*
+!webapp/
+!website/release-notes/
+webapp/node_modules/
+webapp/build/
+webapp/coverage/
+webapp/test-results/
+webapp/playwright-report/
+webapp/Dockerfile*

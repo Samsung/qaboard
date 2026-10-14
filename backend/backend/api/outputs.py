@@ -9,7 +9,8 @@ from qaboard.conventions import deserialize_config
 from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
 from ..storage import check_storage_path, UnsafePathError
-from .auth import login_required
+from ..redo import redo_response
+from .auth import login_required, is_authorized_user
 
 
 @app.route("/api/v1/output/<output_id>", methods=['GET'])
@@ -34,6 +35,8 @@ def update_output(output_id):
     if request.method == 'DELETE':
       return {"status": "OK"}
     return jsonify({"error": f"Cannot find output {output_id}"}), 400
+  if not is_authorized_user(g.user, output.batch.ci_commit.project_id):
+    return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
 
   if request.method == 'PUT':
     data = request.get_json()
@@ -80,14 +83,9 @@ def output_redo(output_id):
     output = Output.query.filter(Output.id==output_id).one()
   except NoResultFound:
     return jsonify({"error": f"Cannot find output {output_id}"}), 400
-  try:
-    success = output.redo(user=g.user['user_name'])
-  except Exception as e:
-    return jsonify({"error": f"{e}"}), 500
-  if success:
-    return '{"status": "OK"}'
-  else:
-    return jsonify({"error": "The run failed to start. Check the 'redo.log' files in the output directories to know more."}), 500
+  if not is_authorized_user(g.user, output.batch.ci_commit.project_id):
+    return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
+  return redo_response(output.batch, [output], g.user['user_name'])
 
 
 @app.route("/api/v1/output/<output_id>/manifest", methods=['GET'])
@@ -117,7 +115,10 @@ def get_output_manifest(output_id):
 def new_output_webhook():
   """Updates the database when we get new results."""
   data = request.get_json()
-  hexsha = data.get('commit_sha', data['git_commit_sha'])
+  # git_commit_sha for backward-compatibility
+  hexsha = data.get('commit_sha') or data.get('git_commit_sha')
+  if not hexsha:
+    return jsonify({"error": "the commit (commit_sha) was not provided"}), 400
 
   # The server will write, delete and run code in those folders
   output_directory = data.get('output_directory')
@@ -142,7 +143,7 @@ def new_output_webhook():
       data=data,
     )
   except Exception as e:
-    return jsonify({"error": f"Could not find your commit ({data['git_commit_sha']}). {e}"}), 404
+    return jsonify({"error": f"Could not find your commit ({hexsha}). {e}"}), 404
 
   # update the last_output times, with a crude debouncing to avoid
   # keeping locks on the tables too long
@@ -197,7 +198,8 @@ def new_output_webhook():
   if not output.data:
     output.data = {}
   if "data" in data: # e.g. storage, job_options, batch name
-    output.data.update(data['data'])
+    # optimization_best is set by the server only: it allows `qa optimize` to replace this run (see api/batch.py)
+    output.data.update({k: v for k, v in data['data'].items() if k != 'optimization_best'})
     flag_modified(output, "data")
   output.data["user"] = data['user']
   # we can only trust CI outputs to run on the exact code from the commit
@@ -217,11 +219,16 @@ def new_output_webhook():
   else:
     output.is_pending = data.get('is_pending', False)
 
+  # A run that starts again (redo, qa batch...) is not failed anymore, until it says so when it ends.
+  # Else re-runs of failed runs show as failed (and count as failed) while they are pending or running.
+  if output.is_pending:
+    output.is_failed = False
   # We save the output's metrics
-  if not output.is_pending:
-    metrics = data.get('metrics', {})
+  else:
+    metrics = data.get('metrics') or {}
     output.metrics = metrics
-    output.is_failed = data.get('is_failed', False) or metrics.get('is_failed')
+    # False when the metrics don't say: batches count NULL as neither valid nor failed
+    output.is_failed = bool(data.get('is_failed', False) or metrics.get('is_failed'))
 
   db_session.add(ci_commit)
   db_session.add(output)

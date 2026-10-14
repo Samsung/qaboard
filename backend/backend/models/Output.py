@@ -3,10 +3,8 @@ Describes an Output from `qa run`.
 """
 import os
 import json
-import uuid
 import fnmatch
 import datetime
-import subprocess
 from pathlib import Path
 
 from sqlalchemy import Column, ForeignKey, Index
@@ -22,7 +20,6 @@ from qaboard.api import dir_to_url
 from backend.models import Base
 from backend.fs_utils import rm_empty_parents, rmtree
 from backend.storage import check_storage_path, check_inside
-from backend.shell_utils import quote, safe_user_name, lsf_bridge_command
 
 
 
@@ -66,6 +63,8 @@ class Output(Base):
     # https://sqlalche.me/e/14/f405
     Index('idx_outputs_data_user', text("(data->>'user')")),#, postgresql_ops={'user': 'text_pattern_ops'}),
     Index('idx_outputs_filter', "batch_id", "test_input_id", "platform"),
+    # The file browser finds the run a folder belongs to
+    Index('idx_outputs_output_dir_override', "output_dir_override"),
     Index('idx_outputs_batch_user_storage', 
           "batch_id", 
           text("(data->>'user')"),
@@ -211,104 +210,6 @@ class Output(Base):
       session.add(output)
       session.commit()
       return output
-
-
-  def redo(self, user, command_id=None):
-    """
-    Re-run this output, as `user` (the logged-in user who requested it).
-    Note: almost everything used here comes from unauthenticated API calls, so all values are quoted,
-          and we only write and run code in the storage folders.
-    """
-    check_storage_path(self.output_dir)
-    check_storage_path(self.batch.ci_commit.artifacts_dir)
-    # in case it was deleted without QA-Board being made aware
-    if not self.batch.ci_commit.artifacts_dir.exists():
-      print("Restoring artifacts")
-      self.batch.ci_commit.save_artifacts()
-
-    user = safe_user_name(user)
-    if not command_id:
-      command_id = uuid.uuid4()
-    extra_parameters = json.dumps(self.extra_parameters, sort_keys=True)
-    job_options = self.data.get("job_options", {}) or {}
-    job_options_cli = []
-    if not job_options:
-      # for backward compatibility, it's a good default at SIRC
-      job_options_cli = ["--lsf-max-memory", "20000"]
-    elif job_options.get('type') == "lsf":
-      # TODO: support other runners... maybe create an ad-hoc functions in their classes...
-      if 'queue' in job_options:
-        job_options_cli += ["--lsf-queue", quote(str(job_options['queue']))]
-      if 'max_memory' in job_options and job_options['max_memory'] != 0:
-        job_options_cli += ["--lsf-max-memory", quote(str(job_options['max_memory']))]
-      if 'resources' in job_options and job_options['resources']:
-        job_options_cli += ["--lsf-resources", quote(str(job_options['resources']))]
-      if 'max_threads' in job_options and job_options['max_threads'] != 0:
-        job_options_cli += ["--lsf-threads", quote(str(job_options['max_threads']))]
-    command = ' '.join([
-      'qa',
-      '--label', quote(self.batch.label),
-      '--configuration', quote(self.configuration),
-      '--database', quote(str(self.test_input.database)),
-      '--type', quote(str(self.output_type)),
-      '--tuning', quote(extra_parameters),
-      'batch',
-      '--no-wait',
-      *job_options_cli,
-      '--action-on-existing=run',
-      '--action-on-pending=run',
-      # "--" so that an input path can't be parsed as an option
-      '--',
-      quote(str(self.test_input.path)),
-      # FIXME: if forwarded_args in parsed(self.configuration), add it..
-    ])
-
-    # CI results are saved under the CI user's folder (QABOARD_DEFAULT_USER), runs started here under the user's
-    ci_user = os.environ.get('QABOARD_DEFAULT_USER', 'qaboard')
-    outputs_dir_prefix = str(self.batch.ci_commit.outputs_dir).replace(f'/outputs/{ci_user}/', f'/outputs/{user}/')
-    artifacts_dir = str(self.batch.ci_commit.artifacts_dir)
-    script = '\n'.join([
-      '#!/bin/bash',
-      'set -ex',
-      # needed...
-      f"export CI=true;",
-      f"export GIT_COMMIT={quote(self.batch.ci_commit.hexsha)};",
-      f"export QA_OUTPUTS_COMMIT={quote(outputs_dir_prefix)}",
-      # backward compatibility with previous qa versions, remove later...
-      f"export QATOOLS_CI_COMMIT_DIR={quote(outputs_dir_prefix)}",
-      f"export QABOARD_TUNING=true;",
-      f'export QA_BATCH_COMMAND_ID={quote(str(command_id))}',
-      "",
-      # get the env right
-      f'umask 0',
-      f'mkdir -p {quote(artifacts_dir)}',
-      f'cd {quote(artifacts_dir)}',
-      'set +ex',
-      '[[ -f ".envrc" ]] && source .envrc',
-      '[[ -f "../.envrc" ]] && source ../.envrc',
-      '[[ -f "../../.envrc" ]] && source ../../.envrc',
-      '[[ -f "../../../.envrc" ]] && source ../../../.envrc',
-      'set -ex',
-      command,
-    ])
-    if not self.output_dir.exists():
-      prev_mask = os.umask(000)
-      try:
-        self.output_dir.mkdir(parents=True)
-      except Exception as e:
-        os.umask(prev_mask)
-        raise e
-      os.umask(prev_mask)
-    logs_path = self.output_dir / 'log.txt'
-    script_path = self.output_dir / 'redo.sh'
-    with script_path.open('w') as f:
-      f.write(script)
-    print(f'"{script_path}"')
-    # raises if the user or path are not safe to use in the LSF bridge
-    command = lsf_bridge_command(user, script_path)
-    p = subprocess.run(f'{command} > {quote(str(logs_path))} 2>&1', shell=True)
-    success = p.returncode == 0
-    return success
 
 
   def delete(self, soft=True, ignore=None, filter=None, dryrun=False):

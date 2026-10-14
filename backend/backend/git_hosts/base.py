@@ -37,7 +37,8 @@ def hostname_of(url):
 def gravatar_url(email):
   # https://docs.gravatar.com/api/avatars/images/
   email_hash = hashlib.sha256(email.strip().lower().encode()).hexdigest()
-  return f"https://www.gravatar.com/avatar/{email_hash}?d=identicon"
+  # d=404: no default picture, so that the web app shows the person's initials instead
+  return f"https://www.gravatar.com/avatar/{email_hash}?d=404"
 
 
 def hmac_sha256(secret, body):

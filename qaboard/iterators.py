@@ -12,7 +12,9 @@ from copy import deepcopy
 from pathlib import Path
 from itertools import chain, product
 from dataclasses import replace
-from typing import List, Union, Dict, Tuple, Iterator, cast
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import List, Union, Dict, Tuple, Iterator, Any, Optional, cast
 
 import yaml
 import click
@@ -21,6 +23,81 @@ from .conventions import pretty_hash, get_settings, location_from_spec
 from .utils import input_metadata, entrypoint_module
 from .compat import cased_path
 from .run import RunContext
+
+
+# Keys of batch files that are settings for their batches, not batches
+BATCH_FILE_SETTINGS = ('database', 'aliases', 'groups', 'configs', 'configurations', 'platform', 'matrix')
+
+# The inputs we looked for without finding them, for callers that explain why a batch has no tests (the server)
+_missing_inputs: ContextVar[Optional[List[Dict[str, Any]]]] = ContextVar('missing_inputs', default=None)
+
+@contextmanager
+def recording_missing_inputs():
+  """While iterating over inputs, collects the inputs that were not found: [{"input", "database", "globs"?}]."""
+  missing: List[Dict[str, Any]] = []
+  token = _missing_inputs.set(missing)
+  try:
+    yield missing
+  finally:
+    _missing_inputs.reset(token)
+
+def _record_missing_input(path, database, globs=None):
+  missing = _missing_inputs.get()
+  if missing is not None:
+    missing.append({"input": str(path) if path else "*", "database": str(database), **({"globs": [str(g) for g in globs]} if globs else {})})
+
+
+class BatchError(click.ClickException, ValueError):
+  """
+  A batch definition we can't use. `qa batch` prints "Error: <message>", the server shows the message.
+  `input_index` is the position of the faulty input in the batch's inputs, to find its line.
+  """
+  def __init__(self, message, batch=None, input_index=None):
+    super().__init__(message)
+    self.batch = batch
+    self.input_index = input_index
+
+  def located(self, batches_file):
+    """The same error, starting with the file (and line) where the batch is defined."""
+    if not batches_file:
+      return self
+    line = _input_line(batches_file, self.batch, self.input_index) if self.input_index is not None else None
+    return BatchError(f"{batches_file}{f':{line}' if line else ''}: {self.message}", self.batch, self.input_index)
+
+
+def _yaml_get(node, key):
+  """The node for `key` in a YAML mapping node (the last one, like PyYAML), or None."""
+  found = None
+  if isinstance(node, yaml.MappingNode):
+    for k, v in node.value:
+      if isinstance(k, yaml.ScalarNode) and k.value == key:
+        found = v
+  return found
+
+
+def _input_line(batches_file, batch, index) -> Optional[int]:
+  """The line of a batch's input in a batches file, if we can find it."""
+  try:
+    with open(batches_file) as f:
+      root = yaml.compose(f, Loader=yaml.SafeLoader)
+    definition = _yaml_get(root, batch)
+    inputs = _yaml_get(definition, 'inputs') or _yaml_get(definition, 'tests')
+    return inputs.value[index].start_mark.line + 1
+  except Exception:
+    return None
+
+
+def _input_error(batch, inputs, index) -> BatchError:
+  """Explains what is wrong with the input at `index`, that is not a path, a list, or a mapping."""
+  value = inputs[index]
+  previous = next((i for i in reversed(inputs[:index]) if isinstance(i, str)), None)
+  after = f', after "{previous}"' if previous is not None else ' (the first one)' if index == 0 else ''
+  if value is None:
+    message = f'The batch "{batch}" has an empty input{after}: a "-" with nothing after it. Remove the "-", or write the input after it.'
+  else:
+    kind = {"int": "a number", "float": "a number", "bool": "true or false", "date": "a date", "datetime": "a date"}.get(type(value).__name__, f"a {type(value).__name__}")
+    message = f'The batch "{batch}" has an input that YAML reads as {kind}, not a path: {value}{after}. Write it in quotes.'
+  return BatchError(message, batch, index)
 
 
 def flatten(lst: Union[str, List, Tuple]) -> Iterator[Union[str, List, Tuple]]:
@@ -74,12 +151,14 @@ def match(value, value_filter) -> bool:
 
 def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config, only=None, exclude=None):
   if path and path != "*":
-    input_paths = list(database.glob(str(path))) # to support wildcards
+    # sorted: glob lists in filesystem order, which differs between machines, and so would the runs of a batch
+    input_paths = sorted(database.glob(str(path))) # to support wildcards
   else:
     # we want to match everything, including inputs starting at the level of the database
     # that could be identified by nested naming conventions like "tv/tv_*"
-    input_paths = [*database.glob("*"), database]
+    input_paths = [*sorted(database.glob("*")), database]
   if not input_paths:
+    _record_missing_input(path, database)
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
       click.secho(f'ERROR: No inputs found for the batch "{path}" under {database}', fg='red', err=True)
       exit(1)
@@ -103,6 +182,8 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
       inputs = [cased_path(i) for i in inputs] # fix case issues on Windows
       if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
         inputs.append(cased_path(input_path))
+      # the same order on every machine (rglob lists in filesystem order, sets in hash order)
+      inputs = sorted(inputs)
 
 
       # This provides backward compatibility with flows were a tool based on regexes was used.
@@ -146,9 +227,10 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
   #       yield input_path
 
   if not seen_inputs:
+    _record_missing_input(path, database, globs)
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
       click.secho(f'ERROR: No inputs found matching "{path}" [{globs}] under "{database}".', fg='red', err=True)
-      raise ValueError 
+      raise ValueError(f'No inputs found matching "{path}" [{globs}] under "{database}".')
     else:
       click.secho(f'WARNING: No inputs found matching "{path}" [{globs}] under "{database}".', fg='yellow', err=True)
 
@@ -201,6 +283,7 @@ def iter_inputs(
   # TODO: allow changing the entrypoint per-batch
   """
   available_batches: Dict = {}
+  batches_sources: Dict[str, os.PathLike] = {} # where each batch is defined
   for batches_file in batches_files:
     try:
       from .config import project, subproject
@@ -223,7 +306,7 @@ def iter_inputs(
     available_batches['aliases'] = {**old_aliases, **new_aliases}
 
     for new_batch in new_batches:
-      if new_batch.startswith('.') or new_batch in ('database', 'aliases', 'groups', 'configs', 'configurations', 'platform', 'matrix'):
+      if new_batch.startswith('.') or new_batch in BATCH_FILE_SETTINGS:
         continue
       is_batch = isinstance(new_batches[new_batch], dict) # vs e.g. aliases
       is_pipeline = is_batch and new_batches[new_batch].get("type") == "pipeline"
@@ -237,6 +320,7 @@ def iter_inputs(
               except Exception: # people often have things that are not batches, maybe aliases reused elsewhere...
                 pass
       allow_duplicate_batches = qatools_config.get('inputs', {}).get('allow_duplicate_batches')
+      batches_sources[new_batch] = batches_file_path
       if not allow_duplicate_batches or new_batch not in available_batches and new_batch not in available_batches['aliases']:
         available_batches[new_batch] = new_batches[new_batch]
       else: # we want to run both...
@@ -256,7 +340,7 @@ def iter_inputs(
   if not batches:
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
       click.secho(f'ERROR: No batch was chosen.', fg='red', err=True)
-      raise ValueError 
+      raise ValueError('No batch was chosen.')
     else:
       click.secho(f'WARNING: No batch was chosen.', fg='yellow', err=True)
 
@@ -288,6 +372,13 @@ def iter_inputs(
     type=inputs_settings['type']
   )
 
+  def located(batch, make_iterator):
+    """Errors in a batch's definition say where it is defined."""
+    try:
+      yield from make_iterator()
+    except BatchError as e:
+      raise e.located(batches_sources.get(batch)) from None
+
   def check_batch(batch):
     if available_batches[batch] is None:
       click.secho(f"WARNING: Cannot use empty batch definitions like '{batch}:'. Check your batch YAML.", fg='yellow', err=True)
@@ -301,7 +392,7 @@ def iter_inputs(
       check_batch(batch)
       batch_run_context = deepcopy(run_context)
       batch_run_context.batch = batch
-      yield from iter_batch(parse_batch(batch, available_batches[batch]), batch_run_context, qatools_config, inputs_settings, debug, cli_runner_overrides)
+      yield from located(batch, lambda: iter_batch(parse_batch(batch, available_batches[batch]), batch_run_context, qatools_config, inputs_settings, debug, cli_runner_overrides))
       continue
     
     # 2. Batches can be specified using wildcards
@@ -311,7 +402,7 @@ def iter_inputs(
         batch_run_context = deepcopy(run_context)
         batch_run_context.batch = b
         check_batch(b)
-        yield from iter_batch(parse_batch(b, available_batches[b]), batch_run_context, qatools_config, inputs_settings, debug, cli_runner_overrides)
+        yield from located(b, lambda: iter_batch(parse_batch(b, available_batches[b]), batch_run_context, qatools_config, inputs_settings, debug, cli_runner_overrides))
       continue
 
     # 3. Batch can be directly paths to inputs (semi-deprecated...) 
@@ -374,9 +465,7 @@ def parse_batch(batch_name, batch):
     click.secho(f'WARNING: Empty definition for the batch {batch_name}', fg='yellow', err=True)
     return None
   if not isinstance(batch, dict):
-    click.secho(f'ERROR: The batch {batch_name} has the wrong type.', fg='red', bold=True, err=True)
-    click.secho(f'       Got {type(batch)} expected a dict with keys inputs/configuration/database...', fg='red', err=True) 
-    exit(1)
+    raise BatchError(f'The batch "{batch_name}" must be a mapping with keys like inputs, configurations, database..., got a {type(batch).__name__}: {batch}', batch_name)
   return batch
 
 
@@ -491,22 +580,25 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
       return
 
     # We also allow each input to have its settings...
+    if isinstance(locations, str): # a single input
+      locations = [locations]
     if isinstance(locations, dict): # {inputA: config, inputB: config}
       locations_and_configs = [(location, config) for location, config in locations.items()]
-    if isinstance(locations, list): # [inputA, inputA] or [(inputA, configA), (inputB, configB)] or [{inputA: configA, inputB: configB}]
+    elif isinstance(locations, list): # [inputA, inputA] or [(inputA, configA), (inputB, configB)] or [{inputA: configA, inputB: configB}]
       locations_and_configs = []
-      for l in locations:
+      for index, l in enumerate(locations):
         if isinstance(l, str):
           locations_and_configs.append((l, None))
-        elif isinstance(l, list):
+        elif isinstance(l, list) and l:
           location, *location_configurations = l
           locations_and_configs.append((location, location_configurations))
         elif isinstance(l, dict):
           for location, location_configurations in l.items():
             locations_and_configs.append((location, location_configurations))
         else:
-          click.secho(f'ERROR: Could not understand the inputs in the batch ({locations_and_configs}).', fg='red', err=True)
-          raise ValueError
+          raise _input_error(run_context.batch, locations, index)
+    else:
+      raise BatchError(f'The inputs of the batch "{run_context.batch}" must be a list of paths, not: {locations}', run_context.batch)
 
     for location, location_configurations in locations_and_configs:
       location_run_context = deepcopy(run_context)
@@ -545,6 +637,58 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
 
 
 
+def load_runs_file(path) -> List[Dict[str, Any]]:
+  """
+  Reads the runs listed for `qa batch --runs-file`, e.g. when QA-Board redoes runs:
+    {"runs": [{"input_path", "database", "type", "platform", "configurations", "extra_parameters", "job_options", "batch"}]}
+  input_path is relative to the database. Only input_path and database are required.
+  """
+  try:
+    with Path(path).open() as f:
+      data = json.load(f)
+  except (OSError, ValueError) as e:
+    raise click.UsageError(f"Could not read the runs file {path}: {e}")
+  runs = data.get('runs') if isinstance(data, dict) else None
+  is_run = lambda run: isinstance(run, dict) and 'input_path' in run and 'database' in run and isinstance(run.get('job_options') or {}, dict)
+  if not isinstance(runs, list) or not all(is_run(run) for run in runs):
+    raise click.UsageError(f'Invalid runs file {path}: expected {{"runs": [{{"input_path": ..., "database": ..., ...}}]}}')
+  return runs
+
+
+# Job options that depend on who runs `qa batch`, from where, and for which command.
+# When we redo runs, we don't reuse the values they were started with.
+local_job_options = ('command_id', 'batch_dir', 'cwd', 'user', 'bridge')
+
+def rerun_job_options(job_options: Optional[Dict[str, Any]], default_job_options: Dict[str, Any], cli_runner_overrides: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+  """The job options to redo a run that was started with `job_options`, from a `qa batch` that would use `default_job_options`."""
+  job_options = job_options or {}
+  cli_runner_overrides = cli_runner_overrides or {}
+  if 'type' in cli_runner_overrides and job_options.get('type') != cli_runner_overrides['type']:
+    # They were options for another runner
+    job_options = {}
+  settings = {k: v for k, v in job_options.items() if k not in local_job_options}
+  local = {k: v for k, v in default_job_options.items() if k in local_job_options}
+  return {**default_job_options, **settings, **local, **cli_runner_overrides}
+
+
+def iter_runs(runs: List[Dict[str, Any]], default_type: str, default_platform: str, default_job_options: Dict[str, Any], cli_runner_overrides=None) -> Iterator[RunContext]:
+  """The runs from a runs file (see load_runs_file), with the job options they were started with."""
+  for run in runs:
+    database = Path(run['database'])
+    if database.is_absolute():
+      database = database.resolve()
+    yield RunContext(
+      type=run.get('type') or default_type,
+      input_path=database / run['input_path'],
+      database=database,
+      platform=run.get('platform') or default_platform,
+      configurations=list(run.get('configurations') or []),
+      extra_parameters=dict(run.get('extra_parameters') or {}),
+      batch=run.get('batch'),
+      job_options=rerun_job_options(run.get('job_options'), default_job_options, cli_runner_overrides),
+    )
+
+
 def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
   extra_params = extra_parameters if extra_parameters else {}
   if not tuning_search:
@@ -573,19 +717,21 @@ def iter_parameters(tuning_search=None, filetype='json', extra_parameters=None):
   #       tuning_search[parameter] = list(range(args['start'], args['stop'], args['step']))
 
   n_iter = tuning_search.get('search_options', {}).get('n_iter')
+  # a grid by default, as the docs show `--tuning-search '{"parameter_search": {...}}'`
+  search_type = tuning_search.get('search_type', 'grid')
   if not parameter_search:
     params_iterator = [{}]
-  elif tuning_search['search_type'] == 'grid':
+  elif search_type == 'grid':
     # http://scikit-learn.org/stable/modules/generated/sklearn.model_selection.ParameterSampler.html#sklearn.model_selection.ParameterSampler
     from sklearn.model_selection import ParameterGrid
     # from search import ParameterGrid
     params_iterator = ParameterGrid(parameter_search)
-  elif tuning_search['search_type'] == 'sampler':
+  elif search_type == 'sampler':
     from sklearn.model_selection import ParameterSampler
     # from search import ParameterSampler
     params_iterator = ParameterSampler(parameter_search, n_iter=n_iter)
   else:
-    raise ValueError
+    raise ValueError(f"Unknown tuning search_type: {search_type!r}, use 'grid' or 'sampler'")
 
   for counter, params_ in enumerate(params_iterator):
     if n_iter and counter >= n_iter and n_iter > 0:

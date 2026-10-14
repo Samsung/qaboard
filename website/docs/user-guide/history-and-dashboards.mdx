@@ -12,6 +12,8 @@ The **History** page shows how metrics evolved over the commits of a branch, run
 - From a commit page, click the **name of a run** on its card: you get the history of that input on the commit's branch, already filtered on it.
 - Or go to `/<project>/history/<branch>`.
 
+From the History page, the sidebar has the project's navigation: the branch's commits, Code, Integrations and Milestones.
+
 ## The top bar
 - The **date range** and refresh button, like on the commit list. By default, the last 3 days.
 - The **batch selector**: which batch to follow. **CI** by default.
@@ -24,13 +26,28 @@ The history is most useful on the CI batch, filtered on a few inputs. Filtering 
 ## Performance over time
 A chart with one point per commit, for the selected **metric** (pick another at the top left; the project's configuration chooses which ones are offered).
 
+<Shot
+  id="history/performance-over-time"
+  caption="p99 per test over the last two weeks of main, with its target line: the heavy-tail test jumps at the commit that copied payloads."
+/>
+
 - **Breakdown per test**: one line per run (input and configuration) instead of a single aggregated line. Turn it off to see the **median** or **average** over all runs, but beware: commits may not have been evaluated on the same tests.
 - **Relative to start (@100)**: rescales each line so that its first value is 100, to compare inputs with very different values.
 - **Show output files**: show the files a run created instead of its visualizations, in the panel below the chart.
 
+<Shot
+  id="history/relative"
+  caption="Relative to start, every line begins at 100: tests with very different latencies share one scale."
+/>
+
 Below the chart, hover any point:
 - the hovered commit becomes the **New** commit, and the commit before it on the line the **Reference**; both are shown as commit rows, with links to their commit pages.
 - With **Breakdown per test**, a card shows the run's visualizations (or files), compared with the previous commit. Scroll the line to find where the output changed.
+
+<Shot
+  id="history/image-diff"
+  caption="Hover a point to compare its outputs with the commit before: the PSNR jumps when the bilateral denoiser is merged, and the leaves get halos."
+/>
 
 **Click** a point to freeze it as the reference, then hover other points to compare them with it. **Double-click** to unfreeze.
 
@@ -38,12 +55,17 @@ Below the chart, hover any point:
 To find a regression, filter on the input that regressed, keep **Breakdown per test** on, and hover the line from right to left until the visualization changes.
 :::
 
+<Clip
+  id="history/find-regression"
+  caption="Filtered on one test, hovering along its p99 line until the card changes at the commit that copied payloads; a click freezes it as the reference."
+/>
+
 The same chart, aggregated over runs, is shown at the top of each branch's commit list.
 
 ## Metrics distribution and per-test tables
 Below the chart, for the hovered (or selected) commit compared with its reference:
 - **Metrics distribution**: the same summary as the commit page's [Summary](commit-page.mdx#summary) view, with medians, changes and box plots.
-- **Metrics per-test**: the [Metrics Table](commit-page.mdx#metrics-table) (**vs KPI** tab) and the [Metrics Diff](commit-page.mdx#metrics-diff) (second tab), with options to sort runs by name, id or metric.
+- **Metrics per-test**: the [Metrics Table](commit-page.mdx#metrics-table) and [Metrics Diff](commit-page.mdx#metrics-diff) tabs, with options to sort runs by name, id or metric.
 
 Pick which metrics to show with the metrics selector in the tables.
 

@@ -1,4 +1,5 @@
-import { Link, useRouter } from "./router";
+import { Link, useLinkClickHandler, useRouter } from "./router";
+import { path_segment, stringify_query } from "./selection";
 import styled from "styled-components";
 
 import { colors, spacing, typography, borders, shadows, transitions, breakpoints, sidebar } from './design/tokens';
@@ -12,7 +13,7 @@ import {
   Tooltip,
 } from "@blueprintjs/core";
 
-import { Avatar } from "./components/avatars";
+import { ProjectAvatar } from "./components/avatars";
 import { IntegrationsMenus } from "./components/integrations";
 import { MilestonesMenu } from "./components/milestones"
 import AuthButton from "./components/authentication/Auth"
@@ -21,8 +22,8 @@ import { LogsMenuItem, logs_hint_class } from "./AppSiderLogsItem"
 
 import { useCommitsList, useComparison, useSiteConfig, useUser, updateSelected } from "./hooks"
 import { useIntegrationStatuses } from "./useIntegrationStatuses"
-import { project_avatar_style, quota_url } from "./utils"
-import { repo_url, tree_url, commit_url, image_url, default_integrations } from "./git"
+import { quota_url } from "./utils"
+import { repo_url, tree_url, commit_url, default_integrations } from "./git"
 
 export const sider_width = sidebar.width.default;
 
@@ -74,7 +75,7 @@ const SiderSection = styled.div`
     }
 `;
 
-const ProjectAvatar = styled.div`
+const SiderProjectAvatar = styled.div`
     display: flex;
     align-items: center;
     gap: ${spacing.xs};
@@ -357,42 +358,30 @@ const Sider = styled.div`
 `
 
 
-// A menu item that navigates without reloading the app, and can still be opened in a new tab
-const LinkMenuItem = ({ to, ...props }) => {
-  const { history } = useRouter();
-  const onClick = event => {
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
-    event.preventDefault();
-    history.push(to);
-  };
-  return <MenuItem href={to} onClick={onClick} {...props}/>;
-}
-
 // The integrations of the branch pages: from qaboard.yaml, or the defaults for the project's git host
 const branch_integrations = ({ project_data, commit }) =>
   project_data.data?.qatools_config?.integrations ?? commit?.data?.qatools_config?.integrations ?? default_integrations(project_data);
 
 const ProjectSideAvatar = ({ project, project_data = {} }) => {
-  const git = project_data.data?.git || {};
   let project_name = project.split('/').slice(-1)[0];
-  const is_subproject = git.path_with_namespace !== project;
-  const has_custom_avatar = !!project_data.data?.qatools_config?.project?.avatar_url
-  const should_tweak_image = is_subproject && !has_custom_avatar;
-  const avatar_style = should_tweak_image ? project_avatar_style(project) : null;
-  const avatar_url = image_url(git.avatar_url) ?? undefined;
   return (
-    <ProjectAvatar>
+    <SiderProjectAvatar>
       <Link to={`/${project}`} style={{display: 'flex', alignItems: 'center', gap: '12px', width: '100%', color: 'inherit'}}>
-        <Avatar
+        <ProjectAvatar
           className="avatar"
-          src={avatar_url}
-          alt={project_name}
-          img_style={avatar_style}
+          project={project}
+          data={project_data.data}
         />
         <span className="project-name">{project_name}</span>
       </Link>
-    </ProjectAvatar>
+    </SiderProjectAvatar>
   )
+}
+
+// A menu entry that navigates like <Link>: within the app, without reloading it, but ctrl/cmd+click still opens a new tab.
+const MenuItemLink = ({ to, ...props }) => {
+  const handleClick = useLinkClickHandler(to)
+  return <MenuItem {...props} href={to} onClick={handleClick}/>
 }
 
 // Only shown if the site has a quota dashboard (QABOARD_QUOTA_URL_TEMPLATE)
@@ -410,14 +399,20 @@ const QuotaMenuItem = ({ user, project }) => {
 }
 
 const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_commit = {}, user, docs_root, ...integrationProps }) => {
-  const { match } = useRouter();
+  const { history } = useRouter();
+  const { selected } = useComparison();
+  // Milestones from qaboard.yaml are branches (or tags), the others are commits
   const selectMilestone = milestone => {
-    updateSelected(project, {
-      new_project: milestone.project ?? project,
-      new_commit_id: milestone.commit,
-      selected_batch_new: milestone.batch,
-      filter_batch_new: milestone.filter,
-    })
+    if (!milestone.commit)
+      return updateSelected({ branch: milestone.branch });
+    history.push({
+      pathname: `/${path_segment(project)}/commit/${path_segment(milestone.commit)}`,
+      search: stringify_query({
+        new_project: milestone.project !== project ? milestone.project : undefined,
+        batch: milestone.batch,
+        filter: milestone.filter,
+      }),
+    });
   };
 
   let qatools_config = project_data.data?.qatools_config || {};
@@ -431,22 +426,26 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
   const shared_milestones = project_data?.data?.milestones || {}
   const private_milestones = project_data.milestones || {}
 
-  let is_project_home = match.path === "/:project_id+/commits" || match.path === "/:project_id+";
-  let is_committer = !!match.params.committer;
-  let is_branch = !!match.params.name;
-  const tag = (is_branch || is_committer) ? (match.params.name || match.params.committer) : reference_branch;
-  const branch = is_branch ? match.params.name : reference_branch;
+  const is_committer = selected.route.is_committer;
+  const is_history = selected.route.is_history;
+  const is_branch = !!selected.branch;
+  const is_project_home = selected.route.is_commits && !is_branch;
+  const tag = selected.branch ?? selected.committer ?? reference_branch;
+  const branch = selected.branch ?? reference_branch;
   let project_repo = git.path_with_namespace || '';
   let subproject = project.slice(project_repo.length + 1);
   let code_url = subproject.length > 0 ? tree_url(project_data, branch, subproject) : repo_url(project_data);
+  const commits_url = branch ? `/${path_segment(project)}/commits/${path_segment(branch)}` : `/${path_segment(project)}/commits`;
+  const history_url = branch ? `/${path_segment(project)}/history/${path_segment(branch)}` : `/${path_segment(project)}/history`;
   return <>
-    {is_project_home
-      ? <div><LinkMenuItem to={`/${project}/commits/${reference_branch}`} text={reference_branch} icon='git-branch' style={{marginRight: '5px'}}/></div>
+    {/* The branch's commits: highlighted on their page, a link elsewhere */}
+    {(is_project_home || is_history)
+      ? <div><MenuItemLink to={commits_url} text={branch} title={branch && `Commits on ${branch}`} icon='git-branch' style={{marginRight: '5px'}}/></div>
       : <MenuItem icon={is_branch ? "git-branch" : 'user'} intent='primary' text={tag} title={tag}/>
     }
     {!is_committer && <>
-      <MenuItem href={code_url} icon="git-repo" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
-      <LinkMenuItem to={`/${project}/history/${branch}`} icon="history" text="History"/>
+      <MenuItem href={code_url} icon="git-repo" target="_blank" rel="noopener noreferrer" labelElement={<Icon icon="share" />} text="Code"/>
+      <MenuItemLink to={history_url} active={is_history} icon="history" text="History"/>
       <SectionDivider />
       <IntegrationsMenus
         single_menu
@@ -484,7 +483,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
 const results_integrations = ({ new_batch, commit, project_data }) =>
   new_batch?.data?.qatools_config?.integrations ?? commit?.data?.qatools_config?.integrations ?? project_data.data?.qatools_config?.integrations ?? [];
 
-const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, new_batch, ref_batch, selected_views, filter, ref_filter, ref_project, user, docs_root, ...integrationProps }) => {
+const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, new_batch, ref_batch, selected_views, default_views, filter, ref_filter, ref_project, user, docs_root, ...integrationProps }) => {
   const git = project_data.data?.git || {};
   let project_repo = git.path_with_namespace || '';
   let subproject = project.slice(project_repo.length + 1);
@@ -493,7 +492,7 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
 
   const has_optim = new_batch?.data?.optimization === true;
   const active = view => selected_views.includes(view);
-  const set = view => () => updateSelected(project, { selected_views: view })
+  const set = view => () => updateSelected({ selected_views: view }, { defaults: { selected_views: default_views } })
   return <>
     <IntegrationsMenus
       integrations={results_integrations({ new_batch, commit, project_data })}
@@ -531,7 +530,7 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
       <span>Source</span>
     </SectionHeader>
     <MenuItem icon="settings" text="Artifacts & Configs" active={active('parameters')} onClick={set('parameters')} />
-    <MenuItem href={code_url} icon="git-commit" target="_blank" labelElement={<Icon icon="share" />} text="Code"/>
+    <MenuItem href={code_url} icon="git-commit" target="_blank" rel="noopener noreferrer" labelElement={<Icon icon="share" />} text="Code"/>
 
     {/* Tuning Section */}
     <SectionHeader>
@@ -546,12 +545,12 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
 
 
 const AppSider = () => {
-  const { match } = useRouter();
   const { docs_root } = useSiteConfig();
   const user = useUser();
-  const { project, project_data, selected, selected_views, new_commit, ref_commit, new_batch, ref_batch } = useComparison();
+  const { project, project_data, selected, selected_views, default_views, new_commit, ref_commit, new_batch, ref_batch } = useComparison();
   const route = selected.route;
-  const { latest_commit } = useCommitsList({ enabled: !route.is_commit, ignore_search: true });
+  // searching commits doesn't change the latest commit
+  const { latest_commit } = useCommitsList({ ignore_search: true });
   // the commit whose integrations we show
   const commit = route.is_commit ? new_commit : latest_commit;
 
@@ -561,7 +560,7 @@ const AppSider = () => {
   ];
   const template_context = {
     project, project_data, commit, ref_commit, integrations, user, docs_root,
-    branch: match.params.name ?? project_data.data?.qatools_config?.project?.reference_branch,
+    branch: selected.branch ?? project_data.data?.qatools_config?.project?.reference_branch,
     new_batch, ref_batch: ref_batch?.label,
     filter: selected.filter_batch_new, ref_filter: selected.filter_batch_ref, ref_project: selected.ref_project,
   };
@@ -603,9 +602,9 @@ const AppSider = () => {
         <ProjectSideAvatar project={project} project_data={project_data} />
       </SiderSection>
 
-      {/* Navigation Section */}
+      {/* Navigation Section: views of the results on commit pages, else (commit lists, history) the project's pages */}
       <SiderSection>
-        {route.is_list && (
+        {(route.is_list || route.is_history) && (
           <>
             <SectionHeader>Project Navigation</SectionHeader>
             <EnhancedMenuItem>
@@ -621,12 +620,6 @@ const AppSider = () => {
             </EnhancedMenuItem>
           </>
         )}
-        {route.is_history && (
-          <EnhancedMenuItem>
-            <MenuItem icon="git-branch" intent="primary" text={selected.branch} title={selected.branch}/>
-            <LinkMenuItem to={`/${project}/commits/${selected.branch ?? ''}`} icon="git-commit" text="Commits"/>
-          </EnhancedMenuItem>
-        )}
         {route.is_commit && (
           <EnhancedMenuItem>
             <ProjectSideResults
@@ -634,6 +627,7 @@ const AppSider = () => {
               commit={new_commit}
               ref_commit={ref_commit}
               selected_views={selected_views}
+              default_views={default_views}
               project={project}
               project_data={project_data}
               user={user}

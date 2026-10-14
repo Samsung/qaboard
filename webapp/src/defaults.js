@@ -1,4 +1,4 @@
-export const default_metrics = {
+const default_metrics = {
 	available_metrics: {},
 	default_metric: undefined,
 	summary_metrics: [],
@@ -6,7 +6,7 @@ export const default_metrics = {
 	dashboard_metrics: []
 };
 
-export const default_qatools_config = {
+const default_qatools_config = {
 	project: {
 		reference_branch: 'develop',
 	},

@@ -34,7 +34,7 @@ def find_configs(path : Path) -> List[Tuple[Dict, Path]]:
     """
     configsxpaths = []
     # We need a full path to iterate on the parents
-    path = path.resolve()
+    path = Path(os.path.abspath(path)) # abspath() instead of resolve(), since it fails on Windows by dereferencing mapped drives
     # We look for qaboard.yaml configuration files in the path folder and its parents
     parents = [path, *list(path.parents)]
     for parent in parents:
@@ -157,9 +157,12 @@ platform = 'windows' if on_windows else 'linux'
 user = os.environ.get('QA_USER', getuser())
 
 
-def storage_roots(config: Dict, project: Path, subproject: Path) -> Tuple[Path, Path, Path]:
+def storage_roots(config: Dict, project: Path, subproject: Path, user_name: Optional[str] = None) -> Tuple[Path, Path, Path]:
+  """`user_name` replaces {user} in the storage settings, by default the current user."""
+  if user_name is not None:
+    user_ = user_name
   # useful when migration results to a new default location
-  if 'QABOARD_NO_CACHE_USER' in os.environ:
+  elif 'QABOARD_NO_CACHE_USER' in os.environ:
     user_ = os.environ.get('QA_USER', getuser())
   else:
     user_ = user
@@ -352,9 +355,10 @@ if commit_id and is_in_git_repo:
       commit_message = commit_message_
     commit_parents = commit_parents_str.split()
   except Exception as e:
-    print(e, file=sys.stderr)
-    # may fail when working on the first commit in a repo, like in our tests
-    pass
+    # The commit can be missing from the clone (shallow CI clones, the first commit in a repo like in our tests...),
+    # or come from the CI's environment variables: we do without what git would tell us about it.
+    if 'QA_VERBOSE' in os.environ:
+      print(e, file=sys.stderr)
 
 
 if root_qatools_config:
@@ -401,16 +405,19 @@ def get_default_configuration(input_settings) -> str:
   default_configuration = list(flatten(default_configuration))
   return serialize_config(default_configuration)
 
-def get_default_database(inputs_settings):
+def get_default_database(inputs_settings, interpolation_vars=None):
   # All recordings used should be stored at the same location
   # We will refer to them by their relative path related to the "database"
+  # `interpolation_vars` fills {project} and {subproject}, by default with the current project's (the server passes the commit's)
   global ignore_config_errors
   if 'type' in inputs_settings and inputs_settings['type'] in inputs_settings and 'database' in inputs_settings[inputs_settings['type']]:
     database_spec = inputs_settings[inputs_settings['type']]['database']
   else:
     database_spec = inputs_settings.get('database', {})
+  if interpolation_vars is None:
+    interpolation_vars = {"project": project, "subproject": subproject}
   try:
-    database = location_from_spec(database_spec, {"project": project, "subproject": subproject})
+    database = location_from_spec(database_spec, interpolation_vars)
   except Exception:
     database = Path("/")
   if not database:

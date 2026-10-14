@@ -5,7 +5,7 @@
 import { screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
-import { useCommitsList } from '../hooks';
+import { ComparisonProvider, useCommitsList } from '../hooks';
 import { branch_query, filterBranch } from '../AppNavbar';
 import { matchRoutes, RouteMatch } from '../router';
 import { renderWithProviders } from '../test-utils';
@@ -52,12 +52,30 @@ describe('useCommitsList', () => {
   test("finds the default branch's latest commit even when it's not in the pages loaded", async () => {
     const { match } = matchRoutes([{ path: '/:project_id+' }], `/${project}`);
     renderWithProviders(
-      <MemoryRouter initialEntries={[`/${project}`]}><RouteMatch match={match}><LatestCommit/></RouteMatch></MemoryRouter>,
+      <MemoryRouter initialEntries={[`/${project}`]}><RouteMatch match={match}><ComparisonProvider><LatestCommit/></ComparisonProvider></RouteMatch></MemoryRouter>,
       { siteConfig: {} },
     );
     expect(await screen.findByText('50 loaded, latest on master: master-60')).toBeInTheDocument();
     const branch_requests = fetchMock.mock.calls.map(([url]) => new URL(url, 'http://localhost')).filter(url => url.pathname === '/api/v1/commits/master');
     expect(branch_requests.map(url => url.searchParams.get('limit'))).toEqual(['1']);
+  });
+
+  test("searches don't change the latest commit, nor the commits compared by default", async () => {
+    const Lists = () => {
+      const searched = useCommitsList();
+      const unsearched = useCommitsList({ ignore_search: true });
+      return <p>searched: {searched.search || 'nothing'}, latest: {unsearched.latest_commit?.id ?? 'none'}</p>;
+    };
+    const { match } = matchRoutes([{ path: '/:project_id+' }], `/${project}`);
+    renderWithProviders(
+      <MemoryRouter initialEntries={[`/${project}?search=feature`]}><RouteMatch match={match}><ComparisonProvider><Lists/></ComparisonProvider></RouteMatch></MemoryRouter>,
+      { siteConfig: {} },
+    );
+    expect(await screen.findByText('searched: feature, latest: master-60')).toBeInTheDocument();
+    const list_requests = fetchMock.mock.calls.map(([url]) => new URL(url, 'http://localhost')).filter(url => url.pathname === '/api/v1/commits/');
+    // the search looks at all the commits, the list without it at the date range
+    expect(list_requests.some(url => url.searchParams.get('q') === 'feature' && !url.searchParams.has('from'))).toBe(true);
+    expect(list_requests.some(url => !url.searchParams.has('q') && url.searchParams.has('from'))).toBe(true);
   });
 });
 

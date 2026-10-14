@@ -13,7 +13,7 @@ import {
   Dialog,
 } from "@blueprintjs/core";
 import { http, errorMessage } from "../../api/http";
-import { userQuery, logged_out_user } from "../../api/queries";
+import { userQuery, logged_out_user, setUser } from "../../api/queries";
 import { useSiteConfig, useUser } from "../../hooks";
 import { toaster } from "./../../toaster"
 import { Avatar } from '../avatars';
@@ -177,7 +177,10 @@ const AuthButton = ({ appSider }) => {
       return;
     }
     http.post("/api/v1/user/logout/")
-      .then(() => toaster.show({ message: `Goodbye, ${display_name}`, intent: Intent.WARNING, timeout: 3000 }))
+      .then(() => {
+        toaster.show({ message: `Goodbye, ${display_name}`, intent: Intent.WARNING, timeout: 3000 });
+        setUser(queryClient, logged_out_user);
+      })
       .catch(error => {
         toaster.show({ message: errorMessage(error), intent: Intent.DANGER, timeout: 3000 });
       });
@@ -201,7 +204,7 @@ const UserMenu = ({ user, logout, avatar_url_template }) => {
           <UserMenuTrigger>
             <Avatar 
               src={avatarUrl}
-              alt={display_name}
+              name={display_name}
               size="28px"
             />
             <span className="user-display">{display_name}</span>
@@ -230,7 +233,7 @@ const UserMenu = ({ user, logout, avatar_url_template }) => {
           <UserProfileHeader>
             <Avatar 
               src={avatarUrl}
-              alt={display_name}
+              name={display_name}
               size="36px"
             />
             <UserInfo>
@@ -272,7 +275,7 @@ const LoginButton = ({ user, logout, appSider, login_type }) => {
       .then(response => {
         const { user_id, user_name, full_name, email, login_type } = response.data;
         toaster.show({ message: `Welcome, ${full_name ?? user_name}`, intent: Intent.SUCCESS, timeout: 3000 });
-        queryClient.setQueryData(userQuery.queryKey, { ...logged_out_user, is_logged: true, user_name, email, login_type, full_name, user_id });
+        setUser(queryClient, { ...logged_out_user, is_logged: true, user_name, email, login_type, full_name, user_id });
         setError(null);
         setLoading(false);
         setOpen(false);

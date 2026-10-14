@@ -64,6 +64,11 @@ In QA-Board's *Logs* view:
 - You can switch between `log.txt` and `log.lsf.txt`, search (<kbd>Ctrl/Cmd</kbd>+<kbd>F</kbd>, then <kbd>Enter</kbd>), and jump to errors.
 - While runs are running, logs update live. We only download what was added since the last update, and for large logs, only the end of the file at first.
 
+<Shot
+  id="logs/lsf-hints"
+  caption="LSF killed this run at its memory limit (TERM_MEMLIMIT): the summary compares the memory it used with what it requested, and says how to ask for more."
+/>
+
 :::note
 With job arrays (see above), all runs share the same `bsub -o` file name. To get each run's job report in its own `log.lsf.txt`, *qaboard* creates symlinks to the runs' output directories in `{batch_dir}/lsf/{job_array_name}/{index}`, and uses `-o "{batch_dir}/lsf/{job_array_name}/%I/log.lsf.txt"`.
 :::

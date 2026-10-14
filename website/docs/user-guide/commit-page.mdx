@@ -4,8 +4,6 @@ title: The commit page
 sidebar_label: The commit page
 description: The top bars, the controls panel, and what each view of the commit page is for.
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
-
 The commit page shows the results of one commit (the **new** one) compared with a **reference**. Its URL looks like `/<project>/commit/<hash>?reference=<hash>&batch=...`.
 
 ## The top bars
@@ -38,9 +36,24 @@ While runs are pending, the page refreshes by itself every 15 seconds.
 On the right edge of the page, the **Controls** panel (click the dark tab to open or close it, your choice is remembered):
 
 - **Visualizations**: switches to show or hide each visualization, including the ones hidden by default, and **Image Diff** to show a perceptual difference between new and reference images. A search box appears when there are many.
-- **Dynamic Options**: when a visualization has several files per run (frames, channels, reports...), pick which one to show. The link icon makes an option **synced** across all runs, or **per-output** so each card has its own selector.
+- **Dynamic Options**: when a visualization has several files per run (frames, channels, reports...), pick which one to show. Options are **linked** across all runs: the panel lists the values of all runs, and a run that doesn't have the selected value shows the closest one, with a note on its card. The link icon makes an option **per-output**: each card gets its own selector, starting from the linked value. Changing an option keeps the image viewers' zoom and selected region.
 - **Sorting**: sort runs by name, id, storage, a tuning parameter or a metric, ascending or descending. It applies to tables and cards.
 - **Metrics**: which metrics to show in the tables.
+
+<Shot
+  id="commit/controls-panel"
+  caption="The switches include the visualizations hidden by default. Image Diff and Sorting apply to every card."
+  callouts={[
+    {anchor: 'visualizations', label: 'Visualizations'},
+    {anchor: 'image-diff', label: 'Image Diff'},
+    {anchor: 'sorting', label: 'Sorting'},
+  ]}
+/>
+
+<Shot
+  id="commit/dynamic-options"
+  caption="A synced Dynamic Option over the pipeline's stages: on stage 3, every card shows stages/3.jpg, new and reference."
+/>
 
 ## Views
 The sidebar of a commit page lists the views. Each one answers a different question.
@@ -55,7 +68,7 @@ The sidebar of a commit page lists the views. Each one answers a different quest
 | **Logs** | Logs | Read why a run crashed, see the commands that started the batch |
 | **Artifacts & Configs** | Artifacts & Configurations | Diff the build and the configuration files between commits |
 | **Code** | | Open the commit's code on your git server |
-| **Available Tests** | Groups of tests | See and edit the batches of inputs you can run |
+| **Available Tests** | Available Tests | See, check and edit the batches of inputs you can run |
 | **Run Tests / Tuning** | Tuning Experiments | Start new runs or tuning experiments on this commit |
 | **Analysis** | Auto-Tuning Analysis | Understand the results of a tuning experiment |
 
@@ -67,7 +80,10 @@ For each **summary metric** (pick others with the metrics selector):
 - when the metric has a target, a bar with the share of runs meeting it;
 - box plots of the new and reference distributions, with the target zone in green or red.
 
-<img alt="Summary view" src={useBaseUrl('img/summary-metrics.png')} />
+<Shot
+  id="commit/summary"
+  caption="The int8 model is 72% smaller and its median mAP barely moves: the red AP on small objects is what it costs."
+/>
 
 :::caution
 If the batch mixes several values of tuning parameters, a warning reminds you that the summary aggregates them all. Filter the runs (e.g. `threshold:0.5`) to compare like with like.
@@ -80,12 +96,18 @@ One row per run, with its input, tuning parameters, platform and configuration t
 
 When a metric has a **target**, cells are colored from red to green by how far they are from it (or just red/green for pass/fail metrics). A reference cell shows `=` when it's identical to the new value. Rows with a **Failed** tag crashed.
 
+<Shot
+  id="commit/metrics-table"
+  caption="One row per slice and variant: the colors say how far each value is from its target, the headers give the units."
+/>
+
 ### Metrics Diff
 One row per run, with `new − ref` for each metric, and the change in percent. Cells are green when the new run is better, red when it's worse, taking into account whether smaller is better for that metric. Hover a cell to see both values. Only metrics that the reference also has are shown.
 
-<img alt="Metrics Diff view" src={useBaseUrl('img/quantitative-metrics.png')} />
-
-*Older screenshot, when the view was called "KPI diff".*
+<Shot
+  id="commit/metrics-diff"
+  caption="int8 against fp32, slice by slice: the model size is green everywhere, while mAP and AP on small objects turn red on the slices that suffer."
+/>
 
 :::tip
 Use the **Sorting** section of the controls panel to sort runs by a metric, and see the worst regressions first.
@@ -96,12 +118,20 @@ Yellow **Input**, **Config**, **Platform** or **Tuning** tags (with a `≠` icon
 ### Visualizations
 One card per run, with its main metrics (and their change vs the reference) and the visualizations configured for the project: images, plots, videos, text, HTML, flame graphs, point clouds... The reference is shown next to the new result.
 
-<img alt="Visualizations" src={useBaseUrl('img/quantitative-metrics-on-viz.png')} />
+<Shot
+  id="commit/visualizations"
+  caption="Each card starts with the run's main metrics and their change against the reference, then its output images, new next to reference."
+/>
 
 On each card:
 - **The run name**: hover for its batch, input path and database (click to copy), metadata, compute time, date and storage. Click it to see that input's [history](history-and-dashboards.mdx).
 - **Tags** for the platform and configurations: hover a configuration to copy it, as JSON or in a format you can paste in a tuning experiment.
 - **☰ menu**: **Redo** the run, **Mark as Failed** if it's stuck, **Delete** it, or **Delete Output Files** only.
+
+<Shot
+  id="commit/run-menu"
+  caption="Each run card's menu redoes the run, or deletes it, or only its output files. While a run is pending or running, Mark as Failed replaces Redo."
+/>
 - **Folder icon**: open the output directory (or the reference's) in the browser. **Copy icon**: copy the new or reference output directory, as a Windows or Linux path.
 - **Fullscreen** button at the top right of the card.
 
@@ -112,28 +142,66 @@ Above the cards, **Export** gathers matching files from all runs in one shared d
 ### Output Files
 All the files each run created, as a tree, diffed against the reference run. It shows the total storage used.
 
-<img alt="Output Files" src={useBaseUrl('img/output-files.png')} />
+<Shot
+  id="commit/output-files"
+  caption="Only the files that differ from the reference are listed: here, the pipeline stages that a rounding change touched. Hover Help for what the icons mean."
+/>
 
 - By default only files that are **different, added or removed** are shown. Use **Show all files**, **Hide runs without files**, **Expand all folders**, **Color-blind friendly** and the path filter to change that.
 - **Click a file** to see its diff with the reference. Press <kbd>Ctrl</kbd> or <kbd>Shift</kbd> to select several files.
+
+<Clip
+  id="commit/bit-accuracy-diff"
+  caption="Click a file to diff it in place: Next Diff jumps to the register that changed. Ctrl-click another file to diff it too. On a commit that only changed docs, the run is Bit-accurate."
+/>
+
 - Hover **Help** for the meaning of the icons and colors: bit-accurate, different, missing in the reference, only in the reference...
+- When all the files your project checks for bit-accuracy are identical to the reference's, the run is tagged **Bit-accurate**. Files your project doesn't check (*qaboard.yaml*'s `bit_accuracy.patterns`) are greyed and tagged **not checked**, like *metrics.json*, which has the run time.
 
 This is the view for [bit-accuracy tests](../bit-accuracy.mdx).
 
 ### Logs
 When runs failed, the sidebar's **Logs** entry says how many (it also shows runs still running or pending).
 
-One line per run: its status, its name, and its configuration in short (hover it to read it all). On the right, open the run's output directory, or use the **⋯** menu to redo, mark as failed or delete it. Filter the runs with **All**, **Failed** or **Running**, and use **Open failed runs** to expand the logs of the failed ones at once. Big batches are paginated.
+One line per run: its status, its name, and its configuration in short (hover it to read it all). On the right, copy the path of the run's output directory (when your server has Windows path mappings, the confirmation offers the Windows path too), open it, or use the **⋯** menu to redo, mark as failed or delete it. Filter the runs with **All**, **Failed** or **Running**, and use **Open failed runs** to expand the logs of the failed ones at once. Big batches are paginated.
+
+<Shot
+  id="logs/crash"
+  caption="Filtered on Failed, the crashed run's log, searched for its panic: the match is highlighted, with the source line that raised it."
+/>
 
 Click a run to see its full configuration (hover a tag to copy it) and read its log:
 - it updates **live** while the run is running (only the new lines are downloaded), and follows the end like a terminal until you scroll up;
 - colors, line numbers, progress bars shown like in a terminal, error and warning lines highlighted, with a button to jump to the **next error**;
 - **search** (with previous/next match), wrap lines, copy, download, or open the raw file;
-- switch between the run's `log.txt` and, when they exist, `log.lsf.txt` (what LSF captured, with its job report) and `log.dask.txt`.
+- switch between the run's `log.txt` and, when they exist, `log.lsf.txt` (what LSF captured, with its job report) and `log.dask.txt`;
+- very long logs show their last 50,000 lines, to keep the page fast: show more when you need them. If the hidden lines have errors, or matches for your search, it says how many.
+
+<Clip
+  id="logs/live-tail"
+  caption="A run still running: its log follows the end as lines arrive, the error count grows, and a click on it jumps to the first missed deadline."
+/>
 
 For runs on LSF, a summary shows why the job ended (e.g. out of memory, run time limit), the host, the run time and the memory used vs requested, with hints on which `lsf:` options of your batch to change. Failed runs are tagged with the reason.
 
-Batches started from QA-Board (tuning, **Run Tests**) show a callout on every view while `qa batch` is waiting for LSF or running, and when it failed or didn't start any run, with the error and a link to its logs. The **Batch logs** list those submissions, and the commands that started the batch: when, by whom, on which host, with a link to the CI or cluster job when there is one.
+<Shot
+  id="logs/lsf-hints"
+  caption="LSF killed this 113 MP run at its memory limit: the summary compares what it used with what it asked for, and says what to change."
+/>
+
+Batches started from QA-Board (tuning, **Run Tests**) show a callout on every view while `qa batch` is waiting for LSF or running, and when it failed or didn't start any run, with the error and a link to its logs. In the Logs view, **Started from QA-Board** lists them with their status, command and logs, and buttons to copy or open their folder (it also has the script QA-Board ran).
+
+At the bottom, the **Batch** section has buttons to copy or open the batch directory, and lists the `qa batch` commands that started the batch, most recent first: when, by whom, and where their logs are:
+- **Logs in the CI job**: a link to the CI job;
+- **Show its logs**: it was started from a terminal with `qa --share batch` (or `qa optimize`), which saved what it printed in the batch directory; it was started from QA-Board; or it is an older batch that wrote its logs in the batch directory's `log.txt` (shown as **Batch logs**, only when it exists);
+- **Logs not saved**: e.g. it was started from a terminal by an older version of `qaboard`, which only printed its logs there.
+
+<Shot
+  id="logs/batch-commands"
+  caption="A tuning sweep started from QA-Board: its qa batch command, with its own logs."
+/>
+
+Whatever started the batch, each run's own logs are saved, in the list above. With the Dask runner, a link opens the logs of the Dask workers.
 
 :::tip
 The **Logs** sidebar item turns red when the batch has crashed runs, and the **Outputs** section shows the number of crashes.
@@ -142,7 +210,10 @@ The **Logs** sidebar item turns red when the batch has crashed runs, and the **O
 ### Artifacts & Configs
 Compares the commit's [artifacts](../storage/artifacts.mdx) with the reference commit: the configuration files, the build, and any other artifacts the project saves. Pick which artifacts to explore with the buttons at the top.
 
-<img alt="Artifacts and configurations" src={useBaseUrl('img/artifacts-tab.jpg')} />
+<Shot
+  id="commit/artifacts-configs"
+  caption="Between two quantization commits, only build/flags.json changed: its diff shows which flags."
+/>
 
 It works like Output Files: only differences are shown by default, click a file to diff it. Buttons at the bottom copy the artifacts directory path (Windows or Linux) or open it in the browser.
 
@@ -152,15 +223,46 @@ If the artifacts are missing, the page tells you to run `qa save-artifacts` from
 Opens the commit on your git server, in a new tab. In a monorepo, it opens the project's sub-folder.
 
 ### Available Tests
-Lists where the batches of inputs you can run are defined:
-1. In the commit's own files (links to them),
-2. **Shared** with all QA-Board users,
-3. **Private**, in a file only you can see and edit.
+Edit the batches of inputs you can run, in two files:
+- **Private**: only you can see and edit it,
+- **Shared**: every QA-Board user can see and edit it.
 
-The shared and private definitions are editable here: edit, then **Update Batches**. For the syntax, see [Batches of inputs](../batches-running-on-multiple-inputs.mdx). You need to be logged in.
+The commit's own batch files (`inputs.batches` in *qaboard.yaml*) are linked in the side panel. QA-Board reads them from the commit's artifacts, where `qa save-artifacts` saves them. When a batch is defined in several places, Private overrides Shared, which overrides the commit's files; among the commit's files, the last one wins, like for `qa batch`. For the syntax, see [Batches of inputs](../batches-running-on-multiple-inputs.mdx). You need to be logged in.
+
+- **Save** (or <kbd>Ctrl</kbd>+<kbd>S</kbd>, <kbd>⌘</kbd>+<kbd>S</kbd> on a Mac). The status next to the button tells you if there are *Unsaved changes*, when it was *Saved*, or why it was *Not saved*. A dot on a file's tab means it has unsaved changes.
+- YAML mistakes are underlined while you type, and listed below the editor: click one to go to its line. A batch defined twice is flagged too, since only its last definition is used.
+
+<Shot
+  id="tuning/available-tests"
+  caption="A YAML mistake is underlined as you type and listed below the editor; the Batches panel on the side lists the file's batches."
+/>
+
+- **Review changes** shows what you changed since the last save, and **Discard** drops it (with an *Undo*).
+- The **Batches** panel lists the batches and aliases in the file, with their number of inputs: click one to go to its definition. Hover it to **list its tests** (the inputs and configurations it resolves to on this commit, with all the batch files) or to **run** it from the *Run Tests / Tuning* view. *Check any batch or pattern* does the same for any batch, like the commit's, or a pattern like `nightly-*`. Listing tests uses the saved files.
+
+<Shot
+  id="tuning/which-tests-run"
+  caption="Which tests run? lists the tests a batch resolves to on this commit, before you run it: here the ci batch, 4 slices with the fp32 and int8 models."
+/>
+
+Below the tests, *Which tests run?* says which file defines the batch, and lists the batch files QA-Board read, in order. When a batch has no tests, or a file has a problem, a warning says why:
+- a file listed in `inputs.batches` is not in the commit's artifacts: the list shows where QA-Board looked for it. Check its name, and run `qa save-artifacts` on the commit (the CI usually does it),
+- a file is not valid YAML,
+- no file defines the batch,
+- the batch has an input `qa batch` can't use, like an empty `-` or a number that should be in quotes: the error gives the file and line,
+- the batch's inputs were not found under the database, as the QA-Board server sees it: for instance when the database is not mounted on the server.
+
+- **New** adds an example batch to start from.
+
+Your unsaved changes are kept in your browser: if you switch views, reload or close the tab, they come back the next time you open the view. If someone saved the same file while you were editing, saving shows both versions side by side, and lets you keep editing, use the saved file, or overwrite it with yours.
 
 ### Run Tests / Tuning
 Starts new runs of this commit's code on a batch of inputs, optionally with tuning parameters. See [Running from the web app](running-from-the-webapp.mdx#running-tests-and-tuning).
 
 ### Analysis
 For a tuning batch: how metrics depend on the tuning parameters. It shows the number of runs and inputs, the sensitivity to each parameter (and to pairs of parameters), a breakdown by test, and the trade-off between two metrics. For an automated tuning (optimization) batch, it also shows the **best parameters** found and the convergence. Use the batch selector to pick the tuning batch first.
+
+<Shot
+  id="tuning/analysis"
+  caption="An automated tuning's Analysis: the best parameters it found, every iteration's parameters and metrics, and how fast it converged."
+/>

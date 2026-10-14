@@ -3,7 +3,7 @@
 //
 // Query keys start with the resource, then the project, so that we can invalidate e.g. all the
 // commit lists of a project with queryClient.invalidateQueries({ queryKey: ['commits', project] })
-import { queryOptions, infiniteQueryOptions, keepPreviousData } from "@tanstack/react-query";
+import { queryOptions, infiniteQueryOptions } from "@tanstack/react-query";
 
 import { http } from "./http";
 import { normalize_projects, normalize_project, normalize_commit } from "./normalize";
@@ -11,7 +11,7 @@ import { setPathMappings, setDefaultGitHostname } from "../utils";
 
 
 export const default_site_config = {
-  image_servers: { default: '/iiif' },
+  image_servers: { default: '/iiif/2/' },
   login_type: 'LOCAL',
   login_required: false,
   sentry_dsn: null,
@@ -27,19 +27,19 @@ export const default_site_config = {
   support_url: 'https://github.com/Samsung/qaboard/issues',
 };
 
+// Some helpers read the site's configuration outside of React
+export const applySiteConfig = config => {
+  setPathMappings(config?.path_mappings ?? default_site_config.path_mappings);
+  setDefaultGitHostname(config?.git_web_url ?? default_site_config.git_web_url);
+};
+
 export const siteConfigQuery = queryOptions({
   queryKey: ['config'],
+  // When it fails (e.g. during a deploy), useSiteConfig() gives defaults, and we retry
   queryFn: async ({ signal }) => {
-    let config;
-    try {
-      config = { ...default_site_config, ...(await http.get('/api/v1/config', { signal })).data };
-    } catch (error) {
-      console.warn('Failed to fetch site config, using defaults', error);
-      config = default_site_config;
-    }
-    setPathMappings(config.path_mappings);
-    setDefaultGitHostname(config.git_web_url);
-    return config;
+    const { data } = await http.get('/api/v1/config', { signal });
+    applySiteConfig(data);
+    return data;
   },
   staleTime: 5 * 60 * 1000,
 });
@@ -73,7 +73,7 @@ export const projectsQuery = queryOptions({
 
 export const projectQuery = project => queryOptions({
   queryKey: ['project', project],
-  // The server answers with the project's data: {git, qatools_config, qatools_metrics, milestones...}
+  // the API answers with the project's data, /api/v1/projects with {[id]: {data, ...}}
   queryFn: async ({ signal }) => normalize_project({ id: project, data: (await http.get('/api/v1/project', { params: { project }, signal })).data }),
   enabled: !!project,
   staleTime: 60 * 1000,
@@ -88,11 +88,17 @@ export const branchesQuery = (project, search = '') => queryOptions({
     return [...new Set(data.map(branch => branch.replace('origin/', '')))];
   },
   enabled: !!project,
-  // while users type, keep showing the previous matches
-  placeholderData: keepPreviousData,
+  // while users type, keep showing the previous matches (of the same project)
+  placeholderData: (previous, previous_query) => previous_query?.queryKey[1] === project ? previous : undefined,
   staleTime: 5 * 60 * 1000,
 });
 
+
+// commits pushed in the last seconds are shown even without results: their CI may still be running
+const normalize_commits = data => {
+  const now = Date.now();
+  return data.map(commit => ({ ...normalize_commit(commit), is_recent: now - new Date(commit.authored_datetime) < 15 * 1000 }));
+};
 
 // The commits of a project, a branch or a committer, in a date range.
 // `metrics` are aggregated over each commit's batches by the server.
@@ -104,12 +110,15 @@ export const commitsQuery = ({ project, branch, committer, from, to, metrics, ..
       params: { project, committer, from, to, metrics: JSON.stringify(metrics ?? {}), ...extra_params },
       signal,
     });
-    return data.map(normalize_commit);
+    return normalize_commits(data);
   },
   enabled: !!project,
-  // when the date range or branch changes, keep showing the previous list until the new one is there
-  placeholderData: keepPreviousData,
+  // when the date range or branch changes, keep showing the previous list until the new one is there.
+  // Not when the project changes: we'd show another project's commits.
+  placeholderData: (previous, previous_query) => previous_query?.queryKey[1] === project ? previous : undefined,
   staleTime: 30 * 1000,
+  // with all their outputs, lists can take tens of MB
+  gcTime: extra_params.with_outputs ? 60 * 1000 : undefined,
 });
 
 
@@ -126,12 +135,13 @@ export const commitsPagesQuery = ({ project, branch, committer, from, to, metric
       signal,
     });
     // servers that predate pagination answer with everything at once, without the header
-    return { commits: data.map(normalize_commit), has_more: headers?.get('X-Has-More') === 'true' };
+    return { commits: normalize_commits(data), has_more: headers?.get('X-Has-More') === 'true' };
   },
   initialPageParam: 0,
   getNextPageParam: (last_page, pages, last_offset) => last_page.has_more ? last_offset + last_page.commits.length : undefined,
   enabled: !!project,
-  placeholderData: keepPreviousData,
+  // like commitsQuery: the previous list until the new one is there, unless the project changed
+  placeholderData: (previous, previous_query) => previous_query?.queryKey[1] === project ? previous : undefined,
   staleTime: 30 * 1000,
 });
 
@@ -164,6 +174,28 @@ export const findCachedCommit = (queryClient, project, id) => {
   }
   return undefined;
 };
+
+// Who users are changes what they can see: we refetch everything
+export const setUser = (queryClient, user) => {
+  queryClient.setQueryData(userQuery.queryKey, user);
+  return queryClient.invalidateQueries({ predicate: query => !['config', 'me'].includes(query.queryKey[0]) });
+};
+
+// Files of finished outputs rarely change: only when runs are redone
+export const output_files_stale_time = 5 * 60 * 1000;
+
+// A file from outputs or artifacts, cached and shared by all the viewers that show it.
+// The raw text with responseType 'text', else JSON when it parses.
+export const fileQuery = (url, { is_running = false, responseType } = {}) => queryOptions({
+  queryKey: ['file', url, ...(responseType === 'text' ? ['text'] : [])],
+  queryFn: ({ signal }) => http.get(url, { signal, responseType }).then(r => r.data),
+  enabled: !!url,
+  staleTime: is_running ? 0 : output_files_stale_time,
+});
+
+export const invalidateOutputFiles = (queryClient, output_dir_url) => queryClient.invalidateQueries({
+  predicate: ({ queryKey: [kind, url] }) => ['manifest', 'file'].includes(kind) && typeof url === 'string' && url.startsWith(`${output_dir_url}/`),
+});
 
 // After acting on a commit (deleting a batch, a redo...), refresh everything that shows it
 export const invalidateCommit = (queryClient, project, id) => Promise.all([

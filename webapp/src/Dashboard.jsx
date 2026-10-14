@@ -8,29 +8,24 @@ import {
   Tabs,
   TabsExpander,
   Tab,
-  Button,
-  MenuItem,
   HTMLSelect,
 } from "@blueprintjs/core";
-import { MultiSelect } from "@blueprintjs/select";
 
 import CommitsEvolution from "./CommitsEvolution";
 import { Container, Section } from "./components/layout";
-import { noMetrics } from "./components/metricSelect";
-import { MetricsSummary } from "./components/metrics";
+import { MetricsSummary, MetricSelect } from "./components/metrics";
 import { TableCompare, TableKpi } from "./components/tables";
-import { match_query } from "./utils";
 
 import { useCommitsList, useComparison, updateSelected } from "./hooks";
 import { empty_batch } from "./defaults";
+import { errorMessage } from "./api/http";
 
 
-const filterMetric = (query, metric) => match_query(query)(`${metric.key} ${metric.label} ${metric.short_label}`);
 
 
 const Dashboard = () => {
   const { project, project_data, selected, new_commit, ref_commit, new_batch, ref_batch, selected_batch_new } = useComparison();
-  const { commits, error, isPending, isFetching } = useCommitsList();
+  const { commits, error, isPending, isFetching, qatools_metrics } = useCommitsList();
 
   useEffect(() => {
     let name = project.split('/').slice(-1)[0];
@@ -38,13 +33,14 @@ const Dashboard = () => {
   }, [project]);
 
   // On branches, the metrics configuration comes from the latest commit
-  const metrics = commits[0]?.data?.qatools_metrics ?? project_data.data?.qatools_metrics ?? {};
+  const metrics = qatools_metrics ?? {};
   const { available_metrics = {}, main_metrics, dashboard_metrics, dashboard_evolution_metrics } = metrics;
   const evolution_metrics = dashboard_evolution_metrics || main_metrics || [];
 
   // null: the project's default metrics
   const [user_selected_metrics, setSelectedMetrics] = useState(null);
-  const selected_metrics = user_selected_metrics ?? (dashboard_metrics || main_metrics || []).map(k => available_metrics[k]).filter(Boolean);
+  const selected_metrics_keys = user_selected_metrics ?? (dashboard_metrics || main_metrics || []).filter(k => !!available_metrics[k]);
+  const selected_metrics = selected_metrics_keys.map(k => available_metrics[k]).filter(Boolean);
   const [selected_tab, setSelectedTab] = useState(undefined);
 
   const used_metrics = useMemo(
@@ -59,7 +55,7 @@ const Dashboard = () => {
       </Container>
     );
   if (!!error) return <Container style={{paddingTop: '50px'}}>
-    <NonIdealState title="Error" icon='error' description={error.message}/>
+    <NonIdealState title="Error" icon='error' description={errorMessage(error)}/>
   </Container>
   if (commits.length === 0) return <Container style={{paddingTop: '50px'}}>
     <NonIdealState title="No commits found" description="Try expanding the date range." icon='search' />
@@ -67,43 +63,12 @@ const Dashboard = () => {
 
   const has_reference = Object.keys(ref_batch?.filtered?.outputs ?? {}).length > 0
 
-  const isMetricSelected = metric => selected_metrics.includes(metric);
-  const handleMetricSelect = metric => setSelectedMetrics(
-    isMetricSelected(metric) ? selected_metrics.filter(m => m !== metric) : [...selected_metrics, metric]
-  );
-  const renderMetric = (metric, { handleClick, modifiers }) => {
-    if (!modifiers.matchesPredicate)
-      return null;
-    return (
-      <MenuItem
-        active={modifiers.active}
-        icon={isMetricSelected(metric) ? "tick" : "blank"}
-        key={metric.key}
-        label={metric.key}
-        text={`${metric.label} [${metric.suffix}]`}
-        onClick={handleClick}
-        shouldDismissPopover={false}
-      />
-    );
-  };
-  const clearButton = selected_metrics.length > 0 ? <Button icon="cross" aria-label="Clear" minimal={true} onClick={() => setSelectedMetrics([])} /> : null;
-  const metricTableSelect = (
-    <MultiSelect
-      items={used_metrics}
-      itemPredicate={filterMetric}
-      itemRenderer={renderMetric}
-      onItemSelect={handleMetricSelect}
-      tagRenderer={m => m.label}
-      tagInputProps={{
-        onRemove: (_tag, index) => setSelectedMetrics(selected_metrics.filter((_, i) => i !== index)),
-        rightElement: clearButton
-      }}
-      noResults={noMetrics}
-      selectedItems={selected_metrics}
-      popoverProps={Classes.MINIMAL}
-    />
-  );
-  const selected_metrics_keys = selected_metrics.map(m => m.key);
+  const metricTableSelect = <MetricSelect
+    available_metrics={available_metrics}
+    used_metrics={new_batch.used_metrics}
+    selected={selected_metrics_keys}
+    onChange={setSelectedMetrics}
+  />;
 
   const outputs_nb = new_batch.filtered.outputs.length
   const count = outputs_nb > 0 ? <p className={Classes.TEXT_MUTED}>{outputs_nb} output{outputs_nb > 1 ? 's' : ''}</p> : <span/>
@@ -124,7 +89,7 @@ const Dashboard = () => {
             output_filter={selected.filter_batch_new}
             per_output_granularity
             default_breakdown_per_test={true}
-            onSelect={commits => updateSelected(project, commits, { replace: true })}
+            onSelect={commits => updateSelected(commits, { replace: true })}
             style={{ marginTop: "20px" }}
           />
         </Card>
@@ -166,6 +131,7 @@ const Dashboard = () => {
       <Section>
         <Card>
           <h2 className={Classes.HEADING}>Metrics per-test</h2>
+          {/* Named like the views of the commit pages */}
           <Tabs
             renderActiveTabPanelOnly
             id="tabs-outputs"
@@ -174,7 +140,7 @@ const Dashboard = () => {
           >
             <Tab
               id="table-kpi"
-              title="vs KPI"
+              title="Metrics Table"
               panel={
                 <TableKpi
                   new_batch={new_batch}
@@ -188,7 +154,7 @@ const Dashboard = () => {
             {has_reference && (
               <Tab
                 id="table-compare"
-                title="vs reference"
+                title="Metrics Diff"
                 panel={
                   <TableCompare
                     new_batch={new_batch}
@@ -203,7 +169,7 @@ const Dashboard = () => {
             <TabsExpander />
             <HTMLSelect
               value={selected.sort_by ?? metrics.default_metric ?? 'test_input_path'}
-              onChange={e => updateSelected(project, { sort_by: e.target.value }, { replace: true })}
+              onChange={e => updateSelected({ sort_by: e.target.value }, { replace: true })}
             >
               <option value="test_input_path">Sort by Name</option>
               <option value="id">Sort by ID</option>
@@ -213,7 +179,7 @@ const Dashboard = () => {
                 </option>
               ))}
             </HTMLSelect>
-            <HTMLSelect value={selected.sort_order} onChange={e => updateSelected(project, { sort_order: e.target.value }, { replace: true })}>
+            <HTMLSelect value={selected.sort_order} onChange={e => updateSelected({ sort_order: e.target.value }, { replace: true })}>
               <option value={-1}>descending</option>
               <option value={1}>ascending</option>
             </HTMLSelect>

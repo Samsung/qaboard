@@ -28,11 +28,25 @@ spec:
             tcpSocket: {port: http}
           volumeMounts:
             - {name: cache, mountPath: /var/cache/cantaloupe}
+            {{- if .Values.results.enabled }}
+            # It reads /iiif/2/<path> from /repository/<path> (services/cantaloupe/cantaloupe.properties)
+            - {name: qaboard-results, mountPath: {{ printf "/repository%s" (include "qaboard.resultsPath" .) | quote }}, readOnly: true}
+            {{- end }}
+            {{- if .Values.demoData.enabled }}
+            - {name: demo-data, mountPath: {{ printf "/repository%s" (include "qaboard.demoDataPath" .) | quote }}, readOnly: true}
+            {{- end }}
             {{- with .Values.cantaloupe.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
       volumes:
         - {name: cache, emptyDir: {}}
+        {{- if .Values.results.enabled }}
+        {{- include "qaboard.resultsVolume" . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.demoData.enabled }}
+        - name: demo-data
+          persistentVolumeClaim: {claimName: {{ include "qaboard.fullname" . }}-demo-data}
+        {{- end }}
         {{- with .Values.cantaloupe.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

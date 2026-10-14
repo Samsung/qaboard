@@ -6,7 +6,7 @@ import re
 import time
 import json
 import datetime
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 
 from flask import request, jsonify, make_response
 import requests
@@ -17,7 +17,6 @@ from requests.auth import HTTPBasicAuth
 from backend import app
 from ..config import qaboard_data_dir
 from ..git_hosts import git_hosts
-from ..git_hosts.base import request_keeping_credentials_on_host
 from ..git_utils import check_project_path
 from ..models import Project
 from .auth import login_required, is_authorized_user
@@ -143,6 +142,34 @@ def jenkins_hostname_credentials(build_url):
     },
   }
 
+def git_hosts_proxied_hostnames():
+  """The configured git hosts, their API and where their users' avatars are"""
+  for host in [*git_hosts, git_hosts.default]:
+    if not host:
+      continue
+    yield from host.hostnames
+    for url in [host.api_url, (host.user_avatar_url or '').replace('{url}', host.url)]:
+      hostname = urlparse(url).hostname if url else None
+      if hostname and '{' not in hostname:
+        yield hostname
+
+# The web app loads git hosts' avatars and badges through this proxy, that adds our gitlab session cookie.
+# So that users can't make the server fetch other URLs (e.g. internal services), it only fetches from:
+proxy_hosts = {urlparse(f"//{h.strip()}").hostname for h in [
+  *git_hosts_proxied_hostnames(),
+  *gitlab_credentials.keys(),
+  # avatars of committers without an avatar on their git host (see git_hosts/base.py)
+  "gravatar.com", "www.gravatar.com", "secure.gravatar.com", "avatars.githubusercontent.com",
+  *os.environ.get('QABOARD_PROXY_HOSTS', '').split(','),
+] if h and h.strip()}
+# Headers we pass back: e.g. not Set-Cookie, or Content-Encoding since r.content is decoded
+proxy_response_headers = ['Content-Type', 'Cache-Control', 'Expires', 'ETag', 'Last-Modified']
+
+def is_proxy_allowed(url):
+  parsed = urlparse(url)
+  return parsed.scheme in ('http', 'https') and parsed.hostname in proxy_hosts
+
+
 # TODO: get password for gitlab-adm to avoid any auth and password changes
 # TODO: if expired, renew the token...
 @app.route("/api/v1/git/proxy")
@@ -153,21 +180,30 @@ def proxy_gitlab():
   Proxies images (avatars, CI badges...), with a session on GitLab hosts that have GITLAB_AUTH credentials.
   """
   url = request.args['url']
-  hostname = urlparse(url).hostname
-  if gitlab_cookies.get(hostname):
-    cookies = {'_gitlab_session': gitlab_cookies[hostname]}
+  for _ in range(5):
+    if not is_proxy_allowed(url):
+      print(f"[gitlab-proxy] Refused {url}")
+      return jsonify({"error": "This host is not allowed. Admins can add it to QABOARD_PROXY_HOSTS."}), 403
+    hostname = urlparse(url).hostname
+    if gitlab_cookies.get(hostname):
+      cookies = {'_gitlab_session': gitlab_cookies[hostname]}
+    else:
+      cookies = {}
+    # We follow redirects ourselves to check where they go
+    r = requests.get(url, cookies=cookies, verify=False, allow_redirects=False, timeout=10)
+    if not r.is_redirect:
+      break
+    url = urljoin(url, r.headers['Location'])
   else:
-    cookies = {}
-  # e.g. avatars redirect to object storage: the session cookie stays on GitLab
-  r = request_keeping_credentials_on_host('GET', url, cookies=cookies, verify=False, timeout=60)
+    return jsonify({"error": "Too many redirects"}), 502
   resp = make_response(r.content, r.status_code)
-  for k, v in r.headers.items():
-    resp.headers.set(k, v)
+  for k in proxy_response_headers:
+    if k in r.headers:
+      resp.headers.set(k, r.headers[k])
+  # The content is served from our domain: don't let e.g. an SVG or HTML page run scripts
+  resp.headers.set('Content-Security-Policy', "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox")
+  resp.headers.set('X-Content-Type-Options', 'nosniff')
   return resp
-  # print(r)
-  # print(r.text)
-  # print(r.headers)
-  return r.content, r.status_code
 
 @app.route("/api/v1/webhook/proxy", methods=['POST'])
 @app.route("/api/v1/webhook/proxy/", methods=['POST'])

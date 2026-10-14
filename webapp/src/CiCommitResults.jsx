@@ -1,75 +1,36 @@
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "./router";
 
 import {
   Classes,
-  Button,
-  MenuItem,
   Card,
   NonIdealState,
 } from "@blueprintjs/core";
-import { MultiSelect } from "@blueprintjs/select";
-import { noMetrics } from "./components/metricSelect";
 
 import { Container, Section } from "./components/layout";
-import { MetricsSummary, MetricHeader } from "./components/metrics";
+import { MetricsSummary, MetricSelect } from "./components/metrics";
 import { CommitWarningMessages, BatchStatusMessages } from "./components/messages";
 
 import { TableCompare, TableKpi } from "./components/tables";
 import { BatchLogs } from "./components/BatchLogs";
 import { CommitParameters } from "./components/Parameters";
 import { OutputCardsList } from "./viewers/OutputCardsList";
-import { useComparison, useCommitIdsInUrl, useSiteConfig, useUser, updateSelected } from "./hooks";
+import { useComparison, useSiteConfig, useUser, updateSelected } from "./hooks";
 import { useDynamicOptions } from "./useDynamicOptions";
 
 
 import { TuningForm } from "./components/tuning/forms";
-import { AddRecordingsForm } from "./components/tuning/form_groups";
+import { BatchesEditor } from "./components/tuning/BatchesEditor";
 import TuningExploration from "./components/tuning/TuningExploration";
-import { controls_defaults, updateQueryUrl } from "./viewers/controls";
+import { useViewerControls } from "./viewers/controls";
 import { ExportPlugin } from "./plugins/ExportPlugin";
-import { match_query } from "./utils";
 import { humanFileSize } from "./viewers/bit_accuracy/utils";
-import { setSyncPreferences } from "./utils/dynamicOptions";
+import { project_web_url } from "./utils";
 
 import PrivateContent from "./components/authentication/PrivateContent"
 import FloatingControlsPanel from "./components/FloatingControlsPanel";
 
 
 
-const visualization_stats = {
-  total_visualizations: 0,
-  disabled_visualizations: 0,
-  missing_files_count: 0,
-};
-
-const filterMetric = (query, metric) => match_query(query)(`${metric.key} ${metric.label} ${metric.short_label}`);
-
-
-// Controls of the output viewers (e.g. image diff on/off), which visualizations are shown,
-// and the values of dynamic options. Saved in the URL.
-function useViewerControls(config) {
-  const { history } = useRouter();
-  // we initialize optional controls with their defaults
-  const [controls, setControls] = useState(() => controls_defaults(config));
-  // When the configuration changes, we keep users' choices
-  const [controls_outputs, setControlsOutputs] = useState(config?.outputs);
-  if (controls_outputs !== config?.outputs) {
-    setControlsOutputs(config?.outputs);
-    const defaults = controls_defaults(config);
-    setControls({
-      ...defaults,
-      show: { ...defaults.show, ...controls.show },
-      dynamic_options: controls.dynamic_options || {},
-      dynamic_options_sync: controls.dynamic_options_sync || {},
-    });
-  }
-  const update = controls => {
-    setControls(controls);
-    updateQueryUrl(history, controls);
-  };
-  return [controls, update];
-}
 
 
 const CiCommitResults = () => {
@@ -82,7 +43,6 @@ const CiCommitResults = () => {
   const { available_metrics } = metrics;
   const { docs_root } = useSiteConfig();
   const user = useUser();
-  useCommitIdsInUrl({ new_commit, ref_commit });
 
   useEffect(() => {
     const name = project.split('/').slice(-1)[0];
@@ -99,17 +59,6 @@ const CiCommitResults = () => {
     reset_key: `${new_commit?.id}|${selected_batch_new}|${visualizations_key}`,
     files_key: filter_batch_new,
   });
-  // New dynamic options start with their default value, synced across outputs
-  const effective_controls = useMemo(() => {
-    const dynamic_options = { ...controls.dynamic_options };
-    const dynamic_options_sync = { ...controls.dynamic_options_sync };
-    Object.entries(dynamic.dynamic_options).forEach(([name, option]) => {
-      if (dynamic_options[name] === undefined) dynamic_options[name] = [option.defaultValue];
-      if (dynamic_options_sync[name] === undefined) dynamic_options_sync[name] = true;
-    });
-    return { ...controls, dynamic_options, dynamic_options_sync };
-  }, [controls, dynamic.dynamic_options]);
-
   const [expand_floating_panel, setExpandFloatingPanel] = useState(false);
   useEffect(() => {
     if (!expand_floating_panel) return;
@@ -118,28 +67,25 @@ const CiCommitResults = () => {
     return () => clearTimeout(timer);
   }, [expand_floating_panel]);
 
-  const toggle = name => () => setControls({ ...effective_controls, [name]: !effective_controls[name] });
-  // Three-state toggle: undefined -> true -> false -> true -> ...
-  const toggle_show = name => () => setControls({
-    ...effective_controls,
-    show: { ...effective_controls.show, [name]: effective_controls.show?.[name] !== true },
-  });
+  const toggle = name => () => setControls({ ...controls, [name]: !controls[name] });
+  // Visualizations are shown unless hidden by default
+  const is_shown = name => controls.show?.[name] ?? !visualizations.find(v => v.name === name)?.default_hidden;
+  const toggle_show = name => () => setControls({ ...controls, show: { ...controls.show, [name]: !is_shown(name) } });
   const updateDynamicOption = (name, value) => setControls({
-    ...effective_controls,
-    dynamic_options: { ...effective_controls.dynamic_options, [name]: [value] },
+    ...controls,
+    dynamic_options: { ...controls.dynamic_options, [name]: [value] },
   });
+  // Dynamic options are synced across output cards unless users unlink them
   const toggleDynamicOptionSync = name => {
-    const sync = !effective_controls.dynamic_options_sync[name];
-    const dynamic_options_sync = { ...effective_controls.dynamic_options_sync, [name]: sync };
-    setSyncPreferences(dynamic_options_sync);
-    setControls({ ...effective_controls, dynamic_options_sync });
-    // If we're syncing (not unsyncing), expand the floating panel
+    const sync = controls.dynamic_options_sync?.[name] === false;
+    setControls({ ...controls, dynamic_options_sync: { ...controls.dynamic_options_sync, [name]: sync ? undefined : false } });
+    // the option is now changed from the panel
     if (sync) setExpandFloatingPanel(true);
   };
 
   const update = attribute => e => {
     const value = (e?.target && e.target.value !== undefined) ? e.target.value : e;
-    updateSelected(project, { [attribute]: value }, { replace: attribute.startsWith('filter') })
+    updateSelected({ [attribute]: value }, { replace: attribute.startsWith('filter') || attribute.startsWith('sort') })
   }
 
   // The metrics shown in tables
@@ -147,43 +93,12 @@ const CiCommitResults = () => {
     () => selected_metrics_keys.map(m => available_metrics[m]).filter(Boolean),
     [selected_metrics_keys, available_metrics],
   );
-  const setSelectedMetrics = metrics => updateSelected(project, { selected_metrics: metrics.map(m => m.key) });
-  const isMetricSelected = metric => selected_metrics.some(m => m.key === metric.key);
-  const handleMetricSelect = metric => setSelectedMetrics(
-    isMetricSelected(metric) ? selected_metrics.filter(m => m.key !== metric.key) : [...selected_metrics, metric]
-  );
-  const renderMetric = (metric, { handleClick, modifiers }) => {
-    if (!modifiers.matchesPredicate)
-      return null;
-    return (
-      <MenuItem
-        active={modifiers.active}
-        icon={isMetricSelected(metric) ? "tick" : "blank"}
-        key={metric.key}
-        label={metric.key}
-        text={<MetricHeader {...metric} show_suffix />}
-        onClick={handleClick}
-        shouldDismissPopover={false}
-      />
-    );
-  };
-  const shown_selected_metrics = selected_metrics.filter(m => new_batch.used_metrics.has(m.key));
-  const metricTableSelect = (
-    <MultiSelect
-      items={Object.values(available_metrics).filter(m => new_batch.used_metrics.has(m.key))}
-      itemPredicate={filterMetric}
-      itemRenderer={renderMetric}
-      onItemSelect={handleMetricSelect}
-      tagRenderer={m => <MetricHeader {...m}/>}
-      tagInputProps={{
-        onRemove: (_tag, index) => setSelectedMetrics(shown_selected_metrics.filter((_, i) => i !== index)),
-        rightElement: selected_metrics.length > 0 ? <Button icon="cross" aria-label="Clear" minimal={true} onClick={() => setSelectedMetrics([])} /> : null,
-      }}
-      noResults={noMetrics}
-      selectedItems={shown_selected_metrics}
-      popoverProps={Classes.MINIMAL}
-    />
-  );
+  const metricTableSelect = <MetricSelect
+    available_metrics={available_metrics}
+    used_metrics={new_batch.used_metrics}
+    selected={selected_metrics_keys}
+    onChange={keys => updateSelected({ selected_metrics: keys }, { defaults: { selected_metrics: metrics.main_metrics } })}
+  />;
 
   const warning_messages = <CommitWarningMessages project={new_project} commit={new_commit} />;
   const config_outputs = config.outputs || {};
@@ -214,7 +129,7 @@ const CiCommitResults = () => {
     new_commit,
     new_batch,
     ref_batch,
-    controls: effective_controls,
+    controls,
     onRegisterOutputOptions: dynamic.register,
     onToggleDynamicOptionSync: toggleDynamicOptionSync,
   };
@@ -230,7 +145,8 @@ const CiCommitResults = () => {
           <>
             <Section key="filters">
               {warning_messages}
-              <BatchStatusMessages project={new_project} commit={new_commit} batch={new_batch} />
+              {/* the selected batch's runs are unrelated to editing batch definitions, and would push the editor down */}
+              {!selected_views.includes('groups') && <BatchStatusMessages project={new_project} commit={new_commit} batch={new_batch} />}
             </Section>
 
             {selected_views.includes('summary') && <Section>
@@ -259,21 +175,20 @@ const CiCommitResults = () => {
               </Card>
              </Section>}
 
-            {selected_views.includes('groups') && <Section style={{width: "1000px"}}>
-              <Card>
-                <h2 className={Classes.HEADING}>Groups of tests</h2>
-                <PrivateContent enabled={true}>
-                  <AddRecordingsForm
+            {selected_views.includes('groups') && <Section style={{ width: 'auto', minWidth: 0, marginTop: '10px' }}>
+              <h2 className={Classes.HEADING}>Available Tests</h2>
+              <PrivateContent enabled={true}>
+                <BatchesEditor
                   project={project}
                   git={git}
+                  web_url={(git?.web_url || git?.path_with_namespace) ? project_web_url(project_data) : undefined}
                   commit={new_commit}
                   config={config}
                   available_tests_files={available_tests_files}
                   docs_root={docs_root}
-                  />
-                </PrivateContent>
-              </Card>
-             </Section>}
+                />
+              </PrivateContent>
+            </Section>}
 
             {selected_views.includes('tuning') && (Object.keys(config.artifacts || {}).length === 0
               ? <NonIdealState
@@ -322,8 +237,9 @@ const CiCommitResults = () => {
               </Card>
              </Section>}
 
-            {/* as wide as the page, not as its widest log line or run configuration */}
-            {selected_views.includes('logs') && <Section style={{ width: 'auto', minWidth: 0 }}>
+            {/* as wide as the page, not as its widest log line or run configuration.
+                On the right, room for the floating panel's button: it would cover the runs' buttons */}
+            {selected_views.includes('logs') && <Section style={{ width: 'auto', minWidth: 0, paddingRight: 30 }}>
                 <h2 className={Classes.HEADING}>Logs</h2>
                 <BatchLogs
                   project={new_project}
@@ -373,9 +289,10 @@ const CiCommitResults = () => {
           </>
         )}
 
-      {(!!new_commit) && (
+      {/* Editing batches has no use for the controls panel, it would cover the editor's side panel */}
+      {(!!new_commit) && selected_views.join(',') !== 'groups' && (
         <FloatingControlsPanel
-          controls={effective_controls}
+          controls={controls}
           visualizations={visualizations}
           controls_extra={controls_extra}
           selected_views={selected_views}
@@ -393,16 +310,8 @@ const CiCommitResults = () => {
           dynamic_options={dynamic.dynamic_options}
           onUpdateDynamicOption={updateDynamicOption}
           onToggleDynamicOptionSync={toggleDynamicOptionSync}
-          visualization_stats={visualization_stats}
           visualizations_with_files={dynamic.visualizations_with_files}
           expandPanel={expand_floating_panel}
-          registration_info={{
-            total_outputs: new_batch.filtered.outputs.length,
-            registered_outputs: dynamic.registered_outputs,
-            is_throttled: false,
-            last_recompute_at: dynamic.registered_outputs,
-          }}
-          onForceReregisterAllOptions={dynamic.recompute}
         />
       )}
     </Container>

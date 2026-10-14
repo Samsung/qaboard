@@ -5,6 +5,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 
+import { toaster } from '../../../toaster';
 import { LogViewer, formatBytes } from '../LogViewer';
 
 
@@ -77,8 +78,64 @@ describe('LogViewer', () => {
 
   it('explains missing files', async () => {
     render(<LogViewer files={[{ name: 'log.lsf.txt', url: '/s/other/log.lsf.txt' }]} emptyHint={{ 'log.lsf.txt': 'Only runs on LSF have it.' }} />)
-    await waitFor(() => expect(screen.getByText('No log.lsf.txt yet')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('No log.lsf.txt')).toBeInTheDocument())
     expect(screen.getByText('Only runs on LSF have it.')).toBeInTheDocument()
+  })
+
+  it('waits for the logs of runs that are starting', async () => {
+    render(<LogViewer live files={[{ name: 'log.txt', url: '/s/other/log.txt' }]} waitingHint="LSF hasn't started the job yet." />)
+    await waitFor(() => expect(screen.getByText('No log.txt yet')).toBeInTheDocument())
+    expect(screen.getByText("LSF hasn't started the job yet.")).toBeInTheDocument()
+  })
+
+  it('forgets the error we jumped to when switching files', async () => {
+    const { container } = render(<Viewer />)
+    await waitFor(() => expect(screen.getByText('frame 2')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: /2 errors/ }))
+    expect(container.querySelector('.line.current').textContent).toMatch(/Traceback/)
+    fireEvent.click(screen.getByText('log.lsf.txt'))
+    await waitFor(() => expect(screen.getByText('Successfully completed.')).toBeInTheDocument())
+    expect(container.querySelector('.line.current')).toBeNull()
+  })
+
+  it('shows more lines when users ask, and says what the hidden lines have', async () => {
+    files['/s/long/log.txt'] = ['frame 0', 'frame 1', 'frame 2', 'ValueError: bad frame', 'frame 3', 'frame 4', 'frame 5', 'frame 6', 'frame 7', 'frame 8', 'end 1', 'end 2', ''].join('\n')
+    const { container } = render(<LogViewer files={[{ name: 'log.txt', url: '/s/long/log.txt' }]} maxLines={4} />)
+    await waitFor(() => expect(screen.getByText('end 2')).toBeInTheDocument())
+    expect(container.querySelectorAll('.line')).toHaveLength(4)
+    expect(container.querySelector('.line .number').textContent).toBe('9')
+    expect(screen.getByText(/The first 8 lines are hidden/).textContent).toMatch(/They have 1 error\.$/)
+    fireEvent.change(screen.getByPlaceholderText('Search…'), { target: { value: 'frame' } })
+    await waitFor(() => expect(screen.getByText(/The first 8 lines are hidden/).textContent).toMatch(/They have 1 error and 8 matches for “frame”\.$/))
+    // the visible lines have 2 matches
+    expect(screen.getByText('1/2')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Show 4 more'))
+    expect(container.querySelectorAll('.line')).toHaveLength(8)
+    fireEvent.click(screen.getByText('Show them'))
+    expect(container.querySelectorAll('.line')).toHaveLength(12)
+    expect(screen.queryByText(/lines are hidden/)).toBeNull()
+    delete files['/s/long/log.txt']
+  })
+
+  it('copies the logs, also without navigator.clipboard (http)', async () => {
+    const copied = []
+    const original = document.execCommand
+    document.execCommand = vi.fn(command => {
+      if (command === 'copy') copied.push(document.getSelection().toString())
+      return true
+    })
+    try {
+      render(<Viewer />)
+      await waitFor(() => expect(screen.getByText('frame 2')).toBeInTheDocument())
+      expect(navigator.clipboard).toBeUndefined()
+      fireEvent.click(screen.getByLabelText('Copy the logs'))
+      expect(copied).toHaveLength(1)
+      expect(copied[0]).toMatch(/^Outputs: \/s\/run\nloading <model>\nframe 1/)
+      // the toaster is mocked in setupTests.js
+      await waitFor(() => expect(toaster.show).toHaveBeenCalledWith(expect.objectContaining({ message: 'Copied 6 lines' }), 'copy'))
+    } finally {
+      document.execCommand = original
+    }
   })
 })
 

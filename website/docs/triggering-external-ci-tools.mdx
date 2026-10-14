@@ -7,11 +7,10 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 
 You often want to integrate various tools into your workflow, or show [status badges](https://shields.io/index.html). QA-Board lets you connect to those third-party tools on each commit's page and on commit index pages:
 
-<img alt="Allowing triggered build" src={useBaseUrl('img/ui-triggers.png')} />
-
-:::note
-The screenshots are not up-to-date; the menu is now named **"Integrations"**
-:::
+<Shot
+  id="integrations/menu"
+  caption="The Integrations menu with links and a webhook: after a click, the webhook's tag shows its job's status."
+/>
 
 
 ## Adding badges and external links
@@ -36,6 +35,10 @@ integrations:
   href: "${git.web_url}/actions/workflows/ci.yml?query=branch%3A${branch}"
   alt: CI
 ```
+
+:::note
+QA-Board loads images through its server, which only fetches them from your git hosts and gravatar. To show images from other hosts, ask your admins to add them to [`QABOARD_PROXY_HOSTS`](/docs/deploy#optional-environment-variables).
+:::
 
 :::tip
 The menu item will be disabled if the link doesn't work (HTTP `HEAD` request).
@@ -145,6 +148,8 @@ integrations:
       job_name: build-linux
 ```
 <img alt="jenkins-and-gitlab-integrations" src={useBaseUrl('img/gitlab-jenkins.gif')} />
+
+*An older recording: the menu is now named **Integrations**.*
 
 The QA-Board server needs a GitLab token with the `api` scope to play jobs (`read_api` is enough to show their status). See [Git hosts](backend-admin/git-hosts#tokens).
 

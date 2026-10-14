@@ -1,5 +1,4 @@
 import { useState } from "react";
-import copy from 'copy-to-clipboard';
 import { useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -28,11 +27,12 @@ import { DoneAtTag } from "./DoneAtTag";
 import { SelectBatchesNav } from "./tuning/SelectBatches";
 import { has_milestones, MilestonesMenu, CommitMilestoneEditor } from "./milestones"
 
-import { shortId, linux_to_windows } from "../utils";
+import { shortId } from "../utils";
 import { http, errorMessage } from "../api/http";
 import { commitQuery } from "../api/queries";
 import { useRefreshCommit, useUrlText, updateSelected } from "../hooks";
 import { toaster } from "../toaster"
+import { copyDirectory } from "./logs/DirectoryActions"
 
 
 const CommitMessage = ({ commit, style: extra_style }) => {
@@ -63,7 +63,7 @@ const BatchTags = ({ batch }) => {
   return <>
     {valid_outputs > 0 && (
       <Tag intent={Intent.SUCCESS} minimal round>
-        {valid_outputs} outputs
+        {valid_outputs} output{valid_outputs === 1 ? '' : 's'}
       </Tag>
     )}{" "}
     {running_outputs > 0 && (
@@ -153,16 +153,27 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
     })
   }
 
-  const redoBatch = (params, requested, { refresh_again = false } = {}) => batchAction(() => http.post(`/api/v1/batch/redo/`, {id: batch.id, ...params}), {
-    requested,
-    done: `Redo ${batch.label}.`,
-    onDone: () => {
-      if (!refresh_again) return
-      setTimeout(refresh,  1*1000)
-      setTimeout(refresh,  5*1000)
-      setTimeout(refresh, 10*1000)
-    },
-  })
+  // Redo the batch's runs, or those matching the filter. QA-Board starts them with a single `qa batch`.
+  const redo = ({ only_failed = false, only_deleted = false } = {}) => {
+    const output_ids = batch_filter ? (batch.filtered?.outputs ?? []) : undefined
+    const show_logs = { text: "Show the logs", onClick: () => updateSelected({ selected_views: 'logs' }) }
+    setWaiting(true)
+    toaster.show({message: "Redo requested."});
+    http.post(`/api/v1/batch/redo/`, {id: batch.id, only_failed, only_deleted, output_ids})
+      .then(({ data }) => {
+        setWaiting(false)
+        const runs = data?.submission?.runs
+        toaster.show({message: `Redoing ${runs ?? 'the'} run${runs === 1 ? '' : 's'} from ${batch.label}.`, intent: Intent.SUCCESS, action: show_logs});
+        refresh()
+        setTimeout(refresh,  5*1000)
+        setTimeout(refresh, 10*1000)
+      })
+      .catch(error => {
+        setWaiting(false)
+        toaster.show({message: errorMessage(error), intent: Intent.DANGER, action: error.response?.data?.submission ? show_logs : undefined});
+        refresh()
+      });
+  }
 
   const deleteBatch = (params, requested) => batchAction(() => http.delete(`/api/v1/batch/${batch.id}/`, {
     params: {...params, soft: soft_delete, filter: files_delete_filter},
@@ -234,6 +245,8 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
   const handleDeleteBatchesPaste = labels => setShowDeleteBatchesValues(values => [...values, ...labels])
 
 
+  // While users type a commit id, the first change adds a browser history entry, the next ones replace it
+  const [typing, setTyping] = useState(false)
   // The page fetches the commit, then replaces the short id with the full id in the URL
   const selectCommit = (value, input = project_input) => {
     const id = value?.target?.value ?? value;
@@ -241,20 +254,21 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
     const commit_id = selected[commit_attr]
     if (commit_id && commit_id.startsWith(id) && selected[project_attr] === commit_project)
       return
-    updateSelected(project, {
+    updateSelected({
       [commit_attr]: id,
       ...(input ? {[project_attr]: input} : {}),
-    }, {replace: true})
+    }, {replace: typing})
+    setTyping(true)
   };
 
-  const removeSelection = () => updateSelected(project, { [commit_attr]: '' })
+  const removeSelection = () => updateSelected({ [commit_attr]: '' })
 
   const selectBranch = async branch => {
     const commit_project = selected[project_attr]
     try {
       const branch_commit = await queryClient.fetchQuery(commitQuery({project: commit_project, branch}))
       queryClient.setQueryData(commitQuery({project: commit_project, id: branch_commit.id}).queryKey, branch_commit)
-      updateSelected(project, {[commit_attr]: branch_commit.id})
+      updateSelected({[commit_attr]: branch_commit.id})
     } catch (error) {
       toaster.show({message: `Could not find the latest commit on ${branch}: ${errorMessage(error)}`, intent: Intent.DANGER});
     }
@@ -264,7 +278,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
     // milestones from qaboard.yaml are only a branch, tag or commit
     if (!milestone.commit && milestone.branch)
       return selectBranch(milestone.branch)
-    updateSelected(project, {
+    updateSelected({
       [commit_attr]: milestone.commit,
       [batch_attr]: milestone.batch,
       [filter_attr]: milestone.filter,
@@ -277,7 +291,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
     const other_batch_attr = `selected_batch_${other_type}`
     const other_filter_attr = `filter_batch_${other_type}`
     const other_project_attr = `${other_type}_project`
-    updateSelected(project, {
+    updateSelected({
       [other_commit_attr]: selected[commit_attr],
       [other_batch_attr]: selected[batch_attr],
       [other_filter_attr]: selected[filter_attr],
@@ -286,7 +300,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
   }
 
   const switchSelection = () => {
-    updateSelected(project, {
+    updateSelected({
       new_project: selected.ref_project,
       ref_project: selected.new_project,
       new_commit_id: selected.ref_commit_id,
@@ -338,6 +352,8 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
   </Menu>
 
   const has_selected_batch = !!commit?.batches && !!batch && Object.keys(commit.batches).includes(batch.label)
+  // With a filter, we only redo the runs that match it
+  const redo_counts = (batch_filter ? batch?.filtered : batch) ?? {}
   const error_text = commit?.error ? commit_error_text(commit.error) : ''
   return <>
     <NavbarGroup style={{marginLeft: '20px'}}>
@@ -379,6 +395,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
                 <Tag minimal icon="edit"><span className="hide-small-screen">Change</span></Tag>
               </Popover>}
               onChange={selectCommit}
+              onBlur={() => setTyping(false)}
               small
               defaultValue={commit?.id ? shortId(project, commit.id) : ''}
               key={commit?.id ? shortId(project, commit.id) : ''}
@@ -447,13 +464,13 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
         />
         <Popover placement="bottom" hoverCloseDelay={500} interactionKind={"hover"} content={<Menu>
           <MenuDivider title="Commit"/>
-          <MenuItem text="Copy Artifact Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(commit.artifacts_url))}} />
-          <MenuItem text="Copy Artifact Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(commit.artifacts_url).slice(2))}} />
+          <MenuItem text="Copy Artifact Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url, { windows: true })} />
+          <MenuItem text="Copy Artifact Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url)} />
           <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
           {has_selected_batch && <>
           <MenuDivider title="Batch"/>
-          <MenuItem text="Copy Output Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(batch.batch_dir_url))}} />
-          <MenuItem text="Copy Output Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(batch.batch_dir_url).slice(2))}} />
+          <MenuItem text="Copy Output Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(batch.batch_dir_url, { windows: true })} />
+          <MenuItem text="Copy Output Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(batch.batch_dir_url)} />
           <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={batch.batch_dir_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
           <MenuDivider/>
           <Dialog
@@ -519,29 +536,29 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             shouldDismissPopover={false}
             onClick={() => setShowRenameDialog(true)}
           />
-          {batch.deleted_outputs > 0 && <MenuItem
+          {redo_counts.deleted_outputs > 0 && <MenuItem
             icon="redo"
-            text="Redo Deleted Outputs"
+            text={batch_filter ? "Redo Filtered Deleted Outputs" : "Redo Deleted Outputs"}
             intent={Intent.WARNING}
             minimal
             disabled={waiting || commit?.deleted}
-            onClick={() => redoBatch({only_deleted: true}, "Redo of deleted outputs requested.")}
+            onClick={() => redo({only_deleted: true})}
           />}
-          {batch.failed_outputs > 0 && <MenuItem
+          {redo_counts.failed_outputs > 0 && <MenuItem
             icon="redo"
-            text="Redo Failed Outputs"
+            text={batch_filter ? "Redo Filtered Failed Outputs" : "Redo Failed Outputs"}
             intent={Intent.WARNING}
             minimal
             disabled={waiting || commit?.deleted}
-            onClick={() => redoBatch({only_failed: true}, "Redo of failed outputs requested.")}
+            onClick={() => redo({only_failed: true})}
           />}
           <MenuItem
             icon="redo"
-            text="Redo All Outputs"
+            text={batch_filter ? `Redo the ${batch.filtered?.outputs?.length ?? 0} Filtered Outputs` : "Redo All Outputs"}
             intent={Intent.WARNING}
             minimal
-            disabled={waiting || commit?.deleted}
-            onClick={() => redoBatch({only_deleted: false}, "Redo requested.", {refresh_again: true})}
+            disabled={waiting || commit?.deleted || (!!batch_filter && !batch.filtered?.outputs?.length)}
+            onClick={() => redo()}
           />
           <MenuDivider/>
           <MenuItem
@@ -632,4 +649,4 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
 }
 
 
-export { CommitNavbar };
+export { CommitNavbar, BatchTags };

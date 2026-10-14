@@ -6,6 +6,7 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 import CiCommitList from '../CiCommitList';
+import { ComparisonProvider } from '../hooks';
 import { matchRoutes, RouteMatch } from '../router';
 import { renderWithProviders } from '../test-utils';
 
@@ -50,7 +51,7 @@ const shown_messages = () => [...document.querySelectorAll("ul > li")].map(li =>
 const renderPage = url => {
   const { match } = matchRoutes([{ path: '/:project_id+/commits/:name+' }, { path: '/:project_id+' }], url.split('?')[0]);
   return renderWithProviders(
-    <MemoryRouter initialEntries={[url]}><RouteMatch match={match}><CiCommitList/></RouteMatch></MemoryRouter>,
+    <MemoryRouter initialEntries={[url]}><RouteMatch match={match}><ComparisonProvider><CiCommitList/></ComparisonProvider></RouteMatch></MemoryRouter>,
     { siteConfig: {} },
   );
 };

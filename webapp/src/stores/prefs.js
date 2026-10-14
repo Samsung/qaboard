@@ -41,26 +41,33 @@ export async function migrateFromReduxPersist() {
   const flag = 'qaboard-prefs-migrated';
   try {
     if (localStorage.getItem(flag)) return;
-    localStorage.setItem(flag, '1');
+    // Without the old database (new users, other browsers), there is nothing to migrate
+    const databases = await indexedDB.databases?.();
+    if (databases && !databases.some(db => db.name === 'localforage')) {
+      localStorage.setItem(flag, '1');
+      return;
+    }
     const { default: localforage } = await import("localforage");
     const raw = await localforage.getItem('persist:root');
-    if (!raw) return;
-    const root = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    const parse = slice => typeof slice === 'string' ? JSON.parse(slice) : slice;
-    const projects = parse(root.projects)?.data ?? {};
-    const tuning = parse(root.tuning) ?? {};
-    const favorites = {};
-    const milestones = {};
-    for (const [project, data] of Object.entries(projects)) {
-      if (data?.is_favorite) favorites[project] = true;
-      if (data?.milestones && Object.keys(data.milestones).length > 0) milestones[project] = data.milestones;
+    if (raw) {
+      const root = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      const parse = slice => typeof slice === 'string' ? JSON.parse(slice) : slice;
+      const projects = parse(root.projects)?.data ?? {};
+      const tuning = parse(root.tuning) ?? {};
+      const favorites = {};
+      const milestones = {};
+      for (const [project, data] of Object.entries(projects)) {
+        if (data?.is_favorite) favorites[project] = true;
+        if (data?.milestones && Object.keys(data.milestones).length > 0) milestones[project] = data.milestones;
+      }
+      usePrefsStore.setState(state => ({
+        favorites: { ...favorites, ...state.favorites },
+        milestones: { ...milestones, ...state.milestones },
+        tuning: { ...tuning, ...state.tuning },
+      }));
     }
-    usePrefsStore.setState(state => ({
-      favorites: { ...favorites, ...state.favorites },
-      milestones: { ...milestones, ...state.milestones },
-      tuning: { ...tuning, ...state.tuning },
-    }));
-    await localforage.removeItem('persist:root');
+    localStorage.setItem(flag, '1');
+    if (raw) await localforage.removeItem('persist:root');
   } catch (error) {
     console.warn('Could not migrate preferences from the previous version', error);
   }

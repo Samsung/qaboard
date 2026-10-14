@@ -19,6 +19,11 @@ qa --label my-optim --share optimize --batch my-batch --config-file optim.yaml -
 
 The configuration file sets the `objective`, the number of `evaluations`, the `search_space`, and optional `solver` settings or fixed `preset_params`. The web application's tuning page shows a commented template for it (*"optimize"* search type), and runs `qa optimize` for you.
 
+<Shot
+  id="tuning/auto-form"
+  caption="Automated tuning from the web app: the search space and the objective in YAML."
+/>
+
 Useful options:
 - `--checkpoint`: the optimizer's state is saved there after each iteration, and loaded if it exists, to restart interrupted optimizations. *(At the moment you need to give it.)*
 - `parallel_sampling` in the configuration file, or `--parallel-param-sampling`: how many parameter sets are evaluated at the same time (default 1).
@@ -26,6 +31,13 @@ Useful options:
 - `QA_SEED`: the random seed (default 101), for reproducible optimizations.
 
 Each iteration runs `qa batch` with the label `my-optim|iterN`. During the optimization, `qa` sets `QA_OPTIM_DIR` to the experiment's batch directory, where convergence plots are saved.
+
+Select the experiment's batch on the commit page, then the **Analysis** view:
+
+<Shot
+  id="tuning/analysis"
+  caption="The Analysis of an automated tuning: the best parameters, every iteration in parallel coordinates, and the convergence."
+/>
 
 > **WIP**: We're working on section about "auto-optimization". *Stay tuned!*
 

@@ -13,6 +13,7 @@ import {
 import { make_eval_templates_recursively } from '../utils';
 import { image_url } from '../git';
 import { useSiteConfig } from '../hooks';
+import { integration_key } from '../useIntegrationStatuses';
 
   
 // TODO:
@@ -60,9 +61,6 @@ import { useSiteConfig } from '../hooks';
 // (parent path) disambiguates sub-menu items that share a text/name with a
 // sibling elsewhere in the tree (e.g. two "Executable" entries under
 // different parents).
-export const key = (integration, prefix = '') => (
-  prefix + (integration.id || integration.text || integration.name || integration.alt)
-)
 
 // Fields of integrations in qaboard.yaml that are not <MenuItem> props
 const integration_fields = [
@@ -163,8 +161,8 @@ const IntegrationsMenus = props => {
     if (integration.divider) {
       return <MenuDivider key={idx} {...integration}/>
     }
-    const integration_key = key(integration, key_prefix);
-    let status = integrationStatuses[integration_key];
+    const entry_key = integration_key(integration, key_prefix);
+    let status = integrationStatuses[entry_key];
     let first_loading = !!status && (status.loading && !status.is_loaded);
     let trigger_loading = !!status && (status.loading && status.triggered);
     let has_error = !!status && !!status.error
@@ -183,13 +181,13 @@ const IntegrationsMenus = props => {
         icon={( (!!status?.data?.web_url || !!status?.data?.url) && status.data.status !== 'manual') ? 'repeat' : 'play'}
         {...menu_item_props(integration)}
         label={label}
-        onClick={triggerIntegration(integration, integration_key)}
+        onClick={triggerIntegration(integration, entry_key)}
         disabled={disabled}
       />
     }
 
     const badge = integration.src && <img
-      alt={integration.alt || integration_key}
+      alt={integration.alt || entry_key}
       src={image_url(integration.src)}
       // e.g. private projects, or projects without CI
       onError={e => { e.currentTarget.style.display = 'none' }}
@@ -217,9 +215,9 @@ const IntegrationsMenus = props => {
         icon={badge || integration.icon}
         label={right_label}
         target={!!integration.href ? "_blank" : undefined}
-        onClick={!integration.href && has_trigger ? triggerIntegration(integration, integration_key) : undefined}
+        onClick={!integration.href && has_trigger ? triggerIntegration(integration, entry_key) : undefined}
       >
-        {sub && <IntegrationsMenus {...props} integrations={sub} level={level+1} key_prefix={`${integration_key}/`} />}
+        {sub && <IntegrationsMenus {...props} integrations={sub} level={level+1} key_prefix={`${entry_key}/`} />}
     </MenuItem>
   }
 

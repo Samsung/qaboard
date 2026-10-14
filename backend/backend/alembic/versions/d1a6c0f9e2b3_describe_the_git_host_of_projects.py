@@ -1,7 +1,7 @@
 """Describe the git host of projects: add `hosting_type` and `host` to projects.data['git']
 
 Revision ID: d1a6c0f9e2b3
-Revises: cda62d01ead8
+Revises: 3b7e9c1d4a52
 Create Date: 2026-10-06 12:00:00.000000
 
 Before git hosts were configurable, projects.data['git'] was GitLab's push webhook `project`,
@@ -19,7 +19,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'd1a6c0f9e2b3'
-down_revision = 'cda62d01ead8'
+down_revision = '3b7e9c1d4a52'
 branch_labels = None
 depends_on = None
 

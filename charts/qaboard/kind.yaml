@@ -1,0 +1,15 @@
+# A local Kubernetes cluster to try QA-Board, with kind (https://kind.sigs.k8s.io) and quickstart.yaml:
+#   mkdir -p /tmp/qaboard
+#   kind create cluster --name qaboard --config charts/qaboard/kind.yaml
+#
+# The qa CLI tells the server where it saved results, so the server must see them at the same absolute path.
+# The node (a container) gets your computer's /tmp/qaboard at /tmp/qaboard, and quickstart.yaml mounts it in
+# QA-Board's pods at that same path. Create it first: otherwise docker creates it, owned by root.
+# To use another folder, change both paths here, and in quickstart.yaml.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraMounts:
+      - hostPath: /tmp/qaboard
+        containerPath: /tmp/qaboard

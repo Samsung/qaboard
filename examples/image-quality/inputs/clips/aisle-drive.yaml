@@ -1,0 +1,8 @@
+# What the K3 camera records driving down the aisle, in qa/video.py: a 640x360 window moving across the photo.
+photo: photos/warehouse-aisle.png
+size: [640, 360]
+fps: 24
+frames: 72
+# the window's top-left corner at the first and last frames, in pixels of the 1224x816 photo
+from: [0, 330]
+to: [584, 150]

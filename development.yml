@@ -47,14 +47,17 @@ services:
     # But non-root users don't gain capabilities...
     # uv add lxml xmlsec uwsgi --no-binary-package uwsgi --no-binary-package lxml --no-binary-package xmlsec --refresh-package lxml --refresh-package xmlsec --refresh-package uwsgi --no-cache --reinstall
     # flask run --with-threads --host 0.0.0.0 --port 5152
-    # We run as your user if it exists in the container (e.g. at SIRC, services/backend/passwd is mounted), else as root
+    # We run as your user if it exists in the container (e.g. at SIRC, services/backend/passwd is mounted), else as root.
+    # The proxy talks uwsgi to backend:3000: to check who can read files (500 errors without it), for the file browser
+    # under /s/ (folder listings, /api/v1/... calls: 502 errors)... Next to flask, uwsgi serves them (as you, not $UWSGI_UID)
     command: >
       bash -c "
+      serve='env -u UWSGI_UID -u UWSGI_GID uv run uwsgi --ini uwsgi.ini --py-autoreload 2 & exec uv run flask run --host 0.0.0.0 --with-threads --port 5152';
       if id '${USER}' >/dev/null 2>&1; then
         echo '${USER} ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers;
-        exec su '${USER}' -c 'uv run flask run --host 0.0.0.0 --with-threads --port 5152';
+        exec su '${USER}' -c \"$$serve\";
       else
-        exec uv run flask run --host 0.0.0.0 --with-threads --port 5152;
+        eval \"$$serve\";
       fi
       "
     ports:
@@ -69,6 +72,8 @@ services:
       target: dev
     volumes:
     - ./webapp:/app
+    # the "What's new" panel shows them, updated as you edit them
+    - ./website/release-notes:/website/release-notes:ro
     working_dir: /app
     environment:
     - HOME=/app
@@ -98,6 +103,10 @@ services:
     command: yarn start
     volumes:
     - ./website:/website
+    # the repository files the docs show (<RepoFile>) and the shot list, see website/Dockerfile
+    - ./charts:/charts:ro
+    - ./examples:/examples:ro
+    - ./docs-media/shots.yaml:/docs-media/shots.yaml:ro
     environment:
       # to access the server from outside the docker environment
       - HOST=0.0.0.0

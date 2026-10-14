@@ -20,9 +20,9 @@ import { Container, Section } from "./components/layout";
 import { LoadMore } from "./components/LoadMore";
 import CommitsEvolution from "./CommitsEvolution";
 import { groupBy } from "./utils";
-import { toaster } from "./toaster"
 
 import { useCommitsList, useProjectData, useSelected, updateSelected } from './hooks'
+import { errorMessage } from './api/http'
 
 
 
@@ -42,7 +42,6 @@ const CommitRows = ({ commits, project, project_data, className }) => (
             project={project}
             project_data={project_data}
             key={commit.id}
-            toaster={toaster}
           />
         ))}
       </WrapperCommitRows>
@@ -50,11 +49,9 @@ const CommitRows = ({ commits, project, project_data, className }) => (
   </div>
 );
 
-const error_msg = error => {
-  if (error.response) // The server responded with a status other than 2xx
-    return error.message + "\n" + (typeof error.response.data === 'string' ? error.response.data : JSON.stringify(error.response.data));
-  return "Error: " + error.message;
-}
+// "Today — 1 commit", "3 days ago — 2 commits"
+const count_commits = n => `${n} commit${n === 1 ? '' : 's'}`
+const capitalize = text => text ? text.charAt(0).toUpperCase() + text.slice(1) : text
 
 const search_help = <span>
   Words must all match the commit id, message, committer, branch or batches. <code>-word</code> excludes,
@@ -74,7 +71,7 @@ const SearchHeader = ({ search, nb_commits, has_more, isFetching }) => (
 const CiCommitList = () => {
   const { project, branch, committer } = useSelected();
   const project_data = useProjectData(project);
-  const { commits, error, isPending, isPlaceholderData, isSuccess, date_range, search, hasNextPage, fetchNextPage, isFetchingNextPage } = useCommitsList({ refetchInterval: 60 * 1000 });
+  const { commits, error, isPending, isPlaceholderData, isSuccess, date_range, search, hasNextPage, fetchNextPage, isFetchingNextPage } = useCommitsList();
   // new results are on their way (background refreshes don't count)
   const loading = isPending || isPlaceholderData;
   const [now] = useState(() => new Date());
@@ -93,7 +90,7 @@ const CiCommitList = () => {
     if (hasNextPage && !isFetchingNextPage && !error) fetchNextPage();
   };
   // the range ends where we have commits, if there are no recent ones
-  const show_older = () => updateSelected(project, { from: DateTime.fromJSDate(date_range[0]).minus({ days: 7 }).toJSDate() }, { replace: true });
+  const show_older = () => updateSelected({ from: DateTime.fromJSDate(date_range[0]).minus({ days: 7 }).toJSDate() }, { replace: true });
   // On branches, the metrics configuration comes from the latest commit
   const evolution_project_data = useMemo(() => {
     if (!is_branch || !some_commits_loaded) return project_data;
@@ -114,7 +111,7 @@ const CiCommitList = () => {
         </Card>
       </Section>}
       {!!search && <SearchHeader search={search} nb_commits={commits.length} has_more={hasNextPage} isFetching={loading}/>}
-      {error && <NonIdealState description={<pre>{error_msg(error)}</pre>} icon="error" />}
+      {error && <NonIdealState description={<pre>{errorMessage(error)}</pre>} icon="error" />}
       {isPending && <NonIdealState title="Loading" icon={<Spinner />} />}
       {isSuccess && !loading && !error && !some_commits_loaded && !!search &&
         <NonIdealState title="No commit matches your search" icon="search" />}
@@ -132,13 +129,10 @@ const CiCommitList = () => {
       />}
       {Object.keys(commits_by_day).map(day => (
         <Card key={day} elevation={0} style={{marginBottom: '15px'}}>
-          <h4 className={Classes.HEADING} style={{textTransform: 'capitalize'}}>
-            {(!!day && day !== "undefined") ? <>
-                {DateTime.fromISO(day, { zone: 'utc' }).toRelativeCalendar({unit: "days"})}
-                {" "}
-                &#8212; {commits_by_day[day].length} commits
-              </>
-             : `${commits_by_day[day].length} commits`}
+          <h4 className={Classes.HEADING}>
+            {(!!day && day !== "undefined")
+              ? `${capitalize(DateTime.fromISO(day, { zone: 'utc' }).toRelativeCalendar({unit: "days"}))} \u2014 ${count_commits(commits_by_day[day].length)}`
+              : capitalize(count_commits(commits_by_day[day].length))}
           </h4>
           <CommitRows project={project} project_data={project_data} commits={commits_by_day[day]} />
         </Card>

@@ -1,12 +1,12 @@
 // Visualizations can have "dynamic options" (e.g. which frame to show), discovered from each output's files.
-// Output cards register their options as they load; we merge the compatible ones to show common controls.
+// Output cards register their options as they load; we merge them to show common controls.
 //
 // Cards register one by one, possibly thousands of them: we collect registrations without re-rendering,
 // and merge them at most a few times per second.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { matchPath } from "./router";
-import { mergeCompatibleOptions } from "./utils/dynamicOptions";
+import { mergeOptions } from "./utils/dynamicOptions";
 
 const FLUSH_DELAY = 150;
 
@@ -33,13 +33,14 @@ export const visualizations_with_files = (config, manifest) => {
   return found;
 };
 
-const empty_state = { options: {}, with_files: new Set(), registered: 0 };
+const empty_state = { options: {}, with_files: new Set() };
+const empty_registry = () => ({ options: new Map(), with_files: new Set(), timer: null, dirty: false });
 
 
 // reset_key: registrations are forgotten when it changes (e.g. another commit or batch)
 // files_key: which visualizations have files is forgotten when it changes (e.g. the filter)
 export function useDynamicOptions({ config, reset_key, files_key }) {
-  const registry = useRef({ options: new Map(), with_files: new Set(), timer: null, dirty: false });
+  const registry = useRef(empty_registry());
   const [state, setState] = useState(empty_state);
 
   const flush = () => {
@@ -47,8 +48,16 @@ export function useDynamicOptions({ config, reset_key, files_key }) {
     r.timer = null;
     if (!r.dirty) return;
     r.dirty = false;
-    const all = [...r.options.entries()].map(([output_id, options]) => ({ output_id, ...options }));
-    setState({ options: mergeCompatibleOptions(all), with_files: new Set(r.with_files), registered: r.options.size });
+    const options = mergeOptions([...r.options.values()]);
+    // Most registrations change nothing: we keep the same objects, so that output cards don't re-render
+    setState(state => {
+      const same_options = JSON.stringify(options) === JSON.stringify(state.options);
+      const same_files = r.with_files.size === state.with_files.size && [...r.with_files].every(name => state.with_files.has(name));
+      return same_options && same_files ? state : {
+        options: same_options ? state.options : options,
+        with_files: same_files ? state.with_files : new Set(r.with_files),
+      };
+    });
   };
   const schedule = () => {
     const r = registry.current;
@@ -56,12 +65,6 @@ export function useDynamicOptions({ config, reset_key, files_key }) {
     if (r.timer === null) r.timer = setTimeout(flush, FLUSH_DELAY);
   };
 
-  const reset = () => {
-    const r = registry.current;
-    clearTimeout(r.timer);
-    registry.current = { options: new Map(), with_files: new Set(), timer: null, dirty: false };
-    setState(empty_state);
-  };
   const [last_reset_key, setLastResetKey] = useState(reset_key);
   if (reset_key !== last_reset_key) {
     setLastResetKey(reset_key);
@@ -75,7 +78,7 @@ export function useDynamicOptions({ config, reset_key, files_key }) {
     const r = registry.current;
     if (previous.reset_key !== reset_key) {
       clearTimeout(r.timer);
-      registry.current = { options: new Map(), with_files: new Set(), timer: null, dirty: false };
+      registry.current = empty_registry();
     } else if (previous.files_key !== files_key) {
       r.with_files = new Set();
       setState(state => ({ ...state, with_files: new Set() }));
@@ -94,17 +97,9 @@ export function useDynamicOptions({ config, reset_key, files_key }) {
     r.options.set(output_id, options);
     schedule();
   };
-  const recompute = () => {
-    registry.current.dirty = true;
-    flush();
-  };
-
   return {
     dynamic_options: state.options,
     visualizations_with_files: state.with_files,
-    registered_outputs: state.registered,
     register,
-    reset,
-    recompute,
   };
 }

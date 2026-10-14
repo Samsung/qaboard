@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#1a1d23">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <title>Files · QA-Board</title>
+  </head>
+  <body>
+    <!-- nginx serves this page for the folders under /s/, see services/nginx/snippets/qaboard-files.conf -->
+    <noscript>You need to enable JavaScript to browse the files. <a href="?view=nginx">See the plain index</a>.</noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/files/index.jsx"></script>
+  </body>
+</html>

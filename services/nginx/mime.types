@@ -11,6 +11,7 @@ types {
 
     text/mathml                           mml;
     text/plain                            txt csv yaml log sh py pcd hex;
+    text/vtt                              vtt;
     text/vnd.sun.j2me.app-descriptor      jad;
     text/vnd.wap.wml                      wml;
     text/x-component                      htc;
@@ -23,6 +24,7 @@ types {
     image/x-ms-bmp                        bmp;
     image/svg+xml                         svg svgz;
     image/webp                            webp;
+    image/avif                            avif;
 
     application/font-woff                 woff;
     application/java-archive              jar war ear;

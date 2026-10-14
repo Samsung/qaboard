@@ -7,10 +7,11 @@ import { useWindowVirtualizer } from "@tanstack/react-virtual";
 // Batches usually have up to a few hundred runs
 const VIRTUALIZE_ABOVE = 500;
 
-// renderRow(item, row_props): row_props must be spread on the row's <tr>, they let us measure its height
+// renderRow(item, index, measure): rows must set data-index={index} and ref={measure} on their <tr>, to measure their height.
+// Both are undefined for small tables, and stable otherwise, so that rows can be memoized.
 export const VirtualTbody = ({ items, renderRow, estimateSize = 31 }) => {
   if (items.length <= VIRTUALIZE_ABOVE)
-    return <tbody>{items.map(item => renderRow(item, {}))}</tbody>;
+    return <tbody>{items.map(item => renderRow(item))}</tbody>;
   return <VirtualizedTbody items={items} renderRow={renderRow} estimateSize={estimateSize}/>;
 };
 
@@ -37,7 +38,7 @@ const VirtualizedTbody = ({ items, renderRow, estimateSize }) => {
   const after = rows.length > 0 ? virtualizer.getTotalSize() - (rows.at(-1).end - scroll_margin) : 0;
   return <tbody ref={tbody}>
     {before > 0 && <tr aria-hidden style={{ height: before }}/>}
-    {rows.map(row => renderRow(items[row.index], { 'data-index': row.index, ref: virtualizer.measureElement }))}
+    {rows.map(row => renderRow(items[row.index], row.index, virtualizer.measureElement))}
     {after > 0 && <tr aria-hidden style={{ height: after }}/>}
   </tbody>;
 };

@@ -2,7 +2,6 @@ import { Fragment, useState } from "react";
 import { Link } from "../router";
 
 import styled from "styled-components";
-import copy from 'copy-to-clipboard';
 
 import {
   Classes,
@@ -20,12 +19,14 @@ import {
 
 import { http, errorMessage } from "../api/http";
 import { useRefreshCommit } from "../hooks";
-import { Avatar } from "./avatars";
+import { CommitAvatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
-import { CopyToClipboard } from "./CopyToClipboard";
-import { format, shortId, pretty_label, linux_to_windows } from "../utils";
-import { commit_url as git_commit_url, image_url } from "../git"
+import { format, shortId, pretty_label } from "../utils";
+import { commit_url as git_commit_url } from "../git"
 import { has_milestones } from './milestones'
+import { copyDirectory } from './logs/DirectoryActions'
+import { copyWithToast } from '../utils/clipboard'
+import { toaster } from "../toaster";
 
 const CommitDetails = styled.div`
   display: flex;
@@ -60,6 +61,8 @@ const has_outputs_in_batch = label => commit => {
   let total_outputs = valid_outputs + pending_outputs + running_outputs + failed_outputs;
   return total_outputs > 0;
 }
+
+
 
 
 // We compare the batch with the same batch in the reference commit
@@ -239,7 +242,7 @@ const CommitShortId = styled.a`
   color: #1b69b6;
 `;
 
-const CommitRow = ({ commit, project, project_data = {}, className, tag, toaster, default_batch }) => {
+const CommitRow = ({ commit, project, project_data = {}, className, tag, default_batch }) => {
   const [waiting, setWaiting] = useState(false);
   const refreshCommit = useRefreshCommit();
   const refresh = () => refreshCommit(project, commit.id);
@@ -249,7 +252,6 @@ const CommitRow = ({ commit, project, project_data = {}, className, tag, toaster
   const commit_url = git_commit_url(project_data, commit.id)
   const has_data = !!commit?.authored_datetime
   let maybe_skeletton = has_data ? null : Classes.SKELETON;
-  const avatar_url = image_url(commit?.committer_avatar_url)
   const commit_has_milestones = has_milestones({commit, project, project_data})
 
   const deleteRuns = url => {
@@ -270,10 +272,9 @@ const CommitRow = ({ commit, project, project_data = {}, className, tag, toaster
 
   return (
     <CommitRowWrapper className={className}>
-      <Avatar
-        src={avatar_url}
-        href={commit.committer_name ? `/${project}/committer/${commit.committer_name}` : null}
-        alt={commit.committer_name || commit.id || '?'}
+      <CommitAvatar
+        commit={commit}
+        project={project}
       />
 
       <CommitDetails>
@@ -288,22 +289,13 @@ const CommitRow = ({ commit, project, project_data = {}, className, tag, toaster
               </CommitShortId>
             </Tooltip>
             <Tooltip content="Copy to clipboard">
-              <CopyToClipboard
-                text={commit.id}
-                onCopy={() => {
-                  toaster.show({
-                    message: "Copied to clipboard!",
-                    intent: Intent.SUCCESS
-                  });
-                }}
-              >
-                <Icon
-                  style={{marginLeft: '4px', marginRight: '4px'}}
-                  title="Copy hash to clipboard"
-                  intent={Intent.PRIMARY}
-                  icon="duplicate"
-                />
-              </CopyToClipboard>
+              <Icon
+                style={{marginLeft: '4px', marginRight: '4px'}}
+                title="Copy hash to clipboard"
+                intent={Intent.PRIMARY}
+                icon="duplicate"
+                onClick={() => copyWithToast(commit.id, { what: 'the commit hash' })}
+              />
             </Tooltip>
 
           <Popover
@@ -311,8 +303,8 @@ const CommitRow = ({ commit, project, project_data = {}, className, tag, toaster
             hoverCloseDelay={500}
             interactionKind={"hover"}
             content={<Menu>
-              <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(commit.artifacts_url))}} />
-              <MenuItem text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(commit.artifacts_url).slice(2))}} />
+              <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url, { windows: true })} />
+              <MenuItem text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url)} />
               <MenuItem text="View files in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
               <MenuDivider title="Manage"/>
               <MenuItem

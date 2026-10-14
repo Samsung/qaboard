@@ -1,0 +1,8 @@
+/*
+ * OverlayToaster.create renders the toasts "inline" in <body>, with position: absolute.
+ * Toasts then show at the bottom of the first screen of the page, out of sight once you scroll down:
+ * keep them at the bottom of the window instead.
+ */
+.bp6-toast-container.bp6-toast-container-inline.qa-toaster {
+  position: fixed;
+}

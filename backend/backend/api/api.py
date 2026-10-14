@@ -36,7 +36,7 @@ def _parse_json_env(key, default):
     except (json.JSONDecodeError, ValueError):
         return json.loads(default)
 
-_image_servers = _parse_json_env('QABOARD_IMAGE_SERVERS', '{"default": "/iiif"}')
+_image_servers = _parse_json_env('QABOARD_IMAGE_SERVERS', '{"default": "/iiif/2/"}')
 
 
 @app.route("/api/v1/config")
@@ -244,7 +244,8 @@ def get_branches():
                 .distinct()
                 .order_by(CiCommit.branch)
                )
-    return jsonify([b[0] for b in branches.yield_per(1000)])
+    # Commits from clients that don't know their branch have none
+    return jsonify([b[0] for b in branches.yield_per(1000) if b[0]])
 
   name = func.regexp_replace(CiCommit.branch, '^origin/', '')
   latest = func.max(CiCommit.authored_datetime)

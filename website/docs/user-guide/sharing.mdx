@@ -4,7 +4,6 @@ title: Sharing results
 sidebar_label: Sharing
 description: Share exactly what you see with a link, copy paths and images, export files, and report bugs.
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
 
 ## Links are shareable
 Almost everything you select is saved in the page's URL. **Copy the URL from your browser's address bar** and whoever opens it sees the same commits, batches, filters and view as you. The browser's back and forward buttons also work as you'd expect.
@@ -25,14 +24,12 @@ On a commit page, `/<project>/commit/<hash>?...`:
 | `new_project`, `ref_project` | Only when results come from [another project](comparing-results.mdx#picking-a-reference) |
 | `selected_views` | The view: `summary`, `table-kpi` (Metrics Table), `table-compare` (Metrics Diff), `output-list` (Visualizations), `bit_accuracy` (Output Files), `logs`, `parameters` (Artifacts & Configs), `groups` (Available Tests), `tuning`, `optimization` (Analysis) |
 | `sort_by`, `sort_order` | How runs are sorted |
-| `controls` | Visualizations shown or hidden, Image Diff, dynamic options (as JSON) |
+| `controls` | Visualizations shown or hidden, Image Diff, dynamic options (as JSON, only what you changed) |
 | `show_all_files`, `expand_all`, `files_filter`... | Options of the Output Files view (`params_...` for Artifacts & Configs) |
 
-On the commit list, the **Filter...** box is saved as `search`. On the History page, the filter, batch and chart options (`selected_metric`, `breakdown_per_test`, `relative`...) are saved too.
+On the commit list, the **Filter...** box is saved as `search`, and the date range as `from` and `to` (e.g. `?from=2026-09-01&to=2026-09-30`). On the History page, the filter, batch and chart options (`selected_metric`, `breakdown_per_test`, `relative`...) are saved too.
 
-:::note
-The date range of the commit list and the history is **not** updated in the URL when you change it. To share a date range, add `from` and `to` yourself, e.g. `?from=2026-09-01&to=2026-09-30`.
-:::
+Options that have their default value are left out, to keep links short: e.g. the `default` batch, an empty filter, the project's default metrics and view, or visualizations shown by default. Links follow the project's defaults.
 
 Some things stay in your browser and are not shared: your favorite projects, your private milestones, whether the controls panel is open, and the statuses of the CI jobs you started.
 
@@ -41,7 +38,7 @@ Results live on a shared storage, so you often want a path rather than a link:
 
 - **Commit hash**: the copy icon next to the hash, in the commit list.
 - **Commit or batch directory**: the ☰ menu of a commit row or of a commit bar, as a **Windows** or **Linux** path, or open it in the browser.
-- **Run output directory**: the copy and folder icons on each run's card, for the new and the reference run.
+- **Run output directory**: the copy and folder icons on each run's card, for the new and the reference run. The folder icon opens it in the [file browser](files.mdx), where you can copy the path of any file.
 - **Input path, database, batch**: hover the run's name on its card and click the value to copy it.
 - **Configuration**: hover a configuration tag, copy it as JSON, or in tuning format to paste in a [tuning experiment](running-from-the-webapp.mdx#running-tests-and-tuning).
 - **Images**: the **Copy** button above an image viewer copies the new, reference or diff image to your clipboard, ready to paste in a chat or a slide.
@@ -49,7 +46,10 @@ Results live on a shared storage, so you often want a path rather than a link:
 ## Exporting files
 Above the cards of the **Visualizations** and **Output Files** views, **Export** gathers the files matching a pattern from all the (filtered) runs, new and reference, into one directory:
 
-<img alt="Exporting files" src={useBaseUrl('img/export-files-viz.jpg')} />
+<Shot
+  id="commit/export"
+  caption="Export gathers the PNG files of the 4 filtered runs into one folder, and shows its Windows and Linux paths."
+/>
 
 1. Type a pattern, like `*.png`, `*.txt` or `**/*.jpg` (`**/` matches any number of folders).
 2. Click **Export**. The export directory's Windows path is copied to your clipboard, and both the Windows and Linux paths are shown.

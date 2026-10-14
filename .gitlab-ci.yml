@@ -12,7 +12,7 @@
 # Make production deploys manual: set the CI/CD variable QABOARD_PROD_DEPLOY=manual (deploy freezes also do it)
 # No container registry? Set QABOARD_BUILD_ON_HOST=1: images are then built on each host when deploying (slower)
 #
-# Runbook: website/docs/backend-admin/deployment.mdx
+# Runbook: deployments/sirc/runbooks/deployment.md
 #
 # NOTE on shells: GitLab Runner runs job scripts in bash (su -s /bin/bash), but commands
 # run over ssh use the remote user's login shell (tcsh on qa/alginfra1), which cannot
@@ -92,7 +92,7 @@ webapp-tests:
   needs: []
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    # the tests check webapp/src/releaseNotes/release-notes.json is up to date with the release notes
+    # the web app bundles the release notes, its tests check them
     - changes: [webapp/**/*, website/release-notes/**/*]
   script:
     - cd webapp
@@ -285,13 +285,14 @@ test:production:
   needs: [deploy:production]
   script:
     - curl -fsS --noproxy '*' --retry 5 --retry-delay 3 --retry-all-errors --max-time 30 http://qa:5000/api/v1/health
+    - curl -fsS --noproxy '*' --max-time 30 http://qa/api/v1/health  # port 80, used by scripts and deploy:cli:windows
   rules:
     - !reference [.on-master, rules]
 
 
 # Kubernetes (being migrated): enabled with the CI/CD variable QABOARD_K8S_DEPLOY=1 (or =manual)
 # Needs helm on the runner and a KUBECONFIG (a CI/CD variable of type "File"), or the GitLab agent for Kubernetes.
-# --atomic: if the rollout fails, helm rolls back automatically. Runbook: website/docs/backend-admin/kubernetes.mdx
+# --atomic: if the rollout fails, helm rolls back automatically. Runbook: deployments/sirc/runbooks/kubernetes.md
 deploy:k8s:
   stage: production
   interruptible: false

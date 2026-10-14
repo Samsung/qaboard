@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Classes, Tag } from "@blueprintjs/core";
-import MonacoEditor, { MonacoDiffEditor } from "../components/MonacoEditor";
+import MonacoEditor, { MonacoDiffEditor, preloadMonaco } from "../components/MonacoEditor";
 
-import { http, errorMessage } from "../api/http";
+import { errorMessage } from "../api/http";
+import { fileQuery } from "../api/queries";
 import { is_same_data } from "../utils"
 
 // TODO: Implement a way to hide identical lines in the diff viewer
@@ -45,21 +46,32 @@ const editor_options = {
 
 // Files are cached: switching between views doesn't fetch them again.
 // The key includes the response type, since other viewers may parse the same file as JSON.
-export const textFileQuery = (url, { is_running } = {}) => ({
-  queryKey: ['file', url, 'text'],
-  queryFn: ({ signal }) => http.get(url, { signal, responseType: 'text' }).then(r => r.data),
+const textFileQuery = (url, { is_running } = {}) => ({
+  ...fileQuery(url, { is_running, responseType: 'text' }),
   select: strip_ansi,
-  enabled: !!url,
-  staleTime: is_running ? 0 : Infinity,
 });
 
+// "t" pressed outside of inputs, without modifiers
+const is_t_key = ev => {
+  if (ev.target.nodeName === 'INPUT' || ev.target.nodeName === 'TEXTAREA' || ev.target.isContentEditable)
+    return false;
+  if (ev.ctrlKey || ev.metaKey || ev.altKey)
+    return false;
+  return (ev.id || String.fromCharCode(ev.keyCode || ev.charCode)) === "t";
+};
+
 const count_lines = text => (text?.match(/\r?\n/g)?.length ?? 0) + 1;
+// enough for the longest file, up to max_lines. Outside of the component: the React Compiler fails on Math.min/max there
+const editor_height = (data, max_lines) => 18 * Math.min(Math.max(count_lines(data.new), count_lines(data.reference)), max_lines) + 10;
 
 
 function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideBySide: side_by_side_default, always_show_diff, only_diff, manifests, width, max_lines = 40, language: language_prop, is_running }) {
   const query_new = useQuery(textFileQuery(text_url_new, { is_running }));
   // we don't really care about errors for reference files
   const query_ref = useQuery({ ...textFileQuery(text_url_ref, { is_running }), enabled: !!text_url_new && !!text_url_ref });
+
+  // big files take a while to download: load the editor meanwhile, not after
+  useEffect(() => { preloadMonaco() }, []);
 
   const [shown_left, setShownLeft] = useState("reference");
   const [renderSideBySide, setRenderSideBySide] = useState(side_by_side_default ?? true);
@@ -68,11 +80,7 @@ function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideByS
   // Press "t" to switch new and reference
   useEffect(() => {
     const keyboard = ev => {
-      if (ev.target.nodeName === 'INPUT' || ev.target.nodeName === 'TEXTAREA' || ev.target.isContentEditable)
-        return;
-      if (ev.ctrlKey || ev.metaKey || ev.altKey)
-        return;
-      if ((ev.id || String.fromCharCode(ev.keyCode || ev.charCode)) === "t")
+      if (is_t_key(ev))
         setShownLeft(shown_left => shown_left === 'reference' ? 'new' : 'reference');
     }
     window.addEventListener("keypress", keyboard, { passive: true });
@@ -97,7 +105,7 @@ function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideByS
   const no_reference = !text_url_ref || !data.reference || (!!text_url_new && text_url_new === text_url_ref);
   const show_diff = !no_reference || always_show_diff;
 
-  const height = 18 * Math.min(Math.max(count_lines(data.new), count_lines(data.reference)), max_lines) + 10;
+  const height = editor_height(data, max_lines);
   const editor_language = language_prop || language(filename);
   const editor_element = show_diff
     ? <MonacoDiffEditor

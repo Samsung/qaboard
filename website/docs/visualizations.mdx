@@ -33,7 +33,10 @@ outputs:
 
 Users will get switches to toggle debug visualizations:
 
-<img alt="toggle visualizations" src={useBaseUrl('img/hidden_by_default_switches.png')} />
+<Shot
+  id="commit/controls-panel"
+  caption="The Controls panel lists every visualization, with switches for the ones hidden by default, like Color errors and Noise vs signal."
+/>
 
 
 ## Available file viewers
@@ -42,11 +45,11 @@ QA-Board tries to guess the right image viewer depending on the file extension o
 Extensions                                          | Type         | Viewer                                       |
 ----------------------------------------------------|--------------|----------------------------------------------|
 `*.jpg*`, `*.png*`, `*.bmp*`, `*.tif*`, `*.pdf*`... |  `image/*`   | **Image**                                    |
-`*.hex*`, `*.raw*`, `*.dng*`                        |  `image/*`   | **Image** (via CDE)                          |
+`*.hex*`, `*.raw*`, `*.dng*`                        |  `image/*`   | **Image**, if the server has a reader for these raw formats (not included) |
 `*.plotly.json`, `*.plotly.html`                    | `plotly/json` / `plotly/html`| **Plot.ly**                                  |
 `*.flame.json`                                      | `flame/json` | **[Flame Graph](http://www.brendangregg.com/flamegraphs.html)**, [diffable](http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html)          |
-`*.html`                                            | `text/html` | **HTML** (assumes trusted input..!)          |
-`*.mp4`                                             | `video/*`    | **Video** (synced)                           |
+`*.html`                                            | `text/html` | **HTML** (in a frame, scripts don't run)     |
+`*.mp4`, `*.webm`, `*.mov`, `*.webp`, `*.gif`       | `video/*`    | **Video**: synced, side by side, wipe or difference |
 `*.txt`, unidentified                               | `text/plain*`| **Text** (diffs, with VSCode's [Monaco Editor](https://microsoft.github.io/monaco-editor/))|
 `</>`                                               | `pointcloud/txt` | ToF's **pointcloud** viewer (needs to be split) |
 `</>`                                               | `6dof/txt`       | SLAM's **6DoF** viewer (needs to be split)      |
@@ -64,16 +67,28 @@ Extensions                                          | Type         | Viewer     
 
 How to use it is described in the user guide: [comparing images](/docs/user-guide/comparing-results).
 
+<Clip
+  id="commit/image-diff"
+  caption="Zoom in one image and the reference follows. Image Diff and its threshold show what changed."
+/>
+
+Images are served by an [IIIF](https://iiif.io) image server, tile by tile: the viewers only load what they show, even for images over 100 MP.
+
+<Clip
+  id="commit/deep-zoom"
+  caption="A 113 MP test wall, from the full view down to single pixels, new and reference in sync."
+/>
+
+Draw your own debug information in the images you save, like detection boxes: the viewer compares them like any other image.
+
+<Shot
+  id="commit/detections"
+  caption="Boxes drawn by the detector on a small-objects image: the int8 model misses people that fp32 finds."
+/>
+
 :::tip TIFF and PNG
 If a run saved both *image.png* and *image.tiff*, a visualization of *image.png* shows the TIFF. When the reference run doesn't have the file, the viewer falls back to the reference's *.tiff*, then *.bmp*, of the same name: it helps comparing results across a change of output format.
 :::
-
-
-<!-- <img alt="Image viewer" src={useBaseUrl('img/image-viewer.gif')} /> -->
-<!-- <img alt="Image viewer" src={useBaseUrl('img/image-perceptural-diff.png')} /> -->
-
-<img alt="Image viewer" src={useBaseUrl('img/image-viewer-autoroi.png')} />
-
 
 
 ### Regions of interest
@@ -89,6 +104,11 @@ roi:
 - {image_width: 1600, image_height: 1200, x: 351, y: 567, w: 45, h: 53, label: "Details fine line"}
 ```
 
+<Shot
+  id="commit/auto-roi"
+  caption="The input's preset regions, next to the Auto ROIs that QA-Board finds where the images differ most."
+/>
+
 If you click on the histogram button, you'll be able to select a region of interest and easily copy the format above:
 
 <img alt="Image viewer" src={useBaseUrl('img/image-viewer-selection.png')} />
@@ -103,9 +123,10 @@ If you click on the histogram button, you'll be able to select a region of inter
 - open-source and popular
 - performant
 
-<img alt="plotly gallery" src={useBaseUrl('img/plotly-1.png')} />
-
-<!-- <img alt="plotly gallery" src={useBaseUrl('img/plotly-2.png')} /> -->
+<Shot
+  id="commit/plotly-overlay"
+  caption="Precision-recall curves per class: the int8 model's, with the fp32 reference's drawn dashed on the same axes."
+/>
 
 <img alt="3d plot with plotly for LSF/Calibration" src={useBaseUrl('img/plotly-3d-example.png')} />
 
@@ -119,26 +140,106 @@ with open('graph.plotly.json', 'w') as f:
   f.write(spec)
 ```
 
+By default, the new and reference plots are shown side by side. With `side_by_side: false`, the reference run's traces are drawn on the same axes as the new run's (when your traces set their colors, the reference's are dashed and faded):
+
+```yaml {4} title="qaboard.yaml"
+outputs:
+  visualizations:
+    - path: latency_cdf.plotly.json
+      side_by_side: false
+```
+
+<Shot
+  id="commit/latency-cdf"
+  caption="Latency percentiles on a log scale: with a shared cache, every percentile is a hundred times slower or more than the reference's."
+/>
+
 You can also save figures as stand-alone HTML, e.g. with `fig.write_html('graph.plotly.html')`. They are shown side by side (new and reference) in iframes, so the reference isn't overlaid on the same plot like with JSON.
 
 ### Text Viewer
-<img alt="Text/diff viewer" src={useBaseUrl('img/text-viewer.jpg')} />
+Text files are diffed with the reference's in the Monaco editor. **Next Diff** jumps to the next change, and <kbd>t</kbd> swaps the sides.
+
+<Shot
+  id="commit/text-diff"
+  caption="Two runs' latency distributions, diffed line by line: every percentile changed."
+/>
+
+### HTML
+HTML files, like the reports your code renders, are shown one above the other: the new run's, then the reference's. Each shows in a frame of its own: images and links relative to the HTML file work, its styles don't change the page, and scripts don't run.
+
+<Shot
+  id="commit/html-report"
+  caption="A run's evaluation report, rendered by the project itself: AP per class and per object size, and the worst images."
+/>
 
 ### Flame Graphs
 We love Brendan Gregg's [flame charts](http://www.brendangregg.com/flamegraphs.html) and integrated Martin Spier's [`d3-flame-graph`](https://github.com/spiermar/d3-flame-graph). At a glance, you can check where you code spends its CPU cycles, and use [differential flame graphs](http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html) to debug regressions.
 
-<img alt="flame graphs viewer" src={useBaseUrl('img/slides/flame-graphs.jpg')} />
+<Shot
+  id="commit/flame-diff"
+  caption="A differential flame graph: new work under the shared cache's lock in orange, the model work it skips in blue."
+/>
 
 > For a tutorial [read our blog post](https://samsung.github.io/qaboard/blog/2020/06/24/flame-graphs).
 
+### Video viewer
+  * New and reference play in sync, frame by frame: paused, both show the same frame.
+  * Compare them side by side, with a wipe (drag the divider), by toggling between them (<kbd>t</kbd>), or as their difference (amplified up to ×64).
+  * Zoom with the mouse wheel or a pinch, drag to pan: both videos follow, even when their resolutions differ. Zoomed in, you see the actual pixels and their coordinates.
+  * Step frame by frame, scrub, slow down to 0.1×, loop.
+  * Copy or save the current frame as a PNG.
+
+How to use it is described in the user guide: [comparing videos](/docs/user-guide/comparing-results#video-viewer).
+
+<Clip
+  id="commit/video-compare"
+  caption="The camera driving down an aisle in low light, new and reference: frame by frame, with a wipe, zoomed in, and their difference."
+/>
+
+Browsers play **H.264**, **VP9** and **AV1** videos, in *.mp4* or *.webm* files. Other codecs (e.g. HEVC/H.265, MPEG-4 part 2) or containers (e.g. *.avi*) show an error: convert them when your code writes them, for instance with:
+
+```bash
+ffmpeg -i input.avi -c:v libx264 -pix_fmt yuv420p -movflags +faststart output.mp4
+```
+
+`+faststart` lets a video start playing before it's fully downloaded. Animated *.webp* and *.gif* files are compared the same way, but your browser plays them on its own: they are not synced.
+
+QA-Board finds a video's frame rate when it plays, or when you step through its frames. If it guesses wrong, e.g. for variable frame rates, set it, with an optional image shown before the video loads:
+
+```yaml title="qaboard.yaml"
+outputs:
+  visualizations:
+  - path: camera.mp4
+    fps: 30
+    poster: camera.jpg  # default: poster.jpg, if the run created it
+```
+
+### Point clouds and trajectories
+Point clouds open in a 3D viewer, and 6DoF trajectories are drawn against the ground truth when the run has one.
+
+<Shot
+  id="commit/pointcloud"
+  caption="A keyframe's point cloud against the ground truth's."
+/>
+
+<Shot
+  id="commit/trajectory-6dof"
+  caption="A trajectory against ground truth, in 3D and per axis: the drift starts after a keyframe change."
+/>
+
 ### More Viewers?
 Tell us what you need! The next we'll implement is likely [**vega**](https://vega.github.io/vega/) specs. It would notably allow us to display `altair` visualizations. We could also have a minimal integration with notebooks, [visdom](https://github.com/facebookresearch/visdom), [webiz](https://webviz.io/)...
+
+You can also write your own viewer: viewers are React components that download a run's files and display them. They live in [`webapp/src/viewers`](https://github.com/Samsung/qaboard/tree/master/webapp/src/viewers), and [`OutputViewer.jsx`](https://github.com/Samsung/qaboard/blob/master/webapp/src/viewers/OutputViewer.jsx) picks one for each visualization `type`. Start from an existing viewer, and run the web app's dev server as described in its [README](https://github.com/Samsung/qaboard/tree/master/webapp). Contributions are welcome!
 
 
 ## Dynamic visualizations
 You can use a [special syntax](https://github.com/pillarjs/path-to-regexp) to create dynamic visualizations at display-time. Users will be able to choose what to display using sliders / select options:
 
-<img alt="Viewing each frame of a movie" src={useBaseUrl('img/dynamic-outputs.gif')} />
+<Clip
+  id="commit/dynamic-outputs"
+  caption="One visualization per ISP stage: the slider steps from the raw mosaic to the tone-mapped image, on every run's card."
+/>
 
 ```yaml {5,7} title="qaboard.yaml"
 outputs:
@@ -176,9 +277,14 @@ outputs:
       #   you will get two select inputs for the frame.
 ```
 
-By default, only one viewer/path is shown at a time, and you get sliders/select to decide what to show. They are in the **Controls** panel and synced across all runs, but users can make an option *per-output*, to choose its value in each run's card (see the [user guide](/docs/user-guide/commit-page#the-controls-panel)):
+By default, only one viewer/path is shown at a time, and you get sliders/select to decide what to show. They are in the **Controls** panel and linked across all runs, but users can make an option *per-output*, to choose its value in each run's card (see the [user guide](/docs/user-guide/commit-page#the-controls-panel)).
 
-<img alt="Everything is synced" src={useBaseUrl('img/dynamic-outputs-select.gif')} />
+Runs don't need to have the same values: the **Controls** panel offers the values of all runs, numbers are sorted as numbers (`2` before `10`), and the default is the last number (e.g. the last frame) or the first value. When a run doesn't have the selected value, its card shows the closest number (or the default) and says so.
+
+<Shot
+  id="commit/dynamic-options"
+  caption="The stage option, synced: on stage 3, every card shows stages/3.jpg. Changing it keeps the zoom."
+/>
 
 If you want, you can visualize all matching files:
 
@@ -195,7 +301,8 @@ If you want, you can visualize all matching files:
 
 ## Advanced Options [EXPERIMENTAL] 
 ### Custom Styles
-You can style your visualizations:
+You can style your visualizations. Without a `width`, run cards are as wide as the page allows, up to 1500px, and images
+are 390px wide for a pair:
 
 ```yaml {3-7,10-12}
 outputs:

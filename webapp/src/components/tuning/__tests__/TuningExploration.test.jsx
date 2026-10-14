@@ -42,7 +42,8 @@ describe('TuningExploration', () => {
       { label: 'threshold', values: [1, 2], integer: true },
     ]);
     await act(async () => fireEvent.change(screen.getByDisplayValue('Average aggregation'), { target: { value: 'median' } }));
-    expect(history.location.search).toBe('?aggregation=median');
+    // the default isn't in the URL
+    expect(history.location.search).toBe('');
   });
 
   it('explains how to start tuning', () => {

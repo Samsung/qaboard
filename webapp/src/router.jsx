@@ -11,7 +11,8 @@ import { useLocation } from "react-router";
 import { createBrowserHistory } from "history";
 import pathToRegexp from "path-to-regexp-v1";
 
-export { Link } from "react-router";
+// useLinkClickHandler: for links rendered by other components (e.g. Blueprint's MenuItem), like <Link>
+export { Link, useLinkClickHandler } from "react-router";
 
 export const history = createBrowserHistory();
 
@@ -67,7 +68,7 @@ export function matchPath(pathname, options = {}) {
   }, null);
 }
 
-export const rootMatch = pathname => ({ path: "/", url: "/", params: {}, isExact: pathname === "/" });
+const rootMatch = pathname => ({ path: "/", url: "/", params: {}, isExact: pathname === "/" });
 
 // Like react-router@5's <Switch>: the first route whose path matches
 export function matchRoutes(routes, pathname) {

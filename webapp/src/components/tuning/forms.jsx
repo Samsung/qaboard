@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
 import { http, errorMessage } from "../../api/http";
-import { useUser, useRefreshCommit, updateSelected } from "../../hooks";
+import { useUser, useRefreshCommit, updateSelected, useSiteConfig } from "../../hooks";
 import { usePrefsStore, useTuningForm } from "../../stores/prefs";
 
 import MonacoEditor from "../MonacoEditor";
@@ -28,6 +28,7 @@ import { toaster } from "../../toaster"
 
 
 import templates from './templates'
+import { BatchDefinitions, BatchWarnings } from './BatchReport'
 
 
 const MAX_RUNS = 5000;
@@ -302,6 +303,7 @@ const useGroupInfo = ({ project, selected_group, commit_id, available_tests_file
 // Starts tuning experiments. What users enter is remembered per project.
 const TuningForm = ({ project, config, metrics, commit, available_tests_files }) => {
   const logged_user = useUser();
+  const { docs_root } = useSiteConfig();
   const form = useTuningForm(project);
   const updateTuning = usePrefsStore(state => state.updateTuning);
   const refresh = useRefreshCommit();
@@ -414,7 +416,7 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
         toaster.show({
           message: submission
             ? "The batch failed to start. Select it to see why, and its logs."
-            : `Something went wrong: ${error.response?.data?.error ?? error.message}`,
+            : `Something went wrong: ${errorMessage(error)}`,
           intent: Intent.DANGER,
           timeout: 10000,
         });
@@ -422,7 +424,7 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
       });
   };
 
-  const { tests, message } = selected_group_info;
+  const { tests, warnings, definitions } = selected_group_info;
   const total_runs = combinations * tests.length;
   const time_intent =
     (combinations === "invalid" || total_runs===0 || total_runs > MAX_RUNS)
@@ -514,7 +516,7 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
     
   return <>
     {!any_runner_configured && <Callout intent={Intent.WARNING} title="Please configure async runners" icon="warning-sign" style={{marginBottom: '15px'}}>
-      <p>The simplest way to <a href="https://samsung.github.io/qaboard/docs/celery-integration">get started with async runners is to use Celery</a>.</p>
+      <p>The simplest way to <a href={`${docs_root}docs/celery-integration`}>get started with async runners is to use Celery</a>.</p>
       <p>Otherwise, your runs may be killed if they take too long.</p>
     </Callout>}
     {cannot_tune_on_branch &&  <Callout intent={Intent.WARNING} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
@@ -526,9 +528,6 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
         <div>cd {project.replace('CDE-Users/HW_ALG/', '')}</div>
         <div>qa save-artifacts</div>
       </pre>
-    </Callout>}
-    {!!message && <Callout intent={Intent.DANGER} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
-      <span dangerouslySetInnerHTML={{__html: message}}></span>
     </Callout>}
     <FormGroup
       helperText={!experiment_name ? "(required)" : "Tip: You can add runs to an existing experiment"}
@@ -571,7 +570,7 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
           <span style={{borderBottom: '1px dotted #000', textDecoration: 'none'}}>{tests.length} tests. </span>
         </Popover>}
         <p style={{marginBottom: '5px'}}>
-          To know what batches you can use, go to the tab <Tag icon="layout-group-by" interactive minimal round onClick={() => updateSelected(project, { selected_views: 'groups' })}>Available Tests</Tag>.
+          To know what batches you can use, go to the tab <Tag icon="layout-group-by" interactive minimal round onClick={() => updateSelected({ selected_views: 'groups' })}>Available Tests</Tag>.
           </p>
         {error && <p><Tag icon='warning-sign' intent={Intent.DANGER}>{error}</Tag></p>}
         {selected_group_info_loading && <Icon icon="time"/>}
@@ -590,6 +589,14 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
         dir="auto"
       />
     </FormGroup>
+    {!!selected_group && !selected_group_info_loading && <>
+      <BatchDefinitions definitions={definitions} style={{ marginTop: '-10px' }} />
+      <BatchWarnings
+        warnings={warnings}
+        title={tests.length === 0 ? "Why the batch has no tests" : "Check the batch files"}
+        style={{ marginBottom: '15px' }}
+      />
+    </>}
 
     {(project!=='dvs/psp_swip' && project!=='tof/swip_tof' && available_platforms.length > 0) &&
     <RadioGroup onChange={update('platform')} selectedValue={platform}>
@@ -634,7 +641,7 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
 
     <FormGroup
       helperText={!user ? "Please provide a user in the input below"
-                        : (experiment_name.length === 0 ? 'Please give a name to the tuning experiment (the input is above)' : (selected_group_info.tests.length === 0 ? "No inputs found in the batch you asked to use" : undefined))}
+                        : (experiment_name.length === 0 ? 'Please give a name to the tuning experiment (the input is above)' : (selected_group_info.tests.length === 0 ? "The batch has no tests: see why under its name" : undefined))}
       intent={(!user || experiment_name.length === 0 || !total_runs) ? Intent.DANGER : undefined}
     >
     <Button
@@ -692,7 +699,7 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
       <Callout icon="info-sign" title="About auto-tuning">
         <ul>
         <li>The solver is <a href="https://github.com/scikit-optimize/scikit-optimize">scikit-optimize</a>. There are lots of choices for black-box optimization (nevergrad, RoBo, MOE, Ray, hyperopt, SMAC, BayesOpt, spearmint, dlib...), all with varying features, maturity, algorithms and popularity.</li>
-        <li>You need to use <a href="https://samsung.github.io/qaboard/docs/computing-quantitative-metrics">QA-Board metrics</a>.</li>
+        <li>You need to use <a href={`${docs_root}docs/computing-quantitative-metrics`}>QA-Board metrics</a>.</li>
         </ul>
         <p><strong>Do send <a href="mailto:arthur.flam@samsung.com">feedback</a>!</strong></p>
       </Callout>

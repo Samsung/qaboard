@@ -38,7 +38,7 @@ class TestQaCli(unittest.TestCase):
     os.environ['QA_STORAGE'] = str(root_repo.resolve())
 
   @classmethod
-  def TearDownClass(self):
+  def tearDownClass(self):
     os.chdir(self.previous_cwd)
 
   def setUp(self):
@@ -109,6 +109,34 @@ class TestQaCli(unittest.TestCase):
     output_dirs = result.stdout.splitlines()
     assert len(output_dirs) == 3
     assert result.exit_code == 0
+
+  def test_batch_runs_file(self):
+    import tempfile
+    database = str(Path().resolve())
+    runs = {"runs": [
+      {"input_path": "cli_tests/a.jpg", "database": database, "configurations": ["base"], "extra_parameters": {"forwarded_args": ["--x"], "p": 1},
+       "job_options": {"type": "local", "concurrency": 3, "command_id": "old", "cwd": "/somewhere/else"}},
+      {"input_path": "cli_tests/b.jpg", "database": database},
+    ]}
+    with tempfile.TemporaryDirectory() as tmp:
+      runs_file = Path(tmp) / 'runs.json'
+      runs_file.write_text(json.dumps(runs))
+      result = self.qa('--dryrun', 'batch', '--runs-file', str(runs_file), '--list')
+      assert result.exit_code == 0
+      first, second = json.loads(result.stdout)
+      assert first['input_path'] == f"{database}/cli_tests/a.jpg"
+      assert first['configurations'] == ["base"]
+      assert first['extra_parameters'] == {"forwarded_args": ["--x"], "p": 1}
+      assert first['job_options']['type'] == 'local'
+      assert first['job_options']['concurrency'] == 3
+      assert first['job_options']['command_id'] != 'old'
+      assert first['job_options']['cwd'] != '/somewhere/else'
+      assert "--tuning '{\"p\": 1}'" in first['command'] and first['command'].endswith(' --x')
+      assert second['input_path'] == f"{database}/cli_tests/b.jpg"
+      assert second['extra_parameters'] == {}
+      # --runs-file replaces batches
+      result = self.qa('--dryrun', 'batch', '--runs-file', str(runs_file), 'images', '--list')
+      assert result.exit_code != 0
 
   def test_runner_local(self):
     result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{input_path} => {output_dir}"')

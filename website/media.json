@@ -1,0 +1,2148 @@
+{
+  "$schema": "./media.schema.json",
+  "base_url": "https://qaboard-media.sivoov.app",
+  "shots": {
+    "auth/login": {
+      "alt": "The Login dialog over the projects list: a user name field with \"ines\", a password field, and a Log In button.",
+      "app_version": "1.1.1+4dffb32",
+      "caption": "Click Login at the top right, then sign in with your user name and password.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 3969,
+          "key": "shots/auth/login/c6c3a1dca6de3418.avif"
+        },
+        "png": {
+          "bytes": 16827,
+          "key": "shots/auth/login/edc26830179d01da.png"
+        },
+        "webp": {
+          "bytes": 6732,
+          "key": "shots/auth/login/93608331bef50859.webp"
+        }
+      },
+      "height": 306,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRmAAAABXRUJQVlA4IFQAAADwAQCdASoQAAsAA4BaJYwCdAEO/WkIvQAA/pwHME+UiowK/xtRcDcQVmGs8ZbHD8hcxXAT11s5OFS/wnv4suWaja1mIsOZCmXZaeeSjNqRlQpIAAA=",
+      "project": null,
+      "source_spec": "docs-media/shots/auth.spec.ts",
+      "width": 460
+    },
+    "ci/step-summary": {
+      "alt": "The quality gate's summary in a CI job: \"Quality gate: fail\", the commit against its reference with a link to the Metrics Diff, and a table of the checks: p99 dozens of times the reference's for a 10% limit, FAIL; throughput and failed runs pass.",
+      "app_version": "1.1.1+e681790",
+      "caption": "In GitHub Actions, qa gate adds its verdict and table to the job's summary.",
+      "captured": "2026-10-14",
+      "files": {
+        "avif": {
+          "bytes": 24450,
+          "key": "shots/ci/step-summary/21478e2fade89100.avif"
+        },
+        "png": {
+          "bytes": 61147,
+          "key": "shots/ci/step-summary/9fd1ed2a8859195e.png"
+        },
+        "webp": {
+          "bytes": 44646,
+          "key": "shots/ci/step-summary/bc43b0a36b0adde8.webp"
+        }
+      },
+      "height": 318,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRiwAAABXRUJQVlA4ICAAAAAwAQCdASoQAAYAA4BaJaQAA3AA/vRJdpei0ndUGwAAAA==",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/ci.spec.ts",
+      "width": 880
+    },
+    "cli/batch": {
+      "alt": "A terminal runs qa --share batch ci on the camera pipeline: qa prints the link to the results, then the runs start one after the other, each printing its image, the ISP stages and their times.",
+      "app_version": "1.1.1+6494701",
+      "caption": "qa batch runs your code on each input and configuration of a batch; with --share, it prints the link to the results.",
+      "captured": "2026-10-13",
+      "duration": 5.64,
+      "files": {
+        "mp4": {
+          "bytes": 123469,
+          "key": "shots/cli/batch/66a20161f6e25251.mp4"
+        },
+        "poster": {
+          "bytes": 80802,
+          "key": "shots/cli/batch/c2a762328ffae05e.webp"
+        },
+        "webm": {
+          "bytes": 198937,
+          "key": "shots/cli/batch/ea8838376b1e7f30.webm"
+        }
+      },
+      "height": 720,
+      "kind": "tape",
+      "lqip": "data:image/webp;base64,UklGRiwAAABXRUJQVlA4ICAAAABwAQCdASoQAAkAA4BaJZwCdAFAAAD+8N00gnErh7CAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/tapes/cli-batch.tape",
+      "width": 1280
+    },
+    "cli/bit-accuracy": {
+      "alt": "A terminal in CI runs qa check-bit-accuracy on the hw-model platform: on the rounding change, it fails and lists the files that differ from the release; on a commit that only changed docs, every file is the same.",
+      "app_version": "1.1.1+e602eb6",
+      "caption": "qa check-bit-accuracy compares a commit's output files with the reference's, byte for byte.",
+      "captured": "2026-10-13",
+      "duration": 19.84,
+      "files": {
+        "mp4": {
+          "bytes": 345893,
+          "key": "shots/cli/bit-accuracy/4cbddac09d00bb26.mp4"
+        },
+        "poster": {
+          "bytes": 64230,
+          "key": "shots/cli/bit-accuracy/504378179002ca4c.webp"
+        },
+        "webm": {
+          "bytes": 321824,
+          "key": "shots/cli/bit-accuracy/cce264fcd9a6e632.webm"
+        }
+      },
+      "height": 720,
+      "kind": "tape",
+      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAAAwAQCdASoQAAkAA4BaJZwAA3AA/vDdLBhh6kFQ9otuRQAA",
+      "project": "image-quality",
+      "source_spec": "docs-media/tapes/cli-bit-accuracy.tape",
+      "width": 1280
+    },
+    "cli/first-run": {
+      "alt": "A terminal runs qa run on the slanted-edge chart: qa prints where the outputs go, the pipeline logs each ISP stage and its time, then the run's metrics.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "qa run runs your code on one input, saves its outputs and prints its metrics.",
+      "captured": "2026-10-13",
+      "duration": 6.76,
+      "files": {
+        "mp4": {
+          "bytes": 85524,
+          "key": "shots/cli/first-run/b142b82cd7cda7ec.mp4"
+        },
+        "poster": {
+          "bytes": 41346,
+          "key": "shots/cli/first-run/67b51b216b863337.webp"
+        },
+        "webm": {
+          "bytes": 115043,
+          "key": "shots/cli/first-run/d5e916323aa4a20d.webm"
+        }
+      },
+      "height": 720,
+      "kind": "tape",
+      "lqip": "data:image/webp;base64,UklGRiwAAABXRUJQVlA4ICAAAABwAQCdASoQAAkABIBaJZwC7AGIQAD+8Q5K978ZRjQAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/tapes/cli-first-run.tape",
+      "width": 1280
+    },
+    "cli/gate": {
+      "alt": "A terminal in CI runs qa gate on the coding agent's shared cache against its parent: in the rules table, p99 is thousands of percent worse where 10% is allowed, and the gate fails with exit code 1. On the sharded cache, p99 is better than the parent's, every rule passes and it exits with 0.",
+      "app_version": "1.1.1+e681790",
+      "caption": "qa gate compares a commit's CI batch with a reference, rule by rule, and fails the job when one breaks.",
+      "captured": "2026-10-14",
+      "duration": 18.84,
+      "files": {
+        "mp4": {
+          "bytes": 183551,
+          "key": "shots/cli/gate/d8dad46bd19ed929.mp4"
+        },
+        "poster": {
+          "bytes": 45812,
+          "key": "shots/cli/gate/98c5a9ffb4227906.webp"
+        },
+        "webm": {
+          "bytes": 223410,
+          "key": "shots/cli/gate/fb0c824f533720b3.webm"
+        }
+      },
+      "height": 720,
+      "kind": "tape",
+      "lqip": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAADQAQCdASoQAAkAA4BaJZwC7AEO/ae0AAD+8MyXW64B717Lj4AAAA==",
+      "project": "serving-latency",
+      "source_spec": "docs-media/tapes/cli-gate.tape",
+      "width": 1280
+    },
+    "commit/artifacts-configs": {
+      "alt": "Artifacts & Configurations of the per-channel commit against the first int8 commit: build/flags.json differs, and its diff shows quant_per_channel going from false to true.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "Artifacts saved by `qa save-artifacts` are diffed with the reference's: here the flags the model was built with.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 47856,
+          "key": "shots/commit/artifacts-configs/b518e27ed85f3b68.avif"
+        },
+        "png": {
+          "bytes": 135037,
+          "key": "shots/commit/artifacts-configs/1120de0a25214887.png"
+        },
+        "webp": {
+          "bytes": 101932,
+          "key": "shots/commit/artifacts-configs/5cd74f58ff23d867.webp"
+        }
+      },
+      "height": 661,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkIAAABXRUJQVlA4IDYAAADQAQCdASoQAAsAA4BaJZwAAuagGe24AAD+9PuR3m6U+UI1hz61P2w45l/gwv5symL7EIwwAAA=",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1000
+    },
+    "commit/auto-roi": {
+      "alt": "The View ROIs menu open over the facade run, with Full Image, ROI Presets and Auto ROIs checked; below it, thumbnails of the twenty regions where new and reference differ most, found automatically, a dot colored by how much.",
+      "app_version": "1.1.1",
+      "caption": "Jump between the regions of interest preset for the input, or let QA-Board find where the images differ most.",
+      "captured": "2026-10-12",
+      "files": {
+        "avif": {
+          "bytes": 23007,
+          "key": "shots/commit/auto-roi/2e8a21f61166645d.avif"
+        },
+        "png": {
+          "bytes": 199320,
+          "key": "shots/commit/auto-roi/133b84c229e8b0b8.png"
+        },
+        "webp": {
+          "bytes": 41138,
+          "key": "shots/commit/auto-roi/5a60e9b975ca80fe.webp"
+        }
+      },
+      "height": 318,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAADQAQCdASoQAAUAA4BaJZQC7AEQBwc0AAD+7h0dGaNrXcmiD92ah1FEQ5mcUUPFGJ46DwAA",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1170
+    },
+    "commit/batch-picker": {
+      "alt": "The new commit's batch selector open: the CI batch, run by ci, 18 of 18 runs successful; ines 🏠 ines-halo, Ines's local runs, 5 of 5; and the tune-denoise tuning experiment, 60 of 60.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "Each commit can have several batches: CI's, your local runs (🏠) and tuning experiments. Pick one to see its runs.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 9247,
+          "key": "shots/commit/batch-picker/3f3338ae90ee4752.avif"
+        },
+        "png": {
+          "bytes": 42142,
+          "key": "shots/commit/batch-picker/bd42e84310c39fb2.png"
+        },
+        "webp": {
+          "bytes": 17238,
+          "key": "shots/commit/batch-picker/453b9613cd2ed4bd.webp"
+        }
+      },
+      "height": 239,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAABQAQCdASoQAAoAA4BaJZwABAAAAP7y3TJV59wp1mqIF/BGO/inFqCgAAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 415
+    },
+    "commit/bit-accuracy-diff": {
+      "alt": "Output Files of the facade run on the hw-model platform: a click on regs.txt shows its diff below the tree, Next Diff jumps to the ROUNDING register, from 0 to 2; a Ctrl-click on metrics.json adds its diff below. Then a commit that only changed the docs: its run is bit-accurate.",
+      "app_version": "1.1.1+e602eb6",
+      "caption": "Click files to diff them with the reference, Ctrl-click to diff several. A commit that leaves every file identical is bit-accurate.",
+      "captured": "2026-10-13",
+      "duration": 11.17,
+      "files": {
+        "mp4": {
+          "bytes": 356013,
+          "key": "shots/commit/bit-accuracy-diff/ac03ddb0ce611626.mp4"
+        },
+        "poster": {
+          "bytes": 47670,
+          "key": "shots/commit/bit-accuracy-diff/b3fee7ee847a3948.webp"
+        },
+        "vtt": {
+          "bytes": 302,
+          "key": "shots/commit/bit-accuracy-diff/1408f0b723521f3c.vtt"
+        },
+        "webm": {
+          "bytes": 536004,
+          "key": "shots/commit/bit-accuracy-diff/00767d59bf3d0851.webm"
+        }
+      },
+      "height": 900,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAACwAQCdASoQAAoAA4BaJaQAAudct1fgAPa//CeAJAfK8DZcTKHAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1440
+    },
+    "commit/change-menu": {
+      "alt": "The reference commit's Change menu: a project box, Switch new/reference, Also Select as New, Remove from comparison, then the reference branch main and the shared milestones kd-1.3 and kd-1.2 with their commits.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "Change the reference from its commit bar: swap new and reference, or pick the reference branch or a milestone.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 21409,
+          "key": "shots/commit/change-menu/20d522dfd6d1f489.avif"
+        },
+        "png": {
+          "bytes": 83832,
+          "key": "shots/commit/change-menu/87589211edf4d68f.png"
+        },
+        "webp": {
+          "bytes": 43550,
+          "key": "shots/commit/change-menu/66afe631944fb7b3.webp"
+        }
+      },
+      "height": 476,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAADwAQCdASoQABAAA4BaJaQAAqH3rmYLLQAA/th5BD/hk/o4J3t+cvRqLXTs7ZucyVH2MAAA",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 494
+    },
+    "commit/compare-tour": {
+      "alt": "The Summary of the int8 runs against the fp32 release; a click on Metrics Diff in the sidebar shows each slice's change; in the Controls panel, sorting by mAP from the lowest brings the indoor slice, -35%, to the top.",
+      "app_version": "1.1.1+e681790",
+      "caption": "From the Summary to each test's change, sorted to bring the worst slice to the top.",
+      "captured": "2026-10-14",
+      "duration": 13.77,
+      "files": {
+        "mp4": {
+          "bytes": 242712,
+          "key": "shots/commit/compare-tour/ad972455ef2fa01a.mp4"
+        },
+        "poster": {
+          "bytes": 65070,
+          "key": "shots/commit/compare-tour/a60fb5933d708581.webp"
+        },
+        "vtt": {
+          "bytes": 220,
+          "key": "shots/commit/compare-tour/759b1304699fd067.vtt"
+        },
+        "webm": {
+          "bytes": 403124,
+          "key": "shots/commit/compare-tour/397819689194f27f.webm"
+        }
+      },
+      "height": 900,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAACQAQCdASoQAAoAA4BaJQAAXOmDeIAAzj/yTtNLM5V9cFbRHwsuvnO4mjvH0iN4ICAAAA==",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1440
+    },
+    "commit/controls-panel": {
+      "alt": "The Controls panel open on the right of the run cards: an Image Diff switch, a switch per visualization, including the hidden Color errors and Noise vs signal, and the sorting options.",
+      "anchors": {
+        "image-diff": {
+          "h": 1.71,
+          "w": 16.11,
+          "x": 81.67,
+          "y": 52.88
+        },
+        "sorting": {
+          "h": 1.71,
+          "w": 3.76,
+          "x": 81.67,
+          "y": 78.39
+        },
+        "visualizations": {
+          "h": 1.71,
+          "w": 7.04,
+          "x": 81.67,
+          "y": 44.24
+        }
+      },
+      "app_version": "1.1.1+c67f384",
+      "caption": "The Controls panel shows or hides visualizations, turns Image Diff on, and sorts the runs.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 78719,
+          "key": "shots/commit/controls-panel/1d775ac783bdbd30.avif"
+        },
+        "png": {
+          "bytes": 519443,
+          "key": "shots/commit/controls-panel/bef951962fc66728.png"
+        },
+        "webp": {
+          "bytes": 143604,
+          "key": "shots/commit/controls-panel/d8390ca0418ef650.webp"
+        }
+      },
+      "height": 900,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkQAAABXRUJQVlA4IDgAAADQAQCdASoQAAoAA4BaJZwAAudmlleOAAD2v/wngCQHcULfV7z3AK8kI05ZP4yGvjet19XReAAAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1440
+    },
+    "commit/core-heatmap": {
+      "alt": "Per-core CPU heatmaps of the steady-high run, new and reference side by side: with the shared cache the worker cores stay mostly idle, the reference's are busy. Below, the batch sizes overlaid: every new batch is full.",
+      "app_version": "1.1.1+e681790",
+      "caption": "With the shared cache, the gateway runs one batch at a time: its cores idle while requests queue, and every batch is full.",
+      "captured": "2026-10-14",
+      "files": {
+        "avif": {
+          "bytes": 27638,
+          "key": "shots/commit/core-heatmap/0779317519105370.avif"
+        },
+        "png": {
+          "bytes": 84434,
+          "key": "shots/commit/core-heatmap/0b2b296aa961e3e0.png"
+        },
+        "webp": {
+          "bytes": 55312,
+          "key": "shots/commit/core-heatmap/db2c57b76b114824.webp"
+        }
+      },
+      "height": 739,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRmwAAABXRUJQVlA4IGAAAAAQAgCdASoQAA4AA4BaJZACw7EebtS/v+4AAP7KnoCHkaXnMM8Vpz8fJYOt5mD3TUkW316ta0CXnuPheeV/2eDYkYHXRj+h6O8pdbbkWBHGlk/+X1Mz9YegAQJSFHgAAAA=",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 856
+    },
+    "commit/deep-zoom": {
+      "alt": "The 113-megapixel test wall, new and reference side by side: zooming from the whole wall to a small Siemens star until single pixels show, both images in sync.",
+      "app_version": "1.1.1+cd07cf2",
+      "caption": "Deep zoom on a 113 MP image: the viewers load only the tiles they show.",
+      "captured": "2026-10-13",
+      "duration": 7.33,
+      "files": {
+        "mp4": {
+          "bytes": 467554,
+          "key": "shots/commit/deep-zoom/108d2d6e4d1f12c0.mp4"
+        },
+        "poster": {
+          "bytes": 70788,
+          "key": "shots/commit/deep-zoom/d10b933806409ee3.webp"
+        },
+        "vtt": {
+          "bytes": 206,
+          "key": "shots/commit/deep-zoom/e4ff2c91724e8aea.vtt"
+        },
+        "webm": {
+          "bytes": 681263,
+          "key": "shots/commit/deep-zoom/2e2edfd7f7224a7b.webm"
+        }
+      },
+      "height": 900,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAADQAQCdASoQAAoAA4BaJaQAAt4+PJ/mAAD2v/wfB/n8+N2nhBs03M5MvcZzLY76zGMlSKlftMWRyPpMHAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1440
+    },
+    "commit/detections": {
+      "alt": "A hall with people and cars pasted in, new and reference side by side: the int8 model (left) finds one of the people, the fp32 release (right) three. What each missed is outlined in red: two more people on the left; the faded person and the three cars on both.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "Each run draws its detections, ground truth in red where it missed: the int8 model misses two people fp32 finds.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 243326,
+          "key": "shots/commit/detections/61f6d14409afff40.avif"
+        },
+        "png": {
+          "bytes": 1170613,
+          "key": "shots/commit/detections/6fbb295f79599add.png"
+        },
+        "webp": {
+          "bytes": 362826,
+          "key": "shots/commit/detections/ca70949bb8570db5.webp"
+        }
+      },
+      "height": 302,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkQAAABXRUJQVlA4IDgAAADQAQCdASoQAAYAA4BaJYwC7AEOlliEAAD+wkRr9iUKUSfv3WiTFyZmsrTJE/8zBg9wxgLbyEvgAA==",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 840
+    },
+    "commit/dynamic-options": {
+      "alt": "The Controls panel's Dynamic Options: the stage option, synced, its slider on 3. Next to it, the night street's card shows stages/3.jpg, the denoised image, new and reference.",
+      "app_version": "1.1.1+befbe4b",
+      "caption": "Dynamic Options pick the file each card shows, here the ISP stage. Synced, one slider drives every run.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 158710,
+          "key": "shots/commit/dynamic-options/08f3fe9ed4f08d78.avif"
+        },
+        "png": {
+          "bytes": 604029,
+          "key": "shots/commit/dynamic-options/b8791915e681df75.png"
+        },
+        "webp": {
+          "bytes": 233478,
+          "key": "shots/commit/dynamic-options/6c2ff88db086e7e4.webp"
+        }
+      },
+      "height": 900,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRlwAAABXRUJQVlA4IFAAAAAQAgCdASoQAAoAA4BaJZQCxC8AGEt7Xz/AAPa//CgBX6zEh2VI4myPGgF+def2eorVJ3nOdK7BCd0iej/tjLjDksTB2dOJJs26Xb4eygAAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1440
+    },
+    "commit/dynamic-outputs": {
+      "alt": "The stage slider of the Controls panel steps from the raw sensor mosaic to the tone-mapped image of the facade's window, new and reference changing together; scrolling down, the night street's card follows the slider too.",
+      "app_version": "1.1.1+e602eb6",
+      "caption": "One slider over the ISP's stages drives every run's card.",
+      "captured": "2026-10-13",
+      "duration": 10.87,
+      "files": {
+        "mp4": {
+          "bytes": 712543,
+          "key": "shots/commit/dynamic-outputs/6866226aecbf1727.mp4"
+        },
+        "poster": {
+          "bytes": 93918,
+          "key": "shots/commit/dynamic-outputs/9c9a882a977cd566.webp"
+        },
+        "vtt": {
+          "bytes": 299,
+          "key": "shots/commit/dynamic-outputs/e320a88c2584285c.vtt"
+        },
+        "webm": {
+          "bytes": 610536,
+          "key": "shots/commit/dynamic-outputs/9a41e895aa5347f3.webm"
+        }
+      },
+      "height": 900,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRloAAABXRUJQVlA4IE4AAAAwAgCdASoQAAoAA4BaJZQC/OD0kHgfqf8WcAD8PzoM34UHd1NHPiYKVtMMHG7rlMkvUwlOJfgq75x12+utvmg9ugf/OaKll+Lh/pA4AAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1440
+    },
+    "commit/export": {
+      "alt": "The filter box with \"photos low-light\" and 4 outputs; below, the Export box with the pattern *.png, the Windows and Linux paths of the export folder, and \"8 files exported from 4 runs\".",
+      "app_version": "1.1.1+c67f384",
+      "caption": "Export gathers the files matching a pattern from the filtered runs into one folder, as links.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 39398,
+          "key": "shots/commit/export/1a32c62cf32e4438.avif"
+        },
+        "png": {
+          "bytes": 138231,
+          "key": "shots/commit/export/2765bbebeea8860b.png"
+        },
+        "webp": {
+          "bytes": 75572,
+          "key": "shots/commit/export/71f36ca00c035fca.webp"
+        }
+      },
+      "height": 505,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAACwAQCdASoQAAcAA4BaJZwAAxZiFt2AAP72JW1Jja7laUCAAAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1226
+    },
+    "commit/flame-diff": {
+      "alt": "A differential CPU flame graph of the steady-high run: in the workers and the ingress, the shared cache's respond and lookup, with the response rendering under them, are new, in orange; the model's forward pass, which runs less, is blue.",
+      "app_version": "1.1.1+e681790",
+      "caption": "A differential flame graph: rendering responses under the shared cache's lock is new (orange), and the model runs less (blue): cache hits skip it.",
+      "captured": "2026-10-14",
+      "files": {
+        "avif": {
+          "bytes": 60734,
+          "key": "shots/commit/flame-diff/b0dea66f803ca131.avif"
+        },
+        "png": {
+          "bytes": 250045,
+          "key": "shots/commit/flame-diff/40947daec65795f7.png"
+        },
+        "webp": {
+          "bytes": 191410,
+          "key": "shots/commit/flame-diff/7b2a93f3d4e85c29.webp"
+        }
+      },
+      "height": 715,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRlYAAABXRUJQVlA4IEoAAADQAQCdASoQAAoAA4BaJYgCdAEUmz8QwAD+t3WqTdz+Izn4RyAUYdr9aH+p/5vRcej7MT6lx7gnm5Nbe/kD4w746nVxKD7JDXKAAA==",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1197
+    },
+    "commit/halo-after": {
+      "alt": "The same leaves once the sharpening is clamped: the edges stay crisp, with only faint rims.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "With the clamp, the edges stay crisp and the halos fade.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 22429,
+          "key": "shots/commit/halo-after/f5500f0b2f3b7a39.avif"
+        },
+        "png": {
+          "bytes": 44376,
+          "key": "shots/commit/halo-after/a0581e4905acb575.png"
+        },
+        "webp": {
+          "bytes": 26400,
+          "key": "shots/commit/halo-after/220e4fb4a1955d1e.webp"
+        }
+      },
+      "height": 390,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRnoAAABXRUJQVlA4IG4AAABQAgCdASoQAAsAA4BaJZgCdAYuvwj/D68y7wAA/oodx8Gtqw75qvlFxG7xDJNbtbMiKFgYMVjklHdnEG6nUhX5s77OMPwNvFidzReofCI+kmZFRh04jk1nl6mwQArI7iloB73xB6ZIUNg6OAAAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 585
+    },
+    "commit/halo-before": {
+      "alt": "Leaves in front of the facade, after the bilateral denoiser: a dark rim outlines every leaf against the wall.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "With the bilateral denoiser and its detail boost, dark halos outline the leaves.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 23947,
+          "key": "shots/commit/halo-before/b45d82586a414464.avif"
+        },
+        "png": {
+          "bytes": 46103,
+          "key": "shots/commit/halo-before/3697dbd8e2d34ce1.png"
+        },
+        "webp": {
+          "bytes": 28538,
+          "key": "shots/commit/halo-before/de653174a493a9f7.webp"
+        }
+      },
+      "height": 390,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRnwAAABXRUJQVlA4IHAAAABQAgCdASoQAAsAA4BaJZgCdAYvDzF3Sfp0ZgAA/ood7tB5gwpyC8CzwCOmXZzzTxmnXIlXGGtDMD9lb0o54UejbHf8i0VM3ty4cwG4IFRaJprxosHkicINGLH0B70JXqahtDtnCUehoUPpDWdQyQAA",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 585
+    },
+    "commit/html-report": {
+      "alt": "The int8 run's HTML report on small-objects: mAP 0.338, AP50 0.507, AP small 0.341, latency and model size; AP per class for person and car, AP and recall by object size, latency, then the images with the most missed objects, boxes drawn.",
+      "app_version": "1.1.1+e681790",
+      "caption": "Your code can write an HTML report: it shows in the run's card, here with the images where the model missed the most objects.",
+      "captured": "2026-10-14",
+      "files": {
+        "avif": {
+          "bytes": 91153,
+          "key": "shots/commit/html-report/ef3cb1fcd0a298be.avif"
+        },
+        "png": {
+          "bytes": 903891,
+          "key": "shots/commit/html-report/21f72f5cfe95c3b1.png"
+        },
+        "webp": {
+          "bytes": 146800,
+          "key": "shots/commit/html-report/8fed537a2f4b4b44.webp"
+        }
+      },
+      "height": 815,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkYAAABXRUJQVlA4IDoAAADwAQCdASoQABAAA4BaJZwAAxf8GyCjIQAA/vYod3RFc2ZmLRsTbThYZ/ub4qa3zl0VMQif3u3gPAAA",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 824
+    },
+    "commit/image-diff": {
+      "alt": "Zooming into the new image of the facade, the reference follows; the Controls panel opens and Image Diff turns on; raising the threshold leaves only the window frame's halos.",
+      "app_version": "1.1.1+cd07cf2",
+      "caption": "Synced zoom, then Image Diff and its threshold.",
+      "captured": "2026-10-13",
+      "duration": 11.17,
+      "files": {
+        "mp4": {
+          "bytes": 386680,
+          "key": "shots/commit/image-diff/edea6459f845bd9e.mp4"
+        },
+        "poster": {
+          "bytes": 71784,
+          "key": "shots/commit/image-diff/3ecf3e7e278ff10d.webp"
+        },
+        "vtt": {
+          "bytes": 207,
+          "key": "shots/commit/image-diff/09411ea1ab16ef30.vtt"
+        },
+        "webm": {
+          "bytes": 488986,
+          "key": "shots/commit/image-diff/9316c3493f1d48c4.webm"
+        }
+      },
+      "height": 900,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRlYAAABXRUJQVlA4IEoAAADQAQCdASoQAAoAA4BaJZQAAlxURMaToAD8Pzod3+XcttK85yJb9duoMFdS+XSy5zLkevW9hjJr6D02pXh+WM3RH3KLUdApoAAAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1440
+    },
+    "commit/image-filters": {
+      "alt": "The Image Tools panel over the night street's shadows, with brightness raised and gamma lowered: the noise of both images shows.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "Image Tools filters apply to both images at once: here brightness and gamma reveal the noise in the shadows.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 155205,
+          "key": "shots/commit/image-filters/7bcf625976eebeeb.avif"
+        },
+        "png": {
+          "bytes": 478318,
+          "key": "shots/commit/image-filters/9ad4fd05fb4a63c8.png"
+        },
+        "webp": {
+          "bytes": 209510,
+          "key": "shots/commit/image-filters/00378f8a092f836f.webp"
+        }
+      },
+      "height": 625,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRk4AAABXRUJQVlA4IEIAAADQAQCdASoQAAkAA4BaJQBOkCYjAOrKsAD+5/791+cjoiT3fLztUX46Vcqp2DZ1p7g9FshXUcYnp2064THRuDQAAAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1178
+    },
+    "commit/image-perceptual-diff": {
+      "alt": "New image, Image Diff and reference image of the facade window: in the diff, the window frame's edges show in yellow and orange, the flat wall stays white.",
+      "app_version": "1.1.1",
+      "caption": "Image Diff shows where the images differ; raise its threshold until only the halos stand out.",
+      "captured": "2026-10-12",
+      "files": {
+        "avif": {
+          "bytes": 45370,
+          "key": "shots/commit/image-perceptual-diff/f9c3098b2c907e26.avif"
+        },
+        "png": {
+          "bytes": 247098,
+          "key": "shots/commit/image-perceptual-diff/0b0d7d83790bafad.png"
+        },
+        "webp": {
+          "bytes": 65162,
+          "key": "shots/commit/image-perceptual-diff/a03158529a710aff.webp"
+        }
+      },
+      "height": 357,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAACQAQCdASoQAAUAA4BaJZQCdACCbOAA/gnTkf+NseaFwkanj/jls83YpvEsckGiIYRWQAAA",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1178
+    },
+    "commit/image-sbs": {
+      "alt": "New and reference images of the facade, zoomed on leaves in front of the wall: in the new image, dark halos outline every leaf.",
+      "app_version": "1.1.1+cd07cf2",
+      "caption": "Both images at the same zoom: only the new denoiser outlines the leaves with dark halos.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 49769,
+          "key": "shots/commit/image-sbs/858ac127567d4a9e.avif"
+        },
+        "png": {
+          "bytes": 99270,
+          "key": "shots/commit/image-sbs/ed060fa0a14ea91c.png"
+        },
+        "webp": {
+          "bytes": 59474,
+          "key": "shots/commit/image-sbs/ac94ba581024681d.webp"
+        }
+      },
+      "height": 415,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRlwAAABXRUJQVlA4IFAAAADQAQCdASoQAAYAA4BaJQBOj+ACQsWByAD9kDjm5lCMR0RPuX4JmkrdnzDmKwXzPfPROSXqur4Erkd7mw8+JK/XUNw/v7mVIp7rJixpHFEAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1170
+    },
+    "commit/latency-cdf": {
+      "alt": "The steady-high run of the shared cache against its parent: p50 and p99 a hundred times the reference's or more. On log axes, the new line sits near a second from the median on, the reference's stays under the 12 ms SLO line until the far tail.",
+      "app_version": "1.1.1+e681790",
+      "caption": "Latency percentiles on a log tail: at 6,000 requests/s, with the shared cache every percentile is a hundred times slower or more. Requests queue for its lock.",
+      "captured": "2026-10-14",
+      "files": {
+        "avif": {
+          "bytes": 21704,
+          "key": "shots/commit/latency-cdf/94ccea0c94d20256.avif"
+        },
+        "png": {
+          "bytes": 78617,
+          "key": "shots/commit/latency-cdf/d955ab81963e069b.png"
+        },
+        "webp": {
+          "bytes": 45080,
+          "key": "shots/commit/latency-cdf/82a32fb58a319b36.webp"
+        }
+      },
+      "height": 454,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRioAAABXRUJQVlA4IB4AAAAwAQCdASoQAAkAA4BaJaQAA3AA/vSsYbVdUowAAAA=",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 856
+    },
+    "commit/metrics-diff": {
+      "alt": "The Metrics Diff of the int8 runs against the fp32 release, slice by slice: indoor mAP -35% and AP small -34% in orange, AP small -7% on small-objects and -15% outdoor, warehouse better, and the model size -72% in green on every slice.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "The Metrics Diff shows each test's change: the int8 model is smaller everywhere, and much worse indoors.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 38030,
+          "key": "shots/commit/metrics-diff/69971df134a8b43a.avif"
+        },
+        "png": {
+          "bytes": 142861,
+          "key": "shots/commit/metrics-diff/becea89c8e98d092.png"
+        },
+        "webp": {
+          "bytes": 90136,
+          "key": "shots/commit/metrics-diff/b951fbfe277edf34.webp"
+        }
+      },
+      "height": 572,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAACwAQCdASoQAAkAA4BaJZAAAp0hzEugAP70/8z/nca9BbHepTfHaOKnqzms6V42eSb/4lWuEUZd1URgAAA=",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1070
+    },
+    "commit/metrics-table": {
+      "alt": "The Metrics Table of the first int8 commit: a row per slice and model, mAP, AP50, AP small and latency, new and reference. mAP cells go from green on small-objects to orange on indoor and warehouse, by their distance to the 0.15 target in the header; latency cells are green.",
+      "app_version": "1.1.1+e681790",
+      "caption": "One row per test, colored by the distance to the targets set in metrics.yaml, shown in the headers.",
+      "captured": "2026-10-14",
+      "files": {
+        "avif": {
+          "bytes": 43829,
+          "key": "shots/commit/metrics-table/1656a098a53b0036.avif"
+        },
+        "png": {
+          "bytes": 216321,
+          "key": "shots/commit/metrics-table/fefe1a89331272e6.png"
+        },
+        "webp": {
+          "bytes": 130052,
+          "key": "shots/commit/metrics-table/b22487bc6cb545d0.webp"
+        }
+      },
+      "height": 728,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRlgAAABXRUJQVlA4IEwAAADwAQCdASoQAAsAA4BaJQApgAY6Ymu9vwAA/vTgU79WXJTcZIzJGnuTkjV9g6hSUcxjLqqPvFMWcrvrSVhpFlXpQ3HXDs9ivx5CVAAA",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1112
+    },
+    "commit/milestone": {
+      "alt": "The milestone dialog of the kd-1.3 release commit, opened from the crown next to its hash: Shared on, the label kd-1.3, the notes \"int8, per-channel, recalibrated\", and the Delete and Save buttons.",
+      "anchors": {
+        "shared": {
+          "h": 7.32,
+          "w": 47.85,
+          "x": 19.14,
+          "y": 18.68
+        }
+      },
+      "app_version": "1.1.1+46fc148",
+      "caption": "A commit's star makes it a milestone: give it a label and notes, and share it with everyone on the project.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 9851,
+          "key": "shots/commit/milestone/1048f92d0a254c4b.avif"
+        },
+        "png": {
+          "bytes": 38474,
+          "key": "shots/commit/milestone/a9db1eb5c90cab9a.png"
+        },
+        "webp": {
+          "bytes": 16280,
+          "key": "shots/commit/milestone/6b2fcbdb8303c7f8.webp"
+        }
+      },
+      "height": 273,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkYAAABXRUJQVlA4IDoAAADQAQCdASoQAAsAA4BaJZwAAsZ5efwgAAD+9kAiVraLZmffTxOGNjraMKoutSTtf/WGrHyRvZzgDGAA",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 418
+    },
+    "commit/output-files": {
+      "alt": "The files of the facade run on the hw-model platform that differ from the reference: metrics.json, greyed and tagged \"not checked\", then out.png, stages 4 and 5 in raw/ and stages/, and regs.txt, whose diff below shows the ROUNDING register going from 0 to 2.",
+      "app_version": "1.1.1",
+      "caption": "Output Files lists only the files that changed: a rounding change in the fixed-point model shows in its register dump, then in the last two stages' buffers.",
+      "captured": "2026-10-12",
+      "files": {
+        "avif": {
+          "bytes": 59339,
+          "key": "shots/commit/output-files/dad1d10704218837.avif"
+        },
+        "png": {
+          "bytes": 186128,
+          "key": "shots/commit/output-files/c1d3b81ad4d1cdc9.png"
+        },
+        "webp": {
+          "bytes": 162386,
+          "key": "shots/commit/output-files/0738a6b4ee51d6c5.webp"
+        }
+      },
+      "height": 748,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkYAAABXRUJQVlA4IDoAAADQAQCdASoQAAsAA4BaJZzuGuqCKADyAAD+8ptSjdTNMnbgfuqbb7vvBpo1F/ji3J92pYACAIAKrwAA",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1188
+    },
+    "commit/output-filter": {
+      "alt": "The new commit's filter box with \"low-light -gradient\", 8 outputs under it, and the Metrics Table below listing only the low-light runs, the sky gradient left out.",
+      "app_version": "1.1.1+e681790",
+      "caption": "Words narrow down the runs, a minus sign leaves some out; the counters under the box count what's left.",
+      "captured": "2026-10-14",
+      "files": {
+        "avif": {
+          "bytes": 48084,
+          "key": "shots/commit/output-filter/738c8b8147c867ca.avif"
+        },
+        "png": {
+          "bytes": 204815,
+          "key": "shots/commit/output-filter/be389cf7768d1af2.png"
+        },
+        "webp": {
+          "bytes": 115448,
+          "key": "shots/commit/output-filter/dca039837843831d.webp"
+        }
+      },
+      "height": 728,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAABQAQCdASoQAAwAA4BaJQBdgDEIAP7znUkeJdejpthpHA2Mz+77r4vdVTnA3jT6XgAAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1058
+    },
+    "commit/pixel-tooltip": {
+      "alt": "The center of a Siemens star, new and reference: above the images, the hovered pixel's coordinates and its RGB values in both images; crosshairs mark the pixel on both.",
+      "app_version": "1.1.1",
+      "caption": "Hover a pixel: its values in both images show above them, and a crosshair marks the same spot on the reference.",
+      "captured": "2026-10-12",
+      "files": {
+        "avif": {
+          "bytes": 84784,
+          "key": "shots/commit/pixel-tooltip/f943924828554aa3.avif"
+        },
+        "png": {
+          "bytes": 192529,
+          "key": "shots/commit/pixel-tooltip/c60eb4b5c7aa0edc.png"
+        },
+        "webp": {
+          "bytes": 132918,
+          "key": "shots/commit/pixel-tooltip/aeba55e7aea38ee7.webp"
+        }
+      },
+      "height": 440,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAACwAQCdASoQAAcAA4BaJaQAAudWWxaAAP6YJpXMLdkMHWqHXAAAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1170
+    },
+    "commit/plotly-overlay": {
+      "alt": "Precision-recall curves of the indoor slice, one per class: the int8 model's solid, the fp32 release's dashed in the same color. The legend gives each curve's AP50: person drops from 0.19 to 0.06.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "Plots of the reference are drawn over the new ones, dashed: here the int8 model's precision-recall curves over fp32's.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 15014,
+          "key": "shots/commit/plotly-overlay/2d61201fdee4f9ba.avif"
+        },
+        "png": {
+          "bytes": 65037,
+          "key": "shots/commit/plotly-overlay/597ecc21c3fb7f17.png"
+        },
+        "webp": {
+          "bytes": 34602,
+          "key": "shots/commit/plotly-overlay/3cd71cd2e9327f45.webp"
+        }
+      },
+      "height": 424,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRioAAABXRUJQVlA4IB4AAACQAQCdASoQAAgAA4BaJaQAAxf7+RAA/vcje1sAAAA=",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 856
+    },
+    "commit/roi-histograms": {
+      "alt": "A rectangle selected on the sky gradient; below the images, the red, green, blue and luma histograms of the region, new and reference overlaid.",
+      "app_version": "1.1.1+eb20b6b",
+      "caption": "Select a region to compare its histograms, new against reference.",
+      "captured": "2026-10-12",
+      "files": {
+        "avif": {
+          "bytes": 189091,
+          "key": "shots/commit/roi-histograms/97e7b77e1abdf090.avif"
+        },
+        "png": {
+          "bytes": 2685877,
+          "key": "shots/commit/roi-histograms/1ce4f65c4604cd5b.png"
+        },
+        "webp": {
+          "bytes": 222952,
+          "key": "shots/commit/roi-histograms/05622f04adef2d0d.webp"
+        }
+      },
+      "height": 752,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkoAAABXRUJQVlA4ID4AAAAQAgCdASoQAAsAA4BaJYwCdH8AGBTiu4QAAP6apDSCAbHM4D37Px1h5Onhxk5gHvza9FyVenv5CUCecnAAAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1178
+    },
+    "commit/run-badges": {
+      "alt": "The header of a run card: the input slices/small-objects with its int8 and size-320 configuration tags, Config and Tuning tags in orange, then a \"Model card kd-1.3\" badge with a link icon next to the run's model parameter, and its metrics against the reference.",
+      "anchors": {
+        "badge": {
+          "h": 8.94,
+          "w": 17.93,
+          "x": 6.38,
+          "y": 61.88
+        }
+      },
+      "app_version": "1.1.1+e681790",
+      "caption": "Runs can return badges, like a link to the model card of the model they evaluated.",
+      "captured": "2026-10-14",
+      "files": {
+        "avif": {
+          "bytes": 9932,
+          "key": "shots/commit/run-badges/1cbed46890ff8c5c.avif"
+        },
+        "png": {
+          "bytes": 31305,
+          "key": "shots/commit/run-badges/8453acb94806b7f7.png"
+        },
+        "webp": {
+          "bytes": 18064,
+          "key": "shots/commit/run-badges/279820841972e814.webp"
+        }
+      },
+      "height": 179,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAAAwAQCdASoQAAYAA4BaJZwAA3AA/vHR44AEz78usX9guWopX7v20Eo99AgAAA==",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 533
+    },
+    "commit/run-menu": {
+      "alt": "The menu of the steady-high run's card, open under its menu icon: Redo, Delete, and Delete Output Files.",
+      "app_version": "1.1.1+e681790",
+      "caption": "From a run's menu: redo it, delete it, or delete only its output files.",
+      "captured": "2026-10-14",
+      "files": {
+        "avif": {
+          "bytes": 12609,
+          "key": "shots/commit/run-menu/f0704919abcfcb12.avif"
+        },
+        "png": {
+          "bytes": 44054,
+          "key": "shots/commit/run-menu/43a713843654fc2b.png"
+        },
+        "webp": {
+          "bytes": 23768,
+          "key": "shots/commit/run-menu/ddd75f8efc50f370.webp"
+        }
+      },
+      "height": 145,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRiwAAABXRUJQVlA4ICAAAACwAQCdASoQAAQAA4BaJaQAAxZhCuaAAP72Ge4G5QAAAA==",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 710
+    },
+    "commit/summary": {
+      "alt": "The Summary of the int8 runs against the fp32 release: median mAP -5%, AP small -21% and recall of small objects -4% in red, model size 3.86 MB against 13.8 MB (-72%) in green; pass-rate bars under the metrics with a target, box plots on the right.",
+      "app_version": "1.1.1+e602eb6",
+      "caption": "The Summary compares the medians over the runs: the int8 model is much smaller, and finds fewer small objects.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 25168,
+          "key": "shots/commit/summary/3007001142ff2d26.avif"
+        },
+        "png": {
+          "bytes": 91919,
+          "key": "shots/commit/summary/bc918ac8eb1f5f5e.png"
+        },
+        "webp": {
+          "bytes": 52926,
+          "key": "shots/commit/summary/a6d986b1f1c0687e.webp"
+        }
+      },
+      "height": 572,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjoAAABXRUJQVlA4IC4AAAAwAQCdASoQAAkAA4BaJaQAA3AA/vQ+IQxeQykER65WFrLjnH7I8yfC2PJU+FgA",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1050
+    },
+    "commit/text-diff": {
+      "alt": "HdrHistogram's percentile distribution of the steady-high run, reference and new side by side in a diff editor: from the median on, latencies go from 3 ms to over 500 ms.",
+      "app_version": "1.1.1+e681790",
+      "caption": "Text outputs are diffed with the reference; Next Diff jumps to the next change.",
+      "captured": "2026-10-14",
+      "files": {
+        "avif": {
+          "bytes": 51485,
+          "key": "shots/commit/text-diff/aa4a5928d903ce89.avif"
+        },
+        "png": {
+          "bytes": 261419,
+          "key": "shots/commit/text-diff/7a38e9bfeb03e56b.png"
+        },
+        "webp": {
+          "bytes": 193090,
+          "key": "shots/commit/text-diff/77f1a15861b4c653.webp"
+        }
+      },
+      "height": 479,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAADQAQCdASoQAAgAA4BaJZACdAD0ckCOAAD+8my2vdT+G2G/5Kz8QxxUgZAv57RQO7UugAAA",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1000
+    },
+    "commit/throughput-p99": {
+      "alt": "Throughput against p99 in the ramp run, from 20% to 120% of 6,000 requests/s: the reference's p99 stays low under the 12 ms SLO until the last steps; the shared cache's takes off well before full load, to hundreds of milliseconds.",
+      "app_version": "1.1.1+e681790",
+      "caption": "The ramp raises the load step by step: with the shared cache, p99 takes off at a lower throughput.",
+      "captured": "2026-10-14",
+      "files": {
+        "avif": {
+          "bytes": 29565,
+          "key": "shots/commit/throughput-p99/418aa590e047d499.avif"
+        },
+        "png": {
+          "bytes": 105990,
+          "key": "shots/commit/throughput-p99/42bd5c8a22c66b54.png"
+        },
+        "webp": {
+          "bytes": 61172,
+          "key": "shots/commit/throughput-p99/ff8f7be847ce5afb.webp"
+        }
+      },
+      "height": 454,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRioAAABXRUJQVlA4IB4AAAAwAQCdASoQAAkAA4BaJaQAA3AA/vR1V0mKDiHboAA=",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 856
+    },
+    "commit/video-compare": {
+      "alt": "A video down a warehouse aisle in low light, new left of a divider, reference right, stepping frame by frame together; then zoomed on a white package where the new one draws dark rims, flipped in place, and their difference.",
+      "app_version": "1.1.1+e681790",
+      "caption": "Videos in sync, frame by frame: with a wipe, zoomed in, flipped in place, and their difference.",
+      "captured": "2026-10-14",
+      "duration": 15.27,
+      "files": {
+        "mp4": {
+          "bytes": 1269551,
+          "key": "shots/commit/video-compare/45e68dc129c9244e.mp4"
+        },
+        "poster": {
+          "bytes": 149516,
+          "key": "shots/commit/video-compare/d4840ae6f169f8d5.webp"
+        },
+        "vtt": {
+          "bytes": 329,
+          "key": "shots/commit/video-compare/2070cbdf86c991db.vtt"
+        },
+        "webm": {
+          "bytes": 1256441,
+          "key": "shots/commit/video-compare/914d40ef3bf248f6.webm"
+        }
+      },
+      "height": 900,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRk4AAABXRUJQVlA4IEIAAACwAQCdASoQAAoAA4BaJaQAAudILDFwAPw/OhzP8iG2qOtLEW/c8EwRF+66bLT5f7JX1/cjq/UZe7wF3slUd7pAAAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1440
+    },
+    "commit/visualizations": {
+      "alt": "A run card of the facade photo: PSNR, SSIM and runtime with their changes against the reference, preset regions of interest, and the new and reference images side by side, zoomed on a window.",
+      "app_version": "1.1.1",
+      "caption": "Each run shows its main metrics against the reference, then its outputs, new and reference side by side.",
+      "captured": "2026-10-12",
+      "files": {
+        "avif": {
+          "bytes": 99647,
+          "key": "shots/commit/visualizations/238175ece48d9927.avif"
+        },
+        "png": {
+          "bytes": 576007,
+          "key": "shots/commit/visualizations/d25ecd5c222c71ae.png"
+        },
+        "webp": {
+          "bytes": 164498,
+          "key": "shots/commit/visualizations/4a5134d1d4674acd.webp"
+        }
+      },
+      "height": 900,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRlYAAABXRUJQVlA4IEoAAADQAQCdASoQAAoAA4BaJYwCw7ED+xc2gAD8Pzod3+XsINs/zZ9SWW8zvm7tcHMQ6IyVqM0Ubf44e6+uIo4MKozKxVAeU7sDw64AAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 1440
+    },
+    "commits/branch-evolution": {
+      "alt": "Above main's commits, a chart of the median p99 of each commit's CI batch over six weeks, falling from over 10 ms to a few. The point of the int8 commit is hovered: below the chart, it shows as New, the commit before it as Reference.",
+      "app_version": "1.1.1+e681790",
+      "caption": "A branch's page charts a metric over its commits. Hover a point: its commit and the one before show below the chart, a click opens their comparison.",
+      "captured": "2026-10-14",
+      "files": {
+        "avif": {
+          "bytes": 40200,
+          "key": "shots/commits/branch-evolution/748ffdd000b5a00d.avif"
+        },
+        "png": {
+          "bytes": 142219,
+          "key": "shots/commits/branch-evolution/f0168a32e1df8f8f.png"
+        },
+        "webp": {
+          "bytes": 90130,
+          "key": "shots/commits/branch-evolution/d727b4a61c25ca5b.webp"
+        }
+      },
+      "height": 516,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAAAwAQCdASoQAAcAA4BaJaQAA3AA/vPXw7+5wGDvlrz/9WAD9AwCrCPV5AAAAA==",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/commits.spec.ts",
+      "width": 1240
+    },
+    "commits/feed": {
+      "alt": "The inference gateway's commits from all branches, grouped by day: each with its message, author, branch, the median and p99 of its CI batch, and \"1 crashed\" in red on the batcher change that panics under bursts.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "The commits of every branch, grouped by day, with their CI batch's results: here a commit that crashed some runs.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 63838,
+          "key": "shots/commits/feed/495c96d246b8287f.avif"
+        },
+        "png": {
+          "bytes": 319661,
+          "key": "shots/commits/feed/3129f6de92a16dec.png"
+        },
+        "webp": {
+          "bytes": 166604,
+          "key": "shots/commits/feed/05ff6b7f83cd3153.webp"
+        }
+      },
+      "height": 900,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjoAAABXRUJQVlA4IC4AAACQAQCdASoQAAoAA4BaJaQAApJrbgAA9r/8J4AkV5lXYrY3oANADOPqQhhQAAAA",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/commits.spec.ts",
+      "width": 1440
+    },
+    "commits/filter": {
+      "alt": "The filter box of the commits page with \"cache\" typed in: it suggests the agent/result-cache and perf/sharded-cache branches, and \"Go to commit: cache\"; below, only the commits that mention the cache.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "The filter box narrows down the commits, suggests branches, and goes straight to a commit from its hash.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 44220,
+          "key": "shots/commits/filter/81c2a9c78e328849.avif"
+        },
+        "png": {
+          "bytes": 166741,
+          "key": "shots/commits/filter/94f66356dd9bb8e8.png"
+        },
+        "webp": {
+          "bytes": 88986,
+          "key": "shots/commits/filter/43b7c32d2e482aa8.webp"
+        }
+      },
+      "height": 406,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAACQAQCdASoQAAUAA4BaJaQAAu18LYAAzj/yTtC4/srq/uAAAAA=",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/commits.spec.ts",
+      "width": 1440
+    },
+    "commits/milestones-menu": {
+      "alt": "The sidebar's Milestones menu on the detector's commits: the shared milestones kd-1.3 and kd-1.2, each with its branch, commit and author, then a private milestone, entropy-try, on the quant/entropy branch.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "The Milestones menu lists the shared milestones, then your private ones: pick one to compare with.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 13350,
+          "key": "shots/commits/milestones-menu/aa76bc98434d035d.avif"
+        },
+        "png": {
+          "bytes": 63484,
+          "key": "shots/commits/milestones-menu/9e9dafbc39bf92f5.png"
+        },
+        "webp": {
+          "bytes": 30140,
+          "key": "shots/commits/milestones-menu/c885d872866c14e3.webp"
+        }
+      },
+      "height": 287,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjoAAABXRUJQVlA4IC4AAADwAQCdASoQAAcAA4BaJZwC7ADdHT+QvgAA/vLKd1yBv1XSGhfo6V9qLOO6AAAA",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/commits.spec.ts",
+      "width": 678
+    },
+    "files/browser": {
+      "alt": "The file browser in the images folder of a detector run: the path as breadcrumbs, the run bar, a filter box, and 25 images sorted naturally, 1.jpg, 2.jpg, then 10.jpg after 9.jpg, with their sizes and dates.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "The file browser sorts names naturally (2 before 10) and shows each file's size and date.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 26161,
+          "key": "shots/files/browser/01191ee93802020e.avif"
+        },
+        "png": {
+          "bytes": 211171,
+          "key": "shots/files/browser/9a737a53ffe0db2f.png"
+        },
+        "webp": {
+          "bytes": 95494,
+          "key": "shots/files/browser/64c7271e8a6bd2e8.webp"
+        }
+      },
+      "height": 862,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAACQAQCdASoQAAoAA4BaJaQAAueFBcAA/vJl6NFIJ1NegAAA",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/files.spec.ts",
+      "width": 1440
+    },
+    "files/hotkeys": {
+      "alt": "The keyboard shortcuts dialog of the file browser: filter, go to a path, next and previous, open, parent folder, copy the path, show hidden files, refresh.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "Press ? for the keyboard shortcuts.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 12538,
+          "key": "shots/files/hotkeys/a097de7d45acea71.avif"
+        },
+        "png": {
+          "bytes": 64510,
+          "key": "shots/files/hotkeys/5f15ce402fa5c000.png"
+        },
+        "webp": {
+          "bytes": 24950,
+          "key": "shots/files/hotkeys/90916ec3050fef09.webp"
+        }
+      },
+      "height": 574,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRlQAAABXRUJQVlA4IEgAAACQAwCdASoQABIAPu1iqU2ppaOiMAgBMB2JaQAAW+j9dyXK6TAAAP7X8iXZuCHwvnbag4Rf5z2+mnRvf5jcF78u2rFnCb3MgAA=",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/files.spec.ts",
+      "width": 532
+    },
+    "files/keyboard": {
+      "alt": "In the folder of a commit's runs, the selection moves down the folders with j and back with k, Enter opens steady-high's, / filters its files to percentiles.txt, the down arrow selects it and c copies its path.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "Browse the results from the keyboard.",
+      "captured": "2026-10-13",
+      "duration": 9.37,
+      "files": {
+        "mp4": {
+          "bytes": 102371,
+          "key": "shots/files/keyboard/0f46080659bdbd5c.mp4"
+        },
+        "poster": {
+          "bytes": 15318,
+          "key": "shots/files/keyboard/cae4a27ef6a03615.webp"
+        },
+        "vtt": {
+          "bytes": 231,
+          "key": "shots/files/keyboard/6b60f1255d482753.vtt"
+        },
+        "webm": {
+          "bytes": 138509,
+          "key": "shots/files/keyboard/97d6f0f26dc8ee62.webm"
+        }
+      },
+      "height": 560,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAACQAQCdASoQAAcAA4BaJaQAAudFrAAA/vAb2LN3RiUAAAAA",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/files.spec.ts",
+      "width": 1440
+    },
+    "files/runbar": {
+      "alt": "The run bar above a run's files: Done, run on profiles/steady-high.yaml on linux by ci, and the Results, Redo and Delete buttons.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "In a run's folder, the run bar says what ran and links back to its results.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 11380,
+          "key": "shots/files/runbar/bd51096cc8d3eb38.avif"
+        },
+        "png": {
+          "bytes": 40324,
+          "key": "shots/files/runbar/04cdddc27998040e.png"
+        },
+        "webp": {
+          "bytes": 19858,
+          "key": "shots/files/runbar/668fcbe4d8fb2215.webp"
+        }
+      },
+      "height": 90,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAACQAQCdASoQAAIAA4BaJZwAAudP4OAA/uGr7X0a1WmOFt7b1D1HAAAA",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/files.spec.ts",
+      "width": 1100
+    },
+    "history/find-regression": {
+      "alt": "History filtered on the heavy-tail-high test: the cursor moves along its p99 line and the commits below follow; where the batcher copies payloads into fixed slots, p99 more than triples. A click keeps it as the reference: the commit that borrows payloads again is back near 3 ms.",
+      "app_version": "1.1.1+e681790",
+      "caption": "Hover along a test's line to find the commit that changed it, click to compare later ones with it.",
+      "captured": "2026-10-14",
+      "duration": 14.87,
+      "files": {
+        "mp4": {
+          "bytes": 386336,
+          "key": "shots/history/find-regression/486848aaf53669a2.mp4"
+        },
+        "poster": {
+          "bytes": 77968,
+          "key": "shots/history/find-regression/444b55618ab21e7f.webp"
+        },
+        "vtt": {
+          "bytes": 303,
+          "key": "shots/history/find-regression/8104c604c75eb753.vtt"
+        },
+        "webm": {
+          "bytes": 559083,
+          "key": "shots/history/find-regression/121e6917edc87ba0.webm"
+        }
+      },
+      "height": 1100,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAADwAQCdASoQAA0AA4BaJaQAAudme4zkgAAAzj/yTtB5RHQQXutgNIdKK9IAAA==",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/history.spec.ts",
+      "width": 1440
+    },
+    "history/image-diff": {
+      "alt": "PSNR of the facade photo over six weeks of main, a point per commit, with a jump at the merge of the bilateral denoiser. Below, that commit and the one before, and their output images: only the new one outlines the leaves.",
+      "app_version": "1.1.1+e602eb6",
+      "caption": "Hover a point to compare its commit's outputs with the commit before: the PSNR jumps when the bilateral denoiser is merged, and the leaves get halos.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 104783,
+          "key": "shots/history/image-diff/dec9728e92ab0324.avif"
+        },
+        "png": {
+          "bytes": 333280,
+          "key": "shots/history/image-diff/1c1ae8c878c7a6e2.png"
+        },
+        "webp": {
+          "bytes": 175164,
+          "key": "shots/history/image-diff/cf9d6411b0548102.webp"
+        }
+      },
+      "height": 1188,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRmYAAABXRUJQVlA4IFoAAAAwAgCdASoQABAAA4BaJZQAD4wRf+zxN6nlwAD+9ypZF1scjAGgWFKuTsCem3t6TtVZ7G7SRV6EucdEAwMGdrj6YoH4gU0EVdp9irlfGlvwWxSXX74ctYmdkAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/history.spec.ts",
+      "width": 1208
+    },
+    "history/performance-over-time": {
+      "alt": "Performance over time on main, the last two weeks: Latency p99, a line per test, and the 12 ms target dashed. One line more than triples and comes back four commits later; hovered, its point at the jump names heavy-tail-high, and the commit below copies payloads into fixed slots.",
+      "app_version": "1.1.1+e681790",
+      "caption": "A metric over a branch's commits, a line per test: hover the jump to see the test and the commit.",
+      "captured": "2026-10-14",
+      "files": {
+        "avif": {
+          "bytes": 63548,
+          "key": "shots/history/performance-over-time/e4d04a9652c5012c.avif"
+        },
+        "png": {
+          "bytes": 212316,
+          "key": "shots/history/performance-over-time/02546207d4cee849.png"
+        },
+        "webp": {
+          "bytes": 136388,
+          "key": "shots/history/performance-over-time/a342cc312f504bb3.webp"
+        }
+      },
+      "height": 678,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAABwAQCdASoQAAkAA4BaJZ1nyAGIAAD+89dHy0Oh2Tma0vpP0w9vsKsAAAA=",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/history.spec.ts",
+      "width": 1221
+    },
+    "history/relative": {
+      "alt": "The same chart Relative to start: every test's p99 as a percentage of its value at the first commit, so that the 200 ms bursty test and the 2 ms steady ones share a scale. Heavy-tail-high climbs to about four times its start for four commits.",
+      "app_version": "1.1.1+e681790",
+      "caption": "Relative to start puts every test on the same scale, whatever its units: 100 is its value at the first commit.",
+      "captured": "2026-10-14",
+      "files": {
+        "avif": {
+          "bytes": 19343,
+          "key": "shots/history/relative/42cefd7c1960ef8a.avif"
+        },
+        "png": {
+          "bytes": 71783,
+          "key": "shots/history/relative/d49246916830a4a2.png"
+        },
+        "webp": {
+          "bytes": 41776,
+          "key": "shots/history/relative/26b79b8acdeb0231.webp"
+        }
+      },
+      "height": 368,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRigAAABXRUJQVlA4IBwAAABQAQCdASoQAAUAA4BaJZwABAAAAP70N/2iKAAA",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/history.spec.ts",
+      "width": 1213
+    },
+    "integrations/menu": {
+      "alt": "The sidebar's Integrations menu open on a commit: links to the K3 calibration report and the ISP tuning guide, and the \"Send to the tuning bench\" webhook, with a status tag saying its job is queued.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "Integrations link to your tools and trigger them: after a click, the webhook's tag shows the job's status.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 7526,
+          "key": "shots/integrations/menu/c1d269ef248189fa.avif"
+        },
+        "png": {
+          "bytes": 34405,
+          "key": "shots/integrations/menu/c67f6f301fcde307.png"
+        },
+        "webp": {
+          "bytes": 13554,
+          "key": "shots/integrations/menu/56183542d710e94f.webp"
+        }
+      },
+      "height": 118,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAACwAQCdASoQAAUAA4BaJZwAAuddqDkAAP7wzjX2Dxu7Y5xjE21CAA==",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/integrations.spec.ts",
+      "width": 438
+    },
+    "landing/bit-accuracy": {
+      "alt": "The files of a run on the hardware model that differ from the reference; a click on regs.txt shows its diff: the ROUNDING register went from 0 to 2. Then a commit that only changed the docs: its run is bit-accurate.",
+      "app_version": "1.1.1+e602eb6",
+      "caption": "Only the output files that changed, and their diff; a commit that changes none is bit-accurate.",
+      "captured": "2026-10-13",
+      "duration": 9.37,
+      "files": {
+        "mp4": {
+          "bytes": 84501,
+          "key": "shots/landing/bit-accuracy/2969e4ea250bbd92.mp4"
+        },
+        "poster": {
+          "bytes": 27052,
+          "key": "shots/landing/bit-accuracy/830d96d9c53c9516.webp"
+        },
+        "vtt": {
+          "bytes": 224,
+          "key": "shots/landing/bit-accuracy/8b3449fb298e2c01.vtt"
+        },
+        "webm": {
+          "bytes": 109441,
+          "key": "shots/landing/bit-accuracy/2fc73fd66fc6c175.webm"
+        }
+      },
+      "height": 450,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAAAQAgCdASoQAAoAA4BaJZQCdEf/gedkaXzAAP7yFeUFpkt7eREEZ+1WgacY1p+tdiyjqBSmBtXejzsAAAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/landing.spec.ts",
+      "width": 720
+    },
+    "landing/deep-zoom": {
+      "alt": "The 113-megapixel test wall: zooming from the whole wall into a small Siemens star until single pixels show.",
+      "app_version": "1.1.1+e602eb6",
+      "caption": "Deep zoom on a 113 MP image: the viewer loads only the tiles it shows.",
+      "captured": "2026-10-13",
+      "duration": 7.23,
+      "files": {
+        "mp4": {
+          "bytes": 151396,
+          "key": "shots/landing/deep-zoom/c9fdb1de370a9dfe.mp4"
+        },
+        "poster": {
+          "bytes": 9374,
+          "key": "shots/landing/deep-zoom/8e44f01030a7b412.webp"
+        },
+        "vtt": {
+          "bytes": 167,
+          "key": "shots/landing/deep-zoom/4433d0a83c554dd9.vtt"
+        },
+        "webm": {
+          "bytes": 184115,
+          "key": "shots/landing/deep-zoom/ffa167cba4d5c9e7.webm"
+        }
+      },
+      "height": 366,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAACQAQCdASoQAAsAA4BaJaQAAuQdZoAA/MSSN5KvJ0X+wAAA",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/landing.spec.ts",
+      "width": 585
+    },
+    "landing/every-stage": {
+      "alt": "The facade's window, stage by stage of the camera pipeline: the raw sensor mosaic, demosaiced, denoised, sharpened, then tone-mapped.",
+      "app_version": "1.1.1+e602eb6",
+      "caption": "A slider over the camera pipeline's stages, from the raw mosaic to the output.",
+      "captured": "2026-10-13",
+      "duration": 9.87,
+      "files": {
+        "mp4": {
+          "bytes": 173189,
+          "key": "shots/landing/every-stage/6a6a831500ea69f9.mp4"
+        },
+        "poster": {
+          "bytes": 16692,
+          "key": "shots/landing/every-stage/f1fb4e56bb0a6eaa.webp"
+        },
+        "vtt": {
+          "bytes": 227,
+          "key": "shots/landing/every-stage/636acb159822a2dd.vtt"
+        },
+        "webm": {
+          "bytes": 157362,
+          "key": "shots/landing/every-stage/17b88e6933cf99fc.webm"
+        }
+      },
+      "height": 366,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRlIAAABXRUJQVlA4IEYAAADQAQCdASoQAAsAA4BaJYgCdACyaigTAAD+1+KbPnrXWd+Vz27J5VqZJB7Mm7CpUbomNLV2myOYmgLYlmD4RgwBEZ8ujFAA",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/landing.spec.ts",
+      "width": 585
+    },
+    "landing/hero": {
+      "alt": "The Metrics Diff of a new denoiser: PSNR up, edge overshoot up 163%. In the facade's images, zooming into one zooms the other, Image Diff turns on, and a higher threshold leaves only the halos; then back to the Metrics Diff.",
+      "app_version": "1.1.1+d660ca7",
+      "caption": "Metrics and images side by side: the new denoiser wins PSNR, and the images show the halos it adds.",
+      "captured": "2026-10-14",
+      "duration": 15.97,
+      "files": {
+        "mp4": {
+          "bytes": 488167,
+          "key": "shots/landing/hero/0878147908b602ee.mp4"
+        },
+        "poster": {
+          "bytes": 96718,
+          "key": "shots/landing/hero/321471ef6c903e1a.webp"
+        },
+        "vtt": {
+          "bytes": 361,
+          "key": "shots/landing/hero/58b080ccd04ae58c.vtt"
+        },
+        "webm": {
+          "bytes": 656731,
+          "key": "shots/landing/hero/735206a5de38fe84.webm"
+        }
+      },
+      "height": 900,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRlQAAABXRUJQVlA4IEgAAADwAQCdASoQAAoAA4BaJZQC7ADdKNhnOAAA/D86Hd/l3LbSvOdSVvT9PhCyDcyFfK+5UnYASfO4HBSQkdXg98DezSQyEZiAAAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/landing.spec.ts",
+      "width": 1440
+    },
+    "landing/pixel-values": {
+      "alt": "The facade's window frame, new and reference images: above them, the hovered pixel's coordinates and its RGB values in both images, with their colors; crosshairs mark the pixel in both.",
+      "app_version": "1.1.1+e602eb6",
+      "caption": "Hover a pixel: its values in both images, and a crosshair on the other.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 45157,
+          "key": "shots/landing/pixel-values/af2fd31534e81a88.avif"
+        },
+        "png": {
+          "bytes": 246739,
+          "key": "shots/landing/pixel-values/4e03ce858d36ec0d.png"
+        },
+        "webp": {
+          "bytes": 64318,
+          "key": "shots/landing/pixel-values/ae83e0c0895e195b.webp"
+        }
+      },
+      "height": 490,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRloAAABXRUJQVlA4IE4AAADwAQCdASoQAAoAA4BaJZACdAEO/c1S9wAA/sh0kd4iogspRG9MlIDOPAVsjv9kYljBpUw7UWuiYKmS3p97vBST1sQuQQV0nSpnz0nXIAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/landing.spec.ts",
+      "width": 784
+    },
+    "landing/social-card": {
+      "alt": "QA-Board, \"Tests tell you it runs. QA-Board shows you it's better.\" Next to it, a run on the commit page: PSNR and SSIM up, the new image of a window and its Image Diff, where the frame's halos stand out.",
+      "app_version": "1.1.1+e602eb6",
+      "caption": "The social card of the docs.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 26612,
+          "key": "shots/landing/social-card/904e9f9fb8f01169.avif"
+        },
+        "png": {
+          "bytes": 191108,
+          "key": "shots/landing/social-card/70d4394f6b0a3b18.png"
+        },
+        "webp": {
+          "bytes": 44214,
+          "key": "shots/landing/social-card/5dd7f7ee8415924b.webp"
+        }
+      },
+      "height": 630,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAACwAQCdASoQAAkAA4BaJQAAS7aI9hOwAP7zyJ6m+WkLFsmZkFO/FGe3EOtL88d1QCKaP49b6sBWefwAAAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/landing.spec.ts",
+      "width": 1200
+    },
+    "logs/batch-commands": {
+      "alt": "The Logs view of the tune-batching sweep: under \"Started from QA-Board\", the qa batch command kaito's tuning request ran, with its grid of max batch and max delay, and the end of its log; then the two runs left by the filter, and the Batch section with the command again.",
+      "app_version": "1.1.1+e681790",
+      "caption": "A batch started from QA-Board keeps the command it ran and its log, next to its runs' logs.",
+      "captured": "2026-10-14",
+      "files": {
+        "avif": {
+          "bytes": 149171,
+          "key": "shots/logs/batch-commands/515295e3450dfc50.avif"
+        },
+        "png": {
+          "bytes": 430815,
+          "key": "shots/logs/batch-commands/1e82d52cf2578838.png"
+        },
+        "webp": {
+          "bytes": 349884,
+          "key": "shots/logs/batch-commands/39922112bf78153b.webp"
+        }
+      },
+      "height": 1056,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRioAAABXRUJQVlA4IB4AAAAwAQCdASoQAA8AA4BaJaQAA3AA/vMhjZ2oS048AAA=",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/logs.spec.ts",
+      "width": 1188
+    },
+    "logs/crash": {
+      "alt": "The Logs view of the batcher change, its crashed bursty-high run open: searching the log for \"panicked\" highlights the panic, an index out of bounds in src/batcher.rs at line 163, then its backtrace.",
+      "app_version": "1.1.1+d3a0b87",
+      "caption": "A crashed run's log opens on its last lines; search it to jump to the panic and the line of code it names.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 79504,
+          "key": "shots/logs/crash/9bc77ae512dabe21.avif"
+        },
+        "png": {
+          "bytes": 274502,
+          "key": "shots/logs/crash/26a5f1651b27adc1.png"
+        },
+        "webp": {
+          "bytes": 210856,
+          "key": "shots/logs/crash/0fd2da6797d52e6a.webp"
+        }
+      },
+      "height": 609,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAAAwAQCdASoQAAkAA4BaJaQAA3AA/vNhRZB4QrHpXqAxnDAA",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/logs.spec.ts",
+      "width": 1186
+    },
+    "logs/live-tail": {
+      "alt": "The Logs view of a bursty-high run while it runs: its log follows the end as the overloaded gateway prints the requests that missed their deadline and its queue warnings, the error count climbs past a hundred, and a click on it jumps to the first missed deadline.",
+      "app_version": "1.1.1+5648119",
+      "caption": "While a run runs, its log follows the end; click the error count to jump from error to error.",
+      "captured": "2026-10-13",
+      "duration": 10.53,
+      "files": {
+        "mp4": {
+          "bytes": 441849,
+          "key": "shots/logs/live-tail/f15df34ccd3df520.mp4"
+        },
+        "poster": {
+          "bytes": 121004,
+          "key": "shots/logs/live-tail/4e0c96d08650c438.webp"
+        },
+        "vtt": {
+          "bytes": 205,
+          "key": "shots/logs/live-tail/6470d649bd3c8168.vtt"
+        },
+        "webm": {
+          "bytes": 581940,
+          "key": "shots/logs/live-tail/ea695adaca7b54c7.webm"
+        }
+      },
+      "height": 900,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAACQAQCdASoQAAoAA4BaJaQAAuP3hdAAzj/yTtCSFPxHvZfqfdF1Kx+B7bgAAA==",
+      "project": "serving-latency",
+      "revision": 2,
+      "source_spec": "docs-media/shots/logs.spec.ts",
+      "width": 1440
+    },
+    "logs/lsf-hints": {
+      "alt": "The Logs view with the 113 MP test wall's run open: tagged \"LSF: out of memory\", a red summary says the job was killed at its memory limit (TERM_MEMLIMIT), 3113 MB used for 3072 MB requested, and how to ask for more.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "When LSF stops a run, its logs say why, compare what it used with what it asked for, and say what to change.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 42675,
+          "key": "shots/logs/lsf-hints/e5aa25dcc167b5c3.avif"
+        },
+        "png": {
+          "bytes": 118777,
+          "key": "shots/logs/lsf-hints/8898842a0919b48e.png"
+        },
+        "webp": {
+          "bytes": 91988,
+          "key": "shots/logs/lsf-hints/79926cb24faaac69.webp"
+        }
+      },
+      "height": 368,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAAAwAQCdASoQAAUAA4BaJZwAA3AA/vOdSRFz4xusbKn3rsAgAAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/logs.spec.ts",
+      "width": 1186
+    },
+    "projects/home": {
+      "alt": "The QA-Board home page: a filter box, then a card per Kitefin project with its avatar, name, description, a star to pin it, a link to its source, when it last ran and how many commits have results.",
+      "app_version": "1.1.1+4dffb32",
+      "caption": "The home page lists every project with results. Pin the ones you follow with their star.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 33445,
+          "key": "shots/projects/home/18f47125a4f53826.avif"
+        },
+        "png": {
+          "bytes": 119675,
+          "key": "shots/projects/home/b31d985c7f01fd68.png"
+        },
+        "webp": {
+          "bytes": 69018,
+          "key": "shots/projects/home/669d189fc8cf101e.webp"
+        }
+      },
+      "height": 579,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAACwAQCdASoQAAcAA4BaJaQAAueGeKgAAP7yFuC/44tik3MzAAA=",
+      "project": null,
+      "source_spec": "docs-media/shots/projects.spec.ts",
+      "width": 1440
+    },
+    "quickstart/compose": {
+      "alt": "A terminal starts QA-Board with docker compose up: the database, the demo data, the backend, the image server and the web server start and turn healthy. The health check answers ok, and the projects API lists the Kitefin demo projects with their number of commits.",
+      "app_version": "1.1.1+312be1c",
+      "caption": "docker compose up waits until every service is healthy, then QA-Board answers on localhost:5151 with the demo projects.",
+      "captured": "2026-10-13",
+      "duration": 19.84,
+      "files": {
+        "mp4": {
+          "bytes": 252873,
+          "key": "shots/quickstart/compose/380977a9bf7e9151.mp4"
+        },
+        "poster": {
+          "bytes": 63200,
+          "key": "shots/quickstart/compose/56c48c6ef4c9c219.webp"
+        },
+        "webm": {
+          "bytes": 279714,
+          "key": "shots/quickstart/compose/33c442e4797715b2.webm"
+        }
+      },
+      "height": 720,
+      "kind": "tape",
+      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAABwAQCdASoQAAkAA4BaJZwCdAFAAAD+8O86QTBMdiENfNAA",
+      "project": null,
+      "source_spec": "docs-media/tapes/quickstart-compose.tape",
+      "width": 1280
+    },
+    "quickstart/kind": {
+      "alt": "A terminal creates a kind cluster with QA-Board's kind.yaml and installs the Helm chart with the quickstart values, which prints how to open QA-Board. Through a port-forward on 5151, the health check answers ok and the projects API lists the Kitefin demo projects.",
+      "app_version": "1.1.1+312be1c",
+      "caption": "helm install waits until QA-Board is ready and prints how to open it; through the port-forward, it answers with the demo projects.",
+      "captured": "2026-10-13",
+      "duration": 35.48,
+      "files": {
+        "mp4": {
+          "bytes": 282936,
+          "key": "shots/quickstart/kind/48e8592bcd411586.mp4"
+        },
+        "poster": {
+          "bytes": 21224,
+          "key": "shots/quickstart/kind/533128c252014e38.webp"
+        },
+        "webm": {
+          "bytes": 306205,
+          "key": "shots/quickstart/kind/3bb62ae9127c2f44.webm"
+        }
+      },
+      "height": 720,
+      "kind": "tape",
+      "lqip": "data:image/webp;base64,UklGRioAAABXRUJQVlA4IB4AAABwAQCdASoQAAkAA4BaJZwCdAFAAAD+8Q4ZrE2NcAA=",
+      "project": null,
+      "source_spec": "docs-media/tapes/quickstart-kind.tape",
+      "width": 1280
+    },
+    "tuning/analysis": {
+      "alt": "The Analysis of the tune-int8 experiment: the best parameters found at iteration 10 of 20 (percentile 99.999, nothing kept in fp32, score 0.2, NMS 0.4) with their mAP, AP small and model size; parallel coordinates of the 20 iterations; the convergence of the objective.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "The Analysis of an automated tuning: the best parameters, every iteration in parallel coordinates, and how the search converged.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 80078,
+          "key": "shots/tuning/analysis/58c2e5c19ba1680b.avif"
+        },
+        "png": {
+          "bytes": 240989,
+          "key": "shots/tuning/analysis/2a862f1757054e06.png"
+        },
+        "webp": {
+          "bytes": 160490,
+          "key": "shots/tuning/analysis/66abdc0830058c89.webp"
+        }
+      },
+      "height": 1017,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAAAwAwCdASoQABEAPu1iqU2ppaOiMAgBMB2JaQAAYfPAM0cAAP7tpt/hGDM9APfNyAAAAA==",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/tuning.spec.ts",
+      "width": 1008
+    },
+    "tuning/auto-form": {
+      "alt": "The Automated tuning tab of the Run Tests / Tuning form, with the int8 model's tuning in YAML: 20 evaluations, the solver's seed and 8 initial points, then the objective, AP small and mAP; the Send button below.",
+      "app_version": "1.1.1+6494701",
+      "caption": "Automated tuning searches the parameters with `qa optimize`: describe the search space and the objective in YAML.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 24055,
+          "key": "shots/tuning/auto-form/b0995e335ae353e3.avif"
+        },
+        "png": {
+          "bytes": 78694,
+          "key": "shots/tuning/auto-form/0babc0074cf19d0e.png"
+        },
+        "webp": {
+          "bytes": 54616,
+          "key": "shots/tuning/auto-form/689aed1f7e462984.webp"
+        }
+      },
+      "height": 387,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAACQAQCdASoQAAYAA4BaJaQAAudnt/AA/vcK+FVd75ymAAAA",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/tuning.spec.ts",
+      "width": 1186
+    },
+    "tuning/available-tests": {
+      "alt": "The Available Tests editor on Arjun's private batches: two int8 batches, the second's configs line indented one space too far and underlined in red; under the editor, the error with its line, at the top \"1 error\" and \"Unsaved changes\"; on the side, the Batches panel lists int8-indoor and int8-small.",
+      "app_version": "1.1.1+46fc148",
+      "caption": "Edit your private batches, or the shared ones, in the browser: mistakes show as you type, before you save.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 40334,
+          "key": "shots/tuning/available-tests/ff7bab0c3a5b5b25.avif"
+        },
+        "png": {
+          "bytes": 152987,
+          "key": "shots/tuning/available-tests/fce1957ab77b4118.png"
+        },
+        "webp": {
+          "bytes": 91470,
+          "key": "shots/tuning/available-tests/7e94c859eeaf367f.webp"
+        }
+      },
+      "height": 754,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAAAwAQCdASoQAAoAA4BaJaQAA3AA/vQBxQ72FrtHntdUfCAA",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/tuning.spec.ts",
+      "width": 1226
+    },
+    "tuning/frontier": {
+      "alt": "The efficient frontier of the tune-batching sweep: one point per configuration of max batch and max delay, CPU per request against p99, colored by max delay. The hovered point, max batch 16 and max delay 250 µs, sits on the lower left edge.",
+      "app_version": "1.1.1+e681790",
+      "caption": "Each configuration's CPU per request against its p99: the defaults picked, max batch 16 and 250 µs of delay, are on the frontier.",
+      "captured": "2026-10-14",
+      "files": {
+        "avif": {
+          "bytes": 22310,
+          "key": "shots/tuning/frontier/810e55eb6d5d08db.avif"
+        },
+        "png": {
+          "bytes": 72941,
+          "key": "shots/tuning/frontier/6b84574dfa5c8130.png"
+        },
+        "webp": {
+          "bytes": 34592,
+          "key": "shots/tuning/frontier/32c37e1439bea119.webp"
+        }
+      },
+      "height": 582,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjoAAABXRUJQVlA4IC4AAACwAQCdASoQAAoAA4BaJZQAAudQS+BAAP74AywE8kjEl98oSKtIuSZoBWXalAAA",
+      "project": "serving-latency",
+      "source_spec": "docs-media/shots/tuning.spec.ts",
+      "width": 1032
+    },
+    "tuning/launch-to-analysis": {
+      "alt": "The Run Tests / Tuning form with a grid of score_threshold by nms_iou on quant-search, 8 runs: Send starts it. Then its batch, int8-nms, is picked, and its Analysis shows the runs in parallel coordinates.",
+      "app_version": "1.1.1+6494701",
+      "caption": "Start a sweep from the browser, then compare its runs in the Analysis view.",
+      "captured": "2026-10-13",
+      "duration": 10.33,
+      "files": {
+        "mp4": {
+          "bytes": 200714,
+          "key": "shots/tuning/launch-to-analysis/3df29780351eee85.mp4"
+        },
+        "poster": {
+          "bytes": 49640,
+          "key": "shots/tuning/launch-to-analysis/9297f035176d9802.webp"
+        },
+        "vtt": {
+          "bytes": 236,
+          "key": "shots/tuning/launch-to-analysis/73093e4ca952bc32.vtt"
+        },
+        "webm": {
+          "bytes": 246818,
+          "key": "shots/tuning/launch-to-analysis/1a5f444087a451d9.webm"
+        }
+      },
+      "height": 900,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAACQAQCdASoQAAoAA4BaJaQAAudJzCAAzj/yTtNM4HdI3CmMWrULAXcEAAA=",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/tuning.spec.ts",
+      "width": 1440
+    },
+    "tuning/manual-form": {
+      "alt": "The Run Tests / Tuning form: experiment int8-nms on the quant-search batch (2 tests), the Manual tuning tab with a grid of score_threshold 0.2 and 0.3 by nms_iou 0.5 and 0.7, \"Explores 4 combinations\", \"8 total runs\", and the Send button.",
+      "app_version": "1.1.1+6494701",
+      "caption": "Run a batch with other parameters: here every combination of 2 score thresholds and 2 NMS IoUs, 8 runs.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 25647,
+          "key": "shots/tuning/manual-form/97d41315dee8f211.avif"
+        },
+        "png": {
+          "bytes": 87688,
+          "key": "shots/tuning/manual-form/f809e3d19877482d.png"
+        },
+        "webp": {
+          "bytes": 54142,
+          "key": "shots/tuning/manual-form/89029f11a8358588.webp"
+        }
+      },
+      "height": 792,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAACwAQCdASoQAA0AA4BaJZwAAuabEJYAAP73RpoRmLXP8/gUAAA=",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/tuning.spec.ts",
+      "width": 976
+    },
+    "tuning/which-tests-run": {
+      "alt": "The \"Which tests run?\" panel over the Available Tests view: the ci batch resolves to 8 tests on 4 inputs, the indoor, outdoor, warehouse and small-objects slices, each with the fp32 and the int8 model at size 320.",
+      "app_version": "1.1.1+6494701",
+      "caption": "Check which tests a batch runs on this commit, with all the batch files: its inputs and their configurations.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 30624,
+          "key": "shots/tuning/which-tests-run/e83835b9d2d4e5d6.avif"
+        },
+        "png": {
+          "bytes": 166010,
+          "key": "shots/tuning/which-tests-run/439f35845024dae6.png"
+        },
+        "webp": {
+          "bytes": 64922,
+          "key": "shots/tuning/which-tests-run/c4fc892987ce65f7.webp"
+        }
+      },
+      "height": 560,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAACwAQCdASoQAAcAA4BaJaQAAtz3XAwAAP7vnT0L+FkA/usm1N0XJRYoAAA=",
+      "project": "detection-eval",
+      "source_spec": "docs-media/shots/tuning.spec.ts",
+      "width": 1440
+    },
+    "whats-new/dialog": {
+      "alt": "The \"What's new in QA-Board\" dialog over the projects list: the latest release note's summary, its highlights as cards with an icon, an audience tag and a link to the docs, and the See all changes and Got it buttons.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "Once a month is over, What's new pops up with its highlights, tagged with who they matter to.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 42800,
+          "key": "shots/whats-new/dialog/c746398564c53d2b.avif"
+        },
+        "png": {
+          "bytes": 121217,
+          "key": "shots/whats-new/dialog/c817f83ad564116e.png"
+        },
+        "webp": {
+          "bytes": 89678,
+          "key": "shots/whats-new/dialog/ed4352093a7fcef9.webp"
+        }
+      },
+      "height": 490,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAADQAQCdASoQAAsAA4BaJZwAAudI61cQAAD+9OZEe5bfMrUE4eU4Io8TfxYG3XYgAAA=",
+      "project": null,
+      "source_spec": "docs-media/shots/whats-new.spec.ts",
+      "width": 720
+    },
+    "whats-new/drawer": {
+      "alt": "The What's new panel: a search box, then the release notes newest first. The current month's note is tagged In progress and open on its highlights; the notes not seen yet are tagged New.",
+      "app_version": "1.1.1+c67f384",
+      "caption": "The What's new panel keeps every release note, newest first, with a search box. The current month shows as In progress.",
+      "captured": "2026-10-13",
+      "files": {
+        "avif": {
+          "bytes": 73011,
+          "key": "shots/whats-new/drawer/708d0086665b645c.avif"
+        },
+        "png": {
+          "bytes": 210924,
+          "key": "shots/whats-new/drawer/106599345e1ccbad.png"
+        },
+        "webp": {
+          "bytes": 150692,
+          "key": "shots/whats-new/drawer/7485ddb90e8c5a6b.webp"
+        }
+      },
+      "height": 900,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAABQAwCdASoQABQAPu1iqU2ppaOiMAgBMB2JaWDrADc4RMatgAD+8Ge+yXB+bTIcl4zM5KeI/YpQo2h8AAA=",
+      "project": null,
+      "source_spec": "docs-media/shots/whats-new.spec.ts",
+      "width": 720
+    }
+  },
+  "version": 1
+}

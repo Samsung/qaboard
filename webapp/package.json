@@ -65,6 +65,7 @@
     "react-router": "^8.4.0",
     "styled-components": "^6.5.3",
     "three": "^0.136.0",
+    "yaml": "^2.9.1",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
@@ -83,6 +84,7 @@
     "@vitest/coverage-v8": "^5.0.3",
     "babel-plugin-react-compiler": "^1.0.0",
     "jsdom": "^28.1.0",
+    "markdown-it": "^14.3.2",
     "oxlint": "^1.86.0",
     "rollup-plugin-visualizer": "^7.1.1",
     "typescript": "^7.0.2",

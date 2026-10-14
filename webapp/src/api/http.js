@@ -71,7 +71,10 @@ export async function request(method, url, { params, data, signal, headers, resp
   }
   const response = await fetch(buildUrl(url, params), init);
   const result = {
-    data: await parseBody(response, responseType).catch(() => null),
+    data: await parseBody(response, responseType).catch(error => {
+      if (isAbort(error)) throw error;
+      return null;
+    }),
     status: response.status,
     statusText: response.statusText,
     headers: response.headers,

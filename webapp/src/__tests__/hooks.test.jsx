@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 
-import { useUrlText, useCommit } from '../hooks';
+import { useUrlText, useCommit, useProjectData } from '../hooks';
 import { usePrefsStore } from '../stores/prefs';
 import { commitsQuery, commitsPagesQuery } from '../api/queries';
 import { makeQueryClient } from '../test-utils';
@@ -85,4 +85,17 @@ test('preferences are updated immutably', () => {
   expect(usePrefsStore.getState().milestones.p).toEqual({});
   toggleFavorite('p');
   expect(usePrefsStore.getState().favorites.p).toBe(true);
+});
+
+
+test("useProjectData merges /api/v1/project, which answers with the project's data", async () => {
+  const queryClient = makeQueryClient();
+  queryClient.setQueryData(['projects'], { p: { id: 'p', data: { git: { path_with_namespace: 'p' } } } });
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ git: { path_with_namespace: 'p' }, milestones: { k: { label: 'shared' } }, qatools_config: { project: { reference_branch: 'main' } } }))));
+  const wrapper = ({ children }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  const { result } = renderHook(() => useProjectData('p'), { wrapper });
+  await waitFor(() => expect(result.current.data.milestones).toEqual({ k: { label: 'shared' } }));
+  expect(result.current.data.git.path_with_namespace).toBe('p');
+  expect(result.current.data.qatools_config.project.reference_branch).toBe('main');
+  vi.unstubAllGlobals();
 });

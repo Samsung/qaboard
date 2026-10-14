@@ -38,6 +38,9 @@ Fixed on the default branch, after the `qaboard` 1.0.3 release:
 - The GitLab and GitHub webhooks could make the server clone a repository to any path, and from any host: with a `GITHUB_ACCESS_TOKEN`, the token was sent to that host. Repository paths are now validated, the token is only sent to github.com and hosts listed in `QABOARD_GITHUB_HOSTS`, and webhooks can be authenticated with `QABOARD_WEBHOOK_SECRET`.
 - The server wrote, deleted and ran code in output and artifacts folders chosen by the clients, anywhere on its filesystem. It now only does so inside the storage folders listed in `QABOARD_STORAGE_ROOTS` (default: `/mnt/qaboard`), and never in its own folders (`QABOARD_DATA_DIR`, the git clones, the shared folder, the image cache, its user's home). Results with other folders are refused.
 - Deleting results followed symlinks: deleting an output that contained a link to a folder deleted the folder's contents. Files listed in manifests could also point outside of the output folder.
+- When signing up failed, e.g. because the user name was taken, the server logged the form with the plaintext password, and answered with the database error, which included the password's hash and the email.
+- Logins with an empty password were sent to LDAP, where they can succeed as anonymous binds, and the user name was put unescaped in the LDAP search filter.
+- The GitLab proxy (`GET /api/v1/gitlab/proxy`), used for avatars and badges, fetched any URL for logged-in users, including internal services (SSRF), and passed back all the response's headers. It now only fetches from the GitLab hosts, gravatar and the hosts listed in `QABOARD_PROXY_HOSTS`, also after redirects, and its responses can't run scripts.
 
 
 ## Known issues
@@ -75,6 +78,9 @@ Without `QABOARD_WEBHOOK_SECRET`, anyone who can reach the server can send fake 
 - The SAML login redirects to the `RelayState` URL without checking it (open redirect).
 
 ### Other
+- `POST /api/v1/webhook/proxy` lets logged-in users send any HTTP request to any URL from the server (SSRF), e.g. to internal services. It is used for the webhook integrations configured in `qaboard.yaml`.
+- Anyone who can reach the server can read the files it serves under `/s/`, unless you restrict them (see [user management](https://samsung.github.io/qaboard/docs/backend-admin/user-management#restricting-who-can-read-files)). Even then, the image server (IIIF) and the API endpoints that read images don't check permissions: their paths are hard to guess (they contain commit hashes), but whoever knows one can see its images.
+- The example WebDAV configuration (`services/nginx/webdav.conf`) lets anyone who can reach the server read, write and delete files, without QA-Board's checks. It is only enabled where a deployment includes it.
 - `GET /api/v1/export` lets logged-in users create links or copies of output files in most folders the server can write to.
 - `POST /api/v1/jenkins/build/trigger` doesn't require authentication, because the CLI's Jenkins runner calls it. Jenkins credentials are only sent to the hosts configured in `JENKINS_AUTH`.
 - `POST /api/v1/gitlab/job` doesn't require authentication: anyone can read the details of GitLab CI jobs that `GITLAB_ACCESS_TOKEN` can see.

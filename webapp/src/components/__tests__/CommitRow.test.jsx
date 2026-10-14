@@ -26,7 +26,7 @@ const project_data = Object.freeze({
 });
 
 const renderRow = () => renderWithProviders(
-  <MemoryRouter><CommitRow commit={commit} project="group/proj" project_data={project_data} toaster={{ show: vi.fn() }} /></MemoryRouter>,
+  <MemoryRouter><CommitRow commit={commit} project="group/proj" project_data={project_data} /></MemoryRouter>,
   { siteConfig: {} },
 );
 

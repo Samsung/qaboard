@@ -3,7 +3,6 @@ id: ci-integration
 title: Integrating QA-Board with your CI
 sidebar_label: CI Integration
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
 
 CI tools run automated scripts and tests everytime someone pushes a new commit.
 
@@ -17,7 +16,10 @@ This said, you can still view your results in the web application by using `qa -
 ## Requirement
 - Make sure your repository sends its push events to QA-Board. If you're not sure if/how, review the [setup guide](project-init#optional-connect-your-git-host). You should be able to see your project in the QA-Board web application.
 
-<img alt="Index of the projects" src={useBaseUrl('img/projects-index.jpg')} />
+<Shot
+  id="projects/home"
+  caption="Projects show up on the home page once they have results."
+/>
 
 ## Running QA-Board in your CI
 1. **Have your CI launch QA-Board**, e.g. `qa batch ci`, assuming you defined a batch named `ci` (examples below).
@@ -28,7 +30,10 @@ You CI is responsible for setting up an environment (`$PATH`...) in which `qaboa
 
 2. **Push a commit**. If your CI is successful, the commit will appear in your project's page: 
 
-<img alt="Index of the latest commits" src={useBaseUrl('img/commits-index.jpg')} />
+<Shot
+  id="commits/feed"
+  caption="Each commit's row shows how its CI batch went: the main metric's median, a crashed batch in red, the other batches it ran."
+/>
 
 3. If `qa` has a token for your git host, `qa batch` also sets a **commit status** named `QA` (`QA <subproject>` in a [subproject](monorepo-subprojects), with the name of its folder), with a link to the results. Batches run with a `--label` other than `default` get their own status, e.g. `QA | my-label`.
 
@@ -86,6 +91,15 @@ Elsewhere, `qa` finds your git host from `project.url` in *qaboard.yaml* and the
 :::note
 `qa` detects that it runs in a CI when the `CI` environment variable is set (by GitlabCI, GitHub Actions, CircleCI, TravisCI...), or `GIT_COMMIT` (by Jenkins' git plugin).
 :::
+
+## Failing the CI on regressions
+`qa batch` fails when runs fail. To also fail when metrics regress against a reference, run `qa gate` after it. It's
+experimental, see [Quality gate](/docs/quality-gate).
+
+<Shot
+  id="ci/step-summary"
+  caption="In GitHub Actions, qa gate writes its table to the job summary: which rule failed, with a link to the Metrics Diff."
+/>
 
 ## Optionnal CI helpers
 QA-Board is not a CI tool, but it provide some utilities to run code only in some branches:

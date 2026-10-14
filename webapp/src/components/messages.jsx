@@ -220,7 +220,6 @@ const BatchStatusMessages = ({ project, commit, batch }) => {
     <SubmissionCallout
       batch={batch}
       has_runs={Object.keys(batch.outputs ?? {}).length > 0}
-      project={project}
       onFinished={refresh}
     />
     {local_batch_message}

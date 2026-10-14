@@ -4,7 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Intent } from "@blueprintjs/core";
 
-import { http } from "./api/http";
+import { http, errorMessage } from "./api/http";
 import { toaster } from "./toaster";
 import { make_eval_templates_recursively } from "./utils";
 import { host_url } from "./git";
@@ -13,7 +13,7 @@ const LS_PREFIX = 'qaboard:integrationStatuses:';
 const LS_INDEX_KEY = 'qaboard:integrationStatuses:index';
 const LS_MAX_COMMITS = 50;
 
-export const loadIntegrationStatuses = commit_id => {
+const loadIntegrationStatuses = commit_id => {
   if (!commit_id) return {};
   try {
     const raw = localStorage.getItem(LS_PREFIX + commit_id);
@@ -28,7 +28,7 @@ export const loadIntegrationStatuses = commit_id => {
   }
 };
 
-export const saveIntegrationStatuses = (commit_id, statuses) => {
+const saveIntegrationStatuses = (commit_id, statuses) => {
   if (!commit_id) return;
   try {
     // Only persist entries the user actively triggered (Jenkins/gitlabCI/githubActions builds).
@@ -130,7 +130,7 @@ export function useIntegrationStatuses(context) {
           window.open(response.data.url, '_blank')?.focus();
       })
       .catch(error => {
-        toaster.show({ message: `Something went wrong: ${JSON.stringify(error.response ?? error.message)}`, intent: Intent.DANGER });
+        toaster.show({ message: `Something went wrong: ${errorMessage(error)}`, intent: Intent.DANGER });
         setStatus(entry_key, { is_loaded: true, loading: false, error, statusText: error.response?.statusText, data: error.response?.data });
       });
   };

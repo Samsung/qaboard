@@ -5,9 +5,9 @@
 import { screen, fireEvent, waitFor, act } from '@testing-library/react';
 
 import { TuningForm, combinations_info, eval_combinations } from '../forms';
-import { AddRecordingsForm } from '../form_groups';
 import { renderWithProviders } from '../../../test-utils';
 import { usePrefsStore } from '../../../stores/prefs';
+import { userQuery } from '../../../api/queries';
 
 vi.mock('../../MonacoEditor', () => ({
   default: ({ value, onChange, name }) => <textarea data-testid={name} value={value} onChange={e => onChange(e.target.value)}/>,
@@ -44,7 +44,7 @@ describe('TuningForm', () => {
       : json({}));
     renderWithProviders(
       <TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{ usr: 'usr.yaml' }}/>,
-      { user: { is_logged: true, user_name: 'alice' } },
+      { user: { is_logged: true, user_name: 'alice' }, siteConfig: {} },
     );
     expect(screen.getByDisplayValue('exp')).toBeInTheDocument();
     expect(await screen.findByText(/4 total runs/)).toBeInTheDocument();
@@ -67,32 +67,48 @@ describe('TuningForm', () => {
     });
   });
 
+  it('runs as the logged-in user, even when they are known after the form showed', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
+    const local_config = { project: { reference_branch: 'main' }, runners: { local: {} }, inputs: {} };
+    const { queryClient } = renderWithProviders(
+      <TuningForm project="proj" config={local_config} metrics={metrics} commit={commit} available_tests_files={{}}/>,
+      { user: { is_logged: false, user_name: null }, siteConfig: {} },
+    );
+    expect(screen.getByText('Please provide a user in the input below')).toBeInTheDocument();
+    act(() => queryClient.setQueryData(userQuery.queryKey, { is_logged: true, user_name: 'arjun' }));
+    await waitFor(() => expect(screen.queryByText('Please provide a user in the input below')).not.toBeInTheDocument());
+    expect(screen.getByText(/Please give a name to the tuning experiment/)).toBeInTheDocument();
+  });
+
+  it('says why the batch has no tests, with the name sent encoded', async () => {
+    usePrefsStore.getState().updateTuning('kitefin/detector', { selected_group: 'nightly+fs' });
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({
+      tests: [],
+      definitions: [],
+      warnings: ['Not in this commit\'s artifacts (/mnt/a): qa/tests/x.yaml. Run `qa save-artifacts` on this commit.'],
+    }));
+    renderWithProviders(
+      <TuningForm project="kitefin/detector" config={config} metrics={metrics} commit={{ id: 'abc123' }} available_tests_files={{ gr: 'extra-batches', usr: 'arjun' }}/>,
+      { user: { is_logged: true, user_name: 'arjun' }, siteConfig: {} },
+    );
+    expect(await screen.findByText('Why the batch has no tests')).toBeInTheDocument();
+    expect(screen.getByText('qa save-artifacts').tagName).toBe('CODE');
+    const [url, init] = fetch.mock.calls.find(([url]) => url.startsWith('/api/v1/tests/group?'));
+    expect(url).toBe('/api/v1/tests/group?project=kitefin%2Fdetector&name=nightly%2Bfs&commit=abc123');
+    expect(JSON.parse(init.body)).toEqual({ groups: ['extra-batches', 'arjun'] });
+  });
+
+  it('links to the docs of the site', () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
+    renderWithProviders(<TuningForm project="proj" config={{ inputs: {} }} metrics={metrics} commit={commit} available_tests_files={{}}/>, { siteConfig: { docs_root: '/qa/' } });
+    expect(screen.getByText(/get started with async runners/).closest('a')).toHaveAttribute('href', '/qa/docs/celery-integration');
+  });
+
   it('opens the list of tests', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
     window.history.pushState({}, '', '/proj/commit/abcdef12');
     renderWithProviders(<TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>);
     await act(async () => fireEvent.click(screen.getByText('Available Tests')));
     expect(window.location.search).toBe('?selected_views=groups');
-  });
-});
-
-
-describe('AddRecordingsForm', () => {
-  afterEach(() => vi.restoreAllMocks());
-
-  it('edits and saves batches of tests', async () => {
-    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(new Response('my-batch:\n  - a.jpg\n')));
-    renderWithProviders(
-      <AddRecordingsForm project="proj" commit={commit} config={config} git={{}} available_tests_files={{ usr: 'alice.yaml', gr: 'shared.yaml' }} docs_root="/"/>,
-    );
-    const editor = await screen.findByTestId('user_groups');
-    await waitFor(() => expect(editor).toHaveValue('my-batch:\n  - a.jpg\n'));
-    expect(screen.getByText('Update Batches').closest('button')).toBeDisabled();
-    fireEvent.change(editor, { target: { value: 'other:\n  - b.jpg\n' } });
-    fireEvent.keyDown(document, { key: 's', ctrlKey: true });
-    await waitFor(() => expect(fetch.mock.calls.some(([, init]) => init?.method === "POST")).toBe(true));
-    const [url, init] = fetch.mock.calls.find(([, init]) => init?.method === 'POST');
-    expect(url).toBe('/api/v1/tests/groups?project=proj&name=alice.yaml');
-    expect(JSON.parse(init.body)).toEqual({ project: 'proj', groups: 'other:\n  - b.jpg\n' });
   });
 });

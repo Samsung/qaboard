@@ -1,0 +1,90 @@
+# The camera ISP of the K3 robots: a QA-Board demo project, see README.md.
+project:
+  name: kitefin/camera-isp
+  url: https://git.kitefin.example/kitefin/camera-isp
+  description: Image pipeline of the K3 camera, from raw sensor data to the displayed image, in float and in the fixed-point model of the camera chip.
+  entrypoint: qa/main.py
+  reference_branch: main
+
+inputs:
+  # relative to this folder: generated charts, downloaded photos, and videos made from them (clips/*.yaml)
+  database:
+    linux: inputs
+    windows: inputs
+  globs: ['*.png', '*.tiff', 'clips/*.yaml']
+  batches: qa/batches.yaml
+
+outputs:
+  metrics: qa/metrics.yaml
+  # Run cards as wide as a laptop's screen allows: new and reference images are about 600 px wide each
+  style:
+    width: 1180px
+  visualizations:
+    - name: Output
+      path: out.png                      # the 113 MP wall has out.tiff instead, streamed through IIIF
+    - name: ISP stage (1 raw, 2 demosaic, 3 denoise, 4 sharpen, 5 tone map)
+      path: "stages/:stage.jpg"          # 1..5: sequential integers give a synced slider
+    - name: ISP stage, hw-model
+      path: "stages/:stage.png"          # the 256x256 window of raw/*.u16, as PNG, to compare bit for bit
+    - name: Edge profile
+      path: edge.plotly.json             # slanted edge: ESF, with the overshoot annotated
+      side_by_side: false
+    - name: MTF
+      path: mtf.plotly.json
+      side_by_side: false
+    - name: Color errors
+      path: color.plotly.json            # ΔE2000 per patch, bars
+      side_by_side: false
+      default_hidden: true
+    - name: Noise vs signal
+      path: noise.plotly.json
+      side_by_side: false
+      default_hidden: true
+    - name: Registers
+      path: regs.txt                     # hw-model only
+      default_hidden: true
+    - name: Video
+      path: out.webm                     # clips/*.yaml: played in sync with the reference, frame by frame
+      fps: 24
+
+bit_accuracy:
+  patterns: ['out.png', 'stages/*.png', 'raw/*.u16', 'regs.txt']
+  plaintext: ['*.txt']
+
+# `qa save-artifacts` saves what each commit changed in the code
+artifacts:
+  build:
+    glob: build/flags.json
+
+integrations:
+  - text: K3 calibration report
+    icon: document
+    href: https://docs.kitefin.example/imaging/k3-calibration
+  - text: ISP tuning guide
+    icon: manual
+    href: https://docs.kitefin.example/imaging/isp-tuning-guide
+  - divider: true
+  - text: Send to the tuning bench
+    icon: send-to
+    webhook:
+      url: http://tuning-bench.kitefin.example/api/jobs
+      method: POST
+      json:
+        project: ${project}
+        commit: ${commit.id}
+        batch: ${batch}
+
+# Experimental: may change without notice
+gate:
+  reference: main
+  batches: [ci]
+  rules:
+    - {metric: psnr, max_regression: 1%}
+    - {metric: overshoot, max_regression: 20%}
+
+runners:
+  local:
+    concurrency: -1   # one run per CPU
+
+storage:
+  linux: /mnt/qaboard

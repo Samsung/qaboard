@@ -2,6 +2,8 @@ import { QueryClient } from "@tanstack/react-query";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { get, set, del } from "idb-keyval";
 
+import { applySiteConfig } from "./queries";
+
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -29,4 +31,11 @@ export const persistOptions = {
   dehydrateOptions: {
     shouldDehydrateQuery: query => persisted_queries.has(query.queryKey[0]) && query.state.status === 'success',
   },
+};
+
+// Once the cache is restored, we use it right away, and check the site config and the user again:
+// the session may have expired, or users logged out in another tab.
+export const onCacheRestored = () => {
+  applySiteConfig(queryClient.getQueryData(['config']));
+  return queryClient.invalidateQueries({ predicate: query => ['config', 'me'].includes(query.queryKey[0]) });
 };

@@ -1,3 +1,6 @@
+# Built from the repository's root, to include the release notes (website/release-notes/).
+# Dockerfile.dockerignore keeps the rest of the repository out of the build context.
+#   docker build -f webapp/Dockerfile .
 # Stages:
 # - deps: node_modules, cached as long as package*.json don't change
 # - dev: used by development.yml, serves the code with `npm start` (no production build needed)
@@ -32,7 +35,9 @@ RUN apt-get update -qq && \
 
 ENV PATH /app/node_modules/.bin:$PATH
 
-COPY package.json package-lock.json ./
+COPY webapp/package.json webapp/package-lock.json ./
+# vite bundles them in the app (see releaseNotes.js)
+COPY website/release-notes /website/release-notes
 
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --no-audit --no-fund || \
@@ -41,12 +46,12 @@ RUN --mount=type=cache,target=/root/.npm \
 
 
 FROM deps AS dev
-COPY . ./
+COPY webapp/ ./
 CMD ["npm", "start"]
 
 
 FROM deps AS build
-COPY . ./
+COPY webapp/ ./
 
 ARG SENTRY_ORG
 ENV SENTRY_ORG=$SENTRY_ORG

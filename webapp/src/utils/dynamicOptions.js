@@ -99,6 +99,9 @@ export const parseVisualizationOptions = views => {
   return { options, parseErrors };
 };
 
+// "2" before "10"
+const by_value = (a, b) => a.localeCompare(b, undefined, { numeric: true });
+
 // Calculate available values for an option based on manifest paths (optimized)
 export const calculateOptionValues = (option, manifestPaths) => {
   const values = new Set();
@@ -115,7 +118,7 @@ export const calculateOptionValues = (option, manifestPaths) => {
     });
   });
   
-  return Array.from(values.values()).sort((a, b) => a.localeCompare(b));
+  return Array.from(values.values()).sort(by_value);
 };
 
 // Determine option type and configuration
@@ -217,75 +220,41 @@ export const generateViewPaths = (view, selectedOptions, manifests) => {
   return [];
 };
 
-// Merge compatible options from multiple outputs
-export const mergeCompatibleOptions = (optionsList) => {
+// The options of all output cards, as one: what the controls panel shows.
+// Runs often have different values (e.g. a different number of frames): we take them all,
+// and each card shows the value closest to the one selected (see resolveOptionValue).
+export const mergeOptions = optionsList => {
   const merged = {};
-  
-  optionsList.forEach(outputOptions => {
-    Object.entries(outputOptions).forEach(([name, option]) => {
-      if (!merged[name]) {
-        const optionValues = option.values || [];
-        merged[name] = {
-          ...option,
-          compatible_outputs: [option.output_id],
-          all_values: new Set(optionValues)
-        };
-      } else {
-        // Check if options are compatible (same type, overlapping values)
-        const existingOption = merged[name];
-        const optionValues = option.values || [];
-        const hasOverlap = optionValues.some(v => existingOption.all_values.has(v));
-        
-        if (hasOverlap) {
-          existingOption.compatible_outputs.push(option.output_id);
-          optionValues.forEach(v => existingOption.all_values.add(v));
-          existingOption.values = Array.from(existingOption.all_values).sort((a, b) => a.localeCompare(b));
-        } else {
-          // Create separate option for incompatible values
-          const incompatibleName = `${name}_${option.output_id}`;
-          merged[incompatibleName] = {
-            ...option,
-            name: incompatibleName,
-            compatible_outputs: [option.output_id],
-            all_values: new Set(optionValues)
-          };
-        }
-      }
-    });
-  });
-  
-  // Convert sets back to arrays and reconfigure options
-  Object.values(merged).forEach(option => {
-    if (option.all_values) {
-      const finalValues = Array.from(option.all_values).sort((a, b) => a.localeCompare(b));
-      Object.assign(option, configureOption(option, finalValues));
-      delete option.all_values;
+  for (const options of optionsList) {
+    for (const [name, option] of Object.entries(options)) {
+      // what configureOption computes from the values is computed again
+      const { values, type: _type, toRaw: _toRaw, min: _min, max: _max, numericValues: _numericValues, defaultValue: _defaultValue, ...rest } = option;
+      merged[name] ??= { ...rest, views: [], paths: [], all_values: new Set() };
+      const m = merged[name];
+      for (const view of option.views ?? []) if (!m.views.includes(view)) m.views.push(view);
+      for (const path of option.paths ?? []) if (!m.paths.includes(path)) m.paths.push(path);
+      for (const value of values ?? []) m.all_values.add(value);
     }
-  });
-  
-  return merged;
-};
-
-// Check if an option is compatible with a specific output
-export const isOptionCompatible = (option, outputId) => {
-  return !option.compatible_outputs || option.compatible_outputs.includes(outputId);
-};
-
-// Get sync preferences from localStorage
-export const getSyncPreferences = () => {
-  try {
-    const saved = localStorage.getItem('dynamic-options-sync');
-    return saved ? JSON.parse(saved) : {};
-  } catch {
-    return {};
   }
+  return Object.fromEntries(Object.entries(merged).map(([name, { all_values, ...option }]) =>
+    [name, configureOption(option, [...all_values].sort(by_value))]
+  ));
 };
 
-// Save sync preferences to localStorage
-export const setSyncPreferences = (preferences) => {
-  try {
-    localStorage.setItem('dynamic-options-sync', JSON.stringify(preferences));
-  } catch (error) {
-    console.warn('Failed to save sync preferences:', error);
+// Which of an option's values to show, given the one we want (e.g. selected for all cards).
+// When it's missing, e.g. the run has fewer frames, we use the closest number, or the default.
+// {exact: false} lets us tell users why they don't see what they selected.
+export const resolveOptionValue = (option, wanted) => {
+  const values = option.values ?? [];
+  if (wanted === undefined || wanted === null)
+    return { value: option.defaultValue, exact: true };
+  if (values.includes(wanted))
+    return { value: wanted, exact: true };
+  const target = Number(wanted);
+  if (values.length > 0 && wanted !== '' && !isNaN(target) && values.every(v => v !== '' && !isNaN(Number(v)))) {
+    const distance = v => Math.abs(Number(v) - target);
+    const closest = values.reduce((best, v) => distance(v) < distance(best) ? v : best);
+    return { value: closest, exact: false };
   }
+  return { value: option.defaultValue, exact: false };
 };

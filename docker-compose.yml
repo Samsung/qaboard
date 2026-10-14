@@ -13,9 +13,12 @@
 
 # Container names will be prefixed with "qaboard-"
 
-# Images are tagged per service (arthurflam/qaboard:backend...).
-# Set QABOARD_VERSION to use the images built for a given version (arthurflam/qaboard:backend-$QABOARD_VERSION),
-# CI pushes them tagged with the git commit. deployments/deploy.py sets it.
+# Images are tagged per service: $QABOARD_IMAGE:<service>, by default ghcr.io/samsung/qaboard:backend...
+# - GitHub CI publishes them there (.github/workflows/ci.yaml): <service>-<commit> for each commit on master,
+#   <service> once all its tests passed (the latest master), and <service>-<version> for each release (e.g. 1.2.0)
+# - QABOARD_VERSION picks a version ($QABOARD_IMAGE:backend-$QABOARD_VERSION). deployments/deploy.py sets it.
+# - QABOARD_IMAGE picks another registry: a mirror, the images a fork publishes (ghcr.io/<owner>/qaboard),
+#   or where your own CI pushes the images it builds.
 
 # Usage:
 # - The application is served on port 5151 by default
@@ -65,7 +68,7 @@ services:
       retries: 5
 
   backend:
-    image: "arthurflam/qaboard:backend${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:backend${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -108,9 +111,11 @@ services:
     stop_grace_period: 60s
 
   frontend:
-    image: "arthurflam/qaboard:frontend${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:frontend${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
-      context: webapp
+      # the root, to include website/release-notes/: see webapp/Dockerfile
+      context: .
+      dockerfile: webapp/Dockerfile
       shm_size: 6gb
     volumes:
     - frontend_builds:/builds
@@ -136,7 +141,7 @@ services:
   # Note: flower 2.x registers via the `celery.commands` entry point, so it is launched through celery. It shares the backend
   # image (which installs flower>=2.1.0), so only backend needs building.
   flower:
-    image: "arthurflam/qaboard:backend${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:backend${QABOARD_VERSION:+-$QABOARD_VERSION}"
     environment:
       - CELERY_BROKER_URL=pyamqp://guest@rabbitmq//
       - CELERY_BROKER_API=http://guest:guest@rabbitmq:15672/api/
@@ -150,13 +155,22 @@ services:
         - rabbitmq
 
   website:
-    image: "arthurflam/qaboard:website${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:website${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
-      context: website
+      # the root, to include the repository files the docs show: see website/Dockerfile
+      context: .
+      dockerfile: website/Dockerfile
       shm_size: 4gb
       # by default we assume you run the QA-Board on localhost, but will want to change this
       args:
         - QABOARD_URL=${QABOARD_URL:-http://localhost:5151}
+        # Docs for your site's users, from website/site-docs/$QABOARD_SITE/ (set in your env file)
+        - QABOARD_SITE=${QABOARD_SITE:-}
+        # Without network access: QABOARD_MEDIA=placeholder, or a mirror of the docs' media (docs-media/README.md)
+        - QABOARD_MEDIA=${QABOARD_MEDIA:-}
+        - QABOARD_MEDIA_BASE_URL=${QABOARD_MEDIA_BASE_URL:-}
+        # When a proxy blocks some of the media: QABOARD_MEDIA_MISSING=remote (readers load them) or placeholder
+        - QABOARD_MEDIA_MISSING=${QABOARD_MEDIA_MISSING:-}
     volumes:
     - website_builds:/builds
 
@@ -164,7 +178,7 @@ services:
   # nginx as reverse-proxy
   # https://hub.docker.com/_/nginx
   proxy:
-    image: "arthurflam/qaboard:proxy${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:proxy${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       context: services/nginx
     # # https://github.com/docker-library/docs/tree/master/nginx#using-environment-variables-in-nginx-configuration
@@ -189,7 +203,7 @@ services:
 
   # IIIF image server to serve images as tiles
   cantaloupe:
-    image: "arthurflam/qaboard:cantaloupe${QABOARD_VERSION:+-$QABOARD_VERSION}"
+    image: "${QABOARD_IMAGE:-ghcr.io/samsung/qaboard}:cantaloupe${QABOARD_VERSION:+-$QABOARD_VERSION}"
     build:
       context: ./services/cantaloupe
     expose:

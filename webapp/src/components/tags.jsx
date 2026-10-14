@@ -1,6 +1,4 @@
 import { useState } from "react";
-import { CopyToClipboard } from "./CopyToClipboard";
-import copy from 'copy-to-clipboard';
 import {
   Classes,
   Colors,
@@ -19,17 +17,10 @@ import {
 import { http, errorMessage, isAbort } from "../api/http";
 import { useRefreshCommit } from "../hooks";
 import { linux_to_windows } from '../utils'
+import { folder_url } from '../utils/paths'
 import { toaster } from "../toaster"
-
-
-const on_copy = (text, format = 'config') => {
-  const message = format === 'tuning' ? 'Tuning format copied' : 'Config copied';
-  toaster.show({
-    message: message,
-    intent: Intent.SUCCESS
-  });
-}
-
+import { copyWithToast } from "../utils/clipboard"
+import { copyDirectory } from "./logs/DirectoryActions"
 
 
 const style_skeleton = {
@@ -113,28 +104,17 @@ const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, to
               <MenuItem
                 icon="duplicate"
                 text="Copy this item"
-                onClick={() => {
-                  copy(c);
-                  on_copy(c);
-                }}
+                onClick={() => copyWithToast(c)}
               />
               <MenuItem
                 icon="duplicate"
                 text="Copy full configuration"
-                onClick={() => {
-                  const pretty_json = JSON.stringify(configurations, null, 2);
-                  copy(pretty_json);
-                  on_copy(pretty_json);
-                }}
+                onClick={() => copyWithToast(JSON.stringify(configurations, null, 2), { what: 'the configuration' })}
               />
               {convertToTuningFormat(configurations) && <MenuItem
                 icon="duplicate"
                 text="Copy full config in tuning format"
-                onClick={() => {
-                  const tuning_format = convertToTuningFormat(configurations);
-                  copy(tuning_format);
-                  on_copy(tuning_format, 'tuning');
-                }}
+                onClick={() => copyWithToast(convertToTuningFormat(configurations), { what: 'the configuration in tuning format' })}
               />}
             </Menu>
           }
@@ -162,38 +142,22 @@ const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, to
                          <MenuItem
                            icon="duplicate"
                            text={<span>Copy <em>{`${k}`}</em></span>}
-                           onClick={() => {
-                             const item_text = `${k}: ${JSON.stringify(v)}`;
-                             copy(item_text);
-                             on_copy(item_text);
-                           }}
+                           onClick={() => copyWithToast(`${k}: ${JSON.stringify(v)}`)}
                          />
                          <MenuItem
                            icon="duplicate"
                            text="Copy as JSON"
-                           onClick={() => {
-                             const object_json = JSON.stringify(c, null, 2);
-                             copy(object_json);
-                             on_copy(object_json);
-                           }}
+                           onClick={() => copyWithToast(JSON.stringify(c, null, 2))}
                          />
                          <MenuItem
                            icon="duplicate"
                            text="Copy full configuration"
-                           onClick={() => {
-                             const pretty_json = JSON.stringify(configurations, null, 2);
-                             copy(pretty_json);
-                             on_copy(pretty_json);
-                           }}
+                           onClick={() => copyWithToast(JSON.stringify(configurations, null, 2), { what: 'the configuration' })}
                          />
                          {convertToTuningFormat(configurations) && <MenuItem
                            icon="duplicate"
                            text="Copy full configuration in tuning format"
-                           onClick={() => {
-                             const tuning_format = convertToTuningFormat(configurations);
-                             copy(tuning_format);
-                             on_copy(tuning_format, 'tuning');
-                           }}
+                           onClick={() => copyWithToast(convertToTuningFormat(configurations), { what: 'the configuration in tuning format' })}
                          />}
                        </Menu>
                      }
@@ -218,19 +182,20 @@ const ExtraParametersTags = ({ parameters, intent = Intent.PRIMARY, inverted, be
   if (Object.keys(parameters).length === 0)
     return <span />
 
+  const pretty_json = JSON.stringify(parameters, null, 2);
+  const copy = () => copyWithToast(pretty_json, { what: 'the parameters' });
   const tags = Object.entries(parameters)
     .filter(([k]) => !hidden_keys.includes(k))
     .map(([k, v]) => (
-      <Tag key={k} intent={intent} minimal={!inverted} round interactive style={{ marginRight: '5px', marginBottom: '3px' }}>
+      <Tag key={k} intent={intent} minimal={!inverted} round interactive onClick={copy} style={{ marginRight: '5px', marginBottom: '3px' }}>
         <strong>{k}: </strong> {JSON.stringify(v)}
       </Tag>
     ));
 
-  const pretty_json = JSON.stringify(parameters, null, 2);
-  return <CopyToClipboard text={pretty_json} onCopy={() => on_copy(pretty_json)}><span>
+  return <span>
     {before}
     {tags}
-  </span></CopyToClipboard>
+  </span>
 }
 
 
@@ -397,7 +362,7 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
           text="Open output directory in browser"
           target="_blank"
           rel="noopener noreferrer"
-          href={output_dir_url}
+          href={folder_url(output_dir_url)}
           className={Classes.TEXT_MUTED} minimal
           icon="folder-shared-open"
         />
@@ -406,7 +371,7 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
           text="Open the Reference's output directory in browser"
           target="_blank"
           rel="noopener noreferrer"
-          href={output_ref.output_dir_url}
+          href={folder_url(output_ref.output_dir_url)}
           className={Classes.TEXT_MUTED} minimal
           icon="folder-shared-open"
         />}
@@ -415,7 +380,7 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
       <a style={{marginLeft: "5px", color: Colors.GRAY1}}
             target="_blank"
             rel="noopener noreferrer"
-            href={output_dir_url}
+            href={folder_url(output_dir_url)}
       >
         <Icon icon="folder-shared-open" />
       </a>
@@ -424,12 +389,12 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
     <Popover hoverCloseDelay={500} interactionKind={"hover"} placement="bottom" content={
       <Menu>
         {output_ref && <MenuDivider title="New Run" />}
-        <MenuItem text="Copy output directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(output_dir_url).slice(2))}} />
-        <MenuItem text="Copy output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(output_dir_url))}} />
+        <MenuItem text="Copy output directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_dir_url)} />
+        <MenuItem text="Copy output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_dir_url, { windows: true })} />
         {output_ref && <>
           <MenuDivider title="Reference Run" />
-          <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path of `reference` copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(output_ref.output_dir_url).slice(2))}} />
-          <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path of `reference` copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(output_ref.output_dir_url))}} />
+          <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_ref.output_dir_url)} />
+          <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_ref.output_dir_url, { windows: true })} />
           </>
         }
       </Menu>}

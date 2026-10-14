@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import qs from "qs";
 import { useInView } from "react-intersection-observer";
 import { Button, Callout, Intent } from "@blueprintjs/core";
 
-import { history as router_history } from "../router";
-import { BitAccuracyForm } from "./bit_accuracy/utils";
+import { useSelected, useUrlText, updateSelected } from "../hooks";
+import { BitAccuracyForm, bit_accuracy_url_defaults } from "./bit_accuracy/utils";
 import { OutputCard } from "./OutputCard";
 
 
@@ -14,34 +13,15 @@ import { OutputCard } from "./OutputCard";
 const all_at_once = 300;
 const page_size = 100;
 
-// bit-accuracy controls, saved in the URL
-const form_from_url = search => {
-  const params = new URLSearchParams(search);
-  return {
-    show_all_files: params.get("show_all_files") === 'true',
-    hide_runs_without_files: params.get("hide_runs_without_files") === 'true',
-    expand_all: params.get("expand_all") === 'true',
-    files_filter: params.get("files_filter") || '',
-    color_blind_friendly: params.get("color_blind_friendly") === 'true',
-  };
-}
-
-
-function OutputCardsList({ type, project, config, metrics, new_commit, new_batch, ref_batch, controls, history = router_history, onRegisterOutputOptions, onToggleDynamicOptionSync }) {
-  const [form, setForm] = useState(() => form_from_url(window.location.search));
-  const { show_all_files, hide_runs_without_files, expand_all, files_filter, color_blind_friendly } = form;
-
-  // The form changes as users type: we don't add browser history entries
-  const save = (name, value) => {
-    setForm(form => ({ ...form, [name]: value }));
-    const query = qs.parse(window.location.search.substring(1));
-    history.replace({
-      pathname: window.location.pathname,
-      search: qs.stringify({ ...query, [name]: value }),
-    });
-  }
-  const update = (attribute, attribute_url) => e => save(attribute_url || attribute, e?.target?.value !== undefined ? e.target.value : e);
-  const toggle = name => () => save(name, !form[name]);
+function OutputCardsList({ type, project, config, metrics, new_commit, new_batch, ref_batch, controls, onRegisterOutputOptions, onToggleDynamicOptionSync }) {
+  // bit-accuracy controls, saved in the URL. They don't add browser history entries.
+  const { query } = useSelected();
+  const flag = name => query[name] === 'true';
+  const [show_all_files, hide_runs_without_files, expand_all, color_blind_friendly] = ['show_all_files', 'hide_runs_without_files', 'expand_all', 'color_blind_friendly'].map(flag);
+  const save = (name, value) => updateSelected({ [name]: value }, { replace: true, defaults: bit_accuracy_url_defaults });
+  const [files_filter, onFilesFilterChange] = useUrlText(query.files_filter || '', value => save('files_filter', value));
+  const update = name => name === 'files_filter' ? onFilesFilterChange : e => save(name, e?.target?.value ?? e);
+  const toggle = name => () => save(name, !flag(name));
 
   const outputs = useMemo(() => (new_batch?.filtered?.outputs ?? [])
     .map(id => [id, new_batch.outputs[id]])
