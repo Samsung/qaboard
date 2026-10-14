@@ -116,7 +116,7 @@ describe('CommitAvatar', () => {
     const commit = { committer_name: 'Alice', committer_avatar_url: 'https://gitlab.example.com/avatar.png?width=90&s=1' };
     render(<MemoryRouter><CommitAvatar commit={commit} project="group/repo" /></MemoryRouter>);
     expect(screen.getByRole('link', { name: 'Alice' })).toHaveAttribute('href', '/group/repo/committer/Alice');
-    expect(screen.getByRole('img', { name: 'Alice' })).toHaveAttribute('src', '/api/v1/gitlab/proxy?url=https%3A%2F%2Fgitlab.example.com%2Favatar.png%3Fwidth%3D90%26s%3D1');
+    expect(screen.getByRole('img', { name: 'Alice' })).toHaveAttribute('src', '/api/v1/git/proxy?url=https%3A%2F%2Fgitlab.example.com%2Favatar.png%3Fwidth%3D90%26s%3D1');
   });
 
   it('has no link while the commit loads', () => {
@@ -132,7 +132,7 @@ describe('ProjectAvatar', () => {
 
   it("uses the repository's avatar, tinted for subprojects", () => {
     const { rerender } = render(<ProjectAvatar project="group/repo" data={{ git }} />);
-    expect(screen.getByRole('img', { name: 'group/repo' })).toHaveAttribute('src', '/api/v1/gitlab/proxy?url=https%3A%2F%2Fgitlab.example.com%2Frepo.png');
+    expect(screen.getByRole('img', { name: 'group/repo' })).toHaveAttribute('src', '/api/v1/git/proxy?url=https%3A%2F%2Fgitlab.example.com%2Frepo.png');
     expect(screen.getByRole('img').style.filter).toBe('');
     rerender(<ProjectAvatar project="group/repo/sub" data={{ git }} />);
     expect(screen.getByRole('img', { name: 'group/repo/sub' }).style.filter).toContain('hue-rotate');
@@ -141,7 +141,7 @@ describe('ProjectAvatar', () => {
   it('prefers the avatar from qaboard.yaml', () => {
     render(<ProjectAvatar project="group/repo/sub" data={{ git, qatools_config: { project: { avatar_url: 'https://cdn.example.com/sub.png' } } }} />);
     const img = screen.getByRole('img', { name: 'group/repo/sub' });
-    expect(img).toHaveAttribute('src', '/api/v1/gitlab/proxy?url=https%3A%2F%2Fcdn.example.com%2Fsub.png');
+    expect(img).toHaveAttribute('src', '/api/v1/git/proxy?url=https%3A%2F%2Fcdn.example.com%2Fsub.png');
     expect(img.style.filter).toBe('');
   });
 

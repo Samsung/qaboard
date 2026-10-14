@@ -23,11 +23,11 @@ def ci_commit_model(monkeypatch):
   """Loads the real backend/models/CiCommit.py, with SQLAlchemy and the other models mocked"""
   # conftest.py replaces sqlalchemy with an empty module
   sa = sys.modules['sqlalchemy']
-  for name in ('Column', 'Boolean', 'Integer', 'String', 'DateTime', 'JSON', 'ForeignKey', 'or_', 'UniqueConstraint'):
+  for name in ('Column', 'Boolean', 'Integer', 'String', 'DateTime', 'JSON', 'ForeignKey', 'or_', 'UniqueConstraint', 'Index'):
     monkeypatch.setattr(sa, name, MagicMock(), raising=False)
   sa_orm = sys.modules['sqlalchemy.orm']
   monkeypatch.setattr(sa, 'orm', sa_orm, raising=False)
-  for name in ('relationship', 'joinedload'):
+  for name in ('relationship', 'joinedload', 'selectinload'):
     monkeypatch.setattr(sa_orm, name, MagicMock(), raising=False)
   monkeypatch.setattr(sa_orm, 'reconstructor', lambda f: f, raising=False)
   postgresql = types.ModuleType('sqlalchemy.dialects.postgresql')
@@ -41,13 +41,14 @@ def ci_commit_model(monkeypatch):
   models = sys.modules['backend.models']
   monkeypatch.setattr(models, 'Base', object, raising=False)
   monkeypatch.setattr(models, 'Project', MagicMock())
+  monkeypatch.setattr(models, 'no_stats', {}, raising=False)
 
   path = Path(__file__).parent.parent / "backend" / "models" / "CiCommit.py"
   spec = importlib.util.spec_from_file_location("backend.models._ci_commit_under_test", path)
   module = importlib.util.module_from_spec(spec)
   spec.loader.exec_module(module)
-  # avatars are looked up on GitLab
-  monkeypatch.setattr(module, "get_avatar_url", lambda name: "")
+  # avatars are looked up on the git hosts
+  monkeypatch.setattr(module, "committer_avatar_url", lambda name, git=None, project_url=None: "")
   return module
 
 

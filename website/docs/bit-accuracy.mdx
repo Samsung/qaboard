@@ -29,10 +29,10 @@ Like `qa check-bit-accuracy`, the web app only checks the files selected by `bit
 - ...unlesss you're checking a merge made to that branch. In which case the commit's parents will act as references.
 - You can ask to compare versus a specific git commit, branch or tag with `qa check-bit-accuracy --reference $git-ref`.
 
-> If the commit you compare against has not finished its CI, `qa` will  wait.
+> If the commit you compare against has not finished its CI, `qa` will wait. It asks GitLab for the commit's pipeline jobs, or GitHub for its statuses and check runs, so it needs a token (see [CI integration](ci-integration)). Skipped jobs, and jobs allowed to fail, count as successful. `bit_accuracy.failed_ci_job_name` restricts it to a given job: in a subproject, it looks for the job `<failed_ci_job_name> <subproject>` (with the name of the subproject's folder).
 
 :::note Custom Needs
-You can opt-in to more complex behaviour in *[qaboard.yaml](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml)* with `bit_accuracy.on_reference_failed_ci: compare-first-parent` (and `bit_accuracy.max_parents_depth`, default 5), in case there are not results in the reference commit. Maybe the build failed, in which case you want to compare against the previous commit... If you're interested open an issue we'll add more details to the docs.
+You can opt-in to more complex behaviour in *[qaboard.yaml](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml)* with `bit_accuracy.on_reference_failed_ci: compare-first-parent` (it goes back at most `bit_accuracy.max_parents_depth` first parents, default 5), in case there are not results in the reference commit. Maybe the build failed, in which case you want to compare against the previous commit... If you're interested open an issue we'll add more details to the docs.
 :::
 
 If output files are different, `qa` prints a report and exits with a failure.
@@ -75,7 +75,7 @@ If you work with text files on both Linux and Windows, EOL can make things trick
 ## Sample CI for bit-accuracy checks
 You often want to know when your algorithm's results change, *especially if another team is busy implementing them in hardware*!
 
-Here is how you could get the CI to warn you with GitlabCI:
+Here is how you could get the CI to warn you with GitLab CI (it works the same with GitHub Actions):
 
 ```yaml title=".gitlab-ci.yml"
 stages:

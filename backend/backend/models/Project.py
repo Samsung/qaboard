@@ -1,6 +1,7 @@
 """
 Describes a project
 """
+import os
 import re
 import sys
 import json
@@ -25,6 +26,7 @@ from backend.models import Base, CiCommit
 # import backend.models as models
 from backend import repos
 from ..git_utils import git_pull
+from ..git_hosts.base import branch_from_ref
 from ..config import default_outputs_root, default_artifacts_root
 
 class Project(Base):
@@ -41,22 +43,16 @@ class Project(Base):
     The locations where we save outputs and artifacts for this project.
     `user_name` replaces {user} in the storage settings, by default the server's user.
     """
-    id_git = self.id_git
     qaboard_config = self.data.get('qatools_config', {})
     if not qaboard_config.get('storage'):
       qaboard_config = default_qaboard_config
-    try:
-      outputs_root, artifacts_root, subproject_for_artifacts = storage_roots(qaboard_config, Path(self.id), Path(self.id_relative), user_name=user_name)
-    except Exception as e:
-      print(e)
-      outputs_root = default_outputs_root
-      artifacts_root = default_artifacts_root
-      subproject_for_artifacts = Path()
-    return {
-      "outputs": outputs_root / id_git,
-      "artifacts": artifacts_root / id_git,
-      "subproject": subproject_for_artifacts,
-    }
+    # We need it for every commit and batch we serialize, and only those keys matter
+    storage_config = {k: qaboard_config[k] for k in ('storage', 'ci_root') if k in qaboard_config} if qaboard_config is not None else None
+    args = (self.id, self.id_git, self.id_relative, json.dumps(storage_config, sort_keys=True), os.environ.get('QA_STORAGE'), user_name)
+    # Scripts that set QABOARD_NO_CACHE_USER change the {user} of storage paths as they go (e.g. scripts/migrate.py)
+    if 'QABOARD_NO_CACHE_USER' in os.environ:
+      return dict(_storage_roots.__wrapped__(*args))
+    return dict(_storage_roots(*args))
 
   @property
   def id_git(self) -> str:
@@ -92,7 +88,8 @@ class Project(Base):
   @property
   def repo(self):
     try:
-      return repos[self.id_git]
+      project_url = (self.data.get('qatools_config') or {}).get('project', {}).get('url')
+      return repos.get(self.id_git, git=self.data.get('git'), project_url=project_url)
     except Exception as e:
       print(f"Could not get repo for <{self.id_git}>: {e}")
       pass
@@ -157,6 +154,24 @@ class Project(Base):
 
 
 
+@lru_cache(maxsize=1024)
+def _storage_roots(project_id, id_git, id_relative, storage_config_json, qa_storage, user_name=None):
+  # qa_storage: $QA_STORAGE overrides the storage config, it's part of the cache key
+  try:
+    outputs_root, artifacts_root, subproject_for_artifacts = storage_roots(json.loads(storage_config_json), Path(project_id), Path(id_relative), user_name=user_name)
+  except Exception as e:
+    print(e)
+    outputs_root = default_outputs_root
+    artifacts_root = default_artifacts_root
+    subproject_for_artifacts = Path()
+  # immutable, since we cache it
+  return (
+    ("outputs", outputs_root / id_git),
+    ("artifacts", artifacts_root / id_git),
+    ("subproject", subproject_for_artifacts),
+  )
+
+
 def is_relative_to(path : Path, path_maybe_parent : Path) -> bool:
   try:
     relative_path = path.relative_to(path_maybe_parent)
@@ -176,8 +191,13 @@ def update_project_data(project, data, db_session):
 
 
 def update_project(data, db_session):
+  """
+  Called on push webhooks.
+  data: {ref, checkout_sha, project}, see `GitHost.parse_push` in git_hosts/base.py
+        data['project'] is the repository's data (see git_hosts/__init__.py), stored as Project.data['git']
+  """
   # TODO: refactor, call the logic in Commit.get_or_create
-  branch = data['ref'][11:] # data['ref'] => 'refs/heads/feature/Imu_preintegration'
+  branch = branch_from_ref(data['ref']) # data['ref'] => 'refs/heads/feature/Imu_preintegration'
   commit_id = data['checkout_sha']
   if not commit_id:
     return
@@ -187,10 +207,8 @@ def update_project(data, db_session):
   root_project = Project.get_or_create(session=db_session, id=root_project_id)
   update_project_data(root_project, data, db_session)
 
-  hosting_type = data['project'].get('hosting_type')
-  web_url = data['project'].get('web_url')
   try:
-    repo = repos.get(root_project_id, hosting_type=hosting_type, web_url=web_url)
+    repo = repos.get(root_project_id, git=data['project'])
     git_pull(repo)
   except:
     print(f"Could not fetch the git info for {root_project_id}")

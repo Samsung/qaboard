@@ -15,7 +15,7 @@ Check items off or delete them when done, add new ones with enough context for s
 ## Testing / CI
 - [ ] Run the Playwright smoke tests (`npm run e2e`) in GitLab CI too. They run in GitHub Actions; the LSF runners need Chromium (`npx playwright install chromium` through the proxy, or use `PLAYWRIGHT_CHROMIUM_EXECUTABLE`).
 - [ ] Extend `e2e/smoke.spec.js` with realistic fixtures (batches, outputs, metrics) to cover the viewers and the tuning forms (Monaco).
-- [ ] Bring down the ~300 oxlint warnings (`npm run lint`), mostly unused variables, then make more rules errors.
+- [ ] Bring down the last 23 oxlint warnings (`npm run lint`, see TODO_WARTS.md at the repo root), then make more rules errors.
 
 ## Architecture
 - [ ] **Two class components are left**: `ImgViewer` (`src/viewers/images/images.jsx`, OpenSeadragon) and `TofOutputCard` (`src/viewers/tof/`, three.js). Convert them together with the OpenSeadragon/three.js upgrades below, when someone can check them visually.

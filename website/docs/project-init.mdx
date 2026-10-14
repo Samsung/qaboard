@@ -43,35 +43,38 @@ Add a `qaboard.yaml` next to your site package's `__init__.py`, and add to its `
 ```
 :::
 
-## *(Optional)* Gitlab Integration
-If you integrate with Gitlab, you'll be able to:
-- Update GitlabCI with your runs' statuses
+## *(Optional)* Connect your git host
+QA-Board works with **GitHub** (and GitHub Enterprise), **GitLab**, **Gitea/Forgejo** and **Bitbucket Cloud**. When your repository sends its push events to QA-Board, you can:
+- See your commits in QA-Board with their message, author and avatar, find them by branch or tag
 - Get direct links to your code
-- See users' avatars
-- Delete old results
-- Access commits by their tag or branch names
+- Have `qa batch` set a commit status that links to the results (GitHub and GitLab)
+- Start and follow CI jobs from the web application: [GitHub Actions workflows and GitLab CI manual jobs](triggering-third-party-tools)
 - Wait for CI pipelines to end when checking if results changed vs the last version
+- Delete old results
 
-:::note
-In the past Gitlab was required. GitHub is now partly supported, [see below](#optional-integration-with-github).
+Your QA-Board server must know your git host, and have a token if the repository is private: ask its admins, or see [Git hosts](backend-admin/git-hosts). If a delivery fails, its HTTP status tells why (see [webhooks](backend-admin/git-hosts#webhooks)).
+
+### GitHub
+In the repository's *Settings > Webhooks*, add a webhook with:
+* __Payload URL:__ `https://<your-qaboard-server>/webhook/github`
+* __Content type:__ `application/json`
+* __Secret:__ the server's webhook secret, if it has one (recommended)
+* __Events:__ *Just the push event*
+
+> GitHub sends a "ping" right away: in *Recent Deliveries* you should get a `200` response 🎉.
+
+### GitLab
+As one of the project's Maintainers, go to *Settings > Webhooks* (`https://<gitlab>/<group>/<project>/-/hooks`) and add a webhook with:
+* __URL:__ `https://<your-qaboard-server>/webhook/gitlab`
+* __Secret token:__ the server's webhook secret, if it has one (recommended)
+* __Trigger:__ *Push events* and *Tag push events*
+
+> To test everything went well, GitLab lets you "Test" your new hook. You should get a blue happy `200 OK` message  🔵🎉.
+
+### Gitea, Forgejo and Bitbucket
+Like GitHub, with the payload URL `https://<your-qaboard-server>/webhook/gitea` (or `/webhook/forgejo`) and the *Push* event, or for Bitbucket Cloud `https://<your-qaboard-server>/webhook/bitbucket` with the *Repository push* trigger.
+
+:::tip
+`project.url` in your `qaboard.yaml` (e.g. `git@github.com:org/repo.git`) tells `qa` and QA-Board where your repository is hosted, even before the first push event.
 :::
 
-### How-to
-1. Make sure you [started QA-Board with](/docs/deploy) a `GITLAB_HOST` and a `GITLAB_ACCESS_TOKEN` with `read_repository` scope.
-2. Be one of the project's Maintainers.
-3. Go to your project's *Settings > Webhooks* in Gitlab (`$GITLAB_HOST/$YOUR_GROUP/$PROJECT/-/hooks`).
-4. Add a webhook with:
-  * __URL:__ `http://localhost:5151/webhook/gitlab`. Replace `localhost:5151` with your QA-Board server's hostname if you setup any DNS/SSL..
-  * __Secret token:__ the server's `QABOARD_WEBHOOK_SECRET`, if it has one (recommended, see [environment variables](/docs/deploy#optional-environment-variables))
-
-> To test everything went well, Gitlab lets you "Test" your new hook. You should get a blue happy `200 OK` message  🔵🎉.
-
-## *(Optional)* Integration with GitHub
-GitHub repositories (including GitHub Enterprise) can send their push events to QA-Board, which then clones the repository to read commit metadata and `qaboard.yaml`, and shows committers' avatars. Updating commit statuses from `qa` is not supported yet for GitHub.
-
-1. For private repositories, [start QA-Board with](/docs/deploy#optional-environment-variables) a `GITHUB_ACCESS_TOKEN` that can read the repository. For GitHub Enterprise, also list its hostname in `QABOARD_GITHUB_HOSTS`.
-2. In the repository's *Settings > Webhooks*, add a webhook with:
-  * __Payload URL:__ `http://localhost:5151/webhook/github` (use your QA-Board server's hostname)
-  * __Content type:__ `application/json`
-  * __Events:__ *Just the push event*
-  * __Secret:__ the server's `QABOARD_WEBHOOK_SECRET`, if it has one (recommended)

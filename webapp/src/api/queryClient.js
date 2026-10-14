@@ -27,7 +27,7 @@ export const persistOptions = {
   }),
   maxAge: 7 * 24 * 3600 * 1000,
   // bump to discard what's persisted when the shape of the data changes
-  buster: '1',
+  buster: '2',
   dehydrateOptions: {
     shouldDehydrateQuery: query => persisted_queries.has(query.queryKey[0]) && query.state.status === 'success',
   },

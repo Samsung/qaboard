@@ -31,7 +31,7 @@ def shadowed_keys(sample: Dict[str, Any], site: Dict[str, Any], prefix: Key = ()
     is_location = (*prefix, key) in LOCATION_KEYS
     if isinstance(site_value, dict) and isinstance(sample_value, dict) and not is_location:
       sub_keys = shadowed_keys(sample_value, site_value, (*prefix, key))
-      # if the whole section would be overriden, we remove it
+      # if the whole section would be overridden, we remove it
       if sample_value and set(sub_keys) == {(*prefix, key, k) for k in sample_value}:
         keys.append((*prefix, key))
       else:

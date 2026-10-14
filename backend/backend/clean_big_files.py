@@ -1,12 +1,8 @@
 #!/usr/bin/env python
-import sys
 import datetime
-import subprocess
 from pathlib import Path
 
-from sqlalchemy import func, and_, asc, or_, not_
-
-from .database import db_session, Session
+from .database import db_session
 from .models import Output
 
 

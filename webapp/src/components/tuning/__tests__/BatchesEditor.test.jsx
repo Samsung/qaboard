@@ -71,8 +71,8 @@ it('shows the private file, its batches and where batches come from', async () =
   expect(within(outline).getByText('2 inputs')).toBeInTheDocument();
   expect(within(outline).getByText('alias → my-batch, shared-batch')).toBeInTheDocument();
 
-  // the commit's files, with the subproject filled in
-  expect(screen.getByRole('link', { name: 'sub/batches.yaml' })).toHaveAttribute('href', 'https://git/group/repo/tree/abc123/sub/batches.yaml');
+  // the commit's files, with the subproject filled in, linked like the git host does (GitLab unless we know better)
+  expect(screen.getByRole('link', { name: 'sub/batches.yaml' })).toHaveAttribute('href', 'https://git/group/repo/-/blob/abc123/sub/batches.yaml');
   expect(screen.getByText('/mnt/db')).toBeInTheDocument();
 
   // jump to a batch

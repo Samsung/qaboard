@@ -1,4 +1,4 @@
-// The status of the sidebar's integrations (links, webhooks, GitLab CI jobs, Jenkins builds):
+// The status of the sidebar's integrations (links, webhooks, GitLab CI jobs, GitHub Actions workflows, Jenkins builds):
 // we probe links with HEAD requests, trigger builds and poll their status.
 // Statuses of triggered builds are kept in localStorage per commit, so they survive page reloads.
 import { useEffect, useRef, useState } from "react";
@@ -6,7 +6,8 @@ import { Intent } from "@blueprintjs/core";
 
 import { http, errorMessage } from "./api/http";
 import { toaster } from "./toaster";
-import { project_web_url, make_eval_templates_recursively } from "./utils";
+import { make_eval_templates_recursively } from "./utils";
+import { host_url } from "./git";
 
 const LS_PREFIX = 'qaboard:integrationStatuses:';
 const LS_INDEX_KEY = 'qaboard:integrationStatuses:index';
@@ -30,7 +31,7 @@ const loadIntegrationStatuses = commit_id => {
 const saveIntegrationStatuses = (commit_id, statuses) => {
   if (!commit_id) return;
   try {
-    // Only persist entries the user actively triggered (Jenkins/gitlabCI builds).
+    // Only persist entries the user actively triggered (Jenkins/gitlabCI/githubActions builds).
     // HEAD-probe results for plain links/artifacts are cheap to recompute on demand.
     const cleaned = {};
     Object.entries(statuses).forEach(([k, status]) => {
@@ -62,7 +63,20 @@ const saveIntegrationStatuses = (commit_id, statuses) => {
 // sibling elsewhere in the tree don't share a status entry.
 export const integration_key = (integration, prefix = '') => prefix + (integration.id || integration.text || integration.name || integration.alt);
 
-const gitlab_host = project_data => project_web_url(project_data).split('/').slice(0, 3).join('/');
+// What the backend needs to find the CI jobs of a commit on the project's git host
+const gitlab_job = (project, project_data, commit) => ({
+  gitlab_host: host_url(project_data),
+  project_id: project_data.data?.git?.path_with_namespace ?? project,
+  commit_id: commit.id,
+});
+// The server only starts or reads the workflows of projects users can access, declared in their qaboard.yaml
+const github_workflow = (project, project_data, commit) => ({
+  project,
+  host: host_url(project_data),
+  repo: project_data.data?.git?.path_with_namespace ?? project,
+  commit_id: commit.id,
+  ref: commit.branch?.replace(/^origin\//, ''),
+});
 
 
 // context: {project, project_data, commit, new_batch, integrations, ...template variables}
@@ -90,8 +104,8 @@ export function useIntegrationStatuses(context) {
 
   const trigger = (integration, key) => () => {
     const { project, project_data = {}, commit = {} } = latest.current.context;
-    const { webhook, gitlabCI, jenkins } = integration;
-    if (!webhook && !gitlabCI && !jenkins) return;
+    const { webhook, gitlabCI, githubActions, jenkins } = integration;
+    if (!webhook && !gitlabCI && !githubActions && !jenkins) return;
     const entry_key = key ?? integration_key(integration);
     setStatus(entry_key, { loading: true, triggered: true, data: undefined });
     let url, params;
@@ -101,9 +115,12 @@ export function useIntegrationStatuses(context) {
     } else if (jenkins) {
       url = '/api/v1/jenkins/build/trigger/';
       params = jenkins;
+    } else if (githubActions) {
+      url = '/api/v1/github/workflow/dispatch/';
+      params = { ...github_workflow(project, project_data, commit), ...githubActions };
     } else {
       url = '/api/v1/gitlab/job/play/';
-      params = { gitlab_host: gitlab_host(project_data), project_id: project, commit_id: commit.id, ...gitlabCI };
+      params = { ...gitlab_job(project, project_data, commit), ...gitlabCI };
     }
     http.post(url, params)
       .then(response => {
@@ -129,7 +146,7 @@ export function useIntegrationStatuses(context) {
       return [{ integration: i, key }, ...(i.sub ? flatten(i.sub, `${key}/`) : [])];
     });
     flatten(integrations)
-      .filter(({ integration: i }) => (i?.href !== undefined && i?.href !== "" && i?.src === undefined) || i?.gitlabCI || i?.jenkins)
+      .filter(({ integration: i }) => (i?.href !== undefined && i?.href !== "" && i?.src === undefined) || i?.gitlabCI || i?.githubActions || i?.jenkins)
       .forEach(({ integration, key }) => {
         try {
           integration = eval_templates_recursively(integration);
@@ -141,12 +158,17 @@ export function useIntegrationStatuses(context) {
         if (status.loading) return;
         if (integration.jenkins && status.data?.web_url === undefined && status.data?.url === undefined) return;
         // Those are display-only fields, not part of the request
-        const { label: _label, icon: _icon, text: _text, href: _href, alt: _alt, style: _style, ignore_failure, gitlabCI, jenkins, ...request } = integration;
+        const { label: _label, icon: _icon, text: _text, href: _href, alt: _alt, style: _style, ignore_failure, gitlabCI, githubActions, jenkins, ...request } = integration;
         let url, params;
         if (gitlabCI) {
           if (status.triggered !== true) return;
           url = '/api/v1/gitlab/job/';
-          params = { gitlab_host: gitlab_host(project_data), project_id: project, commit_id: commit.id, job_id: status.data?.id, ...gitlabCI };
+          params = { ...gitlab_job(project, project_data, commit), job_id: status.data?.id, ...gitlabCI };
+        } else if (githubActions) {
+          // The latest run for this commit, or the one we started
+          url = '/api/v1/github/workflow/';
+          // dispatched_at: to find the run we started when the server didn't see it yet
+          params = { ...github_workflow(project, project_data, commit), run_id: status.data?.id, dispatched_at: status.data?.dispatched_at, ...githubActions };
         } else if (jenkins) {
           if (status.triggered !== true) return;
           url = '/api/v1/jenkins/build/';

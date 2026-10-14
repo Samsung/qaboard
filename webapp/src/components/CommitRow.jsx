@@ -22,7 +22,7 @@ import { useRefreshCommit } from "../hooks";
 import { CommitAvatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
 import { format, shortId, pretty_label } from "../utils";
-import { project_web_url } from "../utils"
+import { commit_url as git_commit_url } from "../git"
 import { has_milestones } from './milestones'
 import { copyDirectory } from './logs/DirectoryActions'
 import { copyWithToast } from '../utils/clipboard'
@@ -77,7 +77,7 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
     if (incomplete_data)
       return <span></span>
 
-    const gitlab_commit_url = `${project_web_url(project_data)}/commit/${commit.id}`;
+    const code_url = git_commit_url(project_data, commit.id);
     let batches_with_results = Object.entries(commit.batches)
                                .filter( ([label]) => has_outputs_in_batch(label)(commit) )
                                .map( ([label]) => label )
@@ -93,7 +93,7 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
     )
       return (
         <div className={className}>
-        <a style={{ color: "grey" }} href={gitlab_commit_url}>
+        <a style={{ color: "grey" }} href={code_url}>
           <Button intent={Intent.WARNING} minimal>
           
             Check the pipeline status..
@@ -248,9 +248,8 @@ const CommitRow = ({ commit, project, project_data = {}, className, tag, default
   const refresh = () => refreshCommit(project, commit.id);
 
   const git = project_data.data?.git ?? {};
-  const web_url = project_web_url(project_data)
   const is_subproject = git.path_with_namespace !== project;
-  const commit_url = `${web_url}/commit/${commit.id}`
+  const commit_url = git_commit_url(project_data, commit.id)
   const has_data = !!commit?.authored_datetime
   let maybe_skeletton = has_data ? null : Classes.SKELETON;
   const commit_has_milestones = has_milestones({commit, project, project_data})

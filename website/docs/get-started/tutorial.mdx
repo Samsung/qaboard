@@ -187,7 +187,8 @@ Connecting the repository adds the committers' avatars, and lets QA-Board read e
 <TabItem value="github" label="GitHub" default>
 
 1. For a private repository, start the server with a `GITHUB_ACCESS_TOKEN` that can read it. For GitHub Enterprise,
-   also list its hostname in `QABOARD_GITHUB_HOSTS`. Set a `QABOARD_WEBHOOK_SECRET` too (see
+   also list its hostname in `QABOARD_GITHUB_HOSTS`, or list your hosts in `QABOARD_GIT_HOSTS` (see
+   [Git hosts](/docs/backend-admin/git-hosts)). Set a `QABOARD_WEBHOOK_SECRET` too (see
    [environment variables](/docs/deploy#optional-environment-variables)).
 2. In the repository's **Settings > Webhooks**, add a webhook:
    - **Payload URL:** `http://<your-qaboard>/webhook/github`
@@ -196,8 +197,8 @@ Connecting the repository adds the committers' avatars, and lets QA-Board read e
    - **Events:** just the push event
 3. Push a commit: GitHub shows a green check next to the webhook's latest delivery.
 
-GitHub has to reach your server for this. To get a check on each commit, `qa gate --post-status github` posts a
-commit status that links to the Metrics Diff (step 7).
+GitHub has to reach your server for this. When `qa` has a token, `qa batch` sets a commit status that links to the
+results (step 6), and `qa gate --post-status github` one that links to the Metrics Diff (step 7).
 
 </TabItem>
 <TabItem value="gitlab" label="GitLab">
@@ -207,13 +208,13 @@ commit status that links to the Metrics Diff (step 7).
 2. As a maintainer of the project, add a webhook in **Settings > Webhooks**:
    - **URL:** `http://<your-qaboard>/webhook/gitlab`
    - **Secret token:** the server's `QABOARD_WEBHOOK_SECRET`
-   - **Trigger:** push events
+   - **Trigger:** push events and tag push events
 3. Click **Test > Push events**: GitLab shows that the hook answered with HTTP 200.
 
 </TabItem>
 </Tabs>
 
-More in [Project setup](/docs/project-init).
+More, and Gitea, Forgejo or Bitbucket, in [Project setup](/docs/project-init#optional-connect-your-git-host).
 
 ## 6. Run in CI
 Your CI runs `qa batch ci` on every push. `qa` reads the commit and the branch from the CI's environment variables,

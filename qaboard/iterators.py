@@ -250,7 +250,7 @@ def _iter_inputs(path, database, inputs_settings, qatools_config, only=None, exc
       iter_inputs_filtered = (i for i in iter_inputs if (not only or match(i["metadata"], only)) and (not exclude or not match(i["metadata"], exclude)))
       yield from ( (i["input_path"], i["database"]) for i in iter_inputs_filtered)
       # we really could send a batch update to /our/ database here with all the metadata?
-    except Exception as e:
+    except Exception:
       exc_type, exc_value, exc_traceback = sys.exc_info()
       click.secho(f'[ERROR] The `iter_inputs` function in your entrypoint raised an exception:', fg='red', bold=True, err=True)
       click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)

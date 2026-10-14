@@ -65,6 +65,13 @@ deployments/deploy.py deployments/mysite/production.env rollback   # back to the
 
 :::caution Database migrations
 Rolling back the code does not roll back database migrations. Write migrations that the previous version can live with (add columns, don't drop/rename them in the same release), since the old and the new backends also run side by side during a deploy.
+
+Since mid-October 2026, a version that finds migrations it doesn't know (made by a newer version) keeps them and starts. Older versions refuse to start instead: a rollback to them stops before changing anything, with *Can't locate revision*. To go back to such a version, first undo the newer migrations with the running version, down to the latest migration the older version knows (`alembic heads` in its image; `3b7e9c1d4a52` for the versions just before git hosts became configurable):
+```bash
+deployments/deploy.py deployments/mysite/production.env compose run --rm --no-deps backend \
+  bash -c 'cd /qaboard/backend/backend && alembic downgrade 3b7e9c1d4a52'
+deployments/deploy.py deployments/mysite/production.env rollback
+```
 :::
 
 ## Staging with recent production data

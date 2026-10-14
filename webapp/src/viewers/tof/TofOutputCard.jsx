@@ -108,7 +108,7 @@ class TofOutputCard extends Component {
       last_frame_id,
       selected_frame: last_frame_id,
 
-      // should we show the new or the reference ouput?
+      // should we show the new or the reference output?
       focus: 'new',
 
       show_pointcloud: false,
@@ -589,7 +589,7 @@ class TofOutputCard extends Component {
       <>
         <p className={Classes.TEXT_MUTED}>
           {show_pointcloud ? (is_loaded && !!this.scene.getObjectByName("new")
-                        ? <span>Showing {this.state.focus}. Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.closePointCloud()}>close</Button></span>
+                        ? <span>Showing {this.state.focus}. Press R/G to toggle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.closePointCloud()}>close</Button></span>
                         : "Loading...") : (has_many_frame ? "Click a point on the plot to show other frames." : "")}
         </p>
         <div hidden={!show_pointcloud} ref={threeRoot => {this.threeRoot = threeRoot;}}> </div>

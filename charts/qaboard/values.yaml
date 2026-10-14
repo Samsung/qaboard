@@ -17,6 +17,8 @@ imagePullSecrets: []
 config:
   QABOARD_LOGIN_TYPE: LOCAL
   # GITLAB_HOST: https://gitlab.example.com
+  # Git hosts, their tokens are read from the secret (website/docs/backend-admin/git-hosts.mdx)
+  # QABOARD_GIT_HOSTS: '[{"type": "github", "url": "https://github.com", "token_env": "GITHUB_ACCESS_TOKEN"}]'
   # QABOARD_LDAP_HOST: ldap.example.com
   # With cantaloupe.enabled, the chart sets QABOARD_IMAGE_SERVERS to '{"default": "/iiif/2/"}'
   # QABOARD_IMAGE_SERVERS: '{"default": "https://iiif.example.com/iiif/2/"}'
@@ -70,7 +72,7 @@ demoData:
   accessMode: ReadWriteMany
 
 # Secret backend settings: SECRET_KEY (signs sessions, must be the same for all replicas),
-# QABOARD_DB_PASSWORD (unless database.cnpg.enabled), GITLAB_ACCESS_TOKEN, QABOARD_LDAP_PASSWORD...
+# QABOARD_DB_PASSWORD (unless database.cnpg.enabled), GITLAB_ACCESS_TOKEN, GITHUB_ACCESS_TOKEN, QABOARD_LDAP_PASSWORD...
 secret:
   # Recommended: create the secret yourself (e.g. with sealed-secrets/external-secrets) and reference it
   existingSecret: ""

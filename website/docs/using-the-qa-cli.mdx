@@ -32,7 +32,7 @@ With `--share`, `qa batch` and `qa optimize` also save what they print, errors i
 
 
 ## `qa --dryrun`
-`qa` commmands support a `--dryrun` mode, where they print actions they would take, but don't actually do anything. In particular it helps see quickly what inputs you defined in a batch:
+`qa` commands support a `--dryrun` mode, where they print actions they would take, but don't actually do anything. In particular it helps see quickly what inputs you defined in a batch:
 
 ```bash
 qa --dryrun batch my-batch
@@ -45,7 +45,7 @@ For `qa --dryrun run`, you are expected to handle `if context.dryrun: ...` yours
 :::
 
 ## `qa --label my-label`
-Everytime you `qa run`, it erases previous results. So if you want compare different versions by tweaking doing `qa run`, it won't work. Fortunately, `qa` lets you give a "label", or "experiment name" to runs. Results with different labels are stored separately:
+Every time you `qa run`, it erases previous results. So if you want compare different versions by tweaking doing `qa run`, it won't work. Fortunately, `qa` lets you give a "label", or "experiment name" to runs. Results with different labels are stored separately:
 
 ```
 qa --label without-optimizations batch validation-images
@@ -60,7 +60,7 @@ Each label is a batch of its own: pick it in the web app's batch selector.
 />
 
 :::tip
-To keep previous output files, use `qa run --keep-previous` (or `export QABOARD_RUN_KEEP=true`). It can be useful if you are debugging long runs and implemented a caching mecanism. *(Experimental)*
+To keep previous output files, use `qa run --keep-previous` (or `export QABOARD_RUN_KEEP=true`). It can be useful if you are debugging long runs and implemented a caching mechanism. *(Experimental)*
 :::
 
 ## `qa batch`
@@ -113,7 +113,7 @@ Only `input_path` (relative to `database`) and `database` are required. Runs are
 
 ## Connecting to a custom QA-Board instance
 Use `qa --offline` to ensure you don't connect to a QA-Board instance. It's useful if... you don't have one (?).
-The default connection settings can be overriden by environment variables. For example:
+The default connection settings can be overridden by environment variables. For example:
 
 ```bash
 export QABOARD_PROTOCOL=http

@@ -7,8 +7,7 @@ Uses a dummy flask app instead of a real one.
 """
 import pytest
 
-from flask import Flask
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 # ==========================================
 # Milestone Samples

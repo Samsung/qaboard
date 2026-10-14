@@ -22,7 +22,8 @@ import { LogsMenuItem, logs_hint_class } from "./AppSiderLogsItem"
 
 import { useCommitsList, useComparison, useSiteConfig, useUser, updateSelected } from "./hooks"
 import { useIntegrationStatuses } from "./useIntegrationStatuses"
-import { project_web_url, quota_url } from "./utils"
+import { quota_url } from "./utils"
+import { repo_url, tree_url, commit_url, default_integrations } from "./git"
 
 export const sider_width = sidebar.width.default;
 
@@ -357,6 +358,10 @@ const Sider = styled.div`
 `
 
 
+// The integrations of the branch pages: from qaboard.yaml, or the defaults for the project's git host
+const branch_integrations = ({ project_data, commit }) =>
+  project_data.data?.qatools_config?.integrations ?? commit?.data?.qatools_config?.integrations ?? default_integrations(project_data);
+
 const ProjectSideAvatar = ({ project, project_data = {} }) => {
   let project_name = project.split('/').slice(-1)[0];
   return (
@@ -411,7 +416,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
   };
 
   let qatools_config = project_data.data?.qatools_config || {};
-  let integrations = qatools_config.integrations ?? commit?.data?.qatools_config?.integrations ?? [];
+  let integrations = branch_integrations({ project_data, commit });
   let reference_branch = qatools_config.project?.reference_branch;
   const git = project_data.data?.git || {};
 
@@ -429,8 +434,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
   const branch = selected.branch ?? reference_branch;
   let project_repo = git.path_with_namespace || '';
   let subproject = project.slice(project_repo.length + 1);
-  const web_url = project_web_url(project_data);
-  let code_url = subproject.length > 0 ? `${web_url}/tree/${branch}/${subproject}` : web_url;
+  let code_url = subproject.length > 0 ? tree_url(project_data, branch, subproject) : repo_url(project_data);
   const commits_url = branch ? `/${path_segment(project)}/commits/${path_segment(branch)}` : `/${path_segment(project)}/commits`;
   const history_url = branch ? `/${path_segment(project)}/history/${path_segment(branch)}` : `/${path_segment(project)}/history`;
   return <>
@@ -483,8 +487,8 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
   const git = project_data.data?.git || {};
   let project_repo = git.path_with_namespace || '';
   let subproject = project.slice(project_repo.length + 1);
-  let commit_code_sufffix = !!commit?.id ? (subproject.length > 0 ? `blob/${commit.id}/${subproject}` : `commit/${commit.id}`) : ''
-  let code_url = `${project_web_url(project_data)}/${commit_code_sufffix}`
+  let code_url = !commit?.id ? repo_url(project_data)
+                 : subproject.length > 0 ? tree_url(project_data, commit.id, subproject) : commit_url(project_data, commit.id);
 
   const has_optim = new_batch?.data?.optimization === true;
   const active = view => selected_views.includes(view);
@@ -545,12 +549,13 @@ const AppSider = () => {
   const user = useUser();
   const { project, project_data, selected, selected_views, default_views, new_commit, ref_commit, new_batch, ref_batch } = useComparison();
   const route = selected.route;
-  const { latest_commit } = useCommitsList();
+  // searching commits doesn't change the latest commit
+  const { latest_commit } = useCommitsList({ ignore_search: true });
   // the commit whose integrations we show
   const commit = route.is_commit ? new_commit : latest_commit;
 
   const integrations = [
-    ...(project_data.data?.qatools_config?.integrations ?? commit?.data?.qatools_config?.integrations ?? []),
+    ...branch_integrations({ project_data, commit }),
     ...results_integrations({ new_batch, commit, project_data }),
   ];
   const template_context = {

@@ -44,6 +44,6 @@ describe('CommitRow', () => {
   it("doesn't change the project's data", () => {
     renderRow();
     expect(project_data.data.git.web_url).toBeUndefined();
-    expect(screen.getByText('abcdef12')).toHaveAttribute('href', 'https://gitlab.com/group/proj/commit/abcdef1234567890');
+    expect(screen.getByText('abcdef12')).toHaveAttribute('href', 'https://gitlab.com/group/proj/-/commit/abcdef1234567890');
   });
 });

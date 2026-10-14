@@ -18,8 +18,15 @@ const results = {};
 
 const setup = async page => {
   await page.route('**/api/**', route => {
-    const { pathname } = new URL(route.request().url());
+    const { pathname, searchParams } = new URL(route.request().url());
     const key = api_keys.find(k => pathname.startsWith(k));
+    // lists of commits come in pages, like the server's
+    if (key === '/api/v1/commits' && searchParams.has('limit')) {
+      const limit = Number(searchParams.get('limit'));
+      const offset = Number(searchParams.get('offset') ?? 0);
+      const has_more = offset + limit < api[key].length;
+      return route.fulfill({ json: api[key].slice(offset, offset + limit), headers: { 'X-Has-More': String(has_more) } });
+    }
     return route.fulfill({ json: key ? api[key] : {} });
   });
   // the output files cards fetch (manifests...)
@@ -75,7 +82,19 @@ const scenarios = {
     await page.goto('/');
     return measure(page, cdp, async () => {
       await page.goto(`/${project}/commits`);
-      await page.getByText('Commit c0299').first().waitFor({ timeout: 60_000 });
+      await page.getByText('Commit c0000').first().waitFor({ timeout: 60_000 });
+    });
+  },
+  'commits list: scroll to the end': async page => {
+    const cdp = await setup(page);
+    await page.goto(`/${project}/commits`);
+    await page.getByText('Commit c0000').first().waitFor({ timeout: 60_000 });
+    return measure(page, cdp, async () => {
+      // pages load as the end of the list comes into view
+      while (!await page.getByText(`Commit c${String(nb_commits - 1).padStart(4, '0')}`).count()) {
+        await page.mouse.wheel(0, 5000);
+        await page.waitForTimeout(50);
+      }
     });
   },
   'commit page: load summary': async page => {

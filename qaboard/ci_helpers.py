@@ -67,7 +67,6 @@ def run_tests() -> int:
   click.secho(f"Running {len(test_funcs)} tasks", fg='green')
   if skipped_test_nb:
     click.secho(f"{skipped_test_nb} skipped", dim=True)
-  all_success = True
 
   def run_test(test):
     click.secho(test.__name__, bold=True)
@@ -81,30 +80,6 @@ def run_tests() -> int:
   return all((not return_code for return_code in return_codes))
 
 
-# import os
-# import subprocess
-# @on_branch("abc")
-# def tests_basic():
-#   return os.system("echo OK")
-
-# @on_branch(["xyz", "abc"])
-# def tests_multiple():
-#   return os.system("echo OK")
-
-# @on_branch(("xyz", "abc"))
-# def tests_multiple_tuple():
-#   return os.system("echo OK")
-
-# @on_branch("ab*")
-# def tests_wildcards():
-#   return subprocess.call("echo OK", shell=True)
-
-# @on_branch("r")
-# def tests_redefinition():
-#   return os.system("echo OK")
-# @on_branch("r")
-# def tests_redefinition():
-#   system.call("echo OK")
 
 
 

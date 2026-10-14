@@ -13,7 +13,7 @@ const parse_query_controls = search => {
   }
 }
 
-// The visual controls of the outputs: defaults from the project's configuration, overriden by ?controls= in the URL
+// The visual controls of the outputs: defaults from the project's configuration, overridden by ?controls= in the URL
 const controls_defaults = (qatools_config, search = window.location.search) => {
   const outputs = qatools_config?.outputs;
   const show = {};

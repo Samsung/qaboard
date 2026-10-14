@@ -4,10 +4,8 @@ Create a pdf report of rois comparison.
 """
 import time
 from pathlib import Path
-from functools import lru_cache
 
 import numpy as np
-from requests.utils import unquote
 from flask import request, jsonify
 
 from qaboard.api import url_to_dir 
@@ -17,15 +15,6 @@ from ..models import Output
 from ..config import qaboard_url
 from .image_diff import find_rois
 from ..images import read_image, ImageType
-
-@lru_cache(maxsize=2)
-def cached_read_image(image_path):
-  """
-  Simple LRU cache - the downside is that our images are huge so with 8 workers each saving 2 image, each 300MB, it's bad...
-  """
-  image, meta = read_image(image_path)
-  return image, meta
-
 
 try:
   import uwsgi
@@ -51,7 +40,6 @@ except ImportError:
 
 import os
 import json
-import time
 import hashlib
 
 from backend.config import qaboard_data_dir
@@ -140,11 +128,10 @@ def get_pixel():
     return f"ERROR: Cannot find {image_path}", 404
   # We work with huge images (100-200MP). Loading them each request can be very slow (~seconds).
   # Since the frontend may request 5-10 pixel values per second, we need some form of caching.
+  # An in-memory LRU cache would use too much memory: images can be 300MB, and each worker would keep its own copies.
   image, meta, error = maybe_memmapped_read_image(image_path)
   if error:
     return jsonify({"error": str(error)}), 400
-  # image, meta = cached_read_image(image_path)
-  # print('meta', meta)
   if ImageType is not None:
     try:
       meta = ImageType(*meta)
@@ -162,7 +149,6 @@ def get_pixel():
 def get_rois():
   data = request.json
   print(data)
-  start = time.time()
   image_path_new = url_to_dir(data['output_dir_url_new']) / data["path"]
   image_path_ref = url_to_dir(data['output_dir_url_ref']) / data["path"]
   blobs = find_rois(
@@ -188,7 +174,6 @@ def get_report():
   new_url = Path(data['output_dir_url_new'][2:]) / data["path"]
   ref_url = Path(data['output_dir_url_ref'][2:]) / data["path"]
   rois = data['rois']
-  # print(data) # DEBUG
 
   time_tuple = time.localtime() # get struct_time
   time_string = time.strftime("%d%m%Y_%H%M%S", time_tuple)

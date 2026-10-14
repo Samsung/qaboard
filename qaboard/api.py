@@ -140,7 +140,7 @@ def notify_qa_database(object_type='output', **kwargs):
   Updating the QA database.
   """
   import requests
-  from .config import is_ci, is_in_git_repo, config, _metrics
+  from .config import is_ci, config, _metrics
   from .config import commit_id, commit_branch, commit_tag, commit_committer_name, commit_committer_email, commit_authored_datetime, commit_parents, commit_message
 
   if kwargs.get('offline'):
@@ -158,8 +158,8 @@ def notify_qa_database(object_type='output', **kwargs):
     # send all the data, with some light custom serialization for Path objects
     **serialize_paths(kwargs),
   }
-  # if object_type != "output"  # le'ts be wasteful to make init easier
-  # Will help initialize/update the commit/batch in QA-Board
+  # Will help initialize/update the commit/batch in QA-Board.
+  # We send it with every object type, even if it's wasteful: it makes init easier
   data.update({
     'commit_branch': commit_branch,
     'commit_tag': commit_tag,
@@ -197,7 +197,6 @@ def notify_qa_database(object_type='output', **kwargs):
     try:
       request_headers = {k: '<redacted>' if k.lower() == 'authorization' else v for k, v in r.request.headers.items()}
       click.secho(str(request_headers), fg='yellow', dim=True, err=True)
-      # click.secho(str(r.request.body), fg='yellow', dim=True, err=True)
       click.secho(f'{r.status_code}: {r.text}', fg='yellow', dim=True, err=True)
     except Exception:
       pass
@@ -284,7 +283,7 @@ def aggregated_metrics(batch_label, metrics=None):
 
 def matching_output(output_reference: RunContext, outputs: List[Dict]):
   """
-  Return the output from from a given batch that is like a given output.
+  Return the output from a given batch that is like a given output.
   This helps us compare an output to historical results.
   """
   matching_outputs = [o for o in outputs if f'{o["test_input_database"]}/{o["test_input_path"]}' == output_reference.input_path.as_posix()]
@@ -301,6 +300,6 @@ def matching_output(output_reference: RunContext, outputs: List[Dict]):
   valid_outputs = [o for o in valid_outputs if match_ref(o)]
   if not valid_outputs:
     return None
-  # at most 1, garanteed by database constaints
+  # at most 1, guaranteed by database constraints
   assert len(valid_outputs) == 1
   return valid_outputs[0]

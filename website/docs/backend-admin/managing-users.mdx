@@ -27,7 +27,7 @@ Users sign in from the **Login** button at the top right of the web app. With `L
 > ```
 
 :::tip
-This flow can be improved. So far all instances of QA-Board rely on external authentification providers, so it hasn't been a priority. We would welcome merge requests to add a UX flow to register new users.
+This flow can be improved. So far all instances of QA-Board rely on external authentication providers, so it hasn't been a priority. We would welcome merge requests to add a UX flow to register new users.
 :::
 
 ### Environment variables
@@ -72,7 +72,7 @@ To allow only specific users to sign-in, set the environment variables:
 - `QABOARD_LOGIN_RESTRICTED=true`
 - `QABOARD_LOGIN_RESTRICTED_YAML=path/to/users_restrict.yml`
 
-The YAML file specifies multiple cases where users will be accepted. It can be based on the user name, email, or any parameter from the authentification provider (or `users` table in the database).\
+The YAML file specifies multiple cases where users will be accepted. It can be based on the user name, email, or any parameter from the authentication provider (or `users` table in the database).\
 Example:
 
 

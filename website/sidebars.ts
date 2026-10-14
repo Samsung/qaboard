@@ -148,6 +148,7 @@ const sidebars: SidebarsConfig = {
   admin: {
     "Server Admin": [
         "deploy",
+        "backend-admin/git-hosts",
         "backend-admin/deployment",
         "backend-admin/kubernetes",
         "backend-admin/user-management",

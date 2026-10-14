@@ -10,8 +10,8 @@ from pathlib import Path
 from requests.utils import quote
 from sqlalchemy import Column, Boolean, Integer, String, DateTime, JSON, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy import or_, UniqueConstraint, orm
-from sqlalchemy.orm import relationship, reconstructor, joinedload
+from sqlalchemy import or_, UniqueConstraint, Index, orm
+from sqlalchemy.orm import relationship, reconstructor, joinedload, selectinload
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
@@ -19,9 +19,8 @@ from sqlalchemy.orm.attributes import flag_modified
 from qaboard.conventions import get_commit_dirs
 from qaboard.api import dir_to_url
 
-from backend.models import Base, Batch, Output
-from backend.metrics_aggregation import aggregated_metrics
-from ..utils import get_avatar_url, get_github_avatar_url
+from backend.models import Base, Batch, Output, batches_stats, no_stats
+from ..git_hosts import committer_avatar_url, committers
 from ..fs_utils import rm_empty_parents, rmtree
 from ..storage import check_storage_path, check_inside, UnsafePathError
 from ..git_utils import find_branch
@@ -39,7 +38,6 @@ class CiCommit(Base):
   project_id = Column(String(), ForeignKey('projects.id'), index=True)
 
   project = relationship("Project", back_populates="ci_commits")
-  __table_args__ = (UniqueConstraint('project_id', 'hexsha', name='_project_hexsha'),)
 
   data = Column(JSONB(), nullable=False, default=dict, server_default='{}')
 
@@ -49,6 +47,14 @@ class CiCommit(Base):
   # We use as branch the first branch that the commit was seen on, or the project's reference branch if it was used.
   # TODO: we should also store the tags we witnessed the commit used with.
   branch = Column(String(), index=True) # first added as.. we ignore tags?
+
+  __table_args__ = (
+    UniqueConstraint('project_id', 'hexsha', name='_project_hexsha'),
+    # Lists of commits, newest first: a project's, a branch's, and the project's branches by latest activity.
+    # Created by the migration e7f3b2a91c40 on existing databases.
+    Index('ix_ci_commits_project_id_authored_datetime', 'project_id', authored_datetime.desc()),
+    Index('ix_ci_commits_project_id_branch_authored_datetime', 'project_id', 'branch', authored_datetime.desc()),
+  )
   # In the end there having a commit's parents is not all that useful for QA-Board:
   # not all commits are used for runs: e.g. CI runs only on pushed commits, so
   # that info is not enough to reconstruct the commit graph.
@@ -297,6 +303,9 @@ class CiCommit(Base):
           git_authored_datetime = git_commit.authored_datetime
           # commits belong to many branches, so this is a guess
           git_branch = find_branch(hexsha, project.repo)
+        if data and data.get("commit_committer_email"):
+          # For avatars. The CLI is not authenticated: it can't overwrite what webhooks told us.
+          committers.remember([{"name": git_committer_name, "email": data["commit_committer_email"]}], overwrite=False)
         ci_commit = CiCommit(
           hexsha,
           project=project,
@@ -351,21 +360,25 @@ class CiCommit(Base):
     return ci_commit
 
   def _get_avatar_url(self):
-    """Return the avatar URL using the appropriate hosting provider."""
-    hosting_type = self.project.data.get('git', {}).get('hosting_type', 'gitlab')
-    if hosting_type == 'github':
-      web_url = self.project.data.get('git', {}).get('web_url', '')
-      return get_github_avatar_url(self.committer_name, web_url)
-    return get_avatar_url(self.committer_name)
+    """The committer's avatar, from what we know about the git host and the committers. No network calls."""
+    project_data = self.project.data or {}
+    project_url = (project_data.get('qatools_config') or {}).get('project', {}).get('url')
+    return committer_avatar_url(self.committer_name, project_data.get('git'), project_url)
 
-  def to_dict(self, db_session, with_aggregation=None, with_batches=None, with_outputs=False, aggregations=None):
+  def to_dict(self, db_session, with_aggregation=None, with_batches=None, with_outputs=False, batch_stats=None, cache=None):
     """
-    with_aggregation: {metric: target}, the metrics to aggregate over each batch's runs.
-    aggregations: {batch_id: aggregates} when they're already known (one query for many commits), else they're queried.
+    `batch_stats`: the batches' counts of outputs and aggregated metrics, from batches_stats(). Queried if not given.
+    `cache`: a dict to share when serializing many commits of a project, for what doesn't change between them.
     """
     batches = [b for b in self.batches if not with_batches or b.label in with_batches]
-    if aggregations is None:
-      aggregations = aggregated_metrics(db_session, [b.id for b in batches], with_aggregation)
+    if batch_stats is None:
+      batch_stats = batches_stats(db_session, [b.id for b in batches], with_aggregation)
+    if cache is None:
+      cache = {}
+    # e.g. GitHub avatars need an API call
+    avatar_key = ('committer_avatar_url', self.project_id, self.committer_name)
+    if avatar_key not in cache:
+      cache[avatar_key] = self._get_avatar_url()
     repo_artifacts_url = self.repo_artifacts_url
     artifacts_url = self.artifacts_url
     out = {
@@ -377,7 +390,7 @@ class CiCommit(Base):
         # 'parents': [p for p in self.parents] if self.parents else [],
         'message': self.message,
         'committer_name': self.committer_name,
-        'committer_avatar_url': self._get_avatar_url(),
+        'committer_avatar_url': cache[avatar_key],
         'authored_datetime': self.authored_datetime.isoformat(),
         'authored_date': self.authored_date.isoformat(),
         'latest_output_datetime': self.latest_output_datetime.isoformat() if self.latest_output_datetime else None,
@@ -389,7 +402,7 @@ class CiCommit(Base):
         'commit_dir_url': artifacts_url,           # backward compat for a while if projects using QA-Board rely on the API...
         'repo_commit_dir_url': repo_artifacts_url, # idem
         'batches': {
-          b.label: b.to_dict(db_session, with_outputs=with_outputs, aggregation=aggregations.get(b.id, {}))
+          b.label: b.to_dict(db_session, with_outputs=with_outputs, with_aggregation=with_aggregation, stats=batch_stats.get(b.id, no_stats))
           for b in batches
         },
     }
@@ -402,29 +415,37 @@ class CiCommit(Base):
 
 def latest_successful_commit(session, project_id, branch, batch_label=None, within_last=20):
   """
-  Returns the latest commit on a given branch where we got outputs.
-  Only the latest within_last commits are checked...
+  Returns the latest commit on a given branch where we got valid outputs (in the batch `batch_label` if given),
+  with its batches and outputs loaded. Only the latest within_last commits are checked...
   """
-  ci_commits = (session
-                .query(CiCommit)
-                .options(joinedload(CiCommit.batches))
-                .filter(
-                  CiCommit.project_id==project_id,
-                  or_(
-                    # fallback to "any" commit with results
-                    not branch,
-                    # we try to be accomodating with the usual remote branch name
-                    CiCommit.branch==branch, CiCommit.branch==f'origin/{branch}')
-                )
-                .order_by(CiCommit.authored_datetime.desc())
-                .limit(within_last)
-               )
-  valid_outputs = lambda b: [o for o in b.outputs if not (o.is_failed or o.is_pending)]
-  for ci_commit in ci_commits:
-    if not batch_label:
-      if any([valid_outputs(b) for b in ci_commit.batches]):
-        return ci_commit        
-    if batch_label:
-      if valid_outputs(ci_commit.get_or_create_batch(batch_label)):
-        return ci_commit
+  latest_commits = (session
+                    .query(CiCommit.id)
+                    .filter(CiCommit.project_id==project_id)
+                   )
+  # without a branch we fallback to "any" commit with results
+  if branch:
+    # we try to be accomodating with the usual remote branch name
+    latest_commits = latest_commits.filter(or_(CiCommit.branch==branch, CiCommit.branch==f'origin/{branch}'))
+  latest_commits = latest_commits.order_by(CiCommit.authored_datetime.desc()).limit(within_last)
+  valid_outputs = (session
+                   .query(Output.id)
+                   .join(Batch, Output.batch_id==Batch.id)
+                   .filter(
+                     Batch.ci_commit_id==CiCommit.id,
+                     Output.is_failed.isnot(True),
+                     Output.is_pending.isnot(True),
+                   )
+                  )
+  if batch_label:
+    valid_outputs = valid_outputs.filter(Batch.label==batch_label)
+  return (session
+          .query(CiCommit)
+          .options(selectinload(CiCommit.batches).selectinload(Batch.outputs))
+          .filter(
+            CiCommit.id.in_(latest_commits.subquery().select()),
+            valid_outputs.exists(),
+          )
+          .order_by(CiCommit.authored_datetime.desc())
+          .first()
+         )
 

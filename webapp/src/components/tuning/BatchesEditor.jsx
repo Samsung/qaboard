@@ -32,6 +32,7 @@ import { copyWithToast } from "../../utils/clipboard";
 import { http } from "../../api/http";
 import { updateSelected } from "../../selection";
 import { usePrefsStore } from "../../stores/prefs";
+import { blob_url } from "../../git";
 import { analyzeBatches, newBatchSnippet, unusedBatchName } from "./batches_file";
 import { BatchDefinitions, BatchFiles, BatchWarnings } from "./BatchReport";
 
@@ -748,7 +749,7 @@ export function BatchesEditor({ project, commit, config, git, web_url, available
                 {commit_files.length > 0 && <ul style={{ paddingLeft: 16 }}>
                   {commit_files.map(f => <li key={f}>
                     {web_url && commit?.id
-                      ? <a href={`${web_url}/tree/${commit.id}/${f}`} target="_blank" rel="noopener noreferrer">{f}</a>
+                      ? <a href={blob_url({ data: { git: { ...git, web_url } } }, commit.id, f)} target="_blank" rel="noopener noreferrer">{f}</a>
                       : <code>{f}</code>}
                   </li>)}
                 </ul>}

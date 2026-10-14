@@ -896,8 +896,10 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
       qa_context=ctx.obj,
     )
 
-    from .gitlab import gitlab_token, update_gitlab_status
-    if gitlab_token and jobs and is_ci and 'QABOARD_TUNING' not in os.environ:
+    # A commit status on GitLab/GitHub links to the results
+    from .git_hosts import git_host, update_ci_status
+    host = git_host() if jobs and is_ci and 'QABOARD_TUNING' not in os.environ else None
+    if host and host.token:
       name = f"QA {subproject.name}" if subproject else 'QA'
       from .api import qaboard_url
       target_url = f"{qaboard_url}/{config['project']['name']}/commit/{commit_id}"
@@ -905,7 +907,7 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
       if label != "default":
         name += f" | {label}"
         target_url += f"?batch={label}"
-      update_gitlab_status(
+      update_ci_status(
         state='failed' if is_failed else 'success',
         name=name,
         target_url=target_url,

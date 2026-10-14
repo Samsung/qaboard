@@ -22,7 +22,7 @@ openssl req -new -sha256 -key qa.key -out qa.csr -config qa.csr.conf
 # - Common Name: *.qa
 # - Email: arthur.flam@samsung.com
 # - Password: (empty)
-# - Optionnal Company Name: (empty)
+# - Optional Company Name: (empty)
 
 # Check all is good.
 openssl req -noout -text -in qa.csr

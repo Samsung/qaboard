@@ -3,7 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 
 import { useUrlText, useCommit, useProjectData } from '../hooks';
 import { usePrefsStore } from '../stores/prefs';
-import { commitsQuery } from '../api/queries';
+import { commitsQuery, commitsPagesQuery } from '../api/queries';
 import { makeQueryClient } from '../test-utils';
 
 
@@ -53,6 +53,17 @@ describe('useCommit', () => {
     resolve(new Response(JSON.stringify({ ...summary, message: 'Hello world', batches: { default: { outputs: {} } } })));
     await waitFor(() => expect(result.current.is_loaded).toBe(true));
     expect(result.current.message).toBe('Hello world');
+    vi.unstubAllGlobals();
+  });
+
+  test('also finds commits in paginated lists', () => {
+    const queryClient = makeQueryClient();
+    const summary = { id: 'abc', message: 'From a page', batches: {} };
+    queryClient.setQueryData(commitsPagesQuery({ project: 'p' }).queryKey, { pages: [{ commits: [summary], has_more: false }], pageParams: [0] });
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    const wrapper = ({ children }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+    const { result } = renderHook(() => useCommit({ project: 'p', id: 'abc' }), { wrapper });
+    expect(result.current).toMatchObject({ id: 'abc', message: 'From a page', is_loaded: false });
     vi.unstubAllGlobals();
   });
 

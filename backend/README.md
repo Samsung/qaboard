@@ -94,6 +94,11 @@ alembic --help
 
 
 ## SQL performance
+### Benchmarks
+`backend/benchmarks/bench_api.py` fills a throwaway Postgres with realistic data (800 projects, a project with 5000 commits x 3 batches x 200 outputs...)
+and times the endpoints behind the projects list, the lists of commits and the branch filter, with the number of SQL queries and the response sizes.
+Run it with `--backend` pointing to another checkout to compare versions. See the script's docstring.
+
 ### Custom database config
 Get a sample config:
 

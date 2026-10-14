@@ -15,7 +15,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("SlamOutputCard", () => {
   it("plots the new, reference and groundtruth poses", async () => {
-    const fetch = vi.fn(async url => new Response(poses, { status: 200 }));
+    const fetch = vi.fn(async () => new Response(poses, { status: 200 }));
     vi.stubGlobal("fetch", fetch);
     renderWithProviders(<SlamOutputCard
       output_new={{ output_dir_url: "/s/new", test_input_path: "a", metrics: { translation_aape: 1 } }}

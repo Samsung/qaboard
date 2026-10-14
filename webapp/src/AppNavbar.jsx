@@ -50,9 +50,19 @@ const renderNewItem = (query, active, handleClick)  => {
                 
 
 
-function filterBranch(query, branch) {
-  if (!query) return true;
-  return branch.toLowerCase().indexOf(query.toLowerCase()) >= 0;
+// What we look for in branch names, in searches like "fix" or "speed branch:feature -wip"
+export const branch_query = search => {
+  const qualified = search.match(/(?:^|\s)branch:(?:"([^"]*)"?|(\S+))/i);
+  if (qualified) return (qualified[1] ?? qualified[2]).trim();
+  const words = search.trim().split(/\s+/).filter(word => !word.startsWith('-') && !word.includes(':'));
+  return words.length === 1 ? words[0].replace(/"/g, '') : '';
+}
+
+export function filterBranch(query, branch) {
+  const text = branch_query(query ?? '');
+  // e.g. "fix crash" or "committer:alice" are not about branches
+  if (!text) return !(query ?? '').trim();
+  return branch.toLowerCase().indexOf(text.toLowerCase()) >= 0;
 }
 
 
@@ -130,9 +140,11 @@ const CommitsListNavbar = () => {
   // We only fetch branches once users start searching
   const [wants_branches, setWantsBranches] = useState(false);
   const [today] = useState(() => new Date());
-  const [search, onSearchChange] = useUrlText(selected.search, query => updateSelected({ search: query || undefined }, { replace: true }));
+  // The search goes in the URL when users pause typing: it searches commits (CiCommitList) and branches
+  const [search, onSearchChange] = useUrlText(selected.search, query => updateSelected({ search: query || undefined }, { replace: true }), 300);
   const [filter, onFilterChange] = useUrlText(selected.filter_batch_new, value => updateSelected({ filter_batch_new: value }, { replace: true }));
-  const { data: branches = [] } = useBranches(project, { enabled: wants_branches });
+  const branch_search = branch_query(selected.search);
+  const { data: branches = [] } = useBranches(project, branch_search, { enabled: wants_branches && (!!branch_search || !selected.search.trim()) });
 
   const handleBranchChange = branch => {
     if (branch.commit !== undefined && branch.commit !== null)

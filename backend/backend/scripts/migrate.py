@@ -77,12 +77,11 @@ import requests
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import text
 
-from backend.models import Project, CiCommit, Batch, Output
-from backend.database import db_session, Session
+from backend.models import CiCommit, Batch, Output
+from backend.database import db_session
 from backend.fs_utils import as_user, rm_empty_parents
 
 from migration_utils import get_username
-from migration_utils import rm_files_not_listed_in_manifests
 
 # TODO
 # - [TODO CHECK tmux alginfra1] remove old deleted stuff with delete_remaining_data_from_deleted_runs.py
@@ -179,7 +178,7 @@ def migrate_output(output):
     print("- output.batch", output.batch)
     print("- output.ci_commit", output.batch.ci_commit)
     print("- output.project", output.batch.ci_commit.project)
-    # for those... just delete we alreadt cannot reach them
+    # for those... just delete we already cannot reach them
     return
 
   before_dir = output.output_dir
@@ -324,7 +323,7 @@ def migrate_output(output):
 
 
 def migrate(min_id):
-  # it's an aweful join...
+  # it's an awful join...
   all_outputs = (db_session
     .query(Output, Batch, CiCommit)
     .join(Batch.outputs)#, isouter=True)
@@ -381,7 +380,7 @@ def migrate(min_id):
 
 
 def main():
-  # Optionnally, you can give an id to start from...
+  # Optionally, you can give an id to start from...
   # it helps if there are many non-migrated runs that fail because of whatever and
   # you don't want to wait until the migration fails to migrate them again!
   last_id = None #1245250 # None

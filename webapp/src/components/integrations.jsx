@@ -11,6 +11,7 @@ import {
 } from "@blueprintjs/core";
 
 import { make_eval_templates_recursively } from '../utils';
+import { image_url } from '../git';
 import { useSiteConfig } from '../hooks';
 import { integration_key } from '../useIntegrationStatuses';
 
@@ -20,6 +21,7 @@ import { integration_key } from '../useIntegrationStatuses';
 // - links
 // - webhooks
 // - gitlabCI jobs
+// - githubActions workflows
 // - jenkins builds
 // In the future, to support more, we should refactor this code.
 // It looks like we can easily into a class/functions with
@@ -59,6 +61,14 @@ import { integration_key } from '../useIntegrationStatuses';
 // (parent path) disambiguates sub-menu items that share a text/name with a
 // sibling elsewhere in the tree (e.g. two "Executable" entries under
 // different parents).
+
+// Fields of integrations in qaboard.yaml that are not <MenuItem> props
+const integration_fields = [
+  'sub', 'webhook', 'gitlabCI', 'githubActions', 'jenkins', 'src', 'alt', 'only', 'in_menu',
+  'allow_failed', 'allow_failure', 'ignore_failure', 'id', 'name',
+];
+const menu_item_props = integration => Object.fromEntries(Object.entries(integration).filter(([k]) => !integration_fields.includes(k)));
+
 
 const filterIntegrations = (integrations, searchQuery) => {
   if (!searchQuery.trim()) {
@@ -159,7 +169,7 @@ const IntegrationsMenus = props => {
     let disabled = !integration.src && (integration.disabled || first_loading || (has_error && !integration.allow_failed) || trigger_loading);
 
     // TODO: always show the JobTag if "status.data" has some info
-    if (integration.gitlabCI || integration.jenkins) {
+    if (integration.gitlabCI || integration.githubActions || integration.jenkins) {
       let label = has_error ? <Tooltip content={<span>{JSON.stringify(status.error.message)}</span>}>
                                 <Tag round icon="cross" intent="danger"/>
                               </Tooltip>
@@ -169,9 +179,7 @@ const IntegrationsMenus = props => {
         tagName='div'
         shouldDismissPopover={false}
         icon={( (!!status?.data?.web_url || !!status?.data?.url) && status.data.status !== 'manual') ? 'repeat' : 'play'}
-        {...integration}
-        gitlabCI={undefined}
-        jenkins={undefined}
+        {...menu_item_props(integration)}
         label={label}
         onClick={triggerIntegration(integration, entry_key)}
         disabled={disabled}
@@ -180,7 +188,9 @@ const IntegrationsMenus = props => {
 
     const badge = integration.src && <img
       alt={integration.alt || entry_key}
-      src={encodeURI(`/api/v1/gitlab/proxy?url=${integration.src}`)}
+      src={image_url(integration.src)}
+      // e.g. private projects, or projects without CI
+      onError={e => { e.currentTarget.style.display = 'none' }}
     />
     let right_label
     if (badge) {
@@ -195,18 +205,12 @@ const IntegrationsMenus = props => {
         }
       }
     }
-    // Strip props that aren't meant to reach the <MenuItem>/DOM -
-    // they come from the qaboard.yaml integration schema.
-    const {
-      sub, webhook, gitlabCI, jenkins, src, alt, only, in_menu,
-      allow_failed, allow_failure, id, name,
-      ...menu_item_props
-    } = integration;
+    const { sub, webhook } = integration;
     const has_trigger = !!webhook;
     return <MenuItem
         key={idx}
         shouldDismissPopover={!!integration.href}
-        {...menu_item_props}
+        {...menu_item_props(integration)}
         disabled={disabled}
         icon={badge || integration.icon}
         label={right_label}
@@ -284,7 +288,7 @@ const IntegrationsMenus = props => {
               icon="info-sign"
               target="_blank"
               href={`${docs_root}docs/triggering-third-party-tools`}
-              text="Click to learn how to link to docs/artifacts, or trigger webhooks and GitlabCI/jenkins jobs..."
+              text="Click to learn how to link to docs/artifacts, or trigger webhooks, GitLab CI jobs, GitHub Actions workflows and Jenkins builds..."
           />
       </>}
     </MenuItem>}
@@ -293,7 +297,7 @@ const IntegrationsMenus = props => {
 
 
 
-// A status tag for job: {status, allow_failure} like jenkins or gitlabCI.
+// A status tag for job: {status, allow_failure} like jenkins, gitlabCI or githubActions (the backend uses GitLab's statuses).
 // Reference:
 // - gitlabCI statuses: https://docs.gitlab.com/ee/api/jobs.html#list-project-jobs
 // - jenkins statuses:  https://javadoc.jenkins-ci.org/hudson/model/Result.html
@@ -355,22 +359,5 @@ const StatusTag = ({status}) => {
   </Tooltip>
 }
 
-/*eslint no-template-curly-in-string: "off"*/
-const default_gitlab_integrations = [
-  {
-    href: "${git.web_url}/commits/${branch}",
-    alt: "Build status",
-    src: "${git.web_url}/badges/${branch}/pipeline.svg",
-    only: "${branch}" // won't be displayed in per-commit pages
-  },
-  {
-    href: "${git.web_url}/commits/${branch}",
-    alt: "Coverage",
-    src: "${git.web_url}/badges/${branch}/coverage.svg",
-    only: "${branch}" // won't be displayed in per-commit pages
-  }, 
-]
-
-
-export { IntegrationsMenus, default_gitlab_integrations };
+export { IntegrationsMenus };
 

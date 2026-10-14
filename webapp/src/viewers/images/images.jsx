@@ -202,7 +202,7 @@ class ImgViewer extends React.PureComponent {
 
   InitZoomSync() {
     // console.log("[InitZoomSync]")
-    // Implemement synced zoom
+    // Implement synced zoom
     // https://codepen.io/iangilman/pen/BWKKxQ
     const { viewer_new, viewer_ref, canvas_diff } = this;
     const { image_width, image_height } = this.state;
@@ -231,7 +231,7 @@ class ImgViewer extends React.PureComponent {
       synced_viewers[sync_key] = {
         viewers: [viewer_new, viewer_ref],
         diff_canvases: [canvas_diff],
-        // all the viewers are syncronized to
+        // all the viewers are synchronized to
         zoom: null,
         center: null,
         // When the user moves a viewer, it leads the others
@@ -694,7 +694,7 @@ class ImgViewer extends React.PureComponent {
 
   InitDiff = () => {
     const { viewer_new, viewer_ref } = this;
-    // Implemement perceptual differences
+    // Implement perceptual differences
     /*
     let { width = 1, height = 1 } = viewer_new.drawer.canvas;
 

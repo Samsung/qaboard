@@ -3,7 +3,6 @@ from typing import List, Dict, Any
 
 from .base import BaseRunner
 from .job import Job
-from ..run import RunContext 
 
 
 
@@ -52,31 +51,15 @@ class CeleryRunner(BaseRunner):
       signal.signal(signal.SIGTERM, sigterm_handler)
       signal.signal(signal.SIGINT, sigterm_handler)
 
-      results = result.get()
+      result.get()
     os.chdir(cwd)
 
 
 
   @staticmethod
   def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
-    return # FIXME: we should do something
-    raise NotImplementedError
-    # TODO: not sure whether we should .revoke(terminate=True)
-    # TODO: one of the options below should work, but I don't have time to test it right now...
-
-    # http://docs.celeryproject.org/en/latest/userguide/workers.html#worker-persistent-revokes
-    from celery.result import AsyncResult
-    AsyncResult(job_options['command_id']).revoke()
-
+    # FIXME: we should do something, e.g. revoke the group (start_jobs uses command_id as the group ID):
+    #   GroupResult.restore(job_options['command_id']).revoke()
+    # It may need result.save() in start_jobs, see
     # https://docs.celeryproject.org/en/stable/reference/celery.result.html
-    from celery.result import GroupResult
-    g = GroupResult(id=job_options['command_id'])
-
-    # https://stackoverflow.com/questions/13685344/retrieving-groupresult-from-taskset-id-in-celery
-    # We may need to call result.save() in the task above for it to work...
-    from celery.result import GroupResult
-    result = GroupResult.restore(job_options['command_id'])
-    result.revoke()
-
-    from celery.task.control import revoke
-    revoke(job_options['command_id'])
+    return

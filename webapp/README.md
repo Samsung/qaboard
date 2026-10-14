@@ -58,7 +58,8 @@ To connect which backend you connect to (e.g. not localhost but maybe the produc
 - You can change in *vite.config.js* which backend the application should talk to (defaults to *http://localhost:5151*). It is useful if the features you are developping require backend API changes.
 - It's best to install the [react developper tools](https://chrome.google.com/webstore/detail/react-developer-tools/fmkadmapgofadopljbjfkapdkoienihi). In development, the TanStack Query devtools (bottom-left button) show what's fetched and cached.
 - Components must follow the [Rules of React](https://react.dev/reference/rules) (pure render, never mutate props or data from queries): the React Compiler relies on it. `REACT_COMPILER_LOG=1 npm run build` lists components it couldn't compile.
-- Performance: `npm run build && npm run bench` loads big commits (1000 outputs, 300 commits) in Chromium and reports load times, main-thread blocking and memory (*e2e/perf/*).
+- Performance: `npm run build && npm run bench` loads big commits (1000 outputs, 300 commits) in Chromium and reports load times, main-thread blocking and memory (*e2e/perf/*). For the API, see *backend/benchmarks/*.
+- Long lists render or fetch progressively (*src/components/LoadMore.jsx*): the projects list renders 50 projects at a time, lists of commits fetch pages of 50 (`commitsPagesQuery`; branch pages without a search get up to 1000 commits at once, for their metrics chart), and searching commits happens on the server.
 
 ## Main components
 - *CiCommitList.jsx*: lists the latests commits for a given project

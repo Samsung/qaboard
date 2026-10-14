@@ -11,8 +11,7 @@
     "react/jsx-no-undef": "error",
     "react/rules-of-hooks": "error",
     "react/exhaustive-deps": "warn",
-    "no-extra-boolean-cast": "off",
-    "unicorn/no-empty-file": "off"
+    "no-extra-boolean-cast": "off"
   },
   "overrides": [
     { "files": ["vite.config.js", "playwright.config.js", "releaseNotes.js", "e2e/**"], "env": { "node": true } },

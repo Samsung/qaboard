@@ -5,18 +5,23 @@ import { DateTime } from 'luxon';
 
 
 import {
+  Button,
+  Callout,
   Classes,
+  Intent,
   NonIdealState,
   Spinner,
   Card,
+  Tag,
 } from "@blueprintjs/core";
 
 import CommitRow from "./components/CommitRow";
 import { Container, Section } from "./components/layout";
+import { LoadMore } from "./components/LoadMore";
 import CommitsEvolution from "./CommitsEvolution";
-import { groupBy, match_query } from "./utils";
+import { groupBy } from "./utils";
 
-import { useCommitsList, useProjectData, useSelected } from './hooks'
+import { useCommitsList, useProjectData, useSelected, updateSelected } from './hooks'
 import { errorMessage } from './api/http'
 
 
@@ -48,16 +53,27 @@ const CommitRows = ({ commits, project, project_data, className }) => (
 const count_commits = n => `${n} commit${n === 1 ? '' : 's'}`
 const capitalize = text => text ? text.charAt(0).toUpperCase() + text.slice(1) : text
 
-const commit_search = c => {
-  const batches = Object.keys(c.batches).join('|')
-  return `${c.committer_name} ${c.message} ${c.branch} ${batches}`
-}
+const search_help = <span>
+  Words must all match the commit id, message, committer, branch or batches. <code>-word</code> excludes,
+  {" "}<code>branch:</code>, <code>committer:</code>, <code>batch:</code>, <code>message:</code> and <code>id:</code> look at a single field.
+</span>
+
+const SearchHeader = ({ search, nb_commits, has_more, isFetching }) => (
+  <Callout icon={isFetching ? <Spinner size={16}/> : "search"} intent={Intent.PRIMARY} style={{marginBottom: '15px'}} title={<>
+    Searching all commits for <q>{search}</q>
+    {!isFetching && <Tag minimal round style={{marginLeft: '10px'}}>{nb_commits}{has_more ? '+' : ''} {nb_commits === 1 ? 'match' : 'matches'}</Tag>}
+  </>}>
+    <span className={Classes.TEXT_MUTED}>{search_help}</span>
+  </Callout>
+);
 
 
 const CiCommitList = () => {
-  const { project, branch, committer, search } = useSelected();
+  const { project, branch, committer } = useSelected();
   const project_data = useProjectData(project);
-  const { commits: all_commits, error, isPending, isFetching, isSuccess, date_range } = useCommitsList();
+  const { commits, error, isPending, isPlaceholderData, isSuccess, date_range, search, hasNextPage, fetchNextPage, isFetchingNextPage } = useCommitsList();
+  // new results are on their way (background refreshes don't count)
+  const loading = isPending || isPlaceholderData;
   const [now] = useState(() => new Date());
 
   useEffect(() => {
@@ -65,15 +81,16 @@ const CiCommitList = () => {
     document.title = `${branch || committer || project} - ${name}`;
   }, [project, branch, committer]);
 
-  const commits = useMemo(() => {
-    const matcher = match_query(search)
-    return all_commits.filter(c => matcher(commit_search(c)))
-  }, [all_commits, search]);
   const commits_by_day = useMemo(() => groupBy(commits, "authored_date"), [commits]);
 
   const is_branch = !!branch;
   const some_commits_loaded = commits.length > 0;
-  const show_metrics_over_time = (isSuccess || some_commits_loaded) && !error && is_branch;
+  const show_metrics_over_time = (isSuccess || some_commits_loaded) && !error && is_branch && !search;
+  const loadMore = () => {
+    if (hasNextPage && !isFetchingNextPage && !error) fetchNextPage();
+  };
+  // the range ends where we have commits, if there are no recent ones
+  const show_older = () => updateSelected({ from: DateTime.fromJSDate(date_range[0]).minus({ days: 7 }).toJSDate() }, { replace: true });
   // On branches, the metrics configuration comes from the latest commit
   const evolution_project_data = useMemo(() => {
     if (!is_branch || !some_commits_loaded) return project_data;
@@ -93,9 +110,12 @@ const CiCommitList = () => {
           />
         </Card>
       </Section>}
+      {!!search && <SearchHeader search={search} nb_commits={commits.length} has_more={hasNextPage} isFetching={loading}/>}
       {error && <NonIdealState description={<pre>{errorMessage(error)}</pre>} icon="error" />}
       {isPending && <NonIdealState title="Loading" icon={<Spinner />} />}
-      {isSuccess && !isFetching && !error && !some_commits_loaded &&
+      {isSuccess && !loading && !error && !some_commits_loaded && !!search &&
+        <NonIdealState title="No commit matches your search" icon="search" />}
+      {isSuccess && !loading && !error && !some_commits_loaded && !search &&
         <NonIdealState
           title="Could not find a commit with results"
           description={<span>Searched {" "}
@@ -117,6 +137,12 @@ const CiCommitList = () => {
           <CommitRows project={project} project_data={project_data} commits={commits_by_day[day]} />
         </Card>
       ))}
+      {hasNextPage && some_commits_loaded && !error &&
+        <LoadMore onLoadMore={loadMore} loading={isFetchingNextPage} loaded={commits.length} text="More commits"/>}
+      {isSuccess && !hasNextPage && some_commits_loaded && !search && !loading &&
+        <div style={{display: 'flex', justifyContent: 'center', margin: '15px'}}>
+          <Button minimal icon="history" text="Older commits" title="Search 7 more days" onClick={show_older}/>
+        </div>}
     </Container>
   );
 }
