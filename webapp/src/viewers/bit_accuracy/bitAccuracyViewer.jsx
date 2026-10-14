@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 
 import { Tree, Classes, Colors, Tag, Icon, Popover, Menu, MenuItem, Tooltip } from "@blueprintjs/core";
 import { OutputViewer } from "../OutputViewer"
+import { preloadMonaco } from "../../components/MonacoEditor"
 import { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, updateMissingFrom, humanFileSize } from "./utils"
 import { bitAccuracyChecker, markChecked, bitAccuracySummary } from "./checked"
 import { match_query, is_same_data } from "../../utils"
@@ -326,6 +327,8 @@ const BitAccuracyViewer = props_ => {
     <Tree
      contents={contents}
      onNodeClick={handleNodeClick}
+     // most files show in a text editor: load it before the click
+     onNodeMouseEnter={node => { if (node.childNodes === undefined) preloadMonaco() }}
      onNodeCollapse={handleNodeCollapse}
      onNodeExpand={handleNodeExpand}
     />

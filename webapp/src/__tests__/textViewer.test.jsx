@@ -10,6 +10,7 @@ import { renderWithProviders } from '../test-utils';
 vi.mock('../components/MonacoEditor', () => ({
   default: ({ value }) => <pre data-testid="editor">{value}</pre>,
   MonacoDiffEditor: ({ original, value }) => <pre data-testid="diff">{original} ➡️ {value}</pre>,
+  preloadMonaco: () => {},
 }));
 
 const files = { '/new/log.txt': 'new log', '/ref/log.txt': 'reference log' };
