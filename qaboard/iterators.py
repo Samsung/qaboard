@@ -12,6 +12,8 @@ from copy import deepcopy
 from pathlib import Path
 from itertools import chain, product
 from dataclasses import replace
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import List, Union, Dict, Tuple, Iterator, Any, Optional, cast
 
 import yaml
@@ -21,6 +23,28 @@ from .conventions import pretty_hash, get_settings, location_from_spec
 from .utils import input_metadata, entrypoint_module
 from .compat import cased_path
 from .run import RunContext
+
+
+# Keys of batch files that are settings for their batches, not batches
+BATCH_FILE_SETTINGS = ('database', 'aliases', 'groups', 'configs', 'configurations', 'platform', 'matrix')
+
+# The inputs we looked for without finding them, for callers that explain why a batch has no tests (the server)
+_missing_inputs: ContextVar[Optional[List[Dict[str, Any]]]] = ContextVar('missing_inputs', default=None)
+
+@contextmanager
+def recording_missing_inputs():
+  """While iterating over inputs, collects the inputs that were not found: [{"input", "database", "globs"?}]."""
+  missing: List[Dict[str, Any]] = []
+  token = _missing_inputs.set(missing)
+  try:
+    yield missing
+  finally:
+    _missing_inputs.reset(token)
+
+def _record_missing_input(path, database, globs=None):
+  missing = _missing_inputs.get()
+  if missing is not None:
+    missing.append({"input": str(path) if path else "*", "database": str(database), **({"globs": [str(g) for g in globs]} if globs else {})})
 
 
 def flatten(lst: Union[str, List, Tuple]) -> Iterator[Union[str, List, Tuple]]:
@@ -81,6 +105,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
     # that could be identified by nested naming conventions like "tv/tv_*"
     input_paths = [*sorted(database.glob("*")), database]
   if not input_paths:
+    _record_missing_input(path, database)
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
       click.secho(f'ERROR: No inputs found for the batch "{path}" under {database}', fg='red', err=True)
       exit(1)
@@ -149,6 +174,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
   #       yield input_path
 
   if not seen_inputs:
+    _record_missing_input(path, database, globs)
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
       click.secho(f'ERROR: No inputs found matching "{path}" [{globs}] under "{database}".', fg='red', err=True)
       raise ValueError 
@@ -226,7 +252,7 @@ def iter_inputs(
     available_batches['aliases'] = {**old_aliases, **new_aliases}
 
     for new_batch in new_batches:
-      if new_batch.startswith('.') or new_batch in ('database', 'aliases', 'groups', 'configs', 'configurations', 'platform', 'matrix'):
+      if new_batch.startswith('.') or new_batch in BATCH_FILE_SETTINGS:
         continue
       is_batch = isinstance(new_batches[new_batch], dict) # vs e.g. aliases
       is_pipeline = is_batch and new_batches[new_batch].get("type") == "pipeline"

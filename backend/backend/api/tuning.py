@@ -6,11 +6,15 @@ import os
 import sys
 import json
 import uuid
+import fnmatch
 import datetime
 import itertools
 import subprocess
+from glob import glob
+from copy import deepcopy
 from shlex import quote
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Dict, Any
 
 import yaml
@@ -18,8 +22,8 @@ from flask import request, jsonify, g
 from sqlalchemy.orm.exc import NoResultFound
 
 from qaboard.utils import merge
-from qaboard.iterators import iter_inputs, resolve_aliases
-from qaboard.conventions import deserialize_config, batches_files
+from qaboard.iterators import iter_inputs, resolve_aliases, recording_missing_inputs, BATCH_FILE_SETTINGS
+from qaboard.conventions import deserialize_config, location_from_spec
 
 from backend import app, db_session
 from ..models import CiCommit, Project
@@ -90,39 +94,181 @@ def update_groups(groups_path):
     return jsonify("OK")
 
 
+def commit_interpolation_vars(project):
+  """Fills {project} and {subproject} in a commit's qaboard.yaml, like `qa` does."""
+  return {"project": Path(project.id), "subproject": Path(project.id_relative)}
+
+
+def commit_qaboard_config(ci_commit):
+  """The commit's qaboard.yaml, or the project's if `qa` never told us about the commit's."""
+  return ci_commit.data.get('qatools_config') or ci_commit.project.data.get('qatools_config', {})
+
+
+def _is_file(path):
+  try:
+    return path.is_file(), None
+  except OSError as e:
+    return False, str(e)
+
+
+def commit_batches_files(ci_commit, config):
+  """
+  The batch files listed in a commit's qaboard.yaml (`inputs.batches`), as saved in its artifacts.
+  They are in the same order as for `qa batch`: when several define a batch, the last one wins.
+  Returns [{"source": "commit", "path": as in qaboard.yaml, "location": Path or None, "exists": bool, "error"?: str}]
+  """
+  root = ci_commit.repo_artifacts_dir
+  config_inputs = config.get('inputs') or {}
+  # "batches" is prefered, "groups" is for backward compatibility
+  specs = config_inputs.get('groups', config_inputs.get('batches')) or []
+  if not isinstance(specs, (list, tuple)):
+    specs = [specs]
+  files = []
+  for spec in specs:
+    try:
+      path = location_from_spec(spec, commit_interpolation_vars(ci_commit.project))
+    except Exception as e:
+      files.append({"source": "commit", "path": str(spec), "location": None, "exists": False, "error": f"Could not understand this path: {e}"})
+      continue
+    if '*' in str(path):
+      # Patterns are relative to the root qaboard.yaml, like for `qa batch`.
+      # We don't chdir like it does: other requests run in parallel.
+      matches = sorted(glob(str(path), root_dir=root)) if root.is_dir() else []
+      if not matches:
+        files.append({"source": "commit", "path": str(path), "location": root / path, "exists": False})
+      for match in matches:
+        exists, error = _is_file(root / match)
+        files.append({"source": "commit", "path": match, "location": root / match, "exists": exists, **({"error": error} if error else {})})
+    else:
+      exists, error = _is_file(root / path)
+      files.append({"source": "commit", "path": str(path), "location": root / path, "exists": exists, **({"error": error} if error else {})})
+  return files
+
+
 def get_commit_batches_paths(ci_commit):
-  batches_paths = []
-  commit_config = ci_commit.data.get('qatools_config', {})
-  commit_group_files = batches_files(
-    commit_config,
-    None,
-    Path(ci_commit.project.id),
-    Path(ci_commit.project.id_relative),
-    ci_commit.repo_artifacts_dir,
-  )
-  print(commit_group_files, file=sys.stderr)
-  # custom groups have priority over the commit's groups
-  for group_file in commit_group_files:
-    if (ci_commit.repo_artifacts_dir / group_file).exists():
-      batches_paths.insert(0, ci_commit.repo_artifacts_dir / group_file)
-  return batches_paths
+  """The commit's batch files that are in its artifacts."""
+  return [f["location"] for f in commit_batches_files(ci_commit, commit_qaboard_config(ci_commit)) if f["exists"]]
+
+
+def read_batches_file(batches_file):
+  """
+  Returns the batches defined in a file, or None if it can't be read.
+  Sets the file's status: ok, empty, missing or invalid (with an error).
+  """
+  if batches_file.get("error"):
+    batches_file["status"] = "invalid"
+    return None
+  if not batches_file["exists"]:
+    batches_file["status"] = "missing"
+    return None
+  try:
+    with batches_file["location"].open() as f:
+      batches = yaml.load(f, Loader=yaml.SafeLoader)
+  except Exception as e:
+    batches_file["status"] = "invalid"
+    batches_file["error"] = str(e)
+    return None
+  if batches is None:
+    batches_file["status"] = "empty"
+    return {}
+  if not isinstance(batches, dict):
+    batches_file["status"] = "invalid"
+    batches_file["error"] = f"Expected batch names and their definitions, got a {type(batches).__name__}"
+    return None
+  batches_file["status"] = "ok"
+  return batches
+
+
+def batch_definitions(files_batches):
+  """
+  Where each batch is defined, and the aliases, from [(file, batches)].
+  Like for `qa batch`, the last file defining a batch wins.
+  """
+  defined: Dict[str, str] = {}
+  aliases: Dict[str, Any] = {}
+  for batches_file, batches in files_batches:
+    if not batches:
+      continue
+    file_aliases = batches.get('aliases', batches.get('groups', {})) or {}
+    if isinstance(file_aliases, dict):
+      aliases.update(file_aliases)
+    names = [n for n in batches if isinstance(n, str) and not n.startswith('.') and n not in BATCH_FILE_SETTINGS]
+    batches_file["batches"] = len(names)
+    for name in names:
+      defined[name] = batches_file["path"]
+  return defined, aliases
+
+
+def batches_warnings(name, files, defined, aliases, tests, missing_inputs, artifacts_dir=None):
+  """Explains, in sentences, what may be wrong with the batch files, or why a batch has no tests."""
+  warnings = []
+  commit_files = [f for f in files if f["source"] == "commit"]
+  if artifacts_dir is not None and not artifacts_dir.is_dir():
+    warnings.append(f"This commit's artifacts folder does not exist: `{artifacts_dir}`. Run `qa save-artifacts` on this commit (the CI usually does it).")
+  else:
+    not_saved = [f"`{f['path']}`" for f in commit_files if f["status"] == "missing"]
+    if not_saved:
+      warnings.append(
+        f"Not in this commit's artifacts (`{artifacts_dir}`): {', '.join(not_saved)}. "
+        "Check the names in `inputs.batches`, and run `qa save-artifacts` on this commit: it saves the files listed in `inputs.batches`."
+      )
+  for f in files:
+    if f["status"] == "invalid":
+      warnings.append(f"Could not read `{f['path']}`: {f['error']}")
+
+  definitions, undefined = [], []
+  for batch in resolve_aliases([name], aliases):
+    matches = [batch] if batch in defined else [n for n in defined if fnmatch.fnmatch(n, batch)]
+    definitions.extend({"name": m, "file": defined[m]} for m in matches)
+    if not matches:
+      undefined.append(batch)
+  # Names that are not batches are used as input paths, like with `qa batch`
+  used_as_paths = any(getattr(t, 'batch', None) is None for t in tests)
+  if undefined and not used_as_paths:
+    read = [f"`{f['path']}`" for f in files if f["status"] in ("ok", "empty")]
+    where = f"the batch files QA-Board could read: {', '.join(read)}" if read else "any batch file: QA-Board could not read any"
+    if artifacts_dir is not None and not commit_files:
+      where += ". This commit's qaboard.yaml has no `inputs.batches`"
+    warnings.append(f"{' and '.join(f'`{b}`' for b in undefined)} {'is' if len(undefined) == 1 else 'are'} not defined in {where}.")
+
+  if missing_inputs:
+    shown = [f"`{m['input']}` under `{m['database']}`" + (f" (`{', '.join(m['globs'])}`)" if m.get('globs') else '') for m in missing_inputs[:5]]
+    more = f", and {len(missing_inputs) - 5} more" if len(missing_inputs) > 5 else ""
+    warnings.append(f"Inputs not found by the QA-Board server: {'; '.join(shown)}{more}.")
+    for database in sorted({m['database'] for m in missing_inputs}):
+      if not Path(database).is_dir():
+        warnings.append(f"The QA-Board server can't see the database `{database}`: it is not mounted on the server, or not readable by it.")
+  return warnings, definitions
+
+
+def missing_inputs_from_logs(logs):
+  """The inputs `qa batch` warned it didn't find, like recording_missing_inputs()."""
+  pattern = r'No inputs found (?:for the batch|matching) "(.*?)".*? under "?(.*?)"?\.?$'
+  return [{"input": m.group(1), "database": m.group(2)} for m in re.finditer(pattern, logs, re.MULTILINE)]
 
 
 def commit_database(database, ci_commit=None):
     """
     The inputs database of a commit's runs. A relative one (`inputs.database: inputs` in qaboard.yaml: inputs in the
-    project) is relative to the commit's artifacts folder: the batches started from QA-Board run from there.
+    project) is relative to the commit's artifacts: the batches started from QA-Board run there, and like `qa`,
+    from the root qaboard.yaml's folder.
     """
     database = Path(database)
     if ci_commit is None or database.is_absolute():
         return database
-    return ci_commit.artifacts_dir / database
+    return ci_commit.repo_artifacts_dir / database
 
 
 @app.route("/api/v1/tests/group", methods=["POST"])
 @login_required
 def get_group():
-    if not request.args["name"]:
+    """
+    Lists the tests in a batch, as `qa batch` would on a commit.
+    Besides the tests, explains what was used to find them: the batch files ("files") and their status,
+    where the batch is defined ("definitions"), and what may be wrong ("warnings").
+    """
+    name = request.args.get("name")
+    if not name:
         return jsonify({"tests": []})
 
     project_id = request.args["project"]
@@ -133,12 +279,15 @@ def get_group():
     except Exception as e:
         return jsonify(str(e)), 400
 
-    message = None
+    # the files shared with the project, and the user's
     try:
-        batches_paths = [get_groups_path(project_id, name=group) for group in groups]
+        files = [{"source": "qaboard", "path": f"{group}.yml", "location": get_groups_path(project_id, name=group), "exists": True} for group in groups]
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
+    warnings = []
+    ci_commit = None
+    artifacts_dir = None
     commit_id = request.args.get("commit")
     if commit_id:
       try:
@@ -148,51 +297,49 @@ def get_group():
           ).one()
       except NoResultFound:
           return jsonify("Sorry, the commit id was not found"), 404
-      qatools_config = ci_commit.data.get("qatools_config", {})
-
-      if not ci_commit.repo_artifacts_dir.exists():
-        message = f"""
-          <p>The artifacts folder does not exist.
-            <br/><code>{ci_commit.repo_artifacts_dir}</code>
-          </p>
-          <p>For tuning to work, you can manually call</p>
-          <pre>
-          git checkout {commit_id}
-          # build whatever is needed
-          qa save-artifacts
-          </pre>
-          <p>Normally it is done by the CI, but maybe you only worked on this commit locally, or something deleted the folder...</p>
-        """
-      else:
-        commit_batches_paths = get_commit_batches_paths(ci_commit)
-        if not commit_batches_paths:
-            message = f"""
-            <p>Could not load the <code>inputs.batches</code> files defined in <em>qaboard.yaml</em>.
-              <br/><code>{ci_commit.repo_artifacts_dir}</code>
-            </p>
-
-            <p>For tuning to work, you can manually call</p>
-            <pre>
-            git checkout {commit_id}
-            # build whatever is needed
-            qa save-artifacts
-            </pre>
-
-            <p>Normally it is done by the CI, but maybe you only worked on this commit locally, or something deleted the folder...</p>
-        """
-        batches_paths = [*commit_batches_paths, *batches_paths]
+      if not ci_commit.data.get("qatools_config"):
+          warnings.append("QA-Board doesn't have this commit's qaboard.yaml: `qa` never told it, so it uses the project's.")
+      qatools_config = deepcopy(commit_qaboard_config(ci_commit))
+      artifacts_dir = ci_commit.repo_artifacts_dir
+      # custom files have priority over the commit's
+      files = [*commit_batches_files(ci_commit, qatools_config), *files]
     else:
-      qatools_config = project.data.get("qatools_config", {})
+      qatools_config = deepcopy(project.data.get("qatools_config", {}))
 
+    files_batches = [(f, read_batches_file(f)) for f in files]
+    defined, aliases = batch_definitions(files_batches)
+    batches_paths = [f["location"] for f, batches in files_batches if batches is not None]
+    print(f"[tests/group] {project_id} {commit_id} {name}: {[(f['path'], f['status']) for f in files]}", file=sys.stderr)
+
+    def response(tests, missing_inputs, **extra):
+        batch_warnings, definitions = batches_warnings(name, files, defined, aliases, tests, missing_inputs, artifacts_dir)
+        all_warnings = [*warnings, *batch_warnings]
+        for warning in all_warnings:
+            print(f"[tests/group] WARNING: {warning}", file=sys.stderr)
+        return jsonify({
+            "tests": [{"input_path": str(t.rel_input_path), "configurations": t.configurations} for t in tests],
+            "files": [{
+                "source": f["source"],
+                "path": f["path"],
+                "location": str(f["location"]) if f["location"] else None,
+                "status": f["status"],
+                **{k: f[k] for k in ("error", "batches") if k in f},
+            } for f in files],
+            "definitions": definitions,
+            "artifacts_dir": str(artifacts_dir) if artifacts_dir else None,
+            "warnings": all_warnings,
+            **extra,
+        })
 
     has_custom_iter_inputs = False
-    # TODO: make it more robust in case of "from iters import *"
-    qatools_config['project']['entrypoint'] = ci_commit.repo_artifacts_dir / qatools_config['project']['entrypoint']
-    if qatools_config['project']['entrypoint'].exists():
-        with qatools_config['project']['entrypoint'].open() as f:
-            entrypoint_source = f.read()
-        has_custom_iter_inputs = re.search(r'^\s*(def iter_inputs\(|from .* import.* iter_inputs)', entrypoint_source, re.MULTILINE)
-    # project fallback?
+    entrypoint = (qatools_config.get('project') or {}).get('entrypoint')
+    if ci_commit and entrypoint:
+        # TODO: make it more robust in case of "from iters import *"
+        qatools_config['project']['entrypoint'] = ci_commit.repo_artifacts_dir / entrypoint
+        if qatools_config['project']['entrypoint'].exists():
+            with qatools_config['project']['entrypoint'].open() as f:
+                entrypoint_source = f.read()
+            has_custom_iter_inputs = re.search(r'^\s*(def iter_inputs\(|from .* import.* iter_inputs)', entrypoint_source, re.MULTILINE)
     if has_custom_iter_inputs:
         cwd = ci_commit.artifacts_dir
         # We run code from this folder, which comes from unauthenticated API calls
@@ -207,24 +354,24 @@ def get_group():
             'batch',
             *list(itertools.chain.from_iterable((('--batches-file', quote(str(f))) for f in batches_paths))),
             '--list',
-            '--batch=' + quote(request.args["name"]),
+            '--batch=' + quote(name),
         ])
         cmd = '\n'.join([*envrcs, cmd])
         print(cmd)
+        process = subprocess.run(
+            ['bash', '-c', cmd],
+            cwd=cwd,
+            encoding="utf-8",
+            capture_output=True,
+        )
+        print(process.stderr)
         try:
-            process = subprocess.run(
-                ['bash', '-c', cmd],
-                cwd=cwd,
-                encoding="utf-8",
-                capture_output=True,
-            )
-            # print(cmd)
-            # print(process.stdout)
-            print(process.stderr)
             process.check_returncode()
-        except:
-            return jsonify({"error": str(process.stdout), "cmd": str(cmd)}), 500
-        return jsonify({"tests": json.loads(process.stdout), "message": message})
+            runs = json.loads(process.stdout)
+        except Exception:
+            return jsonify({"error": process.stderr[-5000:] or process.stdout[-5000:], "cmd": str(cmd)}), 500
+        tests = [SimpleNamespace(rel_input_path=r.get("rel_input_path", r.get("input_path")), configurations=r.get("configurations", []), batch=r.get("batch")) for r in runs]
+        return response(tests, missing_inputs_from_logs(process.stderr))
 
     # We don't need to seperate the two cases, but
     # doing so might let us avoid a fork and qa startup...
@@ -233,33 +380,30 @@ def get_group():
     config_inputs_types = config_inputs.get('types', {})
     default_input_type = config_inputs_types.get('default', 'default')
     from qaboard.conventions import get_settings
-    input_settings = get_settings(default_input_type, qatools_config)
-    # like in qaboard/qa.py
-    from qaboard.config import get_default_configuration, get_default_database
-    default_configuration = get_default_configuration(input_settings)
-    default_configurations = deserialize_config(default_configuration)
-    default_database = commit_database(get_default_database(input_settings), ci_commit if commit_id else None)
-    print('group', request.args["name"], batches_paths)
     try:
-        tests = list(
-            iter_inputs(
-                [request.args["name"]],  # batches
-                batches_paths,           # batches_files,
-                default_database,        # database
-                default_configurations,  # default_configuration
-                'linux',                 # platform
-                {"type": 'lsf'},         # default_job_configuration
-                qatools_config,
-                default_inputs_settings=input_settings,
+        input_settings = get_settings(default_input_type, qatools_config)
+        # like in qaboard/qa.py
+        from qaboard.config import get_default_configuration, get_default_database
+        default_configuration = get_default_configuration(input_settings)
+        default_configurations = deserialize_config(default_configuration)
+        default_database = commit_database(get_default_database(input_settings, commit_interpolation_vars(project)), ci_commit)
+        with recording_missing_inputs() as missing:
+            tests = list(
+                iter_inputs(
+                    [name],                  # batches
+                    batches_paths,           # batches_files,
+                    default_database,        # database
+                    default_configurations,  # default_configuration
+                    'linux',                 # platform
+                    {"type": 'lsf'},         # default_job_configuration
+                    qatools_config,
+                    default_inputs_settings=input_settings,
+                )
             )
-        )
-        return jsonify({
-            "tests": [{"input_path": str(run_context.rel_input_path), "configurations": run_context.configurations} for run_context in tests],
-            "message": message,
-        })
     except Exception as e:
-        print(f'Error: {e}')
-        return jsonify({"tests": [], "error": str(e)})
+        print(f'Error: {e}', file=sys.stderr)
+        return response([], [], error=f"{type(e).__name__}: {e}" if not str(e) else str(e))
+    return response(tests, missing)
 
 
 def _generate_batch_script(ci_commit, user, working_directory, command_id, batch_command, data):

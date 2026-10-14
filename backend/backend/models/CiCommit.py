@@ -341,6 +341,13 @@ class CiCommit(Base):
         raise ValueError(error)
     if not ci_commit.data:
       ci_commit.data = {}
+    # The commit may have been created without its configuration (e.g. opened in the web app before `qa` ran on it).
+    # Without it, QA-Board can't find its batch files.
+    if data and data.get('qaboard_config') and not ci_commit.data.get('qatools_config'):
+      ci_commit.data['qatools_config'] = data['qaboard_config']
+      if "qaboard_metrics" in data and not ci_commit.data.get('qatools_metrics'):
+        ci_commit.data['qatools_metrics'] = data['qaboard_metrics']
+      flag_modified(ci_commit, "data")
     return ci_commit
 
   def _get_avatar_url(self):

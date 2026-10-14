@@ -246,6 +246,26 @@ class TestIterators(unittest.TestCase):
         self.assertEqual(inputs('*'), ['charts/a.png', 'charts/b.png', 'charts/c/d.png', 'photos/y.png', 'photos/z.png'])
         self.assertEqual(inputs('charts/*.png'), ['charts/a.png', 'charts/b.png'])
 
+  def test_recording_missing_inputs(self):
+    """The server can tell where the inputs it didn't find were looked for"""
+    import tempfile
+    from qaboard.iterators import iter_inputs_at_path, recording_missing_inputs
+    with tempfile.TemporaryDirectory() as tmp:
+      database = Path(tmp)
+      (database / 'charts').mkdir()
+      (database / 'charts' / 'a.png').write_text('')
+      with recording_missing_inputs() as missing:
+        self.assertEqual(len(list(iter_inputs_at_path('charts', database, ['*.png'], False, {}))), 1)
+        list(iter_inputs_at_path('photos', database, ['*.png'], False, {}))
+        list(iter_inputs_at_path('charts', database, ['*.jpg'], False, {}))
+      self.assertEqual(missing, [
+        {"input": "photos", "database": str(database)},
+        {"input": "charts", "database": str(database), "globs": ["*.jpg"]},
+      ])
+      # nothing is recorded outside
+      list(iter_inputs_at_path('photos', database, ['*.png'], False, {}))
+      self.assertEqual(len(missing), 2)
+
   def test_input_type_runner_settings(self):
     """Test that input types can specify runner settings"""
     from qaboard.iterators import iter_inputs

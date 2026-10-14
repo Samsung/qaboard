@@ -113,6 +113,19 @@ def test_only_reference_branch_updates_project_config(ci_commit_model, branch, c
   assert ci_commit.data["qatools_config"] == config
 
 
+@pytest.mark.parametrize("stored, kept", [
+  # e.g. the commit was opened in the web app before `qa` ran on it
+  ({}, CONFIG),
+  ({"qatools_config": NEW_CONFIG}, NEW_CONFIG),
+])
+def test_existing_commit_gets_its_config_once(ci_commit_model, stored, kept):
+  existing = SimpleNamespace(hexsha=HEXSHA, data=dict(stored))
+  session = MagicMock()
+  session.query.return_value.filter.return_value.one.return_value = existing
+  ci_commit = ci_commit_model.CiCommit.get_or_create(session=session, hexsha=HEXSHA, project_id="group/project", data=cli_data())
+  assert ci_commit.data["qatools_config"] == kept
+
+
 def test_config_without_project_section(ci_commit_model):
   project = make_project()
   data = cli_data(qaboard_config={"outputs": {}})

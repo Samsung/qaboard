@@ -227,7 +227,7 @@ Edit the batches of inputs you can run, in two files:
 - **Private**: only you can see and edit it,
 - **Shared**: every QA-Board user can see and edit it.
 
-The commit's own batch files (`inputs.batches` in *qaboard.yaml*) are linked in the side panel. When a batch is defined in several places, Private overrides Shared, which overrides the commit's files. For the syntax, see [Batches of inputs](../batches-running-on-multiple-inputs.mdx). You need to be logged in.
+The commit's own batch files (`inputs.batches` in *qaboard.yaml*) are linked in the side panel. QA-Board reads them from the commit's artifacts, where `qa save-artifacts` saves them. When a batch is defined in several places, Private overrides Shared, which overrides the commit's files; among the commit's files, the last one wins, like for `qa batch`. For the syntax, see [Batches of inputs](../batches-running-on-multiple-inputs.mdx). You need to be logged in.
 
 - **Save** (or <kbd>Ctrl</kbd>+<kbd>S</kbd>, <kbd>⌘</kbd>+<kbd>S</kbd> on a Mac). The status next to the button tells you if there are *Unsaved changes*, when it was *Saved*, or why it was *Not saved*. A dot on a file's tab means it has unsaved changes.
 - YAML mistakes are underlined while you type, and listed below the editor: click one to go to its line. A batch defined twice is flagged too, since only its last definition is used.
@@ -244,6 +244,12 @@ The commit's own batch files (`inputs.batches` in *qaboard.yaml*) are linked in 
   id="tuning/which-tests-run"
   caption="Which tests run? lists the tests a batch resolves to on this commit, before you run it: here the ci batch, 4 slices with the fp32 and int8 models."
 />
+
+Below the tests, *Which tests run?* says which file defines the batch, and lists the batch files QA-Board read, in order. When a batch has no tests, or a file has a problem, a warning says why:
+- a file listed in `inputs.batches` is not in the commit's artifacts: the list shows where QA-Board looked for it. Check its name, and run `qa save-artifacts` on the commit (the CI usually does it),
+- a file is not valid YAML,
+- no file defines the batch,
+- the batch's inputs were not found under the database, as the QA-Board server sees it: for instance when the database is not mounted on the server.
 
 - **New** adds an example batch to start from.
 
