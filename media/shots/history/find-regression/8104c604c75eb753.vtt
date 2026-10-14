@@ -1,0 +1,13 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:04.500
+heavy-tail-high's p99 on main, commit by commit
+
+00:00:04.500 --> 00:00:07.500
+p99 more than triples: payloads copied to fixed slots
+
+00:00:07.500 --> 00:00:11.640
+Click: it stays the reference
+
+00:00:11.640 --> 00:00:14.840
+Borrowing payloads again brings it back

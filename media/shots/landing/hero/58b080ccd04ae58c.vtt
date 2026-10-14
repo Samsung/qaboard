@@ -1,0 +1,16 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:02.400
+PSNR is up, and so is the edge overshoot
+
+00:00:02.400 --> 00:00:05.520
+Look at the images: zoom in one, the other follows
+
+00:00:05.520 --> 00:00:09.940
+Image Diff shows what changed
+
+00:00:09.940 --> 00:00:13.540
+A higher threshold leaves the halos
+
+00:00:13.540 --> 00:00:15.913
+PSNR is up, and so is the edge overshoot
