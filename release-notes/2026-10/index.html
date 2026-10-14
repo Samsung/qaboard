@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.c1ca28c2.css">
-<script src="/qaboard/assets/js/runtime~main.96cd6488.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.96e13870.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.f03cc267.js" defer="defer"></script>
 </head>
 <body>
@@ -102,7 +102,7 @@
 <li class="">Get the numbers of the Summary and Metrics Diff views from scripts and agents, with the experimental <code>/api/v1/commit/&lt;sha&gt;/compare</code>: each metric&#x27;s median vs a reference, each run vs its reference run, and how many runs failed. See <a class="" href="/qaboard/docs/quality-gate#from-scripts-and-agents">Quality gate</a>.</li>
 <li class="">Try QA-Board on your computer with demo projects to look at: download one Compose file, <code>deployments/quickstart/compose.yml</code>, and run <code>docker compose up -d --wait</code> (see the <a class="" href="/qaboard/docs/get-started/quickstart">quickstart</a>). It only answers on your computer.</li>
 <li class="">Show the docs&#x27; demo projects on a Helm install with the chart&#x27;s new <code>demoData</code> setting, which the kind quickstart (<code>quickstart.yaml</code>) turns on: they&#x27;re restored once, before QA-Board first starts, and never over existing data. The demo data is published with each release, as <code>ghcr.io/samsung/qaboard:demo-data-&lt;version&gt;</code>.</li>
-<li class="">Build the website image behind a proxy that blocks some of the docs&#x27; media (e.g. videos): with <code>QABOARD_MEDIA_MISSING=remote</code>, readers&#x27; browsers load those shots from the media host or your mirror (<code>QABOARD_MEDIA_BASE_URL</code>), and with <code>QABOARD_MEDIA_MISSING=placeholder</code> they render as placeholders, instead of failing the build. A proxy&#x27;s &quot;blocked&quot; page is reported as such, without retrying.</li>
+<li class="">Build the website image behind a proxy that blocks some of the docs&#x27; media (e.g. videos), or all of them: with <code>QABOARD_MEDIA_MISSING=remote</code>, readers&#x27; browsers load those shots from the media host or your mirror (<code>QABOARD_MEDIA_BASE_URL</code>), and with <code>QABOARD_MEDIA_MISSING=placeholder</code> they render as placeholders, instead of failing the build. A proxy&#x27;s &quot;blocked&quot; page is reported as such, without retrying.</li>
 </ul>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="documentation">Documentation<a href="#documentation" class="hash-link" aria-label="Direct link to Documentation" title="Direct link to Documentation" translate="no">​</a></h2>
 <ul>
