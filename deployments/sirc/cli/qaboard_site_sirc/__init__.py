@@ -5,6 +5,8 @@ from pathlib import Path
 
 defaults = {
     "QABOARD_URL": "https://qa",
+    # The server shows these avatars for GitLab users who didn't upload one (except LDAP guests)
+    "QABOARD_AVATAR_URL": "https://dag.sirc.co.il:8081/{user_name}.jpg",
     # Talk to the API on https://qa without checking its certificate, instead of a dedicated http port
     "QABOARD_API_VERIFY": "false",
     # Errors of `qa` in CI are reported to Sentry

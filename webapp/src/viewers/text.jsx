@@ -1,17 +1,18 @@
-import React from "react";
-import axios, { all, CancelToken, isCancel } from "axios";
-const { get } = axios;
+import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { Classes, Tag } from "@blueprintjs/core";
-import MonacoEditor, { MonacoDiffEditor } from "../components/MonacoEditor";
+import MonacoEditor, { MonacoDiffEditor, preloadMonaco } from "../components/MonacoEditor";
 
+import { errorMessage } from "../api/http";
+import { fileQuery } from "../api/queries";
 import { is_same_data } from "../utils"
 
 // TODO: Implement a way to hide identical lines in the diff viewer
 // 1. We could use the diffNavigator
 // https://microsoft.github.io/monaco-editor/playground.html#creating-the-diffeditor-navigating-a-diff
 // https://github.com/react-monaco-editor/react-monaco-editor/issues/84
-// https://github.com/react-monaco-editor/react-monaco-editor#how-to-get-value-of-editor    
+// https://github.com/react-monaco-editor/react-monaco-editor#how-to-get-value-of-editor
 // 2. Or try to the get the diff and remove everything bu those lines...
 
 const ansi_pattern = [
@@ -19,8 +20,9 @@ const ansi_pattern = [
   '(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))'
 ].join('|');
 const ansi_regexp = new RegExp(ansi_pattern, 'g');
+const strip_ansi = text => text.replace(ansi_regexp, '');
 
-const language = filename => {    
+const language = filename => {
   if (filename.endsWith('yaml') || filename.endsWith('yml'))
     return 'yaml';
   if (filename.endsWith('json') || filename.endsWith('tuneset0'))
@@ -42,186 +44,109 @@ const editor_options = {
 };
 
 
+// Files are cached: switching between views doesn't fetch them again.
+// The key includes the response type, since other viewers may parse the same file as JSON.
+const textFileQuery = (url, { is_running } = {}) => ({
+  ...fileQuery(url, { is_running, responseType: 'text' }),
+  select: strip_ansi,
+});
 
-class GenericTextViewer extends React.Component {
-  constructor(props) {
-    super(props);
-    // cancellation token kept on the instance (not state) so it's updated
-    // synchronously when a new fetch supersedes the previous one
-    this.cancel_source = CancelToken.source();
-    this.state = {
-      data: {},
-      is_loaded: false,
-      error: null,
-      shown_left: "reference",
-      renderSideBySide: props.renderSideBySide ?? true,
+// "t" pressed outside of inputs, without modifiers
+const is_t_key = ev => {
+  if (ev.target.nodeName === 'INPUT' || ev.target.nodeName === 'TEXTAREA' || ev.target.isContentEditable)
+    return false;
+  if (ev.ctrlKey || ev.metaKey || ev.altKey)
+    return false;
+  return (ev.id || String.fromCharCode(ev.keyCode || ev.charCode)) === "t";
+};
+
+const count_lines = text => (text?.match(/\r?\n/g)?.length ?? 0) + 1;
+// enough for the longest file, up to max_lines. Outside of the component: the React Compiler fails on Math.min/max there
+const editor_height = (data, max_lines) => 18 * Math.min(Math.max(count_lines(data.new), count_lines(data.reference)), max_lines) + 10;
+
+
+function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideBySide: side_by_side_default, always_show_diff, only_diff, manifests, width, max_lines = 40, language: language_prop, is_running }) {
+  const query_new = useQuery(textFileQuery(text_url_new, { is_running }));
+  // we don't really care about errors for reference files
+  const query_ref = useQuery({ ...textFileQuery(text_url_ref, { is_running }), enabled: !!text_url_new && !!text_url_ref });
+
+  // big files take a while to download: load the editor meanwhile, not after
+  useEffect(() => { preloadMonaco() }, []);
+
+  const [shown_left, setShownLeft] = useState("reference");
+  const [renderSideBySide, setRenderSideBySide] = useState(side_by_side_default ?? true);
+  const editor = useRef(null);
+
+  // Press "t" to switch new and reference
+  useEffect(() => {
+    const keyboard = ev => {
+      if (is_t_key(ev))
+        setShownLeft(shown_left => shown_left === 'reference' ? 'new' : 'reference');
     }
-  }
+    window.addEventListener("keypress", keyboard, { passive: true });
+    return () => window.removeEventListener('keypress', keyboard);
+  }, []);
 
-  componentDidMount() {
-    this.fetchData(this.props);
-    window.addEventListener("keypress", this.keyboard, { passive: true });
-  }
+  const is_loaded = !!text_url_new && !query_new.isPending && (!text_url_ref || !query_ref.isPending);
+  if (!is_loaded) return <span/>;
+  if (query_new.isError && !always_show_diff) return <span>{errorMessage(query_new.error)}</span>
 
-  componentWillUnmount() {
-    window.removeEventListener('keypress', this.keyboard);
-    this.cancel_source.cancel();
-  }
+  const data = {
+    new: query_new.data ?? '',
+    reference: query_ref.data ?? '',
+  };
+  if (!data.new && !always_show_diff)
+    return <span></span>
 
-  componentDidUpdate(prevProps) {
-    let had_new = prevProps.text_url_new !== undefined && prevProps.text_url_new !== null
-    let had_ref = prevProps.text_url_ref !== undefined && prevProps.text_url_ref !== null
+  if (only_diff && data.new === data.reference)
+    return <span></span>
 
-    let has_new = this.props.text_url_new !== undefined && this.props.text_url_new !== null
-    let has_ref = this.props.text_url_ref !== undefined && this.props.text_url_ref !== null
+  const has_same_data = is_same_data(filename, manifests?.new?.[filename], manifests?.reference?.[filename])
+  const no_reference = !text_url_ref || !data.reference || (!!text_url_new && text_url_new === text_url_ref);
+  const show_diff = !no_reference || always_show_diff;
 
-    let updated_new = has_new && (!had_new || this.props.text_url_new !== prevProps.text_url_new)
-    let updated_ref = has_ref && (!had_ref || this.props.text_url_ref !== prevProps.text_url_ref)
-    if (updated_new || updated_ref) {
-      this.fetchData(this.props);
-    }
-  }
+  const height = editor_height(data, max_lines);
+  const editor_language = language_prop || language(filename);
+  const editor_element = show_diff
+    ? <MonacoDiffEditor
+        readonly
+        width={width}
+        height={height}
+        language={editor_language}
+        value={shown_left==='reference' ? data.new : data.reference}
+        original={shown_left==='reference' ? data.reference : data.new}
+        options={{
+          ...editor_options,
+          renderSideBySide,
+        }}
+        editorDidMount={instance => { editor.current = instance }}
+      />
+    : <MonacoEditor
+        readonly
+        width={width}
+        height={height}
+        language={editor_language}
+        value={data.new}
+        options={editor_options}
+      />
 
-  fetchData() {
-    const { text_url_new, text_url_ref } = this.props;
-    if (text_url_new === undefined || text_url_new === null) return;
-
-    // cancel any in-flight requests from a previous selection and reset state,
-    // so stale content or errors don't leak into the new selection
-    if (!!this.cancel_source)
-      this.cancel_source.cancel();
-    const cancel_source = CancelToken.source();
-    this.cancel_source = cancel_source; // synchronous: new fetch supersedes the previous one
-    this.setState({ data: {}, is_loaded: false, error: null });
-
-    let results = []
-    results.push(['new', text_url_new])
-    if (!!text_url_ref)
-      results.push(['reference', text_url_ref])
-
-    const is_current = () => this.cancel_source === cancel_source;
-    const load_data = label => response => {
-      if (!is_current()) return; // a newer selection superseded this fetch
-      // functional form: merges must build on the latest state, otherwise
-      // responses resolving in the same tick (e.g. cached) overwrite each other
-      this.setState(prevState => ({
-        data: {
-          ...prevState.data,
-          [label]: response.data.replace(ansi_regexp, ''),
-        },
-      }))
-    }
-
-    all(results.map( ([label, url]) => {
-      return () =>  get(url, {cancelToken: cancel_source.token, transformResponse: response => response})
-                    .then(load_data(label))
-                    .catch(response => {
-                      // ignore requests cancelled by a newer selection
-                      if (isCancel(response)) return;
-                      if (!is_current()) return;
-                      // we don't really care about errors for reference logs
-                      this.setState(prevState => ({data: {...prevState.data, [label]: ''}}))
-                      if (label==='new' && !!response)
-                        this.setState({error: response.data})
-                    });
-    }).map(f=>f()) )
-    // now we loaded and parsed all the data
-    .then( () => { if (is_current()) this.setState({is_loaded: true}) })
-  }
-
-  render() {
-    const { is_loaded, error, renderSideBySide } = this.state;
-    if (!is_loaded) return <span/>;
-    if (!!error && !this.props.always_show_diff) return <span>{JSON.stringify(error)}</span>
-
-    const { data, shown_left } = this.state;
-    if (!!!data.new && !this.props.always_show_diff)
-      return <span></span>
-
-    if (this.props.only_diff && data.new === data.ref)
-      return <span></span>
-
-    const { filename, text_url_new, text_url_ref, width } = this.props;
-    const has_same_data = is_same_data(filename, this.props.manifests?.new?.[filename], this.props.manifests?.reference?.[filename])
-    let no_reference = !!!text_url_ref || !!!data.reference || (!!text_url_new && text_url_new === text_url_ref);
-
-    const max_lines = this.props.max_lines || 40
-    let lines_new = ((data.new || '').match(/\r?\n/g) || '').length + 1
-    let lines_ref = ((data.reference || '').match(/\r?\n/g) || '').length + 1
-    const height = 18 * Math.min(Math.max(lines_new, lines_ref), max_lines) + 10;
-    const editor = (!no_reference || this.props.always_show_diff)
-      ? <MonacoDiffEditor
-          readonly
-          width={width}
-          height={height}
-          language={this.props.language || language(filename)}
-          value={shown_left==='reference' ? data.new : data.reference}
-          original={shown_left==='reference' ? data.reference : data.new}
-          options={{
-            ...editor_options,
-            renderSideBySide,
-          }}
-          editorDidMount={this.editorDidMount}
-        />
-      : <MonacoEditor
-          readonly
-          width={width}
-          height={height}
-          language={this.props.language || language(filename)}
-          value={data.new || ''}
-          options={editor_options}
-        />
-
-    return <>
-      <h3 className={Classes.HEADING}>
-        <span style={{marginRight: "5px"}}>{filename}</span>
-        <Tag>{(!no_reference || this.props.always_show_diff) ? `${shown_left} ➡️ ` : ""}{shown_left==="reference" ? "new" : "reference"}</Tag>
-        {!no_reference && <Tag interactive style={{marginLeft: "5px", verticalAlign: "bottom"}} icon={renderSideBySide ? "comparison" : "align-justify"} minimal onClick={() => this.setState({renderSideBySide: !renderSideBySide})}>
-          {renderSideBySide ? "Side-by-side" : "Inline diff"}
-        </Tag>}
-        {!no_reference && !has_same_data && <Tag interactive style={{marginLeft: "5px", verticalAlign: "bottom"}} icon="double-chevron-right" minimal onClick={this.next_diff}>
-          Next Diff
-        </Tag>}
-        {!no_reference && has_same_data && <Tag style={{marginLeft: "5px", verticalAlign: "bottom"}} icon="duplicate" minimal>
-          Same Content
-        </Tag>}
-      </h3>
-      {editor}
-    </>
-  }
-
-  editorDidMount = editor => {
-    this.editor = editor
-  }
-  next_diff = () => {
-    this.editor?.goToDiff('next')
-  }
-  switch = () => {
-    let shown_left = this.state.shown_left === 'reference' ? 'new' : 'reference';
-    this.setState({ shown_left })
-  }
-  keyboard = ev => {
-    if (ev.target.nodeName === 'INPUT' || 
-        ev.target.nodeName === 'TEXTAREA' ||
-        ev.target.isContentEditable) {
-      return;
-    }
-    
-    if (ev.ctrlKey || ev.metaKey || ev.altKey) {
-      return;
-    }
-    
-    switch (ev.id || String.fromCharCode(ev.keyCode || ev.charCode)) {
-      case "t":
-        this.switch()
-        break
-      default:
-        return;
-    }
-  }
-
-
+  return <>
+    <h3 className={Classes.HEADING}>
+      <span style={{marginRight: "5px"}}>{filename}</span>
+      <Tag>{show_diff ? `${shown_left} ➡️ ` : ""}{shown_left==="reference" ? "new" : "reference"}</Tag>
+      {!no_reference && <Tag interactive style={{marginLeft: "5px", verticalAlign: "bottom"}} icon={renderSideBySide ? "comparison" : "align-justify"} minimal onClick={() => setRenderSideBySide(!renderSideBySide)}>
+        {renderSideBySide ? "Side-by-side" : "Inline diff"}
+      </Tag>}
+      {!no_reference && !has_same_data && <Tag interactive style={{marginLeft: "5px", verticalAlign: "bottom"}} icon="double-chevron-right" minimal onClick={() => editor.current?.goToDiff('next')}>
+        Next Diff
+      </Tag>}
+      {!no_reference && has_same_data && <Tag style={{marginLeft: "5px", verticalAlign: "bottom"}} icon="duplicate" minimal>
+        Same Content
+      </Tag>}
+    </h3>
+    {editor_element}
+  </>
 }
 
- 
+
 export default GenericTextViewer;

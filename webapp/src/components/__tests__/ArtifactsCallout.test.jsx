@@ -2,7 +2,11 @@
  * Tests for the warning about a commit's missing artifacts.
  * Run with: cd webapp && npm test -- ArtifactsCallout
  */
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
+import { renderWithProviders } from '../../test-utils';
+
+const alice = { is_logged: true, user_name: 'alice' };
+const render = (ui, options) => renderWithProviders(ui, { user: alice, ...options });
 
 import { ArtifactsCallout } from '../ArtifactsCallout';
 
@@ -55,6 +59,12 @@ describe('ArtifactsCallout', () => {
     />)
     expect(screen.getByText("This commit's artifacts are being recreated")).toBeInTheDocument()
     expect(screen.getByText('Follow the build')).toHaveAttribute('href', 'http://jenkins/job/x/12')
+  })
+
+  it('asks logged-out users to log in', () => {
+    render(<ArtifactsCallout deleted artifacts={{ok: false, problems: []}} onRestore={() => {}} />, { user: { is_logged: false } })
+    expect(screen.getByText('Restore the artifacts').closest('button')).toBeDisabled()
+    expect(screen.getByText('Log in')).toBeInTheDocument()
   })
 
   it('shows configuration errors', () => {

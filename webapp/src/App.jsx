@@ -1,7 +1,7 @@
-import React, { Suspense } from "react";
-import { Provider } from 'react-redux'
+import { Suspense, lazy, useEffect } from "react";
 import { unstable_HistoryRouter as HistoryRouter, useLocation } from "react-router";
-import { PersistGate } from 'redux-persist/integration/react'
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 
 import { Classes } from "@blueprintjs/core";
 
@@ -10,13 +10,16 @@ import { StyleSheetManager } from "styled-components";
 import isPropValid from "@emotion/is-prop-valid";
 
 import { history, matchRoutes, RouteMatch } from "./router";
+import { queryClient, persistOptions, onCacheRestored } from "./api/queryClient";
+import { siteConfigQuery } from "./api/queries";
+import { installLoginHandler } from "./components/authentication/login";
+import { toaster } from "./toaster";
+import { ComparisonProvider, useSiteConfig } from "./hooks";
+import { initSentry, initPostHog } from "./analytics";
 import { Layout } from "./components/layout";
 import ProjectsList from "./ProjectsList";
 import ErrorPage from "./components/ErrorPage";
 import EmptyLoading from "./components/EmptyLoading";
-
-import { fetchProjects, fetchProject } from './actions/projects'
-import { fetchSiteConfig } from './actions/config'
 
 import "normalize.css";
 import "@blueprintjs/core/lib/css/blueprint.css";
@@ -30,14 +33,22 @@ import "./App.css";
 import { routes } from './routes'
 import { ReleaseNotesProvider, WhatsNewLink } from "./releaseNotes/ReleaseNotes"
 import PrivateContent from "./components/authentication/PrivateContent"
-import { installLoginInterceptor } from "./components/authentication/login"
-import axios from "axios";
-import { toaster } from "./toaster";
-import { sider_width } from './AppSider'
+import AppSider, { sider_width } from './AppSider'
+import AppNavbar from './AppNavbar'
+
+// In development, inspect queries and their cache: https://tanstack.com/query/latest/docs/framework/react/devtools
+const ReactQueryDevtools = import.meta.env.DEV
+  ? lazy(() => import("@tanstack/react-query-devtools").then(m => ({ default: m.ReactQueryDevtools })))
+  : () => null;
 
 // Like styled-components@5: don't forward unknown props to DOM elements
 // https://styled-components.com/docs/faqs#shouldforwardprop-is-no-longer-provided-by-default
 const shouldForwardProp = (prop, target) => typeof target !== "string" || isPropValid(prop);
+
+// Asks users to log in when the server answers 401, once for all actions
+installLoginHandler(queryClient, toaster);
+
+const route_name = pathname => matchRoutes(routes, pathname)?.route.path ?? pathname;
 
 const Footer = () => {
   return <div style={{margin: "10px", textAlign: "right"}}>
@@ -45,88 +56,41 @@ const Footer = () => {
   </div>
 }
 
-class App extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = { hasError: false };
-    // before the children mount: they send requests in their componentDidMount
-    installLoginInterceptor(axios, props.store, toaster)
-  }
 
-  componentDidMount() {
-    this.props.store.dispatch(fetchSiteConfig()).then(config => {
-      this.initSentry(config);
-      this.initPostHog(config);
-    });
-    this.props.store.dispatch(fetchProjects())
-    const state = this.props.store.getState()
-    if (state.selected.project !== null)
-      fetchProject(state.selected.project)
-    const selected = state.selected[state.selected.project]
-    if (selected.new_project !== null)
-      fetchProject(selected.new_project)
-    if (selected.ref_project !== null)
-      fetchProject(selected.ref_project)
-  }
+// Monitoring and analytics, once we know the site's configuration
+const Analytics = () => {
+  const { data: config } = useQuery(siteConfigQuery);
+  useEffect(() => {
+    if (!config) return;
+    initSentry(config, route_name);
+    initPostHog(config);
+  }, [config]);
+  return null;
+}
 
-  async initSentry(config) {
-    if (!import.meta.env.PROD || !config.sentry_dsn) return;
-    Sentry.init({
-      dsn: config.sentry_dsn,
-      integrations: [
-        Sentry.browserTracingIntegration({
-          // Group transactions by route, e.g. /:project_id+/commit/:name+
-          beforeStartSpan: options => ({
-            ...options,
-            name: matchRoutes(routes, window.location.pathname)?.route.path ?? window.location.pathname,
-          }),
-        }),
-      ],
-      tracesSampleRate: config.sentry_traces_sample_rate ?? 1.0,
-      tracePropagationTargets: [/\/api\//],
-      replaysSessionSampleRate: 0.1,
-      replaysOnErrorSampleRate: 1.0,
-    });
-    // Session replays are heavy, only download them when Sentry is used
-    const { replayIntegration } = await import('@sentry/replay');
-    Sentry.addIntegration(replayIntegration());
-  }
-
-  async initPostHog(config) {
-    if (!import.meta.env.PROD || !config.posthog_api_key) return;
-    // Most deployments don't use PostHog, only download it when needed
-    const { default: posthog } = await import('posthog-js');
-    posthog.init(config.posthog_api_key, {
-      api_host: config.posthog_host || undefined,
-    });
-  }
+const Fallback = ({ error, componentStack }) => {
+  const { support_url } = useSiteConfig();
+  return <ErrorPage error={error} info={{ componentStack }} support_url={support_url}/>;
+}
 
 
-  static getDerivedStateFromError(error) {
-    // Update state so the next render will show the fallback UI.
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error, info) {
-    this.setState({error, info})
-    console.log(error, info);
-  }
-
-  render() {
-    if (this.state.hasError)
-      return <ErrorPage error={this.state.error} info={this.state.info} support_url={this.props.store.getState().siteConfig?.support_url}/>
-    return <Provider store={this.props.store}>
-      <PersistGate loading={null} persistor={this.props.persistor}>
-        <StyleSheetManager shouldForwardProp={shouldForwardProp}>
-          <ReleaseNotesProvider>
-            <HistoryRouter history={history}>
-              <Routes/>
-            </HistoryRouter>
-          </ReleaseNotesProvider>
-        </StyleSheetManager>
-      </PersistGate>
-    </Provider>
-  }
+const App = ({ persist = true }) => {
+  // Tests don't have IndexedDB: they don't persist the cache
+  const Provider = persist ? PersistQueryClientProvider : QueryClientProvider;
+  const providerProps = persist ? { client: queryClient, persistOptions, onSuccess: onCacheRestored } : { client: queryClient };
+  return <Provider {...providerProps}>
+    <Sentry.ErrorBoundary fallback={props => <Fallback {...props}/>}>
+      <Analytics/>
+      <StyleSheetManager shouldForwardProp={shouldForwardProp}>
+        <ReleaseNotesProvider>
+          <HistoryRouter history={history}>
+            <Routes/>
+          </HistoryRouter>
+        </ReleaseNotesProvider>
+      </StyleSheetManager>
+    </Sentry.ErrorBoundary>
+    <Suspense><ReactQueryDevtools buttonPosition="bottom-left"/></Suspense>
+  </Provider>
 }
 
 
@@ -143,12 +107,13 @@ const Routes = () => {
 const ProjectApp = ({ pathname }) => {
   const matched = matchRoutes(routes, pathname);
   if (!matched) return null;
-  const { route: { sider: Sider, navbar: Navbar, main: Main }, match } = matched;
+  const { route: { main: Main }, match } = matched;
   return <RouteMatch match={match}>
+    <ComparisonProvider>
     <Layout className={Classes.UI_TEXT}>
-      <Sider/>
+      <AppSider/>
       <div style={{width: '100%'}}>
-        <Navbar/>
+        <AppNavbar/>
         <div style={{paddingLeft: sider_width}}>
           <Suspense fallback={<EmptyLoading/>}>
             <Main/>
@@ -157,9 +122,9 @@ const ProjectApp = ({ pathname }) => {
         </div>
       </div>
     </Layout>
+    </ComparisonProvider>
   </RouteMatch>
 }
-
 
 
 export default Sentry.withProfiler(App);

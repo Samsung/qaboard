@@ -3,6 +3,7 @@ Provides a default QA configuration for the projects, by reading the configurati
 """
 import os
 import sys
+import json
 import datetime
 from getpass import getuser
 from pathlib import Path
@@ -249,6 +250,17 @@ ci_env_variables = (
 is_ci = any([v in os.environ for v in ci_env_variables])
 
 
+def github_pull_request_head() -> Optional[str]:
+  """In Github Actions workflows triggered by pull requests, the last commit of the pull request."""
+  if not os.environ.get('GITHUB_EVENT_NAME', '').startswith('pull_request'):
+    return None
+  try:
+    with open(os.environ['GITHUB_EVENT_PATH']) as f:
+      return json.load(f)['pull_request']['head']['sha']
+  except (KeyError, OSError, ValueError, TypeError):
+    return None
+
+
 if is_ci:
     # This field is not used at the moment, possibly in the future we'll want to support other VCS like SVN
     commit_type = config.get('project', {}).get('type', 'git')
@@ -261,29 +273,33 @@ if is_ci:
         'TRAVIS_COMMIT', # TravisCI
         'GITHUB_SHA'     # Github Actions
     )
-    commit_id = getenvs(commit_sha_variables)
+    # For pull requests, Github Actions' GITHUB_SHA is a temporary merge commit: we use the PR's last commit
+    commit_id = github_pull_request_head() or getenvs(commit_sha_variables)
 
     branch_env_variables = (
         'CI_COMMIT_TAG',      # GitlabCI, only when building tags
         'CI_COMMIT_REF_NAME', # GitlabCI
         'GIT_BRANCH',         # Jenkins
-        'gitlabBranch',       # Jenkins gitlab plugin 
+        'gitlabBranch',       # Jenkins gitlab plugin
         'CIRCLE_BRANCH',      # CircleCI
         'TRAVIS_BRANCH',      # TravisCI
+        'GITHUB_HEAD_REF',    # Github Actions, the source branch of pull requests
+        'GITHUB_REF_NAME',    # Github Actions, the branch or tag
         'GITHUB_REF'          # Github Actions
     )
     commit_branch = getenvs(branch_env_variables)
     if commit_branch:
-      commit_branch = commit_branch.replace('origin/', '').replace('refs/heads/', '')
+      commit_branch = commit_branch.replace('origin/', '').replace('refs/heads/', '').replace('refs/tags/', '')
 
     tag_env_variables = (
         'CI_COMMIT_TAG',      # GitlabCI
         'GIT_TAG_NAME',       # Jenkins git plugin
         'CIRCLE_TAG',         # CircleCI
         'TRAVIS_TAG',         # TravisCI
-        # Github Actions uses GITHUB_REF too
     )
     commit_tag = getenvs(tag_env_variables)
+    if not commit_tag and os.environ.get('GITHUB_REF_TYPE') == 'tag':
+      commit_tag = os.environ.get('GITHUB_REF_NAME')
 else:
     commit_type = None
     # If possible we'll complete the information later
@@ -339,9 +355,10 @@ if commit_id and is_in_git_repo:
       commit_message = commit_message_
     commit_parents = commit_parents_str.split()
   except Exception as e:
-    print(e, file=sys.stderr)
-    # may fail when working on the first commit in a repo, like in our tests
-    pass
+    # The commit can be missing from the clone (shallow CI clones, the first commit in a repo like in our tests...),
+    # or come from the CI's environment variables: we do without what git would tell us about it.
+    if 'QA_VERBOSE' in os.environ:
+      print(e, file=sys.stderr)
 
 
 if root_qatools_config:
@@ -388,16 +405,19 @@ def get_default_configuration(input_settings) -> str:
   default_configuration = list(flatten(default_configuration))
   return serialize_config(default_configuration)
 
-def get_default_database(inputs_settings):
+def get_default_database(inputs_settings, interpolation_vars=None):
   # All recordings used should be stored at the same location
   # We will refer to them by their relative path related to the "database"
+  # `interpolation_vars` fills {project} and {subproject}, by default with the current project's (the server passes the commit's)
   global ignore_config_errors
   if 'type' in inputs_settings and inputs_settings['type'] in inputs_settings and 'database' in inputs_settings[inputs_settings['type']]:
     database_spec = inputs_settings[inputs_settings['type']]['database']
   else:
     database_spec = inputs_settings.get('database', {})
+  if interpolation_vars is None:
+    interpolation_vars = {"project": project, "subproject": subproject}
   try:
-    database = location_from_spec(database_spec, {"project": project, "subproject": subproject})
+    database = location_from_spec(database_spec, interpolation_vars)
   except Exception:
     database = Path("/")
   if not database:

@@ -1,34 +1,28 @@
-import React from "react";
-import { connect } from 'react-redux'
-import { withRouter } from "./router";
+import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 
 import { DateTime } from 'luxon';
 
 
 import {
+  Button,
+  Callout,
   Classes,
+  Intent,
   NonIdealState,
   Spinner,
   Card,
+  Tag,
 } from "@blueprintjs/core";
 
 import CommitRow from "./components/CommitRow";
 import { Container, Section } from "./components/layout";
+import { LoadMore } from "./components/LoadMore";
 import CommitsEvolution from "./CommitsEvolution";
-import { groupBy, match_query } from "./utils";
-import { toaster } from "./toaster"
+import { groupBy } from "./utils";
 
-import { fetchCommits } from './actions/projects'
-import { default_date_range } from './defaults'
-import { day_range } from './dateRange'
-import {
-	projectSelector,
-	projectDataSelector,
-	commitsDataSelector,
-	commitsSelector,
-  selectedSelector,
-} from './selectors/projects'
+import { useCommitsList, useProjectData, useSelected, updateSelected } from './hooks'
+import { errorMessage } from './api/http'
 
 
 
@@ -48,7 +42,6 @@ const CommitRows = ({ commits, project, project_data, className }) => (
             project={project}
             project_data={project_data}
             key={commit.id}
-            toaster={toaster}
           />
         ))}
       </WrapperCommitRows>
@@ -56,157 +49,102 @@ const CommitRows = ({ commits, project, project_data, className }) => (
   </div>
 );
 
-class CiCommitList extends React.Component {
+// "Today — 1 commit", "3 days ago — 2 commits"
+const count_commits = n => `${n} commit${n === 1 ? '' : 's'}`
+const capitalize = text => text ? text.charAt(0).toUpperCase() + text.slice(1) : text
 
-  componentDidUpdate(prevProps) {
-    let changed = (this.props.project               !== prevProps.project              ||
-                   this.props.match.params.name     !== prevProps.match.params.name    ||      
-                   this.props.match.params.committer!== prevProps.match.params.committer)
-    if (!this.props.is_loading && changed) {
-      this.getData(this.props);
-    }
-  }
+const search_help = <span>
+  Words must all match the commit id, message, committer, branch or batches. <code>-word</code> excludes,
+  {" "}<code>branch:</code>, <code>committer:</code>, <code>batch:</code>, <code>message:</code> and <code>id:</code> look at a single field.
+</span>
 
-  getData(props) {
-    const { dispatch, project, date_range, aggregated_metrics, match } = props;
-    dispatch(fetchCommits(project, {...match.params}, day_range(date_range), aggregated_metrics))
-  }
+const SearchHeader = ({ search, nb_commits, has_more, isFetching }) => (
+  <Callout icon={isFetching ? <Spinner size={16}/> : "search"} intent={Intent.PRIMARY} style={{marginBottom: '15px'}} title={<>
+    Searching all commits for <q>{search}</q>
+    {!isFetching && <Tag minimal round style={{marginLeft: '10px'}}>{nb_commits}{has_more ? '+' : ''} {nb_commits === 1 ? 'match' : 'matches'}</Tag>}
+  </>}>
+    <span className={Classes.TEXT_MUTED}>{search_help}</span>
+  </Callout>
+);
 
-  componentDidMount() {
-    const { project, match } = this.props;
-    let name = this.props.project.split('/').slice(-1)[0];
-    document.title = `${match.params.name || match.params.committer || project} - ${name}`;
 
-    this.getData({...this.props, date_range: default_date_range()});
-    this.interval = setInterval(() => this.getData(this.props), 60 * 1000);
-  }
+const CiCommitList = () => {
+  const { project, branch, committer } = useSelected();
+  const project_data = useProjectData(project);
+  const { commits, error, isPending, isPlaceholderData, isSuccess, date_range, search, hasNextPage, fetchNextPage, isFetchingNextPage } = useCommitsList();
+  // new results are on their way (background refreshes don't count)
+  const loading = isPending || isPlaceholderData;
+  const [now] = useState(() => new Date());
 
-  componentWillUnmount() {
-    clearInterval(this.interval);
-  }
+  useEffect(() => {
+    let name = project.split('/').slice(-1)[0];
+    document.title = `${branch || committer || project} - ${name}`;
+  }, [project, branch, committer]);
 
-  render() {
-    const { error, is_loaded, is_loading, project, match, project_data, commits, date_range } = this.props;
-    let is_branch = !!match.params.name;
+  const commits_by_day = useMemo(() => groupBy(commits, "authored_date"), [commits]);
 
-    let some_commits_loaded = !!commits && commits.length > 0;
-    let show_metrics_over_time = (is_loaded || some_commits_loaded) && !error && is_branch;
-    if (is_branch && some_commits_loaded && !!project_data.data && !!commits[0].data) {
-      commits[0].data.git = project_data.data.git
-    }
-    let qa_report = show_metrics_over_time && <Section>
-      <Card>
-        <CommitsEvolution
-          project={project}
-          project_data={(is_branch && some_commits_loaded && commits[0]) || project_data}
-          commits={commits}
-          per_output_granularity={false}
-          dispatch={this.props.dispatch}
-          style={{ marginTop: "20px" }}
-        />
-      </Card>
-    </Section>;
+  const is_branch = !!branch;
+  const some_commits_loaded = commits.length > 0;
+  const show_metrics_over_time = (isSuccess || some_commits_loaded) && !error && is_branch && !search;
+  const loadMore = () => {
+    if (hasNextPage && !isFetchingNextPage && !error) fetchNextPage();
+  };
+  // the range ends where we have commits, if there are no recent ones
+  const show_older = () => updateSelected({ from: DateTime.fromJSDate(date_range[0]).minus({ days: 7 }).toJSDate() }, { replace: true });
+  // On branches, the metrics configuration comes from the latest commit
+  const evolution_project_data = useMemo(() => {
+    if (!is_branch || !some_commits_loaded) return project_data;
+    return { ...commits[0], data: { ...commits[0].data, git: project_data.data?.git } };
+  }, [is_branch, some_commits_loaded, commits, project_data]);
 
-    var list;
-    var error_msg = (error) => {
-      if (error.response) {
-        // The server responded with a status other than 2xx
-        return error.message + "\n" + error.response.data;  // e.g., "an error occurred 401"
-      } else if (error.request) {
-        // No response was received from the server
-        return "No response received from the server.";
-      } else {
-        // Other errors (e.g., in setting up the request)
-        return "Error: " + error.message;
-      }
-    }
-
-    var warning_messages = <>
-      {error && <NonIdealState description={<pre>{error_msg(error)}</pre>} icon="error" />}
-      {is_loading && !some_commits_loaded && <NonIdealState title="Loading" icon={<Spinner />} />}
-      {is_loaded && !is_loading && !error && !some_commits_loaded &&
+  return (
+    <Container style={{paddingTop: '50px'}}>
+      {show_metrics_over_time && <Section>
+        <Card>
+          <CommitsEvolution
+            project={project}
+            project_data={evolution_project_data}
+            commits={commits}
+            per_output_granularity={false}
+            style={{ marginTop: "20px" }}
+          />
+        </Card>
+      </Section>}
+      {!!search && <SearchHeader search={search} nb_commits={commits.length} has_more={hasNextPage} isFetching={loading}/>}
+      {error && <NonIdealState description={<pre>{errorMessage(error)}</pre>} icon="error" />}
+      {isPending && <NonIdealState title="Loading" icon={<Spinner />} />}
+      {isSuccess && !loading && !error && !some_commits_loaded && !!search &&
+        <NonIdealState title="No commit matches your search" icon="search" />}
+      {isSuccess && !loading && !error && !some_commits_loaded && !search &&
         <NonIdealState
           title="Could not find a commit with results"
           description={<span>Searched {" "}
             <strong>from <span title={date_range[0]}>{DateTime.fromJSDate(date_range[0]).toRelativeCalendar({unit: "days"})}</span></strong>
             {" "}to{" "}
-            {date_range[1] > new Date() ? "today" : <strong>
+            {date_range[1] > now ? "today" : <strong>
               <span title={date_range[1]}>{DateTime.fromJSDate(date_range[1]).toRelativeCalendar({unit: "days"})}</span>
             </strong>}
           </span>}
           icon="search"
       />}
-    </>
-
-    let commits_by_day = groupBy(commits, "authored_date");
-    list = (
-      <>
-        {Object.keys(commits_by_day).map(day => (
-          <Card key={day} elevation={0} style={{marginBottom: '15px'}}>
-            <h4 className={Classes.HEADING} style={{textTransform: 'capitalize'}}>
-              {(!!day && day !== "undefined") ? <>
-                  {DateTime.fromISO(day, { zone: 'utc' }).toRelativeCalendar({unit: "days"})}
-                  {" "}
-                  &#8212; {commits_by_day[day].length} commits
-                </>
-               : `${commits_by_day[day].length} commits`}
-            </h4>
-            <CommitRows project={project} project_data={project_data} commits={commits_by_day[day]} />
-          </Card>
-        ))}
-      </>
-    );
-    return (
-      <Container style={{paddingTop: '50px'}}>
-        {qa_report}
-        {warning_messages}
-        {(is_loaded || some_commits_loaded) && list}
-      </Container>
-    );
-  }
+      {Object.keys(commits_by_day).map(day => (
+        <Card key={day} elevation={0} style={{marginBottom: '15px'}}>
+          <h4 className={Classes.HEADING}>
+            {(!!day && day !== "undefined")
+              ? `${capitalize(DateTime.fromISO(day, { zone: 'utc' }).toRelativeCalendar({unit: "days"}))} \u2014 ${count_commits(commits_by_day[day].length)}`
+              : capitalize(count_commits(commits_by_day[day].length))}
+          </h4>
+          <CommitRows project={project} project_data={project_data} commits={commits_by_day[day]} />
+        </Card>
+      ))}
+      {hasNextPage && some_commits_loaded && !error &&
+        <LoadMore onLoadMore={loadMore} loading={isFetchingNextPage} loaded={commits.length} text="More commits"/>}
+      {isSuccess && !hasNextPage && some_commits_loaded && !search && !loading &&
+        <div style={{display: 'flex', justifyContent: 'center', margin: '15px'}}>
+          <Button minimal icon="history" text="Older commits" title="Search 7 more days" onClick={show_older}/>
+        </div>}
+    </Container>
+  );
 }
 
-
-
-const commit_search = c => {
-  const batches = Object.keys(c.batches).join('|')
-  return `${c.committer_name} ${c.message} ${c.branch} ${batches}`
-}
-
-
-const mapStateToProps = (state, ownProps) => {
-    const project = projectSelector(state)
-    const project_data = projectDataSelector(state)
-    const commits_data = commitsDataSelector(state)
-    const commits = commitsSelector(state)
-
-    let is_branch = !!ownProps.match.params.name;
-    let some_commits_loaded = !!commits && commits.length > 0;
-    let project_data_ = (is_branch && some_commits_loaded && commits[0]) || project_data
-    let project_metrics = project_data_.data?.qatools_metrics || {};
-
-    let aggregated_metrics = {};
-    (project_metrics.main_metrics || []).forEach(m => {
-      if (project_metrics.available_metrics[m] !== undefined)
-        aggregated_metrics[m] = project_metrics.available_metrics[m].target ?? 0
-    });
-
-
-    const { search } = selectedSelector(state)
-    let matcher = match_query(search)
-    let commits_filtered = commits.filter(c => matcher(commit_search(c)))
-
-    return {
-      project,
-      project_data,
-      search,
-      aggregated_metrics,
-      date_range: commits_data.date_range,
-      commits: commits_filtered,
-      error: commits_data.error,
-      is_loaded: commits_data.is_loaded,
-      is_loading: commits_data.is_loading,
-    };
-}
-
-export default withRouter(connect(mapStateToProps)(CiCommitList) );
+export default CiCommitList;

@@ -1,0 +1,97 @@
+---
+id: detection-eval
+title: "Detection: evaluating a model"
+sidebar_label: Detection evaluation
+description: An object detector quantized to int8 that loses a slice and small objects, then is tuned back. Metrics per class and object size, PR curves over the reference, detections drawn on images, HTML reports, automated tuning and milestones as model releases.
+---
+For computer vision and ML engineers who ship models to devices, where quantization, input size and model size trade
+off against accuracy. This page follows the detector example.
+
+:::info Screenshots coming
+The example project is [`examples/detection-eval`](https://github.com/Samsung/qaboard/tree/master/examples/detection-eval).
+Its screenshots show as placeholders until they're captured.
+:::
+
+## The problem
+One mAP number hides where a model got worse. Quantizing a detector to int8 makes it several times smaller, and the
+average moves less than what you lost on one kind of scene, or on the objects far away. You need metrics per class and
+per object size, on slices of your data, next to the reference model's, and the images where it went wrong.
+
+## The example
+An off-the-shelf detector (torchvision's SSDlite, BSD-licensed) runs on CPU with ONNX Runtime, in fp32 and in int8,
+at several input sizes. It's evaluated on four slices of images: indoor, outdoor, warehouse, and small objects (people
+and cars pasted far away on empty scenes). Each run measures COCO-style AP, AP per object size and per class, recall
+on small objects, model size and latency.
+
+The photos are public domain, and no detection dataset is: their labels come from a much larger model (Faster R-CNN),
+not from people. The detector is scored against what a better model sees.
+
+The int8 model is scored with its reference arithmetic: quantization in float, as its graph says, rather than with ONNX
+Runtime's int8 kernels, which round differently from one CPU to another. Its metrics don't move from one CI runner to
+the next, which is what a regression test needs.
+
+Its story:
+1. The first int8 model is 3.5 times smaller, which is what the robot's accelerator needs. It loses 35% of its mAP
+   on the indoor slice, and some of the small objects.
+2. Per-channel weights and percentile calibration bring the indoor slice back.
+3. `qa optimize` searches the quantization and post-processing settings; the Analysis view shows which ones matter.
+   With them, the int8 model finds small objects as well as the last fp32 release.
+4. The tuned model ships as a milestone, the next reference.
+
+## What you see
+**Metrics Diff per slice**: int8 against fp32, the model 72% smaller everywhere, mAP and AP on small objects red on
+the indoor slice.
+
+<Shot id="commit/metrics-diff" />
+
+**Precision-recall curves** per class, int8 over the fp32 reference drawn dashed.
+
+<Shot id="commit/plotly-overlay" />
+
+**Detections on the images**: the int8 model misses people that fp32 finds (in red).
+
+<Shot id="commit/detections" />
+
+**An HTML report** per run, with AP per class and object size, and the images where the most objects were missed.
+
+<Shot id="commit/html-report" />
+
+**Automated tuning**: `qa optimize` tries quantization settings; the Analysis view shows their convergence, each
+parameter's effect, and the trade-offs.
+
+<Shot id="tuning/analysis" />
+
+**A milestone** for the release: the tuned model's commit is saved with a label and notes, shared with the team, and
+becomes the reference the next changes are compared with.
+
+<Shot id="commit/milestone" />
+
+## The configuration
+`:image` in a path gives a slider over the slice's images, synced across runs. The plots set their traces' colors, so
+with `side_by_side: false` the web app draws the reference dashed and faded on the same axes.
+
+<RepoFile path="examples/detection-eval/qaboard.yaml" title="qaboard.yaml" section="inputs,outputs,gate" />
+
+The variants are configurations (`fp32`, `int8`, `size-320`...), so each run shows them as tags. To compare int8
+with fp32 on the same commit, select the commit as the reference too (**Also Select as Reference**), then filter each
+bar's runs by configuration. See [Picking a reference](/docs/user-guide/comparing-results#picking-a-reference).
+
+## Run this example
+You need Python 3.10 or later and [uv](https://docs.astral.sh/uv/). The first run downloads the photos (about 20 MB)
+and the model's weights, and exports the model to ONNX with PyTorch for CPU, which uv installs in its cache (about
+200 MB).
+
+```bash
+cd examples/detection-eval
+pip install qaboard -r requirements.txt
+qa --config int8 --config size-320 run --input slices/small-objects
+qa batch ci                     # 4 slices, fp32 and int8: about 30 s
+```
+
+See the example's [README](https://github.com/Samsung/qaboard/tree/master/examples/detection-eval#readme) for the
+other batches and the tuning.
+
+## Read more
+- [The commit page](/docs/user-guide/commit-page#views): Summary, Metrics Table and Metrics Diff.
+- [Visualizations](/docs/visualizations): Plotly figures, HTML reports, dynamic outputs.
+- [Auto-optimization](/docs/auto-optimization) and [milestones](/docs/references-and-milestones).

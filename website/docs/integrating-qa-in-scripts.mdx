@@ -43,6 +43,9 @@ base_url=http://localhost:5151/api/v1
 curl "$base_url/commits?project=group/my-project" | jq
 ```
 
+To compare a commit's results with a reference, with the numbers of the **Summary** and **Metrics Diff** views, use
+`/commit/<sha>/compare` (experimental, see [Quality gate](/docs/quality-gate#from-scripts-and-agents)).
+
 ### Authentication
 Reading data doesn't need to be logged-in (unless the server [blocks anonymous users](backend-admin/user-management#blocking-anonymous-users)). Some actions do, e.g. starting tuning runs. From scripts, use an API token: create one with a `POST` to `/api/v1/user/token/` while logged-in, then send it with an `Authorization: Bearer` header, or as a `?token=` URL parameter:
 
@@ -93,6 +96,21 @@ The `qa` CLI sends `QA_TOKEN` automatically, from the environment or from *~/.qa
   // --snip--
 ]
 ```
+
+### Lists of commits, branches and projects
+`/commits` gives the commits with results, newest first: by default those of the last days with commits, or of `?from=&to=` (dates). Use `/commits/<branch>` for a branch's, `?committer=<name>` for a committer's. It accepts:
+- `?limit=` (at most 1000) and `?offset=`, to get pages. The `X-Has-More` response header (`true` or `false`) tells if there are more.
+- `?q=` to search all the project's commits, with the [syntax of the web app's search box](user-guide/finding-results#searching-commits), e.g. `q=branch:release -wip`. Searches ignore the date range, unless you give `from` or `to`.
+
+Without `limit`, it answers with at most 1000 commits, and no `X-Has-More` header.
+
+```bash
+curl -i "$base_url/commits?project=group/my-project&q=committer:alice&limit=50&offset=50"
+```
+
+`/project/branches?project=group/my-project` lists all the branches with results, by name. With `&q=feature` (branches whose name contains it) or `&limit=` (default 50, at most 1000), you get the most recently active branches first.
+
+`/projects` gives the projects with results that you can access, with their data. With `?summary=true`, it only gives what lists of projects need (git info, *qaboard.yaml*'s `project` section): it's much smaller. Use `/project?project=group/my-project` for the rest.
 
 ```bash
 curl "$base_url/commit/2032a39564281de429e667260d1def3d16980e01?project=group/my-project" | jq

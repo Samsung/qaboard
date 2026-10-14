@@ -23,7 +23,8 @@ from .. import recreate_artifacts
 @app.route("/api/v1/commit/<path:commit_id>", methods=['GET', 'POST'])
 def api_ci_commit(commit_id=None):
   if request.method == 'POST':
-    hexsha = (request.json.get('commit_sha') or request.json['git_commit_sha']) if not commit_id else commit_id
+    # git_commit_sha for backward-compatibility
+    hexsha = commit_id or request.json.get('commit_sha') or request.json.get('git_commit_sha')
     try:
       commit = CiCommit.get_or_create(
         session=db_session,
@@ -97,11 +98,7 @@ def api_ci_commit(commit_id=None):
                   )
       assert ci_commit
       # fixme: some commits appear twice, one with a short hash...
-      # http://alginfra1:6001/CDE-Users/HW_ALG/CIS/tests/products/HM3/commit/2861963a2216816252660bfdd2d9f459ae80b547?reference=ae720d287&batch=default&filter=01_S5KRM1_Nona_12BIT_OUTD02_6576x4992_EIT1.40ms_AGx1_DGx1.ra&selected_views=bit_accuracy
-      # for commit in ci_commit:
-      #   print(commit, commit.hexsha)
-      # ci_commit = ci_commit[0]
-    except (NoResultFound, AssertionError) as e:
+    except (NoResultFound, AssertionError):
       try:
       # Check if the user provided a branch name instead of a commit ID
         ci_commit = (db_session
@@ -118,7 +115,7 @@ def api_ci_commit(commit_id=None):
                     .first()
                     )
         assert ci_commit
-      except Exception as e:
+      except Exception:
         # if the user provided what looks like a commit ID, we want to fail fast
         # otherwise the code below is super slow
         if re.match(r'^[0-9a-fA-F]{40}$', commit_id):
@@ -144,10 +141,7 @@ def api_ci_commit(commit_id=None):
         except:
           return jsonify({'error': f'Sorry, we could not find any data on commit {commit_id} in project {project_id}.'}), 404
     except BadName:
-      return jsonify({f'error': f'Sorry, we could not understand the commit ID {commit_id} for project {project_id}.'}), 404
-    except Exception as e:
-      raise(e)
-      return jsonify({'error': 'Sorry, the request failed.'}), 500
+      return jsonify({'error': f'Sorry, we could not understand the commit ID {commit_id} for project {project_id}.'}), 404
 
   batch = request.args.get('batch', None)
   with_batches = [batch] if batch else None # by default we show all batches

@@ -1,0 +1,343 @@
+---
+id: tutorial
+title: Your project on QA-Board
+sidebar_label: "Tutorial: your project"
+description: Wrap your code with qa, run it on your test set, connect your repository, run it in CI, and compare every commit with your reference branch.
+---
+By the end of this tutorial, every commit you push runs on your test set, and QA-Board shows its outputs and metrics
+next to your reference branch's. Pick your stack: the steps follow your choices.
+
+<StackPicker />
+
+:::info Where results go
+`qa` runs your code where you start it, saves each run's output files in a storage the server reads at the same path
+(by default `/mnt/qaboard`, usually an NFS share), and sends the metrics to the server. Every machine that saves
+results with `qa`, CI runners included, must mount that storage. Uploading outputs over HTTP, so that any machine can
+save results, is on the [roadmap](/docs/roadmap#http-upload-of-outputs).
+:::
+
+## 1. Start a server
+
+<Tabs groupId="server" queryString>
+<TabItem value="compose" label="Docker Compose" default>
+
+- **To try it on your computer:** follow the [quickstart](/docs/get-started/quickstart?server=compose). One Compose
+  file starts QA-Board, with the results folder in `/tmp/qaboard`.
+- **For your team:** follow [Starting a QA-Board server](/docs/deploy) on a Linux host:
+  1. Create the results folder, `/mnt/qaboard`, and share it with the machines that will run `qa` (NFS, Samba...).
+  2. Add a site overlay that mounts it in the backend and in nginx (start from `deployments/example.yml`).
+  3. Start QA-Board with `deployments/deploy.py`. It answers on port 5151.
+
+</TabItem>
+<TabItem value="k8s" label="Kubernetes (Helm)">
+
+- **To try it on your computer:** follow the [quickstart](/docs/get-started/quickstart?server=k8s). kind shares
+  `/tmp/qaboard` between your computer and the cluster.
+- **For your team:** install the chart on your cluster, with results storage that pods and the machines running
+  `qa` both mount at the same path, e.g. an NFS share or a `ReadWriteMany` volume (the chart's `results` setting).
+  See [Running QA-Board on Kubernetes](/docs/backend-admin/kubernetes#on-a-real-cluster).
+
+</TabItem>
+</Tabs>
+
+Already have a server? Note its address, `<your-qaboard>` below, and go to the next step.
+
+:::caution
+The API that saves results doesn't require a login yet: keep your server on a network you trust. Token-authenticated
+ingest is on the [roadmap](/docs/roadmap#token-authenticated-ingest).
+:::
+
+## 2. Install the command line
+
+<Tabs groupId="code" queryString>
+<TabItem value="python" label="Python" default>
+
+`qa` imports your code, so install it where your code's dependencies are, e.g. your project's virtual environment:
+
+```bash
+pip install qaboard
+```
+
+</TabItem>
+<TabItem value="executable" label="Any executable">
+
+`qa` runs your executable, so it only needs Python. Install it as a tool:
+
+```bash
+uv tool install qaboard
+```
+
+`pip install qaboard` works too.
+
+</TabItem>
+</Tabs>
+
+Then point it to your server, e.g. in your shell's profile, and check that `qa` is installed:
+
+```bash
+export QABOARD_URL=http://<your-qaboard>
+qa --help
+```
+
+`<your-qaboard>` is your server's address, e.g. `localhost:5151`. More options, like API tokens, are in
+[Installation](/docs/installation).
+
+## 3. Wrap your code
+At the root of your repository, `qa init` creates *qaboard.yaml* and a `qa/` folder: `qa/main.py` (the wrapper),
+`qa/batches.yaml` (your test sets) and `qa/metrics.yaml` (your metrics).
+
+```bash
+qa init
+```
+
+`qa` calls the `run(context)` function of `qa/main.py` for each run. It runs your code on `context.input_path`,
+writes files in `context.output_dir`, and returns metrics.
+
+<Tabs groupId="code" queryString>
+<TabItem value="python" label="Python" default>
+
+Import your code and call it:
+
+```python title="qa/main.py"
+from my_project import process  # your code
+
+
+def run(context):
+    result = process(context.input_path, params=context.params)
+    result.image.save(context.output_dir / "out.png")
+    return {"psnr": result.psnr, "is_failed": False}
+```
+
+`context.params` merges your configurations and tuning parameters. The
+[camera ISP example](https://github.com/Samsung/qaboard/tree/master/examples/image-quality) is a complete project to
+copy from: its `qa/main.py` saves the output and each stage of the pipeline, and returns quality metrics and the
+runtime.
+
+</TabItem>
+<TabItem value="executable" label="Any executable">
+
+Run your executable, then read what it wrote:
+
+```python title="qa/main.py"
+import json
+import subprocess
+
+
+def run(context):
+    process = subprocess.run([
+        "build/my-tool",
+        "--input", str(context.input_path),
+        "--output", str(context.output_dir),
+    ])
+    if process.returncode != 0:
+        return {"is_failed": True}
+    metrics = json.loads((context.output_dir / "metrics.json").read_text())
+    return {**metrics, "is_failed": False}
+```
+
+`qa` doesn't build your code: build it first, in CI too.
+
+</TabItem>
+</Tabs>
+
+{/* TODO: `qa init --template image-quality` copies the example, once it ships (plan §7) */}
+
+Then tell `qa` about your project and where your inputs are. In the camera ISP example, the inputs are the images in
+its `inputs/` folder (the `database`), and its batches are in `qa/batches.yaml`:
+
+<RepoFile path="examples/image-quality/qaboard.yaml" title="qaboard.yaml" section="project,inputs" />
+
+Under `outputs:`, list the files to show, like images side by side with the reference's: see the example's
+[configuration](/docs/use-cases/image-quality#the-configuration).
+
+A batch lists inputs and configurations. The example's `ci` batch runs 9 images in 2 configurations:
+
+<RepoFile path="examples/image-quality/qa/batches.yaml" title="qa/batches.yaml" section="ci" />
+
+The details are in [Running your code](/docs/running-your-code), [Inputs](/docs/inputs),
+[Metrics](/docs/computing-quantitative-metrics) and [Visualizations](/docs/visualizations).
+
+## 4. Run and share
+Run your code on one input. `qa` prints your code's log and the metrics, and saves the outputs in `output/`:
+
+```bash
+qa run --input <an-input>
+```
+
+`<an-input>` is the path of one of your inputs, relative to the `database` folder.
+
+<Clip id="cli/first-run" />
+
+Then run a batch, and send its results to the server with `--share`:
+
+```bash
+qa --share batch ci
+```
+
+`qa` prints a link after `Results:`: open it to see the commit page, with your runs. Shared results are saved in
+`/mnt/qaboard`, or where `storage` in *qaboard.yaml* says.
+
+<Clip id="cli/batch" />
+
+## 5. Connect your repository
+QA-Board already shows the commits that `qa` sends results for, with the message and author it reads from git.
+Connecting the repository adds the committers' avatars, and lets QA-Board read each pushed commit's *qaboard.yaml*.
+
+<Tabs groupId="forge" queryString>
+<TabItem value="github" label="GitHub" default>
+
+1. For a private repository, start the server with a `GITHUB_ACCESS_TOKEN` that can read it. For GitHub Enterprise,
+   also list its hostname in `QABOARD_GITHUB_HOSTS`, or list your hosts in `QABOARD_GIT_HOSTS` (see
+   [Git hosts](/docs/backend-admin/git-hosts)). Set a `QABOARD_WEBHOOK_SECRET` too (see
+   [environment variables](/docs/deploy#optional-environment-variables)).
+2. In the repository's **Settings > Webhooks**, add a webhook:
+   - **Payload URL:** `http://<your-qaboard>/webhook/github`
+   - **Content type:** `application/json`
+   - **Secret:** the server's `QABOARD_WEBHOOK_SECRET`
+   - **Events:** just the push event
+3. Push a commit: GitHub shows a green check next to the webhook's latest delivery.
+
+GitHub has to reach your server for this. When `qa` has a token, `qa batch` sets a commit status that links to the
+results (step 6), and `qa gate --post-status github` one that links to the Metrics Diff (step 7).
+
+</TabItem>
+<TabItem value="gitlab" label="GitLab">
+
+1. Start the server with your `GITLAB_HOST` and a `GITLAB_ACCESS_TOKEN` with the `read_repository` scope. Set a
+   `QABOARD_WEBHOOK_SECRET` too (see [environment variables](/docs/deploy#optional-environment-variables)).
+2. As a maintainer of the project, add a webhook in **Settings > Webhooks**:
+   - **URL:** `http://<your-qaboard>/webhook/gitlab`
+   - **Secret token:** the server's `QABOARD_WEBHOOK_SECRET`
+   - **Trigger:** push events and tag push events
+3. Click **Test > Push events**: GitLab shows that the hook answered with HTTP 200.
+
+</TabItem>
+</Tabs>
+
+More, and Gitea, Forgejo or Bitbucket, in [Project setup](/docs/project-init#optional-connect-your-git-host).
+
+## 6. Run in CI
+Your CI runs `qa batch ci` on every push. `qa` reads the commit and the branch from the CI's environment variables,
+and the batch shows as **CI** on the commit page.
+
+:::caution The runner must mount the results storage
+Use a runner that mounts it at the same path as the server: a self-hosted GitHub Actions runner, a GitLab runner or a
+Jenkins agent on your network. GitHub-hosted runners can't save results yet: they need
+[HTTP upload of outputs](/docs/roadmap#http-upload-of-outputs).
+:::
+
+<Tabs groupId="ci" queryString>
+<TabItem value="github-actions" label="GitHub Actions" default>
+
+<RepoFile path="website/snippets/ci/github-actions.yml" title=".github/workflows/qaboard.yml" untested />
+
+</TabItem>
+<TabItem value="gitlab-ci" label="GitLab CI">
+
+<RepoFile path="website/snippets/ci/gitlab-ci.yml" title=".gitlab-ci.yml" untested />
+
+</TabItem>
+<TabItem value="jenkins" label="Jenkins">
+
+<RepoFile path="website/snippets/ci/Jenkinsfile" title="Jenkinsfile" untested />
+
+</TabItem>
+</Tabs>
+
+`<your-qaboard>` is your server's address. Run CI on your reference branch too: its latest results are what every
+other commit is compared with.
+
+## 7. Compare and gate
+Open a commit from a feature branch: the commit page compares its runs with the latest results of the reference
+branch (`project.reference_branch` in *qaboard.yaml*). The **Metrics Diff** view shows how each metric changed, run
+by run: green when it got better, red when it got worse. The outputs show side by side. To compare with a release
+instead, make it a [milestone](/docs/references-and-milestones).
+
+<Shot id="commit/metrics-diff" />
+
+:::caution Experimental
+`qa gate` and the `gate:` section of *qaboard.yaml* may change without notice.
+:::
+
+To fail CI when quality regresses, add rules under `gate:` in *qaboard.yaml*, and run `qa gate` after `qa batch ci`.
+It compares the commit's metrics with the reference's, and fails the CI job when a rule fails. The camera ISP example
+allows PSNR to get at most 1% worse, and the halos 20%:
+
+<RepoFile path="examples/image-quality/qaboard.yaml" title="qaboard.yaml" section="gate" />
+
+The [quality gate](/docs/quality-gate) page lists the rules, the exit codes and the CI examples.
+
+## 8. Scale out
+By default `qa batch` runs on the machine where you start it. Other runners send the runs elsewhere: the machines that
+run them need the results storage too.
+
+<Tabs groupId="runner" queryString>
+<TabItem value="local" label="Local" default>
+
+Run several runs at once on the same machine:
+
+```yaml title="qaboard.yaml"
+runners:
+  default: local
+  local:
+    concurrency: -1  # one run per CPU
+```
+
+See [Local multiprocessing](/docs/local-multiprocessing).
+
+</TabItem>
+<TabItem value="lsf" label="LSF">
+
+Send each run to an LSF cluster, at most 20 at a time:
+
+```yaml title="qaboard.yaml"
+runners:
+  default: lsf
+  lsf:
+    queue: <your-queue>
+    concurrency: 20
+```
+
+See [LSF integration](/docs/lsf-integration).
+
+</TabItem>
+<TabItem value="dask" label="Dask">
+
+Run batches of short runs on a pool of Dask workers, started as LSF jobs or on an existing Dask cluster:
+
+```yaml title="qaboard.yaml"
+runners:
+  default: dask
+  dask:
+    scheduler_address: tcp://<your-scheduler>:8786
+    concurrency: 20
+```
+
+See [Dask integration](/docs/dask-integration).
+
+</TabItem>
+<TabItem value="celery" label="Celery">
+
+Send runs to Celery workers through a message broker, e.g. the RabbitMQ that QA-Board's Docker Compose stack starts:
+
+```yaml title="qaboard.yaml"
+runners:
+  default: celery
+  celery:
+    broker_url: pyamqp://guest:guest@<your-qaboard-host>:5672//
+```
+
+See [Celery integration](/docs/celery-integration).
+
+</TabItem>
+</Tabs>
+
+`<your-queue>`, `<your-scheduler>` and `<your-qaboard-host>` are your LSF queue, your Dask scheduler's host and your
+QA-Board server's hostname.
+
+## Next steps
+- [QA-Board in 5 minutes](/docs/tour): what the web app shows, on a team's demo projects.
+- [The commit page](/docs/user-guide/commit-page) and [Comparing results](/docs/user-guide/comparing-results), to read
+  your results.
+- [Tuning from the web app](/docs/tuning-from-the-webapp), to try parameters on your test set.
+- [Bit accuracy](/docs/bit-accuracy), to check that outputs didn't change at all.

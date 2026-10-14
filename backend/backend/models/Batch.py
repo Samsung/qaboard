@@ -3,21 +3,21 @@ Represents runs belonging to the same commit.
 It might by a CI job, or tuning experiments.
 """
 import os
-import uuid
 import datetime
 from pathlib import Path
 
-import numpy as np
-from sqlalchemy import ForeignKey, Integer, String, DateTime, text
+from sqlalchemy import ForeignKey, Integer, String, DateTime, Float, Numeric, Text, text, literal_column
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy import UniqueConstraint, Column
 from sqlalchemy.orm import relationship
-from sqlalchemy import func, case
+from sqlalchemy import func, case, and_, cast
+from sqlalchemy.exc import DataError
 
 from qaboard.conventions import batch_folder_name
 from qaboard.api import dir_to_url
 
 from backend.models import Base, Output
+from backend.metrics_aggregation import metric_names
 from backend.shell_utils import shell_safe, safe_user_name
 from backend.storage import UnsafePathError
 
@@ -71,24 +71,18 @@ class Batch(Base):
       return self.ci_commit.outputs_dir / batch_folder_name(self.label)
 
 
-  def to_dict(self, session, with_outputs=False, with_aggregation=None):
-    # TODO: limit outputs? avoid loading all?
-    metrics_to_aggregate  = with_aggregation if with_aggregation else {}
+  def to_dict(self, session, with_outputs=False, with_aggregation=None, stats=None):
+    """
+    `stats` are the batch's counts of outputs and aggregated metrics, from batches_stats().
+    When serializing many batches, compute them all at once and pass them here.
+    """
+    batch_dir = self.batch_dir
     if with_outputs:
-      outputs = {'outputs': {o.id: o.to_dict() for o in self.outputs}}
+      outputs = {'outputs': {o.id: o.to_dict(batch_dir=batch_dir) for o in self.outputs}}
     else:
       outputs = {}
-    result = (
-        session.query(
-            func.sum(case((~Output.is_failed & ~Output.is_pending, 1), else_=0)).label('valid_outputs'),
-            func.sum(case((Output.is_pending, 1), else_=0)).label('pending_outputs'),
-            func.sum(case((Output.is_running, 1), else_=0)).label('running_outputs'),
-            func.sum(case((Output.is_failed, 1), else_=0)).label('failed_outputs'),
-            func.sum(case((Output.deleted, 1), else_=0)).label('deleted_outputs')
-        )
-        .filter(Output.batch_id == self.id)
-        .one()
-    )
+    if stats is None:
+      stats = batches_stats(session, [self.id], with_aggregation).get(self.id, no_stats)
     data = self.data if self.data else {} # None check for old batches (todo: migrate them properly)
     if data.get('submissions'):
       data = {**data, 'submissions': {id: with_log_dir_url(s) for id, s in data['submissions'].items()}}
@@ -98,18 +92,13 @@ class Batch(Base):
         'label': self.label,
         'created_date': self.created_date.isoformat(),
         'data': data,
-        'batch_dir_url': dir_to_url(self.batch_dir),
-        'aggregated_metrics': {}, # aggregated_metrics(self.outputs, metrics_to_aggregate),
-        'valid_outputs': result.valid_outputs or 0,
-        'pending_outputs': result.pending_outputs or 0,
-        'running_outputs': result.running_outputs or 0,
-        'failed_outputs': result.failed_outputs or 0,
-        'deleted_outputs': result.deleted_outputs or 0,
+        'batch_dir_url': dir_to_url(batch_dir),
+        **stats,
         **outputs,
     }
 
   def __repr__(self):
-    return (f"<Batch commmit='{self.ci_commit.hexsha}' "
+    return (f"<Batch commit='{self.ci_commit.hexsha}' "
             f"label='{self.label}' "
             f"outputs={len(self.outputs)} />")
 
@@ -118,21 +107,6 @@ class Batch(Base):
     self.label = label
     db_session.add(self)
     db_session.commit()
-
-  def redo(self, user, only_failed=False, only_deleted=False):
-    # Raises ArtifactsUnavailable if the artifacts are missing and can't be restored right now
-    self.ci_commit.ensure_artifacts(user=user)
-
-    success = True
-    command_id = uuid.uuid4()
-    for output in self.outputs:
-      if only_failed and not output.is_failed:
-        continue
-      if only_deleted and not output.deleted:
-        continue
-      output_success = output.redo(user=user, command_id=command_id, check_artifacts=False)
-      success = success and output_success
-    return success
 
   def stop(self, session):
     if not any([o.is_pending for o in self.outputs]):
@@ -171,7 +145,6 @@ class Batch(Base):
         jobs.stop()
       except Exception as e:
         print(e)
-        raise e
         errors.append(str(e))
         continue
     if errors:
@@ -212,26 +185,97 @@ class Batch(Base):
     session.commit()
 
 
-# TODO: refactor with proper SQL, or use triggers to keep updated
-def aggregated_metrics(outputs, metrics_to_aggregate):
-  if not metrics_to_aggregate:
-    return {}
+no_stats = {
+  'aggregated_metrics': {},
+  'valid_outputs': 0,
+  'pending_outputs': 0,
+  'running_outputs': 0,
+  'failed_outputs': 0,
+  'deleted_outputs': 0,
+}
+# keeps the query reasonable whatever clients ask for
+max_aggregated_metrics = 20
 
-  valid_outputs = [o for o in outputs if not o.is_failed and not o.is_pending]
-  aggregated = {}
-  for metric, treshold in metrics_to_aggregate.items():
-    values = np.array([
-        o.metrics[metric] for o in valid_outputs
-        if metric in o.metrics and not o.metrics[metric] is None
-    ])
-    has_values = values.shape[0]>0
+
+def batches_stats(session, batch_ids, metrics_to_aggregate=None):
+  """
+  In one query for many batches: their number of outputs per status, and the median
+  and average of some metrics over their valid outputs (`metrics_to_aggregate`: {name: target}).
+  Returns {batch_id: {'valid_outputs': 10, ..., 'aggregated_metrics': {'loss_median': 0.1, 'loss_average': 0.2}}}
+  Batches without outputs are missing.
+  """
+  if not batch_ids:
+    return {}
+  # e.g. {"loss": 0.1}, a list of names, or anything clients send
+  metrics = metric_names(metrics_to_aggregate)[:max_aggregated_metrics]
+  # Output.metrics is JSON, stored as text: reading a key means parsing it. We read each metric once per output
+  # (OFFSET 0 keeps postgres from inlining subqueries, it would read them again for each use).
+  outputs = (session
+    .query(
+      Output.batch_id,
+      and_(~Output.is_failed, ~Output.is_pending).label('is_valid'),
+      # The metrics of runs from old clients, with NULL statuses, count. Deleted runs' don't.
+      and_(Output.is_failed.isnot(True), Output.is_pending.isnot(True), Output.deleted.isnot(True)).label('is_aggregated'),
+      Output.is_pending, Output.is_running, Output.is_failed, Output.deleted,
+      *[Output.metrics[metric].label(f'metric_{index}') for index, metric in enumerate(metrics)],
+    )
+    .filter(Output.batch_id.in_(batch_ids))
+    .offset(0)
+    .subquery()
+  )
+  # We only aggregate numbers (not strings, booleans...), from valid outputs (not failed, pending or deleted),
+  # that fit in floats. Aggregates ignore NULLs. Like backend/metrics_aggregation.py, in the same query as the counts.
+  def as_float(value):
+    number = cast(cast(value, Text), Numeric)
+    # nested CASEs: postgres evaluates them in order, but not the terms of AND
+    return case((func.json_typeof(value) == 'number', case((func.abs(number) < literal_column('1e308::numeric'), cast(number, Float)))))
+  values = (session
+    .query(
+      outputs,
+      *[case((outputs.c.is_aggregated, as_float(outputs.c[f'metric_{index}']))).label(f'value_{index}') for index in range(len(metrics))],
+    )
+    .offset(0)
+    .subquery()
+  )
+  columns = [
+    values.c.batch_id,
+    func.sum(case((values.c.is_valid, 1), else_=0)),
+    func.sum(case((values.c.is_pending, 1), else_=0)),
+    func.sum(case((values.c.is_running, 1), else_=0)),
+    func.sum(case((values.c.is_failed, 1), else_=0)),
+    func.sum(case((values.c.deleted, 1), else_=0)),
+  ]
+  for index in range(len(metrics)):
+    value = values.c[f'value_{index}']
+    columns.append(func.percentile_cont(0.5).within_group(value))
+    columns.append(func.avg(value))
+  query = session.query(*columns).group_by(values.c.batch_id)
+  if metrics:
     try:
-      aggregated[f'{metric}_median'] = np.median(values) if has_values else np.NaN
-      aggregated[f'{metric}_average'] = np.average(values) if has_values else np.NaN
-      # aggregated[f'{metric}_pc_bad'] = np.mean(values < treshold) if has_values else np.NaN
-    except:
-      continue
-    # TODO: Use metric metadata to know if smaller_is_better, or pass the info in metrics_to_aggregate 
-    # aggregated[f'{metric}_threshold_bad'] = treshold
-  # Remove NaN values
-  return {k: v for k, v in aggregated.items() if v == v}
+      # e.g. numbers too big for floats: we'd rather show batches without metrics than an error
+      with session.begin_nested():
+        rows = query.all()
+    except DataError as e:
+      print(f"WARNING: could not aggregate {metrics}: {e}")
+      return batches_stats(session, batch_ids)
+  else:
+    rows = query.all()
+
+  stats = {}
+  for batch_id, valid, pending, running, failed, deleted, *aggregates in rows:
+    aggregated = {}
+    for index, metric in enumerate(metrics):
+      median, average = aggregates[2 * index], aggregates[2 * index + 1]
+      if median is not None:
+        aggregated[f'{metric}_median'] = median
+      if average is not None:
+        aggregated[f'{metric}_average'] = average
+    stats[batch_id] = {
+      'aggregated_metrics': aggregated,
+      'valid_outputs': valid or 0,
+      'pending_outputs': pending or 0,
+      'running_outputs': running or 0,
+      'failed_outputs': failed or 0,
+      'deleted_outputs': deleted or 0,
+    }
+  return stats

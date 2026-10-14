@@ -28,7 +28,7 @@ runners:
     # max_memory: 8000            # ask for eg 8000M memory when sending jobs to LSF (0=default)
     # resources: RESOURCE_STRING
     # priority: 10                # LSF priority (-sp)
-    # options: "-W 24:00"         # Specifiy freely other LSF options that bsub accepts
+    # options: "-W 24:00"         # Specify freely other LSF options that bsub accepts
                                   # Will be added after all other CLI flags.
 ```
 
@@ -63,6 +63,11 @@ In QA-Board's *Logs* view:
 - Failed runs get a tag explaining why LSF ended them (e.g. "LSF: out of memory"). Above the logs, a summary of LSF's job report says what to do about it, and shows the host, run time, and memory used vs requested.
 - You can switch between `log.txt` and `log.lsf.txt`, search (<kbd>Ctrl/Cmd</kbd>+<kbd>F</kbd>, then <kbd>Enter</kbd>), and jump to errors.
 - While runs are running, logs update live. We only download what was added since the last update, and for large logs, only the end of the file at first.
+
+<Shot
+  id="logs/lsf-hints"
+  caption="LSF killed this run at its memory limit (TERM_MEMLIMIT): the summary compares the memory it used with what it requested, and says how to ask for more."
+/>
 
 :::note
 With job arrays (see above), all runs share the same `bsub -o` file name. To get each run's job report in its own `log.lsf.txt`, *qaboard* creates symlinks to the runs' output directories in `{batch_dir}/lsf/{job_array_name}/{index}`, and uses `-o "{batch_dir}/lsf/{job_array_name}/%I/log.lsf.txt"`.
@@ -130,7 +135,7 @@ export QA_RUNNERS_LSF_BRIDGE='ssh my_host_with_lsf_access {bsub_command}'
 export QA_RUNNERS_LSF_BRIDGE='ssh my_host_with_lsf_access su {user} {bsub_command}'
 ```
 
-1. Via project configuraton:
+1. Via project configuration:
 ```yaml {5} title="qaboard.yaml"
 runners:
   lsf:
@@ -139,5 +144,5 @@ runners:
 ```
 
 :::tip
-When using bridges, `qa` will explicitely ask LSF to run in your current working directory, so no need to play games with `ssh 'cd {cwd} && {bsub_command}'`...
+When using bridges, `qa` will explicitly ask LSF to run in your current working directory, so no need to play games with `ssh 'cd {cwd} && {bsub_command}'`...
 :::

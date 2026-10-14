@@ -1,8 +1,10 @@
-import React from "react";
+import { useMemo, useState } from "react";
 
-import { Tree, Classes, Colors, Tag, Icon, Popover, Menu, MenuItem } from "@blueprintjs/core";
+import { Tree, Classes, Colors, Tag, Icon, Popover, Menu, MenuItem, Tooltip } from "@blueprintjs/core";
 import { OutputViewer } from "../OutputViewer"
+import { preloadMonaco } from "../../components/MonacoEditor"
 import { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, updateMissingFrom, humanFileSize } from "./utils"
+import { bitAccuracyChecker, markChecked, bitAccuracySummary } from "./checked"
 import { match_query, is_same_data } from "../../utils"
 
 
@@ -11,33 +13,33 @@ const to_tree = filepaths => {
   if (filepaths === undefined || filepaths === null)
     return []
 
-  var tree = []
-  Object.entries(filepaths).forEach( ([filepath, meta]) => {    
-    let parts = filepath.split('/')
-    var parent = tree
+  const tree = []
+  const nodes = new Map() // id => node, so that we find parents quickly
+  for (const [filepath, meta] of Object.entries(filepaths)) {
+    const parts = filepath.split('/')
+    let parent = tree
     let path = []
-    for (var i = 0; i < parts.length; i++) {
-      let part = parts[i];
-      let id = parts.slice(0, i+1).join('/')
-      var node_idx = parent.findIndex(node => node.id === id)
-      if (node_idx < 0) {
-        node_idx = parent.length;
-        parent.push({
+    for (let i = 0; i < parts.length; i++) {
+      const id = parts.slice(0, i+1).join('/')
+      let node = nodes.get(id)
+      if (node === undefined) {
+        node = {
           id,
-          label: part,
-          path: [...path, node_idx],
+          label: parts[i],
+          path: [...path, parent.length],
           childNodes: [],
           nodeData: {...meta},
-        })
+        }
+        parent.push(node)
+        nodes.set(id, node)
       }
       // the last node is a file
-      if (i === parts.length - 1) {
-        parent[node_idx].childNodes = undefined
-      }
-      parent = parent[node_idx].childNodes;
-      path = [...path, node_idx] 
+      if (i === parts.length - 1)
+        node.childNodes = undefined
+      parent = node.childNodes
+      path = node.path
     }
-  })
+  }
   return tree;
 }
 
@@ -75,13 +77,16 @@ const icon_style = {
 }
 
 const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref) => node => {
-    const { match, missing_from_reference, missing_from_new} = node.nodeData;
+    const { match, missing_from_reference, missing_from_new, checked } = node.nodeData;
     const is_folder = node.childNodes !== undefined;
+    // files that bit_accuracy.patterns don't check (and folders with only those) are greyed
+    if (!checked)
+      node.className = Classes.TEXT_MUTED;
 
     let color = Colors.GREY1;
     if (is_folder) {
       // console.log(node.id, node, !match, missing_from_new, missing_from_reference)
-      if (has_reference) {
+      if (has_reference && checked) {
         if (!match && missing_from_new && missing_from_reference) {
           color = Colors.SEPIA1;
         } else if (!match && missing_from_new) {
@@ -128,7 +133,9 @@ const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref)
       }
     }
 
-    if (has_reference) {
+    if (!checked) {
+      color = Colors.GRAY4;
+    } else if (has_reference) {
       if (missing_from_reference) {
         color = Colors.GREEN1;
       } else if (missing_from_new) {
@@ -200,7 +207,7 @@ const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref)
       </span>
     );
 
-    node.secondaryLabel = hasDownloadOptions ? (
+    const size = hasDownloadOptions ? (
       <Popover
         content={downloadMenu}
         placement="right"
@@ -210,242 +217,175 @@ const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref)
         {sizeLabel}
       </Popover>
     ) : sizeLabel;
+    node.secondaryLabel = checked ? size : <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <Tooltip content="Not checked for bit-accuracy: see bit_accuracy.patterns in qaboard.yaml">
+        <Tag minimal>not checked</Tag>
+      </Tooltip>
+      {size}
+    </span>;
 }
 
 
-const hash_metrics = metrics => JSON.stringify({...metrics, compute_time: undefined})
 
+// Compares the files of the new and reference outputs.
+// NOTE: it modifies the trees, callers give us trees they just built from the manifests
+const mergeTrees = (tree_new, tree_ref, { files_filter, show_all_files, output_new, output_ref, color_blind_friendly, bit_accuracy }) => {
+  if (tree_new === null || tree_new === undefined)
+    return { mixed: [] }
 
-class BitAccuracyViewer extends React.Component {
-  constructor(props) {
-    super(props);
-    // console.log(props)
-    var tree = {}
-    if (!!this.props.manifests) {
-      Object.entries(this.props.manifests).forEach( ([label, manifest]) => {
-        if (!!manifest)
-          tree[label] = to_tree(manifest)
-      })
-      tree.mixed = this.mergeTrees(tree.new, tree.reference, props);      
-    }
-    this.state = {
-      tree,
-      selected: [],
-      opened: [],
-    }
+  let tree_compared = tree_new
+  // find the nodes that are missing in the reference tree
+  visitDepthFirst(tree_compared, updateMissingFrom(tree_ref, 'reference'))
+
+  visitDepthFirst(tree_ref, updateMissingFrom(tree_compared, 'new'))
+  visitDepthFirst(tree_ref, copyNodeData(tree_ref, tree_compared, 'missing_from_new'))
+  // now need to update missing recursevely up!
+  visitDepthFirst(tree_compared, updateMissingFrom(tree_compared, 'new'))
+
+  // find match / mismatches
+  visitDepthFirst(tree_compared, updateMatch(tree_ref))
+  // only the files matching bit_accuracy.patterns count, like `qa check-bit-accuracy`
+  markChecked(tree_compared, bitAccuracyChecker(bit_accuracy))
+  const summary = bitAccuracySummary(tree_compared)
+
+  const has_filter = !!files_filter && files_filter.length > 0;
+  if (!show_all_files && !has_filter) {
+    tree_compared = filterNodes(tree_compared, node => node.nodeData.differs)
+    tree_compared = tree_compared.filter(node => node.id !== 'logs.txt')
+  }
+  if (has_filter) {
+    const matcher = match_query(files_filter)
+    tree_compared = filterNodes(tree_compared, node => {
+      let state = node.nodeData.match ? 'match' : 'diff'
+      return matcher(`${state}:${node.id}`) || (node.childNodes !== undefined && node.childNodes.length > 0)
+    })
   }
 
-  render() {
-    const { tree, selected } = this.state;
-    const has_files = !!tree.mixed && tree.mixed.length !== 0
-    const { type, ...props } = this.props;
-    return <div className={(!has_files && this.props.hide_runs_without_files) ? "viewer-no-files" : undefined}>
-      {!has_files && <em className={Classes.TEXT_MUTED}>all files filtered</em>}
-      {has_files && tree.mixed.every(node => node.nodeData.match && !node.nodeData.missing_from_new && !node.nodeData.missing_from_reference) && <Tag>Bit-accurate</Tag>}
-      <Tree
-       contents={tree.mixed}
-       onNodeClick={this.handleNodeClick}
-       onNodeCollapse={this.handleNodeCollapse}
-       onNodeExpand={this.handleNodeExpand}
-      />
-      {selected.map( filename => {
-        const has_same_data = is_same_data(filename, this.props.manifests?.new?.[filename], this.props.manifests?.reference?.[filename])
-        
-        // For new side: fallback if file doesn't exist
-        let filename_new = filename
-        if (filename.match(/\.tiff?$/i)) {
-          // TIFF clicked but doesn't exist in new - try PNG fallback
-          if (!this.props.manifests?.new?.[filename]) {
-            const pngPath = filename.replace(/\.tiff?$/i, '.png')
-            if (this.props.manifests?.new?.[pngPath]) {
-              filename_new = pngPath
+  // sort by alphebetical order
+  forEachNode(tree_compared, sortChildren)
+  // the root is a "chilNodes" array, not a real root...
+  tree_compared = tree_compared.sort( (a, b) => a.label.localeCompare(b.label) )
+
+  const has_ref = tree_ref !== null && tree_ref !== undefined
+  forEachNode(tree_compared, applyStyle(has_ref, has_ref && color_blind_friendly, output_new, output_ref))
+  return { mixed: tree_compared, summary };
+}
+
+
+// What users selected and expanded, applied to a copy of the tree
+const decorate = (nodes, { is_expanded, selected }) => nodes?.map(node => {
+  const is_folder = node.childNodes !== undefined;
+  const isExpanded = is_folder && is_expanded(node);
+  return {
+    ...node,
+    isExpanded,
+    isSelected: selected.includes(node.id),
+    icon: is_folder ? <Icon {...node.icon.props} icon={isExpanded ? 'folder-open' : 'folder-close'}/> : node.icon,
+    childNodes: decorate(node.childNodes, { is_expanded, selected }),
+  };
+})
+
+
+const BitAccuracyViewer = props_ => {
+  const { type: _type, ...props } = props_;
+  const { manifests, files_filter, show_all_files, hide_runs_without_files, expand_all, color_blind_friendly, output_new, output_ref, config } = props_;
+  const bit_accuracy = config?.bit_accuracy;
+  const [selected, setSelected] = useState([]);
+  // folders users expanded (true) or collapsed (false)
+  const [expanded, setExpanded] = useState({});
+
+  const { mixed: tree, summary } = useMemo(() => {
+    if (!manifests) return { mixed: [] };
+    return mergeTrees(
+      manifests.new ? to_tree(manifests.new) : undefined,
+      manifests.reference ? to_tree(manifests.reference) : undefined,
+      { files_filter, show_all_files, output_new, output_ref, color_blind_friendly, bit_accuracy },
+    );
+  }, [manifests, files_filter, show_all_files, output_new, output_ref, color_blind_friendly, bit_accuracy]);
+  const { bit_accurate } = summary ?? {};
+
+  const has_filter = !!files_filter && files_filter.length > 0;
+  const contents = useMemo(() => decorate(tree, {
+    is_expanded: node => expanded[node.id] ?? (!!expand_all || has_filter),
+    selected,
+  }), [tree, expanded, expand_all, has_filter, selected]);
+
+  const handleNodeClick = (node, _nodePath, e) => {
+    const is_folder = node.childNodes !== undefined;
+    if (is_folder) return;
+    const was_selected = selected.includes(node.id);
+    const kept = (e.shiftKey || e.ctrlKey) ? selected : [];
+    setSelected(was_selected ? kept.filter(id => id !== node.id) : [...kept, node.id]);
+  };
+  const handleNodeCollapse = node => setExpanded(expanded => ({ ...expanded, [node.id]: false }));
+  const handleNodeExpand = node => setExpanded(expanded => ({ ...expanded, [node.id]: true }));
+
+  const has_files = tree.length !== 0
+  return <div className={(!has_files && hide_runs_without_files) ? "viewer-no-files" : undefined}>
+    {bit_accurate && <Tag style={{marginBottom: '5px'}}>Bit-accurate</Tag>}
+    {!has_files && !bit_accurate && <em className={Classes.TEXT_MUTED}>all files filtered</em>}
+    <Tree
+     contents={contents}
+     onNodeClick={handleNodeClick}
+     // most files show in a text editor: load it before the click
+     onNodeMouseEnter={node => { if (node.childNodes === undefined) preloadMonaco() }}
+     onNodeCollapse={handleNodeCollapse}
+     onNodeExpand={handleNodeExpand}
+    />
+    {selected.map( filename => {
+      const has_same_data = is_same_data(filename, manifests?.new?.[filename], manifests?.reference?.[filename])
+
+      // For new side: fallback if file doesn't exist
+      let filename_new = filename
+      if (filename.match(/\.tiff?$/i)) {
+        // TIFF clicked but doesn't exist in new - try PNG fallback
+        if (!manifests?.new?.[filename]) {
+          const pngPath = filename.replace(/\.tiff?$/i, '.png')
+          if (manifests?.new?.[pngPath]) {
+            filename_new = pngPath
+          }
+        }
+      }
+
+      // For ref side: fallback if file doesn't exist
+      let filename_ref = filename
+      if (filename.endsWith('.png')) {
+        // PNG clicked but doesn't exist in ref - try TIFF then BMP
+        if (!manifests?.reference?.[filename]) {
+          const tiffPath = filename.replace(/\.png$/i, '.tiff')
+          if (manifests?.reference?.[tiffPath]) {
+            filename_ref = tiffPath
+          } else {
+            const bmpPath = filename.replace(/.png$/, '.bmp')
+            if (manifests?.reference?.[bmpPath]) {
+              filename_ref = bmpPath
             }
           }
         }
-        
-        // For ref side: fallback if file doesn't exist
-        let filename_ref = filename
-        if (filename.endsWith('.png')) {
-          // PNG clicked but doesn't exist in ref - try TIFF then BMP
-          if (!this.props.manifests?.reference?.[filename]) {
-            const tiffPath = filename.replace(/\.png$/i, '.tiff')
-            if (this.props.manifests?.reference?.[tiffPath]) {
-              filename_ref = tiffPath
-            } else {
-              const bmpPath = filename.replace(/.png$/, '.bmp')
-              if (this.props.manifests?.reference?.[bmpPath]) {
-                filename_ref = bmpPath
-              }
-            }
+      } else if (filename.match(/\.tiff?$/i)) {
+        // TIFF clicked but doesn't exist in ref - try PNG fallback
+        if (!manifests?.reference?.[filename]) {
+          const pngPath = filename.replace(/\.tiff?$/i, '.png')
+          if (manifests?.reference?.[pngPath]) {
+            filename_ref = pngPath
           }
-        } else if (filename.match(/\.tiff?$/i)) {
-          // TIFF clicked but doesn't exist in ref - try PNG fallback
-          if (!this.props.manifests?.reference?.[filename]) {
-            const pngPath = filename.replace(/\.tiff?$/i, '.png')
-            if (this.props.manifests?.reference?.[pngPath]) {
-              filename_ref = pngPath
-            }
-          }
-        } 
-        
-        return <div key={filename}>
-          {has_same_data && <Tag style={{marginTop: "5px"}} key={`same-${filename}`} minimal icon="duplicate">same-data</Tag>}
-          <OutputViewer
-              key={filename}
-              path={filename_new}
-              path_ref={filename_ref}
-              max_lines={30}
-              {...props}
-          />
-        </div>
-      })}
-
-    </div>
-  }
-
-
-  mergeTrees = (tree_new, tree_ref, props) => {
-    if (tree_new === null || tree_new === undefined)
-      return []
-
-    // make a deep copy
-    var tree_compared = JSON.parse(JSON.stringify(tree_new))
-    // find the nodes that are missing in the reference tree
-    visitDepthFirst(tree_compared, updateMissingFrom(tree_ref, 'reference'))
-
-    visitDepthFirst(tree_ref, updateMissingFrom(tree_compared, 'new'))
-    visitDepthFirst(tree_ref, copyNodeData(tree_ref, tree_compared, 'missing_from_new'))
-    // now need to update missing recursevely up!
-    visitDepthFirst(tree_compared, updateMissingFrom(tree_compared, 'new'))
-
-    // find match / mismatches
-    visitDepthFirst(tree_compared, updateMatch(tree_ref))
-
-    const has_filter = !!props.files_filter && props.files_filter.length > 0;
-    if (!props.show_all_files && !has_filter) {
-      tree_compared = filterNodes(tree_compared, node => !node.nodeData.match || node.nodeData.missing_from_new || node.nodeData.missing_from_reference )
-      const has_new = props.output_new !== undefined && props.output_new !== null;
-      const has_ref = props.output_ref !== undefined && props.output_ref !== null;
-      tree_compared = tree_compared.filter(node => node.id !== 'logs.txt')
-      if (has_new && has_ref && getNodeById(tree_compared, 'metrics.json') && hash_metrics(props.output_new.metrics) === hash_metrics(props.output_ref.metrics))
-        tree_compared = tree_compared.filter(node => node.id !== 'metrics.json')
-    }
-    const matcher = match_query(props.files_filter)
-    if (has_filter) {
-      tree_compared = filterNodes(tree_compared, node => {
-        let state = node.nodeData.match ? 'match' : 'diff'
-        return matcher(`${state}:${node.id}`) || (node.childNodes !== undefined && node.childNodes.length > 0)
-      })
-      forEachNode(tree_compared, node => {node.isExpanded = true} )    	
-    }
-
-    // sort by alphebetical order
-    forEachNode(tree_compared, sortChildren)
-    // the root is a "chilNodes" array, not a real root...
-    tree_compared = tree_compared.sort( (a, b) => a.label.localeCompare(b.label) )
-
-    const has_ref = tree_ref !== null && tree_ref !== undefined
-    forEachNode(tree_compared, applyStyle(has_ref, has_ref && props.color_blind_friendly, props.output_new, props.output_ref))
-    forEachNode(tree_compared, node => {if ((this.state?.opened || []).includes(node.id)) {node.isExpanded = true}} )
-
-    if (props.expand_all !== undefined && !!props.expand_all) {
-      forEachNode(tree_compared, node => {node.isExpanded = true} )    	
-    }
-
-    return tree_compared;
-  }
-
-
-  handleNodeClick = (node, nodePath, e) => {
-    const is_folder = node.childNodes !== undefined;
-    if (is_folder) return;
-
-    let selected = this.state.selected;
-    let was_selected = node.isSelected
-    if (!e.shiftKey && !e.ctrlKey) {
-        forEachNode(this.state.tree.mixed, n => (n.isSelected = false));
-        selected = []
-    }
-    let tree_node = Tree.nodeFromPath(nodePath, this.state.tree.mixed)
-    let isSelected = was_selected===null ? true : !was_selected;
-    tree_node.isSelected = isSelected
-    if (isSelected) {
-      selected = [...selected, node.id]
-    } else {
-      selected = selected.filter(filepath => filepath !== node.id)
-    }
-    this.setState({selected});
-  };
-
-  handleNodeCollapse = (node, nodePath) => {
-    let tree_node = Tree.nodeFromPath(nodePath, this.state.tree.mixed)
-    tree_node.isExpanded = false;
-    // eslint-disable-next-line
-    const { props , icon: _ } = node.icon
-    tree_node.icon = <Icon {...props} icon='folder-close'/>
-    const opened = this.state.opened.filter(filename => filename !== node.id)
-    this.setState({opened});
-  };
-
-  handleNodeExpand = (node, nodePath) => {
-    let tree_node = Tree.nodeFromPath(nodePath, this.state.tree.mixed)
-    tree_node.isExpanded = true;
-    // eslint-disable-next-line
-    const { props , icon: _ } = node.icon
-    tree_node.icon = <Icon {...props} icon='folder-open'/>
-    const opened = [...this.state.opened, node.id]
-    this.setState({opened});
-  };
-
-
-  componentDidUpdate(prevProps) {
-      // console.log(this.props)
-      // console.log(prevProps)
-      const has_new_manifest = !!this.props.manifests && !!this.props.manifests.new;
-      const has_ref_manifest = !!this.props.manifests && !!this.props.manifests.reference;
-
-      const had_new_manifest = !!prevProps.manifests && !!prevProps.manifests.new;
-      const had_ref_manifest = !!prevProps.manifests && !!prevProps.manifests.reference;
-
-      let updated_new = has_new_manifest && (!had_new_manifest || prevProps.manifests.new !== this.props.manifests.new);
-      let updated_ref = has_ref_manifest && (!had_ref_manifest || prevProps.manifests.reference !== this.props.manifests.reference);
-
-      // console.log(updated_new, updated_ref)
-      if (updated_new || updated_ref) {
-        const tree_new = updated_new ? to_tree(this.props.manifests.new) : this.state.tree.new;
-        const tree_reference = updated_ref ? to_tree(this.props.manifests.reference) : this.state.tree.reference;
-        const tree_mixed = this.mergeTrees(
-          tree_new,
-          tree_reference,
-          this.props
-        );
-        this.setState({
-          tree: {
-            new: tree_new,
-            reference: tree_reference,
-            mixed: tree_mixed,
-          }
-        })        
-      } else {
-        let change_show_all_files = prevProps.show_all_files !== this.props.show_all_files && !!this.state.tree.new;
-        let change_files_filter = prevProps.files_filter !== this.props.files_filter && !!this.state.tree.new;
-        let change_expand_all = prevProps.expand_all !== this.props.expand_all && !!this.state.tree.new;
-        let change_color_blind_friendly = prevProps.color_blind_friendly !== this.props.color_blind_friendly && !!this.state.tree.new;
-        if (change_show_all_files || change_files_filter || change_expand_all || change_color_blind_friendly)
-          this.setState({
-            tree: {
-              ...this.state.tree,
-              mixed: this.mergeTrees(this.state.tree.new, this.state.tree.reference, this.props),
-            }
-          })        
+        }
       }
-  }
 
+      return <div key={filename}>
+        {has_same_data && <Tag style={{marginTop: "5px"}} key={`same-${filename}`} minimal icon="duplicate">same-data</Tag>}
+        <OutputViewer
+            key={filename}
+            path={filename_new}
+            path_ref={filename_ref}
+            max_lines={30}
+            {...props}
+        />
+      </div>
+    })}
 
+  </div>
 }
-
-
-
 
 
 export default BitAccuracyViewer;

@@ -2,7 +2,7 @@
 Checks if an update is available, if yes prints a warning message to stderr.
 To avoid introducing extra latency, we only check daily.
 
-FIMXE: users not connected to our internal network will pay a 1s timeout every time.
+FIXME: users not connected to our internal network will pay a 1s timeout every time.
 
 Sites can override where we look for the latest version (QABOARD_LATEST_VERSION_URL, a PyPI JSON API URL
 or a file with `version = "x.y.z"`) and the upgrade command we suggest (QABOARD_UPGRADE_COMMAND).

@@ -1,0 +1,115 @@
+---
+id: image-quality
+title: "Image quality: a camera pipeline"
+sidebar_label: Image quality
+description: A camera ISP whose new denoiser wins PSNR but adds halos. Synced image viewers, Image Diff, deep zoom on a 113 MP image, per-stage outputs and bit-accuracy checks of a fixed-point model.
+---
+For camera, ISP and imaging teams, and for embedded teams that hand an algorithm over to silicon. This page follows the
+camera ISP example: what it computes, how the team uses QA-Board, and the configuration that does it.
+
+## The problem
+Image quality metrics disagree with eyes. PSNR goes up while edges get halos; noise goes down while texture turns to
+plastic. A team needs the metrics on every commit, and the images themselves, next to the reference's, down to the
+pixel, on charts and photos, in good and in low light. When the pipeline also runs on a chip, its fixed-point model
+must match bit for bit, commit after commit.
+
+## The example
+[`examples/image-quality`](https://github.com/Samsung/qaboard/tree/master/examples/image-quality) simulates the camera
+of a (fictional) warehouse robot: lens blur, a Bayer sensor, noise. It then runs the image pipeline on the raw image:
+demosaic, denoise, sharpen, tone map. On test charts and photos, it measures PSNR and SSIM against the ideal output,
+noise in flat patches, sharpness (MTF50), halos (edge overshoot) and color errors. The `hw-model` platform runs the same
+pipeline in fixed-point integers, like the camera chip.
+
+Its story, six weeks of commits replayed into QA-Board:
+1. A new bilateral denoiser wins 1.6 dB of PSNR in low light, and halves the noise. It's merged.
+2. The images show halos along strong edges: the edge overshoot went from about 4% to 11%.
+3. A clamp on the sharpening keeps the PSNR gain and brings the overshoot back to 5%.
+4. On the fixed-point model, rounding changes are checked bit for bit before they reach the chip.
+
+## What you see
+**Metrics, then images.** Each run's card starts with its metrics against the reference: on the facade, the merged
+denoiser gains PSNR and SSIM. Below, its images sit next to the reference's.
+
+<Shot id="commit/visualizations" />
+
+**Side by side, in sync.** Zoom into one image and the reference follows. The new denoiser outlines edges with dark
+halos.
+
+<Shot id="commit/image-sbs" />
+
+**Image Diff** shows where the images differ; raising its threshold leaves only the halos.
+
+<Clip id="commit/image-diff" />
+
+Before and after the clamp, on the same leaves: the dark rims fade, the edges stay crisp.
+
+<Compare before="commit/halo-before" after="commit/halo-after" beforeLabel="Bilateral denoiser" afterLabel="With the clamp" />
+
+**Deep zoom.** A 113-megapixel test wall loads tile by tile, from the full view down to single pixels, in both viewers
+at once.
+
+<Clip id="commit/deep-zoom" />
+
+**Every stage of the pipeline.** A slider moves through the stages, from the raw mosaic to the tone-mapped image, in
+every run's card at once.
+
+<Clip id="commit/dynamic-outputs" />
+
+**Videos, frame by frame.** The camera driving down an aisle in low light, every frame through the pipeline: step
+through both videos in sync, wipe across them, zoom in, and see their difference. The new denoiser draws dark rims
+around the packages here too.
+
+<Clip id="commit/video-compare" />
+
+**History** of one input across commits: hover a point to compare its output with the commit before. The PSNR of
+the facade jumps when the denoiser is merged, and its leaves get halos.
+
+<Shot id="history/image-diff" />
+
+**Bit accuracy.** On the fixed-point model, `qa check-bit-accuracy` fails when output files change, and lists them:
+here the rounding change touches the last two stages. On a commit that only changed docs, every file is the same.
+
+<Clip id="cli/bit-accuracy" />
+
+In the web app, **Output Files** lists the files that changed: click one to diff it with the reference. The register
+dump shows the rounding mode that changed. On the docs-only commit, the run is tagged **Bit-accurate**.
+
+<Clip id="commit/bit-accuracy-diff" />
+
+## The configuration
+*qaboard.yaml* says where the inputs are, which files to show and how, and which files must stay bit-accurate. Paths
+with `:stage` give the synced slider over the stages.
+
+<RepoFile path="examples/image-quality/qaboard.yaml" title="qaboard.yaml" section="inputs,outputs,bit_accuracy" />
+
+Each metric has a label, a unit, a target, and whether smaller is better: the web app colors changes with them. The
+last lines pick the metrics of the **Summary**, and those on each run's card and in the tables.
+
+<details>
+<summary><code>qa/metrics.yaml</code></summary>
+
+<RepoFile path="examples/image-quality/qa/metrics.yaml" title="qa/metrics.yaml" />
+
+</details>
+
+`qa/main.py` runs the camera simulation and the pipeline, writes the images and plots, and returns the metrics. See
+[the example's README](https://github.com/Samsung/qaboard/tree/master/examples/image-quality#how-its-wired) for each
+file.
+
+## Run this example
+With a QA-Board server ([quickstart](/docs/get-started/quickstart)), from a clone of the repository:
+
+```bash
+cd examples/image-quality
+pip install qaboard -r requirements.txt
+qa run --input charts/slanted-edge.png       # one run
+qa --share batch ci                          # 5 charts and 4 photos, at ISO 100 and 3200
+qa --platform hw-model --share batch bitexact  # the fixed-point model
+```
+
+The first run downloads the photos and generates the test charts. Results go to `/mnt/qaboard`, or to `$QA_STORAGE`.
+
+## Read more
+- [Comparing results](/docs/user-guide/comparing-results#image-viewers): every image viewer tool.
+- [Visualizations](/docs/visualizations): the viewers, and dynamic outputs like the stage slider.
+- [Bit accuracy](/docs/bit-accuracy).

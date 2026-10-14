@@ -1,0 +1,22 @@
+{
+  "name": "qaboard-docs-media-shots",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "capture": "playwright test --project stills --project clips",
+    "test": "playwright test --project lib",
+    "typecheck": "tsc"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/node": "22.20.5",
+    "github-markdown-css": "5.9.0",
+    "marked": "15.0.12",
+    "openseadragon": "3.1.0",
+    "plotly.js-dist-min": "3.7.0",
+    "typescript": "7.0.2"
+  }
+}

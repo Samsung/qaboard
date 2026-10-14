@@ -167,15 +167,12 @@ OpenSeadragon.Selection = function (options) {
         // pinchHandler:       OpenSeadragon.delegate( this.viewer, this.viewer.innerTracker.pinchHandler ),
     });
 
-    this.outerTracker = new OpenSeadragon.MouseTracker({
-        element: this.viewer.canvas,
-        clickTimeThreshold: this.viewer.clickTimeThreshold,
-        clickDistThreshold: this.viewer.clickDistThreshold,
-        dragHandler: OpenSeadragon.delegate(this, onOutsideDrag),
-        dragEndHandler: OpenSeadragon.delegate(this, onOutsideDragEnd),
-        clickHandler: OpenSeadragon.delegate(this, onClick),
-        startDisabled: !this.isSelecting,
-    });
+    // Drawing a new selection: from the viewer's own drag events. The plugin was written for OpenSeadragon 2 with a
+    // second MouseTracker on the canvas, but OpenSeadragon 3 doesn't call a tracker's dragHandler for events another
+    // tracker already handled, and the viewer's tracker handles every drag on the canvas: selections were never drawn.
+    // While selecting, drags draw instead of panning, and the wheel still zooms.
+    this.viewer.addHandler('canvas-drag', OpenSeadragon.delegate(this, onOutsideDrag));
+    this.viewer.addHandler('canvas-drag-end', OpenSeadragon.delegate(this, onOutsideDragEnd));
 
     if (this.keyboardShortcut) {
         OpenSeadragon.addEvent(
@@ -282,8 +279,6 @@ OpenSeadragon.extend(OpenSeadragon.Selection.prototype, OpenSeadragon.ControlDoc
 
     setState: function (enabled) {
         this.isSelecting = enabled;
-        // this.viewer.innerTracker.setTracking(!enabled);
-        this.outerTracker.setTracking(enabled);
         if (enabled) {
             this.draw();
         } else {
@@ -350,20 +345,17 @@ OpenSeadragon.extend(OpenSeadragon.Selection.prototype, OpenSeadragon.ControlDoc
     },
 
     cancel: function () {
-        /*
-         * These two lines have been added to fix a issue with mobile where the selection is just a pinpoint after the first drag
-         * For some reason disabling then re-enabling the tracking fixes this issue.
-         */
-        this.outerTracker.setTracking(false);
-        this.outerTracker.setTracking(true);
         this.viewer.raiseEvent('selection_cancel', false);
         return this.undraw();
     },
 });
 
 function onOutsideDrag(e) {
-    // Disable move when makeing new selection
-    this.viewer.setMouseNavEnabled(false);
+    if (!this.isSelecting) {
+        return;
+    }
+    // draw instead of panning
+    e.preventDefaultAction = true;
     var delta = this.viewer.viewport.deltaPointsFromPixels(e.delta, true);
     var end = this.viewer.viewport.pointFromPixel(e.position, true);
     var start = new OpenSeadragon.Point(end.x - delta.x, end.y - delta.y);
@@ -409,7 +401,11 @@ function onOutsideDrag(e) {
     this.draw();
 }
 
-function onOutsideDragEnd() {
+function onOutsideDragEnd(e) {
+    if (!this.isSelecting || !this.rect) {
+        return;
+    }
+    e.preventDefaultAction = true;
     // Resizing a selection will function
     // when drawn any direction
     if (this.rect.width < 0) {
@@ -421,8 +417,6 @@ function onOutsideDragEnd() {
         this.rect.height = Math.abs(this.rect.height);
     }
 
-    // Eable move after new selection is done
-    this.viewer.setMouseNavEnabled(true);
     this.rectDone = true;
 }
 
@@ -671,7 +665,7 @@ OpenSeadragon.SelectionRect.prototype = OpenSeadragon.extend(Object.create(OpenS
 
     /**
      * @function
-     * @returns {Number} The rotaion in degrees
+     * @returns {Number} The rotation in degrees
      */
     getDegreeRotation: function () {
         return this.rotation * (180 / Math.PI);
@@ -788,7 +782,7 @@ OpenSeadragon.SelectionRect.prototype = OpenSeadragon.extend(Object.create(OpenS
  * Only used if location is a {@link OpenSeadragon.Point}.
  * @param {OpenSeadragon.Overlay.OnDrawCallback} [options.onDraw]
  * @param {Boolean} [options.checkResize=true] Set to false to avoid to
- * check the size of the overlay everytime it is drawn when using a
+ * check the size of the overlay every time it is drawn when using a
  * {@link OpenSeadragon.Point} as options.location. It will improve
  * performances but will cause a misalignment if the overlay size changes.
  */

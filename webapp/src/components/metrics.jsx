@@ -1,4 +1,4 @@
-import React, { Component, Fragment } from "react";
+import { memo, useMemo, useState } from "react";
 import Plot from "./Plot";
 import styled from "styled-components";
 
@@ -16,9 +16,10 @@ import {
 } from "@blueprintjs/core";
 import { MultiSelect } from "@blueprintjs/select";
 
-import { noMetrics } from "./metricSelect";
+import { logTickValues } from "./logTicks";
 import { RunBadge } from "./tags";
-import { format, median, plotly_palette, match_query } from "../utils";
+import { format, plotly_palette, match_query } from "../utils";
+import { summary_outputs, metric_values, summary_stats, mixed_parameters } from "../utils/compare";
 
 
 
@@ -61,71 +62,58 @@ const MetricHeader = ({short_label, label, description, condensed=false, suffix,
 }
 
 const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
+  if (metric_info.key === 'is_failed')
+    return <span/>;
   const value = metrics_new[metric_info.key]
-  const value_tooltip = <span>{!isNaN(value) ? `${metric_info.scale * metrics_new[metric_info.key]}${metric_info.suffix}` : JSON.stringify(value)}</span>
+  const value_tooltip = <span>{!isNaN(value) ? `${metric_info.scale * value}${metric_info.suffix}` : JSON.stringify(value)}</span>
   const value_component = isNaN(value) ? <RunBadge badge={value}/> : <Tooltip content={value_tooltip}>
     <>{metric_formatter(metric_info.scale * value, metric_info)}{metric_info.suffix}</>
   </Tooltip>
 
   // compare tag
-  if (metrics_ref !== undefined && metrics_ref[metric_info.key] && metrics_ref[metric_info.key] !== metrics_new[metric_info.key]) {
-    let delta = metrics_new[metric_info.key] - metrics_ref[metric_info.key];
-    let delta_relative = delta / metrics_ref[metric_info.key];
-    var intent_compare;
+  let compare_tag = <span/>;
+  const value_ref = metrics_ref?.[metric_info.key];
+  if (value_ref && value_ref !== value) {
+    const delta_relative = (value - value_ref) / value_ref;
     const neutral_threshold = metric_info.target_passfail ? 0 : 0.01
+    let intent_compare;
     if (delta_relative > neutral_threshold)
       intent_compare = metric_info.smaller_is_better ? Intent.DANGER : Intent.SUCCESS;
     else if (delta_relative < -neutral_threshold)
       intent_compare = metric_info.smaller_is_better ? Intent.SUCCESS : Intent.DANGER;
     else intent_compare = Intent.DEFAULT;
-    var compare_tag = <Tag round minimal intent={intent_compare}>{delta_relative >= 0 ? '+' : ''}{percent_formatter.format(100 * delta_relative)}%</Tag>;
-  } else {
-    compare_tag = <span/>;
+    compare_tag = <Tag round minimal intent={intent_compare}>{delta_relative >= 0 ? '+' : ''}{percent_formatter.format(100 * delta_relative)}%</Tag>;
   }
 
-  let intent =
-    (metrics_new[metric_info.key] > metric_info.target &&
-      metric_info.smaller_is_better) ||
-    (metrics_new[metric_info.key] < metric_info.target &&
-      !metric_info.smaller_is_better)
+  const intent =
+    (value > metric_info.target && metric_info.smaller_is_better) ||
+    (value < metric_info.target && !metric_info.smaller_is_better)
       ? Intent.DANGER
       : Intent.SUCCESS;
-  const { key, ...metric_info_rest } = metric_info;
-  let metric_tag = <>
-    <CompoundTag
-        style={{margin: '3px', paddingTop: "0px", paddingBottom: "0px"}}
-        minimal
-        intent={!!metric_info.target ? intent : null}
-        leftContent={<MetricHeader key={key} condensed {...metric_info_rest}/>}
-    >
-      {value_component}
-      {compare_tag}
-    </CompoundTag>
-  </>;
-
-  if (metric_info.key === 'is_failed') {
-    metric_tag = <span/>
-  }
-
-  return metric_tag
+  const { key: _key, ...metric_info_rest } = metric_info;
+  return <CompoundTag
+    style={{margin: '3px', paddingTop: "0px", paddingBottom: "0px"}}
+    minimal
+    intent={metric_info.target ? intent : null}
+    leftContent={<MetricHeader condensed {...metric_info_rest}/>}
+  >
+    {value_component}
+    {compare_tag}
+  </CompoundTag>;
 };
 
 
-class MetricsTags extends React.PureComponent {
-  render() {
-    const { metrics_new, metrics_ref } = this.props;
-    const { available_metrics={}, selected_metrics=[] } = this.props;
-    return selected_metrics
-      .filter(key => metrics_new[key] !== undefined)
-      .map(key =>
-          <MetricTag key={key}
-            metrics_new={metrics_new}
-            metrics_ref={metrics_ref}
-            metric_info={available_metrics[key]}
-          />
-      )
-  }
-}
+const MetricsTags = memo(({ metrics_new, metrics_ref, available_metrics = {}, selected_metrics = [] }) =>
+  selected_metrics
+    .filter(key => metrics_new[key] !== undefined && available_metrics[key] !== undefined)
+    .map(key =>
+      <MetricTag key={key}
+        metrics_new={metrics_new}
+        metrics_ref={metrics_ref}
+        metric_info={available_metrics[key]}
+      />
+    )
+);
 
 
 
@@ -146,15 +134,26 @@ const MetricTile = styled.div`
   min-width: 355px; // manuall adjusted with the largest title..
 `;
 
+// A few round ticks: on a log scale, Plotly's pile up and overlap in such a small plot.
+// `values` include the target, whose shading is part of the range.
+const with_log_ticks = (layout, values) => {
+  if (layout.yaxis?.type !== "log" || layout.yaxis.tickvals !== undefined)
+    return layout;
+  const tickvals = logTickValues(values);
+  if (!tickvals)
+    return layout;
+  // room for the label of a tick at the top (e.g. the target): Plotly hides labels that don't fit
+  return { ...layout, yaxis: { ...layout.yaxis, tickvals }, margin: { ...layout.margin, t: Math.max(layout.margin?.t ?? 0, 8) } };
+};
+
 const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly_default_colors }) => {
   const xdata = xaxis_labels || ["New", "Reference"];
-  let plot_scale = metric["plot_scale"] || "log";
-  let layout_ = {
+  const base_layout = {
     bargap: 0,
     bargroupgap: 0,
     barmode: "overlay",
     yaxis: {
-      type: plot_scale,
+      type: metric.plot_scale || "log",
       autorange: true,
       color: "rgba(0,0,0,0.8)",
       tickcolor: "rgba(0,0,0,0.8)",
@@ -164,7 +163,6 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
       gridwidth: 1
     },
     xaxis: { color: "rgba(0,0,0,0.8)", fixedrange: true, title: "" },
-    shapes: [],
     showlegend: false,
     margin: {
       // will eat into the drawing area
@@ -179,29 +177,25 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
     autosize: false,
     plot_bgcolor: "rgba(0,0,0,0)",
     paper_bgcolor: "rgba(0,0,0,0)",
-    ...layout,
   };
 
-  let all_values = [];
-  series.forEach(values => {
-    values.forEach(v => all_values.push(v));
-  });
-  all_values = all_values.filter(
+  const all_values = series.flat().filter(
     x => x !== null && x !== undefined && !isNaN(x)
   );
 
-  if (!!metric.target) {
-    let min_y = Math.min(...all_values) * metric.scale;
-    let max_y = Math.max(...all_values) * metric.scale;
-    let threshold = metric.target * metric.scale;
-    let all_success = metric.smaller_is_better
+  const shapes = [];
+  if (metric.target) {
+    const min_y = Math.min(...all_values) * metric.scale;
+    const max_y = Math.max(...all_values) * metric.scale;
+    const threshold = metric.target * metric.scale;
+    const all_success = metric.smaller_is_better
       ? max_y <= threshold
       : min_y <= threshold;
-    let all_failed = metric.smaller_is_better
+    const all_failed = metric.smaller_is_better
       ? min_y >= threshold
       : max_y >= threshold;
     if (!all_success)
-      layout_.shapes.push({
+      shapes.push({
         type: "rect",
         layer: "below",
         xref: "paper",
@@ -217,7 +211,7 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
         }
       });
     if (!all_failed)
-      layout_.shapes.push({
+      shapes.push({
         type: "rect",
         layer: "below",
         xref: "paper",
@@ -231,35 +225,30 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
         line: {
           color: Colors.GREEN2
         }
-      });    
+      });
   }
+  const ydata = series.map(values => values?.map(x => metric.scale * x) ?? []);
+  const layout_ = with_log_ticks({ ...base_layout, ...layout, shapes }, [...ydata.flat(), ...(metric.target ? [metric.target * metric.scale] : [])]);
 
-  var ydata = series.map(values => values.map(x => metric.scale * x));
-
-  var data = [];
-  for (var i = 0; i < xdata.length; i++) {
-    var result = {
-      type: "box",
-      y: ydata[i],
-      name: xdata[i],
-      namelength: -1,
-      boxpoints: "all",
-      jitter: 0.5,
-      whiskerwidth: 0.3,
-      boxmean: true,
-      fillcolor: use_plotly_default_colors ? undefined : colors_a[i],
-      marker: {
-        size: 8,
-        color: use_plotly_default_colors ? undefined : colors_a[i],
-      },
-      line: {
-        width: 2,
-        color: use_plotly_default_colors ? undefined : colors[i],
-      }
-    };
-    data.push(result);
-  }
-  // layout.xaxis.title = metric.label;
+  const data = xdata.map((name, i) => ({
+    type: "box",
+    y: ydata[i],
+    name,
+    namelength: -1,
+    boxpoints: "all",
+    jitter: 0.5,
+    whiskerwidth: 0.3,
+    boxmean: true,
+    fillcolor: use_plotly_default_colors ? undefined : colors_a[i],
+    marker: {
+      size: 8,
+      color: use_plotly_default_colors ? undefined : colors_a[i],
+    },
+    line: {
+      width: 2,
+      color: use_plotly_default_colors ? undefined : colors[i],
+    }
+  }));
   return (
     <Plot
       data={data}
@@ -277,20 +266,6 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
   );
 };
 
-// -${JSON.stringify(output.extra_parameters)}
-const run_type = output => `${output.test_input_path}-${output.platform}-${JSON.stringify(output.configurations)}`;
-
-const pc_under_threshold = (array, threshold) => {
-  if (threshold === null || threshold === undefined)
-    return 0
-  return array.filter(x => x <= threshold).length / array.length;
-};
-const pc_over_threshold = (array, threshold) => {
-  if (threshold === null || threshold === undefined)
-    return 0
-  return array.filter(x => x >= threshold).length / array.length;
-};
-
 const disable_axe = {
   fixedrange: true,
   zeroline: false,
@@ -301,7 +276,7 @@ const disable_axe = {
   autotick: true
 };
 
-let layout_tiles = {
+const layout_tiles = {
   barmode: "stack",
   font: {
     color: "#fff"
@@ -374,264 +349,199 @@ const SuccessBar = ({ success_frac }) => (
   />
 );
 
-class MetricsSummary extends Component {
-  constructor(props) {
-    super(props);
-    const { available_metrics={}, summary_metrics=[] } = props.metrics || {};
-    const default_selected_metrics = summary_metrics.filter(k=>!!available_metrics[k]).map(k => available_metrics[k]) || [];
-    let selected_metrics = props.selected_metrics || default_selected_metrics;
-    this.state = {
-      available_metrics,
-      selected_metrics
-    };
-  }
 
-
-  componentDidUpdate(prevProps) {
-    if (this.props.metrics !== prevProps.metrics) {
-      const { available_metrics={}, summary_metrics=[] } = this.props.metrics;
-      const default_selected_metrics = summary_metrics.filter(k=>!!available_metrics[k]).map(k => available_metrics[k]) || [];
-      let selected_metrics = this.props.selected_metrics || default_selected_metrics;
-      this.setState({
-        available_metrics,
-        selected_metrics
-      });
-    }
-  }
-
-
-
-  renderMetric = (metric, { handleClick, modifiers }) => {
-    if (!modifiers.matchesPredicate) {
-      return null;
-    }
-    const { key, ...rest } = metric; 
-    return (
-      <MenuItem
-        active={modifiers.active}
-        icon={this.isMetricSelected(metric) ? "tick" : "blank"}
-        key={metric.key}
-        label={metric.key}
-        text={<MetricHeader
-          key={key}
-          {...rest}
-          show_suffix
-        />}
-        onClick={handleClick}
-        shouldDismissPopover={false}
-      />
-    );
-  };
-  filterMetric = (query, metric) => {
-    return match_query(query)(`${metric.key} ${metric.label} ${metric.short_label}`)
-  };
-  handleClearMetrics = () => this.setState({ selected_metrics: [] });
-  handleRemoveMetric = (_tag, index) => {
-    this.deselectMetric(index);
-  };
-  getSelectedMetricIndex = metric => {
-    return this.state.selected_metrics.indexOf(metric);
-  };
-  isMetricSelected(metric) {
-    return this.getSelectedMetricIndex(metric) !== -1;
-  }
-  deselectMetric = index => {
-    this.setState({
-      selected_metrics: this.state.selected_metrics.filter(
-        (metric, i) => i !== index
-      )
+const tags_breakdown = outputs => {
+  const tags = {};
+  const outputs_by_tag = {};
+  outputs.forEach(output => {
+    (output.test_input_metadata?.tags ?? []).forEach(tag => {
+      tags[tag] = (tags[tag] ?? 0) + 1;
+      (outputs_by_tag[tag] ??= []).push(output);
     });
-  };
-  handleMetricSelect = metric => {
-    if (!this.isMetricSelected(metric)) {
-      this.setState({
-        selected_metrics: [...this.state.selected_metrics, metric]
-      });
-    } else {
-      this.deselectMetric(this.getSelectedMetricIndex(metric));
-    }
-  };
+  });
+  return { tags, outputs_by_tag };
+};
 
-  render() {
-    const { new_batch, ref_batch, breakdown_by_tag } = this.props;
-    if (new_batch === null) return <span />;
+const no_runs = { outputs: {}, filtered: { outputs: [] } };
 
-    let xaxis_labels = this.props.xaxis_labels || ["New", "Reference"];
-    let outputs_new = new_batch.filtered.outputs
-                     .map(id => new_batch.outputs[id])
-                     .filter(o => !o.is_pending)
-                     .filter(o => o.output_type!=="optim_iteration");                    
-    let run_types_new = new Set(outputs_new.map(o => run_type(o)));
-    run_types_new = new Set(outputs_new.map(o => o.test_input_path));
-    // we only how ref outputs with a matching input+config+platform
-    // it's debatable, maybe we should show all, or filter also on tuning params...
-    let outputs_ref = ref_batch.filtered.outputs
-      .map(id => ref_batch.outputs[id])
-      .filter(o => run_types_new.has(o.test_input_path))
-      .filter(o => !o.is_pending);
+const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: xaxis_labels_, metrics, selected_metrics: selected_metrics_ }) => {
+  const { available_metrics = {}, summary_metrics = [] } = metrics ?? {};
+  // By default we show the metrics we were given, or the project's summary metrics.
+  // Users can change the selection, until the default changes.
+  const default_keys = (selected_metrics_ ?? summary_metrics.filter(k => !!available_metrics[k]).map(k => available_metrics[k]))
+    .map(m => m.key);
+  const default_signature = default_keys.join('\n');
+  const [user_selection, setUserSelection] = useState(null);
+  const selected_keys = user_selection?.default_signature === default_signature ? user_selection.keys : default_keys;
+  const selected_metrics = selected_keys.map(k => available_metrics[k]).filter(Boolean);
+  const setSelectedKeys = keys => setUserSelection({ default_signature, keys });
 
-    const { selected_metrics=[] } = this.state;
+  // The same runs as GET /api/v1/commit/<sha>/compare, see utils/compare.js
+  const { outputs_new, outputs_ref } = useMemo(
+    () => new_batch?.filtered ? summary_outputs(new_batch, ref_batch?.filtered ? ref_batch : no_runs) : { outputs_new: [], outputs_ref: [] },
+    [new_batch, ref_batch],
+  );
+  const { tags, outputs_by_tag } = useMemo(
+    () => breakdown_by_tag ? tags_breakdown(outputs_new) : { tags: {}, outputs_by_tag: {} },
+    [breakdown_by_tag, outputs_new],
+  );
 
-    const clearButton =
-      selected_metrics.length > 0 ? (
-        <Button icon="cross" minimal={true} onClick={this.handleClearMetrics} />
-      ) : null;
+  if (new_batch === null) return <span />;
+  const xaxis_labels = xaxis_labels_ || ["New", "Reference"];
 
-
-    if (breakdown_by_tag) {
-      var tags = {};
-      Object.values(outputs_new).forEach(output => {
-        if (output.test_input_metadata !== undefined && output.test_input_metadata.tags !== undefined)
-          output.test_input_metadata.tags.forEach(tag => {
-            if (tags[tag] === undefined) tags[tag] = 0;
-            tags[tag] += 1;
-          });
-      });
-      // console.log(tags)
-
-      var outputs_by_tag = {};
-      Object.values(outputs_new).forEach(output => {
-        if (output.test_input_metadata !== undefined && output.test_input_metadata.tags !== undefined)
-          output.test_input_metadata.tags.forEach(tag => {
-            if (outputs_by_tag[tag] === undefined) outputs_by_tag[tag] = [];
-            outputs_by_tag[tag].push(output);
-          });
-      });
-      // console.log(outputs_by_tag)
-    }
-
-    let batch_data = new_batch.data || {};
-    return (
-      <div>
-        {(!batch_data.optimization && new_batch.sorted_extra_parameters.length > 0) && (
-          <Callout intent={Intent.WARNING}>
-            The aggregation below contains all runs, possibly with tuning <strong>parameters mixed together.</strong>
-          </Callout>
+  const batch_data = new_batch.data || {};
+  return (
+    <div>
+      {/* only the runs we aggregate: e.g. not after filtering on one configuration */}
+      {(!batch_data.optimization && mixed_parameters(outputs_new).length > 0) && (
+        <Callout intent={Intent.WARNING}>
+          The aggregation below contains all runs, possibly with tuning <strong>parameters mixed together.</strong>
+        </Callout>
+      )}
+      <MetricSelect available_metrics={available_metrics} used_metrics={new_batch.used_metrics} selected={selected_keys} onChange={setSelectedKeys}/>
+      <br/>
+      {breakdown_by_tag &&
+        Object.entries(tags).map(([tag, count], idx) =>
+          <Tag style={{ margin: '5px', background: plotly_palette(idx) }} key={tag}>
+            {count} @{tag}
+          </Tag>
         )}
-        <MultiSelect
-          items={Object.values(this.state.available_metrics).filter(m => this.props.new_batch.used_metrics.has(m.key))}
-          itemPredicate={this.filterMetric}
-          itemRenderer={this.renderMetric}
-          onItemSelect={this.handleMetricSelect}
-          tagRenderer={m => m.label}
-          tagInputProps={{
-            onRemove: this.handleRemoveMetric,
-            rightElement: clearButton
-          }}
-          noResults={noMetrics}
-          selectedItems={selected_metrics.filter(m => this.props.new_batch.used_metrics.has(m.key))}
-          popoverProps={Classes.MINIMAL}
+      {selected_metrics.map(m =>
+        <MetricSummary
+          key={m.key}
+          metric={m}
+          outputs_new={outputs_new}
+          outputs_ref={outputs_ref}
+          outputs_by_tag={breakdown_by_tag ? outputs_by_tag : undefined}
+          xaxis_labels={xaxis_labels}
         />
+      )}
+    </div>
+  );
+};
+
+const filterMetric = (query, metric) => match_query(query)(`${metric.key} ${metric.label} ${metric.short_label}`);
+const noMetrics = <MenuItem disabled={true} text="No matching metrics." />;
+
+// Picks metrics among those the batch has.
+// selected: keys of metrics, onChange(keys). Selected metrics the batch doesn't have stay selected.
+const MetricSelect = ({ available_metrics = {}, used_metrics, selected, onChange }) => {
+  const items = Object.values(available_metrics).filter(m => used_metrics.has(m.key));
+  const shown = selected.map(k => available_metrics[k]).filter(m => m && used_metrics.has(m.key));
+  const is_selected = metric => selected.includes(metric.key);
+  const toggle = metric => onChange(is_selected(metric) ? selected.filter(k => k !== metric.key) : [...selected, metric.key]);
+  const renderMetric = (metric, { handleClick, modifiers }) => {
+    if (!modifiers.matchesPredicate)
+      return null;
+    const { key, ...rest } = metric;
+    return <MenuItem
+      active={modifiers.active}
+      icon={is_selected(metric) ? "tick" : "blank"}
+      key={key}
+      label={key}
+      text={<MetricHeader {...rest} show_suffix/>}
+      onClick={handleClick}
+      shouldDismissPopover={false}
+    />;
+  };
+  return <MultiSelect
+    items={items}
+    itemPredicate={filterMetric}
+    itemRenderer={renderMetric}
+    onItemSelect={toggle}
+    tagRenderer={({ key: _key, ...m }) => <MetricHeader {...m}/>}
+    tagInputProps={{
+      onRemove: (_tag, index) => onChange(selected.filter(k => k !== shown[index]?.key)),
+      rightElement: selected.length > 0 ? <Button icon="cross" aria-label="Clear" minimal onClick={() => onChange([])}/> : null,
+    }}
+    noResults={noMetrics}
+    selectedItems={shown}
+    popoverProps={Classes.MINIMAL}
+  />;
+};
+
+const delta_intent = (delta_relative, smaller_is_better) => {
+  if (delta_relative > 0.01) return smaller_is_better ? Intent.DANGER : Intent.SUCCESS;
+  if (delta_relative < -0.01) return smaller_is_better ? Intent.SUCCESS : Intent.DANGER;
+  return Intent.DEFAULT;
+};
+
+const breakdown_layout = {
+  width: 850,
+  xaxis: { fixedrange: true, title: "", tickfont: { size: 8 }},
+};
+
+const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, xaxis_labels }) => {
+  const breakdown_by_tag = outputs_by_tag !== undefined;
+  // The same numbers as GET /api/v1/commit/<sha>/compare, see utils/compare.js
+  const new_values = metric_values(outputs_new, m.key);
+  if (new_values.length === 0) return null;
+  const ref_values = metric_values(outputs_ref, m.key);
+  const { new_med, ref_med, delta_relative, new_pc_good, ref_pc_good } = summary_stats(new_values, ref_values, m);
+  const intent = delta_intent(delta_relative, m.smaller_is_better);
+
+  return (
+    <MetricRow>
+      <MetricTile>
+        <Tooltip content={<span>{m.scale * new_med}{m.suffix}</span>}>
+          <h3 className={Classes.HEADING}>
+            {metric_formatter(m.scale * new_med, m)}{m.suffix}
+            <span style={{ color: "#ccc" }}> median</span>
+          </h3>
+        </Tooltip>
         <br/>
-        {breakdown_by_tag &&
-          Object.entries(tags).map( (tag_count, idx) => {
-            let [tag, count] = tag_count
-            return <Tag style={{ margin: '5px', background: plotly_palette(idx) }} key={tag}>
-              {count} @{tag}
-            </Tag>
-          })}
-        {selected_metrics.map((m, idx) => {
-          let new_values = outputs_new
-            .map(o => o.metrics[m.key])
-            .filter(x => x !== undefined && typeof x !== 'string' )
-            .map(o => 1 * o);
-          if (new_values.length === 0) return <Fragment key={idx} />;
-          let ref_values = outputs_ref.map(o => o.metrics[m.key]).filter(v => v !== undefined && v !== null && typeof v !== 'string');
-          let new_med = median(new_values);
-          let ref_med = median(ref_values);
-          let new_pc_good = m.smaller_is_better
-            ? pc_under_threshold(new_values, m.target)
-            : pc_over_threshold(new_values, m.target);
-          let ref_pc_good = m.smaller_is_better
-            ? pc_under_threshold(ref_values, m.target)
-            : pc_over_threshold(ref_values, m.target);
-          let delta = new_med - ref_med;
-          let delta_relative = delta / ref_med;
+        <Tooltip content={<span>{m.label}</span>}>
+          <h5 className={Classes.HEADING}>{m.short_label}</h5>
+        </Tooltip>
+        <br/>
+        {m.target !== undefined && <SuccessBar success_frac={new_pc_good} />}
+      </MetricTile>
 
-          var intent;
-          if (m.smaller_is_better) {
-            if (delta_relative > 0.01) intent = Intent.DANGER;
-            else if (delta_relative < -0.01) intent = Intent.SUCCESS;
-            else intent = Intent.DEFAULT;
-          } else {
-            if (delta_relative < -0.01) intent = Intent.DANGER;
-            else if (delta_relative > 0.01) intent = Intent.SUCCESS;
-            else intent = Intent.DEFAULT;
-          }
-
-          if (breakdown_by_tag) {
-            var series_by_tag = Object.values(outputs_by_tag).map(outputs =>
-              outputs
-                .map(o => o.metrics[m.key])
-                .filter(x => x !== undefined)
-                .map(o => 1 * o)
-            );
-          }
-          return (
-            <MetricRow key={idx}>
-              <MetricTile>
-                <Tooltip content={<span>{m.scale * new_med}{m.suffix}</span>}>
-                  <h3 className={Classes.HEADING}>
-                    {metric_formatter(m.scale * new_med, m)}{m.suffix}
-                    <span style={{ color: "#ccc" }}> median</span>
-                  </h3>
-                </Tooltip>
-                <br/>
-                <Tooltip content={<span>{m.label}</span>}>
-                  <h5 className={Classes.HEADING}>{m.short_label}</h5>
-                </Tooltip>
-                <br/>
-                {m.target !== undefined && <SuccessBar success_frac={new_pc_good} />}
-              </MetricTile>
-
-              {!breakdown_by_tag && (
-                <>
-                  {ref_values.length > 0 && <MetricTile>
-                    <Tooltip content={<span>{m.scale * ref_med}{m.suffix}</span>}>
-                      <h3 className={Classes.HEADING} style={{ color: color_ref }}>
-                        <Icon style={{verticalAlign: 'middle'}} icon="swap-horizontal" color="#ccc" size={16}/> {metric_formatter(m.scale * ref_med, m)}{m.suffix}
-                      </h3>
-                    </Tooltip>
-                    <h5 className={Classes.HEADING}>
-                      <Tooltip content={<span>{100 * delta_relative}</span>}>
-                      <Tag intent={intent}>
-                        {delta_relative > 0 ? "+" : ""}
-                        {percent_formatter.format(100 * delta_relative)}%
-                      </Tag>
-                      </Tooltip>
-                    </h5>
-                    {(m.target !== undefined && !!ref_pc_good) && <SuccessBar success_frac={ref_pc_good} />}
-                  </MetricTile>}
-                  {new_values.length > 1 && <HistogramComparaison
-                    series={ref_values.length > 0 ? [new_values, ref_values] : [new_values]}
-                    metric={m}
-                    xaxis_labels={xaxis_labels}
-                  />}
-                </>
-              )}
-              {breakdown_by_tag && (
-                <Fragment>
-                  <HistogramComparaison
-                    series={series_by_tag}
-                    metric={m}
-                    xaxis_labels={Object.keys(outputs_by_tag)}
-                    use_plotly_default_colors
-                    layout={{
-                      width: 850,
-                      xaxis: { fixedrange: true, title: "", tickfont: { size: 8 }},
-                    }}
-                  />
-                </Fragment>
-              )}
-            </MetricRow>
-          );
-        })}
-      </div>
-    );
-  }
-}
+      {!breakdown_by_tag && (
+        <>
+          {ref_values.length > 0 && <MetricTile>
+            <Tooltip content={<span>{m.scale * ref_med}{m.suffix}</span>}>
+              <h3 className={Classes.HEADING} style={{ color: color_ref }}>
+                <Icon style={{verticalAlign: 'middle'}} icon="swap-horizontal" color="#ccc" size={16}/> {metric_formatter(m.scale * ref_med, m)}{m.suffix}
+              </h3>
+            </Tooltip>
+            <h5 className={Classes.HEADING}>
+              <Tooltip content={<span>{100 * delta_relative}</span>}>
+              <Tag intent={intent}>
+                {delta_relative > 0 ? "+" : ""}
+                {percent_formatter.format(100 * delta_relative)}%
+              </Tag>
+              </Tooltip>
+            </h5>
+            {(m.target !== undefined && !!ref_pc_good) && <SuccessBar success_frac={ref_pc_good} />}
+          </MetricTile>}
+          {new_values.length > 1 && <HistogramComparaison
+            series={ref_values.length > 0 ? [new_values, ref_values] : [new_values]}
+            metric={m}
+            xaxis_labels={xaxis_labels}
+          />}
+        </>
+      )}
+      {breakdown_by_tag && (
+        <HistogramComparaison
+          series={Object.values(outputs_by_tag).map(outputs =>
+            outputs
+              .map(o => o.metrics[m.key])
+              .filter(x => x !== undefined)
+              .map(o => 1 * o)
+          )}
+          metric={m}
+          xaxis_labels={Object.keys(outputs_by_tag)}
+          use_plotly_default_colors
+          layout={breakdown_layout}
+        />
+      )}
+    </MetricRow>
+  );
+};
 
 export {
+  MetricSelect,
   HistogramComparaison,
   MetricsSummary,
   MetricTag,

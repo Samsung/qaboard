@@ -1,120 +1,40 @@
-import os
-import time
-
-import click
-
+"""
+Deprecated: use qaboard.git_hosts, that also works with GitHub.
+Kept for scripts that import it.
+"""
 from urllib.parse import quote
-from .config import config, root_qatools_config, subproject, commit_branch, commit_id
-from .config import secrets
 
-# TODO: read root_qatools_config['project']['url']
-#       handle git@ and http:// schemes...
-# TODO: don't put credentials here...
-gitlab_host = os.getenv('GITLAB_HOST', secrets.get('GITLAB_HOST', 'https://gitlab.com'))
-gitlab_token = os.environ.get('GITLAB_ACCESS_TOKEN', secrets.get('GITLAB_ACCESS_TOKEN'))
+from .site_config import site_config
+from .config import root_qatools_config, commit_id
+from .git_hosts import GitLab, check_token, update_ci_status, lastest_successful_ci_commit
+
+
+gitlab_host = site_config('GITLAB_HOST', 'https://gitlab.com')
+gitlab_token = site_config('GITLAB_ACCESS_TOKEN')
 gitlab_headers = {
   'Private-Token': gitlab_token,
 }
 gitlab_api = f"{gitlab_host}/api/v4"
-gitlab_project_id = quote(root_qatools_config['project']['name'], safe='')
+gitlab_project_id = quote(root_qatools_config.get('project', {}).get('name', ''), safe='')
+
+def _gitlab():
+  return GitLab(gitlab_host, gitlab_api, root_qatools_config.get('project', {}).get('name', ''), gitlab_token)
 
 
 def check_gitlab_token():
-  if not gitlab_token:
-    click.secho("WARNING: GITLAB_ACCESS_TOKEN is not defined.", fg='yellow', bold=True, err=True)
-    click.secho("         Please provide it as an environment variable: https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html", fg='yellow', err=True)
-  return gitlab_token
-
+  return check_token(_gitlab())
 
 def ci_commit_data(commit_id):
-  import requests
-  assert check_gitlab_token()
-  url = f"{gitlab_api}/projects/{gitlab_project_id}/repository/commits/{commit_id}"
-  r = requests.get(url, headers=gitlab_headers)
-  r.raise_for_status()
-  return r.json()
+  return _gitlab().request('GET', f"/projects/{gitlab_project_id}/repository/commits/{commit_id}").json()
 
 def ci_commit_statuses(commit_id, **kwargs):
-  import requests
-  check_gitlab_token()
-  url = f"{gitlab_api}/projects/{gitlab_project_id}/repository/commits/{commit_id}/statuses"
-  r = requests.get(url, headers=gitlab_headers, params=kwargs)
-  r.raise_for_status()
-  return r.json()
-
-
+  return _gitlab().request('GET', f"/projects/{gitlab_project_id}/repository/commits/{commit_id}/statuses", params=kwargs).json()
 
 def update_gitlab_status(state, name, target_url, description, commit_id=commit_id):
-  import requests
-  check_gitlab_token()
-  url = f"{gitlab_api}/projects/{gitlab_project_id}/statuses/{commit_id}"
-  params = {
-    "state": state,
-    "name": name,
-    "target_url": target_url,
-    "description": description,
-    # "ref": commit_branch,
-  }
-  
-  max_retries = 3
-  retry_delay = 3  # seconds
-
-  for attempt in range(max_retries):
-    try:
-      r = requests.post(url, headers=gitlab_headers, params=params)
-      r.raise_for_status()
-      break
-    except Exception as e:
-      if attempt < max_retries - 1:
-        time.sleep(retry_delay)
-      else:
-        print(f"Attempt {attempt + 1} failed: {e}")
-        print(url)
-        print(r)
+  return update_ci_status(state, name, target_url, description, commit_id=commit_id)
 
 
-def lastest_successful_ci_commit(commit_id: str, max_parents_depth=config.get('bit_accuracy', {}).get('max_parents_depth', 5)):
-  if not gitlab_token:
-    return commit_id
-
-  from .git import git_parents
-  if max_parents_depth < 0:
-    click.secho(f'Could not find a commit that passed CI', fg='red', bold=True, err=True)
-    exit(1)
-
-  failed_ci_job_name = config.get('bit_accuracy', {}).get('failed_ci_job_name')
-  if failed_ci_job_name and subproject:
-    failed_ci_job_name = f"{failed_ci_job_name} {subproject.name}",
-
-
-  wait_time = 15 # seconds
-  while True:
-    statuses = ci_commit_statuses(commit_id, ref=commit_branch, name=failed_ci_job_name)
-    # print(statuses)
-
-    if statuses is None:
-      click.secho(f'WARNING: Could not get the CI status. You may need a different GITLAB_ACCESS_TOKEN.', fg='yellow', err=True)
-      return commit_id
-
-    if failed_ci_job_name:
-      # print('filtering')
-      statuses = [s for s in statuses if s['name'] == f"{subproject.name} {failed_ci_job_name}"]
-      # print(statuses)
-
-    commit_failed = any(s['status'] in ['failed', 'canceled'] and not s.get('allow_failure', False) for s in statuses)
-    if commit_failed:
-      click.secho(f"WARNING: {commit_id[:8]} failed the CI pipeline. (statuses: {set(s['status'] for s in statuses)})", fg='yellow', bold=True, err=True)
-      if config.get('bit_accuracy', {}).get('on_reference_failed_ci') == 'compare-first-parent':
-        click.secho(f"We now try to compare against its first parent.", fg='yellow', err=True)
-        return lastest_successful_ci_commit(git_parents(commit_id)[0], max_parents_depth=1)
-      else:
-        return commit_id
-
-    commit_success = all(s['status'] == 'success' or s.get('allow_failure', False) for s in statuses)
-    if commit_success:
-      return commit_id
-
-    click.secho(f"The CI pipeline for {commit_id[:8]} is not over yet (statuses: {set(s['status'] for s in statuses)}). Retrying in {wait_time}s", fg='yellow', dim=True, err=True)
-    # click.secho(str(statuses), fg='yellow', dim=True, err=True)
-    import time
-    time.sleep(wait_time)
+__all__ = [
+  'gitlab_host', 'gitlab_token', 'gitlab_headers', 'gitlab_api', 'gitlab_project_id',
+  'check_gitlab_token', 'ci_commit_data', 'ci_commit_statuses', 'update_gitlab_status', 'lastest_successful_ci_commit',
+]

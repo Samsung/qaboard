@@ -6,8 +6,7 @@ import { OrbitControls } from "./OrbitControls";
 import { PointerLockControls } from "./PointerLockControls";
 
 import { Classes, Colors, Button, RangeSlider, Slider } from "@blueprintjs/core";
-import axios from "axios";
-const { get } = axios;
+import { http, isAbort } from "../../api/http";
 import { parse_hex } from "./Sys_Tools"
 
 const aspect_ratio = 4 / 3;
@@ -109,7 +108,7 @@ class TofOutputCard extends Component {
       last_frame_id,
       selected_frame: last_frame_id,
 
-      // should we show the new or the reference ouput?
+      // should we show the new or the reference output?
       focus: 'new',
 
       show_pointcloud: false,
@@ -171,6 +170,8 @@ class TofOutputCard extends Component {
   }
 
   componentDidMount() {
+    // To cancel the requests for heatmaps when we unmount
+    this.abort_controller = new AbortController();
     window.addEventListener("keypress", this.keyboard);
     this.updateFrames(this.props);
   }
@@ -239,7 +240,8 @@ class TofOutputCard extends Component {
                         ? `${output_new.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex`
                         : `${output_new.output_dir_url}/Frame${selected_frame}/${custom_output_filename}`;
     console.log(fileNameToGet)
-    get(fileNameToGet)
+    const { signal } = this.abort_controller;
+    http.get(fileNameToGet, { signal, responseType: 'text' })
     .then(response => {
       let convert_nan = selected_output_type === 'z' || selected_output_type === 'depth'
       const newHexData = {
@@ -262,6 +264,7 @@ class TofOutputCard extends Component {
       }) 
 	  })
     .catch(error => {
+      if (isAbort(error)) return;
       this.setState({
         [selected_output_type]: {
           ...this.state[selected_output_type],
@@ -281,7 +284,7 @@ class TofOutputCard extends Component {
     let fileNameToGetRef = selected_output_type !== 'customMap'
                            ? `${output_ref.output_dir_url}/Frame${selected_frame}/${selected_output_type}.hex`
                            : `${output_ref.output_dir_url}/Frame${selected_frame}/${custom_output_filename}`;
-    get(fileNameToGetRef)
+    http.get(fileNameToGetRef, { signal, responseType: 'text' })
     .then(response => {
       let convert_nan = selected_output_type === 'z' || selected_output_type === 'depth'
       this.setState({
@@ -300,6 +303,7 @@ class TofOutputCard extends Component {
       }) 
     })
     .catch(e => {
+      if (isAbort(e)) return;
       console.log(e)
       this.setState({
         [selected_output_type]: {
@@ -383,6 +387,8 @@ class TofOutputCard extends Component {
 
 
   componentWillUnmount() {
+    this.abort_controller.abort();
+    window.removeEventListener("keypress", this.keyboard);
     if (this.state.show_pointcloud) {
       this.stopPointCloud();
       this.threeRoot.removeChild(this.renderer.domElement);      
@@ -451,8 +457,8 @@ class TofOutputCard extends Component {
     this.renderer.setSize(width, height);
 
     this.renderer.domElement.setAttribute("tabindex", 0); // listen to keyboard events
-    this.renderer.domElement.addEventListener("keydown", this.keyup);
-    this.renderer.domElement.addEventListener("keyup", this.keydown);
+    this.renderer.domElement.addEventListener("keydown", this.keydown);
+    this.renderer.domElement.addEventListener("keyup", this.keyup);
     this.renderer.domElement.addEventListener("click", this.click);
     this.setControls('orbit')
 
@@ -583,7 +589,7 @@ class TofOutputCard extends Component {
       <>
         <p className={Classes.TEXT_MUTED}>
           {show_pointcloud ? (is_loaded && !!this.scene.getObjectByName("new")
-                        ? <span>Showing {this.state.focus}. Press R/G to toogle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.closePointCloud()}>close</Button></span>
+                        ? <span>Showing {this.state.focus}. Press R/G to toggle the reference/ground-truth, +/- to adjust point size. <Button onClick={()=>this.closePointCloud()}>close</Button></span>
                         : "Loading...") : (has_many_frame ? "Click a point on the plot to show other frames." : "")}
         </p>
         <div hidden={!show_pointcloud} ref={threeRoot => {this.threeRoot = threeRoot;}}> </div>

@@ -1,6 +1,5 @@
 import os
 import subprocess
-from pathlib import Path
 from typing import List, Dict, Any
 
 import click
@@ -21,7 +20,7 @@ class LocalRunner(BaseRunner):
     process = subprocess.run(
       self.run_context.command, shell=True,
       encoding='utf-8',
-      # Avoid issues with code outputing malformed unicode
+      # Avoid issues with code outputting malformed unicode
       # https://docs.python.org/3/library/codecs.html#error-handlers
       errors='surrogateescape',
       cwd=cwd if cwd else self.run_context.job_options['cwd'],

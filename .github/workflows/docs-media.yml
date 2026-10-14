@@ -1,0 +1,337 @@
+---
+# Screenshots, clips and terminal recordings for the docs: docs-media/README.md#when-it-runs-githubworkflowsdocs-mediayml
+# The demo stack is built from this checkout and restored from its snapshot (or seeded), the shots are captured,
+# then publish.py uploads what changed to the qaboard-media bucket and updates website/media.json:
+# - workflow_dispatch: the main way. Opens a pull request with website/media.json.
+# - pull requests labeled docs-media (branches of this repository only): the affected shots, committed to the branch,
+#   with a before/after gallery as a comment.
+# - tags v*: every shot, strict (no retry), then a pull request.
+# - monthly, with the release notes: every shot, a pull request only if something changed beyond the tolerance, gc.
+# Never on push. Fork pull requests never run it: they would need the R2 secrets.
+# It also builds the quickstarts' demo-data image from the snapshot, and tests it with the Docker Compose quickstart:
+# published to ghcr.io/<owner>/qaboard from master (demo-data) and release tags (demo-data-<version>), never from
+# pull requests or other branches. The quickstarts' tapes (quickstart/*) use it: they're recorded last, once the demo
+# stack is stopped, since they answer on its port.
+name: Docs media
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: Shot ids to capture, comma-separated globs (commit/*,history/relative)
+        type: string
+        default: '*'
+      reseed:
+        description: Seed the stories again instead of restoring the snapshot
+        type: boolean
+        default: false
+      publish:
+        description: Upload, and open a pull request with website/media.json
+        type: boolean
+        default: true
+  pull_request:
+    types: [labeled, synchronize]
+  push:
+    tags: ['v*']
+  schedule:
+    - cron: '17 6 2 * *'
+
+# One run per ref at a time; a pull request's new push cancels its previous run
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: write       # pushes website/media.json
+  pull-requests: write  # opens pull requests, comments galleries
+  packages: write       # pushes the demo-data image to ghcr.io
+
+jobs:
+  media:
+    # Pull requests: labeled docs-media, from this repository (never forks)
+    if: >-
+      github.event_name != 'pull_request' || (
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        contains(github.event.pull_request.labels.*.name, 'docs-media') &&
+        (github.event.action != 'labeled' || github.event.label.name == 'docs-media'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      GH_TOKEN: ${{ github.token }}
+      QABOARD_DEMO_RESULTS: /mnt/qaboard
+      DOCS_MEDIA_BIN: ${{ github.workspace }}/../docs-media-bin
+      KIND_VERSION: v0.32.0   # the helm-e2e job's (ci.yaml)
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # pull requests: the branch itself (not the merge commit), to commit website/media.json to it
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          # gc and the affected shots need the history and the tags
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: docs-media/*.py
+
+      - name: What to capture
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_ONLY: ${{ inputs.only }}
+          INPUT_RESEED: ${{ inputs.reseed }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          only='*'; reseed=false; publish=true; strict=false; gc=false
+          case "$EVENT" in
+            workflow_dispatch) only="${INPUT_ONLY:-*}"; reseed="$INPUT_RESEED"; publish="$INPUT_PUBLISH" ;;
+            pull_request)
+              git fetch --no-tags origin "$BASE_REF"
+              only=$(uv run docs-media/affected.py "origin/$BASE_REF")
+              if git diff --name-only "origin/$BASE_REF...HEAD" | grep -q '^examples/'; then reseed=true; fi ;;
+            push) strict=true ;;
+            schedule) gc=true ;;
+          esac
+          {
+            echo "only=$only"; echo "reseed=$reseed"; echo "publish=$publish"; echo "strict=$strict"; echo "gc=$gc"
+          } | tee -a "$GITHUB_OUTPUT"
+          if [ -z "$only" ]; then echo "::notice::No shot is affected by this change"; fi
+
+      - uses: actions/setup-node@v4
+        if: steps.scope.outputs.only != ''
+        with:
+          node-version: 24.x
+          cache: npm
+          cache-dependency-path: docs-media/shots/package-lock.json
+
+      - name: Make room on the disk
+        if: steps.scope.outputs.only != ''
+        # The images, the snapshot, the restored results, and the demo-data image with its own quickstart
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc
+          df -h /
+
+      - name: Install the encoders, recorders and fonts
+        if: steps.scope.outputs.only != ''
+        run: |
+          sudo apt-get update -q
+          # the fonts captures use, docs-media/fonts.conf
+          sudo apt-get install -y -q --no-install-recommends ffmpeg fonts-roboto fonts-dejavu-core fonts-noto-color-emoji fonts-jetbrains-mono
+          docs-media/install-tools.sh >> "$GITHUB_PATH"
+          # the quickstart/kind tape (kubectl and jq are on the runner)
+          curl -sSfLo "$DOCS_MEDIA_BIN/kind" "https://kind.sigs.k8s.io/dl/$KIND_VERSION/kind-linux-amd64"
+          chmod +x "$DOCS_MEDIA_BIN/kind"
+          (cd docs-media/shots && npm ci --no-audit --no-fund && npx playwright install --with-deps chromium)
+          # the demo stack's results storage, and the personas' homes for the tapes
+          sudo install -d -o "$USER" /mnt/qaboard /home/ines /home/tobias /home/arjun /home/mira /home/adaeze /home/kaito
+
+      # The stack runs this checkout: its images, built like the CI's (from its layer cache)
+      - name: Version
+        if: steps.scope.outputs.only != ''
+        run: |
+          echo "QABOARD_VERSION=${GITHUB_SHA::8}" >> "$GITHUB_ENV"
+          echo "QABOARD_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/qaboard" >> "$GITHUB_ENV"
+      - uses: azure/setup-helm@v4
+        if: steps.scope.outputs.only != ''
+        with:
+          version: v4.3.0   # the helm-e2e job's (ci.yaml)
+      - uses: docker/setup-buildx-action@v3
+        if: steps.scope.outputs.only != ''
+      - name: Build the images
+        if: steps.scope.outputs.only != ''
+        uses: docker/bake-action@v6
+        with:
+          source: .
+          files: docker-compose.yml
+          load: true
+          set: |
+            *.labels.org.opencontainers.image.revision=${{ github.sha }}
+            backend.cache-from=type=gha,scope=backend
+            frontend.cache-from=type=gha,scope=frontend
+            website.cache-from=type=gha,scope=website
+            proxy.cache-from=type=gha,scope=proxy
+            cantaloupe.cache-from=type=gha,scope=cantaloupe
+
+      - name: Restore the demo data
+        id: restore
+        if: steps.scope.outputs.only != ''
+        env:
+          RESEED: ${{ steps.scope.outputs.reseed }}
+        run: |
+          key=$(uv run docs-media/snapshot.py key)
+          if [ "$RESEED" != true ] && uv run docs-media/snapshot.py info "$key" > /dev/null 2>&1; then
+            uv run docs-media/snapshot.py restore
+          else
+            echo "::notice::Seeding the stories (snapshot $key)"
+            fresh=--fresh
+            for story in examples/*/story.yaml; do
+              uv run docs-media/seed.py --project "$(basename "$(dirname "$story")")" $fresh --quiet
+              fresh=
+            done
+            uv run docs-media/snapshot.py save --force
+          fi
+          # the stack's version, recorded with each shot
+          echo "DEMO_APP_VERSION=$(python3 -c 'import sys; sys.path.insert(0, "docs-media/demo"); import stack; print(stack.backend_version())')" >> "$GITHUB_ENV"
+
+      - name: Capture the stills and clips
+        id: capture
+        if: steps.scope.outputs.only != ''
+        working-directory: docs-media/shots
+        env:
+          SHOTS_ONLY: ${{ steps.scope.outputs.only }}
+          STRICT: ${{ steps.scope.outputs.strict }}
+        run: |
+          retries=1
+          if [ "$STRICT" = true ]; then retries=0; fi
+          npx playwright test --project stills --project clips --pass-with-no-tests --retries "$retries"
+
+      - name: Record the tapes
+        id: tapes
+        if: steps.scope.outputs.only != ''
+        env:
+          ONLY: ${{ steps.scope.outputs.only }}
+        # the quickstarts' tapes need the demo-data image, and the demo stack's port: they're recorded below
+        run: uv run docs-media/tapes/record.py --only "$ONLY" --skip 'quickstart/*'
+
+      # The quickstarts' demo data (deployments/quickstart/compose.yml, the chart's demoData), from this snapshot. Whether
+      # the captures failed or not; while the demo stack runs, on another port.
+      - name: Demo-data image
+        id: demo-data
+        if: ${{ !cancelled() && steps.restore.outcome == 'success' }}
+        run: uv run docs-media/snapshot.py image --tag "$QABOARD_IMAGE:demo-data-$QABOARD_VERSION"
+      - name: Test the demo-data image with the Docker Compose quickstart
+        id: quickstart
+        if: ${{ !cancelled() && steps.demo-data.outcome == 'success' }}
+        env:
+          QABOARD_PORT_HTTP: '5252'
+          QABOARD_RESULTS: /tmp/qaboard-quickstart
+        run: |
+          mkdir -p "$QABOARD_RESULTS"
+          compose() { docker compose -p qaboard-quickstart -f deployments/quickstart/compose.yml "$@"; }
+          compose up -d --wait || { compose logs --tail 100; exit 1; }
+          uvx --from playwright==1.56.0 playwright install chromium
+          uv run .github/scripts/demo_data_e2e.py http://localhost:5252 || { compose logs --tail 100; exit 1; }
+          compose down --volumes
+
+      # quickstart/compose and quickstart/kind start QA-Board with this run's images and demo data, on port 5151 like the
+      # docs: the demo stack stops first (its containers and logs stay). The kind cluster needs about 8 GB of disk.
+      - name: Record the quickstarts' tapes
+        id: quickstart-tapes
+        if: ${{ !cancelled() && steps.tapes.outcome == 'success' && steps.quickstart.outcome == 'success' }}
+        env:
+          ONLY: ${{ steps.scope.outputs.only }}
+        run: |
+          docker ps -q --filter label=com.docker.compose.project=qaboard-demo | xargs -r docker stop > /dev/null
+          docker buildx prune --all --force > /dev/null
+          df -h /
+          uv run docs-media/tapes/record.py --only "$ONLY" docs-media/tapes/quickstart-*.tape || {
+            # what the tapes left: the images loaded in kind, its pods (the tapes' HOME is /home/ines)
+            tail -20 /tmp/qaboard-kind-load.log 2> /dev/null
+            KUBECONFIG=/home/ines/.kube/config kubectl get pods -A 2> /dev/null
+            docker compose -p qaboard-quickstart -f deployments/quickstart/compose.yml logs --tail 50 2> /dev/null
+            df -h /
+            exit 1
+          }
+
+      # Whether the quickstarts' tapes were recorded or not (that step fails the job)
+      - name: Publish
+        id: publish
+        if: ${{ !cancelled() && steps.tapes.outcome == 'success' }}
+        env:
+          ONLY: ${{ steps.scope.outputs.only }}
+          PUBLISH: ${{ steps.scope.outputs.publish }}
+        run: |
+          if [ "$PUBLISH" = true ]; then
+            uv run docs-media/publish.py --only "$ONLY"
+          else
+            uv run docs-media/publish.py --only "$ONLY" --dry-run
+          fi
+
+      - name: Gallery
+        if: always() && steps.scope.outputs.only != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-media-gallery
+          path: |
+            docs-media/out/gallery/
+            docs-media/out/gallery.md
+            docs-media/out/publish-report.json
+            docs-media/out/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Commit website/media.json to the pull request
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.publish.outcome == 'success' }}
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if ! git diff --quiet -- website/media.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Docs media: update the screenshots" -m "From $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" -- website/media.json
+            git push origin "HEAD:$BRANCH"
+          fi
+          # one gallery comment per pull request, updated by each run
+          # (none when no shot was captured, e.g. the affected shots have no spec yet)
+          if [ ! -f docs-media/out/gallery.md ]; then
+            echo "::notice::No shot was captured: no gallery to comment"
+            exit 0
+          fi
+          gh pr comment "$PR" --edit-last --body-file docs-media/out/gallery.md 2>/dev/null \
+            || gh pr comment "$PR" --body-file docs-media/out/gallery.md
+
+      - name: Open a pull request with website/media.json
+        if: ${{ !cancelled() && github.event_name != 'pull_request' && steps.publish.outcome == 'success' && steps.scope.outputs.publish == 'true' }}
+        env:
+          # a dispatch on a branch targets that branch; tags and the monthly refresh target the default branch
+          BASE: ${{ github.ref_type == 'branch' && github.ref_name || github.event.repository.default_branch }}
+        run: |
+          if git diff --quiet -- website/media.json; then
+            echo "::notice::No shot changed beyond the dedupe tolerance: nothing to commit"
+            exit 0
+          fi
+          branch="docs-media/refresh-$GITHUB_RUN_ID"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git commit -m "Docs media: refresh the screenshots ($GITHUB_EVENT_NAME, $GITHUB_REF_NAME)" -- website/media.json
+          git push origin "$branch"
+          {
+            echo "Captured from the demo snapshot by [this run]($GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID) ($GITHUB_EVENT_NAME on \`$GITHUB_REF_NAME\`)."
+            echo
+            cat docs-media/out/gallery.md
+          } > /tmp/body.md
+          gh pr create --base "$BASE" --head "$branch" --title "Docs media: refresh the screenshots" --body-file /tmp/body.md
+
+      # R2 lifecycle rules can't see which objects manifests reference
+      - name: Delete media no manifest uses
+        if: steps.scope.outputs.gc == 'true'
+        run: uv run docs-media/publish.py gc
+
+      - name: Publish the demo-data image
+        if: >-
+          !cancelled() && steps.quickstart.outcome == 'success' &&
+          (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          built="$QABOARD_IMAGE:demo-data-$QABOARD_VERSION"
+          # master: demo-data (the latest), and demo-data-<commit> like the other images. A release: demo-data-<version>
+          if [ "$GITHUB_REF_TYPE" = tag ]; then tags=("demo-data-${GITHUB_REF_NAME#v}"); else tags=(demo-data "demo-data-$QABOARD_VERSION"); fi
+          for tag in "${tags[@]}"; do
+            docker tag "$built" "$QABOARD_IMAGE:$tag"
+            docker push "$QABOARD_IMAGE:$tag"
+          done
+          echo "::notice::Published the demo data: ${tags[*]/#/$QABOARD_IMAGE:}"
+
+      - name: Stack logs on failure
+        if: failure()
+        run: |
+          docker compose -p qaboard-demo ps || true
+          docker compose -p qaboard-demo logs --tail 200 backend proxy || true

@@ -1,3 +1,7 @@
+# Built from the repository's root, so the docs can show repository files (<RepoFile path="...">, e.g.
+# charts/qaboard/kind.yaml) and check the shot ids (docs-media/shots.yaml). Dockerfile.dockerignore keeps the rest of
+# the repository out of the build context.
+#   docker build -f website/Dockerfile .
 FROM node:22-alpine
 WORKDIR /website
 
@@ -34,13 +38,18 @@ RUN if [ -n "$PROXY_URL" ]; then \
 # RUN npm install -g yarn
 
 # In the past we had ulimit issues and "ulimit -n 2000 &&"
-COPY package.json yarn.lock ./
+COPY website/package.json website/yarn.lock ./
 # we try multiple times to work around network issues...
 RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
     yarn install --frozen-lockfile --network-timeout 100000 || \
     yarn install --frozen-lockfile --network-timeout 100000 || \
     yarn install --frozen-lockfile --network-timeout 100000
-COPY . ./
+# The files outside website/ keep their place relative to it (/website/../charts/...)
+COPY charts/ /charts/
+COPY deployments/quickstart/compose.yml /deployments/quickstart/compose.yml
+COPY examples/ /examples/
+COPY docs-media/shots.yaml /docs-media/shots.yaml
+COPY website/ ./
 
 # On the website we have algolia for the search, but the baseURL (/qaboard) is different than
 # when running from the application (/docs). So we don't use algolia for the app...
@@ -48,6 +57,17 @@ COPY . ./
 ENV QABOARD_DOCS_FOR_WEBAPP true
 ARG QABOARD_URL
 ENV QABOARD_URL=$QABOARD_URL
+# Adds the docs for the users of your site, from site-docs/$QABOARD_SITE/ (e.g. sirc)
+ARG QABOARD_SITE=""
+ENV QABOARD_SITE=$QABOARD_SITE
+# The build downloads the docs' screenshots and clips (docs-media/README.md): without network access, set
+# QABOARD_MEDIA=placeholder, or QABOARD_MEDIA_BASE_URL to a mirror of the media bucket. When a proxy blocks some files
+# (e.g. videos), QABOARD_MEDIA_MISSING=remote has readers load those shots from the bucket (or the mirror), or
+# QABOARD_MEDIA_MISSING=placeholder renders them as placeholders, instead of failing the build
+ARG QABOARD_MEDIA=""
+ARG QABOARD_MEDIA_BASE_URL=""
+ARG QABOARD_MEDIA_MISSING=""
+ENV QABOARD_MEDIA=$QABOARD_MEDIA QABOARD_MEDIA_BASE_URL=$QABOARD_MEDIA_BASE_URL QABOARD_MEDIA_MISSING=$QABOARD_MEDIA_MISSING
 RUN yarn build
 
 # When upgrading, we want to enable clients to continue using a previous bundle

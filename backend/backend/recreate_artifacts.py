@@ -168,29 +168,19 @@ def trigger(settings: Dict, ci_commit, user=None) -> Dict:
 
 
 def _trigger_gitlab(spec, ci_commit) -> Optional[str]:
-  import os
-  from .api.integrations import gitlab_api_url, gitlab_commit_jobs, gitlab_headers
-  if "GITLAB_ACCESS_TOKEN" not in os.environ:
-    raise ValueError("The server needs a GITLAB_ACCESS_TOKEN to start GitlabCI jobs")
-  git_data = ci_commit.project.data.get('git', {})
-  gitlab_host = spec.get('gitlab_host')
-  if not gitlab_host and git_data.get('web_url'):
-    gitlab_host = '/'.join(git_data['web_url'].split('/')[:3])
-  if not gitlab_host:
-    from .config import git_server
-    gitlab_host = git_server
-  gitlab_api = gitlab_api_url(gitlab_host)
+  from .api.integrations import api_host, gitlab_job_named
+  git_data = ci_commit.project.data.get('git', {}) or {}
+  # api_host only returns hosts configured on the server (QABOARD_GIT_HOSTS): tokens never go anywhere else
+  gitlab_host = spec.get('gitlab_host') or git_data.get('host') or ('/'.join(git_data['web_url'].split('/')[:3]) if git_data.get('web_url') else None)
+  host = api_host(gitlab_host, 'gitlab')
   project_id = quote(str(ci_commit.project.id_git), safe='')
-  jobs = gitlab_commit_jobs(gitlab_api, project_id, ci_commit.hexsha)
-  matching_jobs = sorted([j for j in jobs if j['name'] == spec['job_name']], key=lambda j: j['id'])
-  if not matching_jobs:
-    raise ValueError(f"No job named {spec['job_name']!r} in the commit's latest pipeline. Available jobs: {', '.join(sorted({j['name'] for j in jobs}))}")
-  job = matching_jobs[-1]
-  # https://docs.gitlab.com/ee/api/jobs.html#run-a-job / #retry-a-job
-  action = 'play' if job['status'] == 'manual' else 'retry'
+  # the latest job with this name in the commit's last pipeline
+  job = gitlab_job_named(host, project_id, ci_commit.hexsha, spec['job_name'])
   if job['status'] in ('created', 'pending', 'running', 'waiting_for_resource', 'preparing', 'scheduled'):
     return job.get('web_url') # already on its way
-  r = requests.post(f"{gitlab_api}/projects/{project_id}/jobs/{job['id']}/{action}", headers=gitlab_headers(), timeout=60)
+  # https://docs.gitlab.com/ee/api/jobs.html#run-a-job / #retry-a-job
+  action = 'play' if job['status'] == 'manual' else 'retry'
+  r = host.api('POST', f"/projects/{project_id}/jobs/{job['id']}/{action}")
   r.raise_for_status()
   return r.json().get('web_url', job.get('web_url'))
 

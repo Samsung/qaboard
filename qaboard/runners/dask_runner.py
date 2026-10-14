@@ -11,6 +11,7 @@ Modes:
   It can use different LSF options (e.g. a CPU queue) via `runners.dask.driver`.
 - If `scheduler_address` is set, we connect to an existing Dask cluster (started by you,
   e.g. with `dask scheduler` + `dask worker` sent via bsub, or dask-jobqueue).
+  With --no-wait, the driver job connects to it. Without LSF, we send all runs at once.
 
 Logs (driver, workers, list of runs) are saved in the batch directory, under dask/{command_id[:8]}.
 
@@ -35,6 +36,7 @@ import os
 import sys
 import json
 import math
+import shutil
 import asyncio
 import time
 import signal
@@ -307,8 +309,13 @@ def run_tasks(tasks: List[Dict[str, Any]], job_options: Dict[str, Any]):
       cluster.close()
 
 
+def can_start_driver() -> bool:
+  """Whether we can send the --no-wait driver as an LSF job."""
+  return bool(os.environ.get('QA_RUNNERS_LSF_BRIDGE')) or bool(shutil.which('bsub'))
+
+
 def start_driver(tasks: List[Dict[str, Any]], job_options: Dict[str, Any]):
-  """For --no-wait: sends to LSF a job that runs the scheduler and sends the runs."""
+  """For --no-wait: sends to LSF a job that sends the runs, after starting a scheduler and workers unless we use an existing cluster."""
   from .lsf import LsfRunner, dict_to_LsfOptions
   options = dict_to_DaskOptions(job_options)
   command_id = job_options['command_id']
@@ -355,10 +362,11 @@ class DaskRunner(BaseRunner):
     tasks = [job_to_task(job, job_options) for job in jobs]
     if blocking:
       return run_tasks(tasks, job_options)
-    if not options.scheduler_address:
+    # The driver sends the runs `concurrency` at a time. With an existing cluster, it connects to it.
+    if not options.scheduler_address or can_start_driver():
       return start_driver(tasks, job_options)
 
-    secho("WARNING: with --no-wait and a `scheduler_address`, all runs are sent at once, and `concurrency` is not enforced.", fg='yellow', err=True)
+    secho("WARNING: with --no-wait and a `scheduler_address`, but no LSF to send a driver job, all runs are sent at once, and `concurrency` is not enforced.", fg='yellow', err=True)
     command_id = job_options['command_id']
     env = forwarded_env()
     with Client(options.scheduler_address) as client:

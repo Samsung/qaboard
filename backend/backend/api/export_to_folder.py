@@ -21,7 +21,7 @@ from qaboard.conventions import serialize_config
 from backend import app, db_session
 from backend.fs_utils import as_user, rmtree
 from backend.storage import check_storage_path, UnsafePathError
-from ..models import Project, CiCommit, Batch, slugify_hash
+from ..models import CiCommit, Batch, slugify_hash
 from ..config import qaboard_url
 from .auth import login_required
 
@@ -43,32 +43,11 @@ def strip_common(str1, str2):
     return str1_no_prefix, str2_no_prefix
 
 
-# https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Levenshtein_distance#Python
 @lru_cache(maxsize=4096)
 def levenshtein(s1, s2):
     if s1 == s2:
       return 0
-    if s1 == "{}" and s2 == "{}":
-      return 0
-    if s1 == "[]" and s2 == "[]":
-      return 0
     return polyleven_levenshtein(s1, s2)
-
-    if len(s1) < len(s2):
-        return levenshtein(s2, s1)
-    # len(s1) >= len(s2)
-    if len(s2) == 0:
-        return len(s1)
-    previous_row = range(len(s2) + 1)
-    for i, c1 in enumerate(s1):
-        current_row = [i + 1]
-        for j, c2 in enumerate(s2):
-            insertions = previous_row[j + 1] + 1 # j+1 instead of j since previous_row and current_row are one character longer
-            deletions = current_row[j] + 1       # than s2
-            substitutions = previous_row[j] + (c1 != c2)
-            current_row.append(min(insertions, deletions, substitutions))
-        previous_row = current_row
-    return previous_row[-1]
 
 
 def load_commit(project_id, commit_id):
@@ -102,8 +81,6 @@ def filter_outputs(query, outputs):
   tokens = query = query.split()
   negative_tokens = [t[1:] for t in tokens if t.startswith('-')]
   positive_tokens = [t for t in tokens if not t.startswith('-')]
-  # print('negative_tokens', negative_tokens)
-  # print('positive_tokens', positive_tokens)
 
   def match(output):
     # in the web application, json is serialized tight without extra whitespace
@@ -115,12 +92,10 @@ def filter_outputs(query, outputs):
     pending = 'pending running' if output.is_pending else ''
     batch = output.data.get("batch") or ''
     searched = f"{output.test_input.path} {output.platform} {configurations} {extra_parameters} {batch} {input_metadata} {failed} {pending}".replace('"', '').lower()
-    # print(searched)
     # not using output.test_input_tags.join() like in the JS
     if any([re.search(t, searched) for t in negative_tokens]):
       return False
     found = all([re.search(t, searched) for t in positive_tokens])
-    # print(found)
     return (not positive_tokens or found)
   outputs = [o for o in outputs if match(o)]
   return outputs
@@ -144,9 +119,7 @@ def matching_output(output_reference, outputs):
     json_str = json.dumps(a, sort_keys=True)
     # the string edit distance scales quadratically
     # we tried to mitigate it
-    # print(json_str)
-    json_str = re.sub("(workspace|[{}\", '/.\-_]|global|sim|partial_config|image_writer|config|raw|bmp)", "", json_str)
-    # print(json_str)
+    json_str = re.sub(r"(workspace|[{}\", '/.\-_]|global|sim|partial_config|image_writer|config|raw|bmp)", "", json_str)
     return json_str
   possible_matching_outputs = [o for o in outputs if compatible(o, output_reference)]
   valid_outputs = [o for o in possible_matching_outputs if not o.is_pending]
@@ -172,7 +145,6 @@ def commonprefix(m):
   s1 = min(m, key=key)
   s2 = max(m, key=key)
   for i, c in enumerate(s1):
-    # print(i, c, file=sys.stderr)
     if c != s2[i]:
       return s1[:i]
   return s1
@@ -216,8 +188,6 @@ def export_to_folder():
 
   new_outputs = filter_outputs(filter_new, new_outputs)
   ref_outputs = filter_outputs(filter_ref, ref_outputs)
-  # print("new_outputs", len(new_outputs))
-  # print("ref_outputs", len(ref_outputs))
 
   # We save the links in a unique folder
   query_string = f"{project_id} {new_commit.hexsha} {ref_commit.hexsha if ref_commit else ''} {new_batch.id} {ref_batch.id  if ref_batch else ''} {filter_new} {filter_ref}"
@@ -249,9 +219,6 @@ def export_to_folder():
   output_refs = {}
   for output in new_outputs:
     output_refs[output.id] = matching_output(output, ref_outputs)
-    # if output_refs[output.id]:
-    #   print("  config:", output.configurations)
-    #   print("  match:", output_refs[output.id].configurations)
 
   # find common characteristics
   common_data = {}
@@ -286,9 +253,7 @@ def export_to_folder():
     for o in all_outputs:
       if not o.extra_parameters: o.extra_parameters = {} 
       o_value = [str(o.extra_parameters.get(key))]
-      # print(o.id, o_value)
       values.update(set(o_value))
-    # print(key, values)
     if len(values) == 1:
       if not all_outputs[0].extra_parameters: all_outputs[0].extra_parameters = {} 
       common_extra_parameters[key] = all_outputs[0].extra_parameters.get(key)
@@ -325,16 +290,12 @@ def export_to_folder():
           c_prefix = serialize_config(common_data.get("configurations_prefix", 'placeholder-placeholder'))
           c_suffix = serialize_config(common_data.get("configurations_suffix", 'placeholder-placeholder'))
           return c.replace(c_prefix, '').replace(c_suffix, '').replace("crop", "").replace('workspace-configurations-', '')
-        # print("output.configuration", output.configuration)
         c_formatted = strip_config(output.configuration)
-        # print("c_formatted", c_formatted)
         stripped_config = slugify_hash(c_formatted)
-        # print("stripped_config", stripped_config)
         # list of common SIRC-specific names
         if stripped_config:
           labels.append(stripped_config)
         label_mappings['configurations'][stripped_config] = output.configurations
-        # print('label', stripped_config, output.configurations)
       if not common_data.get("database"):
         slugify_database = slugify_hash(output.test_input.database)
         if slugify_database:
@@ -343,11 +304,6 @@ def export_to_folder():
       if str(output.extra_parameters) != str(common_data.get("extra_parameters")):
         tame = lambda o: set(((k.replace(all_extra_parameters_prefix, ''), str(v)) for k, v in o.items()))
         p = tame(output.extra_parameters) - tame(common_extra_parameters)
-        # print('common_extra_parameters', common_extra_parameters)
-        # print('tame(common_extra_parameters)', tame(common_extra_parameters))
-        # print('output.extra_parameters', output.extra_parameters)
-        # print('tame(output.extra_parameters)', tame(output.extra_parameters))
-        # print('p_new', p_new)
         extra_parameters_label = slugify_hash(str(p))
         label_mappings['extra_parameters'][extra_parameters_label] = output.extra_parameters
         if p: labels.append(extra_parameters_label)
@@ -368,14 +324,12 @@ def export_to_folder():
         output_path_rel = output_path.relative_to(output.output_dir)
         copied_to_rel = copy_path_rel(output, output_path, label=label_new)
         export_to(export_dir / copied_to_rel, output_path, type=export_type, user=current_user)
-        # copy(output_path, export_dir / copied_to_rel)
         if output_ref and output_ref.id != output.id:
           output_path_ref = output_ref.output_dir / output_path_rel
           if output_path_ref.exists():
             copied_to_rel = copy_path_rel(output_ref, output_path_ref, label=label_ref)
             export_to(export_dir / copied_to_rel, output_path_ref, type=export_type, user=current_user)
             nb_files_exported += 1
-            # copy(output_path, export_dir / copied_to_rel)
         nb_files_exported += 1
       except Exception as e:
         error = f"WARNING: Error when trying to export {output_path.name}: {e}"
@@ -440,8 +394,6 @@ def export_to(path_from, path_to, type, user=None):
       path_from.unlink()
     except:
       rmtree(path_from)
-  # print(f"LINK {path_from} -> {path_to} [{type}]")
-  # print("  ", path_from.owner())
   if type == "link":
     try:
       os.link(str(path_to), str(path_from))
@@ -451,8 +403,7 @@ def export_to(path_from, path_to, type, user=None):
     if not current_user.is_authenticated:
       raise Exception("Need Login")
     as_user(user.user_name, shutil.copyfile, str(path_to), str(path_from))
-    # shutil.copyfile(str(path_to), str(path_from))
-  else: # "copy"
+  else:
     raise ValueError("Invalid type. Use 'link' or 'copy'.")
 
 

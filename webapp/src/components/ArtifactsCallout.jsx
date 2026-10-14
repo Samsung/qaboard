@@ -1,7 +1,6 @@
-import React, { useContext } from "react";
-import { ReactReduxContext } from "react-redux";
+import { useSiteConfig, useUser } from "../hooks";
 import { Button, Callout, Classes, Intent } from "@blueprintjs/core";
-import { RequiresLogin, LoginHint } from "./authentication/login";
+import { LoginHint } from "./authentication/login";
 
 const formatDate = iso => {
   if (!iso) return null
@@ -12,8 +11,8 @@ const formatDate = iso => {
 // Tells users when they can't run from a commit's artifacts (redo, tuning), why, and how to get them back.
 // `artifacts` is commit.artifacts from /api/v1/commit/<id>
 export const ArtifactsCallout = ({ deleted, artifacts, waiting, onRestore }) => {
-  // works without a redux store, e.g. in tests
-  const docs_root = useContext(ReactReduxContext)?.store?.getState()?.siteConfig?.docs_root ?? "/"
+  const docs_root = useSiteConfig()?.docs_root ?? "/"
+  const is_logged = useUser().is_logged
   const recreation = artifacts?.recreation
   const deletion = artifacts?.deletion
   const recreating = artifacts?.recreating ?? recreation?.status === 'triggered'
@@ -60,7 +59,7 @@ export const ArtifactsCallout = ({ deleted, artifacts, waiting, onRestore }) => 
         : <>QA-Board can restore the files from the source code, but not build outputs like binaries.{' '}
             To rebuild them automatically, configure <a href={`${docs_root}docs/storage/deleting-old-data#recreating-artifacts`} target="_blank" rel="noopener noreferrer"><code>recreate_artifacts</code></a> in qaboard.yaml.</>}
     </p>}
-    {onRestore && <RequiresLogin>{is_logged => <>
+    {onRestore && <>
       <Button
         icon="redo"
         text={artifacts?.recreate ? (recreating ? "Ask again to recreate the artifacts" : "Recreate the artifacts") : "Restore the artifacts"}
@@ -70,6 +69,6 @@ export const ArtifactsCallout = ({ deleted, artifacts, waiting, onRestore }) => 
         onClick={onRestore}
       />
       {!is_logged && <LoginHint text="Log in to bring the artifacts back"/>}
-    </>}</RequiresLogin>}
+    </>}
   </Callout>
 }

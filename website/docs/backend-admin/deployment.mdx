@@ -1,102 +1,134 @@
 ---
 id: deployment
-sidebar_label: Deployments & Rollbacks
+sidebar_label: Upgrades & Rollbacks
 title: Deployments, rollbacks and high availability
 ---
-QA-Board is deployed with docker compose, by `deployments/deploy.py`. It gives:
+With docker compose, deploy and upgrade QA-Board with `deployments/deploy.py`. It gives:
 
 - **Zero-downtime deploys**: the backend runs several replicas behind nginx. New replicas start next to the old ones; nginx switches to them once they are healthy, then the old ones finish their in-flight requests and stop. If the new replicas are not healthy, they are removed and the old version keeps serving.
-- **The tested images are the deployed images**: CI builds the images once per commit, tags them with the commit (`<registry>/qaboard:backend-1a2b3c4d`), and deploys the same images to staging, then production.
-- **Fast rollbacks**: the images of the last versions stay on the host.
+- **The tested images are the deployed images**: if your CI builds the images once per commit and tags them with the commit (e.g. `<registry>/qaboard:backend-1a2b3c4d`), you deploy those same images to staging, then production.
+- **Fast rollbacks**: the images of the last 3 versions stay on the host.
 - Migrations run once, before the backend is updated: if they fail, nothing running is changed.
 - The database, redis, etc. are only restarted if their configuration changed. nginx configuration changes are reloaded without a restart.
 
-## Environments
-An environment is an env file that sets the compose files, the compose project and a few settings:
+It has no dependencies: it runs with `python3` (or `uv run`), from the root of your checkout.
 
-| Environment | Env file | Where |
-|-------------|----------|-------|
-| SIRC production | `deployments/sirc/production.env` | https://qa, host `qa`, checkout at `/home/ispq/qaboard_prod` |
-| SIRC staging | `deployments/sirc/staging.env` | http://alginfra1:7159, host `alginfra1`, checkout at `/home/ispq/qaboard_staging` |
-| Generic single host | `deployments/production.env` | |
+## Environments
+An environment is a docker compose env file that sets the compose files, the compose project and a few [settings](#settings). Start from `deployments/production.env`, and add your site overlay (see [Starting a server](../start-server.mdx)) to `COMPOSE_FILE`:
+
+```bash title="deployments/mysite/production.env"
+COMPOSE_PROJECT_NAME=qaboard
+COMPOSE_FILE=docker-compose.yml:production.yml:deployments/mysite/mysite.yml
+QABOARD_BACKEND_REPLICAS=2
+```
 
 The env file replaces the long `-f docker-compose.yml -f production.yml -f ...` lists:
 
 ```bash
-docker compose --env-file deployments/sirc/production.env ps
+docker compose --env-file deployments/mysite/production.env ps
 # or, with the deployed version's images:
-deployments/deploy.py deployments/sirc/production.env compose logs -f backend
+deployments/deploy.py deployments/mysite/production.env compose logs -f backend
 ```
 
-Secrets are not in the env files: they stay in `.env` (and `deployments/sirc/.env`) on the host.
+Keep secrets out of the env files: put them in `.env` on the host.
 
-## Automatic deploys (GitLab CI at SIRC)
-Every commit on `master`:
-1. **Tests** (lint, types, unit tests, webapp tests) and **builds the images**, in parallel. The images are pushed to the GitLab registry.
-2. **Deploys to staging**, then runs smoke tests against it (`test:staging`).
-3. **Deploys to production**, if staging passed. Each environment deploys one pipeline at a time.
+## Deploying
+```bash
+# The first time: --init allows deploying into a new compose project (with an empty database)
+deployments/deploy.py deployments/mysite/production.env up --build --init
+# Upgrades: git pull, then
+deployments/deploy.py deployments/mysite/production.env up --build
+# With images built by your CI and pushed to a registry, tagged with a version
+deployments/deploy.py deployments/mysite/production.env up --version 1a2b3c4d
+```
 
-Merge requests only run the tests. To try the images of a merge request, run its manual `build:images` job.
+`up`:
+1. Pulls the images for the version (or builds them with `--build`).
+2. Runs the database migrations once. If they fail, nothing running is changed.
+3. Updates the infrastructure services (database, redis, proxy...). They are only recreated if their configuration or image changed.
+4. Updates the backend, one version at a time: it starts the new replicas next to the old ones, waits until they are healthy, points nginx at them, then stops the old ones gracefully. If the new replicas are not healthy, they are removed and the old ones keep serving.
+5. Updates the web app and docs bundles. Old bundles are kept, so clients with an old version keep working.
+6. Records the version for `rollback` and `status`, and removes old images so the disk doesn't fill up.
 
-:::tip Making production deploys manual
-Set the CI/CD variable `QABOARD_PROD_DEPLOY=manual`: `deploy:production` then waits for a click. [Deploy freezes](https://docs.gitlab.com/ee/user/project/releases/#prevent-unintentional-releases-by-setting-a-deploy-freeze) do the same.
+If a deploy fails, its output says which step. The images are named `arthurflam/qaboard:<service>-<version>` by default: to use your own registry, set `image:` in your site overlay.
+
+:::tip Deploying from CI
+Build and push the images in CI, tagged with the commit, then run `deploy.py <env file> up --version <commit>` on the host (e.g. over ssh). Deploy to a staging environment first, test it, then deploy the same images to production.
 :::
 
 ## Rollbacks
-- **From GitLab**: on the environments page (*Operate > Environments*, or *Deployments > Environments* on older GitLab), open *production*, click *Rollback* on the deployment you want back. It re-runs that pipeline's deploy job, with its images.
-- **On the host**:
 ```bash
-ssh qa
-bash  # the login shell (tcsh) can't source .envrc
-cd /home/ispq/qaboard_prod && source deployments/sirc/.envrc
-deployments/deploy.py deployments/sirc/production.env status     # deployed version, history
-deployments/deploy.py deployments/sirc/production.env rollback   # back to the previous version
+deployments/deploy.py deployments/mysite/production.env status     # deployed version, history
+deployments/deploy.py deployments/mysite/production.env rollback   # back to the previous version
 # rollback --no-pull if the registry is down
 ```
 
 :::caution Database migrations
 Rolling back the code does not roll back database migrations. Write migrations that the previous version can live with (add columns, don't drop/rename them in the same release), since the old and the new backends also run side by side during a deploy.
+
+Since mid-October 2026, a version that finds migrations it doesn't know (made by a newer version) keeps them and starts. Older versions refuse to start instead: a rollback to them stops before changing anything, with *Can't locate revision*. To go back to such a version, first undo the newer migrations with the running version, down to the latest migration the older version knows (`alembic heads` in its image; `3b7e9c1d4a52` for the versions just before git hosts became configurable):
+```bash
+deployments/deploy.py deployments/mysite/production.env compose run --rm --no-deps backend \
+  bash -c 'cd /qaboard/backend/backend && alembic downgrade 3b7e9c1d4a52'
+deployments/deploy.py deployments/mysite/production.env rollback
+```
 :::
 
-## Deploying by hand
-```bash
-ssh qa
-bash  # the login shell (tcsh) can't source .envrc
-cd /home/ispq/qaboard_prod && source deployments/sirc/.envrc
-git fetch && git checkout --detach <commit>
-deployments/deploy.py deployments/sirc/production.env up --version <short commit>
-# without a registry, build on the host (slower):
-deployments/deploy.py deployments/sirc/production.env up --build
-```
-
-What `up` does, step by step, is described at the top of `deployments/deploy.py`. If a deploy fails, the job's log says which step. If the images can't be pulled or the migrations fail, nothing running was changed. If the new backend replicas are unhealthy, the previous ones keep serving.
-
-## Staging
-Staging runs the production images and configuration, with **its own database**. To get production's data, seed it with the manual GitLab job `staging:refresh-db`, or:
+## Staging with recent production data
+A staging environment runs the production images and configuration, with **its own database**. To fill it with production's recent data:
 
 ```bash
-ssh alginfra1
-bash  # the login shell (tcsh) can't source .envrc
-cd /home/ispq/qaboard_staging && source deployments/sirc/.envrc
-deployments/deploy.py deployments/sirc/staging.env seed-db             # last 30 days
-deployments/deploy.py deployments/sirc/staging.env seed-db --days 90
+deployments/deploy.py deployments/mysite/staging.env seed-db             # last 30 days
+deployments/deploy.py deployments/mysite/staging.env seed-db --days 90
 ```
 
-Production's database is big, so `seed-db` doesn't restore a full backup. It copies the schema and the small tables (projects, users...) in full, but only the **recent commits** (authored, or with outputs, in the last `QABOARD_SEED_DAYS` days) with their batches and outputs, and the test inputs those outputs use. Deleted commits and outputs are skipped. It reads production in a single read-only snapshot, with indexed queries, so only the recent rows are transferred. It replaces staging's database: if production can't be read, staging is left as it was. Older commits referenced by milestones are not copied.
+A production database can be big, so `seed-db` doesn't restore a full backup. It copies the schema and the small tables (projects, users...) in full, but only the **recent commits** (authored, or with outputs, in the last `QABOARD_SEED_DAYS` days) with their batches and outputs, and the test inputs those outputs use. Deleted commits and outputs are skipped. It reads production in a single read-only snapshot, with indexed queries, so only the recent rows are transferred. It replaces staging's database: if production can't be read, staging is left as it was. Older commits referenced by milestones are not copied.
 
-The source is `QABOARD_SEED_SOURCE` in `deployments/sirc/staging.env` (production's database, exposed on `qa:5434`). For a full copy, restore a backup instead: `restore-db latest`.
+The source is `QABOARD_SEED_SOURCE` in the staging env file (or `--source`). For a full copy, restore a backup instead: `restore-db latest`.
 
 :::caution
-Staging still uses the shared storage and the LSF bridge: tuning runs started from staging are real runs.
+If staging uses the same storage and task runners as production, runs started from staging are real runs.
 :::
 
-## Restoring a backup
-Backups are made daily by the `cron-backup-db` service (at SIRC under `/home/ispq/qaboard_data_prod/database_backups`). The backend is stopped while restoring.
-```bash
-deployments/deploy.py deployments/sirc/production.env restore-db 2026-10-01.dump   # or "latest"
+## Backups
+The `cron-backup-db` service in *production.yml* makes daily backups of the database to `/backups`. Mount a host directory there in your site overlay, in the `db` service too (`restore-db` reads the backups from the database container), and copy the backups off the host:
+
+```yaml title="deployments/mysite/mysite.yml"
+services:
+  cron-backup-db:
+    volumes:
+    - /srv/qaboard/backups:/backups
+  db:
+    volumes:
+    - /srv/qaboard/backups:/backups
 ```
 
-## High availability: what we have, what we don't
+To restore a backup (the backend is stopped meanwhile):
+```bash
+deployments/deploy.py deployments/mysite/production.env restore-db 2026-10-01.dump   # or "latest"
+```
+
+## Host maintenance
+Before upgrading the host (CPU, memory, storage, OS...):
+1. Pause your automatic deploys, if you have some.
+2. Check that the latest daily backup worked: list your backups directory.
+3. Stop the server and make a fresh backup:
+   ```bash
+   # disconnect clients so that no one writes
+   docker compose --env-file deployments/mysite/production.env stop
+   # the backup needs the database
+   docker compose --env-file deployments/mysite/production.env up -d db
+   docker compose --env-file deployments/mysite/production.env run --rm cron-backup-db /etc/periodic/daily/backup before-upgrade.dump
+   ```
+4. After the maintenance, start everything:
+   ```bash
+   deployments/deploy.py deployments/mysite/production.env up
+   deployments/deploy.py deployments/mysite/production.env status
+   ```
+   Check that you can open the web application, that `status` shows all the containers running and the backends healthy, and that the logs look all right (see [Troubleshooting](troubleshooting.mdx)). Then resume the automatic deploys.
+5. If something went wrong with the data, restore the backup: `restore-db before-upgrade.dump`.
+
+## High availability: what you get, what you don't
 | Failure | With docker compose (1 host) | With kubernetes |
 |---------|------------------------------|-----------------|
 | A deploy | ✅ no downtime (nginx itself is only restarted if its image changes: ~1s) | ✅ |
@@ -107,29 +139,24 @@ deployments/deploy.py deployments/sirc/production.env restore-db 2026-10-01.dump
 | The host goes down / reboots | ❌ down until it's back | ✅ pods move to other nodes |
 | The shared storage (NFS) is down | ❌ | ❌ |
 
-Going further on a single host doesn't buy much: the host is the single point of failure. A warm standby (a second host with a PostgreSQL streaming replica, and a manual failover) is possible but costs about as much effort as [moving to kubernetes](kubernetes), which gives automatic failover.
+Going further on a single host doesn't buy much: the host is the single point of failure. A warm standby (a second host with a PostgreSQL streaming replica, and a manual failover) is possible but costs about as much effort as [moving to kubernetes](kubernetes.mdx), which gives automatic failover.
 
 ## First-time setup of a host
-1. Docker Engine with **docker compose ≥ 2.24** (`docker compose version`). The build host (`QABOARD_BUILD_HOST`) needs it too: CI builds and pushes the images there over ssh, from the job's checkout on NFS.
-2. Clone the repository: `git clone git@gitlab-srv:common-infrastructure/qaboard.git /home/ispq/qaboard_prod` (or `_staging`).
-3. Fill the secrets: `.env` and `deployments/sirc/.env` (see `deployments/sirc/.env.sirc.example`), the SSL certificates.
-4. Let the host pull images: create a GitLab **deploy token** with `read_registry`, then `docker login gitlab-srv.transchip.com:4567` once as `ispq`.
-5. Check the compose project name matches the existing one: `docker compose ls`. It must be `COMPOSE_PROJECT_NAME` in the env file, or compose would start with new, empty volumes. `deploy.py` refuses to deploy into a project that doesn't exist, unless you pass `--init`.
-6. In GitLab, the runner's ssh key must be able to `ssh ispq@<host>`.
-
-:::note Without a container registry
-Set the CI/CD variable `QABOARD_BUILD_ON_HOST=1`: images are then built on each host during the deploy (slower, and production doesn't run exactly the images tested in staging).
-:::
+1. Docker Engine with **docker compose ≥ 2.24** (`docker compose version`). If your CI builds the images on another host, it needs it too.
+2. Clone the repository.
+3. Fill the secrets in `.env`, and the SSL certificates if you use HTTPS (see [Starting a server](../start-server.mdx#using-ssl--hosting-behind-a-reverse-proxy)).
+4. If you pull images from a private registry, `docker login` to it once, as the user who deploys.
+5. When you move an existing deployment to `deploy.py`, check that the compose project name matches the existing one: `docker compose ls`. It must be `COMPOSE_PROJECT_NAME` in the env file, or compose would start with new, empty volumes. `deploy.py` refuses to deploy into a project that doesn't exist, unless you pass `--init`.
 
 ## Settings
 In the env file, or the shell's environment (which takes precedence):
 
 | Variable | Default | Usage |
 |----------|---------|-------|
-| `QABOARD_VERSION` | _none_ | Image version (tag suffix). Set by CI to the commit. |
+| `QABOARD_VERSION` | the deployed version | Image version (tag suffix), e.g. the commit. `up --version` sets it. |
 | `QABOARD_BACKEND_REPLICAS` | 1 | Backend replicas. 2+ for zero-downtime deploys. |
 | `QABOARD_UWSGI_PROCESSES`, `QABOARD_UWSGI_CHEAPER`, `QABOARD_UWSGI_CHEAPER_INITIAL` | 16, 8, 16 | uwsgi processes *per replica* (max, min, initial) |
-| `QABOARD_DEPLOY_PRE_HOOK` | _none_ | A command run before deploying (at SIRC: mounting autofs volumes) |
+| `QABOARD_DEPLOY_PRE_HOOK` | _none_ | A command run before deploying, e.g. to mount network volumes |
 | `QABOARD_RUN_MIGRATIONS` | 1 | Set to 0 to not run migrations when the backend starts |
 | `QABOARD_SEED_SOURCE` | _none_ | `seed-db`: the database to copy recent data from, `postgresql://user:password@host:port/db` |
 | `QABOARD_SEED_DAYS` | 30 | `seed-db`: keep the commits of the last N days |

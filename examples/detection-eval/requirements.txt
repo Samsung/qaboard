@@ -1,0 +1,7 @@
+# qa/main.py's dependencies, besides the qaboard CLI. Exporting the model to ONNX also needs PyTorch: qa/export_onnx.py
+# installs it with uv, from its own metadata (CPU wheels), or uses this Python's if it has torch and torchvision.
+onnxruntime==1.31.0   # pinned: the int8 model and its numbers depend on its quantization code and operators
+onnx==1.23.2
+numpy>=1.26
+pillow>=10.1
+pyyaml

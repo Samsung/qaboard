@@ -51,10 +51,7 @@ class RunContext():
     @property
     def rel_input_path(self):
         """Returns the input's relative path from the database"""
-        if self.database:
-            return self.input_path.relative_to(self.database)
-        else:
-            return self.input_path.relative_to(self.database)
+        return self.input_path.relative_to(self.database)
 
     @property
     def output_directory(self):
@@ -62,8 +59,8 @@ class RunContext():
 
     def asdict(self):
       self_dict = asdict(self)
-      # this method is used for qa batch --list, before we can any idea about those members,
-      # so they'll all be empty because uniniialized.. better not show them
+      # this method is used for qa batch --list, before we have any idea about those members,
+      # so they'll all be empty because uninitialized.. better not show them
       del self_dict['input_metadata']
       del self_dict['click_context']
       self_dict['rel_input_path'] = self.rel_input_path
@@ -85,9 +82,9 @@ class RunContext():
       else:
           if verbose:
             if not self.output_dir.exists():
-              click.secho(f'[ERROR] Failed run! The ouput directory does not exist. It usually implies that your disk/quota is full. ({self.output_dir})', fg='red', err=True)
+              click.secho(f'[ERROR] Failed run! The output directory does not exist. It usually implies that your disk/quota is full. ({self.output_dir})', fg='red', err=True)
             else:
-              click.secho(f'[ERROR] Failed run! Could not find {metrics_path}. It usually means that your run/job was killed before it got a change to update QA-Board', fg='red', err=True)
+              click.secho(f'[ERROR] Failed run! Could not find {metrics_path}. It usually means that your run/job was killed before it got a chance to update QA-Board', fg='red', err=True)
           return True
 
     @staticmethod
@@ -169,7 +166,7 @@ class RunContext():
             click_context=ctx,
         )
 
-        # for backward compatibilty we need obj to behave nicely as the run_context...
+        # for backward compatibility we need obj to behave nicely as the run_context...
         # it's also what we send to the API for now...
         ctx.obj["output_directory"] = run_context.output_dir
         ctx.obj["input_metadata"] = run_context.input_metadata
@@ -200,7 +197,7 @@ class RunContext():
 
     @property
     def params(self):
-        # TODO: cache it in sef._parameters? but needs to ensure sync..
+        # TODO: cache it in self._parameters? but needs to ensure sync..
         parameters = {}
         for c in self.configs:
             if isinstance(c, dict):

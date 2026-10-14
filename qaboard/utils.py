@@ -42,9 +42,10 @@ def merge(src: Dict, dest: Dict) -> Dict:
 
 
 def getenvs(variables: Iterable[str], default=None) -> Optional[str]:
-  """Return the value of the environment variable that is defined - or None."""
+  """Return the value of the first environment variable that is defined and not empty - or the default."""
   for name in variables:
-    if name in os.environ:
+    # e.g. Github Actions sets GITHUB_HEAD_REF="" when not building pull requests
+    if os.environ.get(name):
       return os.environ[name]
   return default
 
@@ -58,8 +59,6 @@ class PathType(click.ParamType):
 
 class RedirectStream():
   def __init__(self, stream_name, file, color):
-    # print(f'@ Redirecting {stream_name}')
-    # print(f'> Redirecting {stream_name}', file=getattr(sys, stream_name))
     self.stream_name = stream_name
     self.stream = getattr(sys, stream_name)
     self.file = file.open('a')
@@ -80,11 +79,8 @@ class RedirectStream():
     setattr(sys, self.stream_name, getattr(sys, f"__{self.stream_name}__"))
     try:
       self.file.close()
-    except Exception as e:
-      pass
-      # we avoid printing here
-      # click.secho(f'WARNING: Error when closing the log file', fg='yellow', bold=True)
-      # click.secho(str(e), fg='yellow')
+    except Exception:
+      pass # we avoid printing here
   def flush(self):
     self.file.flush()
     self.stream.flush()
@@ -140,7 +136,6 @@ def redirect_std_streams(file, color=None):
   if os.environ.get('QA_NO_STREAM_REDIRECT'):
     yield sys.stdout, sys.stderr
     return
-  # print(">> Redirecting STDX")
   stdout = RedirectStream('stdout', file, color)
   stderr = RedirectStream('stderr', file, color)
   try:
@@ -148,6 +143,66 @@ def redirect_std_streams(file, color=None):
   finally:
     del stdout
     del stderr
+
+
+class TeeStream():
+  """Writes to a stream, and to a file"""
+  def __init__(self, stream, file):
+    self.stream = stream
+    self.file = file
+  def write(self, data):
+    written = self.stream.write(data)
+    try:
+      self.file.write(data)
+      self.file.flush()
+    except (OSError, ValueError): # e.g. full storage: users still see the output
+      pass
+    return written
+  def flush(self):
+    self.stream.flush()
+  # click and colorama (on Windows) use them to choose colors and encodings.
+  # Without `buffer`, click can't bypass us and write to the console directly.
+  def isatty(self):
+    return isatty(self.stream)
+  def fileno(self):
+    return self.stream.fileno()
+  @property
+  def closed(self):
+    return getattr(self.stream, 'closed', False)
+  @property
+  def encoding(self):
+    return getattr(self.stream, 'encoding', None)
+  @property
+  def errors(self):
+    return getattr(self.stream, 'errors', None)
+
+
+@contextmanager
+def tee_std_streams(file):
+  """
+  Also writes what we print (stdout, stderr) to an open file, e.g. to save the logs of `qa batch`.
+  Unlike redirect_std_streams, we restore the previous streams after the block,
+  and save the error that may end it (Python prints it after the block).
+  Subprocesses still only write to the terminal, e.g. local runs (they save their own logs).
+  """
+  previous = sys.stdout, sys.stderr
+  sys.stdout, sys.stderr = TeeStream(sys.stdout, file), TeeStream(sys.stderr, file)
+  try:
+    yield
+  except BaseException as e:
+    try:
+      if isinstance(e, (KeyboardInterrupt, click.exceptions.Abort)):
+        file.write('\nAborted!\n')
+      elif isinstance(e, click.ClickException):
+        file.write(f'Error: {e.format_message()}\n')
+      elif not isinstance(e, (SystemExit, click.exceptions.Exit)):
+        file.write(traceback.format_exc())
+      file.flush()
+    except (OSError, ValueError):
+      pass
+    raise
+  finally:
+    sys.stdout, sys.stderr = previous
 
 
 class FailingEntrypoint:
@@ -179,27 +234,20 @@ def entrypoint_module_path(entrypoint):
       module = importlib.util.module_from_spec(spec)
       sys.path.insert(0, os.path.abspath(str(entrypoint.parent)))
       spec.loader.exec_module(module)
-      # sys.path.pop(0)
-
-      # spec = importlib.util.spec_from_loader(name, importlib.machinery.SourceFileLoader(name, str(entrypoint)))
-      # spec.submodule_search_locations = [str(entrypoint.parent)]
-      # with cached versions of the entrypoint.... An option could be importlib.reload(module)
-      # FIXME: at some points I had issues with sys.path, but no more (?)
-  except Exception as e:
+  except Exception:
       exc_type, exc_value, exc_traceback = sys.exc_info()
       click.secho(f'ERROR: Error importing the entrypoint ({entrypoint}).', fg='red', err=True, bold=True)
       click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
       click.secho(
-          f'{entrypoint} must implement a `run(context)` function, and optionnally `postprocess` / `metadata` / `iter_inputs`.\n'
-          'Please read the tutorial at https://samsung.github.com/qaboard/docs\n',
+          f'{entrypoint} must implement a `run(context)` function, and optionally `postprocess` / `metadata` / `iter_inputs`.\n'
+          'Please read the tutorial at https://samsung.github.io/qaboard/docs\n',
           dim=True, err=True)
       return FailingEntrypoint()
   return module
 
 
-# TODO: consider using @lru_cache since it's called twice within qa batch
-# from functools import lru_cache
-# @lru_cache() # but config not hashable.. we'd need to pass a path to the entrypoint
+# TODO: consider using @lru_cache since it's called twice within qa batch,
+#       but config is not hashable... we'd need to pass a path to the entrypoint
 def input_metadata(absolute_input_path, database, input_path, config):
   entrypoint_module_ = entrypoint_module(config)
   if hasattr(entrypoint_module_, 'metadata'):
@@ -207,25 +255,13 @@ def input_metadata(absolute_input_path, database, input_path, config):
       metadata = entrypoint_module_.metadata(absolute_input_path, database, input_path)
       if metadata is None:
         metadata = {}
-    except Exception as e:
+    except Exception:
       exc_type, exc_value, exc_traceback = sys.exc_info()
-      click.secho(f'[ERROR] The `metadata` function in your raised an exception:', fg='red', bold=True)
+      click.secho('[ERROR] The `metadata` function in your entrypoint raised an exception:', fg='red', bold=True)
       click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
       metadata = {}
-  # With what's below we run into loops easily if the user uses iter_at_path
+  # We don't fall back to iter_inputs' metadata: it loops easily if users use iter_inputs_at_path.
   # Let's ask users to be explicit
-  # elif hasattr(entrypoint_module_, 'iter_inputs'):
-  #   try:
-  #     inputs = list(entrypoint_module_.iter_inputs(input_path, database, only=None, exclude=None))
-  #     if len(inputs)==1:
-  #       metadata = inputs[0].get('metadata', {})
-  #     else:
-  #       metadata = {}
-  #   except Exception as e:
-  #     exc_type, exc_value, exc_traceback = sys.exc_info()
-  #     click.secho(f'[ERROR] The `iter_inputs` function in your raised an exception:', fg='red', bold=True)
-  #     click.secho(''.join(traceback.format_exception(exc_type, exc_value, exc_traceback)), fg='red', err=True)
-  #     metadata = {}
   else:
     metadata = {}
   # update to metadata
@@ -264,8 +300,8 @@ def is_plaintext(path, config=None):
     config = {}
   binary_patterns = config.get('bit_accuracy', {}).get('binary')
   if binary_patterns: # remove when everybody updates HW_ALG...
-    binary_patterns.append('.exe')
-    binary_patterns.append('.dll')
+    # don't append to the config's list: this is called for each file
+    binary_patterns = [*binary_patterns, '.exe', '.dll']
     binary_patterns = ['*' + b if b.startswith('.') else b for b in binary_patterns]
 
   plaintext_patterns = config.get('bit_accuracy', {}).get('plaintext')
@@ -275,7 +311,6 @@ def is_plaintext(path, config=None):
   if plaintext_patterns and not binary_patterns:
     return any(fnmatch(path.name, p) for p in plaintext_patterns)
   if not plaintext_patterns and binary_patterns:
-    #print(list((path.name, p, fnmatch(path.name, p)) for p in binary_patterns))
     return not any(fnmatch(path.name, p) for p in binary_patterns)
   click.secho('ERROR: Cannot define both bit_accuracy.binary and bit_accuracy.plaintext in qaboard.yaml', fg='red')
   exit(1)
@@ -363,7 +398,7 @@ def _file_info(path : Path, compute_hashes=True):
           try: # can fail for corrupted/empty images
             from idb_client.v2.utils import Md5HashCalculator
             info['md5_data'] = Md5HashCalculator.from_image(path)
-          except Exception as e:
+          except Exception:
             pass
 
         if path.suffix == '.raw':
@@ -389,7 +424,7 @@ def outputs_manifest(output_directory: Path, config=None, compute_hashes=True) -
     # backward-compat with manifests created by run_tv.py,
     # which doesn't copy the TV folder in the output directory
     if config is not None and config.get("project", {}).get("name", "").startswith("CDE-Users/HW_ALG"):
-      if path.name in ("run.json", "metrics.json", "manifest.ouputs.json", "runme_csg.bat") or "Config" in path.parts:
+      if path.name in ("run.json", "metrics.json", "manifest.outputs.json", "runme_csg.bat") or "Config" in path.parts:
         return False
     # avoid logs with timestamps and temporary NFS files
     illegal_file = path.name == 'log.txt' or path.name.startswith('.nfs00000')

@@ -1,6 +1,5 @@
 // Browse the files nginx serves under /s/, see services/nginx/snippets/qaboard-files.conf
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import copy from "copy-to-clipboard";
 import {
   Alert,
   AnchorButton,
@@ -30,7 +29,8 @@ import {
 } from "@blueprintjs/icons";
 
 import { toaster } from "../toaster";
-import { setPathMappings, hasPathMappings } from "../utils/paths";
+import { copyText } from "../utils/clipboard";
+import { setPathMappings } from "../utils/paths";
 import { fetchAccess, fetchJson, fetchListing, fetchRun, runAction, signIn, signOut } from "./api";
 import {
   baseName, breadcrumbs, filterEntries, formatAbsoluteTime, formatRelativeTime, formatSize, formatSummary, iconName,
@@ -76,10 +76,11 @@ const currentPath = () => {
   return pathFromUrl(pathname)
 }
 
-const copyToClipboard = (text, what) => {
-  copy(text)
-  toaster.show({ message: <span>Copied {what}: <code className="fb-copied">{text}</code></span>, intent: Intent.SUCCESS, timeout: 2500, icon: <ClipboardIcon/> }, 'copied')
-}
+// Like copyWithToast, with this page's icons: icon names would load the paths of all Blueprint's icons
+const copyToClipboard = (text, what) => copyText(text).then(copied => toaster.show(copied
+  ? { message: <span>Copied {what}: <code className="fb-copied">{text}</code></span>, intent: Intent.SUCCESS, timeout: 2500, icon: <ClipboardIcon/> }
+  : { message: `Could not copy ${what}`, intent: Intent.DANGER, icon: <ErrorIcon/> },
+  'copied'))
 
 const isPlainLeftClick = event => event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey
 
@@ -92,6 +93,8 @@ export default function FileBrowser() {
   const [selected, setSelected] = useState(-1)
   const [editingPath, setEditingPath] = useState(false)
   const [config, setConfig] = useState({})
+  // from the config's state, not the module's path mappings: React (and its compiler) re-render on state changes
+  const showWindows = (config.path_mappings?.length ?? 0) > 0
   const [user, setUser] = useState(null)
   const [isSigningIn, setIsSigningIn] = useState(false)
   const [reloads, setReloads] = useState(0) // the refresh button, "r", after signing in...
@@ -341,7 +344,7 @@ export default function FileBrowser() {
           <Tooltip content={<span>Copy the path <kbd className="fb-kbd">c</kbd></span>} placement="bottom">
             <Button size="small" variant="minimal" icon={<DuplicateIcon/>} text="Copy path" onClick={() => copyPath(path)}/>
           </Tooltip>
-          {hasPathMappings() && <Tooltip content={<span>Copy the Windows path <kbd className="fb-kbd">w</kbd></span>} placement="bottom">
+          {showWindows && <Tooltip content={<span>Copy the Windows path <kbd className="fb-kbd">w</kbd></span>} placement="bottom">
             <Button size="small" variant="minimal" text="Windows" onClick={() => copyPath(path, true)}/>
           </Tooltip>}
         </ButtonGroup>
@@ -408,6 +411,7 @@ export default function FileBrowser() {
               open={open}
               prefetch={prefetch}
               copyPath={copyPath}
+              showWindows={showWindows}
               empty={listing.data.entries.length === 0
                 ? <NonIdealState icon={<FolderCloseIcon size={48}/>} title="This folder is empty"/>
                 : <NonIdealState icon={<SearchIcon size={48}/>} title="Nothing matches"
@@ -653,12 +657,11 @@ const COLUMNS = [
   { key: 'owner', label: 'Owner', className: 'fb-col-owner' },
 ]
 
-function FileTable({ path, entries, sort, setSort, selected, setSelected, open, prefetch, copyPath, empty }) {
+function FileTable({ path, entries, sort, setSort, selected, setSelected, open, prefetch, copyPath, showWindows, empty }) {
   const bodyRef = useRef(null)
   const windowed = entries.length > WINDOWING_THRESHOLD
   const [start, end] = useWindowedRange(entries.length, bodyRef, windowed)
   const now = useNow()
-  const showWindows = hasPathMappings()
 
   // Keep the selected row on screen
   useEffect(() => {

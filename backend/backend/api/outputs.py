@@ -1,17 +1,15 @@
-import json
 import datetime
 
-from flask import request, jsonify, redirect, make_response, g
+from flask import request, jsonify, make_response, g
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.exc import NoResultFound
 
 from qaboard.conventions import deserialize_config
-from qaboard.api import dir_to_url
 
 from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
 from ..storage import check_storage_path, UnsafePathError
-from ..artifacts import ArtifactsUnavailable
+from ..redo import redo_response
 from .auth import login_required, is_authorized_user
 
 
@@ -87,24 +85,7 @@ def output_redo(output_id):
     return jsonify({"error": f"Cannot find output {output_id}"}), 400
   if not is_authorized_user(g.user, output.batch.ci_commit.project_id):
     return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
-  try:
-    restored = output.batch.ci_commit.ensure_artifacts(user=g.user['user_name'])
-    success = output.redo(user=g.user['user_name'], check_artifacts=False)
-  except ArtifactsUnavailable as e:
-    db_session.add(output.batch.ci_commit)
-    db_session.commit()
-    return jsonify(e.to_dict()), 409
-  except Exception as e:
-    db_session.add(output.batch.ci_commit)
-    db_session.commit()
-    return jsonify({"error": f"{e}"}), 500
-  db_session.add(output.batch.ci_commit)
-  db_session.commit()
-  warning = restored["message"] if restored else None
-  if success:
-    return jsonify({"status": "OK", "warning": warning})
-  else:
-    return jsonify({"error": "The run failed to start. Check the 'redo.log' files in the output directories to know more."}), 500
+  return redo_response(output.batch, [output], g.user['user_name'])
 
 
 @app.route("/api/v1/output/<output_id>/manifest", methods=['GET'])
@@ -122,19 +103,11 @@ def get_output_manifest(output_id):
       return jsonify({"error": f"{e}"}), 400
     return jsonify(manifest)
   else:
-    # FIXME: in dev it will return http://backend/ and break the frontend who cannot connect
-    #        in 2021 it seems the spec allow returning relative urls...
-    #        Maybe we should return the manifest content instead...
-    # return redirect(dir_to_url(manifest_path), code=302)
+    # We return the manifest's content instead of redirecting to dir_to_url(manifest_path):
+    # in dev, redirects pointed to http://backend/, which the frontend cannot reach.
     response = make_response(manifest_path.read_text())
     response.headers['Content-Type'] = 'application/json'
     return response
-
-
-
-
-
-
 
 
 @app.route('/api/v1/output', methods=['POST'])
@@ -142,7 +115,10 @@ def get_output_manifest(output_id):
 def new_output_webhook():
   """Updates the database when we get new results."""
   data = request.get_json()
-  hexsha = data.get('commit_sha', data['git_commit_sha'])
+  # git_commit_sha for backward-compatibility
+  hexsha = data.get('commit_sha') or data.get('git_commit_sha')
+  if not hexsha:
+    return jsonify({"error": "the commit (commit_sha) was not provided"}), 400
 
   # The server will write, delete and run code in those folders
   output_directory = data.get('output_directory')
@@ -167,7 +143,7 @@ def new_output_webhook():
       data=data,
     )
   except Exception as e:
-    return jsonify({"error": f"Could not find your commit ({data['git_commit_sha']}). {e}"}), 404
+    return jsonify({"error": f"Could not find your commit ({hexsha}). {e}"}), 404
 
   # update the last_output times, with a crude debouncing to avoid
   # keeping locks on the tables too long
@@ -222,9 +198,8 @@ def new_output_webhook():
   if not output.data:
     output.data = {}
   if "data" in data: # e.g. storage, job_options, batch name
-    if not output.data:
-      output.data = {}
-    output.data.update(data['data'])
+    # optimization_best is set by the server only: it allows `qa optimize` to replace this run (see api/batch.py)
+    output.data.update({k: v for k, v in data['data'].items() if k != 'optimization_best'})
     flag_modified(output, "data")
   output.data["user"] = data['user']
   # we can only trust CI outputs to run on the exact code from the commit
@@ -250,9 +225,10 @@ def new_output_webhook():
     output.is_failed = False
   # We save the output's metrics
   else:
-    metrics = data.get('metrics', {})
+    metrics = data.get('metrics') or {}
     output.metrics = metrics
-    output.is_failed = data.get('is_failed', False) or metrics.get('is_failed')
+    # False when the metrics don't say: batches count NULL as neither valid nor failed
+    output.is_failed = bool(data.get('is_failed', False) or metrics.get('is_failed'))
 
   db_session.add(ci_commit)
   db_session.add(output)

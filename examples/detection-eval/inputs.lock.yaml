@@ -1,0 +1,1095 @@
+# Inputs fetched at first run by qa/fetch_inputs.py: photos under CC0 or in the public domain (see LICENSES.md), used
+# as they are (the 1024 px renditions of their sources), checked by SHA-256. They come from the public mirror
+# (<mirror><sha256>.jpg, or $DETECTOR_MIRROR), else from their source `url`.
+# `weights` are the detector's pretrained weights, fetched by qa/models.py from `url` only (not mirrored).
+mirror: https://qaboard-media.sivoov.app/inputs/detection-eval/
+weights:
+  url: https://download.pytorch.org/models/ssdlite320_mobilenet_v3_large_coco-a79551df.pth
+  sha256: a79551df90c79834bcd3bb3845ef9d966b5449a3a9b2833ae8404778ca5d65d2
+  bytes: 14069355
+  license: BSD-3-Clause (torchvision)
+photos:
+  slices/indoor/01.jpg:
+    sha256: 56388568a5f7376de496da2fc68279fdb2d3008b54854983bb58b61b411d6bc3
+    bytes: 226403
+    license: CC0-1.0
+    source:
+      title: McCosh Hall Classroom
+      author: cogdogblog
+      page: https://www.flickr.com/photos/37996646802@N01/2568091979
+      url: https://live.staticflickr.com/3093/2568091979_c5d1016020_b.jpg
+  slices/indoor/02.jpg:
+    sha256: 28d29501cf7d1e05ee8d68e50d142872094c1556bc07ad977e7606ec0a8da927
+    bytes: 133310
+    license: Public Domain Mark 1.0
+    source:
+      title: Ozark Christian College (Classrooms)
+      author: Broadcast Journalist Dustin Murrell
+      page: https://www.flickr.com/photos/137314702@N02/25674825393
+      url: https://live.staticflickr.com/1528/25674825393_1e84386cbc_b.jpg
+  slices/indoor/03.jpg:
+    sha256: 2d707d61c84b74ba69c3b94e59b571b82479424709e991f9147b2986dfa72a0f
+    bytes: 167242
+    license: CC0-1.0
+    source:
+      title: Classroom
+      author: cogdogblog
+      page: https://www.flickr.com/photos/37996646802@N01/46702870
+      url: https://live.staticflickr.com/32/46702870_bc141969f1_b.jpg
+  slices/indoor/04.jpg:
+    sha256: 6a1a624cf3e882a97c920b32f5a15528dd3cee2bb46ffbf48b0d8d690813eb78
+    bytes: 116682
+    license: CC0-1.0
+    source:
+      title: Classroom
+      author: westernhunan
+      page: https://www.flickr.com/photos/99865395@N05/9493920086
+      url: https://live.staticflickr.com/5340/9493920086_dbf96d2ff2_b.jpg
+  slices/indoor/05.jpg:
+    sha256: 00e6829e5f09c75e8edbeefee66b24d6da87666492423e5fd9980a82cab110a2
+    bytes: 180395
+    license: CC0-1.0
+    source:
+      title: September 25, 2019 cafe 1F
+      author: Katsujiro Maekawa
+      page: https://www.flickr.com/photos/140296773@N07/48796795373
+      url: https://live.staticflickr.com/65535/48796795373_6e3d1da3af_b.jpg
+  slices/indoor/06.jpg:
+    sha256: b00862cb55e65369ee94c0338f83201a867ba33ee66294a9cc7491f721777e5a
+    bytes: 244909
+    license: CC0-1.0
+    source:
+      title: Rumba Café
+      author: Daquella manera
+      page: https://www.flickr.com/photos/62518311@N00/201507917
+      url: https://live.staticflickr.com/62/201507917_e59c365cfa_b.jpg
+  slices/indoor/07.jpg:
+    sha256: e08d676d3ccb372fe9fb834cb1ef8613182889f5497bd50390ff0a468eb1514a
+    bytes: 151289
+    license: CC0-1.0
+    source:
+      title: 'Appartement tour: Veranda/living room (+ cat)'
+      author: Lottie's pets & stuff
+      page: https://www.flickr.com/photos/36943025@N07/17199963905
+      url: https://live.staticflickr.com/7584/17199963905_d9167459e9_b.jpg
+  slices/indoor/08.jpg:
+    sha256: 4254e4b94322bdba99a79abe7e3ae6d9560847ee73c01ba39752066d0daff315
+    bytes: 206257
+    license: Public Domain Mark 1.0
+    source:
+      title: Living room decor, interior dwelling, Tarragindi - Brisbane
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/39953708571
+      url: https://live.staticflickr.com/4741/39953708571_bbbe58d49c_b.jpg
+  slices/indoor/09.jpg:
+    sha256: ad6973822e86d52eaffd0fd5c614556d8505b9c6f482bf67f492dcda4c9251e3
+    bytes: 130684
+    license: CC0-1.0
+    source:
+      title: Lounge furniture, sofa, arm chairs, round table, 3rd floor cafe, Microsoft building 110, Redmond, Washington, USA
+      author: Wonderlane
+      page: https://www.flickr.com/photos/71401718@N00/5510326235
+      url: https://live.staticflickr.com/5018/5510326235_6e8e0490cf_b.jpg
+  slices/indoor/10.jpg:
+    sha256: bb6677f41f270be4dd481eb67f2aee405d25534870ef5eac7e0ed4bbe58a1bc8
+    bytes: 140419
+    license: CC0-1.0
+    source:
+      title: Renovated Kitchen and Living Room Combination
+      author: bcjreno
+      page: https://www.flickr.com/photos/163575319@N02/40130802953
+      url: https://live.staticflickr.com/7872/40130802953_1c7c55320b_b.jpg
+  slices/indoor/11.jpg:
+    sha256: 8d317c33de435575c5dc830fb550b06e9704b793ee3e4cd4971b4998e53aca5c
+    bytes: 141420
+    license: Public Domain Mark 1.0
+    source:
+      title: office interior
+      author: Foto Miki Digital
+      page: https://www.flickr.com/photos/96511847@N04/10798088985
+      url: https://live.staticflickr.com/2848/10798088985_169e0b69d5_b.jpg
+  slices/indoor/12.jpg:
+    sha256: a7e4abb01c92115f6dad08dcb58389781f7fb7d6d38a77334ece427538e5fc85
+    bytes: 219148
+    license: Public Domain Mark 1.0
+    source:
+      title: Living room decor, interior of Housing Commission dwelling, Graceville - Brisbane
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/39953731391
+      url: https://live.staticflickr.com/4656/39953731391_ca612a812a_b.jpg
+  slices/indoor/13.jpg:
+    sha256: 7a6df808607d85270c128d4e7ee1c302748b68c50d8e8a5e63f33a0ef8076a0e
+    bytes: 181283
+    license: Public Domain Mark 1.0
+    source:
+      title: Living room decor, interior of Housing Commission dwelling, Wavell Heights - Brisbane
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/39953741821
+      url: https://live.staticflickr.com/4754/39953741821_5b013f3324_b.jpg
+  slices/indoor/14.jpg:
+    sha256: a595187c035f923682e99b0b381cbf46b47f3a114776541ba3600eb5a13c36e9
+    bytes: 247163
+    license: Public Domain Mark 1.0
+    source:
+      title: 2012 MSI - Smart House Living Room
+      author: Brentano fabrics
+      page: https://www.flickr.com/photos/42298505@N02/8024365684
+      url: https://live.staticflickr.com/8313/8024365684_7e6e7cbebb_b.jpg
+  slices/indoor/15.jpg:
+    sha256: 616dbf8bc47090ffe5691fec05a6d52720c0392e5ccbb84ed2dd34e6fcf1f89b
+    bytes: 850388
+    license: Public Domain Mark 1.0
+    source:
+      title: Current seasonal employee living room quarters
+      author: YellowstoneNPS
+      page: https://www.flickr.com/photos/80223459@N05/49535250908
+      url: https://live.staticflickr.com/65535/49535250908_6f3febe0e2_b.jpg
+  slices/indoor/16.jpg:
+    sha256: 6802f99c437dd12119627b25bae076d93ecb66e5d7c184fceb73309cf989c2c0
+    bytes: 248302
+    license: Public Domain Mark 1.0
+    source:
+      title: Luxury living room with stobe fireplace and leather sofas.
+      author: Foto Miki Digital
+      page: https://www.flickr.com/photos/96511847@N04/9202793852
+      url: https://live.staticflickr.com/7311/9202793852_a33fc77293_b.jpg
+  slices/indoor/17.jpg:
+    sha256: ad14fa08ff29f09d1b816da40dabed7658a9fa1cc175ac39510b62b15f886d0b
+    bytes: 95570
+    license: CC0-1.0
+    source:
+      title: Classroom
+      author: earthisthering
+      page: https://www.flickr.com/photos/55958070@N08/5362387448
+      url: https://live.staticflickr.com/5168/5362387448_651374daac_b.jpg
+  slices/indoor/18.jpg:
+    sha256: 37e6b631376750715c985fb72359fdde8813a609232e6a2b2541ad1a4be40836
+    bytes: 227646
+    license: Public Domain Mark 1.0
+    source:
+      title: Beautiful Living Room in Luxury Home
+      author: Foto Miki Digital
+      page: https://www.flickr.com/photos/96511847@N04/10560383496
+      url: https://live.staticflickr.com/5505/10560383496_977360f0eb_b.jpg
+  slices/indoor/19.jpg:
+    sha256: e35588431d40741aec52e160a1a282312158e417ffde9a4a8873f123dfee1aaf
+    bytes: 303043
+    license: Public Domain Mark 1.0
+    source:
+      title: restaurant in classical style
+      author: Foto Miki Digital
+      page: https://www.flickr.com/photos/96511847@N04/10560556104
+      url: https://live.staticflickr.com/7343/10560556104_e6478b9718_b.jpg
+  slices/indoor/20.jpg:
+    sha256: 43235a99dfd2b264d04065757db0ae9c8300064a038522bea374c041e76ddcf6
+    bytes: 869640
+    license: Public Domain Mark 1.0
+    source:
+      title: 054796:Eldon Square Shopping Centre Newcastle upon Tyne City Engineers Undated
+      author: Newcastle Libraries
+      page: https://www.flickr.com/photos/39821974@N06/4084847053
+      url: https://live.staticflickr.com/2769/4084847053_869ecb904d_b.jpg
+  slices/indoor/21.jpg:
+    sha256: 338342366a57b15d36466babfc2a65f01e9302076d4a9cd23075d2aec91a2c42
+    bytes: 237515
+    license: CC0-1.0
+    source:
+      title: Le Cirio
+      author: Daquella manera
+      page: https://www.flickr.com/photos/62518311@N00/13224529103
+      url: https://live.staticflickr.com/3674/13224529103_04f6a67bdd_b.jpg
+  slices/indoor/22.jpg:
+    sha256: c36fb38b1592ed746272f398a8dab1876f25e9d408cbe78320ec2c12283a76d4
+    bytes: 200787
+    license: Public Domain Mark 1.0
+    source:
+      title: Cafeteria at the Queensland Tropical Fruit Produce Cannery Northgate
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/48944449441
+      url: https://live.staticflickr.com/65535/48944449441_1c728f74e9_b.jpg
+  slices/indoor/23.jpg:
+    sha256: fdb394ea102affc236a1737316f2a0374623fcbb997ea750a7641fab4fd29b59
+    bytes: 255461
+    license: Public Domain Mark 1.0
+    source:
+      title: Bailey's Cafeteria
+      author: unclibraries_commons
+      page: https://www.flickr.com/photos/122654055@N06/22680685108
+      url: https://live.staticflickr.com/779/22680685108_78c7c38e69_b.jpg
+  slices/indoor/24.jpg:
+    sha256: 49566e508a080d7e1117d06d171b327d4bc966cc3dcde6b12d0a594c7fc1258c
+    bytes: 216706
+    license: CC0-1.0
+    source:
+      title: Wine Shelves
+      author: MyStockPhotos
+      page: https://www.flickr.com/photos/136375272@N05/52172706201
+      url: https://live.staticflickr.com/65535/52172706201_5d02b2dff5_b.jpg
+  slices/indoor/25.jpg:
+    sha256: 7d22f874406247c1c807055c5424803f8048406e0cf4497179cc2ceaa2df353f
+    bytes: 157110
+    license: Public Domain Mark 1.0
+    source:
+      title: Bottles
+      author: popo.uw23
+      page: https://www.flickr.com/photos/10511576@N00/4002882770
+      url: https://live.staticflickr.com/2496/4002882770_13eae22862_b.jpg
+  slices/outdoor/01.jpg:
+    sha256: c35087e59941ea76b9688be272e89d0d2c512aa7b4b0b157a068676aa4789abc
+    bytes: 273909
+    license: Public Domain Mark 1.0
+    source:
+      title: Keys View Parking Lot
+      author: Joshua Tree National Park
+      page: https://www.flickr.com/photos/115357548@N08/51766525184
+      url: https://live.staticflickr.com/65535/51766525184_ca4b77bc6d_b.jpg
+  slices/outdoor/02.jpg:
+    sha256: 079fd85c155434823536abfb34826e0f3c2f1a1cee5dffbdac59000aa7b91180
+    bytes: 270096
+    license: Public Domain Mark 1.0
+    source:
+      title: Logan Pass Parking Lot
+      author: GlacierNPS
+      page: https://www.flickr.com/photos/43288043@N04/27812931390
+      url: https://live.staticflickr.com/7375/27812931390_869aa79b0c_b.jpg
+  slices/outdoor/03.jpg:
+    sha256: 894aa87c07fa0995262d6b793b2afbee98a0817bb83c8466c0d4fa8c5b3b5ed7
+    bytes: 199806
+    license: Public Domain Mark 1.0
+    source:
+      title: Old Faithful Inn, back side of building from parking lot
+      author: YellowstoneNPS
+      page: https://www.flickr.com/photos/80223459@N05/9408436733
+      url: https://live.staticflickr.com/7332/9408436733_19fd42e794_b.jpg
+  slices/outdoor/04.jpg:
+    sha256: 0e6acc05a70496ca0444b0d8b917bc6adab1e512ad345cf7ee2b8e60c3e580d8
+    bytes: 111943
+    license: CC0-1.0
+    source:
+      title: Hybrid Vehicle at Crosswalk
+      author: Image Catalog
+      page: https://www.flickr.com/photos/132795455@N08/22008329450
+      url: https://live.staticflickr.com/616/22008329450_f2e7808355_b.jpg
+  slices/outdoor/05.jpg:
+    sha256: 0bbe3256aaeb64f8ab8317ead4fc0b2538c5f5e3beca6dcc815acb7aa82f4247
+    bytes: 152621
+    license: CC0-1.0
+    source:
+      title: Parking lot, Lake Washington Blvd NE, view from a technical business office outside Lakeview, near Bellevue, Washington, USA
+      author: Wonderlane
+      page: https://www.flickr.com/photos/71401718@N00/4264315537
+      url: https://live.staticflickr.com/2730/4264315537_e0f6fb8b35_b.jpg
+  slices/outdoor/06.jpg:
+    sha256: a54d85aced4b21c38a190e13467471eda035796d07466c232a67d550c53c9064
+    bytes: 277943
+    license: Public Domain Mark 1.0
+    source:
+      title: Crowded parking lots, Mammoth Hot Springs
+      author: YellowstoneNPS
+      page: https://www.flickr.com/photos/80223459@N05/42157139300
+      url: https://live.staticflickr.com/1780/42157139300_11ab28e240_b.jpg
+  slices/outdoor/07.jpg:
+    sha256: b1318f218a761779ee4f170f522c6c13659862cf3c6f1b3e22be478913d86a22
+    bytes: 201998
+    license: Public Domain Mark 1.0
+    source:
+      title: South Bridge Road
+      author: Serendigity
+      page: https://www.flickr.com/photos/68686051@N00/31834533498
+      url: https://live.staticflickr.com/4826/31834533498_3149a9e2c5_b.jpg
+  slices/outdoor/08.jpg:
+    sha256: c1376ae126519a7a9a60c0deb364af3da7f30072233bc9469ad48cdda37daf3f
+    bytes: 337672
+    license: CC0-1.0
+    source:
+      title: 2013.04 - 'A close-up of parked bicycles and gentle branches', in the sun-light of Spring - on the corner of Hoogtekadijk and Matrozenhof, in district Kadijken, city Amsterdam; urban photography,
+        Fons Heijnsbroek
+      author: Amsterdam free photos & pictures of the Dutch city
+      page: https://www.flickr.com/photos/104736837@N03/11176613523
+      url: https://live.staticflickr.com/3708/11176613523_39cffd441c_b.jpg
+  slices/outdoor/09.jpg:
+    sha256: c3c5b715756b5bd3be292b451031a533ea7cd4f1fa81c617b26e5181612f72e1
+    bytes: 307492
+    license: Public Domain Mark 1.0
+    source:
+      title: crossbike and crosswalk childrens hospital protected bike lane seattle
+      author: Green Lane Project
+      page: https://www.flickr.com/photos/77166166@N05/22108020763
+      url: https://live.staticflickr.com/5751/22108020763_f3c5d146fd_b.jpg
+  slices/outdoor/10.jpg:
+    sha256: 041319c695f8d710f467ab67dd29d09804059b517e793cd4d329bf43d3939b3c
+    bytes: 212849
+    license: CC0-1.0
+    source:
+      title: Catania-Sicilia-Italy - Creative Commons by gnuckx
+      author: gnuckx
+      page: https://www.flickr.com/photos/34409164@N06/3682635663
+      url: https://live.staticflickr.com/3609/3682635663_9e65c003c4_b.jpg
+  slices/outdoor/11.jpg:
+    sha256: 62f4368b1b3121c772cbbae17d93ee87104b6a5a6820f1bfc9c74830ed3a450d
+    bytes: 342044
+    license: CC0-1.0
+    source:
+      title: Street scene Causeway Bay HK.
+      author: Bernard Spragg
+      page: https://www.flickr.com/photos/88123769@N02/16065463789
+      url: https://live.staticflickr.com/7464/16065463789_957b442707_b.jpg
+  slices/outdoor/12.jpg:
+    sha256: 59679623223bf969ae1c8634bd2ea25cf4741ab9507e1249d6a51a2ace628e85
+    bytes: 193791
+    license: CC0-1.0
+    source:
+      title: Crosswalk by Skyscrapers
+      author: Image Catalog
+      page: https://www.flickr.com/photos/132795455@N08/22215176840
+      url: https://live.staticflickr.com/750/22215176840_4b1074d6c3_b.jpg
+  slices/outdoor/13.jpg:
+    sha256: 0b6add6ca30e28b58ba122a178a68a3edfe89284242e6d9a0f33819f4f8a5629
+    bytes: 467711
+    license: CC0-1.0
+    source:
+      title: 2013.04 - 'Photo of parked bicycles in the sunlight of Spring, incl natural wall-sculpture and shadows and light on the street pavement on the Da Costakade - district Kinkerbuurt, Amsterdam
+        Oud-West; - urban photography, Fons Heijnsbroek, The Netherlands
+      author: Amsterdam free photos & pictures of the Dutch city
+      page: https://www.flickr.com/photos/104736837@N03/12032141066
+      url: https://live.staticflickr.com/5528/12032141066_e73ff6025f_b.jpg
+  slices/outdoor/14.jpg:
+    sha256: c288c15ad5bf30d98573fe4f6348afa6b0782700d5699647951bd810e9bc3d6c
+    bytes: 159764
+    license: CC0-1.0
+    source:
+      title: Old truck, Hindu Temple, shopping street, bicycles, apartment houses, sidewalk, sunny day, 1990 - India
+      author: Wonderlane
+      page: https://www.flickr.com/photos/71401718@N00/14284334089
+      url: https://live.staticflickr.com/3906/14284334089_2c65f226d0_b.jpg
+  slices/outdoor/15.jpg:
+    sha256: 0b08fa0291f22b49041360e7b0c61b0ddeba0d7f308b2dbf2eee72f1b6b7c14e
+    bytes: 158151
+    license: Public Domain Mark 1.0
+    source:
+      title: Inglewood (1976)
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/50585869141
+      url: https://live.staticflickr.com/65535/50585869141_3a3b741394_b.jpg
+  slices/outdoor/16.jpg:
+    sha256: 90846735e96c331be1d008c5e447f0b6a3e175e746c4bcfb427ae8558f42a1c2
+    bytes: 135549
+    license: CC0-1.0
+    source:
+      title: London bus
+      author: Carlos ZGZ
+      page: https://www.flickr.com/photos/31810462@N07/18903033980
+      url: https://live.staticflickr.com/379/18903033980_8c6d1fef1c_b.jpg
+  slices/outdoor/17.jpg:
+    sha256: 280e86561d72e94a186f96f7c9fb7dee7a7f38aeb042311f82e3c6e18d337860
+    bytes: 300231
+    license: CC0-1.0
+    source:
+      title: 2016.10 - Amsterdam Photos Street-art - A struggle between wall-paintings, shadows and bikes, Van Diemenstraat, close to the IJ border; geo-tagged free urban picture, in public domain / Commons;
+        Dutch urban photography by Fons Heijnsbroek, Netherlands
+      author: Amsterdam free photos & pictures of the Dutch city
+      page: https://www.flickr.com/photos/104736837@N03/30152357515
+      url: https://live.staticflickr.com/8551/30152357515_d1b4d32f57_b.jpg
+  slices/outdoor/18.jpg:
+    sha256: ac99e7ab4c10c141d45ce796e92897955033c437e294b0a2bfe54d98dc2d8943
+    bytes: 530993
+    license: CC0-1.0
+    source:
+      title: 2015.04 - Amsterdam photo of textures of walls - graffiti tags, sprayed on a metallic grid in the fresh sun-light of early Spring; a geotagged free urban picture, in public domain / Commons
+        CCO; city photography by Fons Heijnsbroek, The Netherlands
+      author: Amsterdam free photos & pictures of the Dutch city
+      page: https://www.flickr.com/photos/104736837@N03/17096234242
+      url: https://live.staticflickr.com/8702/17096234242_a912761089_b.jpg
+  slices/outdoor/19.jpg:
+    sha256: 4f059cd68da680cd5ae046b1bcce10a175b611f82ad134cc4fceded48690839c
+    bytes: 274297
+    license: CC0-1.0
+    source:
+      title: San Francisco’s Antique Streetcars. No.1009.
+      author: Bernard Spragg
+      page: https://www.flickr.com/photos/88123769@N02/37845455751
+      url: https://live.staticflickr.com/4466/37845455751_1eff183376_b.jpg
+  slices/outdoor/20.jpg:
+    sha256: edcbaa2c2b0c4b1cab1a6f879791d18a8e688138fe74078aafe34f6cf93ed0a0
+    bytes: 139918
+    license: Public Domain Mark 1.0
+    source:
+      title: Parking lot at Hidden Valley Nature Loop
+      author: Joshua Tree National Park
+      page: https://www.flickr.com/photos/115357548@N08/31164387251
+      url: https://live.staticflickr.com/5565/31164387251_08be543834_b.jpg
+  slices/outdoor/21.jpg:
+    sha256: 4342be03e120afaf5f59e73083804e79b2c82e06a3a64c4e2e540bd422126e61
+    bytes: 353811
+    license: CC0-1.0
+    source:
+      title: Parked bicycles
+      author: DennisM2
+      page: https://www.flickr.com/photos/14674348@N04/26835980965
+      url: https://live.staticflickr.com/7341/26835980965_13b392e1ba_b.jpg
+  slices/outdoor/22.jpg:
+    sha256: cc92cd1b8feb27edb4fccd7df21a9d11990043556bc0217defa85f3f72f98772
+    bytes: 253234
+    license: CC0-1.0
+    source:
+      title: Breakup, sidewalk footprints in the ice and melting snow, pickup truck, signs, Chugach Range, Anchorage, Alaska
+      author: Wonderlane
+      page: https://www.flickr.com/photos/71401718@N00/463808828
+      url: https://live.staticflickr.com/224/463808828_4cc1ce25fd_b.jpg
+  slices/outdoor/23.jpg:
+    sha256: 7613241e8fe6919534763377b972aec4803042e46c5f547d3b3b93dcd1500900
+    bytes: 245951
+    license: Public Domain Mark 1.0
+    source:
+      title: Backpackers at Sunset
+      author: Joshua Tree National Park
+      page: https://www.flickr.com/photos/115357548@N08/30986870435
+      url: https://live.staticflickr.com/5681/30986870435_857665fc69_b.jpg
+  slices/outdoor/24.jpg:
+    sha256: 15ec8304dfc3752be49757b6dd809c93b49ca0e18ff40d07b5369a5f69e1b406
+    bytes: 192468
+    license: Public Domain Mark 1.0
+    source:
+      title: Backpacking along the Boy Scout Trail
+      author: Joshua Tree National Park
+      page: https://www.flickr.com/photos/115357548@N08/25351154069
+      url: https://live.staticflickr.com/5343/25351154069_628fc512d2_b.jpg
+  slices/outdoor/25.jpg:
+    sha256: e8503e5ccd5dbe71cffba3d33f3112cf5678f00282995fd19a0d3a2e9e789ee0
+    bytes: 262045
+    license: CC0-1.0
+    source:
+      title: Microsoft campus fountain crosswalk, Redmond, Washington state, USA
+      author: Wonderlane
+      page: https://www.flickr.com/photos/71401718@N00/1452687512
+      url: https://live.staticflickr.com/1082/1452687512_89dcc45c5e_b.jpg
+  slices/warehouse/01.jpg:
+    sha256: 8daec6e6e80f4e1c76f136a9928cce720c6b0ebbe86460a24b9172fda92e759f
+    bytes: 243278
+    license: Public Domain Mark 1.0
+    source:
+      title: 20200417-FNS-LSC-0049
+      author: USDAgov
+      page: https://www.flickr.com/photos/41284017@N08/49786696212
+      url: https://live.staticflickr.com/65535/49786696212_f3d53830de_b.jpg
+  slices/warehouse/02.jpg:
+    sha256: 0c5635dcada1f3af267f0cb1b58464b51e0756d0b36acb60584fe4ceec95e815
+    bytes: 143816
+    license: Public Domain Mark 1.0
+    source:
+      title: 20200417-FNS-LSC-0001
+      author: USDAgov
+      page: https://www.flickr.com/photos/41284017@N08/49786374571
+      url: https://live.staticflickr.com/65535/49786374571_7cfb31a1e5_b.jpg
+  slices/warehouse/03.jpg:
+    sha256: 39ca65ea132a7a696808aadf9d070e77d43debbbaf99148a9036ca55a02b02e3
+    bytes: 203723
+    license: Public Domain Mark 1.0
+    source:
+      title: 20200417-FNS-LSC-0001A
+      author: USDAgov
+      page: https://www.flickr.com/photos/41284017@N08/49786694522
+      url: https://live.staticflickr.com/65535/49786694522_1fde60151f_b.jpg
+  slices/warehouse/04.jpg:
+    sha256: 993aa3db25d7110f3c36822788d5227dd199273378acbd9d21bc0e6ff81610a2
+    bytes: 170653
+    license: Public Domain Mark 1.0
+    source:
+      title: 20200417-FNS-LSC-0003
+      author: USDAgov
+      page: https://www.flickr.com/photos/41284017@N08/49786695837
+      url: https://live.staticflickr.com/65535/49786695837_ed4eaa530e_b.jpg
+  slices/warehouse/05.jpg:
+    sha256: 130cab04bc98f97c30db72de970019140a37517f314473bb96882856b235ebbf
+    bytes: 194599
+    license: Public Domain Mark 1.0
+    source:
+      title: 20200417-FNS-LSC-0079
+      author: USDAgov
+      page: https://www.flickr.com/photos/41284017@N08/49786696527
+      url: https://live.staticflickr.com/65535/49786696527_b3967f606b_b.jpg
+  slices/warehouse/06.jpg:
+    sha256: 8d1420e0a9d40da7ba9c8a90a1a60377e7f141f4bdb43c13ad7da922a11035af
+    bytes: 150801
+    license: Public Domain Mark 1.0
+    source:
+      title: 20200417-FNS-LSC-0480
+      author: USDAgov
+      page: https://www.flickr.com/photos/41284017@N08/49786689127
+      url: https://live.staticflickr.com/65535/49786689127_817412f07a_b.jpg
+  slices/warehouse/07.jpg:
+    sha256: 99e2f8302dd07c2ab7146f206023323dca5e3df09d6d71d85f08dcaea38fecfc
+    bytes: 228280
+    license: Public Domain Mark 1.0
+    source:
+      title: 20200326-FNS-LSC-0005
+      author: USDAgov
+      page: https://www.flickr.com/photos/41284017@N08/49705389491
+      url: https://live.staticflickr.com/65535/49705389491_2da7d53d1b_b.jpg
+  slices/warehouse/08.jpg:
+    sha256: e4a46b4b5cb95e2c2a591d1f45e61d24bda8cbec9c30831035ee5e9014e768ea
+    bytes: 165988
+    license: Public Domain Mark 1.0
+    source:
+      title: 20170922-OSEC-LSC-0301
+      author: USDAgov
+      page: https://www.flickr.com/photos/41284017@N08/37334468791
+      url: https://live.staticflickr.com/4382/37334468791_56efe97620_b.jpg
+  slices/warehouse/09.jpg:
+    sha256: c21e0e3d6cc721d3bd82a9df3b6b9dcbd2cdb66d4d3625fb693d306954ab87fd
+    bytes: 154270
+    license: CC0-1.0
+    source:
+      title: container loading dock
+      author: Open Grid Scheduler / Grid Engine
+      page: https://www.flickr.com/photos/29155878@N03/26356711325
+      url: https://live.staticflickr.com/1652/26356711325_1815d5b927_b.jpg
+  slices/warehouse/10.jpg:
+    sha256: d7ddeba8b6914093f3a41faa54f890c68f8e3eae93968e417519420058516053
+    bytes: 161690
+    license: Public Domain Mark 1.0
+    source:
+      title: 20170922-OSEC-LSC-0510
+      author: USDAgov
+      page: https://www.flickr.com/photos/41284017@N08/37078157130
+      url: https://live.staticflickr.com/4496/37078157130_e9da75c82c_b.jpg
+  slices/warehouse/11.jpg:
+    sha256: 5f4711ac74a4ab44f7bbd4fe6a60eb0c7a0376aba9ec39b4e94144dfd69788eb
+    bytes: 176927
+    license: Public Domain Mark 1.0
+    source:
+      title: 20161005-FNS-LSC-0838
+      author: USDAgov
+      page: https://www.flickr.com/photos/41284017@N08/30476527892
+      url: https://live.staticflickr.com/5448/30476527892_25b2d12e52_b.jpg
+  slices/warehouse/12.jpg:
+    sha256: 983be5965dcbaa066b8c8b0feb3a633aeb35bd62e8987a3bf620139fac538653
+    bytes: 220145
+    license: Public Domain Mark 1.0
+    source:
+      title: Lifting Park Supplies with Forklift
+      author: GlacierNPS
+      page: https://www.flickr.com/photos/43288043@N04/51966479517
+      url: https://live.staticflickr.com/65535/51966479517_987128191f_b.jpg
+  slices/warehouse/13.jpg:
+    sha256: 9e68cad5772ffad729aa1cf54a0d564e773cabf5ac30670b443ef91c2a5705de
+    bytes: 106130
+    license: Public Domain Mark 1.0
+    source:
+      title: 20161005-FNS-LSC-0230
+      author: USDAgov
+      page: https://www.flickr.com/photos/41284017@N08/30293794300
+      url: https://live.staticflickr.com/8679/30293794300_8a1158621d_b.jpg
+  slices/warehouse/14.jpg:
+    sha256: e98ec394006d6e5d99c600e42efbb96b21e167dc4243a3eddb8c94208b3b7d5e
+    bytes: 303846
+    license: CC0-1.0
+    source:
+      title: Tsukiji 5
+      author: FujiChallenger
+      page: https://www.flickr.com/photos/102304625@N04/26382407645
+      url: https://live.staticflickr.com/1569/26382407645_de5e63be3b_b.jpg
+  slices/warehouse/15.jpg:
+    sha256: 6888f16acee6b7e044b781f40b6b742a602e64d50f07174fb805d3108b55d23f
+    bytes: 172637
+    license: Public Domain Mark 1.0
+    source:
+      title: 20160101-FNS-LSC-3609
+      author: USDAgov
+      page: https://www.flickr.com/photos/41284017@N08/49706048687
+      url: https://live.staticflickr.com/65535/49706048687_1df2ccaac9_b.jpg
+  slices/warehouse/16.jpg:
+    sha256: a421a08a6829e336bb7be32ba8db394142a5677c92dede19efe312efc3cc74d3
+    bytes: 239474
+    license: Public Domain Mark 1.0
+    source:
+      title: 20200417-FNS-LSC-0095
+      author: USDAgov
+      page: https://www.flickr.com/photos/41284017@N08/49786376566
+      url: https://live.staticflickr.com/65535/49786376566_3c6e2b4f72_b.jpg
+  backgrounds/01.jpg:
+    sha256: 3126df0e7d368903c0368d437f7028941dd81a949385e1d4cb13e8f6ec0a3e31
+    bytes: 414942
+    license: CC0-1.0
+    source:
+      title: DERELICT WAREHOUSE
+      author: Musician, marketer, human
+      page: https://www.flickr.com/photos/155486519@N03/34917298011
+      url: https://live.staticflickr.com/4227/34917298011_86f257ce75_b.jpg
+  backgrounds/02.jpg:
+    sha256: d94629eb9be987df0c72a96ad63898a69d0e655c9724166a4d87dd991b9eb649
+    bytes: 249119
+    license: CC0-1.0
+    source:
+      title: Loading Dock, Roseland, Chicago, IL
+      author: AJ in Chicagoland
+      page: https://www.flickr.com/photos/190865407@N05/55172414197
+      url: https://live.staticflickr.com/65535/55172414197_0a6d0af546_b.jpg
+  backgrounds/03.jpg:
+    sha256: 3eea4968a1225d1b8197746d9992a2af91fa0b57f70e12504ffec6379a76f276
+    bytes: 154407
+    license: CC0-1.0
+    source:
+      title: Gray at Half Pay
+      author: cogdogblog
+      page: https://www.flickr.com/photos/37996646802@N01/3114745610
+      url: https://live.staticflickr.com/3096/3114745610_6b25d300ba_b.jpg
+  backgrounds/04.jpg:
+    sha256: 7c94d6cead14314beb211b1eec48330b1bb904803a15832faecbcbe50b86b5cb
+    bytes: 215998
+    license: CC0-1.0
+    source:
+      title: Building 99 parking lot in snow
+      author: D Coetzee
+      page: https://www.flickr.com/photos/29507259@N02/3567181443
+      url: https://live.staticflickr.com/3610/3567181443_56fdc92f79_b.jpg
+  backgrounds/05.jpg:
+    sha256: 559ca299e11b1c98a1d223c4eafa7665dae16cecfc11f848316460b66434b141
+    bytes: 105749
+    license: Public Domain Mark 1.0
+    source:
+      title: 'Housing improvement project goal 3 - Soap Suds Row housing (2): after living room'
+      author: YellowstoneNPS
+      page: https://www.flickr.com/photos/80223459@N05/51732174768
+      url: https://live.staticflickr.com/65535/51732174768_a1df625534_b.jpg
+  backgrounds/06.jpg:
+    sha256: 69483f4f264a1c6b233c08a269effdfaaf4bc3665fe78c8d98a4d2ff80003c45
+    bytes: 105093
+    license: Public Domain Mark 1.0
+    source:
+      title: 'Employee housing Improvement Project Goal 2: living room after'
+      author: YellowstoneNPS
+      page: https://www.flickr.com/photos/80223459@N05/52082745128
+      url: https://live.staticflickr.com/65535/52082745128_c360e47d37_b.jpg
+  backgrounds/07.jpg:
+    sha256: 1e1e3dff5581325eea15b6aaeaa44a09f4bad940a65485ffe53f39f1b48c2516
+    bytes: 85930
+    license: Public Domain Mark 1.0
+    source:
+      title: 'Housing improvement project goal 3 - Soap Suds Row housing (2): after living room (2)'
+      author: YellowstoneNPS
+      page: https://www.flickr.com/photos/80223459@N05/51732820895
+      url: https://live.staticflickr.com/65535/51732820895_bb8b4e57a9_b.jpg
+  backgrounds/08.jpg:
+    sha256: bfafc32ee41623d366bcc51c77cebc159c5a43bd43dc7d363a444b05fed3d5d1
+    bytes: 158230
+    license: Public Domain Mark 1.0
+    source:
+      title: Electricity Department New Office Interior Cumberland Street 1939
+      author: Dunedin City Council Archives
+      page: https://www.flickr.com/photos/95014006@N04/15212790512
+      url: https://live.staticflickr.com/3859/15212790512_85d599674d_b.jpg
+  backgrounds/09.jpg:
+    sha256: 6ba019d7dec4bef49d4bb44c9fcc4844defa7677a5533e82849b458fee6a5d29
+    bytes: 196526
+    license: Public Domain Mark 1.0
+    source:
+      title: 20200326-FNS-LSC-0543
+      author: USDAgov
+      page: https://www.flickr.com/photos/41284017@N08/49705243771
+      url: https://live.staticflickr.com/65535/49705243771_c20595712d_b.jpg
+  backgrounds/10.jpg:
+    sha256: abe7b9b47b4002b2d7b6a0ff1442d4c23413c6fbe31c156157441af296977875
+    bytes: 146858
+    license: CC0-1.0
+    source:
+      title: Empty hallway with giant 2 at San Jose Convention Center
+      author: eVRydayVR
+      page: https://www.flickr.com/photos/133346631@N07/17890624815
+      url: https://live.staticflickr.com/5443/17890624815_633647ff24_b.jpg
+  backgrounds/11.jpg:
+    sha256: 135defe33789a03790951b374240dfcca9e0856344f979664c2e219dcc8af5f7
+    bytes: 157296
+    license: CC0-1.0
+    source:
+      title: Centro de Convenciones
+      author: Daquella manera
+      page: https://www.flickr.com/photos/62518311@N00/89978818
+      url: https://live.staticflickr.com/41/89978818_28d15f477d_b.jpg
+  backgrounds/12.jpg:
+    sha256: e2024f6b51cd73aa985723b5de7c59b2eb4ea2b482ef7f866b20d751f07daa3b
+    bytes: 162663
+    license: CC0-1.0
+    source:
+      title: Torniquetes
+      author: Daquella manera
+      page: https://www.flickr.com/photos/62518311@N00/194372296
+      url: https://live.staticflickr.com/73/194372296_2db3e6d1ca_b.jpg
+  backgrounds/13.jpg:
+    sha256: 149b81b6f69642516b676ca12e28eb1be7accbdc5c02320ae49f642151c3e4a2
+    bytes: 146161
+    license: Public Domain Mark 1.0
+    source:
+      title: 20200326-FNS-LSC-0531
+      author: USDAgov
+      page: https://www.flickr.com/photos/41284017@N08/49705573907
+      url: https://live.staticflickr.com/65535/49705573907_0308c3611d_b.jpg
+  backgrounds/14.jpg:
+    sha256: a30c16060673069c8fb661d860512fe6bb6cfd68a257fa4fcd2b8fe3ff3ffed8
+    bytes: 157079
+    license: Public Domain Mark 1.0
+    source:
+      title: 20200326-FNS-LSC-0526
+      author: USDAgov
+      page: https://www.flickr.com/photos/41284017@N08/49704728293
+      url: https://live.staticflickr.com/65535/49704728293_3fa7c4bb40_b.jpg
+  slices/calib/01.jpg:
+    sha256: 72785b1c4e165be8a848b0d2f7ba25189ad1e4fab9b07a3c6978f6798142f507
+    bytes: 206832
+    license: Public Domain Mark 1.0
+    source:
+      title: Granville & Smithe Sts., 1946
+      author: blizzy63
+      page: https://www.flickr.com/photos/45379817@N08/4704559291
+      url: https://live.staticflickr.com/4059/4704559291_077a8ce772_b.jpg
+  slices/calib/02.jpg:
+    sha256: c437c0282bab301fe69e94bc1a6ae535cb1cdf650362b1e3ab43c1a1b1d32bca
+    bytes: 164793
+    license: Public Domain Mark 1.0
+    source:
+      title: Plasma lights
+      author: ViniSocram
+      page: https://www.flickr.com/photos/53407121@N07/14930698586
+      url: https://live.staticflickr.com/3907/14930698586_5ea7a9d9b3_b.jpg
+  slices/calib/03.jpg:
+    sha256: 84cbac56ddd6b45611eed3eb543b9a236dcdb09b205dab71e960b46e73a86f7a
+    bytes: 150518
+    license: Public Domain Mark 1.0
+    source:
+      title: Brisbane City, Petrie intersection, Bruce Highway (1973)
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/50586096037
+      url: https://live.staticflickr.com/65535/50586096037_8b49886f57_b.jpg
+  slices/calib/04.jpg:
+    sha256: 8f6fd714ef508940e62521ca401f51ae4d49eec80bed26b39693926bd2d33703
+    bytes: 307782
+    license: Public Domain Mark 1.0
+    source:
+      title: 14th Street Traffic
+      author: Aram Vartian
+      page: https://www.flickr.com/photos/36269154@N07/12070392916
+      url: https://live.staticflickr.com/3736/12070392916_49ca04e5a8_b.jpg
+  slices/calib/05.jpg:
+    sha256: 44d9808ac383743e2fbeeeec41dffe1b2fd65dc3c7938ca5c480d25fe65dc524
+    bytes: 328978
+    license: CC0-1.0
+    source:
+      title: 2013.04 - 'Urban photo of a foot & bicycle bridge with trees and branches', in early Spring - Amsterdam city, urban photo of The Netherlands, Fons Heijnsbroek
+      author: Amsterdam free photos & pictures of the Dutch city
+      page: https://www.flickr.com/photos/104736837@N03/12084477175
+      url: https://live.staticflickr.com/7372/12084477175_b293c4d589_b.jpg
+  slices/calib/06.jpg:
+    sha256: b6df953a1ffcafacd6848e05c5eec709dbabe00ef17bce32daa608ce02a2278b
+    bytes: 199366
+    license: Public Domain Mark 1.0
+    source:
+      title: Queen St, Brisbane c1967
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/27492000235
+      url: https://live.staticflickr.com/7444/27492000235_5672bacbe2_b.jpg
+  slices/calib/07.jpg:
+    sha256: 58c18c28993acad94bdcf7cae5726c68e89368c8f1c194bda6b03fe2e9aac510
+    bytes: 156674
+    license: Public Domain Mark 1.0
+    source:
+      title: Blackburn's Service Station (down Seymour St. shot), 1928
+      author: blizzy63
+      page: https://www.flickr.com/photos/45379817@N08/4696091613
+      url: https://live.staticflickr.com/4028/4696091613_0d790ac37e_b.jpg
+  slices/calib/08.jpg:
+    sha256: 6fd37fd84e442102a281f7ded77b358d0bb485f11f11b0d6b4c19529a01b58ff
+    bytes: 188491
+    license: Public Domain Mark 1.0
+    source:
+      title: Traffic Journeying Down Queen and Eagle Street in Brisbane
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/29351018322
+      url: https://live.staticflickr.com/8504/29351018322_4a435ea98c_b.jpg
+  slices/calib/09.jpg:
+    sha256: ad89c082a42f9ed9382d4cb4d0bdaa7fb1d8a4d81ebe604b9705b4950209a3f8
+    bytes: 166370
+    license: Public Domain Mark 1.0
+    source:
+      title: Blackburn's Service Station (corner shot), 1928
+      author: blizzy63
+      page: https://www.flickr.com/photos/45379817@N08/4700953147
+      url: https://live.staticflickr.com/4060/4700953147_c13f236373_b.jpg
+  slices/calib/10.jpg:
+    sha256: bfd65264bd0379e940bfbddee64b336cb71df93d592d1fd106fa3f21898cfb7a
+    bytes: 90421
+    license: Public Domain Mark 1.0
+    source:
+      title: Eagle Street, Longreach
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/39935497714
+      url: https://live.staticflickr.com/4785/39935497714_0d68116fdf_b.jpg
+  slices/calib/11.jpg:
+    sha256: 2fdea889010da14f6245c4eb5f239ccd0402ede23a7cc6137aadbfffcebabb0b
+    bytes: 144272
+    license: Public Domain Mark 1.0
+    source:
+      title: Vintage cars in Main Street, Tully
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/39935490424
+      url: https://live.staticflickr.com/4752/39935490424_41fce3e2e0_b.jpg
+  slices/calib/12.jpg:
+    sha256: 19f093e82dba9a4cb7c465fc5716badc5a04d8b9ac7dc3ce35a369cb3d6d2596
+    bytes: 181941
+    license: Public Domain Mark 1.0
+    source:
+      title: Main street of Boonah
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/25774679547
+      url: https://live.staticflickr.com/4611/25774679547_4a150f025e_b.jpg
+  slices/calib/13.jpg:
+    sha256: f0750e19e2270feb87d237c08f9af9e571daab5800afc0049403129c6be915cd
+    bytes: 524810
+    license: Public Domain Mark 1.0
+    source:
+      title: 018799:Neville Street Newcastle upon Tyne c.1890
+      author: Newcastle Libraries
+      page: https://www.flickr.com/photos/39821974@N06/4078859822
+      url: https://live.staticflickr.com/2480/4078859822_174f189705_b.jpg
+  slices/calib/14.jpg:
+    sha256: 9b2431270b6c2b7c6ea4a9ac897531dca30ed66129c2666c86521d85f7eefe63
+    bytes: 201708
+    license: Public Domain Mark 1.0
+    source:
+      title: Brisbane's Customs House and Story Bridge
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/27825565874
+      url: https://live.staticflickr.com/8282/27825565874_523a87f014_b.jpg
+  slices/calib/15.jpg:
+    sha256: 44688d4c3035850ca4f3c2568e908340746f1522ef169e1335118f6fbcc682f8
+    bytes: 160249
+    license: Public Domain Mark 1.0
+    source:
+      title: Lake Street, Cairns, c 1935
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/31139407392
+      url: https://live.staticflickr.com/5551/31139407392_b91bb81610_b.jpg
+  slices/calib/16.jpg:
+    sha256: bf97923fb7f201227e245c5186be4950c686a526e2e82ea7e91a5707c0960b47
+    bytes: 86449
+    license: Public Domain Mark 1.0
+    source:
+      title: Shamrock Street, Blackall
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/39935492874
+      url: https://live.staticflickr.com/4614/39935492874_b63e36edee_b.jpg
+  slices/calib/17.jpg:
+    sha256: 0de591e05cd33222bf997764fcc273796eab177b5c3699d977784c9c0a905db0
+    bytes: 182479
+    license: Public Domain Mark 1.0
+    source:
+      title: Main street - Barcaldine
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/25774676367
+      url: https://live.staticflickr.com/4660/25774676367_d8fe512197_b.jpg
+  slices/calib/18.jpg:
+    sha256: 317cfc6c00cb191fcd549fee0edbe69c7491be2be5c1e772aa4ac317415f38db
+    bytes: 353920
+    license: Public Domain Mark 1.0
+    source:
+      title: Parking Lot
+      author: leicastorelv
+      page: https://www.flickr.com/photos/143742153@N05/33803855810
+      url: https://live.staticflickr.com/2892/33803855810_ea308e79fe_b.jpg
+  slices/calib/19.jpg:
+    sha256: 1f7abb3f2208cfa66742d0939036fd464e56532ee90d40981543e3039ce972f8
+    bytes: 166341
+    license: Public Domain Mark 1.0
+    source:
+      title: Wolfe Ranch Parking Lot Expansion
+      author: ArchesNPS
+      page: https://www.flickr.com/photos/72578886@N08/37921980286
+      url: https://live.staticflickr.com/4467/37921980286_bca74e88ea_b.jpg
+  slices/calib/20.jpg:
+    sha256: e25c4571afe3c8dfccd3338acabf9e1ee926e8ddbadb915e1df8011a230fc648
+    bytes: 185493
+    license: Public Domain Mark 1.0
+    source:
+      title: An elk calf nurses between cars in the Mammoth administration parking lot
+      author: YellowstoneNPS
+      page: https://www.flickr.com/photos/80223459@N05/48044024906
+      url: https://live.staticflickr.com/65535/48044024906_59fb5fc157_b.jpg
+  slices/calib/21.jpg:
+    sha256: bece06cc5b76cf2024b577ca31db16146826e23520fa709ad2a6158bc3c5853b
+    bytes: 217473
+    license: Public Domain Mark 1.0
+    source:
+      title: Bull elk and harem near administration parking lot
+      author: YellowstoneNPS
+      page: https://www.flickr.com/photos/80223459@N05/51565692033
+      url: https://live.staticflickr.com/65535/51565692033_ff145cfbcc_b.jpg
+  slices/calib/22.jpg:
+    sha256: 604408308deefee85bda70aaafef1db071b5f7ea6ebea88c67610ff1bccd00f0
+    bytes: 195516
+    license: Public Domain Mark 1.0
+    source:
+      title: Bruce Highway, Mackay - Proserpine (1975)
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/50585214088
+      url: https://live.staticflickr.com/65535/50585214088_11fcb1c7cd_b.jpg
+  slices/calib/23.jpg:
+    sha256: 6bf664f09978226f4f2ce114429bd150a8a37eaf0e379d0304a0ada47bc985c0
+    bytes: 180981
+    license: Public Domain Mark 1.0
+    source:
+      title: 'Postcard: New England Cafe Interior, Victoria, BC'
+      author: blizzy63
+      page: https://www.flickr.com/photos/45379817@N08/10424660383
+      url: https://live.staticflickr.com/2826/10424660383_cf83377238_b.jpg
+  slices/calib/24.jpg:
+    sha256: 76164eac833d48068e61bfb6a6206df2d82ebac5d26b5690f5e7d2c8f53b4c98
+    bytes: 224182
+    license: Public Domain Mark 1.0
+    source:
+      title: Swiss Inn Home Cafe, 194 Victoria Street, Kings Cross, Sydney
+      author: Aussie~mobs
+      page: https://www.flickr.com/photos/70994841@N07/24285353372
+      url: https://live.staticflickr.com/1715/24285353372_d58a459f2c_b.jpg
+  slices/calib/25.jpg:
+    sha256: 947773db8a51170ad4a2a65250101761b584f4503f0fa696f9db0ad52eef0db7
+    bytes: 241009
+    license: Public Domain Mark 1.0
+    source:
+      title: 'Swank Pad: Living room to window view inside the residence of Robert Glassford in Hobe Sound, Florida. March 31, 1941.'
+      author: polkbritton
+      page: https://www.flickr.com/photos/157979053@N04/49721472933
+      url: https://live.staticflickr.com/65535/49721472933_08346f91e0_b.jpg
+  slices/calib/26.jpg:
+    sha256: 55833ee983e5bd8c7efd3541e4712a11aacd02e0fe6416e85c98013cd45e4366
+    bytes: 168244
+    license: Public Domain Mark 1.0
+    source:
+      title: Living room decor, interior of Housing Commission dwelling, Fig Tree Pocket - Brisbane
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/39921804922
+      url: https://live.staticflickr.com/4609/39921804922_69d8db6b7a_b.jpg
+  slices/calib/27.jpg:
+    sha256: 4710b347b0fb0a4bb5592d6b812b39e7add356d7b5dd3d440f67fd3aa1941035
+    bytes: 206090
+    license: Public Domain Mark 1.0
+    source:
+      title: LIving room decor, interior of Housing Commission dwelling, St Lucia - Brisbane
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/39243649774
+      url: https://live.staticflickr.com/4748/39243649774_3e4865b168_b.jpg
+  slices/calib/28.jpg:
+    sha256: ff2675789bab2b3376d2a328bf863bda1fa5effb931a4f8272d6355b389d4d16
+    bytes: 169178
+    license: Public Domain Mark 1.0
+    source:
+      title: Living room decor, interior dwelling, Wavell Heights - Brisbane
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/39953713451
+      url: https://live.staticflickr.com/4712/39953713451_51b3e7c5e8_b.jpg
+  slices/calib/29.jpg:
+    sha256: a5cd129f795f79f5cef48eb59037b3eaaab702ba625d37371b7a40aeb5b6eb61
+    bytes: 99678
+    license: Public Domain Mark 1.0
+    source:
+      title: open plan office design
+      author: One to One business interiors
+      page: https://www.flickr.com/photos/151004702@N05/35189261053
+      url: https://live.staticflickr.com/4294/35189261053_901d982533_b.jpg
+  slices/calib/30.jpg:
+    sha256: e28e08e7847d2f7233f9674a7f716141e02957eb6c7280ccaff97a6415b82028
+    bytes: 142432
+    license: Public Domain Mark 1.0
+    source:
+      title: Office interior
+      author: Foto Miki Digital
+      page: https://www.flickr.com/photos/96511847@N04/10560649053
+      url: https://live.staticflickr.com/5522/10560649053_75fbb2527d_b.jpg
+  slices/calib/31.jpg:
+    sha256: 3f96ca7f331e5c4e2152ca4528c6a4336b62bd1d200d3ce8f8f8a0106b082465
+    bytes: 75220
+    license: Public Domain Mark 1.0
+    source:
+      title: 20150827-NRCS-LSC-0544
+      author: USDAgov
+      page: https://www.flickr.com/photos/41284017@N08/21928925606
+      url: https://live.staticflickr.com/5761/21928925606_5bd39dc9f5_b.jpg
+  slices/calib/32.jpg:
+    sha256: 2e2d9252ed9fd6e371b8f359419c80ec7790b235db601640b0d9c304a6278935
+    bytes: 128998
+    license: Public Domain Mark 1.0
+    source:
+      title: 20161005-FNS-LSC-0536
+      author: USDAgov
+      page: https://www.flickr.com/photos/41284017@N08/30476528452
+      url: https://live.staticflickr.com/5786/30476528452_f93b375056_b.jpg
+  slices/calib/33.jpg:
+    sha256: c9066b4f432b25b36953dbab94441a6d6cd7e6726231f5a4f10823a2cf3ab202
+    bytes: 251099
+    license: CC0-1.0
+    source:
+      title: abandoned warehouse
+      author: Mussi Katz
+      page: https://www.flickr.com/photos/52775988@N00/48575057492
+      url: https://live.staticflickr.com/65535/48575057492_0c01a20a76_b.jpg
+  slices/calib/34.jpg:
+    sha256: 7a22f928844af93efc35ed668ceec61b8999ebb0bcf7d6c32d8151eb5f34a4b5
+    bytes: 289895
+    license: CC0-1.0
+    source:
+      title: The Story That is Not Here
+      author: cogdogblog
+      page: https://www.flickr.com/photos/37996646802@N01/2552205046
+      url: https://live.staticflickr.com/3041/2552205046_558985df15_b.jpg
+  slices/calib/35.jpg:
+    sha256: fad5a21e1a010d47ccf3d3e4c97d0d3a44bfd2406a90eede80d86f63608344d8
+    bytes: 125621
+    license: CC0-1.0
+    source:
+      title: Pershing Square
+      author: Daquella manera
+      page: https://www.flickr.com/photos/62518311@N00/166275090
+      url: https://live.staticflickr.com/49/166275090_cdd611122a_b.jpg
+  slices/calib/36.jpg:
+    sha256: 87b9adc52aa7e0b341145a48c748aeabeb3241090deccd8594eff0eeac36c93b
+    bytes: 306692
+    license: CC0-1.0
+    source:
+      title: Venezia Venice Italy - Creative Commons by gnuckx
+      author: gnuckx
+      page: https://www.flickr.com/photos/34409164@N06/5022952886
+      url: https://live.staticflickr.com/4152/5022952886_fdd1e9b891_b.jpg
+  slices/calib/37.jpg:
+    sha256: 5a5328692bcdfbae9d58f699cfd060a134dccaf4bbd35689dc8a3130aecaf141
+    bytes: 312124
+    license: CC0-1.0
+    source:
+      title: 2011.06 - 'Photo of a view over the walkway and bicycle path', at the back side of Central Station Amsterdam city, 2011 - getoagged free urban photo, in public Commons domain; Fons Heijnsbroek
+      author: Amsterdam free photos & pictures of the Dutch city
+      page: https://www.flickr.com/photos/104736837@N03/27121454554
+      url: https://live.staticflickr.com/7326/27121454554_0774f93e63_b.jpg
+  slices/calib/38.jpg:
+    sha256: 2c856f95b688116c6e1fc73a5d96fb72c44809bcb7a05afe95f37a4ab3080bbd
+    bytes: 309505
+    license: Public Domain Mark 1.0
+    source:
+      title: Pullman autos in Washington DC 1912
+      author: crackdog
+      page: https://www.flickr.com/photos/88645472@N00/2533324392
+      url: https://live.staticflickr.com/2393/2533324392_6740700694_b.jpg
+  slices/calib/39.jpg:
+    sha256: 51d06facb5e6651b15db2deec1728e1444c01c0207d5a3c35a899949a26bcea8
+    bytes: 178673
+    license: Public Domain Mark 1.0
+    source:
+      title: Grey Street, Hughenden
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/39935529344
+      url: https://live.staticflickr.com/4615/39935529344_f384f31ccf_b.jpg
+  slices/calib/40.jpg:
+    sha256: 5bb9b957fe3a9283b980c09d31085d7b03df4c95dd5dfe0f0a300e735a7c158e
+    bytes: 152715
+    license: Public Domain Mark 1.0
+    source:
+      title: Brolga Street, Quilpie
+      author: Queensland State Archives
+      page: https://www.flickr.com/photos/60455048@N02/25774667887
+      url: https://live.staticflickr.com/4746/25774667887_4485379758_b.jpg

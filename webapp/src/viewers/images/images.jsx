@@ -1,7 +1,6 @@
 import React from "react";
-import { connect } from "react-redux";
-import axios, { CancelToken, isCancel } from "axios";
-const { get } = axios;
+import { http, isAbort } from "../../api/http";
+import { useSiteConfig } from "../../hooks";
 import {
   Classes,
   Colors,
@@ -23,6 +22,7 @@ import { Tooltips } from './tooltip';
 import "./image-canvas.css";
 import { histogram_traces } from './histogram';
 import { iiif_url, build_image_name } from "./utils";
+import { capture_viewport, viewport_after_image_change, unsized_container } from "./viewport";
 
 import { RoiViewer } from './roi_viewer'
 
@@ -71,7 +71,7 @@ const openseadragon_config = {
 
 
 // We sync the viewer viewport of all viewers of the same size for a given output
-var synced_viewers = {}
+const synced_viewers = {}
 
 
 
@@ -157,7 +157,6 @@ class ImgViewer extends React.PureComponent {
     this.state = {
       ready: false, // viewer mounted
       fullyLoaded: {new: false, ref: false},
-      cancel_source: CancelToken.source(),
       first_image: "new",
       width: Math.floor(parseFloat((this.props.style?.width ?? '390px').replace(/[^\d]+/, ''))),
       height: 217, // default 4/3 ratio
@@ -169,10 +168,14 @@ class ImgViewer extends React.PureComponent {
       has_reference: false,
       x_ref: null, // hover xy from in real image coordinates
       y_ref: null,
+      refit: 0, // incremented to apply the selected ROI preset again (the image changed aspect ratio)
     }
   }
 
   componentDidMount() {
+    // To cancel the requests for the images' metadata
+    this.abort_controller = new AbortController();
+    this.unmounted = false;
     this.viewer_new = OpenSeadragon({
       ...openseadragon_config,
       ...this.viewer_new, // todo: use react refs instead
@@ -193,21 +196,19 @@ class ImgViewer extends React.PureComponent {
     }).catch(error => {
       // Not JSON.stringify(error): exceptions (e.g. TypeError) would show as "{}"
       const cause = error?.error ?? error
-      if (!isCancel(cause)) console.error("Init Error:", cause)
+      if (!isAbort(cause)) console.error("Init Error:", cause)
     })
   }
 
   InitZoomSync() {
-    if (!!this.UnregisterZoomSync)
-      this.UnregisterZoomSync()
-
     // console.log("[InitZoomSync]")
-    // Implemement synced zoom
+    // Implement synced zoom
     // https://codepen.io/iangilman/pen/BWKKxQ
     const { viewer_new, viewer_ref, canvas_diff } = this;
     const { image_width, image_height } = this.state;
     // const sync_key = `${this.props.output_new.test_input_path}-${image_height}x${image_width}`;
     const sync_key = `${this.props.output_new.test_input_path}-${(image_height/image_width).toFixed(3)}`;
+    this.sync_key = sync_key;
     // console.log("sync_key", sync_key)
     // Remove stale viewers whose containers are no longer in the DOM (e.g. after page navigation).
     // If none remain, reset zoom/center so the page always starts fresh.
@@ -220,13 +221,17 @@ class ImgViewer extends React.PureComponent {
         synced_viewers[sync_key].center = null;
       }
     }
+    // Only now: when the image changes (e.g. a dynamic option), our viewers are still in the group, which keeps its
+    // zoom/center for the viewers that catch up later (off-screen, or the reference's when it shows)
+    if (!!this.UnregisterZoomSync)
+      this.UnregisterZoomSync()
 
     if (synced_viewers[sync_key] === undefined) {
       // console.log("init synced viewers", sync_key)
       synced_viewers[sync_key] = {
         viewers: [viewer_new, viewer_ref],
         diff_canvases: [canvas_diff],
-        // all the viewers are syncronized to
+        // all the viewers are synchronized to
         zoom: null,
         center: null,
         // When the user moves a viewer, it leads the others
@@ -290,7 +295,7 @@ class ImgViewer extends React.PureComponent {
 
 
 
-    var lead_viewer_sync = (sync_key, viewer) => () => {
+    const lead_viewer_sync = (sync_key, viewer) => () => {
       // console.log("[lead_viewer_sync]")
       let { leading } = synced_viewers[sync_key];
       if (!!leading && (leading !== viewer.id && leading !== 'resize'))
@@ -312,16 +317,18 @@ class ImgViewer extends React.PureComponent {
       synced_viewers[sync_key].leading = null;
     };
 
-    viewer_new.addHandler('zoom', lead_viewer_sync(sync_key, viewer_new));
-    viewer_ref.addHandler('zoom', lead_viewer_sync(sync_key, viewer_ref));
-    viewer_new.addHandler('pan', lead_viewer_sync(sync_key, viewer_new));
-    viewer_ref.addHandler('pan', lead_viewer_sync(sync_key, viewer_ref));
+    // removeHandler needs the same functions
+    const lead_handlers = [viewer_new, viewer_ref].map(viewer => [viewer, lead_viewer_sync(sync_key, viewer)]);
+    lead_handlers.forEach(([viewer, handler]) => {
+      viewer.addHandler('zoom', handler);
+      viewer.addHandler('pan', handler);
+    })
 
     this.UnregisterZoomSync = () => {
-      viewer_new.removeHandler('zoom', lead_viewer_sync(sync_key, viewer_new));
-      viewer_ref.removeHandler('zoom', lead_viewer_sync(sync_key, viewer_ref));
-      viewer_new.removeHandler('pan', lead_viewer_sync(sync_key, viewer_new));
-      viewer_ref.removeHandler('pan', lead_viewer_sync(sync_key, viewer_ref));
+      lead_handlers.forEach(([viewer, handler]) => {
+        viewer.removeHandler('zoom', handler);
+        viewer.removeHandler('pan', handler);
+      })
       if (synced_viewers[sync_key] !== undefined) {
         synced_viewers[sync_key].viewers = synced_viewers[sync_key].viewers.filter(
           v => v.id !== viewer_new.id && v.id !== viewer_ref.id
@@ -397,31 +404,29 @@ class ImgViewer extends React.PureComponent {
 
 
   componentWillUnmount() {
-    if (!!this.state.cancel_source.token)
-      this.state.cancel_source.cancel();
-    if (!!this.UnregisterZoomSync)
-      this.UnregisterZoomSync()
-    if (!!this.UnregisterZoomSync)
-      this.UnregisterZoomSync()
+    this.unmounted = true;
+    this.abort_controller?.abort();
+    this.UnregisterZoomSync?.()
 
-    if (!!this.viewer_new) {
+    if (this.viewer_new) {
       unregister_filter_sync(this.viewer_new)
       // this.viewer_new.imageLoader.clear()  
       // this.viewer_new.destroy();
       // this.viewer_new = null;
     }
-    if (!!this.viewer_ref) {
+    if (this.viewer_ref) {
       unregister_filter_sync(this.viewer_ref)
       // this.viewer_new.imageLoader.clear()  
       // this.viewer_ref.destroy();
       // this.viewer_ref = null;
     }
     // remove viewers from output_viewers
-    window.removeEventListener('keypress', this.keypress);
+    window.removeEventListener('keypress', this.keyboard);
   }
 
 
-  Init = () => {
+  // previous: the viewport before the image changed (capture_viewport), to keep it
+  Init = (previous = null) => {
     return new Promise((resolve, reject) => {
       const { viewer_new, viewer_ref } = this;
       const { path, output_new, output_ref } = this.props;
@@ -430,9 +435,14 @@ class ImgViewer extends React.PureComponent {
       let has_reference = !!output_ref && !output_ref.deleted && !!output_ref.output_dir_url && this.props.manifests?.reference?.[path_ref] !== undefined;
       this.setState({has_reference})
 
-      let requests = [get(`${iiif_url(output_new.output_dir_url, path, this.props.manifests?.new, true, this.props.imageServers)}/info.json`, { cancelToken: this.state.cancel_source.token })]
+      const { signal } = this.abort_controller;
+      const get_info = url => http.get(url, { signal }).catch(error => {
+        error.url = url; // to help users debug
+        throw error;
+      })
+      const requests = [get_info(`${iiif_url(output_new.output_dir_url, path, this.props.manifests?.new, true, this.props.imageServers)}/info.json`)]
       if (has_reference)
-        requests.push(get(`${iiif_url(output_ref.output_dir_url, path_ref, this.props.manifests?.reference, true, this.props.imageServers)}/info.json`, { cancelToken: this.state.cancel_source.token }))
+        requests.push(get_info(`${iiif_url(output_ref.output_dir_url, path_ref, this.props.manifests?.reference, true, this.props.imageServers)}/info.json`))
       Promise.all(requests).then( ([res_new, res_ref]) => {
         this.setState({ loaded: true })
         // https://Openseadragon.github.io/examples/tilesource-iiif/
@@ -457,6 +467,12 @@ class ImgViewer extends React.PureComponent {
         // As explained below, we stack images on top of the other instead of calling `viewer.open`
         // So if the viewer receives images of varying sizes, old images risk overflowing....
         const changed_image_dimension = (!!this.state.image_width && !!this.state.image_height) && (this.state.image_width !== width || this.state.image_height !== height)
+        // Keep the viewport: OpenSeadragon goes to the whole image when a viewer gets its first image (the reference's
+        // when it shows for the first time, or after we removed images of another size below)
+        const restore = viewport_after_image_change(previous, { width, height })
+        viewer_new.preserveViewport = restore?.action === 'keep'
+        viewer_ref.preserveViewport = restore?.action === 'keep'
+        const on_added = viewer => () => this.restoreViewport(viewer, restore)
         if (changed_image_dimension) {
           if (viewer_new.world.getItemCount() > 0) // todo: in a while-loop?
             viewer_new.world.removeItem(viewer_new.world.getItemAt(0))
@@ -532,6 +548,7 @@ class ImgViewer extends React.PureComponent {
           // We would like to do this, there is still a white flicker...
           // index: viewer_new_is_open ? 0 : undefined,
           // replace: viewer_new_is_open ? true : undefined,
+          success: on_added(viewer_new),
         })
 
         if (has_reference) {
@@ -543,10 +560,16 @@ class ImgViewer extends React.PureComponent {
               height: res_ref?.data?.height,
               "@id": iiif_url(output_ref.output_dir_url, path_ref, this.props.manifests?.reference, true, this.props.imageServers),
             },
+            success: on_added(viewer_ref),
           })
         }
       })
       .catch(error => {
+        // Cancelled because the images changed or the viewer was unmounted
+        if (isAbort(error) || this.unmounted) {
+          reject({ error })
+          return
+        }
         console.log(error)
         // If there is an error we don't want to show a previous image successfully loaded... 
         if (viewer_new.world.getItemCount() > 0)
@@ -559,7 +582,7 @@ class ImgViewer extends React.PureComponent {
     })
   }
 
-  componentDidUpdate(prevProps) {
+  componentDidUpdate(prevProps, prevState) {
     const has_new = this.props.output_new !== undefined && this.props.output_new !== null;
     const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
     let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new.id !== this.props.output_new.id);
@@ -573,7 +596,11 @@ class ImgViewer extends React.PureComponent {
       // console.log('-> Init()')
       if (this.props.id === undefined)
         console.log('If you update the image path, you have to provide a `props.id`, otherwise the component will crash because the viewers IDs depend on it')
-      this.Init().then(() => {
+      // we don't need the metadata of the previous images anymore
+      this.abort_controller.abort();
+      this.abort_controller = new AbortController();
+      const previous = this.state.ready ? capture_viewport(this.viewer_new, this.state.image_width, this.state.image_height) : null
+      this.Init(previous).then(() => {
         this.InitDiff();
         this.InitZoomSync();
       }).catch(() => { });
@@ -583,6 +610,44 @@ class ImgViewer extends React.PureComponent {
     if (updated_diff) {
       this.InitDiff();
     }
+    // when the reference's viewer may show (not on every hover: it measures the layout)
+    if (prevState.has_reference !== this.state.has_reference || prevProps.path !== this.props.path ||
+        prevProps.path_ref !== this.props.path_ref || prevProps.manifests !== this.props.manifests)
+      this.alignShownViewer();
+  }
+
+  // Once an image was added to a viewer after the image changed
+  restoreViewport = (viewer, restore) => {
+    if (!restore) return
+    if (restore.action === 'refit') {
+      if (viewer === this.viewer_new)
+        this.setState(({ refit }) => ({ refit: refit + 1 }))
+      return
+    }
+    const sync_group = synced_viewers[this.sync_key]
+    // the others are already there, or will catch up: don't lead them
+    if (sync_group) sync_group.leading = 'catchup'
+    try {
+      viewer.viewport.zoomTo(restore.zoom, null, true)
+      viewer.viewport.panTo(restore.center, true)
+    } catch { }
+    if (sync_group) sync_group.leading = null
+  }
+
+  // The reference's viewer was hidden (same image as new) and shows: see unsized_container
+  alignShownViewer() {
+    const { viewer_new, viewer_ref } = this
+    const size = unsized_container(viewer_ref)
+    if (size === null || !viewer_new?.viewport || viewer_new.world.getItemCount() === 0)
+      return
+    const sync_group = synced_viewers[this.sync_key]
+    if (sync_group) sync_group.leading = 'catchup'
+    try {
+      viewer_ref.viewport.resize(new OpenSeadragon.Point(size.x, size.y), true)
+      viewer_ref.viewport.zoomTo(viewer_new.viewport.getZoom(), null, true)
+      viewer_ref.viewport.panTo(viewer_new.viewport.getCenter(), true)
+    } catch { }
+    if (sync_group) sync_group.leading = null
   }
 
   update_diff = () => {
@@ -603,7 +668,7 @@ class ImgViewer extends React.PureComponent {
     // let data_ref = viewer_ref.drawer.context.getImageData(0, 0, size.x, size.y);
     // console.log(data_new)
 
-    var canvas_diff_element = this.canvas_diff.current;
+    const canvas_diff_element = this.canvas_diff.current;
     if (canvas_diff_element) {
       canvas_diff_element.style.cssText = viewer_new.drawer.canvas.style.cssText
       canvas_diff_element.width = width
@@ -615,7 +680,7 @@ class ImgViewer extends React.PureComponent {
       let div2_diff = div_diff.parentNode
       div2_diff.style.cssText = viewer_new.drawer.canvas.parentNode.parentNode.style.cssText
 
-      var diff_data = canvas_diff_element.getContext("2d").createImageData(width, height);
+      const diff_data = canvas_diff_element.getContext("2d").createImageData(width, height);
       pixelmatch(data_new.data, data_ref.data, diff_data.data, width, height, {
         colorScale: true,
         threshold: this.state.diff_threshold,
@@ -629,7 +694,7 @@ class ImgViewer extends React.PureComponent {
 
   InitDiff = () => {
     const { viewer_new, viewer_ref } = this;
-    // Implemement perceptual differences
+    // Implement perceptual differences
     /*
     let { width = 1, height = 1 } = viewer_new.drawer.canvas;
 
@@ -683,7 +748,7 @@ class ImgViewer extends React.PureComponent {
         canvas_el.addEventListener(eventType, function (event) {
             console.log("event@", eventType)
           // we cannot re-dispatch the event twice, we must copy it
-          var new_event = new event.constructor(event.type, event)
+          const new_event = new event.constructor(event.type, event)
           if (eventType.match(/(mouse|pointer)/)) {
             const rect_diff = canvas_el.getBoundingClientRect();
             const rect_new = viewer_new.drawer.canvas.getBoundingClientRect();
@@ -762,9 +827,9 @@ class ImgViewer extends React.PureComponent {
 
   InitMouseTracker() {
     const { viewer_new, viewer_ref } = this;
-    var rgb_new = viewer_new.rgb({
+    const rgb_new = viewer_new.rgb({
       onCanvasHover: color_new => {
-        if (!!!color_new.viewportCoordinates)
+        if (!color_new.viewportCoordinates)
           return
         if (this.state.has_reference) {
           const color_ref = rgb_ref.getValueAt(color_new.viewportCoordinates.x, color_new.viewportCoordinates.y)
@@ -782,9 +847,9 @@ class ImgViewer extends React.PureComponent {
         })
       }
     });
-    var rgb_ref = viewer_ref.rgb({
+    const rgb_ref = viewer_ref.rgb({
       onCanvasHover: color_ref => {
-        if (!!!color_ref.viewportCoordinates)
+        if (!color_ref.viewportCoordinates)
           return
         const color_new = rgb_new.getValueAt(color_ref.viewportCoordinates.x, color_ref.viewportCoordinates.y)
         this.setState({
@@ -811,18 +876,18 @@ class ImgViewer extends React.PureComponent {
     
     const has_same_data = is_same_data(path, manifests?.new?.[path], manifests?.reference?.[path_ref])
 
-    const has_error = !!error && Object.keys(error).length > 0;
+    const has_error = !!error && (error instanceof Error || Object.keys(error).length > 0);
     const error_messages = !has_error ? <span/> : <>
       {manifests?.new?.[path]?.st_size == 0 && <Tag style={{marginRight: "5px"}} intent={Intent.DANGER}>Empty Image</Tag>}
       <Popover inheritDarkTheme popoverClassName={Classes.DARK} hoverCloseDelay={500} interactionKind={"hover"} content={
           <div style={{ padding: '5px' }}>
             {!!error.message && <p>{JSON.stringify(error.message)}</p>}
-            {!!error.request && <p>You may <a href={error.config.url}>find why here</a>.</p>}
+            {!!error.url && <p>You may <a href={error.url}>find why here</a>.</p>}
             {!!error.response && !!error.response.data && <p>response.data: {JSON.stringify(error.response.data)}</p>}
             {!!error.data && <p>data: {JSON.stringify(error.data)}</p>}
           </div>}
       >
-          <Tag intent={Intent.DANGER}>Image Dowload Error</Tag>
+          <Tag intent={Intent.DANGER}>Image Download Error</Tag>
       </Popover>
     </>;
 
@@ -950,7 +1015,7 @@ class ImgViewer extends React.PureComponent {
       height: this.viewer_new?.source?.height,
     } 
     if (!!this.viewer_new && !!this.viewer_new.viewport && this.viewer_new.world.getItemCount() > 0) {
-      var viewportBounds = this.viewer_new.viewport.getBounds();
+      const viewportBounds = this.viewer_new.viewport.getBounds();
       let top_left = viewportBounds.getTopLeft()
       let bottom_right = viewportBounds.getBottomRight()
       const tiledImage = this.viewer_new.world.getItemAt(this.viewer_new.world.getItemCount() - 1);
@@ -1026,9 +1091,12 @@ class ImgViewer extends React.PureComponent {
             output_new={output_new}
             output_ref={!has_same_data ? output_ref : undefined}
             path={path}
+            manifest={manifests?.new}
+            imageServers={this.props.imageServers}
             viewer={this.viewer_new}
             current_roi={current_roi}
             fullyLoaded={this.state.fullyLoaded.new && (!has_reference || this.state.fullyLoaded.ref)}
+            refit={this.state.refit}
          />
         </>}
         <span>
@@ -1131,8 +1199,10 @@ function addOverlayToCanvas(canvas, position) {
   }
 }
 
-const mapStateToProps = state => ({
-  imageServers: state.siteConfig?.image_servers,
-});
+// The viewer is an imperative wrapper around OpenSeadragon, so it stays a class
+const ImageViewer = props => {
+  const { image_servers } = useSiteConfig();
+  return <ImgViewer {...props} imageServers={image_servers} />
+}
 
-export default connect(mapStateToProps)(ImgViewer);
+export default ImageViewer;

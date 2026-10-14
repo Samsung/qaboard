@@ -1,0 +1,23 @@
+.repoFile {
+  margin-bottom: var(--ifm-leading);
+}
+
+/* The code block's own bottom margin, minus a little: the footer belongs to it */
+.footer {
+  margin: calc(-1 * var(--ifm-leading) + 0.35rem) 0 0;
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.8125rem;
+}
+
+.footer code {
+  font-size: 0.8125rem;
+}
+
+.untested {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border: 1px solid var(--ifm-color-warning-dark);
+  border-radius: 999px;
+  color: var(--ifm-color-emphasis-800);
+  font-weight: 600;
+}

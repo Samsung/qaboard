@@ -7,11 +7,10 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 
 You often want to integrate various tools into your workflow, or show [status badges](https://shields.io/index.html). QA-Board lets you connect to those third-party tools on each commit's page and on commit index pages:
 
-<img alt="Allowing triggered build" src={useBaseUrl('img/ui-triggers.png')} />
-
-:::note
-The screenshots are not up-to-date; the menu is now named **"Integrations"**
-:::
+<Shot
+  id="integrations/menu"
+  caption="The Integrations menu with links and a webhook: after a click, the webhook's tag shows its job's status."
+/>
 
 
 ## Adding badges and external links
@@ -30,7 +29,16 @@ integrations:
   # if you want to display items in the side-bar directly,
   # not within the "Integrations" menu, you can use:
   in_menu: false
+
+# A GitHub Actions badge, on branch pages
+- src: "${git.web_url}/actions/workflows/ci.yml/badge.svg?branch=${branch}"
+  href: "${git.web_url}/actions/workflows/ci.yml?query=branch%3A${branch}"
+  alt: CI
 ```
+
+:::note
+QA-Board loads images through its server, which only fetches them from your git hosts and gravatar. To show images from other hosts, ask your admins to add them to [`QABOARD_PROXY_HOSTS`](/docs/deploy#optional-environment-variables).
+:::
 
 :::tip
 The menu item will be disabled if the link doesn't work (HTTP `HEAD` request).
@@ -94,7 +102,7 @@ integrations:
 You can use some special variables in your strings with some `${VARIABLE}` templating:
 - **Commit**: `commit.id`, `commit.branch`, `commit.branch_slug`... Also `branch` and `ref_commit.id`.
 - **Project**: `project` (full project name), `subproject` (project name relative to the root project), 
-- [**Git** repository data](https://docs.gitlab.com/ee/user/project/integrations/webhooks.html#push-event) with `git`: eg `git.default_branch`... 
+- **Git** repository data with `git`, the same for all git hosts: `git.web_url`, `git.path_with_namespace`, `git.default_branch`, `git.hosting_type` (`github`, `gitlab`, `gitea`, `bitbucket`)... GitLab projects also have the other fields of [GitLab's push events](https://docs.gitlab.com/ee/user/project/integrations/webhook_events.html#push-events), e.g. `git.id`.
 - **Artifacts** are saved under `commit.artifacts_url = commit.repo_artifacts_url / subproject`.
 - **Outputs** are saved under `commit.outputs_url`
 - **Selected runs:** with `batch`, `ref_batch`, `filter`, `ref_filter`, `ref_project`...
@@ -106,6 +114,31 @@ If you use use `${branch}` in any of the fields, the integration will only appea
 :::
 
 
+## Start GitHub Actions workflows
+The workflow needs a [`workflow_dispatch`](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#workflow_dispatch) trigger. Configure your project with:
+```yaml title="qaboard.yaml"
+integrations:
+  - text: Benchmark
+    githubActions:
+      workflow: benchmark.yml  # the file name in .github/workflows, or the workflow's id
+      # optional: the workflow's inputs
+      inputs:
+        commit: "${commit.id}"
+      # optional: the branch or tag to run it on. Default: the commit's branch
+      # ref: main
+```
+The menu shows the status of the workflow's latest run for the commit, with a link to it. Clicking starts the workflow (you need to be logged in), and QA-Board follows the run it started.
+
+The server starts workflows with its own token, so it only shows and starts the workflows that the project's `qaboard.yaml` lists (the one of its reference branch), on the project's repository, and only for users who can access the project. To start one, the inputs must be those of the integration (the same names), and the `ref` too if you set one. `${...}` templates in `workflow`, `inputs` and `ref` match any value.
+
+:::note
+GitHub runs workflows on the latest commit of a branch or tag, not on a given commit. If the branch moved on, use an input to tell your workflow which commit to check out.
+
+GitHub doesn't say which run a dispatch started: QA-Board follows the latest run started by a dispatch on that branch or tag since you clicked. If someone else starts the same workflow on the same branch at the same time, it may show their run.
+:::
+
+The QA-Board server needs a GitHub token that can read the repository's actions, and write them to start workflows (fine-grained token: *Actions: Read and write*). See [Git hosts](backend-admin/git-hosts).
+
 ## Play GitlabCI manual jobs
 Configure your project with:
 ```yaml title="qaboard.yaml"
@@ -115,6 +148,15 @@ integrations:
       job_name: build-linux
 ```
 <img alt="jenkins-and-gitlab-integrations" src={useBaseUrl('img/gitlab-jenkins.gif')} />
+
+*An older recording: the menu is now named **Integrations**.*
+
+The QA-Board server needs a GitLab token with the `api` scope to play jobs (`read_api` is enough to show their status). See [Git hosts](backend-admin/git-hosts#tokens).
+
+## Default integrations
+If your `qaboard.yaml` has no `integrations`, branch pages show defaults for your git host, when QA-Board knows which kind it is (from its push events, or the server's [git hosts](backend-admin/git-hosts)): GitLab's pipeline status badge, or a link to GitHub Actions. Set `integrations: []` to hide them.
+
+Badges that fail to load (e.g. for private projects, or projects without CI) are hidden.
 
 
 ## Trigger Jenkins builds

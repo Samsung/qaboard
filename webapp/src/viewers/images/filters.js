@@ -214,7 +214,7 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
         //check if tools popup exists and if not create based on filters
         var popup = OpenSeadragon.getElement(`osd-imagetools-${this.viewer.id}`);
         if (!popup) {
-            //alway render toolpopup center LEFT if nothing is provided
+            //always render toolpopup center LEFT if nothing is provided
             var width = this.toolsWidth;
             var height = this.toolsHeight;
 
@@ -245,9 +245,9 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
                 popup.style.fontSize = '14px';
             }
 
-            //add to controlls, needed for fullscreen
+            //add to controls, needed for fullscreen
             this.viewer.addControl(popup, {});
-            popup.style.display = 'none'; //add Controll sets display:block
+            popup.style.display = 'none'; //add Control sets display:block
 
             //add range input for all filters
             synced_filters[this.sync_key].filters.map(filter => {

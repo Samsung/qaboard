@@ -120,11 +120,11 @@ def quota(username):
 
 
 def showQuota():
-    # Cerate & populate dictionary
+    # Create & populate dictionary
     thisList = {}
     if round(diskUtilization, 1) >= int(resultLength):
         thisList['Ut.%'] = round(diskUtilization, 1)
-        # If not ampty add into the Dict.
+        # If not empty add into the Dict.
         if volume != '':
             thisList['Volume'] = str(volume)
         else:
@@ -144,11 +144,11 @@ def showQuota():
         print(thisList)
 
 def showRawData():
-    # Cerate & populate dictionary
+    # Create & populate dictionary
     thisList = {}
     if round(diskUtilization, 1) >= int(resultLength):
         thisList['Ut.%'] = round(diskUtilization, 1)
-        # If not ampty add into the Dict.
+        # If not empty add into the Dict.
         if volume != '':
             thisList['Volume'] = str(volume)
         else:

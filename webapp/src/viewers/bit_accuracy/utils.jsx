@@ -1,4 +1,3 @@
-import React from "react";
 import { Colors, Tag, Icon, Tooltip, Callout, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
 
 
@@ -32,27 +31,13 @@ const getNodeById = (tree, id) => {
     return undefined;
   if (id === undefined || id === null)
     return undefined;
-  let node = tree;
-  let parts = id.split('/');
-  for (var i = 0; i < parts.length - 1; i++) {
-    // ideally we would have the following, but it's slow...
-    // X-eslint-disable-next-line
-    // node = node.find(child => child.label === parts[i] )
-    let part = parts[i];
-    let found = false;
-    for (var j = 0; j < node.length; j++) {
-      if (node[j].label === part) {
-        node = node[j];
-        found = true;
-        break;
-      }
-    }
-    if (!found) node = undefined;
-    node = node && node.childNodes;
-    if (node === undefined) return undefined;
+  let nodes = tree;
+  const parts = id.split('/');
+  for (let i = 0; i < parts.length - 1; i++) {
+    nodes = nodes.find(child => child.label === parts[i])?.childNodes;
+    if (nodes === undefined) return undefined;
   }
-  return node.find(child => child.label === parts[parts.length - 1]  )
-
+  return nodes.find(child => child.label === parts[parts.length - 1])
 }
 
 
@@ -81,13 +66,13 @@ const visitDepthFirst = (nodes, callback) => {
 // Returns a function that updates a node's data depending on whether is present the reference `tree`
 // NOTE: We assume the node's children have already been updateMissingFrom'ed
 const updateMissingFrom = (tree, label) => node => {
-    let missing = `missing_from_${label}`;
+    const missing = `missing_from_${label}`;
     const is_folder = node.childNodes !== undefined;
     if (is_folder) { // aggregate the information from the children nodes
       node.nodeData[missing] = node.childNodes.some(child => child.nodeData[missing]);
       return;
     }
-    let missing_reference_tree = (tree === undefined || tree === null);
+    const missing_reference_tree = (tree === undefined || tree === null);
     node.nodeData[missing] = missing_reference_tree || (getNodeById(tree, node.id) === undefined) || node.nodeData[missing]
 }
 
@@ -100,41 +85,27 @@ const copyNodeData = (tree_from, tree_to, key) => node => {
     if (missing_from_tree || missing_to_tree)
       return
 
-    const path = node.path;
     let node_from_parent = tree_from;
     let node_to_parent = tree_to;
     let node_to_path = []
+    let node_from;
     // need to make sure the destination node exists, and create it if necessary
-    for (var i = 0; i < path.length; i++) {
-      var node_from = node_from_parent[path[i]];
-
-      // eslint-disable-next-line
-      // this is much better but slow....
-      // var node_to = node_to_parent.find(child => child.label === node_from.label);
-      let found = false;
-      for (var j = 0; j < node_to_parent.length; j++) {
-        if (node_to_parent[j].label===node_from.label) {
-          var node_to = node_to_parent[j];
-          found = true;
-          break;
-        }
-      }
-      if (!found) node_to = undefined;
-
+    for (let i = 0; i < node.path.length; i++) {
+      node_from = node_from_parent[node.path[i]];
+      let node_to = node_to_parent.find(child => child.label === node_from.label);
       if (node_to === undefined) {
-        node_to_parent.push({
+        node_to = {
           id: node_from.id,
           label: node_from.label,
-          path: [...node_to_path, node_to_parent.length-1],
-          childNodes: (i < path.length - 1) ? [] : undefined,
+          path: [...node_to_path, node_to_parent.length],
+          childNodes: (i < node.path.length - 1) ? [] : undefined,
           nodeData: {
             ...node_from.nodeData, // will actually already copy the key
           },
-        })
-        node_to = node_to_parent[node_to_parent.length - 1];        
-      } else {
-        node_to_path = node_to.path
+        };
+        node_to_parent.push(node_to)
       }
+      node_to_path = node_to.path
       node_from_parent = node_from.childNodes ?? []
       node_to_parent = node_to.childNodes ?? []
     }
@@ -146,7 +117,7 @@ const copyNodeData = (tree_from, tree_to, key) => node => {
 const filterNodes = (nodes, filter) => {
   if (nodes === undefined || nodes === null)
     return;
-  let filtered_nodes = []
+  const filtered_nodes = []
   nodes.forEach(node => {
     node.childNodes = filterNodes(node.childNodes, filter);
     if (filter(node))
@@ -165,14 +136,14 @@ const humanFileSize = (bytes, si) => {
   if (bytes === undefined || bytes === null)
     return ''
 
-  var thresh = si ? 1000 : 1024;
+  const thresh = si ? 1000 : 1024;
   if(Math.abs(bytes) < thresh) {
       return bytes + ' B';
   }
-  var units = si
+  const units = si
       ? ['kB','MB','GB','TB','PB','EB','ZB','YB']
       : ['KiB','MiB','GiB','TiB','PiB','EiB','ZiB','YiB'];
-  var u = -1;
+  let u = -1;
   do {
       bytes /= thresh;
       ++u;
@@ -185,14 +156,14 @@ const humanElapsedTime = (seconds_str) => {
     return ''
   }
 
-  var seconds = (Number(seconds_str) % 60).toFixed(0);
-  var minutes = ((Number(seconds_str) / 60) % 60).toFixed(0);
-  var hours = (Number(seconds_str) / 3600).toFixed(0);
-  var elapsed_time = '';
+  const seconds = (Number(seconds_str) % 60).toFixed(0);
+  const minutes = ((Number(seconds_str) / 60) % 60).toFixed(0);
+  const hours = (Number(seconds_str) / 3600).toFixed(0);
+  let elapsed_time = '';
   if (hours   !== '0') elapsed_time += hours + 'h'
   if (minutes !== '0') elapsed_time += minutes + 'min'
   if (seconds !== '0') elapsed_time += seconds + 's'
-  if (!!!elapsed_time) elapsed_time += Number(seconds_str).toFixed(2) + 's'
+  if (!elapsed_time) elapsed_time += Number(seconds_str).toFixed(2) + 's'
   return elapsed_time;
 }
 
@@ -202,6 +173,7 @@ const file_types = [
   {color: Colors.ORANGE1, label: 'Different', icon: 'cross'},
   {color: Colors.GREEN1, label: 'Missing in the reference', icon: 'plus'},
   {color: Colors.RED1, label: 'Present only in the reference', icon: 'minus'},
+  {color: Colors.GRAY4, label: 'Not checked for bit-accuracy (bit_accuracy.patterns in qaboard.yaml)', icon: 'document'},
 ]
 const folder_types = [
   {color: Colors.GREY1, label: 'All files match', icon: 'folder-close'},
@@ -214,9 +186,11 @@ const folder_types = [
 ]
 const bullet_style = {'listStyleType': 'none'};
 const icon_style = {'marginRight': '10px'};
-let help = <>
+const help = <>
   <h3>Showing diffs</h3>
   <p>Click on a file to show its diff versus the reference. Press <kbd>control</kbd> or <kbd>shift</kbd> to select multiple files</p>
+  <h3>Bit-accuracy</h3>
+  <p>Like <code>qa check-bit-accuracy</code>, only the files matching <code>bit_accuracy.patterns</code> in qaboard.yaml are checked (by default all files, except logs, <code>run.json</code> and <code>metrics.json</code>).</p>
   <h3>File icons</h3>
   <ul>{file_types.map( ({color, label, icon}) =>
     <li key={label} style={bullet_style}><Icon icon={icon} style={{...icon_style, color}}></Icon> {label}</li>)}
@@ -232,70 +206,67 @@ const bit_accuracy_help = <Tooltip content={help}><Tag icon='help' minimal round
 
 
 
-class BitAccuracyForm extends React.Component {
-  render() {
-    const { show_all_files, hide_runs_without_files, expand_all, color_blind_friendly, files_filter, toggle, update } = this.props;
-    return <Callout style={{marginBottom: '20px', display: 'flex', justifyContent: 'space-between'}}>
-      <FormGroup
-        inline
-        labelFor="show-all-files"
-        helperText="By default the only files shown are those that are different/added/removed."
-        style={{flex: '50 1 auto'}}
-      >
-        <Switch
-          label="Show all files"
-          checked={show_all_files}
-          onChange={toggle('show_all_files')}
-          style={{ width: "300px" }}
-        />
-        <Switch
-          label="Hide runs without files"
-          checked={hide_runs_without_files}
-          onChange={toggle('hide_runs_without_files')}
-          style={{ width: "300px" }}
-        />
-      </FormGroup>
-      <FormGroup
-        inline
-        labelFor="expand-all"
-        style={{flex: '50 1 auto'}}
-      >
-        <Switch
-          label="Expand all folders"
-          checked={expand_all}
-          onChange={toggle('expand_all')}
-          style={{ width: "300px" }}
-        />
-        <Switch
-          label="Color-blind-Friendly"
-          checked={color_blind_friendly}
-          onChange={toggle('color_blind_friendly')}
-          style={{ width: "300px" }}
-        />
-      </FormGroup>
-      <FormGroup
-        inline
-        labelFor="files-filter"
-        helperText={<span>Filter files.<br/>You can use <code>match:file.txt</code> or <code>diff:file.txt</code></span>}
-        style={{flex: '50 1 auto'}}
-      >
-        <InputGroup
-          value={files_filter}
-          placeholder="filter by path"
-          onChange={update('files_filter')}
-          type="search"
-          leftIcon="filter"
-          style={{ width: "150px" }}
-        />
-      </FormGroup>
-      <span style={{flex: '1 1 auto'}}>{bit_accuracy_help}</span>
-    </Callout>
-
-  }
+const BitAccuracyForm = ({ show_all_files, hide_runs_without_files, expand_all, color_blind_friendly, files_filter, toggle, update }) => {
+  return <Callout style={{marginBottom: '20px', display: 'flex', justifyContent: 'space-between'}}>
+    <FormGroup
+      inline
+      labelFor="show-all-files"
+      helperText="By default the only files shown are the checked files that are different/added/removed."
+      style={{flex: '50 1 auto'}}
+    >
+      <Switch
+        label="Show all files"
+        checked={show_all_files}
+        onChange={toggle('show_all_files')}
+        style={{ width: "300px" }}
+      />
+      <Switch
+        label="Hide runs without files"
+        checked={hide_runs_without_files}
+        onChange={toggle('hide_runs_without_files')}
+        style={{ width: "300px" }}
+      />
+    </FormGroup>
+    <FormGroup
+      inline
+      labelFor="expand-all"
+      style={{flex: '50 1 auto'}}
+    >
+      <Switch
+        label="Expand all folders"
+        checked={expand_all}
+        onChange={toggle('expand_all')}
+        style={{ width: "300px" }}
+      />
+      <Switch
+        label="Color-blind-Friendly"
+        checked={color_blind_friendly}
+        onChange={toggle('color_blind_friendly')}
+        style={{ width: "300px" }}
+      />
+    </FormGroup>
+    <FormGroup
+      inline
+      labelFor="files-filter"
+      helperText={<span>Filter files.<br/>You can use <code>match:file.txt</code> or <code>diff:file.txt</code></span>}
+      style={{flex: '50 1 auto'}}
+    >
+      <InputGroup
+        value={files_filter}
+        placeholder="filter by path"
+        onChange={update('files_filter')}
+        type="search"
+        leftIcon="filter"
+        style={{ width: "150px" }}
+      />
+    </FormGroup>
+    <span style={{flex: '1 1 auto'}}>{bit_accuracy_help}</span>
+  </Callout>
 }
 
 
 
+// The options of the bit-accuracy viewers are in the URL, but not when they have their default value
+const bit_accuracy_url_defaults = { show_all_files: false, hide_runs_without_files: false, expand_all: false, color_blind_friendly: false, files_filter: '' };
 
-
-export { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, humanFileSize, updateMissingFrom, BitAccuracyForm, bit_accuracy_help, humanElapsedTime }
+export { bit_accuracy_url_defaults, getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, humanFileSize, updateMissingFrom, BitAccuracyForm, bit_accuracy_help, humanElapsedTime }

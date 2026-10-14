@@ -1,6 +1,5 @@
-import React from "react";
-import axios, { all, CancelToken } from "axios";
-const { get } = axios;
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Colors,
   Classes,
@@ -13,6 +12,10 @@ import {
 } from "@blueprintjs/core";
 import { select } from 'd3-selection'
 import * as flameGraph from 'd3-flame-graph';
+import { forEachInTree, selfDelta } from './flameDeltas';
+
+import { errorMessage } from "../api/http";
+import { fileQuery } from "../api/queries";
 
 // Integrates 
 // We love Brendan Gregg's flame charts
@@ -51,263 +54,146 @@ import * as flameGraph from 'd3-flame-graph';
 // and there would be some work involved anyway...
 
 
-let last_id = 0;
-const make_id = () => {
-  last_id += 1;
-  return `flame-graph-${last_id}`;
-}
+// Files are cached: switching between views doesn't fetch them again
 
-class FlameGraphComponent extends React.Component {
-  constructor(props) {
-    super(props);
-    this.legend = React.createRef();
-    this.flamegraph = React.createRef();
-    this.id = make_id()
-    this.state = {
-      g: null,
-      zoomed: false,
-      search: '',
-    };
-    // const width = this.props.style?.width || 1180;
-    this.chart = flameGraph.flamegraph()
-                           .transitionDuration(250)
-                           .width(1180)
-                          //  .height(400)
-                           .title(props.title)
-                           .onClick(this.onClick)
-                           .computeDelta(props.differential ?? false)
-    this.chart.inverted(true) // icicle plot
-  }
-  onClick = frame => {
-    if (!!frame.parent)
-      this.setState({zoomed: true})
-  }
-  componentDidMount() {
-    this.g = select(this.flamegraph)
-    this.g = select(`#${this.id}`)
-    // this.state.g.selectAll("*").remove();
-    const data = this.props.data
-    this.g.datum(data).call(this.chart)
-    this.chart.setDetailsElement(this.legend.current)
-  }
-  shouldComponentUpdate(nextProps, nextState) {
-    // console.log("shouldComponentUpdate ? ")
-    if(nextState.zoomed!==this.state.zoomed || nextState.search!==this.state.search){
-      return true
-    }
-    if (nextProps.data !== this.props.data || nextProps.title !== this.props.title || nextProps.differential !== this.props.differential) {
-      // console.log("YES")
-      return true
-    }
-    return false
-  }
 
-  componentDidUpdate(prevProps) {
-    // console.log("[componentDidUpdate]", prevProps, this.props)
-    if (prevProps.data !== this.props.data) {
-      this.chart.update(this.props.data)
-    }
-    if (prevProps.differential !== this.props.differential) {
-      const differential = this.props.differential ?? false;
-      // console.log("diff =>", differential)
-      this.chart = this.chart.differential(differential)
-      // TODP: check out what this does exactly...
-      // this.chart.elided(this.props.differential)
-    }
-  }
+// Wraps d3-flame-graph, which renders imperatively in a DOM element.
+// We create a new chart when the data changes: parents use different keys to show different graphs.
+const FlameGraphComponent = ({ data, title, differential = false }) => {
+  const container = useRef(null);
+  const legend = useRef(null);
+  const chart = useRef(null);
+  const [zoomed, setZoomed] = useState(false);
+  const [search, setSearch] = useState('');
 
-  componentWillUnmount() {
-    this.chart.destroy();
-  }
+  useEffect(() => {
+    const instance = flameGraph.flamegraph()
+                               .transitionDuration(250)
+                               .width(1180)
+                               .title(title)
+                               .onClick(frame => { if (frame.parent) setZoomed(true) })
+                               .computeDelta(differential)
+                               .inverted(true) // icicle plot
+    // red for frames that take more time, blue for less, orange for new ones
+    if (differential)
+      instance.setColorMapper(flameGraph.differentialColorMapper)
+    // d3-flame-graph writes in the data (e.g. to hide frames when zooming), we give it a copy
+    select(container.current).datum(structuredClone(data)).call(instance);
+    instance.setDetailsElement(legend.current);
+    chart.current = instance;
+    return () => {
+      instance.destroy();
+      chart.current = null;
+    }
+  }, [data, title, differential]);
 
-  render() {
-    // console.log("[render]")
-    const { zoomed, search } = this.state;
-    return <>
-      <InputGroup
-        value={search}
-        type="search"
-        placeholder="Highlight frames"
-        intent={!!search ? Intent.PRIMARY : undefined}
-        leftIcon="search"
-        onChange={this.search}
-        style={{width:'1180px'}}
-      />
-      <div className="flame-graph" id={this.id} ref={this.flamegraph} />
-      {zoomed && <Button style={{margin: "5px"}} icon="zoom-out" onClick={this.resetZoom}>Zoom Out</Button>}
-      <span className={Classes.MONOSPACE_TEXT} ref={this.legend}/>
-    </>
+  const resetZoom = () => {
+    setZoomed(false)
+    chart.current?.resetZoom()
   }
-  resetZoom = () => {
-    this.setState({zoomed: false})
-    this.chart.resetZoom()
-  } 
-  clear = () => {
-    this.setState({search: ''})
-    this.chart.clear()
-  }
-  search = e => {
+  const onSearch = e => {
     const search = e.target.value;
-    this.setState({search})
-    this.chart.search(search)
+    setSearch(search)
+    chart.current?.search(search)
   }
+
+  return <>
+    <InputGroup
+      value={search}
+      type="search"
+      placeholder="Highlight frames"
+      intent={search ? Intent.PRIMARY : undefined}
+      leftIcon="search"
+      onChange={onSearch}
+      style={{width:'1180px'}}
+    />
+    <div className="flame-graph" ref={container} />
+    {zoomed && <Button style={{margin: "5px"}} icon="zoom-out" onClick={resetZoom}>Zoom Out</Button>}
+    <span className={Classes.MONOSPACE_TEXT} ref={legend}/>
+  </>
 }
 
-class FlameGraphViewer extends React.PureComponent {
-  constructor(props) {
-    super(props);
-    this.state = {
-      is_loaded: false,
-      error: null,
-      comparaison: 'diff-what-did-happen', // 'diff-what-will-happen' | 'new' | 'ref' | 'both'
-      cancel_source: CancelToken.source(),
-      data: {},
-    };
-  }
 
-
-  componentDidMount() {
-    this.getData(this.props)
-  }
-
-  getData(props, label) {
-    const { output_new, output_ref, path } = props;
-    const { cancel_source } = this.state;
-    if (!output_new.output_dir_url || !path) return;
-
-    let results = [];
-    const should_get_all = label === undefined || label === null;
-    if (should_get_all || label === 'new') {
-      results.push(['new', `${output_new.output_dir_url}/${path}`])
-    }
-    if (should_get_all || label === 'ref') {
-      if (!!output_ref && !!output_ref.output_dir_url)
-        results.push(['ref', `${output_ref.output_dir_url}/${path}`])
-    }
-
-    const load_data = label => response => {
-      const data = response.data || {}
-      const map = {}
-      forEachInTree(data, (node, id) => map[id] = node)
-      this.setState(previous_state => ({
-        data: {
-          ...previous_state.data,
-          [label]: data,
-        },
-        map: {
-          ...previous_state.map,
-          [label]: map,
-        },
-      }))
-    }
-
-    all(results.map( ([label, url]) => {
-      return () =>  get(url, {cancelToken: cancel_source.token})
-                    .then(load_data(label))
-                    .catch(response => {
-                      // we don't really care about errors for ref / groundtruth outputs
-                      if (label==='new' && !!response)
-                        this.setState({error: response.data})
-                    });
-    }).map(f=>f()) )
-    // now we loaded and parsed all the data
-    .then( () => this.setState({is_loaded: true}) )
-  }
-
-
-  componentWillUnmount() {
-    if (!!this.state.cancel_source)
-      this.state.cancel_source.cancel();
-  }
-
-  componentDidUpdate(prevProps) {
-      const has_path = this.props.path !== undefined && this.props.path !== null;
-      let updated_path = has_path && (prevProps.path === null || prevProps.path === undefined || prevProps.path !== this.props.path);
-
-      const has_new = this.props.output_new !== undefined && this.props.output_new !== null;
-      const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
-      let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new.id !== this.props.output_new.id);
-      let updated_ref = has_ref && (prevProps.output_ref === null || prevProps.output_ref === undefined || prevProps.output_ref.id !== this.props.output_ref.id);
-      if (updated_new || updated_path) {
-        this.getData(this.props, 'new');
-      }
-      if (updated_ref || updated_path) {
-        this.getData(this.props, 'ref');
-      }
-  }
-
-  render() {
-    const { error, is_loaded, data, map, comparaison } = this.state;
-    // console.log(data.new)
-    const makeDelta = (map_ref, invert) => {
-      return (node, id) => {
-        const node_ref = map_ref[id]
-        node.delta = node.value - (node_ref?.value || 0)
-        if (invert)
-          node.delta = -node.delta
-      }
-    }
-    if (!!data.ref && !!data.new) {
-      // widths show the after profile, colored by what DID happen
-      forEachInTree(data.new, makeDelta(map.ref))
-      // widths show the before profile, colored by what WILL happen
-      forEachInTree(data.ref, makeDelta(map.new, true))
-    }    
-    // iconProps={{icon: 'warning-sign'}}
-    return <>
-        <div>
-        {!!error && <span>{JSON.stringify(error)}</span>}
-        {is_loaded && !!data.new && !!!data.ref && <FlameGraphComponent key="new" data={data.new}/>}
-        {is_loaded && !!data.new && !!data.ref && comparaison==='diff-what-did-happen' &&  <FlameGraphComponent differential title="Widths show the after profile, colored by what DID happen" key="new1" data={data.new}/>}
-        {is_loaded && !!data.new && !!data.ref && comparaison==='diff-what-will-happen' && <FlameGraphComponent differential title="Widths show the before profile, colored by what WILL happen" key="new2" data={data.ref}/>}
-        {is_loaded && !!data.new && !!data.ref && (comparaison==='new' || comparaison==='both') && <FlameGraphComponent key="new3" data={data.new}/>}
-        {is_loaded && !!data.new && !!data.ref && (comparaison==='ref' || comparaison==='both') && <FlameGraphComponent key="ref" data={data.ref}/>}
-        </div>
-        <div>
-        <HTMLSelect
-          onChange={e => this.setState({comparaison: e.currentTarget.value})}
-          value={!!data.ref ? comparaison : 'new'}
-          style={{ marginBottom: '8px' }}
-          options={[
-            {value: 'diff-what-did-happen',  label: 'What did happen (runtimes from new, colored with improvement new vs ref)'},
-            {value: 'diff-what-will-happen',  label: 'What will happen (runtimes from ref, colored with improvement new vs ref)'},
-            {value: 'new',  label: 'After (new)'},
-            {value: 'ref',  label: 'Before (ref)'},
-            {value: 'both', label: 'After & Before'},
-          ]}
-        />
-        <Popover
-          hoverCloseDelay={500}
-          interactionKind={"hover"}
-          inheritDarkTheme
-          popoverClassName={Classes.DARK}
-          content={<div style={{ padding: '15px' }}>
-            <p>Read about <a rel="noopener noreferrer" href="http://www.brendangregg.com/flamegraphs.html"target="_blank">Flame Graphs</a></p>
-            <p>And the <a rel="noopener noreferrer" href="http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html"target="_blank">Differential Flame Graphs</a> versions</p>
-          </div>}
-        >
-          <p><Icon icon="info-sign" style={{ marginLeft: '8px', color: Colors.GRAY2 }} /></p>
-        </Popover>
-        
-        </div>
-    </>      
-  }
+const index_tree = tree => {
+  const map = {};
+  forEachInTree(tree, (node, id) => map[id] = node);
+  return map;
 }
 
-// Walk depth depth, starting by the root
-const forEachInTree = (tree, callback, id) => {
+// A copy of the tree, where each frame's delta is its self delta versus the other tree:
+// d3-flame-graph's computeDelta adds up the children's deltas
+const with_deltas = (tree, map_other, invert, id) => {
   if (tree === undefined || tree === null)
-    return;
+    return tree;
   const current_id = `${id ?? ''}/${tree.name}`
-  callback(tree, current_id)
-  if (tree.children === undefined || tree.children === null) {
-    return;
-  }
-  tree.children.forEach(t => {
-    forEachInTree(t, callback, current_id);
-  })
- }
+  const delta = selfDelta(tree, map_other[current_id]);
+  return {
+    ...tree,
+    delta: invert ? -delta : delta,
+    children: tree.children?.map(t => with_deltas(t, map_other, invert, current_id)),
+  };
+}
 
+
+const FlameGraphViewer = ({ output_new, output_ref, path }) => {
+  const [comparaison, setComparaison] = useState('diff-what-did-happen'); // 'diff-what-will-happen' | 'new' | 'ref' | 'both'
+  const url_new = output_new?.output_dir_url && path ? `${output_new.output_dir_url}/${path}` : undefined;
+  const url_ref = url_new && output_ref?.output_dir_url ? `${output_ref.output_dir_url}/${path}` : undefined;
+  const query_new = useQuery(fileQuery(url_new, { is_running: output_new?.is_running }));
+  // we don't really care about errors for the reference
+  const query_ref = useQuery(fileQuery(url_ref, { is_running: output_ref?.is_running }));
+
+  const data_new = query_new.data || undefined;
+  const data_ref = query_ref.data || undefined;
+  const deltas = useMemo(() => {
+    if (!data_new || !data_ref) return {};
+    return {
+      // widths show the after profile, colored by what DID happen
+      new: with_deltas(data_new, index_tree(data_ref)),
+      // widths show the before profile, colored by what WILL happen
+      ref: with_deltas(data_ref, index_tree(data_new), true),
+    };
+  }, [data_new, data_ref]);
+
+  const is_loaded = !!url_new && !query_new.isPending && (!url_ref || !query_ref.isPending);
+  const both = is_loaded && !!data_new && !!data_ref;
+  return <>
+      <div>
+      {query_new.isError && <span>{errorMessage(query_new.error)}</span>}
+      {is_loaded && !!data_new && !data_ref && <FlameGraphComponent key="new" data={data_new}/>}
+      {both && comparaison==='diff-what-did-happen' && <FlameGraphComponent differential title="Widths show the after profile, colored by what DID happen" key="new1" data={deltas.new}/>}
+      {both && comparaison==='diff-what-will-happen' && <FlameGraphComponent differential title="Widths show the before profile, colored by what WILL happen" key="new2" data={deltas.ref}/>}
+      {both && (comparaison==='new' || comparaison==='both') && <FlameGraphComponent key="new3" data={deltas.new}/>}
+      {both && (comparaison==='ref' || comparaison==='both') && <FlameGraphComponent key="ref" data={deltas.ref}/>}
+      </div>
+      <div>
+      <HTMLSelect
+        onChange={e => setComparaison(e.currentTarget.value)}
+        value={data_ref ? comparaison : 'new'}
+        style={{ marginBottom: '8px' }}
+        options={[
+          {value: 'diff-what-did-happen',  label: 'What did happen (runtimes from new, colored with improvement new vs ref)'},
+          {value: 'diff-what-will-happen',  label: 'What will happen (runtimes from ref, colored with improvement new vs ref)'},
+          {value: 'new',  label: 'After (new)'},
+          {value: 'ref',  label: 'Before (ref)'},
+          {value: 'both', label: 'After & Before'},
+        ]}
+      />
+      <Popover
+        hoverCloseDelay={500}
+        interactionKind={"hover"}
+        inheritDarkTheme
+        popoverClassName={Classes.DARK}
+        content={<div style={{ padding: '15px' }}>
+          <p>Read about <a rel="noopener noreferrer" href="http://www.brendangregg.com/flamegraphs.html" target="_blank">Flame Graphs</a></p>
+          <p>And the <a rel="noopener noreferrer" href="http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html" target="_blank">Differential Flame Graphs</a> versions</p>
+        </div>}
+      >
+        <p><Icon icon="info-sign" style={{ marginLeft: '8px', color: Colors.GRAY2 }} /></p>
+      </Popover>
+      </div>
+  </>
+}
 
 
 export default FlameGraphViewer;

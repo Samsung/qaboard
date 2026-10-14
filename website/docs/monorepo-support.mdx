@@ -10,7 +10,7 @@ title: Monorepo/Multi-repo support
 - **Working directory:** When calling `qa [command]`, `qa` will first change the working directory to the top-most directory of your git repo, where you have your root _qaboard.yaml_.
 - **Relative paths** in _qaboard.yaml_ configuration files are always relative to the repository root.
 - **Submodules**: If you work in a submodule that uses QA-Board, and the git repo above also uses QA-Board, it can be confusing for `qa` to know what to do... So add `root: true` to your submodule's _qaboard.yaml_
-- `project.avatar_url` and `project.description` can be changed to display relevant information in the Web UI.
+- `project.avatar_url` and `project.description` can be changed to display relevant information in the Web UI. Avatars from hosts other than your GitLab need to be listed in [`QABOARD_PROXY_HOSTS`](/docs/deploy#optional-environment-variables).
 - **In your `project.entrypoint:run()`**: you can `from qaboard.config import project, project_root, subproject` if needed. 
 - **Layering:** _project/sub/qaboard.yaml_ will inherit everything from _project/qaboard.yaml_, deep-merged. As a helper you can use the keyword `super` to add items to lists:
 

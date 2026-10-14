@@ -3,7 +3,6 @@ id: tuning-from-the-webapp
 sidebar_label: Tuning from QA-Board
 title: Starting tuning experiments from QA-Board
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
 
 
 ## How to do tuning or trigger extra runs from QA-Board
@@ -11,7 +10,10 @@ When doing QA or during development, you often want to run the code/configs from
 
 <iframe style={{maxWidth: "560px"}} height="315" src="https://www.youtube.com/embed/XN71PBr0Rvg" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
 
-<!-- <img alt="Tuning from the UI" src={useBaseUrl('img/tuning-from-the-ui.jpg')} /> -->
+<Shot
+  id="tuning/manual-form"
+  caption="Every combination of 2 score thresholds and 2 NMS IoUs on a batch of 2 tests: the form says it will start 8 runs, before you send."
+/>
 
 ## When the batch doesn't start
 QA-Board starts your batch by running `qa batch` (as an LSF job, with Celery, or locally on the server). If it fails or takes a while, there are no runs to look at, so the batch's page tells you what's going on:
@@ -45,3 +47,14 @@ How to start runs is described in the [user guide](/docs/user-guide/running-from
 - Pasting lines of `key=value` in the manual tuning editor converts them to the tuning format: `block.threshold=10` becomes `"block.threshold": [10]`, and space-separated matrices like `[1 2 3]` become JSON arrays.
 - In the **Available Tests** view, where you can define your own batches, <kbd>Ctrl</kbd>+<kbd>S</kbd> (or <kbd>Cmd</kbd>+<kbd>S</kbd>) saves the batches file you are editing.
 - Once runs are done, the **Analysis** view (`selected_views=optimization`) shows the tuning exploration plots: sensitivity to each parameter and to pairs of parameters (box plots, contours), a parallel coordinates plot, the trade-off between two metrics, and for `qa optimize` experiments the best parameters and the convergence. See the [user guide](/docs/user-guide/commit-page#analysis).
+
+## Other tuning workflows
+Tuning from QA-Board runs the code of a commit. Depending on where you are in your work, other workflows fit better:
+- **Locally, with your own tools**: if you already have great development and debugging tools (an IDE, `tensorboard` for neural networks, one-off scripts...), keep using them. It's still worth having them call your code through `qa`, so that runs behave the same everywhere: see [debugging with IDEs](debugging-runs-with-an-IDE).
+- **Your local code, results in QA-Board**: tweak, compile and run your code, then compare the results across runs in the web app. Runs started with `--share` appear in a batch named after you, with a warning that they may not match the committed code:
+  ```bash
+  qa --share run [...]
+  qa --share --label testing-some-logic-tweaks batch [...]
+  ```
+- **Commit, CI, QA-Board**: to change configuration files that live in your repository, commit and push the changes, and look at the results of the CI runs.
+- **Automatic optimization**: let `qa optimize` search the parameters for you, see [auto-optimization](auto-optimization).

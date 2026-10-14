@@ -3,21 +3,25 @@ id: bit-accuracy
 sidebar_label: Bit Accuracy
 title: Bit accuracy tests
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
-
 QA-Board was started at Samsung, within a business unit focused on hardware digital design. Because of those root, QA-Board provides a number of ways to check that results are equal from commit to commit.
 
 ## "Soft" bit-accuracy checks from the UI
 The web application lets you view and compare all files created by your algorithm's runs:
 
 - Files are marked depending on their status (identical, different, added, removed...). Identical files are hidden by default.
-- You can click on each file to open it with an appropriate file viewer:
+- You can click on each file to open it with an appropriate file viewer.
 
-<img alt="bit accuracy viewer" src={useBaseUrl('img/bit-accuracy-viewer.jpg')} />
+<Shot
+  id="commit/output-files"
+  caption="Only the files that changed are listed: a rounding change in the fixed-point model shows in its register dump, then in the last two stages' buffers."
+/>
 
-:::note
-The UI doesn't care about [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml#L121)'s `bit_accuracy.patterns` *(discussed later)*.
-:::
+<Clip
+  id="commit/bit-accuracy-diff"
+  caption="Click a file to diff it with the reference: Next Diff jumps to the register that changed. Ctrl-click another file to add its diff. On a commit that only changed docs, the run is Bit-accurate."
+/>
+
+Like `qa check-bit-accuracy`, the web app only checks the files selected by `bit_accuracy.patterns` (see [what files are checked](#what-files-are-checked)). When all of them are identical, the run is tagged **Bit-accurate**. The other files are still listed when they differ, greyed and tagged **not checked**: for instance *metrics.json*, which has the run's measured run time. Unlike `qa check-bit-accuracy` without `--strict`, checked files that exist in only one of the runs also make the web app show differences.
 
 ### "Hard" `qa check-bit-accuracy` on the CLI
 `qa check-bit-accuracy --batch $batch` compares the results of `qa batch $batch` to:
@@ -25,13 +29,18 @@ The UI doesn't care about [*qaboard.yaml*](https://github.com/Samsung/qaboard/bl
 - ...unlesss you're checking a merge made to that branch. In which case the commit's parents will act as references.
 - You can ask to compare versus a specific git commit, branch or tag with `qa check-bit-accuracy --reference $git-ref`.
 
-> If the commit you compare against has not finished its CI, `qa` will  wait.
+> If the commit you compare against has not finished its CI, `qa` will wait. It asks GitLab for the commit's pipeline jobs, or GitHub for its statuses and check runs, so it needs a token (see [CI integration](ci-integration)). Skipped jobs, and jobs allowed to fail, count as successful. `bit_accuracy.failed_ci_job_name` restricts it to a given job: in a subproject, it looks for the job `<failed_ci_job_name> <subproject>` (with the name of the subproject's folder).
 
 :::note Custom Needs
-You can opt-in to more complex behaviour in *[qaboard.yaml](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml)* with `bit_accuracy.on_reference_failed_ci: compare-first-parent` (and `bit_accuracy.max_parents_depth`, default 5), in case there are not results in the reference commit. Maybe the build failed, in which case you want to compare against the previous commit... If you're interested open an issue we'll add more details to the docs.
+You can opt-in to more complex behaviour in *[qaboard.yaml](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml)* with `bit_accuracy.on_reference_failed_ci: compare-first-parent` (it goes back at most `bit_accuracy.max_parents_depth` first parents, default 5), in case there are not results in the reference commit. Maybe the build failed, in which case you want to compare against the previous commit... If you're interested open an issue we'll add more details to the docs.
 :::
 
-If output files are different, `qa` prints a report and exists with a failure.
+If output files are different, `qa` prints a report and exits with a failure.
+
+<Clip
+  id="cli/bit-accuracy"
+  caption="On the rounding change, qa check-bit-accuracy lists the files that differ and fails. On a commit that only changed the docs, it passes."
+/>
 
 Other options:
 - `--strict`: by default only the files that exist in both runs are compared. With `--strict`, files that exist in only one of the runs are errors too.
@@ -43,7 +52,19 @@ Each run saves in its output directory a *manifest.outputs.json*, with a hash of
 For specific use-cases, there is also `qa check-bit-accuracy-manifest --batch my-batch` (it also accepts `--strict`), which checks the results versus manifests stored in the database next to the input files, instead of versus another commit. To save those manifests, use `qa batch my-batch --save-manifests-in-database` (the flag is forwarded to `qa run`). It only works for inputs that are folders.
 
 ### What files are checked?
-Files matching the patterns defined as `bit_accuracy.patterns` in [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml#L121) will be checked.
+Files matching the patterns defined as `bit_accuracy.patterns` in [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml#L121) will be checked. Without patterns, all files are checked.
+
+```yaml title="qaboard.yaml"
+bit_accuracy:
+  patterns: ['out.png', 'stages/*.png', 'regs.txt']
+  ignore: ['debug/']
+```
+
+- Patterns are glob patterns that match the end of a file's path in the run's output directory: `out.png` checks *out.png* and *some/folder/out.png*. `*` also matches `/`.
+- Files whose path starts with one of the `bit_accuracy.ignore` patterns are not checked.
+- Files that change at each run are never checked: *metrics.json* (it has the run time), *run.json*, *log.txt*, *log.lsf.txt* and *manifest.inputs.json* (`qa check-bit-accuracy` compares it on its own, see above).
+
+The web app's **Output Files** and the [quality gate](quality-gate.mdx)'s `require_bit_accuracy` check the same files.
 
 :::note
 If you work with text files on both Linux and Windows, EOL can make things tricky... You can decide what files are plaintext or binary using `bit_accuracy.plaintext` *or* `bit_accuracy.binary`.
@@ -54,7 +75,7 @@ If you work with text files on both Linux and Windows, EOL can make things trick
 ## Sample CI for bit-accuracy checks
 You often want to know when your algorithm's results change, *especially if another team is busy implementing them in hardware*!
 
-Here is how you could get the CI to warn you with GitlabCI:
+Here is how you could get the CI to warn you with GitLab CI (it works the same with GitHub Actions):
 
 ```yaml title=".gitlab-ci.yml"
 stages:

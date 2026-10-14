@@ -3,8 +3,10 @@
  * Run with: cd webapp && npm test -- RunLogs
  */
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithProviders } from '../../../test-utils';
 import { setupIntersectionMocking, resetIntersectionMocking } from 'react-intersection-observer/test-utils';
 
+import { toaster } from '../../../toaster';
 import { RunLogs, configurationSummary, runName } from '../RunLogs';
 
 
@@ -60,7 +62,7 @@ describe('runName', () => {
 describe('RunLogs', () => {
   const renderRun = (props = {}) => {
     const onToggle = vi.fn()
-    const view = render(<RunLogs id={7} output={output} project="p" commit={{ id: 'abc' }} dispatch={vi.fn()} expanded={false} onToggle={onToggle} {...props} />)
+    const view = renderWithProviders(<RunLogs id={7} output={output} project="p" commit={{ id: 'abc' }} expanded={false} onToggle={onToggle} {...props} />, { siteConfig: {} })
     return { ...view, onToggle }
   }
 
@@ -95,13 +97,39 @@ describe('RunLogs', () => {
     expect(screen.getByText('base', { selector: '.bp6-tag *' })).toBeInTheDocument()
     expect(screen.getByLabelText('Download')).toHaveAttribute('href', '/s/out/7/log.txt')
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/s/out/7/log.dask.txt', expect.anything()))
-    await screen.findByText('No log.txt yet')
+    await screen.findByText('No log.txt')
+    expect(screen.getByText('The run may have failed before it started, or its files were deleted.')).toBeInTheDocument()
+  })
+
+  it('says when the outputs of a run were deleted', async () => {
+    renderRun({ expanded: true, output: { ...output, deleted: true } })
+    expect(await screen.findByText("The run's outputs were deleted.")).toBeInTheDocument()
+  })
+
+  it('copies the path of the output directory', async () => {
+    const writeText = vi.fn(async () => {})
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    vi.stubGlobal('isSecureContext', true)
+    try {
+      const { onToggle } = renderRun({ output: { ...output, output_dir_url: '/s/out/7%20b%2311' } })
+      fireEvent.click(screen.getByLabelText('Copy the path of the output directory'))
+      expect(onToggle).not.toHaveBeenCalled()
+      await waitFor(() => expect(writeText).toHaveBeenCalledWith('/out/7 b#11'))
+      // in the toast (mocked in setupTests.js)
+      await waitFor(() => expect(toaster.show).toHaveBeenCalled())
+      render(toaster.show.mock.calls.at(-1)[0].message)
+      expect(screen.getByText('/out/7 b#11')).toBeInTheDocument()
+    } finally {
+      delete navigator.clipboard
+    }
   })
 
   it('has no run actions for the batch logs', () => {
     renderRun({ title: 'Batch logs', output: { ...output, output_type: 'batch', id: undefined } })
     expect(screen.getByText('Batch logs')).toBeInTheDocument()
     expect(screen.queryByLabelText('Run actions')).toBeNull()
+    // the batch's section has them
+    expect(screen.queryByLabelText('Open the output directory')).toBeNull()
     expect(screen.queryByText(/lr=0\.1/)).toBeNull()
   })
 })

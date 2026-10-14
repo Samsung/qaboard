@@ -10,7 +10,7 @@ class BaseRunner():
   def __init__(self, run_context : RunContext):
     self.run_context = run_context
 
-  # Right now we don't call start directy, only start_jobs, so feel free to add parameters
+  # Right now we don't call start directly, only start_jobs, so feel free to add parameters
   # if need be, we'll refactor all runners later. 
   def start(self, blocking=True):
     raise NotImplementedError

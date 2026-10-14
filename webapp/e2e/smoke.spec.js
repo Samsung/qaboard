@@ -15,7 +15,8 @@ const api = {
   '/api/v1/config': {},
   '/api/v1/user/me/': { is_authenticated: true, user_id: 1, user_name: 'alice', full_name: 'Alice', email: 'alice@example.com', login_type: 'local' },
   '/api/v1/projects': { [project]: { id: project, data: { qatools_config: {} }, latest_commit_datetime: '2026-09-01T10:00:00Z', total_commits: 1 } },
-  '/api/v1/project': { id: project, data: { qatools_config: {} } },
+  // the project's data, unwrapped
+  '/api/v1/project': { qatools_config: {} },
   '/api/v1/project/branches': ['master'],
   '/api/v1/commits': [commit],
   '/api/v1/commit': commit,
@@ -32,6 +33,8 @@ test.beforeEach(async ({ page }, testInfo) => {
   });
 });
 
+// Playwright needs a destructuring pattern for the fixtures, even when we use none
+// oxlint-disable-next-line no-empty-pattern
 test.afterEach(async ({}, testInfo) => {
   expect(testInfo.errors_seen, 'errors in the browser console').toEqual([]);
 });
@@ -84,4 +87,32 @@ test('switch to a branch seen in a previous session', async ({ page }) => {
   await expect(page).toHaveURL(new RegExp(`/${project}/commits/master`));
   await expect(page.getByText('Hello world').first()).toBeVisible();
   await expect(page.getByText('Sorry, something went wrong')).toHaveCount(0);
+});
+
+// The History page has the project's navigation too, and the sidebar navigates without reloading the app
+test('history page navigation', async ({ page }) => {
+  await page.goto(`/${project}/commits/master`);
+  await expect(page.getByText('Hello world').first()).toBeVisible();
+  await page.evaluate(() => { window.not_reloaded = true; });
+  await page.getByRole('menuitem', { name: 'History', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/${project}/history/master`));
+  await expect(page.getByText('Performance over time')).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Code' })).toHaveAttribute('target', '_blank');
+  await expect(page.getByRole('menuitem', { name: 'Milestones' })).toBeVisible();
+  // back to the branch's commits
+  await page.getByRole('menuitem', { name: 'master', exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/${project}/commits/master`));
+  await expect(page.getByText('Hello world').first()).toBeVisible();
+  expect(await page.evaluate(() => window.not_reloaded)).toBe(true);
+  await page.waitForLoadState('networkidle');
+});
+
+// Committers' avatars often can't be found or loaded
+test('avatars that fail to load show initials', async ({ page }) => {
+  await page.route('**/api/v1/commits**', route => route.fulfill({ json: [{ ...commit, committer_avatar_url: 'https://gitlab.example.com/alice.png' }] }));
+  await page.goto(`/${project}/commits`);
+  const avatar = page.getByRole('link', { name: 'Alice', exact: true }).getByRole('img');
+  await expect(avatar).toHaveAttribute('src', /^data:image\/svg\+xml,/);
+  await expect(avatar).toHaveAttribute('title', 'Alice');
+  await page.waitForLoadState('networkidle');
 });

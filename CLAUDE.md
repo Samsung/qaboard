@@ -32,9 +32,13 @@ docker compose -f docker-compose.yml -f development.yml -f deployments/sirc/sirc
 # Zero-downtime deploys, one env file per environment (compose files, project, replicas...)
 deployments/deploy.py deployments/sirc/production.env up|status|rollback|restore-db|compose ...
 docker compose --env-file deployments/sirc/production.env ps
-# Kubernetes: helm chart in charts/qaboard, SIRC values in deployments/sirc/values.yaml
+# Kubernetes: helm chart in charts/qaboard, laptop quickstart: charts/qaboard/quickstart.yaml + kind.yaml
+# (installed by the helm-e2e CI job, .github/scripts/helm_e2e.py). SIRC values in deployments/sirc/values.yaml
 ```
-GitLab CI deploys master to staging then production automatically. Runbooks: `website/docs/backend-admin/`.
+GitHub CI publishes the images to `ghcr.io/<owner>/qaboard` (`<service>-<sha8>` on master, `<service>` once every job passed,
+`<service>-<version>` for releases) and the chart to `oci://ghcr.io/<owner>/charts/qaboard`; compose and the chart default to
+`ghcr.io/samsung/qaboard`, `QABOARD_IMAGE` / `image.repository` override it.
+GitLab CI deploys master to staging then production automatically. SIRC runbooks: `deployments/sirc/runbooks/`; generic server docs: `website/docs/backend-admin/`.
 
 ### Frontend Development (React)
 ```bash
@@ -78,7 +82,8 @@ website shows them at `/release-notes` (with RSS/Atom feeds).
   or old periods; periods can't overlap). The format is documented in `website/release-notes/_template.md`.
 - **In the same PR as any user-visible change** (web app, `qa` CLI, qaboard.yaml, server/admin), add a
   bullet to the current month's note, under the right section: `## Web app`, `## CLI and project setup`,
-  `## Server and administration`, `## Documentation`, `## Fixes`. If the month's file doesn't exist,
+  `## Server and administration`, `## Documentation`, `## Performance`, `## Fixes` (grouped by area under `###`
+  headings when there are many). If the month's file doesn't exist,
   create it as a draft: `website/release-notes/release_notes.py draft 2026-11 --write` (pre-filled from
   the git log, keeps `draft: true`). Skip refactors, CI-only and typo changes.
 - **Write for the reader**: one change per bullet, starting with a verb, saying what they can now do.
@@ -105,6 +110,10 @@ website shows them at `/release-notes` (with RSS/Atom feeds).
 (`user-guide/`, for people looking at results in the web app), **Project integration** (wrapping code with `qa`,
 qaboard.yaml, runners, integrations), and **Admin** (`backend-admin/`, running the server). When a change
 affects how people use the web app, update the user guide page too.
+
+The website is public: keep internal hostnames, paths, emails and people out of `website/docs/`. Pages for one site's users go in
+`website/site-docs/<site>/`, built only into that site's web app (`QABOARD_SITE`); runbooks go in `deployments/<site>/runbooks/`.
+`yarn build` fails on broken links: when you move or remove a page, add a redirect in `website/docusaurus.config.ts`.
 
 ## Testing
 
@@ -135,7 +144,7 @@ npm test -- --run       # Vitest + Testing Library, jsdom
 ## Key Technologies
 
 - **Backend**: Python 3.11+, Flask, PostgreSQL, SQLAlchemy, Celery, Redis
-- **Frontend**: React 19, Redux, Blueprint UI 6, React Router 8, D3.js, Plotly.js 3, Monaco. Built with Vite 8, tested with Vitest, linted with oxlint
+- **Frontend**: React 19 (function components, React Compiler), TanStack Query (server state), Zustand (user preferences), the URL for what's selected (`src/selection.js`), Blueprint UI 6, React Router 8, D3.js, Plotly.js 3, Monaco. Built with Vite 8, tested with Vitest, linted with oxlint. `npm run bench` measures performance
 - **Infrastructure**: Docker Compose, nginx, RabbitMQ
 - **CLI**: Python with Click framework
 - **Package Management**: `uv` for Python, `npm` for JavaScript

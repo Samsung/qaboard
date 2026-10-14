@@ -79,7 +79,7 @@ def run(context):
 
 # def postprocess(runtime_metrics, context):
 #   """
-#   Optionnaly, you can define a `postprocess` function that, just like `run()`, can:
+#   Optionally, you can define a `postprocess` function that, just like `run()`, can:
 #     1. return a dict with metrics to save in metrics.json
 #     2. Create any qualitative outputs you would like to view later (images, movies...)
 #   """

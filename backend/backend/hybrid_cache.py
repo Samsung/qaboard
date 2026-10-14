@@ -21,12 +21,11 @@ thread_local = threading.local()
 
 def hybrid_cache(ttl=60, maxsize=128):
     """Hybrid cache: thread-local (fast) + Redis (shared).
-    The TTL only affects redis, thread-local cache has no TTL, so make sure workers are killed before the ttl expires to keep freshness garantees.
+    The TTL only affects redis, thread-local cache has no TTL, so make sure workers are killed before the ttl expires to keep freshness guarantees.
+    Note: `maxsize` is currently ignored, the thread-local cache is unbounded.
     """
 
     def decorator(func):
-        local_cache = functools.lru_cache(maxsize=maxsize)(func)
-
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             # Ensure thread has its own cache instance

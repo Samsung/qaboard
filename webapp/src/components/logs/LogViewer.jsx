@@ -15,16 +15,19 @@ import {
   Tooltip,
 } from "@blueprintjs/core";
 
-import { toaster } from "../../toaster";
 import { useLogTail } from "./useLogTail";
 import { createLineParser } from "./logLines";
+import { copyWithToast } from "../../utils/clipboard";
 
 
-// Rendering more lines gets slow
+// Rendering more lines gets slow: we show the last ones, and more when users ask
 const MAX_LINES = 50000
 // Searching more matches gets slow
 const MAX_MATCHES = 5000
 const LINE_HEIGHT = 18
+// Lines are rendered in chunks: React inserts a few chunks instead of 1000s of lines (it gets slow),
+// and when the lines change (search, new output...) it only renders the chunks that changed.
+const CHUNK_LINES = 500
 
 
 export const formatBytes = bytes => {
@@ -272,6 +275,29 @@ const LogLine = memo(({ index, number, html, level, match, current }) => {
 })
 
 
+// Lines [start, start + lines.length[ of the file. `matches` are the lines that match the search,
+// `match_key` says which in this chunk, `current` is the line we jumped to.
+const LogChunk = memo(function LogChunk({ start, lines, numbers, matches, current }) {
+  return <div className="chunk">
+    {lines.map((line, index) => <LogLine
+      key={index}
+      index={start + index}
+      number={numbers ? start + index + 1 : null}
+      html={line.html}
+      level={line.level}
+      match={matches.has(start + index)}
+      current={current === start + index}
+    />)}
+  </div>
+}, (previous, next) => previous.start === next.start
+  && previous.numbers === next.numbers
+  && previous.match_key === next.match_key
+  && previous.current === next.current
+  && (previous.lines === next.lines || (previous.lines.length === next.lines.length
+    // the parser keeps the objects of the lines it already parsed
+    && previous.lines.every((line, index) => line === next.lines[index]))))
+
+
 const Skeleton = () => <Placeholder>
   {[72, 45, 88, 60, 30].map((width, index) => <div key={index} className={Classes.SKELETON} style={{ width: `${width}%` }} />)}
 </Placeholder>
@@ -281,8 +307,9 @@ const Skeleton = () => <Placeholder>
  * Shows a log file, with colors, line numbers, search, errors... While `live`, follows the file as it's written.
  * `files` are the logs the user can switch between: [{name: "log.txt", url: "/s/..."}]
  * `emptyHint` explains missing files ({"log.lsf.txt": "..."}), `waitingHint` why live logs don't exist yet.
+ * We show the last `maxLines` lines, and as many more each time users ask.
  */
-export const LogViewer = ({ files, file, onFileChange, live = false, emptyHint, waitingHint }) => {
+export const LogViewer = ({ files, file, onFileChange, live = false, emptyHint, waitingHint, maxLines = MAX_LINES }) => {
   const selected = files.find(f => f.name === file) ?? files[0]
   const url = selected?.url
   const log = useLogTail(url, { live })
@@ -296,22 +323,45 @@ export const LogViewer = ({ files, file, onFileChange, live = false, emptyHint, 
   const [current_error, setCurrentError] = useState(-1)
   // the line we jumped to
   const [focused_line, setFocusedLine] = useState(null)
+  // how many lines we show, at the end of the file
+  const [max_lines, setMaxLines] = useState(maxLines)
   const body = useRef(null)
   const search_input = useRef(null)
+
+  // Another file: start from its end, and forget the lines we jumped to (we keep the search)
+  const [shown_url, setShownUrl] = useState(url)
+  if (url !== shown_url) {
+    setShownUrl(url)
+    setFollow(true)
+    setCurrentError(-1)
+    setFocusedLine(null)
+    setSelection({ query: '', index: 0 })
+    setMaxLines(maxLines)
+  }
 
   // Lines
   // a new parser for each file
   const parser = useMemo(() => url && createLineParser(), [url])
   const all_lines = useMemo(() => parser ? parser(log.text) : [], [parser, log.text])
-  const hidden = Math.max(0, all_lines.length - MAX_LINES)
+  const hidden = Math.max(0, all_lines.length - max_lines)
   const lines = useMemo(() => hidden ? all_lines.slice(hidden) : all_lines, [all_lines, hidden])
   // Without the start of the file, we don't know the line numbers
   const has_numbers = log.start === 0
   const digits = String(hidden + lines.length).length
+  // Below, lines are identified by their index in the file (all_lines)
   const error_lines = useMemo(() => lines.reduce((errors, line, index) => {
-    if (line.level === 'error') errors.push(index)
+    if (line.level === 'error') errors.push(hidden + index)
     return errors
-  }, []), [lines])
+  }, []), [lines, hidden])
+  const chunks = useMemo(() => {
+    const chunks = []
+    for (let start = hidden; start < all_lines.length;) {
+      const end = Math.min((Math.floor(start / CHUNK_LINES) + 1) * CHUNK_LINES, all_lines.length)
+      chunks.push({ start, lines: all_lines.slice(start, end) })
+      start = end
+    }
+    return chunks
+  }, [all_lines, hidden])
 
   // Search
   const deferred_query = useDeferredValue(query)
@@ -322,11 +372,38 @@ export const LogViewer = ({ files, file, onFileChange, live = false, emptyHint, 
     for (let index = 0; index < lines.length && found.length < MAX_MATCHES; index++) {
       const haystack = lines[index].plain.toLowerCase()
       for (let start = haystack.indexOf(needle); start >= 0 && found.length < MAX_MATCHES; start = haystack.indexOf(needle, start + needle.length))
-        found.push({ line: index, start, end: start + needle.length })
+        found.push({ line: hidden + index, start, end: start + needle.length })
     }
     return found
-  }, [lines, deferred_query])
+  }, [lines, hidden, deferred_query])
   const matching_lines = useMemo(() => new Set(matches.map(m => m.line)), [matches])
+  // Which lines match in each chunk, to render only the chunks that changed
+  const chunk_match_keys = useMemo(() => {
+    const keys = new Map()
+    for (const line of matching_lines) {
+      const chunk = Math.floor(line / CHUNK_LINES)
+      keys.set(chunk, `${keys.get(chunk) ?? ''} ${line}`)
+    }
+    return keys
+  }, [matching_lines])
+  // What users would miss in the lines we don't show
+  const hidden_errors = useMemo(() => {
+    let count = 0
+    for (let index = 0; index < hidden; index++)
+      if (all_lines[index].level === 'error') count++
+    return count
+  }, [all_lines, hidden])
+  const hidden_matches = useMemo(() => {
+    const needle = deferred_query.toLowerCase()
+    let count = 0
+    if (!needle) return count
+    for (let index = 0; index < hidden && count < MAX_MATCHES; index++) {
+      const haystack = all_lines[index].plain.toLowerCase()
+      for (let start = haystack.indexOf(needle); start >= 0 && count < MAX_MATCHES; start = haystack.indexOf(needle, start + needle.length))
+        count++
+    }
+    return count
+  }, [all_lines, hidden, deferred_query])
   const current_match = selection.query === query ? Math.min(selection.index, Math.max(0, matches.length - 1)) : 0
   // While the search is computed, matches are for the previous query
   const current = matches.length && query === deferred_query ? matches[current_match] : null
@@ -363,7 +440,7 @@ export const LogViewer = ({ files, file, onFileChange, live = false, emptyHint, 
     const ranges = []
     const current_ranges = []
     for (const match of matches) {
-      const element = elements[match.line]
+      const element = elements[match.line - hidden]
       const range = element && textRange(element, match.start, match.end)
       if (!range) continue
       ranges.push(range)
@@ -377,13 +454,26 @@ export const LogViewer = ({ files, file, onFileChange, live = false, emptyHint, 
       ranges.forEach(range => highlight.delete(range))
       current_ranges.forEach(range => current_highlight.delete(range))
     }
-  }, [matches, current, lines, wrap])
+  }, [matches, current, lines, hidden, wrap])
 
   // Follow the end of the logs, like a terminal, until users scroll up
   useLayoutEffect(() => {
     if (follow && body.current)
       body.current.scrollTop = body.current.scrollHeight
   }, [lines, follow, tall])
+
+  // After showing more lines, the line that was first stays where it was: the new lines are above
+  const revealed = useRef(null)
+  useLayoutEffect(() => {
+    const element = revealed.current !== null && body.current?.querySelector(`[data-index="${revealed.current}"]`)
+    revealed.current = null
+    if (element) body.current.scrollTop = element.offsetTop - LINE_HEIGHT
+  }, [lines])
+  const showMore = () => {
+    revealed.current = hidden
+    setFollow(false)
+    setMaxLines(max_lines => max_lines + maxLines)
+  }
 
   const onScroll = event => {
     const element = event.currentTarget
@@ -410,10 +500,11 @@ export const LogViewer = ({ files, file, onFileChange, live = false, emptyHint, 
 
   const copy = () => {
     const text = all_lines.map(line => line.plain).join('\n')
-    navigator.clipboard?.writeText(text).then(
-      () => toaster.show({ message: `Copied ${all_lines.length.toLocaleString()} lines`, icon: 'tick', intent: Intent.SUCCESS, timeout: 2000 }),
-      () => toaster.show({ message: 'Could not copy the logs', intent: Intent.DANGER }),
-    )
+    // We only copy what we read
+    const lines = log.start > 0
+      ? `the last ${all_lines.length.toLocaleString()} lines (${formatBytes(log.end - log.start)} of ${formatBytes(log.total)})`
+      : `${all_lines.length.toLocaleString()} lines`
+    copyWithToast(text, { what: 'the logs', message: `Copied ${lines}` })
   }
 
   const is_missing = log.status === 'error' && log.error?.status === 404
@@ -424,7 +515,7 @@ export const LogViewer = ({ files, file, onFileChange, live = false, emptyHint, 
     content = <NonIdealState
       icon={is_missing && live ? <Spinner size={20} /> : (is_missing ? "document" : "error")}
       iconSize={is_missing && live ? undefined : 32}
-      title={is_missing ? `No ${selected.name} yet` : `Could not read ${selected.name}`}
+      title={is_missing ? `No ${selected.name}${live ? ' yet' : ''}` : `Could not read ${selected.name}`}
       description={is_missing
         ? (live ? (waitingHint ?? "The run hasn't written it yet, we'll show it as soon as it does.") : (emptyHint?.[selected.name] ?? "This file doesn't exist."))
         : log.error?.message}
@@ -438,15 +529,19 @@ export const LogViewer = ({ files, file, onFileChange, live = false, emptyHint, 
       {live ? <><Spinner size={12} style={{ display: 'inline-block', marginRight: 8 }} />Waiting for output…</> : 'Empty.'}
     </div>
   } else {
-    content = lines.map((line, index) => <LogLine
-      key={index}
-      index={index}
-      number={has_numbers ? hidden + index + 1 : null}
-      html={line.html}
-      level={line.level}
-      match={matching_lines.has(index)}
-      current={current ? current.line === index : focused_line === index}
-    />)
+    const current_line = current ? current.line : (focused_line ?? -1)
+    content = chunks.map(chunk => {
+      const key = Math.floor(chunk.start / CHUNK_LINES)
+      return <LogChunk
+        key={key}
+        start={chunk.start}
+        lines={chunk.lines}
+        numbers={has_numbers}
+        matches={matching_lines}
+        match_key={chunk_match_keys.get(key) ?? ''}
+        current={current_line >= chunk.start && current_line < chunk.start + chunk.lines.length ? current_line : -1}
+      />
+    })
   }
 
   const truncated_bytes = log.status === 'loaded' && log.start > 0
@@ -462,7 +557,7 @@ export const LogViewer = ({ files, file, onFileChange, live = false, emptyHint, 
           />
         : <Tag minimal icon="document">{selected?.name}</Tag>
       }
-      {live && <Tooltip content="The run is still running, the logs update as it writes them.">
+      {live && <Tooltip content="Still running: the logs update as they are written.">
         <Tag minimal round icon={<LiveDot />} style={{ marginLeft: 2 }}>Live</Tag>
       </Tooltip>}
       {log.total !== null && <span className={`meta ${Classes.TEXT_MUTED}`}>
@@ -514,7 +609,16 @@ export const LogViewer = ({ files, file, onFileChange, live = false, emptyHint, 
       <Button size="small" variant="minimal" intent={Intent.PRIMARY} onClick={log.loadAll} loading={is_loading}>Load everything</Button>
     </Notice>}
     {hidden > 0 && <Notice className={Classes.TEXT_MUTED}>
-      Showing the last {MAX_LINES.toLocaleString()} lines. Download the file to see everything.
+      <span>
+        The first {hidden.toLocaleString()} lines are hidden: showing them makes the page slower.
+        {(hidden_errors > 0 || hidden_matches > 0) && ` They have ${[
+          hidden_errors > 0 && `${hidden_errors.toLocaleString()} error${hidden_errors > 1 ? 's' : ''}`,
+          hidden_matches > 0 && `${hidden_matches >= MAX_MATCHES ? `${MAX_MATCHES}+` : hidden_matches.toLocaleString()} match${hidden_matches > 1 ? 'es' : ''} for “${deferred_query}”`,
+        ].filter(Boolean).join(' and ')}.`}
+      </span>
+      <Button size="small" variant="minimal" intent={Intent.PRIMARY} icon="arrow-up" onClick={showMore}>
+        {hidden > maxLines ? `Show ${maxLines.toLocaleString()} more` : 'Show them'}
+      </Button>
     </Notice>}
     <Body
       ref={body}

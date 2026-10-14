@@ -1,21 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useEffectEvent } from "react";
 import {
     Tag,
     Popover,
     Icon,
-    Intent,
     MenuItem,
     Menu,
     Colors,
     Spinner,
     SpinnerSize,
 } from "@blueprintjs/core";
-import copy from 'copy-to-clipboard';
 
 import { output_rois, Crop, fitTo } from "./crops"
 import AutoCrops from "./AutoCrops";
 
-import { toaster } from "../../toaster"
+import { copyWithToast } from "../../utils/clipboard"
 const no_rois = {
     label: "Full Image",
     icon: "zoom-out",
@@ -30,57 +28,54 @@ let default_roi_type = "Full Image"
 //       2. wen trigger find, find for all on view? (or force view) ?
 //     make diff faster
 
-const RoiViewer = ({output_new, output_ref, path, viewer, current_roi, fullyLoaded}) => {
-    let [selectable_rois, set_selectable_rois] = useState({"Full Image": no_rois})
+// manifest (of output_new) and imageServers: as for the image viewer, so the ROI thumbnails show the same image
+// refit: when it changes, the image changed aspect ratio (e.g. a dynamic option picked another file): fit the selected ROI again
+const RoiViewer = ({output_new, output_ref, path, manifest, imageServers, viewer, current_roi, fullyLoaded, refit}) => {
+    const [selectable_rois, set_selectable_rois] = useState({"Full Image": no_rois})
 
     // Sample ROIs for testing
     // output_new.test_input_metadata = {"roi": [
     //     {label: "Edge", x: 0, w: 100, y:0, h:100},
     // ]}
 
-    let [selected_rois, set_selected_rois] = useState(default_roi_type)
+    const [selected_rois, set_selected_rois] = useState(default_roi_type)
     // console.log("selectable_rois[selected_rois]", selectable_rois[selected_rois])
-    const selected_rois_effective = !!selectable_rois[selected_rois] ? selected_rois : "Full Image"
+    const selected_rois_effective = selectable_rois[selected_rois] ? selected_rois : "Full Image"
 
-    let [selected_roi_idx, set_selected_roi_idx] = useState(0)
+    const [selected_roi_idx, set_selected_roi_idx] = useState(0)
 
     useEffect(() => {
-        let new_selectable_rois = JSON.parse(JSON.stringify(selectable_rois))
-
         const preset_rois = output_rois(output_new)
-        if (preset_rois.length > 1) {
-            new_selectable_rois["ROI Presets"] = {
+        const has_presets = preset_rois.length > 1
+        const has_reference = !!output_ref && !output_ref.deleted
+        set_selectable_rois({
+            "Full Image": no_rois,
+            "ROI Presets": has_presets ? {
                 label: "ROI Presets",
                 icon: "rectangle",
                 rois: preset_rois,
-            }
-            if (selected_rois === "Full Image") {
-                set_selected_rois("ROI Presets")
-                const index = 0
-                set_selected_roi_idx(index)
-                fitTo(preset_rois[index], viewer)
-            }
-        } else {
-            new_selectable_rois["ROI Presets"] = null   
-        }
-
-        if (!!output_ref && !output_ref.deleted) {
-            new_selectable_rois["Auto ROIs"] = {
+            } : null,
+            "Auto ROIs": has_reference ? {
                 label: "Auto ROIs",
                 icon: "intelligence",
                 rois: [],
-            }
-            // new_selectable_rois["Auto False Colors"] = {
-            //     label: "Auto False Colors",
-            //     icon: "delta",
-            //     rois: [],
-            // }
-        } else {
-            new_selectable_rois["Auto ROIs"] = null
-            new_selectable_rois["Auto False Colors"] = null
+            } : null,
+            ...(has_reference ? {} : { "Auto False Colors": null }),
+        })
+        if (has_presets && selected_rois === "Full Image") {
+            set_selected_rois("ROI Presets")
+            const index = 0
+            set_selected_roi_idx(index)
+            fitTo(preset_rois[index], viewer)
         }
-        set_selectable_rois(new_selectable_rois)
     }, [output_ref, output_new]);
+
+
+    // only when the image changes, with the ROI selected then
+    const fit_selected_roi = useEffectEvent(() => fitTo(selectable_rois[selected_rois_effective].rois[selected_roi_idx] ?? no_rois, viewer))
+    useEffect(() => {
+        if (refit) fit_selected_roi()
+    }, [refit]);
 
 
     // console.log("selectable_rois", selectable_rois)
@@ -125,8 +120,7 @@ const RoiViewer = ({output_new, output_ref, path, viewer, current_roi, fullyLoad
             onClick={() => {
                 const { x, y, w, h, width, height } = current_roi
                 const to_clipboard = `width: ${width}\nheight: ${height}\n- {x: ${Math.round(x)}, y: ${Math.round(y)}, w: ${Math.round(w)}, h: ${Math.round(h)}, label: ""}`;
-                copy(to_clipboard)
-                toaster.show({ message: "Copied!", intent: Intent.SUCCESS, timeout: 3000 });          
+                copyWithToast(to_clipboard, { what: 'the ROI' })
             }}
         />
     </Menu>
@@ -148,7 +142,7 @@ const RoiViewer = ({output_new, output_ref, path, viewer, current_roi, fullyLoad
     {rois.rois.length > 1 && <>
             <Tag minimal icon="chevron-left" interactive style={{marginBottom: "5px", marginRight: "5px"}}
                 onClick={() => {
-                    const index = (selected_roi_idx - 1) % rois.rois.length
+                    const index = (selected_roi_idx - 1 + rois.rois.length) % rois.rois.length
                     fitTo(rois.rois[index], viewer)
                     set_selected_roi_idx(index)
                 }}
@@ -161,33 +155,33 @@ const RoiViewer = ({output_new, output_ref, path, viewer, current_roi, fullyLoad
                 }}
             />
     </>}
-    {rois.label == "Auto ROIs" && <AutoCrops
+    {rois.label === "Auto ROIs" && <AutoCrops
         viewer={viewer}
         output_new={output_new}
         output_ref={output_ref}
         path={path}
         rois={rois.rois}
-        updateRois={rois => {
-            rois.push({label: 'Full Image'})
-            set_selectable_rois({
+        updateRois={found_rois => {
+            const rois = [...found_rois, {label: 'Full Image'}]
+            set_selectable_rois(selectable_rois => ({
                 ...selectable_rois,
                 "Auto ROIs": {
                     ...selectable_rois["Auto ROIs"],
                     rois,
                 }
-            })
-            if (rois.length > 0) {
-                set_selected_roi_idx(0)
-                fitTo(rois[0], viewer)    
-            }
+            }))
+            set_selected_roi_idx(0)
+            fitTo(rois[0], viewer)
         }
     }/>}
     {non_default_rois && <div>{rois.rois.map((roi, idx) => {
         return <Crop
-            selected={idx==selected_roi_idx}
+            selected={idx === selected_roi_idx}
             key={idx}
             output={output_new}
             path={path}
+            manifest={manifest}
+            imageServers={imageServers}
             roi={roi}
             viewer={viewer}
             onSelect={() => {

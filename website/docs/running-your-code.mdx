@@ -15,6 +15,11 @@ qa --share run --input path/to/your/input.file 'echo "{input_path} => {output_di
 #=> prints an URL to view logs in the web interface
 ```
 
+<Clip
+  id="cli/first-run"
+  caption="In a project that wraps its code, qa run on one input prints where the outputs go, then your code's log, then the metrics it computed."
+/>
+
 <img alt="First results" src={useBaseUrl('img/first-outputs.png')} />
 
 :::tip
@@ -34,10 +39,10 @@ export QA_SHARE=true
 ## Wrapping your code
 How does it work? When you `pip install` QA-Board with `pip`, you get the `qa` executable. `qa` opens *qaboard.yaml* and imports the python file specified by `project.entrypoint`. Then it runs your entrypoint's `run()` function with information about the current run: input, configuration, where outputs should be saved etc.
 
-Take a look at the default `run()` in [*qa/main.py*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qa/main.py). You should change it to run your code. In most cases that means finding and executing an exectuable file, or importing+running python code...
+Take a look at the default `run()` in [*qa/main.py*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qa/main.py). You should change it to run your code. In most cases that means finding and executing an executable file, or importing+running python code...
 
 :::tip
-Many users want to separate algorithm runs and postprocessing. To make this flow easier, you can optionnaly implement `postprocess()`. Then you will get `qa run` and `qa postprocess`.
+Many users want to separate algorithm runs and postprocessing. To make this flow easier, you can optionally implement `postprocess()`. Then you will get `qa run` and `qa postprocess`.
 :::
 
 ## What should your wrapper do?
@@ -93,7 +98,7 @@ def run(context):
 ```
 
 :::tip
-Instead of returning your metrics, in some cases it's more convinient to write them as JSON in *context.output_dir/metrics.json*.
+Instead of returning your metrics, in some cases it's more convenient to write them as JSON in *context.output_dir/metrics.json*.
 :::
 
 ### Use-case #3: Importing existing results (Advanced)

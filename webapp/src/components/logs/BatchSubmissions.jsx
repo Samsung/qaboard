@@ -3,13 +3,14 @@ import styled from "styled-components";
 import { DateTime } from "luxon";
 import { Button, Callout, Classes, Collapse, Colors, Intent, Spinner, Tag, Tooltip } from "@blueprintjs/core";
 
-import { toaster } from "../../toaster";
-import { updateSelected } from "../../actions/selected";
+import { updateSelected } from "../../selection";
 import { LogViewer } from "./LogViewer";
 import { LsfReport, withCode } from "./LsfReport";
 import { lsfHint, lsfKilled, lsfReason } from "./lsf";
 import { RunList, Header, Content, INTERACTIVE } from "./RunLogs";
 import { batchSubmissions, is_final, useSubmissionStatus } from "./submissions";
+import { DirectoryActions } from "./DirectoryActions";
+import { copyWithToast } from "../../utils/clipboard";
 
 
 const Meta = styled.span`
@@ -99,16 +100,21 @@ const waitingHint = submission => submission.runner === 'lsf'
 const lsfJob = submission => submission.lsf_job_id ? `LSF job ${submission.lsf_job_id}${submission.queue ? ` (${submission.queue})` : ''}` : null
 
 
-const copy = text => navigator.clipboard?.writeText(text).then(
-  () => toaster.show({ message: 'Copied', icon: 'tick', intent: Intent.SUCCESS, timeout: 1500 }),
-)
-
+// The requests to show a submission that we scrolled to: rows that mount again don't scroll again
+const scrolled = new WeakSet()
 
 /**
  * A batch started from QA-Board: the status of `qa batch`, and its logs.
+ * `focus` changes when users ask to see this submission: we scroll to it.
  */
-const SubmissionRow = ({ submission, expanded, onToggle }) => {
+const SubmissionRow = ({ submission, expanded, onToggle, focus }) => {
   const status = useSubmissionStatus(submission)
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!focus || scrolled.has(focus)) return
+    scrolled.add(focus)
+    ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  }, [focus])
   const [file, setFile] = useState('log.txt')
   const base = submission.log_dir_url
   const files = [
@@ -121,7 +127,7 @@ const SubmissionRow = ({ submission, expanded, onToggle }) => {
     onToggle()
   }
 
-  return <div>
+  return <div ref={ref} style={{ scrollMarginTop: 16 }}>
     <Header onClick={toggle} $expanded={expanded} $failed={failed}>
       <Button
         size="small"
@@ -145,6 +151,9 @@ const SubmissionRow = ({ submission, expanded, onToggle }) => {
           </React.Fragment>)}
         </span>
       </Meta>
+      {!!base && <span className="actions">
+        <DirectoryActions url={base} what="the folder with qa batch's script and logs" />
+      </span>}
     </Header>
     <Collapse isOpen={expanded} transitionDuration={150}>
       <Content $failed={failed}>
@@ -157,7 +166,7 @@ const SubmissionRow = ({ submission, expanded, onToggle }) => {
         {!!submission.command && <Command className={Classes.MONOSPACE_TEXT}>
           <code>{submission.command}</code>
           <Tooltip content="Copy the command">
-            <Button size="small" variant="minimal" icon="duplicate" aria-label="Copy the command" onClick={() => copy(submission.command)} />
+            <Button size="small" variant="minimal" icon="duplicate" aria-label="Copy the command" onClick={() => copyWithToast(submission.command, { what: 'the command' })} />
           </Tooltip>
         </Command>}
         {base
@@ -174,11 +183,21 @@ const SHOWN = 3
 /**
  * The batches started from QA-Board, most recent first.
  * If the batch has no runs yet, we open the most recent: it's likely why.
+ * `focus` ({id}, a new object each time) opens a submission's logs and scrolls to it. We ignore the requests made before we rendered.
  */
-export const BatchSubmissions = ({ batch, has_runs }) => {
+export const BatchSubmissions = ({ batch, has_runs, focus }) => {
   const submissions = batchSubmissions(batch)
   const [expanded, setExpanded] = useState(() => new Set(!has_runs && submissions.length ? [submissions[0].id] : []))
   const [show_all, setShowAll] = useState(false)
+  const [last_focus, setLastFocus] = useState(focus)
+  const [focused, setFocused] = useState(null)
+  if (focus && focus !== last_focus) {
+    setLastFocus(focus)
+    setFocused(focus)
+    setExpanded(expanded => new Set(expanded).add(focus.id))
+    if (submissions.findIndex(submission => submission.id === focus.id) >= SHOWN)
+      setShowAll(true)
+  }
   if (!submissions.length) return null
 
   const toggle = id => setExpanded(expanded => {
@@ -196,6 +215,7 @@ export const BatchSubmissions = ({ batch, has_runs }) => {
         submission={submission}
         expanded={expanded.has(submission.id)}
         onToggle={() => toggle(submission.id)}
+        focus={focused?.id === submission.id ? focused : null}
       />)}
     </RunList>
     {submissions.length > SHOWN && <Button style={{ marginTop: 6 }} size="small" variant="minimal" onClick={() => setShowAll(!show_all)}>
@@ -209,7 +229,7 @@ export const BatchSubmissions = ({ batch, has_runs }) => {
  * Tells users how the batch they started from QA-Board is doing, when they can't see it from its runs:
  * `qa batch` is waiting for LSF, running, failed, or didn't start any run.
  */
-const LatestSubmissionCallout = ({ submission, has_runs, project, dispatch, onFinished }) => {
+const LatestSubmissionCallout = ({ submission, has_runs, onFinished }) => {
   const status = useSubmissionStatus(submission)
   const previous = useRef(status.state)
   useEffect(() => {
@@ -221,7 +241,7 @@ const LatestSubmissionCallout = ({ submission, has_runs, project, dispatch, onFi
   const show_logs = <Button
     size="small"
     icon="console"
-    onClick={() => dispatch(updateSelected(project, { selected_views: 'logs' }))}
+    onClick={() => updateSelected({ selected_views: ['logs'] })}
   >
     Show the logs
   </Button>
@@ -253,8 +273,8 @@ const LatestSubmissionCallout = ({ submission, has_runs, project, dispatch, onFi
   </Callout>
 }
 
-export const SubmissionCallout = ({ batch, has_runs, project, dispatch, onFinished }) => {
+export const SubmissionCallout = ({ batch, has_runs, onFinished }) => {
   const [latest] = batchSubmissions(batch)
   if (!latest) return null
-  return <LatestSubmissionCallout key={latest.id} submission={latest} has_runs={has_runs} project={project} dispatch={dispatch} onFinished={onFinished} />
+  return <LatestSubmissionCallout key={latest.id} submission={latest} has_runs={has_runs} onFinished={onFinished} />
 }

@@ -1,7 +1,4 @@
-import React from "react";
-import axios from "axios";
-import { CopyToClipboard } from "react-copy-to-clipboard";
-import copy from 'copy-to-clipboard';
+import { useState } from "react";
 import {
   Classes,
   Colors,
@@ -17,22 +14,14 @@ import {
   Button,
 } from "@blueprintjs/core";
 
-import { fetchCommit } from "../actions/commit";
+import { http, errorMessage, isAbort, isArtifactsError } from "../api/http";
+import { useRefreshCommit, useUser } from "../hooks";
+import { LoginMenuItem } from "./authentication/login";
 import { linux_to_windows } from '../utils'
 import { folder_url } from '../utils/paths'
 import { toaster } from "../toaster"
-import { errorMessage, isArtifactsError } from "../utils/errors"
-import { RequiresLogin, LoginMenuItem } from "./authentication/login"
-
-
-const on_copy = (text, format = 'config') => {
-  const message = format === 'tuning' ? 'Tuning format copied' : 'Config copied';
-  toaster.show({
-    message: message,
-    intent: Intent.SUCCESS
-  });
-}
-
+import { copyWithToast } from "../utils/clipboard"
+import { copyDirectory } from "./logs/DirectoryActions"
 
 
 const style_skeleton = {
@@ -60,11 +49,9 @@ const StatusTag = ({output, style}) => {
 
 }
 
-class PlatformTag extends React.Component {
-  render() {
-    if (this.props.platform === undefined || this.props.platform === null || this.props.platform === 'linux') return <span />
-    return <Tag round minimal={!this.props.inverted} style={{ marginRight: '5px', marginLeft: '5px' }}>@{this.props.platform}</Tag>
-  }
+const PlatformTag = ({ platform, inverted }) => {
+  if (platform === undefined || platform === null || platform === 'linux') return <span />
+  return <Tag round minimal={!inverted} style={{ marginRight: '5px', marginLeft: '5px' }}>@{platform}</Tag>
 }
 
 const hidden_keys = ["badges", "roi", "auto_rois"]
@@ -118,28 +105,17 @@ const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, to
               <MenuItem
                 icon="duplicate"
                 text="Copy this item"
-                onClick={() => {
-                  copy(c);
-                  on_copy(c);
-                }}
+                onClick={() => copyWithToast(c)}
               />
               <MenuItem
                 icon="duplicate"
                 text="Copy full configuration"
-                onClick={() => {
-                  const pretty_json = JSON.stringify(configurations, null, 2);
-                  copy(pretty_json);
-                  on_copy(pretty_json);
-                }}
+                onClick={() => copyWithToast(JSON.stringify(configurations, null, 2), { what: 'the configuration' })}
               />
               {convertToTuningFormat(configurations) && <MenuItem
                 icon="duplicate"
                 text="Copy full config in tuning format"
-                onClick={() => {
-                  const tuning_format = convertToTuningFormat(configurations);
-                  copy(tuning_format);
-                  on_copy(tuning_format, 'tuning');
-                }}
+                onClick={() => copyWithToast(convertToTuningFormat(configurations), { what: 'the configuration in tuning format' })}
               />}
             </Menu>
           }
@@ -167,38 +143,22 @@ const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, to
                          <MenuItem
                            icon="duplicate"
                            text={<span>Copy <em>{`${k}`}</em></span>}
-                           onClick={() => {
-                             const item_text = `${k}: ${JSON.stringify(v)}`;
-                             copy(item_text);
-                             on_copy(item_text);
-                           }}
+                           onClick={() => copyWithToast(`${k}: ${JSON.stringify(v)}`)}
                          />
                          <MenuItem
                            icon="duplicate"
                            text="Copy as JSON"
-                           onClick={() => {
-                             const object_json = JSON.stringify(c, null, 2);
-                             copy(object_json);
-                             on_copy(object_json);
-                           }}
+                           onClick={() => copyWithToast(JSON.stringify(c, null, 2))}
                          />
                          <MenuItem
                            icon="duplicate"
                            text="Copy full configuration"
-                           onClick={() => {
-                             const pretty_json = JSON.stringify(configurations, null, 2);
-                             copy(pretty_json);
-                             on_copy(pretty_json);
-                           }}
+                           onClick={() => copyWithToast(JSON.stringify(configurations, null, 2), { what: 'the configuration' })}
                          />
                          {convertToTuningFormat(configurations) && <MenuItem
                            icon="duplicate"
                            text="Copy full configuration in tuning format"
-                           onClick={() => {
-                             const tuning_format = convertToTuningFormat(configurations);
-                             copy(tuning_format);
-                             on_copy(tuning_format, 'tuning');
-                           }}
+                           onClick={() => copyWithToast(convertToTuningFormat(configurations), { what: 'the configuration in tuning format' })}
                          />}
                        </Menu>
                      }
@@ -219,27 +179,24 @@ const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, to
 }
 
 
-class ExtraParametersTags extends React.Component {
-  render() {
-    const { parameters } = this.props;
-    if (Object.keys(parameters).length === 0)
-      return <span />
+const ExtraParametersTags = ({ parameters, intent = Intent.PRIMARY, inverted, before }) => {
+  if (Object.keys(parameters).length === 0)
+    return <span />
 
-    const intent = this.props.intent || Intent.PRIMARY;
-    const tags = Object.entries(parameters)
-      .filter(([k]) => !hidden_keys.includes(k))
-      .map(([k, v]) => (
-        <Tag key={k} intent={intent} minimal={!this.props.inverted} round interactive style={{ marginRight: '5px', marginBottom: '3px' }}>
-          <strong>{k}: </strong> {JSON.stringify(v)}
-        </Tag>
-      ));
+  const pretty_json = JSON.stringify(parameters, null, 2);
+  const copy = () => copyWithToast(pretty_json, { what: 'the parameters' });
+  const tags = Object.entries(parameters)
+    .filter(([k]) => !hidden_keys.includes(k))
+    .map(([k, v]) => (
+      <Tag key={k} intent={intent} minimal={!inverted} round interactive onClick={copy} style={{ marginRight: '5px', marginBottom: '3px' }}>
+        <strong>{k}: </strong> {JSON.stringify(v)}
+      </Tag>
+    ));
 
-    const pretty_json = JSON.stringify(parameters, null, 2);
-    return <CopyToClipboard text={pretty_json} onCopy={() => on_copy(pretty_json)}><span>
-      {this.props.before}
-      {tags}
-    </span></CopyToClipboard>
-  }
+  return <span>
+    {before}
+    {tags}
+  </span>
 }
 
 
@@ -295,11 +252,29 @@ const RunBadge = ({badge}) => {
 
 
 // What users can do with a run: redo it, mark it as failed, delete it...
-const RunActionsMenu = ({ output, project, commit, dispatch }) => {
-  const [waiting, setWaiting] = React.useState(false)
+const RunActionsMenu = ({ output, project, commit }) => {
+  const [waiting, setWaiting] = useState(false)
+  const refreshCommit = useRefreshCommit()
+  const is_logged = useUser().is_logged
   const { id, deleted, is_pending } = output
-  const refresh = () => dispatch(fetchCommit({project, id: commit.id}))
-  return <RequiresLogin>{is_logged =>
+  const refresh = () => refreshCommit(project, commit.id)
+  const act = (request, requested, done) => {
+    setWaiting(true)
+    toaster.show({message: requested});
+    request()
+      .then(response => {
+        toaster.show({message: done, intent: Intent.SUCCESS})
+        // e.g. only the source files could be restored
+        if (response?.data?.warning) toaster.show({message: response.data.warning, intent: Intent.WARNING, timeout: 15000})
+      })
+      // 409: the artifacts are missing, maybe being recreated by the CI
+      .catch(error => toaster.show({message: errorMessage(error), intent: isArtifactsError(error) ? Intent.WARNING : Intent.DANGER, timeout: 15000}))
+      .finally(() => {
+        setWaiting(false)
+        refresh()
+      });
+  }
+  return (
     <Menu>
       {!is_logged && <LoginMenuItem text="Log in to redo or delete"/>}
       {id && is_pending && <MenuItem
@@ -309,21 +284,11 @@ const RunActionsMenu = ({ output, project, commit, dispatch }) => {
         intent={Intent.WARNING}
         minimal
         disabled={waiting || !is_logged}
-        onClick={() => {
-          setWaiting(true)
-          toaster.show({message: "Requested to mark as 'Failed'."});
-          axios.put(`/api/v1/output/${id}/`, {is_pending: false, is_running: false, is_failed: true})
-            .then(() => {
-              setWaiting(false)
-              toaster.show({message: "Marked as failed.", intent: Intent.SUCCESS});
-              refresh()
-            })
-            .catch(error => {
-              setWaiting(false)
-              toaster.show({message: errorMessage(error), intent: isArtifactsError(error) ? Intent.WARNING : Intent.DANGER, timeout: 15000});
-              refresh()
-            });
-        }}
+        onClick={() => act(
+          () => http.put(`/api/v1/output/${id}/`, {is_pending: false, is_running: false, is_failed: true}),
+          "Requested to mark as 'Failed'.",
+          "Marked as failed.",
+        )}
       />}
       {id && !is_pending && <MenuItem
         icon="redo"
@@ -331,21 +296,11 @@ const RunActionsMenu = ({ output, project, commit, dispatch }) => {
         intent={Intent.WARNING}
         minimal
         disabled={waiting || !is_logged}
-        onClick={() => {
-          setWaiting(true)
-          toaster.show({message: "Requested Redo."});
-          axios.post(`/api/v1/output/redo/${id}/`, {is_pending: false, is_running: false})
-            .then(response => { if (response?.data?.warning) toaster.show({message: response.data.warning, intent: Intent.WARNING, timeout: 15000});
-              setWaiting(false)
-              toaster.show({message: "Redo started.", intent: Intent.SUCCESS});
-              refresh()
-            })
-            .catch(error => {
-              setWaiting(false)
-              toaster.show({message: errorMessage(error), intent: isArtifactsError(error) ? Intent.WARNING : Intent.DANGER, timeout: 15000});
-              refresh()
-            });
-        }}
+        onClick={() => act(
+          () => http.post(`/api/v1/output/redo/${id}/`, {is_pending: false, is_running: false}),
+          "Requested Redo.",
+          "Redo started.",
+        )}
       />}
       {id && !deleted && <MenuItem
         icon="trash"
@@ -353,21 +308,7 @@ const RunActionsMenu = ({ output, project, commit, dispatch }) => {
         intent={Intent.DANGER}
         minimal
         disabled={waiting || !is_logged}
-        onClick={() => {
-          setWaiting(true)
-          toaster.show({message: "Delete requested."});
-          axios.delete(`/api/v1/output/${id}/`)
-            .then(() => {
-              setWaiting(false)
-              toaster.show({message: "Deleted.", intent: Intent.SUCCESS});
-              refresh()
-            })
-            .catch(error => {
-              setWaiting(false)
-              toaster.show({message: errorMessage(error), intent: isArtifactsError(error) ? Intent.WARNING : Intent.DANGER, timeout: 15000});
-              refresh()
-            });
-        }}
+        onClick={() => act(() => http.delete(`/api/v1/output/${id}/`), "Delete requested.", "Deleted.")}
       />}
       {id && !deleted && <MenuItem
         icon="trash"
@@ -375,159 +316,134 @@ const RunActionsMenu = ({ output, project, commit, dispatch }) => {
         intent={Intent.DANGER}
         minimal
         disabled={waiting || !is_logged}
-        onClick={() => {
-          setWaiting(true)
-          toaster.show({message: "Delete requested."});
-          axios.delete(`/api/v1/output/${id}/?soft=true`)
-            .then(() => {
-              setWaiting(false)
-              toaster.show({message: "Deleted.", intent: Intent.SUCCESS});
-              refresh()
-            })
-            .catch(error => {
-              setWaiting(false)
-              toaster.show({message: errorMessage(error), intent: isArtifactsError(error) ? Intent.WARNING : Intent.DANGER, timeout: 15000});
-              refresh()
-            });
-        }}
+        onClick={() => act(() => http.delete(`/api/v1/output/${id}/`, {params: {soft: true}}), "Delete requested.", "Deleted.")}
       />}
     </Menu>
-  }</RequiresLogin>
+  )
 }
 
 
-class OutputTags extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      waiting: false,
-    };
+// Asks WebCDE, running on the user's machine, to open the output
+const open_in_webcde = async ({ output, commit, cde_sh }) => {
+  const { platform, output_dir_url } = output
+  const cde_dir = cde_sh.replace(/\/?cde.sh$/, '')
+  const { data: text } = await http.get(`${output_dir_url}/${cde_sh}`, { responseType: 'text' })
+  const command = text.replace(/"/g, '').trim();
+  const name = output.test_input_path.split(".")[0]
+  const wd = `${decodeURIComponent(linux_to_windows(`${output_dir_url}/${cde_dir}`))}\\`
+  try {
+    await http.post(`http://localhost:2020/CDE/Launch?WebCDE`, {
+      os: platform,
+      command, wd, name,
+      commit: commit.id.slice(0, 8),
+    })
+  } catch (error) {
+    // fetch fails without a response when nothing listens
+    if (!error.response && !isAbort(error))
+      error.webcde_unreachable = true
+    throw error
   }
+}
 
-  refresh = () => {
-    const { project, commit, dispatch } = this.props;
-    dispatch(fetchCommit({project, id: commit.id}))
-  }
+const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, style }) => {
+  const [waiting, setWaiting] = useState(false)
+  const refreshCommit = useRefreshCommit()
+  const refresh = () => refreshCommit(project, commit.id)
+  const { platform, configurations, output_dir_url, deleted, output_type } = output;
+  const cde_shs = !deleted ? Object.keys(manifests?.new ?? []).filter(path => path.endsWith("cde.sh")) : []
+  return <span style={style}>
+    {deleted && <Tag icon="trash">deleted</Tag>}
+    <PlatformTag platform={platform} />
+    <ConfigurationsTags configurations={configurations} />
 
-
-  render() {
-    const { platform, configurations, output_dir_url, deleted, output_type } = this.props.output;
-    const { mismatch } = this.props;
-    const cde_shs = !deleted ? Object.keys(this.props.manifests?.new ?? []).filter(path => path.endsWith("cde.sh")) : []
-    return <span style={this.props.style}>
-      {deleted && <Tag icon="trash">deleted</Tag>}
-      <PlatformTag platform={platform} />
-      <ConfigurationsTags configurations={configurations} />
-
-      {output_type !== "batch" &&
-      <Popover placement="bottom" hoverCloseDelay={200} interactionKind={"hover"} content={
-        <RunActionsMenu output={this.props.output} project={this.props.project} commit={this.props.commit} dispatch={this.props.dispatch} />
-      }>
-        <Icon icon="menu" style={{ marginLeft: "5px", color: Colors.GRAY1 }}/>
-      </Popover>}
+    {output_type !== "batch" &&
+    <Popover placement="bottom" hoverCloseDelay={200} interactionKind={"hover"} content={
+      <RunActionsMenu output={output} project={project} commit={commit} />
+    }>
+      <Icon icon="menu" style={{ marginLeft: "5px", color: Colors.GRAY1 }}/>
+    </Popover>}
 
 
-      <Popover hoverCloseDelay={500} interactionKind={"hover"} placement="bottom" content={
-        <Menu>
-          <MenuItem
-            text="Open output directory in browser" 
-            target="_blank" 
-            rel="noopener noreferrer" 
+    <Popover hoverCloseDelay={500} interactionKind={"hover"} placement="bottom" content={
+      <Menu>
+        <MenuItem
+          text="Open output directory in browser"
+          target="_blank"
+          rel="noopener noreferrer"
+          href={folder_url(output_dir_url)}
+          className={Classes.TEXT_MUTED} minimal
+          icon="folder-shared-open"
+        />
+        {output_ref &&
+        <MenuItem
+          text="Open the Reference's output directory in browser"
+          target="_blank"
+          rel="noopener noreferrer"
+          href={folder_url(output_ref.output_dir_url)}
+          className={Classes.TEXT_MUTED} minimal
+          icon="folder-shared-open"
+        />}
+      </Menu>}
+    >
+      <a style={{marginLeft: "5px", color: Colors.GRAY1}}
+            target="_blank"
+            rel="noopener noreferrer"
             href={folder_url(output_dir_url)}
-            className={Classes.TEXT_MUTED} minimal 
-            icon="folder-shared-open" 
-          />
-          {this.props.output_ref && 
-          <MenuItem
-            text="Open the Reference's output directory in browser" 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            href={folder_url(this.props.output_ref.output_dir_url)}
-            className={Classes.TEXT_MUTED} minimal 
-            icon="folder-shared-open" 
-          />}
-        </Menu>}
       >
-        <a style={{marginLeft: "5px", color: Colors.GRAY1}}
-              target="_blank"
-              rel="noopener noreferrer"
-              href={folder_url(output_dir_url)}
-        >
-          <Icon icon="folder-shared-open" />
-        </a>
-      </Popover>
+        <Icon icon="folder-shared-open" />
+      </a>
+    </Popover>
 
-      <Popover hoverCloseDelay={500} interactionKind={"hover"} placement="bottom" content={
-        <Menu>
-          {this.props.output_ref && <MenuDivider title="New Run" />}
-          <MenuItem text="Copy output directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(output_dir_url).slice(2))}} />
-          <MenuItem text="Copy output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(output_dir_url))}} />
-          {this.props.output_ref && <>
-            <MenuDivider title="Reference Run" />
-            <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path of `reference` copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(this.props.output_ref.output_dir_url).slice(2))}} />
-            <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path of `reference` copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(this.props.output_ref.output_dir_url))}} />
-            </>
-          }
-        </Menu>}
-      >
-        <span style={{marginLeft: "5px", marginRight: '5px', color: Colors.GRAY1}}>
-          <Icon
-            title="Copy-to-Clipboard"
-            icon="duplicate"
-          />
-        </span>
-      </Popover>
-      {cde_shs.map(cde_sh => {
-        const cde_dir = cde_sh.replace(/\/?cde.sh$/, '')
-        return <Tooltip key={cde_sh} content="Open in WebCDE">
-        <Button
-            outlined={true}
-            style={{margin: "5px"}}
-            disabled={this.state.waiting}
-            icon="open-application"
-            text={cde_shs.length === 1 ? 'WebCDE' : cde_dir}
-            onClick={() => {
-              this.setState({waiting: true})
-              fetch(`${output_dir_url}/${cde_sh}`)
-              .then(r => r.text())
-              .then(text => {
-                const command = text.replace(/"/g, '').trim();
-                const name = this.props.output.test_input_path.split(".")[0]
-                const wd = `${decodeURIComponent(linux_to_windows(`${output_dir_url}/${cde_dir}`))}\\`
-                axios.post(
-                  `http://localhost:2020/CDE/Launch?WebCDE`, {
-                    os: platform, 
-                    command, wd, name,
-                    commit: this.props.commit.id.slice(0, 8), 
-                })
-                .then(() => {
-                  this.setState({waiting: false})
-                  toaster.show({message: "Sent to WebCDE", intent: Intent.SUCCESS});
-                  this.refresh()
-                })
-                .catch(error => {
-                  this.setState({waiting: false})
-                  const error_str = errorMessage(error)
-                  if (error.message == "Network Error") {
-                    const help_text = "Sorry we could not connect to CDEWebService. Please start WebCDE.exe (download from \\\\netapp\\Joint\\WebCDE\\WebCDE_Setup.exe)"
-                    toaster.show({
-                      message: `${help_text}`,
-                      intent: Intent.DANGER});
-                  } else {
-                    toaster.show({
-                      message: error_str,
-                      intent: Intent.DANGER});
-                  }
-                  this.refresh()
+    <Popover hoverCloseDelay={500} interactionKind={"hover"} placement="bottom" content={
+      <Menu>
+        {output_ref && <MenuDivider title="New Run" />}
+        <MenuItem text="Copy output directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_dir_url)} />
+        <MenuItem text="Copy output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_dir_url, { windows: true })} />
+        {output_ref && <>
+          <MenuDivider title="Reference Run" />
+          <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_ref.output_dir_url)} />
+          <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_ref.output_dir_url, { windows: true })} />
+          </>
+        }
+      </Menu>}
+    >
+      <span style={{marginLeft: "5px", marginRight: '5px', color: Colors.GRAY1}}>
+        <Icon
+          title="Copy-to-Clipboard"
+          icon="duplicate"
+        />
+      </span>
+    </Popover>
+    {cde_shs.map(cde_sh => {
+      const cde_dir = cde_sh.replace(/\/?cde.sh$/, '')
+      return <Tooltip key={cde_sh} content="Open in WebCDE">
+      <Button
+          outlined={true}
+          style={{margin: "5px"}}
+          disabled={waiting}
+          icon="open-application"
+          text={cde_shs.length === 1 ? 'WebCDE' : cde_dir}
+          onClick={() => {
+            setWaiting(true)
+            open_in_webcde({ output, commit, cde_sh })
+              .then(() => toaster.show({message: "Sent to WebCDE", intent: Intent.SUCCESS}))
+              .catch(error => {
+                const help_text = "Sorry we could not connect to CDEWebService. Please start WebCDE.exe (download from \\\\netapp\\Joint\\WebCDE\\WebCDE_Setup.exe)"
+                toaster.show({
+                  message: error.webcde_unreachable ? help_text : errorMessage(error),
+                  intent: Intent.DANGER,
                 });
               })
-            }}
-        />
-        </Tooltip>}
-      )}
-      <MismatchTags mismatch={mismatch}/>
-    </span>
-  }
+              .finally(() => {
+                setWaiting(false)
+                refresh()
+              });
+          }}
+      />
+      </Tooltip>}
+    )}
+    <MismatchTags mismatch={mismatch}/>
+  </span>
 }
 
 

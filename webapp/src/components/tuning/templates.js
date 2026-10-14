@@ -116,7 +116,7 @@ objective:
     #   | relu_X   #  (error, target) => relu(X(error, target))  eg relu_identity, relu_shift, relu_relative
     #   | square_X #  (error, target) => X(error, target) ^2     eg square_relative, square_relu_relative
 
-  # ${(metrics.main_metrics.length > 0 && metrics.main_metrics[1]) || 'metric2'}:
+  # ${metrics.main_metrics?.[1] || 'metric2'}:
   #   ...
   #   ...
 
@@ -124,9 +124,9 @@ objective:
   #   # The target metric value used in the loss function can be chosen
   #   # either, by default, using the target defined in your metrics configuration
   #   # (Refer to https://samsung.github.io/qaboard/docs/computing-quantitative-metrics)
-  #   # eg ${metrics.default_metric && metrics.available_metrics[metrics.default_metric] && metrics.available_metrics[metrics.default_metric].target} for ${metrics.default_metric}
+  #   # eg ${metrics.available_metrics?.[metrics.default_metric]?.target} for ${metrics.default_metric}
   #   # Or from a specific git revision: 
-  #   branch: ${config.project.reference_branch}  # a git branch/tag
+  #   branch: ${config?.project?.reference_branch ?? "master"}  # a git branch/tag
   #   id: some_commit_id                 # a git commit id
   #   # Look for reference outputs in a batch called
   #   batch: default

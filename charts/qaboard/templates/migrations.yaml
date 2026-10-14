@@ -21,6 +21,11 @@ spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets: {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.demoData.enabled }}
+      # The demo projects' database, before the migrations create empty tables (without `helm install --wait`, this
+      # Job can start before the backend's init container restores it)
+      initContainers: {{- include "qaboard.demoDataRestore" (list . "database") | nindent 8 }}
+      {{- end }}
       containers:
         - name: migrations
           image: {{ include "qaboard.image" (list . "backend") }}
@@ -28,6 +33,10 @@ spec:
           command: ["./wait-for-it.sh", "{{ include "qaboard.dbHost" . }}:{{ .Values.database.port }}", "-t", "600", "--", "/qaboard/backend/migrate.sh"]
           # The hook can run before the release's ConfigMap/Secret exist (pre-upgrade with new keys), so we don't rely on them
           env: {{- include "qaboard.backendEnv" . | nindent 12 }}
+            # Data migrations need the settings, e.g. to know the git hosts (GITLAB_HOST, QABOARD_GIT_HOSTS...)
+            {{- range $key, $value := .Values.config }}
+            - {name: {{ $key | quote }}, value: {{ $value | quote }}}
+            {{- end }}
             {{- if not (or .Values.database.cnpg.enabled .Values.database.embedded.enabled) }}
             - name: QABOARD_DB_PASSWORD
               valueFrom: {secretKeyRef: {name: {{ include "qaboard.secretName" . }}, key: QABOARD_DB_PASSWORD, optional: true}}

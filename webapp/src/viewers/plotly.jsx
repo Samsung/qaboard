@@ -1,8 +1,9 @@
-import React, { PureComponent } from "react";
-import axios, { all, CancelToken } from "axios";
-const { get } = axios;
+import { useQuery } from "@tanstack/react-query";
+
 import Plot from "../components/Plot";
-import { Colors } from "@blueprintjs/core";
+import { errorMessage } from "../api/http";
+import { fileQuery } from "../api/queries";
+import { overlay } from "./plotlyOverlay";
 
 
 // TODO: keep the zoom in the state, like explained here
@@ -12,200 +13,81 @@ import { Colors } from "@blueprintjs/core";
 // TODO: sync zoom across all plots sharing the same path, like we do for images
 // TODO: add magic to e.g. compare tables with a diff  
 
-const colors = {
-  groundtruth: `${Colors.GREEN2}dd`,
-  new: `${Colors.ORANGE2}dd`,
-  ref: `${Colors.BLUE2}dd`
-};
+// Files are cached: switching between views doesn't fetch them again
 
 
-const adapt = (trace, label) => {
-  let width = (trace.line && trace.line.width) || 2;
-  let size = (trace.marker && trace.marker.size) || 3;
-  if (label === "ref") {
-    width += 1;
-    size += 1;
-  }
-  const trace_has_colors = !!(trace.line || {}).color || !!(trace.marker || {}).color
-  // console.log(trace)
-  return {
-    ...trace,
-    opacity: (trace_has_colors && label === "ref") ? (!!trace.opacity ? trace.opacity / 2 : 0.4) : undefined,
-    name: !!trace.name ? `${label} | ${trace.name}` : label,
-    legendgroup: !!trace.legendgroup ? `${label} | ${trace.legendgroup}` : undefined,
-    line: {
-      ...trace.line,
-      // FIXME: if we already use color, use some alpha like below, or dotted lines?
-      color: !!(trace.line || {}).color ? trace.line.color : colors[label],
-      dash: (!!(trace.line || {}).color && !!!trace.dash && label === "ref") ? 'dashdot' : trace.dash,
-      // The reference is wider to make it easy to identify unchanged results
-      width,
-    },
-    marker: {
-      ...trace.marker,
-      opacity: (!!trace_has_colors && label === "ref") ? (!!(trace.marker || {}).opacity ? trace.marker.opacity / 2 : 0.4) : (trace.marker || {}).opacity,
-      color: !!(trace.marker || {}).color ? trace.marker.color : colors[label],
-      size,
-    },
-    // TODO: make other ajustments for other plot types, like tables...
-  }
-}
+const px = (value, fallback) => parseFloat(String(value ?? fallback).replace(/px$/, ''));
 
 
-class PlotlyViewer extends PureComponent {
-  constructor(props) {
-    super(props);
-    this.state = {
-      is_loaded: false,
-      error: null,
-      cancel_source: CancelToken.source(),
-      data: {},
-      layouts: {},
-      config: {},
-    };
-  }
+const PlotlyViewer = ({ output_new, output_ref, path, path_groundtruth, style, side_by_side = true, layout }) => {
+  const width = style?.width || '840px';
+  const height = style?.height || '525';
 
-  componentDidMount() {
-    this.getData(this.props)
-  }
+  // plotly can be saved as embeddable stand-alone html
+  const is_html = !!path && path.endsWith('.html');
+  const can_fetch = !!output_new?.output_dir_url && !!path && !is_html;
+  const has_ref = !!output_ref;
+  const url = (output, file) => can_fetch && output?.output_dir_url && file ? `${output.output_dir_url}/${file}` : undefined;
+  const query_new = useQuery(fileQuery(url(output_new, path), { is_running: output_new?.is_running }));
+  // we don't really care about errors for reference / groundtruth outputs
+  const query_ref = useQuery(fileQuery(url(output_ref, path), { is_running: output_ref?.is_running }));
+  const query_groundtruth = useQuery(fileQuery(url(output_new, path_groundtruth), { is_running: output_new?.is_running }));
 
-  getData(props, label) {
-    const { output_new, output_ref, path, path_groundtruth } = props;
-    const { cancel_source } = this.state;
-    if (!output_new.output_dir_url || !path || path.endsWith('.html')) return;
-
-    let results = [];
-    const should_get_all = label === undefined || label === null;
-    if (should_get_all || label === 'new') {
-      results.push(['new', `${output_new.output_dir_url}/${path}`])
-    }
-    if (should_get_all || label === 'ref') {
-      if (!!output_ref && !!output_ref.output_dir_url)
-        results.push(['ref', `${output_ref.output_dir_url}/${path}`])
-      if (!!path_groundtruth)
-        results.push( ['groundtruth', `${output_new.output_dir_url}/${path_groundtruth}`] )
-    }
-
-    const load_data = label => response => {
-      this.setState(previous_state => ({
-        data: {
-          ...previous_state.data,
-          [label]: response.data.data ?? [],
-        },
-        layouts: {
-          ...previous_state.layouts,
-          [label]: response.data.layout ?? {},                          
+  if (is_html)
+    return <div style={{display: "flex"}}>
+        <iframe title="new" scrolling="no" style={{border: "none"}} seamless="seamless" src={`${output_new.output_dir_url}/${path}`} height={height} width={width}></iframe>
+        {has_ref &&
+        <iframe title="reference" scrolling="no" style={{border: "none"}} seamless="seamless" src={`${output_ref.output_dir_url}/${path}`} height={height} width={width}></iframe>
         }
-      }))
-    }
+    </div>
 
-    all(results.map( ([label, url]) => {
-      return () =>  get(url, {cancelToken: cancel_source.token})
-                    .then(load_data(label))
-                    .catch(response => {
-                      // we don't really care about errors for ref / groundtruth outputs
-                      if (label==='new' && !!response)
-                        this.setState({error: response.data})
-                    });
-    }).map(f=>f()) )
-    // now we loaded and parsed all the data
-    .finally( () => this.setState({is_loaded: true}) )
+  const queries = { new: query_new, ref: query_ref, groundtruth: query_groundtruth };
+  // we wait for all the files
+  const is_loading = Object.values(queries).some(q => q.isPending && q.isFetching);
+  if (!can_fetch || is_loading || query_new.isPending) return <span/>;
+  if (query_new.isError) return <span>{errorMessage(query_new.error)}</span>
+
+  const data = {};
+  for (const [label, query] of Object.entries(queries)) {
+    if (query.data)
+      data[label] = query.data.data ?? [];
+  }
+  const layout_new = query_new.data?.layout ?? {};
+  const width_full = px(width, '840px');
+
+  if (!side_by_side) {
+    // the plot's and the configuration's widths win, like before
+    const layout_ = {
+      width: width_full,
+      ...layout_new,
+      ...layout,
+    };
+    const merged_layout = {
+      ...layout_,
+      xaxis: { ...layout_.xaxis, automargin: true },
+      yaxis: { ...layout_.yaxis, automargin: true },
+      legend: { ...layout_.legend, traceorder: 'reversed' },
+    };
+    const traces = overlay(data, has_ref);
+    if (traces.length === 0)
+      return <span></span>
+    return <Plot data={traces} layout={merged_layout}/>;
   }
 
-
-  componentWillUnmount() {
-    if (!!this.state.cancel_source)
-      this.state.cancel_source.cancel();
-  }
-
-  componentDidUpdate(prevProps) {
-      const has_path = this.props.path !== undefined && this.props.path !== null;
-      let updated_path = has_path && (prevProps.path === null || prevProps.path === undefined || prevProps.path !== this.props.path);
-
-      const has_new = this.props.output_new !== undefined && this.props.output_new !== null;
-      const has_ref = this.props.output_ref !== undefined && this.props.output_ref !== null;
-      // if has_ref and not same..
-      let updated_new = has_new && (prevProps.output_new === null || prevProps.output_new === undefined || prevProps.output_new.id !== this.props.output_new.id);
-      let updated_ref = has_ref && (prevProps.output_ref === null || prevProps.output_ref === undefined || prevProps.output_ref.id !== this.props.output_ref.id);
-      if (updated_new || updated_path) {
-        this.getData(this.props, 'new');
-      }
-      if (updated_ref || updated_path) {
-        this.getData(this.props, 'ref');
-      }
-  }
-
-  render() {
-    const { style } = this.props;
-    const width = (!!style && style.width) || '840px';
-    const height = (!!style && style.height) || '525';
-
-    // support plotly saved as embeddable stand-alone html
-    const { output_new, output_ref, path } = this.props;
-    if (!!path && path.endsWith('.html'))
-      return <div style={{display: "flex"}}>
-          <iframe id="igraph" scrolling="no" style={{border: "none"}} seamless="seamless" src={`${output_new.output_dir_url}/${path}`} height={height} width={width}></iframe>
-          {!!output_ref &&
-          <iframe id="igraph" scrolling="no" style={{border: "none"}} seamless="seamless" src={`${output_ref.output_dir_url}/${path}`} height={height} width={width}></iframe>
-          }
-      </div>
-
-    const { data, layouts, is_loaded, error } = this.state;
-    const { side_by_side=true } = this.props;
-    const has_ref = output_ref !== undefined && output_ref !== null;
-
-    if (!is_loaded) return <span/>;
-    if (!!error) return <span>{JSON.stringify(error)}</span>
-
-
-    // console.log(this.props)
-    if (!side_by_side) {
-      let layout_ = {
-        xaxis: {},
-        yaxis: {},
-        legend: {},
-        width: parseFloat(width.substring(0, width.length-2)),
-        // height: parseFloat(style.heigth),
-        ...layouts['new'],
-        ...this.props.layout,
-      };
-      layout_.xaxis.automargin = true;
-      layout_.yaxis.automargin = true;
-      layout_.legend.traceorder = 'reversed';
-      let traces = [];
-      ['groundtruth', 'ref', 'new'].forEach(label => {
-        let trace = data[label]
-        if (!trace)
-          return
-        if (has_ref)
-          trace = adapt(trace, label, side_by_side)
-        traces = traces.concat(trace)
-      });
-
-      if (traces.length===0)
-        return <span></span>
-      return <Plot data={traces} layout={layout_}/>;
-    }
-
-    if (side_by_side) {
-      let width_full = parseFloat(width.substring(0, width.length-2))
-      let layout_ = {
-        xaxis: {},
-        yaxis: {},
-        ...layouts['new'],
-        ...this.props.layout,
-        width:  !!data.ref ? (width_full / 2 - 40) : width_full,
-      };
-      layout_.xaxis.automargin = true;
-      layout_.yaxis.automargin = true;
-      return <>
-        <Plot key="new" data={data.new} layout={layout_}/>
-        {!!data.ref && <Plot key="ref" data={data.ref} layout={layout_}/>}
-      </>      
-    }
-  }
-
-
+  const layout_ = {
+    ...layout_new,
+    ...layout,
+  };
+  const merged_layout = {
+    ...layout_,
+    xaxis: { ...layout_.xaxis, automargin: true },
+    yaxis: { ...layout_.yaxis, automargin: true },
+    width: data.ref ? (width_full / 2 - 40) : width_full,
+  };
+  return <>
+    <Plot key="new" data={data.new} layout={merged_layout}/>
+    {!!data.ref && <Plot key="ref" data={data.ref} layout={merged_layout}/>}
+  </>
 }
 
 export default PlotlyViewer;

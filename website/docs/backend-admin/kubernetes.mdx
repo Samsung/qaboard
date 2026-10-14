@@ -1,63 +1,188 @@
 ---
 id: kubernetes
 sidebar_label: Kubernetes
-title: Running QA-Board on kubernetes
+title: Running QA-Board on Kubernetes
 ---
-The helm chart is in `charts/qaboard`. SIRC's values are in `deployments/sirc/values.yaml`.
+QA-Board has a Helm chart. Each release publishes it at `oci://ghcr.io/samsung/charts/qaboard`, with images built and tested by CI (`ghcr.io/samsung/qaboard`). The chart's source is in [`charts/qaboard`](https://github.com/Samsung/qaboard/tree/master/charts/qaboard), and `helm show values oci://ghcr.io/samsung/charts/qaboard` lists all its settings, with comments.
+
+## Quickstart on your laptop (kind)
+You need [docker](https://docs.docker.com/get-docker/), [kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation), [kubectl](https://kubernetes.io/docs/tasks/tools/) and [helm](https://helm.sh/docs/intro/install/) (3.8 or later; with helm 4, avoid 4.2.1: it waits out the whole `--timeout` after running the chart's migrations, see [helm#32214](https://github.com/helm/helm/issues/32214)). Then:
 
 ```bash
-helm upgrade --install qaboard charts/qaboard --namespace qaboard --create-namespace \
-     -f my-values.yaml --set image.version=<commit> --atomic --wait --timeout 15m
+git clone https://github.com/Samsung/qaboard.git
+cd qaboard
+mkdir -p /tmp/qaboard
+kind create cluster --name qaboard --config charts/qaboard/kind.yaml
+helm install qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --timeout 15m
+kubectl port-forward svc/qaboard-proxy 5151:80
 ```
 
-`--atomic` rolls back automatically if the new pods don't become ready. Database migrations run in a Job before upgrades: if they fail, the release fails and the running version is untouched.
+Open [http://localhost:5151](http://localhost:5151). The first install downloads QA-Board's images, which can take a few minutes.
 
-## What runs
+<Clip
+  id="quickstart/kind"
+  caption="These commands, recorded: once helm install returns, QA-Board answers through the port-forward, with the demo projects."
+/>
+
+:::note Tested in CI
+GitHub CI runs these same commands on every commit (the `helm-e2e` job), with the images it just built. Then it checks the demo data (a small test project) through the API and in a browser, runs a `qa batch` in the cluster, checks its results through the web server, and upgrades the release.
+:::
+
+What `quickstart.yaml` sets up: a PostgreSQL pod, one replica of each service, the Cantaloupe image server, no ingress (hence the port-forward), the results storage in `/tmp/qaboard`, and the docs' demo projects (`demoData`). Before the backend first starts, an init container restores their database, unless it already has QA-Board's tables, and their results, in a volume of their own mounted at `/mnt/qaboard`, the path their database has. Without `demoData`, the projects list is empty until you save results.
+
+### Save results from your laptop
+The `qa` CLI saves results in a folder, and tells the server where they are: the server must see them at the same absolute path. `kind.yaml` shares your computer's `/tmp/qaboard` with the cluster at the same path, and the chart mounts it in QA-Board's pods. Point the CLI to the server and to this folder:
+
+```bash
+uv tool install qaboard   # or: pip install qaboard
+export QABOARD_URL=http://localhost:5151
+```
+
+```yaml title="qaboard.yaml"
+storage: /tmp/qaboard
+```
+
+Then run `qa --share batch ...` (or `qa batch` in CI) in your project, and open the link it prints.
+
+:::tip
+`/tmp/qaboard` works on Linux and macOS without `sudo`, but your system may clean `/tmp`. To keep results elsewhere, change the path in `kind.yaml` (both `hostPath` and `containerPath`), in `quickstart.yaml` (`results.mountPath` and `results.hostPath.path`), and in your `qaboard.yaml`. Create the folder before the cluster: otherwise docker creates it, owned by `root`.
+:::
+
+You can also run `qa` inside the cluster: the backend image ships the CLI. Mount the results volume at the same path, like CI does in [`.github/scripts/helm_e2e.py`](https://github.com/Samsung/qaboard/blob/master/.github/scripts/helm_e2e.py).
+
+### Other local clusters
+Any cluster works if its node sees the results folder at the same path as your computer (not tested in CI):
+- **k3d**: `k3d cluster create qaboard --volume /tmp/qaboard:/tmp/qaboard`
+- **minikube**: `minikube start --mount --mount-string=/tmp/qaboard:/tmp/qaboard`
+
+Then run the same `helm install` and `kubectl port-forward` commands.
+
+### Clean up
+```bash
+kind delete cluster --name qaboard
+```
+
+## On a real cluster
+```bash
+helm install qaboard oci://ghcr.io/samsung/charts/qaboard \
+     --namespace qaboard --create-namespace -f my-values.yaml --wait --timeout 15m
+```
+
+- **Versions:** helm installs the latest release, `--version` picks another one. The chart has QA-Board's version and installs that release's images: the chart `1.2.0` runs `ghcr.io/samsung/qaboard:backend-1.2.0`... Each commit on `master` also publishes a development version, like `1.2.1-dev.42`: helm only installs them with `--devel` or an explicit `--version`.
+- **Images:** `image.version` picks other images, e.g. a commit (`1a2b3c4d`) or `latest` (the latest `master`). To use a mirror, set `image.repository` and `imagePullSecrets`. Forks of the repository publish their own images and chart, at `ghcr.io/<owner>/qaboard` and `oci://ghcr.io/<owner>/charts/qaboard`.
+- **Settings:** `config` sets the backend's [environment variables](../start-server.mdx), `secret` its secrets (`SECRET_KEY`, `QABOARD_DB_PASSWORD`, the git hosts' tokens: `GITLAB_ACCESS_TOKEN`, `GITHUB_ACCESS_TOKEN` and the variables named by `token_env` and `webhook_secret_env` in `QABOARD_GIT_HOSTS`, `QABOARD_WEBHOOK_SECRET`, LDAP credentials...). Prefer creating the secret yourself (e.g. with external-secrets) and referencing it with `secret.existingSecret`. `SECRET_KEY` signs sessions: keep it when you migrate, or everyone is logged out.
+- **Migrations:** the migrations Job gets `config` too: data migrations need e.g. the [git hosts](./git-hosts.mdx#upgrading-from-older-versions), so give `QABOARD_GIT_HOSTS` in `config` as JSON, not as the path to a file the Job doesn't mount.
+
+### What runs
 | Component | Kubernetes | Notes |
 |-----------|------------|-------|
 | backend | Deployment, 2+ replicas | Rolling updates with `maxUnavailable: 0`, readiness on `/api/v1/health`, a PodDisruptionBudget, spread on nodes. Optional HPA. |
-| proxy (nginx) | Deployment, 2 replicas | Init containers copy the frontend and docs bundles. TLS is done by the ingress. |
-| database | external, or CloudNativePG | `database.host` for a PostgreSQL managed by IT, or `database.cnpg.enabled` for an HA cluster (primary + replicas, automatic failover) with the [CloudNativePG operator](https://cloudnative-pg.io). `database.embedded` is only to try the chart. |
+| proxy (nginx) | Deployment, 2 replicas | Serves the web app, the docs and the results (`/s/`). Init containers copy the frontend and docs bundles. |
+| database | external, CloudNativePG, or a pod | See [the database](#database). |
+| migrations | Job | Before each upgrade, and after the first install. If they fail, the release fails and the running version is untouched. |
 | redis | Deployment | A cache, no persistence |
-| backups | CronJob (`backup.enabled`) | `pg_dump` to a volume. With CloudNativePG, prefer its continuous backups to S3/MinIO. |
-| cantaloupe, rabbitmq/flower | optional | |
+| cantaloupe | Deployment (`cantaloupe.enabled`) | IIIF image server: tiles for big images in the image viewer |
+| backups | CronJob (`backup.enabled`) | `pg_dump` to a volume |
+| rabbitmq, flower | Deployments (`celery.enabled`) | Only with `QABOARD_TUNING_RUNNER=celery` |
 
-## Settings
-- `config`: the backend's environment variables (see [server setup](../deploy)).
-- `secret.existingSecret`: a secret with `SECRET_KEY` (signs sessions: must be the same for all replicas, and kept when migrating or everyone is logged out), `QABOARD_DB_PASSWORD`, `GITLAB_ACCESS_TOKEN`, LDAP credentials...
-- `backend.data`: the application data volume (git clones, caches). With several replicas it must be `ReadWriteMany` (e.g. NFS).
-- `backend.extraVolumes`/`extraVolumeMounts`: where users write outputs, as NFS volumes, or `hostPath` when nodes mount the storage themselves (autofs).
-- `proxy.siteConfig`: extra nginx configuration files.
+### Results storage
+Runs save their results (outputs and artifacts) in a shared storage, and tell the server where. Everything must see this storage at the same absolute path: the server, and the runners (CI runners, LSF or Celery workers, laptops). The chart's `results` mounts it in the backend (at `results.mountPath`), in nginx (which serves it under `/s/`) and in Cantaloupe (which reads the images). It also sets `QABOARD_STORAGE_ROOTS`: the backend only writes, deletes or runs code there.
 
-## Differences with docker compose
-- **Old frontend bundles are not kept**: with compose, the bundles of previous versions stay in a volume, so clients that didn't reload keep working. On kubernetes each proxy pod only has the current bundle, so a client with an old tab gets errors when it lazy-loads a page, until it reloads. If it's a problem: put the bundles on a shared `ReadWriteMany` volume, or reload the app on chunk load errors.
-- **The backend runs as root**: at SIRC it uses `sudo` to delete outputs as their owner, and uwsgi drops privileges (`UWSGI_UID`). Namespaces with the *restricted* Pod Security Standard won't accept it: ask for *baseline* or an exception.
+Your runners must mount the same storage, so use a file storage that both the cluster and the runners can mount, with `ReadWriteMany` access:
 
-## Migrating SIRC from docker compose
-What we need from IT (the `TODO(sirc)` in `deployments/sirc/values.yaml`):
-1. A namespace, an ingress class, a DNS name. Keep `qa` working as an alias: users and the CLI use `https://qa`.
-2. The shared storage: either nodes that mount `/algo`, `/stage`, `/sim`, `/data`, `/raid`, `/home`, `/net` with autofs like the docker hosts (we use `hostPath` with `mountPropagation: HostToContainer`), or the NFS exports behind each path.
-3. A `ReadWriteMany` storage class for the application data.
-4. PostgreSQL: managed by IT, or the CloudNativePG operator installed in the cluster.
-5. Network access from pods to `gitlab-srv`, LDAP, `ispq-vdi` (LSF bridge over ssh), Jenkins.
-6. Permission to run the backend as root (see above).
-7. For GitLab CI: `helm` on the runner and a kubeconfig (a CI/CD variable of type *File*), or the GitLab agent for kubernetes.
+| Storage | Values |
+|---------|--------|
+| An NFS server | `results.nfs: {server: nas.example.com, path: /exports/qaboard}` |
+| AWS EFS | `results.storageClass`: a StorageClass of the [EFS CSI driver](https://github.com/kubernetes-sigs/aws-efs-csi-driver) (e.g. `efs-sc`), or `results.nfs` with the file system's DNS name |
+| Google Cloud Filestore | `results.storageClass: standard-rwx` (GKE's [Filestore CSI driver](https://cloud.google.com/kubernetes-engine/docs/how-to/persistent-volumes/filestore-csi-driver)) |
+| Azure Files | `results.storageClass: azurefile-csi` (built into AKS) |
+| Nodes that mount the storage themselves | `results.hostPath: {path: /mnt/qaboard}` |
 
-Then:
-1. Create the secrets and config maps listed in `deployments/sirc/values.yaml` (registry credentials, `.env` secrets, `passwd`, LDAP restrictions, ssh key, TLS certificate).
-2. Port the site's nginx locations (`deployments/sirc/nginx/*.conf`) to `proxy.siteConfig`.
-3. Install the chart with a copy of production's database: `pg_dump -Fc` on the qa host (or the latest backup), `pg_restore --no-owner -d qaboard` into the new database. Test it on its temporary hostname.
-4. Switch: make the compose deployment read-only or stop it, restore a fresh dump, point the `qa` DNS name to the ingress. Keep the compose deployment around for a quick way back.
-5. Enable automatic deploys: set the CI/CD variable `QABOARD_K8S_DEPLOY=1` (or `=manual` to start), and remove `deploy:production`.
+```yaml title="my-values.yaml"
+results:
+  enabled: true
+  mountPath: /mnt/qaboard
+  nfs: {server: nas.example.com, path: /exports/qaboard}
+```
 
-Effort: the chart covers the generic parts. The work is mostly the storage mounts and IT's prerequisites; expect a few days of iteration once they are available.
+With a storage class, the chart creates a PersistentVolumeClaim (`results.size`, `results.accessMode`), and the storage provisions a new share for it: runners outside the cluster must mount that share. To use a share you already have, set `results.nfs`, or create the claim yourself and set `results.existingClaim`. Uninstalling the release never deletes the claim.
 
-## Troubleshooting
+Your projects must save their results under `mountPath`: set [`storage`](../storage/where-is-the-data-saved.mdx) in their `qaboard.yaml`. Other storage can still be mounted with `backend.extraVolumes`/`extraVolumeMounts` (and the same for `proxy` and `cantaloupe`): add it to `config.QABOARD_STORAGE_ROOTS`, and mount it at `/var/qaboard/<path>` in the proxy, `/repository/<path>` in Cantaloupe.
+
+The backend also needs a volume for its own data (git clones, caches), `backend.data`. With several replicas, it must be `ReadWriteMany` too.
+
+### Database
+- **CloudNativePG** (recommended): `database.cnpg.enabled: true` creates a PostgreSQL cluster with a primary, replicas and automatic failover. It needs the [CloudNativePG operator](https://cloudnative-pg.io/documentation/current/installation_upgrade/) in the cluster:
+  ```bash
+  helm repo add cnpg https://cloudnative-pg.github.io/charts
+  helm upgrade --install cnpg cnpg/cloudnative-pg --namespace cnpg-system --create-namespace
+  ```
+- **An external PostgreSQL** (e.g. managed by your cloud or IT): set `database.host`, and `QABOARD_DB_PASSWORD` in the secret.
+- `database.embedded` runs a single PostgreSQL pod: only to try the chart.
+
+### Ingress and TLS
+The chart creates an Ingress for `ingress.host`, for any ingress controller. Its default annotations are for ingress-nginx (no limit on uploads, slow API calls): set your controller's equivalents. With [cert-manager](https://cert-manager.io):
+
+```yaml title="my-values.yaml"
+config:
+  QABOARD_URL: https://qaboard.example.com
+ingress:
+  className: traefik
+  host: qaboard.example.com
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+  tls:
+    - secretName: qaboard-tls
+```
+
+Users and the `qa` CLI then use `QABOARD_URL=https://qaboard.example.com`.
+
+### Authentication
+Set the [sign-in settings](./managing-users.mdx#environment-variables) in `config`, and their secrets in the secret:
+- **LOCAL** (default): users stored in QA-Board's database.
+- **LDAP**: `QABOARD_LOGIN_TYPE: LDAP`, `QABOARD_LDAP_HOST`, `QABOARD_LDAP_USER_BASE`, `QABOARD_LDAP_USER_FILTER`... and `QABOARD_LDAP_PASSWORD` in the secret.
+- **SAML** (SSO): `QABOARD_LOGIN_TYPE: SAML`, and `QABOARD_SAML_DIR` pointing to the SAML settings, mounted from a Secret with `backend.extraVolumes` and `backend.extraVolumeMounts`.
+
+`QABOARD_LOGIN_REQUIRED` blocks anonymous users. To restrict who can read the files of some projects, see [user management](./managing-users.mdx#restricting-who-can-read-files) and `proxy.restrictFiles`.
+
+:::warning Keep QA-Board on a trusted network
+The API that `qa` uses to save results is not authenticated, even when sign-in is required: anyone who can reach the server can create or delete results, and make the server act on files in its storage. Only expose QA-Board to networks you trust (an internal load balancer, a VPN, an allowlist on the ingress), never to the internet, until the API supports tokens for saving results.
+:::
+
+### Backups
+- **With CloudNativePG**, configure continuous backups to object storage (S3, GCS, Azure Blob), for point-in-time recovery: see `database.cnpg.backup` and [CloudNativePG's backup docs](https://cloudnative-pg.io/documentation/current/backup/).
+- **Otherwise**, `backup.enabled: true` runs a daily `pg_dump` to a volume (`backup.storage`), and keeps `backup.keepDays` days. To restore a dump, stop the backend meanwhile:
+  ```bash
+  kubectl -n qaboard scale deploy/qaboard-backend --replicas 0
+  pg_restore --clean --if-exists --no-owner -h <database host> -U qaboard -d qaboard qaboard.dump
+  kubectl -n qaboard scale deploy/qaboard-backend --replicas 2   # backend.replicas
+  ```
+- The results live in your storage: use its snapshots or backups. Keep a copy of the secret too (`SECRET_KEY`).
+
+### Upgrades and rollback
+```bash
+helm upgrade qaboard oci://ghcr.io/samsung/charts/qaboard \
+     --namespace qaboard -f my-values.yaml --wait --timeout 15m --rollback-on-failure  # helm 3: --atomic
+helm -n qaboard history qaboard
+helm -n qaboard rollback qaboard   # to the previous revision
+```
+
+- Without `--version`, it upgrades to the latest release.
+- Upgrades are rolling: database migrations run first in a Job (if they fail, nothing running changes), then pods are replaced one by one, new ones first.
+- `--rollback-on-failure` rolls back automatically if the new pods don't become ready.
+- A rollback doesn't revert database migrations. If a new version's migrations must be undone, restore a backup.
+- Read the [release notes](/release-notes) before upgrading.
+
+### Differences with docker compose
+- **Old frontend bundles are not kept**: with compose, the bundles of previous versions stay in a volume, so clients that didn't reload keep working. On Kubernetes each proxy pod only has the current bundle, so a client with an old tab gets errors when it lazy-loads a page, until it reloads.
+- **The backend runs as root**: it can use `sudo` to delete outputs as their owner, and uwsgi drops privileges (`UWSGI_UID`). Namespaces with the *restricted* Pod Security Standard won't accept it: use *baseline*.
+
+### Troubleshooting
 ```bash
 kubectl -n qaboard get pods
+kubectl -n qaboard get events --sort-by=.lastTimestamp
 kubectl -n qaboard logs deploy/qaboard-backend          # one of the replicas
-kubectl -n qaboard logs job/qaboard-migrations          # failed migrations
+kubectl -n qaboard logs job/qaboard-migrations          # failed migrations (the Job is deleted when they succeed)
 kubectl -n qaboard exec -it deploy/qaboard-backend -- bash
 helm -n qaboard history qaboard
-helm -n qaboard rollback qaboard                        # previous release
 ```

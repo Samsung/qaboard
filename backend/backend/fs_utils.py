@@ -8,7 +8,6 @@ import os
 import pwd
 import sys
 import pickle
-import shutil
 import tempfile
 import traceback
 import subprocess
@@ -93,18 +92,12 @@ def as_user(user, f, *args, **kwargs):
 
       os.setegid(gid)
       os.seteuid(uid)
-      # print(user, os.geteuid(), os.getegid())
       print("as:", user)
-      # print("f:", f)
-      # print("args:", args)
-      # print("kargs:", kwargs)
       try:
         result = f(*args, **kwargs)
       except Exception as e:
         result = e
-      # print("result:", result)
       pickle.dump(result, open(tf.name, 'wb'), pickle.HIGHEST_PROTOCOL)
-      # print("from child:", tf.name, Path(tf.name).read_bytes())
     except Exception as e:
       print(f"ERROR in child process: {e}")
       pickle.dump(e, open(tf.name, 'wb'), pickle.HIGHEST_PROTOCOL)
@@ -113,32 +106,13 @@ def as_user(user, f, *args, **kwargs):
       os._exit(0)
   # parent - wait for the child to do its work and keep going as root
   pid, status = os.waitpid(pid, 0)
-  # print(pid, status)
   if status != 0:
     print(f"ERROR: Child ({pid}) exited with {status}")
     os._exit(1)
-  # print("from parent", tf.name)
-  # print(Path(tf.name).read_bytes())
-  # print(pickle.load(open(tf.name, 'rb')))
   return_value = pickle.load(open(tf.name, 'rb'))
   if isinstance(return_value, Exception):
     raise return_value
   return return_value
-
-
-# Before using setuid to delete files as their user, we would try more complicated things...
-# This assumes all users are mapped in /etc/passwd, but it's annoying to maintain!
-# from pwd import getpwnam
-# def open_permissions(path):
-#     owner = path.owner()
-#     # FIXME: wrap the whole ssh arg with ''
-#     # assuming you can SSH...
-#     if owner == 'sircdevops':
-#         subprocess.run(f'ssh sircdevops@sircdevops-vdi chmod -R 777 "{path}"', shell=True, check=True)
-#     else:
-#         pwname = getpwnam(owner)
-#         owner = f"{pwname.pw_uid}:{pwname.pw_uid}" # TODO: need passwd up to date..
-#         subprocess.run(f'ssh arthurf-vdi drun --cpu --skip_resources -v "{path}:{path}" --no-lsf -v /home/arthurf/gosu-i386:/usr/local/bin/gosu:ro ubuntu:trusty gosu {owner} chmod -R 777 "{path}"', shell=True, check=True)
 
 
 if __name__ == "__main__":

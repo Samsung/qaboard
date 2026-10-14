@@ -1,6 +1,6 @@
 import subprocess
 from pathlib import Path
-from typing import Tuple, Optional, Dict, List
+from typing import Tuple, Optional, List
 
 import click
 
@@ -28,7 +28,8 @@ def git_show(format: str, reference: Optional[str] = None) -> str:
   try:
     p.check_returncode()
   except Exception as e:
-    click.secho(p.stdout, fg='red', err=True)
+    if p.stdout:
+      click.secho(p.stdout, fg='red', err=True)
     raise e
   return p.stdout.strip()
 

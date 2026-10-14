@@ -1,0 +1,24 @@
+# Runs your test set on every push, and saves the results to QA-Board.
+# qa saves results where the server reads them (e.g. /mnt/qaboard, an NFS share), at the same
+# path: use a self-hosted runner that mounts it. GitHub-hosted runners can't reach it yet.
+name: QA-Board
+on: push
+permissions:
+  contents: read
+  statuses: write  # for qa batch's commit status
+
+jobs:
+  qaboard:
+    runs-on: self-hosted
+    env:
+      QABOARD_URL: http://<your-qaboard>
+      # qa batch sets a commit status that links to the results
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install qaboard -r requirements.txt
+      # qa reads the commit and the branch from GITHUB_SHA and GITHUB_REF_NAME
+      - run: qa batch ci

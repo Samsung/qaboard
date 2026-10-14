@@ -21,15 +21,13 @@ storage:
     after: 1month
     artifacts:
       delete: true
-      keep:     # optionnal...
+      keep:     # optional...
       - binary  #
 ```
 
 Notes:
 - If you change those settings, old artifacts don't get deleted.
 - When runs use a commit that was deleted, or you upload manifests for a deleted commit, it is marked undeleted.
-```
-
 """
 import re
 import sys
@@ -40,9 +38,9 @@ from pathlib import Path
 
 import click
 from click import secho
-from sqlalchemy import func, and_, asc, or_, not_
+from sqlalchemy import func, or_, not_
 
-from .database import db_session, Session
+from .database import db_session
 from .models import Project, CiCommit, Batch, Output
 
 
@@ -112,11 +110,6 @@ def clean_untracked_hwalg_artifacts(clean_untracked_artifacts, artifacts_roots, 
     for artifacts_root in artifacts_roots:
         artifacts_root = Path(artifacts_root)
         def iter_hashsha_dir():
-            # artifacts_root = Path('/stage/algo_data/ci/CDE-Users/HW_ALG/commits')
-            # for directory in artifacts_root.iterdir():
-            #     hexsha = directory.name.split('__')[-1]
-            #     yield hexsha, directory
-            # return?
             for hash2 in artifacts_root.iterdir():
                 if len(hash2.name) != 2:
                     continue

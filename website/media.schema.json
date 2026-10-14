@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Samsung/qaboard/blob/master/website/media.schema.json",
+  "title": "QA-Board docs media manifest",
+  "description": "website/media.json: the published screenshots, clips and terminal recordings, keyed by shot id. Written by docs-media/publish.py, read by website/plugins/media. See docs-media/README.md.",
+  "type": "object",
+  "required": ["version", "base_url", "shots"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {"type": "string"},
+    "version": {"const": 1},
+    "base_url": {
+      "description": "Public origin of the qaboard-media bucket, for build tooling and contributors only: pages never link to it. A file is at base_url + '/' + key.",
+      "type": "string",
+      "pattern": "^https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~-]+)*$"
+    },
+    "shots": {
+      "type": "object",
+      "propertyNames": {"$ref": "#/$defs/shotId"},
+      "additionalProperties": {"$ref": "#/$defs/entry"}
+    }
+  },
+  "$defs": {
+    "shotId": {
+      "description": "<area>/<subject>, lowercase kebab-case.",
+      "type": "string",
+      "maxLength": 80,
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*/[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "file": {
+      "type": "object",
+      "required": ["key", "bytes"],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "description": "Content-addressed object key: shots/<id>/<first 16 hex of the file's SHA-256>.<ext>. Immutable.",
+          "type": "string",
+          "pattern": "^shots/[a-z0-9]+(-[a-z0-9]+)*/[a-z0-9]+(-[a-z0-9]+)*/[0-9a-f]{16}\\.(avif|webp|png|mp4|webm|vtt)$"
+        },
+        "bytes": {"type": "integer", "minimum": 1}
+      }
+    },
+    "stillFiles": {
+      "type": "object",
+      "required": ["avif", "webp", "png"],
+      "additionalProperties": false,
+      "properties": {
+        "avif": {"$ref": "#/$defs/fileAvif"},
+        "webp": {"$ref": "#/$defs/fileWebp"},
+        "png": {"description": "Lossless master, used for dedupe and the social card; not served to readers by default.", "$ref": "#/$defs/filePng"}
+      }
+    },
+    "videoFiles": {
+      "type": "object",
+      "required": ["mp4", "webm", "poster"],
+      "additionalProperties": false,
+      "properties": {
+        "mp4": {"$ref": "#/$defs/fileMp4"},
+        "webm": {"$ref": "#/$defs/fileWebm"},
+        "poster": {"$ref": "#/$defs/fileWebp"},
+        "vtt": {"description": "Captions (WebVTT), when the clip has any.", "$ref": "#/$defs/fileVtt"}
+      }
+    },
+    "fileAvif": {"allOf": [{"$ref": "#/$defs/file"}, {"properties": {"key": {"pattern": "\\.avif$"}}}]},
+    "fileWebp": {"allOf": [{"$ref": "#/$defs/file"}, {"properties": {"key": {"pattern": "\\.webp$"}}}]},
+    "filePng": {"allOf": [{"$ref": "#/$defs/file"}, {"properties": {"key": {"pattern": "\\.png$"}}}]},
+    "fileMp4": {"allOf": [{"$ref": "#/$defs/file"}, {"properties": {"key": {"pattern": "\\.mp4$"}}}]},
+    "fileWebm": {"allOf": [{"$ref": "#/$defs/file"}, {"properties": {"key": {"pattern": "\\.webm$"}}}]},
+    "fileVtt": {"allOf": [{"$ref": "#/$defs/file"}, {"properties": {"key": {"pattern": "\\.vtt$"}}}]},
+    "percent": {"type": "number", "minimum": 0, "maximum": 100},
+    "anchor": {
+      "description": "A box recorded by ui.anchor(), in % of the shot's width and height, top-left origin.",
+      "type": "object",
+      "required": ["x", "y", "w", "h"],
+      "additionalProperties": false,
+      "properties": {
+        "x": {"$ref": "#/$defs/percent"},
+        "y": {"$ref": "#/$defs/percent"},
+        "w": {"$ref": "#/$defs/percent"},
+        "h": {"$ref": "#/$defs/percent"}
+      }
+    },
+    "entry": {
+      "type": "object",
+      "required": ["kind", "files", "width", "height", "lqip", "alt", "project", "captured", "app_version", "source_spec"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"enum": ["still", "clip", "tape"]},
+        "files": {"type": "object"},
+        "width": {"description": "CSS pixels at 1:1 (stills are encoded at 2x). Sets the aspect ratio and the maximum display width.", "type": "integer", "minimum": 1, "maximum": 4096},
+        "height": {"type": "integer", "minimum": 1, "maximum": 4096},
+        "lqip": {
+          "description": "Tiny blurred preview shown while loading.",
+          "type": "string",
+          "maxLength": 1400,
+          "pattern": "^data:image/(webp|png|jpeg);base64,[A-Za-z0-9+/]+={0,2}$"
+        },
+        "alt": {"description": "Required alt text, see website/STYLE.md.", "type": "string", "minLength": 10, "maxLength": 300},
+        "caption": {"description": "Default caption: what to notice.", "type": "string", "minLength": 1, "maxLength": 400},
+        "project": {
+          "description": "The demo project shown (examples/<project>), or null.",
+          "enum": ["image-quality", "serving-latency", "detection-eval", "robotics-3d", "agent-evals", null]
+        },
+        "captured": {"description": "Date of the capture.", "type": "string", "format": "date", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
+        "app_version": {"description": "qaboard version of the captured stack, plus its short git sha.", "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+([-+][0-9A-Za-z.-]+)?$"},
+        "source_spec": {"description": "What produced it.", "type": "string", "pattern": "^docs-media/(shots/[a-z0-9-]+\\.spec\\.ts|tapes/[a-z0-9-]+\\.tape)$"},
+        "duration": {"description": "Seconds, for clips and tapes.", "type": "number", "minimum": 1, "maximum": 45},
+        "revision": {"description": "Bumped in the spec to publish a new capture that the dedupe would keep as unchanged.", "type": "integer", "minimum": 1},
+        "anchors": {
+          "type": "object",
+          "propertyNames": {"pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"},
+          "additionalProperties": {"$ref": "#/$defs/anchor"}
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"kind": {"const": "still"}}},
+          "then": {
+            "properties": {"files": {"$ref": "#/$defs/stillFiles"}, "source_spec": {"pattern": "\\.spec\\.ts$"}},
+            "not": {"required": ["duration"]}
+          }
+        },
+        {
+          "if": {"properties": {"kind": {"const": "clip"}}},
+          "then": {
+            "properties": {"files": {"$ref": "#/$defs/videoFiles"}, "duration": {"minimum": 6, "maximum": 20}, "source_spec": {"pattern": "\\.spec\\.ts$"}},
+            "required": ["duration"]
+          }
+        },
+        {
+          "if": {"properties": {"kind": {"const": "tape"}}},
+          "then": {
+            "properties": {"files": {"$ref": "#/$defs/videoFiles"}, "source_spec": {"pattern": "\\.tape$"}},
+            "required": ["duration"],
+            "not": {"required": ["anchors"]}
+          }
+        }
+      ]
+    }
+  }
+}

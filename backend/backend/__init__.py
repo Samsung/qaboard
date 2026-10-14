@@ -1,5 +1,5 @@
 import os
-from .database import db_session, Session
+from .database import db_session
 
 # Configure the flask application
 from flask import Flask
@@ -59,19 +59,21 @@ if os.environ.get('FLASK_ENV') == 'production' and os.environ.get('SENTRY_DSN'):
 
 # Provide easy access to our git repositories
 from .git_utils import Repos
-from .config import git_server, qaboard_data_git_dir
-repos = Repos(git_server, qaboard_data_git_dir)
+from .git_hosts import git_hosts
+from .config import qaboard_data_git_dir
+repos = Repos(git_hosts, qaboard_data_git_dir)
 
 
 # Some magic to use sqlalchemy safely with Flask
 # http://flask.pocoo.org/docs/0.12/patterns/sqlalchemy/
-from backend.database import db_session, engine, Base
+from backend.database import engine, Base
 @app.teardown_appcontext
 def shutdown_session(exception=None):
     db_session.remove()
 
 import backend.api.api
 import backend.api.commit
+import backend.api.compare
 import backend.api.batch
 import backend.api.outputs
 import backend.api.webhooks
@@ -84,7 +86,7 @@ import backend.api.auth
 import backend.api.tasks
 import backend.api.files
 
-# Enable cross-origin requests to avoid development headcaches  
+# Enable cross-origin requests to avoid development headaches
 # cors = CORS(app, resources={r"/api/*": {"origins": "*"}})
 CORS(app)
 
@@ -107,13 +109,16 @@ def warm_cache():
 
     def warm():
         print("Warming cache in worker")
-        from backend.utils import get_users_per_name
-        try:
-            users = get_users_per_name("")  # also stored in redis, shared with the other workers
-        except Exception as e:
-            print(f"WARNING: could not warm the users cache: {e}")
-            return
-        print(f"Loaded info about {len(users)} users")
+        from backend.git_hosts.gitlab import GitLabHost, gitlab_users
+        for host in git_hosts:
+            if not isinstance(host, GitLabHost) or not host.token:
+                continue
+            try:
+                users = gitlab_users(host)  # also stored in redis, shared with the other workers
+            except Exception as e:
+                print(f"WARNING: could not warm the users cache for {host}: {e}")
+                continue
+            print(f"Loaded info about {len(users)} users from {host}")
 
     import threading
     threading.Thread(target=warm, name="warm-cache", daemon=True).start()
@@ -121,6 +126,6 @@ def warm_cache():
 try:
   import uwsgi
   uwsgi.post_fork_hook = warm_cache
-except:
+except ImportError:
   pass
 

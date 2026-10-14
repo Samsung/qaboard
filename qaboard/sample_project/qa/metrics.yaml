@@ -5,7 +5,7 @@ available_metrics:
   #   short_label: Loss        # defaults to the label
   #   description: The was computed with.... # optional
   #   smaller_is_better: true  # default
-  #   target: 0.01             # optionnal
+  #   target: 0.01             # optional
   #   # used for display
   #   scale: 1.0               # default
   #   suffix: %                # default: ''
@@ -33,10 +33,10 @@ main_metrics:
   - is_failed
 
 # In the history view, only those metrics will be available in the plot showing results over time
-# [OPTIONNAL]: defaults to the summary_metrics
+# [OPTIONAL]: defaults to the summary_metrics
 # dashboard_evolution_metrics:
 #   - is_failed
 # In the history view, only those metrics will be shown in the summary histograms
-# [OPTIONNAL]: defaults to the summary_metrics
+# [OPTIONAL]: defaults to the summary_metrics
 # dashboard_metrics:
 #   - is_failed

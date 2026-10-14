@@ -433,7 +433,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
     versus the latest commit on origin/develop.
     """
     from .config import is_in_git_repo, commit_branch, is_ci, outputs_project_root, repo_root
-    from .gitlab import lastest_successful_ci_commit
+    from .git_hosts import lastest_successful_ci_commit
     from .api import qaboard_url
     from .conventions import get_commit_dirs
     from .git import latest_commit, git_parents

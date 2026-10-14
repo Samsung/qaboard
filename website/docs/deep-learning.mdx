@@ -14,9 +14,7 @@ However, in our experience, tools built for _training_ usually lack important fe
 - integration with source control, CI systems, etc
 - rich/custom visualization
 
-For instance here is how users can compare runs in QA-Board:
-<img alt="wand experiments" src={useBaseUrl('img/deep-learning/side-video.gif')} />
-<img alt="wand experiments" src={useBaseUrl('img/deep-learning/side-frames.gif')} />
+In QA-Board, users compare the outputs of each input side by side with a reference, frame by frame if needed, with [synced viewers](visualizations).
 
 So how do we use QA-Board and deep learning tools? Well, we setup our projects to have them work well together.
 
@@ -26,16 +24,12 @@ Since training is best done with dedicated tools, our projects are setup to show
 - model parameters and training summary
 - link to the training page
 
-<img alt="wand experiments" src={useBaseUrl('img/deep-learning/qa-wand-infoa.png')} />
+<img alt="A run in QA-Board with the model's training information" src={useBaseUrl('img/deep-learning/qa-wand-infoa.png')} />
 
-In practice:
+Users get the best of both worlds: QA-Board, and the experiment/training-loss UI from `wandb`...
 
-<img alt="wand experiments" src={useBaseUrl('img/deep-learning/qa-link-wandb.gif')} />
-
-Users get the best of both worlds: QA-Board, and the experiement/training-loss UI from `wandb`...
-
-<img alt="wand experiments" src={useBaseUrl('img/deep-learning/wandb-experiments.png')} />
-<img alt="wand experiments" src={useBaseUrl('img/deep-learning/wandb-metrics.png')} />
+<img alt="Experiments in wandb" src={useBaseUrl('img/deep-learning/wandb-experiments.png')} />
+<img alt="Training metrics in wandb" src={useBaseUrl('img/deep-learning/wandb-metrics.png')} />
 
 ### What is needed to make this work?
 Users will write a `run()` function that:
@@ -43,8 +37,6 @@ Users will write a `run()` function that:
 2. Fetches details about that model from some API: hyper-params, link to the training page... It will return those [as badges](computing-quantitative-metrics#metrics-shown-as-a-run-time-configuration)
 3. Runs the model on the `context.input_path`
 4. Does postprocessing to compute various evaluation metrics/plots
-
-<img alt="wand experiments" src={useBaseUrl('img/deep-learning/filter.gif')} />
 
 :::tip
 Some engineers have a script that filters/sort their recent models according to various hyperparams/metrics, and start evaluation with QA-Board... Ideally we should be able to trigger directly inferences from the training page but not all ML tools make it easy!

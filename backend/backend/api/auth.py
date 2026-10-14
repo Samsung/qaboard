@@ -7,6 +7,7 @@ from functools import wraps
 
 import yaml
 import ldap
+import ldap.filter
 import simplejson
 from flask import request, jsonify, redirect, session, g
 from flask_login import LoginManager, login_user, logout_user, current_user
@@ -61,6 +62,9 @@ elif login_type == "SAML":
   # saml_attr_id = os.environ.get('QABOARD_SAML_ATTRIBUTE_ID')
 
 
+# Don't add the user's info: with LDAP and SAML it holds everything the directory knows about them
+not_authorized_error = "The user is not authorized, please contact QA-Board admins."
+
 # FIXME: Today User.data is a bunch of LDAP info stuffed directly.
 #        Needs to be namespaced under "ldap". 
 
@@ -69,8 +73,6 @@ elif login_type == "SAML":
 def create_token():
   if not current_user.is_authenticated:
     return f"Not logged-in", 403
-  # user = User.query.filter_by(user_name='sircdevops').one()
-  # login_user(user, remember=False, duration=timedelta(days=180))
   token = Token(current_user)
   db_session.add(token)
   db_session.commit()
@@ -85,18 +87,27 @@ def create_token():
 def signup():
   if os.environ.get("QABOARD_DISABLE_SIGNUP") == "True":
     return f"Signup disabled", 403
+  user_name = request.form.get('user_name')
+  if not user_name or not request.form.get('password'):
+    return jsonify({"error": "Both user_name and password are required"}), 400
+  if User.query.filter_by(user_name=user_name).one_or_none():
+    return jsonify({"error": "This user name is already taken"}), 409
+  # Never log or return the form or the exception: they contain the password, its hash, or the SQL query
   try:
     user = create_user({
       "email": request.form.get('email'),
-      "user_name": request.form.get('user_name'),
+      "user_name": user_name,
       "full_name": request.form.get('full_name'),
       "password": request.form.get('password'),
       "login_type": "LOCAL",
       "data": {},
     })
   except Exception as e:
-    print(f"[signup] Error when creating new user with {request.form}: {e}")
-    return f"{e}", 403
+    db_session.rollback()
+    print(f"[signup] Error when creating new user @{user_name}: {type(e).__name__}")
+    if type(e).__name__ == "IntegrityError": # sqlalchemy.exc, e.g. the email is already used
+      return jsonify({"error": "This user name or email is already used"}), 409
+    return jsonify({"error": "Could not create the user"}), 500
   return jsonify({
     "id": user.id,
     "email": user.email,
@@ -112,6 +123,9 @@ def auth_post():
     logout_user()
   username = request.form.get('username')
   password = request.form.get('password')
+  # LDAP servers can treat a bind with an empty password as an anonymous bind, that succeeds
+  if not username or not password:
+    return jsonify({"error": "invalid-password"}), 403
   user_info = auth(username, password)
   if not user_info["login_success"]:
     print(f"[auth] Failed Login @{username}")
@@ -365,7 +379,8 @@ def auth_local(username, password):
   }
 
   if is_login_restricted and not is_authorized_user(info):
-    info["error"] = f"The user is not authorized, please contact qaboard Admins.\n user_info{info}"
+    print(f"[auth] Unauthorized login @{username}")
+    info["error"] = not_authorized_error
     session.clear()
     return info
   user = User.query.filter_by(user_name=username).one_or_none()
@@ -397,7 +412,7 @@ def auth_ldap(user_name, password):
   ldap_connect.simple_bind_s(ldap_bind_dn, ldap_password)
 
   # check if the user exists
-  ldap_search = ldap_user_filter.replace("{login}", user_name)
+  ldap_search = ldap_user_filter.replace("{login}", ldap.filter.escape_filter_chars(user_name))
   certificate = ldap_connect.search_s(
     ldap_user_base,
     ldap.SCOPE_SUBTREE, 
@@ -435,7 +450,8 @@ def auth_ldap(user_name, password):
   if user_info["login_success"]:
     if is_login_restricted and not is_authorized_user(user_info):
       user_info["login_success"] = False
-      user_info["error"] = f"The user is not authorized, please contact qaboard Admins.\n user_info{user_info}"
+      print(f"[auth] Unauthorized login @{user_name}")
+      user_info["error"] = not_authorized_error
       session.clear()
       # return user_info
     else:
@@ -482,7 +498,6 @@ def saml_auth():
 
         auth.process_response(request_id=request_id)
         errors = auth.get_errors()
-        not_auth_warn = not auth.is_authenticated()
         if len(errors) == 0:
             if 'AuthNRequestID' in session:
                 del session['AuthNRequestID']
@@ -510,7 +525,8 @@ def saml_auth():
               "data": dict(samlUserdata),
               }
               if is_login_restricted and not is_authorized_user(user_info):
-                errors.append(f"The user is not authorized, please contact qaboard Admins.\n user_info{user_info}")
+                print(f"[auth] Unauthorized login @{user_info['user_name']}")
+                errors.append(not_authorized_error)
                 session.clear()
                 return " ".join(errors), 403
 
@@ -544,17 +560,13 @@ def saml_auth():
     print(" ".join(errors))
     return " ".join(errors), 403
 
-    # self_url = OneLogin_Saml2_Utils.get_self_url(req)
-    # if 'RelayState' in request.form and self_url != request.form['RelayState']:
-    #     return redirect(auth.redirect_to(request.form['RelayState']))
-
 
 def init_saml_auth(req):
     auth = OneLogin_Saml2_Auth(req, custom_base_path=app.config['SAML_PATH'])
     return auth
 
 def prepare_flask_request(request):
-    # If server is behind proxys or balancers use the HTTP_X_FORWARDED fields
+    # If server is behind proxies or balancers use the HTTP_X_FORWARDED fields
     return {
         'https': 'on' if request.environ.get('HTTP_X_FORWARDED_PROTO') == 'https' else 'off',
         'http_host': request.environ.get('HTTP_X_FORWARDED_HOST'),
@@ -565,14 +577,3 @@ def prepare_flask_request(request):
         # 'lowercase_urlencoding': True,
         'post_data': request.form.copy()
     }
-    # url_data = urlparse(request.url)
-    # return {
-    #     'https': 'on' if request.scheme == 'https' else 'off',
-    #     'http_host': request.host,
-    #     'server_port': url_data.port,
-    #     'script_name': request.path,
-    #     'get_data': request.args.copy(),
-    #     # Uncomment if using ADFS as IdP, https://github.com/onelogin/python-saml/pull/144
-    #     # 'lowercase_urlencoding': True,
-    #     'post_data': request.form.copy()
-    # }
