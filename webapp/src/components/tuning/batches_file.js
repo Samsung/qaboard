@@ -20,6 +20,17 @@ const position = (range, lineCounter) => {
   return { line: start.line, column: start.col, endLine: end.line, endColumn: same ? start.col + 1 : end.col };
 };
 
+// What PyYAML (`qa batch`) reads unquoted scalars as, when they are not text.
+// Its YAML 1.1 differs from the yaml package's: y/n, 08 or 1e3 are text for PyYAML (see yaml/resolver.py).
+const PYYAML_SCALARS = [
+  ["empty", /^(?:~|null|Null|NULL|)$/],
+  ["true or false", /^(?:yes|Yes|YES|no|No|NO|true|True|TRUE|false|False|FALSE|on|On|ON|off|Off|OFF)$/],
+  ["a number", /^(?:[-+]?0b[0-1_]+|[-+]?0[0-7_]+|[-+]?(?:0|[1-9][0-9_]*)|[-+]?0x[0-9a-fA-F_]+|[-+]?[1-9][0-9_]*(?::[0-5]?[0-9])+)$/],
+  ["a number", /^(?:[-+]?[0-9][0-9_]*\.[0-9_]*(?:[eE][-+][0-9]+)?|\.[0-9][0-9_]*(?:[eE][-+][0-9]+)?|[-+]?[0-9][0-9_]*(?::[0-5]?[0-9])+\.[0-9_]*|[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$/],
+  ["a date", /^(?:[0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{4}-[0-9]{1,2}-[0-9]{1,2}(?:[Tt]|[ \t]+)[0-9]{1,2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]*)?(?:[ \t]*(?:Z|[-+][0-9]{1,2}(?::[0-9]{2})?))?)$/],
+];
+const pyyamlScalar = scalar => scalar.type === "PLAIN" ? PYYAML_SCALARS.find(([, pattern]) => pattern.test(scalar.source ?? ""))?.[0] : undefined;
+
 // "Bad indentation of a sequence entry at line 3, column 5:\n\n<snippet>" -> "Bad indentation of a sequence entry"
 const short_message = message => message.split("\n")[0].replace(/ at line \d+, column \d+:?$/, "").replace(/:$/, "");
 
@@ -103,6 +114,23 @@ export function analyzeBatches(text) {
     }
     const inputs = isMap(value) ? resolve(value.get("inputs", true), doc) : value;
     const kind = isMap(value) && value.get("type") === "pipeline" ? "pipeline" : "batch";
+    if (isSeq(value))
+      problems.push({
+        severity: "warning",
+        message: `"${name}" is a list, not a batch: running it fails. Write its inputs under "inputs:", or group batches under "aliases:"`,
+        ...position(pair.key.range, lineCounter),
+      });
+    // `qa batch` only understands inputs that are text, lists or mappings
+    else if (isSeq(inputs))
+      for (const node of inputs.items) {
+        const item = resolve(node, doc);
+        const read_as = isScalar(item) && pyyamlScalar(item);
+        if (!read_as) continue;
+        const [start] = item.range ?? [0];
+        problems.push(read_as === "empty"
+          ? { severity: "error", message: `Empty input in "${name}": remove this "-", or write the input after it`, ...position(item.source ? item.range : [Math.max(0, start - 1), start], lineCounter) }
+          : { severity: "error", message: `YAML reads ${item.source} as ${read_as}, not a path: write it in quotes`, ...position(item.range, lineCounter) });
+      }
     add({
       name,
       kind,

@@ -63,6 +63,30 @@ describe('analyzeBatches', () => {
     expect(analyzeBatches('aliases: [a, b]\n').problems).toMatchObject([{ severity: 'error', line: 1 }]);
     expect(analyzeBatches('aliases:\n').problems).toEqual([]);
   });
+
+  it('flags inputs that qa batch can not use', () => {
+    const { problems } = analyzeBatches([
+      'nightly:',                     // 1
+      '  inputs:',                    // 2
+      '  - a',                        // 3
+      '  - [b, {threshold: 2}]',      // 4
+      '  - c: {threshold: 3}',        // 5
+      '  -',                          // 6
+      '  - 20260223',                 // 7
+      '  - yes',                      // 8
+      '  - 2026-02-23',               // 9
+      '  - "20260223"',               // 10
+      '  - y',                        // 11: text for PyYAML
+      '  - 08',                       // 12: text for PyYAML
+    ].join('\n'));
+    expect(problems).toEqual([
+      expect.objectContaining({ severity: 'error', line: 6, column: 3, message: expect.stringContaining('Empty input in "nightly"') }),
+      expect.objectContaining({ severity: 'error', line: 7, message: 'YAML reads 20260223 as a number, not a path: write it in quotes' }),
+      expect.objectContaining({ severity: 'error', line: 8, message: 'YAML reads yes as true or false, not a path: write it in quotes' }),
+      expect.objectContaining({ severity: 'error', line: 9, message: 'YAML reads 2026-02-23 as a date, not a path: write it in quotes' }),
+    ]);
+    expect(analyzeBatches('listed: [a, b]\n').problems).toMatchObject([{ severity: 'warning', line: 1, message: expect.stringContaining('is a list, not a batch') }]);
+  });
 });
 
 

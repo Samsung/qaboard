@@ -171,3 +171,48 @@ it('edits the shared file in its own tab', async () => {
   fireEvent.click(screen.getByRole('tab', { name: /Shared/ }));
   expect(await screen.findByLabelText('editor extra-batches.yml')).toHaveValue(server['extra-batches']);
 });
+
+it('says why a batch has no tests, and which batch files the server read', async () => {
+  axios.post.mockImplementation(() => Promise.resolve({ data: {
+    tests: [],
+    definitions: [{ name: 'my-batch', file: 'sub/batches.yaml' }],
+    warnings: ['Inputs not found by the QA-Board server: “a.jpg” under /mnt/db.'],
+    files: [
+      { source: 'commit', path: 'sub/batches.yaml', location: '/mnt/qaboard/group/repo/ab/cd/sub/batches.yaml', status: 'ok', batches: 3 },
+      { source: 'commit', path: 'sub/nightly.yaml', location: '/mnt/qaboard/group/repo/ab/cd/sub/nightly.yaml', status: 'missing' },
+      { source: 'qaboard', path: 'extra-batches.yml', location: '/shared/extra-batches.yml', status: 'empty' },
+      { source: 'qaboard', path: 'alice.yml', location: '/shared/alice.yml', status: 'invalid', error: 'mapping values are not allowed here' },
+    ],
+  } }));
+  render(<BatchesEditor {...props} />);
+  await editor();
+  fireEvent.click(screen.getByLabelText('List the tests in my-batch'));
+
+  expect(await screen.findByText('Why there are no tests')).toBeInTheDocument();
+  expect(screen.getByText('Inputs not found by the QA-Board server: “a.jpg” under /mnt/db.')).toBeInTheDocument();
+  // not "No batch matches": the batch exists
+  expect(screen.getByText(/The server found none of the inputs of/)).toBeInTheDocument();
+  expect(screen.queryByText(/No batch matches/)).not.toBeInTheDocument();
+  expect(screen.getByText((_, el) => el?.tagName === 'P' && el.textContent === 'my-batch is defined in sub/batches.yaml.')).toBeInTheDocument();
+
+  const files = screen.getByRole('list', { name: 'Batch files' });
+  expect(within(files).getByText('3 batches')).toBeInTheDocument();
+  expect(within(files).getByText("not in the commit's artifacts")).toBeInTheDocument();
+  expect(within(files).getByText('/mnt/qaboard/group/repo/ab/cd/sub/nightly.yaml')).toBeInTheDocument();
+  expect(within(files).getByText('(Private)')).toBeInTheDocument();
+  expect(within(files).getByText('mapping values are not allowed here')).toBeInTheDocument();
+});
+
+it("says when a batch isn't defined", async () => {
+  axios.post.mockImplementation(() => Promise.resolve({ data: {
+    tests: [], definitions: [], files: [],
+    warnings: ['“nightly” is not defined in the batch files QA-Board could read: sub/batches.yaml.'],
+  } }));
+  render(<BatchesEditor {...props} />);
+  await editor();
+  fireEvent.click(screen.getByRole('button', { name: 'Check any batch or pattern…' }));
+  fireEvent.change(screen.getByLabelText('Batch to check'), { target: { value: 'nightly' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Check' }));
+  expect(await screen.findByText(/No batch matches/)).toBeInTheDocument();
+  expect(screen.getByText(/is not defined in the batch files QA-Board could read/)).toBeInTheDocument();
+});

@@ -389,16 +389,19 @@ def get_default_configuration(input_settings) -> str:
   default_configuration = list(flatten(default_configuration))
   return serialize_config(default_configuration)
 
-def get_default_database(inputs_settings):
+def get_default_database(inputs_settings, interpolation_vars=None):
   # All recordings used should be stored at the same location
   # We will refer to them by their relative path related to the "database"
+  # `interpolation_vars` fills {project} and {subproject}, by default with the current project's (the server passes the commit's)
   global ignore_config_errors
   if 'type' in inputs_settings and inputs_settings['type'] in inputs_settings and 'database' in inputs_settings[inputs_settings['type']]:
     database_spec = inputs_settings[inputs_settings['type']]['database']
   else:
     database_spec = inputs_settings.get('database', {})
+  if interpolation_vars is None:
+    interpolation_vars = {"project": project, "subproject": subproject}
   try:
-    database = location_from_spec(database_spec, {"project": project, "subproject": subproject})
+    database = location_from_spec(database_spec, interpolation_vars)
   except Exception:
     database = Path("/")
   if not database:

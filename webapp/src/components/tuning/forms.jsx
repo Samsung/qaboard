@@ -30,6 +30,7 @@ import { toaster } from "../../toaster"
 
 
 import templates from './templates'
+import { BatchDefinitions, BatchWarnings } from './BatchReport'
 
 
 const MAX_RUNS = 5000;
@@ -353,11 +354,12 @@ class TuningForm extends Component {
   }
 
   getGroupInfo(group) {
-  	const commit_part = !!this.props.commit ? `&commit=${this.props.commit.id}` : '';
-    const { available_tests_files } = this.props;
+    const { available_tests_files, commit, project } = this.props;
   	this.setState({selected_group_info_loading: true})
-    post(`/api/v1/tests/group?project=${this.props.project}&name=${group}${commit_part}`, {
+    post('/api/v1/tests/group', {
       groups: Object.values(available_tests_files),
+    }, {
+      params: { project, name: group, ...(commit ? { commit: commit.id } : {}) },
     })
       .then(response => {
         this.setState({
@@ -552,7 +554,7 @@ class TuningForm extends Component {
     const { search_type, search_options } = this.state;
     const { experiment_name, selected_group, selected_group_info, error } = this.state;
     const { user, platform, android_device } = this.state;
-    const { tests, message } = selected_group_info;
+    const { tests, warnings, definitions } = selected_group_info;
     const { combinations, language } = this.state
     let total_runs = combinations * tests.length;
     let time_intent =
@@ -658,9 +660,6 @@ class TuningForm extends Component {
           <div>qa save-artifacts</div>
         </pre>
       </Callout>}
-      {!!message && <Callout intent={Intent.DANGER} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
-        <span dangerouslySetInnerHTML={{__html: message}}></span>
-      </Callout>}
       <FormGroup
         helperText={!experiment_name ? "(required)" : "Tip: You can add runs to an existing experiment"}
         label={`Experiment name:`}
@@ -706,7 +705,7 @@ class TuningForm extends Component {
               this.props.dispatch(updateSelected(this.props.project, { selected_views: 'groups' }))
             }}>Available Tests</Tag>.
             </p>
-          {error && <p><Tag icon='warning-sign' intent={Intent.DANGER}>{error.response?.data?.error ?? JSON.stringify(error)}</Tag></p>}
+          {error && <p><Tag icon='warning-sign' intent={Intent.DANGER}>{typeof error === 'string' ? error : (error.response?.data?.error ?? error.message ?? JSON.stringify(error))}</Tag></p>}
           {this.state.selected_group_info_loading && <Icon icon="time"/>}
         </>}
         labelFor="selected-group"
@@ -723,6 +722,14 @@ class TuningForm extends Component {
           dir="auto"
         />
       </FormGroup>
+      {!!selected_group && !this.state.selected_group_info_loading && <>
+        <BatchDefinitions definitions={definitions} style={{ marginTop: '-10px' }} />
+        <BatchWarnings
+          warnings={warnings}
+          title={tests.length === 0 ? "Why the batch has no tests" : "Check the batch files"}
+          style={{ marginBottom: '15px' }}
+        />
+      </>}
 
       {(project!=='dvs/psp_swip' && project!=='tof/swip_tof' && available_platforms.length > 0) &&
       <RadioGroup onChange={this.update('platform')} selectedValue={platform}>
@@ -767,7 +774,7 @@ class TuningForm extends Component {
 
       <FormGroup
         helperText={!user ? "Please provide a user in the input below"
-                          : (this.state.experiment_name.length === 0 ? 'Please give a name to the tuning experiment (the input is above)' : (selected_group_info.tests.length === 0 ? "No inputs found in the batch you asked to use" : undefined))}
+                          : (this.state.experiment_name.length === 0 ? 'Please give a name to the tuning experiment (the input is above)' : (selected_group_info.tests.length === 0 ? "The batch has no tests: see why under its name" : undefined))}
         intent={(!user || this.state.experiment_name.length === 0 || !total_runs) ? Intent.DANGER : undefined}
       >
       <Button

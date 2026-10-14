@@ -12,6 +12,8 @@ from copy import deepcopy
 from pathlib import Path
 from itertools import chain, product
 from dataclasses import replace
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import List, Union, Dict, Tuple, Iterator, Any, Optional, cast
 
 import yaml
@@ -21,6 +23,81 @@ from .conventions import pretty_hash, get_settings, location_from_spec
 from .utils import input_metadata, entrypoint_module
 from .compat import cased_path
 from .run import RunContext
+
+
+# Keys of batch files that are settings for their batches, not batches
+BATCH_FILE_SETTINGS = ('database', 'aliases', 'groups', 'configs', 'configurations', 'platform', 'matrix')
+
+# The inputs we looked for without finding them, for callers that explain why a batch has no tests (the server)
+_missing_inputs: ContextVar[Optional[List[Dict[str, Any]]]] = ContextVar('missing_inputs', default=None)
+
+@contextmanager
+def recording_missing_inputs():
+  """While iterating over inputs, collects the inputs that were not found: [{"input", "database", "globs"?}]."""
+  missing: List[Dict[str, Any]] = []
+  token = _missing_inputs.set(missing)
+  try:
+    yield missing
+  finally:
+    _missing_inputs.reset(token)
+
+def _record_missing_input(path, database, globs=None):
+  missing = _missing_inputs.get()
+  if missing is not None:
+    missing.append({"input": str(path) if path else "*", "database": str(database), **({"globs": [str(g) for g in globs]} if globs else {})})
+
+
+class BatchError(click.ClickException, ValueError):
+  """
+  A batch definition we can't use. `qa batch` prints "Error: <message>", the server shows the message.
+  `input_index` is the position of the faulty input in the batch's inputs, to find its line.
+  """
+  def __init__(self, message, batch=None, input_index=None):
+    super().__init__(message)
+    self.batch = batch
+    self.input_index = input_index
+
+  def located(self, batches_file):
+    """The same error, starting with the file (and line) where the batch is defined."""
+    if not batches_file:
+      return self
+    line = _input_line(batches_file, self.batch, self.input_index) if self.input_index is not None else None
+    return BatchError(f"{batches_file}{f':{line}' if line else ''}: {self.message}", self.batch, self.input_index)
+
+
+def _yaml_get(node, key):
+  """The node for `key` in a YAML mapping node (the last one, like PyYAML), or None."""
+  found = None
+  if isinstance(node, yaml.MappingNode):
+    for k, v in node.value:
+      if isinstance(k, yaml.ScalarNode) and k.value == key:
+        found = v
+  return found
+
+
+def _input_line(batches_file, batch, index) -> Optional[int]:
+  """The line of a batch's input in a batches file, if we can find it."""
+  try:
+    with open(batches_file) as f:
+      root = yaml.compose(f, Loader=yaml.SafeLoader)
+    definition = _yaml_get(root, batch)
+    inputs = _yaml_get(definition, 'inputs') or _yaml_get(definition, 'tests')
+    return inputs.value[index].start_mark.line + 1
+  except Exception:
+    return None
+
+
+def _input_error(batch, inputs, index) -> BatchError:
+  """Explains what is wrong with the input at `index`, that is not a path, a list, or a mapping."""
+  value = inputs[index]
+  previous = next((i for i in reversed(inputs[:index]) if isinstance(i, str)), None)
+  after = f', after "{previous}"' if previous is not None else ' (the first one)' if index == 0 else ''
+  if value is None:
+    message = f'The batch "{batch}" has an empty input{after}: a "-" with nothing after it. Remove the "-", or write the input after it.'
+  else:
+    kind = {"int": "a number", "float": "a number", "bool": "true or false", "date": "a date", "datetime": "a date"}.get(type(value).__name__, f"a {type(value).__name__}")
+    message = f'The batch "{batch}" has an input that YAML reads as {kind}, not a path: {value}{after}. Write it in quotes.'
+  return BatchError(message, batch, index)
 
 
 def flatten(lst: Union[str, List, Tuple]) -> Iterator[Union[str, List, Tuple]]:
@@ -81,6 +158,7 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
     # that could be identified by nested naming conventions like "tv/tv_*"
     input_paths = [*sorted(database.glob("*")), database]
   if not input_paths:
+    _record_missing_input(path, database)
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
       click.secho(f'ERROR: No inputs found for the batch "{path}" under {database}', fg='red', err=True)
       exit(1)
@@ -149,9 +227,10 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
   #       yield input_path
 
   if not seen_inputs:
+    _record_missing_input(path, database, globs)
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
       click.secho(f'ERROR: No inputs found matching "{path}" [{globs}] under "{database}".', fg='red', err=True)
-      raise ValueError 
+      raise ValueError(f'No inputs found matching "{path}" [{globs}] under "{database}".')
     else:
       click.secho(f'WARNING: No inputs found matching "{path}" [{globs}] under "{database}".', fg='yellow', err=True)
 
@@ -204,6 +283,7 @@ def iter_inputs(
   # TODO: allow changing the entrypoint per-batch
   """
   available_batches: Dict = {}
+  batches_sources: Dict[str, os.PathLike] = {} # where each batch is defined
   for batches_file in batches_files:
     try:
       from .config import project, subproject
@@ -226,7 +306,7 @@ def iter_inputs(
     available_batches['aliases'] = {**old_aliases, **new_aliases}
 
     for new_batch in new_batches:
-      if new_batch.startswith('.') or new_batch in ('database', 'aliases', 'groups', 'configs', 'configurations', 'platform', 'matrix'):
+      if new_batch.startswith('.') or new_batch in BATCH_FILE_SETTINGS:
         continue
       is_batch = isinstance(new_batches[new_batch], dict) # vs e.g. aliases
       is_pipeline = is_batch and new_batches[new_batch].get("type") == "pipeline"
@@ -240,6 +320,7 @@ def iter_inputs(
               except Exception: # people often have things that are not batches, maybe aliases reused elsewhere...
                 pass
       allow_duplicate_batches = qatools_config.get('inputs', {}).get('allow_duplicate_batches')
+      batches_sources[new_batch] = batches_file_path
       if not allow_duplicate_batches or new_batch not in available_batches and new_batch not in available_batches['aliases']:
         available_batches[new_batch] = new_batches[new_batch]
       else: # we want to run both...
@@ -259,7 +340,7 @@ def iter_inputs(
   if not batches:
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
       click.secho(f'ERROR: No batch was chosen.', fg='red', err=True)
-      raise ValueError 
+      raise ValueError('No batch was chosen.')
     else:
       click.secho(f'WARNING: No batch was chosen.', fg='yellow', err=True)
 
@@ -291,6 +372,13 @@ def iter_inputs(
     type=inputs_settings['type']
   )
 
+  def located(batch, make_iterator):
+    """Errors in a batch's definition say where it is defined."""
+    try:
+      yield from make_iterator()
+    except BatchError as e:
+      raise e.located(batches_sources.get(batch)) from None
+
   def check_batch(batch):
     if available_batches[batch] is None:
       click.secho(f"WARNING: Cannot use empty batch definitions like '{batch}:'. Check your batch YAML.", fg='yellow', err=True)
@@ -304,7 +392,7 @@ def iter_inputs(
       check_batch(batch)
       batch_run_context = deepcopy(run_context)
       batch_run_context.batch = batch
-      yield from iter_batch(parse_batch(batch, available_batches[batch]), batch_run_context, qatools_config, inputs_settings, debug, cli_runner_overrides)
+      yield from located(batch, lambda: iter_batch(parse_batch(batch, available_batches[batch]), batch_run_context, qatools_config, inputs_settings, debug, cli_runner_overrides))
       continue
     
     # 2. Batches can be specified using wildcards
@@ -314,7 +402,7 @@ def iter_inputs(
         batch_run_context = deepcopy(run_context)
         batch_run_context.batch = b
         check_batch(b)
-        yield from iter_batch(parse_batch(b, available_batches[b]), batch_run_context, qatools_config, inputs_settings, debug, cli_runner_overrides)
+        yield from located(b, lambda: iter_batch(parse_batch(b, available_batches[b]), batch_run_context, qatools_config, inputs_settings, debug, cli_runner_overrides))
       continue
 
     # 3. Batch can be directly paths to inputs (semi-deprecated...) 
@@ -377,9 +465,7 @@ def parse_batch(batch_name, batch):
     click.secho(f'WARNING: Empty definition for the batch {batch_name}', fg='yellow', err=True)
     return None
   if not isinstance(batch, dict):
-    click.secho(f'ERROR: The batch {batch_name} has the wrong type.', fg='red', bold=True, err=True)
-    click.secho(f'       Got {type(batch)} expected a dict with keys inputs/configuration/database...', fg='red', err=True) 
-    exit(1)
+    raise BatchError(f'The batch "{batch_name}" must be a mapping with keys like inputs, configurations, database..., got a {type(batch).__name__}: {batch}', batch_name)
   return batch
 
 
@@ -494,22 +580,25 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
       return
 
     # We also allow each input to have its settings...
+    if isinstance(locations, str): # a single input
+      locations = [locations]
     if isinstance(locations, dict): # {inputA: config, inputB: config}
       locations_and_configs = [(location, config) for location, config in locations.items()]
-    if isinstance(locations, list): # [inputA, inputA] or [(inputA, configA), (inputB, configB)] or [{inputA: configA, inputB: configB}]
+    elif isinstance(locations, list): # [inputA, inputA] or [(inputA, configA), (inputB, configB)] or [{inputA: configA, inputB: configB}]
       locations_and_configs = []
-      for l in locations:
+      for index, l in enumerate(locations):
         if isinstance(l, str):
           locations_and_configs.append((l, None))
-        elif isinstance(l, list):
+        elif isinstance(l, list) and l:
           location, *location_configurations = l
           locations_and_configs.append((location, location_configurations))
         elif isinstance(l, dict):
           for location, location_configurations in l.items():
             locations_and_configs.append((location, location_configurations))
         else:
-          click.secho(f'ERROR: Could not understand the inputs in the batch ({locations_and_configs}).', fg='red', err=True)
-          raise ValueError
+          raise _input_error(run_context.batch, locations, index)
+    else:
+      raise BatchError(f'The inputs of the batch "{run_context.batch}" must be a list of paths, not: {locations}', run_context.batch)
 
     for location, location_configurations in locations_and_configs:
       location_run_context = deepcopy(run_context)
