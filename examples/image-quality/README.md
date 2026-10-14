@@ -16,6 +16,7 @@ qa run --input charts/slanted-edge.png           # one run
 qa --config low-light run --input photos/facade.png
 qa --platform hw-model batch bitexact            # the fixed-point model
 qa batch deep-zoom                               # the 113 MP test wall, in tiles, on 4 processes
+qa batch video                                   # a video: the camera driving down an aisle (needs ffmpeg)
 ```
 
 - The first time `qa` imports `qa/main.py`, it downloads the photos (`qa/fetch_photos.py`, from a public mirror,
@@ -30,14 +31,15 @@ qa batch deep-zoom                               # the 113 MP test wall, in tile
 
 | File | What it does |
 |---|---|
-| `qaboard.yaml` | Project name, inputs (`inputs/`, PNG and TIFF), visualizations, bit-accuracy patterns, integrations |
+| `qaboard.yaml` | Project name, inputs (`inputs/`: PNG, TIFF, and videos described in `clips/*.yaml`), visualizations, bit-accuracy patterns, integrations |
 | `qa/main.py` | `run(context)`: camera simulation, ISP, outputs and metrics. `metadata()`: ROI presets for the image viewer |
 | `qa/camera.py` | The sensor: lens blur, Bayer mosaic, noise, 12-bit raw (integers only) |
 | `qa/isp.py` | The ISP in float: black level, demosaic, denoise, sharpen, tone map |
 | `qa/isp_fxp.py` | The same ISP in fixed point (`--platform hw-model`): `regs.txt`, and a 256x256 window of each stage's buffer in `raw/<stage>.u16` |
 | `qa/measures.py`, `qa/plots.py` | PSNR, SSIM, MTF50 and overshoot (slanted edge), noise, ΔE2000; Plotly figures |
 | `qa/deep_zoom.py` | The 113 MP wall in tiles on 4 processes, saved as a tiled multi-resolution TIFF |
-| `qa/metrics.yaml`, `qa/batches.yaml` | Metrics (labels, units, targets) and batches (`ci`, `bitexact`, `deep-zoom`, `nightly`, `sweep-denoise`) |
+| `qa/video.py` | Videos: a window moving across a photo, every frame through the camera and the ISP, encoded by ffmpeg (VP9) |
+| `qa/metrics.yaml`, `qa/batches.yaml` | Metrics (labels, units, targets) and batches (`ci`, `bitexact`, `deep-zoom`, `nightly`, `sweep-denoise`, `video`) |
 
 **Configurations** are ISO settings: `qa --config base|low-light|night`. **Flags** describe the code's choices
 (demosaic, denoiser, sharpening...): `qa/main.py` reads them from `build/flags.json`, over its defaults, and tuning

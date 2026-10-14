@@ -7,11 +7,11 @@ project:
   reference_branch: main
 
 inputs:
-  # relative to this folder: generated charts and downloaded photos
+  # relative to this folder: generated charts, downloaded photos, and videos made from them (clips/*.yaml)
   database:
     linux: inputs
     windows: inputs
-  globs: ['*.png', '*.tiff']
+  globs: ['*.png', '*.tiff', 'clips/*.yaml']
   batches: qa/batches.yaml
 
 outputs:
@@ -43,6 +43,9 @@ outputs:
     - name: Registers
       path: regs.txt                     # hw-model only
       default_hidden: true
+    - name: Video
+      path: out.webm                     # clips/*.yaml: played in sync with the reference, frame by frame
+      fps: 24
 
 bit_accuracy:
   patterns: ['out.png', 'stages/*.png', 'raw/*.u16', 'regs.txt']
