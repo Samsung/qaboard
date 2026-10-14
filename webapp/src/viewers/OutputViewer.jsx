@@ -8,7 +8,7 @@ import { is_image } from "./images/utils"
 
 const LoadableTextViewer = lazy(() => import('./textViewer' /* webpackChunkName: "text-viewer" */));
 const LoadableImageViewer = lazy(() => import('./images/images' /* webpackChunkName: "image-viewer" */));
-const LoadableVideoViewer = lazy(() => import('./videos' /* webpackChunkName: "video-viewer" */));
+const LoadableVideoViewer = lazy(() => import('./videos/VideoViewer' /* webpackChunkName: "video-viewer" */));
 const LoadableHtmlViewer = lazy(() => import('./html' /* webpackChunkName: "html-viewer" */));
 const LoadableBitAccuracyViewer = lazy(() => import('./bit_accuracy/bitAccuracyViewer' /* webpackChunkName: "bit-accuracy-viewer" */));
 const LoadablePlotlyViewer = lazy(() => import('./plotly' /* webpackChunkName: "plotly-viewer" */));
@@ -65,7 +65,7 @@ const OutputViewer = props_ => {
         viewer = <LoadableFlameGraphViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (path.endsWith('html')) {
         viewer = <LoadableHtmlViewer {...props} type={type} output_ref={maybe_output_ref}/>
-      } else if (path.endsWith('mp4') || path.endsWith('webp')) {
+      } else if (/\.(mp4|m4v|mov|webm|mkv|ogv|webp|gif)$/i.test(path)) {
         viewer = <LoadableVideoViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else {
         viewer = <LoadableTextViewer {...props} type={type} output_ref={output_ref}/>

@@ -49,7 +49,7 @@ Extensions                                          | Type         | Viewer     
 `*.plotly.json`, `*.plotly.html`                    | `plotly/json` / `plotly/html`| **Plot.ly**                                  |
 `*.flame.json`                                      | `flame/json` | **[Flame Graph](http://www.brendangregg.com/flamegraphs.html)**, [diffable](http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html)          |
 `*.html`                                            | `text/html` | **HTML** (in a frame, scripts don't run)     |
-`*.mp4`                                             | `video/*`    | **Video** (synced)                           |
+`*.mp4`, `*.webm`, `*.mov`, `*.webp`, `*.gif`       | `video/*`    | **Video**: synced, side by side, wipe or difference |
 `*.txt`, unidentified                               | `text/plain*`| **Text** (diffs, with VSCode's [Monaco Editor](https://microsoft.github.io/monaco-editor/))|
 `</>`                                               | `pointcloud/txt` | ToF's **pointcloud** viewer (needs to be split) |
 `</>`                                               | `6dof/txt`       | SLAM's **6DoF** viewer (needs to be split)      |
@@ -182,13 +182,40 @@ We love Brendan Gregg's [flame charts](http://www.brendangregg.com/flamegraphs.h
 
 > For a tutorial [read our blog post](https://samsung.github.io/qaboard/blog/2020/06/24/flame-graphs).
 
-### Videos, point clouds and trajectories
-Videos play in sync with the reference's. Point clouds open in a 3D viewer, and 6DoF trajectories are drawn against the ground truth when the run has one.
+### Video viewer
+  * New and reference play in sync, frame by frame: paused, both show the same frame.
+  * Compare them side by side, with a wipe (drag the divider), by toggling between them (<kbd>t</kbd>), or as their difference (amplified up to ×64).
+  * Zoom with the mouse wheel or a pinch, drag to pan: both videos follow, even when their resolutions differ. Zoomed in, you see the actual pixels and their coordinates.
+  * Step frame by frame, scrub, slow down to 0.1×, loop.
+  * Copy or save the current frame as a PNG.
+
+How to use it is described in the user guide: [comparing videos](/docs/user-guide/comparing-results#video-viewer).
 
 <Clip
   id="commit/video-sync"
   caption="The depth camera's video, new and reference, played in sync."
 />
+
+Browsers play **H.264**, **VP9** and **AV1** videos, in *.mp4* or *.webm* files. Other codecs (e.g. HEVC/H.265, MPEG-4 part 2) or containers (e.g. *.avi*) show an error: convert them when your code writes them, for instance with:
+
+```bash
+ffmpeg -i input.avi -c:v libx264 -pix_fmt yuv420p -movflags +faststart output.mp4
+```
+
+`+faststart` lets a video start playing before it's fully downloaded. Animated *.webp* and *.gif* files are compared the same way, but your browser plays them on its own: they are not synced.
+
+QA-Board finds a video's frame rate when it plays, or when you step through its frames. If it guesses wrong, e.g. for variable frame rates, set it, with an optional image shown before the video loads:
+
+```yaml title="qaboard.yaml"
+outputs:
+  visualizations:
+  - path: camera.mp4
+    fps: 30
+    poster: camera.jpg  # default: poster.jpg, if the run created it
+```
+
+### Point clouds and trajectories
+Point clouds open in a 3D viewer, and 6DoF trajectories are drawn against the ground truth when the run has one.
 
 <Shot
   id="commit/pointcloud"

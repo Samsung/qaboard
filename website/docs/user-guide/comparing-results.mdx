@@ -2,7 +2,7 @@
 id: comparing-results
 title: Comparing results
 sidebar_label: Comparing results
-description: New vs reference, picking a reference, milestones, synced image viewers and metric colors.
+description: New vs reference, picking a reference, milestones, synced image and video viewers and metric colors.
 ---
 QA-Board always shows the results of a **new** commit next to a **reference** (`ref`). Knowing what you compare to is half the job.
 
@@ -147,7 +147,29 @@ Large images are streamed tile by tile, so zooming in a 100 MP image stays fast.
 
 You can also copy the new, reference or diff image to your clipboard, to paste it in a chat or a slide.
 
-Other viewers compare too: videos play in sync, text files show a diff (press <kbd>t</kbd> to swap sides), plots overlay the reference (dashed or faded) on the new results. See [the list of viewers](../visualizations.mdx#available-file-viewers).
+## Video viewer
+Videos play in sync with the reference's. Pick how to compare them above the videos:
+
+| Mode | What you see |
+|---|---|
+| **Side by side** | New on the left, reference on the right. A cross shows where your mouse is on the other video. |
+| **Wipe** | One video over the other: drag the divider to see new on one side, reference on the other. |
+| **Toggle** | One video at a time: press <kbd>t</kbd> (or click its label) to flip to the other, in place. |
+| **Difference** | How much each pixel differs, per color channel, amplified (×1 to ×64). Black means identical. |
+
+QA-Board remembers your choice for all videos. **Swap** (or <kbd>t</kbd>) exchanges new and reference.
+
+- **Play and pause**: click the videos, or press <kbd>Space</kbd>. Paused, both videos show the same frame.
+- **Frame by frame**: <kbd>←</kbd> and <kbd>→</kbd>, or the step buttons. <kbd>Shift</kbd> moves by a second. The frame number shows next to the time.
+- **Zoom** with the mouse wheel or a pinch, **pan** by dragging: both videos follow, even if their resolutions differ. Zoomed in, you see the actual pixels; the toolbar shows the coordinates of the one under your mouse. **1:1** shows one video pixel per screen pixel, the percentage button fits the videos again.
+- **Speed and loop**: slow down to 0.1× to look at fast motion, or loop a short clip.
+- **Frames**: the camera button copies the current frame (new, reference or difference) to paste it in a chat or a slide, or saves it as a PNG.
+
+The keyboard works on the viewer under your mouse, or the one you clicked. The keyboard button lists all the shortcuts.
+
+If a video shows "Can't play this video", your browser doesn't support its codec: see [video formats](../visualizations.mdx#video-viewer).
+
+Other viewers compare too: text files show a diff (press <kbd>t</kbd> to swap sides), plots overlay the reference (dashed or faded) on the new results. See [the list of viewers](../visualizations.mdx#available-file-viewers).
 
 ## Metric diffs and colors
 Colors follow the same rules everywhere:
