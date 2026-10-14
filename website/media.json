@@ -1373,7 +1373,7 @@
       "width": 1100
     },
     "history/find-regression": {
-      "alt": "History filtered on the heavy-tail-high test: the cursor moves along its p99 line and the commits below follow; where the batcher copies payloads into fixed slots, p99 jumps from about 3 ms to over 10 ms. A click keeps it as the reference: the commit that borrows payloads again is back near 3 ms.",
+      "alt": "History filtered on the heavy-tail-high test: the cursor moves along its p99 line and the commits below follow; where the batcher copies payloads into fixed slots, p99 more than triples. A click keeps it as the reference: the commit that borrows payloads again is back near 3 ms.",
       "app_version": "1.1.1+d660ca7",
       "caption": "Hover along a test's line to find the commit that changed it, click to compare later ones with it.",
       "captured": "2026-10-14",
@@ -1430,7 +1430,7 @@
       "width": 1208
     },
     "history/performance-over-time": {
-      "alt": "Performance over time on main, the last two weeks: Latency p99, a line per test, and the 12 ms target dashed. One line jumps from about 3 ms to over 10 ms and comes back four commits later; hovered, its point at the jump names heavy-tail-high, and the commit below copies payloads into fixed slots.",
+      "alt": "Performance over time on main, the last two weeks: Latency p99, a line per test, and the 12 ms target dashed. One line more than triples and comes back four commits later; hovered, its point at the jump names heavy-tail-high, and the commit below copies payloads into fixed slots.",
       "app_version": "1.1.1+d660ca7",
       "caption": "A metric over a branch's commits, a line per test: hover the jump to see the test and the commit.",
       "captured": "2026-10-14",
@@ -1456,7 +1456,7 @@
       "width": 1221
     },
     "history/relative": {
-      "alt": "The same chart Relative to start: every test's p99 as a percentage of its value at the first commit, so that the 200 ms bursty test and the 2 ms steady ones share a scale. Heavy-tail-high climbs to four times its start for four commits.",
+      "alt": "The same chart Relative to start: every test's p99 as a percentage of its value at the first commit, so that the 200 ms bursty test and the 2 ms steady ones share a scale. Heavy-tail-high climbs to about four times its start for four commits.",
       "app_version": "1.1.1+d660ca7",
       "caption": "Relative to start puts every test on the same scale, whatever its units: 100 is its value at the first commit.",
       "captured": "2026-10-14",
