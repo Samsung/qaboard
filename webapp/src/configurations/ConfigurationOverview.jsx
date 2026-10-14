@@ -60,13 +60,13 @@ export const HideSharedSwitch = ({ label = "Hide them in each run", style }) => 
 
 
 // The settings all runs share
-export const SharedRow = ({ shared }) => {
+export const SharedRow = ({ shared, filtered }) => {
   const [expanded, setExpanded] = useState(false);
   const more = shared.tokens.length - shown_settings;
   return <Row>
     <span className="label">
       <Icon icon="people" size={14} className={Classes.TEXT_MUTED} style={{ marginRight: 6 }} />
-      <strong>All {shared.runs} runs</strong>
+      <strong>All {shared.runs} {filtered ? 'filtered ' : ''}runs</strong>
     </span>
     <span className="values">
       <SharedSettings tokens={shared.tokens} limit={expanded ? undefined : shown_settings} />
@@ -89,7 +89,7 @@ export const SharedRow = ({ shared }) => {
 
 
 // How the runs' configurations differ from their reference run's
-const ReferenceRow = ({ compared, pairs }) => {
+const ReferenceRow = ({ compared, pairs, ambiguous }) => {
   const [expanded, setExpanded] = useState(false);
   const changes = useMemo(() => summarize_changes(pairs), [pairs]);
   const shown = expanded ? changes : changes.slice(0, shown_changes);
@@ -102,12 +102,12 @@ const ReferenceRow = ({ compared, pairs }) => {
     {pairs.length === 0
       ? <span className={`values ${Classes.TEXT_MUTED}`}>
           <Icon icon="tick" intent={Intent.SUCCESS} size={12} style={{ marginRight: 5 }} />
-          Each run is compared to a reference run with the same configuration.
+          Each run is compared to a reference run with the same settings.
         </span>
       : <span className="values">
           <span style={{ marginRight: 8 }}>
             {pairs.length === compared ? `All ${compared}` : `${pairs.length} of ${compared}`} runs
-            are compared to a reference run with another configuration:
+            are compared to a reference run with other settings:
           </span>
           {shown.map(change => <span key={`${change.op}${change.token.full}${change.ref?.full}`} style={{ whiteSpace: 'nowrap', marginRight: 10 }}>
             <Tag round minimal {...op_tags[change.op]} style={{ marginRight: 4, maxWidth: '100%' }}>
@@ -118,6 +118,11 @@ const ReferenceRow = ({ compared, pairs }) => {
           {(more > 0 || expanded) && <Tag round minimal interactive icon={expanded ? 'chevron-up' : 'more'} onClick={() => setExpanded(!expanded)}>
             {expanded ? 'Show less' : `${more} other ${more === 1 ? 'change' : 'changes'}`}
           </Tag>}
+          {ambiguous > 0 && <span className={Classes.TEXT_MUTED} style={{ display: 'block', fontSize: 12, marginTop: 2 }}>
+            <Icon icon="git-branch" size={12} intent={Intent.WARNING} style={{ marginRight: 5 }} />
+            {ambiguous === 1 ? '1 run' : `${ambiguous} runs`} had several reference runs with as many different settings:
+            we picked the ones with the closest values. Hover their Config tag to know more.
+          </span>}
         </span>}
   </Row>;
 };
@@ -126,11 +131,12 @@ const ReferenceRow = ({ compared, pairs }) => {
 // Shown when it helps: with long configurations shared by all runs, or runs compared to references with other configurations
 export const ConfigurationOverview = ({ new_batch }) => {
   const shared = useSharedConfiguration();
-  const { compared, pairs } = useMemo(() => reference_pairs(new_batch), [new_batch]);
+  const { compared, pairs, ambiguous } = useMemo(() => reference_pairs(new_batch), [new_batch]);
   const show_shared = !!shared?.collapse;
   if (!show_shared && pairs.length === 0) return null;
+  const filtered = (new_batch?.filtered?.outputs?.length ?? 0) < Object.keys(new_batch?.outputs ?? {}).length;
   return <Box aria-label="Configurations">
-    {show_shared && <SharedRow shared={shared} />}
-    {compared > 0 && <ReferenceRow compared={compared} pairs={pairs} />}
+    {show_shared && <SharedRow shared={shared} filtered={filtered} />}
+    {compared > 0 && <ReferenceRow compared={compared} pairs={pairs} ambiguous={ambiguous} />}
   </Box>;
 };

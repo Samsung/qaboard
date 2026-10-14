@@ -3,7 +3,7 @@ import styled from "styled-components";
 import { useInView } from "react-intersection-observer";
 import { Button, Classes, Collapse, Colors, PopoverNext } from "@blueprintjs/core";
 
-import { hidden_keys, ConfigurationsTags, ExtraParametersTags, PlatformTag, RunActionsMenu, RunBadges, StatusTag } from "../tags";
+import { hidden_keys, ConfigurationsTags, PlatformTag, RunActionsMenu, RunBadges, StatusTag } from "../tags";
 import { LogViewer } from "./LogViewer";
 import { LsfReport, LsfTag } from "./LsfReport";
 import { fetchLsfReport, lsfKilled } from "./lsf";
@@ -140,8 +140,7 @@ const RunDetails = ({ output }) => {
     <span className={`input ${Classes.TEXT_MUTED}`}>{output.test_input_path}</span>
     {has_configurations && <span className={`label ${Classes.TEXT_MUTED}`}>Configuration</span>}
     <PlatformTag platform={output.platform} />
-    {has_configurations && <ConfigurationsTags configurations={output.configurations ?? []} collapse={false} />}
-    <ExtraParametersTags parameters={output.extra_parameters ?? {}} />
+    {has_configurations && <ConfigurationsTags configurations={output.configurations ?? []} tuning={output.extra_parameters} collapse={false} />}
     {has_badges && <RunBadges output={output} />}
   </Details>
 }

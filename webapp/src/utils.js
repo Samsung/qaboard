@@ -118,7 +118,25 @@ const matching_output = ({ output, batch, index }) => {
     platform: ref_match_score & 2 ? output_ref.platform : null,
     extra_parameters: ref_match_score & 1 ? output_ref.extra_parameters : null,
   } : null;
+  // only when there are some: the mismatch is compared with the backend's in tests/fixtures/metrics-compare.json
+  const alternatives = imperfect_match ? count_alternatives(candidates) : 0;
+  if (alternatives > 0) mismatch.alternatives = alternatives;
   return { output_ref, mismatch };
+};
+
+// How many reference runs, with other settings, have as many different settings as the one we picked:
+// only how similar their values are (the distances' fractional part) made us choose.
+const count_alternatives = candidates => {
+  const [best] = candidates;
+  const same = (a, b) => Math.floor(a) === Math.floor(b);
+  const settings = new Set();
+  for (const c of candidates.slice(1)) {
+    if (c.dist_input_path !== best.dist_input_path) continue;
+    if (!same(c.dist_configurations, best.dist_configurations) || !same(c.dist_extra_parameters, best.dist_extra_parameters)) continue;
+    if (c.o.configurations_str === best.o.configurations_str && c.o.extra_parameters_str === best.o.extra_parameters_str) continue;
+    settings.add(`${c.o.configurations_str}\u0000${c.o.extra_parameters_str}`);
+  }
+  return settings.size;
 };
 
 const run_key = o => `${o.input_path}\u0000${o.configurations_str}\u0000${o.extra_parameters_str}\u0000${o.platform}`;

@@ -1,5 +1,6 @@
 import {
-  config_tokens, diff_configurations, config_distance, string_change, shared_configuration, summarize_changes, count_changes,
+  config_tokens, diff_configurations, diff_tokens, config_distance, string_change, shared_configuration, summarize_changes, count_changes,
+  run_tokens, output_tokens, reference_tokens,
 } from '../tokens';
 
 const describe_ops = ops => ops.map(({ op, token, ref }) =>
@@ -61,44 +62,83 @@ describe('string_change', () => {
 });
 
 describe('config_distance', () => {
-  it('counts different settings, a changed value as one', () => {
+  it('counts different settings, a changed value or a replaced string as one', () => {
     expect(config_distance(['a', { g: 1 }], ['a', { g: 1 }])).toBe(0);
-    expect(config_distance(['a', { g: 1 }], ['a', { g: 2 }])).toBe(1);
-    expect(config_distance(['a'], ['a', 'b'])).toBe(1);
+    expect(Math.floor(config_distance(['a', { g: 1 }], ['a', { g: 2 }]))).toBe(1);
+    expect(Math.floor(config_distance(['a'], ['a', 'b']))).toBe(1);
+    expect(Math.floor(config_distance(['a', 'x.yaml'], ['a', 'y.yaml']))).toBe(1);
     expect(config_distance(['a', 'b'], ['b', 'a'])).toBe(0.5);
-    expect(config_distance({ g: 1, h: 2 }, {})).toBe(2);
+    expect(Math.floor(config_distance({ g: 1, h: 2 }, {}))).toBe(2);
+  });
+
+  it('breaks ties with how similar the values are', () => {
+    const run = ['base-v1'];
+    expect(config_distance(run, ['base-v2'])).toBeLessThan(config_distance(run, ['blabla']));
+    expect(config_distance([{ gain: 3 }], [{ gain: 4 }])).toBeLessThan(config_distance([{ gain: 3 }], [{ gain: 100 }]));
+    // but never over the number of different settings
+    expect(config_distance(run, ['blabla'])).toBeLessThan(config_distance(['base-v1', 'a'], ['base-v1', 'b', 'c']));
   });
 });
 
-const outputs = configurations => Object.fromEntries(configurations.map((configurations, id) => [id, { id, configurations }]));
+describe('run_tokens', () => {
+  it('has the tuning parameters last, apart from the configuration', () => {
+    const tokens = run_tokens(['base', { gain: 4 }], { gain: 5 });
+    expect(tokens.map(t => [t.source, t.key ?? t.text, t.text])).toEqual([
+      ['config', 'base', 'base'], ['config', 'gain', '4'], ['tuning', 'gain', '5'],
+    ]);
+    expect(run_tokens(['base'], {})).toBe(config_tokens(['base']));
+  });
+
+  it("compares them with the reference's", () => {
+    const output = { configurations: ['base'], extra_parameters: { gain: 5 }, reference_mismatch: { configurations: null, extra_parameters: { gain: 4 } } };
+    expect(describe_ops(diff_tokens(output_tokens(output), reference_tokens(output)))).toEqual(['same base', 'changed gain=4>5']);
+    expect(reference_tokens({ ...output, reference_mismatch: { platform: 'arm' } })).toBeNull();
+  });
+});
+
+const outputs = list => list.map(([configurations, extra_parameters], id) => ({ id, configurations, extra_parameters }));
 
 describe('shared_configuration', () => {
   it('finds the settings all runs share, worth hiding when there are enough', () => {
     const shared = shared_configuration(outputs([
-      ['base', 'conf/camera.yaml', { gain: 4, mode: 'fast' }],
-      ['base', 'conf/camera.yaml', { gain: 3, mode: 'fast' }],
+      [['base', 'conf/camera.yaml', { gain: 4, mode: 'fast' }], { nr: 1 }],
+      [['base', 'conf/camera.yaml', { gain: 3, mode: 'fast' }], { nr: 1 }],
     ]));
-    expect(shared.tokens.map(t => t.text)).toEqual(['base', 'conf/camera.yaml', '"fast"']);
+    expect(shared.tokens.map(t => t.text)).toEqual(['base', 'conf/camera.yaml', '"fast"', '1']);
     expect(shared).toMatchObject({ runs: 2, varies: true, collapse: true });
   });
 
+  it('is the same object for the same result', () => {
+    const configurations = [[['base', 'a', 'b', 'c']], [['base', 'a', 'b', 'd']]];
+    expect(shared_configuration(outputs(configurations))).toBe(shared_configuration(outputs(configurations)));
+  });
+
   it("doesn't hide a few short settings, nor a single run's", () => {
-    expect(shared_configuration(outputs([['base', 'a'], ['base', 'b']]))).toMatchObject({ collapse: false });
-    expect(shared_configuration(outputs([['base', 'conf/camera.yaml', { gain: 4 }]]))).toBeNull();
+    expect(shared_configuration(outputs([[['base', 'a']], [['base', 'b']]]))).toMatchObject({ collapse: false });
+    expect(shared_configuration(outputs([[['base', 'conf/camera.yaml', { gain: 4 }]]]))).toBeNull();
   });
 
   it('hides long settings even if there are few', () => {
     const long = 'configurations/projects/camera/defaults/v2.yaml';
-    expect(shared_configuration(outputs([[long], [long]]))).toMatchObject({ collapse: true, varies: false });
+    expect(shared_configuration(outputs([[[long]], [[long]]]))).toMatchObject({ collapse: true, varies: false });
+  });
+
+  it("elides the long prefix of strings that vary, keeping their last folder", () => {
+    const { elided } = shared_configuration(outputs([
+      [['conf/projects/camera/scenes/night.yaml']], [['conf/projects/camera/scenes/day.yaml']], [['short/a']], [['short/b']],
+    ]));
+    const night = 'conf/projects/camera/scenes/night.yaml';
+    expect(night.slice(elided.get(night))).toBe('scenes/night.yaml');
+    expect(elided.has('short/a')).toBe(false);
   });
 });
 
 describe('summarize_changes', () => {
   it('counts the runs with each change', () => {
     const changes = summarize_changes([
-      [['a', { g: 2 }], ['a', { g: 1 }]],
-      [['b', { g: 2 }], ['b', { g: 1 }]],
-      [['c', { g: 2 }, 'x'], ['c', { g: 2 }]],
+      [run_tokens(['a', { g: 2 }]), run_tokens(['a', { g: 1 }])],
+      [run_tokens(['b', { g: 2 }]), run_tokens(['b', { g: 1 }])],
+      [run_tokens(['c', { g: 2 }, 'x']), run_tokens(['c', { g: 2 }])],
     ]);
     expect(changes.map(c => [c.op, c.token.text, c.runs])).toEqual([['changed', '2', 2], ['added', 'x', 1]]);
   });

@@ -59,4 +59,13 @@ describe('matching_output', () => {
     const outputs = [run(2, { extra_parameters: { gain: 3, mode: 'slow' } }), run(3, { extra_parameters: { gain: 4 } })];
     expect(matching_output({ output, batch: batch(outputs) }).output_ref.id).toBe(3);
   });
+
+  it('breaks ties with the most similar values, and says other reference runs were as close', () => {
+    const output = run(1, { configurations: ['base-v1'] });
+    const outputs = [run(2, { configurations: ['base-blabla'] }), run(3, { configurations: ['base-v2'] }), run(4, { configurations: ['base-v2'] })];
+    const { output_ref, mismatch } = matching_output({ output, batch: batch(outputs) });
+    expect(output_ref.id).toBe(3);
+    // run 4 has the same configuration as run 3
+    expect(mismatch.alternatives).toBe(1);
+  });
 });

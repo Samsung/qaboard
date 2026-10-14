@@ -8,7 +8,7 @@ import {
   Tooltip,
   NonIdealState,
 } from "@blueprintjs/core";
-import { ConfigurationsTags, ExtraParametersTags } from './tags'
+import { ConfigurationsTags } from './tags'
 import { http, errorMessage } from "../api/http";
 import { useRefreshCommit } from "../hooks";
 import { toaster } from "../toaster"
@@ -79,8 +79,7 @@ const SimpleOutputList = ({outputs, intent}) => {
       }
       return <li key={o.id}>
         <strong style={{paddingRight: '5px'}}>{run_path}</strong>
-        <ConfigurationsTags intent={intent} configurations={o.configurations}/>
-        <ExtraParametersTags intent={intent} parameters={o.extra_parameters} before={<br/>} />
+        <ConfigurationsTags intent={intent} configurations={o.configurations} tuning={o.extra_parameters}/>
       </li>
       }
     )}

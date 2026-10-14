@@ -19,7 +19,6 @@ import { useRefreshCommit } from "../hooks";
 import { linux_to_windows } from '../utils'
 import { folder_url } from '../utils/paths'
 import { toaster } from "../toaster"
-import { copyWithToast } from "../utils/clipboard"
 import { copyDirectory } from "./logs/DirectoryActions"
 import { hidden_keys } from "../configurations/tokens"
 import { ConfigurationsTags, ConfigurationDiff } from "../configurations/ConfigurationsTags"
@@ -55,28 +54,6 @@ const PlatformTag = ({ platform, inverted }) => {
   return <Tag round minimal={!inverted} style={{ marginRight: '5px', marginLeft: '5px' }}>@{platform}</Tag>
 }
 
-const ExtraParametersTags = ({ parameters, intent = Intent.PRIMARY, inverted, before }) => {
-  if (Object.keys(parameters).length === 0)
-    return <span />
-
-  const pretty_json = JSON.stringify(parameters, null, 2);
-  const copy = () => copyWithToast(pretty_json, { what: 'the parameters' });
-  const tags = Object.entries(parameters)
-    .filter(([k]) => !hidden_keys.includes(k))
-    .map(([k, v]) => (
-      <Tag key={k} intent={intent} minimal={!inverted} round interactive onClick={copy} style={{ marginRight: '5px', marginBottom: '3px' }}>
-        <strong>{k}: </strong> {JSON.stringify(v)}
-      </Tag>
-    ));
-
-  return <span>
-    {before}
-    {tags}
-  </span>
-}
-
-
-
 const MismatchTag = ({text, explanation}) => {
   return <div>
     <Tooltip content={<div>
@@ -89,25 +66,24 @@ const MismatchTag = ({text, explanation}) => {
   </div>
 }
 
-// Configurations are long: we show how they differ, like `git diff`
-const ConfigMismatchTag = ({ configurations, reference }) => <div>
+// Configurations are long: we show how they differ, like `git diff`. With the tuning parameters, settings like the others.
+const ConfigMismatchTag = ({ configurations, tuning, mismatch }) => <div>
   <PopoverNext placement="bottom" interactionKind="hover" hoverCloseDelay={200} content={
-    <ConfigurationDiff configurations={configurations} reference={reference} />
+    <ConfigurationDiff configurations={configurations} tuning={tuning} mismatch={mismatch} />
   }>
     <Tag intent={Intent.WARNING} icon="not-equal-to" interactive style={{ verticalAlign: 'baseline', marginLeft: "4px" }}>Config</Tag>
   </PopoverNext>
 </div>
 
-// `configurations` are the run's: the mismatch has its reference's
-const MismatchTags = ({mismatch, configurations}) => {
+// `configurations` and `tuning` are the run's: the mismatch has its reference's
+const MismatchTags = ({mismatch, configurations, tuning}) => {
   if (mismatch===null || mismatch===undefined)
     return <span/>
-  const { test_input_path, platform, extra_parameters } = mismatch;
+  const { test_input_path, platform } = mismatch;
   return <div>
     {test_input_path  && <MismatchTag text="Input" explanation={test_input_path} />}
-    {mismatch.configurations && <ConfigMismatchTag configurations={configurations} reference={mismatch.configurations} />}
+    {(mismatch.configurations || mismatch.extra_parameters) && <ConfigMismatchTag configurations={configurations} tuning={tuning} mismatch={mismatch} />}
     {platform         && <MismatchTag text="Platform" explanation={<PlatformTag inverted platform={platform} />} />}
-    {extra_parameters && <MismatchTag text="Tuning" explanation={Object.keys(extra_parameters).length > 0 ? <ExtraParametersTags inverted parameters={extra_parameters} /> : 'No tuning'} />}
   </div>
 }
 
@@ -233,7 +209,7 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
   return <span style={style}>
     {deleted && <Tag icon="trash">deleted</Tag>}
     <PlatformTag platform={platform} />
-    <ConfigurationsTags configurations={configurations} reference={mismatch?.configurations} />
+    <ConfigurationsTags configurations={configurations} tuning={output.extra_parameters} mismatch={mismatch} />
 
     {output_type !== "batch" &&
     <Popover placement="bottom" hoverCloseDelay={200} interactionKind={"hover"} content={
@@ -321,9 +297,9 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
       />
       </Tooltip>}
     )}
-    <MismatchTags mismatch={mismatch} configurations={configurations}/>
+    <MismatchTags mismatch={mismatch} configurations={configurations} tuning={output.extra_parameters}/>
   </span>
 }
 
 
-export { hidden_keys, RunActionsMenu, StatusTag, PlatformTag, ConfigurationsTags, ExtraParametersTags, MismatchTags, OutputTags, RunBadge, RunBadges, style_skeleton };
+export { hidden_keys, RunActionsMenu, StatusTag, PlatformTag, ConfigurationsTags, MismatchTags, OutputTags, RunBadge, RunBadges, style_skeleton };

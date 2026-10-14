@@ -136,11 +136,10 @@ const CiCommitResults = () => {
     onRegisterOutputOptions: dynamic.register,
     onToggleDynamicOptionSync: toggleDynamicOptionSync,
   };
-  // What runs share is hidden in each run. From all the batch's runs, not only the filtered ones, so that filtering
-  // doesn't change how runs are shown. We keep the same context value when it doesn't change: cards would re-render
-  const shared_settings = shared_configuration(new_commit?.batches?.[selected_batch_new]?.outputs);
-  const all_runs_changes_key = [...changes_in_all_runs(reference_pairs(new_batch))].join('\u0001');
-  const all_runs_changes = useMemo(() => new Set(all_runs_changes_key ? all_runs_changes_key.split('\u0001') : []), [all_runs_changes_key]);
+  // What the runs shown share is hidden in each run: it updates as users filter runs.
+  // shared_configuration and changes_in_all_runs return the same objects when they don't change, so cards don't re-render
+  const shared_settings = shared_configuration(new_batch.filtered.outputs.map(id => new_batch.outputs[id]));
+  const all_runs_changes = changes_in_all_runs(reference_pairs(new_batch));
   const shared = useMemo(
     () => shared_settings && { ...shared_settings, changes_in_all_runs: all_runs_changes },
     [shared_settings, all_runs_changes],
