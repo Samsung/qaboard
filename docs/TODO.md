@@ -24,6 +24,8 @@ and show a "not captured yet" placeholder until they're published.
     to the rules (mean, max), computed client-side from the per-test values the compare endpoint already returns.
 
 ## Shots to improve
+- **`commit/text-diff`**: at the 1440 px window, the last column of HdrHistogram's table (`1/(1-Percentile)`) is cut on
+  both sides of the diff. A narrower font in the text viewer, or a crop that drops that column, would read better.
 - **Clips are 1x**: the CDP screencast of headless Chromium sends frames at CSS size (1440x900), not at the device
   scale (2x), so clips are softer than stills, most visibly the landing tiles (crops of 585-720 px). `meta.json`'s
   `scale` is now the frames' (`lib/record.ts`), so crops are right either way. Getting 2x frames (headed Chromium, or a

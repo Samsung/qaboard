@@ -372,7 +372,7 @@ shot('commit/pixel-tooltip', {
 - **Data:** restored snapshot; story commit ids resolved by `demo.sha()`. Never capture from a fresh seed.
 - **Texts of measured values:** serving-latency's latencies, throughputs and their changes are measured, so every
   reseed moves them. Alt texts, captions, `ui.caption` overlays and pages say what holds on every seed ("p99 dozens of
-  times the reference's", "jumps from about 3 ms to over 10 ms"), never one seed's values. The stories' checks
+  times the reference's", "p99 more than triples"), never one seed's values. The stories' checks
   (`story.yaml`) are what make those claims hold.
 - **Clock:** `page.clock.install({ time: T0 })` then `page.clock.resume()`: time starts at T0 and flows normally.
   Don't use `setFixedTime`: OpenSeadragon's springs and Plotly transitions read `Date.now()` and stall on a frozen clock.
