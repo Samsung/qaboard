@@ -36,8 +36,8 @@ const RowHeaderCell = ({ output }) => {
       {test_input} <ExtraParametersTags parameters={output.extra_parameters} />
       <RunBadges output={output}></RunBadges>
       <PlatformTag platform={output.platform}/>
-      <ConfigurationsTags configurations={output.configurations}/>
-      <MismatchTags mismatch={output.reference_mismatch}/>
+      <ConfigurationsTags configurations={output.configurations} reference={output.reference_mismatch?.configurations}/>
+      <MismatchTags mismatch={output.reference_mismatch} configurations={output.configurations}/>
       {output.is_failed && <Tag style={{marginLeft: '5px'}} intent={Intent.DANGER}>Failed</Tag>}
     </th>
   );

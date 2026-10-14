@@ -44,9 +44,26 @@ To see what a tuning experiment changed, select its batch in the new bar, then u
 :::
 
 ## How runs are matched
-For each new run, QA-Board finds the most similar reference run: first the same input, then the closest configuration, the closest tuning parameters, and the same platform.
+For each new run, QA-Board finds the most similar reference run: first the same input, then the closest configuration (the one with the fewest different settings), the closest tuning parameters, and the same platform.
 
-When the best match is not identical, yellow tags warn you on the run: **Input**, **Config**, **Platform** or **Tuning** (with a `≠` icon). Hover them to see what the reference used. If a run has no match at all, it has no reference values or visualizations.
+When the best match is not identical, yellow tags warn you on the run: **Input**, **Config**, **Platform** or **Tuning** (with a `≠` icon). Hover them to see what the reference used: **Config** shows how the configurations differ, like `git diff`. If a run has no match at all, it has no reference values or visualizations.
+
+## Reading configurations
+A run's configuration is a list of settings: each string (`base`, `conf/night.yaml`) and each value of its JSON objects (`isp.nr.strength: 2`). Configurations tend to grow long, and most of it is the same for all runs. To show you what matters, runs only show their **own** settings:
+
+- **What all runs share** is hidden behind a dashed **··· 9 shared** tag. Hover it to see those settings, click it to show them in this run. The top of the page lists them once, next to **All 12 runs**.
+- **Compared to the reference run**, settings are marked:
+
+  | Tag | Means |
+  |---|---|
+  | green, with **+** | Added: the reference run doesn't have it. |
+  | red, struck through, with **−** | Removed: only the reference run has it. |
+  | orange, `gain: 3 → 4` | Changed: the reference's value, then this run's. For strings, only the part that changed: `conf/[day → night].yaml`. |
+
+  Hover any tag to see what it means and copy it, or the whole configuration.
+- **Changes all runs have**, e.g. when the reference commit used other default settings, are listed once at the top of the page, next to **vs. reference**, with how many runs have each change. Runs don't repeat them: their **··· shared** tag lists them, and the **Config** tag's diff shows them.
+
+To always see full configurations, turn off **Hide them in each run**, at the top of the page or in the **Configuration** section of the controls panel. Runs then show all their settings, the shared ones in grey. Short configurations (one or two short settings) are never hidden, and the Logs view always shows full configurations.
 
 :::caution
 Matching only uses the reference runs left by the **filter ref outputs** box. If you filter the new runs, filter the reference the same way.

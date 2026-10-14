@@ -140,7 +140,7 @@ const RunDetails = ({ output }) => {
     <span className={`input ${Classes.TEXT_MUTED}`}>{output.test_input_path}</span>
     {has_configurations && <span className={`label ${Classes.TEXT_MUTED}`}>Configuration</span>}
     <PlatformTag platform={output.platform} />
-    {has_configurations && <ConfigurationsTags configurations={output.configurations ?? []} />}
+    {has_configurations && <ConfigurationsTags configurations={output.configurations ?? []} collapse={false} />}
     <ExtraParametersTags parameters={output.extra_parameters ?? {}} />
     {has_badges && <RunBadges output={output} />}
   </Details>

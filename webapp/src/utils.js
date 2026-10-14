@@ -12,7 +12,7 @@ const { median: mathjs_median, format } = create({
   formatDependencies,
 })
 
-import { memoized_levenshtein } from "./levenshtein";
+import { config_distance } from "./configurations/tokens";
 import { setPathMappings, linux_to_windows } from "./utils/paths";
 import { repo_url } from "./git";
 
@@ -96,8 +96,8 @@ const matching_output = ({ output, batch, index }) => {
     return {
       o,
       dist_input_path: 1 - Number(o.input_path === output.input_path || o.test_input_path === output.test_input_path),
-      dist_configurations: memoized_levenshtein(o.configurations_str ?? '', output.configurations_str ?? ''),
-      dist_extra_parameters: memoized_levenshtein(o.extra_parameters_str ?? '', output.extra_parameters_str ?? ''),
+      dist_configurations: config_distance(o.configurations, output.configurations),
+      dist_extra_parameters: config_distance(o.extra_parameters, output.extra_parameters),
     };
   });
   // We prefer to compare an ouput versus a similar one

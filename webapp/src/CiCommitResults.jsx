@@ -28,6 +28,9 @@ import { project_web_url } from "./utils";
 
 import PrivateContent from "./components/authentication/PrivateContent"
 import FloatingControlsPanel from "./components/FloatingControlsPanel";
+import { SharedConfigurationContext } from "./configurations/ConfigurationsTags";
+import { ConfigurationOverview } from "./configurations/ConfigurationOverview";
+import { shared_configuration, reference_pairs, changes_in_all_runs } from "./configurations/tokens";
 
 
 
@@ -133,8 +136,19 @@ const CiCommitResults = () => {
     onRegisterOutputOptions: dynamic.register,
     onToggleDynamicOptionSync: toggleDynamicOptionSync,
   };
+  // What runs share is hidden in each run. From all the batch's runs, not only the filtered ones, so that filtering
+  // doesn't change how runs are shown. We keep the same context value when it doesn't change: cards would re-render
+  const shared_settings = shared_configuration(new_commit?.batches?.[selected_batch_new]?.outputs);
+  const all_runs_changes_key = [...changes_in_all_runs(reference_pairs(new_batch))].join('\u0001');
+  const all_runs_changes = useMemo(() => new Set(all_runs_changes_key ? all_runs_changes_key.split('\u0001') : []), [all_runs_changes_key]);
+  const shared = useMemo(
+    () => shared_settings && { ...shared_settings, changes_in_all_runs: all_runs_changes },
+    [shared_settings, all_runs_changes],
+  );
+  const shows_runs = ['output-list', 'bit-accuracy', 'table-compare', 'table-kpi'].some(view => selected_views.includes(view));
   const docs_link = <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/visualizations`}>Read the docs</a>;
   return (
+    <SharedConfigurationContext value={shared}>
     <Container style={{paddingTop: show_ref_navbar ? '150px' : '75px'}}>
 
       {(!new_commit || !ref_commit) && show_ref_navbar && <Section>
@@ -147,6 +161,7 @@ const CiCommitResults = () => {
               {warning_messages}
               {/* the selected batch's runs are unrelated to editing batch definitions, and would push the editor down */}
               {!selected_views.includes('groups') && <BatchStatusMessages project={new_project} commit={new_commit} batch={new_batch} />}
+              {shows_runs && <ConfigurationOverview new_batch={new_batch} />}
             </Section>
 
             {selected_views.includes('summary') && <Section>
@@ -315,6 +330,7 @@ const CiCommitResults = () => {
         />
       )}
     </Container>
+    </SharedConfigurationContext>
   );
 }
 

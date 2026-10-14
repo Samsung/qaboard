@@ -14,6 +14,8 @@ import {
 import { is_image } from "../viewers/images/utils";
 import DynamicOptionControl from "./DynamicOptionControl";
 import { resolveOptionValue } from "../utils/dynamicOptions";
+import { SharedSettings, useSharedConfiguration } from "../configurations/ConfigurationsTags";
+import { HideSharedSwitch } from "../configurations/ConfigurationOverview";
 
 const PanelContainer = styled.div`
   position: fixed;
@@ -226,6 +228,7 @@ const FloatingControlsPanel = ({
     visualizations: true,
     dynamic_options: true,
     sorting: true,
+    configuration: true,
     metrics: false,
   });
   
@@ -253,6 +256,8 @@ const FloatingControlsPanel = ({
       }));
     }
   }
+
+  const shared = useSharedConfiguration();
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
@@ -575,6 +580,30 @@ const FloatingControlsPanel = ({
                       No options match "{dynamicOptionsFilter}"
                     </div>
                   )}
+                </SectionContent>
+              </Collapse>
+            </>
+          )}
+
+          {/* What all runs share, hidden in each run */}
+          {shared?.tokens.length > 0 && (
+            <>
+              <SectionHeader onClick={() => toggleSection('configuration')}>
+                <Button
+                  icon={expandedSections.configuration ? "chevron-down" : "chevron-right"}
+                  minimal
+                  small
+                  style={{ marginRight: 4, minHeight: 20, minWidth: 20 }}
+                />
+                <SectionLabel>Configuration</SectionLabel>
+              </SectionHeader>
+              <Collapse isOpen={expandedSections.configuration}>
+                <SectionContent>
+                  <ControlLabel>Shared by all {shared.runs} runs ({shared.tokens.length})</ControlLabel>
+                  <div style={{ maxHeight: 180, overflowY: 'auto', margin: '4px 0 8px 0' }}>
+                    <SharedSettings tokens={shared.tokens} />
+                  </div>
+                  {shared.collapse && <HideSharedSwitch label="Hide them in each run" />}
                 </SectionContent>
               </Collapse>
             </>
