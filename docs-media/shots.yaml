@@ -32,6 +32,7 @@ features:
   flame-diff: Differential flame graphs
   text-diff: Monaco text diff with Next Diff
   video-sync: Videos played in sync with the reference
+  video-compare: Videos compared frame by frame, side by side, with a wipe, toggled or as their difference, synced zoom
   pointcloud: Point cloud viewer
   trajectory-6dof: 6DoF trajectories against ground truth
   bit-accuracy-tree: Bit-accuracy tree of output files with in-place diff
@@ -48,17 +49,17 @@ shots:
   - id: quickstart/compose
     kind: tape
     project: null
-    shows: Download the compose file, `docker compose up`, the demo data restores, the server answers on localhost:5151.
+    shows: '`docker compose up -d --wait` in a folder with the quickstart''s compose.yml: the services start and turn healthy (the demo data restores first), then on localhost:5151 the health check answers and the projects API lists the demo projects.'
     pages: [get-started/quickstart, deploy, tutorials/self-host]
     phase: 2
-    status: planned
+    status: captured
   - id: quickstart/kind
     kind: tape
     project: null
-    shows: A kind cluster, `helm install` with the quickstart values, a port-forward, then the demo in the browser.
+    shows: '`kind create cluster` with kind.yaml, `helm install` with the quickstart values and the notes it prints, a port-forward, then on localhost:5151 the health check answers and the projects API lists the demo projects.'
     pages: [get-started/quickstart, backend-admin/kubernetes, tutorials/self-host]
     phase: 2
-    status: planned
+    status: captured
   - id: cli/first-run
     kind: tape
     project: image-quality
@@ -66,15 +67,13 @@ shots:
     pages: [get-started/tutorial, running-your-code]
     phase: 1
     status: published
-  # Planned: `qa batch ci` needs the detector's setup in the tape's workspace (PyTorch for the ONNX export, the photos),
-  # and adds a batch to the demo data, to delete afterwards.
   - id: cli/batch
     kind: tape
-    project: detection-eval
-    shows: "`qa batch ci`: runs start, progress, the link to the results."
+    project: image-quality
+    shows: "`qa --share batch ci` on the camera ISP: the link to the results, then the runs start one after the other, each printing its image, the ISP stages and their times."
     pages: [batches-running-on-multiple-inputs, get-started/tutorial, landing, tour]
     phase: 2
-    status: planned
+    status: captured
   - id: cli/bit-accuracy
     kind: tape
     project: image-quality
@@ -268,7 +267,7 @@ shots:
     kind: still
     project: image-quality
     shows: Hovering a Siemens star shows the pixel's values in both images, with a crosshair at the same spot on the reference.
-    pages: [user-guide/comparing-results, landing]
+    pages: [user-guide/comparing-results]
     features: [pixel-tooltip, image-synced-zoom]
     needs: bilateral-denoise vs isp-4-1
     phase: 1
@@ -301,16 +300,25 @@ shots:
     kind: clip
     project: image-quality
     shows: The 113 MP test wall from the full view down to single pixels of a Siemens star, both images in sync.
-    pages: [user-guide/comparing-results, visualizations, use-cases/image-quality, landing]
+    pages: [user-guide/comparing-results, visualizations, use-cases/image-quality]
     features: [deep-zoom, image-synced-zoom]
     needs: merge-bilateral vs isp-4-1 (deep-zoom batch)
     phase: 1
     status: published
+  - id: commit/video-compare
+    kind: clip
+    project: image-quality
+    shows: 'The camera''s video driving down the warehouse aisle in low light, new and reference on either side of a wipe, stepped frame by frame in sync; the divider moves, a zoom on a white package where the new denoiser draws dark rims, the toggle flips them in place, then their difference.'
+    pages: [user-guide/comparing-results, visualizations, use-cases/image-quality]
+    features: [video-compare]
+    needs: merge-bilateral vs isp-4-1 (video batch)
+    phase: 2
+    status: planned
   - id: commit/dynamic-outputs
     kind: clip
     project: image-quality
-    shows: The ISP stage slider of the Controls panel steps from the raw mosaic to the tone-mapped image; scrolling down, the next run's card follows the slider too.
-    pages: [visualizations, recipes/dynamic-outputs, use-cases/image-quality, landing]
+    shows: The ISP stage slider of the Controls panel steps from the raw mosaic to the tone-mapped image of the facade's window (its "Window frame (halos)" region); scrolling down, the next run's card follows the slider too.
+    pages: [visualizations, recipes/dynamic-outputs, use-cases/image-quality]
     features: [dynamic-outputs]
     phase: 2
     status: captured
@@ -416,10 +424,10 @@ shots:
   - id: commit/bit-accuracy-diff
     kind: clip
     project: image-quality
-    shows: Click regs.txt in the tree to diff it in place, Next Diff jumps to the rounding register; Ctrl-click metrics.json to add its diff.
-    pages: [bit-accuracy, user-guide/commit-page, recipes/bit-accuracy-handoff, use-cases/image-quality, landing]
+    shows: Click regs.txt in the tree to diff it in place, Next Diff jumps to the rounding register; Ctrl-click metrics.json to add its diff. Then the same run of a docs-only commit (docs-tuning-guide), tagged Bit-accurate.
+    pages: [bit-accuracy, user-guide/commit-page, recipes/bit-accuracy-handoff, use-cases/image-quality]
     features: [bit-accuracy-tree]
-    needs: fxp-round-half-even
+    needs: fxp-round-half-even and docs-tuning-guide vs isp-4-1, hw-model platform
     phase: 2
     status: captured
   - id: commit/export
@@ -448,7 +456,7 @@ shots:
     kind: clip
     project: robotics-3d
     shows: The depth camera videos of new and reference playing in sync on figure8-fast.
-    pages: [visualizations, recipes/side-by-side-videos, use-cases/robotics-3d]
+    pages: [recipes/side-by-side-videos, use-cases/robotics-3d]
     features: [video-sync]
     phase: 3
     status: planned
@@ -503,7 +511,7 @@ shots:
     features: [live-log-tail]
     needs: a bursty-high run started during the recording
     phase: 2
-    status: planned
+    status: captured
   - id: logs/lsf-hints
     kind: still
     project: image-quality
@@ -564,23 +572,24 @@ shots:
     features: [batch-editor]
     phase: 2
     status: captured
-  # Planned: the demo server can't list a batch's tests (the examples' inputs, a relative `inputs` database, aren't on it).
+  # The server lists the detector's tests from the example's inputs, linked while capturing (docs-media/demo/webapp_runs.py)
   - id: tuning/which-tests-run
     kind: still
     project: detection-eval
-    shows: Hovering a batch lists the tests it resolves to on this commit.
+    shows: 'Available Tests'' "Which tests run?" on int8-percentile: the ci batch resolves to 8 tests, the 4 slices with the fp32 and the int8 model at size 320.'
     pages: [user-guide/commit-page, batches-running-on-multiple-inputs]
     features: [batch-editor]
+    needs: int8-percentile
     phase: 2
-    status: planned
-  # Planned: the run count needs the batch's tests, which the demo server can't list (see tuning/which-tests-run).
+    status: captured
   - id: tuning/manual-form
     kind: still
     project: detection-eval
-    shows: Run Tests / Tuning with a grid over score_threshold and nms_iou, and the number of runs it will start.
+    shows: Run Tests / Tuning on int8-percentile, experiment int8-nms on quant-search (2 tests), with a grid over score_threshold and nms_iou, 4 combinations, "8 total runs", and Send.
     pages: [user-guide/running-from-the-webapp, tuning-from-the-webapp]
+    needs: int8-percentile
     phase: 2
-    status: planned
+    status: captured
   - id: tuning/auto-form
     kind: still
     project: detection-eval
@@ -588,16 +597,16 @@ shots:
     pages: [user-guide/running-from-the-webapp, auto-optimization, tutorials/tuning]
     phase: 2
     status: captured
-  # Planned: a real launch needs the server to see the inputs and a runner with the detector's setup (~1 GB, ONNX export).
+  # A real launch: its 8 runs run in the backend's container (docs-media/demo/webapp_runs.py build), then it's deleted
   - id: tuning/launch-to-analysis
     kind: clip
     project: detection-eval
-    shows: Start the sweep, pick its batch, open the Analysis.
+    shows: The manual-form grid (8 runs) is sent, its int8-nms batch picked in the batch selector once its runs are done, and its Analysis opened, with the runs in parallel coordinates.
     pages: [tutorials/tuning, tour, landing]
     features: [tuning-analysis]
-    needs: int8-percentile (tune-int8)
+    needs: int8-percentile
     phase: 2
-    status: planned
+    status: captured
   - id: tuning/analysis
     kind: still
     project: detection-eval
@@ -687,7 +696,45 @@ shots:
   - id: landing/social-card
     kind: still
     project: image-quality
-    shows: "The 1200x630 social card, rendered from an HTML template: logo, \"Code review for results\", a crop of commit/image-sbs."
+    shows: "The 1200x630 social card (every page's Open Graph image), rendered from docs-media/shots/templates/social-card.html: the logo, the tagline, and a crop of the commit page like the hero's: the facade's run, its metrics, the new image and its Image Diff."
     pages: [landing]
+    needs: merge-bilateral vs isp-4-1
     phase: 2
-    status: planned
+    status: captured
+  # The tiles of the landing's "Polish" grid: 16:10 crops, readable at about 370 px wide
+  - id: landing/deep-zoom
+    kind: clip
+    project: image-quality
+    shows: The new image of the 113 MP test wall, from the full view down to single pixels of a Siemens star.
+    pages: [landing]
+    features: [deep-zoom]
+    needs: merge-bilateral vs isp-4-1 (deep-zoom batch)
+    phase: 2
+    status: captured
+  - id: landing/pixel-values
+    kind: still
+    project: image-quality
+    shows: The facade's window frame, new image and the start of the reference, a pixel hovered on the frame's edge; its values in both images above, crosshairs on both.
+    pages: [landing]
+    features: [pixel-tooltip]
+    needs: merge-bilateral vs isp-4-1
+    phase: 2
+    status: captured
+  - id: landing/every-stage
+    kind: clip
+    project: image-quality
+    shows: The facade's window, new image, stage by stage of the ISP (the Controls panel's stage slider, out of the crop), from the raw mosaic to the tone-mapped output; captions name the stages.
+    pages: [landing]
+    features: [dynamic-outputs]
+    needs: merge-bilateral vs isp-4-1
+    phase: 2
+    status: captured
+  - id: landing/bit-accuracy
+    kind: clip
+    project: image-quality
+    shows: Output Files of the facade's hw-model run, the files that changed; regs.txt's diff, inline, at the rounding register (0 → 2); then the docs-only commit's run, Bit-accurate.
+    pages: [landing]
+    features: [bit-accuracy-tree]
+    needs: fxp-round-half-even and docs-tuning-guide vs isp-4-1, hw-model platform
+    phase: 2
+    status: captured

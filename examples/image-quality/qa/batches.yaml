@@ -32,6 +32,12 @@ deep-zoom:
   lsf:
     max_memory: 3072   # MB
 
+# Videos: the camera driving down an aisle in low light, every frame through the ISP (qa/video.py)
+video:
+  configs: [low-light]
+  inputs:
+  - clips/*.yaml
+
 # For tuning: qa batch sweep-denoise --tuning-search '{"parameter_search": {"denoise_strength": [1.0, 1.3, 1.6, 2.0], "detail_boost": [1.0, 1.25, 1.5]}}'
 sweep-denoise:
   configs: [low-light]

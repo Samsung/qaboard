@@ -33,6 +33,7 @@ import { http } from "../../api/http";
 import { updateSelected } from "../../selection";
 import { usePrefsStore } from "../../stores/prefs";
 import { analyzeBatches, newBatchSnippet, unusedBatchName } from "./batches_file";
+import { BatchDefinitions, BatchFiles, BatchWarnings } from "./BatchReport";
 
 
 
@@ -226,10 +227,11 @@ const item_meta = item => {
 
 /**
  * Lists the tests a batch (or pattern, or alias) resolves to, as `qa batch` would see them on this commit.
+ * Also says where the batch is defined, which batch files the server read, and what may be wrong.
  */
-function BatchPreview({ project, commit, file_names, batch, onRun, unsaved }) {
+function BatchPreview({ project, commit, file_names, file_labels, batch, onRun, unsaved }) {
   const [query, setQuery] = useState(batch);
-  const [state, setState] = useState({ loading: false, tests: null, error: null, message: null });
+  const [state, setState] = useState({ loading: false, tests: null, error: null, report: null });
   const [filter, setFilter] = useState("");
   const [shown, setShown] = useState(200);
   const request = useRef(0);
@@ -237,16 +239,17 @@ function BatchPreview({ project, commit, file_names, batch, onRun, unsaved }) {
   const resolveBatch = useCallback(name => {
     if (!name) return;
     const id = ++request.current;
-    setState({ loading: true, tests: null, error: null, message: null });
+    setState({ loading: true, tests: null, error: null, report: null });
     setShown(200);
     http.post("/api/v1/tests/group", { groups: file_names }, { params: { project, name, commit: commit?.id } })
       .then(({ data }) => {
         if (id !== request.current) return;
-        setState({ loading: false, tests: data.tests ?? [], error: data.error ?? null, message: data.message ?? null });
+        const { warnings = [], files = [], definitions = [] } = data;
+        setState({ loading: false, tests: data.tests ?? [], error: data.error ?? null, report: { name, warnings, files, definitions } });
       })
       .catch(error => {
         if (id !== request.current) return;
-        setState({ loading: false, tests: null, error: errorMessage(error), message: null });
+        setState({ loading: false, tests: null, error: errorMessage(error), report: null });
       });
   }, [project, commit?.id, file_names]);
 
@@ -261,6 +264,8 @@ function BatchPreview({ project, commit, file_names, batch, onRun, unsaved }) {
     return tests.filter(t => `${t.input_path} ${JSON.stringify(t.configurations)}`.toLowerCase().includes(f));
   }, [tests, filter]);
   const nb_inputs = useMemo(() => new Set(tests.map(t => t.input_path)).size, [tests]);
+  const { report } = state;
+  const is_defined = report?.definitions?.length > 0;
 
   return <div className={Classes.DRAWER_BODY}>
       <div style={{ padding: "16px 20px" }}>
@@ -280,10 +285,11 @@ function BatchPreview({ project, commit, file_names, batch, onRun, unsaved }) {
           This uses the saved files: your unsaved changes to {unsaved.join(" and ")} are not included.
         </Callout>}
 
-        {state.message && <Callout intent={Intent.WARNING} title="This commit's batch files could not be read" style={{ marginBottom: 12 }}>
-          Only the shared and private files are used.{" "}
-          <span className={Classes.TEXT_MUTED}>{state.message.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim()}</span>
-        </Callout>}
+        {!state.loading && <BatchWarnings
+          warnings={report?.warnings}
+          title={state.tests?.length === 0 ? "Why there are no tests" : "Check the batch files"}
+          style={{ marginBottom: 12 }}
+        />}
 
         {state.error && <Callout intent={Intent.DANGER} title="Could not list the tests" style={{ marginBottom: 12 }}>
           <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>{state.error}</pre>
@@ -295,7 +301,9 @@ function BatchPreview({ project, commit, file_names, batch, onRun, unsaved }) {
           ? !state.error && <NonIdealState
               icon="search"
               title="No tests"
-              description={<>No batch matches <code>{query}</code> on this commit. Check its name, or save the file that defines it.</>}
+              description={is_defined
+                ? <>The server found none of the inputs of <code>{report.name}</code>.</>
+                : <>No batch matches <code>{report?.name ?? query}</code> on this commit. Check its name, or save the file that defines it.</>}
             />
           : <>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
@@ -326,6 +334,14 @@ function BatchPreview({ project, commit, file_names, batch, onRun, unsaved }) {
             {filtered.length > shown && <Button variant="minimal" size="small" icon="more" text={`Show ${Math.min(500, filtered.length - shown)} more`} onClick={() => setShown(shown + 500)} />}
           </>
         )}
+
+        {report && !state.loading && <div style={{ marginTop: 16 }}>
+          <BatchDefinitions definitions={report.definitions} style={{ marginBottom: 8 }} />
+          {report.files.length > 0 && <>
+            <h4 className={Classes.HEADING} style={{ marginBottom: 6 }}>Batch files read</h4>
+            <BatchFiles files={report.files} labels={file_labels} />
+          </>}
+        </div>}
       </div>
     </div>;
 }
@@ -346,6 +362,7 @@ export function BatchesEditor({ project, commit, config, git, web_url, available
     shared_name && { id: "gr", name: shared_name, label: "Shared", icon: "people", help: "Everyone can see and edit it." },
   ].filter(Boolean), [private_name, shared_name]);
   const file_names = useMemo(() => files.map(f => f.name).reverse(), [files]); // later files override earlier ones
+  const file_labels = useMemo(() => Object.fromEntries(files.map(f => [`${f.name}.yml`, f.label])), [files]);
 
   // until users pick a tab, the first file: the private one, once we know who the user is
   const [selected, setSelected] = useState();
@@ -739,6 +756,7 @@ export function BatchesEditor({ project, commit, config, git, web_url, available
             </ol>
             <p className={Classes.TEXT_MUTED} style={{ marginBottom: 0 }}>
               When a batch is defined in several places, the first one in this list wins.
+              Among the commit's files, the last one wins, like for <code>qa batch</code>.
             </p>
           </SectionCard>
           {database_path && <SectionCard>
@@ -769,6 +787,7 @@ export function BatchesEditor({ project, commit, config, git, web_url, available
         project={project}
         commit={commit}
         file_names={file_names}
+        file_labels={file_labels}
         batch={preview.batch}
         onRun={batch => { setPreview(p => ({ ...p, isOpen: false })); run(batch); }}
         unsaved={dirty_files.map(f => f.label)}

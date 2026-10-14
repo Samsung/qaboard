@@ -386,6 +386,66 @@ clip('commit/deep-zoom', {
   },
 });
 
+// Videos: the camera driving down the aisle in low light, every frame through the ISP (qa/video.py), in their own
+// `video` batch. The viewer's keys act on the viewer under the mouse. Side by side, the stage is half as high as in the
+// other modes: the clip stays in the others, so that nothing moves on the page.
+const videos = (page: Page) => page.getByRole('application', { name: /^Videos/ }).first();
+
+clip('commit/video-compare', {
+  project: IQ,
+  url: d => d.commitUrl(IQ, 'merge-bilateral', { reference: 'isp-4-1', view: 'output-list', batch: 'video', batch_ref: 'video' }),
+  alt: 'A video down a warehouse aisle in low light, new left of a divider, reference right, stepping frame by frame '
+    + 'together; then zoomed on a white package where the new one draws dark rims, flipped in place, and their difference.',
+  caption: 'Videos in sync, frame by frame: with a wipe, zoomed in, flipped in place, and their difference.',
+  // the viewer remembers its mode in the browser
+  storage: { 'qaboard:video-viewer:mode': '"wipe"', 'qaboard:video-viewer:gain': '4' },
+  actions: async ui => {
+    await showCard(ui);
+    await ui.page.waitForFunction(() => [...document.querySelectorAll('video')].every(v => v.readyState >= 2));
+    // a few frames in: the camera starts moving
+    await ui.hover(videos(ui.page));
+    for (let i = 0; i < 24; i++) await ui.press('ArrowRight');
+    await ui.settle();
+    await mouseAway(ui);
+  },
+  script: async ui => {
+    const stage = videos(ui.page);
+    const box = (await stage.boundingBox())!;
+    const at = (x: number, y: number) => ({ x: box.x + box.width * x, y: box.y + box.height * y });
+    // the white package, where the halos are
+    const zoomAt = { x: 0.6, y: 0.62 };
+
+    await ui.caption('New and reference, in sync frame by frame');
+    await ui.cursor.moveTo(at(0.3, 0.4));
+    for (let i = 0; i < 10; i++) await ui.press('ArrowRight');
+    await ui.hold(500);
+
+    await ui.caption('Wipe: drag the divider');
+    await ui.drag(at(0.5, 0.5), at(0.25, 0.5));
+    await ui.drag(at(0.25, 0.5), at(zoomAt.x, 0.5));
+    await ui.hold(400);
+
+    await ui.caption('Zoom in: both videos follow');
+    await ui.wheel(stage, -1000, { steps: 5, position: { x: box.width * zoomAt.x, y: box.height * zoomAt.y } });
+    await ui.hold(1200);
+
+    await ui.caption('Toggle: press t to flip them in place');
+    await ui.click(ui.page.getByRole('radio', { name: 'Toggle' }));
+    await ui.settle();
+    await ui.cursor.moveTo(at(zoomAt.x + 0.08, zoomAt.y + 0.1));
+    await ui.hold(400);
+    for (let i = 0; i < 4; i++) {
+      await ui.press('t');
+      await ui.hold(600);
+    }
+
+    await ui.caption('Their difference shows what changed');
+    await ui.click(ui.page.getByRole('radio', { name: 'Difference' }));
+    await ui.settle();
+    await ui.hold(2000);
+  },
+});
+
 
 // The commit bars, fixed at the top of the page: the new commit's, then the reference's. On the right of each, the
 // filter box with the counters under it, then the batch selector.
@@ -484,11 +544,11 @@ clip('commit/dynamic-outputs', {
   // the facade's tone-mapped output, new and reference
   poster: 7000,
   actions: async ui => {
-    // The facade's card, then the night street's below, both on the full image: the viewers zoom out when the
-    // reference's image appears (stages 1 and 2 are the same in both commits, the reference shows only from stage 3)
-    for (const index of [1, 0]) {
+    // The night street's card on the full image, then the facade's on its window, where the halos show. The reference's
+    // image only shows from stage 3 (stages 1 and 2 are the same in both commits): the viewers keep their region
+    for (const [index, region] of [[1, 'Full Image'], [0, 'Window frame (halos)']] as const) {
       await showCard(ui, index);
-      await preset(ui, viewer(cards(ui.page).nth(index), 1), 'Full Image');
+      await preset(ui, viewer(cards(ui.page).nth(index), 1), region);
     }
     // the pixel values show above the images from the first hover on: not while recording, they'd push them down
     await hoverImage(ui, viewer(cards(ui.page).first(), 1), { x: 50, y: 50 });
@@ -543,8 +603,10 @@ clip('commit/bit-accuracy-diff', {
   // the rounding change of the fixed-point model, on the hw-model platform
   url: d => compare(d, 'fxp-round-half-even', 'isp-4-1', 'photos/facade hw-model', { view: 'bit_accuracy' }),
   alt: 'Output Files of the facade run on the hw-model platform: a click on regs.txt shows its diff below the tree, Next '
-    + 'Diff jumps to the ROUNDING register, from 0 to 2; a Ctrl-click on metrics.json adds its diff below.',
-  caption: 'Click files to diff them with the reference, Ctrl-click to diff several.',
+    + 'Diff jumps to the ROUNDING register, from 0 to 2; a Ctrl-click on metrics.json adds its diff below. Then a commit '
+    + 'that only changed the docs: its run is bit-accurate.',
+  caption: 'Click files to diff them with the reference, Ctrl-click to diff several. A commit that leaves every file '
+    + 'identical is bit-accurate.',
   actions: async ui => {
     await showCard(ui);
     await ui.click(treeCaret(cards(ui.page).first(), 'stages'));
@@ -574,6 +636,12 @@ clip('commit/bit-accuracy-diff', {
     await ui.settle();
     await scroll(300);
     await ui.hold(2200);
+    // a commit that didn't touch the fixed-point model (story.yaml: docs-tuning-guide), on the same run
+    await ui.caption('A docs-only commit: every file identical');
+    await ui.cursor.moveTo({ x: 1000, y: 140 });
+    await ui.goto(compare(ui.demo, 'docs-tuning-guide', 'isp-4-1', 'photos/facade hw-model', { view: 'bit_accuracy' }));
+    await showCard(ui);
+    await ui.hold(2500);
   },
 });
 
@@ -771,7 +839,7 @@ shot('commit/run-badges', {
     await mouseAway(ui);
     await ui.anchor('badge', cards(ui.page).first().getByText('Model card kd-1.3'));
   },
-  // the card's header: its title and tags, the badges, the metrics (the card is wider than the screen: not its h5)
+  // the card's header: its title and tags, the badges, the metrics (not its h5, as wide as the card)
   target: page => [
     cards(page).first().getByText('slices/small-objects', { exact: true }),
     cards(page).first().locator('.bp6-tag', { hasText: /^size-320$/ }).first(),
@@ -817,7 +885,7 @@ shot('commit/detections', {
   // in full screen, each image is half as wide as the screen: at 2x, a little smaller than the photo (and its budget)
   viewport: { width: 840, height: 640 },
   actions: async ui => {
-    // The project's cards are 390 px wide (qaboard.yaml sets no width): in full screen, the images fill the screen
+    // In full screen, the images fill the screen, whatever the cards' width (qaboard.yaml: outputs.style.width)
     await cards(ui.page).first().locator('[title="Enter Full Screen"]').evaluate(e => (e as HTMLElement).click());
     await ui.page.waitForFunction(() => !!document.fullscreenElement);
     await ui.settle();
@@ -844,7 +912,7 @@ shot('commit/html-report', {
     await mouseAway(ui);
     await ui.settle();
   },
-  // the new run's report, down to the image with the most missed objects (the card is wider than the screen)
+  // the new run's report, down to the image with the most missed objects
   target: page => [
     page.frameLocator('iframe[title="report.html (new)"]').locator('h1'),
     page.frameLocator('iframe[title="report.html (new)"]').locator('figure').first(),
@@ -893,9 +961,9 @@ const plotOf = (page: Page, index: number) => viewer(cards(page).first(), index)
 shot('commit/latency-cdf', {
   project: SL,
   url: d => sharedCache(d, 'steady-high', only('cdf')),
-  alt: 'The steady-high run of the shared cache against its parent: p50 545 ms, p99 1150 ms, over 18,000% worse. The '
-    + 'latency percentiles on log axes: the new line sits near a second from the median on, the reference\'s stays '
-    + 'under the 12 ms SLO line until the far tail.',
+  alt: 'The steady-high run of the shared cache against its parent: p50 and p99 a hundred times the reference\'s or '
+    + 'more. On log axes, the new line sits near a second from the median on, the reference\'s stays under the 12 ms '
+    + 'SLO line until the far tail.',
   caption: 'Latency percentiles on a log tail: at 6,000 requests/s, with the shared cache every percentile is a hundred '
     + 'times slower or more. Requests queue for its lock.',
   actions: async ui => {
@@ -911,7 +979,7 @@ shot('commit/throughput-p99', {
   project: SL,
   url: d => sharedCache(d, 'ramp', only('sweep')),
   alt: 'Throughput against p99 in the ramp run, from 20% to 120% of 6,000 requests/s: the reference\'s p99 stays low '
-    + 'under the 12 ms SLO until the last steps; the shared cache\'s takes off past 4,600 requests/s, to half a second.',
+    + 'under the 12 ms SLO until the last steps; the shared cache\'s takes off well before full load, to hundreds of milliseconds.',
   caption: 'The ramp raises the load step by step: with the shared cache, p99 takes off at a lower throughput.',
   actions: async ui => {
     await showCard(ui);
@@ -930,7 +998,7 @@ shot('commit/flame-diff', {
     + 'which runs less, is blue.',
   caption: 'A differential flame graph: rendering responses under the shared cache\'s lock is new (orange), and the '
     + 'model runs less (blue): cache hits skip it.',
-  // the card is 1500 px wide (qaboard.yaml sets no width), and the Controls panel's button sits on the viewport's edge
+  // the Controls panel's button sits on the viewport's edge: a wider window keeps it away from the flame graph
   viewport: { width: 1760, height: 1000 },
   actions: async ui => {
     await showCard(ui);
@@ -968,14 +1036,13 @@ shot('commit/text-diff', {
   alt: 'HdrHistogram\'s percentile distribution of the steady-high run, reference and new side by side in a diff '
     + 'editor: from the median on, latencies go from 3 ms to over 500 ms.',
   caption: 'Text outputs are diffed with the reference; Next Diff jumps to the next change.',
-  // the card is 1500 px wide (qaboard.yaml sets no width), and the Controls panel's button sits on the viewport's edge
-  viewport: { width: 1760, height: 900 },
   actions: async ui => {
     await showCard(ui);
     await mouseAway(ui);
   },
   // the file's name and buttons, and its first 20 lines, both sides: down to the reference's line 20, and as far right
-  // as the new file's header line goes (the editors are as wide as the card)
+  // as the new file's header line goes (the editors are as wide as the card, which fits the window: qaboard.yaml sets
+  // no width)
   target: page => {
     const editor = (side: string) => viewer(cards(page).first(), 8).locator(`.${side}-in-monaco-diff-editor`);
     return [

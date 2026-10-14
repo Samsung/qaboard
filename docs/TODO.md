@@ -7,46 +7,29 @@ where to start. When you finish one, delete it.
 The shot list is `docs-media/shots.yaml`, how to capture is `docs-media/README.md`. Pages already reference these ids
 and show a "not captured yet" placeholder until they're published.
 
-- **`quickstart/compose`** (tape): the Docker Compose quickstart from a clean machine, `docker compose -f
-  deployments/quickstart/compose.yml up -d` then the demo in the browser.
-  - The demo stack holds port 5151, locally and in the `docs-media` workflow, so record it on another port:
-    `QABOARD_PORT_HTTP=5252` (the compose file reads it, and `QABOARD_URL` follows). Use a separate compose project
-    name (`-p qaboard-quickstart`) so it doesn't touch `qaboard-demo`, and `down -v` it at the end of the tape's
-    hidden teardown.
-  - The tape should hide the image pulls (`Hide` / `Show` around a `docker compose pull`), show `up -d`, then
-    `curl -sSf http://localhost:5252/api/v1/health` and the projects list.
-  - The demo-data image must exist: `ghcr.io/<owner>/qaboard:demo-data` is published by a `workflow_dispatch` run of
-    `docs-media.yml` on master. In CI, build it locally first (the workflow's "Demo-data image" step does) and point
-    the compose file at it with `QABOARD_IMAGE`.
-  - Docker Hub rate-limits anonymous pulls: CI runners are fine, shared dev machines often aren't.
-- **`quickstart/kind`** (tape): `kind create cluster --config charts/qaboard/kind.yaml`, `helm install` with
-  `charts/qaboard/quickstart.yaml`, a port-forward, then the demo. `.github/scripts/helm_e2e.py` does all of it in the
-  `helm-e2e` CI job: copy its commands. Needs kind, helm and kubectl on the runner (the `helm-e2e` job installs them)
-  and about 6 GB of disk.
-- **`cli/batch`** (tape): `qa batch ci` on the detector, with its progress and the results link.
-  - The detector needs PyTorch, its ONNX export and its inputs (about 1 GB): record it after the seeder has built
-    `examples/detection-eval` in the same workspace, or switch the tape to the camera ISP (`qa batch ci` there is quick).
-  - The results link only prints with `--share`, which adds a batch to the demo data other shots capture: use a
-    label like `--label tape` and delete the batch in the tape's hidden teardown, as `logs/live-tail` does.
-- **`tuning/which-tests-run`, `tuning/manual-form`, `tuning/launch-to-analysis`**: the demo server can't see the
-  examples' inputs (each `qaboard.yaml` uses a relative `inputs` folder), so every batch resolves to 0 tests and the
-  forms show "0 total runs" ("No inputs found" under Send, cropped out of `tuning/auto-form`). Mount
-  `examples/<project>/inputs` in the demo stack's backend at the path the server resolves (or set the projects'
-  `inputs.database` for the demo), then capture; the launch clip also needs a runner with the detector's setup.
-- **`landing/social-card`** (still): needs its template (a page that lays out the logo, tagline and a crop of the
-  hero), then a spec like the others.
-- **Phase 3**: the robotics and agent demo projects' shots (`project: robotics-3d`, `agent-evals`).
+- **Phase 3**: the robotics and agent demo projects and their shots (`project: robotics-3d`, `agent-evals`), postponed.
+  Work in progress on two branches, not merged:
+  - `claude/docs-robotics-3d`: world, trajectories, sensors, ground truth (only `loop` generated), ICP odometry, loop
+    closure and evaluation. The odometry crashes on `loop` (an invalid rotation matrix) and frame-to-frame ICP is 17-37
+    mm off with 1% depth noise (normals from noisy points). Missing: `qa/main.py` and the outputs, configs, story.
+    The SPEC's plot (`keyframe_dist: 0.6` doubles the fast figure-8's error) has no obvious mechanism: rethink it.
+    The viewers may need small changes (6DoF plots fixed at 350 px; the point cloud viewer reads the ground truth from
+    the inputs and plots a hard-coded `pcmd`); check that Playwright's Chromium plays the H.264 camera video.
+  - `claude/docs-agent-evals`: the agent loop (llama-cpp-python, grammar-constrained tool calls, memoized), tools,
+    fleet, checks, metrics, pinned GGUF downloads, 24 tasks. Qwen2.5-0.5B passes 1-3 of 6 lookup tasks with the v5
+    prompt (wrong tools, repeated calls): the prompt or tasks need work before the story's effects show. Missing: the
+    report and plots, prompts v1-v4, configs, story, the actions/cache step.
+  - **`qa gate` on pass/fail metrics**: rules compare the median over runs, which is meaningless for 0/1 per-test
+    metrics (`unsafe_actions` with `max: 0` passes while fewer than half the tests are unsafe). Add an aggregate option
+    to the rules (mean, max), computed client-side from the per-test values the compare endpoint already returns.
 
 ## Shots to improve
-- **`commit/bit-accuracy-diff`** could end on "Bit-accurate" now: `docs-tuning-guide` vs `isp-4-1`, the facade run on
-  the hw-model platform. The `ui` helpers can't change pages mid-clip: add a `ui.goto(url)` that waits like the
-  initial load.
-- **`commit/dynamic-outputs`** switches to the Full Image preset because the viewers used to zoom out when the stage
-  changed. Fixed: it could stay on the facade's "Window frame (halos)" preset.
-- **Landing "polish" tiles** cut from full-page 1440×900 clips (deep zoom, every stage, bit accuracy) are hard to read
-  at tile size: capture tighter regions for the landing. The "Pixel values" tile is mostly white.
-- **`cli/bit-accuracy`** lists `charts/*.png` in filesystem order, which differs between machines (see "Product" below):
-  re-record once inputs are sorted.
+- **`commit/text-diff`**: at the 1440 px window, the last column of HdrHistogram's table (`1/(1-Percentile)`) is cut on
+  both sides of the diff. A narrower font in the text viewer, or a crop that drops that column, would read better.
+- **Clips are 1x**: the CDP screencast of headless Chromium sends frames at CSS size (1440x900), not at the device
+  scale (2x), so clips are softer than stills, most visibly the landing tiles (crops of 585-720 px). `meta.json`'s
+  `scale` is now the frames' (`lib/record.ts`), so crops are right either way. Getting 2x frames (headed Chromium, or a
+  device metrics override for the screencast) would need the clip budgets checked again.
 
 ## Docs
 - **Old screenshots still used** where no shot covers them; check them for internal names and replace or drop them:
@@ -63,27 +46,16 @@ and show a "not captured yet" placeholder until they're published.
 - **Release notes**: publish October's note at the start of November (see `website/release-notes/_template.md`).
 
 ## Product, small
-- **History**: the y axis cuts off its top tick label ("000 ms" for 1000); `?breakdown_per_test=false` in the URL is
-  ignored. (`webapp/src/CommitsEvolution.jsx`)
-- **Branch chart**: `has_all_metrics` in `webapp/src/CommitsEvolution.jsx` uses `&&` where it means `||`, so it never
-  filters commits out and the chart shows gaps instead.
+- **`qa batch`**: on success, the "Results" link only prints at the start: `print_url` returns early because `qa batch`
+  sets `QA_BATCH` itself (`cli/batch` shows the first one). Changes `qaboard/`: the next `docs-media` run reseeds.
 - **Analysis view** (tuning): the frontier and plots only use the metrics selected in its tag picker; with another
   metric, the points are null and the plot is empty. (`webapp/src/components/tuning/`)
 - **Commits page**: `from=2026-09-17` showed 9/18 while `from=2026-09-10` showed 9/10: a time zone off-by-one?
-- **Summary**: the box plots of metrics on a log scale (e.g. AP small) overlap their y axis labels.
-- **Detection-eval cards** are 390 px wide: add `outputs.style.width` to `examples/detection-eval/qaboard.yaml`
-  (changes the snapshot key: the next `docs-media` run reseeds).
-- **Run cards** are 1500 px wide without `outputs.style.width` in `qaboard.yaml`, wider than a 1440 px window.
 - **Image viewer**: `Init()` adds `add-item` and `tile-load-failed` handlers on every image change, so they pile up
   (`webapp/src/viewers/images/images.jsx`). `OutputCard` logs React warnings (an unknown DOM prop, a non-boolean
   attribute, missing list keys).
 - **Bit accuracy**: when both runs have a pixel hash (`md5_data`), the web app compares it instead of the file's md5,
   so it can call images identical when `qa check-bit-accuracy` wouldn't. Without manifests, the CLI matches
   `bit_accuracy.ignore` against file names rather than path prefixes.
-- **Inputs order**: `qaboard/iterators.py` lists globbed inputs in filesystem order (`database.glob` isn't sorted), so
-  batches list their runs in a different order on different machines. Sorting changes the snapshot key: the next
-  `docs-media` run reseeds.
 - **Backend**: `Batch.to_dict` runs one status-count query per batch; it could be grouped like
   `backend/backend/metrics_aggregation.py`.
-- **Seeder**: the gate check's log prints "None: fail" for the max-failed-runs rule (it reads `metric`; use `kind`).
-  `docs-media/snapshot.py` imports `Optional` without using it.

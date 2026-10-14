@@ -16,6 +16,7 @@ import {
 } from "@blueprintjs/core";
 import { MultiSelect } from "@blueprintjs/select";
 
+import { logTickValues } from "./logTicks";
 import { RunBadge } from "./tags";
 import { format, plotly_palette, match_query } from "../utils";
 import { summary_outputs, metric_values, summary_stats, mixed_parameters } from "../utils/compare";
@@ -133,6 +134,18 @@ const MetricTile = styled.div`
   min-width: 355px; // manuall adjusted with the largest title..
 `;
 
+// A few round ticks: on a log scale, Plotly's pile up and overlap in such a small plot.
+// `values` include the target, whose shading is part of the range.
+const with_log_ticks = (layout, values) => {
+  if (layout.yaxis?.type !== "log" || layout.yaxis.tickvals !== undefined)
+    return layout;
+  const tickvals = logTickValues(values);
+  if (!tickvals)
+    return layout;
+  // room for the label of a tick at the top (e.g. the target): Plotly hides labels that don't fit
+  return { ...layout, yaxis: { ...layout.yaxis, tickvals }, margin: { ...layout.margin, t: Math.max(layout.margin?.t ?? 0, 8) } };
+};
+
 const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly_default_colors }) => {
   const xdata = xaxis_labels || ["New", "Reference"];
   const base_layout = {
@@ -214,11 +227,12 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
         }
       });
   }
-  const layout_ = { ...base_layout, ...layout, shapes };
+  const ydata = series.map(values => values?.map(x => metric.scale * x) ?? []);
+  const layout_ = with_log_ticks({ ...base_layout, ...layout, shapes }, [...ydata.flat(), ...(metric.target ? [metric.target * metric.scale] : [])]);
 
   const data = xdata.map((name, i) => ({
     type: "box",
-    y: series[i]?.map(x => metric.scale * x),
+    y: ydata[i],
     name,
     namelength: -1,
     boxpoints: "all",

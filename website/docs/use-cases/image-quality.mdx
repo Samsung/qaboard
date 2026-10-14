@@ -55,6 +55,12 @@ every run's card at once.
 
 <Clip id="commit/dynamic-outputs" />
 
+**Videos, frame by frame.** The camera driving down an aisle in low light, every frame through the pipeline: step
+through both videos in sync, wipe across them, zoom in, and see their difference. The new denoiser draws dark rims
+around the packages here too.
+
+<Clip id="commit/video-compare" />
+
 **History** of one input across commits: hover a point to compare its output with the commit before. The PSNR of
 the facade jumps when the denoiser is merged, and its leaves get halos.
 
@@ -66,7 +72,7 @@ here the rounding change touches the last two stages. On a commit that only chan
 <Clip id="cli/bit-accuracy" />
 
 In the web app, **Output Files** lists the files that changed: click one to diff it with the reference. The register
-dump shows the rounding mode that changed.
+dump shows the rounding mode that changed. On the docs-only commit, the run is tagged **Bit-accurate**.
 
 <Clip id="commit/bit-accuracy-diff" />
 

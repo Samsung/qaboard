@@ -17,7 +17,7 @@ import { useViewerControls } from "./viewers/controls";
 import { BitAccuracyForm, bit_accuracy_url_defaults } from "./viewers/bit_accuracy/utils";
 import { is_image } from "./viewers/images/utils"
 import { hash_color, match_query, average, median, matching_output } from "./utils";
-import { yAxisSuffix } from "./evolutionAxis";
+import { yAxisSuffix, hasAllMetrics } from "./evolutionAxis";
 import CommitRow from "./components/CommitRow";
 
 
@@ -35,6 +35,8 @@ let default_layout = {
   yaxis: {
     showgrid: false,
     showline: false,
+    // the margin grows to fit the tick labels: the top one has the unit, e.g. "1000 ms"
+    automargin: true,
   },
   hovermode: "closest",
   hoverinfo: "y",
@@ -44,19 +46,6 @@ let default_layout = {
   legend: {
     "y": 0.01,
   },
-};
-
-
-const has_all_metrics = (commit, batch_label, metrics, aggregation) => {
-  if (commit.batches[batch_label] === undefined)
-    return false
-  for (var index in metrics) {
-    let metric = metrics[index];
-    let metric_value = commit.batches[batch_label].aggregated_metrics[`${metric}_${aggregation}`];
-    if (metric_value === undefined || metric_value === null)
-      return false;
-  }
-  return true;
 };
 
 
@@ -106,7 +95,7 @@ const traces_per_batch = ({ commits, metrics, aggregation, available_metrics, pe
     shown_batches.forEach(label => {
       const commits_with_batch = per_output_granularity
         ? commits.filter(c => !!c.batches[label])
-        : commits.filter(c => has_all_metrics(c, label, metrics, shown_aggregation));
+        : commits.filter(c => hasAllMetrics(c, label, metrics, shown_aggregation));
       if (commits_with_batch.length === 0) return;
       let y;
       if (!per_output_granularity) {

@@ -3,6 +3,8 @@
 const path = require('path');
 
 const MODES = ['local', 'remote', 'placeholder'];
+// QABOARD_MEDIA_MISSING: what local builds do with shots whose files can't be downloaded
+const MISSING = ['fail', 'placeholder', 'remote'];
 
 // Downloaded files, served at <baseUrl>media/<key> (the folder is a static directory in local mode)
 const CACHE_DIR = '.media-cache';
@@ -23,6 +25,9 @@ const truthy = value => ['1', 'true', 'yes', 'on'].includes(String(value ?? '').
 /**
  * QABOARD_MEDIA=local|remote|placeholder overrides the mode (default: local for builds, remote otherwise),
  * QABOARD_MEDIA_BASE_URL points at a mirror of the bucket, QABOARD_MEDIA_STRICT=1 turns warnings into errors.
+ * QABOARD_MEDIA_MISSING: in local mode, what to do with shots whose files can't be downloaded (e.g. a proxy blocks
+ * videos). fail (default) fails the build, placeholder renders them as placeholders, remote has readers' browsers load
+ * them from the media host (or the mirror), with a placeholder if that fails too. Strict builds always fail.
  */
 function resolveMediaConfig(env = process.env, argv = process.argv) {
   const requested = String(env.QABOARD_MEDIA ?? '').trim().toLowerCase();
@@ -32,10 +37,14 @@ function resolveMediaConfig(env = process.env, argv = process.argv) {
   const baseUrlOverride = String(env.QABOARD_MEDIA_BASE_URL ?? '').trim().replace(/\/+$/, '');
   if (baseUrlOverride && !/^https?:\/\/[^/]+/.test(baseUrlOverride))
     throw new Error(`QABOARD_MEDIA_BASE_URL=${baseUrlOverride}: expected an http(s) URL`);
+  const missing = String(env.QABOARD_MEDIA_MISSING ?? '').trim().toLowerCase() || 'fail';
+  if (!MISSING.includes(missing))
+    throw new Error(`QABOARD_MEDIA_MISSING=${env.QABOARD_MEDIA_MISSING}: expected one of ${MISSING.join(', ')}`);
   return {
     mode: requested || (isBuild ? 'local' : 'remote'),
     strict: truthy(env.QABOARD_MEDIA_STRICT),
     baseUrlOverride: baseUrlOverride || null,
+    missing,
     isBuild,
   };
 }
@@ -45,7 +54,21 @@ function mediaStaticDirectories() {
   return resolveMediaConfig().mode === 'local' ? [CACHE_DIR] : [];
 }
 
+// The social card for themeConfig.image, once published: its PNG master, served with the site in local mode (the
+// plugin downloads the PNG of the ids in its `png` option). Else null: the media hostname never appears in a page.
+function socialCardImage(siteDir, id = 'landing/social-card') {
+  if (resolveMediaConfig().mode !== 'local')
+    return null;
+  try {
+    const manifest = JSON.parse(require('fs').readFileSync(path.join(siteDir, MANIFEST), 'utf8'));
+    const key = manifest.shots?.[id]?.files?.png?.key;
+    return key ? `${SERVED_PREFIX}/${key}` : null;
+  } catch {
+    return null;
+  }
+}
+
 module.exports = {
-  MODES, CACHE_DIR, SERVED_PREFIX, MANIFEST, SCHEMA, SHOT_LIST,
-  isBuildCommand, resolveMediaConfig, mediaStaticDirectories,
+  MODES, MISSING, CACHE_DIR, SERVED_PREFIX, MANIFEST, SCHEMA, SHOT_LIST,
+  isBuildCommand, resolveMediaConfig, mediaStaticDirectories, socialCardImage,
 };

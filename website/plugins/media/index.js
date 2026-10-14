@@ -5,7 +5,8 @@
 // - remote (`yarn start`): components load from the manifest's base_url, nothing is downloaded;
 // - placeholder: no network, every shot is a placeholder.
 // Build checks: unknown ids fail the build, planned ids render placeholders (strict: fail),
-// unused manifest entries warn (strict: fail). The media hostname must not end up in the built site.
+// unused manifest entries warn (strict: fail). The media hostname must not end up in the built site, unless
+// QABOARD_MEDIA_MISSING=remote had readers load the shots the build couldn't download from it.
 const fs = require('fs');
 const path = require('path');
 const logger = require('@docusaurus/logger').default;
@@ -33,6 +34,12 @@ function plannedEntry(entry, listed) {
   };
 }
 
+function hasFiles(dir) {
+  if (!fs.existsSync(dir))
+    return false;
+  return fs.readdirSync(dir, {withFileTypes: true}).some(dirent => dirent.isFile() || (dirent.isDirectory() && hasFiles(path.join(dir, dirent.name))));
+}
+
 function textFiles(dir, files = []) {
   for (const dirent of fs.readdirSync(dir, {withFileTypes: true})) {
     const file = path.join(dir, dirent.name);
@@ -50,6 +57,9 @@ module.exports = function qaboardMediaPlugin(context, options = {}) {
   const config = resolveMediaConfig();
   const cacheDir = path.join(siteDir, CACHE_DIR, SERVED_PREFIX);
   let mediaHosts = [];
+  // Shots readers load from the media host (or the mirror), with QABOARD_MEDIA_MISSING=remote
+  let remoteShots = [];
+  let remoteHost = null;
 
   return {
     name: PLUGIN_NAME,
@@ -104,7 +114,9 @@ module.exports = function qaboardMediaPlugin(context, options = {}) {
       // Builds only ship what pages use; `yarn start` knows every shot, for the pages you are writing
       const ids = config.isBuild ? [...used] : [...new Set([...Object.keys(manifest.shots), ...Object.keys(shotList ?? {})])];
       const published = ids.filter(id => manifest.shots[id]).sort();
-      const content = {mode: config.mode, base: null, shots: {}, planned: {}};
+      remoteShots = [];
+      remoteHost = null;
+      const content = {mode: config.mode, base: null, shots: {}, planned: {}, remoteBase: null, remoteShots: []};
       if (config.mode === 'placeholder') {
         published.forEach(id => (content.planned[id] = plannedEntry(manifest.shots[id], shotList?.[id])));
       } else {
@@ -113,11 +125,30 @@ module.exports = function qaboardMediaPlugin(context, options = {}) {
         if (config.mode === 'local') {
           content.base = `/${SERVED_PREFIX}/`;
           const wanted = published.flatMap(id => Object.values(files[id]));
-          const stats = await syncMedia(wanted, {baseUrl, destDir: cacheDir, log: m => logger.info(`[qaboard-media] ${m}`)});
+          const allowFailures = config.missing !== 'fail' && !config.strict;
+          const stats = await syncMedia(wanted, {baseUrl, destDir: cacheDir, allowFailures, log: m => logger.info(`[qaboard-media] ${m}`)});
           if (stats.removed)
             logger.info(`[qaboard-media] removed ${stats.removed} cached files no page uses`);
-          // A static directory with folders but no files makes the build fail
-          if (!wanted.length)
+          // QABOARD_MEDIA_MISSING: shots with a file we couldn't download become placeholders,
+          // or readers load them from the media host (the components show a placeholder if that fails too)
+          const failed = new Set(stats.failed);
+          const incomplete = published.filter(id => Object.values(files[id]).some(file => failed.has(file.key)));
+          if (incomplete.length && config.missing === 'remote') {
+            content.remoteBase = `${baseUrl}/`;
+            content.remoteShots = incomplete;
+            remoteShots = incomplete;
+            remoteHost = new URL(baseUrl).host;
+            logger.warn(`[qaboard-media] ${incomplete.length} shots load from ${baseUrl} in readers' browsers, some of their files could not be downloaded: ${incomplete.join(', ')}`);
+          } else if (incomplete.length) {
+            for (const id of incomplete) {
+              delete content.shots[id];
+              content.planned[id] = plannedEntry(manifest.shots[id], shotList?.[id]);
+            }
+            logger.warn(`[qaboard-media] ${incomplete.length} shots render as placeholders, some of their files could not be downloaded: ${incomplete.join(', ')}`);
+          }
+          // A static directory with folders but no files makes the build fail: no page uses media, or none could
+          // be downloaded (QABOARD_MEDIA_MISSING=remote|placeholder behind a proxy that blocks the media host)
+          if (!hasFiles(path.join(siteDir, CACHE_DIR)))
             fs.rmSync(path.join(siteDir, CACHE_DIR), {recursive: true, force: true});
         } else {
           content.base = `${baseUrl}/`;
@@ -143,10 +174,13 @@ module.exports = function qaboardMediaPlugin(context, options = {}) {
         logger.warn(`[qaboard-media] QABOARD_MEDIA=remote: the built pages load media from ${mediaHosts.join(', ')}`);
         return;
       }
+      if (remoteShots.length)
+        logger.warn(`[qaboard-media] QABOARD_MEDIA_MISSING=remote: the built pages load ${remoteShots.length} shots from ${remoteHost}`);
+      const hosts = mediaHosts.filter(host => !remoteShots.length || host !== remoteHost);
       const leaks = [];
       for (const file of textFiles(outDir)) {
         const content = fs.readFileSync(file);
-        for (const host of mediaHosts) {
+        for (const host of hosts) {
           if (content.includes(host))
             leaks.push(`${path.relative(outDir, file)} contains ${host}`);
         }

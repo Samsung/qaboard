@@ -553,7 +553,8 @@ const OutputCard = memo(function OutputCard(props) {
 
   const container_style = {
     flex: "0 0 auto",
-    width: style.width || '1500px',
+    // without outputs.style.width in qaboard.yaml: as wide as the page allows, up to 1500px
+    width: style.width || 'min(1500px, 100%)',
     marginBottom: "250px !important",
   }
   const maybe_style_skeleton = output_new.is_running ? style_skeleton : {};

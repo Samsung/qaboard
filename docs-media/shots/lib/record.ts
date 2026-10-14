@@ -28,6 +28,22 @@ export interface Recording {
   concat: string;         // file name in the output folder
   captions: string | null;
   cut: number;            // seconds of wall clock left out
+  frameSize: { width: number; height: number };   // pixels of the frames
+}
+
+/** A JPEG's size, from its start of frame segment */
+export function jpegSize(data: Buffer): { width: number; height: number } {
+  let i = 2;
+  while (i + 9 < data.length) {
+    if (data[i] !== 0xff) throw new Error('[shots] not a JPEG segment');
+    const marker = data[i + 1];
+    const length = data.readUInt16BE(i + 2);
+    // SOF0-SOF15, except DHT (C4), JPG (C8) and DAC (CC)
+    if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker))
+      return { height: data.readUInt16BE(i + 5), width: data.readUInt16BE(i + 7) };
+    i += 2 + length;
+  }
+  throw new Error('[shots] no JPEG frame size');
 }
 
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -207,7 +223,8 @@ export class Recorder {
       fs.writeFileSync(path.join(outDir, captions), webvtt(this.cues, end));
     }
     const cut = Math.max(0, this.stopped - (this.started ?? this.stopped) - this.clip);
-    return { duration: end, frames: kept.length, concat, captions, cut };
+    const frameSize = jpegSize(fs.readFileSync(path.join(this.framesDir, kept[0].file)));
+    return { duration: end, frames: kept.length, concat, captions, cut, frameSize };
   }
 }
 

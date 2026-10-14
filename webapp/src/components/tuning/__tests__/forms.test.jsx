@@ -80,6 +80,24 @@ describe('TuningForm', () => {
     expect(screen.getByText(/Please give a name to the tuning experiment/)).toBeInTheDocument();
   });
 
+  it('says why the batch has no tests, with the name sent encoded', async () => {
+    usePrefsStore.getState().updateTuning('kitefin/detector', { selected_group: 'nightly+fs' });
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({
+      tests: [],
+      definitions: [],
+      warnings: ['Not in this commit\'s artifacts (/mnt/a): qa/tests/x.yaml. Run `qa save-artifacts` on this commit.'],
+    }));
+    renderWithProviders(
+      <TuningForm project="kitefin/detector" config={config} metrics={metrics} commit={{ id: 'abc123' }} available_tests_files={{ gr: 'extra-batches', usr: 'arjun' }}/>,
+      { user: { is_logged: true, user_name: 'arjun' }, siteConfig: {} },
+    );
+    expect(await screen.findByText('Why the batch has no tests')).toBeInTheDocument();
+    expect(screen.getByText('qa save-artifacts').tagName).toBe('CODE');
+    const [url, init] = fetch.mock.calls.find(([url]) => url.startsWith('/api/v1/tests/group?'));
+    expect(url).toBe('/api/v1/tests/group?project=kitefin%2Fdetector&name=nightly%2Bfs&commit=abc123');
+    expect(JSON.parse(init.body)).toEqual({ groups: ['extra-batches', 'arjun'] });
+  });
+
   it('links to the docs of the site', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
     renderWithProviders(<TuningForm project="proj" config={{ inputs: {} }} metrics={metrics} commit={commit} available_tests_files={{}}/>, { siteConfig: { docs_root: '/qa/' } });

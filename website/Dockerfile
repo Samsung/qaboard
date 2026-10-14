@@ -61,10 +61,13 @@ ENV QABOARD_URL=$QABOARD_URL
 ARG QABOARD_SITE=""
 ENV QABOARD_SITE=$QABOARD_SITE
 # The build downloads the docs' screenshots and clips (docs-media/README.md): without network access, set
-# QABOARD_MEDIA=placeholder, or QABOARD_MEDIA_BASE_URL to a mirror of the media bucket
+# QABOARD_MEDIA=placeholder, or QABOARD_MEDIA_BASE_URL to a mirror of the media bucket. When a proxy blocks some files
+# (e.g. videos), QABOARD_MEDIA_MISSING=remote has readers load those shots from the bucket (or the mirror), or
+# QABOARD_MEDIA_MISSING=placeholder renders them as placeholders, instead of failing the build
 ARG QABOARD_MEDIA=""
 ARG QABOARD_MEDIA_BASE_URL=""
-ENV QABOARD_MEDIA=$QABOARD_MEDIA QABOARD_MEDIA_BASE_URL=$QABOARD_MEDIA_BASE_URL
+ARG QABOARD_MEDIA_MISSING=""
+ENV QABOARD_MEDIA=$QABOARD_MEDIA QABOARD_MEDIA_BASE_URL=$QABOARD_MEDIA_BASE_URL QABOARD_MEDIA_MISSING=$QABOARD_MEDIA_MISSING
 RUN yarn build
 
 # When upgrading, we want to enable clients to continue using a previous bundle

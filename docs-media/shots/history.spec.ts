@@ -111,8 +111,8 @@ shot('history/performance-over-time', {
   // bursty-high's p99 is around 200 ms: its line would flatten the others
   url: d => lastTwoWeeks(d, '-bursty'),
   alt: 'Performance over time on main, the last two weeks: Latency p99, a line per test, and the 12 ms target dashed. '
-    + 'One line jumps from 3 to 12 ms and comes back down four commits later; hovered, its point at the jump names the '
-    + 'heavy-tail-high test, and the commit below copies payloads into fixed slots.',
+    + 'One line more than triples and comes back four commits later; hovered, its point at the jump '
+    + 'names heavy-tail-high, and the commit below copies payloads into fixed slots.',
   caption: 'A metric over a branch\'s commits, a line per test: hover the jump to see the test and the commit.',
   actions: async ui => {
     const plot = performanceOverTime(ui.page).locator('.js-plotly-plot').first();
@@ -130,7 +130,7 @@ shot('history/relative', {
   project: SL,
   url: d => lastTwoWeeks(d),
   alt: 'The same chart Relative to start: every test\'s p99 as a percentage of its value at the first commit, so that '
-    + 'the 200 ms bursty test and the 2 ms steady ones share a scale. Heavy-tail-high climbs to about 400 for four commits.',
+    + 'the 200 ms bursty test and the 2 ms steady ones share a scale. Heavy-tail-high climbs to about four times its start for four commits.',
   caption: 'Relative to start puts every test on the same scale, whatever its units: 100 is its value at the first commit.',
   actions: async ui => {
     await ui.click(performanceOverTime(ui.page).locator('label', { hasText: 'Relative to start' }));
@@ -153,8 +153,8 @@ clip('history/find-regression', {
   project: SL,
   url: d => lastTwoWeeks(d, 'heavy-tail-high'),
   alt: 'History filtered on the heavy-tail-high test: the cursor moves along its p99 line and the commits below follow; '
-    + 'at the batcher change that copies payloads into fixed slots, p99 jumps from 3 to 12 ms. A click keeps it as the '
-    + 'reference: the commit that borrows payloads again is 75% faster.',
+    + 'where the batcher copies payloads into fixed slots, p99 more than triples. A click keeps it as '
+    + 'the reference: the commit that borrows payloads again is back near 3 ms.',
   caption: 'Hover along a test\'s line to find the commit that changed it, click to compare later ones with it.',
   // the chart, the commits and the hovered run's latency percentiles
   viewport: { width: 1440, height: 1100 },
@@ -171,7 +171,7 @@ clip('history/find-regression', {
     };
     await ui.caption('heavy-tail-high\'s p99 on main, commit by commit');
     for (const commit of MAIN_COMMITS.slice(0, 3)) await point(commit, 900);
-    await ui.caption('p99 jumps from 3 to 12 ms: payloads copied to fixed slots');
+    await ui.caption('p99 more than triples: payloads copied to fixed slots');
     await point(MAIN_COMMITS[3], 2400);
     await ui.caption('Click: it stays the reference');
     await ui.click(plot, { position: await pointAt(ui, plot, at(ui.demo, ...MAIN_COMMITS[3]), 'heavy-tail-high') });

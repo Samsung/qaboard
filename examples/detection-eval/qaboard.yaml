@@ -16,6 +16,9 @@ inputs:
 
 outputs:
   metrics: qa/metrics.yaml
+  # Run cards wide enough for the photos (new and reference about 415 px wide each) and the plots (840 px by default)
+  style:
+    width: 840px
   visualizations:
     - name: Detections
       path: "images/:image.jpg"          # 1..N, a synced slider over the slice's images

@@ -89,6 +89,9 @@ commits:
         after: 9h
       - batch: deep-zoom
         after: 40m
+      - batch: video
+        label: video     # its own batch: the CI batch's runs and counts stay the same
+        after: 50m
 
   - id: fxp-round-half-even
     branch: fxp/round-half-even
@@ -195,6 +198,9 @@ commits:
         platform: hw-model
       - batch: deep-zoom
         after: 40m
+      - batch: video
+        label: video     # its own batch: the CI batch's runs and counts stay the same
+        after: 50m
 
   - id: ci-cache-charts
     branch: main
@@ -266,6 +272,9 @@ commits:
         after: 9h
       - batch: deep-zoom
         after: 40m
+      - batch: video
+        label: video     # its own batch: the CI batch's runs and counts stay the same
+        after: 50m
 
   - id: ci-deep-zoom-tags
     branch: main

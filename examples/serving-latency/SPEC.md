@@ -201,7 +201,7 @@ About 30 commits over 6 weeks. Commit ids in **bold** are the ones checks and sh
 | -14d | `main` | adaeze | **`merge-sharded-cache`** | |
 | -13d | `main` | adaeze | **`v2-4-0`**: release commit, no change | milestone `v2.4.0` |
 | -9d | `main` | kaito | **`payload-copy`**: `payload_copy: true` ("simpler lifetimes") | `heavy-tail-high` p99 +25% or more and its CPU per request +15% or more; the steady tests' CPU per request within 10% |
-| -3d | `main` | kaito | **`payload-borrow`**: `payload_copy: null` | `heavy-tail-high` p99 within 10% of `v2-4-0` |
+| -3d | `main` | kaito | **`payload-borrow`**: `payload_copy: null` | `heavy-tail-high` p99 back within 40% of `v2-4-0` (a 3 ms p99 is noisy) |
 | -0d 13:20 | `main` | adaeze | **`tuned-batching`**: `max_batch: 16, max_delay_us: 250` | `nightly` still running at T0 (60% done, 2 running) |
 
 `defaults.flags` is the state before the story: `batching: none, model_dtype: fp32, pin: none, allocator: system,

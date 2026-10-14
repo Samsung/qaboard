@@ -37,12 +37,20 @@ class TestServerUrl(unittest.TestCase):
     import sys
     import subprocess
     import tempfile
-    clean_env = {k: v for k, v in os.environ.items() if not k.startswith('QABOARD_')}
+    clean_env = {k: v for k, v in os.environ.items() if not k.startswith(('QABOARD_', 'QA_'))}
+    # Without the defaults of an installed site package (e.g. qaboard-site-sirc gives the server's URL)
+    without_site_packages = (
+      "import importlib.metadata as m; entry_points = m.entry_points\n"
+      "class NoSite:\n  def select(self, **kwargs): return []\n  def get(self, group, default=None): return []\n"
+      "m.entry_points = lambda **kwargs: entry_points(**kwargs) if kwargs else NoSite()\n"
+      "import qaboard.api\n"
+    )
     with tempfile.TemporaryDirectory() as tmp:
       process = subprocess.run(
-        [sys.executable, '-c', 'import qaboard.api'],
+        [sys.executable, '-c', without_site_packages],
         cwd=tmp, capture_output=True, text=True, check=True,
-        env={**clean_env, 'QA_NO_CHECK_FOR_UPDATES': '1', **env},
+        # secrets files can also say where the server is
+        env={**clean_env, 'QA_NO_CHECK_FOR_UPDATES': '1', 'QA_USER_SECRETS': f'{tmp}/secrets.yaml', **env},
       )
     return process.stderr
 

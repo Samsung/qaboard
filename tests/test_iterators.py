@@ -225,6 +225,89 @@ class TestIterators(unittest.TestCase):
     batches = get_batch('matrix-interpolate-2')
     self.assertEqual(len(batches), 4)
 
+  def test_globbed_inputs_are_sorted(self):
+    """Batches list their runs in the same order on every machine, whatever order the filesystem lists files in"""
+    import tempfile
+    from unittest import mock
+    from qaboard.iterators import iter_inputs_at_path
+    with tempfile.TemporaryDirectory() as tmp:
+      database = Path(tmp)
+      for name in ['charts/b.png', 'charts/a.png', 'charts/c/d.png', 'photos/z.png', 'photos/y.png']:
+        (database / name).parent.mkdir(parents=True, exist_ok=True)
+        (database / name).write_text('')
+      # the filesystem lists them in reverse order
+      glob, rglob = Path.glob, Path.rglob
+      with mock.patch.object(Path, 'glob', lambda self, pattern, **kw: reversed(sorted(glob(self, pattern, **kw)))), \
+           mock.patch.object(Path, 'rglob', lambda self, pattern, **kw: reversed(sorted(rglob(self, pattern, **kw)))):
+        def inputs(path):
+          found = iter_inputs_at_path(path, database, ['*.png'], False, {})
+          return [i.relative_to(database).as_posix() for i, _ in found]
+        self.assertEqual(inputs('charts'), ['charts/a.png', 'charts/b.png', 'charts/c/d.png'])
+        self.assertEqual(inputs('*'), ['charts/a.png', 'charts/b.png', 'charts/c/d.png', 'photos/y.png', 'photos/z.png'])
+        self.assertEqual(inputs('charts/*.png'), ['charts/a.png', 'charts/b.png'])
+
+  def test_recording_missing_inputs(self):
+    """The server can tell where the inputs it didn't find were looked for"""
+    import tempfile
+    from qaboard.iterators import iter_inputs_at_path, recording_missing_inputs
+    with tempfile.TemporaryDirectory() as tmp:
+      database = Path(tmp)
+      (database / 'charts').mkdir()
+      (database / 'charts' / 'a.png').write_text('')
+      with recording_missing_inputs() as missing:
+        self.assertEqual(len(list(iter_inputs_at_path('charts', database, ['*.png'], False, {}))), 1)
+        list(iter_inputs_at_path('photos', database, ['*.png'], False, {}))
+        list(iter_inputs_at_path('charts', database, ['*.jpg'], False, {}))
+      self.assertEqual(missing, [
+        {"input": "photos", "database": str(database)},
+        {"input": "charts", "database": str(database), "globs": ["*.jpg"]},
+      ])
+      # nothing is recorded outside
+      list(iter_inputs_at_path('photos', database, ['*.png'], False, {}))
+      self.assertEqual(len(missing), 2)
+
+  def test_batch_errors_say_where(self):
+    """Batches qa can't use say which input is wrong, in which file and at which line"""
+    import tempfile
+    from qaboard.iterators import iter_inputs, BatchError
+    with tempfile.TemporaryDirectory() as tmp:
+      batches_file = Path(tmp) / 'batches.yaml'
+      batches_file.write_text('\n'.join([
+        'ok:',              # 1
+        '  inputs: a',      # 2: a single input is fine
+        'empty-item:',      # 3
+        '  inputs:',        # 4
+        '  - a',            # 5
+        '  - b',            # 6
+        '  -',              # 7
+        'number:',          # 8
+        '  inputs: [20260223]', # 9
+        'listed: [a, b]',   # 10
+        'not-a-list:',      # 11
+        '  inputs: 3',      # 12
+      ]))
+      def batch(name):
+        return list(iter_inputs([name], [batches_file], Path(tmp), [], 'linux', {"type": "local"}, {}))
+      self.assertEqual(batch('ok'), [])  # no input "a" in the database
+      with self.assertRaises(BatchError) as error:
+        batch('empty-item')
+      self.assertEqual(str(error.exception), f'{batches_file}:7: The batch "empty-item" has an empty input, after "b": a "-" with nothing after it. Remove the "-", or write the input after it.')
+      # existing callers expect ValueErrors
+      self.assertIsInstance(error.exception, ValueError)
+      with self.assertRaises(BatchError) as error:
+        batch('number')
+      self.assertEqual(str(error.exception), f'{batches_file}:9: The batch "number" has an input that YAML reads as a number, not a path: 20260223 (the first one). Write it in quotes.')
+      with self.assertRaises(BatchError) as error:
+        batch('listed')
+      self.assertTrue(str(error.exception).startswith(f'{batches_file}: The batch "listed" must be a mapping'))
+      with self.assertRaises(BatchError) as error:
+        batch('not-a-list')
+      self.assertIn('must be a list of paths, not: 3', str(error.exception))
+      # also with patterns
+      with self.assertRaises(BatchError) as error:
+        batch('empty-*')
+      self.assertIn(':7: The batch "empty-item"', str(error.exception))
+
   def test_input_type_runner_settings(self):
     """Test that input types can specify runner settings"""
     from qaboard.iterators import iter_inputs

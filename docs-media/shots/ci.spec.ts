@@ -40,7 +40,7 @@ shot('ci/step-summary', {
   login: null,
   url: d => `data:text/html;base64,${Buffer.from(summaryPage(gateSummary(d, 'cache-shared', 'batch-overflow-fix'))).toString('base64')}`,
   alt: 'The quality gate\'s summary in a CI job: "Quality gate: fail", the commit against its reference with a link to '
-    + 'the Metrics Diff, and a table of the checks: p99 264.7 ms against 6.288 ms, 4109.7% worse for a 10% limit, FAIL; '
+    + 'the Metrics Diff, and a table of the checks: p99 dozens of times the reference\'s for a 10% limit, FAIL; '
     + 'throughput and failed runs pass.',
   caption: 'In GitHub Actions, qa gate adds its verdict and table to the job\'s summary.',
   viewport: { width: 960, height: 600 },

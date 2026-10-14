@@ -12,8 +12,11 @@ import { NetworkTracker, settle } from './waits';
 
 export type { Demo, ProjectKey, View, CommitUrlOptions } from './demo';
 export type { ShotId } from './ids';
-export type { Ui } from './overlay';
+export type { Box, Ui } from './overlay';
 export type { Locator, Page } from '@playwright/test';
+
+/** What a shot shows: elements (several: their union), or a box in viewport coordinates (CSS px) */
+export type Region = Locator | Locator[] | Box;
 
 export interface ShotOptions {
   project: ProjectKey | null;                          // null: not tied to a demo project (login, What's new)
@@ -21,18 +24,20 @@ export interface ShotOptions {
   alt: string;                                         // required, see website/STYLE.md
   caption?: string;                                    // default caption; pages can override it
   actions?: (ui: Ui) => Promise<void>;
-  target?: (page: Page) => Locator | Locator[];        // crop to this element (or these: their union); default: the viewport
+  target?: (page: Page) => Region | Promise<Region>;  // crop to this element (or these: their union), or box; default: the viewport
   padding?: number;                                    // CSS px around target, default 16
   mask?: (page: Page) => Locator[];                    // painted over with the surrounding background color
   viewport?: { width: number; height: number };        // default 1440x900
+  scale?: number;                                      // device scale factor, default 2 (the social card: 1)
   storage?: Record<string, string>;                    // localStorage entries, merged over the defaults
   login?: string | null;                               // persona logged in; default: the project's main author, none without a project
+  revision?: number;                                   // bump to publish a capture the dedupe would keep as unchanged
   dedupeTolerance?: number;                            // share of differing pixels still "unchanged", default 0.0005 (clips 0.002)
 }
 
 export interface ClipOptions extends Omit<ShotOptions, 'target'> {   // actions: before the recording starts, not drawn
   script: (ui: Ui) => Promise<void>;
-  region?: (page: Page) => Locator | Locator[];        // crop the recording to this element's box at start
+  region?: (page: Page) => Region | Promise<Region>;  // crop the recording to this element's box (or this box) at start
   poster?: 'first' | 'last' | number;                  // ms into the clip, default 'last'
   loop?: boolean;                                      // the last frame must match the first (landing loops)
 }
@@ -106,10 +111,10 @@ function envFor(testInfo: TestInfo, specFile: string): CaptureEnv {
 }
 
 // The context options of docs-media/shots/playwright.config.ts, whatever the project
-function contextOptions(kind: Kind, base: BrowserContextOptions = {}, viewport?: { width: number; height: number }): BrowserContextOptions {
+function contextOptions(kind: Kind, base: BrowserContextOptions = {}, viewport?: { width: number; height: number }, scale?: number): BrowserContextOptions {
   return {
     viewport: viewport ?? base.viewport ?? VIEWPORT,
-    deviceScaleFactor: base.deviceScaleFactor ?? 2,
+    deviceScaleFactor: scale ?? base.deviceScaleFactor ?? 2,
     locale: base.locale ?? 'en-US',
     timezoneId: base.timezoneId ?? 'UTC',
     colorScheme: base.colorScheme ?? 'light',
@@ -157,7 +162,7 @@ async function setupContext(context: BrowserContext, demo: Demo, kind: Kind, sto
 }
 
 async function openPage(browser: Browser, kind: Kind, id: string, options: ShotOptions, env: CaptureEnv) {
-  const context = await browser.newContext(contextOptions(kind, env.contextOptions, options.viewport));
+  const context = await browser.newContext(contextOptions(kind, env.contextOptions, options.viewport, options.scale));
   await setupContext(context, env.demo, kind, { ...defaultStorage(env.demo), ...options.storage });
   const login = options.login === undefined ? (options.project ? PROJECT_PERSONAS[options.project] : null) : options.login;
   if (login) {
@@ -180,7 +185,7 @@ async function openPage(browser: Browser, kind: Kind, id: string, options: ShotO
   return { context, page, tracker };
 }
 
-async function applyMasks(page: Page, options: ShotOptions) {
+export async function applyMasks(page: Page, options: ShotOptions) {
   if (!options.mask) return;
   for (const locator of options.mask(page))
     await locator.evaluateAll((elements, attribute) => elements.forEach(e => e.setAttribute(attribute, '')), MASK_ATTRIBUTE);
@@ -205,6 +210,7 @@ function baseMeta(id: ShotId, kind: Kind | 'tape', options: ShotOptions, env: Ca
     captured: new Date().toISOString(),
     t0: env.demo.t0.toISOString(),
     dedupe_tolerance: options.dedupeTolerance ?? (kind === 'clip' ? DEFAULT_CLIP_DEDUPE_TOLERANCE : DEFAULT_DEDUPE_TOLERANCE),
+    ...(options.revision ? { revision: options.revision } : {}),
   };
 }
 
@@ -244,11 +250,23 @@ async function topBarsBottom(page: Page): Promise<number> {
   }, TARGET_ATTRIBUTE);
 }
 
+const isBox = (region: Region): region is Box =>
+  !Array.isArray(region) && ['x', 'y', 'width', 'height'].every(k => typeof (region as Record<string, unknown>)[k] === 'number');
+
 // The shot's box in viewport coordinates: the target and its padding, within the viewport and below the fixed top bars.
 // When the target isn't all visible, the page scrolls its top right under the bars. Scrolling moves what's under the
 // mouse, and closes the popovers that open on hover: to shoot one, scroll first, in the actions.
-async function shotRegion(page: Page, target: Locator | Locator[] | undefined, padding: number): Promise<Box> {
+// A box is taken as it is (no padding, no scrolling), within the viewport.
+export async function shotRegion(page: Page, target: Region | undefined, padding: number): Promise<Box> {
   const viewport = page.viewportSize() ?? VIEWPORT;
+  if (target !== undefined && isBox(target)) {
+    const x0 = Math.max(0, Math.round(target.x));
+    const y0 = Math.max(0, Math.round(target.y));
+    const x1 = Math.min(viewport.width, Math.round(target.x + target.width));
+    const y1 = Math.min(viewport.height, Math.round(target.y + target.height));
+    if (x1 <= x0 || y1 <= y0) throw new Error(`[shots] the box ${JSON.stringify(target)} is outside the viewport`);
+    return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+  }
   const targets = target === undefined ? [] : Array.isArray(target) ? target : [target];
   if (targets.length === 0) return { x: 0, y: 0, width: viewport.width, height: viewport.height };
   const measureOnce = async () => {
@@ -301,13 +319,13 @@ export async function captureStill(browser: Browser, id: ShotId, options: ShotOp
   const dir = prepareDir(id, env);
   const { context, page, tracker } = await openPage(browser, 'still', id, options, env);
   try {
-    const ui = new UiImpl(page, env.demo, tracker, 'still');
+    const ui = new UiImpl(page, env.demo, tracker, 'still', undefined, () => applyMasks(page, options));
     if (options.actions) {
       await options.actions(ui);
       await applyMasks(page, options);
       await settle(page, tracker, { timeout: env.settleTimeout });
     }
-    const region = await shotRegion(page, options.target?.(page), options.padding ?? DEFAULT_PADDING);
+    const region = await shotRegion(page, await options.target?.(page), options.padding ?? DEFAULT_PADDING);
     const anchors = await anchorsInPercent(ui.anchors, region, true);
     await applyMasks(page, options);
     const png = await stableScreenshot(page, region);
@@ -336,21 +354,28 @@ export async function captureClip(browser: Browser, id: ShotId, options: ClipOpt
   try {
     if (options.actions) {
       // set the scene: these actions aren't recorded, and draw nothing
-      await options.actions(new UiImpl(page, env.demo, tracker, 'still'));
+      await options.actions(new UiImpl(page, env.demo, tracker, 'still', undefined, () => applyMasks(page, options)));
       await applyMasks(page, options);
       await settle(page, tracker, { timeout: env.settleTimeout });
     }
-    const region = await shotRegion(page, options.region?.(page), 0);
+    const region = await shotRegion(page, await options.region?.(page), 0);
     if (options.mask) await page.addStyleTag({ content: MASK_STYLE });
     const recorder = new Recorder(page, dir);
-    const ui = new UiImpl(page, env.demo, tracker, 'clip', recorder);
+    // after ui.goto(): the new document's volatile elements are hidden too
+    const ui = new UiImpl(page, env.demo, tracker, 'clip', recorder, async () => {
+      await applyMasks(page, options);
+      if (options.mask) await page.addStyleTag({ content: MASK_STYLE });
+    });
     await recorder.start();
     await ui.startRecording();
     await options.script(ui);
     const recording = await recorder.stop();
     console.log(`[shots] ${id}: ${recording.duration.toFixed(2)} s, ${recording.frames} frames (${recording.cut.toFixed(1)} s of waits cut out)`);
     const anchors = await anchorsInPercent(ui.anchors, region, false);
-    const scale = (await page.evaluate(() => window.devicePixelRatio)) || 1;
+    // The frames' pixels per CSS px: the screencast can send frames smaller than the device pixels (headless Chromium
+    // sends them at 1x). publish.py crops the region with it
+    const viewport = page.viewportSize() ?? VIEWPORT;
+    const scale = Math.round((recording.frameSize.width / viewport.width) * 100) / 100;
     if (recording.duration < CLIP_MIN_S || recording.duration > CLIP_MAX_S)
       console.warn(`[shots] ${id}: the clip lasts ${recording.duration.toFixed(1)} s, clips last ${CLIP_MIN_S}-${CLIP_MAX_S} s: publish.py will refuse it`);
     const meta = {

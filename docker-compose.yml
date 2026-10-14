@@ -169,6 +169,8 @@ services:
         # Without network access: QABOARD_MEDIA=placeholder, or a mirror of the docs' media (docs-media/README.md)
         - QABOARD_MEDIA=${QABOARD_MEDIA:-}
         - QABOARD_MEDIA_BASE_URL=${QABOARD_MEDIA_BASE_URL:-}
+        # When a proxy blocks some of the media: QABOARD_MEDIA_MISSING=remote (readers load them) or placeholder
+        - QABOARD_MEDIA_MISSING=${QABOARD_MEDIA_MISSING:-}
     volumes:
     - website_builds:/builds
 

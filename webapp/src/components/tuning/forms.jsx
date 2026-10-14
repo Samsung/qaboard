@@ -28,6 +28,7 @@ import { toaster } from "../../toaster"
 
 
 import templates from './templates'
+import { BatchDefinitions, BatchWarnings } from './BatchReport'
 
 
 const MAX_RUNS = 5000;
@@ -423,7 +424,7 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
       });
   };
 
-  const { tests, message } = selected_group_info;
+  const { tests, warnings, definitions } = selected_group_info;
   const total_runs = combinations * tests.length;
   const time_intent =
     (combinations === "invalid" || total_runs===0 || total_runs > MAX_RUNS)
@@ -528,9 +529,6 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
         <div>qa save-artifacts</div>
       </pre>
     </Callout>}
-    {!!message && <Callout intent={Intent.DANGER} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
-      <span dangerouslySetInnerHTML={{__html: message}}></span>
-    </Callout>}
     <FormGroup
       helperText={!experiment_name ? "(required)" : "Tip: You can add runs to an existing experiment"}
       label={`Experiment name:`}
@@ -591,6 +589,14 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
         dir="auto"
       />
     </FormGroup>
+    {!!selected_group && !selected_group_info_loading && <>
+      <BatchDefinitions definitions={definitions} style={{ marginTop: '-10px' }} />
+      <BatchWarnings
+        warnings={warnings}
+        title={tests.length === 0 ? "Why the batch has no tests" : "Check the batch files"}
+        style={{ marginBottom: '15px' }}
+      />
+    </>}
 
     {(project!=='dvs/psp_swip' && project!=='tof/swip_tof' && available_platforms.length > 0) &&
     <RadioGroup onChange={update('platform')} selectedValue={platform}>
@@ -635,7 +641,7 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
 
     <FormGroup
       helperText={!user ? "Please provide a user in the input below"
-                        : (experiment_name.length === 0 ? 'Please give a name to the tuning experiment (the input is above)' : (selected_group_info.tests.length === 0 ? "No inputs found in the batch you asked to use" : undefined))}
+                        : (experiment_name.length === 0 ? 'Please give a name to the tuning experiment (the input is above)' : (selected_group_info.tests.length === 0 ? "The batch has no tests: see why under its name" : undefined))}
       intent={(!user || experiment_name.length === 0 || !total_runs) ? Intent.DANGER : undefined}
     >
     <Button
