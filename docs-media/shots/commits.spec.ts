@@ -47,8 +47,8 @@ shot('commits/feed', {
 shot('commits/branch-evolution', {
   project: SL,
   url: d => d.url(SL, 'commits/main', { from: day(d, -42), to: day(d, 0) }),
-  alt: 'Above main\'s commits, a chart of the median p99 of each commit\'s CI batch over six weeks, falling from 40 ms '
-    + 'to a few. The point of the int8 commit is hovered: below the chart, it shows as New, the commit before it as Reference.',
+  alt: 'Above main\'s commits, a chart of the median p99 of each commit\'s CI batch over six weeks, falling from over '
+    + '10 ms to a few. The point of the int8 commit is hovered: below the chart, it shows as New, the commit before it as Reference.',
   caption: 'A branch\'s page charts a metric over its commits. Hover a point: its commit and the one before show below '
     + 'the chart, a click opens their comparison.',
   actions: async ui => {

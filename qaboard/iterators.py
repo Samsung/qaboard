@@ -74,11 +74,12 @@ def match(value, value_filter) -> bool:
 
 def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config, only=None, exclude=None):
   if path and path != "*":
-    input_paths = list(database.glob(str(path))) # to support wildcards
+    # sorted: glob lists in filesystem order, which differs between machines, and so would the runs of a batch
+    input_paths = sorted(database.glob(str(path))) # to support wildcards
   else:
     # we want to match everything, including inputs starting at the level of the database
     # that could be identified by nested naming conventions like "tv/tv_*"
-    input_paths = [*database.glob("*"), database]
+    input_paths = [*sorted(database.glob("*")), database]
   if not input_paths:
     if 'QA_BATCH_FAIL_IF_EMPTY' in os.environ:
       click.secho(f'ERROR: No inputs found for the batch "{path}" under {database}', fg='red', err=True)
@@ -103,6 +104,8 @@ def iter_inputs_at_path(path, database, globs, use_parent_folder, qatools_config
       inputs = [cased_path(i) for i in inputs] # fix case issues on Windows
       if fnmatch.fnmatch(input_path, f'*/{glob}') or str(input_path).endswith(glob):
         inputs.append(cased_path(input_path))
+      # the same order on every machine (rglob lists in filesystem order, sets in hash order)
+      inputs = sorted(inputs)
 
 
       # This provides backward compatibility with flows were a tool based on regexes was used.

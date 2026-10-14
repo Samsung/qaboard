@@ -33,6 +33,7 @@ export interface Ui {
   caption(text: string, opts?: { durationMs?: number }): Promise<void>;  // WebVTT cue; ends at the next cue or after durationMs
   hold(ms: number): Promise<void>;                     // let the viewer read; in clips, ms of clip
   anchor(name: string, target: Locator): Promise<void>; // records target's box, in % of the shot, for <Shot callouts>
+  goto(url: string): Promise<void>;                    // opens another page, waits like the first load; not recorded in clips
 }
 
 export const CURSOR_DURATION_MS = 600;
@@ -151,6 +152,7 @@ export class UiImpl implements Ui {
     private readonly tracker: NetworkTracker,
     private readonly mode: 'still' | 'clip',
     private readonly recorder?: Recorder,
+    private readonly afterGoto?: () => Promise<void>,   // e.g. the shot's masks, on the new document
   ) {
     this.cursor = {
       moveTo: async (target, opts = {}) => {
@@ -401,6 +403,21 @@ export class UiImpl implements Ui {
 
   async hold(ms: number) {
     await this.pause(ms);
+  }
+
+  /**
+   * Opens another page (a path of the demo stack, or a URL), and waits like the first load did (settle()). In clips,
+   * the navigation and the waits aren't recorded: the next frame shows the new page, loaded, and the cursor where it
+   * was. The page's scroll position starts at the top again.
+   */
+  async goto(url: string) {
+    await this.running(async () => {
+      await this.page.goto(new URL(url, this.demo.baseUrl).href);
+      await this.afterGoto?.();
+      await settle(this.page, this.tracker);
+      // the new document has its own cursor, hidden until it moves: where the old one was
+      if (this.drawing && this.pos) await this.step(this.pos);
+    }, WAIT_MIN_MS);
   }
 
   async anchor(name: string, target: Locator) {

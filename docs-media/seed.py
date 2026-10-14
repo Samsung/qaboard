@@ -666,6 +666,17 @@ def tail(text: str, n=40) -> str:
   return '\n'.join(text.rstrip().splitlines()[-n:])
 
 
+def failed_gate_check(check: dict) -> str:
+  """A failed check of `qa gate --json`, for the checks' log: a metric's rule, or a rule without a metric
+  (max_failed_runs, require_bit_accuracy), named by its kind"""
+  name = check.get('metric') or check.get('kind')
+  if check.get('message'):
+    return f"{name}: {check['message']}"
+  if check.get('new') is not None and check.get('limit') is not None:
+    return f"{name}: {check['new']} (limit {check['limit']})"
+  return f"{name}: {check.get('status')}"
+
+
 # ------------------------------------------------------------------------------------------------ failures
 
 @dataclass
@@ -1542,8 +1553,8 @@ def run_checks(seeder: Seeder) -> bool:
         if verdict is None:
           results.append(('FAIL', name, f"`qa {' '.join(args)}` exited with {code} without a verdict:\n{tail(output, 15)}"))
         else:
-          failed_checks = [f"{c.get('metric') or c.get('rule') or c.get('name')}: {c.get('message') or c['status']}"
-                           for b in json.loads(output).get('batches', []) for c in b.get('checks', []) if c.get('status') == 'fail']
+          failed_checks = [failed_gate_check(c) for b in json.loads(output).get('batches', [])
+                           for c in b.get('checks', []) if c.get('status') == 'fail']
           ok = verdict == expect['gate']
           results.append(('PASS' if ok else 'FAIL', name,
                           f"gate: {verdict} (expected {expect['gate']}, exit code {code})" + (f"; failed: {'; '.join(failed_checks)}" if failed_checks else '')))

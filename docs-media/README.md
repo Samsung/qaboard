@@ -179,11 +179,20 @@ uv run docs-media/publish.py --only 'commit/*,cli/*' --dry-run   # encode, check
 
 Captures stay clean: no arrows, boxes or text burned in. Call-outs are HTML overlays added by `<Shot callouts>`,
 positioned from the `anchors` a spec records with `ui.anchor(name, locator)`, so they survive a re-capture.
-The one exception is `landing/social-card`: a spec renders an HTML template (logo, tagline, a crop of another shot) at
-1200x630, scale 1.
+The one exception is `landing/social-card`: `landing.spec.ts` crops the commit page, then renders
+[`shots/templates/social-card.html`](shots/templates/social-card.html) (logo, tagline, the crop) at 1200x630, scale 1.
+Once published, it is every page's Open Graph image (`themeConfig.image` in `website/docusaurus.config.ts`, from the PNG
+master the docs build downloads).
 
 ### Clips
-- 6-20 s, silent, 30 fps, captioned. Same viewport and scale as stills, `reducedMotion: 'no-preference'`.
+- 6-20 s, silent, 30 fps, captioned. Same viewport and scale as stills, `reducedMotion: 'no-preference'`. The screencast
+  sends frames at 1x in headless Chromium: `meta.json`'s `scale` is the frames' (pixels per CSS px), which `publish.py`
+  crops the `region` with.
+- **Another page** in a clip: `ui.goto(url)` (a path of the stack, e.g. `ui.demo.commitUrl(...)`) waits like the first
+  load and isn't recorded: the next frame shows the new page loaded, the cursor where it was, the shot's masks applied.
+  The clip's `region` stays the same: the new page should put what matters in the same place.
+- **Landing tiles** (`landing/*` except the hero): 16:10 crops (`region`/`target` boxes) about 600-800 CSS px wide, so
+  that their text reads at the tiles' 370 px.
 - **Recording:** the CDP screencast (`Page.startScreencast`, JPEG quality 92, every frame), not Playwright's video,
   which is too blurry. Frames arrive only when the page repaints, each with a timestamp: `record.ts` writes
   `out/<id>/frames/NNNNN.jpg` and an ffmpeg concat list with each frame's duration.
@@ -296,7 +305,11 @@ export interface Ui {
   caption(text: string, opts?: { durationMs?: number }): Promise<void>;  // WebVTT cue; ends at the next cue or after durationMs
   hold(ms: number): Promise<void>;                     // let the viewer read; in clips, ms of the clip
   anchor(name: string, target: Locator): Promise<void>; // records target's box, in % of the shot, for <Shot callouts>
+  goto(url: string): Promise<void>;                    // another page, waited for like the first; not recorded in clips
 }
+
+export type Box = { x: number; y: number; width: number; height: number };   // viewport coordinates, CSS px
+export type Region = Locator | Locator[] | Box;
 
 export interface ShotOptions {
   project: ProjectKey | null;                          // null: not tied to a demo project (login, What's new)
@@ -304,10 +317,11 @@ export interface ShotOptions {
   alt: string;                                         // required, see website/STYLE.md
   caption?: string;                                    // default caption; pages can override it
   actions?: (ui: Ui) => Promise<void>;
-  target?: (page: Page) => Locator | Locator[];        // crop to this element (several: their union); default: the viewport
+  target?: (page: Page) => Region | Promise<Region>;  // crop to this element (several: their union) or box; default: the viewport
   padding?: number;                                    // CSS px around target, default 16
   mask?: (page: Page) => Locator[];                    // painted over with the surrounding background color
   viewport?: { width: number; height: number };        // default 1440x900
+  scale?: number;                                      // device scale factor, default 2
   storage?: Record<string, string>;                    // localStorage entries, merged over the defaults
   login?: string | null;                               // persona logged in (password kitefin-demo); default: the project's main author
   revision?: number;                                   // bump to publish a capture the dedupe would keep as unchanged
@@ -316,7 +330,7 @@ export interface ShotOptions {
 
 export interface ClipOptions extends Omit<ShotOptions, 'target'> {  // actions: set the scene before recording, not drawn
   script: (ui: Ui) => Promise<void>;
-  region?: (page: Page) => Locator | Locator[];        // crop the recording to this box at start
+  region?: (page: Page) => Region | Promise<Region>;  // crop the recording to this element's box (or box) at start
   poster?: 'first' | 'last' | number;                  // ms into the clip, default 'last'
   loop?: boolean;                                      // the last frame must match the first (landing loops)
 }
@@ -356,6 +370,10 @@ shot('commit/pixel-tooltip', {
 ## Determinism
 
 - **Data:** restored snapshot; story commit ids resolved by `demo.sha()`. Never capture from a fresh seed.
+- **Texts of measured values:** serving-latency's latencies, throughputs and their changes are measured, so every
+  reseed moves them. Alt texts, captions, `ui.caption` overlays and pages say what holds on every seed ("p99 dozens of
+  times the reference's", "jumps from about 3 ms to over 10 ms"), never one seed's values. The stories' checks
+  (`story.yaml`) are what make those claims hold.
 - **Clock:** `page.clock.install({ time: T0 })` then `page.clock.resume()`: time starts at T0 and flows normally.
   Don't use `setFixedTime`: OpenSeadragon's springs and Plotly transitions read `Date.now()` and stall on a frozen clock.
   Stories keep the newest data at least 10 minutes before T0, so relative times ("12 minutes ago") don't flip while
@@ -634,7 +652,7 @@ Canonical values (`stack.ts`, the only place they're defined; the first one is t
 - The stack runs this checkout's images (built like CI's, from its layer cache), so web app changes show.
   `affected.py` computes the affected shots of a pull request.
 - **Affected shots** on a PR: all of them if `webapp/**` or `docs-media/shots/lib/**` changed; an area if its
-  `shots/<area>.spec.ts` changed; a project's shots, with a reseed, if `examples/<project>/**` changed; a tape if its
+  `shots/<area>.spec.ts` changed; a shot if its template (`shots/templates/<subject>.html`) changed; a project's shots, with a reseed, if `examples/<project>/**` changed; a tape if its
   `.tape` changed.
 - **Reseed** when `reseed` is set, or when the snapshot key changes: a hash of `examples/**`, `docs-media/seed.py`,
   `backend/backend/models/**` and `qaboard/**`. Snapshots are `snapshots/<key>.tar.zst` in `qaboard-ci`.

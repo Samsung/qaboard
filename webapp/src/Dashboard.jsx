@@ -352,7 +352,8 @@ const mapStateToProps = (state, ownProps) => {
       dashboard_metrics,
       dashboard_evolution_metrics,
 
-      breakdown_per_test: (params.get("breakdown_per_test") || '').toLowerCase() === 'true' || true,
+      // History's default; the chart reads ?breakdown_per_test= itself
+      breakdown_per_test: true,
       output_filter: selected.filter_batch_new,
       sort_by: selected.sort_by,
       sort_order: selected.sort_order || 'input_test_path',

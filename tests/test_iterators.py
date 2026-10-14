@@ -225,6 +225,27 @@ class TestIterators(unittest.TestCase):
     batches = get_batch('matrix-interpolate-2')
     self.assertEqual(len(batches), 4)
 
+  def test_globbed_inputs_are_sorted(self):
+    """Batches list their runs in the same order on every machine, whatever order the filesystem lists files in"""
+    import tempfile
+    from unittest import mock
+    from qaboard.iterators import iter_inputs_at_path
+    with tempfile.TemporaryDirectory() as tmp:
+      database = Path(tmp)
+      for name in ['charts/b.png', 'charts/a.png', 'charts/c/d.png', 'photos/z.png', 'photos/y.png']:
+        (database / name).parent.mkdir(parents=True, exist_ok=True)
+        (database / name).write_text('')
+      # the filesystem lists them in reverse order
+      glob, rglob = Path.glob, Path.rglob
+      with mock.patch.object(Path, 'glob', lambda self, pattern, **kw: reversed(sorted(glob(self, pattern, **kw)))), \
+           mock.patch.object(Path, 'rglob', lambda self, pattern, **kw: reversed(sorted(rglob(self, pattern, **kw)))):
+        def inputs(path):
+          found = iter_inputs_at_path(path, database, ['*.png'], False, {})
+          return [i.relative_to(database).as_posix() for i, _ in found]
+        self.assertEqual(inputs('charts'), ['charts/a.png', 'charts/b.png', 'charts/c/d.png'])
+        self.assertEqual(inputs('*'), ['charts/a.png', 'charts/b.png', 'charts/c/d.png', 'photos/y.png', 'photos/z.png'])
+        self.assertEqual(inputs('charts/*.png'), ['charts/a.png', 'charts/b.png'])
+
   def test_input_type_runner_settings(self):
     """Test that input types can specify runner settings"""
     from qaboard.iterators import iter_inputs

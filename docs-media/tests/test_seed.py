@@ -96,5 +96,13 @@ def test_runs_files_replace_the_batch_name_only():
     seed.without_batch_name(['optimize', '--batch', 'ci'], [], 'ci')
 
 
+
+def test_failed_gate_checks_are_named():
+  # a metric's rule, with its message; the rules without a metric by their kind
+  assert seed.failed_gate_check({'kind': 'max_regression_pct', 'metric': 'psnr', 'status': 'fail', 'message': '-3% (limit 1%)'}) == 'psnr: -3% (limit 1%)'
+  assert seed.failed_gate_check({'kind': 'max_failed_runs', 'metric': None, 'limit': 0, 'new': 2, 'status': 'fail', 'message': ''}) == 'max_failed_runs: 2 (limit 0)'
+  assert seed.failed_gate_check({'kind': 'require_bit_accuracy', 'metric': None, 'limit': None, 'status': 'fail', 'message': ''}) == 'require_bit_accuracy: fail'
+
+
 if __name__ == '__main__':
   sys.exit(pytest.main([__file__, '-q']))

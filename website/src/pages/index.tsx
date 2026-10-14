@@ -5,15 +5,12 @@
 import React, {useId, useRef, useState, type KeyboardEvent, type ReactNode} from 'react';
 import clsx from 'clsx';
 import Layout from '@theme/Layout';
-import Head from '@docusaurus/Head';
 import Link from '@docusaurus/Link';
-import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import useGlobalData from '@docusaurus/useGlobalData';
 import Shot from '@site/src/components/Shot';
 import Clip from '@site/src/components/Clip';
 import StatusBadge from '@site/src/components/StatusBadge';
 import ReleaseNoteHighlights from '@site/src/components/ReleaseNoteHighlights';
-import {useShot} from '@site/src/components/media';
 import styles from './index.module.css';
 
 const GITHUB = 'https://github.com/Samsung/qaboard';
@@ -319,19 +316,20 @@ function UseCases() {
   );
 }
 
+// Tiles about 370 px wide: the landing/* shots are 16:10 crops made for them (docs-media/shots/landing.spec.ts)
 type Polish = {title: string; text: string; media: ReactNode};
 
 const POLISH: Polish[] = [
-  {title: 'Deep zoom', text: 'Images over 100 MP load tile by tile, down to single pixels, in sync.', media: <Clip id="commit/deep-zoom" caption="" />},
+  {title: 'Deep zoom', text: 'Images over 100 MP load tile by tile, from the whole image down to single pixels.', media: <Clip id="landing/deep-zoom" caption="" />},
   {title: 'Image Diff', text: 'A perceptual diff with a threshold: only what really changed stands out.', media: <Shot id="commit/image-perceptual-diff" caption="" />},
-  {title: 'Pixel values', text: 'Hover a pixel to read its values in both images, with a crosshair on the other.', media: <Shot id="commit/pixel-tooltip" caption="" />},
+  {title: 'Pixel values', text: 'Hover a pixel to read its values in both images, with a crosshair on the other.', media: <Shot id="landing/pixel-values" caption="" />},
   {title: 'Histograms', text: 'Select a region to compare its histograms, new against reference.', media: <Shot id="commit/roi-histograms" caption="" />},
   {title: 'Regions of interest', text: 'Jump to preset regions, or to where the images differ most.', media: <Shot id="commit/auto-roi" caption="" />},
   {title: 'Filters', text: 'Brightness, contrast and gamma on every image at once, to see into the shadows.', media: <Shot id="commit/image-filters" caption="" />},
-  {title: 'Every stage', text: 'Sliders over a pipeline’s stages or a video’s frames, synced across runs.', media: <Clip id="commit/dynamic-outputs" caption="" />},
+  {title: 'Every stage', text: 'Sliders over a pipeline’s stages or a video’s frames, synced across runs.', media: <Clip id="landing/every-stage" caption="" />},
   {title: 'Flame graph diffs', text: 'The functions that got slower in red, the faster ones in blue, the new ones in orange.', media: <Shot id="commit/flame-diff" caption="" />},
   {title: 'Plot overlays', text: 'Your Plotly figures, with the reference drawn dashed on the same axes.', media: <Shot id="commit/plotly-overlay" caption="" />},
-  {title: 'Bit accuracy', text: 'Only the output files that changed: click one to diff it with the reference.', media: <Clip id="commit/bit-accuracy-diff" caption="" />},
+  {title: 'Bit accuracy', text: 'Only the output files that changed: click one to diff it with the reference.', media: <Clip id="landing/bit-accuracy" caption="" />},
   {title: 'Live logs', text: 'Follow a running log, count its errors, jump to the next one.', media: <Clip id="logs/live-tail" caption="" />},
   {title: 'File browser', text: 'Every run’s folder in the browser, driven from the keyboard.', media: <Clip id="files/keyboard" caption="" />},
 ];
@@ -486,28 +484,11 @@ function FinalCta() {
   );
 }
 
-// The social card, once captured (website/media.json): its PNG master is served with the site
-function SocialCard() {
-  const {siteConfig} = useDocusaurusContext();
-  const shot = useShot('landing/social-card');
-  if (shot.status !== 'published' || !shot.entry.files.png)
-    return null;
-  const image = new URL(shot.url(shot.entry.files.png), siteConfig.url).toString();
-  return (
-    <Head>
-      <meta property="og:image" content={image} />
-      <meta name="twitter:image" content={image} />
-      <meta name="twitter:card" content="summary_large_image" />
-    </Head>
-  );
-}
-
 export default function Home() {
   return (
     <Layout
       title="Results review for algorithm teams"
       description="Tests tell you it runs. QA-Board shows you it's better: every commit's outputs and metrics next to the reference's. Open source and self-hosted.">
-      <SocialCard />
       <Hero />
       <main>
         <ProofStrip />
