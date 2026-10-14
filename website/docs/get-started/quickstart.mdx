@@ -1,0 +1,187 @@
+---
+id: quickstart
+title: Run QA-Board on your computer
+sidebar_label: Quickstart
+description: Start a QA-Board server on your computer, then save the results of an example project to it and look at them in the web app.
+---
+Start a QA-Board server on your computer, run an example project, and look at its results in the web app. Most of the
+time goes to downloading images.
+
+<StackPicker groups={['server']} compact />
+
+## Start the server
+
+<Tabs groupId="server" queryString>
+<TabItem value="compose" label="Docker Compose" default>
+
+You need [Docker](https://docs.docker.com/get-docker/) with Docker Compose (`docker compose`), and about 7 GB of free
+disk space.
+
+1. **Create the results folder.** QA-Board reads the results you save in `/tmp/qaboard`, at the same path as on your
+   computer. Create the folder first, or Docker creates it, owned by `root`.
+
+   ```bash
+   mkdir -p /tmp/qaboard
+   ```
+
+2. **Download the Compose file and start QA-Board.** The first start downloads QA-Board's images, about 2 GB, then
+   restores the demo projects, which takes a few seconds.
+
+   ```bash
+   curl -fsSLO https://raw.githubusercontent.com/Samsung/qaboard/master/deployments/quickstart/compose.yml
+   docker compose up -d --wait
+   ```
+
+   <details>
+   <summary>What's in <code>compose.yml</code></summary>
+
+   <RepoFile path="deployments/quickstart/compose.yml" />
+
+   </details>
+
+3. **Open [http://localhost:5151](http://localhost:5151).** The projects list shows the demo projects.
+
+<Clip id="quickstart/compose" />
+
+The demo data comes from the `demo-data` image: the first time, it restores the demo projects' database and their
+results, in the `demo-results` volume. Later starts leave your data as it is. `docker compose down` stops QA-Board and
+keeps its data; `docker compose down --volumes` deletes it, except the results in `/tmp/qaboard`.
+
+:::note Tested in CI
+On every commit, GitHub CI starts this Compose file with the images it built in the same run and a small test
+project as demo data, then checks it through the API and in a browser (the `quickstart` job). The demo data is
+tested the same way before it's published.
+:::
+
+</TabItem>
+<TabItem value="k8s" label="Kubernetes (Helm)">
+
+You need [Docker](https://docs.docker.com/get-docker/),
+[kind](https://kind.sigs.k8s.io/docs/user/quick-start/#installation),
+[kubectl](https://kubernetes.io/docs/tasks/tools/) and [Helm](https://helm.sh/docs/intro/install/) 3.8 or later.
+With Helm 4, avoid 4.2.1: it waits out the whole `--timeout` after the chart's database migrations
+([helm#32214](https://github.com/helm/helm/issues/32214)).
+
+1. **Get the chart and its quickstart settings:**
+
+   ```bash
+   git clone https://github.com/Samsung/qaboard.git
+   cd qaboard
+   ```
+
+2. **Create a cluster.** `kind.yaml` shares your computer's `/tmp/qaboard` with the cluster, at the same path: that's
+   where results go. Create the folder first, or Docker creates it, owned by `root`.
+
+   ```bash
+   mkdir -p /tmp/qaboard
+   kind create cluster --name qaboard --config charts/qaboard/kind.yaml
+   ```
+
+   <details>
+   <summary>What's in <code>kind.yaml</code></summary>
+
+   <RepoFile path="charts/qaboard/kind.yaml" />
+
+   </details>
+
+3. **Install QA-Board.** The quickstart settings run one replica of each service, a PostgreSQL pod and the image
+   server, without an ingress, and restore the demo projects before QA-Board first starts. The first install
+   downloads QA-Board's images, which takes a few minutes.
+
+   ```bash
+   helm install qaboard charts/qaboard -f charts/qaboard/quickstart.yaml --wait --timeout 15m
+   ```
+
+   <details>
+   <summary>What's in <code>quickstart.yaml</code></summary>
+
+   <RepoFile path="charts/qaboard/quickstart.yaml" />
+
+   </details>
+
+4. **Open the web app.** Forward a local port to QA-Board, and leave the command running:
+
+   ```bash
+   kubectl port-forward svc/qaboard-proxy 5151:80
+   ```
+
+   Open [http://localhost:5151](http://localhost:5151): the projects list shows the demo projects.
+
+<Clip id="quickstart/kind" />
+
+:::note Tested in CI
+On every commit, GitHub CI runs these commands with the images it built in the same run, checks the demo data
+through the API and in a browser, runs a `qa batch` in the cluster, checks its results through the web server, then
+upgrades the release (the `helm-e2e` job).
+:::
+
+</TabItem>
+</Tabs>
+
+:::danger Keep QA-Board on your computer, or behind a firewall
+The API that `qa` uses to save results doesn't require a login yet: anyone who can reach the server can add or delete
+results. The quickstarts only answer on your computer (the Compose file publishes the port on `127.0.0.1`, kind
+through the port-forward). Never expose a QA-Board server to the internet: keep it on a network you trust. Token
+authentication for saving results is on the [roadmap](/docs/roadmap#token-authenticated-ingest).
+:::
+
+## Look at the demo projects
+The demo projects belong to Kitefin Robotics, a fictional company that builds camera robots. Their history is made
+up, but every number and image comes from running the projects in
+[`examples/`](https://github.com/Samsung/qaboard/tree/master/examples).
+
+<Shot id="projects/home" />
+
+1. Open **kitefin/camera-isp**, the camera team's image pipeline: its latest commits, on every branch.
+2. Open a commit: the **Summary** compares its metrics with the latest results of the reference branch.
+3. Open **Visualizations**: the outputs of each input, next to the reference's. Zoom into an image: the others
+   follow.
+4. Open **History**: a metric across commits, input by input.
+
+[QA-Board in 5 minutes](/docs/tour) tells the demo projects' stories.
+
+## Save results from your computer
+The `qa` command line runs your code where you start it. It saves the outputs in a folder that the server reads at
+the same path, then sends the metrics to the server. Try it on the camera ISP example: it simulates a robot's camera
+and runs its image pipeline on test charts and photos.
+
+1. **Install `qa` and the example's dependencies**, from the `qaboard` folder you cloned:
+
+   ```bash
+   cd examples/image-quality
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install qaboard -r requirements.txt
+   ```
+
+2. **Point `qa` to your server and to the results folder.** With both quickstarts, it's `/tmp/qaboard`:
+
+   ```bash
+   export QABOARD_URL=http://localhost:5151
+   export QA_STORAGE=/tmp/qaboard
+   ```
+
+3. **Run the example's CI batch:** 5 test charts and 4 photos, each at ISO 100 and 3200. The first time, the example
+   downloads its photos and generates its charts.
+
+   ```bash
+   qa --share batch ci
+   ```
+
+4. **Open the link** that `qa` prints after `Results:`. It's the commit page of the `kitefin/camera-isp` project, with
+   your 18 runs: their metrics, then their output images, which you can zoom into, all in sync. Your commit joins
+   the demo commits of the project.
+
+Without `--share`, `qa` saves the results in `output/` and doesn't tell the server.
+
+:::tip Clean up
+Docker Compose: `docker compose down --volumes`, in the folder of `compose.yml`, deletes QA-Board and its data.
+Kubernetes: `kind delete cluster --name qaboard` deletes the cluster. Your results stay in `/tmp/qaboard`.
+:::
+
+## Next steps
+- [Your project on QA-Board](/docs/get-started/tutorial): wrap your own code, run it in CI, compare every commit.
+- [Key concepts](/docs/get-started/concepts): projects, commits, batches, runs and references, in one page.
+- [QA-Board in 5 minutes](/docs/tour): what the web app shows, on a team's demo projects.
+- [Comparing results](/docs/user-guide/comparing-results): the image viewers, metric diffs and milestones.
+- [Running QA-Board on Kubernetes](/docs/backend-admin/kubernetes): from this quickstart to a cluster for your team.

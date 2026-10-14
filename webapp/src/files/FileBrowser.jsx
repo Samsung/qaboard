@@ -1,6 +1,5 @@
 // Browse the files nginx serves under /s/, see services/nginx/snippets/qaboard-files.conf
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import copy from "copy-to-clipboard";
 import {
   Alert,
   AnchorButton,
@@ -30,6 +29,7 @@ import {
 } from "@blueprintjs/icons";
 
 import { toaster } from "../toaster";
+import { copyText } from "../utils/clipboard";
 import { setPathMappings, hasPathMappings } from "../utils/paths";
 import { fetchAccess, fetchJson, fetchListing, fetchRun, runAction, signIn, signOut } from "./api";
 import {
@@ -76,10 +76,11 @@ const currentPath = () => {
   return pathFromUrl(pathname)
 }
 
-const copyToClipboard = (text, what) => {
-  copy(text)
-  toaster.show({ message: <span>Copied {what}: <code className="fb-copied">{text}</code></span>, intent: Intent.SUCCESS, timeout: 2500, icon: <ClipboardIcon/> }, 'copied')
-}
+// Like copyWithToast, with this page's icons: icon names would load the paths of all Blueprint's icons
+const copyToClipboard = (text, what) => copyText(text).then(copied => toaster.show(copied
+  ? { message: <span>Copied {what}: <code className="fb-copied">{text}</code></span>, intent: Intent.SUCCESS, timeout: 2500, icon: <ClipboardIcon/> }
+  : { message: `Could not copy ${what}`, intent: Intent.DANGER, icon: <ErrorIcon/> },
+  'copied'))
 
 const isPlainLeftClick = event => event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey
 

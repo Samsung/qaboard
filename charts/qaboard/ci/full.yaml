@@ -30,3 +30,7 @@ celery:
   enabled: true
 backup:
   enabled: true
+# A new PersistentVolumeClaim, next to the extraVolumes above
+results:
+  enabled: true
+  storageClass: nfs

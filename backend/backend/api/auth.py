@@ -7,6 +7,7 @@ from functools import wraps
 
 import yaml
 import ldap
+import ldap.filter
 import simplejson
 from flask import request, jsonify, redirect, session, g
 from flask_login import LoginManager, login_user, logout_user, current_user
@@ -61,6 +62,9 @@ elif login_type == "SAML":
   # saml_attr_id = os.environ.get('QABOARD_SAML_ATTRIBUTE_ID')
 
 
+# Don't add the user's info: with LDAP and SAML it holds everything the directory knows about them
+not_authorized_error = "The user is not authorized, please contact QA-Board admins."
+
 # FIXME: Today User.data is a bunch of LDAP info stuffed directly.
 #        Needs to be namespaced under "ldap". 
 
@@ -85,18 +89,27 @@ def create_token():
 def signup():
   if os.environ.get("QABOARD_DISABLE_SIGNUP") == "True":
     return f"Signup disabled", 403
+  user_name = request.form.get('user_name')
+  if not user_name or not request.form.get('password'):
+    return jsonify({"error": "Both user_name and password are required"}), 400
+  if User.query.filter_by(user_name=user_name).one_or_none():
+    return jsonify({"error": "This user name is already taken"}), 409
+  # Never log or return the form or the exception: they contain the password, its hash, or the SQL query
   try:
     user = create_user({
       "email": request.form.get('email'),
-      "user_name": request.form.get('user_name'),
+      "user_name": user_name,
       "full_name": request.form.get('full_name'),
       "password": request.form.get('password'),
       "login_type": "LOCAL",
       "data": {},
     })
   except Exception as e:
-    print(f"[signup] Error when creating new user with {request.form}: {e}")
-    return f"{e}", 403
+    db_session.rollback()
+    print(f"[signup] Error when creating new user @{user_name}: {type(e).__name__}")
+    if type(e).__name__ == "IntegrityError": # sqlalchemy.exc, e.g. the email is already used
+      return jsonify({"error": "This user name or email is already used"}), 409
+    return jsonify({"error": "Could not create the user"}), 500
   return jsonify({
     "id": user.id,
     "email": user.email,
@@ -112,6 +125,9 @@ def auth_post():
     logout_user()
   username = request.form.get('username')
   password = request.form.get('password')
+  # LDAP servers can treat a bind with an empty password as an anonymous bind, that succeeds
+  if not username or not password:
+    return jsonify({"error": "invalid-password"}), 403
   user_info = auth(username, password)
   if not user_info["login_success"]:
     print(f"[auth] Failed Login @{username}")
@@ -365,7 +381,8 @@ def auth_local(username, password):
   }
 
   if is_login_restricted and not is_authorized_user(info):
-    info["error"] = f"The user is not authorized, please contact qaboard Admins.\n user_info{info}"
+    print(f"[auth] Unauthorized login @{username}")
+    info["error"] = not_authorized_error
     session.clear()
     return info
   user = User.query.filter_by(user_name=username).one_or_none()
@@ -397,7 +414,7 @@ def auth_ldap(user_name, password):
   ldap_connect.simple_bind_s(ldap_bind_dn, ldap_password)
 
   # check if the user exists
-  ldap_search = ldap_user_filter.replace("{login}", user_name)
+  ldap_search = ldap_user_filter.replace("{login}", ldap.filter.escape_filter_chars(user_name))
   certificate = ldap_connect.search_s(
     ldap_user_base,
     ldap.SCOPE_SUBTREE, 
@@ -435,7 +452,8 @@ def auth_ldap(user_name, password):
   if user_info["login_success"]:
     if is_login_restricted and not is_authorized_user(user_info):
       user_info["login_success"] = False
-      user_info["error"] = f"The user is not authorized, please contact qaboard Admins.\n user_info{user_info}"
+      print(f"[auth] Unauthorized login @{user_name}")
+      user_info["error"] = not_authorized_error
       session.clear()
       # return user_info
     else:
@@ -510,7 +528,8 @@ def saml_auth():
               "data": dict(samlUserdata),
               }
               if is_login_restricted and not is_authorized_user(user_info):
-                errors.append(f"The user is not authorized, please contact qaboard Admins.\n user_info{user_info}")
+                print(f"[auth] Unauthorized login @{user_info['user_name']}")
+                errors.append(not_authorized_error)
                 session.clear()
                 return " ".join(errors), 403
 

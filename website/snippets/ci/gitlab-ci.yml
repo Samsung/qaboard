@@ -1,0 +1,12 @@
+# Runs your test set on every push, and saves the results to QA-Board.
+# qa saves results where the server reads them (e.g. /mnt/qaboard, an NFS share), at the same
+# path: the runner must mount it. With the docker executor, add it to the runner's volumes.
+qaboard:
+  stage: test
+  image: python:3.12
+  variables:
+    QABOARD_URL: http://<your-qaboard>
+  script:
+    - pip install qaboard -r requirements.txt
+    # qa reads the commit and the branch from CI_COMMIT_SHA and CI_COMMIT_REF_NAME
+    - qa batch ci

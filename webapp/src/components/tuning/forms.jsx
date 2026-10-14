@@ -320,7 +320,7 @@ class TuningForm extends Component {
         ? this.props.parameter_search_auto
         : templates['optimize'](config, metrics),
 
-      user: this.props.redux_user.user_name || this.props.user || default_user,
+      user: this.props.redux_user?.user_name || this.props.user || default_user,
       android_device: "openstf",
 
     };
@@ -346,6 +346,10 @@ class TuningForm extends Component {
     const has_commit = this.props.commit !== undefined && this.props.commit !== null;
     let updated_commit = has_commit && (prevProps.commit === null || prevProps.commit === undefined || prevProps.commit.id !== this.props.commit.id);
     if (updated_commit && selected_group) this.getGroupInfo(selected_group);
+    // The logged-in user can arrive after the form showed (e.g. a link straight to this view)
+    const user_name = this.props.redux_user?.user_name;
+    if (!!user_name && user_name !== prevProps.redux_user?.user_name && !this.state.user)
+      this.setState({ user: user_name });
   }
 
   getGroupInfo(group) {
@@ -641,7 +645,7 @@ class TuningForm extends Component {
       
     return <>
       {!any_runner_configured && <Callout intent={Intent.WARNING} title="Please configure async runners" icon="warning-sign" style={{marginBottom: '15px'}}>
-        <p>The simplest way to <a href="https://samsung.github.io/qaboard/docs/celery-integration">get started with async runners is to use Celery</a>.</p>
+        <p>The simplest way to <a href={`${this.props.docs_root}docs/celery-integration`}>get started with async runners is to use Celery</a>.</p>
         <p>Otherwise, your runs may be killed if they take too long.</p>
       </Callout>}
       {cannot_tune_on_branch &&  <Callout intent={Intent.WARNING} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
@@ -821,7 +825,7 @@ class TuningForm extends Component {
         <Callout icon="info-sign" title="About auto-tuning">
           <ul>
           <li>The solver is <a href="https://github.com/scikit-optimize/scikit-optimize">scikit-optimize</a>. There are lots of choices for black-box optimization (nevergrad, RoBo, MOE, Ray, hyperopt, SMAC, BayesOpt, spearmint, dlib...), all with varying features, maturity, algorithms and popularity.</li>
-          <li>You need to use <a href="https://samsung.github.io/qaboard/docs/computing-quantitative-metrics">QA-Board metrics</a>.</li>
+          <li>You need to use <a href={`${this.props.docs_root}docs/computing-quantitative-metrics`}>QA-Board metrics</a>.</li>
           </ul>
           <p><strong>Do send <a href="mailto:arthur.flam@samsung.com">feedback</a>!</strong></p>
         </Callout>
@@ -835,10 +839,12 @@ class TuningForm extends Component {
 const mapStateToProps = (state, ownProps) => {
   return {
       redux_user: state.user || null,
+      docs_root: state.siteConfig.docs_root,
       ...state.tuning[ownProps.project]
   }
 }
 
 
 const TuningForm_ = connect(mapStateToProps)(TuningForm);
-export { TuningForm_ as TuningForm };
+// TuningFormView: without the store, for tests
+export { TuningForm_ as TuningForm, TuningForm as TuningFormView };

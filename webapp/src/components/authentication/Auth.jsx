@@ -238,7 +238,7 @@ class UserMenu extends React.Component {
             <UserMenuTrigger>
               <Avatar 
                 src={avatarUrl}
-                alt={display_name}
+                name={display_name}
                 size="28px"
               />
               <span className="user-display">{display_name}</span>
@@ -267,7 +267,7 @@ class UserMenu extends React.Component {
             <UserProfileHeader>
               <Avatar 
                 src={avatarUrl}
-                alt={display_name}
+                name={display_name}
                 size="36px"
               />
               <UserInfo>

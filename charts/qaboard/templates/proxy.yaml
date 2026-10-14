@@ -78,6 +78,13 @@ spec:
             {{- if .Values.proxy.siteConfig }}
             - {name: nginx-site, mountPath: /tmp/deployment/nginx/conf.d}
             {{- end }}
+            {{- if .Values.results.enabled }}
+            # nginx serves /s/<path> from /var/qaboard/<path>
+            - {name: qaboard-results, mountPath: {{ printf "/var/qaboard%s" (include "qaboard.resultsPath" .) | quote }}, readOnly: true}
+            {{- end }}
+            {{- if .Values.demoData.enabled }}
+            - {name: demo-data, mountPath: {{ printf "/var/qaboard%s" (include "qaboard.demoDataPath" .) | quote }}, readOnly: true}
+            {{- end }}
             {{- with .Values.proxy.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -89,6 +96,13 @@ spec:
         {{- if .Values.proxy.siteConfig }}
         - name: nginx-site
           configMap: {name: {{ include "qaboard.fullname" . }}-nginx-site}
+        {{- end }}
+        {{- if .Values.results.enabled }}
+        {{- include "qaboard.resultsVolume" . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.demoData.enabled }}
+        - name: demo-data
+          persistentVolumeClaim: {claimName: {{ include "qaboard.fullname" . }}-demo-data}
         {{- end }}
         {{- with .Values.proxy.extraVolumes }}
         {{- toYaml . | nindent 8 }}

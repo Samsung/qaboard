@@ -28,7 +28,8 @@ from .utils import redirect_std_streams, clean_output_dir
 from .utils import getenvs
 from .api import url_to_dir, print_url
 from .api import get_outputs, notify_qa_database, serialize_paths
-from .iterators import iter_inputs, iter_parameters
+from .iterators import iter_inputs, iter_parameters, load_runs_file, iter_runs, rerun_job_options, local_job_options
+from .batch_logs import saves_logs, batch_log
 
 from .config import config_has_error, ignore_config_errors
 from .config import project, project_root, subproject, config
@@ -521,6 +522,7 @@ default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "
 ))
 @click.option('--batch', '-b', 'batches', multiple=True, help="We run over all inputs+configs+database in those batches")
 @click.option('--batches-file', 'batches_files', type=PathType(),  default=default_batches_files, multiple=True, help="YAML files listing batches of inputs+configs+database.")
+@click.option('--runs-file', type=PathType(), default=None, help='Instead of batches, a JSON file listing the runs to do, e.g. to redo runs: {"runs": [{"input_path", "database", "type", "platform", "configurations", "extra_parameters", "job_options"}]}. Runs are done with the runner and job options they list, unless you give a --runner.')
 @click.option('--tuning-search', 'tuning_search_dict', help='string containing JSON describing the tuning parameters to explore')
 @click.option('--tuning-search-file', type=PathType(), default=None, help='tuning file describing the tuning parameters to explore')
 @click.option('--no-wait', is_flag=True, help="If true, returns as soon as the jobs are sent, otherwise waits for completion.")
@@ -543,10 +545,11 @@ default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "
 @click.option('--prefix-outputs-path', type=PathType(), default=None, help='Custom prefix for the outputs; they will be at $prefix/$output_path')
 @click.argument('batch_names', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
-def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, local_timeout, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_resources, lsf_priority, lsf_options, lsf_concurrency, dask_concurrency, action_on_existing, action_on_pending, prefix_outputs_path, batch_names):
+@saves_logs
+def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_search_file, no_wait, list_contexts, list_output_dirs, list_inputs, runner, local_concurrency, local_timeout, lsf_max_threads, lsf_max_memory, lsf_queue, lsf_resources, lsf_priority, lsf_options, lsf_concurrency, dask_concurrency, action_on_existing, action_on_pending, prefix_outputs_path, batch_names):
   """Run on all the inputs/tests/recordings in a given batch using the LSF cluster."""
   from .runners import runners
-  if not batches_files:
+  if not batches_files and not runs_file:
     click.secho(f'WARNING: Could not find how to identify input tests.', fg='red', err=True, bold=True)
     click.secho(f'Consider adding to qaboard.yaml somelike like:\n```\ninputs:\n  batches: batches.yaml\n```', fg='red', err=True)
     click.secho(f'Where batches.yaml is formatted like in http://qa-docs/docs/batches-running-on-multiple-inputs', fg='red', err=True)
@@ -567,15 +570,26 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       filtered_batch_names.append(arg)
   batches = list(filtered_batch_names) + list(batches)
 
-  if not batches:
+  if runs_file and batches:
+    raise click.UsageError("Use either batches or --runs-file, not both.")
+  if not batches and not runs_file:
     click.secho(f'ERROR: you must provide a batch', fg='red', err=True, bold=True)
     click.secho(f'Use either `qa batch BATCH`, `qa batch BATCH_1 BATCH_2` or `qa batch --batch BATCH_2 --batch BATCH_2`', fg='red', err=True)
     exit(1)
 
+  runs = load_runs_file(runs_file) if runs_file else None
+  # How the runs were started. Some options are for the whole batch, e.g. the concurrency
+  runs_job_options = next((run['job_options'] for run in runs or [] if run.get('job_options')), {})
+  # Unless asked otherwise, runs are done again with the runner they were started with
+  keeps_runs_runner = runs is not None and runner == default_runner
+  if keeps_runs_runner and runs_job_options.get('type'):
+    runner = runs_job_options['type']
+
   print_url(ctx)
   # if the commit does not exist or there are network errors it will return empty data
   existing_outputs = get_outputs(ctx.obj, ignore_errors=True)
-  command_id = os.environ.get('QA_BATCH_COMMAND_ID', str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
+  log = batch_log(ctx)
+  command_id = os.environ.get('QA_BATCH_COMMAND_ID', log['command_id'] if log else str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
   if 'QA_BATCH_COMMAND_ID' in os.environ:
     # some projects have run() trigger further "qa batch" commands, notably in "pipelines"
     # so if we keep it defined we'll end up with deadlocks as those batch wait for the current batch to end...
@@ -592,9 +606,12 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       "runner": runner,
       **ctx.obj,
     }
-    if runner == 'dask' and dask_config.get('scheduler_address'):
+    if log:
+      command_data['log'] = log['path'] # relative to the batch directory
+    scheduler_address = runs_job_options.get('scheduler_address', dask_config.get('scheduler_address'))
+    if runner == 'dask' and scheduler_address:
       # so that the backend can stop the batch
-      command_data['scheduler_address'] = dask_config['scheduler_address']
+      command_data['scheduler_address'] = scheduler_address
     job_url = getenvs(('BUILD_URL', 'CI_JOB_URL', 'CIRCLE_BUILD_URL', 'TRAVIS_BUILD_WEB_URL')) # jenkins, gitlabCI, circleCI, travisCI
     if job_url:
       command_data['job_url'] = job_url
@@ -686,13 +703,26 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
   # For backward compatibility, combine for JobGroup
   default_runner_options = {**base_runner_options, **cli_runner_overrides}
 
-  jobs = JobGroup(job_options=default_runner_options)
+  if runs is None:
+    jobs = JobGroup(job_options=default_runner_options)
+    inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], ctx.obj['platform'], base_runner_options, config, ctx.obj['inputs_settings'], cli_runner_overrides=cli_runner_overrides)
+  else:
+    # The runs keep the job options they were started with, except those we were explicitly given
+    explicit_runner_overrides = {k: v for k, v in cli_runner_overrides.items() if k not in (*local_job_options, 'type', 'project')}
+    if not keeps_runs_runner:
+      explicit_runner_overrides['type'] = runner
+    inputs_iter = iter_runs(runs, default_input_type, ctx.obj['platform'], default_runner_options, explicit_runner_overrides)
+    jobs = JobGroup(job_options=rerun_job_options(runs_job_options, default_runner_options, explicit_runner_overrides))
 
   total_runs = 0
-  inputs_iter = iter_inputs(batches, batches_files, ctx.obj['database'], ctx.obj['configurations'], ctx.obj['platform'], base_runner_options, config, ctx.obj['inputs_settings'], cli_runner_overrides=cli_runner_overrides)
   for run_context in inputs_iter:
     input_configuration_str = serialize_config(run_context.configurations)
-    for tuning_params, tuning_str, tuning_hash in iter_parameters(tuning_search, filetype=filetype, extra_parameters=ctx.obj['extra_parameters']):
+    extra_parameters, input_forwarded_args = ctx.obj['extra_parameters'], forwarded_args
+    if runs is not None:
+      # Each run from --runs-file has its own tuning parameters and forwarded arguments
+      extra_parameters = {**ctx.obj['extra_parameters'], **run_context.extra_parameters}
+      input_forwarded_args = [*forwarded_args, *extra_parameters.pop('forwarded_args', [])]
+    for tuning_params, tuning_str, tuning_hash in iter_parameters(tuning_search, filetype=filetype, extra_parameters=extra_parameters):
       if not prefix_outputs_path:
           batch_conf_dir = make_batch_conf_dir(
             outputs_commit,
@@ -712,8 +742,8 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       from qaboard.conventions import output_dirs_for_input_part
       # print("batch_conf_dir", batch_conf_dir)
       run_context.output_dir = batch_conf_dir / output_dirs_for_input_part(run_context.rel_input_path, run_context.database, config)
-      if forwarded_args:
-        run_forwarded_args = [a for a in forwarded_args if not a in ("--keep-previous", "--no-postprocess", "--save-manifests-in-database")]
+      if input_forwarded_args:
+        run_forwarded_args = [a for a in input_forwarded_args if not a in ("--keep-previous", "--no-postprocess", "--save-manifests-in-database")]
         if run_forwarded_args:
           run_context.extra_parameters = {"forwarded_args": run_forwarded_args, **tuning_params}
         else:
@@ -757,14 +787,14 @@ def batch(ctx, batches, batches_files, tuning_search_dict, tuning_search_file, n
       if is_pending and action_on_pending == 'skip':
           continue
 
-      if not forwarded_args:
+      if not input_forwarded_args:
         forwarded_args_cli = None
       else:
         if not on_windows:
-          forwarded_args_cli = ' '.join(quote(a) for a in forwarded_args)
+          forwarded_args_cli = ' '.join(quote(a) for a in input_forwarded_args)
         else:
           from .compat import escaped_for_cli
-          forwarded_args_cli = ' '.join(escaped_for_cli(a) for a in forwarded_args)
+          forwarded_args_cli = ' '.join(escaped_for_cli(a) for a in input_forwarded_args)
 
       if input_configuration_str == get_default_configuration(ctx.obj['inputs_settings']):
         configuration_cli = None
@@ -1007,6 +1037,10 @@ qa.add_command(check_bit_accuracy_manifest)
 
 from .optimize import optimize
 qa.add_command(optimize)
+
+
+from .gate import gate
+qa.add_command(gate)
 
 
 @qa.command()

@@ -47,7 +47,7 @@ class Dashboard extends React.Component {
       latest_commit: null,
       selected_metrics: (dashboard_metrics || main_metrics || []).map(
         k => available_metrics[k]
-      )
+      ).filter(m => m !== undefined)
     };
   }
 
@@ -68,7 +68,8 @@ class Dashboard extends React.Component {
     const extra_params = {
       with_outputs: true,
     }
-    dispatch(fetchCommits(project, {...match.params}, default_date_range(), aggregation_metrics, extra_params))
+    // History picks its metrics (dashboard_metrics), and loads the runs: don't ask again with the latest commit's
+    dispatch(fetchCommits(project, {...match.params}, default_date_range(), aggregation_metrics, extra_params, true))
   }
 
 
@@ -131,7 +132,7 @@ class Dashboard extends React.Component {
     if (is_loading)
       return (
         <Container style={{paddingTop: '50px'}}>
-          <NonIdealState title={`Loading ${!!this.props.match.name ? this.props.match.name : ''}`} icon={<Spinner />} />
+          <NonIdealState title={`Loading ${this.props.match.params.name ?? ''}`} icon={<Spinner />} />
         </Container>
       );
     if (commits.length===0) return <Container style={{paddingTop: '50px'}}>
@@ -227,6 +228,7 @@ class Dashboard extends React.Component {
         <Section>
           <Card>
             <h2 className={Classes.HEADING}>Metrics per-test</h2>
+            {/* Named like the views of the commit pages */}
             <Tabs
               renderActiveTabPanelOnly
               id="tabs-outputs"
@@ -237,12 +239,13 @@ class Dashboard extends React.Component {
             >
               <Tab
                 id="table-kpi"
-                title="vs KPI"
+                title="Metrics Table"
                 panel={
                   <TableKpi
                     new_batch={new_batch}
                     ref_batch={ref_batch}
-                    metrics={selected_metrics}
+                    metrics={selected_metrics.map(m => m.key)}
+                    available_metrics={available_metrics}
                     input={metricTableSelect}
                   />
                 }
@@ -250,11 +253,13 @@ class Dashboard extends React.Component {
               {has_reference && (
                 <Tab
                   id="table-compare"
+                  title="Metrics Diff"
                   panel={
                     <TableCompare
                       new_batch={new_batch}
                       ref_batch={ref_batch}
-                      metrics={selected_metrics}
+                      metrics={selected_metrics.map(m => m.key)}
+                      available_metrics={available_metrics}
                       input={metricTableSelect}
                     />
                   }
@@ -315,7 +320,7 @@ const mapStateToProps = (state, ownProps) => {
     let aggregation_metrics = {};
     (dashboard_metrics || main_metrics || []).filter(m => available_metrics[m] !== undefined)
     .forEach(m => {
-      aggregation_metrics[m] = available_metrics[m].target;
+      aggregation_metrics[m] = available_metrics[m].target ?? 0;
     });
 
     return {
@@ -347,7 +352,8 @@ const mapStateToProps = (state, ownProps) => {
       dashboard_metrics,
       dashboard_evolution_metrics,
 
-      breakdown_per_test: (params.get("breakdown_per_test") || '').toLowerCase() === 'true' || true,
+      // History's default; the chart reads ?breakdown_per_test= itself
+      breakdown_per_test: true,
       output_filter: selected.filter_batch_new,
       sort_by: selected.sort_by,
       sort_order: selected.sort_order || 'input_test_path',

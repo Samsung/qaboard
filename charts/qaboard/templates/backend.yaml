@@ -17,7 +17,9 @@ spec:
     metadata:
       labels: {{- include "qaboard.selectorLabels" (list . "backend") | nindent 8 }}
       annotations:
-        checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
+        # Restart when the settings change. Not over secret.yaml: on a first install its generated SECRET_KEY would
+        # render differently here, and the first upgrade would restart pods for nothing. The key never changes later.
+        checksum/config: {{ list (include (print $.Template.BasePath "/config.yaml") .) .Values.secret.values | toYaml | sha256sum }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets: {{- toYaml . | nindent 8 }}
@@ -27,6 +29,10 @@ spec:
       {{- end }}
       # uwsgi finishes in-flight requests on SIGTERM (up to 30s), after the preStop delay
       terminationGracePeriodSeconds: 60
+      {{- if .Values.demoData.enabled }}
+      # Restores the demo projects before the backend first starts (it creates empty tables), then does nothing
+      initContainers: {{- include "qaboard.demoDataRestore" (list . "all") | nindent 8 }}
+      {{- end }}
       containers:
         - name: backend
           image: {{ include "qaboard.image" (list . "backend") }}
@@ -60,6 +66,13 @@ spec:
           resources: {{- toYaml .Values.backend.resources | nindent 12 }}
           volumeMounts:
             - {name: data, mountPath: /var/qaboard}
+            {{- if .Values.results.enabled }}
+            # The results storage, at the same path as for the runs that save results there
+            - {name: qaboard-results, mountPath: {{ include "qaboard.resultsPath" . | quote }}}
+            {{- end }}
+            {{- if .Values.demoData.enabled }}
+            - {name: demo-data, mountPath: {{ include "qaboard.demoDataPath" . | quote }}}
+            {{- end }}
             {{- with .Values.backend.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -67,6 +80,13 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: {{ .Values.backend.data.existingClaim | default (printf "%s-data" (include "qaboard.fullname" .)) }}
+        {{- if .Values.results.enabled }}
+        {{- include "qaboard.resultsVolume" . | nindent 8 }}
+        {{- end }}
+        {{- if .Values.demoData.enabled }}
+        - name: demo-data
+          persistentVolumeClaim: {claimName: {{ include "qaboard.fullname" . }}-demo-data}
+        {{- end }}
         {{- with .Values.backend.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

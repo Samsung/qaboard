@@ -150,6 +150,66 @@ def redirect_std_streams(file, color=None):
     del stderr
 
 
+class TeeStream():
+  """Writes to a stream, and to a file"""
+  def __init__(self, stream, file):
+    self.stream = stream
+    self.file = file
+  def write(self, data):
+    written = self.stream.write(data)
+    try:
+      self.file.write(data)
+      self.file.flush()
+    except (OSError, ValueError): # e.g. full storage: users still see the output
+      pass
+    return written
+  def flush(self):
+    self.stream.flush()
+  # click and colorama (on Windows) use them to choose colors and encodings.
+  # Without `buffer`, click can't bypass us and write to the console directly.
+  def isatty(self):
+    return isatty(self.stream)
+  def fileno(self):
+    return self.stream.fileno()
+  @property
+  def closed(self):
+    return getattr(self.stream, 'closed', False)
+  @property
+  def encoding(self):
+    return getattr(self.stream, 'encoding', None)
+  @property
+  def errors(self):
+    return getattr(self.stream, 'errors', None)
+
+
+@contextmanager
+def tee_std_streams(file):
+  """
+  Also writes what we print (stdout, stderr) to an open file, e.g. to save the logs of `qa batch`.
+  Unlike redirect_std_streams, we restore the previous streams after the block,
+  and save the error that may end it (Python prints it after the block).
+  Subprocesses still only write to the terminal, e.g. local runs (they save their own logs).
+  """
+  previous = sys.stdout, sys.stderr
+  sys.stdout, sys.stderr = TeeStream(sys.stdout, file), TeeStream(sys.stderr, file)
+  try:
+    yield
+  except BaseException as e:
+    try:
+      if isinstance(e, (KeyboardInterrupt, click.exceptions.Abort)):
+        file.write('\nAborted!\n')
+      elif isinstance(e, click.ClickException):
+        file.write(f'Error: {e.format_message()}\n')
+      elif not isinstance(e, (SystemExit, click.exceptions.Exit)):
+        file.write(traceback.format_exc())
+      file.flush()
+    except (OSError, ValueError):
+      pass
+    raise
+  finally:
+    sys.stdout, sys.stderr = previous
+
+
 class FailingEntrypoint:
   def run(self, context):
     return {"is_failed": True}

@@ -35,6 +35,7 @@ services:
       - deployments/sirc/.env
     environment:
     - GITLAB_HOST=http://gitlab-srv
+    - QABOARD_PROXY_HOSTS=gitlab-srv,gitlab-srv.transchip.com,dag.sirc.co.il
     - UWSGI_UID=ispq
     - UWSGI_GID=uucp
     - QABOARD_DATA_SHARED_DIR=/home/ispq/qaboard/shared

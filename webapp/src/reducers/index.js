@@ -60,7 +60,7 @@ function tuning(state = { [default_project_id]: {} }, action) {
 // precompute useful data
 // like str representaton of their configs or merged "outputs.params"
 // params: str -> {config: str}
-const preprocess_output = output => {
+export const preprocess_output = output => {
   // output.configurations = output.configurations.slice(0, 2)
   const run_params = output.data?.params
   // const run_params = {
@@ -105,8 +105,9 @@ function commits(state = { [default_project_id]: {} }, action) {
         },
       }
       action.commits.forEach(commit => {
-        // const commit = new_state[action.project]?.[c.id]
-        // console.log(commit)
+        // e.g. the chart above a branch's commits uses its latest commit's metrics
+        if (commit.data?.qatools_metrics)
+          commit.data.qatools_metrics.available_metrics = metrics_fill_defaults(commit.data.qatools_metrics.available_metrics);
         Object.keys(commit.batches ?? {}).forEach(b => {
           Object.keys(commit.batches[b].outputs ?? {}).forEach(id => {
             // console.log(id, commit.batches[b].outputs[id])

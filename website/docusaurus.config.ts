@@ -1,16 +1,48 @@
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
+import fs from 'fs';
+import path from 'path';
 
 // @ts-check
 // Note: type annotations allow type checking and IDEs autocompletion
-const publish_github_samsung_private = process.env.PUBLISH === 'github_samsung_private' 
-const publish_github_samsung_public  = process.env.PUBLISH === 'github_samsung_public' 
 const is_for_webapp = process.env.QABOARD_DOCS_FOR_WEBAPP === "true"
-// console.log("is_for_webapp", is_for_webapp)
-// console.log("publish_github_samsung_private", publish_github_samsung_private)
-// console.log("publish_github_samsung_public", publish_github_samsung_public)
+
+// Docs for the users of one site, in site-docs/<site>/, only built into that site's web app (QABOARD_SITE, see the Dockerfile).
+// site-docs/<site>/_site.json gives its name and its navbar label. Without QABOARD_SITE, nothing changes.
+type Site = {id: string, name: string, label: string, path: string}
+function loadSite(id?: string): Site | null {
+  if (!id)
+    return null
+  const site_dir = path.join(__dirname, 'site-docs', id)
+  if (!/^[a-z0-9_-]+$/.test(id) || !fs.existsSync(site_dir)) {
+    console.warn(`[WARNING] QABOARD_SITE=${id}: no docs in site-docs/${id}/, building without site docs`)
+    return null
+  }
+  const meta = JSON.parse(fs.readFileSync(path.join(site_dir, '_site.json'), 'utf8'))
+  return {id, name: meta.name ?? id, label: meta.label ?? `At ${meta.name ?? id}`, path: site_dir}
+}
+const site = loadSite(process.env.QABOARD_SITE)
 
 import {themes as prismThemes} from 'prism-react-renderer';
+
+// Screenshots and clips (<Shot>, <Clip>, <Compare>): see docs-media/README.md and plugins/media/
+const {mediaStaticDirectories, socialCardImage} = require('./plugins/media/config');
+const mediaRemark = require('./plugins/media/remark');
+// Repository files in code blocks (<RepoFile path="...">): see plugins/snippets/
+const repoFileRemark = require('./plugins/snippets/remark');
+
+// Docs URLs, relative to the baseUrl. For the web app, the docs are served at the root of the /docs/ baseUrl
+const docsPath = (id: string) => is_for_webapp ? `/${id}` : `/docs/${id}`
+
+// Pages that moved or were removed: their old URLs are in search engines, bookmarks, and old versions of the web app
+const redirects = [
+  {from: 'backend-admin/host-upgrades', to: 'backend-admin/deployment#host-maintenance'},
+  {from: 'backend-admin/getting-SSL-certiticates-from-IT', to: 'deploy#using-ssl--hosting-behind-a-reverse-proxy'},
+  {from: 'dag-pipelines', to: 'batches-running-on-multiple-inputs'},
+  {from: 'tuning-workflows', to: 'tuning-from-the-webapp#other-tuning-workflows'},
+  // the page's file name, linked by the web app's LSF hints (the anchor is kept)
+  {from: 'lsf-cluster-integration', to: 'lsf-integration'},
+].map(({from, to}) => ({from: docsPath(from), to: docsPath(to)}))
 
 const logo = {
   alt: 'QA-Board Logo',
@@ -22,30 +54,41 @@ const logo = {
 /** @type {import('@docusaurus/types').Config} */
 let config: Config = {
   title: 'QA-Board',
-  customFields: {is_for_webapp},
-  tagline: "Algorithm engineering is hard enough.<br/>Don't waste time with logistics.",
+  customFields: {is_for_webapp, ...(site ? {site: {id: site.id, name: site.name, label: site.label}} : {})},
+  tagline: "Tests tell you it runs. QA-Board shows you it's better.",
   url: 'https://samsung.github.io',
-  onBrokenLinks: 'warn', // log
-  onBrokenMarkdownLinks: 'warn',
+  onBrokenLinks: 'throw',
+  markdown: {
+    hooks: {
+      onBrokenMarkdownLinks: 'throw',
+    },
+  },
   // https://realfavicongenerator.net/
   favicon: 'img/favicon/favicon-32x32.png',
   projectName: 'qaboard', // Usually your repo name.
   organizationName: 'Samsung',
   baseUrl: '/qaboard/',
   deploymentBranch: 'gh-pages',
+  // In local mode (builds), the media downloaded from website/media.json, served at <baseUrl>media/
+  staticDirectories: ['static', ...mediaStaticDirectories()],
 
   presets: [
     [
       'classic', {
         docs: {
-          sidebarPath: require.resolve('./sidebars.js'),
+          sidebarPath: './sidebars.ts',
+          remarkPlugins: [mediaRemark, repoFileRemark],
           // Please change this to your repo.
           editUrl: 'https://github.com/Samsung/qaboard/edit/master/website/docs',
         },
         blog: {
           showReadingTime: true,
+          remarkPlugins: [mediaRemark, repoFileRemark],
           // Please change this to your repo.
           editUrl: 'https://github.com/Samsung/qaboard/edit/master/website/blog',
+        },
+        pages: {
+          remarkPlugins: [mediaRemark, repoFileRemark],
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
@@ -55,6 +98,17 @@ let config: Config = {
   ],
 
   plugins: [
+    ['@docusaurus/plugin-client-redirects', {redirects}],
+    // Downloads the media the pages use (or not, see QABOARD_MEDIA), and checks the shot ids. PNG masters only for `png`
+    ['./plugins/media', {png: ['landing/social-card']}],
+    // Checks the stack picker's tabs (src/components/stack.ts)
+    './plugins/stack',
+    // `import text from '<file>?raw'`, for <RepoFile>
+    './plugins/snippets',
+    // The latest release note's highlights, for the landing page
+    './plugins/latest-release-note',
+    // site-docs/<site>/, with an autogenerated sidebar (no sidebarPath)
+    ...(site ? [['@docusaurus/plugin-content-docs', {id: 'site', path: site.path, routeBasePath: 'site', remarkPlugins: [mediaRemark, repoFileRemark]}]] : []),
     [
       // The release notes, also shown in the web app's "What's new" panel. See CLAUDE.md
       '@docusaurus/plugin-content-blog', {
@@ -81,7 +135,8 @@ let config: Config = {
   ],
 
   themeConfig: {
-      image: "img/share.jpg",
+      // The social card (docs-media/shots/landing.spec.ts: landing/social-card) once it's published, else the old one
+      image: socialCardImage(__dirname) ?? "img/share-github.png",
       docs: {
         sidebar: {hideable: true},
       },
@@ -90,11 +145,28 @@ let config: Config = {
         logo,
         hideOnScroll: true,
         items: [
-          // One sidebar per audience: people looking at results, project integration, server admins
-          {type: 'docSidebar', sidebarId: 'userGuide', label: 'User guide', position: 'left'},
-          {type: 'docSidebar', sidebarId: 'docs', label: 'Project integration', position: 'left'},
-          {type: 'docSidebar', sidebarId: 'admin', label: 'Admin', position: 'left'},
-          {to: '/release-notes', label: "What's new", position: 'left'},
+          // The landing page (src/pages/index.tsx), in both builds: /qaboard/ and, for the web app, /docs/
+          {to: '/', label: 'Product', position: 'left', activeBaseRegex: '^/(qaboard|docs)/?$'},
+          // Get started, then one sidebar per audience: people looking at results, project integration, server admins
+          {
+            type: 'dropdown',
+            label: 'Docs',
+            to: '/docs/get-started/quickstart',
+            position: 'left',
+            items: [
+              {type: 'docSidebar', sidebarId: 'start', label: 'Get started'},
+              {type: 'doc', docId: 'tour', label: 'Product tour'},
+              {type: 'docSidebar', sidebarId: 'userGuide', label: 'User guide'},
+              {type: 'docSidebar', sidebarId: 'docs', label: 'Project integration'},
+              {type: 'docSidebar', sidebarId: 'admin', label: 'Admin'},
+            ],
+          },
+          ...(site ? [{type: 'docSidebar', docsPluginId: 'site', sidebarId: 'defaultSidebar', label: site.label, position: 'left'} as const] : []),
+          // The generated index of the "Use cases" category (sidebars.ts)
+          {to: '/docs/use-cases', label: 'Use cases', position: 'left'},
+          // Where QA-Board is going: a docs page outside the sidebars, for every audience
+          {type: 'doc', docId: 'roadmap', label: 'Roadmap', position: 'left'},
+          {to: '/release-notes', label: 'Release notes', position: 'left'},
           {
             to: '/blog',
             position: 'left',
@@ -112,11 +184,20 @@ let config: Config = {
         style: 'dark',
         links: [
           {
+            title: 'Get started',
+            items: [
+              {label: 'Quickstart', to: '/docs/get-started/quickstart'},
+              {label: 'Your project on QA-Board', to: '/docs/get-started/tutorial'},
+              {label: 'Product tour', to: '/docs/tour'},
+              {label: 'Use cases', to: '/docs/use-cases'},
+            ],
+          },
+          {
             title: 'Docs',
             items: [
               {label: 'User guide', to: '/docs/user-guide/overview'},
               {label: 'Project integration', to: '/docs/introduction'},
-              {label: 'Server admin', to: '/docs/backend-admin/deployment'},
+              {label: 'Server admin', to: '/docs/deploy'},
             ],
           },
           {
@@ -124,6 +205,7 @@ let config: Config = {
             items: [
               {label: 'Release notes', to: '/release-notes'},
               {label: 'RSS feed', href: 'pathname:///release-notes/rss.xml'},
+              {label: 'Roadmap', to: '/docs/roadmap'},
             ],
           },
           // {
@@ -191,16 +273,6 @@ if (is_for_webapp) {
     baseUrl: '/docs/',
   }
   config.presets[0][1].docs.routeBasePath = '/';
-} else {
-  if (publish_github_samsung_private) {
-    config = {
-      ...config,
-      url: 'https://github.sec.samsung.net',
-      baseUrl: '/pages/arthur-flam/qaboard/',
-      githubHost: 'github.sec.samsung.net',
-      organizationName: 'arthur-flam',
-    }
-  }
 }
 
 module.exports = config;

@@ -32,9 +32,13 @@ docker compose -f docker-compose.yml -f development.yml -f deployments/sirc/sirc
 # Zero-downtime deploys, one env file per environment (compose files, project, replicas...)
 deployments/deploy.py deployments/sirc/production.env up|status|rollback|restore-db|compose ...
 docker compose --env-file deployments/sirc/production.env ps
-# Kubernetes: helm chart in charts/qaboard, SIRC values in deployments/sirc/values.yaml
+# Kubernetes: helm chart in charts/qaboard, laptop quickstart: charts/qaboard/quickstart.yaml + kind.yaml
+# (installed by the helm-e2e CI job, .github/scripts/helm_e2e.py). SIRC values in deployments/sirc/values.yaml
 ```
-GitLab CI deploys master to staging then production automatically. Runbooks: `website/docs/backend-admin/`.
+GitHub CI publishes the images to `ghcr.io/<owner>/qaboard` (`<service>-<sha8>` on master, `<service>` once every job passed,
+`<service>-<version>` for releases) and the chart to `oci://ghcr.io/<owner>/charts/qaboard`; compose and the chart default to
+`ghcr.io/samsung/qaboard`, `QABOARD_IMAGE` / `image.repository` override it.
+GitLab CI deploys master to staging then production automatically. SIRC runbooks: `deployments/sirc/runbooks/`; generic server docs: `website/docs/backend-admin/`.
 
 ### Frontend Development (React)
 ```bash
@@ -105,6 +109,10 @@ website shows them at `/release-notes` (with RSS/Atom feeds).
 (`user-guide/`, for people looking at results in the web app), **Project integration** (wrapping code with `qa`,
 qaboard.yaml, runners, integrations), and **Admin** (`backend-admin/`, running the server). When a change
 affects how people use the web app, update the user guide page too.
+
+The website is public: keep internal hostnames, paths, emails and people out of `website/docs/`. Pages for one site's users go in
+`website/site-docs/<site>/`, built only into that site's web app (`QABOARD_SITE`); runbooks go in `deployments/<site>/runbooks/`.
+`yarn build` fails on broken links: when you move or remove a page, add a redirect in `website/docusaurus.config.ts`.
 
 ## Testing
 

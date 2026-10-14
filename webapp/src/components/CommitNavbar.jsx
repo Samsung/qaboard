@@ -1,5 +1,4 @@
 import React from "react";
-import copy from 'copy-to-clipboard';
 import axios from "axios";
 
 import {
@@ -28,10 +27,11 @@ import { DoneAtTag } from "./DoneAtTag";
 import { SelectBatchesNav } from "./tuning/SelectBatches";
 import { has_milestones, MilestonesMenu, CommitMilestoneEditor } from "./milestones"
 
-import { shortId, linux_to_windows } from "../utils";
+import { shortId } from "../utils";
 import { fetchCommit } from "../actions/commit";
 import { updateSelected } from "../actions/selected";
 import { toaster } from "../toaster"
+import { copyDirectory } from "./logs/DirectoryActions"
 
 
 class CommitMessage extends React.PureComponent {
@@ -71,7 +71,7 @@ class BatchTags extends React.PureComponent {
     return <>
       {valid_outputs > 0 && (
         <Tag intent={Intent.SUCCESS} minimal round>
-          {valid_outputs} outputs
+          {valid_outputs} output{valid_outputs === 1 ? '' : 's'}
         </Tag>
       )}{" "}
       {running_outputs > 0 && (
@@ -149,11 +149,37 @@ class CommitNavbar extends React.Component {
       });
   }
 
+  // Redo the batch's runs, or those matching the filter. QA-Board starts them with a single `qa batch`.
+  redo = ({only_failed = false, only_deleted = false} = {}) => {
+    const { project, batch, selected, type, dispatch } = this.props;
+    const filter = selected[`filter_batch_${type}`]
+    const output_ids = filter ? (batch.filtered?.outputs ?? []) : undefined
+    const show_logs = { text: "Show the logs", onClick: () => dispatch(updateSelected(project, { selected_views: 'logs' })) }
+    this.setState({waiting: true})
+    toaster.show({message: "Redo requested."});
+    axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_failed, only_deleted, output_ids})
+      .then(response => {
+        this.setState({waiting: false})
+        const runs = response.data?.submission?.runs
+        toaster.show({message: `Redoing ${runs ?? 'the'} run${runs === 1 ? '' : 's'} from ${batch.label}.`, intent: Intent.SUCCESS, action: show_logs});
+        this.refresh()
+        setTimeout(this.refresh,  5*1000)
+        setTimeout(this.refresh, 10*1000)
+      })
+      .catch(error => {
+        this.setState({waiting: false });
+        toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER, action: error.response?.data?.submission ? show_logs : undefined});
+        this.refresh()
+      });
+  }
+
   render() {
     const { project, project_data, commit, batch, selected, type, dispatch, update } = this.props;
     const { project_input, soft_delete, files_delete_filter } = this.state;
     const project_attr = `${type}_project`
     const filter = selected[`filter_batch_${type}`]
+    // With a filter, we only redo the runs that match it
+    const redo_counts = (filter ? batch?.filtered : batch) ?? {}
 
     const qatools_config = project_data?.data?.qatools_config
     const reference_branch = qatools_config?.project?.reference_branch ?? 'master';
@@ -199,7 +225,13 @@ class CommitNavbar extends React.Component {
           <div style={{ 'marginRight': '10px', display: 'block', position: 'relative', width: '600px', marginBottom: '6px' }}>
             <span style={{ display: 'flex' }}>
               <Tag style={{ flex: '0 1 auto', alignSelf: 'center', marginRight: '5px', fontFamily: 'monospace' }} minimal>{type}</Tag>
-              <CommitAvatar size='20px' commit={commit} style={{ marginRight: '5px' }} />
+              <CommitAvatar
+                size='20px'
+                commit={commit}
+                project={project}
+                onClick={() => dispatch(updateSelected(project, {branch: null, committer: commit.committer_name}))}
+                style={{ marginRight: '5px' }}
+              />
               <CommitMessage
                 project={project}
                 commit={commit}
@@ -304,13 +336,13 @@ class CommitNavbar extends React.Component {
           />
           <Popover placement="bottom" hoverCloseDelay={500} interactionKind={"hover"} content={<Menu>
             <MenuDivider title="Commit"/>
-            <MenuItem text="Copy Artifact Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(commit.artifacts_url))}} />
-            <MenuItem text="Copy Artifact Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(commit.artifacts_url).slice(2))}} />
+            <MenuItem text="Copy Artifact Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url, { windows: true })} />
+            <MenuItem text="Copy Artifact Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url)} />
             <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
             {has_selected_batch && <>
             <MenuDivider title="Batch"/>
-            <MenuItem text="Copy Output Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Windows path copied to clipboard!", intent: Intent.SUCCESS}); copy(linux_to_windows(batch.batch_dir_url))}} />
-            <MenuItem text="Copy Output Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => {toaster.show({message: "Linux path copied to clipboard!", intent: Intent.SUCCESS}); copy(decodeURI(batch.batch_dir_url).slice(2))}} />
+            <MenuItem text="Copy Output Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(batch.batch_dir_url, { windows: true })} />
+            <MenuItem text="Copy Output Dir" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(batch.batch_dir_url)} />
             <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={batch.batch_dir_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
             <MenuDivider/>
             <Dialog
@@ -376,71 +408,29 @@ class CommitNavbar extends React.Component {
               shouldDismissPopover={false}
               onClick={() => this.setState({show_rename_dialog: true})}
             />
-            {batch.deleted_outputs > 0 && <MenuItem
+            {redo_counts.deleted_outputs > 0 && <MenuItem
               icon="redo"
-              text="Redo Deleted Outputs"
+              text={filter ? "Redo Filtered Deleted Outputs" : "Redo Deleted Outputs"}
               intent={Intent.WARNING}
               minimal
               disabled={this.state.waiting || commit?.deleted}
-              onClick={() => {
-                this.setState({waiting: true})
-                toaster.show({message: "Redo of deleted outputs requested."});
-                axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: true})
-                  .then(() => {
-                    this.setState({waiting: false})
-                    toaster.show({message: `Redo ${batch.label}.`, intent: Intent.SUCCESS});
-                    this.refresh()
-                  })
-                  .catch(error => {
-                    this.setState({waiting: false });
-                    toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
-                  });
-              }}
+              onClick={() => this.redo({only_deleted: true})}
             />}
-            {batch.failed_outputs > 0 && <MenuItem
+            {redo_counts.failed_outputs > 0 && <MenuItem
               icon="redo"
-              text="Redo Failed Outputs"
+              text={filter ? "Redo Filtered Failed Outputs" : "Redo Failed Outputs"}
               intent={Intent.WARNING}
               minimal
               disabled={this.state.waiting || commit?.deleted}
-              onClick={() => {
-                this.setState({waiting: true})
-                toaster.show({message: "Redo of failed outputs requested."});
-                axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_failed: true})
-                  .then(() => {
-                    this.setState({waiting: false})
-                    toaster.show({message: `Redo ${batch.label}.`, intent: Intent.SUCCESS});
-                    this.refresh()
-                  })
-                  .catch(error => {
-                    this.setState({waiting: false });
-                    toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
-                  });
-              }}
+              onClick={() => this.redo({only_failed: true})}
             />}
             <MenuItem
               icon="redo"
-              text="Redo All Outputs"
+              text={filter ? `Redo the ${batch.filtered?.outputs?.length ?? 0} Filtered Outputs` : "Redo All Outputs"}
               intent={Intent.WARNING}
               minimal
-              disabled={this.state.waiting || commit?.deleted}
-              onClick={() => {
-                this.setState({waiting: true})
-                toaster.show({message: "Redo requested."});
-                axios.post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: false})
-                  .then(() => {
-                    this.setState({waiting: false})
-                    toaster.show({message: `Redo ${batch.label}.`, intent: Intent.SUCCESS});
-                    this.refresh()
-                    setTimeout(this.refresh,  1*1000)
-                    setTimeout(this.refresh,  5*1000)
-                    setTimeout(this.refresh, 10*1000)
-                  })
-                  .catch(error => {
-                    this.setState({waiting: false });
-                    toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
-                  });
-              }}
+              disabled={this.state.waiting || commit?.deleted || (!!filter && !batch.filtered?.outputs?.length)}
+              onClick={() => this.redo()}
             />
             <MenuDivider/>
             <MenuItem
@@ -734,4 +724,4 @@ class CommitNavbar extends React.Component {
 }
 
 
-export { CommitNavbar };
+export { CommitNavbar, BatchTags };

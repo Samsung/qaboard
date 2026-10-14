@@ -3,19 +3,17 @@ import {
     Tag,
     Popover,
     Icon,
-    Intent,
     MenuItem,
     Menu,
     Colors,
     Spinner,
     SpinnerSize,
 } from "@blueprintjs/core";
-import copy from 'copy-to-clipboard';
 
 import { output_rois, Crop, fitTo } from "./crops"
 import AutoCrops from "./AutoCrops";
 
-import { toaster } from "../../toaster"
+import { copyWithToast } from "../../utils/clipboard"
 const no_rois = {
     label: "Full Image",
     icon: "zoom-out",
@@ -30,7 +28,9 @@ let default_roi_type = "Full Image"
 //       2. wen trigger find, find for all on view? (or force view) ?
 //     make diff faster
 
-const RoiViewer = ({output_new, output_ref, path, viewer, current_roi, fullyLoaded}) => {
+// manifest (of output_new) and imageServers: as for the image viewer, so the ROI thumbnails show the same image
+// refit: when it changes, the image changed aspect ratio (e.g. a dynamic option picked another file): fit the selected ROI again
+const RoiViewer = ({output_new, output_ref, path, manifest, imageServers, viewer, current_roi, fullyLoaded, refit}) => {
     let [selectable_rois, set_selectable_rois] = useState({"Full Image": no_rois})
 
     // Sample ROIs for testing
@@ -83,6 +83,14 @@ const RoiViewer = ({output_new, output_ref, path, viewer, current_roi, fullyLoad
     }, [output_ref, output_new]);
 
 
+    useEffect(() => {
+        if (!refit) return
+        fitTo(selectable_rois[selected_rois_effective].rois[selected_roi_idx] ?? no_rois, viewer)
+    // only when the image changes, with the ROI selected then
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [refit]);
+
+
     // console.log("selectable_rois", selectable_rois)
     // console.log("selected_rois", selected_rois)
     // console.log("selected_rois_effective", selected_rois_effective)
@@ -125,8 +133,7 @@ const RoiViewer = ({output_new, output_ref, path, viewer, current_roi, fullyLoad
             onClick={() => {
                 const { x, y, w, h, width, height } = current_roi
                 const to_clipboard = `width: ${width}\nheight: ${height}\n- {x: ${Math.round(x)}, y: ${Math.round(y)}, w: ${Math.round(w)}, h: ${Math.round(h)}, label: ""}`;
-                copy(to_clipboard)
-                toaster.show({ message: "Copied!", intent: Intent.SUCCESS, timeout: 3000 });          
+                copyWithToast(to_clipboard, { what: 'the ROI' })
             }}
         />
     </Menu>
@@ -188,6 +195,8 @@ const RoiViewer = ({output_new, output_ref, path, viewer, current_roi, fullyLoad
             key={idx}
             output={output_new}
             path={path}
+            manifest={manifest}
+            imageServers={imageServers}
             roi={roi}
             viewer={viewer}
             onSelect={() => {

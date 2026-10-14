@@ -18,7 +18,7 @@ import {
 } from "@blueprintjs/core";
 
 import { updateSelected } from "./actions/selected";
-import { fetchBranches, fetchCommits } from './actions/projects'
+import { fetchBranches, fetchCommits, aggregation_metrics } from './actions/projects'
 import { day_range } from './dateRange'
 import { CommitNavbar } from "./components/CommitNavbar";
 import { SelectBatchesNav } from "./components/tuning/SelectBatches";
@@ -323,12 +323,7 @@ const mapStateToProps = (state, ownProps) => {
   let is_branch = !!ownProps.match.params.name;
   let some_commits_loaded = !!commits && commits.length > 0;
   let project_data_ = (is_branch && some_commits_loaded && commits[0]) || project_data
-  let project_metrics = project_data_.data?.qatools_metrics || {};
-  let aggregated_metrics = {};
-  (project_metrics.main_metrics || []).forEach(m => {
-    if (project_metrics.available_metrics[m] !== undefined)
-      aggregated_metrics[m] = project_metrics.available_metrics[m].target ?? 0
-});
+  let aggregated_metrics = aggregation_metrics(project_data_.data?.qatools_metrics);
 
 
   let selected_views = selected.selected_views || project_data.data?.qatools_config?.outputs?.default_tab_details || 'summary'

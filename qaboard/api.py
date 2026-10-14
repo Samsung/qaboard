@@ -27,8 +27,10 @@ if qaboard_hostname and qaboard_port:
 elif qaboard_host:
   qaboard_url = f"{qaboard_protocol}://{qaboard_host}"
 else:
-  qaboard_url = site_config('QABOARD_URL', 'http://localhost:5151')
-  if qaboard_url == 'http://localhost:5151':
+  qaboard_url = site_config('QABOARD_URL')
+  # Only when nothing says where the server is: QABOARD_URL=http://localhost:5151 is fine
+  if not qaboard_url:
+    qaboard_url = 'http://localhost:5151'
     click.secho(f"WARNING: We are not sure where to find your QA-Board server.", fg='yellow', bold=True, err=True)
     click.secho(f"         We will default to {qaboard_url}", fg='yellow', bold=True, err=True)
     click.secho(f"         To remove this warning provide it as an environment variable (via QABOARD_HOST, e.g. 'qaboard-srv', 'qaboard-srv:443').", fg='yellow', err=True)
@@ -193,7 +195,8 @@ def notify_qa_database(object_type='output', **kwargs):
         del data[k]
     click.secho(str(data), fg='yellow', err=True)
     try:
-      click.secho(str(r.request.headers), fg='yellow', dim=True, err=True)
+      request_headers = {k: '<redacted>' if k.lower() == 'authorization' else v for k, v in r.request.headers.items()}
+      click.secho(str(request_headers), fg='yellow', dim=True, err=True)
       # click.secho(str(r.request.body), fg='yellow', dim=True, err=True)
       click.secho(f'{r.status_code}: {r.text}', fg='yellow', dim=True, err=True)
     except Exception:

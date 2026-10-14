@@ -19,8 +19,8 @@ const attribute_mappings = {
 
 export const updateSelected = (project, selected, url_search) => {
   // TODO: if project change, or selected.new_project/selected.new_project, fetchProject(project)
-  return dispatch => {
-    if (selected === null || selected === undefined) {
+  return (dispatch, getState) => {
+    if (selected === null || selected === undefined || (!!project && project !== getState?.().selected?.project)) {
       dispatch(fetchProject(project))
     }
     if (!!selected) {

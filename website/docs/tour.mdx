@@ -1,0 +1,93 @@
+---
+id: tour
+title: QA-Board in 5 minutes
+sidebar_label: Product tour
+description: Run, compare, look, find, tune and gate, shown on the demo projects of a fictional robotics company.
+---
+Tests tell you that your code runs. QA-Board shows you whether it got better: every commit runs on your test set, and
+the web app puts its outputs and metrics next to a reference's, so your team can see what changed and agree that it's
+better.
+
+This tour follows the teams of Kitefin Robotics, a fictional company that builds camera robots. They use QA-Board for
+a camera pipeline, an object detector and an inference server. Their projects are real code, in
+[`examples/`](https://github.com/Samsung/qaboard/tree/master/examples): the history is made up, but every number and
+image comes from running them. Some clips are still being recorded: they show as placeholders until then.
+
+## 1. Run
+Wrap your code with `qa`, then run it on a batch of inputs: on your computer, on a cluster, or in CI on every push.
+Here Ines, on the camera team, runs its `ci` batch from her computer (9 images in 2 configurations) and shares the results:
+
+<Clip id="cli/batch" />
+
+`qa` runs your code where it already runs. QA-Board doesn't need to be the entrypoint of your build or your CI. See
+[Running your code](/docs/running-your-code).
+
+## 2. Compare
+Every commit is compared with a reference: by default, the latest results of the reference branch, or a milestone like
+the last release. The **Summary** shows each metric's change, the **Metrics Diff** each run's.
+
+When the detector moved to int8, its model got 3.5 times smaller, and its median mAP barely moved. Sorting the Metrics
+Diff by AP on small objects brings the slice that got worse to the top.
+
+<Clip id="commit/compare-tour" />
+
+See [The commit page](/docs/user-guide/commit-page#views).
+
+## 3. Look
+Metrics tell you that something changed; the outputs tell you what. Images show side by side, with synced zoom and pan,
+a perceptual diff, pixel values and histograms.
+
+A new denoiser in the camera pipeline won more than 1 dB of PSNR in low light. Zooming into the images, then turning
+on **Image Diff** and raising its threshold, leaves only what PSNR missed: halos along the edges.
+
+<Clip id="commit/image-diff" />
+
+Plots, flame graphs, text, videos, point clouds and HTML reports have viewers too. See
+[Comparing results](/docs/user-guide/comparing-results#image-viewers) and [Visualizations](/docs/visualizations).
+
+## 4. Find
+**History** follows a metric across commits, input by input. A change to the inference server made its p99 latency
+worse on one input only, so the median over all inputs hid it. Hovering along that input's line shows each commit's
+results, until they change at the commit that caused it.
+
+<Clip id="history/find-regression" />
+
+See [History](/docs/user-guide/history-and-dashboards).
+
+## 5. Tune
+Start tuning experiments from the web app: pick parameters and values, or let `qa optimize` search for the best ones.
+The **Analysis** view then shows how each parameter matters, and the trade-offs between metrics.
+
+<Clip id="tuning/launch-to-analysis" />
+
+See [Tuning from the web app](/docs/tuning-from-the-webapp) and [Auto-optimization](/docs/auto-optimization).
+
+## 6. Gate
+:::caution Experimental
+The quality gate may change without notice.
+:::
+
+Coding agents write a growing share of changes, and "it's faster" needs checking. The inference server team's coding
+agent added a cache that saved CPU and took p99 from milliseconds to seconds. `qa gate` compares the commit with the
+reference, rule by rule, and fails the CI job.
+
+<Clip id="cli/gate" />
+
+See [Quality gate](/docs/quality-gate).
+
+## And more
+- **Logs:** follow a run's log live, count its errors and jump to the next one. See
+  [The commit page](/docs/user-guide/commit-page#logs).
+- **Files:** browse every run's output folder from the browser, with the keyboard. See
+  [Browsing files](/docs/user-guide/files).
+- **Bit accuracy:** check that a change didn't alter any output file, e.g. before handing a model to a hardware team.
+  See [Bit accuracy](/docs/bit-accuracy).
+
+A run's log, live: it follows the end, counts the errors, and jumps to the next one.
+
+<Clip id="logs/live-tail" />
+
+## Try it
+- [Run QA-Board on your computer](/docs/get-started/quickstart).
+- [Put your own project on QA-Board](/docs/get-started/tutorial).
+- See each demo project in the [use cases](/docs/use-cases).

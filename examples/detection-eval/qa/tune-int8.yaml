@@ -1,0 +1,40 @@
+# Search space and objective for tuning the int8 model with `qa optimize` (scikit-optimize):
+#   qa --label tune-int8 optimize --batch quant-search --config-file qa/tune-int8.yaml --checkpoint tune-int8.pkl
+# Each evaluation runs the quant-search batch (int8 at 320 px on the outdoor and small-objects slices) with the
+# parameters as tuning parameters: qa/main.py uses them over its flags.
+evaluations: 20
+solver:
+  random_state: 42
+  n_initial_points: 8
+
+# Maximize AP on small objects and mAP (means over the batch's runs), and keep the model small: nodes left in fp32
+# make it bigger. 0.005 per MB: 2 MB more must win 0.01 of AP.
+objective:
+  ap_small:
+    weight: 1
+    reduce: sum
+    loss: identity
+  map:
+    weight: 1
+    reduce: sum
+    loss: identity
+  model_mb:
+    weight: 0.005
+    reduce: sum
+    loss: identity
+
+search_space:
+  - Categorical:
+      name: quant_percentile
+      categories: [99.9, 99.99, 99.999]
+  - Categorical:
+      name: quant_keep_fp32
+      categories: [none, first-conv, head, first-conv+head]
+  - Real:
+      name: score_threshold   # below 0.2, the K3 brakes for shadows
+      low: 0.2
+      high: 0.45
+  - Real:
+      name: nms_iou
+      low: 0.4
+      high: 0.7

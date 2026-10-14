@@ -100,6 +100,10 @@ services:
     command: yarn start
     volumes:
     - ./website:/website
+    # the repository files the docs show (<RepoFile>) and the shot list, see website/Dockerfile
+    - ./charts:/charts:ro
+    - ./examples:/examples:ro
+    - ./docs-media/shots.yaml:/docs-media/shots.yaml:ro
     environment:
       # to access the server from outside the docker environment
       - HOST=0.0.0.0

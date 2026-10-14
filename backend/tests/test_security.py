@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+import requests # before the auth fixture stubs simplejson, that requests would use
 from flask import g
 
 from backend.shell_utils import quote, is_shell_safe, shell_safe, safe_user_name, lsf_bridge_command
@@ -88,7 +89,7 @@ def test_lsf_bridge_command(monkeypatch):
 @pytest.fixture(scope="module")
 def auth():
   """Loads the real backend/api/auth.py (conftest.py replaces it by a mock)."""
-  stubs = {name: MagicMock() for name in ("ldap", "simplejson")}
+  stubs = {name: MagicMock() for name in ("ldap", "ldap.filter", "simplejson")}
   previous = {name: sys.modules.get(name) for name in stubs}
   sys.modules.update(stubs)
   models = sys.modules['backend.models']
@@ -134,6 +135,93 @@ def test_login_required_checks_project_permissions(auth, dummy_app, monkeypatch)
   handler.assert_not_called()
   with dummy_app.test_request_context("/api/v1/commit/abc/batch?project=public", method="POST"):
     assert auth.login_required(handler)() == "OK"
+
+
+# ==========================================
+# Signup and login errors don't leak secrets
+# ==========================================
+
+SIGNUP_FORM = {"user_name": "newuser", "password": "hunter2-secret", "email": "new@example.com"}
+
+class IntegrityError(Exception):
+  """Like sqlalchemy.exc.IntegrityError, whose message has the SQL query and its parameters"""
+
+
+@pytest.fixture
+def signup(auth, dummy_app, monkeypatch):
+  monkeypatch.delenv("QABOARD_DISABLE_SIGNUP", raising=False)
+  monkeypatch.setattr(auth, "User", MagicMock())
+  monkeypatch.setattr(auth, "db_session", MagicMock())
+  auth.User.query.filter_by.return_value.one_or_none.return_value = None
+  def post(form=SIGNUP_FORM):
+    with dummy_app.test_request_context("/api/v1/user/signup/", method="POST", data=form):
+      return auth.signup()
+  return post
+
+
+def assert_no_secrets(text):
+  for secret in ["hunter2-secret", "scrypt:", "new@example.com", "INSERT", "parameters"]:
+    assert secret not in text
+
+
+def test_signup_existing_user_name(auth, signup, monkeypatch, capsys):
+  auth.User.query.filter_by.return_value.one_or_none.return_value = MagicMock()
+  monkeypatch.setattr(auth, "create_user", MagicMock())
+  response, status = signup()
+  assert status == 409
+  assert response.get_json() == {"error": "This user name is already taken"}
+  auth.create_user.assert_not_called()
+
+
+@pytest.mark.parametrize("error, expected_status", [
+  (IntegrityError("(psycopg2.errors.UniqueViolation) duplicate key value violates unique constraint \"users_email_key\"\n"
+                  "[SQL: INSERT INTO users ...] [parameters: {'email': 'new@example.com', 'password': 'scrypt:32768:8:1$abc'}]"), 409),
+  (Exception("connection to server failed, form: user_name=newuser&password=hunter2-secret"), 500),
+])
+def test_signup_errors_dont_leak_secrets(auth, signup, monkeypatch, capsys, error, expected_status):
+  monkeypatch.setattr(auth, "create_user", MagicMock(side_effect=error))
+  response, status = signup()
+  assert status == expected_status
+  assert_no_secrets(response.get_data(as_text=True))
+  assert_no_secrets(capsys.readouterr().out)
+  auth.db_session.rollback.assert_called_once()
+
+
+@pytest.mark.parametrize("form", [{"user_name": "newuser"}, {"password": "hunter2-secret"}, {"user_name": "", "password": "x"}])
+def test_signup_requires_user_name_and_password(auth, signup, monkeypatch, form):
+  monkeypatch.setattr(auth, "create_user", MagicMock())
+  response, status = signup(form)
+  assert status == 400
+  auth.create_user.assert_not_called()
+
+
+def test_signup_creates_users(auth, signup, monkeypatch):
+  user = MagicMock(id=1, email="new@example.com", user_name="newuser", full_name=None, login_type="LOCAL")
+  monkeypatch.setattr(auth, "create_user", MagicMock(return_value=user))
+  response = signup()
+  assert response.get_json()["user_name"] == "newuser"
+  assert "password" not in response.get_json()
+
+
+@pytest.mark.parametrize("form", [{"username": "arthurf", "password": ""}, {"username": "arthurf"}, {"password": "x"}])
+def test_login_refuses_empty_passwords(auth, dummy_app, monkeypatch, form):
+  # With LDAP, a bind with an empty password can succeed as an anonymous bind
+  monkeypatch.setattr(auth, "current_user", MagicMock(is_authenticated=False))
+  monkeypatch.setattr(auth, "auth", MagicMock())
+  with dummy_app.test_request_context("/api/v1/user/auth/", method="POST", data=form):
+    response, status = auth.auth_post()
+  assert status == 403
+  auth.auth.assert_not_called()
+
+
+def test_unauthorized_login_error_has_no_user_info(auth, dummy_app, monkeypatch):
+  monkeypatch.setattr(auth, "is_login_restricted", True)
+  monkeypatch.setattr(auth, "is_authorized_user", lambda user_info: False)
+  monkeypatch.setattr(auth, "session", MagicMock())
+  with dummy_app.test_request_context("/api/v1/user/auth/", method="POST"):
+    info = auth.auth_local("arthurf", "password")
+  assert not info["login_success"]
+  assert info["error"] == auth.not_authorized_error
 
 
 # ==========================================
@@ -273,3 +361,91 @@ def test_github_webhook_signature(webhooks, dummy_app):
       _, status = webhooks.github_webhook()
       assert status == 401
   webhooks.update_project.assert_not_called()
+
+
+# ==========================================
+# The gitlab proxy only fetches from known hosts
+# ==========================================
+
+@pytest.fixture
+def integrations(monkeypatch, tmp_path):
+  """Loads the real backend/api/integrations.py"""
+  monkeypatch.setenv("GITLAB_HOST", "https://gitlab.example.com")
+  monkeypatch.setenv("QABOARD_PROXY_HOSTS", "avatars.example.com, Badges.example.com:8081")
+  monkeypatch.delenv("QABOARD_GITLAB_HOSTS", raising=False)
+  monkeypatch.delenv("GITLAB_AUTH", raising=False)
+  import backend.config
+  monkeypatch.setattr(backend.config, "git_server", "https://gitlab.example.com")
+  monkeypatch.setattr(backend.config, "qaboard_data_dir", tmp_path)
+  path = Path(__file__).parent.parent / "backend" / "api" / "integrations.py"
+  spec = importlib.util.spec_from_file_location("backend.api._integrations_under_test", path)
+  module = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(module)
+  return module
+
+
+def fake_response(status_code=200, headers=None, content=b"<svg/>"):
+  r = MagicMock(status_code=status_code, content=content, headers=headers or {"Content-Type": "image/svg+xml"})
+  r.is_redirect = status_code in (301, 302, 303, 307, 308)
+  return r
+
+
+@pytest.mark.parametrize("url", [
+  "https://gitlab.example.com/uploads/-/system/user/avatar/1/avatar.png",
+  "http://gitlab.example.com:8080/avatar.png",
+  "https://secure.gravatar.com/avatar/abc",
+  "https://avatars.example.com/a.jpg",
+  "https://badges.example.com:8081/coverage.svg",
+])
+def test_gitlab_proxy_allowed_hosts(integrations, url):
+  assert integrations.is_proxy_allowed(url)
+
+
+@pytest.mark.parametrize("url", [
+  "http://localhost:5000/api/v1/health",
+  "http://169.254.169.254/latest/meta-data/",
+  "http://db:5432",
+  "https://gitlab.example.com.attacker.com/x",
+  "https://attacker.com/?gitlab.example.com",
+  "https://gitlab.example.com@attacker.com/",
+  "file:///etc/passwd",
+  "gopher://gitlab.example.com/",
+  "/etc/passwd",
+])
+def test_gitlab_proxy_refuses_other_urls(integrations, dummy_app, monkeypatch, url):
+  get = MagicMock(return_value=fake_response())
+  monkeypatch.setattr(integrations.requests, "get", get)
+  with dummy_app.test_request_context("/api/v1/gitlab/proxy", query_string={"url": url}):
+    response, status = integrations.proxy_gitlab()
+  assert status == 403
+  get.assert_not_called()
+
+
+def test_gitlab_proxy_checks_redirects(integrations, dummy_app, monkeypatch):
+  get = MagicMock(side_effect=[
+    fake_response(302, {"Location": "/avatar/2.png"}),
+    fake_response(302, {"Location": "http://169.254.169.254/latest/meta-data/"}),
+  ])
+  monkeypatch.setattr(integrations.requests, "get", get)
+  with dummy_app.test_request_context("/api/v1/gitlab/proxy", query_string={"url": "https://gitlab.example.com/avatar/1.png"}):
+    response, status = integrations.proxy_gitlab()
+  assert status == 403
+  assert [c.args[0] for c in get.call_args_list] == ["https://gitlab.example.com/avatar/1.png", "https://gitlab.example.com/avatar/2.png"]
+  assert all(c.kwargs["allow_redirects"] is False for c in get.call_args_list)
+
+
+def test_gitlab_proxy_response(integrations, dummy_app, monkeypatch):
+  headers = {"Content-Type": "image/svg+xml", "Set-Cookie": "_gitlab_session=secret", "Content-Encoding": "gzip", "ETag": "abc"}
+  monkeypatch.setattr(integrations.requests, "get", MagicMock(return_value=fake_response(200, headers)))
+  monkeypatch.setitem(integrations.gitlab_cookies, "gitlab.example.com", "session-cookie")
+  with dummy_app.test_request_context("/api/v1/gitlab/proxy", query_string={"url": "https://gitlab.example.com/badge.svg"}):
+    response = integrations.proxy_gitlab()
+  assert response.status_code == 200
+  assert response.get_data() == b"<svg/>"
+  assert integrations.requests.get.call_args.kwargs["cookies"] == {"_gitlab_session": "session-cookie"}
+  assert response.headers["Content-Type"] == "image/svg+xml"
+  assert response.headers["ETag"] == "abc"
+  assert "Set-Cookie" not in response.headers
+  assert "Content-Encoding" not in response.headers
+  assert "sandbox" in response.headers["Content-Security-Policy"]
+  assert response.headers["X-Content-Type-Options"] == "nosniff"

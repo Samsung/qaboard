@@ -24,14 +24,14 @@ import {
   Alignment,
 } from "@blueprintjs/core";
 import { Container } from "./components/layout";
-import { Avatar } from "./components/avatars";
+import { ProjectAvatar } from "./components/avatars";
 import AuthButton from "./components/authentication/Auth"
 import PrivateContent from "./components/authentication/PrivateContent"
 import { updateFavorite } from './actions/projects'
 import { WhatsNewLink } from './releaseNotes/ReleaseNotes'
 import { updateSelected } from './actions/selected'
 import { match_query } from "./utils"
-import { project_avatar_style, git_hostname, default_git_hostname, quota_url } from "./utils"
+import { git_hostname, default_git_hostname, quota_url } from "./utils"
 
 
 class LastCommitAt extends Component {
@@ -75,7 +75,7 @@ class ProjectsList extends Component {
         icon="heatmap"
         title="No projects yet."
         intent={Intent.PRIMARY}
-        description={<p>Learn how to to <a href="https://samsung.github.io/qaboard/docs/installation">get started, and<br/><a href="https://spectrum.chat/qaboard">chat with the maintainers</a> if you run into issues</a>.</p>}
+        description={<p>Learn how to <a href={`${this.props.docs_root}docs/installation`}>get started</a>,<br/>and <a href={this.props.support_url}>ask the maintainers</a> if you run into issues.</p>}
       />
     </div>;
 
@@ -107,20 +107,13 @@ class ProjectsList extends Component {
             let data = details.data || {};
             let git = data.git || {};
             let qatools_config_project = data.qatools_config?.project || {};
+            // from qaboard.yaml, else from GitHub/GitLab
+            const description = qatools_config_project.description || git.description;
             if (details.latest_commit_datetime === undefined || details.latest_commit_datetime === null)
               return <span key={project_id}/>
 
             const project_git_hostname = git_hostname(data.qatools_config) ?? default_git_hostname
             git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
-            let avatar_url = qatools_config_project.avatar_url ?? git.avatar_url
-            if (!!avatar_url) {
-              avatar_url = encodeURI(`/api/v1/gitlab/proxy?url=${avatar_url}`)
-            }
-            const is_subproject = git.path_with_namespace !== project_id;
-            const has_custom_avatar = !!data.qatools_config?.project?.avatar_url
-            const should_tweak_image = is_subproject && !has_custom_avatar;
-            const avatar_style = should_tweak_image ? project_avatar_style(project_id) : null;
-            // console.log(project_id, `is_subproject:${is_subproject}`, `has_custom_avatar:${has_custom_avatar}`, `should_tweak_image:${should_tweak_image}`)
 
             return (
               <Card
@@ -129,17 +122,16 @@ class ProjectsList extends Component {
                 elevation={2}
               >
                 <div style={{'alignSelf': 'center', flex: '0 0 auto', 'marginRight': '10px'}}>
-                  <Avatar
-                    src={avatar_url}
-                    img_style={avatar_style}
+                  <ProjectAvatar
+                    project={project_id}
+                    data={data}
                     href={`/${project_id}`}
-                    alt={git.name || project_id}
                     onClick={() => this.props.dispatch(updateSelected(project_id))}
                   />
                 </div>
                 <div style={{'alignSelf': 'center', 'minWidth': 0}}>
                   <h5 className={Classes.HEADING}><Link onClick={() => this.props.dispatch(updateSelected(project_id))} to={`/${project_id}`}>{project_id}</Link></h5>                  
-                  {git.description && <p style={{marginTop: '5px', marginBottom: '0px'}} className={Classes.TEXT_MUTED}>{qatools_config_project.description || git.description}</p>}
+                  {description && <p style={{marginTop: '5px', marginBottom: '0px'}} className={Classes.TEXT_MUTED}>{description}</p>}
                 </div>
                 <div style={{'alignSelf': 'center', 'marginLeft': 'auto', textAlign: 'right', flex: '0 0 auto'}}>
                   <p style={{marginBottom: '5px'}}>
@@ -203,7 +195,7 @@ class ProjectsList extends Component {
                   />
                 </div>
               <div style={{}}>
-                <Tag intent={!!query ? Intent.PRIMARY : undefined} minimal>{rendered_projects.length} {!!query ? 'filtered ' : ''}projects</Tag>
+                <Tag intent={!!query ? Intent.PRIMARY : undefined} minimal>{rendered_projects.length} {!!query ? 'filtered ' : ''}project{rendered_projects.length === 1 ? '' : 's'}</Tag>
               </div>
             </div>
             {warnings}
@@ -225,6 +217,7 @@ const mapStateToProps = state => {
     projects: state.projects.data,
     user: state.user ?? null,
     docs_root: state.siteConfig.docs_root,
+    support_url: state.siteConfig.support_url,
     quota_url_template: state.siteConfig.quota_url_template,
   }
 }

@@ -3,26 +3,20 @@ id: installation
 title: Installing QA-Board's client
 sidebar_label: Client Installation
 ---
+import SiteInstructions from '@site/src/components/SiteInstructions';
 
 You need to install QA-Board's CLI client: `qa`. It wraps and runs your code.
 
-### Open-source (default)
+<SiteInstructions page="installation" />
+
 ```bash
 pip install qaboard
 ```
 
-### SIRC users
+### With your organization's site package
+Your organization may publish a *site package* that configures `qa` for its server. Install it too, e.g.:
 ```bash
-pip install --upgrade git+ssh://git@gitlab-srv/common-infrastructure/qaboard
-pip install --upgrade 'qaboard-site-sirc @ git+ssh://git@gitlab-srv/common-infrastructure/qaboard#subdirectory=deployments/sirc/cli'
-
-```
-
-### DSK users
-```bash
-pip install --upgrade qaboard
-# use the URL of the QA-Board repository you have access to (there is no `qaboard[dsk]` extra)
-pip install --upgrade 'qaboard-site-dsk @ git+ssh://git@<your-git-server>/<your-qaboard-repo>#subdirectory=deployments/dsk/cli'
+pip install --upgrade 'qaboard-site-mysite @ git+ssh://git@git.example.com/infra/qaboard#subdirectory=deployments/mysite/cli'
 ```
 
 The site packages auto-configure defaults such as the API URL, port, and other site-specific settings. You do not need to manually set environment variables for standard deployments. They can also provide [default `qaboard.yaml` settings for all projects](project-init#site-defaults), like where results are stored or the LSF queue.

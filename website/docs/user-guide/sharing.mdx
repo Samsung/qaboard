@@ -4,7 +4,6 @@ title: Sharing results
 sidebar_label: Sharing
 description: Share exactly what you see with a link, copy paths and images, export files, and report bugs.
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
 
 ## Links are shareable
 Almost everything you select is saved in the page's URL. **Copy the URL from your browser's address bar** and whoever opens it sees the same commits, batches, filters and view as you. The browser's back and forward buttons also work as you'd expect.
@@ -49,7 +48,10 @@ Results live on a shared storage, so you often want a path rather than a link:
 ## Exporting files
 Above the cards of the **Visualizations** and **Output Files** views, **Export** gathers the files matching a pattern from all the (filtered) runs, new and reference, into one directory:
 
-<img alt="Exporting files" src={useBaseUrl('img/export-files-viz.jpg')} />
+<Shot
+  id="commit/export"
+  caption="Export gathers the PNG files of the 4 filtered runs into one folder, and shows its Windows and Linux paths."
+/>
 
 1. Type a pattern, like `*.png`, `*.txt` or `**/*.jpg` (`**/` matches any number of folders).
 2. Click **Export**. The export directory's Windows path is copied to your clipboard, and both the Windows and Linux paths are shown.

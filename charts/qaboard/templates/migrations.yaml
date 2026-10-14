@@ -21,6 +21,11 @@ spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets: {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.demoData.enabled }}
+      # The demo projects' database, before the migrations create empty tables (without `helm install --wait`, this
+      # Job can start before the backend's init container restores it)
+      initContainers: {{- include "qaboard.demoDataRestore" (list . "database") | nindent 8 }}
+      {{- end }}
       containers:
         - name: migrations
           image: {{ include "qaboard.image" (list . "backend") }}

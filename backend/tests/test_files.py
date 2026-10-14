@@ -123,7 +123,7 @@ def test_is_listable(tmp_path, monkeypatch):
 @pytest.fixture(scope="module")
 def auth():
   """Loads the real backend/api/auth.py (conftest.py replaces it by a mock)."""
-  stubs = {name: MagicMock() for name in ("ldap", "simplejson")}
+  stubs = {name: MagicMock() for name in ("ldap", "ldap.filter", "simplejson")}
   previous = {name: sys.modules.get(name) for name in stubs}
   sys.modules.update(stubs)
   models = sys.modules['backend.models']

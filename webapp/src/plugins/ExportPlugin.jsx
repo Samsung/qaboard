@@ -1,7 +1,6 @@
 import React from "react";
 import axios from "axios";
 const { get } = axios;
-import copy from 'copy-to-clipboard';
 
 import { linux_to_windows, are_on_same_filesystem, extract_drive_and_folder } from '../utils'
 
@@ -17,6 +16,7 @@ import {
 } from "@blueprintjs/core";
 
 import { toaster } from "../toaster"
+import { copyWithToast } from "../utils/clipboard"
 
 
 class ExportPlugin extends React.Component {
@@ -64,7 +64,7 @@ class ExportPlugin extends React.Component {
     get('/api/v1/export/', {params})
     .then(response => {
       const windows_export_dir = linux_to_windows(response.data.export_dir);
-      copy(windows_export_dir);
+      copyWithToast(windows_export_dir, { what: 'the export directory' });
       this.setState({
         is_loading: false,
         linux_export_dir: response.data.export_dir,
@@ -73,11 +73,6 @@ class ExportPlugin extends React.Component {
         nb_outputs_exported: response.data.nb_outputs,
         errors: response.data.errors,
       })
-      toaster.show({
-        message: "Export directory copied to clipboard!",
-        intent: Intent.SUCCESS,
-      });
-
     })
     .catch(error => {
         const error_str = error?.response?.data?.error ?? JSON.stringify(error)

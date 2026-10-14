@@ -1,0 +1,291 @@
+---
+id: roadmap
+title: Where QA-Board is going
+sidebar_label: Roadmap
+description: The principles behind QA-Board and what we're building next, with the status of each item.
+---
+<!--
+The statuses on this page are a proposal: the maintainers curate them, here and on the landing page.
+Shipped and Experimental items describe what works on master today (check the code, see website/STYLE.md) and link
+to their docs. No dates, no promised timelines.
+-->
+import {StatusLegend} from '@site/src/components/StatusBadge';
+import RoadmapItem from '@site/src/components/RoadmapItem';
+
+QA-Board started at Samsung Israel R&D Center in 2018. It's still the central platform there, for about 50 projects
+in production. This page says where we're taking it: the principles we hold to, then what we're building, theme by
+theme. Each item has a status:
+
+<StatusLegend />
+
+Nothing here has a date. If an item matters to your team, [tell us](#how-to-weigh-in).
+
+## Principles
+- **Your data stays yours.** QA-Board is open source (Apache 2.0) and self-hosted. Your results stay on your
+  storage and your network, including networks without internet access.
+- **Look at outputs, not only numbers.** A metric tells you something changed. The images, plots, logs and flame
+  graphs tell you what. Every view should take you from a number to the outputs behind it.
+- **Fit existing workflows.** Your code, CI, cluster and other tools stay where they are. QA-Board shouldn't need
+  to be the entrypoint of your code.
+- **Humans and agents review quality together.** Coding agents write a growing share of changes. They should run
+  the same tests, read the same Metrics Diff and meet the same targets as people, and a person decides what ships.
+
+## Compare more than two
+Today the commit page compares a new commit with one reference: a commit, a branch or a milestone (see
+[Comparing results](/docs/user-guide/comparing-results)). History follows metrics across commits. Many questions
+need more than two sides: which of five models handles night scenes best, or whether quality drifted over the last
+releases.
+
+<RoadmapItem status="next" title="N-way comparisons">
+Pick N commits, batches or tuning runs. See each input's outputs in a grid with synced zoom, metric tables with one
+column per run, and plots overlaid on one graph.
+</RoadmapItem>
+
+<RoadmapItem status="next" title="Compare with several milestones at once">
+"This commit vs the last 5 milestones" in one view, to catch a slow drift that a comparison with the latest
+milestone hides.
+</RoadmapItem>
+
+<RoadmapItem status="next" title="Saved comparison views">
+Name a comparison and find it again later, with your team. Today you share a view by its URL (see
+[Sharing](/docs/user-guide/sharing)); saved views give it a name and a place in the project.
+</RoadmapItem>
+
+## Deep learning
+Training trackers follow loss curves. QA-Board shows what a model does on your inputs, and teams use both (see
+[Deep learning](/docs/deep-learning)). We want training and evaluation results side by side, without giving up the
+tools you train with.
+
+<RoadmapItem status="shipped" title="Tuning analysis">
+After a tuning experiment, the **Analysis** view shows the sensitivity to each parameter, a parallel coordinates
+plot of parameters and metrics, and the trade-off between two metrics. See
+[Tuning from the web app](/docs/tuning-from-the-webapp).
+</RoadmapItem>
+
+<RoadmapItem status="experimental" title="Automated tuning">
+`qa optimize` searches for the parameters that optimize an objective, with scikit-optimize, and plots its
+convergence. Its configuration and solver may change. See [Auto-optimization](/docs/auto-optimization).
+</RoadmapItem>
+
+<RoadmapItem status="next" title="Overlay plots from N runs">
+The Plotly figures that runs write (`*.plotly.json`) are already overlaid for the new and reference runs (see
+[Visualizations](/docs/visualizations)). Overlay them from N runs: convergence curves, precision-recall curves,
+latency distributions.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="Step-indexed metrics">
+Log metrics per step or epoch, not only final values, so that each run carries its training curve.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="Parameters across any runs">
+Hyper-parameter tables and parallel coordinates for any set of runs, not only for the runs of one tuning experiment.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="Evaluate every checkpoint">
+Run your evaluation batch on each checkpoint of a training run, and follow quality as training goes.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="Dataset slices">
+Metrics per slice of your inputs (night, rain, small objects), to see where a model got better and where it got
+worse.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="Confusion-matrix viewer">
+Compare the confusion matrices of two or more runs, cell by cell.
+</RoadmapItem>
+
+## Log from your code
+Today you wrap your code with `qa`: `qa run` for one input, `qa batch` for many (see
+[Running your code](/docs/running-your-code)). Some code doesn't fit a wrapper: training loops, notebooks, test
+suites.
+
+<RoadmapItem status="next" title="A Python SDK">
+`qaboard.init()`, `run.log({...})`, `run.log_image()` and `run.finish()`, an API in the style of W&B's, from
+training loops, notebooks and pytest, without `qa run`. These runs show in the web app like any other.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="A wandb.log shim">
+Mirror your existing `wandb.log` calls to QA-Board, without changing your code.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="Importers">
+Bring past runs from W&B, MLflow or TensorBoard into QA-Board, to compare them with new ones.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="MLflow tracking API">
+We're evaluating whether QA-Board should accept MLflow's tracking API, so that MLflow clients can log to it.
+</RoadmapItem>
+
+## Cloud-native
+Today `qa` writes results to a storage that the server mounts at the same path, like an NFS share. That works well
+on-premises, next to a cluster. It leaves out GitHub-hosted runners and clusters without shared volumes.
+
+<RoadmapItem status="shipped" title="Published images and Helm chart">
+CI tests every image, including a Helm install on Kubernetes that runs a real `qa batch`, then publishes them to
+`ghcr.io/samsung/qaboard`, with the chart at `oci://ghcr.io/samsung/charts/qaboard`. See
+[Kubernetes](/docs/backend-admin/kubernetes).
+</RoadmapItem>
+
+<RoadmapItem status="next" title="HTTP upload of outputs">
+`qa` uploads a run's files to the server, which stores them where shared-storage runs would be. GitHub-hosted
+runners, laptops off the VPN and pods without a shared volume can save results, and the web app shows them like any
+other.
+</RoadmapItem>
+
+<RoadmapItem status="next" title="Token-authenticated ingest">
+The API that saves results is unauthenticated today, so the server must stay on a trusted network. Tokens scoped to
+a project will make it safe to reach from outside.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="Object storage for results">
+Keep results in S3, R2, GCS or MinIO instead of a file share. The upload protocol is designed for it, and Cantaloupe,
+the image server, can read from S3.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="A Kubernetes Job runner">
+Run each run of a `qa batch` as a Kubernetes Job, next to the existing runners: local, LSF, Celery, Dask and
+Jenkins.
+</RoadmapItem>
+
+## Enterprise
+QA-Board already serves many teams in one company. These items are about doing that with less admin work.
+
+<RoadmapItem status="shipped" title="LDAP and SAML sign-in">
+Sign in with your directory or your SSO, block anonymous users, and restrict projects or folders by user name, email
+or SSO attribute. See [User management](/docs/backend-admin/user-management).
+</RoadmapItem>
+
+<RoadmapItem status="shipped" title="High availability and backups">
+On Kubernetes, the chart runs several backend and nginx replicas on different nodes, with rolling upgrades, and
+PostgreSQL with automatic failover through CloudNativePG. Back up with CloudNativePG's continuous backups or a daily
+`pg_dump`. See [Kubernetes](/docs/backend-admin/kubernetes#database).
+</RoadmapItem>
+
+<RoadmapItem status="shipped" title="Air-gapped installs">
+Mirror the images to your own registry (`QABOARD_IMAGE` with Docker Compose, `image.repository` in the chart). The
+web app, its docs and the image server all run on your network. See
+[Kubernetes](/docs/backend-admin/kubernetes#on-a-real-cluster).
+</RoadmapItem>
+
+<RoadmapItem status="next" title="API tokens page">
+Create, list and revoke your API tokens in the web app, with scopes and expiry dates. It comes with
+token-authenticated ingest. Today you create tokens with the HTTP API (see [APIs](/docs/apis#authentication)).
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="OIDC single sign-on">
+Sign in with any OpenID Connect provider, next to LDAP and SAML.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="Users, groups and project roles">
+An admin page for users and groups, and roles per project (who can read, run or administer it), instead of a YAML
+file on the server.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="SCIM provisioning">
+Create and remove users and groups from your identity provider.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="Audit log">
+Who ran, deleted or changed what, and when.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="Retention and quotas in the web app">
+Set how long results are kept, and how much storage each project can use, from the web app. Today retention is set
+per project in *qaboard.yaml* (see [Deleting old data](/docs/storage/deleting-old-data)).
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="Usage analytics">
+Which projects and views teams use, to see where QA-Board helps and where it doesn't.
+</RoadmapItem>
+
+## Collaboration
+Today you share any view by its URL, and shared milestones keep the references worth keeping, with a label and notes
+(see [Milestones](/docs/user-guide/comparing-results#milestones)). The review itself still happens in chat, away
+from the outputs.
+
+<RoadmapItem status="exploring" title="Comments on outputs">
+Pin a comment to a region of an image or to a line of a log, and see it on the commit page.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="Approve as the new reference">
+Review a commit's results and approve them as the new reference, with who approved and when.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="Notifications">
+A message in Slack, Teams or by email when a batch finishes or a metric regresses.
+</RoadmapItem>
+
+## Agents
+A coding agent that can run your tests can also run `qa batch` and read the results. When an agent says a change is
+better, it should be checked like a person's change: same batches, same Metrics Diff, same targets. These items
+make that the default.
+
+<RoadmapItem status="shipped" title="Bit-accuracy checks in CI">
+`qa check-bit-accuracy` fails the CI job when outputs differ from the reference's, and prints a link to the
+differences. See [Bit accuracy](/docs/bit-accuracy).
+</RoadmapItem>
+
+<RoadmapItem status="experimental" title="Quality gate" id="quality-gate">
+`qa gate` fails CI when quality regresses against the reference: rules per metric (a maximum regression, an absolute
+floor, a limit for each test), a summary in the CI job, and a commit status that links to the Metrics Diff. See
+[Quality gate](/docs/quality-gate).
+</RoadmapItem>
+
+<RoadmapItem status="next" title="OpenAPI spec and JSON output">
+A documented HTTP API, and JSON output from `qa` commands, so that scripts and agents read results without parsing
+text.
+</RoadmapItem>
+
+<RoadmapItem status="next" title="An MCP server, read-only first">
+`qa mcp` lets agents read results, Metrics Diffs, failing tests and image crops. Starting batches comes later.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="An agent kit">
+An `AGENTS.md` and skill template for your project, telling agents to run the batch and read the Metrics Diff before
+they claim a change is better.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="Runs labeled by agents">
+Agents mark the runs they started, with what they changed and why, so reviewers see which results came from an
+agent.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="Agents proposing tuning experiments">
+An agent reads a tuning analysis and proposes the next experiment, for a person to start.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="Metrics Diff summaries on pull requests">
+A comment on each pull request with the metrics that changed, and links to the outputs.
+</RoadmapItem>
+
+## Polish
+Smaller changes to the web app that you'd notice every day.
+
+<RoadmapItem status="next" title="Dark mode">
+A dark theme for the web app.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="Command palette">
+Jump to a project, branch, commit or view from the keyboard.
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="Date ranges in the URL">
+Share the commit list and History for a date range. Today you add `from` and `to` to the URL yourself (see
+[Sharing](/docs/user-guide/sharing)).
+</RoadmapItem>
+
+<RoadmapItem status="exploring" title="Faster huge batches">
+Commit pages and Metrics Diffs that stay fast on very large batches.
+</RoadmapItem>
+
+## How to weigh in
+These statuses change as we learn what teams need.
+- **Tell us what you need.** Open an [issue on GitHub](https://github.com/Samsung/qaboard/issues): what you're
+  trying to do, your stack (CI, runners, storage), and what you use today. A thumbs-up on an existing issue counts
+  as a vote.
+- **Discuss the direction.** Start or join a [discussion](https://github.com/Samsung/qaboard/discussions) about a
+  theme or an item. Link an item with its anchor, like `/docs/roadmap#n-way-comparisons`.
+- **Contribute.** See [CONTRIBUTING.md](https://github.com/Samsung/qaboard/blob/master/CONTRIBUTING.md). For an
+  Exploring item, start with a discussion about its design.
+
+A public project board, to follow these items and vote on them, is coming.

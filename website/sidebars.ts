@@ -28,6 +28,41 @@ const sidebars: SidebarsConfig = {
 
   // One sidebar per audience, see the navbar in docusaurus.config.ts
 
+  // Everyone's first stop: try QA-Board, wrap a project, see what it's for. The navbar's "Docs" and "Use cases"
+  start: [
+    {
+      type: 'category',
+      label: 'Get started',
+      collapsible: false,
+      items: ['get-started/quickstart', 'get-started/tutorial', 'get-started/concepts'],
+    },
+    'tour',
+    {
+      type: 'category',
+      label: 'Use cases',
+      collapsible: false,
+      link: {
+        type: 'generated-index',
+        slug: '/use-cases',
+        title: 'Use cases',
+        description: 'QA-Board on demo projects of a fictional robotics company: the problem, the workflow, what you see in the web app, and the configuration that produces it.',
+      },
+      items: ['use-cases/image-quality', 'use-cases/serving-latency', 'use-cases/detection-eval'],
+    },
+    // The other sidebars (links, so these pages keep their own sidebar)
+    {
+      type: 'category',
+      label: 'More docs',
+      collapsible: false,
+      items: [
+        {type: 'link', label: 'User guide', href: '/docs/user-guide/overview'},
+        {type: 'link', label: 'Project integration', href: '/docs/introduction'},
+        {type: 'link', label: 'Admin', href: '/docs/deploy'},
+        {type: 'link', label: 'Roadmap', href: '/docs/roadmap'},
+      ],
+    },
+  ],
+
   // People who look at results in the web app
   userGuide: [
     "user-guide/overview",
@@ -44,7 +79,7 @@ const sidebars: SidebarsConfig = {
 
   // Project integration: wrapping code with qa, qaboard.yaml, runners, CI
   docs: {
-    "Getting Started": [
+    "Project setup": [
         "introduction",
         "installation",
         "project-init",
@@ -60,6 +95,7 @@ const sidebars: SidebarsConfig = {
         "using-the-qa-cli",
         "references-and-milestones",
         "tuning-from-the-webapp",
+        "auto-optimization",
         {
             type: 'category',
             label: 'Distributed Task Queues',
@@ -82,14 +118,13 @@ const sidebars: SidebarsConfig = {
         },
         "triggering-third-party-tools",
         "ci-integration",
+        "quality-gate",
         "deep-learning",
         "debugging-runs-with-an-IDE",
         "metadata-integration-external-databases",
         "bit-accuracy",
         "faq",
         "apis",
-        // "tuning-workflows",
-        "dag-pipelines",
         // "history"
         "monorepo-subprojects",
         // "docker-integration",
@@ -115,10 +150,8 @@ const sidebars: SidebarsConfig = {
         "deploy",
         "backend-admin/deployment",
         "backend-admin/kubernetes",
-        "backend-admin/troubleshooting",
-        "backend-admin/host-upgrades",
         "backend-admin/user-management",
-        "backend-admin/getting-SSL-certiticates-from-IT",
+        "backend-admin/troubleshooting",
     ]
   }
 };

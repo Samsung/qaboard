@@ -13,6 +13,7 @@ import {
 import { Section } from "./layout";
 import { PlatformTag, ConfigurationsTags, ExtraParametersTags, RunBadges, RunBadge, MismatchTags } from './tags'
 import { metric_formatter, percent_formatter, MetricHeader } from "./metrics"
+import { diff_cell } from "../utils/compare"
 
 
 
@@ -49,8 +50,8 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
 
   const is_numeric = !isNaN(metric_new) || !isNaN(metric_ref)
   if (is_numeric) {
-    let delta = metric_new - metric_ref;
-    let delta_relative = delta / (Math.abs(metric_ref) + 0.00001);
+    // The same numbers as GET /api/v1/commit/<sha>/compare, see utils/compare.js
+    const { delta, delta_relative } = diff_cell(metric_new, metric_ref);
     let quality = metric.smaller_is_better ? (0.5 - delta_relative/2) : (0.5 + delta_relative/2);
     quality = Math.max(Math.min(quality, 0.9), 0.08)
     return <td style={{ background: metric_ref && interpolateRdYlGn(quality) }}>
@@ -132,7 +133,7 @@ const TableCompare = ({
           <tr>
             <th scope="col">
               <span className={Classes.TEXT_MUTED}>
-                {outputs.length} runs
+                {outputs.length} run{outputs.length === 1 ? '' : 's'}
               </span>
             </th>
             {metrics_.map(m => (
@@ -193,7 +194,7 @@ const TableKpi = ({
               <th colSpan={new_batch.metrics_with_refs.has(m.key) ? 2 : 1} key={m.key}>
                 <MetricHeader condensed {...m}/>
                 {(!!m.target || !!m.suffix) && <span className={Classes.TEXT_MUTED}>
-                  [{!!m.target ? metric_formatter(m.target * m.scale, m) : ''}{m.suffix}]
+                  [{!!m.target ? <>{metric_formatter(m.target * m.scale, m)}{m.suffix}</> : m.suffix.trim()}]
                 </span>}
               </th>
             ))}
@@ -201,15 +202,16 @@ const TableKpi = ({
           <tr>
             <th scope="col">
               <span className={Classes.TEXT_MUTED}>
-                {outputs.length} runs
+                {outputs.length} run{outputs.length === 1 ? '' : 's'}
               </span>
             </th>
+            {/* a cell per column of the rows below: metrics without references have one, empty */}
             {metrics_.map(m => (
               <Fragment key={m.key}>
-                {new_batch.metrics_with_refs.has(m.key) && <>
+                {new_batch.metrics_with_refs.has(m.key) ? <>
                   <th scope="col">{label_new}</th>
                   <th scope="col">{label_ref}</th>
-                </>}
+                </> : <th scope="col" aria-label={label_new} />}
               </Fragment>
             ))}
           </tr>

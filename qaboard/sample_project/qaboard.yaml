@@ -144,6 +144,18 @@ bit_accuracy: {}
   # failed_ci: qa-tests
 
 
+# Experimental, may change without notice: `qa gate` fails the CI when the results regress vs a reference.
+# See the docs' "Quality gate" page.
+# gate:
+#   reference: master     # a branch, a shared milestone or a commit. Default: project.reference_branch
+#   batches: [default]    # the labels of the batches to check. Default: the CI batch
+#   rules:                # "worse" depends on the metrics' smaller_is_better
+#     - {metric: loss, max_regression: 5%}            # the median over the runs vs the reference's
+#     - {metric: loss, per_test_max_regression: 20%}  # each run vs its reference run
+#     - {metric: loss, max: 0.5}                      # an absolute limit for the median (or min:)
+#   max_failed_runs: 0
+#   require_bit_accuracy: false
+
 
 # the web application can give users buttons to trigger gitlabCI/jenkins builds or webhooks
 # http://qa-docs/docs/triggering-third-party-tools

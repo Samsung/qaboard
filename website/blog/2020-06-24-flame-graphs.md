@@ -145,5 +145,3 @@ outputs:
 ```
 
 <img alt="Flame graph viewer" src={useBaseUrl('img/slides/flame-graphs.jpg')} />
-
-<img alt="Flame graph viewer" src="/img/slides/flame-graphs.jpg" />

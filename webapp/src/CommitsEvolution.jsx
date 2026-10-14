@@ -21,6 +21,7 @@ import { controls_defaults, updateQueryUrl } from "./viewers/controls";
 import { BitAccuracyForm } from "./viewers/bit_accuracy/utils";
 import { is_image } from "./viewers/images/utils"
 import { hash_color, match_query, average, median } from "./utils";
+import { yAxisSuffix, hasAllMetrics, queryFlag } from "./evolutionAxis";
 import { toaster } from "./toaster"
 import CommitRow from "./components/CommitRow";
 
@@ -39,6 +40,8 @@ let default_layout = {
   yaxis: {
     showgrid: false,
     showline: false,
+    // the margin grows to fit the tick labels: the top one has the unit, e.g. "1000 ms"
+    automargin: true,
   },
   hovermode: "closest",
   hoverinfo: "y",
@@ -48,19 +51,6 @@ let default_layout = {
   legend: {
     "y": 0.01,
   },
-};
-
-
-const has_all_metrics = (commit, batch_label, metrics, aggregation) => {
-  if (commit.batches[batch_label] === undefined)
-    return false
-  for (var index in metrics) {
-    let metric = metrics[index];
-    let metric_value = commit.batches[batch_label].aggregated_metrics[`${metric}_${aggregation}`];
-    if (metric_value === undefined && metric_value === null)
-      return false;
-  }
-  return true;
 };
 
 
@@ -228,7 +218,7 @@ class CommitsEvolutionPerTest extends React.Component {
       this.props.shown_batches.forEach(label => {
         const commits_with_batch  = per_output_granularity
           ? commits.filter(c => !!c.batches[label])
-          : commits.filter(c => has_all_metrics(c, label, metrics, shown_aggregation));
+          : commits.filter(c => hasAllMetrics(c, label, metrics, shown_aggregation));
         if (commits_with_batch.length > 0) {
           let y;
           if (!per_output_granularity) {
@@ -410,7 +400,7 @@ class CommitsEvolutionPerTest extends React.Component {
       height: !!aggregation ? 180 : 250,
       shapes: [],
     };
-    layout.yaxis.ticksuffix = metric.suffix || '';
+    layout.yaxis.ticksuffix = yAxisSuffix(metric, relative);
     layout.yaxis.showticksuffix = 'last';
     layout.yaxis.type = metric.plot_scale || 'linear'
     if (!relative && !!threshold)
@@ -632,8 +622,8 @@ class CommitsEvolution extends Component {
       selected_metric: params.get("selected_metric") || default_metric,
       selected_aggregation: params.get("selected_aggregation") || "median",
 
-      breakdown_per_test: params.get("breakdown_per_test") === 'true' || this.props.default_breakdown_per_test,
-      relative: params.get("relative")==='true' || this.props.default_breakdown_per_test !== true,
+      breakdown_per_test: queryFlag(params, "breakdown_per_test", this.props.default_breakdown_per_test),
+      relative: queryFlag(params, "relative", this.props.default_breakdown_per_test !== true),
       show_bit_accuracy: params.get("show_bit_accuracy")==='true',
 
       // file viewer controls

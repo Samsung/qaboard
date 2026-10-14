@@ -12,6 +12,10 @@ if [ -d /tmp/deployment/nginx/conf.d/ ]; then
   cp -rL /tmp/deployment/nginx/conf.d/* /etc/nginx.new/conf.d/
 fi
 envsubst < /etc/nginx.new/nginx.conf.template > /etc/nginx.new/nginx.conf
+# Without IPv6 (disabled in the kernel), nginx can't start with "listen [::]:80"
+if [ ! -e /proc/net/if_inet6 ]; then
+  sed -i '/^\s*listen\s*\[::\]/d' /etc/nginx.new/conf.d/*.conf
+fi
 if [ -d /etc/nginx ]; then mv /etc/nginx /etc/nginx.old; fi
 mv /etc/nginx.new /etc/nginx
 

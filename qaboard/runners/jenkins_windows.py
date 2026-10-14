@@ -1,4 +1,4 @@
-"""
+r"""
 Makes it possible to send qa runs on Windows hosts.
 
 ## How to use this?

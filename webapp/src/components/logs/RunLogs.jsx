@@ -1,14 +1,14 @@
 import React, { memo, useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import { useInView } from "react-intersection-observer";
-import { AnchorButton, Button, Classes, Collapse, Colors, PopoverNext, Tooltip } from "@blueprintjs/core";
+import { Button, Classes, Collapse, Colors, PopoverNext } from "@blueprintjs/core";
 
 import { hidden_keys, ConfigurationsTags, ExtraParametersTags, PlatformTag, RunActionsMenu, RunBadges, StatusTag } from "../tags";
 import { LogViewer } from "./LogViewer";
 import { LsfReport, LsfTag } from "./LsfReport";
 import { fetchLsfReport, lsfKilled } from "./lsf";
-import { fetchRange } from "./fetchRange";
-import { folder_url } from "../../utils/paths";
+import { fileExists } from "./fetchRange";
+import { DirectoryActions } from "./DirectoryActions";
 
 
 // A list of runs, each with its logs
@@ -147,9 +147,11 @@ const RunDetails = ({ output }) => {
 }
 
 
-const EMPTY_HINTS = {
+// Why a finished run has no log
+const emptyHints = output => ({
+  "log.txt": output.deleted ? "The run's outputs were deleted." : "The run may have failed before it started, or its files were deleted.",
   "log.lsf.txt": "Only runs on LSF have it.",
-}
+})
 
 
 /**
@@ -177,10 +179,10 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, disp
     const controller = new AbortController()
     const url = `${base}/log.lsf.txt`
     const check = is_failed
-      ? fetchLsfReport(url, { signal: controller.signal })
-      : fetchRange(url, 'bytes=0-0', { signal: controller.signal }).then(() => null)
+      ? fetchLsfReport(url, { signal: controller.signal }).then(report => ({ status: 'present', report }))
+      : fileExists(url, { signal: controller.signal }).then(exists => ({ status: exists ? 'present' : 'missing', report: null }))
     check
-      .then(report => setLsf({ status: 'present', report }))
+      .then(setLsf)
       .catch(error => {
         if (!controller.signal.aborted)
           setLsf(lsf => error.status === 404 ? { status: 'missing', report: null } : lsf)
@@ -199,8 +201,8 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, disp
   useEffect(() => {
     if (!expanded || !base) return
     const controller = new AbortController()
-    fetchRange(`${base}/log.dask.txt`, 'bytes=0-0', { signal: controller.signal })
-      .then(() => setHasDaskLog(true))
+    fileExists(`${base}/log.dask.txt`, { signal: controller.signal })
+      .then(exists => { if (exists) setHasDaskLog(true) })
       .catch(() => {})
     return () => controller.abort()
   }, [expanded, base])
@@ -240,9 +242,8 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, disp
         ? <span className={`summary ${Classes.TEXT_MUTED}`} title={summary}>{summary}</span>
         : <span className="summary" />}
       <span className="actions">
-        {!!base && <Tooltip content="Open the output directory" hoverOpenDelay={300}>
-          <AnchorButton size="small" variant="minimal" icon="folder-shared-open" aria-label="Open the output directory" href={folder_url(base)} target="_blank" rel="noopener noreferrer" />
-        </Tooltip>}
+        {/* the batch's section has them */}
+        {!!base && !is_batch && <DirectoryActions url={base} />}
         {!is_batch && !!output.id && <PopoverNext placement="bottom-end" content={<RunActionsMenu output={output} project={project} commit={commit} dispatch={dispatch} />}>
           <Button size="small" variant="minimal" icon="more" aria-label="Run actions" />
         </PopoverNext>}
@@ -257,7 +258,7 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, disp
           file={file}
           onFileChange={setFile}
           live={is_pending}
-          emptyHint={EMPTY_HINTS}
+          emptyHint={emptyHints(output)}
         />
       </Content>
     </Collapse>
