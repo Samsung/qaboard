@@ -33,5 +33,9 @@ highlights:                # 0 to 4, the changes worth a card. Most important fi
 ## Documentation
 - New [user guide](/docs/user-guide/overview) ...
 
+## Performance
+- Open ... in 0.5 s instead of 5 s ...
+
 ## Fixes
+<!-- With many fixes, group them by area under ### headings (e.g. ### Commit page and viewers, ### CLI) -->
 - Fixed ...

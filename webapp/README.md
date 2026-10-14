@@ -43,8 +43,11 @@ To connect which backend you connect to (e.g. not localhost but maybe the produc
 ## How does it work?
 - The toolchain is [Vite](https://vite.dev) (dev server and bundler), [Vitest](https://vitest.dev) (tests) and [oxlint](https://oxc.rs) (linting). Files with JSX use the `.jsx` extension.
 - What is the tech stack?
-  * Components: [react](https://reactjs.org/)
+  * Components: [react](https://react.dev/), function components and hooks, optimized by the [React Compiler](https://react.dev/learn/react-compiler)
   * UI/CSS framework: [blueprint](http://blueprintjs.com)
+  * Data from the API: [TanStack Query](https://tanstack.com/query) (caching, deduplication, background refresh), through a small `fetch` client (*src/api/*)
+  * What is shown (project, commits compared, batches, filters, views...) is derived from the URL (*src/selection.js*): links can be shared, back/forward work
+  * Users' preferences (favorites, private milestones, tuning forms): [zustand](https://zustand.docs.pmnd.rs), saved in localStorage (*src/stores/*)
   * Visualization: we leverage quality libraries like [plotly](https://plot.ly/javascript/), the [Monaco Editor](https://microsoft.github.io/monaco-editor/), or [ThreeJS](https://threejs.org/)...
 - What is the entrypoint?
   * *index.html* loads *src/index.jsx*, which renders *src/App.jsx*
@@ -53,7 +56,9 @@ To connect which backend you connect to (e.g. not localhost but maybe the produc
 
 ## Development
 - You can change in *vite.config.js* which backend the application should talk to (defaults to *http://localhost:5151*). It is useful if the features you are developping require backend API changes.
-- It's best to install the [react developper tools](https://chrome.google.com/webstore/detail/react-developer-tools/fmkadmapgofadopljbjfkapdkoienihi), maybe even the [redux DevTools](https://chrome.google.com/webstore/detail/redux-devtools/lmhkpmbekcpmknklioeibfkpmmfibljd).
+- It's best to install the [react developper tools](https://chrome.google.com/webstore/detail/react-developer-tools/fmkadmapgofadopljbjfkapdkoienihi). In development, the TanStack Query devtools (bottom-left button) show what's fetched and cached.
+- Components must follow the [Rules of React](https://react.dev/reference/rules) (pure render, never mutate props or data from queries): the React Compiler relies on it. `REACT_COMPILER_LOG=1 npm run build` lists components it couldn't compile.
+- Performance: `npm run build && npm run bench` loads big commits (1000 outputs, 300 commits) in Chromium and reports load times, main-thread blocking and memory (*e2e/perf/*).
 
 ## Main components
 - *CiCommitList.jsx*: lists the latests commits for a given project
@@ -61,7 +66,8 @@ To connect which backend you connect to (e.g. not localhost but maybe the produc
 - *viewers/OutputCard.jsx*: wraps the output visualizations (images, pointclouds, 6dof....)
 
 ## Data model
-It comes straight from the backend API and flows down the components tree.
+It comes from the backend API (*src/api/queries.js*), is normalized once when fetched (*src/api/normalize.js*), and never modified afterwards.
+Hooks in *src/hooks.js* combine it with the selection from the URL, e.g. `useComparison()` gives the new/reference commits and their batches, filtered and matched (*src/selectors/batches.js*).
 
 > Take a look at the react developper tools to investigate what happens.
 

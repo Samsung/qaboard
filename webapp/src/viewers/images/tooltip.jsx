@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
-import axios from 'axios'
+import { useState, useEffect } from "react";
 import { debounce } from "es-toolkit/compat";
 
+import { http, isAbort } from "../../api/http";
 import {
     Tag,
     Classes,
@@ -72,22 +72,21 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
     // Created once (lazy state initializer) so that the debounce applies across renders.
     // The request to cancel lives in this closure: state would be stale inside the debounced function.
     const [pixel_fetcher] = useState(() => {
-        let cancel_source = null;
+        let controller = null;
         const fetch = debounce( (_x, _y, _image_url) => {
             // console.log(`current ${x} ${y}`);
             // console.log(`new  ${_x} ${_y}`);
             const fetchData = async () => {
                 setLoading(true)
-                if (!!cancel_source)
-                    cancel_source.cancel();
-                const new_cancel_source = axios.CancelToken.source()
-                cancel_source = new_cancel_source
+                controller?.abort()
+                const new_controller = new AbortController()
+                controller = new_controller
                 try {
                     const params = {
                         x: _x, y: _y,
                         image_url: _image_url,
                       }
-                    const result = await axios.get("/api/v1/output/image/pixel", {params, cancelToken: new_cancel_source.token})
+                    const result = await http.get("/api/v1/output/image/pixel", {params, signal: new_controller.signal})
                     const value = Array.isArray(result.data.value) ? result.data.value : [result.data.value]
                     setPixel({
                         x: _x, y: _y,
@@ -101,7 +100,7 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
                     setLoading(false)
                     setError(null)
                 } catch(e) {
-                    if (!axios.isCancel(e)) {
+                    if (!isAbort(e)) {
                         console.log(e)
                         setLoadedOnce(true)
                         setLoading(false)
@@ -116,7 +115,7 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
         // drop the pending fetch and cancel the request in flight
         const cancel = () => {
             fetch.cancel()
-            cancel_source?.cancel()
+            controller?.abort()
         }
         return { fetch, cancel }
     });

@@ -5,6 +5,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useState } from 'react';
 
+import { toaster } from '../../../toaster';
 import { LogViewer, formatBytes } from '../LogViewer';
 
 
@@ -130,7 +131,8 @@ describe('LogViewer', () => {
       fireEvent.click(screen.getByLabelText('Copy the logs'))
       expect(copied).toHaveLength(1)
       expect(copied[0]).toMatch(/^Outputs: \/s\/run\nloading <model>\nframe 1/)
-      await screen.findByText('Copied 6 lines')
+      // the toaster is mocked in setupTests.js
+      await waitFor(() => expect(toaster.show).toHaveBeenCalledWith(expect.objectContaining({ message: 'Copied 6 lines' }), 'copy'))
     } finally {
       document.execCommand = original
     }

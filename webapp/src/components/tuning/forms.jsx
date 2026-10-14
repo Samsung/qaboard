@@ -1,11 +1,9 @@
-import React, { Component } from "react";
-import { connect } from 'react-redux'
-import axios from "axios";
-const { post } = axios;
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
-import { updateTuningForm } from "../../actions/tuning";
-import { fetchCommit } from "../../actions/commit";
-import { updateSelected } from "../../actions/selected";
+import { http, errorMessage } from "../../api/http";
+import { useUser, useRefreshCommit, updateSelected, useSiteConfig } from "../../hooks";
+import { usePrefsStore, useTuningForm } from "../../stores/prefs";
 
 import MonacoEditor from "../MonacoEditor";
 
@@ -213,49 +211,39 @@ const calculateActualRange = (originalRange, insertedText) => {
 };
 
 
-const wrap_values_in_array = object => {
-  let output = {};
-  Object.keys(object).forEach(key => {
-    output[key] = wrap_in_array(object[key]);
-  });
-  return output;
-};
+const wrap_in_array = x => Array.isArray(x) ? x : [x];
 
-const wrap_in_array = x => {
-  if (Array.isArray(x))
-    return x;
-  else
-    return [x];
-};
+const wrap_values_in_array = object => Object.fromEntries(
+  Object.entries(object).map(([key, value]) => [key, wrap_in_array(value)])
+);
 
 const eval_function = text => {
   try {
-    /*eslint-disable no-new-func */
     return Function(text)();
   } catch {
     return null;
   }
 };
 
-const eval_combinations = param_search_text => {
-  /*Parses a string describing a tuning set into an object.*/
+// Parses a string describing a tuning set into an object.
+export const eval_combinations = param_search_text => {
   if (param_search_text === '') return {combinations: {}, language: 'javascript'};
 
   let combinations = null;
+  let language;
   // users can directly provide tuning sets via objects or arrays of objects
   try {
     combinations = JSON.parse(param_search_text);
-    var language = "yaml" // no json support out of the box, yaml is superset so..
+    language = "yaml" // no json support out of the box, yaml is superset so..
   } catch {
     // or they can provide a function that returns a tuning set
     combinations = eval_function(param_search_text);
     language = "javascript"
   }
-  if (Array.isArray(combinations)) {
+  if (Array.isArray(combinations))
     combinations = combinations.map(wrap_values_in_array);
-  } else {
-    combinations = wrap_values_in_array(combinations)
-  };
+  else
+    combinations = wrap_values_in_array(combinations);
   return { combinations, language }
 };
 
@@ -271,241 +259,131 @@ const grid_combinations = param_search => {
 };
 
 
-const combinations_info = (parameter_search, search_options, search_type) => {
+export const combinations_info = (parameter_search, search_options, search_type) => {
   try {
-    var { combinations: tuning_sets, language } = eval_combinations(parameter_search);
-    var combinations = grid_combinations(tuning_sets);
-    if (combinations === null || combinations === 'optimize')
-      combinations = "invalid";
-    else
-      combinations = (search_options.n_iter < 0 || search_type==='grid') ? combinations : Math.min(search_options.n_iter, combinations);
+    const { combinations: tuning_sets, language } = eval_combinations(parameter_search);
+    const combinations = grid_combinations(tuning_sets);
+    if (combinations === null)
+      return { combinations: "invalid", language };
+    return {
+      combinations: (search_options.n_iter < 0 || search_type === 'grid') ? combinations : Math.min(search_options.n_iter, combinations),
+      language,
+    };
   } catch {
-    combinations = "invalid";
-    language = 'javascript'
+    return { combinations: "invalid", language: 'javascript' };
   }
-  // console.log(tuning_sets, combinations, language)
-  return { combinations, language }
 }
 
 
+const default_search_options = { n_iter: 50 };
+const no_tests = { tests: [] };
 
-
-class TuningForm extends Component {
-  constructor(props) {
-    super(props);
-    const { config, metrics } = props
-    let default_user = this.props.user || (config.runners || config).lsf?.user;
-
-    let search_type = this.props.search_type || "grid"
-    let parameter_search = this.props.parameter_search ? this.props.parameter_search : templates["no tuning"];
-    let search_options = {
-      n_iter: 50,
-    }
-    this.state = {
-      submitted: false,
-      experiment_name: this.props.experiment_name || "",
-      platform: this.props.platform || "linux",
-      overwrite: this.props.overwrite==='on' || true,
-
-      selected_group: this.props.selected_group || "",
-      selected_group_info: {
-        tests: [],
-      },
-      selected_group_info_loading: false,
-
-      search_type,
-      parameter_search,
-      search_options,
-      ...combinations_info(parameter_search, search_options, search_type),
-      parameter_search_auto: this.props.parameter_search_auto
-        ? this.props.parameter_search_auto
-        : templates['optimize'](config, metrics),
-
-      user: this.props.redux_user?.user_name || this.props.user || default_user,
-      android_device: "openstf",
-
-    };
-  }
-
-  componentDidMount() {
-    const { selected_group } = this.state;
-    if (selected_group) this.getGroupInfo(selected_group);
-
-    // TODO: remove at some point, or expose via tuning.runners.lsf.forbidden_users...
-    if (this.props.user === 'ispq') {
-      this.update('user')('')
-      toaster.show({
-        message: <span>Sorry, using the <strong>ispq</strong> user for tuning is not allowed anymore!</span>,
-        intent: Intent.WARNING,
-        timeout: 10000,
-      });
-    }
-  }
-
-  componentDidUpdate(prevProps) {
-    const { selected_group } = this.state;
-    const has_commit = this.props.commit !== undefined && this.props.commit !== null;
-    let updated_commit = has_commit && (prevProps.commit === null || prevProps.commit === undefined || prevProps.commit.id !== this.props.commit.id);
-    if (updated_commit && selected_group) this.getGroupInfo(selected_group);
-    // The logged-in user can arrive after the form showed (e.g. a link straight to this view)
-    const user_name = this.props.redux_user?.user_name;
-    if (!!user_name && user_name !== prevProps.redux_user?.user_name && !this.state.user)
-      this.setState({ user: user_name });
-  }
-
-  getGroupInfo(group) {
-    const { available_tests_files, commit, project } = this.props;
-  	this.setState({selected_group_info_loading: true})
-    post('/api/v1/tests/group', {
-      groups: Object.values(available_tests_files),
-    }, {
-      params: { project, name: group, ...(commit ? { commit: commit.id } : {}) },
-    })
-      .then(response => {
-        this.setState({
-          selected_group_info_loading: false,
-          selected_group_info: response.data,
-          error: response.data.error ?? null,
-        });
-      })
-      .catch(error => {
-        this.setState({
-          selected_group_info_loading: false,
-          selected_group_info: {
-            tests: [],
-          },
-          error: error,
-        });
-      });
-  }
-
-  updateSelectedGroup = e => {
-    // for some reason, trailing spaces are removed when making the request.
-    let selected_group = e.target.value.replace(/ *$/, "");
-    this.getGroupInfo(selected_group);
-    this.setState({ selected_group });
-    this.props.dispatch(updateTuningForm(this.props.project, {selected_group}))
+// What tests a batch (a "group") would run
+const useGroupInfo = ({ project, selected_group, commit_id, available_tests_files }) => {
+  const query = useQuery({
+    queryKey: ['tests-group', project, selected_group, commit_id ?? null, available_tests_files],
+    queryFn: async ({ signal }) => {
+      const params = { project, name: selected_group, commit: commit_id };
+      return (await http.post('/api/v1/tests/group', { groups: Object.values(available_tests_files ?? {}) }, { params, signal })).data;
+    },
+    enabled: !!selected_group,
+    placeholderData: keepPreviousData,
+    staleTime: 60 * 1000,
+  });
+  if (!selected_group)
+    return { group_info: no_tests, loading: false, error: null };
+  return {
+    group_info: query.error ? no_tests : (query.data ?? no_tests),
+    loading: query.isFetching,
+    error: query.error ? errorMessage(query.error) : (query.data?.error ?? null),
   };
+};
 
-  updateExperimentName = e => {
-    let experiment_name = e.target.value.replace(/[^\w_.@:=]/g, "-")
-    this.setState({experiment_name});
-    this.props.dispatch(updateTuningForm(this.props.project, {experiment_name}))
-  };
 
-  update = name => e => {
-    let value = !!e.target ? e.target.value : e
-    // console.log(name, value)
-    this.setState({
-      [name]: value,
-    }, () => {
-      this.setState({...combinations_info(this.state.parameter_search, this.state.search_options, this.state.search_type)})
+// Starts tuning experiments. What users enter is remembered per project.
+const TuningForm = ({ project, config, metrics, commit, available_tests_files }) => {
+  const logged_user = useUser();
+  const { docs_root } = useSiteConfig();
+  const form = useTuningForm(project);
+  const updateTuning = usePrefsStore(state => state.updateTuning);
+  const refresh = useRefreshCommit();
+  const [submitted, setSubmitted] = useState(false);
+  const is_transforming = useRef(false);
+
+  const default_parameter_search_auto = useMemo(() => templates['optimize'](config, metrics), [config, metrics]);
+  const default_user = (config.runners || config).lsf?.user;
+  const {
+    experiment_name = "",
+    platform = "linux",
+    overwrite = true,
+    selected_group = "",
+    search_type = "grid",
+    parameter_search = templates["no tuning"],
+    search_options = default_search_options,
+    parameter_search_auto = default_parameter_search_auto,
+    android_device = "openstf",
+  } = form;
+  const user = logged_user.user_name || form.user || default_user;
+
+  const { combinations, language } = useMemo(
+    () => combinations_info(parameter_search, search_options, search_type),
+    [parameter_search, search_options, search_type],
+  );
+  const { group_info: selected_group_info, loading: selected_group_info_loading, error } = useGroupInfo({
+    project, selected_group, commit_id: commit?.id, available_tests_files,
+  });
+
+  // TODO: remove at some point, or expose via tuning.runners.lsf.forbidden_users...
+  const forbidden_user = form.user === 'ispq';
+  useEffect(() => {
+    if (!forbidden_user) return;
+    updateTuning(project, { user: '' });
+    toaster.show({
+      message: <span>Sorry, using the <strong>ispq</strong> user for tuning is not allowed anymore!</span>,
+      intent: Intent.WARNING,
+      timeout: 10000,
     });
-    this.props.dispatch(updateTuningForm(this.props.project, {[name] : value}))
-  }
+  }, [forbidden_user, project, updateTuning]);
 
-  updateOverwrite = e => {
-      let overwrite = e.target.checked;
-      this.setState({ overwrite });
-      this.props.dispatch(updateTuningForm(this.props.project, {overwrite}))
-  };
+  const update = name => e => updateTuning(project, { [name]: e?.target ? e.target.value : e });
+  // for some reason, trailing spaces are removed when making the request.
+  const updateSelectedGroup = e => updateTuning(project, { selected_group: e.target.value.replace(/ *$/, "") });
+  const updateExperimentName = e => updateTuning(project, { experiment_name: e.target.value.replace(/[^\w_.@:=]/g, "-") });
+  const updateOverwrite = e => updateTuning(project, { overwrite: e.target.checked });
+  const updateParameterSearch = new_parameter_search => updateTuning(project, { parameter_search: new_parameter_search });
+  const updateParameterSearchAuto = new_parameter_search => updateTuning(project, { parameter_search_auto: new_parameter_search });
+  const updateSearchTab = new_tab => updateTuning(project, { search_type: new_tab === "search-manual" ? "grid" : "optimize" });
+  const updateIterations = e => updateTuning(project, { search_options: { n_iter: parseFloat(e.target.value) } });
 
-  updateParameterSearch = new_parameter_search => {
-    // console.log(new_parameter_search)
-    this.setState({
-      parameter_search: new_parameter_search,
-      ...combinations_info(new_parameter_search, this.state.search_options, this.state.search_type),
-    });
-    this.props.dispatch(updateTuningForm(this.props.project, {parameter_search: new_parameter_search}))
-  };
-
-  onEditorDidMount = editor => {
-    // Store reference for cleanup
-    this.editor = editor;
-    this.isTransforming = false;
-    
-    // Listen for content changes that might be paste operations
-    editor.onDidChangeModelContent((e) => {
+  // Users paste register values in the CDE format, we convert them to QA-Board's format
+  const onEditorDidMount = editor => {
+    editor.onDidChangeModelContent(e => {
       // Avoid infinite loops from our own transformations
-      if (this.isTransforming) {
-        return;
-      }
-      
-      // Look at the actual changes to detect paste
-      const changes = e.changes;
-      if (changes.length > 0) {
-        const change = changes[0];
-        const addedText = change.text;
-        console.log('change:', change);
-
-        // Check if the added text looks like CDE register format and is significant enough to be a paste
-        if (addedText.length > 5 && addedText.includes('=')) {
-          const transformedText = transformCDERegisters(addedText);
-          console.log('transformedText:', transformedText);
-          
-          // Only transform if it's different from the original
-          if (transformedText !== addedText) {
-            this.isTransforming = true;
-            
-            // Calculate the actual range occupied by the pasted text
-            const actualRange = calculateActualRange(change.range, addedText);
-            console.log('change.range', change.range, 'actualRange', actualRange);
-            
-            // Replace the pasted content with the transformed version
-            const success = editor.executeEdits('paste-transform', [{
-              range: actualRange,
-              text: transformedText
-            }]);
-            
-            console.log('Transformed CDE register format to QA-Board format', success);
-            
-            // Reset the flag after a short delay
-            setTimeout(() => {
-              this.isTransforming = false;
-            }, 100);
-          }
-        }
-      }
+      if (is_transforming.current) return;
+      const change = e.changes[0];
+      if (!change) return;
+      const addedText = change.text;
+      // Check if the added text looks like CDE register format and is significant enough to be a paste
+      if (addedText.length <= 5 || !addedText.includes('=')) return;
+      const transformedText = transformCDERegisters(addedText);
+      if (transformedText === addedText) return;
+      is_transforming.current = true;
+      // Replace the pasted content with the transformed version
+      editor.executeEdits('paste-transform', [{
+        range: calculateActualRange(change.range, addedText),
+        text: transformedText,
+      }]);
+      setTimeout(() => { is_transforming.current = false; }, 100);
     });
   };
 
-  updateParameterSearchAuto = new_parameter_search => {
-    this.setState({ parameter_search_auto: new_parameter_search });
-    this.props.dispatch(updateTuningForm(this.props.project, {parameter_search_auto: new_parameter_search}))
-  };
-
-  updateSearchTab = new_tab => {
-    let search_type = new_tab === "search-manual" ? "grid" : "optimize";
-    this.setState({ search_type});
-    this.props.dispatch(updateTuningForm(this.props.project, {search_type}))
-  };
-
-  updateIterations = e => {
-    let search_options = { n_iter: parseFloat(e.target.value) }
-    this.setState({
-      search_options,
-      ...this.combinations_info(this.state.parameter_search, search_options, this.state.search_type),
-    });
-    this.props.dispatch(updateTuningForm(this.props.project, {search_options}))
-  };
-
-  onSubmit = () => {
-    const { project, commit, dispatch, available_tests_files } = this.props;
-    const {
-      experiment_name,
-      platform,
-      android_device,
-      selected_group,
-      overwrite,
-      user
-    } = this.state;
-    const { parameter_search, parameter_search_auto, search_type, search_options } = this.state;
-    this.setState({ submitted: true });
+  const onSubmit = () => {
+    setSubmitted(true);
     toaster.show({
       message: "Sent!",
       intent: Intent.SUCCESS
     });
-    post(`/api/v1/commit/${commit.id}/batch?project=${project}`, {
+    http.post(`/api/v1/commit/${commit.id}/batch`, {
       project,
       batch_label: experiment_name,
       platform,
@@ -520,338 +398,314 @@ class TuningForm extends Component {
       user,
       android_device,
       overwrite,
-    })
+    }, { params: { project } })
       .then(() => {
-        this.setState({ submitted: false });
+        setSubmitted(false);
         toaster.show({
           message: "Acknowledged! You can select the batch here ➡️",
           intent: Intent.SUCCESS
         });
-        const refresh = () => {
-          dispatch(fetchCommit({project, id: commit.id}))
-        }
-        setTimeout(refresh,  1*1000)
-        setTimeout(refresh,  5*1000)
-        setTimeout(refresh, 10*1000)
+        setTimeout(() => refresh(project, commit.id),  1*1000)
+        setTimeout(() => refresh(project, commit.id),  5*1000)
+        setTimeout(() => refresh(project, commit.id), 10*1000)
       })
       .catch(error => {
-        this.setState({ submitted: false });
+        setSubmitted(false);
         // The batch's page tells users why, and shows the logs
         const submission = error.response?.data?.submission
         toaster.show({
           message: submission
             ? "The batch failed to start. Select it to see why, and its logs."
-            : `Something went wrong: ${error.response?.data?.error ?? error.message}`,
+            : `Something went wrong: ${errorMessage(error)}`,
           intent: Intent.DANGER,
           timeout: 10000,
         });
-        dispatch(fetchCommit({project, id: commit.id}))
+        refresh(project, commit.id);
       });
   };
 
-  render() {
-    const { project, config, metrics } = this.props;
-    const { search_type, search_options } = this.state;
-    const { experiment_name, selected_group, selected_group_info, error } = this.state;
-    const { user, platform, android_device } = this.state;
-    const { tests, warnings, definitions } = selected_group_info;
-    const { combinations, language } = this.state
-    let total_runs = combinations * tests.length;
-    let time_intent =
-      (combinations === "invalid" || total_runs===0 || total_runs > MAX_RUNS)
-        ? Intent.DANGER
-        : total_runs < 100
-          ? Intent.PRIMARY
-          : Intent.WARNING;
+  const { tests, warnings, definitions } = selected_group_info;
+  const total_runs = combinations * tests.length;
+  const time_intent =
+    (combinations === "invalid" || total_runs===0 || total_runs > MAX_RUNS)
+      ? Intent.DANGER
+      : total_runs < 100
+        ? Intent.PRIMARY
+        : Intent.WARNING;
 
 
-    // we should show different parameters for different runners: queues, user...
-    const lsf_runner = (config.runners?.lsf !== undefined || config.lsf !== undefined);
-    const any_runner_configured = !!config.lsf || Object.keys(config.runners || {}).filter(t => t !== 'local' && t !== 'default').length > 0;
+  // we should show different parameters for different runners: queues, user...
+  const lsf_runner = (config.runners?.lsf !== undefined || config.lsf !== undefined);
+  const any_runner_configured = !!config.lsf || Object.keys(config.runners || {}).filter(t => t !== 'local' && t !== 'default').length > 0;
 
-    const panel_manual = <>
-      <Callout title="Click to see examples of parameter tuning" icon="info-sign" style={{marginBottom: '15px'}}>
-        <p>
-        {["no tuning", "simple-combinations", "list-of-combinations", "1x2 matrix", "function"].map(x => (
-          <Button
-            style={{margin: '4px'}}
-            key={x}
-            onClick={() => this.updateParameterSearch(templates[x])}
-          >
-            {x}
-          </Button>
-        ))}
-      </p>
-      </Callout>
-      <FormGroup
-        inline
-        labelFor="select-search-type"
-        helperText={
-          !this.state.parameter_search ? '' : (
-          search_type === "optimize" ? '' :
-            search_type === "grid"
-            ? `Explores ${combinations} combination${combinations > 1 ? "s" : ""}`
-            : `Uniform sampling of ${combinations} combinations`
-          )
-        }
-      >
-        <HTMLSelect
-          id="select-search-type"
-          value={search_type}
-          onChange={this.update('search_type')}
-          minimal
+  const panel_manual = <>
+    <Callout title="Click to see examples of parameter tuning" icon="info-sign" style={{marginBottom: '15px'}}>
+      <p>
+      {["no tuning", "simple-combinations", "list-of-combinations", "1x2 matrix", "function"].map(x => (
+        <Button
+          style={{margin: '4px'}}
+          key={x}
+          onClick={() => updateParameterSearch(templates[x])}
         >
-          <option key="grid" value="grid">All combinations</option>
-          <option key="sampler" value="sampler">Sampling</option>
-        </HTMLSelect>
-        {(search_type === "sampler") && (
-          <input
-            id="input-iterations"
-            value={search_options.n_iter}
-            className={Classes.INPUT}
-            style={{ marginLeft: "30px", width: "70px" }}
-            placeholder="50"
-            onChange={this.updateIterations}
-            type="numeric"
-            dir="auto"
-          />
-        )}
-      </FormGroup>
-      <MonacoEditor
-        height={250}
-        language={language || 'json'}
-        value={this.state.parameter_search || ''}
-        options={editor_options}
-        name="editor-tuning-set"
-        onChange={this.updateParameterSearch}
-        editorDidMount={this.onEditorDidMount}
-      />
-      {this.state.search_type !== "optimize" && <Callout intent={time_intent} >{total_runs} total runs {total_runs > MAX_RUNS && '(' + MAX_RUNS + ' max.)'} </Callout>}
-    </>
-
-
-    const panel_auto = <>
-      <Button onClick={() => this.setState({ parameter_search_auto: templates['optimize'](config, metrics) })}>Reset</Button>
-      <MonacoEditor
-        height={250}
-        language='yaml'
-        options={editor_options}
-        name="editor-tuning-auto"
-        onChange={this.updateParameterSearchAuto}
-        value={this.state.parameter_search_auto || ''}
-      />
-    </>
-
-    const available_platforms = config.inputs?.platforms ?? []
-    const cannot_tune_on_branch = project.startsWith('CDE-Users/HW_ALG') && !((this.props.commit?.branch ?? '').split('/')?.[1]  ?? '').includes(project.split('/').slice(-1)) && this.props.commit?.branch !== "develop"
-      
-    return <>
-      {!any_runner_configured && <Callout intent={Intent.WARNING} title="Please configure async runners" icon="warning-sign" style={{marginBottom: '15px'}}>
-        <p>The simplest way to <a href={`${this.props.docs_root}docs/celery-integration`}>get started with async runners is to use Celery</a>.</p>
-        <p>Otherwise, your runs may be killed if they take too long.</p>
-      </Callout>}
-      {cannot_tune_on_branch &&  <Callout intent={Intent.WARNING} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
-        <p>For tuning to work, your branch name (<code>{this.props.commit?.branch}</code>) must match the project (<code>{project}</code>).</p>
-        <p>A workaround is calling from Windows/Linux:</p>
-        <pre>
-          <div>cd HW_ALG</div>
-          <div>git checkout {(this.props.commit?.id ?? '').slice(0, 8)}</div>
-          <div>cd {project.replace('CDE-Users/HW_ALG/', '')}</div>
-          <div>qa save-artifacts</div>
-        </pre>
-      </Callout>}
-      <FormGroup
-        helperText={!experiment_name ? "(required)" : "Tip: You can add runs to an existing experiment"}
-        label={`Experiment name:`}
-        labelFor="batch-label"
-        intent={!experiment_name ? Intent.DANGER : Intent.PRIMARY}
-     >
+          {x}
+        </Button>
+      ))}
+    </p>
+    </Callout>
+    <FormGroup
+      inline
+      labelFor="select-search-type"
+      helperText={
+        !parameter_search ? '' : (
+        search_type === "optimize" ? '' :
+          search_type === "grid"
+          ? `Explores ${combinations} combination${combinations > 1 ? "s" : ""}`
+          : `Uniform sampling of ${combinations} combinations`
+        )
+      }
+    >
+      <HTMLSelect
+        id="select-search-type"
+        value={search_type}
+        onChange={update('search_type')}
+        minimal
+      >
+        <option key="grid" value="grid">All combinations</option>
+        <option key="sampler" value="sampler">Sampling</option>
+      </HTMLSelect>
+      {(search_type === "sampler") && (
         <input
-          id="batch-label"
+          id="input-iterations"
+          value={search_options.n_iter}
           className={Classes.INPUT}
-          style={{ width: "300px" }}
-          placeholder="my-tuning-experiment"
-          value={experiment_name}
-          onChange={this.updateExperimentName}
-          type="text"
+          style={{ marginLeft: "30px", width: "70px" }}
+          placeholder="50"
+          onChange={updateIterations}
+          type="numeric"
           dir="auto"
         />
-      </FormGroup>
-
-      <FormGroup
-        label="Batch of inputs+configurations:"
-        intent={!selected_group ? Intent.DANGER : Intent.PRIMARY}
-        helperText={<>
-          {tests.length > 0 && <Popover
-              inheritDarkTheme popoverClassName={Classes.DARK}
-              placement="right" hoverCloseDelay={300} interactionKind={"hover"}
-              content={<div style={{padding: '10px'}}>
-                <ul style={{maxWidth: "1200px", maxHeight: "800px", overflow: "auto"}} >
-                  {tests.map((t, idx) => <li key={idx} style={{marginBottom: '5px'}}>
-                    <span style={{marginRight: '5px'}}>{t.input_path}</span>
-                    {t.configurations.map(c =>
-                      <Tag key={JSON.stringify(c)} intent={Intent.PRIMARY} round style={{marginRight: '5px', marginBottom: '5px'}}>
-                        {typeof(c) === 'string' ? c : JSON.stringify(c)}
-                      </Tag>
-                    )}
-                </li>)}
-                </ul>
-              </div>}
-              >
-            <span style={{borderBottom: '1px dotted #000', textDecoration: 'none'}}>{tests.length} tests. </span>
-          </Popover>}
-          <p style={{marginBottom: '5px'}}>
-            To know what batches you can use, go to the tab <Tag icon="layout-group-by" interactive minimal round onClick={() => {
-              this.props.dispatch(updateSelected(this.props.project, { selected_views: 'groups' }))
-            }}>Available Tests</Tag>.
-            </p>
-          {error && <p><Tag icon='warning-sign' intent={Intent.DANGER}>{typeof error === 'string' ? error : (error.response?.data?.error ?? error.message ?? JSON.stringify(error))}</Tag></p>}
-          {this.state.selected_group_info_loading && <Icon icon="time"/>}
-        </>}
-        labelFor="selected-group"
-      >
-        <input
-          id="selected-group"
-          className={Classes.INPUT}
-          intent={Intent.PRIMARY}
-          style={{ width: "300px" }}
-          placeholder="my-batch, batch-*"
-          onChange={this.updateSelectedGroup}
-          value={selected_group}
-          type="text"
-          dir="auto"
-        />
-      </FormGroup>
-      {!!selected_group && !this.state.selected_group_info_loading && <>
-        <BatchDefinitions definitions={definitions} style={{ marginTop: '-10px' }} />
-        <BatchWarnings
-          warnings={warnings}
-          title={tests.length === 0 ? "Why the batch has no tests" : "Check the batch files"}
-          style={{ marginBottom: '15px' }}
-        />
-      </>}
-
-      {(project!=='dvs/psp_swip' && project!=='tof/swip_tof' && available_platforms.length > 0) &&
-      <RadioGroup onChange={this.update('platform')} selectedValue={platform}>
-        {available_platforms.map(p => <Radio
-          key={p.name}
-          labelElement={<span>{p.label || p.name || 'undefined name/label!'}</span>}
-          value={p.name}
-          large
-        />)}
-      </RadioGroup>}
-
-      {((project==='dvs/psp_swip' || project==='tof/swip_tof' )&& available_platforms.length === 0) &&
-      <RadioGroup onChange={this.update('platform')} selectedValue={platform}>
-        <Radio labelElement={<span>Linux</span>} value="lsf" large />
-        <Radio label={<span>Android</span>} value="s8" large/>
-      </RadioGroup>}
-
-      {platform.startsWith("s8") && (
-        <FormGroup
-          label="Android device"
-          helperText="Choose a device from the openstf farm, or your own (host:port)"
-          labelFor="input-android-device"
-        >
-          <input
-            id="input-android-device"
-            className={Classes.INPUT}
-            style={{ width: "300px" }}
-            value={android_device}
-            placeholder="openstf"
-            onChange={this.update('android_device')}
-            type="text"
-            dir="auto"
-          />
-        </FormGroup>
       )}
+    </FormGroup>
+    <MonacoEditor
+      height={250}
+      language={language || 'json'}
+      value={parameter_search || ''}
+      options={editor_options}
+      name="editor-tuning-set"
+      onChange={updateParameterSearch}
+      editorDidMount={onEditorDidMount}
+    />
+    {search_type !== "optimize" && <Callout intent={time_intent} >{total_runs} total runs {total_runs > MAX_RUNS && '(' + MAX_RUNS + ' max.)'} </Callout>}
+  </>
 
 
-      <Tabs renderActiveTabPanelOnly id="search-type" selectedTabId={search_type !== "optimize" ? "search-manual" : "search-optimize"} onChange={this.updateSearchTab}  defaultSelectedTabId="search-manual">
-        <Tab id="search-manual" title="Manual tuning" panel={panel_manual} />
-        <Tab id="search-optimize" title={<>Automated tuning</>} panel={panel_auto} />
-      </Tabs>
+  const panel_auto = <>
+    <Button onClick={() => updateParameterSearchAuto(default_parameter_search_auto)}>Reset</Button>
+    <MonacoEditor
+      height={250}
+      language='yaml'
+      options={editor_options}
+      name="editor-tuning-auto"
+      onChange={updateParameterSearchAuto}
+      value={parameter_search_auto || ''}
+    />
+  </>
 
-      <FormGroup
-        helperText={!user ? "Please provide a user in the input below"
-                          : (this.state.experiment_name.length === 0 ? 'Please give a name to the tuning experiment (the input is above)' : (selected_group_info.tests.length === 0 ? "The batch has no tests: see why under its name" : undefined))}
-        intent={(!user || this.state.experiment_name.length === 0 || !total_runs) ? Intent.DANGER : undefined}
-      >
-      <Button
-        onClick={this.onSubmit}
-        disabled={
-          this.state.submitted ||
-          !user ||
-          this.state.experiment_name.length === 0 ||
-          (!total_runs && search_type !== "optimize") ||
-          total_runs > MAX_RUNS
-        }
+  const available_platforms = config.inputs?.platforms ?? []
+  const cannot_tune_on_branch = project.startsWith('CDE-Users/HW_ALG') && !((commit?.branch ?? '').split('/')?.[1]  ?? '').includes(project.split('/').slice(-1)) && commit?.branch !== "develop"
+    
+  return <>
+    {!any_runner_configured && <Callout intent={Intent.WARNING} title="Please configure async runners" icon="warning-sign" style={{marginBottom: '15px'}}>
+      <p>The simplest way to <a href={`${docs_root}docs/celery-integration`}>get started with async runners is to use Celery</a>.</p>
+      <p>Otherwise, your runs may be killed if they take too long.</p>
+    </Callout>}
+    {cannot_tune_on_branch &&  <Callout intent={Intent.WARNING} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
+      <p>For tuning to work, your branch name (<code>{commit?.branch}</code>) must match the project (<code>{project}</code>).</p>
+      <p>A workaround is calling from Windows/Linux:</p>
+      <pre>
+        <div>cd HW_ALG</div>
+        <div>git checkout {(commit?.id ?? '').slice(0, 8)}</div>
+        <div>cd {project.replace('CDE-Users/HW_ALG/', '')}</div>
+        <div>qa save-artifacts</div>
+      </pre>
+    </Callout>}
+    <FormGroup
+      helperText={!experiment_name ? "(required)" : "Tip: You can add runs to an existing experiment"}
+      label={`Experiment name:`}
+      labelFor="batch-label"
+      intent={!experiment_name ? Intent.DANGER : Intent.PRIMARY}
+   >
+      <input
+        id="batch-label"
+        className={Classes.INPUT}
+        style={{ width: "300px" }}
+        placeholder="my-tuning-experiment"
+        value={experiment_name}
+        onChange={updateExperimentName}
+        type="text"
+        dir="auto"
+      />
+    </FormGroup>
+
+    <FormGroup
+      label="Batch of inputs+configurations:"
+      intent={!selected_group ? Intent.DANGER : Intent.PRIMARY}
+      helperText={<>
+        {tests.length > 0 && <Popover
+            inheritDarkTheme popoverClassName={Classes.DARK}
+            placement="right" hoverCloseDelay={300} interactionKind={"hover"}
+            content={<div style={{padding: '10px'}}>
+              <ul style={{maxWidth: "1200px", maxHeight: "800px", overflow: "auto"}} >
+                {tests.map((t, idx) => <li key={idx} style={{marginBottom: '5px'}}>
+                  <span style={{marginRight: '5px'}}>{t.input_path}</span>
+                  {t.configurations.map(c =>
+                    <Tag key={JSON.stringify(c)} intent={Intent.PRIMARY} round style={{marginRight: '5px', marginBottom: '5px'}}>
+                      {typeof(c) === 'string' ? c : JSON.stringify(c)}
+                    </Tag>
+                  )}
+              </li>)}
+              </ul>
+            </div>}
+            >
+          <span style={{borderBottom: '1px dotted #000', textDecoration: 'none'}}>{tests.length} tests. </span>
+        </Popover>}
+        <p style={{marginBottom: '5px'}}>
+          To know what batches you can use, go to the tab <Tag icon="layout-group-by" interactive minimal round onClick={() => updateSelected({ selected_views: 'groups' })}>Available Tests</Tag>.
+          </p>
+        {error && <p><Tag icon='warning-sign' intent={Intent.DANGER}>{error}</Tag></p>}
+        {selected_group_info_loading && <Icon icon="time"/>}
+      </>}
+      labelFor="selected-group"
+    >
+      <input
+        id="selected-group"
+        className={Classes.INPUT}
+        intent={Intent.PRIMARY}
+        style={{ width: "300px" }}
+        placeholder="my-batch, batch-*"
+        onChange={updateSelectedGroup}
+        value={selected_group}
+        type="text"
+        dir="auto"
+      />
+    </FormGroup>
+    {!!selected_group && !selected_group_info_loading && <>
+      <BatchDefinitions definitions={definitions} style={{ marginTop: '-10px' }} />
+      <BatchWarnings
+        warnings={warnings}
+        title={tests.length === 0 ? "Why the batch has no tests" : "Check the batch files"}
+        style={{ marginBottom: '15px' }}
+      />
+    </>}
+
+    {(project!=='dvs/psp_swip' && project!=='tof/swip_tof' && available_platforms.length > 0) &&
+    <RadioGroup onChange={update('platform')} selectedValue={platform}>
+      {available_platforms.map(p => <Radio
+        key={p.name}
+        labelElement={<span>{p.label || p.name || 'undefined name/label!'}</span>}
+        value={p.name}
         large
-        intent={search_type !== "optimize" ? (total_runs < 1000 ? Intent.PRIMARY : Intent.DANGER) : Intent.PRIMARY}
-      >
-        Send
-      </Button>
-      </FormGroup>
+      />)}
+    </RadioGroup>}
 
+    {((project==='dvs/psp_swip' || project==='tof/swip_tof' )&& available_platforms.length === 0) &&
+    <RadioGroup onChange={update('platform')} selectedValue={platform}>
+      <Radio labelElement={<span>Linux</span>} value="lsf" large />
+      <Radio label={<span>Android</span>} value="s8" large/>
+    </RadioGroup>}
+
+    {platform.startsWith("s8") && (
       <FormGroup
-          label="Overwrite previous identical runs"
-          labelFor="overwrite-old-outputs"
-          inline
-      >
-        <Switch
-          id="overwrite-old-outputs"
-          checked={this.state.overwrite}
-          onChange={this.updateOverwrite}
-        />
-      </FormGroup>
-
-      {/* {lsf_runner && <FormGroup
-        label="Run as"
-        helperText="(required)"
-        labelFor="input-user"
-        intent={!user ? Intent.DANGER : undefined}
-        inline
+        label="Android device"
+        helperText="Choose a device from the openstf farm, or your own (host:port)"
+        labelFor="input-android-device"
       >
         <input
-          id="input-user"
+          id="input-android-device"
           className={Classes.INPUT}
           style={{ width: "300px" }}
-          value={user}
-          placeholder='user'
-          onChange={this.update('user')}
+          value={android_device}
+          placeholder="openstf"
+          onChange={update('android_device')}
           type="text"
           dir="auto"
         />
-      </FormGroup>} */}
-
-      {lsf_runner &&<Tooltip content="Make sure to setup your shell environment correctly">
-        <Tag icon="user" large minimal style={{marginRight: '5px', marginBottom: '5px'}}>Will run as <strong>{user}</strong></Tag>
-      </Tooltip>}
-
-      {search_type === "optimize" && <>
-        <Callout icon="info-sign" title="About auto-tuning">
-          <ul>
-          <li>The solver is <a href="https://github.com/scikit-optimize/scikit-optimize">scikit-optimize</a>. There are lots of choices for black-box optimization (nevergrad, RoBo, MOE, Ray, hyperopt, SMAC, BayesOpt, spearmint, dlib...), all with varying features, maturity, algorithms and popularity.</li>
-          <li>You need to use <a href={`${this.props.docs_root}docs/computing-quantitative-metrics`}>QA-Board metrics</a>.</li>
-          </ul>
-          <p><strong>Do send <a href="mailto:arthur.flam@samsung.com">feedback</a>!</strong></p>
-        </Callout>
-      </>}
-    </>;
-  }
-}
+      </FormGroup>
+    )}
 
 
+    <Tabs renderActiveTabPanelOnly id="search-type" selectedTabId={search_type !== "optimize" ? "search-manual" : "search-optimize"} onChange={updateSearchTab}  defaultSelectedTabId="search-manual">
+      <Tab id="search-manual" title="Manual tuning" panel={panel_manual} />
+      <Tab id="search-optimize" title={<>Automated tuning</>} panel={panel_auto} />
+    </Tabs>
 
-const mapStateToProps = (state, ownProps) => {
-  return {
-      redux_user: state.user || null,
-      docs_root: state.siteConfig.docs_root,
-      ...state.tuning[ownProps.project]
-  }
-}
+    <FormGroup
+      helperText={!user ? "Please provide a user in the input below"
+                        : (experiment_name.length === 0 ? 'Please give a name to the tuning experiment (the input is above)' : (selected_group_info.tests.length === 0 ? "The batch has no tests: see why under its name" : undefined))}
+      intent={(!user || experiment_name.length === 0 || !total_runs) ? Intent.DANGER : undefined}
+    >
+    <Button
+      onClick={onSubmit}
+      disabled={
+        submitted ||
+        !user ||
+        experiment_name.length === 0 ||
+        (!total_runs && search_type !== "optimize") ||
+        total_runs > MAX_RUNS
+      }
+      large
+      intent={search_type !== "optimize" ? (total_runs < 1000 ? Intent.PRIMARY : Intent.DANGER) : Intent.PRIMARY}
+    >
+      Send
+    </Button>
+    </FormGroup>
+
+    <FormGroup
+        label="Overwrite previous identical runs"
+        labelFor="overwrite-old-outputs"
+        inline
+    >
+      <Switch
+        id="overwrite-old-outputs"
+        checked={overwrite}
+        onChange={updateOverwrite}
+      />
+    </FormGroup>
+
+    {/* {lsf_runner && <FormGroup
+      label="Run as"
+      helperText="(required)"
+      labelFor="input-user"
+      intent={!user ? Intent.DANGER : undefined}
+      inline
+    >
+      <input
+        id="input-user"
+        className={Classes.INPUT}
+        style={{ width: "300px" }}
+        value={user}
+        placeholder='user'
+        onChange={update('user')}
+        type="text"
+        dir="auto"
+      />
+    </FormGroup>} */}
+
+    {lsf_runner &&<Tooltip content="Make sure to setup your shell environment correctly">
+      <Tag icon="user" large minimal style={{marginRight: '5px', marginBottom: '5px'}}>Will run as <strong>{user}</strong></Tag>
+    </Tooltip>}
+
+    {search_type === "optimize" && <>
+      <Callout icon="info-sign" title="About auto-tuning">
+        <ul>
+        <li>The solver is <a href="https://github.com/scikit-optimize/scikit-optimize">scikit-optimize</a>. There are lots of choices for black-box optimization (nevergrad, RoBo, MOE, Ray, hyperopt, SMAC, BayesOpt, spearmint, dlib...), all with varying features, maturity, algorithms and popularity.</li>
+        <li>You need to use <a href={`${docs_root}docs/computing-quantitative-metrics`}>QA-Board metrics</a>.</li>
+        </ul>
+        <p><strong>Do send <a href="mailto:arthur.flam@samsung.com">feedback</a>!</strong></p>
+      </Callout>
+    </>}
+  </>;
+};
 
 
-const TuningForm_ = connect(mapStateToProps)(TuningForm);
-// TuningFormView: without the store, for tests
-export { TuningForm_ as TuningForm, TuningForm as TuningFormView };
+export { TuningForm };

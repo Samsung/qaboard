@@ -1,4 +1,4 @@
-import React from "react";
+import { useState } from "react";
 
 import {
     Icon,
@@ -11,6 +11,8 @@ import {
 } from "@blueprintjs/core";
 
 import { make_eval_templates_recursively } from '../utils';
+import { useSiteConfig } from '../hooks';
+import { integration_key } from '../useIntegrationStatuses';
 
   
 // TODO:
@@ -57,248 +59,236 @@ import { make_eval_templates_recursively } from '../utils';
 // (parent path) disambiguates sub-menu items that share a text/name with a
 // sibling elsewhere in the tree (e.g. two "Executable" entries under
 // different parents).
-export const key = (integration, prefix = '') => (
-  prefix + (integration.id || integration.text || integration.name || integration.alt)
-)
 
-class IntegrationsMenus extends React.Component {
-    constructor(props) {
-        super(props);
-        this.state = {
-            searchQuery: ''
-        };
-    }
-
-    handleSearchChange = (e) => {
-        this.setState({ searchQuery: e.target.value });
-    }
-
-    filterIntegrations = (integrations, searchQuery) => {
-        if (!searchQuery.trim()) {
-            return integrations;
-        }
-        
-        const query = searchQuery.toLowerCase();
-        
-        const filterRecursively = (items) => {
-            const filtered = [];
-            let currentSection = [];
-            let currentDivider = null;
-            
-            for (const integration of items) {
-                if (integration.divider) {
-                    // If we have a previous section with matches, add the divider and items
-                    if (currentSection.length > 0) {
-                        if (currentDivider) {
-                            filtered.push(currentDivider);
-                        }
-                        filtered.push(...currentSection);
-                    }
-                    // Start new section
-                    currentDivider = integration;
-                    currentSection = [];
-                } else {
-                    const searchableText = [
-                        integration.text,
-                        integration.name,
-                        integration.label,
-                        integration.alt,
-                        integration.id
-                    ].filter(Boolean).join(' ').toLowerCase();
-                    
-                    const matchesSearch = searchableText.includes(query);
-                    
-                    // Check if any sub-items match
-                    let hasMatchingSubItems = false;
-                    let filteredSubItems = [];
-                    if (integration.sub && integration.sub.length > 0) {
-                        filteredSubItems = filterRecursively(integration.sub);
-                        hasMatchingSubItems = filteredSubItems.length > 0;
-                    }
-                    
-                    // Include this integration if it matches or has matching sub-items
-                    if (matchesSearch || hasMatchingSubItems) {
-                        const filteredIntegration = { ...integration };
-                        if (filteredSubItems.length > 0) {
-                            filteredIntegration.sub = filteredSubItems;
-                        }
-                        currentSection.push(filteredIntegration);
-                    }
-                }
-            }
-            
-            // Handle the last section
-            if (currentSection.length > 0) {
-                if (currentDivider) {
-                    filtered.push(currentDivider);
-                }
-                filtered.push(...currentSection);
-            }
-            
-            return filtered;
-        };
-        
-        return filterRecursively(integrations);
-    }
-
-    render() {
-        const { integrations, level=0, key_prefix='', integrationStatuses={}, triggerIntegration, startUpdateIntegrationStatuses, stopUpdateIntegrationStatuses } = this.props;
-        const eval_templates_recusively = make_eval_templates_recursively(this.props)
-        const { searchQuery } = this.state;
-
-        const render_integration = (integration, idx) => {
-          try {
-            integration = eval_templates_recusively(integration)
-          } catch {
-            // console.log('error with integration', integration, e)
-            return <span key={idx}/>;
-          }
-          if (!integration) {
-            // console.log('undef integration', integration)
-            return <span key={idx}/>;
-          }
-          // console.log('good', integration)
-          if (integration.divider) {
-            return <MenuDivider key={idx} {...integration}/>
-          }
-          const integration_key = key(integration, key_prefix);
-          let status = integrationStatuses[integration_key];
-          let first_loading = !!status && (status.loading && !status.is_loaded);
-          let trigger_loading = !!status && (status.loading && status.triggered);
-          let has_error = !!status && !!status.error
-          let disabled = !integration.src && (integration.disabled || first_loading || (has_error && !integration.allow_failed) || trigger_loading);
-
-          // TODO: always show the JobTag if "status.data" has some info
-          if (integration.gitlabCI || integration.jenkins) {
-            let label = has_error ? <Tooltip content={<span>{JSON.stringify(status.error.message)}</span>}>
-                                      <Tag round icon="cross" intent="danger"/>
-                                    </Tooltip>
-                                  : <StatusTag integration={integration} status={status}/>
-            return <MenuItem
-              key={idx}
-              tagName='div'
-              shouldDismissPopover={false}
-              icon={( (!!status?.data?.web_url || !!status?.data?.url) && status.data.status !== 'manual') ? 'repeat' : 'play'}
-              {...integration}
-              gitlabCI={undefined}
-              jenkins={undefined}
-              label={label}
-              onClick={triggerIntegration(integration, integration_key)}
-              disabled={disabled}
-            />
-          }
-
-          const badge = integration.src && <img
-            alt={integration.alt || integration_key}
-            src={encodeURI(`/api/v1/gitlab/proxy?url=${integration.src}`)}
-          />
-          if (badge) {
-            var right_label = integration.icon && <Icon icon={integration.icon}/>
-          } else {
-            if (integration.webhook) {
-              right_label = <StatusTag integration={integration} status={status}/>
-            } else {
-              right_label = !!integration.label ? integration.label : ''
-              if (has_error) {
-                right_label = <span>{right_label}<StatusTag integration={integration} status={status}/></span>
-              }
-            }
-          }
-          // Strip props that aren't meant to reach the <MenuItem>/DOM -
-          // they come from the qaboard.yaml integration schema.
-          const {
-            sub, webhook, gitlabCI, jenkins, src, alt, only, in_menu,
-            allow_failed, allow_failure, id, name,
-            ...menu_item_props
-          } = integration;
-          const has_trigger = !!webhook;
-          return <MenuItem
-              key={idx}
-              shouldDismissPopover={!!integration.href}
-              {...menu_item_props}
-              disabled={disabled}
-              icon={badge || integration.icon}
-              label={right_label}
-              target={!!integration.href ? "_blank" : undefined}
-              onClick={!integration.href && has_trigger ? triggerIntegration(integration, integration_key) : undefined}
-            >
-              {sub && <IntegrationsMenus {...this.props} integrations={sub} level={level+1} key_prefix={`${integration_key}/`} />}
-          </MenuItem>
-        }
-
-        const integrations_in_menu = integrations.filter(i => i?.in_menu !== false);
-        const integrations_outside_menu = integrations.filter(i => i?.in_menu === false || level > 0);
-        
-        // Apply search filtering only to top-level menu items
-        const filtered_integrations_in_menu = level === 0 ? this.filterIntegrations(integrations_in_menu, searchQuery) : integrations_in_menu;
-
-        return <>
-          {integrations_outside_menu.map(render_integration)}
-          {level === 0 && <MenuItem
-            icon="send-to"
-            text="Integrations"
-            popoverProps={{
-              usePortal: true,
-              hoverCloseDelay: 2000,
-              transitionDuration: 1000,
-              onOpening: () => {startUpdateIntegrationStatuses?.(5000)},
-              onClosed: stopUpdateIntegrationStatuses,
-              // Prevent closing when interacting with search input
-              interactionKind: "hover",
-              hasBackdrop: false,
-              canEscapeKeyClose: true,
-              enforceFocus: false,
-              autoFocus: false,
-            }}
-          >
-            {integrations_in_menu.length > 5 && (
-              <div 
-                style={{ 
-                  padding: '8px', 
-                  borderBottom: '1px solid #ccc', 
-                  marginBottom: '4px',
-                  position: 'sticky',
-                  top: 0,
-                  backgroundColor: '#30404d',
-                  zIndex: 1000
-                }}
-                onClick={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
-              >
-                <InputGroup
-                  leftIcon="search"
-                  placeholder="Search integrations..."
-                  value={searchQuery}
-                  onChange={this.handleSearchChange}
-                  small
-                  fill
-                  onFocus={(e) => e.stopPropagation()}
-                  onBlur={(e) => e.stopPropagation()}
-                />
-              </div>
-            )}
-            <div style={{ minHeight: searchQuery ? '200px' : 'auto' }}>
-              {filtered_integrations_in_menu.map(render_integration)}
-              {filtered_integrations_in_menu.length === 0 && searchQuery && (
-                <MenuItem 
-                  icon="search" 
-                  text={`No integrations found for "${searchQuery}"`}
-                  disabled
-                />
-              )}
-            </div>
-            {integrations_in_menu.length === 0 && <>
-                <MenuDivider />
-                <MenuItem
-                    icon="info-sign"
-                    target="_blank"
-                    href={`${this.props.docs_root}docs/triggering-third-party-tools`}
-                    text="Click to learn how to link to docs/artifacts, or trigger webhooks and GitlabCI/jenkins jobs..."
-                />
-            </>}
-          </MenuItem>}
-        </>;
+const filterIntegrations = (integrations, searchQuery) => {
+  if (!searchQuery.trim()) {
+    return integrations;
   }
+
+  const query = searchQuery.toLowerCase();
+
+  const filterRecursively = (items) => {
+    const filtered = [];
+    let currentSection = [];
+    let currentDivider = null;
+
+    for (const integration of items) {
+      if (integration.divider) {
+        // If we have a previous section with matches, add the divider and items
+        if (currentSection.length > 0) {
+          if (currentDivider) {
+            filtered.push(currentDivider);
+          }
+          filtered.push(...currentSection);
+        }
+        // Start new section
+        currentDivider = integration;
+        currentSection = [];
+      } else {
+        const searchableText = [
+          integration.text,
+          integration.name,
+          integration.label,
+          integration.alt,
+          integration.id
+        ].filter(Boolean).join(' ').toLowerCase();
+
+        const matchesSearch = searchableText.includes(query);
+
+        // Check if any sub-items match
+        let hasMatchingSubItems = false;
+        let filteredSubItems = [];
+        if (integration.sub && integration.sub.length > 0) {
+          filteredSubItems = filterRecursively(integration.sub);
+          hasMatchingSubItems = filteredSubItems.length > 0;
+        }
+
+        // Include this integration if it matches or has matching sub-items
+        if (matchesSearch || hasMatchingSubItems) {
+          const filteredIntegration = { ...integration };
+          if (filteredSubItems.length > 0) {
+            filteredIntegration.sub = filteredSubItems;
+          }
+          currentSection.push(filteredIntegration);
+        }
+      }
+    }
+
+    // Handle the last section
+    if (currentSection.length > 0) {
+      if (currentDivider) {
+        filtered.push(currentDivider);
+      }
+      filtered.push(...currentSection);
+    }
+
+    return filtered;
+  };
+
+  return filterRecursively(integrations);
+}
+
+
+const IntegrationsMenus = props => {
+  const { integrations, level=0, key_prefix='', integrationStatuses={}, triggerIntegration, startUpdateIntegrationStatuses, stopUpdateIntegrationStatuses } = props;
+  const site_config = useSiteConfig()
+  const docs_root = props.docs_root ?? site_config.docs_root
+  const [searchQuery, setSearchQuery] = useState('')
+  const eval_templates_recusively = make_eval_templates_recursively(props)
+
+  const render_integration = (integration, idx) => {
+    try {
+      integration = eval_templates_recusively(integration)
+    } catch {
+      // console.log('error with integration', integration, e)
+      return <span key={idx}/>;
+    }
+    if (!integration) {
+      // console.log('undef integration', integration)
+      return <span key={idx}/>;
+    }
+    // console.log('good', integration)
+    if (integration.divider) {
+      return <MenuDivider key={idx} {...integration}/>
+    }
+    const entry_key = integration_key(integration, key_prefix);
+    let status = integrationStatuses[entry_key];
+    let first_loading = !!status && (status.loading && !status.is_loaded);
+    let trigger_loading = !!status && (status.loading && status.triggered);
+    let has_error = !!status && !!status.error
+    let disabled = !integration.src && (integration.disabled || first_loading || (has_error && !integration.allow_failed) || trigger_loading);
+
+    // TODO: always show the JobTag if "status.data" has some info
+    if (integration.gitlabCI || integration.jenkins) {
+      let label = has_error ? <Tooltip content={<span>{JSON.stringify(status.error.message)}</span>}>
+                                <Tag round icon="cross" intent="danger"/>
+                              </Tooltip>
+                            : <StatusTag integration={integration} status={status}/>
+      return <MenuItem
+        key={idx}
+        tagName='div'
+        shouldDismissPopover={false}
+        icon={( (!!status?.data?.web_url || !!status?.data?.url) && status.data.status !== 'manual') ? 'repeat' : 'play'}
+        {...integration}
+        gitlabCI={undefined}
+        jenkins={undefined}
+        label={label}
+        onClick={triggerIntegration(integration, entry_key)}
+        disabled={disabled}
+      />
+    }
+
+    const badge = integration.src && <img
+      alt={integration.alt || entry_key}
+      src={encodeURI(`/api/v1/gitlab/proxy?url=${integration.src}`)}
+    />
+    let right_label
+    if (badge) {
+      right_label = integration.icon && <Icon icon={integration.icon}/>
+    } else {
+      if (integration.webhook) {
+        right_label = <StatusTag integration={integration} status={status}/>
+      } else {
+        right_label = !!integration.label ? integration.label : ''
+        if (has_error) {
+          right_label = <span>{right_label}<StatusTag integration={integration} status={status}/></span>
+        }
+      }
+    }
+    // Strip props that aren't meant to reach the <MenuItem>/DOM -
+    // they come from the qaboard.yaml integration schema.
+    const {
+      sub, webhook, gitlabCI, jenkins, src, alt, only, in_menu,
+      allow_failed, allow_failure, id, name,
+      ...menu_item_props
+    } = integration;
+    const has_trigger = !!webhook;
+    return <MenuItem
+        key={idx}
+        shouldDismissPopover={!!integration.href}
+        {...menu_item_props}
+        disabled={disabled}
+        icon={badge || integration.icon}
+        label={right_label}
+        target={!!integration.href ? "_blank" : undefined}
+        onClick={!integration.href && has_trigger ? triggerIntegration(integration, entry_key) : undefined}
+      >
+        {sub && <IntegrationsMenus {...props} integrations={sub} level={level+1} key_prefix={`${entry_key}/`} />}
+    </MenuItem>
+  }
+
+  const integrations_in_menu = integrations.filter(i => i?.in_menu !== false);
+  const integrations_outside_menu = integrations.filter(i => i?.in_menu === false || level > 0);
+  
+  // Apply search filtering only to top-level menu items
+  const filtered_integrations_in_menu = level === 0 ? filterIntegrations(integrations_in_menu, searchQuery) : integrations_in_menu;
+
+  return <>
+    {integrations_outside_menu.map(render_integration)}
+    {level === 0 && <MenuItem
+      icon="send-to"
+      text="Integrations"
+      popoverProps={{
+        usePortal: true,
+        hoverCloseDelay: 2000,
+        transitionDuration: 1000,
+        onOpening: () => {startUpdateIntegrationStatuses?.(5000)},
+        onClosed: stopUpdateIntegrationStatuses,
+        // Prevent closing when interacting with search input
+        interactionKind: "hover",
+        hasBackdrop: false,
+        canEscapeKeyClose: true,
+        enforceFocus: false,
+        autoFocus: false,
+      }}
+    >
+      {integrations_in_menu.length > 5 && (
+        <div 
+          style={{ 
+            padding: '8px', 
+            borderBottom: '1px solid #ccc', 
+            marginBottom: '4px',
+            position: 'sticky',
+            top: 0,
+            backgroundColor: '#30404d',
+            zIndex: 1000
+          }}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <InputGroup
+            leftIcon="search"
+            placeholder="Search integrations..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            small
+            fill
+            onFocus={(e) => e.stopPropagation()}
+            onBlur={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+      <div style={{ minHeight: searchQuery ? '200px' : 'auto' }}>
+        {filtered_integrations_in_menu.map(render_integration)}
+        {filtered_integrations_in_menu.length === 0 && searchQuery && (
+          <MenuItem 
+            icon="search" 
+            text={`No integrations found for "${searchQuery}"`}
+            disabled
+          />
+        )}
+      </div>
+      {integrations_in_menu.length === 0 && <>
+          <MenuDivider />
+          <MenuItem
+              icon="info-sign"
+              target="_blank"
+              href={`${docs_root}docs/triggering-third-party-tools`}
+              text="Click to learn how to link to docs/artifacts, or trigger webhooks and GitlabCI/jenkins jobs..."
+          />
+      </>}
+    </MenuItem>}
+  </>;
 }
 
 

@@ -1,7 +1,7 @@
 // "Available Tests": edit the shared and private files that define batches of tests
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import styled from "styled-components";
-import axios from "axios";
+import { useQueryClient } from "@tanstack/react-query";
 import { DateTime } from "luxon";
 import {
   Alert,
@@ -29,12 +29,12 @@ import {
 import MonacoEditor, { MonacoDiffEditor } from "../MonacoEditor";
 import { toaster } from "../../toaster";
 import { copyWithToast } from "../../utils/clipboard";
-import { updateSelected } from "../../actions/selected";
-import { updateTuningForm } from "../../actions/tuning";
+import { http } from "../../api/http";
+import { updateSelected } from "../../selection";
+import { usePrefsStore } from "../../stores/prefs";
 import { analyzeBatches, newBatchSnippet, unusedBatchName } from "./batches_file";
 import { BatchDefinitions, BatchFiles, BatchWarnings } from "./BatchReport";
 
-const { get, post } = axios;
 
 
 const editor_options = {
@@ -73,9 +73,9 @@ const storeDraft = (project, name, doc) => {
   }
 };
 
-// The server returns the file as-is: don't let axios parse it as JSON
+// The server returns the file as-is: we don't parse it as JSON
 const getFile = (project, name) =>
-  get("/api/v1/tests/groups", { params: { project, name }, responseType: "text", transformResponse: r => r })
+  http.get("/api/v1/tests/groups", { params: { project, name }, responseType: "text" })
     .then(response => response.data ?? "");
 
 const errorMessage = error => {
@@ -241,7 +241,7 @@ function BatchPreview({ project, commit, file_names, file_labels, batch, onRun, 
     const id = ++request.current;
     setState({ loading: true, tests: null, error: null, report: null });
     setShown(200);
-    post("/api/v1/tests/group", { groups: file_names }, { params: { project, name, commit: commit?.id } })
+    http.post("/api/v1/tests/group", { groups: file_names }, { params: { project, name, commit: commit?.id } })
       .then(({ data }) => {
         if (id !== request.current) return;
         const { warnings = [], files = [], definitions = [] } = data;
@@ -349,9 +349,11 @@ function BatchPreview({ project, commit, file_names, file_labels, batch, onRun, 
 
 /**
  * Edits the shared and private files that define batches of tests.
- * Props: project, commit, config, git, available_tests_files ({gr: "extra-batches", usr: user_name}), docs_root, dispatch
+ * Props: project, commit, config, git, web_url (the project's page on its git server), available_tests_files ({gr: "extra-batches", usr: user_name}), docs_root
  */
-export function BatchesEditor({ project, commit, config, git, available_tests_files, docs_root, dispatch }) {
+export function BatchesEditor({ project, commit, config, git, web_url, available_tests_files, docs_root }) {
+  const queryClient = useQueryClient();
+  const updateTuning = usePrefsStore(state => state.updateTuning);
   // the object is new at each render of the commit page: depend on the names, or we'd reload the files all the time
   const private_name = available_tests_files?.usr;
   const shared_name = available_tests_files?.gr;
@@ -362,7 +364,8 @@ export function BatchesEditor({ project, commit, config, git, available_tests_fi
   const file_names = useMemo(() => files.map(f => f.name).reverse(), [files]); // later files override earlier ones
   const file_labels = useMemo(() => Object.fromEntries(files.map(f => [`${f.name}.yml`, f.label])), [files]);
 
-  const [selected, setSelected] = useState(files[0]?.id);
+  // until users pick a tab, the first file: the private one, once we know who the user is
+  const [selected, setSelected] = useState();
   // per file name: {status: loading|ready|error, base: last saved content, draft, saving, saveError, savedAt, restoredAt, loadError}
   const [docs, setDocs] = useState({});
   const [reviewing, setReviewing] = useState(false);
@@ -455,8 +458,10 @@ export function BatchesEditor({ project, commit, config, git, available_tests_fi
 
   const write = useCallback((name, content) => {
     updateDoc(name, { saving: true, saveError: null });
-    return post("/api/v1/tests/groups", { project, groups: content }, { params: { project, name } })
+    return http.post("/api/v1/tests/groups", { project, groups: content }, { params: { project, name } })
       .then(() => {
+        // the tuning form lists the tests of the batches
+        queryClient.invalidateQueries({ queryKey: ['tests-group', project] });
         updateDoc(name, { saving: false, base: content, savedAt: new Date(), restoredAt: null, serverChanged: false });
       })
       .catch(error => {
@@ -464,7 +469,7 @@ export function BatchesEditor({ project, commit, config, git, available_tests_fi
         updateDoc(name, { saving: false, saveError: message });
         toaster.show({ message: `Could not save ${name}.yml: ${message}`, intent: Intent.DANGER, icon: "error" });
       });
-  }, [project, updateDoc]);
+  }, [project, updateDoc, queryClient]);
 
   const save = useCallback(() => {
     if (!file || !doc || doc.status !== "ready" || doc.saving || doc.draft === doc.base) return;
@@ -540,8 +545,8 @@ export function BatchesEditor({ project, commit, config, git, available_tests_fi
   const openPreview = batch => setPreview(p => ({ isOpen: true, batch, id: p.id + 1 }));
 
   const run = batch => {
-    dispatch(updateTuningForm(project, { selected_group: batch }));
-    dispatch(updateSelected(project, { selected_views: "tuning" }));
+    updateTuning(project, { selected_group: batch });
+    updateSelected({ selected_views: "tuning" });
   };
 
   if (files.length === 0)
@@ -742,8 +747,8 @@ export function BatchesEditor({ project, commit, config, git, available_tests_fi
                 <strong>This commit</strong>{commit_files.length === 0 && <span className={Classes.TEXT_MUTED}>: no <code>inputs.batches</code> in qaboard.yaml</span>}
                 {commit_files.length > 0 && <ul style={{ paddingLeft: 16 }}>
                   {commit_files.map(f => <li key={f}>
-                    {git?.web_url && commit?.id
-                      ? <a href={`${git.web_url}/tree/${commit.id}/${f}`} target="_blank" rel="noopener noreferrer">{f}</a>
+                    {web_url && commit?.id
+                      ? <a href={`${web_url}/tree/${commit.id}/${f}`} target="_blank" rel="noopener noreferrer">{f}</a>
                       : <code>{f}</code>}
                   </li>)}
                 </ul>}

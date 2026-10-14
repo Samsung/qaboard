@@ -1,7 +1,6 @@
 import React from "react";
-import { connect } from "react-redux";
-import axios, { CancelToken, isCancel } from "axios";
-const { get } = axios;
+import { http, isAbort } from "../../api/http";
+import { useSiteConfig } from "../../hooks";
 import {
   Classes,
   Colors,
@@ -72,7 +71,7 @@ const openseadragon_config = {
 
 
 // We sync the viewer viewport of all viewers of the same size for a given output
-var synced_viewers = {}
+const synced_viewers = {}
 
 
 
@@ -158,7 +157,6 @@ class ImgViewer extends React.PureComponent {
     this.state = {
       ready: false, // viewer mounted
       fullyLoaded: {new: false, ref: false},
-      cancel_source: CancelToken.source(),
       first_image: "new",
       width: Math.floor(parseFloat((this.props.style?.width ?? '390px').replace(/[^\d]+/, ''))),
       height: 217, // default 4/3 ratio
@@ -175,6 +173,9 @@ class ImgViewer extends React.PureComponent {
   }
 
   componentDidMount() {
+    // To cancel the requests for the images' metadata
+    this.abort_controller = new AbortController();
+    this.unmounted = false;
     this.viewer_new = OpenSeadragon({
       ...openseadragon_config,
       ...this.viewer_new, // todo: use react refs instead
@@ -195,7 +196,7 @@ class ImgViewer extends React.PureComponent {
     }).catch(error => {
       // Not JSON.stringify(error): exceptions (e.g. TypeError) would show as "{}"
       const cause = error?.error ?? error
-      if (!isCancel(cause)) console.error("Init Error:", cause)
+      if (!isAbort(cause)) console.error("Init Error:", cause)
     })
   }
 
@@ -294,7 +295,7 @@ class ImgViewer extends React.PureComponent {
 
 
 
-    var lead_viewer_sync = (sync_key, viewer) => () => {
+    const lead_viewer_sync = (sync_key, viewer) => () => {
       // console.log("[lead_viewer_sync]")
       let { leading } = synced_viewers[sync_key];
       if (!!leading && (leading !== viewer.id && leading !== 'resize'))
@@ -403,27 +404,24 @@ class ImgViewer extends React.PureComponent {
 
 
   componentWillUnmount() {
-    if (!!this.state.cancel_source.token)
-      this.state.cancel_source.cancel();
-    if (!!this.UnregisterZoomSync)
-      this.UnregisterZoomSync()
-    if (!!this.UnregisterZoomSync)
-      this.UnregisterZoomSync()
+    this.unmounted = true;
+    this.abort_controller?.abort();
+    this.UnregisterZoomSync?.()
 
-    if (!!this.viewer_new) {
+    if (this.viewer_new) {
       unregister_filter_sync(this.viewer_new)
       // this.viewer_new.imageLoader.clear()  
       // this.viewer_new.destroy();
       // this.viewer_new = null;
     }
-    if (!!this.viewer_ref) {
+    if (this.viewer_ref) {
       unregister_filter_sync(this.viewer_ref)
       // this.viewer_new.imageLoader.clear()  
       // this.viewer_ref.destroy();
       // this.viewer_ref = null;
     }
     // remove viewers from output_viewers
-    window.removeEventListener('keypress', this.keypress);
+    window.removeEventListener('keypress', this.keyboard);
   }
 
 
@@ -437,9 +435,14 @@ class ImgViewer extends React.PureComponent {
       let has_reference = !!output_ref && !output_ref.deleted && !!output_ref.output_dir_url && this.props.manifests?.reference?.[path_ref] !== undefined;
       this.setState({has_reference})
 
-      let requests = [get(`${iiif_url(output_new.output_dir_url, path, this.props.manifests?.new, true, this.props.imageServers)}/info.json`, { cancelToken: this.state.cancel_source.token })]
+      const { signal } = this.abort_controller;
+      const get_info = url => http.get(url, { signal }).catch(error => {
+        error.url = url; // to help users debug
+        throw error;
+      })
+      const requests = [get_info(`${iiif_url(output_new.output_dir_url, path, this.props.manifests?.new, true, this.props.imageServers)}/info.json`)]
       if (has_reference)
-        requests.push(get(`${iiif_url(output_ref.output_dir_url, path_ref, this.props.manifests?.reference, true, this.props.imageServers)}/info.json`, { cancelToken: this.state.cancel_source.token }))
+        requests.push(get_info(`${iiif_url(output_ref.output_dir_url, path_ref, this.props.manifests?.reference, true, this.props.imageServers)}/info.json`))
       Promise.all(requests).then( ([res_new, res_ref]) => {
         this.setState({ loaded: true })
         // https://Openseadragon.github.io/examples/tilesource-iiif/
@@ -562,6 +565,11 @@ class ImgViewer extends React.PureComponent {
         }
       })
       .catch(error => {
+        // Cancelled because the images changed or the viewer was unmounted
+        if (isAbort(error) || this.unmounted) {
+          reject({ error })
+          return
+        }
         console.log(error)
         // If there is an error we don't want to show a previous image successfully loaded... 
         if (viewer_new.world.getItemCount() > 0)
@@ -588,6 +596,9 @@ class ImgViewer extends React.PureComponent {
       // console.log('-> Init()')
       if (this.props.id === undefined)
         console.log('If you update the image path, you have to provide a `props.id`, otherwise the component will crash because the viewers IDs depend on it')
+      // we don't need the metadata of the previous images anymore
+      this.abort_controller.abort();
+      this.abort_controller = new AbortController();
       const previous = this.state.ready ? capture_viewport(this.viewer_new, this.state.image_width, this.state.image_height) : null
       this.Init(previous).then(() => {
         this.InitDiff();
@@ -657,7 +668,7 @@ class ImgViewer extends React.PureComponent {
     // let data_ref = viewer_ref.drawer.context.getImageData(0, 0, size.x, size.y);
     // console.log(data_new)
 
-    var canvas_diff_element = this.canvas_diff.current;
+    const canvas_diff_element = this.canvas_diff.current;
     if (canvas_diff_element) {
       canvas_diff_element.style.cssText = viewer_new.drawer.canvas.style.cssText
       canvas_diff_element.width = width
@@ -669,7 +680,7 @@ class ImgViewer extends React.PureComponent {
       let div2_diff = div_diff.parentNode
       div2_diff.style.cssText = viewer_new.drawer.canvas.parentNode.parentNode.style.cssText
 
-      var diff_data = canvas_diff_element.getContext("2d").createImageData(width, height);
+      const diff_data = canvas_diff_element.getContext("2d").createImageData(width, height);
       pixelmatch(data_new.data, data_ref.data, diff_data.data, width, height, {
         colorScale: true,
         threshold: this.state.diff_threshold,
@@ -737,7 +748,7 @@ class ImgViewer extends React.PureComponent {
         canvas_el.addEventListener(eventType, function (event) {
             console.log("event@", eventType)
           // we cannot re-dispatch the event twice, we must copy it
-          var new_event = new event.constructor(event.type, event)
+          const new_event = new event.constructor(event.type, event)
           if (eventType.match(/(mouse|pointer)/)) {
             const rect_diff = canvas_el.getBoundingClientRect();
             const rect_new = viewer_new.drawer.canvas.getBoundingClientRect();
@@ -816,9 +827,9 @@ class ImgViewer extends React.PureComponent {
 
   InitMouseTracker() {
     const { viewer_new, viewer_ref } = this;
-    var rgb_new = viewer_new.rgb({
+    const rgb_new = viewer_new.rgb({
       onCanvasHover: color_new => {
-        if (!!!color_new.viewportCoordinates)
+        if (!color_new.viewportCoordinates)
           return
         if (this.state.has_reference) {
           const color_ref = rgb_ref.getValueAt(color_new.viewportCoordinates.x, color_new.viewportCoordinates.y)
@@ -836,9 +847,9 @@ class ImgViewer extends React.PureComponent {
         })
       }
     });
-    var rgb_ref = viewer_ref.rgb({
+    const rgb_ref = viewer_ref.rgb({
       onCanvasHover: color_ref => {
-        if (!!!color_ref.viewportCoordinates)
+        if (!color_ref.viewportCoordinates)
           return
         const color_new = rgb_new.getValueAt(color_ref.viewportCoordinates.x, color_ref.viewportCoordinates.y)
         this.setState({
@@ -865,13 +876,13 @@ class ImgViewer extends React.PureComponent {
     
     const has_same_data = is_same_data(path, manifests?.new?.[path], manifests?.reference?.[path_ref])
 
-    const has_error = !!error && Object.keys(error).length > 0;
+    const has_error = !!error && (error instanceof Error || Object.keys(error).length > 0);
     const error_messages = !has_error ? <span/> : <>
       {manifests?.new?.[path]?.st_size == 0 && <Tag style={{marginRight: "5px"}} intent={Intent.DANGER}>Empty Image</Tag>}
       <Popover inheritDarkTheme popoverClassName={Classes.DARK} hoverCloseDelay={500} interactionKind={"hover"} content={
           <div style={{ padding: '5px' }}>
             {!!error.message && <p>{JSON.stringify(error.message)}</p>}
-            {!!error.request && <p>You may <a href={error.config.url}>find why here</a>.</p>}
+            {!!error.url && <p>You may <a href={error.url}>find why here</a>.</p>}
             {!!error.response && !!error.response.data && <p>response.data: {JSON.stringify(error.response.data)}</p>}
             {!!error.data && <p>data: {JSON.stringify(error.data)}</p>}
           </div>}
@@ -1004,7 +1015,7 @@ class ImgViewer extends React.PureComponent {
       height: this.viewer_new?.source?.height,
     } 
     if (!!this.viewer_new && !!this.viewer_new.viewport && this.viewer_new.world.getItemCount() > 0) {
-      var viewportBounds = this.viewer_new.viewport.getBounds();
+      const viewportBounds = this.viewer_new.viewport.getBounds();
       let top_left = viewportBounds.getTopLeft()
       let bottom_right = viewportBounds.getBottomRight()
       const tiledImage = this.viewer_new.world.getItemAt(this.viewer_new.world.getItemCount() - 1);
@@ -1188,8 +1199,10 @@ function addOverlayToCanvas(canvas, position) {
   }
 }
 
-const mapStateToProps = state => ({
-  imageServers: state.siteConfig?.image_servers,
-});
+// The viewer is an imperative wrapper around OpenSeadragon, so it stays a class
+const ImageViewer = props => {
+  const { image_servers } = useSiteConfig();
+  return <ImgViewer {...props} imageServers={image_servers} />
+}
 
-export default connect(mapStateToProps)(ImgViewer);
+export default ImageViewer;

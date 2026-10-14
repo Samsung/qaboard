@@ -1,9 +1,6 @@
-import React from "react";
-import { connect, useSelector } from 'react-redux'
-import { withRouter } from "./router";
-import { Link, useLinkClickHandler } from "./router";
+import { Link, useLinkClickHandler, useRouter } from "./router";
+import { path_segment, stringify_query } from "./selection";
 import styled from "styled-components";
-import axios from "axios";
 
 import { colors, spacing, typography, borders, shadows, transitions, breakpoints, sidebar } from './design/tokens';
 
@@ -23,19 +20,9 @@ import AuthButton from "./components/authentication/Auth"
 import { WhatsNewButton } from "./releaseNotes/ReleaseNotes"
 import { LogsMenuItem, logs_hint_class } from "./AppSiderLogsItem"
 
-import {
-  selectedSelector,
-  projectSelector,
-  projectDataSelector,
-  commitSelector,
-  latestCommitSelector,
-  batchSelector,
-} from './selectors/projects'
-import { updateSelected } from "./actions/selected";
-import { fetchCommit } from "./actions/commit";
-import { git_hostname, default_git_hostname, quota_url } from "./utils"
-import { make_eval_templates_recursively } from "./utils"
-import { toaster } from "./toaster"
+import { useCommitsList, useComparison, useSiteConfig, useUser, updateSelected } from "./hooks"
+import { useIntegrationStatuses } from "./useIntegrationStatuses"
+import { project_web_url, quota_url } from "./utils"
 
 export const sider_width = sidebar.width.default;
 
@@ -370,46 +357,32 @@ const Sider = styled.div`
 `
 
 
-class ProjectSideAvatar extends React.Component {
-  toHome = () => {
-    const { dispatch, project } = this.props;
-    dispatch(updateSelected(project, {branch: null, committer: null}))
-  }
-
-  render() {
-    const { project, project_data={} } = this.props;
-    let project_name = project.split('/').slice(-1)[0];
-    return (
-      <SiderProjectAvatar>
-        <Link onClick={this.toHome} to={`/${project}`} style={{display: 'flex', alignItems: 'center', gap: '12px', width: '100%', color: 'inherit'}}>
-          <ProjectAvatar
-            className="avatar"
-            project={project}
-            data={project_data.data}
-          />
-          <span className="project-name">{project_name}</span>
-        </Link>
-      </SiderProjectAvatar>
-    )
-
-  }
+const ProjectSideAvatar = ({ project, project_data = {} }) => {
+  let project_name = project.split('/').slice(-1)[0];
+  return (
+    <SiderProjectAvatar>
+      <Link to={`/${project}`} style={{display: 'flex', alignItems: 'center', gap: '12px', width: '100%', color: 'inherit'}}>
+        <ProjectAvatar
+          className="avatar"
+          project={project}
+          data={project_data.data}
+        />
+        <span className="project-name">{project_name}</span>
+      </Link>
+    </SiderProjectAvatar>
+  )
 }
 
 // A menu entry that navigates like <Link>: within the app, without reloading it, but ctrl/cmd+click still opens a new tab.
-// onNavigate is only called when we navigate within the app.
-const MenuItemLink = ({ to, onNavigate, ...props }) => {
+const MenuItemLink = ({ to, ...props }) => {
   const handleClick = useLinkClickHandler(to)
-  return <MenuItem {...props} href={to} onClick={event => {
-    handleClick(event)
-    if (event.defaultPrevented)
-      onNavigate?.()
-  }}/>
+  return <MenuItem {...props} href={to} onClick={handleClick}/>
 }
 
 // Only shown if the site has a quota dashboard (QABOARD_QUOTA_URL_TEMPLATE)
 const QuotaMenuItem = ({ user, project }) => {
-  const template = useSelector(state => state.siteConfig.quota_url_template)
-  const href = quota_url(template, user?.user_name, project)
+  const { quota_url_template } = useSiteConfig()
+  const href = quota_url(quota_url_template, user?.user_name, project)
   if (!user?.is_logged || !href)
     return null
   return <MenuItem
@@ -420,686 +393,251 @@ const QuotaMenuItem = ({ user, project }) => {
   />
 }
 
-class ProjectSideCommitList extends React.Component {
-  // The commit list and the history page show the selected branch's commits
-  selectBranch = branch => () => {
-    const { project, dispatch } = this.props;
-    dispatch(updateSelected(project, {branch, committer: null}))
-  }
-
-  selectMilestone = milestone => {
-    const { project, dispatch } = this.props;
-    dispatch(fetchCommit({project: milestone.project ?? project, id: milestone.commit}));
-    dispatch(updateSelected(project, {
-      new_project: milestone.project ?? project,
-      new_commit_id: milestone.commit,
-      selected_batch_new: milestone.batch,
-      filter_batch_new: milestone.filter,
-    }))
+const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_commit = {}, user, docs_root, ...integrationProps }) => {
+  const { history } = useRouter();
+  const { selected } = useComparison();
+  // Milestones from qaboard.yaml are branches (or tags), the others are commits
+  const selectMilestone = milestone => {
+    if (!milestone.commit)
+      return updateSelected({ branch: milestone.branch });
+    history.push({
+      pathname: `/${path_segment(project)}/commit/${path_segment(milestone.commit)}`,
+      search: stringify_query({
+        new_project: milestone.project !== project ? milestone.project : undefined,
+        batch: milestone.batch,
+        filter: milestone.filter,
+      }),
+    });
   };
 
-  render() {
-    const { project, project_data={}, commit={}, ref_commit={}, match, user } = this.props;
-    let qatools_config = project_data.data?.qatools_config || {};
-    let integrations = qatools_config.integrations ?? commit.data?.qatools_config?.integrations ??[];
+  let qatools_config = project_data.data?.qatools_config || {};
+  let integrations = qatools_config.integrations ?? commit?.data?.qatools_config?.integrations ?? [];
+  let reference_branch = qatools_config.project?.reference_branch;
+  const git = project_data.data?.git || {};
 
-    let reference_branch = qatools_config.project?.reference_branch;
-    const git = project_data.data?.git || {};
+  // in qaboard.yaml users specify milestones as arrays, but here we handle them as a mapping...
+  const qatools_milestones_array = qatools_config?.project?.milestones || []
+  const qatools_milestones = Object.fromEntries(Object.entries(qatools_milestones_array).map( ([key, branch])=> [key, {branch}] ))
+  const shared_milestones = project_data?.data?.milestones || {}
+  const private_milestones = project_data.milestones || {}
 
-    // in qaboard.yaml users specify milestones as arrays, but here we handle them as a mapping...
-    const qatools_milestones_array = qatools_config?.project?.milestones || []
-    const qatools_milestones = Object.fromEntries(Object.entries(qatools_milestones_array).map( ([key, branch])=> [key, {branch}] ))
-    const shared_milestones = project_data?.data?.milestones || {}
-    const private_milestones = project_data.milestones || {}
-
-    let is_project_home = this.props.match.path === "/:project_id+/commits" || this.props.match.path === "/:project_id+";
-    let is_history = match.path.startsWith("/:project_id+/history") || match.path.startsWith("/:project_id+/dashboard");
-    let is_committer = !!match.params.committer;
-    let is_branch = !!match.params.name;
-    if (is_branch || is_committer) {
-      var tag = match.params.name || match.params.committer;
-    } else {
-      tag = reference_branch;
-    } 
-    let project_repo = git.path_with_namespace || '';
-    let subproject = project.slice(project_repo.length + 1);
-
-    const project_git_hostname = git_hostname(project_data?.data?.qatools_config) ?? default_git_hostname
-    git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
-    const branch = is_branch ? match.params.name : reference_branch;
-    let code_url = subproject.length > 0 ? `${git.web_url}/tree/${branch}/${subproject}` : git.web_url;
-    const commits_url = branch ? `/${project}/commits/${branch}` : `/${project}/commits`;
-    const history_url = branch ? `/${project}/history/${branch}` : `/${project}/history`;
-    return <>
-      {/* The branch's commits: highlighted on their page, a link elsewhere */}
-      {(is_project_home || is_history) ? <div><MenuItemLink to={commits_url} onNavigate={this.selectBranch(branch)} text={branch} title={branch && `Commits on ${branch}`} icon='git-branch' style={{marginRight: '5px'}}/></div>
-                        : <MenuItem icon={is_branch ? "git-branch" : 'user'} intent='primary' text={tag} title={tag}/>
-      }
-      {!is_committer && <>
-        <MenuItem href={code_url} icon="git-repo" target="_blank" rel="noopener noreferrer" labelElement={<Icon icon="share" />} text="Code"/>
-        <MenuItemLink to={history_url} onNavigate={this.selectBranch(branch)} active={is_history} icon="history" text="History"/>
-        <SectionDivider />
-        <IntegrationsMenus
-          single_menu
-          integrations={integrations}
-          project={project}
-          project_data={project_data}
-          branch={branch}
-          commit={commit}
-          ref_commit={ref_commit}
-          user={user}
-          docs_root={this.props.docs_root}
-          integrationStatuses={this.props.integrationStatuses}
-          triggerIntegration={this.props.triggerIntegration}
-          startUpdateIntegrationStatuses={this.props.startUpdateIntegrationStatuses}
-          stopUpdateIntegrationStatuses={this.props.stopUpdateIntegrationStatuses}
-        />
-        <MenuItem
-          text="Milestones"
-          icon="star"
-          popoverProps={{
-            usePortal: true,
-            portalClassName: "limit-overflow",
-            hoverCloseDelay: 2000,
-            transitionDuration: 800,
-          }}
-        >
-          <MilestonesMenu project={project} milestones={qatools_milestones} onSelect={this.selectMilestone} icon="crown" title="Select a milestone from qaboard.yaml" type="qatools" />
-          {qatools_milestones.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qaboard.yaml</em> configuration.</span>}
-          <MilestonesMenu project={project} milestones={shared_milestones} onSelect={this.selectMilestone} icon="crown" type="shared" title="Select a shared milestone" />
-          <MilestonesMenu project={project} milestones={private_milestones} onSelect={this.selectMilestone} type="private" title="Select a private milestone" />
-        </MenuItem>
-        <QuotaMenuItem user={user} project={project} />
-        </>}
-    </>
+  const is_committer = selected.route.is_committer;
+  const is_history = selected.route.is_history;
+  const is_branch = !!selected.branch;
+  const is_project_home = selected.route.is_commits && !is_branch;
+  const tag = selected.branch ?? selected.committer ?? reference_branch;
+  const branch = selected.branch ?? reference_branch;
+  let project_repo = git.path_with_namespace || '';
+  let subproject = project.slice(project_repo.length + 1);
+  const web_url = project_web_url(project_data);
+  let code_url = subproject.length > 0 ? `${web_url}/tree/${branch}/${subproject}` : web_url;
+  const commits_url = branch ? `/${path_segment(project)}/commits/${path_segment(branch)}` : `/${path_segment(project)}/commits`;
+  const history_url = branch ? `/${path_segment(project)}/history/${path_segment(branch)}` : `/${path_segment(project)}/history`;
+  return <>
+    {/* The branch's commits: highlighted on their page, a link elsewhere */}
+    {(is_project_home || is_history)
+      ? <div><MenuItemLink to={commits_url} text={branch} title={branch && `Commits on ${branch}`} icon='git-branch' style={{marginRight: '5px'}}/></div>
+      : <MenuItem icon={is_branch ? "git-branch" : 'user'} intent='primary' text={tag} title={tag}/>
     }
-}
-        // {false && <MenuItem icon="locate" text="Metrics"/>}
-        // {false && <MenuItem icon="info-sign" text="Settings"/>}
-
-
-class ProjectSideResults extends React.Component {
-  set = (attribute, value) => () => {
-    this.props.dispatch(updateSelected(this.props.project, { [attribute]: value }))
-  } 
-
-  render() {
-    const { project, project_data={}, commit, ref_commit, new_batch, ref_batch, user } = this.props;
-    const git = project_data.data?.git || {};
-    let project_repo = git.path_with_namespace || '';
-    let subproject = project.slice(project_repo.length + 1);
-    let commit_code_sufffix = !!commit ? (subproject.length > 0 ? `blob/${commit.id}/${subproject}` : `commit/${commit.id}`) : ''
-
-    const project_git_hostname = git_hostname(project_data?.data?.qatools_config) ?? default_git_hostname
-    git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
-    let code_url = `${git.web_url}/${commit_code_sufffix}`
-
-    const batch_qatools_config = new_batch?.data?.qatools_config ?? {};
-    const commit_qatools_config = commit?.data?.qatools_config ?? {};
-    const project_qatools_config = project_data.data?.qatools_config ?? {};
-    let integrations = batch_qatools_config.integrations ?? commit_qatools_config.integrations ?? project_qatools_config.integrations ?? [];
-    // integrations = integrations.slice(20)
-    // integrations = [
-    //   {
-    //     id: "XXXXX",
-    //     text: "TEST ${user.user_name} ${batch} | ${batch} | ${ref_batch} | ${ref_commit.id} | | ${filter} | ${ref_filter} | ${ref_project}",
-    //     webhook: {method: "GET", url: "https://qa/s/xxxx"}
-    //   },
-    //   {
-    //     text: "level 1",
-    //     sub: [{text: "level 2"}]
-    //   },
-    //   // {
-    //   //   icon: "circle",
-    //   //   text: "TEST outside",
-    //   //   href: "https://qa/s/xxxx",
-    //   //   in_menu: false,
-    //   // },
-    // ]
-
-    const has_optim = new_batch?.data?.optimization === true;
-    const active = view => this.props.selected_views.includes(view);
-    return <>
+    {!is_committer && <>
+      <MenuItem href={code_url} icon="git-repo" target="_blank" rel="noopener noreferrer" labelElement={<Icon icon="share" />} text="Code"/>
+      <MenuItemLink to={history_url} active={is_history} icon="history" text="History"/>
+      <SectionDivider />
       <IntegrationsMenus
+        single_menu
         integrations={integrations}
         project={project}
         project_data={project_data}
+        branch={branch}
         commit={commit}
         ref_commit={ref_commit}
-        docs_root={this.props.docs_root}
-        batch={new_batch}
-        ref_batch={ref_batch?.label}
-        filter={this.props.filter}
-        ref_filter={this.props.ref_filter}
-        ref_project={this.props.ref_project}
         user={user}
-        integrationStatuses={this.props.integrationStatuses}
-        triggerIntegration={this.props.triggerIntegration}
-        startUpdateIntegrationStatuses={this.props.startUpdateIntegrationStatuses}
-        stopUpdateIntegrationStatuses={this.props.stopUpdateIntegrationStatuses}
+        docs_root={docs_root}
+        {...integrationProps}
       />
-      {/* Metrics Section */}
-      <SectionHeader>
-        <span>Metrics</span>
-      </SectionHeader>
-      <MenuItem icon="dashboard" text="Summary" active={active('summary')} onClick={this.set('selected_views', 'summary')}/>
-      <MenuItem icon="locate" text="Metrics Table" active={active('table-kpi')} onClick={this.set('selected_views', 'table-kpi')} />
-      <MenuItem icon="heat-grid" text="Metrics Diff" active={active('table-compare')} onClick={this.set('selected_views', 'table-compare')}/>
-
-      {/* Outputs Section */}
-      <SectionHeader>
-        <span>Outputs</span>
-      </SectionHeader>
-      <MenuItem icon="media" text="Visualizations" active={active('output-list')} onClick={this.set('selected_views', 'output-list')} />
-      <MenuItem icon="folder-open" text="Output Files" active={active('bit_accuracy')} onClick={this.set('selected_views', 'bit_accuracy')} />
-      <LogsMenuItem batch={new_batch} active={active('logs')} onClick={this.set('selected_views', 'logs')} />
-
-      {/* Source Section */}
-      <SectionHeader>
-        <span>Source</span>
-      </SectionHeader>
-      <MenuItem icon="settings" text="Artifacts & Configs" active={active('parameters')} onClick={this.set('selected_views', 'parameters')} />
-      <MenuItem href={code_url} icon="git-commit" target="_blank" rel="noopener noreferrer" labelElement={<Icon icon="share" />} text="Code"/>
-
-      {/* Tuning Section */}
-      <SectionHeader>
-        <span>Tuning</span>
-      </SectionHeader>
-      <MenuItem icon="layout-group-by" active={active('groups')} text="Available Tests" onClick={this.set('selected_views', 'groups')} />
-      <MenuItem intent={Intent.PRIMARY} icon="play" text="Run Tests / Tuning" active={active('tuning')} onClick={this.set('selected_views', 'tuning')} />
-
-      <MenuItem icon="predictive-analysis" intent={has_optim ? "primary" : undefined} text="Analysis" onClick={this.set('selected_views', 'optimization')}/>
-    </>
-  }
+      <MenuItem
+        text="Milestones"
+        icon="star"
+        popoverProps={{
+          usePortal: true,
+          portalClassName: "limit-overflow",
+          hoverCloseDelay: 2000,
+          transitionDuration: 800,
+        }}
+      >
+        <MilestonesMenu project={project} milestones={qatools_milestones} onSelect={selectMilestone} icon="crown" title="Select a milestone from qaboard.yaml" type="qatools" />
+        {qatools_milestones_array.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qaboard.yaml</em> configuration.</span>}
+        <MilestonesMenu project={project} milestones={shared_milestones} onSelect={selectMilestone} icon="crown" type="shared" title="Select a shared milestone" />
+        <MilestonesMenu project={project} milestones={private_milestones} onSelect={selectMilestone} type="private" title="Select a private milestone" />
+      </MenuItem>
+      <QuotaMenuItem user={user} project={project} />
+    </>}
+  </>
 }
 
 
+const results_integrations = ({ new_batch, commit, project_data }) =>
+  new_batch?.data?.qatools_config?.integrations ?? commit?.data?.qatools_config?.integrations ?? project_data.data?.qatools_config?.integrations ?? [];
 
+const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, new_batch, ref_batch, selected_views, default_views, filter, ref_filter, ref_project, user, docs_root, ...integrationProps }) => {
+  const git = project_data.data?.git || {};
+  let project_repo = git.path_with_namespace || '';
+  let subproject = project.slice(project_repo.length + 1);
+  let commit_code_sufffix = !!commit?.id ? (subproject.length > 0 ? `blob/${commit.id}/${subproject}` : `commit/${commit.id}`) : ''
+  let code_url = `${project_web_url(project_data)}/${commit_code_sufffix}`
 
-class AppSider extends React.Component {
-  // localStorage keys for persisting integration statuses across refreshes.
-  // Per-commit so different commits don't share state. Index key tracks
-  // insertion order, capped to keep storage bounded.
-  static LS_PREFIX = 'qaboard:integrationStatuses:';
-  static LS_INDEX_KEY = 'qaboard:integrationStatuses:index';
-  static LS_MAX_COMMITS = 50;
+  const has_optim = new_batch?.data?.optimization === true;
+  const active = view => selected_views.includes(view);
+  const set = view => () => updateSelected({ selected_views: view }, { defaults: { selected_views: default_views } })
+  return <>
+    <IntegrationsMenus
+      integrations={results_integrations({ new_batch, commit, project_data })}
+      project={project}
+      project_data={project_data}
+      commit={commit}
+      ref_commit={ref_commit}
+      docs_root={docs_root}
+      batch={new_batch}
+      ref_batch={ref_batch?.label}
+      filter={filter}
+      ref_filter={ref_filter}
+      ref_project={ref_project}
+      user={user}
+      {...integrationProps}
+    />
+    {/* Metrics Section */}
+    <SectionHeader>
+      <span>Metrics</span>
+    </SectionHeader>
+    <MenuItem icon="dashboard" text="Summary" active={active('summary')} onClick={set('summary')}/>
+    <MenuItem icon="locate" text="Metrics Table" active={active('table-kpi')} onClick={set('table-kpi')} />
+    <MenuItem icon="heat-grid" text="Metrics Diff" active={active('table-compare')} onClick={set('table-compare')}/>
 
-  constructor(props) {
-    super(props);
-    this.state = {
-      // Restored from localStorage for the current commit
-      integrationStatuses: this.loadIntegrationStatuses(props.commit?.id),
-    }
-  }
-  loadIntegrationStatuses = (commitId) => {
-    if (!commitId) return {};
-    try {
-      const raw = localStorage.getItem(AppSider.LS_PREFIX + commitId);
-      if (!raw) return {};
-      const parsed = JSON.parse(raw);
-      // Clear stale loading flags, the in-flight request from the previous
-      // session is gone and would otherwise block the next poll forever.
-      Object.keys(parsed).forEach(k => {
-        if (parsed[k]) parsed[k].loading = false;
-      });
-      return parsed;
-    } catch (e) {
-      console.warn('Failed to load integrationStatuses from localStorage', e);
-      return {};
-    }
-  }
-  saveIntegrationStatuses = (commitId, statuses) => {
-    if (!commitId) return;
-    try {
-      // Only persist entries the user actively triggered (Jenkins/gitlabCI builds).
-      // HEAD-probe results for plain links/artifacts are cheap to recompute on
-      // demand and not worth the storage churn.
-      const cleaned = {};
-      Object.keys(statuses).forEach(k => {
-        if (!statuses[k] || !statuses[k].triggered) return;
-        const { error, ...rest } = statuses[k];
-        cleaned[k] = error ? { ...rest, error: true } : rest;
-      });
-      // Skip writing entirely if nothing meaningful to save.
-      if (Object.keys(cleaned).length === 0) {
-        localStorage.removeItem(AppSider.LS_PREFIX + commitId);
-        return;
-      }
-      localStorage.setItem(AppSider.LS_PREFIX + commitId, JSON.stringify(cleaned));
-      // Update the index, evict oldest if over cap.
-      let index = [];
-      try {
-        index = JSON.parse(localStorage.getItem(AppSider.LS_INDEX_KEY) || '[]');
-      } catch { index = []; }
-      index = index.filter(id => id !== commitId);
-      index.push(commitId);
-      while (index.length > AppSider.LS_MAX_COMMITS) {
-        const evicted = index.shift();
-        localStorage.removeItem(AppSider.LS_PREFIX + evicted);
-      }
-      localStorage.setItem(AppSider.LS_INDEX_KEY, JSON.stringify(index));
-    } catch (e) {
-      console.warn('Failed to save integrationStatuses to localStorage', e);
-    }
-  }
-  componentDidMount() {
-    // Mark the restored commit as recently used
-    const commitId = this.props.commit?.id;
-    if (commitId && Object.keys(this.state.integrationStatuses).length > 0) {
-      this.saveIntegrationStatuses(commitId, this.state.integrationStatuses);
-    }
-  }
-  componentDidUpdate(prevProps, prevState) {
-    const prevCommitId = prevProps.commit?.id;
-    const currCommitId = this.props.commit?.id;
-    // Commit changed: reload from localStorage for the new commit.
-    if (prevCommitId !== currCommitId && currCommitId) {
-      const restored = this.loadIntegrationStatuses(currCommitId);
-      this.setState({ integrationStatuses: restored });
-      return;
-    }
-    // Same commit, statuses changed: persist them.
-    if (currCommitId && prevState.integrationStatuses !== this.state.integrationStatuses) {
-      this.saveIntegrationStatuses(currCommitId, this.state.integrationStatuses);
-    }
-  }
-  componentWillUnmount() {
-    this.stopUpdateIntegrationStatuses()
-  }
+    {/* Outputs Section */}
+    <SectionHeader>
+      <span>Outputs</span>
+    </SectionHeader>
+    <MenuItem icon="media" text="Visualizations" active={active('output-list')} onClick={set('output-list')} />
+    <MenuItem icon="folder-open" text="Output Files" active={active('bit-accuracy')} onClick={set('bit-accuracy')} />
+    <LogsMenuItem batch={new_batch} active={active('logs')} onClick={set('logs')} />
 
-  // Integration status management methods
-  // Prefix carries the parent path so sub-menu items with the same text as a
-  // sibling elsewhere in the tree don't share a status entry.
-  key = (integration, prefix = '') => (prefix + (integration.id || integration.text || integration.name || integration.alt))
+    {/* Source Section */}
+    <SectionHeader>
+      <span>Source</span>
+    </SectionHeader>
+    <MenuItem icon="settings" text="Artifacts & Configs" active={active('parameters')} onClick={set('parameters')} />
+    <MenuItem href={code_url} icon="git-commit" target="_blank" rel="noopener noreferrer" labelElement={<Icon icon="share" />} text="Code"/>
 
-  stopUpdateIntegrationStatuses = () => {
-    clearInterval(this.state.intervalId);
-  }
+    {/* Tuning Section */}
+    <SectionHeader>
+      <span>Tuning</span>
+    </SectionHeader>
+    <MenuItem icon="layout-group-by" active={active('groups')} text="Available Tests" onClick={set('groups')} />
+    <MenuItem intent={Intent.PRIMARY} icon="play" text="Run Tests / Tuning" active={active('tuning')} onClick={set('tuning')} />
 
-  startUpdateIntegrationStatuses = interval => {
-    this.stopUpdateIntegrationStatuses();
-    this.updateIntegrationStatuses();
-    this.setState({
-      intervalId: setInterval(this.updateIntegrationStatuses, interval || 10 * 1000),
-    })
-  }
-
-  triggerIntegration = (integration, integration_key) => () => {
-    const { project, project_data={}, commit={} } = this.props;
-    const { webhook, gitlabCI, jenkins } = integration;
-    if (!webhook && !gitlabCI && !jenkins) {
-      return
-    }
-    const entry_key = integration_key ?? this.key(integration);
-    this.setState({
-      integrationStatuses: {
-        ...this.state.integrationStatuses,
-        [entry_key]: {
-          loading: true,
-          triggered: true,
-          data: undefined,
-        },
-      }
-    });
-    if (webhook) {
-      var url = '/api/v1/webhook/proxy/';
-      var params = webhook;
-    } else if (jenkins) {
-      url = '/api/v1/jenkins/build/trigger/';
-      params = jenkins
-    } else if (gitlabCI) {
-      url = '/api/v1/gitlab/job/play/';
-      const git = project_data.data?.git || {};
-      const project_git_hostname = git_hostname(project_data.data?.qatools_config) ?? default_git_hostname
-      git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
-      if (!git.web_url) {
-        this.setState({
-          integrationStatuses: {
-            ...this.state.integrationStatuses,
-            [entry_key]: {
-              is_loaded: true, loading: false,
-              error: "Can't find gitlab host",
-              statusText: 'ERROR',
-            },
-          }
-        });
-        return;
-      }
-      params = {
-        gitlab_host: git.web_url.split('/').slice(0,3).join('/'),
-        project_id: project,
-        commit_id: commit.id,
-        ...gitlabCI,
-      }
-    }
-    axios.post(url, params)
-    .then(response => {
-        console.log(response)
-        toaster.show({
-          message: `Webhook sent! [${response.status} ${response.statusText}]`,
-          intent: Intent.SUCCESS,
-        });
-        this.setState({
-          integrationStatuses: {
-            ...this.state.integrationStatuses,
-            [entry_key]: {
-              is_loaded: true,
-              loading: false,
-              triggered: true,
-              error: null,
-              statusText: response.statusText,
-              data: response.data,
-            },
-          }
-        });
-        if (!!response.data?.url && response.data?.open) {
-          window.open(response.data.url, '_blank').focus();
-        }
-    })
-    .catch(error => {
-      console.log(error.response ?? error)
-      toaster.show({
-        message: `Something went wrong: ${JSON.stringify(error.response ?? error)}`,
-        intent: Intent.DANGER,
-      });
-      this.setState({
-        integrationStatuses: {
-          ...this.state.integrationStatuses,
-          [entry_key]: {
-            is_loaded: true, loading: false, error,
-            statusText: error.response?.statusText,
-            data: error.response?.data,
-          },
-        }
-      });
-    });
-  }
-
-  updateIntegrationStatuses = () => {
-    const { project, project_data={}, commit={} } = this.props;
-    // Get all integrations from both contexts
-    const commitList_integrations = project_data.data?.qatools_config?.integrations ?? commit.data?.qatools_config?.integrations ?? [];
-    const results_integrations = (() => {
-      const batch_qatools_config = this.props.new_batch?.data?.qatools_config ?? {};
-      const commit_qatools_config = commit?.data?.qatools_config ?? {};
-      const project_qatools_config = project_data.data?.qatools_config ?? {};
-      return batch_qatools_config.integrations ?? commit_qatools_config.integrations ?? project_qatools_config.integrations ?? [];
-    })();
-    
-    const all_integrations = [...commitList_integrations, ...results_integrations];
-    const eval_templates_recusively = make_eval_templates_recursively(this.props)
-
-    // Flatten integrations so sub-menu entries also get their status probed.
-    // Without this, only top-level items get a HEAD request / status tag and
-    // nested links have no way to show they're broken.
-    // Each entry carries a path-aware key so that sub-items that share a
-    // text/name with a sibling elsewhere in the tree don't collide.
-    const flatten = (items, prefix = '') => (items || []).flatMap(i => {
-      if (!i) return [];
-      const item_key = this.key(i, prefix);
-      return i.sub
-        ? [{ integration: i, integration_key: item_key }, ...flatten(i.sub, `${item_key}/`)]
-        : [{ integration: i, integration_key: item_key }];
-    });
-
-    flatten(all_integrations).filter(({ integration: i }) =>
-      (i?.href !== undefined && i?.href !== "" && i?.src === undefined)
-      || i?.gitlabCI
-      || i?.jenkins
-    ).forEach(({ integration, integration_key }) => {
-      try {
-        integration = eval_templates_recusively(integration)
-      } catch {
-        return;
-      }
-      if (!integration) {
-        return;
-      }
-      const status = this.state.integrationStatuses[integration_key] || {};
-      if (status.loading)
-        return
-      if (integration.jenkins && status.data?.web_url === undefined && status.data?.url === undefined)
-        return
-      // Those are display-only fields, not part of the request
-      const { label: _label, icon: _icon, text: _text, href: _href, alt: _alt, style: _style, ignore_failure, gitlabCI, jenkins, ...request } = integration;
-      let req_url, params;
-      if (gitlabCI) {
-       if (status?.triggered !== true)
-         return
-       req_url = '/api/v1/gitlab/job/';
-       const git = project_data.data?.git || {};
-       if (!git.web_url) {
-         this.setState({
-           integrationStatuses: {
-             ...this.state.integrationStatuses,
-             [integration_key]: {
-               is_loaded: true,
-               loading: false,
-               error: "Can't find gitlab host",
-               statusText: 'ERROR',
-             },
-           }
-         });
-         return;
-       }
-       params = {
-         gitlab_host: git.web_url.split('/').slice(0,3).join('/'),
-         project_id: project,
-         commit_id: commit.id,
-         job_id: status.data?.id,
-         ...gitlabCI,
-       }
-     } else if (jenkins) {
-       if (status?.triggered !== true)
-         return
-       req_url = '/api/v1/jenkins/build/';
-       params = {
-         ...status?.data, //.web_url, .url
-       }
-     } else { // webhook
-       req_url = '/api/v1/webhook/proxy/';
-       params = {
-         method: 'HEAD',
-         url: integration.href.startsWith('/') ? `${window.location.origin}${integration.href}`: integration.href,
-         ...request
-       };
-     }
-      // Only mark as loading once we know we'll actually fire a request.
-      this.setState({
-        integrationStatuses: {
-          ...this.state.integrationStatuses,
-          [integration_key]: {
-            ...this.state.integrationStatuses[integration_key],
-            loading: true,
-          },
-        }
-      });
-     axios.post(req_url, params)
-       .then(response => {
-           this.setState({
-             integrationStatuses: {
-               ...this.state.integrationStatuses,
-               [integration_key]: {
-                 ...this.state.integrationStatuses[integration_key],
-                 is_loaded: true,
-                 loading: false,
-                 error: null,
-                 statusText: null,
-                 data: response.data,
-               },
-             }
-           });
-         })
-         .catch(error => {
-           const statusText = !!error.response ? error.response.statusText : "Network Error"
-           console.log("[update] Error:", error.response)
-           this.setState({
-             integrationStatuses: {
-               ...this.state.integrationStatuses,
-               [integration_key]: {
-                 ...this.state.integrationStatuses[integration_key],
-                 is_loaded: true,
-                 loading: false,
-                 error: (!!ignore_failure || statusText.includes("METHOD NOT ALLOWED")) ? null : error,
-                 statusText,
-                 data: error.response?.data,
-               },
-             }
-           });
-         });
-   })
-  }
-
-  render() {
-    const integrationProps = {
-      integrationStatuses: this.state.integrationStatuses,
-      triggerIntegration: this.triggerIntegration,
-      startUpdateIntegrationStatuses: this.startUpdateIntegrationStatuses,
-      stopUpdateIntegrationStatuses: this.stopUpdateIntegrationStatuses,
-    };
-
-    // Commit pages show views of their results, other pages (commit lists, history) the project's pages
-    const is_commit_page = ['/:project_id+/commit/:name+', '/:project_id+/commit'].includes(this.props.match.path)
-    return (
-      <Sider className={`${Classes.DARK}`}>
-        {/* Header Section */}
-        <SiderHeader>
-          <Navbar.Heading className="bp6-navbar-heading">
-            <Link to="/">
-              <strong>QA-Board</strong>
-            </Link>
-            <span>
-              <WhatsNewButton via="sidebar" className="help-icon"/>
-              <Tooltip content="User guide">
-                <a
-                  href={`${this.props.docs_root}docs/user-guide/overview`}
-                  rel="noopener noreferrer"
-                  target="_blank"
-                  className="help-icon"
-                  aria-label="User guide"
-                  style={{marginLeft: spacing.xs}}
-                >
-                  <Icon icon="info-sign"/>
-                </a>
-              </Tooltip>
-            </span>
-          </Navbar.Heading>
-        </SiderHeader>
-
-        {/* Authentication Section */}
-        <SiderSection>
-          <AuthButton appSider={true}/>
-        </SiderSection>
-
-        {/* Project Section */}
-        <SiderSection>
-          <ProjectSideAvatar 
-            project={this.props.project} 
-            project_data={this.props.project_data} 
-            dispatch={this.props.dispatch} 
-          />
-        </SiderSection>
-
-        {/* Navigation Section */}
-        <SiderSection>
-          {!is_commit_page && (
-            <>
-              <SectionHeader>Project Navigation</SectionHeader>
-              <EnhancedMenuItem>
-                <ProjectSideCommitList
-                  commit={this.props.latest_commit}
-                  ref_commit={this.props.ref_commit}
-                  match={this.props.match}
-                  history={this.props.history}
-                  project={this.props.project}
-                  project_data={this.props.project_data}
-                  dispatch={this.props.dispatch}
-                  user={this.props.user}
-                  {...integrationProps}
-                />
-              </EnhancedMenuItem>
-            </>
-          )}
-          
-          {is_commit_page && (
-            <>
-              <EnhancedMenuItem>
-                <ProjectSideResults
-                  new_batch={this.props.new_batch}
-                  commit={this.props.commit}
-                  ref_commit={this.props.ref_commit}
-                  selected_views={this.props.selected_views}
-                  history={this.props.history}
-                  project={this.props.project}
-                  project_data={this.props.project_data}
-                  dispatch={this.props.dispatch}
-                  user={this.props.user}
-                  ref_batch={this.props.ref_batch}
-                  filter={this.props.filter}
-                  ref_filter={this.props.ref_filter}
-                  ref_project={this.props.ref_project}
-                  {...integrationProps}
-                />
-              </EnhancedMenuItem>
-            </>
-          )}
-        </SiderSection>
-      </Sider>
-    )
-  }
+    <MenuItem icon="predictive-analysis" intent={has_optim ? "primary" : undefined} active={active('optimization')} text="Analysis" onClick={set('optimization')}/>
+  </>
 }
 
 
+const AppSider = () => {
+  const { docs_root } = useSiteConfig();
+  const user = useUser();
+  const { project, project_data, selected, selected_views, default_views, new_commit, ref_commit, new_batch, ref_batch } = useComparison();
+  const route = selected.route;
+  const { latest_commit } = useCommitsList();
+  // the commit whose integrations we show
+  const commit = route.is_commit ? new_commit : latest_commit;
 
-const mapStateToProps = (state, ownProps) => {
-  // console.log(state)
-  // console.log(ownProps.location)
+  const integrations = [
+    ...(project_data.data?.qatools_config?.integrations ?? commit?.data?.qatools_config?.integrations ?? []),
+    ...results_integrations({ new_batch, commit, project_data }),
+  ];
+  const template_context = {
+    project, project_data, commit, ref_commit, integrations, user, docs_root,
+    branch: selected.branch ?? project_data.data?.qatools_config?.project?.reference_branch,
+    new_batch, ref_batch: ref_batch?.label,
+    filter: selected.filter_batch_new, ref_filter: selected.filter_batch_ref, ref_project: selected.ref_project,
+  };
+  const integrationProps = useIntegrationStatuses(template_context);
 
-  let is_home = ownProps.location.pathname === '/';
-  if (is_home) return {is_home: true}
+  return (
+    <Sider className={`${Classes.DARK}`}>
+      {/* Header Section */}
+      <SiderHeader>
+        <Navbar.Heading className="bp6-navbar-heading">
+          <Link to="/">
+            <strong>QA-Board</strong>
+          </Link>
+          <span>
+            <WhatsNewButton via="sidebar" className="help-icon"/>
+            <Tooltip content="User guide">
+              <a
+                href={`${docs_root}docs/user-guide/overview`}
+                rel="noopener noreferrer"
+                target="_blank"
+                className="help-icon"
+                aria-label="User guide"
+                style={{marginLeft: spacing.xs}}
+              >
+                <Icon icon="info-sign"/>
+              </a>
+            </Tooltip>
+          </span>
+        </Navbar.Heading>
+      </SiderHeader>
 
-  // let project = params.get("project") || state.selected.project;
-  let project = projectSelector(state)
-  let project_data = projectDataSelector(state)
-  let selected = selectedSelector(state)
-  const { filter_batch_new: filter, filter_batch_ref: ref_filter, ref_project } = selected
-  let { new_commit: commit, ref_commit } = commitSelector(state)
-  const latest_commit = latestCommitSelector(state);
-  const qatools_config = (project_data.data || {}).qatools_config || {}
-  let selected_views = selected.selected_views || [ ( qatools_config.outputs || {}).default_tab_details || 'summary']
+      {/* Authentication Section */}
+      <SiderSection>
+        <AuthButton appSider={true}/>
+      </SiderSection>
 
-  const { new_batch, ref_batch } = batchSelector(state);
-  if (!state.projects.data[project]) {
-    return {
-      project,
-      project_data,
-      is_home: false,
-      branches: [],
-      commit, // selected
-      latest_commit, // on branch
-      selected_views,
-      user: state.user,
-      docs_root: state.siteConfig.docs_root,
-    };
-  }
+      {/* Project Section */}
+      <SiderSection>
+        <ProjectSideAvatar project={project} project_data={project_data} />
+      </SiderSection>
 
-
-  return {
-    is_home,
-    project,
-    commit, ref_commit,
-    latest_commit,
-    project_data,
-    branches: state.projects.data[project].branches ||  [],
-    is_loading: state.projects.data[project].branches_loading,
-    selected_views,
-    new_batch, ref_batch,
-    filter, ref_filter, ref_project,
-    user: state.user,
-    docs_root: state.siteConfig.docs_root,
-  }
+      {/* Navigation Section: views of the results on commit pages, else (commit lists, history) the project's pages */}
+      <SiderSection>
+        {(route.is_list || route.is_history) && (
+          <>
+            <SectionHeader>Project Navigation</SectionHeader>
+            <EnhancedMenuItem>
+              <ProjectSideCommitList
+                commit={latest_commit}
+                ref_commit={ref_commit}
+                project={project}
+                project_data={project_data}
+                user={user}
+                docs_root={docs_root}
+                {...integrationProps}
+              />
+            </EnhancedMenuItem>
+          </>
+        )}
+        {route.is_commit && (
+          <EnhancedMenuItem>
+            <ProjectSideResults
+              new_batch={new_batch}
+              commit={new_commit}
+              ref_commit={ref_commit}
+              selected_views={selected_views}
+              default_views={default_views}
+              project={project}
+              project_data={project_data}
+              user={user}
+              docs_root={docs_root}
+              ref_batch={ref_batch}
+              filter={selected.filter_batch_new}
+              ref_filter={selected.filter_batch_ref}
+              ref_project={selected.ref_project}
+              {...integrationProps}
+            />
+          </EnhancedMenuItem>
+        )}
+      </SiderSection>
+    </Sider>
+  )
 }
 
-
-
-export default withRouter(connect(mapStateToProps)(AppSider) );
+export default AppSider;

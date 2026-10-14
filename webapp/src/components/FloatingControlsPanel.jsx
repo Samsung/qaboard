@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import styled from "styled-components";  
 import {
   Intent,
@@ -13,6 +13,7 @@ import {
 } from "@blueprintjs/core";
 import { is_image } from "../viewers/images/utils";
 import DynamicOptionControl from "./DynamicOptionControl";
+import { resolveOptionValue } from "../utils/dynamicOptions";
 
 const PanelContainer = styled.div`
   position: fixed;
@@ -181,6 +182,20 @@ const StyledSwitch = styled(Switch)`
   margin-bottom: 8px;
 `;
 
+const noop = () => {};
+const no_options = {};
+const no_files = new Set();
+
+const storage_key = 'controls-panel-expanded';
+const saved_expanded = () => {
+  try {
+    const saved = localStorage.getItem(storage_key);
+    return saved !== null ? JSON.parse(saved) : true;
+  } catch {
+    return true;
+  }
+};
+
 const FloatingControlsPanel = ({
   controls,
   visualizations,
@@ -196,19 +211,14 @@ const FloatingControlsPanel = ({
   onUpdate,
   has_tuning,
   tuned_params,
-  dynamic_options = {},
-  onUpdateDynamicOption = () => {},
-  onToggleDynamicOptionSync = () => {},
-  visualizations_with_files = new Set(),
+  dynamic_options = no_options,
+  onUpdateDynamicOption = noop,
+  onToggleDynamicOptionSync = noop,
+  visualizations_with_files = no_files,
   expandPanel = false,
-  registration_info = { total_outputs: 0, registered_outputs: 0, is_throttled: false, last_recompute_at: 0 },
-  onForceReregisterAllOptions = () => {},
 }) => {
   // Get initial panel state from localStorage, default to open
-  const [isExpanded, setIsExpanded] = useState(() => {
-    const saved = localStorage.getItem('controls-panel-expanded');
-    return saved !== null ? JSON.parse(saved) : true;
-  });
+  const [isExpanded, setIsExpanded] = useState(saved_expanded);
   
   const [isExpandedWithLogs, setIsExpandedWithLogs] = useState(false);
 
@@ -224,11 +234,17 @@ const FloatingControlsPanel = ({
 
   // Save panel state to localStorage when it changes
   useEffect(() => {
-    localStorage.setItem('controls-panel-expanded', JSON.stringify(isExpanded));
+    try {
+      localStorage.setItem(storage_key, JSON.stringify(isExpanded));
+    } catch {
+      // private browsing, storage full...
+    }
   }, [isExpanded]);
 
   // Expand panel when requested from parent
-  useEffect(() => {
+  const [prevExpandPanel, setPrevExpandPanel] = useState(expandPanel);
+  if (expandPanel !== prevExpandPanel) {
+    setPrevExpandPanel(expandPanel);
     if (expandPanel) {
       setIsExpanded(true);
       setExpandedSections(prev => ({
@@ -236,7 +252,7 @@ const FloatingControlsPanel = ({
         dynamic_options: true
       }));
     }
-  }, [expandPanel]);
+  }
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
@@ -272,13 +288,12 @@ const FloatingControlsPanel = ({
     return visualizations_with_files.has(viewName);
   }).length;
   
-  const availableDynamicOptions = Object.entries(dynamic_options || {}).filter(([, option]) => {
-    return option.views?.some(viewName => {
-      const view = visualizations.find(v => v.name === viewName);
-      if (!view) return false;
-      return isVisualizationEnabled(view);
-    });
+  const visualizations_by_name = new Map(visualizations.map(v => [v.name, v]));
+  const isForDisplayedVisualization = option => option.views?.some(viewName => {
+    const view = visualizations_by_name.get(viewName);
+    return !!view && isVisualizationEnabled(view);
   });
+  const availableDynamicOptions = Object.entries(dynamic_options || {}).filter(([, option]) => isForDisplayedVisualization(option));
 
   // Build visualization controls
   const visualizationControls = [];
@@ -404,32 +419,12 @@ const FloatingControlsPanel = ({
                   🎛️ {availableDynamicOptions.length} dynamic option{availableDynamicOptions.length !== 1 ? 's' : ''} available
                 </div>
               )}
-              {visualizationsWithFiles == 0 && (
+              {visualizationsWithFiles === 0 && (
                   <div style={{ marginTop: 2 }}>
                     🛇 No visualizations available
                   </div>
                 )
               }
-              {registration_info.is_throttled && registration_info.total_outputs > 0 && (
-                <div style={{ marginTop: 2 }}>
-                  📝 {registration_info.registered_outputs}/{registration_info.total_outputs} outputs registered
-                  {registration_info.is_throttled && (
-                    <span style={{ color: '#d9822b' }}> (throttled)</span>
-                  )}
-                </div>
-              )}
-              {registration_info.is_throttled && (
-                <div style={{ marginTop: 4 }}>
-                  <Button
-                    icon="refresh"
-                    small
-                    onClick={onForceReregisterAllOptions}
-                    style={{ fontSize: '11px' }}
-                  >
-                    Refresh Options
-                  </Button>
-                </div>
-              )}
             </div>
           )}
 
@@ -505,22 +500,16 @@ const FloatingControlsPanel = ({
                       }
                       
                       // Hide options for visualizations that are not displayed
-                      const isForDisplayedVisualization = option.views?.some(viewName => {
-                        const view = visualizations.find(v => v.name === viewName);
-                        if (!view) return false;
-                        return isVisualizationEnabled(view);
-                      });
-                      
                       // If no views are specified, show the option anyway (fallback)
-                      return isForDisplayedVisualization || !option.views || option.views.length === 0;
+                      return isForDisplayedVisualization(option) || !option.views || option.views.length === 0;
                     })
                     .map(([name, option]) => {
-                      const isSync = controls.dynamic_options_sync?.[name] || false;
-                      const selectedValue = controls.dynamic_options?.[name]?.[0];
-                      
-                      if (!selectedValue || !option.values || option.values.length === 0) {
+                      // options are linked across outputs unless users unlink them
+                      const isSync = controls.dynamic_options_sync?.[name] !== false;
+                      if (!option.values || option.values.length === 0)
                         return null;
-                      }
+                      const wanted = [].concat(controls.dynamic_options?.[name] ?? [])[0];
+                      const { value: selectedValue, exact } = resolveOptionValue(option, wanted);
 
                       return (
                         <ControlGroup key={name}>
@@ -529,7 +518,7 @@ const FloatingControlsPanel = ({
                               {name}
                             </ControlLabel>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <Tooltip content={isSync ? "Click to unsync (make local to each output)" : "Click to sync across all outputs"}>
+                              <Tooltip content={isSync ? "Unlink: choose the value in each output" : "Link: all outputs use the value chosen here"}>
                                 <Button
                                   icon="link"
                                   minimal
@@ -544,7 +533,7 @@ const FloatingControlsPanel = ({
                                 color: isSync ? '#0d8050' : '#5c7080',
                                 fontWeight: '500'
                               }}>
-                                {isSync ? 'synced' : 'per-output'}
+                                {isSync ? 'linked' : 'per-output'}
                               </span>
                             </div>
                           </div>
@@ -565,6 +554,12 @@ const FloatingControlsPanel = ({
                             small={true}
                             showLabel={false}
                           />
+                          {!isSync && <div style={{ fontSize: 10, color: '#5c7080', marginTop: 4 }}>
+                            Each output has its own control
+                          </div>}
+                          {isSync && !exact && <div style={{ fontSize: 10, color: '#5c7080', marginTop: 4 }}>
+                            <strong>{wanted}</strong> isn't in these outputs, they show <strong>{selectedValue}</strong>
+                          </div>}
                         </ControlGroup>
                       );
                     })}

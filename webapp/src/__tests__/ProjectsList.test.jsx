@@ -2,15 +2,13 @@
  * The projects list shows each project's description.
  * Run with: cd webapp && npm test -- ProjectsList
  */
-import { render, screen } from '@testing-library/react';
-import { Provider } from 'react-redux';
-import { createStore } from 'redux';
+import { screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 import ProjectsList from '../ProjectsList';
-
-// PrivateContent checks who is logged in
-vi.mock('axios', () => ({ default: { get: vi.fn(() => new Promise(() => {})), post: vi.fn(() => new Promise(() => {})) } }));
+import { projectsQuery } from '../api/queries';
+import { normalize_projects } from '../api/normalize';
+import { makeQueryClient, renderWithProviders } from '../test-utils';
 
 
 const project = (description, git = {}) => ({
@@ -22,18 +20,19 @@ const project = (description, git = {}) => ({
   },
 });
 
-const renderProjects = projects => {
-  const store = createStore(() => ({
-    projects: { data: projects, is_loaded: true },
+const renderProjects = (projects, siteConfig = {}) => {
+  const queryClient = makeQueryClient();
+  queryClient.setQueryData(projectsQuery.queryKey, normalize_projects(projects));
+  return renderWithProviders(<MemoryRouter><ProjectsList /></MemoryRouter>, {
+    queryClient,
     user: { is_logged: true, user_name: 'ines' },
-    siteConfig: { docs_root: '/', login_required: false },
-  }));
-  return render(
-    <Provider store={store}>
-      <MemoryRouter><ProjectsList /></MemoryRouter>
-    </Provider>
-  );
+    siteConfig: { docs_root: '/', login_required: false, ...siteConfig },
+  });
 };
+
+// Nothing else should be needed from the server
+beforeEach(() => vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {}))));
+afterEach(() => vi.unstubAllGlobals());
 
 
 describe('ProjectsList', () => {
@@ -56,5 +55,11 @@ describe('ProjectsList', () => {
   it('counts the projects', () => {
     renderProjects({ 'kitefin/camera-isp': project('Camera ISP pipeline') });
     expect(screen.getByText('1 project')).toBeInTheDocument();
+  });
+
+  it("without projects, links to the docs and to the server's support page", () => {
+    renderProjects({}, { docs_root: '/qa/', support_url: 'https://support.example.com/qaboard' });
+    expect(screen.getByRole('link', { name: 'get started' })).toHaveAttribute('href', '/qa/docs/installation');
+    expect(screen.getByRole('link', { name: 'ask the maintainers' })).toHaveAttribute('href', 'https://support.example.com/qaboard');
   });
 });

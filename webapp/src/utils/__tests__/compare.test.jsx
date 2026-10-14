@@ -5,32 +5,19 @@
  */
 import { render, screen, within } from '@testing-library/react';
 
-import { filter_batch, matching_output, metrics_fill_defaults } from '../../utils';
-import { preprocess_output } from '../../reducers';
+import { metrics_fill_defaults } from '../../utils';
+import { normalize_commit } from '../../api/normalize';
+import { compute_batches } from '../../selectors/batches';
 import { summary_outputs, metric_values, summary_stats, diff_cell, mixed_parameters } from '../compare';
 import { TableCompare } from '../../components/tables';
 import fixture from '../../../../tests/fixtures/metrics-compare.json';
 
 
-// The batches as the commit page has them (reducers/index.js and selectors/projects.js)
+// The batches as the commit page has them (api/normalize.js and selectors/batches.js), runs sorted by id
 const load = () => {
-  const batch = side => {
-    const outputs = structuredClone(fixture[side].outputs);
-    Object.values(outputs).forEach(preprocess_output);
-    const batch = { outputs };
-    batch.filtered = filter_batch(batch, '');
-    return batch;
-  };
-  const new_batch = batch('new');
-  const ref_batch = batch('ref');
-  new_batch.filtered.outputs.forEach(id => {
-    const output = new_batch.outputs[id];
-    const { output_ref, mismatch } = matching_output({ output, batch: ref_batch });
-    output.reference_id = output_ref.id;
-    output.reference_mismatch = mismatch;
-  });
-  new_batch.used_metrics = new Set(Object.values(new_batch.outputs).flatMap(o => Object.keys(o.metrics)));
-  new_batch.metrics_with_refs = new_batch.used_metrics;
+  const commit = side => normalize_commit({ batches: { default: { outputs: structuredClone(fixture[side].outputs) } } });
+  const selected = { selected_batch_new: 'default', selected_batch_ref: 'default', filter_batch_new: '', filter_batch_ref: '', sort_by: 'id', sort_order: 1 };
+  const { new_batch, ref_batch } = compute_batches({ new_commit: commit('new'), ref_commit: commit('ref'), selected, metrics: {} });
   const available_metrics = metrics_fill_defaults(structuredClone(fixture.available_metrics));
   return { new_batch, ref_batch, available_metrics };
 };

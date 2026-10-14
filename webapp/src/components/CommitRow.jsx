@@ -1,7 +1,5 @@
-import React, { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { Link } from "../router";
-import { connect } from 'react-redux'
-import axios from "axios";
 
 import styled from "styled-components";
 
@@ -19,16 +17,16 @@ import {
   Popover,
 } from "@blueprintjs/core";
 
-import { updateSelected } from "../actions/selected";
-import { fetchCommit } from "../actions/commit";
-
+import { http, errorMessage } from "../api/http";
+import { useRefreshCommit } from "../hooks";
 import { CommitAvatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
 import { format, shortId, pretty_label } from "../utils";
-import { git_hostname, default_git_hostname } from "../utils"
+import { project_web_url } from "../utils"
 import { has_milestones } from './milestones'
 import { copyDirectory } from './logs/DirectoryActions'
 import { copyWithToast } from '../utils/clipboard'
+import { toaster } from "../toaster";
 
 const CommitDetails = styled.div`
   display: flex;
@@ -65,17 +63,21 @@ const has_outputs_in_batch = label => commit => {
 }
 
 
-class CommitResults extends React.Component {
-  render() {
-    const { project, project_data={}, commit, dispatch, default_batch="default" } = this.props;
+
+
+// We compare the batch with the same batch in the reference commit
+const commit_page = (project, commit, label) => {
+  const search = label !== 'default' ? `?${new URLSearchParams({ batch: label, batch_ref: label })}` : ''
+  return `/${project}/commit/${commit.id}${search}`
+}
+
+
+const CommitResults = ({ project, project_data = {}, commit, className, default_batch = "default" }) => {
     let incomplete_data = commit.message === undefined || commit.message === null;
     if (incomplete_data)
       return <span></span>
 
-    const git = project_data.data?.git || {};
-    const project_git_hostname = git_hostname(project_data.data?.qatools_config) ?? default_git_hostname
-    git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
-    const gitlab_commit_url = `${git.web_url}/commit/${commit.id}`;
+    const gitlab_commit_url = `${project_web_url(project_data)}/commit/${commit.id}`;
     let batches_with_results = Object.entries(commit.batches)
                                .filter( ([label]) => has_outputs_in_batch(label)(commit) )
                                .map( ([label]) => label )
@@ -90,7 +92,7 @@ class CommitResults extends React.Component {
         ci_batch.pending_outputs === 0)
     )
       return (
-        <div>
+        <div className={className}>
         <a style={{ color: "grey" }} href={gitlab_commit_url}>
           <Button intent={Intent.WARNING} minimal>
           
@@ -99,8 +101,7 @@ class CommitResults extends React.Component {
         </a>
         <Link
           style={{ marginLeft: "10px" }}
-          to={`/${project}/commit/${commit.id}${ci_batch_label !== 'default' ? `?batch=${ci_batch_label}` : ''}`}
-          onClick={() => dispatch(updateSelected(project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: ci_batch_label, selected_batch_ref: ci_batch_label}))}
+          to={commit_page(project, commit, ci_batch_label)}
         >
           <Button intent={Intent.DANGER} minimal>
             No results
@@ -135,8 +136,7 @@ class CommitResults extends React.Component {
         {ci_batch.failed_outputs > 0 && (
           <Link
             style={{ marginLeft: "10px" }}
-            to={`/${project}/commit/${commit.id}${ci_batch_label !== 'default' ? `?batch=${ci_batch_label}` : ''}`}
-            onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: ci_batch_label, selected_batch_ref: ci_batch_label}))}
+            to={commit_page(project, commit, ci_batch_label)}
           >
             <Button intent={Intent.DANGER} minimal>
               {ci_batch.failed_outputs} crashed
@@ -151,8 +151,7 @@ class CommitResults extends React.Component {
                 let failures = batch.failed_outputs > 0 ? `${batch.failed_outputs}❌` : "";
                 return <Link
                         key={label}
-                        to={`/${project}/commit/${commit.id}?batch=${label}`}
-                        onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: label, selected_batch_ref: label}))}
+                        to={commit_page(project, commit, label)}
                        >
                   <Button style={{margin: '5px'}}>{pretty_label(batch)} &nbsp;•&nbsp;{status}&nbsp;{failures}</Button>
                 </Link>
@@ -170,8 +169,7 @@ class CommitResults extends React.Component {
         )}
         {ci_batch.valid_outputs === 0 && <Link
           style={{ marginLeft: "10px" }}
-          to={`/${project}/commit/${commit.id}${ci_batch_label !== 'default' ? `?batch=${ci_batch_label}` : ''}`}
-          onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: ci_batch_label, selected_batch_ref: ci_batch_label}))}
+          to={commit_page(project, commit, ci_batch_label)}
         >
           <Button intent={Intent.DANGER} minimal>
             No results
@@ -217,13 +215,12 @@ class CommitResults extends React.Component {
       </Fragment>
     );
     return (
-      <div>
+      <div className={className}>
         {status_messages}
         {ci_batch.valid_outputs > 0 && (
           <Link
-            onClick={() => this.props.dispatch(updateSelected(this.props.project, {new_commit_id: commit.id, ref_commit_id: null, selected_batch_new: ci_batch_label, selected_batch_ref: ci_batch_label}))}
             style={{ marginLeft: "10px" }}
-            to={`/${project}/commit/${commit.id}${ci_batch_label !== 'default' ? `?batch=${ci_batch_label}` : ''}`}
+            to={commit_page(project, commit, ci_batch_label)}
           >
             <Button
               intent={Intent.SUCCESS}
@@ -233,7 +230,6 @@ class CommitResults extends React.Component {
         )}
       </div>
     );
-  }
 }
 const CommitResultsStyled = styled(CommitResults)`
   margin-left: auto;
@@ -246,144 +242,115 @@ const CommitShortId = styled.a`
   color: #1b69b6;
 `;
 
-class CommitRow extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      waiting: false,
-    };
+const CommitRow = ({ commit, project, project_data = {}, className, tag, default_batch }) => {
+  const [waiting, setWaiting] = useState(false);
+  const refreshCommit = useRefreshCommit();
+  const refresh = () => refreshCommit(project, commit.id);
+
+  const git = project_data.data?.git ?? {};
+  const web_url = project_web_url(project_data)
+  const is_subproject = git.path_with_namespace !== project;
+  const commit_url = `${web_url}/commit/${commit.id}`
+  const has_data = !!commit?.authored_datetime
+  let maybe_skeletton = has_data ? null : Classes.SKELETON;
+  const commit_has_milestones = has_milestones({commit, project, project_data})
+
+  const deleteRuns = url => {
+    setWaiting(true)
+    toaster.show({message: "Delete requested."});
+    http.delete(url)
+      .then(() => {
+        setWaiting(false)
+        toaster.show({message: `Deleted ${commit.id}.`, intent: Intent.SUCCESS});
+        refresh()
+      })
+      .catch(error => {
+        setWaiting(false)
+        toaster.show({message: errorMessage(error), intent: Intent.DANGER});
+        refresh()
+      });
   }
 
-  refresh = () => {
-    const { project, commit, dispatch } = this.props;
-    dispatch(fetchCommit({project, id: commit.id}))
-  }
+  return (
+    <CommitRowWrapper className={className}>
+      <CommitAvatar
+        commit={commit}
+        project={project}
+      />
 
-  render() {
-    const { commit, project, project_data={}, className, tag, toaster, dispatch } = this.props;
-    const git = project_data.data?.git || {};
-    const project_git_hostname = git_hostname(project_data?.data?.qatools_config) ?? default_git_hostname
-    git.web_url = git.web_url ?? `${project_git_hostname}/${git.path_with_namespace}`
-    const is_subproject = git.path_with_namespace !== project;
-    const commit_url = `${git.web_url}/commit/${commit.id}`
-    const has_data = !!commit?.authored_datetime
-    let maybe_skeletton = has_data ? null : Classes.SKELETON;
-    const commit_has_milestones = has_milestones({commit, project, project_data})
-    return (
-      <CommitRowWrapper className={className}>
-        <CommitAvatar
-          commit={commit}
-          project={project}
-          onClick={() => dispatch(updateSelected(project, {branch: null, committer: commit.committer_name}))}
-        />
+      <CommitDetails>
+        <CommitContent style={{ maxWidth: "600px" }}>
+          {tag}
+          {commit_has_milestones && <Icon icon="star" style={{color: Colors.GOLD5}} />}
+          <Message className={maybe_skeletton}>{has_data ? commit.message : 'xxxxxxxxxx xxxxxx xxxxxxxxx xxxxxxxxxxx'}</Message>
+          <div>
+            <Tooltip content="View Commit Diff">
+              <CommitShortId href={commit_url}>
+                {shortId(project, commit.id)}
+              </CommitShortId>
+            </Tooltip>
+            <Tooltip content="Copy to clipboard">
+              <Icon
+                style={{marginLeft: '4px', marginRight: '4px'}}
+                title="Copy hash to clipboard"
+                intent={Intent.PRIMARY}
+                icon="duplicate"
+                onClick={() => copyWithToast(commit.id, { what: 'the commit hash' })}
+              />
+            </Tooltip>
 
-        <CommitDetails>
-          <CommitContent style={{ maxWidth: "600px" }}>
-            {tag}
-            {commit_has_milestones && <Icon icon="star" style={{color: Colors.GOLD5}} />}
-            <Message className={maybe_skeletton}>{has_data ? commit.message : 'xxxxxxxxxx xxxxxx xxxxxxxxx xxxxxxxxxxx'}</Message>
-            <div>
-              <Tooltip content="View Commit Diff">
-                <CommitShortId project={project} href={commit_url}>
-                  {shortId(project, commit.id)}
-                </CommitShortId>
-              </Tooltip>
-              <Tooltip content="Copy to clipboard">
-                <Icon
-                  style={{marginLeft: '4px', marginRight: '4px'}}
-                  title="Copy hash to clipboard"
-                  intent={Intent.PRIMARY}
-                  icon="duplicate"
-                  onClick={() => copyWithToast(commit.id, { what: 'the commit hash' })}
-                />
-              </Tooltip>
+          <Popover
+            placement="bottom"
+            hoverCloseDelay={500}
+            interactionKind={"hover"}
+            content={<Menu>
+              <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url, { windows: true })} />
+              <MenuItem text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url)} />
+              <MenuItem text="View files in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
+              <MenuDivider title="Manage"/>
+              <MenuItem
+                text="Delete All Runs"
+                icon="trash"
+                intent={Intent.DANGER}
+                disabled={waiting || commit_has_milestones}
+                className={Classes.TEXT_MUTED}
+                minimal
+                onClick={() => deleteRuns(`/api/v1/commit/${project}/${commit.id}/batches/`)}
+              />
+              {is_subproject && <MenuItem
+                text="Delete All Runs (in all other projects for this commit!)"
+                icon="trash"
+                intent={Intent.DANGER}
+                disabled={waiting || commit_has_milestones}
+                className={Classes.TEXT_MUTED}
+                minimal
+                onClick={() => deleteRuns(`/api/v1/commit/${commit.id}/batches/`)}
+              />}
+            </Menu>}
+          >
+            <Icon icon="menu" style={{marginLeft: '4px', marginRight: '10px', color: "rgba(0,0,0,0.45)"}}/>
+          </Popover>
 
-            <Popover
-              placement="bottom"
-              hoverCloseDelay={500}
-              interactionKind={"hover"}
-              content={<Menu>
-                <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url, { windows: true })} />
-                <MenuItem text="Copy Directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url)} />
-                <MenuItem text="View files in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
-                <MenuDivider title="Manage"/>
-                <MenuItem
-                  text="Delete All Runs"
-                  icon="trash"
-                  intent={Intent.DANGER}
-                  disabled={this.state.waiting || commit_has_milestones}
-                  className={Classes.TEXT_MUTED}
-                  minimal
-                  onClick={() => {
-                    this.setState({waiting: true})
-                    toaster.show({message: "Delete requested."});
-                    axios.delete(`/api/v1/commit/${project}/${commit.id}/batches/`)
-                      .then(() => {
-                        this.setState({waiting: false})
-                        toaster.show({message: `Deleted ${commit.id}.`, intent: Intent.SUCCESS});
-                        this.refresh()
-                      })
-                      .catch(error => {
-                        this.setState({waiting: false });
-                        toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
-                        this.refresh()    
-                      });
-                  }}
-                />
-                {is_subproject && <MenuItem
-                  text="Delete All Runs (in all other projects for this commit!)"
-                  icon="trash"
-                  intent={Intent.DANGER}
-                  disabled={this.state.waiting || commit_has_milestones}
-                  className={Classes.TEXT_MUTED}
-                  minimal
-                  onClick={() => {
-                    this.setState({waiting: true})
-                    toaster.show({message: "Delete requested."});
-                    axios.delete(`/api/v1/commit/${commit.id}/batches/`)
-                      .then(() => {
-                        this.setState({waiting: false})
-                        toaster.show({message: `Deleted ${commit.id}.`, intent: Intent.SUCCESS});
-                        this.refresh()
-                      })
-                      .catch(error => {
-                        this.setState({waiting: false });
-                        toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
-                        this.refresh()    
-                      });
-                  }}
-                />}
-              </Menu>}
+
+            <Icon icon="git-branch" />
+            <Link
+              style={{
+                color: "rgba(0,0,0,0.65)",
+                marginRight: '5px',
+                marginTop: !!commit.message && '4px',
+              }}
+              to={`/${project}/commits/${(commit.branch || '')}`}
             >
-              <Icon icon="menu" style={{marginLeft: '4px', marginRight: '10px', color: "rgba(0,0,0,0.45)"}}/>
-            </Popover>
+              {(commit.branch || '')}
+            </Link>
+            <DoneAtTag project={project} commit={commit} />
+          </div>
+        </CommitContent>
 
-
-              <Icon icon="git-branch" />
-              <Link
-                style={{
-                  color: "rgba(0,0,0,0.65)",
-                  marginRight: '5px',
-                  marginTop: !!commit.message && '4px',
-                }}
-                to={`/${project}/commits/${(commit.branch || '')}`}
-                onClick={() => dispatch(updateSelected(project, {branch: commit.branch, committer: null}))}
-              >
-                {(commit.branch || '')}
-              </Link>
-              <DoneAtTag project={project} commit={commit} dispatch={dispatch} />
-            </div>
-          </CommitContent>
-
-          <CommitResultsStyled project={project} dispatch={dispatch} project_data={project_data} commit={commit} default_batch={this.props.default_batch}/>
-        </CommitDetails>
-      </CommitRowWrapper>
-    );
-  }
+        <CommitResultsStyled project={project} project_data={project_data} commit={commit} default_batch={default_batch}/>
+      </CommitDetails>
+    </CommitRowWrapper>
+  );
 }
 
-const mapStateToProps = () => {
-  return {}
-}
-
-export default connect(mapStateToProps)(CommitRow);
+export default CommitRow;

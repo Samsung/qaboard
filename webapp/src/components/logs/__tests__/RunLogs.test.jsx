@@ -3,8 +3,10 @@
  * Run with: cd webapp && npm test -- RunLogs
  */
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { renderWithProviders } from '../../../test-utils';
 import { setupIntersectionMocking, resetIntersectionMocking } from 'react-intersection-observer/test-utils';
 
+import { toaster } from '../../../toaster';
 import { RunLogs, configurationSummary, runName } from '../RunLogs';
 
 
@@ -60,7 +62,7 @@ describe('runName', () => {
 describe('RunLogs', () => {
   const renderRun = (props = {}) => {
     const onToggle = vi.fn()
-    const view = render(<RunLogs id={7} output={output} project="p" commit={{ id: 'abc' }} dispatch={vi.fn()} expanded={false} onToggle={onToggle} {...props} />)
+    const view = renderWithProviders(<RunLogs id={7} output={output} project="p" commit={{ id: 'abc' }} expanded={false} onToggle={onToggle} {...props} />, { siteConfig: {} })
     return { ...view, onToggle }
   }
 
@@ -113,7 +115,10 @@ describe('RunLogs', () => {
       fireEvent.click(screen.getByLabelText('Copy the path of the output directory'))
       expect(onToggle).not.toHaveBeenCalled()
       await waitFor(() => expect(writeText).toHaveBeenCalledWith('/out/7 b#11'))
-      expect(await screen.findByText('/out/7 b#11')).toBeInTheDocument() // in the toast
+      // in the toast (mocked in setupTests.js)
+      await waitFor(() => expect(toaster.show).toHaveBeenCalled())
+      render(toaster.show.mock.calls.at(-1)[0].message)
+      expect(screen.getByText('/out/7 b#11')).toBeInTheDocument()
     } finally {
       delete navigator.clipboard
     }

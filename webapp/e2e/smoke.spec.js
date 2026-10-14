@@ -15,7 +15,8 @@ const api = {
   '/api/v1/config': {},
   '/api/v1/user/me/': { is_authenticated: true, user_id: 1, user_name: 'alice', full_name: 'Alice', email: 'alice@example.com', login_type: 'local' },
   '/api/v1/projects': { [project]: { id: project, data: { qatools_config: {} }, latest_commit_datetime: '2026-09-01T10:00:00Z', total_commits: 1 } },
-  '/api/v1/project': { id: project, data: { qatools_config: {} } },
+  // the project's data, unwrapped
+  '/api/v1/project': { qatools_config: {} },
   '/api/v1/project/branches': ['master'],
   '/api/v1/commits': [commit],
   '/api/v1/commit': commit,
