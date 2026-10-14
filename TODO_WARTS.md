@@ -104,7 +104,6 @@ Found while surveying the code base (October 2026), after the cleanups that chan
   `GET .../manifest` writes manifests (api/outputs.py:103), `/api/v1/tests/group` creates projects (api/tuning.py:118). [M, API]
 - `json.loads(request.args['metrics'])` returns 500 on bad input (api/commit.py:129). [S, API]
 - `assert` used for control flow (api/commit.py:80,98, api/batch.py:157): it is skipped with `python -O`. [S, no change]
-- `save-artifacts` matches projects with `startswith` (api/commit.py:150): `foo` also matches `foobar`. Compare path segments. [S, behaviour]
 
 ## CLI
 
