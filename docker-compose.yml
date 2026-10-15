@@ -72,6 +72,9 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        # Sentry's release (see website/docs/backend-admin/monitoring.mdx)
+        - QABOARD_VERSION=${QABOARD_VERSION:-}
     # Wait for the database to be ready - https://docs.docker.com/compose/startup-order/
     command: ["./wait-for-it.sh", "${QABOARD_DB_HOST-db}:${QABOARD_DB_PORT-5432}", "--", "/qaboard/backend/init.sh"]
     depends_on:
@@ -117,6 +120,13 @@ services:
       context: .
       dockerfile: webapp/Dockerfile
       shm_size: 6gb
+      args:
+        # Sentry: the release, and where to upload the source maps (see website/docs/backend-admin/monitoring.mdx)
+        - QABOARD_VERSION=${QABOARD_VERSION:-}
+        - SENTRY_AUTH_TOKEN=${SENTRY_AUTH_TOKEN:-}
+        - SENTRY_ORG=${SENTRY_ORG:-}
+        - SENTRY_PROJECT=${SENTRY_PROJECT:-}
+        - SENTRY_URL=${SENTRY_URL:-}
     volumes:
     - frontend_builds:/builds
     # by default we assume you run the QA-Board on localhost, but will want to change this

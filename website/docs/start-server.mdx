@@ -159,8 +159,8 @@ QA-Board can connect to external authentication systems (LDAP, SAML). If needed,
 | `CANTALOUPE_MEM_MAX`   | 2g      | Max memory for the image server (set in `services.cantaloupe.environment`) |
 | `QABOARD_BACKEND_REPLICAS` | 1 (2 in `deployments/production.env`) | Backend replicas, see [Deployments](backend-admin/deployment#settings) |
 | `QABOARD_UWSGI_PROCESSES`  | 16  | uwsgi processes per backend replica, in production   |
-| `SENTRY_DSN`           | _none_  | monitor crashes in the backend with sentry.io. Example: https://xxxxxxxxxxx@sentry.io/000 |
-| `SENTRY_SAMPLE_RATE`           | 0.2  | sample for perf monitoring |
+| `SENTRY_DSN`           | _none_  | Report errors and performance data to Sentry, e.g. `https://xxxxxxxxxxx@sentry.io/000`. See [Monitoring with Sentry](backend-admin/monitoring) for the other settings |
+| `SENTRY_TRACES_SAMPLE_RATE` | 0.2  | Share of the requests that are traced (formerly `SENTRY_SAMPLE_RATE`) |
 
 
 :::note

@@ -74,6 +74,33 @@ def test_git_hosts(dummy_app, reload_config, monkeypatch):
   assert "secret" not in json.dumps(config)
 
 
+def test_sentry(dummy_app, reload_config, monkeypatch):
+  for key in ('SENTRY_DSN', 'SENTRY_FRONTEND_DSN', 'SENTRY_ENVIRONMENT', 'SENTRY_TRACES_SAMPLE_RATE', 'SENTRY_SAMPLE_RATE'):
+    monkeypatch.delenv(key, raising=False)
+  api = reload_config({})
+  with dummy_app.test_request_context('/api/v1/config'):
+    config = api.get_site_config().get_json()
+  assert config['sentry_dsn'] is None
+  assert config['sentry_environment'] == 'production'
+  assert config['sentry_traces_sample_rate'] == 0.2
+
+  monkeypatch.setenv('SENTRY_DSN', 'https://backend@sentry.example.com/1')
+  monkeypatch.setenv('SENTRY_ENVIRONMENT', 'staging')
+  monkeypatch.setenv('SENTRY_SAMPLE_RATE', '0.5') # the former name
+  with dummy_app.test_request_context('/api/v1/config'):
+    config = api.get_site_config().get_json()
+  assert config['sentry_dsn'] == 'https://backend@sentry.example.com/1'
+  assert config['sentry_environment'] == 'staging'
+  assert config['sentry_traces_sample_rate'] == 0.5
+
+  monkeypatch.setenv('SENTRY_FRONTEND_DSN', 'https://frontend@sentry.example.com/2')
+  monkeypatch.setenv('SENTRY_TRACES_SAMPLE_RATE', '1')
+  with dummy_app.test_request_context('/api/v1/config'):
+    config = api.get_site_config().get_json()
+  assert config['sentry_dsn'] == 'https://frontend@sentry.example.com/2'
+  assert config['sentry_traces_sample_rate'] == 1.0
+
+
 def test_site_texts(dummy_app, reload_config, monkeypatch):
   monkeypatch.setenv('QABOARD_LOGIN_HINT', 'Use your Windows credentials')
   monkeypatch.setenv('QABOARD_WEBCDE_INSTALLER', '\\\\server\\share\\WebCDE_Setup.exe')
