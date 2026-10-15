@@ -100,7 +100,7 @@ const BatchLabel = ({ item }) => <>
     {item.is_milestone && <Icon icon="star" size={12} color={Colors.GOLD5} title="Milestone" style={{ marginRight: '4px', verticalAlign: '-1px' }}/>}
     {item.title}
   </div>
-  <div className={Classes.TEXT_MUTED} style={{ fontSize: '12px', marginTop: '2px' }}><BatchStatus status={item.status}/></div>
+  <div className={Classes.TEXT_MUTED} style={{ fontSize: '12px', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><BatchStatus status={item.status}/></div>
 </>
 
 const Username = ({ item, style }) => item.username

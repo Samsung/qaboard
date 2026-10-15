@@ -67,11 +67,24 @@ export function filterBranch(query, branch) {
 }
 
 
+// One row that never wraps: the search boxes get narrower with the content area (cqi: % of the navbar's width)
 const StyledNavbar = styled(Navbar)`
    position: fixed !important;
    top: 0;
    padding-left: ${sider_width} !important;
-   /*overflow-y: auto !important;*/
+   display: flex;
+   align-items: center;
+   gap: 12px;
+   container-type: inline-size;
+   > .${Classes.NAVBAR_GROUP} {
+     float: none;
+   }
+   > .${Classes.NAVBAR_GROUP}:last-child {
+     margin-left: auto;
+     min-width: 0;
+     gap: 8px;
+     --batch-select-max-width: clamp(150px, 26cqi, 360px);
+   }
 `
 
 const navbar_height = 75;
@@ -228,7 +241,7 @@ const CommitsListNavbar = () => {
                 intent: !!search ? Intent.PRIMARY : null,
                 // Suggest only reads the placeholder from inputProps
                 placeholder: "Search commits, or go to a branch or commit…",
-                style: {width: '350px'},
+                style: {width: 'clamp(180px, 40cqi, 350px)'},
               }}
               onQueryChange={query => {
                 setWantsBranches(true);
@@ -247,7 +260,7 @@ const CommitsListNavbar = () => {
             type="text"
             leftIcon="filter"
             rightElement={filter ? <Button size="small" variant="minimal" icon="cross" aria-label="Clear the filter" onClick={() => onFilterChange('')}/> : undefined}
-            style={{width: '320px'}}
+            style={{width: 'clamp(150px, 30cqi, 320px)'}}
           />}
       </NavbarGroup>
     </StyledNavbar>

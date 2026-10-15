@@ -465,18 +465,22 @@ const compact_columns = {
   // no date, no main metric
   narrow: 'max-content max-content minmax(8rem, 1fr) minmax(0, 6rem) max-content max-content max-content',
 }
-const compact_medium = '(max-width: 1100px)'
-const compact_narrow = '(max-width: 800px)'
+// By the list's width, not the window's: compact lists must be in a <CompactListContainer>
+const compact_medium = 'commit-list (max-width: 860px)'
+const compact_narrow = 'commit-list (max-width: 560px)'
+export const CompactListContainer = styled.div`
+  container: commit-list / inline-size;
+`;
 
 // The columns of compact rows. A parent can share them with several lists, with: ul { grid-template-columns: subgrid }
 export const compact_columns_css = css`
   display: grid;
   grid-template-columns: ${compact_columns.wide};
   column-gap: 12px;
-  @media ${compact_medium} {
+  @container ${compact_medium} {
     grid-template-columns: ${compact_columns.medium};
   }
-  @media ${compact_narrow} {
+  @container ${compact_narrow} {
     grid-template-columns: ${compact_columns.narrow};
   }
 `;
@@ -508,14 +512,14 @@ const CompactRowWrapper = styled.li`
   &:hover {
     background: var(--qa-hover);
   }
-  @media ${compact_medium} {
+  @container ${compact_medium} {
     grid-template-columns: ${compact_columns.medium};
     grid-template-columns: subgrid;
     .compact-metric-name {
       display: none;
     }
   }
-  @media ${compact_narrow} {
+  @container ${compact_narrow} {
     grid-template-columns: ${compact_columns.narrow};
     grid-template-columns: subgrid;
     .compact-date, .compact-metric {
@@ -552,7 +556,7 @@ const CompactLink = styled(Link)`
 `;
 
 const CommitterName = styled(Ellipsis)`
-  @media ${compact_medium} {
+  @container ${compact_medium} {
     display: none;
   }
 `;

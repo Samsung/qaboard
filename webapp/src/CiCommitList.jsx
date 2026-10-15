@@ -17,7 +17,7 @@ import {
   Tooltip,
 } from "@blueprintjs/core";
 
-import CommitRow, { CompactCommitList, compact_columns_css } from "./components/CommitRow";
+import CommitRow, { CompactCommitList, CompactListContainer, compact_columns_css } from "./components/CommitRow";
 import { Container } from "./components/layout";
 import { LoadMore } from "./components/LoadMore";
 import CommitsEvolution from "./CommitsEvolution";
@@ -206,7 +206,7 @@ const CiCommitList = () => {
           action={<Button icon="history" text="Search 7 more days" onClick={show_older}/>}
       />}
       {some_commits_loaded && !error && <ListToolbar><DensityControl/></ListToolbar>}
-      <Days>{Object.keys(commits_by_day).map(day => (
+      <CompactListContainer><Days>{Object.keys(commits_by_day).map(day => (
         <DayCard key={day} elevation={0} className={density === 'compact' ? 'compact' : undefined}>
           <h4 className={Classes.HEADING}>
             {(!!day && day !== "undefined")
@@ -215,7 +215,7 @@ const CiCommitList = () => {
           </h4>
           <CommitRows project={project} project_data={project_data} commits={commits_by_day[day]} density={density} />
         </DayCard>
-      ))}</Days>
+      ))}</Days></CompactListContainer>
       {hasNextPage && some_commits_loaded && !error &&
         <LoadMore onLoadMore={loadMore} loading={isFetchingNextPage} loaded={commits.length} text="More commits"/>}
       {isSuccess && !hasNextPage && some_commits_loaded && !search && !loading &&
