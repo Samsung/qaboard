@@ -1,13 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import styled from "styled-components";
 import {
   Classes,
-  Intent,
   HTMLSelect,
   Switch,
   Button,
-  Collapse,
-  Card,
   Icon,
   InputGroup,
   Popover,
@@ -16,100 +13,15 @@ import {
 import { is_image } from "../viewers/images/utils";
 import DynamicOptionControl from "./DynamicOptionControl";
 import { defaultRule, optionLabel, resolveOptionValue } from "../utils/dynamicOptions";
+import SidePanel from "./SidePanel";
 
-const PanelContainer = styled.div`
-  position: fixed;
-  /* Closed, it's fully off-screen (with its shadow), and hidden from keyboard and screen readers once it slid out */
-  right: ${props => props.isExpanded ? 0 : -340}px;
-  visibility: ${props => props.isExpanded ? 'visible' : 'hidden'};
-  top: 65%;
-  transform: translateY(-50%);
-  width: 320px;
-  max-height: 80vh;
-  overflow-y: auto;
-  border-radius: 4px 0 0 4px;
-  z-index: 19;
-  transition: right 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), visibility 0s linear ${props => props.isExpanded ? '0s' : '0.3s'};
-  scrollbar-width: thin;
-  scrollbar-color: var(--qa-border) transparent;
-
-  .${Classes.CONTROL} {
-    font-size: 13px;
-    margin-bottom: 6px;
-  }
-`;
-
-const ToggleButton = styled(Button)`
-  position: fixed;
-  right: ${props => props.isExpanded ? 320 : 0}px;
-  top: 65%;
-  transform: translateY(-50%);
-  border-radius: 4px 0 0 4px;
-  height: 64px;
-  width: 40px;
-  z-index: 1001;
-  transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
-  background-color: #394b59 !important;
-  color: white !important;
-  border: none !important;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-  overflow: hidden;
-
-  &:hover {
-    background-color: #293742 !important;
-  }
-
-  &:focus-visible {
-    box-shadow: 0 0 0 2px rgba(138, 187, 255, 0.8) !important;
-  }
-`;
-
-const StyledCard = styled(Card)`
-  margin: 0;
-  padding: 0;
-  border-radius: 4px 0 0 4px;
-  height: 100%;
-  background-color: var(--qa-surface-alt);
-`;
-
-const PanelHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 12px 12px 8px 16px;
-  h4 {
-    margin: 0;
-    font-size: 16px;
-  }
-`;
-
-// One section per kind of control, separated by a line: a header that folds it, what it applies to on the right
-const SectionBlock = styled.section`
-  border-top: 1px solid var(--qa-border);
-  padding: 4px 12px 8px 8px;
-`;
-
-const SectionHeaderRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 32px;
-  .section-toggle {
-    flex: 1;
-    justify-content: flex-start;
-    font-weight: 600;
-  }
-`;
+// The commit page's View options: what the views of the runs' results show, and in which order.
+// Docked on the right of the page (see SidePanel), they only list what changes the views selected.
 
 const Meta = styled.span`
   font-size: 12px;
   color: var(--qa-text-muted);
   white-space: nowrap;
-`;
-
-const SectionContent = styled.div`
-  padding: 4px 0 4px 8px;
 `;
 
 const Hint = styled.div`
@@ -151,18 +63,6 @@ const noop = () => {};
 const no_options = {};
 const no_files = new Set();
 
-const storage_key = 'controls-panel-expanded';
-// Until users choose, the panel starts open only on screens wide enough for it not to cover the results
-const wide_screen = () => typeof window !== 'undefined' && window.innerWidth >= 1600;
-const saved_expanded = () => {
-  try {
-    const saved = localStorage.getItem(storage_key);
-    return saved !== null ? JSON.parse(saved) : wide_screen();
-  } catch {
-    return wide_screen();
-  }
-};
-
 // "show_debug" -> "Show debug"
 const humanize = name => optionLabel(name);
 
@@ -176,25 +76,6 @@ const Explained = ({ label, explanation, className }) => explanation
     </Tooltip>
   : <span className={className}>{label}</span>;
 
-const PanelSection = ({ id, title, meta, isOpen, onToggle, children }) => <SectionBlock aria-labelledby={`controls-${id}`}>
-  <SectionHeaderRow>
-    <Button
-      id={`controls-${id}`}
-      className="section-toggle"
-      variant="minimal"
-      size="small"
-      icon={isOpen ? "chevron-down" : "chevron-right"}
-      aria-expanded={isOpen}
-      onClick={onToggle}
-      text={title}
-    />
-    {meta}
-  </SectionHeaderRow>
-  <Collapse isOpen={isOpen}>
-    <SectionContent>{children}</SectionContent>
-  </Collapse>
-</SectionBlock>;
-
 // How to read the sort order, depending on what we sort by
 const order_labels = sort_by => {
   if (sort_by === 'test_input_path') return ['A to Z', 'Z to A'];
@@ -203,7 +84,7 @@ const order_labels = sort_by => {
   return ['Lowest first', 'Highest first'];
 };
 
-const FloatingControlsPanel = ({
+const ViewOptionsPanel = ({
   controls,
   visualizations,
   controls_extra,
@@ -225,13 +106,16 @@ const FloatingControlsPanel = ({
   has_changes = false,
   onResetControls = noop,
   visualizations_with_files = no_files,
-  expandPanel = false,
   docs_root = '/',
+  // below the page's fixed header
+  top = 0,
+  // open or collapsed (see useSidePanelExpanded)
+  expanded,
+  setExpanded,
+  // incremented to bring the Files to show into view, e.g. after users choose an option for all runs again from a run's card
+  revealFiles = 0,
 }) => {
-  // Get initial panel state from localStorage, default to open
-  const [isExpanded, setIsExpanded] = useState(saved_expanded);
-
-  const [isExpandedWithLogs, setIsExpandedWithLogs] = useState(false);
+  const [scroll_to, setScrollTo] = useState(null);
 
   const [expandedSections, setExpandedSections] = useState({
     visualizations: true,
@@ -242,29 +126,14 @@ const FloatingControlsPanel = ({
 
   const [visualizationFilter, setVisualizationFilter] = useState("");
 
-  // Save panel state to localStorage when it changes
-  useEffect(() => {
-    try {
-      localStorage.setItem(storage_key, JSON.stringify(isExpanded));
-    } catch {
-      // private browsing, storage full...
-    }
-  }, [isExpanded]);
-
-  // Expand panel when requested from parent
-  const [prevExpandPanel, setPrevExpandPanel] = useState(expandPanel);
-  if (expandPanel !== prevExpandPanel) {
-    setPrevExpandPanel(expandPanel);
-    if (expandPanel) {
-      setIsExpanded(true);
-      setExpandedSections(prev => ({
-        ...prev,
-        dynamic_options: true
-      }));
-    }
+  const [prev_reveal_files, setPrevRevealFiles] = useState(revealFiles);
+  if (revealFiles !== prev_reveal_files) {
+    setPrevRevealFiles(revealFiles);
+    setScrollTo({ id: 'dynamic_options' });
+    setExpandedSections(prev => ({ ...prev, dynamic_options: true }));
   }
 
-  const toggleSection = (section) => () => {
+  const toggleSection = (section) => {
     setExpandedSections(prev => ({
       ...prev,
       [section]: !prev[section]
@@ -276,10 +145,6 @@ const FloatingControlsPanel = ({
   const shows_cards = (selected_views.includes('output-list') || selected_views.includes('bit-accuracy')) && nb_runs !== 0;
   // only the visualizations view shows visualizations, and uses their options
   const shows_visualizations = selected_views.includes('output-list') && nb_runs !== 0;
-  // With only the logs, the panel only has the sorting, and would cover the right side of the logs: it starts closed
-  const only_logs = selected_views.includes('logs') && !shows_cards
-  const expanded = only_logs ? isExpandedWithLogs : isExpanded
-  const setExpanded = only_logs ? setIsExpandedWithLogs : setIsExpanded
   const maybe_diff = visualizations.some(v => is_image(v));
   // the summary doesn't list runs
   const sorting_applies = selected_views.some(view => view !== 'summary');
@@ -337,6 +202,8 @@ const FloatingControlsPanel = ({
     <a href={`${docs_root}docs/visualizations#dynamic-visualizations`} target="_blank" rel="noopener noreferrer">Learn more</a>
   </div>;
 
+  // what each option is set to, for the rail's summary
+  const option_infos = [];
   const option_rows = shown_options.map(([name, option]) => {
     const label = optionLabel(name);
     // options are linked across runs unless users unlink them
@@ -347,6 +214,7 @@ const FloatingControlsPanel = ({
     const picked = wanted !== undefined;
     const has_choice = option.values.length > 1;
     const default_label = default_labels[defaultRule(option)];
+    option_infos.push({ label, isSync, picked, selectedValue, default_label: has_choice ? default_label : undefined });
     const for_views = (option.views ?? []).map(name => visualizations_by_name.get(name)?.label || name).filter(Boolean);
     const first_value = option.values[0];
     const last_value = option.values[option.values.length - 1];
@@ -411,131 +279,152 @@ const FloatingControlsPanel = ({
   const default_mark = key => key === (default_sort_by ?? 'test_input_path') ? ' (default)' : '';
   const [ascending_label, descending_label] = order_labels(sort_value);
 
-  return (
-    <>
-      {/* Toggle button */}
-      <ToggleButton
-        isExpanded={expanded}
-        icon={expanded ? "chevron-right" : "chevron-left"}
-        minimal
-        intent={Intent.PRIMARY}
-        onClick={() => setExpanded(!expanded)}
-        title={expanded ? "Hide the controls" : "Show the controls"}
-        aria-label={expanded ? "Hide the controls" : "Show the controls: visualizations, options, sorting"}
-        aria-expanded={expanded}
-      />
+  // What differs from the project's defaults, whatever the view: counted in the header, a dot on the rail's icons
+  const sort_label = key => ({ test_input_path: 'Name', id: 'Run id', 'data.storage': 'Storage' })[key] ?? available_metrics[key]?.label ?? key;
+  const order_label = (Number(sort_order) === 1 ? ascending_label : descending_label).toLowerCase();
+  const sort_changed = (sort_by !== undefined && sort_by !== (default_sort_by ?? 'test_input_path')) || Number(sort_order) !== -1;
+  const changes = {
+    visualizations: visualizations
+      .filter(view => isVisualizationEnabled(view) === !!view.default_hidden)
+      .map(view => `${view.label || view.name || view.path} ${isVisualizationEnabled(view) ? 'shown' : 'hidden'}`),
+    dynamic_options: [
+      ...Object.entries(controls.dynamic_options ?? {})
+        .map(([name, value]) => [name, [].concat(value ?? [])[0]])
+        .filter(([name, value]) => value !== undefined && controls.dynamic_options_sync?.[name] !== false)
+        .map(([name, value]) => `${optionLabel(name)}: ${value}`),
+      ...Object.entries(controls.dynamic_options_sync ?? {})
+        .filter(([, sync]) => sync === false)
+        .map(([name]) => `${optionLabel(name)}: chosen per run`),
+    ],
+    viewers: [
+      ...(maybe_diff && controls.diff ? ['Image diff on'] : []),
+      ...controls_extra
+        .filter(control => !!controls[control.name] !== !!control.default)
+        .map(control => `${control.label || humanize(control.name)} ${controls[control.name] ? 'on' : 'off'}`),
+    ],
+    sorting: sort_changed ? [`Sorted by ${sort_label(sort_value)}, ${order_label}`] : [],
+  };
 
-      {/* Blueprint's elevation, on the container: its overflow would cut the card's shadow */}
-      <PanelContainer isExpanded={expanded} className={Classes.ELEVATION_2}>
-      <StyledCard>
-        <PanelHeader>
-          <h4 className={Classes.HEADING}>Controls</h4>
-          {has_changes && <Tooltip content="Back to the project's defaults: visualizations, files to show and viewers. The sorting stays." placement="left">
-            <Button icon="reset" text="Reset" variant="minimal" size="small" onClick={onResetControls} />
-          </Tooltip>}
-        </PanelHeader>
-
-        {nb_runs === 0 && <Hint style={{ padding: '0 16px 8px' }}>No runs yet</Hint>}
-
-        {shows_visualizations && <PanelSection
-          id="visualizations"
-          title="Visualizations"
-          meta={visualizations.length > 0 && <Meta>{nb_shown} of {visualizations_in_runs.length} shown</Meta>}
-          isOpen={expandedSections.visualizations}
-          onToggle={toggleSection('visualizations')}
-        >
-          {visualizations.length === 0 && <Hint>None configured in <em>qaboard.yaml</em></Hint>}
-          {visualizations_in_runs.length > 8 && <InputGroup
-            leftIcon="search"
-            placeholder="Filter visualizations"
-            aria-label="Filter visualizations"
-            value={visualizationFilter}
-            onChange={(e) => setVisualizationFilter(e.target.value)}
-            size="small"
-            style={{ marginBottom: 8 }}
-          />}
-          {visualization_switches}
-          {filter && visualization_switches.length === 0 && <Hint>No visualizations match “{visualizationFilter}”</Hint>}
-          {visualizations_without_files.length > 0 && <Hint>
-            <Explained
-              label={`${visualizations_without_files.length} more without files in these runs`}
-              explanation={visualizations_without_files.map(view => view.label || view.name || view.path).join(', ')}
-            />
-          </Hint>}
-        </PanelSection>}
-
-        {shows_visualizations && option_rows.length > 0 && <PanelSection
-          id="dynamic_options"
-          title="Files to show"
-          meta={<Popover content={dynamic_options_help} interactionKind="hover" placement="left" hoverOpenDelay={200}>
-            <Button icon="help" variant="minimal" size="small" aria-label="What are the files to show?" />
-          </Popover>}
-          isOpen={expandedSections.dynamic_options}
-          onToggle={toggleSection('dynamic_options')}
-        >
-          {option_rows}
-        </PanelSection>}
-
-        {shows_cards && viewer_switches.length > 0 && <PanelSection
-          id="viewers"
-          title="Viewers"
-          isOpen={expandedSections.viewers}
-          onToggle={toggleSection('viewers')}
-        >
-          {viewer_switches}
-        </PanelSection>}
-
-        <PanelSection
-          id="sorting"
-          title="Sort runs"
-          isOpen={expandedSections.sorting}
-          onToggle={toggleSection('sorting')}
-        >
-          {!sorting_applies && <Hint>Applies to the tables and the run cards, not to the summary.</Hint>}
-          <div style={{ display: 'flex', gap: 6 }}>
-            <HTMLSelect
-              value={sort_value}
-              onChange={onUpdate('sort_by')}
-              aria-label="Sort runs by"
-              fill
-              small
-            >
-              <option value="test_input_path">Name{default_mark('test_input_path')}</option>
-              <option value="id">Run id{default_mark('id')}</option>
-              <option value="data.storage">Storage{default_mark('data.storage')}</option>
-              {has_tuning && <optgroup label="Tuning parameters">
-                {tuned_params.map(param =>
-                  <option key={param} value={param}>
-                    {param} ({new_batch.extra_parameters[param].size} values)
+  const viewers_on = [
+    ...(maybe_diff && controls.diff ? ['Image diff'] : []),
+    ...controls_extra.filter(control => !!controls[control.name]).map(control => control.label || humanize(control.name)),
+  ];
+  const sections = [
+    shows_visualizations && {
+      id: 'visualizations',
+      title: 'Visualizations',
+      icon: 'media',
+      summary: `${nb_shown} of ${visualizations_in_runs.length} shown`,
+      meta: visualizations.length > 0 && <Meta>{nb_shown} of {visualizations_in_runs.length} shown</Meta>,
+      content: <>
+        {visualizations.length === 0 && <Hint>None configured in <em>qaboard.yaml</em></Hint>}
+        {visualizations_in_runs.length > 8 && <InputGroup
+          leftIcon="search"
+          placeholder="Filter visualizations"
+          aria-label="Filter visualizations"
+          value={visualizationFilter}
+          onChange={(e) => setVisualizationFilter(e.target.value)}
+          size="small"
+          style={{ marginBottom: 8 }}
+        />}
+        {visualization_switches}
+        {filter && visualization_switches.length === 0 && <Hint>No visualizations match “{visualizationFilter}”</Hint>}
+        {visualizations_without_files.length > 0 && <Hint>
+          <Explained
+            label={`${visualizations_without_files.length} more without files in these runs`}
+            explanation={visualizations_without_files.map(view => view.label || view.name || view.path).join(', ')}
+          />
+        </Hint>}
+      </>,
+    },
+    shows_visualizations && option_rows.length > 0 && {
+      id: 'dynamic_options',
+      title: 'Files to show',
+      icon: 'document',
+      summary_has_changes: true,
+      summary: option_infos.map(({ label, isSync, picked, selectedValue, default_label }) =>
+        `${label} ${!isSync ? 'per run' : picked ? selectedValue : (default_label ?? selectedValue).toLowerCase()}`).join(', '),
+      meta: <Popover content={dynamic_options_help} interactionKind="hover" placement="left" hoverOpenDelay={200}>
+        <Button icon="help" variant="minimal" size="small" aria-label="What are the files to show?" />
+      </Popover>,
+      content: option_rows,
+    },
+    shows_cards && viewer_switches.length > 0 && {
+      id: 'viewers',
+      title: 'Viewers',
+      icon: 'eye-open',
+      summary: viewers_on.length > 0 ? `${viewers_on.join(', ')} on` : 'All off',
+      content: viewer_switches,
+    },
+    {
+      id: 'sorting',
+      title: 'Sort runs',
+      icon: 'sort',
+      summary_has_changes: true,
+      summary: sorting_applies ? `${sort_label(sort_value)}, ${order_label}` : 'Not used by the summary',
+      content: <>
+        {!sorting_applies && <Hint>Applies to the tables and the run cards, not to the summary.</Hint>}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <HTMLSelect
+            value={sort_value}
+            onChange={onUpdate('sort_by')}
+            aria-label="Sort runs by"
+            fill
+            small
+          >
+            <option value="test_input_path">Name{default_mark('test_input_path')}</option>
+            <option value="id">Run id{default_mark('id')}</option>
+            <option value="data.storage">Storage{default_mark('data.storage')}</option>
+            {has_tuning && <optgroup label="Tuning parameters">
+              {tuned_params.map(param =>
+                <option key={param} value={param}>
+                  {param} ({new_batch.extra_parameters[param].size} values)
+                </option>
+              )}
+            </optgroup>}
+            <optgroup label="Metrics">
+              {[...new_batch.used_metrics].filter(m => !!available_metrics[m]).map(m => available_metrics[m]).map(
+                m => (
+                  <option key={m.key} value={m.key}>
+                    {m.label}{default_mark(m.key)}
                   </option>
-                )}
-              </optgroup>}
-              <optgroup label="Metrics">
-                {[...new_batch.used_metrics].filter(m => !!available_metrics[m]).map(m => available_metrics[m]).map(
-                  m => (
-                    <option key={m.key} value={m.key}>
-                      {m.label}{default_mark(m.key)}
-                    </option>
-                  )
-                )}
-              </optgroup>
-            </HTMLSelect>
-            <HTMLSelect
-              value={sort_order}
-              onChange={onUpdate('sort_order')}
-              aria-label="Sort order"
-              small
-              style={{ minWidth: 118 }}
-            >
-              <option value={-1}>{descending_label}</option>
-              <option value={1}>{ascending_label}</option>
-            </HTMLSelect>
-          </div>
-        </PanelSection>
-      </StyledCard>
-      </PanelContainer>
-    </>
-  );
+                )
+              )}
+            </optgroup>
+          </HTMLSelect>
+          <HTMLSelect
+            value={sort_order}
+            onChange={onUpdate('sort_order')}
+            aria-label="Sort order"
+            small
+            style={{ minWidth: 118 }}
+          >
+            <option value={-1}>{descending_label}</option>
+            <option value={1}>{ascending_label}</option>
+          </HTMLSelect>
+        </div>
+      </>,
+    },
+  ].filter(Boolean).map(section => ({ ...section, changes: changes[section.id], isOpen: expandedSections[section.id] }));
+
+  return <SidePanel
+    title="View options"
+    shortcut="o"
+    top={top}
+    expanded={expanded}
+    setExpanded={setExpanded}
+    sections={sections}
+    onToggleSection={toggleSection}
+    onOpenSection={id => setExpandedSections(prev => ({ ...prev, [id]: true }))}
+    changes={Object.values(changes).flat()}
+    reset={has_changes ? {
+      onClick: onResetControls,
+      tooltip: "Back to the project's defaults: visualizations, files to show and viewers. The sorting stays.",
+    } : undefined}
+    scrollTo={scroll_to}
+  >
+    {nb_runs === 0 && <Hint style={{ padding: '12px 16px 0', margin: 0 }}>No runs yet</Hint>}
+  </SidePanel>;
 };
 
-export default FloatingControlsPanel;
+export default ViewOptionsPanel;

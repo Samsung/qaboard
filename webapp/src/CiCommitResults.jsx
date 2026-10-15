@@ -30,7 +30,8 @@ import { humanFileSize } from "./viewers/bit_accuracy/utils";
 import { project_web_url } from "./utils";
 
 import PrivateContent from "./components/authentication/PrivateContent"
-import FloatingControlsPanel from "./components/FloatingControlsPanel";
+import ViewOptionsPanel from "./components/ViewOptionsPanel";
+import { useSidePanelExpanded } from "./components/SidePanel";
 
 
 // Every view of the commit: its title (and maybe a few muted details) on one row above its content
@@ -111,13 +112,10 @@ const CiCommitResults = () => {
     reset_key: `${new_commit?.id}|${selected_batch_new}|${visualizations_key}`,
     files_key: filter_batch_new,
   });
-  const [expand_floating_panel, setExpandFloatingPanel] = useState(false);
-  useEffect(() => {
-    if (!expand_floating_panel) return;
-    // a short pulse: the panel expands, then can be collapsed
-    const timer = setTimeout(() => setExpandFloatingPanel(false), 100);
-    return () => clearTimeout(timer);
-  }, [expand_floating_panel]);
+  // The view options, docked on the right: open or collapsed
+  const [view_options_expanded, setViewOptionsExpanded] = useSidePanelExpanded();
+  // incremented to bring their Files to show into view
+  const [reveal_files, setRevealFiles] = useState(0);
 
   const toggle = name => () => setControls({ ...controls, [name]: !controls[name] });
   // Visualizations are shown unless hidden by default
@@ -138,8 +136,11 @@ const CiCommitResults = () => {
   const toggleDynamicOptionSync = name => {
     const sync = controls.dynamic_options_sync?.[name] === false;
     setControls({ ...controls, dynamic_options_sync: { ...controls.dynamic_options_sync, [name]: sync ? undefined : false } });
-    // the option is now changed from the panel
-    if (sync) setExpandFloatingPanel(true);
+    // the option is now changed from the view options
+    if (sync) {
+      setViewOptionsExpanded(true);
+      setRevealFiles(count => count + 1);
+    }
   };
 
   const update = attribute => e => {
@@ -241,9 +242,11 @@ const CiCommitResults = () => {
     .map(id => new_batch.outputs[id]?.data?.storage ?? 0)
     .reduce((running_total, storage) => running_total + storage, 0);
   const nb_runs = new_batch.filtered.outputs.length;
+  // the commits' fixed headers
+  const header_height = show_ref_navbar ? 150 : 75;
 
   return (
-    <Container style={{ marginTop: 0, paddingTop: (show_ref_navbar ? 150 : 75) + header_gap }}>
+    <Container style={{ marginTop: 0, paddingTop: header_height + header_gap }}>
 
       {(!new_commit || !ref_commit) && show_ref_navbar && <Messages>
         {warning_messages}
@@ -351,9 +354,8 @@ const CiCommitResults = () => {
               </Card>
              </ViewSection>}
 
-            {/* as wide as the page, not as its widest log line or run configuration.
-                On the right, room for the floating panel's button: it would cover the runs' buttons */}
-            {views.includes('logs') && <ViewSection style={{ width: 'auto', minWidth: 0, paddingRight: 30 }}>
+            {/* as wide as the page, not as its widest log line or run configuration */}
+            {views.includes('logs') && <ViewSection style={{ width: 'auto', minWidth: 0 }}>
                 <ViewTitle title="Logs"/>
                 <BatchLogs
                   project={new_project}
@@ -399,10 +401,11 @@ const CiCommitResults = () => {
           </>
         )}
 
-      {/* Only the views of the runs' results use the controls panel: elsewhere (editing batches, the tuning form...) it would
-          only cover the page. Without results, there is nothing to control either. */}
+      {/* Only the views of the runs' results have view options: elsewhere (editing batches, the tuning form...) they would
+          only take room. Without results, there is nothing to change either. */}
       {(!!new_commit) && has_batches && views.some(view => results_views.includes(view)) && (
-        <FloatingControlsPanel
+        <ViewOptionsPanel
+          top={header_height}
           controls={controls}
           visualizations={visualizations}
           controls_extra={controls_extra}
@@ -425,7 +428,9 @@ const CiCommitResults = () => {
           docs_root={docs_root}
           onToggleDynamicOptionSync={toggleDynamicOptionSync}
           visualizations_with_files={dynamic.visualizations_with_files}
-          expandPanel={expand_floating_panel}
+          expanded={view_options_expanded}
+          setExpanded={setViewOptionsExpanded}
+          revealFiles={reveal_files}
         />
       )}
     </Container>

@@ -424,7 +424,7 @@ const OutputCard = memo(function OutputCard(props) {
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
             <span style={{ fontSize: '12px', fontWeight: '500', flex: 1 }}>{option_label}</span>
             {onToggleDynamicOptionSync && (
-              <Tooltip content={`Use the ${option_label} chosen in the controls panel for all runs`}>
+              <Tooltip content={`Use the ${option_label} chosen in the view options for all runs`}>
                 <Button icon="link" minimal small onClick={() => onToggleDynamicOptionSync(name)} style={sync_button_style}>
                   Same for all runs
                 </Button>
