@@ -462,8 +462,7 @@ const OutputCard = memo(function OutputCard(props) {
       let path_ref = path;
       let ref_available = path === undefined || !!manifest_ref?.[path];
       // Fallback for ref: if file doesn't exist, try TIFF then BMP (old behavior for PNG)
-      // we changed the output format in HW_ALG from bmp to png in May 2024
-      // but we still want to compare results across branches - for some time at least.
+      // so that projects that switched their images from BMP to PNG can still compare with older references.
       if (path?.endsWith('.png') && !ref_available) {
         const tiff_path = path.replace(/\.png$/i, '.tiff');
         const bmp_path = path.replace(/\.png$/, '.bmp');

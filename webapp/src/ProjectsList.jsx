@@ -161,7 +161,7 @@ const ProjectsList = () => {
     const matcher = match_query(query)
     return Object.entries(projects)
       .filter(([id]) => matcher(id))
-      // legacy SIRC projects...
+      // projects without a qaboard.yaml, e.g. imported from older tools (backend/backend/scripts/migrate_legacy_commits.py)
       .filter(([, data]) => !data.data?.legacy && data.data?.qatools_config?.project?.name !== undefined)
       .filter(([, details]) => details.latest_commit_datetime !== undefined && details.latest_commit_datetime !== null)
       .sort(sort_projects(favorites))

@@ -581,7 +581,7 @@ function PathInput({ path, close, navigate }) {
     event.preventDefault()
     const target = parseLocation(value)
     if (!target) {
-      setError(value.includes('\\') ? "We don't know where this Windows path is on Linux." : 'Enter a path like /algo/project, a Windows path, or a QA-Board URL.')
+      setError(value.includes('\\') ? "We don't know where this Windows path is on Linux." : 'Enter a path like /mnt/data/project, a Windows path, or a QA-Board URL.')
       return
     }
     // Files probably have an extension. If we're wrong about a folder, nginx adds the trailing slash
@@ -600,7 +600,7 @@ function PathInput({ path, close, navigate }) {
       onKeyDown={event => event.key === 'Escape' && close()}
       intent={error ? Intent.DANGER : Intent.NONE}
       aria-label="Go to a path"
-      placeholder={"/algo/project, \\\\server\\share\\folder or a URL"}
+      placeholder={"/mnt/data/project, \\\\server\\share\\folder or a URL"}
       rightElement={error ? <Tooltip content={error} isOpen placement="bottom"><WarningSignIcon className="fb-input-icon"/></Tooltip> : undefined}
     />
   </form>

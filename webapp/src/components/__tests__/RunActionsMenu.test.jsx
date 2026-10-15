@@ -1,11 +1,11 @@
 /**
- * Tests for what users can do with a run: redo it, delete it...
+ * Tests for what users can do with a run: redo it, delete it, open it in WebCDE...
  * Run with: cd webapp && npm test -- RunActionsMenu
  */
 import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { Button, PopoverNext } from '@blueprintjs/core';
 
-import { RunActionsMenu } from '../tags';
+import { RunActionsMenu, OutputTags } from '../tags';
 import { toaster } from '../../toaster';
 import { renderWithProviders } from '../../test-utils';
 
@@ -55,5 +55,26 @@ describe('RunActionsMenu', () => {
     fireEvent.click(within(screen.getByRole('alertdialog')).getByText('Cancel'));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('OutputTags', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("says where to install WebCDE when it isn't running", async () => {
+    vi.stubGlobal('fetch', vi.fn(async url => {
+      if (url.startsWith('http://localhost:2020/')) throw new TypeError('Failed to fetch');
+      return new Response('"cde run"', { status: 200 });
+    }));
+    const run = { ...output, platform: 'linux', configurations: [], output_dir_url: '/s/mnt/qaboard/run', output_type: 'run' };
+    renderWithProviders(
+      <OutputTags output={run} manifests={{ new: { 'sim/cde.sh': {} } }} project="p" commit={{ id: 'abcdef12' }}/>,
+      { siteConfig: { webcde_installer: '\\\\server\\share\\WebCDE_Setup.exe' } },
+    );
+    fireEvent.click(screen.getByText('WebCDE'));
+    await waitFor(() => expect(toaster.show).toHaveBeenCalledWith(expect.objectContaining({
+      message: 'Could not connect to WebCDE (CDEWebService) on your computer. Please start WebCDE.exe (install it from \\\\server\\share\\WebCDE_Setup.exe).',
+    })));
   });
 });

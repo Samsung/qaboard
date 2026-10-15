@@ -7,7 +7,6 @@ import {
   MenuItem,
   Icon,
   IconSize,
-  Tooltip,
   InputGroup,
   Button,
   Dialog,
@@ -262,14 +261,14 @@ const UserMenu = ({ user, logout, avatar_url_template }) => {
 
 
 const warning = {
-  rightElement: <Tooltip content="Try your windows credentials" position="right" intent={Intent.DANGER} hoverCloseDelay={2000}>
-    <Icon icon="warning-sign" intent={Intent.DANGER} size={IconSize.LARGE} style={{transform: "translate(-50%, 50%)"}}/>
-  </Tooltip>,
+  rightElement: <Icon icon="warning-sign" intent={Intent.DANGER} size={IconSize.LARGE} style={{transform: "translate(-50%, 50%)"}}/>,
   intent: Intent.DANGER,
 };
 
 const LoginButton = ({ user, logout, appSider, login_type }) => {
   const queryClient = useQueryClient();
+  // the site's advice to users who can't log in (QABOARD_LOGIN_HINT), e.g. which credentials to use
+  const { login_hint } = useSiteConfig();
   const [is_open, setOpen] = useState(false);
   const [error, setError] = useState(null);
   const [is_loading, setLoading] = useState(false);
@@ -331,14 +330,14 @@ const LoginButton = ({ user, logout, appSider, login_type }) => {
           <FormGroup
             style={{padding: "6px", marginBottom: 0}}
             intent={error === "invalid-username" ? Intent.DANGER : undefined}
-            helperText={error === "invalid-username" ? "This username does not match any user account." : undefined}
+            helperText={error === "invalid-username" ? <>This username does not match any user account.{login_hint && <> {login_hint}</>}</> : undefined}
           >
             <InputGroup id="username" name="username" type="text" placeholder="username" aria-label="Username" autoFocus large  {...(error === "invalid-username" && warning)}/>
           </FormGroup>
           <FormGroup
             style={{padding: "6px", marginBottom: 0}}
             intent={error === "invalid-password" ? Intent.DANGER : undefined}
-            helperText={error === "invalid-password" ? "The password is incorrect." : undefined}
+            helperText={error === "invalid-password" ? <>The password is incorrect.{login_hint && <> {login_hint}</>}</> : undefined}
           >
             <InputGroup id="password" name="password" type="password" placeholder="********" aria-label="Password" large {...(error === "invalid-password" && warning)}/>
           </FormGroup>

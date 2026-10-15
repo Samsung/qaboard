@@ -38,7 +38,7 @@ const Dashboard = () => {
 
   // On branches, the metrics configuration comes from the latest commit
   const metrics = qatools_metrics ?? {};
-  const { available_metrics = {}, main_metrics, dashboard_metrics, dashboard_evolution_metrics } = metrics;
+  const { available_metrics = {}, main_metrics, dashboard_metrics, dashboard_evolution_metrics, dashboard_breakdown_by_tag } = metrics;
   const evolution_metrics = dashboard_evolution_metrics || main_metrics || [];
 
   // null: the project's default metrics
@@ -130,9 +130,10 @@ const Dashboard = () => {
         </Section>
       )}
 
-      {project === 'dvs/psp_swip' && <Section>
+      {/* the metrics file's dashboard_breakdown_by_tag: the summary per tag of the inputs' metadata */}
+      {dashboard_breakdown_by_tag && <Section>
         <Card elevation={1}>
-          <h2 className={Classes.HEADING}>Algorithmic bottlenecks</h2>
+          <h2 className={Classes.HEADING}>Metrics per input tag</h2>
           {count}
           <MetricsSummary
             breakdown_by_tag

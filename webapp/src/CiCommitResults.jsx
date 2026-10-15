@@ -252,6 +252,7 @@ const CiCommitResults = () => {
                   <PrivateContent enabled={true}>
                     <TuningForm
                     project={project}
+                    git={git}
                     config={config}
                     metrics={metrics}
                     commit={new_commit}

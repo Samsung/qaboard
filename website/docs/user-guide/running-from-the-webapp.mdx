@@ -45,6 +45,8 @@ To run a commit's code on other inputs, or with other parameters, open the commi
 1. **Experiment name**: the label of the new batch. Reusing the name of an existing experiment adds runs to it.
 2. **Batch of inputs+configurations**: the name of a batch of tests, like `my-batch`, or several, like `batch-*`. Hover **N tests** to check which inputs and configurations it includes. When the batch has no tests, a warning under it says why (a batch file missing from the commit's artifacts, a batch defined nowhere, inputs not found...). The [Available Tests](commit-page.mdx#available-tests) view lists the batches you can use, and lets you define your own.
 3. If the project supports several **platforms**, pick one.
+
+   If the project's CI only saves the build (the artifacts runs need) on some branches, a warning at the top of the form says so on the commits of other branches, with the commands to save it yourself.
 4. Choose the parameters:
    - **Manual tuning**: write the parameters to try, as JSON. Click the examples (*simple-combinations*, *list-of-combinations*, *1x2 matrix*...) to get started. Choose **All combinations** (a grid) or **Sampling** a number of them. The total number of runs is shown before you send.
    - **Automated tuning**: describe the search space and the objective in YAML, and let the optimizer ([scikit-optimize](https://scikit-optimize.github.io/)) choose the parameters. It needs the project to compute metrics.
