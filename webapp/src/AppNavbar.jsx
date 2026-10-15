@@ -197,7 +197,7 @@ const CommitsListNavbar = () => {
               createNewItemRenderer={renderNewItem}
               items={branches}
               itemRenderer={renderBranch}
-              inputValueRenderer={branch => branch}
+              inputValueRenderer={item => typeof item === 'string' ? item : item.commit}
               noResults={<MenuItem disabled={true} text="No results." />}
               onItemSelect={handleBranchChange}
               inputProps={{
