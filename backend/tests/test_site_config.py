@@ -72,3 +72,23 @@ def test_git_hosts(dummy_app, reload_config, monkeypatch):
     {"type": "github", "url": "https://github.com", "name": "github.com"},
   ]
   assert "secret" not in json.dumps(config)
+
+
+def test_site_texts(dummy_app, reload_config, monkeypatch):
+  monkeypatch.setenv('QABOARD_LOGIN_HINT', 'Use your Windows credentials')
+  monkeypatch.setenv('QABOARD_WEBCDE_INSTALLER', '\\\\server\\share\\WebCDE_Setup.exe')
+  api = reload_config({})
+  with dummy_app.test_request_context('/api/v1/config'):
+    config = api.get_site_config().get_json()
+  assert config['login_hint'] == 'Use your Windows credentials'
+  assert config['webcde_installer'] == '\\\\server\\share\\WebCDE_Setup.exe'
+
+
+def test_site_texts_default(dummy_app, reload_config, monkeypatch):
+  monkeypatch.delenv('QABOARD_LOGIN_HINT', raising=False)
+  monkeypatch.delenv('QABOARD_WEBCDE_INSTALLER', raising=False)
+  api = reload_config({})
+  with dummy_app.test_request_context('/api/v1/config'):
+    config = api.get_site_config().get_json()
+  assert config['login_hint'] is None
+  assert config['webcde_installer'] is None

@@ -81,6 +81,16 @@ describe('PrivateContent', () => {
     await waitFor(() => expect(screen.getByText('The password is incorrect.')).toBeInTheDocument());
   });
 
+  it("gives the site's advice when the login fails", async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(url => url === '/api/v1/user/auth/'
+      ? json({ error: 'invalid-username' }, 401)
+      : json({ is_authenticated: false }));
+    renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { login_required: true, login_hint: 'Use your Windows credentials.' } });
+    const dialog = await openLogin();
+    fireEvent.click(dialog.getByRole('button', { name: 'Log in' }));
+    await waitFor(() => expect(screen.getByText('This username does not match any user account. Use your Windows credentials.')).toBeInTheDocument());
+  });
+
   it('says why users could not log in when the server fails', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(url => url === '/api/v1/user/auth/'
       ? Promise.resolve(new Response('oops', { status: 502, statusText: 'Bad Gateway' }))

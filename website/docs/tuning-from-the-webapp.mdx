@@ -41,6 +41,25 @@ The QA-Board server starts tuning runs with the runner chosen by its `QABOARD_TU
 ### 3. Logged-in users
 Starting tuning experiments requires a logged-in user, and runs are started as that user. See [user management](backend-admin/user-management).
 
+### Optional settings in *qaboard.yaml*
+```yaml title="qaboard.yaml"
+inputs:
+  # Let users choose a platform, passed to `qa --platform`. By default runs use "linux".
+  platforms:
+    - name: linux
+      label: Linux
+    - name: android
+      label: Android
+
+tuning:
+  # If your CI only saves artifacts on some branches, list them (globs, "*" matches "/" too):
+  # on the commits of other branches, the tuning form warns that tuning may not work, and how to save the artifacts.
+  # In monorepos, {subproject} is the project's folder in the repository and {subproject.name} its last part.
+  branches:
+    - develop
+    - '*/*{subproject.name}*'  # e.g. alice/denoise-v2 for the project in isp/denoise
+```
+
 ## Tips for users
 How to start runs is described in the [user guide](/docs/user-guide/running-from-the-webapp). A few shortcuts:
 - To start from an existing run's parameters, hover its configuration tags and choose **Copy full config in tuning format**, then paste it in the manual tuning editor.

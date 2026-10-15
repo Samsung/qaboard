@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
 import { http, errorMessage } from "../../api/http";
@@ -34,6 +34,19 @@ import { BatchDefinitions, BatchWarnings } from './BatchReport'
 
 
 const MAX_RUNS = 5000;
+
+// In qaboard.yaml's tuning.branches, {subproject} is the project's folder in the repository, {subproject.name} its last part
+const expand_subproject = (pattern, subproject) => String(pattern)
+  .replaceAll('{subproject.name}', subproject.split('/').pop())
+  .replaceAll('{subproject}', subproject);
+
+// Whether a branch matches one of the globs of qaboard.yaml's tuning.branches, e.g. ["develop", "*/*{subproject.name}*"].
+// "*" matches any characters, "/" included, and "?" one character.
+export const branch_matches = (branch, patterns, subproject = '') => patterns.some(pattern => {
+  const escape = text => text.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  const regex = expand_subproject(pattern, subproject).split('*').map(part => part.split('?').map(escape).join('.')).join('.*');
+  return new RegExp(`^${regex}$`).test(branch);
+});
 
 const editor_options = {
   selectOnLineNumbers: true,
@@ -303,9 +316,9 @@ const useGroupInfo = ({ project, selected_group, commit_id, available_tests_file
 
 
 // Starts tuning experiments. What users enter is remembered per project.
-const TuningForm = ({ project, config, metrics, commit, available_tests_files }) => {
+const TuningForm = ({ project, git, config, metrics, commit, available_tests_files }) => {
   const logged_user = useUser();
-  const { docs_root } = useSiteConfig();
+  const { docs_root, support_url } = useSiteConfig();
   const form = useTuningForm(project);
   const updateTuning = usePrefsStore(state => state.updateTuning);
   const refresh = useRefreshCommit();
@@ -324,7 +337,6 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
     parameter_search = templates["no tuning"],
     search_options = default_search_options,
     parameter_search_auto = default_parameter_search_auto,
-    android_device = "openstf",
   } = form;
   const user = logged_user.user_name || form.user || default_user;
 
@@ -335,18 +347,6 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
   const { group_info: selected_group_info, loading: selected_group_info_loading, error } = useGroupInfo({
     project, selected_group, commit_id: commit?.id, available_tests_files,
   });
-
-  // TODO: remove at some point, or expose via tuning.runners.lsf.forbidden_users...
-  const forbidden_user = form.user === 'ispq';
-  useEffect(() => {
-    if (!forbidden_user) return;
-    updateTuning(project, { user: '' });
-    toaster.show({
-      message: <span>Sorry, using the <strong>ispq</strong> user for tuning is not allowed anymore!</span>,
-      intent: Intent.WARNING,
-      timeout: 10000,
-    });
-  }, [forbidden_user, project, updateTuning]);
 
   const update = name => e => updateTuning(project, { [name]: e?.target ? e.target.value : e });
   // for some reason, trailing spaces are removed when making the request.
@@ -398,7 +398,6 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
       selected_group,
       groups: Object.values(available_tests_files),
       user,
-      android_device,
       overwrite,
     }, { params: { project } })
       .then(() => {
@@ -537,7 +536,10 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
   </>
 
   const available_platforms = config.inputs?.platforms ?? []
-  const cannot_tune_on_branch = project.startsWith('CDE-Users/HW_ALG') && !((commit?.branch ?? '').split('/')?.[1]  ?? '').includes(project.split('/').slice(-1)) && commit?.branch !== "develop"
+  // qaboard.yaml's tuning.branches: the branches whose commits have artifacts, if the CI doesn't save them for all
+  const tuning_branches = config.tuning?.branches
+  const subproject = git?.path_with_namespace ? project.slice(git.path_with_namespace.length + 1) : ''
+  const cannot_tune_on_branch = !!commit?.branch && Array.isArray(tuning_branches) && !branch_matches(commit.branch, tuning_branches, subproject)
     
   return <>
     {!any_runner_configured && <Callout intent={Intent.WARNING} title="Please configure async runners" icon="warning-sign" style={{marginBottom: '15px'}}>
@@ -545,12 +547,11 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
       <p>Otherwise, your runs may be killed if they take too long.</p>
     </Callout>}
     {cannot_tune_on_branch &&  <Callout intent={Intent.WARNING} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
-      <p>For tuning to work, your branch name (<code>{commit?.branch}</code>) must match the project (<code>{project}</code>).</p>
-      <p>A workaround is calling from Windows/Linux:</p>
+      <p>Tuning needs the commit's artifacts, and the CI only saves them on some branches: {tuning_branches.map((pattern, idx) => <span key={idx}>{idx > 0 && ', '}<code>{expand_subproject(pattern, subproject)}</code></span>)}. Your branch, <code>{commit.branch}</code>, doesn't match.</p>
+      <p>A workaround is saving them yourself, from your clone of the repository:</p>
       <pre>
-        <div>cd HW_ALG</div>
         <div>git checkout {(commit?.id ?? '').slice(0, 8)}</div>
-        <div>cd {project.replace('CDE-Users/HW_ALG/', '')}</div>
+        {subproject && <div>cd {subproject}</div>}
         <div>qa save-artifacts</div>
       </pre>
     </Callout>}
@@ -623,7 +624,7 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
       />
     </>}
 
-    {(project!=='dvs/psp_swip' && project!=='tof/swip_tof' && available_platforms.length > 0) &&
+    {available_platforms.length > 0 &&
     <RadioGroup onChange={update('platform')} selectedValue={platform}>
       {available_platforms.map(p => <Radio
         key={p.name}
@@ -632,31 +633,6 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
         large
       />)}
     </RadioGroup>}
-
-    {((project==='dvs/psp_swip' || project==='tof/swip_tof' )&& available_platforms.length === 0) &&
-    <RadioGroup onChange={update('platform')} selectedValue={platform}>
-      <Radio labelElement={<span>Linux</span>} value="lsf" large />
-      <Radio label={<span>Android</span>} value="s8" large/>
-    </RadioGroup>}
-
-    {platform.startsWith("s8") && (
-      <FormGroup
-        label="Android device"
-        helperText="Choose a device from the openstf farm, or your own (host:port)"
-        labelFor="input-android-device"
-      >
-        <input
-          id="input-android-device"
-          className={Classes.INPUT}
-          style={{ width: "300px" }}
-          value={android_device}
-          placeholder="openstf"
-          onChange={update('android_device')}
-          type="text"
-          dir="auto"
-        />
-      </FormGroup>
-    )}
 
 
     <Tabs renderActiveTabPanelOnly id="search-type" selectedTabId={search_type !== "optimize" ? "search-manual" : "search-optimize"} onChange={updateSearchTab}  defaultSelectedTabId="search-manual">
@@ -737,7 +713,7 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
         <li>The solver is <a href="https://github.com/scikit-optimize/scikit-optimize">scikit-optimize</a>. There are lots of choices for black-box optimization (nevergrad, RoBo, MOE, Ray, hyperopt, SMAC, BayesOpt, spearmint, dlib...), all with varying features, maturity, algorithms and popularity.</li>
         <li>You need to use <a href={`${docs_root}docs/computing-quantitative-metrics`}>QA-Board metrics</a>.</li>
         </ul>
-        <p><strong>Do send <a href="mailto:arthur.flam@samsung.com">feedback</a>!</strong></p>
+        <p><strong>Do send <a href={support_url || "mailto:arthur.flam@samsung.com"}>feedback</a>!</strong></p>
       </Callout>
     </>}
   </>;

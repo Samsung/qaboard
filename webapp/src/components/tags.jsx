@@ -15,7 +15,7 @@ import {
 } from "@blueprintjs/core";
 
 import { http, errorMessage, isAbort } from "../api/http";
-import { useRefreshCommit } from "../hooks";
+import { useRefreshCommit, useSiteConfig } from "../hooks";
 import { linux_to_windows } from '../utils'
 import { folder_url, hasPathMappings } from '../utils/paths'
 import { toaster } from "../toaster"
@@ -348,7 +348,8 @@ const RunActionsMenu = ({ output, project, commit }) => {
 }
 
 
-// Asks WebCDE, running on the user's machine, to open the output
+// Asks WebCDE, running on the user's machine, to open the output.
+// WebCDE is a desktop app that replays runs whose outputs have a cde.sh, its service listens on localhost:2020.
 const open_in_webcde = async ({ output, commit, cde_sh }) => {
   const { platform, output_dir_url } = output
   const cde_dir = cde_sh.replace(/\/?cde.sh$/, '')
@@ -373,6 +374,8 @@ const open_in_webcde = async ({ output, commit, cde_sh }) => {
 const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, style }) => {
   const [waiting, setWaiting] = useState(false)
   const refreshCommit = useRefreshCommit()
+  // where users install WebCDE, from QABOARD_WEBCDE_INSTALLER
+  const { webcde_installer } = useSiteConfig()
   const refresh = () => refreshCommit(project, commit.id)
   const { platform, configurations, output_dir_url, deleted, output_type } = output;
   const cde_shs = !deleted ? Object.keys(manifests?.new ?? []).filter(path => path.endsWith("cde.sh")) : []
@@ -459,7 +462,7 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
             open_in_webcde({ output, commit, cde_sh })
               .then(() => toaster.show({message: "Sent to WebCDE", intent: Intent.SUCCESS}))
               .catch(error => {
-                const help_text = "Sorry we could not connect to CDEWebService. Please start WebCDE.exe (download from \\\\netapp\\Joint\\WebCDE\\WebCDE_Setup.exe)"
+                const help_text = `Could not connect to WebCDE (CDEWebService) on your computer. Please start WebCDE.exe${webcde_installer ? ` (install it from ${webcde_installer})` : ''}.`
                 toaster.show({
                   message: error.webcde_unreachable ? help_text : errorMessage(error),
                   intent: Intent.DANGER,

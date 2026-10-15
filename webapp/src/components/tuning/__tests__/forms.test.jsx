@@ -4,7 +4,7 @@
  */
 import { screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 
-import { TuningForm, combinations_info, eval_combinations } from '../forms';
+import { TuningForm, combinations_info, eval_combinations, branch_matches } from '../forms';
 import { renderWithProviders } from '../../../test-utils';
 import { usePrefsStore } from '../../../stores/prefs';
 import { userQuery } from '../../../api/queries';
@@ -21,6 +21,17 @@ describe('tuning combinations', () => {
     expect(combinations_info('{"a": [1, 2], "b": [1, 2, 3]}', { n_iter: 50 }, 'grid')).toEqual({ combinations: 6, language: 'yaml' });
     expect(combinations_info('[{"a": 1}, {"a": [1, 2]}]', { n_iter: 50 }, 'grid')).toEqual({ combinations: 3, language: 'yaml' });
     expect(combinations_info('{"a": [1, 2, 3]}', { n_iter: 2 }, 'sampler').combinations).toBe(2);
+  });
+
+  it('matches branches with globs and the subproject', () => {
+    expect(branch_matches('develop', ['develop', '*/*{subproject.name}*'], 'isp/denoise')).toBe(true);
+    expect(branch_matches('alice/denoise-v2', ['develop', '*/*{subproject.name}*'], 'isp/denoise')).toBe(true);
+    expect(branch_matches('alice/demosaic', ['develop', '*/*{subproject.name}*'], 'isp/denoise')).toBe(false);
+    expect(branch_matches('denoise', ['*/*{subproject.name}*'], 'isp/denoise')).toBe(false);
+    expect(branch_matches('release/isp/denoise', ['release/{subproject}'], 'isp/denoise')).toBe(true);
+    // regex characters are literals
+    expect(branch_matches('v1x2', ['v1.2'])).toBe(false);
+    expect(branch_matches('v1.2', ['v?.?'])).toBe(true);
   });
 
   it('runs functions', () => {
@@ -113,6 +124,51 @@ describe('TuningForm', () => {
     renderWithProviders(<TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>);
     await act(async () => fireEvent.click(screen.getByText('Available Tests')));
     expect(window.location.search).toBe('?selected_views=groups');
+  });
+
+  it("warns when the CI doesn't save artifacts for the commit's branch (qaboard.yaml's tuning.branches)", () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
+    const tuning_config = { ...config, tuning: { branches: ['develop', '*/*{subproject.name}*'] } };
+    const git = { path_with_namespace: 'algo/monorepo' };
+    const { rerender } = renderWithProviders(
+      <TuningForm project="algo/monorepo/isp/denoise" git={git} config={tuning_config} metrics={metrics} commit={{ id: 'abcdef1234', branch: 'alice/fix-demosaic' }} available_tests_files={{}}/>,
+      { siteConfig: {} },
+    );
+    expect(screen.getByText('Tuning may not work')).toBeInTheDocument();
+    expect(screen.getByText('*/*denoise*')).toBeInTheDocument();
+    expect(screen.getByText('cd isp/denoise')).toBeInTheDocument();
+    expect(screen.getByText('git checkout abcdef12')).toBeInTheDocument();
+
+    rerender(<TuningForm project="algo/monorepo/isp/denoise" git={git} config={tuning_config} metrics={metrics} commit={{ id: 'abcdef1234', branch: 'alice/denoise-v2' }} available_tests_files={{}}/>);
+    expect(screen.queryByText('Tuning may not work')).not.toBeInTheDocument();
+    // by default, any branch
+    rerender(<TuningForm project="algo/monorepo/isp/denoise" git={git} config={config} metrics={metrics} commit={{ id: 'abcdef1234', branch: 'alice/fix-demosaic' }} available_tests_files={{}}/>);
+    expect(screen.queryByText('Tuning may not work')).not.toBeInTheDocument();
+  });
+
+  it("offers the platforms of qaboard.yaml's inputs.platforms", async () => {
+    usePrefsStore.getState().updateTuning('proj', { experiment_name: 'exp', selected_group: 'nightly' });
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(url => url.startsWith('/api/v1/tests/group?')
+      ? json({ tests: [{ input_path: 'a.jpg', configurations: ['base'] }] })
+      : json({}));
+    const platforms_config = { ...config, inputs: { platforms: [{ name: 'linux', label: 'Linux' }, { name: 'android', label: 'Android' }] } };
+    renderWithProviders(
+      <TuningForm project="proj" config={platforms_config} metrics={metrics} commit={commit} available_tests_files={{}}/>,
+      { user: { is_logged: true, user_name: 'alice' }, siteConfig: {} },
+    );
+    fireEvent.click(screen.getByLabelText('Android'));
+    expect(usePrefsStore.getState().tuning.proj.platform).toBe('android');
+    fireEvent.click(await screen.findByText('Start 1 run'));
+    await waitFor(() => expect(fetch.mock.calls.some(([url]) => url === '/api/v1/commit/abcdef12/batch?project=proj')).toBe(true));
+    const [, init] = fetch.mock.calls.find(([url]) => url === '/api/v1/commit/abcdef12/batch?project=proj');
+    expect(JSON.parse(init.body)).toMatchObject({ platform: 'android' });
+  });
+
+  it("asks for feedback where the site's users report issues", () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
+    usePrefsStore.getState().updateTuning('proj', { search_type: 'optimize' });
+    renderWithProviders(<TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>, { siteConfig: { support_url: 'mailto:qa-support@example.com' } });
+    expect(screen.getByText('feedback').closest('a')).toHaveAttribute('href', 'mailto:qa-support@example.com');
   });
 
   it('asks before resetting the auto-tuning configuration', async () => {
