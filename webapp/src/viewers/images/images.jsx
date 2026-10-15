@@ -9,7 +9,7 @@ import {
   Button,
   Icon,
   Tooltip,
-  Popover,
+  PopoverNext,
   MultiSlider,
   Menu,
   MenuItem,
@@ -880,7 +880,7 @@ class ImgViewer extends React.PureComponent {
     const has_error = !!error && (error instanceof Error || Object.keys(error).length > 0);
     const error_messages = !has_error ? <span/> : <>
       {manifests?.new?.[path]?.st_size == 0 && <Tag style={{marginRight: "5px"}} intent={Intent.DANGER}>Empty Image</Tag>}
-      <Popover inheritDarkTheme popoverClassName={Classes.DARK} hoverCloseDelay={500} interactionKind={"hover"} content={
+      <PopoverNext inheritDarkTheme popoverClassName={Classes.DARK} hoverCloseDelay={500} interactionKind={"hover"} content={
           <div style={{ padding: '5px' }}>
             {!!error.message && <p>{JSON.stringify(error.message)}</p>}
             {!!error.url && <p>You may <a href={error.url}>find why here</a>.</p>}
@@ -889,7 +889,7 @@ class ImgViewer extends React.PureComponent {
           </div>}
       >
           <Tag intent={Intent.DANGER}>Image Download Error</Tag>
-      </Popover>
+      </PopoverNext>
     </>;
 
     const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0)
@@ -1039,7 +1039,7 @@ class ImgViewer extends React.PureComponent {
       {error_messages}
       {!has_error && <>
         {this.state.ready && <>
-        <Popover placement="top" hoverCloseDelay={200} interactionKind={"hover"} content={
+        <PopoverNext placement="top" hoverCloseDelay={200} interactionKind={"hover"} content={
           <Menu>
               <MenuItem
                   text="Copy new image to the clipboard"
@@ -1089,7 +1089,7 @@ class ImgViewer extends React.PureComponent {
                   )
                 }}
               >Copy</Button>
-          </Popover>
+          </PopoverNext>
           <RoiViewer
             output_new={output_new}
             output_ref={!has_same_data ? output_ref : undefined}

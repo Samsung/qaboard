@@ -20,7 +20,7 @@ import {
   Switch,
   Tag,
   Tooltip,
-  Popover,
+  PopoverNext,
   Spinner,
   Tab,
   Tabs,
@@ -576,7 +576,7 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
       label="Batch of inputs+configurations:"
       intent={!selected_group ? Intent.DANGER : Intent.PRIMARY}
       helperText={<>
-        {tests.length > 0 && <Popover
+        {tests.length > 0 && <PopoverNext
             inheritDarkTheme popoverClassName={Classes.DARK}
             placement="right" hoverCloseDelay={300} interactionKind={"hover"}
             content={<div style={{padding: '10px'}}>
@@ -593,7 +593,7 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
             </div>}
             >
           <span style={{borderBottom: '1px dotted currentColor', textDecoration: 'none'}}>{tests.length} tests. </span>
-        </Popover>}
+        </PopoverNext>}
         <p style={{marginBottom: '5px'}}>
           To know what batches you can use, go to the tab <Button icon="layout-group-by" size="small" variant="minimal" intent={Intent.PRIMARY} text="Available Tests" onClick={() => updateSelected({ selected_views: 'groups' })}/>.
           </p>

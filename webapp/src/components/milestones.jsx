@@ -20,7 +20,7 @@ import {
   ControlGroup,
   HTMLSelect,
   Tooltip,
-  Popover,
+  PopoverNext,
   Alert,
 } from "@blueprintjs/core";
 
@@ -330,17 +330,18 @@ const CommitMilestoneEditor = ({ project, project_shown, project_data, commit, b
   </div>
 
   return <>
-    <Popover
+    <PopoverNext
       content={popover_body}
       placement="right"
       popoverClassName={Classes.POPOVER_CONTENT_SIZING}
     >
-      <Tooltip content={type !== 'none' ? "Edit the milestone" : "Save as a milestone: bookmark these results to compare against later"} position={Position.BOTTOM} >
+      {/* the focus comes back to the button when the popover closes: that shouldn't open the tooltip */}
+      <Tooltip content={type !== 'none' ? "Edit the milestone" : "Save as a milestone: bookmark these results to compare against later"} position={Position.BOTTOM} openOnTargetFocus={false}>
         <Button minimal style={{ marginRight: '5px' }} onClick={updateData} aria-label={type !== 'none' ? "Edit the milestone" : "Save as a milestone"}>
           <Icon icon={icon} color={color} />
         </Button>
       </Tooltip>
-    </Popover>
+    </PopoverNext>
     <Alert
       className={Classes.POPOVER_DISMISS}
       canEscapeKeyCancel

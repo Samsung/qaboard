@@ -61,7 +61,7 @@ describe('CommitRow', () => {
   it('asks before deleting all the runs', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })));
     renderRow();
-    fireEvent.mouseEnter(screen.getByLabelText('Commit actions'));
+    fireEvent.click(screen.getByLabelText('Commit actions'));
     fireEvent.click(await screen.findByText('Delete All Runs…'));
     const alert = within(await screen.findByRole('alertdialog'));
     expect(alert.getByText('Delete all the runs of abcdef12?')).toBeInTheDocument();

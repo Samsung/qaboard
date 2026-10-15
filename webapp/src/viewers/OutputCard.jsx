@@ -14,7 +14,7 @@ import {
   HTMLSelect,
   Tooltip,
   Button,
-  Popover,
+  PopoverNext,
   Menu,
   MenuItem,
   MenuDivider,
@@ -210,7 +210,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, manifests, st
       {prefix}
       {tags_first && viewable && tags}
       {output.output_type !== "batch" && !viewable ?
-        <span key="batch-info">{run_path}</span> : <Popover hoverCloseDelay={1000} interactionKind={PopoverInteractionKind.HOVER} content={popover_content}>
+        <span key="batch-info">{run_path}</span> : <PopoverNext hoverCloseDelay={1000} interactionKind={PopoverInteractionKind.HOVER} content={popover_content}>
         <span key="batch-info">
           <Link
             to={history_location(project, commit, output, type, window.location.search)}
@@ -221,7 +221,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, manifests, st
             {run_path}
           </Link>
         </span>
-      </Popover>}
+      </PopoverNext>}
       {!tags_first && viewable && tags}
     </h5>
     <p style={{maxWidth: '600px'}}>

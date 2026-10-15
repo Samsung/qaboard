@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-import { Tree, Classes, Intent, Spinner, Tag, Icon, Popover, Menu, MenuItem, Tooltip } from "@blueprintjs/core";
+import { Tree, Classes, Intent, Spinner, Tag, Icon, PopoverNext, Menu, MenuItem, Tooltip } from "@blueprintjs/core";
 import { OutputViewer } from "../OutputViewer"
 import { preloadMonaco } from "../../components/MonacoEditor"
 import { useIsDark } from "../../theme"
@@ -209,14 +209,14 @@ const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref,
     );
 
     const size = hasDownloadOptions ? (
-      <Popover
+      <PopoverNext
         content={downloadMenu}
         placement="right"
         interactionKind="hover"
         hoverCloseDelay={200}
       >
         {sizeLabel}
-      </Popover>
+      </PopoverNext>
     ) : sizeLabel;
     node.secondaryLabel = checked ? size : <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
       <Tooltip content="Not checked for bit-accuracy: see bit_accuracy.patterns in qaboard.yaml">

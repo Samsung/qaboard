@@ -10,7 +10,7 @@ Check items off or delete them when done, add new ones with enough context for s
 - [ ] Viewers not covered by automated tests with real data: images (OpenSeadragon/IIIF), ToF point clouds (three.js), SLAM, flame graphs, videos. Check them manually on staging after deploys that touch them.
 
 ## UX
-- [ ] Blueprint warns that `<Popover>` positions content incorrectly with React 19: migrate to `<PopoverNext>` (milestones, CommitRow, CommitNavbar...) and check the layouts.
+- [ ] **Menus that open on hover**: all popovers use `<PopoverNext>` (Blueprint's `<Popover>` mis-positions content with React 19), and the commit, batch and run action menus open on click. Other menus still open on hover, so not on touch screens and sometimes by accident: the sidebar's Integrations and Milestones submenus, "Change" next to the commit id (`CommitNavbar.jsx`), the configuration tags' copy menus (`ConfigurationsTags` in `tags.jsx`), the image viewer's "Copy" menu and "View ROIs". Move them to click one at a time, checking that their contents still work (e.g. the integrations' search box).
 
 ## Testing / CI
 - [ ] Run the Playwright smoke tests (`npm run e2e`) in GitLab CI too. They run in GitHub Actions; the LSF runners need Chromium (`npx playwright install chromium` through the proxy, or use `PLAYWRIGHT_CHROMIUM_EXECUTABLE`).

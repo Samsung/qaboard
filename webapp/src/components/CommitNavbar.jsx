@@ -16,7 +16,7 @@ import {
   NavbarGroup,
   Dialog,
   Tooltip,
-  Popover,
+  PopoverNext,
   Switch,
 } from "@blueprintjs/core";
 import { MultiSelect } from "@blueprintjs/select";
@@ -456,7 +456,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
                 width: '160px',
                 fontFamily: 'monospace',
               }}
-              rightElement={<Popover
+              rightElement={<PopoverNext
                   placement="bottom"
                   hoverCloseDelay={200}
                   interactionKind={"hover"}
@@ -465,7 +465,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
                 <Button size="small" variant="minimal" icon="edit" aria-label={`Change the ${type === 'new' ? 'new' : 'reference'} commit`}>
                   <span className="hide-small-screen">Change</span>
                 </Button>
-              </Popover>}
+              </PopoverNext>}
               onChange={selectCommit}
               onBlur={() => setTyping(false)}
               small
@@ -543,7 +543,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             onClick={refresh}
           />
         </Tooltip>
-        <Popover placement="bottom" hoverCloseDelay={500} interactionKind={"hover"} content={<Menu>
+        <PopoverNext placement="bottom" content={<Menu>
           <MenuDivider title="Commit"/>
           {hasPathMappings() && <MenuItem text="Copy Artifact Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url, { windows: true })} />}
           <MenuItem text="Copy Artifact Dir" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url)} />
@@ -690,7 +690,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
         </Menu>
         }>
           <Button variant="minimal" icon="menu" className={Classes.TEXT_MUTED} aria-label="Commit and batch actions"/>
-        </Popover>
+        </PopoverNext>
         <Alert
           isOpen={!!confirmation}
           icon={confirmation?.icon}
