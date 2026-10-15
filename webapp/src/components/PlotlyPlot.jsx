@@ -48,6 +48,7 @@ export const dark_template = {
     polar: { bgcolor: "rgba(0,0,0,0)", radialaxis: axis, angularaxis: axis },
     legend: { bgcolor: "rgba(0,0,0,0)" },
     hoverlabel: { bgcolor: "#2f343c", bordercolor: "#5f6b7c", font: { color: "#f6f7f9" } },
+    modebar: { bgcolor: "rgba(0,0,0,0)", color: "#abb3bf", activecolor: "#f6f7f9" },
   },
 };
 

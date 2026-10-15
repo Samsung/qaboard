@@ -30,6 +30,7 @@ import { ThemeButton } from './components/ThemeButton'
 import { useProjects, useSiteConfig, useUser } from './hooks'
 import { usePrefsStore } from './stores/prefs'
 import { match_query } from "./utils"
+import { errorMessage } from "./api/http"
 import { project_web_url, quota_url } from "./utils"
 
 
@@ -173,7 +174,7 @@ const ProjectsList = () => {
     warnings = <NonIdealState
       icon="error"
       title="Could not load the projects"
-      description={error.message}
+      description={errorMessage(error)}
       action={<Button icon="refresh" text="Retry" onClick={() => refetch()}/>}
     />;
   if (isPending)
@@ -218,7 +219,7 @@ const ProjectsList = () => {
                 />
               </div>
             <div>
-              {!isPending && <Tag intent={!!query ? Intent.PRIMARY : undefined} minimal>{rendered_projects.length} {!!query ? 'filtered ' : ''}project{rendered_projects.length === 1 ? '' : 's'}</Tag>}
+              {!isPending && !failed && <Tag intent={!!query ? Intent.PRIMARY : undefined} minimal>{rendered_projects.length} {!!query ? 'filtered ' : ''}project{rendered_projects.length === 1 ? '' : 's'}</Tag>}
             </div>
           </div>
           {warnings}
