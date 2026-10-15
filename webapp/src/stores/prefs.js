@@ -15,6 +15,8 @@ export const usePrefsStore = create()(persist(
     tuning: {},
     // "system" (follows the OS), "light" or "dark", see src/theme.js
     theme: 'system',
+    // how lists of commits look: "comfortable" (a few lines per commit) or "compact" (one line per commit)
+    commitListDensity: 'comfortable',
 
     toggleFavorite: project => set(state => ({
       favorites: { ...state.favorites, [project]: !state.favorites[project] },
@@ -27,15 +29,20 @@ export const usePrefsStore = create()(persist(
       return { milestones: { ...state.milestones, [project]: milestones } };
     }),
     setTheme: theme => set({ theme }),
+    setCommitListDensity: density => set({ commitListDensity: density === 'compact' ? 'compact' : 'comfortable' }),
     updateTuning: (project, form) => set(state => ({
       tuning: { ...state.tuning, [project]: { ...state.tuning[project], ...form } },
     })),
   }),
+  // New preferences don't need a new version: the saved state is merged into the defaults above, so preferences saved
+  // before they existed get their default. A new version without a `migrate` function would drop everything users saved.
   { name: 'qaboard-prefs', version: 1 },
 ));
 
 export const usePrivateMilestones = project => usePrefsStore(state => state.milestones[project] ?? empty);
 export const useTuningForm = project => usePrefsStore(state => state.tuning[project] ?? empty);
+// whatever was saved, "comfortable" or "compact"
+export const useCommitListDensity = () => usePrefsStore(state => state.commitListDensity === 'compact' ? 'compact' : 'comfortable');
 
 
 // Until October 2026 those preferences were saved by redux-persist, in IndexedDB via localForage.
