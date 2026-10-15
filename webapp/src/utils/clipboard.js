@@ -6,7 +6,7 @@ import { toaster } from '../toaster'
 
 
 // navigator.clipboard only exists in secure contexts (https, localhost), but QA-Board is also served over http
-// (e.g. http://qa): there we fall back to copy-to-clipboard. Resolves to whether we could copy.
+// (e.g. http://qaboard on an intranet): there we fall back to copy-to-clipboard. Resolves to whether we could copy.
 export async function copyText(text) {
   if (navigator.clipboard && window.isSecureContext) {
     try {

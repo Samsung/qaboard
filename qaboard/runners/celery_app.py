@@ -5,9 +5,32 @@ import psutil
 import subprocess
 from typing import Optional
 
-from celery import Celery
+from celery import Celery, signals
 sys.path.append(os.path.dirname(__file__))
 import celeryconfig
+
+
+@signals.celeryd_init.connect
+def init_sentry(**kwargs):
+  """
+  Workers report errors and traces to Sentry: to $SENTRY_DSN, else to the site's QABOARD_SENTRY_DSN, if any.
+  celeryd_init runs in the worker's main process, before the pool's processes fork from it (Sentry's docs).
+  """
+  from qaboard.site_config import site_config
+  dsn = os.environ.get('SENTRY_DSN') or site_config('QABOARD_SENTRY_DSN')
+  if not dsn:
+    return
+  import sentry_sdk
+  from sentry_sdk.integrations.celery import CeleryIntegration
+  from qaboard import __version__
+  from qaboard.sentry_utils import sentry_options
+  ca_setting = os.environ.get('SENTRY_CA_CERTS') or site_config('SENTRY_CA_CERTS') or site_config('QABOARD_SENTRY_VERIFY')
+  sentry_sdk.init(**sentry_options(
+    dsn,
+    release=f"qaboard@{__version__}",
+    ca_setting=ca_setting,
+    integrations=[CeleryIntegration()],
+  ))
 
 
 app = Celery('celery_app')

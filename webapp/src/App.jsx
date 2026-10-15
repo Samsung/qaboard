@@ -18,6 +18,8 @@ import { Layout } from "./components/layout";
 import ProjectsList from "./ProjectsList";
 import ErrorPage from "./components/ErrorPage";
 import EmptyLoading from "./components/EmptyLoading";
+import Footer from "./components/Footer";
+import { ThemeSync } from "./theme";
 
 import "normalize.css";
 import "@blueprintjs/core/lib/css/blueprint.css";
@@ -29,7 +31,8 @@ import "@blueprintjs/datetime/lib/css/blueprint-datetime.css";
 import "./App.css";
 
 import { routes } from './routes'
-import { ReleaseNotesProvider, WhatsNewLink } from "./releaseNotes/ReleaseNotes"
+import { ReleaseNotesProvider } from "./releaseNotes/ReleaseNotes"
+import { HelpSheetProvider } from "./components/HelpSheet"
 import PrivateContent from "./components/authentication/PrivateContent"
 import AppSider, { sider_width } from './AppSider'
 import AppNavbar from './AppNavbar'
@@ -45,11 +48,6 @@ const shouldForwardProp = (prop, target) => typeof target !== "string" || isProp
 
 const route_name = pathname => matchRoutes(routes, pathname)?.route.path ?? pathname;
 
-const Footer = () => {
-  return <div style={{margin: "10px", textAlign: "right"}}>
-     <span className={Classes.TEXT_MUTED}><WhatsNewLink via="footer"/> · Made with <span role="img" aria-label="<3">❤️</span> at Samsung, under <a href="https://github.com/Samsung/qaboard">Apache License 2.0</a></span>
-  </div>
-}
 
 
 // Monitoring and analytics, once we know the site's configuration
@@ -74,13 +72,16 @@ const App = ({ persist = true }) => {
   const Provider = persist ? PersistQueryClientProvider : QueryClientProvider;
   const providerProps = persist ? { client: queryClient, persistOptions, onSuccess: onCacheRestored } : { client: queryClient };
   return <Provider {...providerProps}>
+    <ThemeSync/>
     <Sentry.ErrorBoundary fallback={props => <Fallback {...props}/>}>
       <Analytics/>
       <StyleSheetManager shouldForwardProp={shouldForwardProp}>
         <ReleaseNotesProvider>
-          <HistoryRouter history={history}>
-            <Routes/>
-          </HistoryRouter>
+          <HelpSheetProvider>
+            <HistoryRouter history={history}>
+              <Routes/>
+            </HistoryRouter>
+          </HelpSheetProvider>
         </ReleaseNotesProvider>
       </StyleSheetManager>
     </Sentry.ErrorBoundary>
@@ -109,7 +110,7 @@ const ProjectApp = ({ pathname }) => {
       <AppSider/>
       <div style={{width: '100%'}}>
         <AppNavbar/>
-        <div style={{paddingLeft: sider_width}}>
+        <div style={{paddingLeft: sider_width, minHeight: '100vh', display: 'flex', flexDirection: 'column'}}>
           <Suspense fallback={<EmptyLoading/>}>
             <Main/>
           </Suspense>

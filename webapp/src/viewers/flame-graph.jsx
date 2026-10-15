@@ -7,15 +7,15 @@ import {
   Button,
   InputGroup,
   HTMLSelect,
-  Popover,
+  PopoverNext,
   Icon,
 } from "@blueprintjs/core";
 import { select } from 'd3-selection'
 import * as flameGraph from 'd3-flame-graph';
 import { forEachInTree, selfDelta } from './flameDeltas';
 
-import { errorMessage } from "../api/http";
 import { fileQuery } from "../api/queries";
+import { ViewerError } from "./ViewerStates";
 
 // Integrates 
 // We love Brendan Gregg's flame charts
@@ -159,7 +159,7 @@ const FlameGraphViewer = ({ output_new, output_ref, path }) => {
   const both = is_loaded && !!data_new && !!data_ref;
   return <>
       <div>
-      {query_new.isError && <span>{errorMessage(query_new.error)}</span>}
+      {query_new.isError && <ViewerError path={path} error={query_new.error}/>}
       {is_loaded && !!data_new && !data_ref && <FlameGraphComponent key="new" data={data_new}/>}
       {both && comparaison==='diff-what-did-happen' && <FlameGraphComponent differential title="Widths show the after profile, colored by what DID happen" key="new1" data={deltas.new}/>}
       {both && comparaison==='diff-what-will-happen' && <FlameGraphComponent differential title="Widths show the before profile, colored by what WILL happen" key="new2" data={deltas.ref}/>}
@@ -172,14 +172,14 @@ const FlameGraphViewer = ({ output_new, output_ref, path }) => {
         value={data_ref ? comparaison : 'new'}
         style={{ marginBottom: '8px' }}
         options={[
-          {value: 'diff-what-did-happen',  label: 'What did happen (runtimes from new, colored with improvement new vs ref)'},
-          {value: 'diff-what-will-happen',  label: 'What will happen (runtimes from ref, colored with improvement new vs ref)'},
+          {value: 'diff-what-did-happen',  label: 'What did happen (runtimes from new, colored by the improvement vs reference)'},
+          {value: 'diff-what-will-happen',  label: 'What will happen (runtimes from reference, colored by the improvement vs reference)'},
           {value: 'new',  label: 'After (new)'},
-          {value: 'ref',  label: 'Before (ref)'},
+          {value: 'ref',  label: 'Before (reference)'},
           {value: 'both', label: 'After & Before'},
         ]}
       />
-      <Popover
+      <PopoverNext
         hoverCloseDelay={500}
         interactionKind={"hover"}
         inheritDarkTheme
@@ -190,7 +190,7 @@ const FlameGraphViewer = ({ output_new, output_ref, path }) => {
         </div>}
       >
         <p><Icon icon="info-sign" style={{ marginLeft: '8px', color: Colors.GRAY2 }} /></p>
-      </Popover>
+      </PopoverNext>
       </div>
   </>
 }

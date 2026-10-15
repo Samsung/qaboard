@@ -84,7 +84,8 @@ describe('CiCommitList', () => {
     // that's all: we offer to look further in the past
     expect(screen.queryByText('More commits')).not.toBeInTheDocument();
     expect(screen.getByText('Older commits')).toBeInTheDocument();
-  });
+  // renders 120 commits: slow when the whole suite runs in parallel
+  }, 20_000);
 
   it('loads more when users scroll to the end', async () => {
     let observer_callback;
@@ -97,7 +98,7 @@ describe('CiCommitList', () => {
     await screen.findByText("Commit number 0.");
     act(() => observer_callback([{ isIntersecting: true }]));
     expect(await screen.findByText("Commit number 99.")).toBeInTheDocument();
-  });
+  }, 20_000);
 
   it('searches all the commits on the server', async () => {
     renderPage(`/${project}?search=number 11`);
@@ -110,6 +111,34 @@ describe('CiCommitList', () => {
     await waitFor(() => expect(screen.getByText('11 matches')).toBeInTheDocument());
     expect(screen.getByText(/Searching all commits for/)).toBeInTheDocument();
     expect(shown_messages()).toEqual(commits.filter(c => c.message.includes('number 11')).map(c => c.message));
+  });
+
+  it('shows errors without the HTML pages servers answer with', async () => {
+    const respond = fetchMock.getMockImplementation();
+    fetchMock.mockImplementation(async url => url.startsWith('/api/v1/commits')
+      ? new Response('<html><body><h1>Internal Server Error</h1></body></html>', { status: 500, statusText: 'Internal Server Error' })
+      : respond(url));
+    try {
+      renderPage(`/${project}`);
+      expect(await screen.findByText('Could not load the commits')).toBeInTheDocument();
+      expect(screen.getByText('500 Internal Server Error')).toBeInTheDocument();
+      expect(screen.getByText('Retry')).toBeInTheDocument();
+    } finally {
+      fetchMock.mockImplementation(respond);
+    }
+  });
+
+  it('says how results get there, and offers to look further in the past', async () => {
+    const respond = fetchMock.getMockImplementation();
+    fetchMock.mockImplementation(async url => url.startsWith('/api/v1/commits') ? json([]) : respond(url));
+    try {
+      renderPage(`/${project}`);
+      expect(await screen.findByText('No commits with results in the last 3 days')).toBeInTheDocument();
+      expect(screen.getByText('Set up your CI')).toHaveAttribute('href', expect.stringMatching(/docs\/ci-integration$/));
+      expect(screen.getByText('Search 7 more days')).toBeInTheDocument();
+    } finally {
+      fetchMock.mockImplementation(respond);
+    }
   });
 
   it('says when nothing matches', async () => {

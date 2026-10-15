@@ -236,8 +236,9 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
                 popup.style.width = width + 'px';
                 popup.style.minHeight = 'auto';
                 popup.style.padding = '16px';
-                popup.style.backgroundColor = '#ffffff';
-                popup.style.border = '1px solid #d1d5da';
+                popup.style.backgroundColor = 'var(--qa-surface)';
+                popup.style.color = 'var(--qa-text)';
+                popup.style.border = '1px solid var(--qa-border)';
                 popup.style.borderRadius = '8px';
                 popup.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.15)';
                 popup.style.zIndex = '1000';
@@ -264,8 +265,8 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
 
                 // Set initial background based on whether filter is at default value
                 var isDefault = Math.abs(filter.value - filter.defaultValue) < 0.001;
-                filterContainer.style.backgroundColor = isDefault ? '#f8f9fa' : '#fff3cd';
-                filterContainer.style.border = isDefault ? '1px solid #e9ecef' : '1px solid #ffeaa7';
+                filterContainer.style.backgroundColor = isDefault ? 'var(--qa-surface-alt)' : 'var(--qa-filter-changed-background)';
+                filterContainer.style.border = isDefault ? '1px solid var(--qa-border)' : '1px solid var(--qa-filter-changed-border)';
 
                 // Create label with value display
                 var labelContainer = document.createElement('div');
@@ -278,7 +279,7 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
                 label.innerHTML = filter.name;
                 label.style.fontSize = '12px';
                 label.style.fontWeight = '600';
-                label.style.color = isDefault ? '#495057' : '#856404';
+                label.style.color = isDefault ? 'var(--qa-text-secondary)' : 'var(--qa-filter-changed-text)';
                 label.style.margin = '0';
                 label.style.cursor = 'help';
                 label.title = filter.description;
@@ -286,7 +287,7 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
                 var valueDisplay = document.createElement('span');
                 valueDisplay.innerHTML = (filter.value || 0).toFixed(filter.step < 1 ? 2 : 0);
                 valueDisplay.style.fontSize = '11px';
-                valueDisplay.style.color = isDefault ? '#6c757d' : '#856404';
+                valueDisplay.style.color = isDefault ? 'var(--qa-text-muted)' : 'var(--qa-filter-changed-text)';
                 valueDisplay.style.fontFamily = 'monospace';
                 valueDisplay.style.fontWeight = '500';
                 valueDisplay.id = `osd-filter-value-${filter.name}-${this.viewer.id}`;
@@ -346,7 +347,7 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
             var resetButtonContainer = document.createElement('div');
             resetButtonContainer.style.marginTop = '20px';
             resetButtonContainer.style.paddingTop = '16px';
-            resetButtonContainer.style.borderTop = '1px solid #e1e5e9';
+            resetButtonContainer.style.borderTop = '1px solid var(--qa-border)';
             
             var resetButton = document.createElement('button');
             resetButton.className = Classes.BUTTON;
@@ -404,11 +405,11 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
             if (filterContainer && filterInput && valueDisplay && label) {
                 const isDefault = Math.abs(filter.value - filter.defaultValue) < 0.001;
                 
-                filterContainer.style.backgroundColor = isDefault ? '#f8f9fa' : '#fff3cd';
-                filterContainer.style.border = isDefault ? '1px solid #e9ecef' : '1px solid #ffeaa7';
+                filterContainer.style.backgroundColor = isDefault ? 'var(--qa-surface-alt)' : 'var(--qa-filter-changed-background)';
+                filterContainer.style.border = isDefault ? '1px solid var(--qa-border)' : '1px solid var(--qa-filter-changed-border)';
                 filterInput.style.accentColor = isDefault ? '#6c757d' : '#fd7e14';
-                label.style.color = isDefault ? '#495057' : '#856404';
-                valueDisplay.style.color = isDefault ? '#6c757d' : '#856404';
+                label.style.color = isDefault ? 'var(--qa-text-secondary)' : 'var(--qa-filter-changed-text)';
+                valueDisplay.style.color = isDefault ? 'var(--qa-text-muted)' : 'var(--qa-filter-changed-text)';
             }
         };
 
@@ -455,11 +456,11 @@ OpenSeadragon.extend(OpenSeadragon.ImagefilterTools.prototype, OpenSeadragon.Con
             if (filterContainer && filterInput && valueDisplay && label) {
                 const isDefault = Math.abs(filter.value - filter.defaultValue) < 0.001;
                 
-                filterContainer.style.backgroundColor = isDefault ? '#f8f9fa' : '#fff3cd';
-                filterContainer.style.border = isDefault ? '1px solid #e9ecef' : '1px solid #ffeaa7';
+                filterContainer.style.backgroundColor = isDefault ? 'var(--qa-surface-alt)' : 'var(--qa-filter-changed-background)';
+                filterContainer.style.border = isDefault ? '1px solid var(--qa-border)' : '1px solid var(--qa-filter-changed-border)';
                 filterInput.style.accentColor = isDefault ? '#6c757d' : '#fd7e14';
-                label.style.color = isDefault ? '#495057' : '#856404';
-                valueDisplay.style.color = isDefault ? '#6c757d' : '#856404';
+                label.style.color = isDefault ? 'var(--qa-text-secondary)' : 'var(--qa-filter-changed-text)';
+                valueDisplay.style.color = isDefault ? 'var(--qa-text-muted)' : 'var(--qa-filter-changed-text)';
             }
         };
 

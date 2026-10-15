@@ -1,20 +1,25 @@
 import { memo, useMemo, useState } from "react";
-import { useSelected, updateSelected } from "../../hooks";
+import { useSelected, useSiteConfig, updateSelected } from "../../hooks";
 import { get as _get } from "es-toolkit/compat";
 
 import Plot from "../Plot";
-import { Classes, Callout, Colors, Intent, Tag, FormGroup, Switch, HTMLSelect } from "@blueprintjs/core";
+import { Button, Classes, Callout, Colors, Intent, NonIdealState, Spinner, Tag, FormGroup, Switch, HTMLSelect } from "@blueprintjs/core";
 
-import { Section } from "../../components/layout";
+import { useIsDark } from "../../theme";
 import { groupBy, hash_color, median, average, event_value } from "../../utils";
 import { convergence, convergence_traces } from "./convergence";
 
-// No "Send to Cloud" or "Edit chart" links: they would upload the data to Plotly's public Chart Studio
+// No "Send to Cloud" or "Edit chart" links: they would upload the data to Plotly's public Chart Studio.
+// The modebar only shows on hover.
 const config = {
-  displayModeBar: true,
+  displayModeBar: 'hover',
+  displaylogo: false,
   showSendToCloud: false,
   showLink: false,
 };
+
+// Viridis without its darkest purples, that would disappear on the dark theme's background
+const viridis_dark = [[0, '#3b528b'], [0.25, '#2c728e'], [0.5, '#21918c'], [0.75, '#5ec962'], [1, '#fde725']];
 
 const metric_formatter = new Intl.NumberFormat("en-US", {
   style: "decimal",
@@ -223,6 +228,7 @@ const ParallelTuningPlot = memo(({
   parameters,
   aggregation,
 }) => {
+  const dark = useIsDark();
   const metrics_aggregated_by_params = aggregate_by_params(outputs, metrics, aggregation)
     .map(([extra_parameters_s, aggregated_metrics]) => [
       JSON.parse(extra_parameters_s),
@@ -234,7 +240,7 @@ const ParallelTuningPlot = memo(({
   const some_different = values => new Set(values).size > 1;
   const line = {
     color: values(main_metric),
-    colorscale: 'Viridis',
+    colorscale: dark ? viridis_dark : 'Viridis',
     showscale: true,
     reversescale: main_metric.smaller_is_better,
     colorbar: {
@@ -252,8 +258,13 @@ const ParallelTuningPlot = memo(({
     return all_good(v) && some_different(v);
   });
   const parameters_with_different_values = parameters.filter(p => some_different(metrics_aggregated_by_params.map(([params]) => _get(params, p))));
+  // the axes' labels follow the theme
+  const font = { color: dark ? '#d3d8de' : '#1c2127' };
   const traces = [{
     type: 'parcoords',
+    labelfont: font,
+    tickfont: font,
+    rangefont: { color: dark ? '#abb3bf' : '#5f6b7c' },
     line: all_good(line.color) ? line : undefined,
     dimensions: [
       ...metrics_with_different_values.map(metric => ({
@@ -306,22 +317,27 @@ const EfficientFrontierPlot = memo(({
   parameter,
 }) => {
   const metrics_aggregated_by_params = aggregate_by_params(outputs, Object.values(available_metrics), aggregation);
-  const color = metrics_aggregated_by_params.map(([extra_parameters_s]) => JSON.parse(extra_parameters_s)[parameter]);
+  // parameters can be nested, e.g. "denoise.strength"
+  const color = metrics_aggregated_by_params.map(([extra_parameters_s]) => _get(JSON.parse(extra_parameters_s), parameter));
+  // a color scale needs numbers: plotly would draw black markers, and a colorbar with a NaN height
+  const numeric_color = color.length > 0 && color.every(c => typeof c === 'number' && !isNaN(c));
   const traces = [{
     type: 'scatter',
     mode: 'markers',
     marker: {
       size: 12,
-      color,
-      colorbar: {
-        title: parameter,
-      },
-      colorscale: 'RdBu',
+      ...(numeric_color ? {
+        color,
+        colorbar: {
+          title: parameter,
+        },
+        colorscale: 'RdBu',
+      } : {}),
     },
     x: metrics_aggregated_by_params.map(([, aggregated_metrics]) => aggregated_metrics[metric_x.key]),
     y: metrics_aggregated_by_params.map(([, aggregated_metrics]) => aggregated_metrics[metric_y.key]),
     text: metrics_aggregated_by_params.map(([extra_parameters_s]) => extra_parameters_s.replace(/,/g, '<br />')),
-    showscale: true,
+    showscale: numeric_color,
   }];
 
   const layout_ = {
@@ -427,6 +443,7 @@ const default_layout = { xaxis: { type: "linear" } };
 
 const TuningExploration = ({ batch, selected_metrics: selected_metrics_, available_metrics: available_metrics_, input }) => {
   const { query } = useSelected();
+  const { docs_root } = useSiteConfig();
   const [relative, setRelative] = useState(true);
   const [layout, setLayout] = useState(default_layout);
 
@@ -467,15 +484,19 @@ const TuningExploration = ({ batch, selected_metrics: selected_metrics_, availab
   );
 
   if (!batch)
-    return <p>Loading...</p>;
+    return <NonIdealState icon={<Spinner/>} title="Loading the runs…"/>;
 
   const tuned_parameters = batch.extra_parameters;
   const sorted_parameters = batch.sorted_extra_parameters;
   const total_outputs = batch.filtered.outputs.length;
-  if (sorted_parameters.length===0 && total_outputs > 0)
+  if (sorted_parameters.length===0)
     return <Callout title="How to start tuning?" icon="info-sign">
-      <p>This page will display various sensibility analysis plots. Your code needs to returns metrics, and support key:values configurations</p>
-      <p>To get started with tuning, go to the <strong>"Run Tests / Tuning"</strong> tab, and choose <strong>"Automated Tuning"</strong>.</p>
+      <p>This page shows how tuning parameters affect your metrics. Your code needs to return metrics, and accept tuning parameters as <code>key: value</code> configurations.</p>
+      <p>
+        Start runs with different parameters from the <strong>Run Tests / Tuning</strong> view, or let QA-Board search for the best ones with <strong>Automated tuning</strong>.{" "}
+        <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/auto-optimization`}>Learn more</a>
+      </p>
+      <Button intent={Intent.PRIMARY} icon="play" text="Start a tuning experiment" onClick={() => updateSelected({ selected_views: 'tuning' })}/>
     </Callout>
 
   const selected_metric = query.selected_metric ?? (is_optimization_batch ? "objective" : selected_metrics[0]);
@@ -499,7 +520,7 @@ const TuningExploration = ({ batch, selected_metrics: selected_metrics_, availab
   }));
 
   return (
-    <Section>
+    <div>
       {batch_data.optimization && <Callout icon='crown' title="Best parameters">
         {Object.entries(batch_data.best_params ?? {}).map(([k, v]) =>
           <Tag key={k} minimal round intent={Intent.SUCCESS} style={{"margin":'3px'}}>{k}: {JSON.stringify(v)}</Tag>
@@ -510,10 +531,9 @@ const TuningExploration = ({ batch, selected_metrics: selected_metrics_, availab
         <p className={Classes.TEXT_MUTED}>found at iteration {batch_data.best_iter}/{batch_data.iteration}</p>
       </Callout>}
 
-      {!batch_data.optimization && <>
-        <h3 className={Classes.HEADING}>{total_outputs} run{total_outputs>1 && "s"}</h3>
-        <p className={Classes.TEXT_MUTED}>{number_inputs} {number_inputs>1 && "different "}input{number_inputs>1 && "s"}</p>
-      </>}
+      {!batch_data.optimization && <p className={Classes.TEXT_MUTED}>
+        {total_outputs} run{total_outputs === 1 ? "" : "s"} · {number_inputs} input{number_inputs === 1 ? "" : "s"}
+      </p>}
 
       <div style={{paddingBottom: '10px'}}>
         {input}
@@ -549,7 +569,7 @@ const TuningExploration = ({ batch, selected_metrics: selected_metrics_, availab
       </>}
 
 
-      <h4 className={Classes.HEADING}>Sensibility to tuning parameters</h4>
+      <h4 className={Classes.HEADING}>Sensitivity to tuning parameters</h4>
       <FormGroup inline labelFor="select-parameter" helperText="Shown on the X-axis">
         <HTMLSelect
           id="select-parameter"
@@ -568,7 +588,7 @@ const TuningExploration = ({ batch, selected_metrics: selected_metrics_, availab
 
 
       {show_2d_sensibility && <>
-        <FormGroup inline labelFor="select-parameter-2" helperText="Shown on the Y-axis in the 2D sensibility plot">
+        <FormGroup inline labelFor="select-parameter-2" helperText="Shown on the Y-axis in the 2D sensitivity plot">
           <HTMLSelect
             id="select-parameter-2"
             value={selected_parameter_2}
@@ -586,8 +606,8 @@ const TuningExploration = ({ batch, selected_metrics: selected_metrics_, availab
           aggregation={aggregation}
         />
         <div className={Classes.TEXT_MUTED} style={{ fontSize: 10 }}>
-          <p><span style={{borderBottom: '1px dashed #999', textDecoration: 'none'}} title={`${aggregation} over all selected inputs`}>Aggregated scores</span> are computed for each set of tuning parameters.</p>
-          <p>Those having the same values for <em>{selected_parameter}</em> and <em>{selected_parameter_2}</em> are themselves <span style={{borderBottom: '1px dashed #999', textDecoration: 'none'}} title={aggregation}>aggregated</span>.</p>
+          <p><span style={{borderBottom: '1px dashed var(--qa-text-muted)', textDecoration: 'none'}} title={`${aggregation} over all selected inputs`}>Aggregated scores</span> are computed for each set of tuning parameters.</p>
+          <p>Those having the same values for <em>{selected_parameter}</em> and <em>{selected_parameter_2}</em> are themselves <span style={{borderBottom: '1px dashed var(--qa-text-muted)', textDecoration: 'none'}} title={aggregation}>aggregated</span>.</p>
         </div>
       </>}
 
@@ -631,7 +651,7 @@ const TuningExploration = ({ batch, selected_metrics: selected_metrics_, availab
           parameter={selected_parameter}
         />
       </>}
-    </Section>
+    </div>
   );
 };
 

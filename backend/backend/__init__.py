@@ -33,29 +33,18 @@ def _secret_key():
     raise RuntimeError(f"Empty {key_path}")
 app.secret_key = _secret_key()
 
-if os.environ.get('FLASK_ENV') == 'production' and os.environ.get('SENTRY_DSN'):
-    # send errors to sentry server
-    import sentry_sdk
-    from sentry_sdk.integrations.flask import FlaskIntegration
-
-    # TODO: add IT's certificate and remove this...
-    import urllib3
-    urllib3.disable_warnings()
-    class InsecureHttpTransport(sentry_sdk.transport.HttpTransport):
-        def _get_pool_options(self):
-            options = super()._get_pool_options()
-            options["cert_reqs"] = "CERT_NONE" # Ignore SSL Errors
-            return options
-
-    sentry_sdk.init(
-        dsn=os.environ.get('SENTRY_DSN'),
-        integrations=[
-            FlaskIntegration(),
-        ],
-        traces_sample_rate=float(os.environ.get('SENTRY_SAMPLE_RATE', 0.2)),
-        transport=InsecureHttpTransport, # TODO: remove this...
-        # ca_certs="some/place/sirc-certificate-authority.pem"
-    )
+# Errors, traces and profiles are sent to Sentry if $SENTRY_DSN is set: see backend/sentry.py
+# Under uWSGI, each worker initializes Sentry after it forks (see the end of this file)
+from .sentry import init_sentry, track_users
+try:
+  import uwsgi
+  _in_uwsgi_master = uwsgi.worker_id() == 0 # with lazy-apps, workers load the app after they fork
+except ImportError:
+  _in_uwsgi_master = False
+if not _in_uwsgi_master:
+  init_sentry()
+if os.environ.get('SENTRY_DSN'):
+  track_users(app)
 
 # Provide easy access to our git repositories
 from .git_utils import Repos
@@ -126,9 +115,13 @@ def warm_cache():
     import threading
     threading.Thread(target=warm, name="warm-cache", daemon=True).start()
 
+def post_fork():
+  init_sentry()
+  warm_cache()
+
 try:
   import uwsgi
-  uwsgi.post_fork_hook = warm_cache
+  uwsgi.post_fork_hook = post_fork
 except ImportError:
   pass
 

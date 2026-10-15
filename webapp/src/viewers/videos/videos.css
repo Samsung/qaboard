@@ -27,7 +27,7 @@
   white-space: nowrap;
 }
 .video-pixel {
-  color: #5f6b7c;
+  color: var(--qa-text-muted);
   margin-right: 4px;
 }
 .video-zoom {

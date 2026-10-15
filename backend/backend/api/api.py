@@ -17,6 +17,7 @@ from sqlalchemy.sql import label
 
 # Like the CLI: ENV > secrets > site package (e.g. qaboard-site-sirc) > default
 from qaboard.compat import mappings as _path_mappings
+from qaboard.sentry_utils import traces_sample_rate
 
 from backend import app, db_session
 from ..models import Project, CiCommit, Batch, Output, batches_stats
@@ -43,24 +44,22 @@ _image_servers = _parse_json_env('QABOARD_IMAGE_SERVERS', '{"default": "/iiif/2/
 def get_site_config():
     """Return runtime site configuration for the frontend."""
     from ..git_hosts import git_hosts
-    sample_rate = os.environ.get('SENTRY_TRACES_SAMPLE_RATE', '1.0')
-    try:
-        sample_rate = float(sample_rate)
-    except (ValueError, TypeError):
-        sample_rate = 1.0
-
     return jsonify({
         "image_servers": _image_servers,
         "login_type": os.environ.get('QABOARD_LOGIN_TYPE', 'LOCAL'),
         "login_required": bool(os.environ.get('QABOARD_LOGIN_REQUIRED', '')),
-        "sentry_dsn": os.environ.get('SENTRY_DSN'),
+        # The web app can report to its own Sentry project (where its source maps are uploaded)
+        "sentry_dsn": os.environ.get('SENTRY_FRONTEND_DSN') or os.environ.get('SENTRY_DSN'),
+        "sentry_environment": os.environ.get('SENTRY_ENVIRONMENT') or 'production',
+        "sentry_traces_sample_rate": traces_sample_rate(0.2),
+        # "stream" sends spans as they end: it needs a recent Sentry server
+        "sentry_trace_lifecycle": os.environ.get('SENTRY_FRONTEND_TRACE_LIFECYCLE') or 'static',
         "posthog_api_key": os.environ.get('POSTHOG_API_KEY'),
         "posthog_host": os.environ.get('POSTHOG_HOST'),
         "path_mappings": _path_mappings,
         # The docs served by this server at /docs/ match its version. Can be e.g. https://samsung.github.io/qaboard/
         "docs_root": os.environ.get('QABOARD_DOCS_ROOT', '/'),
         "avatar_url_template": os.environ.get('QABOARD_AVATAR_URL'),
-        "sentry_traces_sample_rate": sample_rate,
         # Fallback web URL for git links, when a project doesn't define project.url in qaboard.yaml
         "git_web_url": git_hosts.default.url,
         # The git hosts we know, to link to projects whose data doesn't say where they are hosted: [{type, url, name}]
@@ -69,6 +68,10 @@ def get_site_config():
         "quota_url_template": os.environ.get('QABOARD_QUOTA_URL_TEMPLATE'),
         # Where users report issues
         "support_url": os.environ.get('QABOARD_SUPPORT_URL', 'https://github.com/Samsung/qaboard/issues'),
+        # Shown to users who can't log in, e.g. which credentials to use
+        "login_hint": os.environ.get('QABOARD_LOGIN_HINT'),
+        # Where users install WebCDE, which opens runs whose outputs have a cde.sh
+        "webcde_installer": os.environ.get('QABOARD_WEBCDE_INSTALLER'),
     })
 
 

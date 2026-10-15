@@ -47,6 +47,8 @@ export function useProjectData(project) {
       data: { ...default_project.data, ...from_list?.data, ...from_project?.data },
       is_favorite,
       milestones,
+      // Until then, its configuration is the defaults (e.g. the reference branch)
+      is_loaded: !!(from_list || from_project),
     };
   }, [from_list, from_project, is_favorite, milestones]);
 }

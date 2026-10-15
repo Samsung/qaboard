@@ -320,7 +320,7 @@ describe('CommitMilestoneEditor', () => {
   it('saves private milestones in the preferences, without mutating the project data', async () => {
     const project_data = Object.freeze({ data: Object.freeze({ milestones: Object.freeze({}) }), milestones: Object.freeze({}) });
     renderWithProviders(<CommitMilestoneEditor {...editorProps} project_data={project_data} />, { siteConfig: {} });
-    await openEditor('Save as Milestone');
+    await openEditor('Save as a milestone');
     // new milestones are shared by default
     await act(async () => {
       fireEvent.click(screen.getByLabelText('Shared'));
@@ -337,7 +337,7 @@ describe('CommitMilestoneEditor', () => {
     usePrefsStore.setState({ milestones: { projA: { [key]: milestone } } });
     const project_data = Object.freeze({ data: {}, milestones: Object.freeze({ [key]: milestone }) });
     renderWithProviders(<CommitMilestoneEditor {...editorProps} project_data={project_data} />, { siteConfig: {} });
-    await openEditor('Edit Milestone');
+    await openEditor('Edit the milestone');
     expect(screen.getByLabelText(/Label/)).toHaveValue('old');
     await act(async () => {
       fireEvent.click(screen.getByText('Delete'));
@@ -353,7 +353,7 @@ describe('CommitMilestoneEditor', () => {
     const project_data = { data: { milestones: {} }, milestones: {} };
     const { queryClient } = renderWithProviders(<CommitMilestoneEditor {...editorProps} project_data={project_data} />, { siteConfig: {} });
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
-    await openEditor('Save as Milestone');
+    await openEditor('Save as a milestone');
     fireEvent.change(screen.getByLabelText(/Notes/), { target: { value: 'great results' } });
     await act(async () => {
       fireEvent.click(screen.getByText('Save'));
@@ -364,5 +364,20 @@ describe('CommitMilestoneEditor', () => {
     expect(url).toBe('/api/v1/project/milestones/');
     expect(JSON.parse(init.body)).toMatchObject({ project: 'projA', key, delete: 'false', milestone: { notes: 'great results', commit: 'abc999' } });
     expect(usePrefsStore.getState().milestones.projA).toBeUndefined();
+  });
+
+  it("doesn't ask to overwrite the shared milestone being edited", async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })));
+    const milestone = { label: 'v1', commit: 'abc999', batch: 'default', date: '2024-01-15T10:00:00Z' };
+    const project_data = { data: { milestones: { [key]: milestone } }, milestones: {} };
+    renderWithProviders(<CommitMilestoneEditor {...editorProps} project_data={project_data} />, { siteConfig: {} });
+    await openEditor('Edit the milestone');
+    fireEvent.change(screen.getByLabelText(/Label/), { target: { value: 'v2' } });
+    await act(async () => {
+      fireEvent.click(screen.getByText('Save'));
+    });
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toMatchObject({ key, milestone: { label: 'v2' } });
   });
 });

@@ -15,6 +15,7 @@ const { median: mathjs_median, format } = create({
 import { memoized_levenshtein } from "./levenshtein";
 import { setPathMappings, linux_to_windows } from "./utils/paths";
 import { repo_url } from "./git";
+import { toaster } from "./toaster";
 
 
 const calendarStrings = {
@@ -462,20 +463,25 @@ const is_same_data = (path, meta_1, meta_2) => {
 }
 
 
+// message_renderer shows the success messages, errors are shown as danger toasts
 const copyElementToClipboard = async (element, name, message_renderer) => {
   if (!element) return;
+  const failed = error => toaster.show({ message: `Could not copy the ${name}: ${error?.message ?? error}`, intent: "danger" }, 'copy');
+  // browsers only let focused pages write to the clipboard
   if (!document.hasFocus()) {
-    alert("Please click on the page and try again.");
+    toaster.show({ message: `Could not copy the ${name}: click on the page, then try again.`, intent: "warning" }, 'copy');
     return;
   }
   try {
     const { default: html2canvas } = await import("html2canvas");
     const canvas = await html2canvas(element, { useCORS: true });
 
-    // Convert to Blob
+    // Convert to Blob. Errors in the callback would escape the try/catch.
     canvas.toBlob(async (blob) => {
-      if (blob) {
-        if (navigator.clipboard && window.ClipboardItem) {
+      try {
+        if (!blob) {
+          failed("the image is empty");
+        } else if (navigator.clipboard && window.ClipboardItem) {
           // Clipboard API is available
           const item = new ClipboardItem({ "image/png": blob });
           await navigator.clipboard.write([item]);
@@ -490,10 +496,12 @@ const copyElementToClipboard = async (element, name, message_renderer) => {
           document.body.removeChild(link);
           message_renderer(`Your browser does not support clipboard copy. Downloading instead.`);
         }
+      } catch (error) {
+        failed(error);
       }
     }, "image/png");
   } catch (error) {
-    message_renderer(`Failed to copy: ${error}`);
+    failed(error);
   }
 };
 

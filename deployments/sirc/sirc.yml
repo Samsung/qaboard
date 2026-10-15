@@ -54,13 +54,16 @@ services:
     # - QABOARD_LDAP_PASSWORD=${QABOARD_LDAP_PASSWORD}
     # - QABOARD_LDAP_HOST=${QABOARD_LDAP_HOST}
     - QABOARD_LDAP_USER_FILTER=(&(objectClass=user)(sAMAccountName={login}))
-    # - SENTRY_DSN=${SENTRY_DSN:-}
+    # Sentry: SENTRY_DSN (backend) and SENTRY_FRONTEND_DSN (web app) are secrets, in .env. The image trusts the SIRC CA (CA_CERT_URL)
+    - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-production}
     - QABOARD_TUNING_RUNNER=lsf
     - QABOARD_DEFAULT_USER=ispq
     - QA_LSF_SSH_TARGET=ispq@ispq-vdi
     - 'QABOARD_IMAGE_SERVERS={"default": "https://cantaloupe-svc.transchip.com/iiif/2/", "raw,hex,cde": "https://iipsrv.transchip.com/fcgi-bin/iipsrv.fcgi?IIIF=/"}'
     - QABOARD_QUOTA_URL_TEMPLATE=https://metabase.transchip.com/dashboard/154-storage-cleanup-dashboard?project={project}&username={user_name}
     - QABOARD_SUPPORT_URL=mailto:arthur.flam@samsung.com
+    - QABOARD_LOGIN_HINT=Try your Windows credentials.
+    - 'QABOARD_WEBCDE_INSTALLER=\\netapp\Joint\WebCDE\WebCDE_Setup.exe'
     - QABOARD_IMAGE_CACHE_DIR=/algo/qa_db/image_cache
     # The server only writes, deletes or runs code in these folders (the shared storage mounted below)
     - QABOARD_STORAGE_ROOTS=/algo:/stage:/home:/raid:/sim:/data:/net
@@ -156,10 +159,11 @@ services:
       args:
         <<: *sirc-build-args
         NODE_TLS_REJECT_UNAUTHORIZED: "0"
-        # REACT_APP_SENTRY_DSN: ${REACT_APP_SENTRY_DSN:-}
-        # SENTRY_ORG: ${SENTRY_ORG:-sentry}
-        # SENTRY_PROJECT: ${SENTRY_PROJECT:-qaboard-frontend}
-        # SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN:-}
+        # Uploads the source maps to Sentry if SENTRY_AUTH_TOKEN is set (a secret, in .env on the build host)
+        SENTRY_AUTH_TOKEN: ${SENTRY_AUTH_TOKEN:-}
+        SENTRY_ORG: ${SENTRY_ORG:-sentry}
+        SENTRY_PROJECT: ${SENTRY_PROJECT:-qaboard-frontend}
+        SENTRY_URL: ${SENTRY_URL:-https://sentry.transchip.com/}
         # REACT_APP_POSTHOG_HOST: ${REACT_APP_POSTHOG_HOST:-}
         # REACT_APP_POSTHOG_TOKEN: ${REACT_APP_POSTHOG_TOKEN:-}
 

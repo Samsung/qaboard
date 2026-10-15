@@ -38,7 +38,7 @@ const DynamicOptionControl = ({
     return (
       <div style={controlStyle} title={showLabel ? undefined : name}>
         {showLabel && (
-          <div style={{ fontSize: '12px', color: '#5c7080', marginBottom: '4px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--qa-text-muted)', marginBottom: '4px' }}>
             {name}
           </div>
         )}
@@ -60,7 +60,7 @@ const DynamicOptionControl = ({
     return (
       <div style={controlStyle} title={showLabel ? undefined : name}>
         {showLabel && (
-          <div style={{ fontSize: '12px', color: '#5c7080', marginBottom: '4px' }}>
+          <div style={{ fontSize: '12px', color: 'var(--qa-text-muted)', marginBottom: '4px' }}>
             {name}
           </div>
         )}

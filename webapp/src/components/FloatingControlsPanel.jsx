@@ -3,6 +3,7 @@ import styled from "styled-components";
 import {
   Intent,
   Classes,
+  Colors,
   HTMLSelect,
   Switch,
   Button,
@@ -14,28 +15,23 @@ import {
 import { is_image } from "../viewers/images/utils";
 import DynamicOptionControl from "./DynamicOptionControl";
 import { resolveOptionValue } from "../utils/dynamicOptions";
+import { useIsDark } from "../theme";
 
 const PanelContainer = styled.div`
   position: fixed;
-  right: ${props => props.isExpanded ? 0 : -300}px;
+  /* Closed, it's fully off-screen (with its shadow), and hidden from keyboard and screen readers once it slid out */
+  right: ${props => props.isExpanded ? 0 : -340}px;
+  visibility: ${props => props.isExpanded ? 'visible' : 'hidden'};
   top: 65%;
   transform: translateY(-50%);
   width: 320px;
   max-height: 80vh;
   overflow-y: auto;
+  border-radius: 4px 0 0 4px;
   z-index: 19;
-  transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  transition: right 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), visibility 0s linear ${props => props.isExpanded ? '0s' : '0.3s'};
   scrollbar-width: thin;
-  scrollbar-color: rgba(0,0,0,0.2) transparent;
-
-  /* Subtle hover effect when collapsed */
-  ${props => !props.isExpanded && `
-    &:hover {
-      right: -295px;
-      box-shadow: 0 6px 25px rgba(0,0,0,0.2);
-    }
-  `}
+  scrollbar-color: var(--qa-border) transparent;
 
   .bp6-html-select select {
     font-size: 12px;
@@ -66,64 +62,12 @@ const ToggleButton = styled(Button)`
   box-shadow: 0 2px 10px rgba(0,0,0,0.15);
   overflow: hidden;
 
-  /* Subtle pulse animation to hint at interactivity */
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%);
-    transform: translateX(-100%);
-    transition: transform 2s ease-in-out;
-  }
-
-  /* Animate the shimmer effect periodically when collapsed */
-  ${props => !props.isExpanded && `
-    animation: subtlePulse 4s ease-in-out infinite;
-    
-    &::before {
-      animation: shimmer 4s ease-in-out infinite;
-    }
-  `}
-
   &:hover {
     background-color: #293742 !important;
-    width: ${props => props.isExpanded ? '40px' : '48px'};
-    height: ${props => props.isExpanded ? '64px' : '72px'};
-    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
-    right: ${props => props.isExpanded ? '320px' : '-4px'};
-    
-    /* Scale up the icon slightly */
-    .bp6-icon {
-      transform: scale(1.1);
-      transition: transform 0.2s ease-out;
-    }
   }
 
-  &:focus {
-    box-shadow: 0 0 0 2px rgba(255,255,255,0.4) !important;
-  }
-
-  .bp6-icon {
-    transition: transform 0.2s ease-out;
-  }
-
-  @keyframes subtlePulse {
-    0%, 100% { 
-      box-shadow: 0 2px 10px rgba(0,0,0,0.15); 
-    }
-    50% { 
-      box-shadow: 0 2px 12px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.1); 
-    }
-  }
-
-  @keyframes shimmer {
-    0% { transform: translateX(-100%); }
-    50% { transform: translateX(-100%); }
-    51% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
+  &:focus-visible {
+    box-shadow: 0 0 0 2px rgba(138, 187, 255, 0.8) !important;
   }
 `;
 
@@ -131,8 +75,7 @@ const StyledCard = styled(Card)`
   margin: 0;
   border-radius: 4px 0 0 4px;
   height: 100%;
-  background-color: #f5f8fa;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15) !important;
+  background-color: var(--qa-surface-alt);
 `;
 
 const PanelContent = styled.div`
@@ -175,7 +118,7 @@ const ControlLabel = styled.label`
   font-size: 11px;
   font-weight: 500;
   margin-bottom: 4px;
-  color: #5c7080;
+  color: var(--qa-text-muted);
 `;
 
 const StyledSwitch = styled(Switch)`
@@ -187,12 +130,14 @@ const no_options = {};
 const no_files = new Set();
 
 const storage_key = 'controls-panel-expanded';
+// Until users choose, the panel starts open only on screens wide enough for it not to cover the results
+const wide_screen = () => typeof window !== 'undefined' && window.innerWidth >= 1600;
 const saved_expanded = () => {
   try {
     const saved = localStorage.getItem(storage_key);
-    return saved !== null ? JSON.parse(saved) : true;
+    return saved !== null ? JSON.parse(saved) : wide_screen();
   } catch {
-    return true;
+    return wide_screen();
   }
 };
 
@@ -221,6 +166,7 @@ const FloatingControlsPanel = ({
   const [isExpanded, setIsExpanded] = useState(saved_expanded);
   
   const [isExpandedWithLogs, setIsExpandedWithLogs] = useState(false);
+  const is_dark = useIsDark();
 
   const [expandedSections, setExpandedSections] = useState({
     visualizations: true,
@@ -261,7 +207,11 @@ const FloatingControlsPanel = ({
     }));
   };
 
-  const show_viewer_controls = selected_views.includes('output-list') || selected_views.includes('bit-accuracy');
+  // undefined while we don't know
+  const nb_runs = new_batch.outputs ? Object.keys(new_batch.outputs).length : undefined;
+  const show_viewer_controls = (selected_views.includes('output-list') || selected_views.includes('bit-accuracy')) && nb_runs !== 0;
+  // only the visualizations view shows visualizations
+  const show_visualizations_stats = selected_views.includes('output-list');
   // With only the logs, the panel only has the sorting, and would cover the right side of the logs: it starts closed
   const only_logs = selected_views.includes('logs') && !show_viewer_controls
   const expanded = only_logs ? isExpandedWithLogs : isExpanded
@@ -280,7 +230,6 @@ const FloatingControlsPanel = ({
   // Calculate visualization stats
   const totalVisualizations = visualizations.length;
   const enabledVisualizations = visualizations.filter(isVisualizationEnabled);
-  const hiddenVisualizations = totalVisualizations - enabledVisualizations.length;
   
   // Calculate how many visualizations have files available
   const visualizationsWithFiles = visualizations.filter(view => {
@@ -381,10 +330,13 @@ const FloatingControlsPanel = ({
         minimal
         intent={Intent.PRIMARY}
         onClick={() => setExpanded(!expanded)}
-        title="Toggle Controls Panel"
+        title={expanded ? "Hide the controls" : "Show the controls"}
+        aria-label={expanded ? "Hide the controls" : "Show the controls: visualizations, options, sorting"}
+        aria-expanded={expanded}
       />
       
-      <PanelContainer isExpanded={expanded}>
+      {/* Blueprint's elevation, on the container: its overflow would cut the card's shadow */}
+      <PanelContainer isExpanded={expanded} className={Classes.ELEVATION_2}>
 
       <StyledCard>
         <PanelContent>
@@ -393,38 +345,35 @@ const FloatingControlsPanel = ({
           </SectionTitle>
 
           {/* Enhanced Stats display - moved here for better visibility */}
-          {(hiddenVisualizations > 0 || totalVisualizations > 0 || visualizations_with_files.size > 0) && (
+          {show_visualizations_stats && (
             <div style={{ 
               fontSize: 11, 
-              color: '#5c7080', 
+              color: 'var(--qa-text-muted)', 
               marginBottom: 16, 
               padding: 8, 
-              backgroundColor: '#f5f8fa', 
+              backgroundColor: 'var(--qa-surface)', 
               borderRadius: 3,
-              border: '1px solid #e1e8ed'
+              border: '1px solid var(--qa-border)'
             }}>
-              {visualizations_with_files.size > 0 && (
-                <div>📁 {visualizationsWithFiles}/{totalVisualizations} visualizations have files</div>
-              )}
-              {visualizationsWithFiles > 0 && (
-                <div style={{ marginTop: 2 }}>
-                  📊 {enabledVisualizations.filter(view => {
-                    const viewName = view.name || view.path;
-                    return visualizations_with_files.has(viewName);
-                  }).length}/{visualizationsWithFiles} available visualizations enabled
-                </div>
-              )}
-              {availableDynamicOptions.length > 0 && (
-                <div style={{ marginTop: 2 }}>
-                  🎛️ {availableDynamicOptions.length} dynamic option{availableDynamicOptions.length !== 1 ? 's' : ''} available
-                </div>
-              )}
-              {visualizationsWithFiles === 0 && (
+              {nb_runs === 0 ? <div>No runs yet</div>
+              : totalVisualizations === 0 ? <div>No visualizations configured in qaboard.yaml</div>
+              : <>
+                {/* which visualizations have files is known as the cards load their runs' files */}
+                {visualizations_with_files.size > 0 ? <>
+                  <div>📁 {visualizationsWithFiles}/{totalVisualizations} visualizations have files</div>
                   <div style={{ marginTop: 2 }}>
-                    🛇 No visualizations available
+                    📊 {enabledVisualizations.filter(view => {
+                      const viewName = view.name || view.path;
+                      return visualizations_with_files.has(viewName);
+                    }).length}/{visualizationsWithFiles} available visualizations enabled
                   </div>
-                )
-              }
+                </> : <div>📊 {enabledVisualizations.length}/{totalVisualizations} visualizations enabled</div>}
+                {availableDynamicOptions.length > 0 && (
+                  <div style={{ marginTop: 2 }}>
+                    🎛️ {availableDynamicOptions.length} dynamic option{availableDynamicOptions.length !== 1 ? 's' : ''} available
+                  </div>
+                )}
+              </>}
             </div>
           )}
 
@@ -434,6 +383,8 @@ const FloatingControlsPanel = ({
               <SectionHeader onClick={() => toggleSection('visualizations')}>
                 <Button
                   icon={expandedSections.visualizations ? "chevron-down" : "chevron-right"}
+                  aria-label="Visualizations"
+                  aria-expanded={expandedSections.visualizations}
                   minimal
                   small
                   style={{ marginRight: 4, minHeight: 20, minWidth: 20 }}
@@ -456,7 +407,7 @@ const FloatingControlsPanel = ({
                   )}
                   {visualizationControls.length > 0 ? visualizationControls : (
                     visualizationFilter && (
-                      <div style={{ color: '#5c7080', fontSize: 12, fontStyle: 'italic' }}>
+                      <div style={{ color: 'var(--qa-text-muted)', fontSize: 12, fontStyle: 'italic' }}>
                         No visualizations match "{visualizationFilter}"
                       </div>
                     )
@@ -472,6 +423,8 @@ const FloatingControlsPanel = ({
               <SectionHeader onClick={() => toggleSection('dynamic_options')}>
                 <Button
                   icon={expandedSections.dynamic_options ? "chevron-down" : "chevron-right"}
+                  aria-label="Dynamic options"
+                  aria-expanded={expandedSections.dynamic_options}
                   minimal
                   small
                   style={{ marginRight: 4, minHeight: 20, minWidth: 20 }}
@@ -518,9 +471,10 @@ const FloatingControlsPanel = ({
                               {name}
                             </ControlLabel>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <Tooltip content={isSync ? "Unlink: choose the value in each output" : "Link: all outputs use the value chosen here"}>
+                              <Tooltip content={isSync ? "Unlink: choose the value in each run" : "Link: all runs use the value chosen here"}>
                                 <Button
                                   icon="link"
+                                  aria-label={isSync ? `Unlink ${name}` : `Link ${name}`}
                                   minimal
                                   small
                                   intent={isSync ? Intent.SUCCESS : Intent.NONE}
@@ -530,14 +484,14 @@ const FloatingControlsPanel = ({
                               </Tooltip>
                               <span style={{ 
                                 fontSize: '10px', 
-                                color: isSync ? '#0d8050' : '#5c7080',
+                                color: isSync ? (is_dark ? Colors.GREEN5 : Colors.GREEN2) : 'var(--qa-text-muted)',
                                 fontWeight: '500'
                               }}>
-                                {isSync ? 'linked' : 'per-output'}
+                                {isSync ? 'linked' : 'per-run'}
                               </span>
                             </div>
                           </div>
-                          <div style={{ fontSize: 10, color: '#5c7080', marginBottom: 4 }}>
+                          <div style={{ fontSize: 10, color: 'var(--qa-text-muted)', marginBottom: 4 }}>
                             {option.paths && option.paths.length > 0 && (
                               <div style={{ fontStyle: 'italic' }}>
                                 Paths: {option.paths.slice(0, 3).join(', ')}
@@ -554,24 +508,24 @@ const FloatingControlsPanel = ({
                             small={true}
                             showLabel={false}
                           />
-                          {!isSync && <div style={{ fontSize: 10, color: '#5c7080', marginTop: 4 }}>
-                            Each output has its own control
+                          {!isSync && <div style={{ fontSize: 10, color: 'var(--qa-text-muted)', marginTop: 4 }}>
+                            Each run has its own control
                           </div>}
-                          {isSync && !exact && <div style={{ fontSize: 10, color: '#5c7080', marginTop: 4 }}>
-                            <strong>{wanted}</strong> isn't in these outputs, they show <strong>{selectedValue}</strong>
+                          {isSync && !exact && <div style={{ fontSize: 10, color: 'var(--qa-text-muted)', marginTop: 4 }}>
+                            <strong>{wanted}</strong> isn't in these runs, they show <strong>{selectedValue}</strong>
                           </div>}
                         </ControlGroup>
                       );
                     })}
                   {Object.keys(dynamic_options).length === 0 && (
-                    <div style={{ color: '#5c7080', fontSize: 12, fontStyle: 'italic' }}>
+                    <div style={{ color: 'var(--qa-text-muted)', fontSize: 12, fontStyle: 'italic' }}>
                       No dynamic options found
                     </div>
                   )}
                   {dynamicOptionsFilter && Object.entries(dynamic_options).filter(([name]) => 
                     name.toLowerCase().includes(dynamicOptionsFilter.toLowerCase())
                   ).length === 0 && (
-                    <div style={{ color: '#5c7080', fontSize: 12, fontStyle: 'italic' }}>
+                    <div style={{ color: 'var(--qa-text-muted)', fontSize: 12, fontStyle: 'italic' }}>
                       No options match "{dynamicOptionsFilter}"
                     </div>
                   )}
@@ -584,6 +538,8 @@ const FloatingControlsPanel = ({
           <SectionHeader onClick={() => toggleSection('sorting')}>
             <Button
               icon={expandedSections.sorting ? "chevron-down" : "chevron-right"}
+              aria-label="Sorting"
+              aria-expanded={expandedSections.sorting}
               minimal
               small
               style={{ marginRight: 4, minHeight: 20, minWidth: 20 }}
@@ -640,6 +596,8 @@ const FloatingControlsPanel = ({
               <SectionHeader onClick={() => toggleSection('metrics')}>
                 <Button
                   icon={expandedSections.metrics ? "chevron-down" : "chevron-right"}
+                  aria-label="Metrics"
+                  aria-expanded={expandedSections.metrics}
                   minimal
                   small
                   style={{ marginRight: 4, minHeight: 20, minWidth: 20 }}

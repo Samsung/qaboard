@@ -384,7 +384,6 @@ const make_layout = (show_debug, debug_data, data_set) => {
     legend: {
       x: 0,
       y: 1,
-      bgcolor: "rgba(255,255,255,0.5)",
       traceorder: "grouped",
       tracegroupgap: 0
     }
@@ -412,7 +411,6 @@ const layout3d = {
   legend: {
     x: 0,
     y: 1,
-    bgcolor: "rgba(255,255,255,0.5)",
     traceorder: "grouped",
     tracegroupgap: 0
   }

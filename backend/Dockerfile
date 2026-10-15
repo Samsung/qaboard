@@ -185,5 +185,10 @@ VOLUME /var/qaboard
 # we can run as a non-root user during dev and clone without issues
 RUN mkdir -p /var/qaboard/git && chmod -R 777 /var/qaboard/git
 
+# The version of the image, e.g. the commit it is built from (docker-compose.yml passes $QABOARD_VERSION):
+# Sentry's release (see backend/sentry.py). Last, as it changes with each build.
+ARG QABOARD_VERSION=""
+ENV QABOARD_VERSION=${QABOARD_VERSION}
+
 WORKDIR /qaboard/backend
 CMD ["/qaboard/backend/init.sh"]

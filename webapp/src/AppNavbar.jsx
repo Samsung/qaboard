@@ -4,7 +4,6 @@ import { Suggest } from "@blueprintjs/select";
 import { DateRangeInput } from "@blueprintjs/datetime";
 import enUS from "date-fns/locale/en-US";
 import {
-  Classes,
   Intent,
   Navbar,
   NavbarGroup,
@@ -12,6 +11,7 @@ import {
   MenuItem,
   Button,
   Spinner,
+  Tooltip,
 } from "@blueprintjs/core";
 
 import { useState } from "react";
@@ -29,7 +29,7 @@ import { sider_width } from './AppSider'
 const renderBranch = (item, { handleClick, modifiers }) => {
   return (
     <MenuItem
-      className={!modifiers.active ? Classes.ACTIVE : Classes.INTENT_PRIMARY}
+      active={modifiers.active}
       icon="git-branch"
       key={item}
       onClick={handleClick}
@@ -100,6 +100,11 @@ const CommitsNavbars = () => {
     updateSelected({ [attribute]: value }, { replace: attribute.startsWith('filter') })
   }
   const show_ref_navbar = !(selected_views.includes('logs') || selected_views.includes('tuning') || selected_views.includes('groups'))
+  // e.g. the latest commit of the reference branch, compared to itself
+  const same_as_new = !!new_commit?.id && new_commit.id === ref_commit?.id
+    && (selected.new_project ?? project) === (selected.ref_project ?? project)
+    && new_batch?.label === ref_batch?.label
+    && (selected.filter_batch_new ?? '') === (selected.filter_batch_ref ?? '')
   return <>
     <StyledNavbarNew>
       <CommitNavbar
@@ -125,6 +130,7 @@ const CommitsNavbars = () => {
         project_data={project_data}
         selected={selected}
         type="ref"
+        same_as_new={same_as_new}
       />
     </StyledNavbarRef>}
   </>
@@ -160,13 +166,17 @@ const CommitsListNavbar = () => {
 
   const { route } = selected;
   const date_input_props = {style: {width:'100px'}}
+  // searches look at all the commits (see useCommitsList)
+  const is_searching = route.is_commits && !!selected.search?.trim()
   return (
     <StyledNavbar>
       <NavbarGroup style={{marginLeft: '20px'}}>
+        <Tooltip content="Searches look at all the commits, whatever the dates." disabled={!is_searching}>
         <DateRangeInput
           locale={enUS}
-          endInputProps={date_input_props}
-          startInputProps={date_input_props}
+          endInputProps={{...date_input_props, 'aria-label': 'End date'}}
+          startInputProps={{...date_input_props, 'aria-label': 'Start date'}}
+          disabled={is_searching}
           value={date_range}
           maxDate={today}
           allowSingleDayRange
@@ -175,8 +185,11 @@ const CommitsListNavbar = () => {
           onChange={changeDates}
           shortcuts
         />
+        </Tooltip>
         <div style={{marginLeft: '5px'}}>
-          <Button icon="refresh" aria-label="Refresh" disabled={list.isFetching} minimal onClick={() => list.refetch()}/>
+          <Tooltip content="Check for new commits">
+            <Button icon="refresh" aria-label="Check for new commits" disabled={list.isFetching} minimal onClick={() => list.refetch()}/>
+          </Tooltip>
         </div>
         {list.isFetching && <div style={{marginLeft: '15px'}}><Spinner size={16} /></div>}
       </NavbarGroup>
@@ -203,9 +216,10 @@ const CommitsListNavbar = () => {
               inputProps={{
                 leftIcon: 'filter',
                 intent: !!search ? Intent.PRIMARY : null,
+                // Suggest only reads the placeholder from inputProps
+                placeholder: "Search commits, or go to a branch or commit…",
+                style: {width: '350px'},
               }}
-              intent={!!search ? 'primary' : 'default'}
-              placeholder="Filter..."
               onQueryChange={query => {
                 setWantsBranches(true);
                 onSearchChange(query);
@@ -215,11 +229,15 @@ const CommitsListNavbar = () => {
         {route.is_history &&
           <InputGroup
             value={filter}
-            placeholder="Path, configuration, platform, tag, tuning parameters (key:value)..."
+            placeholder="Filter runs: path, tag, key:value…"
+            title="Filter runs by path, configuration, platform, tag or tuning parameters (key:value)"
+            aria-label="Filter runs"
+            intent={filter ? Intent.PRIMARY : undefined}
             onChange={onFilterChange}
-            type="search"
+            type="text"
             leftIcon="filter"
-            style={{width: '450px'}}
+            rightElement={filter ? <Button size="small" variant="minimal" icon="cross" aria-label="Clear the filter" onClick={() => onFilterChange('')}/> : undefined}
+            style={{width: '320px'}}
           />}
       </NavbarGroup>
     </StyledNavbar>

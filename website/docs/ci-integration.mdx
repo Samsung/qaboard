@@ -32,7 +32,7 @@ You CI is responsible for setting up an environment (`$PATH`...) in which `qaboa
 
 <Shot
   id="commits/feed"
-  caption="Each commit's row shows how its CI batch went: the main metric's median, a crashed batch in red, the other batches it ran."
+  caption="Each commit's row shows how its CI batch went: the main metric's median, a failed batch in red, the other batches it ran."
 />
 
 3. If `qa` has a token for your git host, `qa batch` also sets a **commit status** named `QA` (`QA <subproject>` in a [subproject](monorepo-subprojects), with the name of its folder), with a link to the results. Batches run with a `--label` other than `default` get their own status, e.g. `QA | my-label`.

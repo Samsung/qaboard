@@ -8,7 +8,7 @@ from ..models import CiCommit, Batch
 from ..storage import check_storage_path, UnsafePathError
 from ..redo import redo_response
 from .export_to_folder import filter_outputs
-from .auth import login_required, is_authorized_user
+from .auth import login_required, require_project_access
 
 
 
@@ -134,6 +134,8 @@ def stop_batch():
     batch = Batch.query.filter(Batch.id == data['id']).one()
   except:
     return f"404 ERROR:\n Not found", 404
+  if forbidden := require_project_access(g.user, batch.ci_commit.project_id):
+    return forbidden
   status = batch.stop(db_session)
   return jsonify(status), 200 if not "error" in status else 500
 
@@ -147,8 +149,8 @@ def redo_batch():
     batch = Batch.query.filter(Batch.id == data['id']).one()
   except:
     return f"404 ERROR:\n Not found", 404
-  if not is_authorized_user(g.user, batch.ci_commit.project_id):
-    return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
+  if forbidden := require_project_access(g.user, batch.ci_commit.project_id):
+    return forbidden
   only_failed = data.get('only_failed', False)
   only_deleted = data.get('only_deleted', False)
   try:
@@ -171,6 +173,8 @@ def rename_batch():
     batch = Batch.query.filter(Batch.id == data['id']).one()
   except:
     return '{"error":"not found"}', 404
+  if forbidden := require_project_access(g.user, batch.ci_commit.project_id):
+    return forbidden
   try:
     assert all([b.label != data['label'] for b in batch.ci_commit.batches])
   except:
@@ -189,6 +193,9 @@ def move_batch():
     batch = Batch.query.filter(Batch.id == data['id']).one()
   except:
     return f"404 ERROR:\n Not found", 404
+  # The runs move to another batch of the same commit, so in the same project
+  if forbidden := require_project_access(g.user, batch.ci_commit.project_id):
+    return forbidden
   dst_batch = batch.ci_commit.get_or_create_batch(data['label'])
   for o in filter_outputs(data.get('filter'), batch.outputs):
     o.batch = dst_batch
@@ -207,6 +214,8 @@ def delete_batch(batch_id):
     batch = Batch.query.filter(Batch.id == batch_id).one()
   except:
     return f"404 ERROR:\nNot found", 404
+  if forbidden := require_project_access(g.user, batch.ci_commit.project_id):
+    return forbidden
   stop_status = batch.stop(db_session)
   if "error" in stop_status:
     print(stop_status)

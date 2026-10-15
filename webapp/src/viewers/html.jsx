@@ -1,8 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { errorMessage } from "../api/http";
 import { fileQuery } from "../api/queries";
 import { html_base_url, html_with_base } from "./htmlDocument";
+import { ViewerError, ViewerLoading } from "./ViewerStates";
 
 
 // An HTML output in its own document: its styles stay out of the app, and its relative links (images/1.jpg) resolve
@@ -38,8 +38,8 @@ const HtmlViewer = ({ path, output_new, output_ref, style }) => {
   // we don't really care about errors for reference outputs
   const query_ref = useQuery(htmlQuery(url_ref, output_ref?.is_running));
 
-  if (!url_new || query_new.isPending || (url_ref && query_ref.isPending)) return <span>loading</span>;
-  if (query_new.isError) return <span>{errorMessage(query_new.error)}</span>
+  if (!url_new || query_new.isPending || (url_ref && query_ref.isPending)) return <ViewerLoading height="150px"/>;
+  if (query_new.isError) return <ViewerError path={path} error={query_new.error}/>
 
   const width = style?.width || '400px';
   return <>

@@ -88,7 +88,7 @@ describe('RunLogs', () => {
     renderRun()
     fireEvent.click(screen.getByLabelText('Run actions'))
     expect(await screen.findByText('Redo')).toBeInTheDocument()
-    expect(screen.getByText('Delete')).toBeInTheDocument()
+    expect(screen.getByText('Delete…')).toBeInTheDocument()
   })
 
   it('shows the full configuration with the logs', async () => {
@@ -101,9 +101,9 @@ describe('RunLogs', () => {
     expect(screen.getByText('The run may have failed before it started, or its files were deleted.')).toBeInTheDocument()
   })
 
-  it('says when the outputs of a run were deleted', async () => {
+  it('says when the output files of a run were deleted', async () => {
     renderRun({ expanded: true, output: { ...output, deleted: true } })
-    expect(await screen.findByText("The run's outputs were deleted.")).toBeInTheDocument()
+    expect(await screen.findByText("The run's output files were deleted.")).toBeInTheDocument()
   })
 
   it('copies the path of the output directory', async () => {

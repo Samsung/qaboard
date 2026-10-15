@@ -7,12 +7,17 @@ description: Keyboard shortcuts, lesser-known tricks, and answers to common ques
 
 ## Keyboard shortcuts
 
+Press <kbd>?</kbd> anywhere in the web app (or click the **?** button in the sidebar) for a cheat sheet of these shortcuts, QA-Board's words and the filter syntax.
+
 | Key | Where | What it does |
 |---|---|---|
+| <kbd>?</kbd> | Everywhere | Open or close the cheat sheet. |
 | <kbd>t</kbd> | Image and text viewers | Swap **new** and **reference** in place, to flip between them. Applies to all viewers on the page. |
 | <kbd>h</kbd> | Image viewers | Hide or show the new/reference labels above images. |
 | <kbd>c</kbd> | Image viewer (after clicking it) | Start or stop selecting a region, to see its histogram. <kbd>Enter</kbd> confirms the selection. |
 | <kbd>Ctrl</kbd> / <kbd>Shift</kbd> + click | Output Files, Artifacts & Configs | Select several files to diff. |
+| <kbd>Space</kbd>, <kbd>←</kbd> <kbd>→</kbd>, <kbd>[</kbd> <kbd>]</kbd> | Videos (hover or click a player) | Play or pause, previous or next frame (one second with <kbd>Shift</kbd>), slower or faster. <kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd> zoom, <kbd>1</kbd>-<kbd>4</kbd> pick the comparison mode, <kbd>m</kbd> mutes. |
+| <kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>S</kbd> | Available Tests | Save the batches file. |
 | <kbd>Esc</kbd> | Dialogs, What's new | Close. |
 | ↑ ↓ <kbd>Enter</kbd> | Batch selector, filter suggestions | Pick an item without the mouse. |
 
@@ -22,7 +27,7 @@ Shortcuts are ignored while you type in a text box.
 - **Click a run's name** on a card to see the history of that input.
 - **Hover almost anything**: metric names show their description, values show their exact number, `≠` tags explain reference mismatches, run names show metadata and paths to copy.
 - **Fullscreen**: each card has a fullscreen button at its top right, great for large images.
-- **Compare two batches of the same commit**: in the commit bar's **Change** menu, **Also Select as Reference**, then pick another batch in the reference bar.
+- **Compare two batches of the same commit**: in the commit bar's **Change** menu, **Also select as reference**, then pick another batch in the reference bar.
 - **Compare across projects**: **Change Project** in the same menu, e.g. to compare two sub-projects of a monorepo.
 - **Sort by a metric** in the controls panel to see the worst regressions first.
 - **Filter with negatives and regexps**: `-night`, `2X5|GW1`, `threshold:0.5`, `fail`. See the [filter syntax](finding-results.mdx#filter-syntax).
@@ -50,7 +55,7 @@ By default it's the latest commit with results on the project's reference branch
 Look for yellow `≠` tags: the best match used another configuration, platform or tuning parameters. Make the reference filter match the new filter, or choose a reference batch with the same tests. See [How runs are matched](comparing-results.mdx#how-runs-are-matched).
 
 ### A run is stuck as pending
-If it's really dead (e.g. killed by the cluster), use **Mark as Failed** in the run's ☰ menu, then **Redo** it. See [Running from the web app](running-from-the-webapp.mdx).
+If it's really dead (e.g. killed by the cluster), use **Mark as failed** in the run's ☰ menu, then **Redo** it. See [Running from the web app](running-from-the-webapp.mdx).
 
 ### My local runs don't show up
 Runs started from your workspace only appear in QA-Board with `qa --share`, see [QA CLI tips](../using-the-qa-cli.mdx). They show up in a batch named after you (`you 🏠 label`), with a warning that they may not match the committed code.
