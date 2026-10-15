@@ -678,14 +678,20 @@ Canonical values (`stack.ts`, the only place they're defined; the first one is t
 - Never on push. One run per ref at a time (`concurrency`), PR runs cancel the previous one.
 - The stack runs this checkout's images (built like CI's, from its layer cache), so web app changes show.
   `affected.py` computes the affected shots of a pull request.
-- **Affected shots** on a PR: all of them if `webapp/**` or `docs-media/shots/lib/**` changed; an area if its
+- **Affected shots** on a PR: every still and clip (the specs' areas, not the tapes) if `webapp/**` or
+  `docs-media/shots/lib/**` changed, all of them if `docs-media/fonts.conf` did; an area if its
   `shots/<area>.spec.ts` changed; a shot if its template (`shots/templates/<subject>.html`) changed; a project's shots, with a reseed, if `examples/<project>/**` changed; a tape if its
   `.tape` changed.
-- **Reseed** when `reseed` is set, or when the snapshot key changes: a hash of `examples/**`, `docs-media/seed.py`,
-  `backend/backend/models/**` and `qaboard/**`. Snapshots are `snapshots/<key>.tar.zst` in `qaboard-ci`.
+- **Reseed** when `reseed` is set, or when no snapshot fits (`snapshot.py pick`): the snapshot of this checkout's key
+  (a hash of `examples/**`, `docs-media/seed.py`, `backend/backend/models/**` and `qaboard/**`), else the newest one
+  taken from a commit with the same stories (`examples/**` and `docs-media/seed.py`). Changes to the CLI or the
+  backend don't reseed: they don't change what the stories seed, and the backend migrates the restored database when
+  it starts. Snapshots are `snapshots/<key>.tar.zst` in `qaboard-ci`.
 - **Gallery:** the PR comment shows before/after thumbnails from `qaboard-media` (new files are uploaded anyway, under
   new keys); the full HTML gallery is a workflow artifact.
-- **Runtime:** 15-30 min from a snapshot on a 4-CPU runner. A reseed adds the stories' seeding time (budgets in each
+- **Runtime** on a 4-CPU runner, measured on a light-only run (2026-10): setup and images 5 min, captures 15 min (the
+  14 clips most of it), tapes 12 min (the quickstarts' start a kind cluster), publishing 13 min. The dark captures
+  about double the captures and what publishing encodes. A reseed adds the stories' seeding time (budgets in each
   `examples/<project>/SPEC.md`): about 70 min for the three phase-2 projects, since `serving-latency` measures
   performance and must run alone. Seeding each project in its own job and merging the results would bring it down.
 - **Secrets:** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, scoped to `qaboard-media` and

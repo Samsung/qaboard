@@ -10,7 +10,8 @@ for SHOTS_ONLY, tapes/record.py --only and publish.py --only. Prints nothing whe
   uv run docs-media/affected.py origin/master          # files changed since the merge base with origin/master
   uv run docs-media/affected.py --files webapp/src/App.jsx examples/image-quality/qa/main.py
 
-- webapp/**, docs-media/shots/lib/**, the shots' config, fonts and packages: every shot (*)
+- webapp/**, docs-media/shots/lib/**, the shots' config and packages: every still and clip (the areas of the specs);
+  the tapes record terminals, not the web app. docs-media/fonts.conf: every shot (*)
 - docs-media/shots/<area>.spec.ts: <area>/*; docs-media/shots/templates/<subject>.html: */<subject>
 - examples/<project>/**: the project's shots (shots.yaml), which need a reseed
 - docs-media/tapes/<area>-<subject>.tape: <area>/<subject>; tapes/_settings.tape or tapes/record.py: every tape
@@ -32,8 +33,9 @@ AREAS = ["quickstart", "cli", "ci", "projects", "commits", "integrations", "comm
 # What the quickstarts' tapes start
 QUICKSTARTS = {r"^deployments/quickstart/": "quickstart/compose", r"^charts/qaboard/": "quickstart/kind",
                r"^docs-media/demo-data/": "quickstart/*"}
-EVERYTHING = [r"^webapp/", r"^docs-media/shots/lib/", r"^docs-media/shots/(playwright\.config\.ts|package(-lock)?\.json)$",
-              r"^docs-media/fonts\.conf$"]
+EVERYTHING = [r"^docs-media/fonts\.conf$"]
+# What every still and clip shows, or how they're captured
+WEB = [r"^webapp/", r"^docs-media/shots/lib/", r"^docs-media/shots/(playwright\.config\.ts|package(-lock)?\.json)$"]
 
 
 def tape_id(name: str) -> str | None:
@@ -47,9 +49,12 @@ def affected(files: list[str]) -> list[str]:
     shots = yaml.safe_load((DOCS_MEDIA / "shots.yaml").read_text()).get("shots", [])
     tapes = [tape_id(p.stem) for p in (DOCS_MEDIA / "tapes").glob("*.tape") if not p.name.startswith("_")]
     globs: set[str] = set()
+    specs = sorted(f"{p.name.removesuffix('.spec.ts')}/*" for p in (DOCS_MEDIA / "shots").glob("*.spec.ts"))
     for f in files:
         if any(re.search(pattern, f) for pattern in EVERYTHING):
             return ["*"]
+        if any(re.search(pattern, f) for pattern in WEB):
+            globs.update(specs)
         if m := re.match(r"^docs-media/shots/([a-z0-9-]+)\.spec\.ts$", f):
             globs.add(f"{m.group(1)}/*")
         elif m := re.match(r"^docs-media/shots/templates/([a-z0-9-]+)\.html$", f):

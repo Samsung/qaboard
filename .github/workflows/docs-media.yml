@@ -168,8 +168,10 @@ jobs:
           RESEED: ${{ steps.scope.outputs.reseed }}
         run: |
           key=$(uv run docs-media/snapshot.py key)
-          if [ "$RESEED" != true ] && uv run docs-media/snapshot.py info "$key" > /dev/null 2>&1; then
-            uv run docs-media/snapshot.py restore
+          # this checkout's snapshot, else one with the same stories (examples/, seed.py): seeding takes over an hour
+          if [ "$RESEED" != true ] && picked=$(uv run docs-media/snapshot.py pick); then
+            uv run docs-media/snapshot.py restore --key "$picked"
+            key=$picked
           else
             echo "::notice::Seeding the stories (snapshot $key)"
             fresh=--fresh
@@ -179,6 +181,8 @@ jobs:
             done
             uv run docs-media/snapshot.py save --force
           fi
+          # the snapshot the stack runs, for the demo-data image
+          echo "DEMO_SNAPSHOT=$key" >> "$GITHUB_ENV"
           # the stack's version, recorded with each shot
           echo "DEMO_APP_VERSION=$(python3 -c 'import sys; sys.path.insert(0, "docs-media/demo"); import stack; print(stack.backend_version())')" >> "$GITHUB_ENV"
 
@@ -211,7 +215,7 @@ jobs:
       - name: Demo-data image
         id: demo-data
         if: ${{ !cancelled() && steps.restore.outcome == 'success' }}
-        run: uv run docs-media/snapshot.py image --tag "$QABOARD_IMAGE:demo-data-$QABOARD_VERSION"
+        run: uv run docs-media/snapshot.py image --key "$DEMO_SNAPSHOT" --tag "$QABOARD_IMAGE:demo-data-$QABOARD_VERSION"
       - name: Test the demo-data image with the Docker Compose quickstart
         id: quickstart
         if: ${{ !cancelled() && steps.demo-data.outcome == 'success' }}
