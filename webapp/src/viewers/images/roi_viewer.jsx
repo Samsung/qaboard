@@ -1,7 +1,7 @@
 import { useState, useEffect, useEffectEvent } from "react";
 import {
     Tag,
-    Popover,
+    PopoverNext,
     Icon,
     MenuItem,
     Menu,
@@ -124,7 +124,7 @@ const RoiViewer = ({output_new, output_ref, path, manifest, imageServers, viewer
             }}
         />
     </Menu>
-    return <><Popover
+    return <><PopoverNext
                 interactionKind="hover"
                 content={popover_content}
               >
@@ -137,7 +137,7 @@ const RoiViewer = ({output_new, output_ref, path, manifest, imageServers, viewer
         >
             View {non_default_rois ? <strong>{selected_rois_effective}</strong> : <span>ROIs</span>}
         </Tag>
-    </Popover>
+    </PopoverNext>
     {!fullyLoaded && <span style={{display: "inline-grid"}}><Spinner size={SpinnerSize.SMALL}/></span>}
     {rois.rois.length > 1 && <>
             <Tag minimal icon="chevron-left" interactive style={{marginBottom: "5px", marginRight: "5px"}}

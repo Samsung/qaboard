@@ -7,7 +7,7 @@ import {
   Button,
   InputGroup,
   HTMLSelect,
-  Popover,
+  PopoverNext,
   Icon,
 } from "@blueprintjs/core";
 import { select } from 'd3-selection'
@@ -179,7 +179,7 @@ const FlameGraphViewer = ({ output_new, output_ref, path }) => {
           {value: 'both', label: 'After & Before'},
         ]}
       />
-      <Popover
+      <PopoverNext
         hoverCloseDelay={500}
         interactionKind={"hover"}
         inheritDarkTheme
@@ -190,7 +190,7 @@ const FlameGraphViewer = ({ output_new, output_ref, path }) => {
         </div>}
       >
         <p><Icon icon="info-sign" style={{ marginLeft: '8px', color: Colors.GRAY2 }} /></p>
-      </Popover>
+      </PopoverNext>
       </div>
   </>
 }

@@ -7,7 +7,6 @@ import {
   Menu,
   MenuItem,
   MenuDivider,
-  Popover,
   PopoverNext,
   Intent,
   Tooltip,
@@ -385,14 +384,14 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
     <ConfigurationsTags configurations={configurations} />
 
     {output_type !== "batch" &&
-    <Popover placement="bottom" hoverCloseDelay={200} interactionKind={"hover"} content={
+    <PopoverNext placement="bottom" content={
       <RunActionsMenu output={output} project={project} commit={commit} />
     }>
       <Button size="small" variant="minimal" icon="menu" className={Classes.TEXT_MUTED} style={{ marginLeft: "5px" }} aria-label="Run actions"/>
-    </Popover>}
+    </PopoverNext>}
 
-
-    <Popover hoverCloseDelay={500} interactionKind={"hover"} placement="bottom" content={
+    {/* The menus open on click: their buttons only act directly when there is nothing to choose from */}
+    {output_ref ? <PopoverNext placement="bottom" content={
       <Menu>
         <MenuItem
           text="Open the output directory in the browser"
@@ -402,7 +401,6 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
           className={Classes.TEXT_MUTED} minimal
           icon="folder-shared-open"
         />
-        {output_ref &&
         <MenuItem
           text="Open the reference's output directory in the browser"
           target="_blank"
@@ -410,9 +408,11 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
           href={folder_url(output_ref.output_dir_url)}
           className={Classes.TEXT_MUTED} minimal
           icon="folder-shared-open"
-        />}
+        />
       </Menu>}
     >
+      <Button size="small" variant="minimal" icon="folder-shared-open" className={Classes.TEXT_MUTED} aria-label="Open the output directory"/>
+    </PopoverNext> : <Tooltip content="Open the output directory" hoverOpenDelay={300}>
       <AnchorButton
         size="small"
         variant="minimal"
@@ -423,9 +423,9 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
         rel="noopener noreferrer"
         href={folder_url(output_dir_url)}
       />
-    </Popover>
+    </Tooltip>}
 
-    <Popover hoverCloseDelay={500} interactionKind={"hover"} placement="bottom" content={
+    {(output_ref || hasPathMappings()) ? <PopoverNext placement="bottom" content={
       <Menu>
         {output_ref && <MenuDivider title="New Run" />}
         <MenuItem text="Copy output directory" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_dir_url)} />
@@ -438,16 +438,18 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
         }
       </Menu>}
     >
+      <Button size="small" variant="minimal" icon="duplicate" className={Classes.TEXT_MUTED} style={{marginRight: '5px'}} aria-label="Copy the output directory"/>
+    </PopoverNext> : <Tooltip content="Copy the path of the output directory" hoverOpenDelay={300}>
       <Button
         size="small"
         variant="minimal"
         icon="duplicate"
         className={Classes.TEXT_MUTED}
         style={{marginRight: '5px'}}
-        aria-label="Copy the output directory"
+        aria-label="Copy the path of the output directory"
         onClick={() => copyDirectory(output_dir_url)}
       />
-    </Popover>
+    </Tooltip>}
     {cde_shs.map(cde_sh => {
       const cde_dir = cde_sh.replace(/\/?cde.sh$/, '')
       return <Tooltip key={cde_sh} content="Open in WebCDE">

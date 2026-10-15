@@ -65,7 +65,7 @@ describe('CommitNavbar', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })));
     const batch = { id: 3, label: 'nightly', outputs: { 1: {}, 2: {}, 3: {} }, valid_outputs: 3, failed_outputs: 0, filtered: { outputs: [1] } };
     renderNavbar({ commit: { ...commit, batches: { nightly: batch } }, batch, filter: 'indoor' }, '?batch=nightly&filter=indoor');
-    fireEvent.mouseEnter(screen.getByLabelText('Commit and batch actions'));
+    fireEvent.click(screen.getByLabelText('Commit and batch actions'));
     fireEvent.click(await screen.findByText('Delete all runs…'));
     const alert = within(await screen.findByRole('alertdialog'));
     expect(alert.getByText('Delete all the 3 runs of nightly?')).toBeInTheDocument();

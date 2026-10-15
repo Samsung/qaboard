@@ -221,10 +221,8 @@ const UserMenu = ({ user, logout, avatar_url_template }) => {
           usePortal: true,
           hoverCloseDelay: 1000,
           transitionDuration: 200,
-          position: "right-top",
-          modifiers: {
-            preventOverflow: { boundariesElement: "viewport" }
-          },
+          // MenuItem's submenu already stays within the viewport
+          placement: "right-start",
           popoverClassName: "user-menu-popover"
         }}
         style={{ 

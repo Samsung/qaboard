@@ -16,7 +16,7 @@ import {
   Menu,
   MenuDivider,
   MenuItem,
-  Popover,
+  PopoverNext,
 } from "@blueprintjs/core";
 
 import { http, errorMessage } from "../api/http";
@@ -225,7 +225,7 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
                 </strong>{" "}
                 avg {default_metric_info.short_label}
               </Tag></Tooltip>}
-              {Object.keys(ci_batch.aggregated_metrics).length > 2 && <Tooltip modifiers content={<>
+              {Object.keys(ci_batch.aggregated_metrics).length > 2 && <Tooltip content={<>
                 <strong>All aggregated metrics</strong>
                 <ul className={Classes.LIST}>
                   {Object.entries(ci_batch.aggregated_metrics || {}).map(([k, v]) => (
@@ -335,10 +335,8 @@ const CommitRow = ({ commit, project, project_data = {}, className, tag, default
               />
             </Tooltip>
 
-          <Popover
+          <PopoverNext
             placement="bottom"
-            hoverCloseDelay={500}
-            interactionKind={"hover"}
             content={<Menu>
               {hasPathMappings() && <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url, { windows: true })} />}
               <MenuItem text="Copy Directory" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url)} />
@@ -374,7 +372,7 @@ const CommitRow = ({ commit, project, project_data = {}, className, tag, default
               className={Classes.TEXT_MUTED}
               aria-label="Commit actions"
             />
-          </Popover>
+          </PopoverNext>
           <Alert
             isOpen={confirm_delete !== null}
             icon="trash"

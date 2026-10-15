@@ -1,4 +1,4 @@
-import { Colors, Button, Icon, Popover, Callout, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
+import { Colors, Button, Icon, PopoverNext, Callout, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
 
 import { useIsDark } from "../../theme";
 
@@ -217,9 +217,11 @@ const BitAccuracyHelp = () => {
     </ul>
   </div>
 }
-const bit_accuracy_help = <Popover content={<BitAccuracyHelp/>} placement="bottom-end">
+// It's tall: when it fits neither below nor above, it stays below where scrolling shows it all, instead of
+// being cut off by the top of the page
+const bit_accuracy_help = <PopoverNext content={<BitAccuracyHelp/>} placement="bottom-end" middleware={{ flip: { fallbackStrategy: "initialPlacement" } }}>
   <Button variant="minimal" icon="help" text="Help"/>
-</Popover>;
+</PopoverNext>;
 
 
 
