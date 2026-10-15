@@ -272,6 +272,7 @@ const QuotaMenuItem = ({ user, project }) => {
     rel="noopener noreferrer" target="_blank"
     icon="database"
     text="Quota"
+    title="Your storage quota dashboard (opens in a new tab)"
   />
 }
 
@@ -302,6 +303,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
   const qatools_milestones = Object.fromEntries(Object.entries(qatools_milestones_array).map( ([key, branch])=> [key, {branch}] ))
   const shared_milestones = project_data?.data?.milestones || {}
   const private_milestones = project_data.milestones || {}
+  const has_milestones = [qatools_milestones, shared_milestones, private_milestones].some(m => Object.keys(m).length > 0)
 
   const is_committer = selected.route.is_committer;
   const is_history = selected.route.is_history;
@@ -339,6 +341,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
       <MenuItem
         text="Milestones"
         icon="star"
+        title="Results saved to compare against later"
         popoverProps={{
           usePortal: true,
           portalClassName: "limit-overflow",
@@ -347,9 +350,24 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
         }}
       >
         <MilestonesMenu project={project} milestones={qatools_milestones} onSelect={selectMilestone} icon="crown" title="Select a milestone from qaboard.yaml" type="qatools" />
-        {qatools_milestones_array.length === 0 && <span>Define <code>project.milestones [array]</code> in your <em>qaboard.yaml</em> configuration.</span>}
         <MilestonesMenu project={project} milestones={shared_milestones} onSelect={selectMilestone} icon="crown" type="shared" title="Select a shared milestone" />
         <MilestonesMenu project={project} milestones={private_milestones} onSelect={selectMilestone} type="private" title="Select a private milestone" />
+        {!has_milestones && <MenuItem
+          disabled
+          multiline
+          icon="info-sign"
+          text={<span style={{display: 'inline-block', maxWidth: 280}}>
+            No milestones yet. Save one with the <Icon icon="star-empty" size={12}/> next to a commit on its page,
+            or list branches under <code>project.milestones</code> in <em>qaboard.yaml</em>.
+          </span>}
+        />}
+        <MenuItem
+          icon="manual"
+          text="Learn about milestones"
+          href={`${docs_root}docs/references-and-milestones`}
+          target="_blank"
+          rel="noopener noreferrer"
+        />
       </MenuItem>
       <QuotaMenuItem user={user} project={project} />
     </>}
