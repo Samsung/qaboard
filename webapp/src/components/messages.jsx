@@ -10,7 +10,8 @@ import {
 } from "@blueprintjs/core";
 import { ConfigurationsTags, ExtraParametersTags } from './tags'
 import { http, errorMessage } from "../api/http";
-import { useRefreshCommit } from "../hooks";
+import { useRefreshCommit, updateSelected } from "../hooks";
+import { pretty_label } from "../utils";
 import { toaster } from "../toaster"
 import { SubmissionCallout } from "./logs/BatchSubmissions"
 
@@ -23,16 +24,16 @@ const CommitWarningMessages = ({ project, commit }) => {
     if (commit === undefined || commit === null) return;
     const refresh = () => refreshCommit(project, commit.id)
     setWaiting(true)
-    toaster.show({message: "Restoring artifacts..."});
+    toaster.show({message: "Restoring the artifacts…", icon: 'time'}, 'restore-artifacts');
     http.post(`/api/v1/commit/save-artifacts/`, {hexsha: commit.id, project})
       .then(() => {
         setWaiting(false)
-        toaster.show({message: `Restore artifacts.`, intent: Intent.PRIMARY});
+        toaster.show({message: "Restored the artifacts. Rebuild if your runs need new binaries.", intent: Intent.SUCCESS}, 'restore-artifacts');
         refresh()
       })
       .catch(error => {
         setWaiting(false)
-        toaster.show({message: errorMessage(error), intent: Intent.DANGER});
+        toaster.show({message: `Could not restore the artifacts: ${errorMessage(error)}`, intent: Intent.DANGER}, 'restore-artifacts');
         refresh()
       });
   }
@@ -52,7 +53,7 @@ const CommitWarningMessages = ({ project, commit }) => {
         <p>We can restore the artifacts for you, but you'll likely need to rebuild too..!</p>
         <Button
           icon="redo"
-          text="Restore Artifacts"
+          text="Restore artifacts"
           minimal
           disabled={waiting}
           onClick={restore_artifacts}
@@ -65,7 +66,8 @@ const CommitWarningMessages = ({ project, commit }) => {
 
 
 
-const SimpleOutputList = ({outputs, intent}) => {
+// link_logs: the run names open their log
+const SimpleOutputList = ({outputs, intent, link_logs = false}) => {
   return <ul className={Classes.LIST}>
     {outputs.map(o => {
       const has_metadata = !!o.test_input_metadata && (Object.keys(o.test_input_metadata).length > 0)
@@ -78,7 +80,11 @@ const SimpleOutputList = ({outputs, intent}) => {
         run_path = o.test_input_metadata.label
       }
       return <li key={o.id}>
-        <strong style={{paddingRight: '5px'}}>{run_path}</strong>
+        <strong style={{paddingRight: '5px'}}>
+          {link_logs && !!o.output_dir_url
+            ? <a href={`${o.output_dir_url}/log.txt`} target="_blank" rel="noopener noreferrer" title="Open its log">{run_path}</a>
+            : run_path}
+        </strong>
         <ConfigurationsTags intent={intent} configurations={o.configurations}/>
         <ExtraParametersTags intent={intent} parameters={o.extra_parameters} before={<br/>} />
       </li>
@@ -107,11 +113,15 @@ const BatchStatusMessages = ({ project, commit, batch }) => {
   const stop_batch = () => {
     if (batch === undefined || batch === null) return;
     setWaitingStop(true)
-    toaster.show({message: "Stop requested."});
+    const key = `stop-${batch.id}`
+    toaster.show({message: `Stopping the runs of ${pretty_label(batch)}…`, icon: 'time'}, key);
     http.post(`/api/v1/batch/stop/`, {id: batch.id})
+      .then(() => {
+        toaster.show({message: `Stopping the runs of ${pretty_label(batch)}`, intent: Intent.SUCCESS}, key);
+        refresh()
+      })
       .catch(error => {
-        console.log(error)
-        toaster.show({message: errorMessage(error), intent: Intent.DANGER});
+        toaster.show({message: `Could not stop the runs: ${errorMessage(error)}`, intent: Intent.DANGER}, key);
       })
       .finally(() => setWaitingStop(false));
   }
@@ -119,13 +129,15 @@ const BatchStatusMessages = ({ project, commit, batch }) => {
   const redo_batch = () => {
     if (batch === undefined || batch === null) return;
     setWaitingRedo(true)
-    toaster.show({message: "Redo requested."});
+    const key = `redo-deleted-${batch.id}`
+    const show_logs = { text: "Show the logs", onClick: () => updateSelected({ selected_views: 'logs' }) }
+    toaster.show({message: `Starting the deleted runs of ${pretty_label(batch)} again…`, icon: 'time'}, key);
     http.post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: true})
       .then(() => {
-        toaster.show({message: `Redo ${batch.label}.`, intent: Intent.PRIMARY});
+        toaster.show({message: `Redoing the deleted runs of ${pretty_label(batch)}`, intent: Intent.SUCCESS, action: show_logs}, key);
       })
       .catch(error => {
-        toaster.show({message: errorMessage(error), intent: Intent.DANGER});
+        toaster.show({message: errorMessage(error), intent: Intent.DANGER, action: error.response?.data?.submission ? show_logs : undefined}, key);
       })
       .finally(() => {
         setWaitingRedo(false)
@@ -140,7 +152,7 @@ const BatchStatusMessages = ({ project, commit, batch }) => {
     <Callout
       icon="eye-off"
       intent={Intent.WARNING}
-      title="Be careful, those are local outputs"
+      title="Be careful, those are local runs"
     >
       <p>It is possible they didn't use the code under version control.</p>
       <p>It's fine for debugging. Use your Continuous Integration to share results.</p>
@@ -149,65 +161,51 @@ const BatchStatusMessages = ({ project, commit, batch }) => {
 
   const outputs = batch.filtered.outputs.map(id => batch.outputs[id])
   let some_pending = outputs.some(o => o.is_pending);
-  let stop_runs = some_pending && <Callout>
-    <Button icon="stop" disabled={waiting_stop} onClick={stop_batch} minimal>Stop runs</Button>
-  </Callout>
+  const nb_running = batch.filtered.running_outputs;
+  const nb_pending = batch.filtered.pending_outputs - batch.filtered.running_outputs;
+  const show_logs = () => updateSelected({ selected_views: 'logs' })
 
-
-  let running_message = batch.filtered.running_outputs > 0 && (
+  // The runs in progress, and how to stop them
+  let progress_message = (nb_running > 0 || nb_pending > 0 || some_pending) && (
     <Callout
-      icon="info-sign"
-      intent={Intent.SUCCESS}
-      title={
-        <Tooltip content={<SimpleOutputList
-          outputs={outputs.filter(o => o.is_running)}
-        />}>
-          <span>
-            {batch.filtered.running_outputs} running
-          </span>
-        </Tooltip>
-      }
-    />
-  )
-  let nb_pending = batch.filtered.pending_outputs - batch.filtered.running_outputs;
-  let pending_message = nb_pending > 0 && (
-    <Callout
-      icon="info-sign"
-      intent={Intent.WARNING}
-      title={
-        <Tooltip content={<SimpleOutputList
-          outputs={outputs.filter(o => o.is_pending && !o.is_running)}
-          intent={Intent.WARNING}
-        />}>
-          <span>
-            {nb_pending} pending
-          </span>
-        </Tooltip>
-      }
-    />
+      icon="time"
+      intent={Intent.PRIMARY}
+      title={<>
+        {nb_running > 0 && <Tooltip content={<SimpleOutputList outputs={outputs.filter(o => o.is_running)}/>}>
+          <span>{nb_running} running</span>
+        </Tooltip>}
+        {nb_running > 0 && nb_pending > 0 && ' · '}
+        {nb_pending > 0 && <Tooltip content={<SimpleOutputList outputs={outputs.filter(o => o.is_pending && !o.is_running)}/>}>
+          <span>{nb_pending} pending</span>
+        </Tooltip>}
+      </>}
+    >
+      {some_pending && <Button size="small" icon="stop" disabled={waiting_stop} onClick={stop_batch}>Stop runs</Button>}
+    </Callout>
   )
   let failed_message = batch.filtered.failed_outputs > 0 && (
     <Callout
       icon="error"
       intent={Intent.DANGER}
-      title={`${batch.filtered.failed_outputs} crashed`}
+      title={`${batch.filtered.failed_outputs} failed`}
     >
-      <p>Be sure to read the logs.</p>
       <SimpleOutputList
         outputs={outputs.filter(o => o.is_failed)}
         intent={Intent.DANGER}
+        link_logs
       />
+      <Button size="small" icon="console" onClick={show_logs}>Open the logs</Button>
     </Callout>
   )
 
   let deleted_message = batch.filtered.deleted_outputs > 0 && (
     <Callout
       icon="trash"
-      title={`${batch.filtered.deleted_outputs} of the outputs below were deleted`}
+      title={`${batch.filtered.deleted_outputs} of the runs below were deleted`}
     >
       <Button
         icon="redo"
-        text={`Redo Deleted Outputs${commit?.deleted ? '. Requires artifacts.' : ''}`}
+        text={`Redo deleted runs${commit?.deleted ? '. Requires artifacts.' : ''}`}
         minimal
         disabled={waiting_redo || commit?.deleted}
         onClick={redo_batch}
@@ -223,9 +221,7 @@ const BatchStatusMessages = ({ project, commit, batch }) => {
       onFinished={refresh}
     />
     {local_batch_message}
-    {running_message}
-    {pending_message}
-    {stop_runs}
+    {progress_message}
     {failed_message}
     {deleted_message}
   </Fragment>;

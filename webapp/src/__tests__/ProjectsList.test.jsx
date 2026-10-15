@@ -63,7 +63,7 @@ describe('ProjectsList', () => {
   it('filters all the projects, not only those shown', async () => {
     renderList();
     await screen.findByText('group/project-000');
-    fireEvent.change(screen.getByPlaceholderText('filter projects...'), { target: { value: 'project-11' } });
+    fireEvent.change(screen.getByPlaceholderText('Filter projects...'), { target: { value: 'project-11' } });
     expect(shown_projects()).toEqual(project_ids.filter(id => id.includes('project-11')));
     expect(screen.getByText('10 filtered projects')).toBeInTheDocument();
   });

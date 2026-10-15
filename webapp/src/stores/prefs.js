@@ -13,6 +13,8 @@ export const usePrefsStore = create()(persist(
     milestones: {},
     // project => what's in the tuning form
     tuning: {},
+    // "system" (follows the OS), "light" or "dark", see src/theme.js
+    theme: 'system',
 
     toggleFavorite: project => set(state => ({
       favorites: { ...state.favorites, [project]: !state.favorites[project] },
@@ -24,6 +26,7 @@ export const usePrefsStore = create()(persist(
       const { [key]: _deleted, ...milestones } = state.milestones[project] ?? {};
       return { milestones: { ...state.milestones, [project]: milestones } };
     }),
+    setTheme: theme => set({ theme }),
     updateTuning: (project, form) => set(state => ({
       tuning: { ...state.tuning, [project]: { ...state.tuning[project], ...form } },
     })),

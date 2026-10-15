@@ -2,15 +2,17 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import {
+  AnchorButton,
   Classes,
   Button,
   Tag,
-  Intent,
   Callout,
   FormGroup,
   Switch,
   NonIdealState,
   InputGroup,
+  SegmentedControl,
+  Spinner,
 } from "@blueprintjs/core";
 
 import { errorMessage } from "../api/http";
@@ -18,7 +20,8 @@ import { fileQuery } from "../api/queries";
 import { bit_accuracy_help, humanFileSize } from "../viewers/bit_accuracy/utils";
 import { event_value } from "../utils";
 import { OutputViewer } from "../viewers/OutputViewer";
-import { useSelected, useUrlText, updateSelected } from "../hooks";
+import { useSelected, useSiteConfig, useUrlText, updateSelected } from "../hooks";
+import { hasPathMappings } from "../utils/paths";
 import { copyDirectory } from "./logs/DirectoryActions";
 
 
@@ -35,6 +38,7 @@ const url_defaults = { params_artifact: 'configurations', params_show_all_files:
 // The options are in the URL.
 const CommitParameters = ({ new_commit, ref_commit, config }) => {
   const { query } = useSelected();
+  const { docs_root } = useSiteConfig();
   const artifact = query.params_artifact || 'configurations';
   const show_all_files = query.params_show_all_files === 'true';
   const expand_all = query.params_expand_all !== 'false';
@@ -60,28 +64,37 @@ const CommitParameters = ({ new_commit, ref_commit, config }) => {
 
   if (new_commit === null || new_commit === undefined)
     return <span />;
+  const artifacts_docs = <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/storage/artifacts`}>Learn more</a>;
+  if (!new_commit.artifacts_url)
+    return new_commit.is_loaded
+      ? <NonIdealState
+          icon="folder-open"
+          title="No artifacts were saved for this commit"
+          description={<p>Run <code>qa save-artifacts</code> in your CI to compare the commits' builds and configurations here. {artifacts_docs}.</p>}
+        />
+      : <Spinner style={{ margin: '20px' }}/>;
 
   const artifacts = Object.keys(config.artifacts || {})
 
   const help_text = <>
     <p>
       Configurations are defined in your <strong>qaboard.yaml</strong>, eg as <code>artifacts.configurations</code>.
-      <br/>
-      You can explore all your artifacts:  {artifacts.map((name, idx) => 
-          <Button
-              key={idx}
-              onClick={() => update('params_artifact')(name)}
-              intent={name===artifact ? Intent.PRIMARY : null}
-              style={{margin: '5px'}}
-          >
-              {name}
-          </Button>
-      )}
+      {artifacts.length === 0 && <><br/>Declare other <code>artifacts</code> in <em>qaboard.yaml</em> to explore them here. {artifacts_docs}.</>}
     </p>
+    {artifacts.length > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
+      <span>Artifacts</span>
+      <SegmentedControl
+        aria-label="Artifacts"
+        size="small"
+        value={artifact}
+        onValueChange={update('params_artifact')}
+        options={artifacts.map(name => ({ value: name, label: name }))}
+      />
+    </div>}
   </>
 
   const fake_output = {is_failed: false, is_running: false, is_pending: false, metrics: {}}
-  const viewer = !is_loaded ? <span/> : <>
+  const viewer = !is_loaded ? <Spinner style={{ margin: '20px' }}/> : <>
     <Tag>Total: {humanFileSize(storage, true)}</Tag>
     <OutputViewer
       key="bit-accuracy"
@@ -97,54 +110,51 @@ const CommitParameters = ({ new_commit, ref_commit, config }) => {
   </>
 
 
-  const forms = <Callout style={{marginBottom: '20px', display: 'flex', justifyContent: 'space-between'}}>
+  const forms = <Callout style={{marginBottom: '20px', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr)) auto', columnGap: '24px', alignItems: 'start'}}>
       <FormGroup
-        inline
         labelFor="show-all-files"
         helperText="By default the only files shown are those that are different/added/removed."
-        style={{flex: '50 1 auto'}}
+        style={{ marginBottom: 0 }}
       >
         <Switch
+          id="show-all-files"
           label="Show all files"
           checked={show_all_files}
           onChange={toggle('params_show_all_files', show_all_files)}
-          style={{ width: "300px" }}
         />
       </FormGroup>
       <FormGroup
-        inline
         labelFor="expand-all"
-        style={{flex: '50 1 auto'}}
+        style={{ marginBottom: 0 }}
       >
         <Switch
+          id="expand-all"
           label="Expand all folders"
           checked={expand_all}
           onChange={toggle('params_expand_all', expand_all)}
-          style={{ width: "300px" }}
         />
         <Switch
           label="Color-blind friendly"
           checked={color_blind_friendly}
           onChange={toggle('params_color_blind_friendly', color_blind_friendly)}
-          style={{ width: "300px" }}
         />
       </FormGroup>
       <FormGroup
-        inline
         labelFor="files-filter"
         helperText="Only show files matching"
-        style={{flex: '50 1 auto'}}
+        style={{ marginBottom: 0 }}
       >
         <InputGroup
+          id="files-filter"
           value={files_filter_text}
-          placeholder="filter by path"
+          placeholder="Filter by path"
           onChange={onFilesFilterChange}
-          type="search"
+          type="text"
           leftIcon="filter"
-          style={{ width: "150px" }}
+          rightElement={files_filter_text ? <Button size="small" variant="minimal" icon="cross" aria-label="Clear the filter" onClick={() => onFilesFilterChange('')}/> : undefined}
         />
       </FormGroup>
-      <span style={{flex: '1 1 auto'}}>{bit_accuracy_help}</span>
+      <span>{bit_accuracy_help}</span>
   </Callout>
 
   return <div>
@@ -161,15 +171,16 @@ const CommitParameters = ({ new_commit, ref_commit, config }) => {
                  : viewer
     }
     <div style={{margin: '10px'}}>
-      <Button style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => copyDirectory(new_commit.artifacts_url, { windows: true })}>
-        Copy Path <Tag minimal>windows</Tag>
+      {/* without path mappings, Windows paths would only have flipped slashes */}
+      {hasPathMappings() && <Button style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => copyDirectory(new_commit.artifacts_url, { windows: true })}>
+        Copy path <Tag minimal>windows</Tag>
+      </Button>}
+      <Button style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => copyDirectory(new_commit.artifacts_url)}>
+        Copy path {hasPathMappings() && <Tag minimal>linux</Tag>}
       </Button>
-      <Button style={{margin: '10px'}} label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => copyDirectory(new_commit.artifacts_url)}>
-        Copy Path <Tag minimal>linux</Tag>
-      </Button>
-      <a rel="noopener noreferrer" target="_blank" href={new_commit.artifacts_url}><Button style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="folder-shared-open">
+      <AnchorButton rel="noopener noreferrer" target="_blank" href={new_commit.artifacts_url} style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="folder-shared-open">
         View in browser
-      </Button></a>
+      </AnchorButton>
     </div>
   </div>
 };

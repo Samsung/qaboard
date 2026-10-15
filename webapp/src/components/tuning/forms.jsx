@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
 import { http, errorMessage } from "../../api/http";
@@ -8,21 +8,25 @@ import { usePrefsStore, useTuningForm } from "../../stores/prefs";
 import MonacoEditor from "../MonacoEditor";
 
 import {
+  Alert,
   Classes,
   Callout,
   Intent,
   Button,
+  ButtonGroup,
   FormGroup,
   HTMLSelect,
+  InputGroup,
   Radio,
   RadioGroup,
   Switch,
   Tag,
   Tooltip,
-  Popover,
-  Icon,
+  PopoverNext,
+  Spinner,
   Tab,
   Tabs,
+  TabsExpander,
 } from "@blueprintjs/core";
 import { toaster } from "../../toaster"
 
@@ -32,6 +36,22 @@ import { BatchDefinitions, BatchWarnings } from './BatchReport'
 
 
 const MAX_RUNS = 5000;
+
+// A button that looks like the links around it
+const link_button_style = { background: 'none', border: 0, padding: 0, font: 'inherit', color: 'var(--qa-link)', cursor: 'pointer' };
+
+// In qaboard.yaml's tuning.branches, {subproject} is the project's folder in the repository, {subproject.name} its last part
+const expand_subproject = (pattern, subproject) => String(pattern)
+  .replaceAll('{subproject.name}', subproject.split('/').pop())
+  .replaceAll('{subproject}', subproject);
+
+// Whether a branch matches one of the globs of qaboard.yaml's tuning.branches, e.g. ["develop", "*/*{subproject.name}*"].
+// "*" matches any characters, "/" included, and "?" one character.
+export const branch_matches = (branch, patterns, subproject = '') => patterns.some(pattern => {
+  const escape = text => text.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+  const regex = expand_subproject(pattern, subproject).split('*').map(part => part.split('?').map(escape).join('.')).join('.*');
+  return new RegExp(`^${regex}$`).test(branch);
+});
 
 const editor_options = {
   selectOnLineNumbers: true,
@@ -301,13 +321,18 @@ const useGroupInfo = ({ project, selected_group, commit_id, available_tests_file
 
 
 // Starts tuning experiments. What users enter is remembered per project.
-const TuningForm = ({ project, config, metrics, commit, available_tests_files }) => {
+const TuningForm = ({ project, git, config, metrics, commit, available_tests_files }) => {
   const logged_user = useUser();
-  const { docs_root } = useSiteConfig();
+  const { docs_root, support_url } = useSiteConfig();
   const form = useTuningForm(project);
   const updateTuning = usePrefsStore(state => state.updateTuning);
   const refresh = useRefreshCommit();
   const [submitted, setSubmitted] = useState(false);
+  const [confirm_reset, setConfirmReset] = useState(false);
+  // Required fields only turn red once users left them empty, not on a pristine form
+  const [touched, setTouched] = useState({});
+  const touch = name => () => setTouched(touched => touched[name] ? touched : { ...touched, [name]: true });
+  const is_missing = (name, value) => !!touched[name] && !value;
   const is_transforming = useRef(false);
 
   const default_parameter_search_auto = useMemo(() => templates['optimize'](config, metrics), [config, metrics]);
@@ -321,7 +346,6 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
     parameter_search = templates["no tuning"],
     search_options = default_search_options,
     parameter_search_auto = default_parameter_search_auto,
-    android_device = "openstf",
   } = form;
   const user = logged_user.user_name || form.user || default_user;
 
@@ -332,18 +356,6 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
   const { group_info: selected_group_info, loading: selected_group_info_loading, error } = useGroupInfo({
     project, selected_group, commit_id: commit?.id, available_tests_files,
   });
-
-  // TODO: remove at some point, or expose via tuning.runners.lsf.forbidden_users...
-  const forbidden_user = form.user === 'ispq';
-  useEffect(() => {
-    if (!forbidden_user) return;
-    updateTuning(project, { user: '' });
-    toaster.show({
-      message: <span>Sorry, using the <strong>ispq</strong> user for tuning is not allowed anymore!</span>,
-      intent: Intent.WARNING,
-      timeout: 10000,
-    });
-  }, [forbidden_user, project, updateTuning]);
 
   const update = name => e => updateTuning(project, { [name]: e?.target ? e.target.value : e });
   // for some reason, trailing spaces are removed when making the request.
@@ -379,10 +391,9 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
 
   const onSubmit = () => {
     setSubmitted(true);
-    toaster.show({
-      message: "Sent!",
-      intent: Intent.SUCCESS
-    });
+    // the same toast says when the experiment started, or why it didn't
+    const toast_key = `tuning-${experiment_name}`
+    toaster.show({ message: `Starting ${experiment_name}…`, icon: 'time' }, toast_key);
     http.post(`/api/v1/commit/${commit.id}/batch`, {
       project,
       batch_label: experiment_name,
@@ -396,15 +407,15 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
       selected_group,
       groups: Object.values(available_tests_files),
       user,
-      android_device,
       overwrite,
     }, { params: { project } })
       .then(() => {
         setSubmitted(false);
         toaster.show({
-          message: "Acknowledged! You can select the batch here ➡️",
-          intent: Intent.SUCCESS
-        });
+          message: `Started ${experiment_name}`,
+          intent: Intent.SUCCESS,
+          action: { text: 'Show its logs', onClick: () => updateSelected({ selected_batch_new: experiment_name, selected_views: 'logs' }) },
+        }, toast_key);
         setTimeout(() => refresh(project, commit.id),  1*1000)
         setTimeout(() => refresh(project, commit.id),  5*1000)
         setTimeout(() => refresh(project, commit.id), 10*1000)
@@ -415,20 +426,23 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
         const submission = error.response?.data?.submission
         toaster.show({
           message: submission
-            ? "The batch failed to start. Select it to see why, and its logs."
-            : `Something went wrong: ${errorMessage(error)}`,
+            ? `${experiment_name} failed to start. Its logs say why.`
+            : `Could not start ${experiment_name}: ${errorMessage(error)}`,
           intent: Intent.DANGER,
           timeout: 10000,
-        });
+          action: submission ? { text: 'Show its logs', onClick: () => updateSelected({ selected_batch_new: experiment_name, selected_views: 'logs' }) } : undefined,
+        }, toast_key);
         refresh(project, commit.id);
       });
   };
 
   const { tests, warnings, definitions } = selected_group_info;
   const total_runs = combinations * tests.length;
+  // no runs yet (e.g. no batch chosen) is not an error
   const time_intent =
-    (combinations === "invalid" || total_runs===0 || total_runs > MAX_RUNS)
+    (combinations === "invalid" || total_runs > MAX_RUNS)
       ? Intent.DANGER
+      : total_runs === 0 ? Intent.NONE
       : total_runs < 100
         ? Intent.PRIMARY
         : Intent.WARNING;
@@ -439,19 +453,18 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
   const any_runner_configured = !!config.lsf || Object.keys(config.runners || {}).filter(t => t !== 'local' && t !== 'default').length > 0;
 
   const panel_manual = <>
-    <Callout title="Click to see examples of parameter tuning" icon="info-sign" style={{marginBottom: '15px'}}>
-      <p>
-      {["no tuning", "simple-combinations", "list-of-combinations", "1x2 matrix", "function"].map(x => (
-        <Button
-          style={{margin: '4px'}}
-          key={x}
-          onClick={() => updateParameterSearch(templates[x])}
-        >
-          {x}
-        </Button>
-      ))}
-    </p>
-    </Callout>
+    <FormGroup label="Start from an example" style={{marginBottom: '15px'}}>
+      <ButtonGroup variant="outlined" size="small" style={{flexWrap: 'wrap', gap: '4px'}}>
+        {["no tuning", "simple-combinations", "list-of-combinations", "1x2 matrix", "function"].map(x => (
+          <Button
+            key={x}
+            onClick={() => updateParameterSearch(templates[x])}
+          >
+            {x}
+          </Button>
+        ))}
+      </ButtonGroup>
+    </FormGroup>
     <FormGroup
       inline
       labelFor="select-search-type"
@@ -480,8 +493,10 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
           className={Classes.INPUT}
           style={{ marginLeft: "30px", width: "70px" }}
           placeholder="50"
+          aria-label="Number of samples"
           onChange={updateIterations}
-          type="numeric"
+          type="number"
+          min={1}
           dir="auto"
         />
       )}
@@ -500,7 +515,26 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
 
 
   const panel_auto = <>
-    <Button onClick={() => updateParameterSearchAuto(default_parameter_search_auto)}>Reset</Button>
+    <Button
+      icon="reset"
+      disabled={parameter_search_auto === default_parameter_search_auto}
+      onClick={() => setConfirmReset(true)}
+    >Reset to the default</Button>
+    <Alert
+      isOpen={confirm_reset}
+      icon="reset"
+      intent={Intent.WARNING}
+      cancelButtonText="Cancel"
+      confirmButtonText="Reset"
+      canEscapeKeyCancel
+      onCancel={() => setConfirmReset(false)}
+      onConfirm={() => {
+        setConfirmReset(false);
+        updateParameterSearchAuto(default_parameter_search_auto);
+      }}
+    >
+      <p>Replace your auto-tuning configuration with the default one? Your edits will be lost.</p>
+    </Alert>
     <MonacoEditor
       height={250}
       language='yaml'
@@ -512,7 +546,10 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
   </>
 
   const available_platforms = config.inputs?.platforms ?? []
-  const cannot_tune_on_branch = project.startsWith('CDE-Users/HW_ALG') && !((commit?.branch ?? '').split('/')?.[1]  ?? '').includes(project.split('/').slice(-1)) && commit?.branch !== "develop"
+  // qaboard.yaml's tuning.branches: the branches whose commits have artifacts, if the CI doesn't save them for all
+  const tuning_branches = config.tuning?.branches
+  const subproject = git?.path_with_namespace ? project.slice(git.path_with_namespace.length + 1) : ''
+  const cannot_tune_on_branch = !!commit?.branch && Array.isArray(tuning_branches) && !branch_matches(commit.branch, tuning_branches, subproject)
     
   return <>
     {!any_runner_configured && <Callout intent={Intent.WARNING} title="Please configure async runners" icon="warning-sign" style={{marginBottom: '15px'}}>
@@ -520,38 +557,40 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
       <p>Otherwise, your runs may be killed if they take too long.</p>
     </Callout>}
     {cannot_tune_on_branch &&  <Callout intent={Intent.WARNING} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
-      <p>For tuning to work, your branch name (<code>{commit?.branch}</code>) must match the project (<code>{project}</code>).</p>
-      <p>A workaround is calling from Windows/Linux:</p>
+      <p>Tuning needs the commit's artifacts, and the CI only saves them on some branches: {tuning_branches.map((pattern, idx) => <span key={idx}>{idx > 0 && ', '}<code>{expand_subproject(pattern, subproject)}</code></span>)}. Your branch, <code>{commit.branch}</code>, doesn't match.</p>
+      <p>A workaround is saving them yourself, from your clone of the repository:</p>
       <pre>
-        <div>cd HW_ALG</div>
         <div>git checkout {(commit?.id ?? '').slice(0, 8)}</div>
-        <div>cd {project.replace('CDE-Users/HW_ALG/', '')}</div>
+        {subproject && <div>cd {subproject}</div>}
         <div>qa save-artifacts</div>
       </pre>
     </Callout>}
     <FormGroup
-      helperText={!experiment_name ? "(required)" : "Tip: You can add runs to an existing experiment"}
-      label={`Experiment name:`}
+      helperText={is_missing('experiment_name', experiment_name) ? "Give the batch a label" : "Tip: reuse the label of an existing batch to add runs to it"}
+      label="Batch label"
+      labelInfo="(required)"
       labelFor="batch-label"
-      intent={!experiment_name ? Intent.DANGER : Intent.PRIMARY}
+      intent={is_missing('experiment_name', experiment_name) ? Intent.DANGER : undefined}
    >
-      <input
+      <InputGroup
         id="batch-label"
-        className={Classes.INPUT}
         style={{ width: "300px" }}
         placeholder="my-tuning-experiment"
         value={experiment_name}
         onChange={updateExperimentName}
+        onBlur={touch('experiment_name')}
+        intent={is_missing('experiment_name', experiment_name) ? Intent.DANGER : undefined}
         type="text"
         dir="auto"
       />
     </FormGroup>
 
     <FormGroup
-      label="Batch of inputs+configurations:"
-      intent={!selected_group ? Intent.DANGER : Intent.PRIMARY}
+      label="Batch of inputs+configurations"
+      labelInfo="(required)"
+      intent={is_missing('selected_group', selected_group) ? Intent.DANGER : undefined}
       helperText={<>
-        {tests.length > 0 && <Popover
+        {tests.length > 0 && <PopoverNext
             inheritDarkTheme popoverClassName={Classes.DARK}
             placement="right" hoverCloseDelay={300} interactionKind={"hover"}
             content={<div style={{padding: '10px'}}>
@@ -567,23 +606,24 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
               </ul>
             </div>}
             >
-          <span style={{borderBottom: '1px dotted #000', textDecoration: 'none'}}>{tests.length} tests. </span>
-        </Popover>}
+          <span style={{borderBottom: '1px dotted currentColor', textDecoration: 'none'}}>{tests.length} tests. </span>
+        </PopoverNext>}
         <p style={{marginBottom: '5px'}}>
-          To know what batches you can use, go to the tab <Tag icon="layout-group-by" interactive minimal round onClick={() => updateSelected({ selected_views: 'groups' })}>Available Tests</Tag>.
-          </p>
+          {is_missing('selected_group', selected_group) && "Choose a batch. "}
+          Batches are listed in <button type="button" style={link_button_style} onClick={() => updateSelected({ selected_views: 'groups' })}>Available Tests</button>.
+        </p>
         {error && <p><Tag icon='warning-sign' intent={Intent.DANGER}>{error}</Tag></p>}
-        {selected_group_info_loading && <Icon icon="time"/>}
+        {selected_group_info_loading && <span className={Classes.TEXT_MUTED}><Spinner size={12} style={{display: 'inline-flex', marginRight: '5px'}}/>Listing the tests…</span>}
       </>}
       labelFor="selected-group"
     >
-      <input
+      <InputGroup
         id="selected-group"
-        className={Classes.INPUT}
-        intent={Intent.PRIMARY}
         style={{ width: "300px" }}
         placeholder="my-batch, batch-*"
         onChange={updateSelectedGroup}
+        onBlur={touch('selected_group')}
+        intent={is_missing('selected_group', selected_group) ? Intent.DANGER : undefined}
         value={selected_group}
         type="text"
         dir="auto"
@@ -598,7 +638,7 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
       />
     </>}
 
-    {(project!=='dvs/psp_swip' && project!=='tof/swip_tof' && available_platforms.length > 0) &&
+    {available_platforms.length > 0 &&
     <RadioGroup onChange={update('platform')} selectedValue={platform}>
       {available_platforms.map(p => <Radio
         key={p.name}
@@ -608,41 +648,26 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
       />)}
     </RadioGroup>}
 
-    {((project==='dvs/psp_swip' || project==='tof/swip_tof' )&& available_platforms.length === 0) &&
-    <RadioGroup onChange={update('platform')} selectedValue={platform}>
-      <Radio labelElement={<span>Linux</span>} value="lsf" large />
-      <Radio label={<span>Android</span>} value="s8" large/>
-    </RadioGroup>}
-
-    {platform.startsWith("s8") && (
-      <FormGroup
-        label="Android device"
-        helperText="Choose a device from the openstf farm, or your own (host:port)"
-        labelFor="input-android-device"
-      >
-        <input
-          id="input-android-device"
-          className={Classes.INPUT}
-          style={{ width: "300px" }}
-          value={android_device}
-          placeholder="openstf"
-          onChange={update('android_device')}
-          type="text"
-          dir="auto"
-        />
-      </FormGroup>
-    )}
-
 
     <Tabs renderActiveTabPanelOnly id="search-type" selectedTabId={search_type !== "optimize" ? "search-manual" : "search-optimize"} onChange={updateSearchTab}  defaultSelectedTabId="search-manual">
       <Tab id="search-manual" title="Manual tuning" panel={panel_manual} />
       <Tab id="search-optimize" title={<>Automated tuning</>} panel={panel_auto} />
+      <TabsExpander />
+      <a href={`${docs_root}docs/${search_type !== "optimize" ? 'tuning-from-the-webapp' : 'auto-optimization'}`} target="_blank" rel="noopener noreferrer">
+        {search_type !== "optimize" ? 'How to tune from QA-Board' : 'How auto-tuning works'}
+      </a>
     </Tabs>
 
     <FormGroup
       helperText={!user ? "Please provide a user in the input below"
-                        : (experiment_name.length === 0 ? 'Please give a name to the tuning experiment (the input is above)' : (selected_group_info.tests.length === 0 ? "The batch has no tests: see why under its name" : undefined))}
-      intent={(!user || experiment_name.length === 0 || !total_runs) ? Intent.DANGER : undefined}
+                        : experiment_name.length === 0 ? 'Please give the batch a label (the input is above)'
+                        : selected_group_info.tests.length === 0 ? "The batch has no tests: see why under its name"
+                        : search_type === "optimize" ? undefined
+                        : combinations === "invalid" ? "The tuning parameters are not valid JSON, or the function throws"
+                        : total_runs > MAX_RUNS ? `Too many runs: ${total_runs} (at most ${MAX_RUNS}). Use “Sampling” or fewer inputs.`
+                        : total_runs >= 1000 ? "Over 1000 runs: check the cluster has room"
+                        : undefined}
+      intent={(combinations === "invalid" || total_runs > MAX_RUNS) && search_type !== "optimize" ? Intent.DANGER : undefined}
     >
     <Button
       onClick={onSubmit}
@@ -656,13 +681,14 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
       large
       intent={search_type !== "optimize" ? (total_runs < 1000 ? Intent.PRIMARY : Intent.DANGER) : Intent.PRIMARY}
     >
-      Send
+      {search_type === "optimize" ? "Start auto-tuning" : (Number.isFinite(total_runs) && total_runs > 0) ? `Start ${total_runs} run${total_runs === 1 ? '' : 's'}` : "Start runs"}
     </Button>
     </FormGroup>
 
     <FormGroup
         label="Overwrite previous identical runs"
         labelFor="overwrite-old-outputs"
+        helperText="On: runs that already exist in this batch run again. Off: they're kept, only missing runs start."
         inline
     >
       <Switch
@@ -691,7 +717,7 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
       />
     </FormGroup>} */}
 
-    {lsf_runner &&<Tooltip content="Make sure to setup your shell environment correctly">
+    {lsf_runner &&<Tooltip content="Runs start on the cluster as this user, with their shell environment">
       <Tag icon="user" large minimal style={{marginRight: '5px', marginBottom: '5px'}}>Will run as <strong>{user}</strong></Tag>
     </Tooltip>}
 
@@ -701,7 +727,7 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
         <li>The solver is <a href="https://github.com/scikit-optimize/scikit-optimize">scikit-optimize</a>. There are lots of choices for black-box optimization (nevergrad, RoBo, MOE, Ray, hyperopt, SMAC, BayesOpt, spearmint, dlib...), all with varying features, maturity, algorithms and popularity.</li>
         <li>You need to use <a href={`${docs_root}docs/computing-quantitative-metrics`}>QA-Board metrics</a>.</li>
         </ul>
-        <p><strong>Do send <a href="mailto:arthur.flam@samsung.com">feedback</a>!</strong></p>
+        <p><strong>Do send <a href={support_url || "mailto:arthur.flam@samsung.com"}>feedback</a>!</strong></p>
       </Callout>
     </>}
   </>;

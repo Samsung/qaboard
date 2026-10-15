@@ -113,7 +113,7 @@ const Toolbar = styled.div`
   flex-wrap: wrap;
   gap: 8px 12px;
   padding: 6px 0 8px;
-  border-bottom: 1px solid rgba(17, 20, 24, 0.15);
+  border-bottom: 1px solid var(--qa-border);
   margin-bottom: 8px;
   .bp6-tab-list { align-items: center; }
 `;
@@ -139,7 +139,7 @@ const DirtyDot = styled.span`
 `;
 
 const EditorFrame = styled.div`
-  border: 1px solid rgba(17, 20, 24, 0.15);
+  border: 1px solid var(--qa-border);
   border-radius: 2px;
   overflow: hidden;
 `;
@@ -148,7 +148,7 @@ const Problems = styled.ul`
   list-style: none;
   margin: 0;
   padding: 4px 0;
-  border-top: 1px solid rgba(17, 20, 24, 0.15);
+  border-top: 1px solid var(--qa-border);
   max-height: 120px;
   overflow: auto;
   font-size: 12px;

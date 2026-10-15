@@ -27,6 +27,8 @@ export const default_site_config = {
   git_hosts: [],
   quota_url_template: null,
   support_url: 'https://github.com/Samsung/qaboard/issues',
+  login_hint: null,
+  webcde_installer: null,
 };
 
 // Some helpers read the site's configuration outside of React
