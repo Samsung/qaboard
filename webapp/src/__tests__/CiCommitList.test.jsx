@@ -2,13 +2,14 @@
  * The project's page lists commits one page at a time, and searches all of them on the server.
  * Run with: cd webapp && npm test -- CiCommitList
  */
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 import CiCommitList from '../CiCommitList';
 import { ComparisonProvider } from '../hooks';
 import { matchRoutes, RouteMatch } from '../router';
 import { renderWithProviders } from '../test-utils';
+import { usePrefsStore } from '../stores/prefs';
 
 
 const project = 'group/proj';
@@ -61,6 +62,7 @@ describe('CiCommitList', () => {
   beforeEach(() => {
     fetchMock.mockClear();
     vi.stubGlobal('fetch', fetchMock);
+    usePrefsStore.setState({ commitListDensity: 'comfortable' });
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -144,5 +146,30 @@ describe('CiCommitList', () => {
   it('says when nothing matches', async () => {
     renderPage(`/${project}?search=nothing-like-this`);
     expect(await screen.findByText('No commit matches your search')).toBeInTheDocument();
+  });
+
+  it('shows commits on one line each in compact mode, and remembers it', async () => {
+    renderPage(`/${project}?search=number 11`);
+    await screen.findByText("Commit number 110.");
+    const density = screen.getByRole('radiogroup', { name: 'Commit list density' });
+    expect(within(density).getByRole('radio', { name: 'Comfortable' })).toHaveAttribute('aria-checked', 'true');
+    // comfortable: the date and committer in a sentence
+    expect(screen.getAllByText('by alice').length).toBeGreaterThan(0);
+
+    fireEvent.click(within(density).getByRole('radio', { name: 'Compact' }));
+    expect(JSON.parse(localStorage.getItem('qaboard-prefs')).state.commitListDensity).toBe('compact');
+    expect(within(density).getByRole('radio', { name: 'Compact' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.queryByText('by alice')).not.toBeInTheDocument();
+    // the same commits, the whole message on hover
+    expect(shown_messages()).toEqual(commits.filter(c => c.message.includes('number 11')).map(c => c.message));
+    expect(screen.getByText('Commit number 110.')).toHaveAttribute('title', 'Commit number 110.');
+    expect(screen.getAllByRole('link', { name: 'alice' })[0]).toHaveAttribute('href', `/${project}/committer/alice`);
+  });
+
+  it('ignores densities it does not know', async () => {
+    usePrefsStore.setState({ commitListDensity: 'cozy' });
+    renderPage(`/${project}?search=number 11`);
+    await screen.findByText("Commit number 110.");
+    expect(screen.getByRole('radio', { name: 'Comfortable' })).toHaveAttribute('aria-checked', 'true');
   });
 });

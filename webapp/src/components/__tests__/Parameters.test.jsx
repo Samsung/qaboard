@@ -95,12 +95,33 @@ describe('ExportPlugin', () => {
       project="p" new_commit_id="abc" selected_batch_new="default"
       config={{ outputs: { visualizations: [{ path: 'debug/:frame/out.png' }] } }}
     />);
-    expect(screen.getByDisplayValue('debug/*/out.png')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('Export'));
+    // the form is behind a button
+    expect(screen.queryByDisplayValue('debug/*/out.png')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Export files' }));
+    expect(await screen.findByDisplayValue('debug/*/out.png')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Export' }));
     expect(await screen.findByText(/3 files exported from 2 runs/)).toBeInTheDocument();
     const url = new URL(fetch.mock.calls[0][0], 'http://localhost');
     expect(url.pathname).toBe('/api/v1/export/');
     expect(Object.fromEntries(url.searchParams)).toMatchObject({ path: 'debug/*/out.png', project: 'p', new_commit_id: 'abc', export_type: 'link' });
     expect(url.searchParams.has('export_dir')).toBe(false);
+  });
+
+  it('keeps the form and the last export when it closes', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ export_dir: '/exports/x', nb_files_exported: 3, nb_outputs: 2, errors: [] }));
+    renderWithProviders(<ExportPlugin project="p" new_commit_id="abc" selected_batch_new="default" config={{}}/>);
+    const toggle = screen.getByRole('button', { name: 'Export files' });
+    fireEvent.click(toggle);
+    const input = await screen.findByLabelText(/Files to export/);
+    expect(input).toHaveValue('*.png');
+    fireEvent.change(input, { target: { value: '*.txt' } });
+    // Enter exports too
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(await screen.findByText('/exports/x')).toBeInTheDocument();
+    fireEvent.click(toggle);
+    await waitFor(() => expect(screen.queryByDisplayValue('*.txt')).not.toBeInTheDocument());
+    fireEvent.click(toggle);
+    expect(await screen.findByDisplayValue('*.txt')).toBeInTheDocument();
+    expect(screen.getByText('/exports/x')).toBeInTheDocument();
   });
 });

@@ -51,6 +51,17 @@ Each commit row shows:
 **No results** or **Check the pipeline status...** means the commit has no finished runs yet in its CI batch: check your CI pipeline.
 :::
 
+### Compact list
+To see more commits at once, pick **Compact** above the list (**Comfortable** brings back the rows above). Each commit then takes one line, in columns that line up like a table: an icon for the CI batch's status (finished, failed, running, waiting), the short hash, the message, the branch, the committer, the date, then the batch's results and the ☰ menu. The web app remembers your choice in this browser.
+
+Hover to see what doesn't fit:
+- the **message** shows the whole commit message, the **date** the exact time;
+- the **status icon** counts the finished, failed and running runs;
+- the main metric's average shows its median and all the aggregated metrics;
+- **+N batches** lists the commit's other batches, like **N other batches** above.
+
+The copy icon for the full hash shows up when you hover a row, or reach it with the keyboard.
+
 ### Branches and committers
 - The sidebar shows the project's **reference branch**: click it to see only its commits.
 - Click any branch name in a commit row to see that branch. The URL is `/<project>/commits/<branch>`.
