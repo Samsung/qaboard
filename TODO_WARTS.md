@@ -39,9 +39,14 @@ Found while surveying the code base (October 2026), after the cleanups that chan
   `data['output_dir_url_new'][2:]/reports` without `check_storage_path`, and its `report_url` has a double slash (`/s//algo/...`).
   `/api/v1/output/image/pixel` (123) and `/image/diff` (149) read any image the server can read (`url_to_dir` of a client URL).
   Add `@login_required`, `check_storage_path` for writes, and restrict reads to the storage roots. [S, API]
-- **`QABOARD_LOGIN_REQUIRED` is only enforced by the web app** (api/api.py:55, webapp/src/components/authentication/PrivateContent.jsx:21):
-  the API and `/s/` files stay readable anonymously, while website/docs/backend-admin/managing-users.mdx:59 says it
-  "blocks anonymous users from accessing any content". Enforce it in a `before_request` (and nginx `auth_request` for `/s/`), or fix the docs. [M, behaviour]
+- **`QABOARD_LOGIN_REQUIRED` is only enforced by the web app** (webapp/src/components/authentication/PrivateContent.jsx:21):
+  the backend reports it in `/api/v1/config` (api/api.py:55) but no `before_request` checks it, so every GET API and the CLI ingest
+  endpoints answer anonymous requests, and `/s/` files stay readable, while website/docs/backend-admin/managing-users.mdx:59 says it
+  "blocks anonymous users from accessing any content". Fix: a `before_request` requiring a session or token for `/api/` except an
+  explicit allowlist (health, config, login/SAML, signed webhooks, `files/authorize` which does its own check), and nginx `auth_request`
+  for `/s/`. The `qa` CLI already sends `Authorization: Bearer $QA_TOKEN` (qaboard/api.py:55), so check CI tokens exist at SIRC before
+  enabling it; ship it behind a flag first. Also `tests/test_security.py`'s AST check only sees `app.route`, so `@app.post`
+  endpoints (api/tasks.py:20) escape it. [M, API]
 - **Project permissions are only checked on some reads** (`is_authorized_user`, api/auth.py:272): `GET /api/v1/output/<id>`,
   `/manifest`, `/api/v1/tests/groups`, image endpoints and `/s/` ignore `QABOARD_LOGIN_RESTRICTED_YAML`. [M, API]
 - **Local signup can squat LDAP/SAML user names** (api/auth.py:83-104, 331-336): signup is on unless `QABOARD_DISABLE_SIGNUP=True`,
@@ -93,8 +98,8 @@ Found while surveying the code base (October 2026), after the cleanups that chan
 - **Duplicate outputs** (models/Output.py:187-208): on `MultipleResultsFound`, rows are deleted (their files stay) and a new output created. Keep the newest instead. [S, behaviour]
 - **`hybrid_cache`** (hybrid_cache.py:33-35): the thread-local cache ignores `maxsize` and the TTL (grows for the worker's life), and keys
   only use the function name. Use `cachetools.TTLCache`, key with the module. [S, behaviour]
-- **`QABOARD_DB_ECHO=0` / `QABOARD_LOGIN_RESTRICTED=false` enable the feature** (database.py:20, api/auth.py:25): `bool("false")` is true.
-  The docs say "any non-empty value", so this is documented, but surprising. Parse booleans. [S, behaviour]
+- **`QABOARD_DB_ECHO=0` enables the feature** (database.py:20): `bool("0")` is true. Use `env_flag` (api/auth.py), as
+  `QABOARD_LOGIN_RESTRICTED` does. [S, behaviour]
 - **Dead psycopg2 JSON loaders** (database.py:25-26): `loads=lambda x: ujson.loads` returns the function, not the data. SQLAlchemy
   registers its own loaders per connection, so only raw psycopg2 connections would see it. Delete both lines. [S, no change]
 - **`find_rois` ignores `threshold` and `diameter`** (api/image_diff.py:103): the request still sends them. Remove them from the API or implement them. [S, API]
