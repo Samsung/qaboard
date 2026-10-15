@@ -235,7 +235,7 @@ const condensed_header_style = {
 const option_style = {
   marginBottom: '8px',
   padding: '8px',
-  backgroundColor: '#f5f8fa',
+  backgroundColor: 'var(--qa-surface-alt)',
   borderRadius: '3px',
   border: '1px solid #e1e8ed'
 };
@@ -255,11 +255,11 @@ const sync_button_style = {
 
 const path_header_style = {
   fontSize: '12px',
-  color: '#5c7080',
+  color: 'var(--qa-text-muted)',
   marginBottom: '8px',
   borderBottom: '1px solid #e1e8ed',
   fontFamily: 'monospace',
-  backgroundColor: '#f5f8fa',
+  backgroundColor: 'var(--qa-surface-alt)',
   padding: '4px 8px',
   borderRadius: '3px',
   display: 'flex',
@@ -459,11 +459,11 @@ const OutputCard = memo(function OutputCard(props) {
             className="path-header"
             style={path_header_style}
             onMouseEnter={e => {
-              e.currentTarget.style.backgroundColor = '#e8f4f8';
+              e.currentTarget.style.backgroundColor = 'var(--qa-hover)';
               e.currentTarget.style.borderColor = '#bfccd6';
             }}
             onMouseLeave={e => {
-              e.currentTarget.style.backgroundColor = '#f5f8fa';
+              e.currentTarget.style.backgroundColor = 'var(--qa-surface-alt)';
               e.currentTarget.style.borderColor = '#e1e8ed';
             }}
           >
@@ -487,7 +487,7 @@ const OutputCard = memo(function OutputCard(props) {
                     />
                   </Tooltip>
                 ))}
-                <span style={{ fontSize: '10px', color: '#106ba3', fontWeight: '500', marginLeft: '4px' }}>
+                <span style={{ fontSize: '10px', color: 'var(--qa-link)', fontWeight: '500', marginLeft: '4px' }}>
                   linked
                 </span>
               </div>

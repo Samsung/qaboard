@@ -18,6 +18,7 @@ import { Layout } from "./components/layout";
 import ProjectsList from "./ProjectsList";
 import ErrorPage from "./components/ErrorPage";
 import EmptyLoading from "./components/EmptyLoading";
+import { ThemeSync } from "./theme";
 
 import "normalize.css";
 import "@blueprintjs/core/lib/css/blueprint.css";
@@ -74,6 +75,7 @@ const App = ({ persist = true }) => {
   const Provider = persist ? PersistQueryClientProvider : QueryClientProvider;
   const providerProps = persist ? { client: queryClient, persistOptions, onSuccess: onCacheRestored } : { client: queryClient };
   return <Provider {...providerProps}>
+    <ThemeSync/>
     <Sentry.ErrorBoundary fallback={props => <Fallback {...props}/>}>
       <Analytics/>
       <StyleSheetManager shouldForwardProp={shouldForwardProp}>

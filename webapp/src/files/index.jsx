@@ -7,9 +7,11 @@ import "@blueprintjs/core/lib/css/blueprint.css";
 import "./files.css";
 
 import FileBrowser from "./FileBrowser";
+import { ThemeSync } from "../theme";
 
 createRoot(document.getElementById('root')).render(
   <HotkeysProvider>
+    <ThemeSync/>
     <FileBrowser/>
   </HotkeysProvider>
 );

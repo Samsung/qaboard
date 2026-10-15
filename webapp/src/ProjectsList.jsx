@@ -7,13 +7,13 @@ import {
   Classes,
   Colors,
   Card,
+  AnchorButton,
   Button,
   Icon,
   Tag,
   Intent,
   InputGroup,
   NonIdealState,
-  Spinner,
   Navbar,
   NavbarDivider,
   NavbarGroup,
@@ -26,6 +26,7 @@ import { LoadMore } from "./components/LoadMore";
 import AuthButton from "./components/authentication/Auth"
 import PrivateContent from "./components/authentication/PrivateContent"
 import { WhatsNewLink } from './releaseNotes/ReleaseNotes'
+import { ThemeButton } from './components/ThemeButton'
 import { useProjects, useSiteConfig, useUser } from './hooks'
 import { usePrefsStore } from './stores/prefs'
 import { match_query } from "./utils"
@@ -38,9 +39,9 @@ const LastCommitAt = ({ project, className }) => {
   let date = date_output || date_commit
   return (
     <span className={className} style={{marginBottom: '5px'}}>
-      <span style={{ color: "#555"}}>last {!!date_output ? "run" : "commit"}
+      <span className={Classes.TEXT_MUTED}>last {!!date_output ? "run" : "commit"}
       {" "}
-      <span title={date}>{DateTime.fromISO(date, { zone: 'utc' }).toRelative()}</span>
+      <span title={DateTime.fromISO(date, { zone: 'utc' }).toLocal().toLocaleString(DateTime.DATETIME_MED)}>{DateTime.fromISO(date, { zone: 'utc' }).toRelative()}</span>
       </span>
     </span>
   );
@@ -92,14 +93,14 @@ const ProjectCard = ({ project_id, details }) => {
           <Button
             minimal
             aria-label={is_favorite ? "Unpin" : "Pin"}
-            title="Pin on top of the list."
+            title={is_favorite ? "Pinned on top of the list (only for you). Click to unpin." : "Pin on top of the list (only for you)"}
             icon={<Icon icon={is_favorite ? "star" : "star-empty"} style={{color: Colors.GOLD5}}/>}
             onClick={() => toggleFavorite(project_id)}
           />
-          <a href={web_url} style={{textDecoration: "none"}}><Button icon="git-repo" minimal round text="Source" style={{color: 'rgb(85, 85, 85)'}}/></a>
+          {web_url && <AnchorButton href={web_url} icon="git-repo" variant="minimal" text="Source" className={Classes.TEXT_MUTED} title="The project's repository on your git host"/>}
         </p>
         <p style={{marginBottom: '5px'}}><LastCommitAt project={details} /></p>
-        <p style={{marginBottom: '0px'}}><span style={{ color: "#555" }}>
+        <p style={{marginBottom: '0px'}}><span className={Classes.TEXT_MUTED}>
           {details.total_commits} commit{details.total_commits === 1 ? '' : 's'}
         </span></p>
       </div>
@@ -116,18 +117,39 @@ const github_cat = <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20
 const EmptyProjects = ({ docs_root, support_url }) => <div style={{marginTop: '10vh'}}>
   <NonIdealState
     icon="heatmap"
-    title="No projects yet."
-    intent={Intent.PRIMARY}
-    description={<p>Learn how to <a href={`${docs_root}docs/installation`}>get started</a>,<br/>and <a href={support_url}>ask the maintainers</a> if you run into issues.</p>}
+    title="No projects yet"
+    description={<p>
+      Projects appear here after their first <code>qa run</code> or <code>qa batch</code>.<br/>
+      Learn how to <a href={`${docs_root}docs/installation`}>get started</a>{support_url && <>, and <a href={support_url}>ask the maintainers</a> if you run into issues</>}.
+    </p>}
   />
 </div>;
+
+const NoMatchingProjects = ({ query, onClear }) => <div style={{marginTop: '10vh'}}>
+  <NonIdealState
+    icon="search"
+    title="No matching projects"
+    description={<p>No project name matches <strong>{query}</strong>.</p>}
+    action={<Button icon="cross" text="Clear the filter" onClick={onClear}/>}
+  />
+</div>;
+
+// Placeholder cards while the projects load, the page doesn't jump when they arrive
+const ProjectCardSkeleton = () => <Card style={{ margin: "15px", display: 'flex', alignItems: 'center', gap: '10px'}} elevation={2}>
+  <div className={Classes.SKELETON} style={{width: 40, height: 40, borderRadius: 4}}/>
+  <div style={{flex: 1}}>
+    <h5 className={`${Classes.HEADING} ${Classes.SKELETON}`} style={{width: '30%'}}>project</h5>
+    <p className={Classes.SKELETON} style={{width: '60%', marginBottom: 0}}>description</p>
+  </div>
+  <div className={Classes.SKELETON} style={{width: 120, height: 50}}/>
+</Card>;
 
 // We render projects progressively: sites can have hundreds
 const page_size = 50;
 
 
 const ProjectsList = () => {
-  const { data: projects = {}, error, isPending } = useProjects();
+  const { data: projects = {}, error, isPending, refetch } = useProjects();
   const user = useUser();
   const { docs_root, support_url, quota_url_template } = useSiteConfig();
   const favorites = usePrefsStore(state => state.favorites);
@@ -144,11 +166,18 @@ const ProjectsList = () => {
       .sort(sort_projects(favorites))
   }, [projects, query, favorites]);
 
+  // When a refresh fails, we keep showing the projects we have
+  const failed = !!error && Object.keys(projects).length === 0;
   let warnings;
-  if (error)
-    warnings = <NonIdealState description={error.message} icon="error" />;
+  if (failed)
+    warnings = <NonIdealState
+      icon="error"
+      title="Could not load the projects"
+      description={error.message}
+      action={<Button icon="refresh" text="Retry" onClick={() => refetch()}/>}
+    />;
   if (isPending)
-    warnings = <NonIdealState title="Loading projects..." icon={<Spinner />} />;
+    warnings = <div aria-busy="true" aria-label="Loading projects">{[0, 1, 2, 3, 4].map(i => <ProjectCardSkeleton key={i}/>)}</div>;
 
   const user_quota_url = user.is_logged && quota_url(quota_url_template, user.user_name);
   return (
@@ -162,6 +191,7 @@ const ProjectsList = () => {
               <WhatsNewLink via="projects-list"><Button className={Classes.MINIMAL} icon={<Icon icon="clean" color="#fff"/>} text="What's new" style={{color : "#fff"}}/></WhatsNewLink>
           </NavbarGroup>
           <NavbarGroup align={Alignment.RIGHT}>
+            <ThemeButton style={{marginRight: '10px'}}/>
             {user_quota_url && <a style={{paddingRight: '15px'}} href={user_quota_url} rel="noopener noreferrer" target="_blank">
               <Button icon="database" text="Quotas" style={{color : "#fff"}}/>
             </a>}
@@ -178,7 +208,9 @@ const ProjectsList = () => {
                   round
                   large
                   leftIcon="search"
-                  placeholder="filter projects..."
+                  placeholder="Filter projects..."
+                  aria-label="Filter projects"
+                  rightElement={query ? <Button variant="minimal" icon="cross" aria-label="Clear the filter" onClick={() => setQuery('')}/> : undefined}
                   onChange={e => {
                     setQuery(e.target.value);
                     setNbShown(page_size);
@@ -190,7 +222,9 @@ const ProjectsList = () => {
             </div>
           </div>
           {warnings}
-          {!isPending && (rendered_projects.length === 0 ? <EmptyProjects docs_root={docs_root} support_url={support_url}/> : <div>
+          {!isPending && !failed && (rendered_projects.length === 0
+            ? (query ? <NoMatchingProjects query={query} onClear={() => setQuery('')}/> : <EmptyProjects docs_root={docs_root} support_url={support_url}/>)
+            : <div>
             {rendered_projects.slice(0, nb_shown).map(([project_id, details]) => <ProjectCard key={project_id} project_id={project_id} details={details}/>)}
             {nb_shown < rendered_projects.length && <LoadMore
               onLoadMore={() => setNbShown(nb => nb + page_size)}

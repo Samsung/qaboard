@@ -340,7 +340,7 @@ const CommitsEvolutionPerTest = props => {
       )}
     </>
     const [legend_commit, legend_commit_ref] = legend_commits;
-    legend = <div style={{ marginTop: "30px", background: "#fefefe", padding: "10px" }}>
+    legend = <div style={{ marginTop: "30px", background: "var(--qa-surface)", padding: "10px" }}>
       {hovered_test_input_path && <Tag style={{ background: hash_color(hovered_test_input_path) }}>
           {hovered_test_input_path} @{JSON.stringify(hovered_test_configurations)}
       </Tag>}

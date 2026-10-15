@@ -27,15 +27,7 @@ const PanelContainer = styled.div`
   transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
   box-shadow: 0 4px 20px rgba(0,0,0,0.15);
   scrollbar-width: thin;
-  scrollbar-color: rgba(0,0,0,0.2) transparent;
-
-  /* Subtle hover effect when collapsed */
-  ${props => !props.isExpanded && `
-    &:hover {
-      right: -295px;
-      box-shadow: 0 6px 25px rgba(0,0,0,0.2);
-    }
-  `}
+  scrollbar-color: var(--qa-border) transparent;
 
   .bp6-html-select select {
     font-size: 12px;
@@ -66,64 +58,12 @@ const ToggleButton = styled(Button)`
   box-shadow: 0 2px 10px rgba(0,0,0,0.15);
   overflow: hidden;
 
-  /* Subtle pulse animation to hint at interactivity */
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.1) 50%, transparent 100%);
-    transform: translateX(-100%);
-    transition: transform 2s ease-in-out;
-  }
-
-  /* Animate the shimmer effect periodically when collapsed */
-  ${props => !props.isExpanded && `
-    animation: subtlePulse 4s ease-in-out infinite;
-    
-    &::before {
-      animation: shimmer 4s ease-in-out infinite;
-    }
-  `}
-
   &:hover {
     background-color: #293742 !important;
-    width: ${props => props.isExpanded ? '40px' : '48px'};
-    height: ${props => props.isExpanded ? '64px' : '72px'};
-    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
-    right: ${props => props.isExpanded ? '320px' : '-4px'};
-    
-    /* Scale up the icon slightly */
-    .bp6-icon {
-      transform: scale(1.1);
-      transition: transform 0.2s ease-out;
-    }
   }
 
-  &:focus {
-    box-shadow: 0 0 0 2px rgba(255,255,255,0.4) !important;
-  }
-
-  .bp6-icon {
-    transition: transform 0.2s ease-out;
-  }
-
-  @keyframes subtlePulse {
-    0%, 100% { 
-      box-shadow: 0 2px 10px rgba(0,0,0,0.15); 
-    }
-    50% { 
-      box-shadow: 0 2px 12px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,0.1); 
-    }
-  }
-
-  @keyframes shimmer {
-    0% { transform: translateX(-100%); }
-    50% { transform: translateX(-100%); }
-    51% { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
+  &:focus-visible {
+    box-shadow: 0 0 0 2px rgba(138, 187, 255, 0.8) !important;
   }
 `;
 
@@ -131,7 +71,7 @@ const StyledCard = styled(Card)`
   margin: 0;
   border-radius: 4px 0 0 4px;
   height: 100%;
-  background-color: #f5f8fa;
+  background-color: var(--qa-surface-alt);
   box-shadow: 0 4px 20px rgba(0,0,0,0.15) !important;
 `;
 
@@ -175,7 +115,7 @@ const ControlLabel = styled.label`
   font-size: 11px;
   font-weight: 500;
   margin-bottom: 4px;
-  color: #5c7080;
+  color: var(--qa-text-muted);
 `;
 
 const StyledSwitch = styled(Switch)`
@@ -396,12 +336,12 @@ const FloatingControlsPanel = ({
           {(hiddenVisualizations > 0 || totalVisualizations > 0 || visualizations_with_files.size > 0) && (
             <div style={{ 
               fontSize: 11, 
-              color: '#5c7080', 
+              color: 'var(--qa-text-muted)', 
               marginBottom: 16, 
               padding: 8, 
-              backgroundColor: '#f5f8fa', 
+              backgroundColor: 'var(--qa-surface)', 
               borderRadius: 3,
-              border: '1px solid #e1e8ed'
+              border: '1px solid var(--qa-border)'
             }}>
               {visualizations_with_files.size > 0 && (
                 <div>📁 {visualizationsWithFiles}/{totalVisualizations} visualizations have files</div>
@@ -456,7 +396,7 @@ const FloatingControlsPanel = ({
                   )}
                   {visualizationControls.length > 0 ? visualizationControls : (
                     visualizationFilter && (
-                      <div style={{ color: '#5c7080', fontSize: 12, fontStyle: 'italic' }}>
+                      <div style={{ color: 'var(--qa-text-muted)', fontSize: 12, fontStyle: 'italic' }}>
                         No visualizations match "{visualizationFilter}"
                       </div>
                     )
@@ -530,14 +470,14 @@ const FloatingControlsPanel = ({
                               </Tooltip>
                               <span style={{ 
                                 fontSize: '10px', 
-                                color: isSync ? '#0d8050' : '#5c7080',
+                                color: isSync ? '#0d8050' : 'var(--qa-text-muted)',
                                 fontWeight: '500'
                               }}>
                                 {isSync ? 'linked' : 'per-output'}
                               </span>
                             </div>
                           </div>
-                          <div style={{ fontSize: 10, color: '#5c7080', marginBottom: 4 }}>
+                          <div style={{ fontSize: 10, color: 'var(--qa-text-muted)', marginBottom: 4 }}>
                             {option.paths && option.paths.length > 0 && (
                               <div style={{ fontStyle: 'italic' }}>
                                 Paths: {option.paths.slice(0, 3).join(', ')}
@@ -554,24 +494,24 @@ const FloatingControlsPanel = ({
                             small={true}
                             showLabel={false}
                           />
-                          {!isSync && <div style={{ fontSize: 10, color: '#5c7080', marginTop: 4 }}>
+                          {!isSync && <div style={{ fontSize: 10, color: 'var(--qa-text-muted)', marginTop: 4 }}>
                             Each output has its own control
                           </div>}
-                          {isSync && !exact && <div style={{ fontSize: 10, color: '#5c7080', marginTop: 4 }}>
+                          {isSync && !exact && <div style={{ fontSize: 10, color: 'var(--qa-text-muted)', marginTop: 4 }}>
                             <strong>{wanted}</strong> isn't in these outputs, they show <strong>{selectedValue}</strong>
                           </div>}
                         </ControlGroup>
                       );
                     })}
                   {Object.keys(dynamic_options).length === 0 && (
-                    <div style={{ color: '#5c7080', fontSize: 12, fontStyle: 'italic' }}>
+                    <div style={{ color: 'var(--qa-text-muted)', fontSize: 12, fontStyle: 'italic' }}>
                       No dynamic options found
                     </div>
                   )}
                   {dynamicOptionsFilter && Object.entries(dynamic_options).filter(([name]) => 
                     name.toLowerCase().includes(dynamicOptionsFilter.toLowerCase())
                   ).length === 0 && (
-                    <div style={{ color: '#5c7080', fontSize: 12, fontStyle: 'italic' }}>
+                    <div style={{ color: 'var(--qa-text-muted)', fontSize: 12, fontStyle: 'italic' }}>
                       No options match "{dynamicOptionsFilter}"
                     </div>
                   )}

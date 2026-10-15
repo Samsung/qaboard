@@ -20,6 +20,7 @@ import { logTickValues } from "./logTicks";
 import { RunBadge } from "./tags";
 import { format, plotly_palette, match_query } from "../utils";
 import { summary_outputs, metric_values, summary_stats, mixed_parameters } from "../utils/compare";
+import { useIsDark } from "../theme";
 
 
 
@@ -148,6 +149,7 @@ const with_log_ticks = (layout, values) => {
 
 const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly_default_colors }) => {
   const xdata = xaxis_labels || ["New", "Reference"];
+  const axis_color = useIsDark() ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.8)";
   const base_layout = {
     bargap: 0,
     bargroupgap: 0,
@@ -155,14 +157,14 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
     yaxis: {
       type: metric.plot_scale || "log",
       autorange: true,
-      color: "rgba(0,0,0,0.8)",
-      tickcolor: "rgba(0,0,0,0.8)",
+      color: axis_color,
+      tickcolor: axis_color,
       showgrid: false,
       zeroline: false,
       gridcolor: "rgb(255, 255, 255)",
       gridwidth: 1
     },
-    xaxis: { color: "rgba(0,0,0,0.8)", fixedrange: true, title: "" },
+    xaxis: { color: axis_color, fixedrange: true, title: "" },
     showlegend: false,
     margin: {
       // will eat into the drawing area

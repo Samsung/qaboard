@@ -21,13 +21,14 @@ import {
   useHotkeys,
 } from "@blueprintjs/core";
 import {
-  AlignLeftIcon, ArrowUpIcon, ChevronRightIcon, ClipboardIcon, CodeIcon, CompressedIcon, ConsoleIcon, CrossIcon, CubeIcon,
+  AlignLeftIcon, ArrowUpIcon, ChevronRightIcon, ClipboardIcon, CodeIcon, CompressedIcon, ConsoleIcon, CrossIcon, CubeIcon, DesktopIcon,
   DisableIcon, DocumentIcon, DownloadIcon, DuplicateIcon, ErrorIcon, EyeOffIcon, EyeOpenIcon, FolderCloseIcon,
-  FolderSharedIcon, HelpIcon, HomeIcon, LockIcon, LogInIcon, LogOutIcon, MediaIcon, NumericalIcon,
+  FlashIcon, FolderSharedIcon, HelpIcon, HomeIcon, LockIcon, LogInIcon, LogOutIcon, MediaIcon, MoonIcon, NumericalIcon,
   RedoIcon, RefreshIcon, SearchIcon, ShareIcon, StopIcon, ThIcon, TimelineLineChartIcon, TrashIcon, VideoIcon,
   WarningSignIcon,
 } from "@blueprintjs/icons";
 
+import { ThemeButton } from "../components/ThemeButton";
 import { toaster } from "../toaster";
 import { copyText } from "../utils/clipboard";
 import { setPathMappings } from "../utils/paths";
@@ -37,6 +38,8 @@ import {
   joinPath, linuxPath, parentPath, parseLocation, pathFromUrl, sortEntries, summarize, urlFromPath, windowsPath,
 } from "./logic";
 
+
+const theme_icons = { system: <DesktopIcon/>, light: <FlashIcon/>, dark: <MoonIcon/> };
 
 const ICONS = {
   'align-left': AlignLeftIcon, code: CodeIcon, compressed: CompressedIcon, console: ConsoleIcon, cube: CubeIcon,
@@ -348,6 +351,7 @@ export default function FileBrowser() {
             <Button size="small" variant="minimal" text="Windows" onClick={() => copyPath(path, true)}/>
           </Tooltip>}
         </ButtonGroup>
+        <ThemeButton className="fb-theme" icons={theme_icons}/>
         <UserMenu user={user} onSignIn={requestSignIn} onSignOut={onSignOut}/>
       </div>
     </header>

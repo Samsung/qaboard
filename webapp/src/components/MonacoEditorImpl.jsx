@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as monaco from "monaco-editor";
 import { Editor, loader } from "@monaco-editor/react";
+import { useIsDark } from "../theme";
 // Vite resolves `?worker` imports to worker constructors
 // oxlint-disable-next-line import/default
 import EditorWorker from "monaco-editor/editor/editor.worker?worker";
@@ -27,14 +28,25 @@ self.MonacoEnvironment = {
 // Use the bundled monaco instead of downloading it from a CDN
 loader.config({ monaco });
 
+// Monaco's theme is global: all the editors follow the app's theme
+const useMonacoTheme = () => {
+  const dark = useIsDark();
+  useEffect(() => monaco.editor.setTheme(dark ? "vs-dark" : "vs"), [dark]);
+  return dark ? "vs-dark" : "light";
+}
+
 // Same props as react-monaco-editor, which we used to use
-const MonacoEditorImpl = ({ editorDidMount, ...props }) => <Editor onMount={editorDidMount} {...props}/>;
+const MonacoEditorImpl = ({ editorDidMount, ...props }) => {
+  const theme = useMonacoTheme();
+  return <Editor onMount={editorDidMount} theme={theme} {...props}/>;
+}
 
 // We don't use @monaco-editor/react's DiffEditor, it updates the original text in place, and monaco then applies
 // the diff it was computing to the new text ("startLineNumber X cannot be after endLineNumberExclusive Y").
 // It also disposes the models before the editor ("TextModel got disposed before DiffEditorWidget model got reset").
 // Replacing the models of a diff editor also races with its diff computation, so new texts get a new editor.
 export const MonacoDiffEditorImpl = ({ original, value, language, options, width = "100%", height = "100%", editorDidMount }) => {
+  useMonacoTheme();
   const container = useRef(null);
   const editor = useRef(null);
 

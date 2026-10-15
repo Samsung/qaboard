@@ -47,9 +47,9 @@ const CommitContent = styled.div`
 
 const CommitRowWrapper = styled.li`
   display: flex;
-  border-color: #f0f0f0;
+  border-color: var(--qa-border);
   font-size: 14px;
-  color: rgba(0, 0, 0, 0.85);
+  color: var(--qa-text);
   padding: 10px 0;
   margin: 0;
 `;
@@ -93,7 +93,7 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
     )
       return (
         <div className={className}>
-        <a style={{ color: "grey" }} href={code_url}>
+        <a style={{ color: "var(--qa-text-muted)" }} href={code_url}>
           <Button intent={Intent.WARNING} minimal>
           
             Check the pipeline status..
@@ -239,7 +239,7 @@ const CommitShortId = styled.a`
   font-family: "Menlo", "Liberation Mono", "Consolas", "DejaVu Sans Mono",
     "Ubuntu Mono", "Courier New", "andale mono", "lucida console", monospace;
   font-weight: 600;
-  color: #1b69b6;
+  color: var(--qa-link);
 `;
 
 const CommitRow = ({ commit, project, project_data = {}, className, tag, default_batch }) => {
@@ -327,14 +327,14 @@ const CommitRow = ({ commit, project, project_data = {}, className, tag, default
               />}
             </Menu>}
           >
-            <Icon icon="menu" style={{marginLeft: '4px', marginRight: '10px', color: "rgba(0,0,0,0.45)"}}/>
+            <Icon icon="menu" style={{marginLeft: '4px', marginRight: '10px', color: "var(--qa-text-muted)"}}/>
           </Popover>
 
 
             <Icon icon="git-branch" />
             <Link
               style={{
-                color: "rgba(0,0,0,0.65)",
+                color: "var(--qa-text-secondary)",
                 marginRight: '5px',
                 marginTop: !!commit.message && '4px',
               }}

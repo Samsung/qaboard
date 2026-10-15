@@ -2,13 +2,13 @@ import { Link, useLinkClickHandler, useRouter } from "./router";
 import { path_segment, stringify_query } from "./selection";
 import styled from "styled-components";
 
-import { colors, spacing, typography, borders, shadows, transitions, breakpoints, sidebar } from './design/tokens';
+import { colors, spacing, typography, borders, transitions, sidebar } from './design/tokens';
 
 import {
+  AnchorButton,
   Classes,
   Intent,
   MenuItem,
-  Navbar,
   Icon,
   Tooltip,
 } from "@blueprintjs/core";
@@ -18,6 +18,7 @@ import { IntegrationsMenus } from "./components/integrations";
 import { MilestonesMenu } from "./components/milestones"
 import AuthButton from "./components/authentication/Auth"
 import { WhatsNewButton } from "./releaseNotes/ReleaseNotes"
+import { ThemeButton } from "./components/ThemeButton"
 import { LogsMenuItem, logs_hint_class } from "./AppSiderLogsItem"
 
 import { useCommitsList, useComparison, useSiteConfig, useUser, updateSelected } from "./hooks"
@@ -27,68 +28,70 @@ import { repo_url, tree_url, commit_url, default_integrations } from "./git"
 
 export const sider_width = sidebar.width.default;
 
-// Enhanced styled components for better design
+// Like Blueprint's dark navigation panels: flat, quiet, the selected view stands out.
+// Blueprint's own menu styles have 2-3 classes of specificity, `&&` gets ours above them.
 const SiderHeader = styled.div`
-    padding: ${spacing.md};
-    border-bottom: ${borders.width.thin} solid ${colors.border};
-    background: ${colors.surface};
-    
-    .bp6-navbar-heading {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 50px;
+    padding: 0 ${spacing.sm} 0 ${spacing.lg};
+    border-bottom: ${borders.width.thin} solid rgba(255, 255, 255, 0.08);
+    flex: 0 0 auto;
+
+    .qa-brand {
         font-size: ${typography.lg};
         font-weight: ${typography.semibold};
+        letter-spacing: 0.2px;
         color: ${colors.textPrimary};
     }
-    
-    .help-icon {
-        opacity: 0.7;
-        transition: opacity ${transitions.hover};
-        
-        &:hover {
-            opacity: 1;
-            color: ${colors.primary};
-        }
+    .qa-brand:hover {
+        color: ${colors.textPrimary};
+    }
+    .qa-header-actions {
+        display: flex;
+        align-items: center;
+    }
+    .qa-header-actions .bp6-button {
+        color: ${colors.textSecondary};
+    }
+    .qa-header-actions .bp6-button:hover {
+        color: ${colors.textPrimary};
     }
 `;
 
 const SiderSection = styled.div`
-    padding: ${spacing.contentPadding} ${spacing.xs} ${spacing.contentPadding} ${spacing.md};
-    
-    &:not(:last-child) {
-        border-bottom: ${borders.width.thin} solid ${colors.borderLight};
-        margin-bottom: ${spacing.sm};
-        padding-bottom: ${spacing.md};
-    }
-    
-    /* Section spacing */
+    padding: ${spacing.sm} ${spacing.sm};
+
     & + & {
-        margin-top: 0;
-    }
-    
-    /* First section (auth) gets less padding */
-    &:nth-child(2) {
-        padding-top: ${spacing.sm};
-        padding-bottom: ${spacing.sm};
+        border-top: ${borders.width.thin} solid rgba(255, 255, 255, 0.08);
     }
 `;
 
+const SiderFooter = styled(SiderSection)`
+    margin-top: auto;
+    border-top: ${borders.width.thin} solid rgba(255, 255, 255, 0.08);
+`;
+
 const SiderProjectAvatar = styled.div`
-    display: flex;
-    align-items: center;
-    gap: ${spacing.xs};
-    padding: ${spacing.xs} 0;
-    margin-bottom: 0px;
-    font-weight: ${typography.medium};
+    font-weight: ${typography.semibold};
     font-size: ${typography.base};
-    color: ${colors.textPrimary};
-    
+
+    a {
+        display: flex;
+        align-items: center;
+        gap: ${spacing.sm};
+        padding: ${spacing.xs} ${spacing.sm};
+        border-radius: ${borders.radius.sm};
+        color: ${colors.textPrimary};
+    }
+    a:hover {
+        background: rgba(255, 255, 255, 0.06);
+        color: ${colors.textPrimary};
+    }
     .avatar {
         flex-shrink: 0;
     }
-    
     .project-name {
         flex: 1;
         overflow: hidden;
@@ -97,265 +100,139 @@ const SiderProjectAvatar = styled.div`
     }
 `;
 
-const EnhancedMenuItem = styled.div`
-    /* Higher specificity to override Blueprint styles */
-    .bp6-menu-item,
-    .bp6-menu-item.bp6-menu-item {
-        border-radius: ${borders.radius.md} !important;
-        margin-bottom: ${spacing.xs} !important;
-        padding: ${spacing.xs} ${spacing.md} !important;
-        transition: all ${transitions.hover} !important;
-        position: relative !important;
-        border: none !important;
-        
-        /* Default state */
-        background: transparent !important;
-        color: ${colors.textSecondary} !important;
-        
-        /* Hover state */
-        &:hover {
-            background: ${colors.hover} !important;
-            color: ${colors.textPrimary} !important;
-            transform: translateX(2px) !important;
-        }
-        
-        /* Active state - more specific selectors */
-        &.bp6-intent-primary,
-        &[aria-selected="true"],
-        &.bp6-active,
-        &[active="true"] {
-            background: ${colors.active} !important;
-            color: ${colors.primary} !important;
-            font-weight: ${typography.medium} !important;
-        }
-        &[aria-selected="true"],
-        &.bp6-active,
-        &[active="true"] {
-            &::before {
-                content: '' !important;
-                position: absolute !important;
-                left: -${spacing.contentPadding} !important;
-                top: -2px !important;
-                bottom: 0 !important;
-                width: 3px !important;
-                height: 100% !important;
-                background: ${colors.primary} !important;
-                border-radius: 0 ${borders.radius.sm} ${borders.radius.sm} 0 !important;
-            }
-        }
-        
-        /* Icon styling */
-        .bp6-icon {
-            margin-right: ${spacing.md} !important;
-            opacity: 0.8 !important;
-            color: inherit !important;
-            transition: all ${transitions.hover} !important;
-        }
-        
-        &:hover .bp6-icon {
-            opacity: 1 !important;
-            transform: scale(1.1) !important;
-        }
-        
-        /* Label styling */
-        .bp6-menu-item-label {
-            opacity: 0.7 !important;
-            color: inherit !important;
-        }
-
-        /* Hints (e.g. failures on Logs) must stand out */
-        .bp6-menu-item-label.${logs_hint_class} {
-            opacity: 1 !important;
-        }
+const SiderMenu = styled.div`
+    && .bp6-menu-item {
+        display: flex;
+        align-items: center;
+        min-height: 30px;
+        margin: 1px 0;
+        padding: 5px ${spacing.sm};
+        border-radius: ${borders.radius.sm};
+        color: ${colors.textSecondary};
+        background: transparent;
+        position: relative;
+        cursor: pointer;
+        transition: background-color ${transitions.hover}, color ${transitions.hover};
     }
-    
-    /* Also target direct MenuItem children */
-    > .bp6-menu-item,
-    .bp6-menu-item-content {
-        color: inherit !important;
+    && .bp6-menu-item:hover,
+    && .bp6-menu-item.bp6-popover-open {
+        background: rgba(255, 255, 255, 0.07);
+        color: ${colors.textPrimary};
+    }
+    && .bp6-menu-item:focus-visible {
+        outline: 2px solid ${colors.primary};
+        outline-offset: -2px;
+    }
+    && .bp6-menu-item > .bp6-icon {
+        color: inherit;
+        opacity: 0.75;
+        margin-right: 10px;
+    }
+    && .bp6-menu-item:hover > .bp6-icon {
+        opacity: 1;
+    }
+    && .bp6-menu-item-label {
+        color: inherit;
+        opacity: 0.6;
+    }
+    /* Hints (e.g. failures on Logs) must stand out */
+    && .bp6-menu-item-label.${logs_hint_class} {
+        opacity: 1;
+    }
+    /* Actions stand out a little */
+    && .bp6-menu-item.bp6-intent-primary {
+        color: #8abbff;
+    }
+    && .bp6-menu-item.bp6-intent-danger {
+        color: #fa999c;
+    }
+    /* The selected view: highlighted, with a bar on the left */
+    && .bp6-menu-item.bp6-active,
+    && .bp6-menu-item[aria-current="page"] {
+        background: rgba(45, 114, 210, 0.28);
+        color: ${colors.textPrimary};
+        font-weight: ${typography.medium};
+    }
+    && .bp6-menu-item.bp6-active::before,
+    && .bp6-menu-item[aria-current="page"]::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 4px;
+        bottom: 4px;
+        width: 3px;
+        border-radius: 0 2px 2px 0;
+        background: #4c90f0;
+    }
+    && .bp6-menu-item.bp6-active > .bp6-icon {
+        opacity: 1;
+        color: #8abbff;
     }
 `;
 
 const SectionDivider = styled.div`
     height: ${borders.width.thin};
-    background: ${colors.border};
-    margin: ${spacing.lg} 0;
-    opacity: 0.5;
+    background: rgba(255, 255, 255, 0.08);
+    margin: ${spacing.sm} ${spacing.xs};
 `;
 
 const SectionHeader = styled.div`
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
     font-size: ${typography.xs};
     font-weight: ${typography.semibold};
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.6px;
     color: ${colors.textMuted};
-    margin-bottom: ${spacing.sm};
-    margin-top: ${spacing.md};
-    padding: 0;
-    
+    margin: ${spacing.lg} ${spacing.sm} ${spacing.xs};
+
     &:first-child {
-        margin-top: 0;
+        margin-top: ${spacing.xs};
     }
 `;
 
 const Sider = styled.div`
-    /* Layout */
-    flex: 0 0 ${sidebar.width.default};
-    max-width: ${sidebar.width.default};
-    min-width: ${sidebar.width.compact};
     width: ${sidebar.width.default};
-    
-    /* Positioning */
     position: fixed;
     height: 100vh;
     top: 0;
     left: 0;
     z-index: ${sidebar.zIndex};
-    
-    /* Styling */
-    background: linear-gradient(180deg, ${colors.background} 0%, ${colors.surface} 100%);
-    border-right: ${borders.width.thin} solid ${colors.border};
-    box-shadow: ${shadows.sidebar};
-    
-    /* Typography */
-    color: ${colors.textPrimary};
-    font-size: ${typography.base};
-    
-    /* Animation */
-    transition: all ${transitions.normal};
-    transform: translate3d(0, 0, 0);
-    
-    /* Layout behavior */
     display: flex;
     flex-direction: column;
     overflow-x: hidden;
     overflow-y: auto;
-    
-    /* Responsive design */
-    // cannot be enabled until we make sure we still export the correct sidebar_width
-    // ${breakpoints.up('laptop')} {
-    //     width: ${sidebar.width.default};
-    //     min-width: ${sidebar.width.default};
-    // }
-    
-    // ${breakpoints.up('wide')} {
-    //     width: ${sidebar.width.wide};
-    //     max-width: ${sidebar.width.wide};
-    // }
-    
-    /* Link styling */
+
+    background: var(--qa-sider-background);
+    border-right: ${borders.width.thin} solid rgba(0, 0, 0, 0.3);
+    color: ${colors.textPrimary};
+    font-size: ${typography.base};
+
     a {
         color: inherit;
         text-decoration: none;
-        transition: color ${transitions.hover};
-        
-        &:hover {
-            text-decoration: none;
-            color: ${colors.primary};
-        }
     }
-    
-    /* Remove bullet points and fix layout */
+
+    /* MenuItems are <li>s */
     ul, li {
-        list-style: none !important;
-        margin: 0 !important;
-        padding: 0 !important;
+        list-style: none;
+        margin: 0;
+        padding: 0;
     }
-    
-    /* Global overrides for Blueprint menu items */
-    .bp6-menu-item {
-        color: ${colors.textSecondary} !important;
-        background: transparent !important;
-        border-radius: ${borders.radius.md} !important;
-        margin-bottom: ${spacing.itemGap} !important;
-        padding: ${spacing.md} !important;
-        position: relative !important;
-        cursor: pointer !important;
-        list-style: none !important;
-        
-        /* Remove any bullets and list styles */
-        &::before,
-        &::after {
-            display: none !important;
-        }
-        
-        &::marker {
-            display: none !important;
-        }
-        
-        /* Focus states for accessibility */
-        &:focus {
-            outline: 2px solid ${colors.primary} !important;
-            outline-offset: 2px !important;
-        }
-        
-        &:hover {
-            background-color: ${colors.hover} !important;
-            color: ${colors.textPrimary} !important;
-            transform: translateX(2px);
-        }
-        
-        &.bp6-intent-primary,
-        &.bp6-active {
-            background-color: ${colors.active} !important;
-            color: ${colors.primary} !important;
-            font-weight: ${typography.medium} !important;
-            
-            /* Override the bullet hide for active indicator */
-            &::before {
-                content: '' !important;
-                display: block !important;
-                position: absolute !important;
-                left: 0 !important;
-                top: -2px !important;
-                bottom: 0 !important;
-                width: 3px !important;
-                height: 100% !important;
-                background: ${colors.primary} !important;
-                border-radius: 0 ${borders.radius.sm} ${borders.radius.sm} 0 !important;
-                z-index: 1 !important;
-            }
-        }
-        
-        .bp6-icon {
-            color: inherit !important;
-            opacity: 0.8;
-            transition: all ${transitions.hover};
-            margin-right: ${spacing.md} !important;
-        }
-        
-        &:hover .bp6-icon {
-            opacity: 1;
-            transform: scale(1.05);
-        }
-        
-        .bp6-menu-item-label {
-            color: inherit !important;
-            opacity: 0.7;
-        }
-    }
-    
-    /* Scrollbar styling */
-    &::-webkit-scrollbar {
-        width: 6px;
-    }
-    
-    &::-webkit-scrollbar-track {
-        background: transparent;
-    }
-    
-    &::-webkit-scrollbar-thumb {
-        background: ${colors.border};
-        border-radius: ${borders.radius.sm};
-        
-        &:hover {
-            background: ${colors.borderLight};
-        }
-    }
+
+    scrollbar-width: thin;
+    scrollbar-color: ${colors.border} transparent;
 `
+
+// Hovering a view says what it's for: QA-Board has many, and their names are short
+const hint_delay = 600;
+const SiderHint = ({ content, children }) => <Tooltip
+  content={<span style={{display: 'inline-block', maxWidth: 260}}>{content}</span>}
+  placement="right"
+  hoverOpenDelay={hint_delay}
+  targetTagName="div"
+  fill
+>
+  {children}
+</Tooltip>
 
 
 // The integrations of the branch pages: from qaboard.yaml, or the defaults for the project's git host
@@ -366,7 +243,7 @@ const ProjectSideAvatar = ({ project, project_data = {} }) => {
   let project_name = project.split('/').slice(-1)[0];
   return (
     <SiderProjectAvatar>
-      <Link to={`/${project}`} style={{display: 'flex', alignItems: 'center', gap: '12px', width: '100%', color: 'inherit'}}>
+      <Link to={`/${project}`} title={`${project}: all its commits`}>
         <ProjectAvatar
           className="avatar"
           project={project}
@@ -440,8 +317,8 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
   return <>
     {/* The branch's commits: highlighted on their page, a link elsewhere */}
     {(is_project_home || is_history)
-      ? <div><MenuItemLink to={commits_url} text={branch} title={branch && `Commits on ${branch}`} icon='git-branch' style={{marginRight: '5px'}}/></div>
-      : <MenuItem icon={is_branch ? "git-branch" : 'user'} intent='primary' text={tag} title={tag}/>
+      ? <MenuItemLink to={commits_url} text={branch ?? 'All commits'} title={branch ? `Commits on ${branch}` : 'Commits on all branches'} icon='git-branch'/>
+      : <MenuItem icon={is_branch ? "git-branch" : 'user'} active text={tag ?? 'All commits'} title={is_branch ? `Commits on ${tag}` : tag && `Commits by ${tag}`}/>
     }
     {!is_committer && <>
       <MenuItem href={code_url} icon="git-repo" target="_blank" rel="noopener noreferrer" labelElement={<Icon icon="share" />} text="Code"/>
@@ -510,36 +387,47 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
       {...integrationProps}
     />
     {/* Metrics Section */}
-    <SectionHeader>
-      <span>Metrics</span>
-    </SectionHeader>
-    <MenuItem icon="dashboard" text="Summary" active={active('summary')} onClick={set('summary')}/>
-    <MenuItem icon="locate" text="Metrics Table" active={active('table-kpi')} onClick={set('table-kpi')} />
-    <MenuItem icon="heat-grid" text="Metrics Diff" active={active('table-compare')} onClick={set('table-compare')}/>
+    <SectionHeader>Metrics</SectionHeader>
+    <SiderHint content="The batch's metrics, aggregated over all its tests, compared with the reference.">
+      <MenuItem icon="dashboard" text="Summary" active={active('summary')} onClick={set('summary')}/>
+    </SiderHint>
+    <SiderHint content="The metrics of each test, colored by how they compare to their targets.">
+      <MenuItem icon="locate" text="Metrics Table" active={active('table-kpi')} onClick={set('table-kpi')} />
+    </SiderHint>
+    <SiderHint content="For each test, how the metrics changed versus the reference: find regressions.">
+      <MenuItem icon="heat-grid" text="Metrics Diff" active={active('table-compare')} onClick={set('table-compare')}/>
+    </SiderHint>
 
     {/* Outputs Section */}
-    <SectionHeader>
-      <span>Outputs</span>
-    </SectionHeader>
-    <MenuItem icon="media" text="Visualizations" active={active('output-list')} onClick={set('output-list')} />
-    <MenuItem icon="folder-open" text="Output Files" active={active('bit-accuracy')} onClick={set('bit-accuracy')} />
-    <LogsMenuItem batch={new_batch} active={active('logs')} onClick={set('logs')} />
+    <SectionHeader>Outputs</SectionHeader>
+    <SiderHint content="Images, videos, plots, point clouds... of each test, side by side with the reference, as configured in qaboard.yaml.">
+      <MenuItem icon="media" text="Visualizations" active={active('output-list')} onClick={set('output-list')} />
+    </SiderHint>
+    <SiderHint content="All the files each test created, and which differ from the reference (bit-accuracy).">
+      <MenuItem icon="folder-open" text="Output Files" active={active('bit-accuracy')} onClick={set('bit-accuracy')} />
+    </SiderHint>
+    <SiderHint content="The logs of each run, and of the batch's submission: why runs failed.">
+      <LogsMenuItem batch={new_batch} active={active('logs')} onClick={set('logs')} />
+    </SiderHint>
 
     {/* Source Section */}
-    <SectionHeader>
-      <span>Source</span>
-    </SectionHeader>
-    <MenuItem icon="settings" text="Artifacts & Configs" active={active('parameters')} onClick={set('parameters')} />
-    <MenuItem href={code_url} icon="git-commit" target="_blank" rel="noopener noreferrer" labelElement={<Icon icon="share" />} text="Code"/>
+    <SectionHeader>Source</SectionHeader>
+    <SiderHint content="The commit's build artifacts and qaboard.yaml configuration, diffed with the reference.">
+      <MenuItem icon="settings" text="Artifacts & Configs" active={active('parameters')} onClick={set('parameters')} />
+    </SiderHint>
+    <MenuItem href={code_url} icon="git-commit" target="_blank" rel="noopener noreferrer" labelElement={<Icon icon="share" />} text="Code" title="See the commit's code on your git host"/>
 
     {/* Tuning Section */}
-    <SectionHeader>
-      <span>Tuning</span>
-    </SectionHeader>
-    <MenuItem icon="layout-group-by" active={active('groups')} text="Available Tests" onClick={set('groups')} />
-    <MenuItem intent={Intent.PRIMARY} icon="play" text="Run Tests / Tuning" active={active('tuning')} onClick={set('tuning')} />
-
-    <MenuItem icon="predictive-analysis" intent={has_optim ? "primary" : undefined} active={active('optimization')} text="Analysis" onClick={set('optimization')}/>
+    <SectionHeader>Tuning</SectionHeader>
+    <SiderHint content="The batches of tests you can run: see and edit their definitions.">
+      <MenuItem icon="layout-group-by" active={active('groups')} text="Available Tests" onClick={set('groups')} />
+    </SiderHint>
+    <SiderHint content="Run this commit on more tests, or with other parameters, from the web app.">
+      <MenuItem intent={Intent.PRIMARY} icon="play" text="Run Tests / Tuning" active={active('tuning')} onClick={set('tuning')} />
+    </SiderHint>
+    <SiderHint content={has_optim ? "This batch is an auto-tuning: see how the parameters affect the metrics." : "How the tuned parameters affect the metrics. Useful after tuning or auto-tuning."}>
+      <MenuItem icon="predictive-analysis" intent={has_optim ? "primary" : undefined} active={active('optimization')} text="Analysis" onClick={set('optimization')}/>
+    </SiderHint>
   </>
 }
 
@@ -567,35 +455,26 @@ const AppSider = () => {
   const integrationProps = useIntegrationStatuses(template_context);
 
   return (
-    <Sider className={`${Classes.DARK}`}>
+    <Sider className={Classes.DARK}>
       {/* Header Section */}
       <SiderHeader>
-        <Navbar.Heading className="bp6-navbar-heading">
-          <Link to="/">
-            <strong>QA-Board</strong>
-          </Link>
-          <span>
-            <WhatsNewButton via="sidebar" className="help-icon"/>
-            <Tooltip content="User guide">
-              <a
-                href={`${docs_root}docs/user-guide/overview`}
-                rel="noopener noreferrer"
-                target="_blank"
-                className="help-icon"
-                aria-label="User guide"
-                style={{marginLeft: spacing.xs}}
-              >
-                <Icon icon="info-sign"/>
-              </a>
-            </Tooltip>
-          </span>
-        </Navbar.Heading>
+        <Link to="/" className="qa-brand" title="All the projects">QA-Board</Link>
+        <span className="qa-header-actions">
+          <WhatsNewButton via="sidebar"/>
+          <ThemeButton/>
+          <Tooltip content="User guide">
+            <AnchorButton
+              variant="minimal"
+              size="small"
+              icon="help"
+              href={`${docs_root}docs/user-guide/overview`}
+              rel="noopener noreferrer"
+              target="_blank"
+              aria-label="User guide"
+            />
+          </Tooltip>
+        </span>
       </SiderHeader>
-
-      {/* Authentication Section */}
-      <SiderSection>
-        <AuthButton appSider={true}/>
-      </SiderSection>
 
       {/* Project Section */}
       <SiderSection>
@@ -606,8 +485,7 @@ const AppSider = () => {
       <SiderSection>
         {(route.is_list || route.is_history) && (
           <>
-            <SectionHeader>Project Navigation</SectionHeader>
-            <EnhancedMenuItem>
+            <SiderMenu>
               <ProjectSideCommitList
                 commit={latest_commit}
                 ref_commit={ref_commit}
@@ -617,11 +495,11 @@ const AppSider = () => {
                 docs_root={docs_root}
                 {...integrationProps}
               />
-            </EnhancedMenuItem>
+            </SiderMenu>
           </>
         )}
         {route.is_commit && (
-          <EnhancedMenuItem>
+          <SiderMenu>
             <ProjectSideResults
               new_batch={new_batch}
               commit={new_commit}
@@ -638,9 +516,14 @@ const AppSider = () => {
               ref_project={selected.ref_project}
               {...integrationProps}
             />
-          </EnhancedMenuItem>
+          </SiderMenu>
         )}
       </SiderSection>
+
+      {/* At the bottom, like in most apps */}
+      <SiderFooter>
+        <AuthButton appSider={true}/>
+      </SiderFooter>
     </Sider>
   )
 }
