@@ -233,9 +233,9 @@ def update_project(data, db_session):
       return None
 
 
-  # List all the files named "qaboard.yaml" in this commit
+  # List all the files named "qaboard.yaml" (or the legacy "qatools.yaml") in this commit
   repo_files = repo.git.ls_tree('--name-only', '-r', commit_id).splitlines()
-  projects_config_paths = [Path(f) for f in repo_files if re.search(r'(/|^)qa(board|tools).yaml', f)]
+  projects_config_paths = [Path(f) for f in repo_files if re.search(r'(/|^)qa(board|tools)\.yaml$', f)]
   for subproject_config_path in projects_config_paths:
     project_id = str(root_project_id / subproject_config_path.parent)
     # Make sure the it exists in the database, with up-to-date metadata
@@ -265,6 +265,9 @@ def update_project(data, db_session):
     qatools_config = {}
     for config_path in config_paths:
       config = parsed_content(commit_id, config_path)
+      if config is not None and not isinstance(config, dict):
+        print(f"Ignoring {config_path} in {root_project_id}@{commit_id}: not a YAML mapping", file=sys.stderr)
+        continue
       qatools_config = qaboard.merge(config, qatools_config)
     if "project" not in  qatools_config:
       qatools_config["project"] = {}
