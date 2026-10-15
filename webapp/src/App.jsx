@@ -31,6 +31,7 @@ import "./App.css";
 
 import { routes } from './routes'
 import { ReleaseNotesProvider, WhatsNewLink } from "./releaseNotes/ReleaseNotes"
+import { HelpSheetProvider } from "./components/HelpSheet"
 import PrivateContent from "./components/authentication/PrivateContent"
 import AppSider, { sider_width } from './AppSider'
 import AppNavbar from './AppNavbar'
@@ -80,9 +81,11 @@ const App = ({ persist = true }) => {
       <Analytics/>
       <StyleSheetManager shouldForwardProp={shouldForwardProp}>
         <ReleaseNotesProvider>
-          <HistoryRouter history={history}>
-            <Routes/>
-          </HistoryRouter>
+          <HelpSheetProvider>
+            <HistoryRouter history={history}>
+              <Routes/>
+            </HistoryRouter>
+          </HelpSheetProvider>
         </ReleaseNotesProvider>
       </StyleSheetManager>
     </Sentry.ErrorBoundary>

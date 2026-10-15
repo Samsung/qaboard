@@ -5,7 +5,7 @@ import styled from "styled-components";
 import { colors, spacing, typography, borders, transitions, sidebar } from './design/tokens';
 
 import {
-  AnchorButton,
+  Button,
   Classes,
   Intent,
   MenuItem,
@@ -19,6 +19,7 @@ import { MilestonesMenu } from "./components/milestones"
 import AuthButton from "./components/authentication/Auth"
 import { WhatsNewButton } from "./releaseNotes/ReleaseNotes"
 import { ThemeButton } from "./components/ThemeButton"
+import { useHelpSheet } from "./components/HelpSheet"
 import { LogsMenuItem, logs_hint_class } from "./AppSiderLogsItem"
 
 import { useCommitsList, useComparison, useSiteConfig, useUser, updateSelected } from "./hooks"
@@ -478,6 +479,7 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
 
 const AppSider = () => {
   const { docs_root } = useSiteConfig();
+  const { open: openHelp } = useHelpSheet();
   const user = useUser();
   const { project, project_data, selected, selected_views, default_views, new_commit, ref_commit, new_batch, ref_batch } = useComparison();
   const route = selected.route;
@@ -506,15 +508,14 @@ const AppSider = () => {
         <span className="qa-header-actions">
           <WhatsNewButton via="sidebar"/>
           <ThemeButton/>
-          <Tooltip content="User guide">
-            <AnchorButton
+          <Tooltip content={<span>Cheat sheet: shortcuts, words, docs <kbd className={Classes.KEY}>?</kbd></span>}>
+            <Button
               variant="minimal"
               size="small"
               icon="help"
-              href={`${docs_root}docs/user-guide/overview`}
-              rel="noopener noreferrer"
-              target="_blank"
-              aria-label="User guide"
+              onClick={openHelp}
+              aria-label="Cheat sheet"
+              aria-keyshortcuts="?"
             />
           </Tooltip>
         </span>
