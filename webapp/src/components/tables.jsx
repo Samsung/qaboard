@@ -5,7 +5,6 @@ import {
   Callout,
   Classes,
   Intent,
-  Colors,
   Tag,
   Tooltip,
   HTMLTable,
@@ -35,8 +34,12 @@ const Row = styled.tr`
   }
 `
 
-// Cells colored by quality are light (yellow, green...): their text stays dark in the dark theme
-const colored_cell = background => background ? { background, color: Colors.DARK_GRAY1 } : undefined;
+// Cells colored by quality (App.css .heat-cell): in the light theme, light colors with dark text; in the dark theme,
+// the same hues tinted onto the card, so that the table doesn't glare
+// `strength`: from 0 (neutral, yellow) to 1 (as good or bad as it gets)
+const colored_cell = (background, quality) => background
+  ? { className: 'heat-cell', style: { '--heat': background, '--heat-strength': Math.abs(2 * quality - 1).toFixed(2) } }
+  : {};
 
 const RowHeaderCell = ({ output }) => {
   if (output === undefined || output === null)
@@ -79,7 +82,7 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
     const quality = improvement_quality(delta_relative, metric.smaller_is_better);
     // native tooltips: tables can have thousands of cells
     return <td
-      style={colored_cell(metric_ref && interpolateRdYlGn(quality))}
+      {...colored_cell(metric_ref && interpolateRdYlGn(quality), quality)}
       title={`New: ${metric_new * metric.scale}${metric.suffix}\nReference: ${metric_ref * metric.scale}${metric.suffix}`}
     >
       {delta === 0 ? "=" : <span>{metric_formatter(delta * (metric.scale ?? 1), metric)} ({format_percent(100 * delta_relative)}%)</span>}
@@ -110,7 +113,7 @@ const QualityCell = ({ metric_info, metric, metric_ref }) => {
   const metric_for_display = is_numeric ? metric * metric_info.scale : metric
   return (
     <td
-      style={colored_cell(metric_info.target !== undefined && is_numeric && color)}
+      {...colored_cell(metric_info.target !== undefined && is_numeric && color, quality)}
       title={is_numeric ? `${metric_for_display}${metric_info.suffix}` : undefined}
     >
       {is_numeric

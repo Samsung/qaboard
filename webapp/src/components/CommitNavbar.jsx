@@ -56,11 +56,64 @@ const CommitBranchButton = ({ commit, error, onClick, style }) => {
   return <span style={style}>
     <Tooltip content={<span>Click to select the latest commit from <code>{has_branch ? commit.branch : 'the branch'}</code></span>}>
       <Button style={{marginLeft: '10px'}} size="small" variant="minimal" onClick={() => { if (has_branch) onClick(commit.branch) }} className={has_branch ? null : Classes.SKELETON} icon="git-branch" >
-        <span className="hide-small-screen">{has_branch ? commit.branch : 'master'}</span>
+        <span className="commit-header-branch">{has_branch ? commit.branch : 'master'}</span>
       </Button>
     </Tooltip>
   </span>
 }
+
+// How the header fits the content area (it's a container, see AppNavbar): the left side shrinks and truncates,
+// then labels that have an icon or a tooltip hide, then the filter and the batch selector get narrower.
+// (Container queries style the container's descendants only: the variables are set on the groups.)
+export const commit_header_styles = `
+  .commit-header-left {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-left: 20px;
+  }
+  .commit-header-right {
+    flex: none;
+    margin-left: auto;
+  }
+  .commit-header-filter {
+    width: 260px;
+  }
+  .commit-header-branch {
+    display: inline-block;
+    max-width: 240px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
+  }
+  @container commit-header (max-width: 1150px) {
+    .commit-header-right {
+      --batch-select-max-width: 260px;
+    }
+    .commit-header-filter {
+      width: 210px;
+    }
+    .commit-header-branch {
+      max-width: 140px;
+    }
+  }
+  @container commit-header (max-width: 1000px) {
+    .commit-header-optional, .commit-header-branch {
+      display: none;
+    }
+    .done-at-by {
+      display: none;
+    }
+  }
+  @container commit-header (max-width: 860px) {
+    .commit-header-right {
+      --batch-select-max-width: 200px;
+    }
+    .commit-header-filter {
+      width: 170px;
+    }
+  }
+`;
 
 const BatchTags = ({ batch }) => {
   if (batch === undefined || batch === null)
@@ -427,10 +480,10 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
     <li>Redo and Move apply to the runs that match. Delete applies to the whole batch.</li>
   </ul>
   return <>
-    <NavbarGroup style={{marginLeft: '20px'}}>
-      <FormGroup style={{marginBottom: '0px'}}>
-        <div style={{ 'marginRight': '10px', display: 'block', position: 'relative', width: '600px', marginBottom: '6px' }}>
-          <span style={{ display: 'flex' }}>
+    <NavbarGroup className="commit-header-left">
+      <FormGroup style={{ marginBottom: '0px', minWidth: 0, flex: '1 1 auto' }}>
+        <div style={{ position: 'relative', maxWidth: '640px', marginBottom: '6px' }}>
+          <span style={{ display: 'flex', minWidth: 0 }}>
             <Tooltip
               content={type === 'new' ? "New: the results you're looking at" : "Reference: what the new results are compared to. Change it with “Change” or pick a milestone."}
               targetProps={{style: {flex: '0 1 auto', alignSelf: 'center', marginRight: '5px'}}}
@@ -441,11 +494,11 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             <CommitMessage
               commit={commit}
               error={error_text}
-              style={{ maxWidth: "450px", minWidth: "450px", flex: '0 1 auto' }}
+              style={{ minWidth: 0, flex: '0 1 auto' }}
             />
           </span>
         </div>
-        <div style={{ display: 'flex' }}>
+        <div style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
 
           <CommitMilestoneEditor
             project={project}
@@ -475,7 +528,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             content={milestones_menu}
           >
             <Button size="small" variant="minimal" icon="edit" style={{ alignSelf: 'center', marginLeft: '2px' }} aria-label={`Change the ${type === 'new' ? 'new' : 'reference'} commit`}>
-              <span className="hide-small-screen">Change</span>
+              <span className="commit-header-optional">Change</span>
             </Button>
           </PopoverNext>
           {!!selected[project_attr] && project !== selected[project_attr] && <Tooltip content={`Results from another project: ${selected[project_attr]}`} targetProps={{style: {alignSelf: "center"}}}>
@@ -483,7 +536,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
           </Tooltip>}
           <CommitBranchButton commit={commit} error={error_text} onClick={selectBranch} style={{ flex: '0 1 auto', alignSelf: 'center' }} />
 
-          {(!error_text || !!commit?.authored_datetime) && <DoneAtTag project={project} commit={commit} style={{ flex: '0 1 auto', alignSelf: 'center' }} />}{" "}
+          {(!error_text || !!commit?.authored_datetime) && <DoneAtTag project={project} commit={commit} style={{ flex: '0 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }} />}{" "}
           {same_as_new && <Tooltip content="Same commit as new: pick another reference to compare" targetProps={{style: {alignSelf: "center"}}}>
             <Tag minimal intent={Intent.WARNING} icon="duplicate" style={{ marginLeft: '5px' }}>Same as new</Tag>
           </Tooltip>}
@@ -506,9 +559,10 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
         </div>
       </FormGroup>
     </NavbarGroup>
-    <NavbarGroup align="right" style={{height: "auto"}}>
+    <NavbarGroup className="commit-header-right" style={{height: "auto"}}>
       <FormGroup
         labelFor={`filter-${type}-input`}
+        className="commit-header-filter"
         style={{ marginBottom: '0px', marginRight: '10px' }}
         helperText={<BatchTags batch={batch?.filtered}/>}
       >

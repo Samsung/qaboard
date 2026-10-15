@@ -4,6 +4,7 @@ import { Suggest } from "@blueprintjs/select";
 import { DateRangeInput } from "@blueprintjs/datetime";
 import enUS from "date-fns/locale/en-US";
 import {
+  Classes,
   Intent,
   Navbar,
   NavbarGroup,
@@ -17,7 +18,7 @@ import {
 import { useState } from "react";
 import { useRouter } from "./router";
 import { path_segment } from "./selection";
-import { CommitNavbar } from "./components/CommitNavbar";
+import { CommitNavbar, commit_header_styles } from "./components/CommitNavbar";
 import { SelectBatchesNav } from "./components/tuning/SelectBatches";
 import { useBranches, useCommitsList, useComparison, useUrlText, updateSelected } from "./hooks";
 
@@ -74,19 +75,28 @@ const StyledNavbar = styled(Navbar)`
 `
 
 const navbar_height = 75;
-const StyledNavbarNew = styled(Navbar)`
+// The commits' headers: one row that never wraps (the page below expects their fixed height). What doesn't fit
+// in the content area gets smaller or hides (see CommitNavbar), using container queries on the header's width.
+const commit_header = `
    position: fixed !important;
    padding-left: ${sider_width} !important;
    height: ${navbar_height}px !important;
+   display: flex;
+   align-items: center;
+   gap: 12px;
+   container: commit-header / inline-size;
+   > .${Classes.NAVBAR_GROUP} {
+     float: none;
+   }
+   ${commit_header_styles}
+`
+const StyledNavbarNew = styled(Navbar)`
+   ${commit_header}
    top: 0 !important;
-   align-content: center;
 `
 const StyledNavbarRef = styled(Navbar)`
-   position: fixed !important;
-   padding-left: ${sider_width} !important;
-   height: ${navbar_height}px !important;
+   ${commit_header}
    top: ${navbar_height}px !important;
-   align-content: center;
 `
 
 

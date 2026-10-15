@@ -186,7 +186,7 @@ const SelectBatchesNav = ({ commit, onChange, batch, project, project_data }) =>
         endIcon="double-caret-vertical"
         aria-label={`Batch: ${selectedBatch?.title ?? pretty_label(batch)}`}
         disabled={!has_batches}
-        style={{ maxWidth: '360px', marginLeft: '5px' }}
+        style={{ maxWidth: 'var(--batch-select-max-width, 360px)', marginLeft: '5px' }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px', lineHeight: '1.3', width: '100%' }}>
           <div style={{ flex: 1, textAlign: 'left' }}>

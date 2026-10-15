@@ -97,15 +97,20 @@ const relative = date => Date.now() - date.getTime() < 10 * 1000
   : DateTime.fromJSDate(date).toRelative({ style: "short" }) ?? "just now";
 
 
-const Layout = styled.div`
+// The editor and its side panel, stacked when the content area is narrow
+const LayoutContainer = styled.div`
+  container-type: inline-size;
+`;
+const LayoutGrid = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: 16px;
   align-items: start;
-  @media (max-width: 1100px) {
+  @container (max-width: 860px) {
     grid-template-columns: minmax(0, 1fr);
   }
 `;
+const Layout = ({ children }) => <LayoutContainer><LayoutGrid>{children}</LayoutGrid></LayoutContainer>;
 
 const Toolbar = styled.div`
   display: flex;
