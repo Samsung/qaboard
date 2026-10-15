@@ -32,7 +32,7 @@ In the **ref** bar (or the **new** bar, it works the same way):
 |---|---|
 | **Change Project** | Pick results from another project, e.g. another sub-project of a monorepo, or a fork. |
 | **Switch new/reference** | Swaps the two commits, with their batches and filters. |
-| **Also Select as Reference** / **as New** | Copies this commit, batch and filter to the other bar. Handy to compare two batches of the **same** commit, e.g. a tuning experiment vs CI. |
+| **Also select as reference** / **as new** | Copies this commit, batch and filter to the other bar. Handy to compare two batches of the **same** commit, e.g. a tuning experiment vs CI. |
 | **Remove from comparison** | Clears the commit. |
 | The reference branch | Selects its latest commit. |
 | Milestones | From *qaboard.yaml*, shared, or private. The milestone's batch and filter are selected too. |
@@ -40,7 +40,7 @@ In the **ref** bar (or the **new** bar, it works the same way):
 Each bar also has its own **batch selector** and **filter**: you can compare any batch of any commit with any other.
 
 :::tip
-To see what a tuning experiment changed, select its batch in the new bar, then use **Also Select as Reference** and pick the **CI** batch in the reference bar.
+To see what a tuning experiment changed, select its batch in the new bar, then use **Also select as reference** and pick the **CI** batch in the reference bar.
 :::
 
 ## How runs are matched
@@ -49,7 +49,7 @@ For each new run, QA-Board finds the most similar reference run: first the same 
 When the best match is not identical, yellow tags warn you on the run: **Input**, **Config**, **Platform** or **Tuning** (with a `≠` icon). Hover them to see what the reference used. If a run has no match at all, it has no reference values or visualizations.
 
 :::caution
-Matching only uses the reference runs left by the **filter ref outputs** box. If you filter the new runs, filter the reference the same way.
+Matching only uses the reference runs left by the reference's filter box (**Filter the reference's runs…**). If you filter the new runs, filter the reference the same way.
 :::
 
 ## Milestones

@@ -56,7 +56,7 @@ const Layout = styled.div`
   flex-direction: row;
   box-sizing: border-box;
   // style
-  background: #f0f2f5;
+  background: var(--qa-background);
   min-height: 750px;
 `
 

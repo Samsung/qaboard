@@ -183,8 +183,8 @@ const Card = styled.div`
   gap: 12px;
   padding: 14px;
   border-radius: 8px;
-  border: 1px solid rgba(17, 20, 24, 0.12);
-  background: #fff;
+  border: 1px solid var(--qa-border);
+  background: var(--qa-surface);
   transition: box-shadow 150ms ease, border-color 150ms ease;
   &:hover {
     border-color: rgba(31, 124, 232, 0.5);
@@ -197,12 +197,12 @@ const Card = styled.div`
   }
   p {
     margin: 0;
-    color: #404854;
+    color: var(--qa-text-secondary);
     line-height: 1.45;
   }
   code {
     font-size: 12px;
-    background: rgba(17, 20, 24, 0.06);
+    background: var(--qa-hover);
     padding: 1px 4px;
     border-radius: 3px;
   }
@@ -216,8 +216,8 @@ const IconBubble = styled.div`
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: rgba(31, 124, 232, 0.1);
-  color: #1f7ce8;
+  background: rgba(31, 124, 232, 0.15);
+  color: var(--qa-link);
 `;
 
 // Highlight descriptions are plain text, with `code` spans
@@ -269,7 +269,7 @@ const NoteHeader = ({ note, isNew }) => <Eyebrow>
 const Description = styled.p`
   font-size: 15px;
   line-height: 1.5;
-  color: #1c2127;
+  color: var(--qa-text);
   margin: 8px 0 0 0;
 `;
 
@@ -279,7 +279,7 @@ const Details = styled.div`
     font-size: 15px;
     margin: 18px 0 6px 0;
     padding-bottom: 4px;
-    border-bottom: 1px solid rgba(17, 20, 24, 0.1);
+    border-bottom: 1px solid var(--qa-border);
   }
   h3 {
     font-size: 14px;
@@ -294,7 +294,7 @@ const Details = styled.div`
   }
   code {
     font-size: 12px;
-    background: rgba(17, 20, 24, 0.06);
+    background: var(--qa-hover);
     padding: 1px 4px;
     border-radius: 3px;
   }
@@ -305,7 +305,7 @@ const Details = styled.div`
 
 const NoteSection = styled.section`
   padding: 20px 24px;
-  border-bottom: 1px solid rgba(17, 20, 24, 0.1);
+  border-bottom: 1px solid var(--qa-border);
 `;
 
 const ReleaseNote = ({ note, isNew, expanded, docs_root }) => {
@@ -379,7 +379,7 @@ export const WhatsNewDrawer = ({ isOpen, notes, newSlugs, docs_root, onClose }) 
     size={DrawerSize.STANDARD}
     style={{ minWidth: 420, maxWidth: "100vw" }}
   >
-    <div style={{ padding: "12px 24px", borderBottom: "1px solid rgba(17, 20, 24, 0.1)" }}>
+    <div style={{ padding: "12px 24px", borderBottom: "1px solid var(--qa-border)" }}>
       <InputGroup
         leftIcon="search"
         placeholder="Search the release notes..."
@@ -389,7 +389,7 @@ export const WhatsNewDrawer = ({ isOpen, notes, newSlugs, docs_root, onClose }) 
         rightElement={query ? <Button variant="minimal" icon="cross" aria-label="Clear" onClick={() => setQuery("")} /> : undefined}
       />
     </div>
-    <div className={Classes.DRAWER_BODY} style={{ background: "#f6f7f9" }}>
+    <div className={Classes.DRAWER_BODY} style={{ background: "var(--qa-surface-alt)" }}>
       {notes.length === 0 && <NonIdealState icon="clean" title="No release notes yet" />}
       {notes.length > 0 && filtered.length === 0 && <NonIdealState icon="search" title="No matching release notes" />}
       {filtered.map((note, idx) => <ReleaseNote

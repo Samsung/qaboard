@@ -1,7 +1,7 @@
 import { useState, useEffect, useEffectEvent } from "react";
 import {
-    Tag,
-    Popover,
+    Button,
+    PopoverNext,
     Icon,
     MenuItem,
     Menu,
@@ -124,30 +124,30 @@ const RoiViewer = ({output_new, output_ref, path, manifest, imageServers, viewer
             }}
         />
     </Menu>
-    return <><Popover
+    return <><PopoverNext
                 interactionKind="hover"
                 content={popover_content}
               >
-        <Tag
-            minimal
-            interactive
+        <Button
+            size="small"
+            variant="minimal"
             icon='detection'
             intent={non_default_rois ? "primary" : undefined}
-            style={{marginBottom: "5px", marginRight: "15px"}}
+            style={{marginBottom: "5px", marginRight: "10px"}}
         >
             View {non_default_rois ? <strong>{selected_rois_effective}</strong> : <span>ROIs</span>}
-        </Tag>
-    </Popover>
+        </Button>
+    </PopoverNext>
     {!fullyLoaded && <span style={{display: "inline-grid"}}><Spinner size={SpinnerSize.SMALL}/></span>}
     {rois.rois.length > 1 && <>
-            <Tag minimal icon="chevron-left" interactive style={{marginBottom: "5px", marginRight: "5px"}}
+            <Button size="small" variant="minimal" icon="chevron-left" aria-label="Previous ROI" style={{marginBottom: "5px"}}
                 onClick={() => {
                     const index = (selected_roi_idx - 1 + rois.rois.length) % rois.rois.length
                     fitTo(rois.rois[index], viewer)
                     set_selected_roi_idx(index)
                 }}
             />
-            <Tag minimal icon="chevron-right" interactive
+            <Button size="small" variant="minimal" icon="chevron-right" aria-label="Next ROI" style={{marginBottom: "5px"}}
                 onClick={() => {
                     const index = (selected_roi_idx + 1) % rois.rois.length
                     fitTo(rois.rois[index], viewer)

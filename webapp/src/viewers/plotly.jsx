@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 
 import Plot from "../components/Plot";
-import { errorMessage } from "../api/http";
 import { fileQuery } from "../api/queries";
 import { overlay } from "./plotlyOverlay";
+import { ViewerError } from "./ViewerStates";
 
 
 // TODO: keep the zoom in the state, like explained here
@@ -45,7 +45,7 @@ const PlotlyViewer = ({ output_new, output_ref, path, path_groundtruth, style, s
   // we wait for all the files
   const is_loading = Object.values(queries).some(q => q.isPending && q.isFetching);
   if (!can_fetch || is_loading || query_new.isPending) return <span/>;
-  if (query_new.isError) return <span>{errorMessage(query_new.error)}</span>
+  if (query_new.isError) return <ViewerError path={path} error={query_new.error}/>
 
   const data = {};
   for (const [label, query] of Object.entries(queries)) {

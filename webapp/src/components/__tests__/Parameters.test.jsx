@@ -31,7 +31,7 @@ describe('CommitParameters', () => {
         new_commit={{ id: 'new', artifacts_url: '/new' }}
         ref_commit={{ id: 'ref', artifacts_url: '/ref' }}
       />
-    </HistoryRouter>);
+    </HistoryRouter>, { siteConfig: {} });
     const viewer = await screen.findByTestId('viewer');
     expect(fetch.mock.calls.map(([url]) => url).sort()).toEqual(['/new/manifests/binaries.json', '/ref/manifests/binaries.json']);
     await waitFor(() => expect(JSON.parse(viewer.textContent)).toEqual({
@@ -71,8 +71,17 @@ describe('CommitParameters', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({}, 404));
     renderWithProviders(<HistoryRouter history={history}>
       <CommitParameters config={{}} new_commit={{ id: 'new', artifacts_url: '/new' }}/>
-    </HistoryRouter>);
+    </HistoryRouter>, { siteConfig: {} });
     expect(await screen.findByText('Could not find the configurations')).toBeInTheDocument();
+  });
+
+  it('says when the commit has no artifacts', () => {
+    history.replace('/p/commit/new');
+    renderWithProviders(<HistoryRouter history={history}>
+      <CommitParameters config={{}} new_commit={{ id: 'new', is_loaded: true }}/>
+    </HistoryRouter>, { siteConfig: {} });
+    expect(screen.getByText('No artifacts were saved for this commit')).toBeInTheDocument();
+    expect(screen.getByText('Learn more')).toHaveAttribute('href', expect.stringMatching(/docs\/storage\/artifacts$/));
   });
 });
 

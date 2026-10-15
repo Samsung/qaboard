@@ -1,4 +1,6 @@
-import { Colors, Tag, Icon, Tooltip, Callout, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
+import { Colors, Button, Icon, PopoverNext, Callout, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
+
+import { useIsDark } from "../../theme";
 
 
 //----- Trees ----------------------------------------------------------------- 
@@ -168,99 +170,113 @@ const humanElapsedTime = (seconds_str) => {
 }
 
 
+// How files and folders compare to the reference, with colors readable on light and dark backgrounds
+const state_colors = is_dark => ({
+  same: is_dark ? Colors.GRAY4 : Colors.GRAY1,
+  different: is_dark ? Colors.ORANGE4 : Colors.ORANGE3,
+  added: is_dark ? Colors.GREEN4 : Colors.GREEN3,
+  removed: is_dark ? Colors.RED4 : Colors.RED3,
+  removed_and_different: is_dark ? Colors.ROSE4 : Colors.ROSE3,
+  added_and_different: is_dark ? Colors.TURQUOISE4 : Colors.TURQUOISE3,
+  mixed: is_dark ? Colors.SEPIA4 : Colors.SEPIA3,
+  not_checked: is_dark ? Colors.GRAY2 : Colors.GRAY4,
+})
+
 const file_types = [
-  {color: Colors.GREY1, label: 'Bit-accurate', icon: 'duplicate'},
-  {color: Colors.ORANGE1, label: 'Different', icon: 'cross'},
-  {color: Colors.GREEN1, label: 'Missing in the reference', icon: 'plus'},
-  {color: Colors.RED1, label: 'Present only in the reference', icon: 'minus'},
-  {color: Colors.GRAY4, label: 'Not checked for bit-accuracy (bit_accuracy.patterns in qaboard.yaml)', icon: 'document'},
+  {state: 'same', label: 'Identical to the reference', icon: 'duplicate'},
+  {state: 'different', label: 'Different', icon: 'cross'},
+  {state: 'added', label: 'Missing in the reference', icon: 'plus'},
+  {state: 'removed', label: 'Present only in the reference', icon: 'minus'},
+  {state: 'not_checked', label: 'Not checked for bit-accuracy (bit_accuracy.patterns in qaboard.yaml)', icon: 'document'},
 ]
 const folder_types = [
-  {color: Colors.GREY1, label: 'All files match', icon: 'folder-close'},
-  {color: Colors.ORANGE1, label: 'Some files are different', icon: 'folder-close'},
-  {color: Colors.GREEN1, label: 'Some files are missing in the reference', icon: 'folder-close'},
-  {color: Colors.RED1, label: 'Some files are only in the reference', icon: 'folder-close'},
-  {color: Colors.ROSE1, label: 'Some files are only in the reference and some are different', icon: 'folder-close'},
-  {color: Colors.TURQUOISE1, label: 'Some files are missing in the reference and some are different', icon: 'folder-close'},
-  {color: Colors.SEPIA1, label: 'It is a mess', icon: 'folder-close'},
+  {state: 'same', label: 'All files match', icon: 'folder-close'},
+  {state: 'different', label: 'Some files are different', icon: 'folder-close'},
+  {state: 'added', label: 'Some files are missing in the reference', icon: 'folder-close'},
+  {state: 'removed', label: 'Some files are only in the reference', icon: 'folder-close'},
+  {state: 'removed_and_different', label: 'Some files are only in the reference and some are different', icon: 'folder-close'},
+  {state: 'added_and_different', label: 'Some files are missing in the reference and some are different', icon: 'folder-close'},
+  {state: 'mixed', label: 'Some files are missing, some only in the reference, some different', icon: 'folder-close'},
 ]
 const bullet_style = {'listStyleType': 'none'};
 const icon_style = {'marginRight': '10px'};
-const help = <>
-  <h3>Showing diffs</h3>
-  <p>Click on a file to show its diff versus the reference. Press <kbd>control</kbd> or <kbd>shift</kbd> to select multiple files</p>
-  <h3>Bit-accuracy</h3>
-  <p>Like <code>qa check-bit-accuracy</code>, only the files matching <code>bit_accuracy.patterns</code> in qaboard.yaml are checked (by default all files, except logs, <code>run.json</code> and <code>metrics.json</code>).</p>
-  <h3>File icons</h3>
-  <ul>{file_types.map( ({color, label, icon}) =>
-    <li key={label} style={bullet_style}><Icon icon={icon} style={{...icon_style, color}}></Icon> {label}</li>)}
-  </ul>
-  <h3>Folder icons</h3>
-  <ul>{folder_types.map( ({color, label, icon}) =>
-    <li key={label} style={bullet_style}><Icon icon={icon} style={{...icon_style, color}}></Icon> {label}</li>)}
-  </ul>
-</>
-const bit_accuracy_help = <Tooltip content={help}><Tag icon='help' minimal round large>Help</Tag></Tooltip>;
+const BitAccuracyHelp = () => {
+  const colors = state_colors(useIsDark());
+  return <div style={{ padding: '5px 15px', maxWidth: '600px' }}>
+    <h3>Showing diffs</h3>
+    <p>Click on a file to show its diff versus the reference. Press <kbd>control</kbd> or <kbd>shift</kbd> to select multiple files</p>
+    <h3>Bit-accuracy</h3>
+    <p>Like <code>qa check-bit-accuracy</code>, only the files matching <code>bit_accuracy.patterns</code> in qaboard.yaml are checked (by default all files, except logs, <code>run.json</code> and <code>metrics.json</code>).</p>
+    <h3>File icons</h3>
+    <ul>{file_types.map( ({state, label, icon}) =>
+      <li key={label} style={bullet_style}><Icon icon={icon} style={{...icon_style, color: colors[state]}}></Icon> {label}</li>)}
+    </ul>
+    <h3>Folder icons</h3>
+    <ul>{folder_types.map( ({state, label, icon}) =>
+      <li key={label} style={bullet_style}><Icon icon={icon} style={{...icon_style, color: colors[state]}}></Icon> {label}</li>)}
+    </ul>
+  </div>
+}
+// It's tall: when it fits neither below nor above, it stays below where scrolling shows it all, instead of
+// being cut off by the top of the page
+const bit_accuracy_help = <PopoverNext content={<BitAccuracyHelp/>} placement="bottom-end" middleware={{ flip: { fallbackStrategy: "initialPlacement" } }}>
+  <Button variant="minimal" icon="help" text="Help"/>
+</PopoverNext>;
 
 
 
 
+
+// Three columns of options (each with its help below), and the help on the right
+const form_grid = { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr)) auto', gap: '0 24px', alignItems: 'start', marginBottom: '20px' };
+const form_group = { margin: 0 };
 
 const BitAccuracyForm = ({ show_all_files, hide_runs_without_files, expand_all, color_blind_friendly, files_filter, toggle, update }) => {
-  return <Callout style={{marginBottom: '20px', display: 'flex', justifyContent: 'space-between'}}>
+  return <Callout style={form_grid}>
     <FormGroup
-      inline
-      labelFor="show-all-files"
       helperText="By default the only files shown are the checked files that are different/added/removed."
-      style={{flex: '50 1 auto'}}
+      style={form_group}
     >
       <Switch
         label="Show all files"
         checked={show_all_files}
         onChange={toggle('show_all_files')}
-        style={{ width: "300px" }}
       />
       <Switch
         label="Hide runs without files"
         checked={hide_runs_without_files}
         onChange={toggle('hide_runs_without_files')}
-        style={{ width: "300px" }}
       />
     </FormGroup>
-    <FormGroup
-      inline
-      labelFor="expand-all"
-      style={{flex: '50 1 auto'}}
-    >
+    <FormGroup style={form_group}>
       <Switch
         label="Expand all folders"
         checked={expand_all}
         onChange={toggle('expand_all')}
-        style={{ width: "300px" }}
       />
       <Switch
-        label="Color-blind-Friendly"
+        label="Color-blind friendly"
         checked={color_blind_friendly}
         onChange={toggle('color_blind_friendly')}
-        style={{ width: "300px" }}
       />
     </FormGroup>
     <FormGroup
-      inline
       labelFor="files-filter"
-      helperText={<span>Filter files.<br/>You can use <code>match:file.txt</code> or <code>diff:file.txt</code></span>}
-      style={{flex: '50 1 auto'}}
+      helperText={<span>Filter files by path.<br/><code>match:name</code> shows identical files, <code>diff:name</code> different ones</span>}
+      style={form_group}
     >
       <InputGroup
+        id="files-filter"
         value={files_filter}
-        placeholder="filter by path"
+        placeholder="Filter by path"
+        aria-label="Filter files by path"
         onChange={update('files_filter')}
-        type="search"
+        type="text"
         leftIcon="filter"
-        style={{ width: "150px" }}
+        rightElement={files_filter ? <Button variant="minimal" icon="cross" aria-label="Clear the filter" onClick={() => update('files_filter')('')}/> : undefined}
       />
     </FormGroup>
-    <span style={{flex: '1 1 auto'}}>{bit_accuracy_help}</span>
+    <span>{bit_accuracy_help}</span>
   </Callout>
 }
 
@@ -269,4 +285,4 @@ const BitAccuracyForm = ({ show_all_files, hide_runs_without_files, expand_all, 
 // The options of the bit-accuracy viewers are in the URL, but not when they have their default value
 const bit_accuracy_url_defaults = { show_all_files: false, hide_runs_without_files: false, expand_all: false, color_blind_friendly: false, files_filter: '' };
 
-export { bit_accuracy_url_defaults, getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, humanFileSize, updateMissingFrom, BitAccuracyForm, bit_accuracy_help, humanElapsedTime }
+export { state_colors, bit_accuracy_url_defaults, getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, humanFileSize, updateMissingFrom, BitAccuracyForm, bit_accuracy_help, humanElapsedTime }

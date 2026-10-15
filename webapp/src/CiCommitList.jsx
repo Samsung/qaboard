@@ -16,12 +16,12 @@ import {
 } from "@blueprintjs/core";
 
 import CommitRow from "./components/CommitRow";
-import { Container, Section } from "./components/layout";
+import { Container } from "./components/layout";
 import { LoadMore } from "./components/LoadMore";
 import CommitsEvolution from "./CommitsEvolution";
 import { groupBy } from "./utils";
 
-import { useCommitsList, useProjectData, useSelected, updateSelected } from './hooks'
+import { useCommitsList, useProjectData, useSelected, useSiteConfig, updateSelected } from './hooks'
 import { errorMessage } from './api/http'
 
 
@@ -53,6 +53,15 @@ const CommitRows = ({ commits, project, project_data, className }) => (
 const count_commits = n => `${n} commit${n === 1 ? '' : 's'}`
 const capitalize = text => text ? text.charAt(0).toUpperCase() + text.slice(1) : text
 
+// e.g. "No commits with results in the last 3 days"
+const no_commits_title = ([from, to], now) => {
+  const relative = date => DateTime.fromJSDate(date).toRelativeCalendar({ unit: "days" })
+  if (to <= now)
+    return `No commits with results from ${relative(from)} to ${relative(to)}`
+  const days = Math.round(DateTime.fromJSDate(now).startOf('day').diff(DateTime.fromJSDate(from).startOf('day'), 'days').days)
+  return days < 1 ? "No commits with results today" : `No commits with results in the last ${days} day${days === 1 ? '' : 's'}`
+}
+
 const search_help = <span>
   Words must all match the commit id, message, committer, branch or batches. <code>-word</code> excludes,
   {" "}<code>branch:</code>, <code>committer:</code>, <code>batch:</code>, <code>message:</code> and <code>id:</code> look at a single field.
@@ -68,10 +77,13 @@ const SearchHeader = ({ search, nb_commits, has_more, isFetching }) => (
 );
 
 
+
+
 const CiCommitList = () => {
   const { project, branch, committer } = useSelected();
   const project_data = useProjectData(project);
-  const { commits, error, isPending, isPlaceholderData, isSuccess, date_range, search, hasNextPage, fetchNextPage, isFetchingNextPage } = useCommitsList();
+  const { docs_root } = useSiteConfig();
+  const { commits, error, refetch, isPending, isPlaceholderData, isSuccess, date_range, search, hasNextPage, fetchNextPage, isFetchingNextPage } = useCommitsList();
   // new results are on their way (background refreshes don't count)
   const loading = isPending || isPlaceholderData;
   const [now] = useState(() => new Date());
@@ -99,33 +111,38 @@ const CiCommitList = () => {
 
   return (
     <Container style={{paddingTop: '50px'}}>
-      {show_metrics_over_time && <Section>
-        <Card>
-          <CommitsEvolution
-            project={project}
-            project_data={evolution_project_data}
-            commits={commits}
-            per_output_granularity={false}
-            style={{ marginTop: "20px" }}
-          />
-        </Card>
-      </Section>}
+      {/* the chart has a fixed width: it scrolls rather than spill out of the card */}
+      {show_metrics_over_time && <Card elevation={0} style={{marginBottom: '15px', overflowX: 'auto'}}>
+        <h4 className={Classes.HEADING}>Performance over time</h4>
+        <CommitsEvolution
+          project={project}
+          project_data={evolution_project_data}
+          commits={commits}
+          per_output_granularity={false}
+        />
+      </Card>}
       {!!search && <SearchHeader search={search} nb_commits={commits.length} has_more={hasNextPage} isFetching={loading}/>}
-      {error && <NonIdealState description={<pre>{errorMessage(error)}</pre>} icon="error" />}
-      {isPending && <NonIdealState title="Loading" icon={<Spinner />} />}
+      {error && <NonIdealState
+        icon="error"
+        title="Could not load the commits"
+        description={<p style={{ overflowWrap: 'anywhere' }}>
+          <code>{errorMessage(error)}</code>
+          {error.response?.status >= 500 && <><br/>If it persists, contact your QA-Board administrators.</>}
+        </p>}
+        action={<Button icon="refresh" text="Retry" onClick={() => refetch()}/>}
+      />}
+      {isPending && !error && <NonIdealState title="Loading commits…" icon={<Spinner />} />}
       {isSuccess && !loading && !error && !some_commits_loaded && !!search &&
         <NonIdealState title="No commit matches your search" icon="search" />}
       {isSuccess && !loading && !error && !some_commits_loaded && !search &&
         <NonIdealState
-          title="Could not find a commit with results"
-          description={<span>Searched {" "}
-            <strong>from <span title={date_range[0]}>{DateTime.fromJSDate(date_range[0]).toRelativeCalendar({unit: "days"})}</span></strong>
-            {" "}to{" "}
-            {date_range[1] > now ? "today" : <strong>
-              <span title={date_range[1]}>{DateTime.fromJSDate(date_range[1]).toRelativeCalendar({unit: "days"})}</span>
-            </strong>}
+          title={no_commits_title(date_range, now)}
+          description={<span>
+            Results appear once <code>qa batch</code> runs in your CI.<br/>
+            <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/ci-integration`}>Set up your CI</a>
           </span>}
           icon="search"
+          action={<Button icon="history" text="Search 7 more days" onClick={show_older}/>}
       />}
       {Object.keys(commits_by_day).map(day => (
         <Card key={day} elevation={0} style={{marginBottom: '15px'}}>

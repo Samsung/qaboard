@@ -7,13 +7,32 @@
   --fb-muted: #5f6b7c;
   --fb-border: #e5e8eb;
   --fb-primary: #1f7ce8;
+  --fb-background: #f6f7f9;
+  --fb-surface: #fff;
+  --fb-surface-alt: #fafbfc;
+  --fb-row-border: #f0f1f3;
+  --fb-row-hover: #f3f6fb;
+  --fb-action-hover: #e5e8eb;
+}
+/* Dark theme, see src/theme.js */
+.bp6-dark {
+  --fb-text: #f6f7f9;
+  --fb-muted: #abb3bf;
+  --fb-border: #404854;
+  --fb-primary: #4c90f0;
+  --fb-background: #1c2127;
+  --fb-surface: #252a31;
+  --fb-surface-alt: #2f343c;
+  --fb-row-border: #383e47;
+  --fb-row-hover: #2f343c;
+  --fb-action-hover: #383e47;
 }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
   font-size: 13px;
   color: var(--fb-text);
-  background: #f6f7f9;
+  background: var(--fb-background);
   margin: 0;
 }
 
@@ -158,7 +177,7 @@ body {
   align-items: center;
   gap: 6px;
   padding: 0 16px;
-  background: #f6f7f9;
+  background: var(--fb-background);
 }
 .fb-filter {
   width: 280px;
@@ -187,7 +206,7 @@ body {
   gap: 6px 10px;
   margin: 8px 16px 0;
   padding: 6px 6px 6px 10px;
-  background: #fff;
+  background: var(--fb-surface);
   border: 1px solid var(--fb-border);
   border-radius: 4px;
 }
@@ -229,7 +248,7 @@ body {
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
-  background: #fff;
+  background: var(--fb-surface);
   border: 1px solid var(--fb-border);
   border-radius: 6px;
 }
@@ -244,14 +263,14 @@ col.fb-col-actions { width: 84px; }
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  border-bottom: 1px solid #f0f1f3;
+  border-bottom: 1px solid var(--fb-row-border);
   text-align: left;
 }
 .fb-table tbody tr:last-child td {
   border-bottom: none;
 }
 .fb-row:hover td {
-  background: #f3f6fb;
+  background: var(--fb-row-hover);
 }
 .fb-row.fb-selected td {
   background: rgba(31, 124, 232, 0.1);
@@ -264,7 +283,7 @@ col.fb-col-actions { width: 84px; }
   top: calc(var(--fb-header-height) + var(--fb-toolbar-height));
   z-index: 5;
   height: 30px;
-  background: #fafbfc;
+  background: var(--fb-surface-alt);
   border-bottom: 1px solid var(--fb-border);
 }
 .fb-table thead th:first-child {
@@ -378,7 +397,7 @@ td.fb-col-size {
 }
 .fb-action:hover,
 .fb-action:focus-visible {
-  background: #e5e8eb;
+  background: var(--fb-action-hover);
   color: var(--fb-text);
   text-decoration: none;
 }

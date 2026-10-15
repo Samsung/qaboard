@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import styled from "styled-components";
 import {
   Classes,
@@ -7,14 +7,14 @@ import {
   MenuItem,
   Icon,
   IconSize,
-  Tooltip,
   InputGroup,
   Button,
   Dialog,
+  FormGroup,
 } from "@blueprintjs/core";
 import { http, errorMessage } from "../../api/http";
 import { userQuery, logged_out_user, setUser } from "../../api/queries";
-import { useSiteConfig, useUser } from "../../hooks";
+import { useSiteConfig } from "../../hooks";
 import { toaster } from "./../../toaster"
 import { Avatar } from '../avatars';
 import { colors, spacing, typography, borders, shadows, transitions } from '../../design/tokens';
@@ -163,7 +163,9 @@ const UserMenuItemWrapper = styled.div`
 
 const AuthButton = ({ appSider }) => {
   const queryClient = useQueryClient();
-  const user = useUser();
+  // until we know who users are, we don't flash a "Log in" button
+  const { data: known_user, isPending: user_pending } = useQuery(userQuery);
+  const user = known_user ?? logged_out_user;
   const { login_type, avatar_url_template } = useSiteConfig();
   const [is_loading, setLoading] = useState(false);
 
@@ -188,6 +190,10 @@ const AuthButton = ({ appSider }) => {
 
   if (is_loading)
     return <Button loading={true}/>;
+  if (user_pending)
+    return appSider
+      ? <MenuItem icon="log-in" text="Log in" className={Classes.SKELETON} disabled/>
+      : <Button icon="log-in" text="Log in" className={Classes.SKELETON} disabled/>;
   return user.is_logged
     ? <UserMenu user={user} logout={logout} avatar_url_template={avatar_url_template}/>
     : <LoginButton user={user} logout={logout} appSider={appSider} login_type={login_type}/>;
@@ -215,10 +221,8 @@ const UserMenu = ({ user, logout, avatar_url_template }) => {
           usePortal: true,
           hoverCloseDelay: 1000,
           transitionDuration: 200,
-          position: "right-top",
-          modifiers: {
-            preventOverflow: { boundariesElement: "viewport" }
-          },
+          // MenuItem's submenu already stays within the viewport
+          placement: "right-start",
           popoverClassName: "user-menu-popover"
         }}
         style={{ 
@@ -242,9 +246,8 @@ const UserMenu = ({ user, logout, avatar_url_template }) => {
             </UserInfo>
           </UserProfileHeader>
           <MenuItem
-            text="Sign Out"
+            text="Log out"
             icon="log-out"
-            intent={Intent.DANGER}
             onClick={logout}
           />
         </UserDropdownMenu>
@@ -255,14 +258,14 @@ const UserMenu = ({ user, logout, avatar_url_template }) => {
 
 
 const warning = {
-  rightElement: <Tooltip content="Try your windows credentials" position="right" intent={Intent.DANGER} hoverCloseDelay={2000}>
-    <Icon icon="warning-sign" size={IconSize.LARGE} style={{transform: "translate(-50%, 50%)", color: "#f02849"}}/>
-  </Tooltip>,
+  rightElement: <Icon icon="warning-sign" intent={Intent.DANGER} size={IconSize.LARGE} style={{transform: "translate(-50%, 50%)"}}/>,
   intent: Intent.DANGER,
 };
 
 const LoginButton = ({ user, logout, appSider, login_type }) => {
   const queryClient = useQueryClient();
+  // the site's advice to users who can't log in (QABOARD_LOGIN_HINT), e.g. which credentials to use
+  const { login_hint } = useSiteConfig();
   const [is_open, setOpen] = useState(false);
   const [error, setError] = useState(null);
   const [is_loading, setLoading] = useState(false);
@@ -281,11 +284,11 @@ const LoginButton = ({ user, logout, appSider, login_type }) => {
         setOpen(false);
       })
       .catch(error => {
-        const error_msg = error.response?.data?.error ?? "unknown-error";
+        const error_msg = error.response?.data?.error ?? errorMessage(error);
         setError(error_msg);
         setLoading(false);
         if (!error_msg.startsWith('invalid'))
-          toaster.show({ message: `ERROR: ${error_msg}`, intent: Intent.DANGER, timeout: 10000 });
+          toaster.show({ message: `Could not log in: ${error_msg}`, intent: Intent.DANGER, timeout: 10000 });
       });
   };
 
@@ -301,16 +304,16 @@ const LoginButton = ({ user, logout, appSider, login_type }) => {
   };
 
   const login_button = appSider ?
-    <MenuItem icon="log-in" text="Login" intent={Intent.PRIMARY} onClick={handleLogin}/> :
-    <Button intent={Intent.PRIMARY} icon={<Icon icon="log-in" color="#fff"/>} style={{color : "#fff"}} text="Login" onClick={handleLogin} loading={is_loading}/>;
+    <MenuItem icon="log-in" text="Log in" intent={Intent.PRIMARY} onClick={handleLogin}/> :
+    <Button intent={Intent.PRIMARY} icon="log-in" text="Log in" onClick={handleLogin} loading={is_loading}/>;
   const logout_button = appSider ?
-    <MenuItem icon="log-out" text="Logout" onClick={logout}/> :
-    <Button icon={<Icon icon="log-out" color="#fff"/>} style={{color : "#fff"}} onClick={logout} text="Logout"/>;
+    <MenuItem icon="log-out" text="Log out" onClick={logout}/> :
+    <Button icon="log-out" onClick={logout} text="Log out"/>;
   return <>
     {!user.is_logged ? login_button : logout_button}
     <Dialog
       icon="log-in"
-      title="Login"
+      title="Log in"
       onClose={() => setOpen(false)}
       style={{ width: "396px" }}
       isOpen={is_open}
@@ -321,17 +324,23 @@ const LoginButton = ({ user, logout, appSider, login_type }) => {
     >
       <form onSubmit={handleSubmit}>
         <div className={Classes.DIALOG_BODY}>
-          <div style={{padding: "6px"}}>
-            <InputGroup id="username" name="username" type="text" placeholder="username" autoFocus large  {...(error === "invalid-username" && warning)}/>
-            {error === "invalid-username" && <div style={{color: "#f02849", margin: "8px"}}>This username does not match any user account.</div>}
-          </div>
-          <div style={{padding: "6px"}}>
-            <InputGroup id="password" name="password" type="password" placeholder="********" large {...(error === "invalid-password" && warning)}/>
-            {error === "invalid-password" && <div style={{color: "#f02849", margin: "8px"}}>The password is incorrect.</div>}
-          </div>
+          <FormGroup
+            style={{padding: "6px", marginBottom: 0}}
+            intent={error === "invalid-username" ? Intent.DANGER : undefined}
+            helperText={error === "invalid-username" ? <>This username does not match any user account.{login_hint && <> {login_hint}</>}</> : undefined}
+          >
+            <InputGroup id="username" name="username" type="text" placeholder="username" aria-label="Username" autoFocus large  {...(error === "invalid-username" && warning)}/>
+          </FormGroup>
+          <FormGroup
+            style={{padding: "6px", marginBottom: 0}}
+            intent={error === "invalid-password" ? Intent.DANGER : undefined}
+            helperText={error === "invalid-password" ? <>The password is incorrect.{login_hint && <> {login_hint}</>}</> : undefined}
+          >
+            <InputGroup id="password" name="password" type="password" placeholder="********" aria-label="Password" large {...(error === "invalid-password" && warning)}/>
+          </FormGroup>
           <div style={{padding: "6px"}} >
             <Button type="submit" large intent={Intent.PRIMARY} fill loading={is_loading}>
-              <b>Log In</b>
+              <b>Log in</b>
             </Button>
           </div>
         </div>
