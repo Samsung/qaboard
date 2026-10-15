@@ -53,18 +53,18 @@ CMD ["npm", "start"]
 FROM deps AS build
 COPY webapp/ ./
 
-ARG SENTRY_ORG
-ENV SENTRY_ORG=$SENTRY_ORG
-ARG SENTRY_PROJECT
-ENV SENTRY_PROJECT=$SENTRY_PROJECT
-ARG SENTRY_AUTH_TOKEN
-ENV SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
+# Sentry's release, e.g. the commit the image is built from (docker-compose.yml passes $QABOARD_VERSION)
+ARG QABOARD_VERSION=""
+# With a token, the build uploads the source maps to Sentry, then deletes them (see vite.config.js).
+# ARGs are only visible during the build, and this stage isn't part of the final image.
+ARG SENTRY_AUTH_TOKEN=""
+ARG SENTRY_ORG=""
+ARG SENTRY_PROJECT=""
+ARG SENTRY_URL=""
+# The upload trusts the CAs installed with CA_CERT_URL
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
 RUN npm run build
-RUN if [ -n "$SENTRY_AUTH_TOKEN" ]; then \
-      sentry-cli sourcemaps inject build && \
-      sentry-cli sourcemaps upload build; \
-    fi
 
 
 FROM debian:bookworm-slim AS production
