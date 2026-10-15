@@ -10,6 +10,7 @@ import { ComparisonProvider } from '../hooks';
 import { history, matchRoutes, RouteMatch } from '../router';
 import { routes } from '../routes';
 import { renderWithProviders } from '../test-utils';
+import { usePrefsStore } from '../stores/prefs';
 
 const Page = () => {
   const { match } = matchRoutes(routes, useLocation().pathname);
@@ -92,5 +93,39 @@ describe('the Code menu', () => {
     open();
     await screen.findByRole('menuitem', { name: /Files on main/ });
     expect(screen.queryByRole('menuitem', { name: /Changes in/ })).toBeNull();
+  });
+});
+
+describe('collapsing', () => {
+  afterEach(() => {
+    usePrefsStore.setState({ siderCollapsed: false });
+    document.documentElement.style.removeProperty('--qa-sider-width');
+  });
+
+  test('collapses to icons and back, remembers it, and gives the page its width', async () => {
+    renderSider('/kitefin/camera-isp/commits');
+    const nav = await screen.findByRole('navigation');
+    expect(nav).not.toHaveClass('collapsed');
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Collapse the sidebar' }));
+    expect(nav).toHaveClass('collapsed');
+    expect(usePrefsStore.getState().siderCollapsed).toBe(true);
+    expect(document.documentElement.style.getPropertyValue('--qa-sider-width')).toBe('48px');
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Expand the sidebar' }));
+    expect(nav).not.toHaveClass('collapsed');
+    expect(document.documentElement.style.getPropertyValue('--qa-sider-width')).toBe('200px');
+  });
+
+  test('Ctrl+\\ toggles it, but not while typing', async () => {
+    renderSider('/kitefin/camera-isp/commits');
+    const nav = await screen.findByRole('navigation');
+    fireEvent.keyDown(window, { key: '\\', ctrlKey: true });
+    expect(nav).toHaveClass('collapsed');
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    fireEvent.keyDown(input, { key: '\\', ctrlKey: true });
+    expect(nav).toHaveClass('collapsed');
+    input.remove();
+    fireEvent.keyDown(window, { key: '\\', metaKey: true });
+    expect(nav).not.toHaveClass('collapsed');
   });
 });
