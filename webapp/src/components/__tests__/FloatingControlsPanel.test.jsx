@@ -4,6 +4,10 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import FloatingControlsPanel from '../FloatingControlsPanel';
 import { configureOption } from '../../utils/dynamicOptions';
 
+// The panel starts closed on narrow screens like jsdom's: these tests look at its content
+beforeEach(() => localStorage.setItem('controls-panel-expanded', 'true'));
+afterEach(() => localStorage.removeItem('controls-panel-expanded'));
+
 const frame = configureOption({ name: 'frame', views: ['Out'], paths: [':frame/out.png'] }, ['1', '2', '10']);
 const camera = configureOption({ name: 'camera', views: ['Out'], paths: [':camera/out.png'] }, ['left', 'right']);
 

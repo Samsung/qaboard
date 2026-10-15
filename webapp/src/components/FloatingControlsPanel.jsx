@@ -19,14 +19,16 @@ import { useIsDark } from "../theme";
 
 const PanelContainer = styled.div`
   position: fixed;
-  right: ${props => props.isExpanded ? 0 : -300}px;
+  /* Closed, it's fully off-screen (with its shadow), and hidden from keyboard and screen readers once it slid out */
+  right: ${props => props.isExpanded ? 0 : -340}px;
+  visibility: ${props => props.isExpanded ? 'visible' : 'hidden'};
   top: 65%;
   transform: translateY(-50%);
   width: 320px;
   max-height: 80vh;
   overflow-y: auto;
   z-index: 19;
-  transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+  transition: right 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), visibility 0s linear ${props => props.isExpanded ? '0s' : '0.3s'};
   box-shadow: 0 4px 20px rgba(0,0,0,0.15);
   scrollbar-width: thin;
   scrollbar-color: var(--qa-border) transparent;
