@@ -495,7 +495,11 @@ class Servers:
 
 
 @pytest.fixture
-def servers():
+def servers(monkeypatch):
+  # The servers are local: don't go through a proxy (images built with PROXY_URL keep it in their env)
+  for var in ("http_proxy", "https_proxy", "all_proxy"):
+    monkeypatch.delenv(var, raising=False)
+    monkeypatch.delenv(var.upper(), raising=False)
   servers = Servers()
   yield servers
   servers.close()
