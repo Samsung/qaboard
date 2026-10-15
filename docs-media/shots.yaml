@@ -313,7 +313,7 @@ shots:
     features: [video-compare]
     needs: merge-bilateral vs isp-4-1 (video batch)
     phase: 2
-    status: planned
+    status: captured
   - id: commit/dynamic-outputs
     kind: clip
     project: image-quality
