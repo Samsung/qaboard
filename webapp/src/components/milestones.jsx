@@ -20,7 +20,7 @@ import {
   ControlGroup,
   HTMLSelect,
   Tooltip,
-  Popover,
+  PopoverNext,
   Alert,
 } from "@blueprintjs/core";
 
@@ -97,7 +97,7 @@ const MilestonesMenu = ({project, milestones, title, icon, onSelect, type}) => {
               placeholder="filter milestones by label, branch, owner..."
               leftIcon="filter"
               value={filter}
-              className={filter === '' ? undefined : Intent.PRIMARY}
+              intent={filter === '' ? undefined : Intent.PRIMARY}
               onChange={e => {
                 setFilter(e.target.value)
               }}
@@ -197,7 +197,7 @@ const CommitMilestoneEditor = ({ project, project_shown, project_data, commit, b
     try {
       await http.post("/api/v1/project/milestones/", data)
       toaster.show({
-        message: should_delete ? 'Deleted' : 'Saved.',
+        message: should_delete ? 'Deleted the milestone' : 'Saved the milestone, shared with the project',
         intent: Intent.SUCCESS,
         timeout: 4500,
       });
@@ -224,7 +224,7 @@ const CommitMilestoneEditor = ({ project, project_shown, project_data, commit, b
     if (type === 'private') {
       deletePrivateMilestone(project, key)
       toaster.show({
-        message: "Deleted.",
+        message: "Deleted the milestone",
         intent: Intent.SUCCESS,
         timeout: 4000
       });
@@ -260,15 +260,16 @@ const CommitMilestoneEditor = ({ project, project_shown, project_data, commit, b
         updateShared({key, should_delete: true}).catch(() => {});
       setPrivateMilestone(project, key, milestone)
       toaster.show({
-        message: "Saved",
+        message: "Saved the milestone in this browser",
         intent: Intent.SUCCESS,
         timeout: 5000
       });
     }
   }
 
+  // We ask before replacing a shared milestone, not when users edit it
   const saveMilestoneMaybeAskForConfirmation = () => {
-    if (key in shared_milestones) {
+    if (key in shared_milestones && type !== 'shared') {
       setShowAlertOverwrite(true)
       setOverwriteMilestone(shared_milestones[key])
     } else {
@@ -277,31 +278,33 @@ const CommitMilestoneEditor = ({ project, project_shown, project_data, commit, b
   }
 
   const popover_body = <div>
-    <H5>Milestone Info</H5>
-    <Switch
-      label='Shared'
-      checked={is_shared}
-      style={{ width: "200px" }}
-      onChange={() => setIsShared(!is_shared)}
-    />
-    <FormGroup inline label="Label" labelInfo="(optional)" labelFor="milestone-label-input">
+    <H5>Milestone info</H5>
+    <FormGroup helperText="Shared: everyone on the project sees it. Off: saved in this browser only.">
+      <Switch
+        label='Shared'
+        checked={is_shared}
+        style={{ marginBottom: 0 }}
+        onChange={() => setIsShared(!is_shared)}
+      />
+    </FormGroup>
+    <FormGroup label="Label" labelInfo="(optional)" labelFor="milestone-label-input">
       <InputGroup
         id="milestone-label-input"
         value={label}
-        style={{ width: "200px" }}
+        fill
         onChange={e => setLabel(e.target.value)}
       />
     </FormGroup>
-    <FormGroup inline label="Notes" labelFor="milestone-notes-input" labelInfo="(optional)">
-      <TextArea id="milestone-notes-input" onChange={e => setNotes(e.target.value)} value={notes} style={{ width: "200px" }} />
+    <FormGroup label="Notes" labelFor="milestone-notes-input" labelInfo="(optional)">
+      <TextArea id="milestone-notes-input" onChange={e => setNotes(e.target.value)} value={notes} fill />
     </FormGroup>
-    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 30 }}>
+    <div style={{ display: "flex", marginTop: 20 }}>
       {(type !== 'none') && <>
         <Button
           text="Delete"
           onClick={() => setShowAlertRemove(true)}
           intent={Intent.DANGER}
-          style={{ marginRight: 50 }}
+          variant="minimal"
         />
         <Alert
           className={Classes.POPOVER_DISMISS}
@@ -315,29 +318,31 @@ const CommitMilestoneEditor = ({ project, project_shown, project_data, commit, b
           onConfirm={deleteMilestone}
           style={{width: '1200px', maxWidth: "fit-content"}}
         >
-          <div>Are you sure you want to delete this milestone?
+          <div>Delete this milestone?
             <Menu>
               <MilestoneMenu milestone={previous_milestone}/>
             </Menu>
           </div>
         </Alert>
       </>}
+      <span style={{ flex: 1 }}/>
       <Button className={Classes.POPOVER_DISMISS} text="Save" intent={Intent.PRIMARY} onClick={saveMilestoneMaybeAskForConfirmation} />
     </div>
   </div>
 
   return <>
-    <Popover
+    <PopoverNext
       content={popover_body}
       placement="right"
       popoverClassName={Classes.POPOVER_CONTENT_SIZING}
     >
-      <Tooltip content={type !== 'none' ? "Edit Milestone" : "Save as Milestone"} position={Position.BOTTOM} >
-        <Button minimal style={{ marginRight: '5px' }} onClick={updateData} aria-label={type !== 'none' ? "Edit Milestone" : "Save as Milestone"}>
+      {/* the focus comes back to the button when the popover closes: that shouldn't open the tooltip */}
+      <Tooltip content={type !== 'none' ? "Edit the milestone" : "Save as a milestone: bookmark these results to compare against later"} position={Position.BOTTOM} openOnTargetFocus={false}>
+        <Button minimal style={{ marginRight: '5px' }} onClick={updateData} aria-label={type !== 'none' ? "Edit the milestone" : "Save as a milestone"}>
           <Icon icon={icon} color={color} />
         </Button>
       </Tooltip>
-    </Popover>
+    </PopoverNext>
     <Alert
       className={Classes.POPOVER_DISMISS}
       canEscapeKeyCancel
@@ -349,7 +354,7 @@ const CommitMilestoneEditor = ({ project, project_shown, project_data, commit, b
       onCancel={() => setShowAlertOverwrite(false)}
       onConfirm={saveMilestone}
     >
-      <div>A similar shared milestone already exist: <Menu><MilestoneMenu icon="crown" milestone={overwrite_milestone}/></Menu>.</div>
+      <div>A similar shared milestone already exists: <Menu><MilestoneMenu icon="crown" milestone={overwrite_milestone}/></Menu>.</div>
       <p>Would you like to overwrite it?</p>
     </Alert>
   </>

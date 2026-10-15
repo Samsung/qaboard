@@ -303,7 +303,7 @@ export const BatchLogs = ({ batch, project, commit }) => {
         </RunList>
       : <NonIdealState
           icon={filter === 'failed' ? "tick-circle" : "search"}
-          title={filter === 'failed' ? "No failed runs" : (filter === 'pending' ? "No running runs" : "No runs yet")}
+          title={filter === 'failed' ? "No failed runs" : (filter === 'pending' ? "No running runs" : ((batch.filtered?.outputs?.length ?? 0) < Object.keys(batch.outputs ?? {}).length ? "No run matches the filter" : "No runs yet"))}
           layout="horizontal"
         />
     }

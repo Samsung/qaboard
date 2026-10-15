@@ -69,6 +69,10 @@ def get_site_config():
         "quota_url_template": os.environ.get('QABOARD_QUOTA_URL_TEMPLATE'),
         # Where users report issues
         "support_url": os.environ.get('QABOARD_SUPPORT_URL', 'https://github.com/Samsung/qaboard/issues'),
+        # Shown to users who can't log in, e.g. which credentials to use
+        "login_hint": os.environ.get('QABOARD_LOGIN_HINT'),
+        # Where users install WebCDE, which opens runs whose outputs have a cde.sh
+        "webcde_installer": os.environ.get('QABOARD_WEBCDE_INSTALLER'),
     })
 
 

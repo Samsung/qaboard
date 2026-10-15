@@ -31,6 +31,8 @@ config:
   QABOARD_IMAGE_SERVERS: '{"default": "/iiif", "raw,hex,cde": "/iiif/cde"}'
   QABOARD_QUOTA_URL_TEMPLATE: /metabase/dashboard/154-manage-and-delete-storage?username={user_name}&project={project}
   QABOARD_SUPPORT_URL: mailto:arthur.flam@samsung.com
+  QABOARD_LOGIN_HINT: Try your Windows credentials.
+  QABOARD_WEBCDE_INSTALLER: '\\netapp\Joint\WebCDE\WebCDE_Setup.exe'
   QABOARD_IMAGE_CACHE_DIR: /algo/qa_db/image_cache
   QABOARD_DATA_SHARED_DIR: /home/ispq/qaboard/shared
   QABOARD_DATA_GIT_DIR: /algo/ws/ispq/qaboard_prod_data_git

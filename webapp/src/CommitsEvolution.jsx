@@ -2,9 +2,12 @@ import { Fragment, useMemo, useState } from "react";
 
 import Plot from "./components/Plot";
 import {
+  Callout,
   Classes,
   HTMLSelect,
+  NonIdealState,
   Tag,
+  Tooltip,
   Colors,
   Intent,
   FormGroup,
@@ -21,8 +24,8 @@ import { yAxisSuffix, hasAllMetrics } from "./evolutionAxis";
 import CommitRow from "./components/CommitRow";
 
 
+// As wide as its container
 let default_layout = {
-  width: 1200,
   margin: {
     // will eat into the drawing area
     l: 40,
@@ -31,7 +34,7 @@ let default_layout = {
     t: 0,
     pad: 0
   },
-  autosize: false,
+  autosize: true,
   yaxis: {
     showgrid: false,
     showline: false,
@@ -310,12 +313,10 @@ const CommitsEvolutionPerTest = props => {
     const visualizations = qatools_config?.outputs?.visualizations || qatools_config?.outputs?.detailed_views || []
     const maybe_diff = visualizations.some(v => is_image(v)) && <Switch
         key='diff'
-        intent={Intent.WARNING}
+        style={{marginRight: "8px"}}
         checked={controls.diff || false}
         onChange={toggle('diff')}
-        labelElement={<strong>Image Diff</strong>}
-        innerLabel="off"
-        innerLabelChecked="on"
+        label="Image diff"
       />
     const controls_switches = <>
       {!show_bit_accuracy && visualizations.map((view, idx) => {
@@ -340,7 +341,7 @@ const CommitsEvolutionPerTest = props => {
       )}
     </>
     const [legend_commit, legend_commit_ref] = legend_commits;
-    legend = <div style={{ marginTop: "30px", background: "#fefefe", padding: "10px" }}>
+    legend = <div style={{ marginTop: "30px", background: "var(--qa-surface)", padding: "10px" }}>
       {hovered_test_input_path && <Tag style={{ background: hash_color(hovered_test_input_path) }}>
           {hovered_test_input_path} @{JSON.stringify(hovered_test_configurations)}
       </Tag>}
@@ -367,7 +368,7 @@ const CommitsEvolutionPerTest = props => {
         output_new={hovered_output}
         output_ref={output_ref?.id ? output_ref : undefined}
         mismatch={mismatch}
-        style={{ width: '1180px', height: '300px' }}
+        style={{ width: '100%', maxWidth: '1180px', height: '300px' }}
         no_header={true}
         type={show_bit_accuracy ? 'bit_accuracy' : undefined}
         show_all_files={props.show_all_files}
@@ -378,24 +379,41 @@ const CommitsEvolutionPerTest = props => {
     </div>;
   }
 
+  // e.g. when the metric is new, or the filter matches no runs
+  const has_data = traces.some(t => t.y.some(v => v !== null));
+  if (!has_data) {
+    // pages say already when there are no commits
+    if (commits.length === 0) return null;
+    const metric_label = available_metrics[metrics[0]]?.label ?? metrics[0];
+    return <NonIdealState
+      icon="timeline-line-chart"
+      title="Nothing to plot"
+      description={<span>
+        No commit in this range has <strong>{metric_label}</strong> for {shown_batches.length > 1 ? 'these batches' : 'this batch'}
+        {output_filter.length > 0 && <> and runs that match the filter</>}.
+        {" "}Try another metric or a longer date range.
+      </span>}
+    />;
+  }
+
   return (
     <div>
-      {traces.length > 0 && (
-        <Plot
-          data={traces}
-          layout={layout}
-          onHover={onHover}
-          onClick={onClick}
-          onDoubleClick={() => setSelectedRef(false)}
-        />
-      )}
+      <Plot
+        data={traces}
+        layout={layout}
+        useResizeHandler
+        style={{ width: '100%' }}
+        onHover={onHover}
+        onClick={onClick}
+        onDoubleClick={() => setSelectedRef(false)}
+      />
       <p className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>
         {!!aggregation
           ? <span>The performance for each commit may not be evaluated on the same tests</span>
           : <span>Hover over a run to see {show_bit_accuracy
                                            ? `the files it created `
-                                           : `a visualization of its outputs `}
-                compared to the previous commit. Click on a commit to freeze it as a reference.</span>
+                                           : `its visualizations `}
+                compared to the previous commit. Click on a commit to freeze it as a reference, double-click to unfreeze it.</span>
         }
       </p>
       {legend}
@@ -440,7 +458,9 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
   };
 
   if (!default_metric)
-    return <div>To see metrics over time, <a href={`${docs_root}docs/computing-quantitative-metrics`}>define your project's metrics</a>.</div>;
+    return <Callout icon="timeline-line-chart" title="No metrics to plot">
+      To see metrics over time, <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/computing-quantitative-metrics`}>define your project's metrics</a>.
+    </Callout>;
 
   const offer_breakdown_per_test = default_breakdown_per_test !== undefined && default_breakdown_per_test !== null;
   return (
@@ -448,6 +468,7 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
       <FormGroup inline>
         <HTMLSelect
           id="select-metric"
+          aria-label="Metric"
           value={selected_metric}
           onChange={update("selected_metric")}
           minimal
@@ -461,6 +482,7 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
         {!breakdown_per_test && (
           <HTMLSelect
             id="select-aggregation"
+            aria-label="Aggregation over the tests"
             value={selected_aggregation}
             onChange={update("selected_aggregation")}
             minimal
@@ -481,7 +503,9 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
           <Fragment>
             <Switch
               inline
-              label="Relative to start (@100)"
+              labelElement={<Tooltip content="Each test's values as a % of its value at the oldest commit shown">
+                <span>Relative to start (@100)</span>
+              </Tooltip>}
               checked={relative}
               onChange={toggle("relative")}
             />

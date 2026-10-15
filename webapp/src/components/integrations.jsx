@@ -1,14 +1,18 @@
 import { useState } from "react";
+import { DateTime } from 'luxon';
 
 import {
     Icon,
     Intent,
     MenuItem,
     MenuDivider,
+    Spinner,
     Tag,
     Tooltip,
     InputGroup,
 } from "@blueprintjs/core";
+
+import { errorMessage } from '../api/http';
 
 import { make_eval_templates_recursively } from '../utils';
 import { image_url } from '../git';
@@ -170,15 +174,18 @@ const IntegrationsMenus = props => {
 
     // TODO: always show the JobTag if "status.data" has some info
     if (integration.gitlabCI || integration.githubActions || integration.jenkins) {
-      let label = has_error ? <Tooltip content={<span>{JSON.stringify(status.error.message)}</span>}>
+      // errors restored from the browser's storage are only `true`
+      let label = has_error ? <Tooltip content={status.error === true ? "The last request failed" : errorMessage(status.error)}>
                                 <Tag round icon="cross" intent="danger"/>
                               </Tooltip>
                             : <StatusTag integration={integration} status={status}/>
+      const has_run = (!!status?.data?.web_url || !!status?.data?.url) && status.data.status !== 'manual'
       return <MenuItem
         key={idx}
         tagName='div'
         shouldDismissPopover={false}
-        icon={( (!!status?.data?.web_url || !!status?.data?.url) && status.data.status !== 'manual') ? 'repeat' : 'play'}
+        icon={has_run ? 'repeat' : 'play'}
+        htmlTitle={has_run ? "Run the job again" : "Start the job"}
         {...menu_item_props(integration)}
         label={label}
         onClick={triggerIntegration(integration, entry_key)}
@@ -250,11 +257,13 @@ const IntegrationsMenus = props => {
         <div 
           style={{ 
             padding: '8px', 
-            borderBottom: '1px solid #ccc', 
+            // a neutral gray: the menu is dark in the sider, light elsewhere
+            borderBottom: '1px solid rgba(128, 128, 128, 0.3)',
             marginBottom: '4px',
             position: 'sticky',
             top: 0,
-            backgroundColor: '#30404d',
+            // the menu's background
+            backgroundColor: 'inherit',
             zIndex: 1000
           }}
           onClick={(e) => e.stopPropagation()}
@@ -263,6 +272,7 @@ const IntegrationsMenus = props => {
           <InputGroup
             leftIcon="search"
             placeholder="Search integrations..."
+            aria-label="Search integrations"
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             small
@@ -314,7 +324,7 @@ const StatusTag = ({status}) => {
     if (status === 'pending' || status === 'queued')
       return {icon: 'time', intent: 'warning'}
     if (status === 'running' || status === 'building')
-      return {icon: 'refresh', intent: 'primary', className: 'bp3-spin'}
+      return {icon: <Spinner size={12} intent="primary"/>, intent: 'primary'}
     if (status === 'failed') {
       return {
         icon: allow_failure ? 'issue' : 'cross',
@@ -349,7 +359,10 @@ const StatusTag = ({status}) => {
       {!data.status && statusText}
   </Tag>
   const url = data.url ?? data.web_url
-  return <Tooltip content={JSON.stringify(data)}>
+  const started = data.created_at ? `, started ${DateTime.fromISO(data.created_at).toRelative()}` : ''
+  const open_job = url ? ' Click to open the job.' : ''
+  const tooltip = data.status ? `${data.status}${started}.${open_job}` : (statusText ? `${statusText}.${open_job}` : open_job.trim())
+  return <Tooltip content={tooltip} disabled={!tooltip}>
     <>
       {url && <a href={url.replace("/api/json", "")} target="_blank"  rel="noopener noreferrer">
         {tag}

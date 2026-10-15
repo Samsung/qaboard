@@ -2,18 +2,26 @@ import { Fragment, memo, useMemo } from "react";
 import styled from "styled-components";
 import { interpolateRdYlGn } from "d3-scale-chromatic";
 import {
+  Callout,
   Classes,
   Intent,
   Colors,
   Tag,
+  Tooltip,
   HTMLTable,
 } from "@blueprintjs/core";
 
-import { Section } from "./layout";
 import { VirtualTbody } from "./VirtualTbody";
 import { PlatformTag, ConfigurationsTags, ExtraParametersTags, RunBadges, RunBadge, MismatchTags } from './tags'
 import { metric_formatter, percent_formatter, MetricHeader } from "./metrics"
 import { diff_cell } from "../utils/compare"
+
+// Inside the view's card: the metrics picker above the table
+const TableArea = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
 
 
 
@@ -22,10 +30,13 @@ const without_key = ({ key: _key, ...rest }) => rest;
 
 const Row = styled.tr`
   transition: background 0.2s;
-  :hover {
-  	background: ${Colors.LIGHT_GRAY3};
+  &:hover {
+    background: var(--qa-hover);
   }
 `
+
+// Cells colored by quality are light (yellow, green...): their text stays dark in the dark theme
+const colored_cell = background => background ? { background, color: Colors.DARK_GRAY1 } : undefined;
 
 const RowHeaderCell = ({ output }) => {
   if (output === undefined || output === null)
@@ -43,6 +54,16 @@ const RowHeaderCell = ({ output }) => {
   );
 };
 
+// Changes of a few % are common: the colors saturate around ±20% instead of ±100%
+const improvement_quality = (delta_relative, smaller_is_better) => {
+  const improvement = smaller_is_better ? -delta_relative : delta_relative;
+  return Math.max(Math.min(0.5 + 0.5 * Math.tanh(improvement / 0.1), 0.9), 0.08);
+};
+
+// e.g. "-50%", or "-0.39%" for small changes instead of "-0%"
+const small_percent_formatter = new Intl.NumberFormat("en-US", { maximumSignificantDigits: 2 });
+const format_percent = percent => Math.abs(percent) >= 1 || percent === 0 ? percent_formatter.format(percent) : small_percent_formatter.format(percent);
+
 const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
   const metric_new = metrics_new?.[metric.key]
   const metric_ref = metrics_ref?.[metric.key]
@@ -55,13 +76,13 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
   if (is_numeric) {
     // The same numbers as GET /api/v1/commit/<sha>/compare, see utils/compare.js
     const { delta, delta_relative } = diff_cell(metric_new, metric_ref);
-    const quality = Math.max(Math.min(metric.smaller_is_better ? (0.5 - delta_relative/2) : (0.5 + delta_relative/2), 0.9), 0.08);
+    const quality = improvement_quality(delta_relative, metric.smaller_is_better);
     // native tooltips: tables can have thousands of cells
     return <td
-      style={{ background: metric_ref && interpolateRdYlGn(quality) }}
+      style={colored_cell(metric_ref && interpolateRdYlGn(quality))}
       title={`New: ${metric_new * metric.scale}${metric.suffix}\nReference: ${metric_ref * metric.scale}${metric.suffix}`}
     >
-      {delta === 0 ? "=" : <span>{metric_formatter(delta, metric)} ({percent_formatter.format(100 * delta_relative)}%)</span>}
+      {delta === 0 ? "=" : <span>{metric_formatter(delta * (metric.scale ?? 1), metric)} ({format_percent(100 * delta_relative)}%)</span>}
     </td>
   } else {
     return <td>
@@ -89,11 +110,11 @@ const QualityCell = ({ metric_info, metric, metric_ref }) => {
   const metric_for_display = is_numeric ? metric * metric_info.scale : metric
   return (
     <td
-      style={{ background: metric_info.target !== undefined && is_numeric && color }}
+      style={colored_cell(metric_info.target !== undefined && is_numeric && color)}
       title={is_numeric ? `${metric_for_display}${metric_info.suffix}` : undefined}
     >
       {is_numeric
-        ? <span>{metric_ref === metric ? '=' : metric_formatter(metric_for_display, metric_info)}</span>
+        ? (metric_ref === metric ? <span title="Same as new">=</span> : <span>{metric_formatter(metric_for_display, metric_info)}</span>)
         : <span><RunBadge badge={metric}/></span>}
     </td>
   );
@@ -116,6 +137,14 @@ const useTableData = ({ new_batch, metrics, available_metrics, with_refs_only })
       .filter(m => !!m && used_metrics?.has(m.key) && (!with_refs_only || metrics_with_refs?.has(m.key)));
   }, [metrics_key, available_metrics, used_metrics, metrics_with_refs, with_refs_only]);
   return { outputs, metrics_ };
+};
+
+// Instead of a table with headers only
+const NoRuns = ({ new_batch }) => {
+  const is_filtered = Object.keys(new_batch.outputs).length > (new_batch.filtered?.outputs?.length ?? 0);
+  return <Callout icon={is_filtered ? "filter" : "inbox"} style={{ marginTop: '10px' }}>
+    {is_filtered ? "No finished run matches the filter." : "No finished run yet."}
+  </Callout>;
 };
 
 
@@ -148,15 +177,28 @@ const TableCompare = ({
   if (new_batch === undefined || new_batch === null || new_batch.outputs === undefined || new_batch.outputs === null) return <span />;
   const [label_new, label_ref] = labels || ["new", "ref"];
 
+  if (outputs.length === 0)
+    return <TableArea>{input}<NoRuns new_batch={new_batch}/></TableArea>;
+  // metrics are compared only when runs have a matching reference run
+  if (metrics_.length === 0)
+    return <TableArea>
+      {input}
+      <Callout icon="comparison" intent={Intent.WARNING} title="No metric to compare" style={{ marginTop: '10px' }}>
+        {new_batch.metrics_with_refs?.size > 0
+          ? "The reference runs don't have the metrics you picked. Pick other metrics above."
+          : "The reference has no matching runs. Pick another reference in the second navbar."}
+      </Callout>
+    </TableArea>;
+
   return (
-    <Section>
+    <TableArea>
       {input}
       <HTMLTable compact>
         <thead>
           <tr>
             <th />
             {metrics_.map(m => (
-              <th key={m.key} style={{boxShadow: "inset 0 0 1px 0 rgba(16, 22, 26, 0.15)"}}>
+              <th key={m.key} style={{boxShadow: "inset 0 0 1px 0 var(--qa-border)"}}>
                 <MetricHeader condensed {...without_key(m)}/> {!!m.suffix && <span className={Classes.TEXT_MUTED}>{m.suffix}</span>}
               </th>
             ))}
@@ -168,8 +210,10 @@ const TableCompare = ({
               </span>
             </th>
             {metrics_.map(m => (
-              <th scope="col" key={m.key}>
-                {label_new} − {label_ref}
+              <th scope="col" key={m.key} aria-label={`${label_new} − ${label_ref}`}>
+                <Tooltip content="Difference with the matching reference run (relative change). Green is better, red is worse.">
+                  <span>{label_new} − {label_ref}</span>
+                </Tooltip>
               </th>
             ))}
           </tr>
@@ -178,7 +222,7 @@ const TableCompare = ({
           <CompareRow key={id} index={index} measure={measure} output={output} output_ref={ref_batch?.outputs?.[output.reference_id]} metrics={metrics_}/>
         }/>
       </HTMLTable>
-    </Section>
+    </TableArea>
   );
 };
 
@@ -206,8 +250,10 @@ const TableKpi = ({
   const { outputs, metrics_ } = useTableData({ new_batch, metrics, available_metrics, with_refs_only: false });
   if (new_batch?.outputs === undefined || new_batch?.outputs === null) return <span />;
   const [label_new, label_ref] = labels || ["New", "Ref"];
+  if (outputs.length === 0)
+    return <TableArea>{input}<NoRuns new_batch={new_batch}/></TableArea>;
   return (
-    <Section>
+    <TableArea>
       {input}
       <HTMLTable compact>
         <thead>
@@ -216,9 +262,10 @@ const TableKpi = ({
             {metrics_.map(m => (
               <th colSpan={new_batch.metrics_with_refs.has(m.key) ? 2 : 1} key={m.key}>
                 <MetricHeader condensed {...without_key(m)}/>
-                {(!!m.target || !!m.suffix) && <span className={Classes.TEXT_MUTED}>
-                  [{m.target ? <>{metric_formatter(m.target * m.scale, m)}{m.suffix}</> : m.suffix.trim()}]
-                </span>}
+                {!!m.target && <Tooltip content="Target: cells are green when runs meet it, red when they don't.">
+                  <span className={Classes.TEXT_MUTED}>[{metric_formatter(m.target * m.scale, m)}{m.suffix}]</span>
+                </Tooltip>}
+                {!m.target && !!m.suffix && <span className={Classes.TEXT_MUTED}>[{m.suffix.trim()}]</span>}
               </th>
             ))}
           </tr>
@@ -243,7 +290,7 @@ const TableKpi = ({
           <KpiRow key={id} index={index} measure={measure} output={output} output_ref={ref_batch?.outputs?.[output.reference_id]} metrics={metrics_} metrics_with_refs={new_batch.metrics_with_refs}/>
         }/>
       </HTMLTable>
-    </Section>
+    </TableArea>
   );
 };
 

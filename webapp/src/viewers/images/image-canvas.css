@@ -6,3 +6,15 @@ canvas {
   image-rendering: pixelated;                 /* Awesome future-browsers       */
   -ms-interpolation-mode: nearest-neighbor;   /* IE                            */
 }
+
+/* The image filters' popup (filters.js): filters that changed from their default */
+:root {
+  --qa-filter-changed-background: #fff3cd;
+  --qa-filter-changed-border: #ffeaa7;
+  --qa-filter-changed-text: #856404;
+}
+.bp6-dark {
+  --qa-filter-changed-background: rgba(236, 154, 60, 0.15);
+  --qa-filter-changed-border: rgba(236, 154, 60, 0.4);
+  --qa-filter-changed-text: #fbb360;
+}

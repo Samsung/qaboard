@@ -30,7 +30,7 @@ const DoneAtTagUnstyled = ({ project, commit, className, style }) => {
 }
 
 const DoneAtTag = styled(DoneAtTagUnstyled)`
-  color: rgba(0, 0, 0, 0.55);
+  color: var(--qa-text-muted);
   white-space: nowrap;
   box-sizing: border-box;
   margin-left: 5px;
