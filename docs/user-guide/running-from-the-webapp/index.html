@@ -18,8 +18,8 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.c1ca28c2.css">
-<script src="/qaboard/assets/js/runtime~main.96e13870.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.f03cc267.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.7a5c15b9.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.8a315988.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -69,7 +69,9 @@
 <ul>
 <li class=""><strong>Links</strong> to docs, dashboards, build artifacts or reports. A link is disabled when its target doesn&#x27;t answer.</li>
 <li class=""><strong>Badges</strong>, like the pipeline status or the test coverage.</li>
-<li class=""><strong>GitLab CI manual jobs</strong> and <strong>Jenkins builds</strong>: click to start them for this commit. A status tag shows whether the job is pending, running, successful or failed; click the tag to open the job&#x27;s page and its logs. Once started, the icon changes to <em>repeat</em> so you can start it again.</li>
+<li class=""><strong>GitHub Actions workflows</strong>, <strong>GitLab CI manual jobs</strong> and <strong>Jenkins builds</strong>: click to start them for this commit. A status tag shows whether the job is pending, running, successful or failed; click the tag to open the job&#x27;s page and its logs. Once started, the icon changes to <em>repeat</em> so you can start it again. You need to be logged in to start GitHub Actions workflows and GitLab CI jobs.</li>
+<li class=""><strong>GitHub Actions workflows</strong> show the status of their latest run for the commit. GitHub runs them on the latest commit of the branch (or on the <code>ref</code> the project chose), not necessarily on the commit you&#x27;re looking at; QA-Board then follows the run you started. Only the workflows declared in the project&#x27;s <em>qaboard.yaml</em> can be seen and started.</li>
+<li class="">If the project configured nothing, the menu shows its git host&#x27;s defaults on branch pages: GitLab&#x27;s pipeline status, or a link to GitHub Actions. Badges that don&#x27;t load are hidden.</li>
 <li class=""><strong>Webhooks</strong> that call other tools, with a tag showing the response.</li>
 </ul>
 <figure class="figure_SMyr" style="max-width:438px"><div class="frame_gpSn" data-zoom="true"><picture><source type="image/avif" srcset="/qaboard/media/shots/integrations/menu/c1d269ef248189fa.avif"><source type="image/webp" srcset="/qaboard/media/shots/integrations/menu/56183542d710e94f.webp"><img class="image_k94w" src="/qaboard/media/shots/integrations/menu/56183542d710e94f.webp" alt="The sidebar&#x27;s Integrations menu open on a commit: links to the K3 calibration report and the ISP tuning guide, and the &quot;Send to the tuning bench&quot; webhook, with a status tag saying its job is queued." width="438" height="118" loading="lazy" decoding="async" style="background-image:url(&quot;data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAACwAQCdASoQAAUAA4BaJZwAAuddqDkAAP7wzjX2Dxu7Y5xjE21CAA==&quot;)"></picture><button type="button" class="zoomButton_wDMu" aria-label="Enlarge image" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg></button></div><figcaption class="caption_G95k"><span>Links to the project&#x27;s reports and guides, and a webhook: after a click, its tag shows the job&#x27;s status.</span></figcaption><dialog class="dialog_okoU" aria-label="The sidebar&#x27;s Integrations menu open on a commit: links to the K3 calibration report and the ISP tuning guide, and the &quot;Send to the tuning bench&quot; webhook, with a status tag saying its job is queued."></dialog></figure>
