@@ -33,26 +33,32 @@ Above the views, messages tell you about the selected batch:
 While runs are pending, the page refreshes by itself every 15 seconds.
 
 ## The controls panel
-On the right edge of the page, the **Controls** panel (click the dark tab to open or close it, your choice is remembered):
+On the right edge of the page, the **Controls** panel (click the dark tab to open or close it, your choice is remembered). It only lists what changes the view you're on:
 
-- **Visualizations**: switches to show or hide each visualization, including the ones hidden by default, and **Image Diff** to show a perceptual difference between new and reference images. A search box appears when there are many.
-- **Dynamic Options**: when a visualization has several files per run (frames, channels, reports...), pick which one to show. Options are **linked** across all runs: the panel lists the values of all runs, and a run that doesn't have the selected value shows the closest one, with a note on its card. The link icon makes an option **per-run**: each card gets its own selector, starting from the linked value. Changing an option keeps the image viewers' zoom and selected region.
-- **Sorting**: sort runs by name, id, storage, a tuning parameter or a metric, ascending or descending. It applies to tables and cards.
-- **Metrics**: which metrics to show in the tables.
+- **Visualizations** (on the Visualizations view): a switch to show or hide each visualization, including the ones hidden by default. The header counts how many are shown. A search box appears when there are many.
+- **Files to show** (on the Visualizations view): when a visualization has several files per run (frames, stages, reports...), pick which one to show. Hover an option to see which visualization and path it's for, and the values found in the runs.
+  - Until you pick a value, each run shows its own default: its last value when the values are numbers (e.g. its last frame), else its first. The panel says so ("Each run's last").
+  - The value you pick applies to all runs. The panel lists the values of all runs, and a run that doesn't have the selected value shows the closest one, with a note on its card.
+  - Turn on **Per run** to choose the value in each run's card instead. **Same for all runs**, in a card, turns it back off.
+  - The reset button next to an option goes back to the default. Changing an option keeps the image viewers' zoom and selected region.
+- **Viewers** (on the Visualizations and Output Files views): **Image diff** shows a perceptual difference between new and reference images, and the project's own switches, if its *qaboard.yaml* has `controls`.
+- **Sort runs**: sort by name, run id, storage, a tuning parameter or a metric. Until you choose, runs are sorted by the project's default metric, marked *(default)*. The order reads like the values: *Highest first*, *A to Z*, *Newest first*... It applies to the tables and the run cards.
+
+**Reset**, at the top of the panel, goes back to the project's defaults for the visualizations, the files to show and the viewers. The sorting stays as it is.
 
 <Shot
   id="commit/controls-panel"
-  caption="The switches include the visualizations hidden by default. Image Diff and Sorting apply to every card."
+  caption="The switches include the visualizations hidden by default. Image diff and the sorting apply to every card."
   callouts={[
     {anchor: 'visualizations', label: 'Visualizations'},
-    {anchor: 'image-diff', label: 'Image Diff'},
-    {anchor: 'sorting', label: 'Sorting'},
+    {anchor: 'image-diff', label: 'Image diff'},
+    {anchor: 'sorting', label: 'Sort runs'},
   ]}
 />
 
 <Shot
   id="commit/dynamic-options"
-  caption="A synced Dynamic Option over the pipeline's stages: on stage 3, every card shows stages/3.jpg, new and reference."
+  caption="Files to show, over the pipeline's stages: on stage 3, every card shows stages/3.jpg, new and reference."
 />
 
 ## Views
@@ -110,7 +116,7 @@ One row per run, with `new − ref` for each metric, and the change in percent. 
 />
 
 :::tip
-Use the **Sorting** section of the controls panel to sort runs by a metric, and see the worst regressions first.
+Use the **Sort runs** section of the controls panel to sort runs by a metric, and see the worst regressions first.
 :::
 
 Yellow **Input**, **Config**, **Platform** or **Tuning** tags (with a `≠` icon) mean the run was compared with a reference run that is not exactly the same. Hover them for details. See [How runs are matched](comparing-results.mdx#how-runs-are-matched).
