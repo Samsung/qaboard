@@ -1,0 +1,66 @@
+---
+id: monitoring
+sidebar_label: Monitoring with Sentry
+title: Monitoring with Sentry
+---
+QA-Board can report errors and performance data to [Sentry](https://sentry.io), or to your own [self-hosted Sentry](https://develop.sentry.dev/self-hosted/):
+
+- **Backend**: errors, traces of the API requests with their database queries, and profiles (which functions take time).
+- **Web app**: errors with readable stack traces (if you upload the source maps), page loads and navigations with their web vitals (LCP, CLS, INP), the API calls they make, and session replays. The backend's traces continue the web app's, so you see a page load and the API requests it made in the same trace.
+- **Celery workers**: errors and traces of the tasks.
+- **`qa` in CI**: errors, see [below](#the-qa-cli).
+
+Nothing is sent unless you set a DSN. Users are only identified by their username: no emails, IP addresses or cookies. Tokens and secrets in URLs (e.g. `?token=`), `Authorization` headers and webhook secrets are filtered out before anything is sent.
+
+## Settings
+Create a project for the backend and one for the web app in Sentry, and set their DSNs, like other secrets, in the `.env` file next to *docker-compose.yml* (with the Helm chart: in `secret.values` or your `existingSecret`, the other settings in `backend.env`).
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SENTRY_DSN` | _none_ | The backend's Sentry project. Without it, the backend doesn't use Sentry |
+| `SENTRY_FRONTEND_DSN` | `SENTRY_DSN` | The web app's Sentry project. The backend gives it to the web app |
+| `SENTRY_ENVIRONMENT` | production | e.g. `staging`, to tell your deployments apart |
+| `SENTRY_TRACES_SAMPLE_RATE` | 0.2 | Share of the API requests and page loads that are traced. `SENTRY_SAMPLE_RATE`, its former name, still works |
+| `SENTRY_PROFILE_SESSION_SAMPLE_RATE` | 0.1 | Share of the backend's processes that profile their traces ([continuous profiling](https://docs.sentry.io/platforms/python/profiling/)). `0` disables profiling |
+| `SENTRY_PROFILES_SAMPLE_RATE` | _none_ | For Sentry servers without continuous profiling: share of the traces that are profiled. When set, it replaces `SENTRY_PROFILE_SESSION_SAMPLE_RATE` |
+| `SENTRY_CA_CERTS` | see [below](#certificates) | The CA bundle that signed your Sentry server's certificate, `system` for the OS's, or `false` to not check it |
+| `SENTRY_FRONTEND_TRACE_LIFECYCLE` | static | `stream` makes the web app send its spans as they end ([span streaming](https://docs.sentry.io/platforms/javascript/configuration/options/#traceLifecycle)), which needs a recent Sentry server |
+| `SENTRY_RELEASE` | the image's version | Overrides the release events are tagged with |
+
+Events are tagged with a **release**: the version of the images (`QABOARD_VERSION` when they are built, e.g. the commit). The images that QA-Board publishes have it. If you build your own, set `QABOARD_VERSION` when you run `docker compose build`.
+
+### Upload the web app's source maps
+To get readable stack traces from the web app, its build uploads the source maps to Sentry, then deletes them so that your server doesn't serve them. Set these variables when you build the `frontend` image (`docker compose build frontend`, they are passed as build arguments):
+
+| Variable | Description |
+|----------|-------------|
+| `SENTRY_AUTH_TOKEN` | An [organization token](https://docs.sentry.io/account/auth-tokens/#organization-tokens). Without it, nothing is uploaded and the source maps are served with the app, as usual |
+| `SENTRY_ORG` | Your Sentry organization's slug |
+| `SENTRY_PROJECT` | The web app's Sentry project slug |
+| `SENTRY_URL` | Your self-hosted Sentry's URL, e.g. `https://sentry.example.com/` (default: sentry.io) |
+
+If the upload fails, the build still succeeds, with a warning: only the stack traces aren't readable.
+
+### Certificates
+If your Sentry server uses a certificate signed by your company's CA, the backend needs that CA:
+- The backend image trusts the CA you install with the `CA_CERT_URL` build argument: when admins add CAs to the system (`/usr/local/share/ca-certificates`), QA-Board uses the system's CA bundle for Sentry, instead of the one that comes with the Sentry SDK.
+- Otherwise, set `SENTRY_CA_CERTS` to the path of a CA bundle (or `SSL_CERT_FILE`/`REQUESTS_CA_BUNDLE`, that the SDK also reads).
+- `SENTRY_CA_CERTS=false` doesn't check the certificate. Avoid it: the backend logs a warning when it starts.
+
+The web app is loaded by your users' browsers: they need to trust your Sentry server's certificate too.
+
+## Celery workers
+[Celery workers](/docs/celery-integration) report to `SENTRY_DSN` if it's set where they run, else to the site's `QABOARD_SENTRY_DSN` (see below). They use the same settings as the backend.
+
+## The `qa` CLI
+In CI only, `qa` reports its errors to the Sentry project set by `QABOARD_SENTRY_DSN`, in its environment or your site package. Set `QABOARD_SENTRY_VERIFY` (or `SENTRY_CA_CERTS`) like `SENTRY_CA_CERTS` above if your Sentry server's certificate isn't signed by a public CA. Its events are tagged with the `qa` version (`qaboard@1.2.3`) and the `ci` environment.
+
+## uWSGI
+The backend runs in uWSGI, which forks its worker processes from a master process. The Sentry SDK sends events from background threads, that don't survive a fork: with them, workers can crash. So each worker initializes Sentry after it forks, and *uwsgi.ini* sets `enable-threads` and `py-call-uwsgi-fork-hooks`, as [the SDK requires](https://docs.sentry.io/platforms/python/integrations/uwsgi/). Keep them if you use your own *uwsgi.ini*. Each worker decides on its own whether it profiles (`SENTRY_PROFILE_SESSION_SAMPLE_RATE`), and workers are recycled every hour, so profiles come from different processes over time.
+
+## Self-hosted Sentry versions
+Each feature degrades gracefully: if your server doesn't support it, you only lose that data. As a rough guide (check your Sentry's release notes):
+- Errors, traces with database spans, LCP/CLS and releases work with any self-hosted Sentry from the last few years.
+- Source maps are uploaded with [debug IDs](https://docs.sentry.io/platforms/javascript/sourcemaps/troubleshooting_js/debug-ids/), which need self-hosted 23.6.2 or later.
+- Session replays, INP and transaction-based profiling (`SENTRY_PROFILES_SAMPLE_RATE`) need a 2023-2024 release or later.
+- Continuous profiling (the default) and span streaming (`SENTRY_FRONTEND_TRACE_LIFECYCLE=stream`) need a recent release. With an older server, set `SENTRY_PROFILES_SAMPLE_RATE` instead to get profiles.
