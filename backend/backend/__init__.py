@@ -105,7 +105,10 @@ def warm_cache():
     # https://stackoverflow.com/questions/43648075/uwsgi-flask-sqlalchemy-intermittent-postgresql-errors-with-warning-there-is-al
     # https://uwsgi-docs.readthedocs.io/en/latest/articles/TheArtOfGracefulReloading.html#preforking-vs-lazy-apps-vs-lazy
     # https://stackoverflow.com/questions/41279157/connection-problems-with-sqlalchemy-and-multiple-processes
-    engine.dispose()
+    # close=False: the connections inherited from the uwsgi master are dropped without being closed, closing them
+    # would also close them for the master and the other workers (they share the sockets).
+    # https://docs.sqlalchemy.org/en/20/core/pooling.html#using-connection-pools-with-multiprocessing-or-os-fork
+    engine.dispose(close=False)
 
     def warm():
         print("Warming cache in worker")
