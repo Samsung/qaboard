@@ -14,8 +14,8 @@ import { select } from 'd3-selection'
 import * as flameGraph from 'd3-flame-graph';
 import { forEachInTree, selfDelta } from './flameDeltas';
 
-import { errorMessage } from "../api/http";
 import { fileQuery } from "../api/queries";
+import { ViewerError } from "./ViewerStates";
 
 // Integrates 
 // We love Brendan Gregg's flame charts
@@ -159,7 +159,7 @@ const FlameGraphViewer = ({ output_new, output_ref, path }) => {
   const both = is_loaded && !!data_new && !!data_ref;
   return <>
       <div>
-      {query_new.isError && <span>{errorMessage(query_new.error)}</span>}
+      {query_new.isError && <ViewerError path={path} error={query_new.error}/>}
       {is_loaded && !!data_new && !data_ref && <FlameGraphComponent key="new" data={data_new}/>}
       {both && comparaison==='diff-what-did-happen' && <FlameGraphComponent differential title="Widths show the after profile, colored by what DID happen" key="new1" data={deltas.new}/>}
       {both && comparaison==='diff-what-will-happen' && <FlameGraphComponent differential title="Widths show the before profile, colored by what WILL happen" key="new2" data={deltas.ref}/>}

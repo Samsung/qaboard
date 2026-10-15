@@ -1,4 +1,6 @@
-import { Colors, Tag, Icon, Tooltip, Callout, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
+import { Colors, Button, Icon, Popover, Callout, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
+
+import { useIsDark } from "../../theme";
 
 
 //----- Trees ----------------------------------------------------------------- 
@@ -168,39 +170,56 @@ const humanElapsedTime = (seconds_str) => {
 }
 
 
+// How files and folders compare to the reference, with colors readable on light and dark backgrounds
+const state_colors = is_dark => ({
+  same: is_dark ? Colors.GRAY4 : Colors.GRAY1,
+  different: is_dark ? Colors.ORANGE4 : Colors.ORANGE3,
+  added: is_dark ? Colors.GREEN4 : Colors.GREEN3,
+  removed: is_dark ? Colors.RED4 : Colors.RED3,
+  removed_and_different: is_dark ? Colors.ROSE4 : Colors.ROSE3,
+  added_and_different: is_dark ? Colors.TURQUOISE4 : Colors.TURQUOISE3,
+  mixed: is_dark ? Colors.SEPIA4 : Colors.SEPIA3,
+  not_checked: is_dark ? Colors.GRAY2 : Colors.GRAY4,
+})
+
 const file_types = [
-  {color: Colors.GREY1, label: 'Bit-accurate', icon: 'duplicate'},
-  {color: Colors.ORANGE1, label: 'Different', icon: 'cross'},
-  {color: Colors.GREEN1, label: 'Missing in the reference', icon: 'plus'},
-  {color: Colors.RED1, label: 'Present only in the reference', icon: 'minus'},
-  {color: Colors.GRAY4, label: 'Not checked for bit-accuracy (bit_accuracy.patterns in qaboard.yaml)', icon: 'document'},
+  {state: 'same', label: 'Identical to the reference', icon: 'duplicate'},
+  {state: 'different', label: 'Different', icon: 'cross'},
+  {state: 'added', label: 'Missing in the reference', icon: 'plus'},
+  {state: 'removed', label: 'Present only in the reference', icon: 'minus'},
+  {state: 'not_checked', label: 'Not checked for bit-accuracy (bit_accuracy.patterns in qaboard.yaml)', icon: 'document'},
 ]
 const folder_types = [
-  {color: Colors.GREY1, label: 'All files match', icon: 'folder-close'},
-  {color: Colors.ORANGE1, label: 'Some files are different', icon: 'folder-close'},
-  {color: Colors.GREEN1, label: 'Some files are missing in the reference', icon: 'folder-close'},
-  {color: Colors.RED1, label: 'Some files are only in the reference', icon: 'folder-close'},
-  {color: Colors.ROSE1, label: 'Some files are only in the reference and some are different', icon: 'folder-close'},
-  {color: Colors.TURQUOISE1, label: 'Some files are missing in the reference and some are different', icon: 'folder-close'},
-  {color: Colors.SEPIA1, label: 'It is a mess', icon: 'folder-close'},
+  {state: 'same', label: 'All files match', icon: 'folder-close'},
+  {state: 'different', label: 'Some files are different', icon: 'folder-close'},
+  {state: 'added', label: 'Some files are missing in the reference', icon: 'folder-close'},
+  {state: 'removed', label: 'Some files are only in the reference', icon: 'folder-close'},
+  {state: 'removed_and_different', label: 'Some files are only in the reference and some are different', icon: 'folder-close'},
+  {state: 'added_and_different', label: 'Some files are missing in the reference and some are different', icon: 'folder-close'},
+  {state: 'mixed', label: 'Some files are missing, some only in the reference, some different', icon: 'folder-close'},
 ]
 const bullet_style = {'listStyleType': 'none'};
 const icon_style = {'marginRight': '10px'};
-const help = <>
-  <h3>Showing diffs</h3>
-  <p>Click on a file to show its diff versus the reference. Press <kbd>control</kbd> or <kbd>shift</kbd> to select multiple files</p>
-  <h3>Bit-accuracy</h3>
-  <p>Like <code>qa check-bit-accuracy</code>, only the files matching <code>bit_accuracy.patterns</code> in qaboard.yaml are checked (by default all files, except logs, <code>run.json</code> and <code>metrics.json</code>).</p>
-  <h3>File icons</h3>
-  <ul>{file_types.map( ({color, label, icon}) =>
-    <li key={label} style={bullet_style}><Icon icon={icon} style={{...icon_style, color}}></Icon> {label}</li>)}
-  </ul>
-  <h3>Folder icons</h3>
-  <ul>{folder_types.map( ({color, label, icon}) =>
-    <li key={label} style={bullet_style}><Icon icon={icon} style={{...icon_style, color}}></Icon> {label}</li>)}
-  </ul>
-</>
-const bit_accuracy_help = <Tooltip content={help}><Tag icon='help' minimal round large>Help</Tag></Tooltip>;
+const BitAccuracyHelp = () => {
+  const colors = state_colors(useIsDark());
+  return <div style={{ padding: '5px 15px', maxWidth: '600px' }}>
+    <h3>Showing diffs</h3>
+    <p>Click on a file to show its diff versus the reference. Press <kbd>control</kbd> or <kbd>shift</kbd> to select multiple files</p>
+    <h3>Bit-accuracy</h3>
+    <p>Like <code>qa check-bit-accuracy</code>, only the files matching <code>bit_accuracy.patterns</code> in qaboard.yaml are checked (by default all files, except logs, <code>run.json</code> and <code>metrics.json</code>).</p>
+    <h3>File icons</h3>
+    <ul>{file_types.map( ({state, label, icon}) =>
+      <li key={label} style={bullet_style}><Icon icon={icon} style={{...icon_style, color: colors[state]}}></Icon> {label}</li>)}
+    </ul>
+    <h3>Folder icons</h3>
+    <ul>{folder_types.map( ({state, label, icon}) =>
+      <li key={label} style={bullet_style}><Icon icon={icon} style={{...icon_style, color: colors[state]}}></Icon> {label}</li>)}
+    </ul>
+  </div>
+}
+const bit_accuracy_help = <Popover content={<BitAccuracyHelp/>} placement="bottom-end">
+  <Button variant="minimal" icon="help" text="Help"/>
+</Popover>;
 
 
 
@@ -239,7 +258,7 @@ const BitAccuracyForm = ({ show_all_files, hide_runs_without_files, expand_all, 
         style={{ width: "300px" }}
       />
       <Switch
-        label="Color-blind-Friendly"
+        label="Color-blind friendly"
         checked={color_blind_friendly}
         onChange={toggle('color_blind_friendly')}
         style={{ width: "300px" }}
@@ -248,7 +267,7 @@ const BitAccuracyForm = ({ show_all_files, hide_runs_without_files, expand_all, 
     <FormGroup
       inline
       labelFor="files-filter"
-      helperText={<span>Filter files.<br/>You can use <code>match:file.txt</code> or <code>diff:file.txt</code></span>}
+      helperText={<span>Filter files by path.<br/><code>match:name</code> shows identical files, <code>diff:name</code> different ones</span>}
       style={{flex: '50 1 auto'}}
     >
       <InputGroup
@@ -269,4 +288,4 @@ const BitAccuracyForm = ({ show_all_files, hide_runs_without_files, expand_all, 
 // The options of the bit-accuracy viewers are in the URL, but not when they have their default value
 const bit_accuracy_url_defaults = { show_all_files: false, hide_runs_without_files: false, expand_all: false, color_blind_friendly: false, files_filter: '' };
 
-export { bit_accuracy_url_defaults, getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, humanFileSize, updateMissingFrom, BitAccuracyForm, bit_accuracy_help, humanElapsedTime }
+export { state_colors, bit_accuracy_url_defaults, getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, humanFileSize, updateMissingFrom, BitAccuracyForm, bit_accuracy_help, humanElapsedTime }

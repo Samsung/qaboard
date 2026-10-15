@@ -563,7 +563,6 @@ class TofOutputCard extends Component {
       },
       legend: {
         orientation: "h",
-        bgcolor: "rgba(255,255,255,0.5)",
         traceorder: "grouped",
         tracegroupgap: 0
       },

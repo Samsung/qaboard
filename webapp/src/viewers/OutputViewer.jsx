@@ -1,9 +1,11 @@
 import React, { lazy, Suspense, useState } from "react";
 import {
-  Tag,
+  Button,
 } from "@blueprintjs/core";
 
+import { useSiteConfig } from "../hooks";
 import { is_image } from "./images/utils"
+import { ViewerLoading } from "./ViewerStates"
 
 
 const LoadableTextViewer = lazy(() => import('./textViewer' /* webpackChunkName: "text-viewer" */));
@@ -18,6 +20,7 @@ const LoadableFlameGraphViewer = lazy(() => import('./flame-graph' /* webpackChu
 
 const OutputViewer = props_ => {
     const [image_viewer, setImageViewer] = useState('image')
+    const { docs_root } = useSiteConfig();
 
     const { type, output_ref, ...props } = props_;
     const maybe_output_ref = (props_.show_reference === undefined || props_.show_reference) ? output_ref : undefined;
@@ -25,7 +28,7 @@ const OutputViewer = props_ => {
     if (is_image(props_)) {
       if (props_.path.endsWith('hex')) {
         viewer = <>
-          <div><Tag minimal interactive icon={image_viewer === 'image' ? 'numerical' : 'media'} onClick={() => setImageViewer(image_viewer === 'image' ? 'text' : 'image')}>Toggle image/text</Tag></div>
+          <div><Button size="small" variant="minimal" icon={image_viewer === 'image' ? 'numerical' : 'media'} onClick={() => setImageViewer(image_viewer === 'image' ? 'text' : 'image')}>{image_viewer === 'image' ? 'Show as text' : 'Show as image'}</Button></div>
           <div>
           {image_viewer === 'text' ? 
               <LoadableTextViewer renderSideBySide={false} {...props} type={type} output_ref={output_ref}/>
@@ -56,7 +59,9 @@ const OutputViewer = props_ => {
         viewer = <LoadableFlameGraphViewer {...props} type={type} output_ref={maybe_output_ref}/>
       else if (type === 'files/bit-accuracy')
         viewer = <LoadableBitAccuracyViewer {...props} type={type} output_ref={output_ref}/>
-      else viewer = <span>No viewer is defined for type: {type}</span>;
+      else viewer = <p>
+        No viewer for the type <code>{type}</code>. <a href={`${docs_root}docs/visualizations`} target="_blank" rel="noopener noreferrer">See the supported types</a>
+      </p>;
     } else {
       const { path='' } = props_;
       if (path.endsWith('plotly.json') || path.endsWith('plotly.html')) {
@@ -72,7 +77,7 @@ const OutputViewer = props_ => {
       }
     }
   return (
-    <Suspense fallback={<span/>}>
+    <Suspense fallback={<ViewerLoading height={props_.style?.height}/>}>
       {viewer}
     </Suspense>
   );

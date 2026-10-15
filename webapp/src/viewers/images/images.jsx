@@ -6,6 +6,7 @@ import {
   Colors,
   Intent,
   Tag,
+  Button,
   Icon,
   Tooltip,
   Popover,
@@ -906,12 +907,14 @@ class ImgViewer extends React.PureComponent {
       height: `${image_height / image_width * (available_width - 10) / 2}px`,
     }
 
-    const switch_label = <Tag interactive rightIcon="exchange" onClick={this.switch_images}>Switch</Tag>;
+    const switch_label = <Button size="small" variant="minimal" endIcon="exchange" onClick={this.switch_images}>Switch</Button>;
     const switch_help_label = <span>Switch New/Reference with the keyboard shortcut <kbd>t</kbd>. Hide labels with <kbd>h</kbd></span>
 
 
+    // the diff column has a slider above its image: the other columns leave the same space
+    const header_height = diff ? '60px' : undefined
     const image_new = <div style={flex} key="new">
-      {has_reference && <div style={{ minHeight: (diff ? '40px' : undefined) }}>
+      {has_reference && <div style={{ minHeight: header_height }}>
         {!hide_labels ? <Tooltip content={switch_help_label}><Tag
           interactive
           style={{backgroundColor: Colors.CERULEAN4}}
@@ -922,13 +925,12 @@ class ImgViewer extends React.PureComponent {
       <div style={single_image_size} id={this.viewer_new.id} key={this.viewer_new.id} />
     </div>
     const image_ref = <div style={flex} key="ref">
-      {has_reference && <div style={{ minHeight: (diff ? '40px' : undefined) }}>
-        {!hide_labels ? <Tooltip content={switch_help_label}><Tag
+      {has_reference && <div style={{ minHeight: header_height }}>
+        {!hide_labels ? <Tooltip content={has_same_data ? "The new and reference files have the same hash" : switch_help_label}><Tag
           interactive
           rightIcon="exchange"
-          title="Switch New/Reference with the keyboard shortcut <code>t</code>. Hide labels with <h>"
           onClick={this.switch_images}
-        >{!has_same_data ? <span>reference {path !== path_ref && path_ref} <code>{image_width_ref}x{image_height_ref}</code></span> : 'reference (same-image)'}</Tag></Tooltip> : switch_label}
+        >{!has_same_data ? <span>reference {path !== path_ref && path_ref} <code>{image_width_ref}x{image_height_ref}</code></span> : 'Identical to the reference'}</Tag></Tooltip> : switch_label}
       </div>}
       <div style={single_image_size} id={this.viewer_ref.id} key={this.viewer_ref.id} hidden={!has_reference || has_same_data} />
     </div>
@@ -962,7 +964,8 @@ class ImgViewer extends React.PureComponent {
     </div> : <></>
 
     const diff_info = !has_same_data && single_image_height > 0 ? <div hidden={!diff || !has_reference} style={flex}>
-      <div style={{ minHeight: '40px' }}>
+      <div style={{ minHeight: header_height }}>
+        {diff && has_reference && <div className={Classes.TEXT_MUTED} style={{ fontSize: '12px' }}>Highlight pixels that differ by more than…</div>}
         {/* Blueprint measures the slider's track width only when it mounts. Mounted while hidden, it measures 0px,
             then any drag computes an infinite step and the handle sticks to max/min: only mount it once visible,
             and remount it when the width changes. */}
@@ -981,7 +984,7 @@ class ImgViewer extends React.PureComponent {
           showTrackFill
           style={{ width: single_image_size.width }}
         >
-          <MultiSlider.Handle value={this.state.diff_threshold} intentAfter={Intent.NONE} />
+          <MultiSlider.Handle value={this.state.diff_threshold} intentAfter={Intent.NONE} htmlProps={{ 'aria-label': 'Diff threshold' }} />
         </MultiSlider>}
       </div>
       <div style={single_image_size}>
@@ -1073,9 +1076,9 @@ class ImgViewer extends React.PureComponent {
               />}
           </Menu>
           }>
-              <Tag
-                interactive
-                minimal
+              <Button
+                size="small"
+                variant="minimal"
                 icon="duplicate"
                 style={{ marginRight: "10px" }}
                 onClick={() => {
@@ -1085,7 +1088,7 @@ class ImgViewer extends React.PureComponent {
                     message=>toaster.show({message, intent: Intent.SUCCESS})
                   )
                 }}
-              >Copy</Tag>
+              >Copy</Button>
           </Popover>
           <RoiViewer
             output_new={output_new}

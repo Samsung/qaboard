@@ -3,6 +3,7 @@ import styled from "styled-components";
 import {
   Intent,
   Classes,
+  Colors,
   HTMLSelect,
   Switch,
   Button,
@@ -14,6 +15,7 @@ import {
 import { is_image } from "../viewers/images/utils";
 import DynamicOptionControl from "./DynamicOptionControl";
 import { resolveOptionValue } from "../utils/dynamicOptions";
+import { useIsDark } from "../theme";
 
 const PanelContainer = styled.div`
   position: fixed;
@@ -161,6 +163,7 @@ const FloatingControlsPanel = ({
   const [isExpanded, setIsExpanded] = useState(saved_expanded);
   
   const [isExpandedWithLogs, setIsExpandedWithLogs] = useState(false);
+  const is_dark = useIsDark();
 
   const [expandedSections, setExpandedSections] = useState({
     visualizations: true,
@@ -201,7 +204,11 @@ const FloatingControlsPanel = ({
     }));
   };
 
-  const show_viewer_controls = selected_views.includes('output-list') || selected_views.includes('bit-accuracy');
+  // undefined while we don't know
+  const nb_runs = new_batch.outputs ? Object.keys(new_batch.outputs).length : undefined;
+  const show_viewer_controls = (selected_views.includes('output-list') || selected_views.includes('bit-accuracy')) && nb_runs !== 0;
+  // only the visualizations view shows visualizations
+  const show_visualizations_stats = selected_views.includes('output-list');
   // With only the logs, the panel only has the sorting, and would cover the right side of the logs: it starts closed
   const only_logs = selected_views.includes('logs') && !show_viewer_controls
   const expanded = only_logs ? isExpandedWithLogs : isExpanded
@@ -220,7 +227,6 @@ const FloatingControlsPanel = ({
   // Calculate visualization stats
   const totalVisualizations = visualizations.length;
   const enabledVisualizations = visualizations.filter(isVisualizationEnabled);
-  const hiddenVisualizations = totalVisualizations - enabledVisualizations.length;
   
   // Calculate how many visualizations have files available
   const visualizationsWithFiles = visualizations.filter(view => {
@@ -321,7 +327,9 @@ const FloatingControlsPanel = ({
         minimal
         intent={Intent.PRIMARY}
         onClick={() => setExpanded(!expanded)}
-        title="Toggle Controls Panel"
+        title={expanded ? "Hide the controls" : "Show the controls"}
+        aria-label={expanded ? "Hide the controls" : "Show the controls: visualizations, options, sorting"}
+        aria-expanded={expanded}
       />
       
       <PanelContainer isExpanded={expanded}>
@@ -333,7 +341,7 @@ const FloatingControlsPanel = ({
           </SectionTitle>
 
           {/* Enhanced Stats display - moved here for better visibility */}
-          {(hiddenVisualizations > 0 || totalVisualizations > 0 || visualizations_with_files.size > 0) && (
+          {show_visualizations_stats && (
             <div style={{ 
               fontSize: 11, 
               color: 'var(--qa-text-muted)', 
@@ -343,28 +351,25 @@ const FloatingControlsPanel = ({
               borderRadius: 3,
               border: '1px solid var(--qa-border)'
             }}>
-              {visualizations_with_files.size > 0 && (
-                <div>📁 {visualizationsWithFiles}/{totalVisualizations} visualizations have files</div>
-              )}
-              {visualizationsWithFiles > 0 && (
-                <div style={{ marginTop: 2 }}>
-                  📊 {enabledVisualizations.filter(view => {
-                    const viewName = view.name || view.path;
-                    return visualizations_with_files.has(viewName);
-                  }).length}/{visualizationsWithFiles} available visualizations enabled
-                </div>
-              )}
-              {availableDynamicOptions.length > 0 && (
-                <div style={{ marginTop: 2 }}>
-                  🎛️ {availableDynamicOptions.length} dynamic option{availableDynamicOptions.length !== 1 ? 's' : ''} available
-                </div>
-              )}
-              {visualizationsWithFiles === 0 && (
+              {nb_runs === 0 ? <div>No runs yet</div>
+              : totalVisualizations === 0 ? <div>No visualizations configured in qaboard.yaml</div>
+              : <>
+                {/* which visualizations have files is known as the cards load their runs' files */}
+                {visualizations_with_files.size > 0 ? <>
+                  <div>📁 {visualizationsWithFiles}/{totalVisualizations} visualizations have files</div>
                   <div style={{ marginTop: 2 }}>
-                    🛇 No visualizations available
+                    📊 {enabledVisualizations.filter(view => {
+                      const viewName = view.name || view.path;
+                      return visualizations_with_files.has(viewName);
+                    }).length}/{visualizationsWithFiles} available visualizations enabled
                   </div>
-                )
-              }
+                </> : <div>📊 {enabledVisualizations.length}/{totalVisualizations} visualizations enabled</div>}
+                {availableDynamicOptions.length > 0 && (
+                  <div style={{ marginTop: 2 }}>
+                    🎛️ {availableDynamicOptions.length} dynamic option{availableDynamicOptions.length !== 1 ? 's' : ''} available
+                  </div>
+                )}
+              </>}
             </div>
           )}
 
@@ -374,6 +379,8 @@ const FloatingControlsPanel = ({
               <SectionHeader onClick={() => toggleSection('visualizations')}>
                 <Button
                   icon={expandedSections.visualizations ? "chevron-down" : "chevron-right"}
+                  aria-label="Visualizations"
+                  aria-expanded={expandedSections.visualizations}
                   minimal
                   small
                   style={{ marginRight: 4, minHeight: 20, minWidth: 20 }}
@@ -412,6 +419,8 @@ const FloatingControlsPanel = ({
               <SectionHeader onClick={() => toggleSection('dynamic_options')}>
                 <Button
                   icon={expandedSections.dynamic_options ? "chevron-down" : "chevron-right"}
+                  aria-label="Dynamic options"
+                  aria-expanded={expandedSections.dynamic_options}
                   minimal
                   small
                   style={{ marginRight: 4, minHeight: 20, minWidth: 20 }}
@@ -461,6 +470,7 @@ const FloatingControlsPanel = ({
                               <Tooltip content={isSync ? "Unlink: choose the value in each output" : "Link: all outputs use the value chosen here"}>
                                 <Button
                                   icon="link"
+                                  aria-label={isSync ? `Unlink ${name}` : `Link ${name}`}
                                   minimal
                                   small
                                   intent={isSync ? Intent.SUCCESS : Intent.NONE}
@@ -470,7 +480,7 @@ const FloatingControlsPanel = ({
                               </Tooltip>
                               <span style={{ 
                                 fontSize: '10px', 
-                                color: isSync ? '#0d8050' : 'var(--qa-text-muted)',
+                                color: isSync ? (is_dark ? Colors.GREEN5 : Colors.GREEN2) : 'var(--qa-text-muted)',
                                 fontWeight: '500'
                               }}>
                                 {isSync ? 'linked' : 'per-output'}
@@ -524,6 +534,8 @@ const FloatingControlsPanel = ({
           <SectionHeader onClick={() => toggleSection('sorting')}>
             <Button
               icon={expandedSections.sorting ? "chevron-down" : "chevron-right"}
+              aria-label="Sorting"
+              aria-expanded={expandedSections.sorting}
               minimal
               small
               style={{ marginRight: 4, minHeight: 20, minWidth: 20 }}
@@ -580,6 +592,8 @@ const FloatingControlsPanel = ({
               <SectionHeader onClick={() => toggleSection('metrics')}>
                 <Button
                   icon={expandedSections.metrics ? "chevron-down" : "chevron-right"}
+                  aria-label="Metrics"
+                  aria-expanded={expandedSections.metrics}
                   minimal
                   small
                   style={{ marginRight: 4, minHeight: 20, minWidth: 20 }}

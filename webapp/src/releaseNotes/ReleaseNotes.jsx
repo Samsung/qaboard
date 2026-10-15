@@ -279,7 +279,7 @@ const Details = styled.div`
     font-size: 15px;
     margin: 18px 0 6px 0;
     padding-bottom: 4px;
-    border-bottom: 1px solid rgba(17, 20, 24, 0.1);
+    border-bottom: 1px solid var(--qa-border);
   }
   h3 {
     font-size: 14px;
@@ -305,7 +305,7 @@ const Details = styled.div`
 
 const NoteSection = styled.section`
   padding: 20px 24px;
-  border-bottom: 1px solid rgba(17, 20, 24, 0.1);
+  border-bottom: 1px solid var(--qa-border);
 `;
 
 const ReleaseNote = ({ note, isNew, expanded, docs_root }) => {
@@ -379,7 +379,7 @@ export const WhatsNewDrawer = ({ isOpen, notes, newSlugs, docs_root, onClose }) 
     size={DrawerSize.STANDARD}
     style={{ minWidth: 420, maxWidth: "100vw" }}
   >
-    <div style={{ padding: "12px 24px", borderBottom: "1px solid rgba(17, 20, 24, 0.1)" }}>
+    <div style={{ padding: "12px 24px", borderBottom: "1px solid var(--qa-border)" }}>
       <InputGroup
         leftIcon="search"
         placeholder="Search the release notes..."

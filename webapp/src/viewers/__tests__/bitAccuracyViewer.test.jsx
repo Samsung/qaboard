@@ -62,4 +62,17 @@ describe('BitAccuracyViewer', () => {
     render(<BitAccuracyViewer manifests={{ new: manifests.reference, reference: manifests.reference }} output_new={output_new} output_ref={output_ref} show_all_files />);
     expect(screen.getByText('Bit-accurate')).toBeInTheDocument();
   });
+
+  it('waits for the files instead of saying there are none', () => {
+    render(<BitAccuracyViewer manifests={{}} output_new={output_new} output_ref={output_ref} files_loading />);
+    expect(screen.getByRole('progressbar')).toBeInTheDocument();
+    expect(screen.queryByText(/No differences/)).not.toBeInTheDocument();
+  });
+
+  it('says why no file is shown', () => {
+    const { rerender } = render(<BitAccuracyViewer manifests={{ new: manifests.reference, reference: manifests.reference }} output_new={output_new} output_ref={output_ref} />);
+    expect(screen.getByText(/No differences with the reference/)).toBeInTheDocument();
+    rerender(<BitAccuracyViewer manifests={manifests} output_new={output_new} output_ref={output_ref} files_filter="nothing-matches" />);
+    expect(screen.getByText('No file matches the filter')).toBeInTheDocument();
+  });
 });

@@ -44,6 +44,20 @@ test('says when the selected value is not in the outputs', () => {
   expect(screen.getByText("isn't in these outputs, they show", { exact: false })).toBeInTheDocument();
 });
 
+test('says when the batch has no runs, without visualization toggles', () => {
+  panel({}, { new_batch: { used_metrics: new Set(), outputs: {} } });
+  expect(screen.getByText('No runs yet')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Visualizations' })).not.toBeInTheDocument();
+});
+
+test('sections tell whether they are expanded', () => {
+  panel({});
+  const sorting = screen.getByRole('button', { name: 'Sorting' });
+  expect(sorting).toHaveAttribute('aria-expanded', 'true');
+  fireEvent.click(sorting);
+  expect(sorting).toHaveAttribute('aria-expanded', 'false');
+});
+
 test('unlinked options are chosen in each output', () => {
   const onToggleDynamicOptionSync = vi.fn();
   panel({ dynamic_options_sync: { frame: false } }, { onToggleDynamicOptionSync });
