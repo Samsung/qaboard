@@ -74,7 +74,7 @@ describe('TableCompare', () => {
     // +5% PSNR is clearly better: green, not yellow
     const better = screen.getAllByRole('row').at(-1).querySelector('td');
     expect(better).toHaveTextContent('1.3 (5%)');
-    const [r, g] = better.style.background.match(/\d+/g).map(Number);
+    const [r, g] = better.style.getPropertyValue('--heat').match(/\d+/g).map(Number);
     expect(g - r).toBeGreaterThan(40);
   });
 

@@ -4,6 +4,7 @@ import { Suggest } from "@blueprintjs/select";
 import { DateRangeInput } from "@blueprintjs/datetime";
 import enUS from "date-fns/locale/en-US";
 import {
+  Classes,
   Intent,
   Navbar,
   NavbarGroup,
@@ -17,7 +18,7 @@ import {
 import { useState } from "react";
 import { useRouter } from "./router";
 import { path_segment } from "./selection";
-import { CommitNavbar } from "./components/CommitNavbar";
+import { CommitNavbar, commit_header_styles } from "./components/CommitNavbar";
 import { SelectBatchesNav } from "./components/tuning/SelectBatches";
 import { useBranches, useCommitsList, useComparison, useUrlText, updateSelected } from "./hooks";
 
@@ -66,27 +67,49 @@ export function filterBranch(query, branch) {
 }
 
 
+// One row that never wraps: the search boxes get narrower with the content area (cqi: % of the navbar's width)
 const StyledNavbar = styled(Navbar)`
    position: fixed !important;
    top: 0;
    padding-left: ${sider_width} !important;
-   /*overflow-y: auto !important;*/
+   display: flex;
+   align-items: center;
+   gap: 12px;
+   container-type: inline-size;
+   > .${Classes.NAVBAR_GROUP} {
+     float: none;
+   }
+   > .${Classes.NAVBAR_GROUP}:last-child {
+     margin-left: auto;
+     min-width: 0;
+     gap: 8px;
+     --batch-select-max-width: clamp(150px, 26cqi, 360px);
+   }
 `
 
 const navbar_height = 75;
-const StyledNavbarNew = styled(Navbar)`
+// The commits' headers: one row that never wraps (the page below expects their fixed height). What doesn't fit
+// in the content area gets smaller or hides (see CommitNavbar), using container queries on the header's width.
+const commit_header = `
    position: fixed !important;
    padding-left: ${sider_width} !important;
    height: ${navbar_height}px !important;
+   display: flex;
+   align-items: center;
+   gap: 12px;
+   container: commit-header / inline-size;
+   > .${Classes.NAVBAR_GROUP} {
+     float: none;
+   }
+   ${commit_header_styles}
+`
+const StyledNavbarNew = styled(Navbar)`
+   ${commit_header}
    top: 0 !important;
-   align-content: center;
 `
 const StyledNavbarRef = styled(Navbar)`
-   position: fixed !important;
-   padding-left: ${sider_width} !important;
-   height: ${navbar_height}px !important;
+   ${commit_header}
    top: ${navbar_height}px !important;
-   align-content: center;
 `
 
 
@@ -218,7 +241,7 @@ const CommitsListNavbar = () => {
                 intent: !!search ? Intent.PRIMARY : null,
                 // Suggest only reads the placeholder from inputProps
                 placeholder: "Search commits, or go to a branch or commit…",
-                style: {width: '350px'},
+                style: {width: 'clamp(180px, 40cqi, 350px)'},
               }}
               onQueryChange={query => {
                 setWantsBranches(true);
@@ -237,7 +260,7 @@ const CommitsListNavbar = () => {
             type="text"
             leftIcon="filter"
             rightElement={filter ? <Button size="small" variant="minimal" icon="cross" aria-label="Clear the filter" onClick={() => onFilterChange('')}/> : undefined}
-            style={{width: '320px'}}
+            style={{width: 'clamp(150px, 30cqi, 320px)'}}
           />}
       </NavbarGroup>
     </StyledNavbar>

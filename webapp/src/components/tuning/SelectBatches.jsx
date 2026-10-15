@@ -100,7 +100,7 @@ const BatchLabel = ({ item }) => <>
     {item.is_milestone && <Icon icon="star" size={12} color={Colors.GOLD5} title="Milestone" style={{ marginRight: '4px', verticalAlign: '-1px' }}/>}
     {item.title}
   </div>
-  <div className={Classes.TEXT_MUTED} style={{ fontSize: '12px', marginTop: '2px' }}><BatchStatus status={item.status}/></div>
+  <div className={Classes.TEXT_MUTED} style={{ fontSize: '12px', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><BatchStatus status={item.status}/></div>
 </>
 
 const Username = ({ item, style }) => item.username
@@ -186,7 +186,7 @@ const SelectBatchesNav = ({ commit, onChange, batch, project, project_data }) =>
         endIcon="double-caret-vertical"
         aria-label={`Batch: ${selectedBatch?.title ?? pretty_label(batch)}`}
         disabled={!has_batches}
-        style={{ maxWidth: '360px', marginLeft: '5px' }}
+        style={{ maxWidth: 'var(--batch-select-max-width, 360px)', marginLeft: '5px' }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px', lineHeight: '1.3', width: '100%' }}>
           <div style={{ flex: 1, textAlign: 'left' }}>

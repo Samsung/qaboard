@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import styled from "styled-components";
 
 import {
@@ -24,7 +24,7 @@ import { useDynamicOptions } from "./useDynamicOptions";
 import { TuningForm } from "./components/tuning/forms";
 import { BatchesEditor } from "./components/tuning/BatchesEditor";
 import TuningExploration from "./components/tuning/TuningExploration";
-import { useViewerControls } from "./viewers/controls";
+import { useViewerControls, controls_changes, controls_defaults } from "./viewers/controls";
 import { ExportPlugin } from "./plugins/ExportPlugin";
 import { humanFileSize } from "./viewers/bit_accuracy/utils";
 import { project_web_url } from "./utils";
@@ -53,9 +53,17 @@ const ViewHeader = styled.div`
     margin: 0;
   }
 `;
-const ViewTitle = ({ title, children }) => <ViewHeader>
+// Actions on the view, e.g. Export, go to the right of its title
+const ViewActions = styled.div`
+  margin-left: auto;
+  align-self: center;
+  display: flex;
+  gap: 8px;
+`;
+const ViewTitle = ({ title, actions, children }) => <ViewHeader>
   <h2 className={Classes.HEADING}>{title}</h2>
   {children}
+  {actions && <ViewActions>{actions}</ViewActions>}
 </ViewHeader>;
 
 // The warnings and the batch's status: they take room only when they have something to say
@@ -119,6 +127,13 @@ const CiCommitResults = () => {
     ...controls,
     dynamic_options: { ...controls.dynamic_options, [name]: [value] },
   });
+  const resetDynamicOption = name => setControls({
+    ...controls,
+    dynamic_options: { ...controls.dynamic_options, [name]: undefined },
+  });
+  // What users changed, e.g. visualizations shown or dynamic options, can be reset to the project's defaults
+  const has_controls_changes = Object.keys(controls_changes(controls, controls_defaults(config, ''))).length > 0;
+  const resetControls = () => setControls(controls_defaults(config, ''));
   // Dynamic options are synced across output cards unless users unlink them
   const toggleDynamicOptionSync = name => {
     const sync = controls.dynamic_options_sync?.[name] === false;
@@ -133,10 +148,6 @@ const CiCommitResults = () => {
   }
 
   // The metrics shown in tables
-  const selected_metrics = useMemo(
-    () => selected_metrics_keys.map(m => available_metrics[m]).filter(Boolean),
-    [selected_metrics_keys, available_metrics],
-  );
   const metricTableSelect = <MetricSelect
     available_metrics={available_metrics}
     used_metrics={new_batch.used_metrics}
@@ -353,7 +364,7 @@ const CiCommitResults = () => {
              </ViewSection>}
 
             {views.includes('output-list') && <ViewSection>
-              <ViewTitle title="Visualizations"/>
+              <ViewTitle title="Visualizations" actions={visualizations.length > 0 && export_plugin}/>
               {visualizations.length === 0
                 ? <NonIdealState
                     icon="heatmap"
@@ -361,17 +372,13 @@ const CiCommitResults = () => {
                     description={<p>{docs_link} to learn how to declare visualizations. Meanwhile, you can browse the files each run created.</p>}
                     action={<Button icon="folder-open" text="Show output files" onClick={() => updateSelected({ selected_views: 'bit-accuracy' })}/>}
                   />
-                : <>
-                  {export_plugin}
-                  <OutputCardsList {...output_cards_props}/>
-                </>}
+                : <OutputCardsList {...output_cards_props}/>}
             </ViewSection>}
 
             {views.includes('bit-accuracy') && <ViewSection>
-                <ViewTitle title="Output Files">
+                <ViewTitle title="Output Files" actions={export_plugin}>
                   <p className={Classes.TEXT_MUTED}>Storage used by the {nb_runs} run{nb_runs === 1 ? '' : 's'} shown: {humanFileSize(storage, true)}</p>
                 </ViewTitle>
-                {export_plugin}
                 <OutputCardsList type='bit_accuracy' {...output_cards_props}/>
              </ViewSection>}
 
@@ -400,11 +407,10 @@ const CiCommitResults = () => {
           visualizations={visualizations}
           controls_extra={controls_extra}
           selected_views={selected_views}
-          selected_metrics={selected_metrics}
           new_batch={new_batch}
           available_metrics={available_metrics}
-          metricTableSelect={metricTableSelect}
           sort_by={selected.sort_by}
+          default_sort_by={metrics.default_metric}
           sort_order={selected.sort_order}
           onToggle={toggle}
           onToggleShow={toggle_show}
@@ -413,6 +419,10 @@ const CiCommitResults = () => {
           tuned_params={tuned_params}
           dynamic_options={dynamic.dynamic_options}
           onUpdateDynamicOption={updateDynamicOption}
+          onResetDynamicOption={resetDynamicOption}
+          has_changes={has_controls_changes}
+          onResetControls={resetControls}
+          docs_root={docs_root}
           onToggleDynamicOptionSync={toggleDynamicOptionSync}
           visualizations_with_files={dynamic.visualizations_with_files}
           expandPanel={expand_floating_panel}

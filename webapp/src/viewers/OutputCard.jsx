@@ -40,6 +40,7 @@ import {
   calculateOptionValues,
   configureOption,
   generateViewPaths,
+  optionLabel,
   resolveOptionValue,
 } from "../utils/dynamicOptions"
 
@@ -411,7 +412,7 @@ const OutputCard = memo(function OutputCard(props) {
 
     const options_inputs = new_options.map(([name, option]) => {
       const option_key = `option-${name}`;
-      const option_label = isNaN(name) ? name : option.pattern;
+      const option_label = isNaN(name) ? optionLabel(name) : option.pattern;
       const not_found = !option.exact && option.value !== undefined && <Tag minimal intent={Intent.WARNING} icon="info-sign" style={fallback_style}>
         {option_label} <strong>{option.wanted}</strong> isn't in this run, showing <strong>{option.value}</strong>
       </Tag>;
@@ -423,9 +424,9 @@ const OutputCard = memo(function OutputCard(props) {
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
             <span style={{ fontSize: '12px', fontWeight: '500', flex: 1 }}>{option_label}</span>
             {onToggleDynamicOptionSync && (
-              <Tooltip content="Link this option: all runs will use the value from the controls panel">
+              <Tooltip content={`Use the ${option_label} chosen in the controls panel for all runs`}>
                 <Button icon="link" minimal small onClick={() => onToggleDynamicOptionSync(name)} style={sync_button_style}>
-                  unlinked
+                  Same for all runs
                 </Button>
               </Tooltip>
             )}
@@ -494,22 +495,19 @@ const OutputCard = memo(function OutputCard(props) {
                 {relevant_synced.map(option_name => (
                   <Tooltip
                     key={option_name}
-                    content={`Unlink "${option_name}" to choose its value in each run`}
+                    content={`${optionLabel(option_name)}: the same for all runs, set in the controls panel. Click to choose it per run.`}
                     position="top"
                   >
                     <Button
                       icon="unlink"
                       minimal
                       small
-                      aria-label={`Unlink "${option_name}"`}
+                      aria-label={`Choose ${optionLabel(option_name)} per run`}
                       onClick={() => onToggleDynamicOptionSync?.(option_name)}
                       style={unlink_button_style}
                     />
                   </Tooltip>
                 ))}
-                <span style={{ fontSize: '10px', color: 'var(--qa-link)', fontWeight: '500', marginLeft: '4px' }}>
-                  linked
-                </span>
               </div>
             )}
           </PathHeader>
@@ -578,6 +576,8 @@ const OutputCard = memo(function OutputCard(props) {
     flex: "0 0 auto",
     // without outputs.style.width in qaboard.yaml: as wide as the page allows, up to 1500px
     width: style.width || 'min(1500px, 100%)',
+    // wider when a viewer needs it, e.g. a plot wider than outputs.style.width: it would spill out of the card
+    minWidth: 'min-content',
     marginBottom: "250px !important",
   }
   const maybe_style_skeleton = output_new.is_running ? style_skeleton : {};

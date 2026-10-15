@@ -133,7 +133,8 @@ const MetricTile = styled.div`
   text-align: center;
   align-self: start;
   padding: 10px;
-  min-width: 355px; // manuall adjusted with the largest title..
+  // fits the largest title on wide pages, and leaves room for the box plot on narrow ones
+  min-width: clamp(250px, 30%, 355px);
 `;
 
 // A few round ticks: on a log scale, Plotly's pile up and overlap in such a small plot.
@@ -260,7 +261,8 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
       useResizeHandler
       fit
       style={{
-        marginLeft: "auto",
+        // next to the numbers, even when the card is much wider
+        marginLeft: "24px",
         flex: "0 1 auto",
         position: "relative",
         display: "inline-block"

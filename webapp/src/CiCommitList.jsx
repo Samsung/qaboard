@@ -12,10 +12,12 @@ import {
   NonIdealState,
   Spinner,
   Card,
+  SegmentedControl,
   Tag,
+  Tooltip,
 } from "@blueprintjs/core";
 
-import CommitRow from "./components/CommitRow";
+import CommitRow, { CompactCommitList, CompactListContainer, compact_columns_css } from "./components/CommitRow";
 import { Container } from "./components/layout";
 import { LoadMore } from "./components/LoadMore";
 import CommitsEvolution from "./CommitsEvolution";
@@ -23,6 +25,7 @@ import { groupBy } from "./utils";
 
 import { useCommitsList, useProjectData, useSelected, useSiteConfig, updateSelected } from './hooks'
 import { errorMessage } from './api/http'
+import { useCommitListDensity, usePrefsStore } from './stores/prefs'
 
 
 
@@ -32,22 +35,78 @@ const WrapperCommitRows = styled.ul`
   padding: 0;
 `;
 
-const CommitRows = ({ commits, project, project_data, className }) => (
-  <div className={className}>
-    <li>
-      <WrapperCommitRows>
-        {commits.map(commit => (
-          <CommitRow
-            commit={commit}
-            project={project}
-            project_data={project_data}
-            key={commit.id}
-          />
-        ))}
-      </WrapperCommitRows>
-    </li>
-  </div>
-);
+const CommitRows = ({ commits, project, project_data, density }) => {
+  const List = density === 'compact' ? CompactCommitList : WrapperCommitRows;
+  return <List>
+    {commits.map(commit => (
+      <CommitRow
+        commit={commit}
+        project={project}
+        project_data={project_data}
+        density={density}
+        key={commit.id}
+      />
+    ))}
+  </List>;
+};
+
+// Above the commits, how to show them
+const ListToolbar = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+`;
+
+const density_options = [
+  { value: 'comfortable', label: 'Comfortable', icon: 'list' },
+  { value: 'compact', label: 'Compact', icon: 'list-columns' },
+];
+
+const DensityControl = () => {
+  const density = useCommitListDensity();
+  const setDensity = usePrefsStore(state => state.setCommitListDensity);
+  return <Tooltip content="Comfortable: a few lines per commit. Compact: one line per commit, hover for details." placement="left" openOnTargetFocus={false}>
+    <SegmentedControl
+      aria-label="Commit list density"
+      size="small"
+      options={density_options}
+      value={density}
+      onValueChange={setDensity}
+    />
+  </Tooltip>;
+};
+
+// Compact rows line up across days: the days' cards and lists share the columns of this grid
+const CompactDays = styled.div`
+  ${compact_columns_css}
+  & > .${Classes.CARD} {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: subgrid;
+  }
+  & > .${Classes.CARD} > h4 {
+    grid-column: 1 / -1;
+  }
+  & > .${Classes.CARD} > ul {
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+  }
+`;
+const ComfortableDays = styled.div``;
+
+// In compact lists, days take less room too
+const DayCard = styled(Card)`
+  margin-bottom: 15px;
+  &.compact {
+    padding: 12px 16px;
+    margin-bottom: 10px;
+  }
+  &.compact h4 {
+    font-size: 14px;
+    line-height: 20px;
+    margin-bottom: 4px;
+  }
+`;
 
 // "Today — 1 commit", "3 days ago — 2 commits"
 const count_commits = n => `${n} commit${n === 1 ? '' : 's'}`
@@ -87,6 +146,8 @@ const CiCommitList = () => {
   // new results are on their way (background refreshes don't count)
   const loading = isPending || isPlaceholderData;
   const [now] = useState(() => new Date());
+  const density = useCommitListDensity();
+  const Days = density === 'compact' ? CompactDays : ComfortableDays;
 
   useEffect(() => {
     let name = project.split('/').slice(-1)[0];
@@ -144,16 +205,17 @@ const CiCommitList = () => {
           icon="search"
           action={<Button icon="history" text="Search 7 more days" onClick={show_older}/>}
       />}
-      {Object.keys(commits_by_day).map(day => (
-        <Card key={day} elevation={0} style={{marginBottom: '15px'}}>
+      {some_commits_loaded && !error && <ListToolbar><DensityControl/></ListToolbar>}
+      <CompactListContainer><Days>{Object.keys(commits_by_day).map(day => (
+        <DayCard key={day} elevation={0} className={density === 'compact' ? 'compact' : undefined}>
           <h4 className={Classes.HEADING}>
             {(!!day && day !== "undefined")
               ? `${capitalize(DateTime.fromISO(day, { zone: 'utc' }).toRelativeCalendar({unit: "days"}))} \u2014 ${count_commits(commits_by_day[day].length)}`
               : capitalize(count_commits(commits_by_day[day].length))}
           </h4>
-          <CommitRows project={project} project_data={project_data} commits={commits_by_day[day]} />
-        </Card>
-      ))}
+          <CommitRows project={project} project_data={project_data} commits={commits_by_day[day]} density={density} />
+        </DayCard>
+      ))}</Days></CompactListContainer>
       {hasNextPage && some_commits_loaded && !error &&
         <LoadMore onLoadMore={loadMore} loading={isFetchingNextPage} loaded={commits.length} text="More commits"/>}
       {isSuccess && !hasNextPage && some_commits_loaded && !search && !loading &&

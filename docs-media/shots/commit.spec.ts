@@ -491,17 +491,24 @@ shot('commit/output-filter', {
 shot('commit/export', {
   project: IQ,
   url: d => d.commitUrl(IQ, 'merge-bilateral', { reference: 'isp-4-1', view: 'output-list', filter: 'photos low-light' }),
-  alt: 'The filter box with "photos low-light" and 4 outputs; below, the Export box with the pattern *.png, the Windows '
-    + 'and Linux paths of the export folder, and "8 files exported from 4 runs".',
+  alt: 'The filter box with "photos low-light" and 4 outputs; below, the Export button opened on a box with the pattern '
+    + '*.png, the Windows and Linux paths of the export folder, and "8 files exported from 4 runs".',
   caption: 'Export gathers the files matching a pattern from the filtered runs into one folder, as links.',
   actions: async ui => {
-    await ui.click(ui.page.getByRole('button', { name: 'Export' }));
+    // the button next to the view's title opens the export box
+    await ui.click(ui.page.getByRole('button', { name: 'Export files', exact: true }));
+    const box = ui.page.locator('.bp6-popover', { has: ui.page.getByLabel(/Files to export/) });
+    await ui.click(box.getByRole('button', { name: 'Export', exact: true }));
     await ui.page.getByText(/files exported from/).waitFor();
     await ui.settle();
     await ui.cursor.moveTo({ x: 1300, y: 860 });
   },
-  // the commit bars' filter box, and the Export box
-  target: page => [filterBox(page, 'new'), page.locator('.bp6-callout', { has: page.getByRole('button', { name: 'Export' }) })],
+  // the commit bars' filter box, the Export button and its box
+  target: page => [
+    filterBox(page, 'new'),
+    page.getByRole('button', { name: 'Export files', exact: true }),
+    page.locator('.bp6-popover', { has: page.getByLabel(/Files to export/) }),
+  ],
   padding: 8,
 });
 

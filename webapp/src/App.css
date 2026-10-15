@@ -55,15 +55,22 @@ span.bp6-popover-target {
   mix-blend-mode: exclusion;
 }
 
+/* Heatmaps of the metrics tables (components/tables.jsx): --heat is the cell's color */
+.heat-cell {
+  background: var(--heat);
+  color: #1c2127;
+}
+.bp6-dark .heat-cell {
+  /* the light colors would glare on dark cards: tint the card instead, more for the best and worst values
+     (neutral yellows would look muddy) */
+  background: color-mix(in srgb, var(--heat) calc(8% + 34% * var(--heat-strength, 1)), var(--qa-surface));
+  color: var(--qa-text);
+}
+
 .fullscreen-enabled {
   background: var(--qa-surface);
 }
 
-@media only screen and (max-width: 1100px) {
-  .hide-small-screen {
-    display: none;
-  }
-}
 
 .output-card:has(.viewer-no-files) {
   display: none;

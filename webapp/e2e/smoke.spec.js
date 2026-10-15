@@ -117,3 +117,25 @@ test('avatars that fail to load show initials', async ({ page }) => {
   await expect(avatar).toHaveAttribute('title', 'Alice');
   await page.waitForLoadState('networkidle');
 });
+
+// Users can list commits one line each: the choice is remembered
+test('compact commit list', async ({ page }) => {
+  await page.goto(`/${project}/commits`);
+  const row = page.getByRole('listitem').filter({ hasText: 'Hello world' });
+  await expect(row).toBeVisible();
+  const comfortable_height = (await row.boundingBox()).height;
+  await page.getByRole('radio', { name: 'Compact' }).click();
+  await expect(page.getByRole('radio', { name: 'Compact' })).toHaveAttribute('aria-checked', 'true');
+  await expect(row.getByRole('link', { name: 'Alice', exact: true })).toHaveAttribute('href', `/${project}/committer/Alice`);
+  // one line, the whole message on hover
+  expect((await row.boundingBox()).height).toBeLessThan(Math.min(comfortable_height, 45));
+  await expect(row.getByText('Hello world')).toHaveAttribute('title', 'Hello world');
+  await page.reload();
+  await expect(page.getByRole('radio', { name: 'Compact' })).toHaveAttribute('aria-checked', 'true');
+  await expect(row).toBeVisible();
+  // the commit's branch, from its row
+  await row.getByRole('link', { name: 'master' }).click();
+  await expect(page).toHaveURL(new RegExp(`/${project}/commits/master`));
+  await expect(page.getByText('Hello world').first()).toBeVisible();
+  await page.waitForLoadState('networkidle');
+});
