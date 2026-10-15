@@ -53,9 +53,17 @@ const ViewHeader = styled.div`
     margin: 0;
   }
 `;
-const ViewTitle = ({ title, children }) => <ViewHeader>
+// Actions on the view, e.g. Export, go to the right of its title
+const ViewActions = styled.div`
+  margin-left: auto;
+  align-self: center;
+  display: flex;
+  gap: 8px;
+`;
+const ViewTitle = ({ title, actions, children }) => <ViewHeader>
   <h2 className={Classes.HEADING}>{title}</h2>
   {children}
+  {actions && <ViewActions>{actions}</ViewActions>}
 </ViewHeader>;
 
 // The warnings and the batch's status: they take room only when they have something to say
@@ -353,7 +361,7 @@ const CiCommitResults = () => {
              </ViewSection>}
 
             {views.includes('output-list') && <ViewSection>
-              <ViewTitle title="Visualizations"/>
+              <ViewTitle title="Visualizations" actions={visualizations.length > 0 && export_plugin}/>
               {visualizations.length === 0
                 ? <NonIdealState
                     icon="heatmap"
@@ -361,17 +369,13 @@ const CiCommitResults = () => {
                     description={<p>{docs_link} to learn how to declare visualizations. Meanwhile, you can browse the files each run created.</p>}
                     action={<Button icon="folder-open" text="Show output files" onClick={() => updateSelected({ selected_views: 'bit-accuracy' })}/>}
                   />
-                : <>
-                  {export_plugin}
-                  <OutputCardsList {...output_cards_props}/>
-                </>}
+                : <OutputCardsList {...output_cards_props}/>}
             </ViewSection>}
 
             {views.includes('bit-accuracy') && <ViewSection>
-                <ViewTitle title="Output Files">
+                <ViewTitle title="Output Files" actions={export_plugin}>
                   <p className={Classes.TEXT_MUTED}>Storage used by the {nb_runs} run{nb_runs === 1 ? '' : 's'} shown: {humanFileSize(storage, true)}</p>
                 </ViewTitle>
-                {export_plugin}
                 <OutputCardsList type='bit_accuracy' {...output_cards_props}/>
              </ViewSection>}
 
