@@ -4,6 +4,7 @@ import styled from "styled-components";
 
 import {
   Classes,
+  NonIdealState,
   Tag,
   Button,
   Icon,
@@ -21,6 +22,7 @@ import { RunBadge } from "./tags";
 import { format, plotly_palette, match_query } from "../utils";
 import { summary_outputs, metric_values, summary_stats, mixed_parameters } from "../utils/compare";
 import { useIsDark } from "../theme";
+import { useSiteConfig } from "../hooks";
 
 
 
@@ -83,7 +85,7 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
     else if (delta_relative < -neutral_threshold)
       intent_compare = metric_info.smaller_is_better ? Intent.SUCCESS : Intent.DANGER;
     else intent_compare = Intent.DEFAULT;
-    compare_tag = <Tag round minimal intent={intent_compare}>{delta_relative >= 0 ? '+' : ''}{percent_formatter.format(100 * delta_relative)}%</Tag>;
+    compare_tag = <Tag round minimal intent={intent_compare} htmlTitle="vs the reference run">{delta_relative >= 0 ? '+' : ''}{percent_formatter.format(100 * delta_relative)}%</Tag>;
   }
 
   const intent =
@@ -310,19 +312,24 @@ const layout_tiles = {
   paper_bgcolor: "rgba(0,0,0,0)"
 };
 
-const SuccessBar = ({ success_frac }) => (
+// e.g. "80% of runs meet the target (≤ 10ms)"
+const success_tooltip = (success_frac, m) =>
+  `${percent_formatter.format(100 * success_frac)}% of runs meet the target (${m.smaller_is_better ? '≤' : '≥'} ${metric_formatter(m.target * m.scale, m)}${m.suffix ?? ''})`;
+
+const SuccessBar = ({ success_frac, metric }) => (
+  <Tooltip content={success_tooltip(success_frac, metric)}>
   <Plot
     data={[
       {
         type: "bar",
         orientation: "h",
-        name: "Success",
+        name: "Meet the target",
         x: [100 * success_frac],
         textposition: "auto",
         hoverinfo: "none",
         text:
           success_frac > 0.4
-            ? `${percent_formatter.format(100 * success_frac)}% success`
+            ? `${percent_formatter.format(100 * success_frac)}% meet target`
             : "",
         opacity: 1,
         marker: {
@@ -332,13 +339,13 @@ const SuccessBar = ({ success_frac }) => (
       {
         type: "bar",
         orientation: "h",
-        name: "Failure",
+        name: "Miss the target",
         x: [100 * (1 - success_frac)],
         textposition: "auto",
         hoverinfo: "none",
         text:
           success_frac < 0.6
-            ? `${percent_formatter.format(100 * (1 - success_frac))}% failed`
+            ? `${percent_formatter.format(100 * (1 - success_frac))}% miss`
             : "",
         opacity: 0.8,
         marker: {
@@ -349,6 +356,7 @@ const SuccessBar = ({ success_frac }) => (
     layout={layout_tiles}
     config={{ displayModeBar: false }}
   />
+  </Tooltip>
 );
 
 
@@ -392,6 +400,13 @@ const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: 
   const xaxis_labels = xaxis_labels_ || ["New", "Reference"];
 
   const batch_data = new_batch.data || {};
+  const has_runs = new_batch.filtered?.outputs?.length > 0;
+  const is_filtered = Object.keys(new_batch.outputs ?? {}).length > (new_batch.filtered?.outputs?.length ?? 0);
+  const no_runs_state = outputs_new.length === 0 && <NonIdealState
+    icon={is_filtered && !has_runs ? "filter" : "inbox"}
+    title={is_filtered && !has_runs ? "No finished run matches the filter" : "No finished run to summarize yet"}
+    description={has_runs ? "The summary appears once runs finish." : undefined}
+  />;
   return (
     <div>
       {/* only the runs we aggregate: e.g. not after filtering on one configuration */}
@@ -408,7 +423,9 @@ const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: 
             {count} @{tag}
           </Tag>
         )}
-      {selected_metrics.map(m =>
+      {no_runs_state}
+      {!no_runs_state && default_keys.length === 0 && selected_metrics.length === 0 && <NoSummaryMetrics/>}
+      {!no_runs_state && selected_metrics.map(m =>
         <MetricSummary
           key={m.key}
           metric={m}
@@ -420,6 +437,18 @@ const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: 
       )}
     </div>
   );
+};
+
+const NoSummaryMetrics = () => {
+  const { docs_root } = useSiteConfig();
+  return <NonIdealState
+    icon="th-list"
+    title="No summary metrics configured"
+    description={<p>
+      Pick metrics above, or list them under <code>summary_metrics</code> in your metrics file to show them by default.{" "}
+      <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/computing-quantitative-metrics`}>Learn more</a>
+    </p>}
+  />;
 };
 
 const filterMetric = (query, metric) => match_query(query)(`${metric.key} ${metric.label} ${metric.short_label}`);
@@ -458,7 +487,8 @@ const MetricSelect = ({ available_metrics = {}, used_metrics, selected, onChange
     }}
     noResults={noMetrics}
     selectedItems={shown}
-    popoverProps={Classes.MINIMAL}
+    placeholder="Choose metrics…"
+    popoverProps={{ minimal: true }}
   />;
 };
 
@@ -485,10 +515,10 @@ const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, xa
   return (
     <MetricRow>
       <MetricTile>
-        <Tooltip content={<span>{m.scale * new_med}{m.suffix}</span>}>
+        <Tooltip content={`${m.label}: median ${m.scale * new_med}${m.suffix ?? ''} over ${new_values.length} run${new_values.length === 1 ? '' : 's'}`}>
           <h3 className={Classes.HEADING}>
             {metric_formatter(m.scale * new_med, m)}{m.suffix}
-            <span style={{ color: "#ccc" }}> median</span>
+            <span className={Classes.TEXT_MUTED}> median</span>
           </h3>
         </Tooltip>
         <br/>
@@ -496,26 +526,26 @@ const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, xa
           <h5 className={Classes.HEADING}>{m.short_label}</h5>
         </Tooltip>
         <br/>
-        {m.target !== undefined && <SuccessBar success_frac={new_pc_good} />}
+        {m.target !== undefined && <SuccessBar success_frac={new_pc_good} metric={m}/>}
       </MetricTile>
 
       {!breakdown_by_tag && (
         <>
           {ref_values.length > 0 && <MetricTile>
-            <Tooltip content={<span>{m.scale * ref_med}{m.suffix}</span>}>
+            <Tooltip content={`Reference median: ${m.scale * ref_med}${m.suffix ?? ''} over ${ref_values.length} run${ref_values.length === 1 ? '' : 's'}`}>
               <h3 className={Classes.HEADING} style={{ color: color_ref }}>
-                <Icon style={{verticalAlign: 'middle'}} icon="swap-horizontal" color="#ccc" size={16}/> {metric_formatter(m.scale * ref_med, m)}{m.suffix}
+                <Icon style={{verticalAlign: 'middle'}} icon="swap-horizontal" className={Classes.TEXT_MUTED} size={16}/> {metric_formatter(m.scale * ref_med, m)}{m.suffix}
               </h3>
             </Tooltip>
             <h5 className={Classes.HEADING}>
-              <Tooltip content={<span>{100 * delta_relative}</span>}>
+              <Tooltip content={`Change of the median vs the reference: ${delta_relative > 0 ? '+' : ''}${metric_formatter(100 * delta_relative)}%. ${m.smaller_is_better ? 'Lower' : 'Higher'} is better.`}>
               <Tag intent={intent}>
                 {delta_relative > 0 ? "+" : ""}
                 {percent_formatter.format(100 * delta_relative)}%
               </Tag>
               </Tooltip>
             </h5>
-            {(m.target !== undefined && !!ref_pc_good) && <SuccessBar success_frac={ref_pc_good} />}
+            {(m.target !== undefined && !!ref_pc_good) && <SuccessBar success_frac={ref_pc_good} metric={m}/>}
           </MetricTile>}
           {new_values.length > 1 && <HistogramComparaison
             series={ref_values.length > 0 ? [new_values, ref_values] : [new_values]}

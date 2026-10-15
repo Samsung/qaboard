@@ -21,7 +21,7 @@ import { LoadMore } from "./components/LoadMore";
 import CommitsEvolution from "./CommitsEvolution";
 import { groupBy } from "./utils";
 
-import { useCommitsList, useProjectData, useSelected, updateSelected } from './hooks'
+import { useCommitsList, useProjectData, useSelected, useSiteConfig, updateSelected } from './hooks'
 import { errorMessage } from './api/http'
 
 
@@ -68,10 +68,20 @@ const SearchHeader = ({ search, nb_commits, has_more, isFetching }) => (
 );
 
 
+// Servers or proxies can answer errors with whole HTML pages: we only show their status
+const readable_error = error => {
+  const data = error?.response?.data;
+  const is_html = typeof data === 'string' && /<\/?[a-z][^>]*>/i.test(data);
+  const text = is_html ? `${error.response.status} ${error.response.statusText || 'Server error'}` : errorMessage(error);
+  return text.length > 300 ? `${text.slice(0, 300)}…` : text;
+};
+
+
 const CiCommitList = () => {
   const { project, branch, committer } = useSelected();
   const project_data = useProjectData(project);
-  const { commits, error, isPending, isPlaceholderData, isSuccess, date_range, search, hasNextPage, fetchNextPage, isFetchingNextPage } = useCommitsList();
+  const { docs_root } = useSiteConfig();
+  const { commits, error, refetch, isPending, isPlaceholderData, isSuccess, date_range, search, hasNextPage, fetchNextPage, isFetchingNextPage } = useCommitsList();
   // new results are on their way (background refreshes don't count)
   const loading = isPending || isPlaceholderData;
   const [now] = useState(() => new Date());
@@ -111,8 +121,16 @@ const CiCommitList = () => {
         </Card>
       </Section>}
       {!!search && <SearchHeader search={search} nb_commits={commits.length} has_more={hasNextPage} isFetching={loading}/>}
-      {error && <NonIdealState description={<pre>{errorMessage(error)}</pre>} icon="error" />}
-      {isPending && <NonIdealState title="Loading" icon={<Spinner />} />}
+      {error && <NonIdealState
+        icon="error"
+        title="Could not load the commits"
+        description={<p style={{ overflowWrap: 'anywhere' }}>
+          <code>{readable_error(error)}</code>
+          {error.response?.status >= 500 && <><br/>If it persists, contact your QA-Board administrators.</>}
+        </p>}
+        action={<Button icon="refresh" text="Retry" onClick={() => refetch()}/>}
+      />}
+      {isPending && !error && <NonIdealState title="Loading commits…" icon={<Spinner />} />}
       {isSuccess && !loading && !error && !some_commits_loaded && !!search &&
         <NonIdealState title="No commit matches your search" icon="search" />}
       {isSuccess && !loading && !error && !some_commits_loaded && !search &&
@@ -123,9 +141,13 @@ const CiCommitList = () => {
             {" "}to{" "}
             {date_range[1] > now ? "today" : <strong>
               <span title={date_range[1]}>{DateTime.fromJSDate(date_range[1]).toRelativeCalendar({unit: "days"})}</span>
-            </strong>}
+            </strong>}.
+            {" "}Commits without results are hidden, except recent ones whose CI may still be running.
+            <br/>Results appear once <code>qa batch</code> runs on your commits, usually in your CI.{" "}
+            <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/ci-integration`}>Set up your CI</a>
           </span>}
           icon="search"
+          action={<Button icon="history" text="Search 7 more days" onClick={show_older}/>}
       />}
       {Object.keys(commits_by_day).map(day => (
         <Card key={day} elevation={0} style={{marginBottom: '15px'}}>

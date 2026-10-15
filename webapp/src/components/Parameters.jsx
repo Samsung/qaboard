@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import {
+  AnchorButton,
   Classes,
   Button,
   Tag,
@@ -11,6 +12,7 @@ import {
   Switch,
   NonIdealState,
   InputGroup,
+  Spinner,
 } from "@blueprintjs/core";
 
 import { errorMessage } from "../api/http";
@@ -18,7 +20,8 @@ import { fileQuery } from "../api/queries";
 import { bit_accuracy_help, humanFileSize } from "../viewers/bit_accuracy/utils";
 import { event_value } from "../utils";
 import { OutputViewer } from "../viewers/OutputViewer";
-import { useSelected, useUrlText, updateSelected } from "../hooks";
+import { useSelected, useSiteConfig, useUrlText, updateSelected } from "../hooks";
+import { hasPathMappings } from "../utils/paths";
 import { copyDirectory } from "./logs/DirectoryActions";
 
 
@@ -35,6 +38,7 @@ const url_defaults = { params_artifact: 'configurations', params_show_all_files:
 // The options are in the URL.
 const CommitParameters = ({ new_commit, ref_commit, config }) => {
   const { query } = useSelected();
+  const { docs_root } = useSiteConfig();
   const artifact = query.params_artifact || 'configurations';
   const show_all_files = query.params_show_all_files === 'true';
   const expand_all = query.params_expand_all !== 'false';
@@ -60,6 +64,15 @@ const CommitParameters = ({ new_commit, ref_commit, config }) => {
 
   if (new_commit === null || new_commit === undefined)
     return <span />;
+  const artifacts_docs = <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/storage/artifacts`}>Learn more</a>;
+  if (!new_commit.artifacts_url)
+    return new_commit.is_loaded
+      ? <NonIdealState
+          icon="folder-open"
+          title="No artifacts were saved for this commit"
+          description={<p>Run <code>qa save-artifacts</code> in your CI to compare the commits' builds and configurations here. {artifacts_docs}.</p>}
+        />
+      : <Spinner style={{ margin: '20px' }}/>;
 
   const artifacts = Object.keys(config.artifacts || {})
 
@@ -67,7 +80,8 @@ const CommitParameters = ({ new_commit, ref_commit, config }) => {
     <p>
       Configurations are defined in your <strong>qaboard.yaml</strong>, eg as <code>artifacts.configurations</code>.
       <br/>
-      You can explore all your artifacts:  {artifacts.map((name, idx) => 
+      {artifacts.length === 0 && <>Declare other <code>artifacts</code> in <em>qaboard.yaml</em> to explore them here. {artifacts_docs}.</>}
+      {artifacts.length > 0 && "You can explore all your artifacts: "}{artifacts.map((name, idx) => 
           <Button
               key={idx}
               onClick={() => update('params_artifact')(name)}
@@ -81,7 +95,7 @@ const CommitParameters = ({ new_commit, ref_commit, config }) => {
   </>
 
   const fake_output = {is_failed: false, is_running: false, is_pending: false, metrics: {}}
-  const viewer = !is_loaded ? <span/> : <>
+  const viewer = !is_loaded ? <Spinner style={{ margin: '20px' }}/> : <>
     <Tag>Total: {humanFileSize(storage, true)}</Tag>
     <OutputViewer
       key="bit-accuracy"
@@ -161,15 +175,16 @@ const CommitParameters = ({ new_commit, ref_commit, config }) => {
                  : viewer
     }
     <div style={{margin: '10px'}}>
-      <Button style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => copyDirectory(new_commit.artifacts_url, { windows: true })}>
+      {/* without path mappings, Windows paths would only have flipped slashes */}
+      {hasPathMappings() && <Button style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => copyDirectory(new_commit.artifacts_url, { windows: true })}>
         Copy Path <Tag minimal>windows</Tag>
+      </Button>}
+      <Button style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => copyDirectory(new_commit.artifacts_url)}>
+        Copy Path {hasPathMappings() && <Tag minimal>linux</Tag>}
       </Button>
-      <Button style={{margin: '10px'}} label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => copyDirectory(new_commit.artifacts_url)}>
-        Copy Path <Tag minimal>linux</Tag>
-      </Button>
-      <a rel="noopener noreferrer" target="_blank" href={new_commit.artifacts_url}><Button style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="folder-shared-open">
+      <AnchorButton rel="noopener noreferrer" target="_blank" href={new_commit.artifacts_url} style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="folder-shared-open">
         View in browser
-      </Button></a>
+      </AnchorButton>
     </div>
   </div>
 };

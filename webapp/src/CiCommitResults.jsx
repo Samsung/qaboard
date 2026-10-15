@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  Button,
   Classes,
   Card,
   NonIdealState,
+  Spinner,
 } from "@blueprintjs/core";
 
 import { Container, Section } from "./components/layout";
@@ -14,7 +16,7 @@ import { TableCompare, TableKpi } from "./components/tables";
 import { BatchLogs } from "./components/BatchLogs";
 import { CommitParameters } from "./components/Parameters";
 import { OutputCardsList } from "./viewers/OutputCardsList";
-import { useComparison, useSiteConfig, useUser, updateSelected } from "./hooks";
+import { useComparison, useRefreshCommit, useSiteConfig, useUser, updateSelected } from "./hooks";
 import { useDynamicOptions } from "./useDynamicOptions";
 
 
@@ -43,6 +45,7 @@ const CiCommitResults = () => {
   const { available_metrics } = metrics;
   const { docs_root } = useSiteConfig();
   const user = useUser();
+  const refreshCommit = useRefreshCommit();
 
   useEffect(() => {
     const name = project.split('/').slice(-1)[0];
@@ -134,6 +137,48 @@ const CiCommitResults = () => {
     onToggleDynamicOptionSync: toggleDynamicOptionSync,
   };
   const docs_link = <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/visualizations`}>Read the docs</a>;
+
+  // Until the commit loads, if it doesn't exist, or if it has no results yet, views of its results would look empty
+  const has_batches = Object.keys(new_commit?.batches ?? {}).length > 0;
+  const results_views = ['summary', 'table-compare', 'table-kpi', 'logs', 'output-list', 'bit-accuracy', 'optimization'];
+  let commit_state = null;
+  let hidden_views = [];
+  if (!!new_commit && !has_batches) {
+    if (new_commit.error) {
+      hidden_views = [...results_views, 'parameters'];
+      commit_state = <NonIdealState
+        icon="error"
+        title="Could not load this commit"
+        description={<p>
+          <code>{new_commit.error}</code>
+          {new_commit.error.startsWith('4') && <><br/>Check the commit id, or whether its runs belong to another project.</>}
+        </p>}
+        action={<Button icon="refresh" text="Retry" onClick={() => refreshCommit(new_project, new_commit.id ?? null)}/>}
+      />;
+    } else if (!new_commit.is_loaded) {
+      hidden_views = [...results_views, 'parameters'];
+      commit_state = <NonIdealState icon={<Spinner/>} title="Loading the commit's results…"/>;
+    } else {
+      hidden_views = results_views;
+      commit_state = <NonIdealState
+        icon="inbox"
+        title="No results for this commit yet"
+        description={<p>
+          Results appear once <code>qa batch</code> runs on this commit, usually in your CI.{" "}
+          <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/ci-integration`}>Set up your CI</a>
+        </p>}
+        action={<Button icon="play" text="Run tests on this commit" onClick={() => updateSelected({ selected_views: 'tuning' })}/>}
+      />;
+    }
+  }
+  // the views shown on the page
+  const views = selected_views.filter(view => !hidden_views.includes(view));
+  const shows_state = selected_views.some(view => hidden_views.includes(view));
+  const storage = new_batch.filtered.outputs
+    .map(id => new_batch.outputs[id]?.data?.storage ?? 0)
+    .reduce((running_total, storage) => running_total + storage, 0);
+  const nb_runs = new_batch.filtered.outputs.length;
+
   return (
     <Container style={{paddingTop: show_ref_navbar ? '150px' : '75px'}}>
 
@@ -149,7 +194,9 @@ const CiCommitResults = () => {
               {!selected_views.includes('groups') && <BatchStatusMessages project={new_project} commit={new_commit} batch={new_batch} />}
             </Section>
 
-            {selected_views.includes('summary') && <Section>
+            {shows_state && <Section>{commit_state}</Section>}
+
+            {views.includes('summary') && <Section>
               <Card elevation={2}>
                 <h2 className={Classes.HEADING}>Summary</h2>
                 <MetricsSummary
@@ -163,7 +210,7 @@ const CiCommitResults = () => {
               </Card>
              </Section>}
 
-            {selected_views.includes('parameters') && <Section>
+            {views.includes('parameters') && <Section>
               <Card>
                 <h2 className={Classes.HEADING}>Artifacts & Configurations</h2>
                 <CommitParameters
@@ -175,7 +222,7 @@ const CiCommitResults = () => {
               </Card>
              </Section>}
 
-            {selected_views.includes('groups') && <Section style={{ width: 'auto', minWidth: 0, marginTop: '10px' }}>
+            {views.includes('groups') && <Section style={{ width: 'auto', minWidth: 0, marginTop: '10px' }}>
               <h2 className={Classes.HEADING}>Available Tests</h2>
               <PrivateContent enabled={true}>
                 <BatchesEditor
@@ -190,11 +237,14 @@ const CiCommitResults = () => {
               </PrivateContent>
             </Section>}
 
-            {selected_views.includes('tuning') && (Object.keys(config.artifacts || {}).length === 0
+            {views.includes('tuning') && (Object.keys(config.artifacts || {}).length === 0
               ? <NonIdealState
                   icon="heatmap"
-                  title={<p>Tuning requires you to define build <strong>artifacts.</strong></p>}
-                  description={<p>{docs_link} to learn how to declare visualizations.</p>}
+                  title="Running tests from the web app needs build artifacts"
+                  description={<p>
+                    QA-Board re-runs your code from the commit's saved build: declare which files to save as <code>artifacts</code> in <em>qaboard.yaml</em>.<br/>
+                    <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/storage/artifacts`}>Learn how to declare artifacts</a> and <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/tuning-from-the-webapp`}>run tests from the web app</a>.
+                  </p>}
                 />
               : <Section>
                 <h2 className={Classes.HEADING}>Tuning Experiments</h2>
@@ -211,7 +261,7 @@ const CiCommitResults = () => {
                 </Card>
             </Section>)}
 
-            {selected_views.includes('table-compare') && <Section>
+            {views.includes('table-compare') && <Section>
               <Card>
                   <h2 className={Classes.HEADING}>Improvement report</h2>
                   <TableCompare
@@ -224,7 +274,7 @@ const CiCommitResults = () => {
               </Card>
              </Section>}
 
-            {selected_views.includes('table-kpi') && <Section>
+            {views.includes('table-kpi') && <Section>
               <Card>
                   <h2 className={Classes.HEADING}>Quality report</h2>
                   <TableKpi
@@ -239,7 +289,7 @@ const CiCommitResults = () => {
 
             {/* as wide as the page, not as its widest log line or run configuration.
                 On the right, room for the floating panel's button: it would cover the runs' buttons */}
-            {selected_views.includes('logs') && <Section style={{ width: 'auto', minWidth: 0, paddingRight: 30 }}>
+            {views.includes('logs') && <Section style={{ width: 'auto', minWidth: 0, paddingRight: 30 }}>
                 <h2 className={Classes.HEADING}>Logs</h2>
                 <BatchLogs
                   project={new_project}
@@ -249,11 +299,12 @@ const CiCommitResults = () => {
                 />
              </Section>}
 
-            {selected_views.includes('output-list') && (visualizations.length === 0
+            {views.includes('output-list') && (visualizations.length === 0
                ? <NonIdealState
                    icon="heatmap"
                    title="Visualizations are not configured yet."
-                   description={<p>{docs_link} to learn how to declare visualizations.</p>}
+                   description={<p>{docs_link} to learn how to declare visualizations. Meanwhile, you can browse the files each run created.</p>}
+                   action={<Button icon="folder-open" text="Show output files" onClick={() => updateSelected({ selected_views: 'bit-accuracy' })}/>}
                  />
                : <Section>
                 <h2 className={Classes.HEADING}>Visualizations</h2>
@@ -261,18 +312,14 @@ const CiCommitResults = () => {
                 <OutputCardsList {...output_cards_props}/>
             </Section>)}
 
-            {selected_views.includes('bit-accuracy') && <Section>
+            {views.includes('bit-accuracy') && <Section>
                 <h2 className={Classes.HEADING}>Output Files</h2>
-                <p className={Classes.TEXT_MUTED}>Total Storage: {humanFileSize(
-                  new_batch.filtered.outputs
-                  .map(id => new_batch.outputs[id]?.data?.storage ?? 0)
-                  .reduce((running_total, storage) => running_total + storage, 0)
-                , true)}</p>
+                <p className={Classes.TEXT_MUTED}>Storage used by the {nb_runs} run{nb_runs === 1 ? '' : 's'} shown: {humanFileSize(storage, true)}</p>
                 {export_plugin}
                 <OutputCardsList type='bit_accuracy' {...output_cards_props}/>
              </Section>}
 
-            {selected_views.includes('optimization') && <Section>
+            {views.includes('optimization') && <Section>
               <Card>
                 <h2 className={Classes.HEADING}>Auto-Tuning Analysis</h2>
                 <TuningExploration

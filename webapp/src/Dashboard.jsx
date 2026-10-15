@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { DateTime } from "luxon";
 
 import {
+  Button,
   Classes,
   Card,
   Spinner,
@@ -23,9 +25,18 @@ import { errorMessage } from "./api/http";
 
 
 
+// Servers or proxies can answer errors with whole HTML pages: we only show their status
+const readable_error = error => {
+  const data = error?.response?.data;
+  const is_html = typeof data === 'string' && /<\/?[a-z][^>]*>/i.test(data);
+  const text = is_html ? `${error.response.status} ${error.response.statusText || 'Server error'}` : errorMessage(error);
+  return text.length > 300 ? `${text.slice(0, 300)}…` : text;
+};
+
+
 const Dashboard = () => {
   const { project, project_data, selected, new_commit, ref_commit, new_batch, ref_batch, selected_batch_new } = useComparison();
-  const { commits, error, isPending, isFetching, qatools_metrics } = useCommitsList();
+  const { commits, error, refetch, isPending, isFetching, date_range, qatools_metrics } = useCommitsList();
 
   useEffect(() => {
     let name = project.split('/').slice(-1)[0];
@@ -48,17 +59,28 @@ const Dashboard = () => {
     [available_metrics, new_batch.used_metrics],
   );
 
+  if (!!error && commits.length === 0) return <Container style={{paddingTop: '50px'}}>
+    <NonIdealState
+      title="Could not load the history"
+      icon='error'
+      description={<p style={{ overflowWrap: 'anywhere' }}><code>{readable_error(error)}</code></p>}
+      action={<Button icon="refresh" text="Retry" onClick={() => refetch()}/>}
+    />
+  </Container>
   if (isPending || (isFetching && commits.length === 0))
     return (
       <Container style={{paddingTop: '50px'}}>
-        <NonIdealState title={`Loading ${selected.branch ?? ''}`} icon={<Spinner />} />
+        <NonIdealState title={`Loading the history${selected.branch ? ` of ${selected.branch}` : ''}…`} icon={<Spinner />} />
       </Container>
     );
-  if (!!error) return <Container style={{paddingTop: '50px'}}>
-    <NonIdealState title="Error" icon='error' description={errorMessage(error)}/>
-  </Container>
+  const show_older = () => updateSelected({ from: DateTime.fromJSDate(date_range[0]).minus({ days: 30 }).toJSDate() }, { replace: true });
   if (commits.length === 0) return <Container style={{paddingTop: '50px'}}>
-    <NonIdealState title="No commits found" description="Try expanding the date range." icon='search' />
+    <NonIdealState
+      title="No commits found"
+      description="There are no commits with results in this date range."
+      icon='search'
+      action={<Button icon="history" text="Search 30 more days" onClick={show_older}/>}
+    />
   </Container>
 
   const has_reference = Object.keys(ref_batch?.filtered?.outputs ?? {}).length > 0
@@ -75,9 +97,12 @@ const Dashboard = () => {
   return (
     <Container style={{paddingTop: '50px'}}>
       <Section>
-        {isFetching && <Spinner />}
         <Card elevation={1} style={{ breakInside: "avoid" }}>
-          <h2 className={Classes.HEADING}>Performance over time</h2>
+          {/* a small spinner while refreshing: a big one would push the page down */}
+          <h2 className={Classes.HEADING} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            Performance over time
+            {isFetching && <Spinner size={16} aria-label="Refreshing"/>}
+          </h2>
           <CommitsEvolution
             project={project}
             project_data={project_data}
