@@ -53,7 +53,7 @@ const CommitWarningMessages = ({ project, commit }) => {
         <p>We can restore the artifacts for you, but you'll likely need to rebuild too..!</p>
         <Button
           icon="redo"
-          text="Restore Artifacts"
+          text="Restore artifacts"
           minimal
           disabled={waiting}
           onClick={restore_artifacts}
@@ -147,7 +147,7 @@ const BatchStatusMessages = ({ project, commit, batch }) => {
     <Callout
       icon="eye-off"
       intent={Intent.WARNING}
-      title="Be careful, those are local outputs"
+      title="Be careful, those are local runs"
     >
       <p>It is possible they didn't use the code under version control.</p>
       <p>It's fine for debugging. Use your Continuous Integration to share results.</p>
@@ -210,11 +210,11 @@ const BatchStatusMessages = ({ project, commit, batch }) => {
   let deleted_message = batch.filtered.deleted_outputs > 0 && (
     <Callout
       icon="trash"
-      title={`${batch.filtered.deleted_outputs} of the outputs below were deleted`}
+      title={`${batch.filtered.deleted_outputs} of the runs below were deleted`}
     >
       <Button
         icon="redo"
-        text={`Redo Deleted Outputs${commit?.deleted ? '. Requires artifacts.' : ''}`}
+        text={`Redo deleted runs${commit?.deleted ? '. Requires artifacts.' : ''}`}
         minimal
         disabled={waiting_redo || commit?.deleted}
         onClick={redo_batch}

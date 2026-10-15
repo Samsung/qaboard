@@ -32,7 +32,7 @@ describe('RunActionsMenu', () => {
 
   it("can delete only the run's files", async () => {
     renderMenu();
-    fireEvent.click(screen.getByText('Delete Output Files…'));
+    fireEvent.click(screen.getByText('Delete output files…'));
     fireEvent.click(within(screen.getByRole('alertdialog')).getByText('Delete files'));
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/v1/output/7/?soft=true', expect.objectContaining({ method: 'DELETE' })));
   });

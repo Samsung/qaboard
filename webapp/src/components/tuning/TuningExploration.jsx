@@ -482,7 +482,7 @@ const TuningExploration = ({ batch, selected_metrics: selected_metrics_, availab
     return <Callout title="How to start tuning?" icon="info-sign">
       <p>This page shows how tuning parameters affect your metrics. Your code needs to return metrics, and accept tuning parameters as <code>key: value</code> configurations.</p>
       <p>
-        Start runs with different parameters from the <strong>Run Tests / Tuning</strong> view, or let QA-Board search for the best ones with <strong>Automated Tuning</strong>.{" "}
+        Start runs with different parameters from the <strong>Run Tests / Tuning</strong> view, or let QA-Board search for the best ones with <strong>Automated tuning</strong>.{" "}
         <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/auto-optimization`}>Learn more</a>
       </p>
       <Button intent={Intent.PRIMARY} icon="play" text="Start a tuning experiment" onClick={() => updateSelected({ selected_views: 'tuning' })}/>

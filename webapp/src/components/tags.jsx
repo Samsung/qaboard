@@ -276,7 +276,7 @@ const RunActionsMenu = ({ output, project, commit }) => {
     <Menu>
       {id && is_pending && <MenuItem
         icon="stop"
-        text="Mark as Failed"
+        text="Mark as failed"
         htmlTitle="For runs stuck as pending or running: their job is gone and will never report"
         intent={Intent.WARNING}
         minimal
@@ -311,7 +311,7 @@ const RunActionsMenu = ({ output, project, commit }) => {
       />}
       {id && !deleted && <MenuItem
         icon="trash"
-        text="Delete Output Files…"
+        text="Delete output files…"
         htmlTitle="Delete the run's files, keep its metrics"
         intent={Intent.DANGER}
         minimal
@@ -395,7 +395,7 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
     <Popover hoverCloseDelay={500} interactionKind={"hover"} placement="bottom" content={
       <Menu>
         <MenuItem
-          text="Open output directory in browser"
+          text="Open the output directory in the browser"
           target="_blank"
           rel="noopener noreferrer"
           href={folder_url(output_dir_url)}
@@ -404,7 +404,7 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
         />
         {output_ref &&
         <MenuItem
-          text="Open the Reference's output directory in browser"
+          text="Open the reference's output directory in the browser"
           target="_blank"
           rel="noopener noreferrer"
           href={folder_url(output_ref.output_dir_url)}
@@ -432,8 +432,8 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
         {hasPathMappings() && <MenuItem text="Copy output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_dir_url, { windows: true })} />}
         {output_ref && <>
           <MenuDivider title="Reference Run" />
-          <MenuItem text="Copy output directory of the 'Reference'" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_ref.output_dir_url)} />
-          {hasPathMappings() && <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_ref.output_dir_url, { windows: true })} />}
+          <MenuItem text="Copy the reference's output directory" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_ref.output_dir_url)} />
+          {hasPathMappings() && <MenuItem text="Copy the reference's output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_ref.output_dir_url, { windows: true })} />}
           </>
         }
       </Menu>}

@@ -86,7 +86,7 @@ const Dashboard = () => {
   />;
 
   const outputs_nb = new_batch.filtered.outputs.length
-  const count = outputs_nb > 0 ? <p className={Classes.TEXT_MUTED}>{outputs_nb} output{outputs_nb > 1 ? 's' : ''}</p> : <span/>
+  const count = outputs_nb > 0 ? <p className={Classes.TEXT_MUTED}>{outputs_nb} run{outputs_nb > 1 ? 's' : ''}</p> : <span/>
   return (
     <Container style={{paddingTop: '50px'}}>
       <Section>

@@ -195,7 +195,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, manifests, st
         <pre>{JSON.stringify(output.test_input_metadata, null, 2)}</pre>
       </MenuItem>
     </>}
-    <MenuDivider key={"Output-Info"} title="Output Info" />
+    <MenuDivider key={"Output-Info"} title="Run Info" />
     {!!output?.metrics?.compute_time && <MenuItem key="compute-time" text={humanElapsedTime(output.metrics.compute_time)} label="compute time" icon="stopwatch" />}
     <MenuItem
       key="created-date"
@@ -414,7 +414,7 @@ const OutputCard = memo(function OutputCard(props) {
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
             <span style={{ fontSize: '12px', fontWeight: '500', flex: 1 }}>{option_label}</span>
             {onToggleDynamicOptionSync && (
-              <Tooltip content="Link this option: all outputs will use the value from the controls panel">
+              <Tooltip content="Link this option: all runs will use the value from the controls panel">
                 <Button icon="link" minimal small onClick={() => onToggleDynamicOptionSync(name)} style={sync_button_style}>
                   unlinked
                 </Button>
@@ -485,7 +485,7 @@ const OutputCard = memo(function OutputCard(props) {
                 {relevant_synced.map(option_name => (
                   <Tooltip
                     key={option_name}
-                    content={`Unlink "${option_name}" to choose its value in each output`}
+                    content={`Unlink "${option_name}" to choose its value in each run`}
                     position="top"
                   >
                     <Button

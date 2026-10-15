@@ -91,7 +91,7 @@ describe('TuningForm', () => {
     expect(screen.getByText('Please provide a user in the input below')).toBeInTheDocument();
     act(() => queryClient.setQueryData(userQuery.queryKey, { is_logged: true, user_name: 'arjun' }));
     await waitFor(() => expect(screen.queryByText('Please provide a user in the input below')).not.toBeInTheDocument());
-    expect(screen.getByText(/Please give a name to the tuning experiment/)).toBeInTheDocument();
+    expect(screen.getByText(/Please give the batch a label/)).toBeInTheDocument();
   });
 
   it('says why the batch has no tests, with the name sent encoded', async () => {

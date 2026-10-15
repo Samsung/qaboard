@@ -556,8 +556,8 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
       </pre>
     </Callout>}
     <FormGroup
-      helperText={!experiment_name ? "(required)" : "Tip: You can add runs to an existing experiment"}
-      label={`Experiment name:`}
+      helperText={!experiment_name ? "(required)" : "Tip: reuse the label of an existing batch to add runs to it"}
+      label={`Batch label:`}
       labelFor="batch-label"
       intent={!experiment_name ? Intent.DANGER : Intent.PRIMARY}
    >
@@ -646,7 +646,7 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
 
     <FormGroup
       helperText={!user ? "Please provide a user in the input below"
-                        : experiment_name.length === 0 ? 'Please give a name to the tuning experiment (the input is above)'
+                        : experiment_name.length === 0 ? 'Please give the batch a label (the input is above)'
                         : selected_group_info.tests.length === 0 ? "The batch has no tests: see why under its name"
                         : search_type === "optimize" ? undefined
                         : combinations === "invalid" ? "The tuning parameters are not valid JSON, or the function throws"
@@ -674,7 +674,7 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
     <FormGroup
         label="Overwrite previous identical runs"
         labelFor="overwrite-old-outputs"
-        helperText="On: runs that already exist in this experiment run again. Off: they're kept, only missing runs start."
+        helperText="On: runs that already exist in this batch run again. Off: they're kept, only missing runs start."
         inline
     >
       <Switch

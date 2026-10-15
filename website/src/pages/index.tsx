@@ -166,7 +166,7 @@ const STEPS: Step[] = [
   {
     name: 'Tune',
     title: 'Tune parameters from the browser',
-    text: 'Start parameter sweeps or automated tuning from the web app, then see each parameter’s effect and the trade-offs in the Analysis view.',
+    text: 'Start parameter sweeps or automated tuning from the web app, then see each parameter’s effect and the trade-offs in the Tuning Analysis view.',
     link: '/docs/tuning-from-the-webapp',
     linkLabel: 'Tuning from the web app',
     media: <Clip id="tuning/launch-to-analysis" caption="" />,

@@ -63,7 +63,7 @@ const BatchTags = ({ batch }) => {
   return <>
     {valid_outputs > 0 && (
       <Tag intent={Intent.SUCCESS} minimal round>
-        {valid_outputs} output{valid_outputs === 1 ? '' : 's'}
+        {valid_outputs} run{valid_outputs === 1 ? '' : 's'}
       </Tag>
     )}{" "}
     {running_outputs > 0 && (
@@ -383,7 +383,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
     </ControlGroup>
     <MenuDivider title="Quick Actions"/>
     <MenuItem text="Switch new/reference" icon="exchange" onClick={switchSelection} />
-    <MenuItem text={`Also Select as ${type === 'ref' ? 'New' : 'Reference'}`} icon={type === 'ref' ? "chevron-up" : "chevron-down"} onClick={copyToOtherType} />
+    <MenuItem text={`Also select as ${type === 'ref' ? 'new' : 'reference'}`} icon={type === 'ref' ? "chevron-up" : "chevron-down"} onClick={copyToOtherType} />
     <MenuItem text="Remove from comparison" icon="cross" onClick={removeSelection} />
     <MenuDivider title="Select"/>
     <MenuItem text={reference_branch} icon="git-branch" onClick={() => selectBranch(reference_branch)} />
@@ -519,7 +519,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
           id={`filter-${type}-input`}
           value={filter_text}
           intent={filter_text ? 'primary' : 'default'}
-          placeholder={`filter ${type} outputs`}
+          placeholder={type === 'ref' ? "Filter the reference's runs…" : "Filter runs…"}
           onChange={onFilterChange}
           type="search"
           leftIcon="filter"
@@ -545,13 +545,13 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
         </Tooltip>
         <Popover placement="bottom" hoverCloseDelay={500} interactionKind={"hover"} content={<Menu>
           <MenuDivider title="Commit"/>
-          {hasPathMappings() && <MenuItem text="Copy Artifact Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url, { windows: true })} />}
-          <MenuItem text="Copy Artifact Dir" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url)} />
+          {hasPathMappings() && <MenuItem text="Copy artifacts directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url, { windows: true })} />}
+          <MenuItem text="Copy artifacts directory" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url)} />
           <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
           {has_selected_batch && <>
           <MenuDivider title="Batch"/>
-          {hasPathMappings() && <MenuItem text="Copy Output Dir" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(batch.batch_dir_url, { windows: true })} />}
-          <MenuItem text="Copy Output Dir" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(batch.batch_dir_url)} />
+          {hasPathMappings() && <MenuItem text="Copy output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(batch.batch_dir_url, { windows: true })} />}
+          <MenuItem text="Copy output directory" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(batch.batch_dir_url)} />
           <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={batch.batch_dir_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
           <MenuDivider/>
           <Dialog
@@ -568,7 +568,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
                 className={Classes.INPUT}
                 style={{marginBottom: '15px'}}
               />
-              <p>You won't be able to rename a batch with pending outputs.</p>
+              <p>You won't be able to rename a batch with pending runs.</p>
             </div>
             <div className={Classes.DIALOG_FOOTER}>
               <div className={Classes.DIALOG_FOOTER_ACTIONS}>
@@ -619,7 +619,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
           />
           {redo_counts.deleted_outputs > 0 && <MenuItem
             icon="redo"
-            text={batch_filter ? "Redo Filtered Deleted Outputs" : "Redo Deleted Outputs"}
+            text={batch_filter ? "Redo filtered deleted runs" : "Redo deleted runs"}
             intent={Intent.WARNING}
             minimal
             disabled={waiting || commit?.deleted}
@@ -627,7 +627,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
           />}
           {redo_counts.failed_outputs > 0 && <MenuItem
             icon="redo"
-            text={batch_filter ? "Redo Filtered Failed Outputs" : "Redo Failed Outputs"}
+            text={batch_filter ? "Redo filtered failed runs" : "Redo failed runs"}
             intent={Intent.WARNING}
             minimal
             disabled={waiting || commit?.deleted}
@@ -635,7 +635,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
           />}
           <MenuItem
             icon="redo"
-            text={batch_filter ? `Redo the ${batch.filtered?.outputs?.length ?? 0} Filtered Outputs…` : "Redo All Outputs…"}
+            text={batch_filter ? `Redo the ${runs(batch.filtered?.outputs?.length ?? 0)} that match the filter…` : "Redo all runs…"}
             intent={Intent.WARNING}
             minimal
             disabled={waiting || commit?.deleted || (!!batch_filter && !batch.filtered?.outputs?.length)}
@@ -644,7 +644,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
           <MenuDivider/>
           <MenuItem
             icon="trash"
-            text={`Delete Failed Outputs${soft_delete ? "' Files" : ''}…`}
+            text={`Delete failed runs${soft_delete ? "' files" : ''}…`}
             intent={Intent.DANGER}
             minimal
             disabled={waiting || !batch.failed_outputs}
@@ -652,7 +652,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
           />
           <MenuItem
             icon={!is_milestone ? "trash" : "crown"}
-            text={`Delete All Outputs${soft_delete ? "' Files" : ''}…`}
+            text={`Delete all runs${soft_delete ? "' files" : ''}…`}
             intent={Intent.DANGER}
             minimal
             disabled={waiting || (is_milestone && !soft_delete)}
@@ -742,7 +742,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
               onItemsPaste={handleDeleteBatchesPaste}
             >
             </MultiSelect>
-            <p><Button size="small" onClick={() => setShowDeleteBatchesValues(Object.keys(commit?.batches ?? {}))}>Select All Batches</Button></p>
+            <p><Button size="small" onClick={() => setShowDeleteBatchesValues(Object.keys(commit?.batches ?? {}))}>Select all batches</Button></p>
             <p>We won't delete batches defined as milestones.</p>
           </div>
           <div className={Classes.DIALOG_FOOTER}>
