@@ -665,7 +665,7 @@ OpenSeadragon.SelectionRect.prototype = OpenSeadragon.extend(Object.create(OpenS
 
     /**
      * @function
-     * @returns {Number} The rotaion in degrees
+     * @returns {Number} The rotation in degrees
      */
     getDegreeRotation: function () {
         return this.rotation * (180 / Math.PI);
@@ -782,7 +782,7 @@ OpenSeadragon.SelectionRect.prototype = OpenSeadragon.extend(Object.create(OpenS
  * Only used if location is a {@link OpenSeadragon.Point}.
  * @param {OpenSeadragon.Overlay.OnDrawCallback} [options.onDraw]
  * @param {Boolean} [options.checkResize=true] Set to false to avoid to
- * check the size of the overlay everytime it is drawn when using a
+ * check the size of the overlay every time it is drawn when using a
  * {@link OpenSeadragon.Point} as options.location. It will improve
  * performances but will cause a misalignment if the overlay size changes.
  */

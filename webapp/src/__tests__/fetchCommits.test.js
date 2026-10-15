@@ -3,86 +3,122 @@
  * branch's commits. A branch's metrics are its latest commit's, which may differ from what we asked for first.
  * Run with: cd webapp && npm test -- fetchCommits
  */
-import axios from 'axios';
+import { createElement } from 'react';
+import { act, render, waitFor } from '@testing-library/react';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { unstable_HistoryRouter as HistoryRouter, useLocation } from 'react-router';
 
-import { fetchCommits, aggregation_metrics } from '../actions/projects';
-
-vi.mock('axios', () => ({ default: { get: vi.fn() } }));
+import { ComparisonProvider, useCommitsList, aggregation_metrics } from '../hooks';
+import { normalize_commit } from '../api/normalize';
+import { history, matchRoutes, RouteMatch } from '../router';
+import { routes } from '../routes';
+import { makeQueryClient } from '../test-utils';
 
 const qatools_metrics = {
   default_metric: 'latency_p99',
   main_metrics: ['latency_p99', 'throughput', 'unknown'],
   available_metrics: { latency_p99: { target: 12 }, throughput: {}, slo_miss: { target: 0.01 } },
 };
-const commit = { id: 'c2534437', batches: {}, data: { qatools_metrics } };
-const date_range = ['2026-10-01', '2026-10-08'];
-
-
-// Runs the thunk and the thunks it dispatches, returns the requests' metrics once they're all answered
-const run = async (thunk, expected_requests) => {
-  const actions = [];
-  const dispatch = action => typeof action === 'function' ? action(dispatch) : actions.push(action);
-  dispatch(thunk);
-  await vi.waitFor(() => expect(actions.filter(a => a.type === 'UPDATE_COMMITS')).toHaveLength(expected_requests));
-  // nothing else comes
-  await new Promise(resolve => setTimeout(resolve, 20));
-  expect(axios.get).toHaveBeenCalledTimes(expected_requests);
-  return axios.get.mock.calls.map(([, { params }]) => JSON.parse(params.metrics));
-};
+const commit = { id: 'c2534437', branch: 'main', authored_datetime: '2026-10-01T10:00:00Z', batches: {}, data: { qatools_metrics } };
 
 
 describe('aggregation_metrics', () => {
-  it("gives the main metrics' targets", () => {
+  it("gives the default and main metrics' targets", () => {
     expect(aggregation_metrics(qatools_metrics)).toEqual({ latency_p99: 12, throughput: 0 });
     expect(aggregation_metrics(undefined)).toEqual({});
     expect(aggregation_metrics({ main_metrics: ['psnr'] })).toEqual({});
     // the default metric, even if it's not a main metric
     expect(aggregation_metrics({ default_metric: 'slo_miss', available_metrics: qatools_metrics.available_metrics })).toEqual({ slo_miss: 0.01 });
   });
+
+  it("gives History's metrics", () => {
+    const metrics = { ...qatools_metrics, dashboard_metrics: ['slo_miss', 'throughput'] };
+    expect(aggregation_metrics(metrics, { dashboard: true })).toEqual({ slo_miss: 0.01, throughput: 0 });
+    expect(aggregation_metrics(qatools_metrics, { dashboard: true })).toEqual({ latency_p99: 12, throughput: 0 });
+  });
 });
 
 
-describe('fetchCommits', () => {
-  beforeEach(() => {
-    axios.get.mockReset();
-    axios.get.mockResolvedValue({ data: [commit] });
-  });
+const List = () => {
+  const { isSuccess } = useCommitsList();
+  return createElement('span', null, isSuccess ? 'loaded' : 'loading');
+};
 
+const Page = () => {
+  const { pathname } = useLocation();
+  const { match } = matchRoutes(routes, pathname);
+  return createElement(RouteMatch, { match }, createElement(ComparisonProvider, null, createElement(List)));
+};
+
+// Opens the page, answers with the project's metrics, then with each list of commits in turn (the last one repeats).
+// Returns the metrics of the requests for commits once they're all answered.
+const run = async (pathname, { project_metrics, answers }) => {
+  const requests = [];
+  vi.stubGlobal('fetch', vi.fn(async input => {
+    const url = new URL(input, 'http://localhost');
+    if (url.pathname === '/api/v1/project')
+      return new Response(JSON.stringify(project_metrics ? { qatools_metrics: project_metrics } : {}));
+    if (url.pathname.startsWith('/api/v1/commits/')) {
+      requests.push({ pathname: url.pathname, metrics: JSON.parse(url.searchParams.get('metrics')) });
+      return new Response(JSON.stringify(answers[Math.min(requests.length, answers.length) - 1]));
+    }
+    return new Response('{}');
+  }));
+  act(() => history.replace(pathname));
+  render(createElement(QueryClientProvider, { client: makeQueryClient() }, createElement(HistoryRouter, { history }, createElement(Page))));
+  await waitFor(() => expect(requests.length).toBeGreaterThan(0));
+  // nothing else comes
+  await new Promise(resolve => setTimeout(resolve, 50));
+  return requests;
+};
+
+afterEach(() => vi.unstubAllGlobals());
+
+
+describe("the list of commits", () => {
   it("asks once more with the branch's metrics when they weren't known", async () => {
-    const requests = await run(fetchCommits('kitefin/inference-gateway', { name: 'main' }, date_range, {}), 2);
-    expect(requests).toEqual([{}, { latency_p99: 12, throughput: 0 }]);
+    const requests = await run('/kitefin/inference-gateway/commits/main', { answers: [[commit]] });
+    expect(requests.map(r => r.metrics)).toEqual([{}, { latency_p99: 12, throughput: 0 }]);
+    expect(requests[0].pathname).toBe('/api/v1/commits/main');
   });
 
   it('asks once when we already asked for them', async () => {
-    const requests = await run(fetchCommits('kitefin/inference-gateway', { name: 'main' }, date_range, { throughput: 0, latency_p99: 12 }), 1);
-    expect(requests).toEqual([{ throughput: 0, latency_p99: 12 }]);
+    const requests = await run('/kitefin/inference-gateway/commits/main', { project_metrics: qatools_metrics, answers: [[commit]] });
+    expect(requests.map(r => r.metrics)).toEqual([{ latency_p99: 12, throughput: 0 }]);
   });
 
   it('asks once more only, even if the metrics keep changing', async () => {
-    axios.get
-      .mockResolvedValueOnce({ data: [commit] })
-      .mockResolvedValueOnce({ data: [{ ...commit, data: { qatools_metrics: { main_metrics: ['slo_miss'], available_metrics: qatools_metrics.available_metrics } } }] });
-    const requests = await run(fetchCommits('kitefin/inference-gateway', { name: 'main' }, date_range, { slo_miss: 0.01 }), 2);
-    expect(requests).toEqual([{ slo_miss: 0.01 }, { latency_p99: 12, throughput: 0 }]);
+    const slo_miss_only = { main_metrics: ['slo_miss'], available_metrics: qatools_metrics.available_metrics };
+    const requests = await run('/kitefin/inference-gateway/commits/main', {
+      project_metrics: slo_miss_only,
+      answers: [[commit], [{ ...commit, data: { qatools_metrics: slo_miss_only } }]],
+    });
+    expect(requests.map(r => r.metrics)).toEqual([{ slo_miss: 0.01 }, { latency_p99: 12, throughput: 0 }]);
   });
 
-  it("doesn't ask again for a committer's commits, or without commits", async () => {
-    expect(await run(fetchCommits('kitefin/inference-gateway', { committer: 'mira' }, date_range, {}), 1)).toEqual([{}]);
-    axios.get.mockReset();
-    axios.get.mockResolvedValue({ data: [] });
-    expect(await run(fetchCommits('kitefin/inference-gateway', { name: 'main' }, date_range, {}), 1)).toEqual([{}]);
+  it("doesn't ask again for a committer's commits", async () => {
+    const requests = await run('/kitefin/inference-gateway/committer/mira', { answers: [[commit]] });
+    expect(requests.map(r => r.metrics)).toEqual([{}]);
+  });
+
+  it("doesn't ask again without commits", async () => {
+    const requests = await run('/kitefin/inference-gateway/commits/main', { answers: [[]] });
+    expect(requests.map(r => r.metrics)).toEqual([{}]);
+  });
+
+  it("on History, asks once for History's metrics: it loads every run", async () => {
+    const requests = await run('/kitefin/inference-gateway/history/main', {
+      project_metrics: { ...qatools_metrics, dashboard_metrics: ['slo_miss'] },
+      answers: [[{ ...commit, data: { qatools_metrics: { ...qatools_metrics, dashboard_metrics: ['throughput'] } } }]],
+    });
+    expect(requests.map(r => r.metrics)).toEqual([{ slo_miss: 0.01 }]);
   });
 });
 
 
-describe('the commits reducer', () => {
-  it("fills the defaults of the commits' metrics, which the branch's chart reads", async () => {
-    const { rootReducer } = await import('../reducers');
-    const state = rootReducer({ projects: { data: { 'kitefin/inference-gateway': { commits: {} } } } }, {
-      type: 'UPDATE_COMMITS', project: 'kitefin/inference-gateway', branch: { name: 'main' },
-      commits: [structuredClone(commit)],
-    });
-    const { available_metrics } = state.commits['kitefin/inference-gateway'].c2534437.data.qatools_metrics;
+describe('normalize_commit', () => {
+  it("fills the defaults of the commits' metrics, which the branch's chart reads", () => {
+    const { available_metrics } = normalize_commit(structuredClone(commit)).data.qatools_metrics;
     expect(available_metrics.latency_p99.key).toBe('latency_p99');
     expect(available_metrics.throughput.label).toBe('throughput');
   });

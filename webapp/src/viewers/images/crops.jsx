@@ -1,5 +1,3 @@
-import React from "react";
-
 import {
   AnchorButton,
   Button,
@@ -16,23 +14,26 @@ import { iiif_url } from "./utils";
 
 
 const uniq_rois = rois => {
-  let seen = {};
-  return rois.filter(function(roi) {
-      return seen.hasOwnProperty(roi.key) ? false : (seen[roi.key] = true);
+  const seen = new Set();
+  return rois.filter(roi => {
+    if (seen.has(roi.key)) return false;
+    seen.add(roi.key);
+    return true;
   });
 }
 
 
+// The regions of interest from the output's input metadata and configurations. Returns new objects.
 const output_rois = output => {
-  let configs_rois = output.configurations.filter(c => typeof c === 'object' && !!c.roi).map(c => c.roi).flat()
-  let input_rois = output.test_input_metadata?.roi ?? [];
-  let rois = [...input_rois, ...configs_rois];
-  rois.forEach(roi => {
-    roi.key = `${roi.x} ${roi.y} ${roi.w} ${roi.h} ${roi.label}`
-  })
+  const configs_rois = output.configurations.filter(c => typeof c === 'object' && !!c.roi).map(c => c.roi).flat()
+  const input_rois = output.test_input_metadata?.roi ?? [];
+  let rois = [...input_rois, ...configs_rois].map(roi => ({
+    ...roi,
+    key: `${roi.x} ${roi.y} ${roi.w} ${roi.h} ${roi.label}`,
+  }));
   rois = uniq_rois(rois)
 
-  const { width: image_width, height: image_height } = output.test_input_metadata || {};
+  const { width: image_width, height: image_height } = output.test_input_metadata ?? {};
   if (image_width !== undefined || image_height !== undefined)
     rois = rois.map(roi => {
       return {image_width, image_height, ...roi}
@@ -112,14 +113,14 @@ const fitTo = (roi, viewer, retry_on_viewer_update=true) => {
   }
 
   const scaled = scale_roi(roi, viewer.source)
-  let { x, y, width, height } = viewer.viewport.imageToViewportRectangle(scaled.x, scaled.y, scaled.w, scaled.h);
+  const { x, y, width, height } = viewer.viewport.imageToViewportRectangle(scaled.x, scaled.y, scaled.w, scaled.h);
   const center = {
     x: x + width / 2,
     y: y + height / 2,
   };
 
   // best fit algorithm
-  let { x: image_width, y: image_height } = viewer.world.getItemAt(0).getContentSize();
+  const { x: image_width, y: image_height } = viewer.world.getItemAt(0).getContentSize();
   const zoom = (Math.abs(scaled.w) > Math.abs(scaled.h)) ? image_width / Math.abs(scaled.w) : image_height / Math.abs(scaled.h);
 
   viewer.viewport.zoomTo(zoom);
@@ -134,7 +135,7 @@ const isValidRoi = (roi, viewer) => {
     return false;
 
   const { x, y, w, h } = scale_roi(roi, viewer.source)
-  let viewport_rec = viewer.viewport.imageToViewportRectangle(x, y, w, h);
+  const viewport_rec = viewer.viewport.imageToViewportRectangle(x, y, w, h);
 
   if (!(0 <= viewport_rec.x && viewport_rec.x <= 1) ||
     !(0 <= viewport_rec.y && viewport_rec.y <= 1) ||
@@ -155,7 +156,7 @@ const CropSelection = ({ roiCoords, image_width, image_height }) => {
     return (
       <Tooltip hoverCloseDelay={1000} content={<span>{to_clipboard}</span>}>
         <Button
-          minimal="true"
+          minimal
           style={{ marginRight: '5px', marginLeft: '5px' }}
           onClick={() => copyWithToast(to_clipboard, { what: 'the ROI' })}
         >

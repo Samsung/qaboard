@@ -37,7 +37,7 @@ export const adapt = (trace, label) => {
       color: !!(trace.marker || {}).color ? trace.marker.color : colors[label],
       size,
     },
-    // TODO: make other ajustments for other plot types, like tables...
+    // TODO: make other adjustments for other plot types, like tables...
   }
 }
 

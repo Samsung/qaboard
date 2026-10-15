@@ -83,7 +83,9 @@ Projects can add buttons to the sidebar's **Integrations** menu (hover it to ope
 
 - **Links** to docs, dashboards, build artifacts or reports. A link is disabled when its target doesn't answer.
 - **Badges**, like the pipeline status or the test coverage.
-- **GitLab CI manual jobs** and **Jenkins builds**: click to start them for this commit. A status tag shows whether the job is pending, running, successful or failed; click the tag to open the job's page and its logs. Once started, the icon changes to *repeat* so you can start it again.
+- **GitHub Actions workflows**, **GitLab CI manual jobs** and **Jenkins builds**: click to start them for this commit. A status tag shows whether the job is pending, running, successful or failed; click the tag to open the job's page and its logs. Once started, the icon changes to *repeat* so you can start it again. You need to be logged in to start GitHub Actions workflows and GitLab CI jobs.
+- **GitHub Actions workflows** show the status of their latest run for the commit. GitHub runs them on the latest commit of the branch (or on the `ref` the project chose), not necessarily on the commit you're looking at; QA-Board then follows the run you started. Only the workflows declared in the project's *qaboard.yaml* can be seen and started.
+- If the project configured nothing, the menu shows its git host's defaults on branch pages: GitLab's pipeline status, or a link to GitHub Actions. Badges that don't load are hidden.
 - **Webhooks** that call other tools, with a tag showing the response.
 
 <Shot

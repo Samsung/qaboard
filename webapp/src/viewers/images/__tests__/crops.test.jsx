@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 
-import { Crop, fitTo, isValidRoi, scale_roi } from '../crops';
+import { Crop, fitTo, isValidRoi, scale_roi, output_rois } from '../crops';
 import { RoiViewer } from '../roi_viewer';
 
 
@@ -24,6 +24,25 @@ const fakeViewer = (width = 1000, height = 500) => ({
 });
 
 const output = { output_dir_url: '/s/mnt/qaboard/project/run', configurations: ['base'] };
+
+
+describe('output_rois', () => {
+  it('lists unique ROIs from the input metadata and the configurations, without changing the output', () => {
+    const roi = { x: 0, y: 0, w: 10, h: 10, label: 'a' };
+    const output = Object.freeze({
+      configurations: Object.freeze(['base', Object.freeze({ roi: Object.freeze([Object.freeze({ ...roi }), Object.freeze({ x: 5, y: 5, w: 1, h: 1, label: 'b' })]) })]),
+      test_input_metadata: Object.freeze({ roi: Object.freeze([Object.freeze(roi)]), width: 100, height: 50 }),
+    });
+    const rois = output_rois(output);
+    expect(rois.map(r => r.label)).toEqual(['a', 'b', 'Full Image']);
+    expect(rois[0]).toMatchObject({ ...roi, image_width: 100, image_height: 50 });
+    expect(roi).not.toHaveProperty('key');
+  });
+
+  it('has nothing to show without ROIs', () => {
+    expect(output_rois({ configurations: [] })).toEqual([]);
+  });
+});
 
 
 describe('scale_roi', () => {

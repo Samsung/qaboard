@@ -1,6 +1,7 @@
 /// <reference types="vitest/config" />
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import react, { reactCompilerPreset } from '@vitejs/plugin-react'
+import babel from '@rolldown/plugin-babel'
 import { visualizer } from 'rollup-plugin-visualizer'
 import { releaseNotes } from './releaseNotes.js'
 
@@ -15,6 +16,13 @@ const proxy = {
   '^/s/': { target: QABOARD_SERVER_URL, changeOrigin: true },
   '^/iiif/': { target: QABOARD_SERVER_URL, changeOrigin: true },
   '^/docs/': { target: QABOARD_SERVER_URL, changeOrigin: true },
+}
+
+const compiler_logger = {
+  logEvent(filename, event) {
+    if (event.kind === 'CompileError' || event.kind === 'CompileSkip')
+      console.log(`[react-compiler] ${event.kind} ${filename}:${event.fnLoc?.start?.line ?? ''} ${event.detail?.reason ?? event.reason ?? ''}`)
+  },
 }
 
 // In production nginx serves files.html for the folders under /s/ (services/nginx/snippets/qaboard-files.conf),
@@ -37,6 +45,9 @@ const fileBrowser = () => {
 export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
+    // Automatic memoization of components and hooks https://react.dev/learn/react-compiler
+    // Components that break the Rules of React are skipped: `REACT_COMPILER_LOG=1 npm run build` lists them.
+    babel({ presets: [reactCompilerPreset({ logger: process.env.REACT_COMPILER_LOG ? compiler_logger : undefined })] }),
     fileBrowser(),
     // the release notes, from website/release-notes/
     releaseNotes(),

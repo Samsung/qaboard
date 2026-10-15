@@ -3,6 +3,7 @@ Provides a default QA configuration for the projects, by reading the configurati
 """
 import os
 import sys
+import json
 import datetime
 from getpass import getuser
 from pathlib import Path
@@ -249,6 +250,17 @@ ci_env_variables = (
 is_ci = any([v in os.environ for v in ci_env_variables])
 
 
+def github_pull_request_head() -> Optional[str]:
+  """In Github Actions workflows triggered by pull requests, the last commit of the pull request."""
+  if not os.environ.get('GITHUB_EVENT_NAME', '').startswith('pull_request'):
+    return None
+  try:
+    with open(os.environ['GITHUB_EVENT_PATH']) as f:
+      return json.load(f)['pull_request']['head']['sha']
+  except (KeyError, OSError, ValueError, TypeError):
+    return None
+
+
 if is_ci:
     # This field is not used at the moment, possibly in the future we'll want to support other VCS like SVN
     commit_type = config.get('project', {}).get('type', 'git')
@@ -261,29 +273,33 @@ if is_ci:
         'TRAVIS_COMMIT', # TravisCI
         'GITHUB_SHA'     # Github Actions
     )
-    commit_id = getenvs(commit_sha_variables)
+    # For pull requests, Github Actions' GITHUB_SHA is a temporary merge commit: we use the PR's last commit
+    commit_id = github_pull_request_head() or getenvs(commit_sha_variables)
 
     branch_env_variables = (
         'CI_COMMIT_TAG',      # GitlabCI, only when building tags
         'CI_COMMIT_REF_NAME', # GitlabCI
         'GIT_BRANCH',         # Jenkins
-        'gitlabBranch',       # Jenkins gitlab plugin 
+        'gitlabBranch',       # Jenkins gitlab plugin
         'CIRCLE_BRANCH',      # CircleCI
         'TRAVIS_BRANCH',      # TravisCI
+        'GITHUB_HEAD_REF',    # Github Actions, the source branch of pull requests
+        'GITHUB_REF_NAME',    # Github Actions, the branch or tag
         'GITHUB_REF'          # Github Actions
     )
     commit_branch = getenvs(branch_env_variables)
     if commit_branch:
-      commit_branch = commit_branch.replace('origin/', '').replace('refs/heads/', '')
+      commit_branch = commit_branch.replace('origin/', '').replace('refs/heads/', '').replace('refs/tags/', '')
 
     tag_env_variables = (
         'CI_COMMIT_TAG',      # GitlabCI
         'GIT_TAG_NAME',       # Jenkins git plugin
         'CIRCLE_TAG',         # CircleCI
         'TRAVIS_TAG',         # TravisCI
-        # Github Actions uses GITHUB_REF too
     )
     commit_tag = getenvs(tag_env_variables)
+    if not commit_tag and os.environ.get('GITHUB_REF_TYPE') == 'tag':
+      commit_tag = os.environ.get('GITHUB_REF_NAME')
 else:
     commit_type = None
     # If possible we'll complete the information later

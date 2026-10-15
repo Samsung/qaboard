@@ -1,17 +1,15 @@
-import React, { useContext } from "react";
-import { ReactReduxContext } from "react-redux";
+import React from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Callout, Classes, Intent, Tag, Tooltip } from "@blueprintjs/core";
 
+import { siteConfigQuery } from "../../api/queries";
 import { lsfHeadline, lsfHint, lsfHintDocs, lsfKilled, lsfNearMemoryLimit, lsfReason } from "./lsf";
 
 
 const DEFAULT_DOCS_ROOT = 'https://samsung.github.io/qaboard/'
 
-// Sites can host their own docs. Works without a redux store (e.g. in tests).
-const useDocsRoot = () => {
-  const context = useContext(ReactReduxContext)
-  return context?.store?.getState()?.siteConfig?.docs_root ?? DEFAULT_DOCS_ROOT
-}
+// Sites can host their own docs. Until we know, we link to the public docs.
+const useDocsRoot = () => useQuery(siteConfigQuery).data?.docs_root ?? DEFAULT_DOCS_ROOT
 
 
 // Renders `code` in hints

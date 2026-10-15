@@ -14,6 +14,7 @@ const { median: mathjs_median, format } = create({
 
 import { memoized_levenshtein } from "./levenshtein";
 import { setPathMappings, linux_to_windows } from "./utils/paths";
+import { repo_url } from "./git";
 
 
 const calendarStrings = {
@@ -68,9 +69,10 @@ const pretty_label = batch => {
 const empty_output = { metrics: undefined, extra_parameters: {} };
 
 
-
-// Finds the most matching output from a batch
-const matching_output = ({ output, batch }) => {
+// Finds the reference output that best matches an output.
+// Pass an index made with index_outputs(batch) when matching many outputs against the same batch.
+const matching_output = ({ output, batch, index }) => {
+  index = index ?? index_outputs(batch);
   // high => more different
   const match_score = o =>
     8 * ((o.input_path !== output.input_path) | 0) +
@@ -78,52 +80,38 @@ const matching_output = ({ output, batch }) => {
     2 * ((o.platform !== output.platform) | 0) +
     1 * ((o.extra_parameters_str !== output.extra_parameters_str) | 0);
 
-  // console.log('MATCHING', output)
-  // console.log(batch.filtered.outputs.map(id => batch.outputs[id]))
-  // const t0 = performance.now();
+  // Most of the time there's an identical run: no need to measure how different the others are
+  const exact = index.exact.get(run_key(output));
+  if (exact !== undefined)
+    return { output_ref: index.outputs[exact], mismatch: null };
 
-  const best_dist_configurations = Infinity
-  let matching_outputs = batch.filtered.outputs.map(id => batch.outputs[id])
-    .filter(o => !o.is_pending)
-    .filter(o => o.input_path === output.input_path || o.test_input_path === output.test_input_path || (output.test_input_metadata.id && o.test_input_metadata.id && o.test_input_metadata.id === output.test_input_metadata.id) )
-    // We prefer to compare an ouput versus a similar one
-    .map(o => {
-      o.dist_input_path = 1 - Number(o.input_path === output.input_path || o.test_input_path === output.test_input_path)
-      // TODO:
-      // 1. Implement short-circuiting to stop calculating once a certain threshold is reached, especially when comparing against many candidates and only needing the top match.
-      //    need to add a threshold parameter, and stop if exceeded...
-      // 2. Memoization since many configs will be the same
-      o.dist_configurations = memoized_levenshtein(o.configurations_str ?? '', output.configurations_str ?? '', {threshold: best_dist_configurations})
-      o.dist_extra_parameters = memoized_levenshtein(o.extra_parameters_str  ?? '', output.extra_parameters_str  ?? '')
-      return o;
-    })
-    // .sort((a, b) => match_score(a) - match_score(b));
-    .sort((a, b) => {
-      // +1: b more similar
-      // +-: b less similar
-      const dist_input_path = a.dist_input_path - b.dist_input_path;
-      if (dist_input_path !== 0) {
-        return dist_input_path;
-      }
-      const dist_config = a.dist_configurations - b.dist_configurations;
-      if (dist_config !== 0) {
-        return dist_config;
-      }
-      const dist_extra_parameters = a.dist_extra_parameters - b.dist_extra_parameters;
-      if (dist_extra_parameters !== 0) {
-        return dist_extra_parameters;
-      }
-      // the same platform first
-      return (b.platform === output.platform) - (a.platform === output.platform)
+  // Candidates run on the same input, in the batch's order
+  const positions = new Set([
+    ...(index.by_input_path.get(output.input_path) ?? []),
+    ...(index.by_test_input_path.get(output.test_input_path) ?? []),
+    ...((output.test_input_metadata?.id && index.by_metadata_id.get(output.test_input_metadata.id)) || []),
+  ]);
+  const candidates = [...positions].sort((a, b) => a - b).map(i => {
+    const o = index.outputs[i];
+    return {
+      o,
+      dist_input_path: 1 - Number(o.input_path === output.input_path || o.test_input_path === output.test_input_path),
+      dist_configurations: memoized_levenshtein(o.configurations_str ?? '', output.configurations_str ?? ''),
+      dist_extra_parameters: memoized_levenshtein(o.extra_parameters_str ?? '', output.extra_parameters_str ?? ''),
+    };
   });
-  
-  // const t1 = performance.now();
-  // console.log("Match took " + (t1 - t0) + " ms.")
-  // console.log(matching_outputs)
+  // We prefer to compare an ouput versus a similar one
+  candidates.sort((a, b) =>
+    (a.dist_input_path - b.dist_input_path) ||
+    (a.dist_configurations - b.dist_configurations) ||
+    (a.dist_extra_parameters - b.dist_extra_parameters) ||
+    // same platform first (it used to sort them last)
+    ((b.o.platform === output.platform) - (a.o.platform === output.platform))
+  );
 
-  let output_ref = matching_outputs[0] || empty_output;
+  let output_ref = candidates[0]?.o ?? empty_output;
   let ref_match_score = match_score(output_ref);
-  let imperfect_match = matching_outputs.length > 0 && ref_match_score > 0;
+  let imperfect_match = candidates.length > 0 && ref_match_score > 0;
   let mismatch = imperfect_match ? {
     test_input_path: ref_match_score & 8 ? output_ref.test_input_path : null,
     configurations: ref_match_score & 4 ? output_ref.configurations : null,
@@ -131,6 +119,31 @@ const matching_output = ({ output, batch }) => {
     extra_parameters: ref_match_score & 1 ? output_ref.extra_parameters : null,
   } : null;
   return { output_ref, mismatch };
+};
+
+const run_key = o => `${o.input_path}\u0000${o.configurations_str}\u0000${o.extra_parameters_str}\u0000${o.platform}`;
+
+// Lookups by input, for the outputs of a batch that are shown and not pending
+const index_outputs = batch => {
+  const outputs = (batch.filtered?.outputs ?? Object.keys(batch.outputs ?? {}))
+    .map(id => batch.outputs[id])
+    .filter(o => !!o && !o.is_pending);
+  const by_input_path = new Map();
+  const by_test_input_path = new Map();
+  const by_metadata_id = new Map();
+  const exact = new Map();
+  const add = (map, key, i) => {
+    if (key === undefined || key === null) return;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(i);
+  };
+  outputs.forEach((o, i) => {
+    add(by_input_path, o.input_path, i);
+    add(by_test_input_path, o.test_input_path, i);
+    if (o.test_input_metadata?.id) add(by_metadata_id, o.test_input_metadata.id, i);
+    if (!exact.has(run_key(o))) exact.set(run_key(o), i);
+  });
+  return { outputs, by_input_path, by_test_input_path, by_metadata_id, exact };
 };
 
 const safe_regex = s => {
@@ -201,7 +214,7 @@ const filter_batch = (batch, filter_values) => {
     let metadata = Object.keys(output.test_input_metadata ?? {}).length > 0 ? JSON.stringify(output.test_input_metadata ?? {}) : "";
     let failed = output.is_failed ? 'fail crash' : '';
     let pending = output.is_pending ? 'pending running' : ''
-    let searched = `${output.test_input_path} ${output.configurations_str} ${metadata} ${JSON.stringify(output.params)} ${output.data.batch} ${failed} ${pending} ${output.platform} id:${id}`;
+    let searched = `${output.test_input_path} ${output.configurations_str} ${metadata} ${JSON.stringify(output.params)} ${output.data?.batch} ${failed} ${pending} ${output.platform} id:${id}`;
     // console.log(searched)
     if (matcher(searched)) {
       filtered.outputs.push(id);
@@ -262,13 +275,6 @@ const project_avatar_style = project_id => {
 };
 
 
-// Used when a project does not define project.url in qaboard.yaml, set from /api/v1/config (GITLAB_HOST)
-let default_git_hostname = "https://gitlab.com"
-const setDefaultGitHostname = hostname => {
-  if (hostname)
-    default_git_hostname = hostname.replace(/\/+$/, '')
-}
-
 // Link to a storage quota dashboard, if the site has one (QABOARD_QUOTA_URL_TEMPLATE)
 const quota_url = (template, user_name, project) => {
   if (!template || !user_name)
@@ -278,28 +284,8 @@ const quota_url = (template, user_name, project) => {
     .replace('{project}', encodeURIComponent(project ?? ''))
 }
 
-const git_hostname = qaboard_config => {
-  const project_url = qaboard_config?.project?.url
-  // const project_url = "git@gitlab-srv:svt/te-testing.git"      //=> gitlab-srv
-  // const project_url = "git@gitlab-srv:8080:svt/te-testing.git" //=> gitlab-srv:8080
-  // const project_url = "https://gitlab-srv/svt/te-testing.git"  //=> gitlab-srv
-  let hostname = null
-  if (project_url) {
-    let match = project_url.match(/@([^/:]+(:[0-9]+)?)[:/]/)
-    if (match) {
-      // For SSH remotes we don't know the protocol. We use the one from GITLAB_HOST if it's the same server.
-      const default_host = default_git_hostname.match(/^(https?):\/\/([^/]+)/)
-      const protocol = (default_host && default_host[2] === match[1]) ? default_host[1] : 'https'
-      hostname = `${protocol}://${match[1]}`
-    }
-    match = project_url.match(/(https?:\/\/[^/:]+(:[0-9]+)?)\//)
-    if (match)
-      hostname = match[1]
-  }
-  return hostname
-
-}
-
+// The project's page on its git server
+const project_web_url = project_data => repo_url(project_data);
 
 
 const path_regex = /^(\\\\[^\\]+)(\\[^\\]+)/;
@@ -373,7 +359,8 @@ const make_eval_templates_recursively = ({project, project_data, branch, commit,
   let project_name = project_parts[project_parts.length-1];
   let project_name_tolower = project_name.toLowerCase();
   let context = {
-      git: project_data && project_data.data && project_data.data.git,
+      // integrations' templates use e.g. ${git.web_url}
+      git: { ...project_data?.data?.git, web_url: project_web_url(project_data) },
       project,                  // "group/project/my/Subproject"
       subproject,               // "my/Subproject"
       project_name,             // "Subproject"
@@ -395,15 +382,14 @@ const make_eval_templates_recursively = ({project, project_data, branch, commit,
     context.branch = branch
     context.branch_slug = slug(branch)
   }
-  if ((commit !== undefined) && (commit.branch !== undefined)){
-    context.commit = commit
-    if (commit.branch !== undefined)
-      context.commit.branch_slug = slug(commit.branch)
-    // backward compatibility
-    if (commit.artifacts_url !== undefined)
-      context.commit.commit_dir_url = commit.artifacts_url
-    if (commit.repo_artifacts_url !== undefined)
-      context.commit.repo_commit_dir_url = commit.repo_artifacts_url
+  if (commit?.branch !== undefined) {
+    context.commit = {
+      ...commit,
+      branch_slug: slug(commit.branch),
+      // backward compatibility
+      ...(commit.artifacts_url !== undefined ? { commit_dir_url: commit.artifacts_url } : {}),
+      ...(commit.repo_artifacts_url !== undefined ? { repo_commit_dir_url: commit.repo_artifacts_url } : {}),
+    }
   }
   
   return integration => {
@@ -432,29 +418,33 @@ const slug = text => {
     .replace(/^-+|-+$/g, '');     // Remove excess '-' from both sides of a string
 }
 
+// Returns a new mapping of metrics, with defaults for label, scale, suffix...
+// Metrics whose key starts with a dot are hidden.
+// The value of input events, or the value itself
+const event_value = e => (e?.target && e.target.value !== undefined) ? e.target.value : e;
+
 const metrics_fill_defaults = available_metrics => {
-  Object.entries(available_metrics || {}).forEach( ([key, m])  => {
-    if (m === undefined || m === null) {
-      m = {}
-    }
-    m.key = key
-    m.label = m.label || key
-    m.short_label = m.short_label || m.label || key
-    m.scale = m.scale  || 1.0
-    m.suffix = m.suffix || ''
-    if (m.smaller_is_better === undefined || m.smaller_is_better === null) {
-      m.smaller_is_better = true;
-    } else {
-      if (typeof m.smaller_is_better === "string") {
-        m.smaller_is_better = m.smaller_is_better.tolower() !== 'false'
-      }
-    }
-    if (key.startsWith('.')) {
-      delete available_metrics[key]
-    }
-  })
-  return available_metrics || {}
+  const filled = {};
+  Object.entries(available_metrics || {}).forEach(([key, m]) => {
+    if (key.startsWith('.'))
+      return;
+    m = m ?? {};
+    let smaller_is_better = m.smaller_is_better ?? true;
+    if (typeof smaller_is_better === "string")
+      smaller_is_better = smaller_is_better.toLowerCase() !== 'false';
+    filled[key] = {
+      ...m,
+      key,
+      label: m.label || key,
+      short_label: m.short_label || m.label || key,
+      scale: m.scale || 1.0,
+      suffix: m.suffix || '',
+      smaller_is_better,
+    };
+  });
+  return filled;
 }
+
 
 const checked_cde_attrs = ["width", "height", "format", "imageType", "md5_data"]
 const is_same_data = (path, meta_1, meta_2) => {
@@ -508,6 +498,9 @@ const copyElementToClipboard = async (element, name, message_renderer) => {
 };
 
 
+// Moved to git.js, kept here for compatibility
+export { git_hostname, default_git_hostname, setDefaultGitHostname } from './git';
+
 export {
   average,
   median,
@@ -515,6 +508,7 @@ export {
   groupBy,
   groupByObject,
   matching_output,
+  index_outputs,
   calendarStrings,
   shortId,
   pretty_label,
@@ -524,15 +518,14 @@ export {
   project_avatar_style,
   hash_color,
   plotly_palette,
-  git_hostname,
-  default_git_hostname,
   linux_to_windows,
   setPathMappings,
-  setDefaultGitHostname,
   quota_url,
   are_on_same_filesystem, extract_drive_and_folder,
   make_eval_templates_recursively,
   metrics_fill_defaults,
+  event_value,
+  project_web_url,
   is_same_data,
   copyElementToClipboard,
 };

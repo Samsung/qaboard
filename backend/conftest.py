@@ -62,6 +62,7 @@ def pytest_configure():
     models_mod.CiCommit = MagicMock()
     models_mod.latest_successful_commit = MagicMock()
     models_mod.Batch = MagicMock()
+    models_mod.batches_stats = MagicMock()
     sys.modules['backend.models'] = models_mod
     sys.modules['backend.backend'] = types.ModuleType('backend.backend')
 

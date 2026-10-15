@@ -7,9 +7,8 @@ If you run into issues with LSF
   Read them as they change environment variables.
 
 Note:
-- Windows compatibility is not garanteed since we rely on shell features (heredocs) and 
+- Windows compatibility is not guaranteed since we rely on shell features (heredocs) and 
 """
-import re
 import os
 import random
 import shutil
@@ -25,7 +24,6 @@ from click import secho
 from .base import BaseRunner
 from .job import Job
 from ..run import RunContext
-from ..api import get_output
 from ..utils import getenvs
 
 
@@ -347,7 +345,7 @@ class LsfRunner(BaseRunner):
 
   @staticmethod
   def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
-      # We could dot this to be sure we explicitely kill all jobs 
+      # We could dot this to be sure we explicitly kill all jobs 
       #   command = " && ".join([f"bkill -J {job.name} 0" for job in jobs])
       # But we're only sending jobs as part of a single command...
       batch_prefix = job_options["command_id"][:8]
@@ -367,7 +365,7 @@ class LsfRunner(BaseRunner):
       # If LSF can't find the jobs, they are likely done already, but it returns 255, while we don't want to fail!
       #   out.check_returncode()
       # It's a better idea to check the logs for the status
-      # It doens't cover all cases, but we don't need to be super careful
+      # It doesn't cover all cases, but we don't need to be super careful
       being_terminated = "is being terminated" in out.stdout
       already_finished = "has already finished" in out.stdout
       job_not_found = "is not found" in out.stdout

@@ -82,7 +82,8 @@ website shows them at `/release-notes` (with RSS/Atom feeds).
   or old periods; periods can't overlap). The format is documented in `website/release-notes/_template.md`.
 - **In the same PR as any user-visible change** (web app, `qa` CLI, qaboard.yaml, server/admin), add a
   bullet to the current month's note, under the right section: `## Web app`, `## CLI and project setup`,
-  `## Server and administration`, `## Documentation`, `## Fixes`. If the month's file doesn't exist,
+  `## Server and administration`, `## Documentation`, `## Performance`, `## Fixes` (grouped by area under `###`
+  headings when there are many). If the month's file doesn't exist,
   create it as a draft: `website/release-notes/release_notes.py draft 2026-11 --write` (pre-filled from
   the git log, keeps `draft: true`). Skip refactors, CI-only and typo changes.
 - **Write for the reader**: one change per bullet, starting with a verb, saying what they can now do.
@@ -143,7 +144,7 @@ npm test -- --run       # Vitest + Testing Library, jsdom
 ## Key Technologies
 
 - **Backend**: Python 3.11+, Flask, PostgreSQL, SQLAlchemy, Celery, Redis
-- **Frontend**: React 19, Redux, Blueprint UI 6, React Router 8, D3.js, Plotly.js 3, Monaco. Built with Vite 8, tested with Vitest, linted with oxlint
+- **Frontend**: React 19 (function components, React Compiler), TanStack Query (server state), Zustand (user preferences), the URL for what's selected (`src/selection.js`), Blueprint UI 6, React Router 8, D3.js, Plotly.js 3, Monaco. Built with Vite 8, tested with Vitest, linted with oxlint. `npm run bench` measures performance
 - **Infrastructure**: Docker Compose, nginx, RabbitMQ
 - **CLI**: Python with Click framework
 - **Package Management**: `uv` for Python, `npm` for JavaScript

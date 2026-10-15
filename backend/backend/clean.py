@@ -21,15 +21,13 @@ storage:
     after: 1month
     artifacts:
       delete: true
-      keep:     # optionnal...
+      keep:     # optional...
       - binary  #
 ```
 
 Notes:
 - If you change those settings, old artifacts don't get deleted.
 - When runs use a commit that was deleted, or you upload manifests for a deleted commit, it is marked undeleted.
-```
-
 """
 import re
 import sys
@@ -40,9 +38,9 @@ from pathlib import Path
 
 import click
 from click import secho
-from sqlalchemy import func, and_, asc, or_, not_
+from sqlalchemy import or_, not_
 
-from .database import db_session, Session
+from .database import db_session
 from .models import Project, CiCommit, Batch, Output
 
 
@@ -93,11 +91,6 @@ def clean_untracked_hwalg_artifacts(clean_untracked_artifacts, artifacts_roots, 
     for artifacts_root in artifacts_roots:
         artifacts_root = Path(artifacts_root)
         def iter_hashsha_dir():
-            # artifacts_root = Path('/stage/algo_data/ci/CDE-Users/HW_ALG/commits')
-            # for directory in artifacts_root.iterdir():
-            #     hexsha = directory.name.split('__')[-1]
-            #     yield hexsha, directory
-            # return?
             for hash2 in artifacts_root.iterdir():
                 if len(hash2.name) != 2:
                     continue
@@ -231,7 +224,7 @@ def clean_untracked_hwalg_outputs(outputs_roots, user, use_cache):
 @click.option('--project', 'project_ids', help="Regular expressions to match projects", multiple=True)
 @click.option('--before', help="Overwrites what's defined in the project config. 1month, 3days..")
 @click.option('--can-delete-reference-branch', is_flag=True, help="Allows deleting results on the reference branch (e.g. master/develop). The latest commit will be kept.")
-@click.option('--can-delete-outputs/--cannot-delete-outputs', is_flag=True, default=True, help="Allows deleting artifacts.")
+@click.option('--can-delete-outputs/--cannot-delete-outputs', is_flag=True, default=True, help="Allows deleting outputs.")
 @click.option('--can-delete-artifacts', is_flag=True, help="Allows deleting artifacts.")
 @click.option('--dryrun', is_flag=True)
 @click.option('--verbose', is_flag=True)
@@ -240,7 +233,7 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
         secho('[ERROR] when using --before you need to use --project', fg='red')
         exit(1)
 
-    projects = db_session.query(Project) #.filter(Project.id == 'CDE-Users/HW_ALG/CIS')
+    projects = db_session.query(Project)
     for project in projects:
         if project.data.get("legacy"):
             continue
@@ -265,7 +258,7 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
             db_session.query(CiCommit)
             .filter(CiCommit.project == project)
             .filter(CiCommit.deleted == False)
-            # we could check those rare occurences from python-land...
+            # we could check those rare occurrences from python-land...
             .filter(CiCommit.hexsha.notin_(project.milestone_commits))
             .filter(or_(
                 bool(CiCommit.latest_output_datetime) and CiCommit.latest_output_datetime < old_treshold,
@@ -278,11 +271,6 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
             commits = commits.filter(CiCommit.branch.notin_(project.protected_refs))
 
         for commit in commits.yield_per(1000):
-            # if '/algo/' not in str(commit.artifacts_dir):
-            #     continue
-            # print(commit.artifacts_dir)
-            # cis_dir = str(self.artifacts_dir).replace("KITT_ISP", "CIS")
-            # continue
             secho(f"@{commit.project_id}  {commit.branch}  {commit.hexsha} {commit.authored_datetime}", fg='cyan')
             outputs = (db_session.query(Output).join(Batch).filter(Batch.ci_commit_id == commit.id))
 
@@ -317,7 +305,7 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
                     .filter(CiCommit.hexsha == commit.hexsha)
                 )
                 if undeleted_commits_from_subprojects:
-                    print(f"> skippping {commit}: undeleted_commits_from_subprojects")
+                    print(f"> skipping {commit}: undeleted_commits_from_subprojects")
                     continue
 
                 secho(f"  Deleting artifacts", fg='cyan', dim=True)

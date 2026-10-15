@@ -3,22 +3,16 @@
 Fix stuff.
 docker compose -f docker-compose.yml -f development.yml -f sirc.yml run --rm --no-deps -v /home/arthurf/qaboard/services/backend/passwd:/etc/passwd -e QABOARD_DATA_GIT_DIR=/home/arthurf backend python /qaboard/backend/backend/scripts/fix_bad_output_dir_name.py
 """
-import os
-import sys
 import time
-import shutil
-import traceback
 from pathlib import Path
 
 import click
-import requests
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy import text
 
-from backend.models import Project, CiCommit, Batch, Output
-from backend.database import db_session, Session
+from backend.models import Output
+from backend.database import db_session
 
-from migration_utils import get_username
 
 
 # Progress will be printed every batch/100
@@ -56,7 +50,7 @@ def migrate_output(output):
 
 
 def migrate(min_id):
-  # it's an aweful join...
+  # it's an awful join...
   all_outputs = (db_session
     .query(Output)
   )
@@ -109,7 +103,7 @@ def migrate(min_id):
 
 
 def main():
-  # Optionnally, you can give an id to start from...
+  # Optionally, you can give an id to start from...
   # it helps if there are many non-migrated runs that fail because of whatever and
   # you don't want to wait until the migration fails to migrate them again!
   last_id = None #1245250 # None

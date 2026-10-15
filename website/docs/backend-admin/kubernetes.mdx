@@ -70,7 +70,8 @@ helm install qaboard oci://ghcr.io/samsung/charts/qaboard \
 
 - **Versions:** helm installs the latest release, `--version` picks another one. The chart has QA-Board's version and installs that release's images: the chart `1.2.0` runs `ghcr.io/samsung/qaboard:backend-1.2.0`... Each commit on `master` also publishes a development version, like `1.2.1-dev.42`: helm only installs them with `--devel` or an explicit `--version`.
 - **Images:** `image.version` picks other images, e.g. a commit (`1a2b3c4d`) or `latest` (the latest `master`). To use a mirror, set `image.repository` and `imagePullSecrets`. Forks of the repository publish their own images and chart, at `ghcr.io/<owner>/qaboard` and `oci://ghcr.io/<owner>/charts/qaboard`.
-- **Settings:** `config` sets the backend's [environment variables](../start-server.mdx), `secret` its secrets (`SECRET_KEY`, `QABOARD_DB_PASSWORD`, `GITLAB_ACCESS_TOKEN`, LDAP credentials...). Prefer creating the secret yourself (e.g. with external-secrets) and referencing it with `secret.existingSecret`. `SECRET_KEY` signs sessions: keep it when you migrate, or everyone is logged out.
+- **Settings:** `config` sets the backend's [environment variables](../start-server.mdx), `secret` its secrets (`SECRET_KEY`, `QABOARD_DB_PASSWORD`, the git hosts' tokens: `GITLAB_ACCESS_TOKEN`, `GITHUB_ACCESS_TOKEN` and the variables named by `token_env` and `webhook_secret_env` in `QABOARD_GIT_HOSTS`, `QABOARD_WEBHOOK_SECRET`, LDAP credentials...). Prefer creating the secret yourself (e.g. with external-secrets) and referencing it with `secret.existingSecret`. `SECRET_KEY` signs sessions: keep it when you migrate, or everyone is logged out.
+- **Migrations:** the migrations Job gets `config` too: data migrations need e.g. the [git hosts](./git-hosts.mdx#upgrading-from-older-versions), so give `QABOARD_GIT_HOSTS` in `config` as JSON, not as the path to a file the Job doesn't mount.
 
 ### What runs
 | Component | Kubernetes | Notes |

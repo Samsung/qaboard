@@ -1,9 +1,7 @@
 // "What's new": release notes pop up on load when there are new ones,
 // and can be opened anytime from the sidebar, the footer, the projects list, or https://qa/#whats-new
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { useSelector } from "react-redux";
 import styled from "styled-components";
-import posthog from "posthog-js";
 import {
   Button,
   Classes,
@@ -33,6 +31,8 @@ import {
   searchNotes,
   unseenNotes,
 } from "./logic";
+import { track } from "../analytics";
+import { useSiteConfig } from "../hooks";
 
 
 const ReleaseNotesContext = createContext({
@@ -42,9 +42,6 @@ const ReleaseNotesContext = createContext({
 });
 export const useReleaseNotes = () => useContext(ReleaseNotesContext);
 
-const track = (event, properties) => {
-  if (posthog.__loaded) posthog.capture(event, properties);
-};
 
 // The notes are in their own chunk: they are not needed for the first render.
 // They come from website/release-notes/, see webapp/releaseNotes.js
@@ -53,7 +50,7 @@ const loadNotes = () => import("virtual:release-notes")
 
 
 export const ReleaseNotesProvider = ({ children, load = loadNotes, popupDelay = 1000 }) => {
-  const docs_root = useSelector(state => state.siteConfig?.docs_root) ?? "/";
+  const { docs_root } = useSiteConfig();
   const [notes, setNotes] = useState([]);
   // Notes not seen before this page load: they keep their "New" tag until the next one
   const [newSlugs, setNewSlugs] = useState(new Set());

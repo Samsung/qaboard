@@ -383,7 +383,7 @@ def get_group():
         tests = [SimpleNamespace(rel_input_path=r.get("rel_input_path", r.get("input_path")), configurations=r.get("configurations", []), batch=r.get("batch")) for r in runs]
         return response(tests, missing_inputs_from_logs(process.stderr))
 
-    # We don't need to seperate the two cases, but
+    # We don't need to separate the two cases, but
     # doing so might let us avoid a fork and qa startup...
     # like in qaboard/config.py
     config_inputs = qatools_config.get('inputs', {})
@@ -554,7 +554,6 @@ def start_tuning(hexsha):
         return jsonify("Please create `qaboard.yaml`"), 404
 
     ci_commit.latest_output_datetime = datetime.datetime.now()
-    ci_commit.latest_output_datetime = datetime.datetime.now()
     batch = ci_commit.get_or_create_batch(data['batch_label'])
     db_session.add(ci_commit)
     db_session.commit()
@@ -641,7 +640,7 @@ def start_tuning(hexsha):
     # This will make us do automated tuning, versus a single manual batch
     do_optimize = data['tuning_search']['search_type'] == 'optimize'
     if do_optimize:
-        # we write somewhere the optimzation search configuration
+        # we write somewhere the optimization search configuration
         # it needs to be accessed from LSF so we can't use temporary files...
         config_path = batch_dir / 'optim-config.yaml'
         checkpoint_path = batch_dir / 'checkpoint.pkl'

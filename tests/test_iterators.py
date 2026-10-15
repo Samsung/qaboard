@@ -4,7 +4,6 @@ https://docs.python.org/3/library/unittest.html
 """
 import unittest
 from pathlib import Path
-import yaml
 
 # TODO: test support for inputs types
 

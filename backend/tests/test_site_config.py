@@ -57,3 +57,18 @@ def test_path_mappings_default(dummy_app, reload_config):
   api = reload_config({})
   with dummy_app.test_request_context('/api/v1/config'):
     assert api.get_site_config().get_json()['path_mappings'] == []
+
+
+def test_git_hosts(dummy_app, reload_config, monkeypatch):
+  import backend.git_hosts as git_hosts
+  env = {"GITLAB_HOST": "https://gitlab.example.com", "GITLAB_ACCESS_TOKEN": "secret", "GITHUB_ACCESS_TOKEN": "secret"}
+  monkeypatch.setattr(git_hosts, 'git_hosts', git_hosts.load_git_hosts(lambda key, default=None: env.get(key, default)))
+  api = reload_config({})
+  with dummy_app.test_request_context('/api/v1/config'):
+    config = api.get_site_config().get_json()
+  assert config['git_web_url'] == "https://gitlab.example.com"
+  assert config['git_hosts'] == [
+    {"type": "gitlab", "url": "https://gitlab.example.com", "name": "gitlab.example.com"},
+    {"type": "github", "url": "https://github.com", "name": "github.com"},
+  ]
+  assert "secret" not in json.dumps(config)

@@ -37,7 +37,7 @@ Data is deleted when the server runs `qaboard_clean` (see the [server's cron job
 To also allow deleting results on the reference branch (the latest commit is kept), set `storage.garbage.can_delete_reference_branch: true`.
 
 :::note
-**TODO** Right now we only clean data for repositories [that have an integration with Gitlab](/docs/project-init).
+**TODO** Right now we only clean data for repositories [that send their push events to QA-Board](/docs/project-init#optional-connect-your-git-host).
 :::
 
 ## Deleting results from the web application
@@ -49,9 +49,9 @@ Logged-in users can also delete results from a commit's page, in the batch's men
 Batches that are [milestones](../references-and-milestones) are protected: their runs can't all be deleted this way.
 
 ## Recovering lost data?
-Well, you won't be able to do that. What you should try to do is make everything **reproducable**.
+Well, you won't be able to do that. What you should try to do is make everything **reproducible**.
 - Define your whole *environment as code*. Make sure your commits contain 100% of what is needed for your code to run. Tools you can use include `docker+Dockerfile`, etc.
-- Make it easy to re-trigger your CI, so that it's straightfoward to re-builds, re-run your tests, and uploads artifacts to QA-Board.
+- Make it easy to re-trigger your CI, so that it's straightforward to re-builds, re-run your tests, and uploads artifacts to QA-Board.
 - If necessary, make it also very easy to run manually something like
 
 ```bash

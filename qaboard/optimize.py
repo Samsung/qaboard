@@ -28,7 +28,7 @@ seed = int(os.environ.get('QA_SEED', 101))
 @click.option('--batches-file', 'batches_files', default=default_batches_files, multiple=True, help="YAML file listing batches of inputs+config+database selected from the database.")
 @click.option('--config-file', required=True, type=PathType(), help="YAML search space configuration file.")
 @click.option('--checkpoint', type=PathType(), help="Will save/load from this checkpoint to restart interrupted optimizations.")
-@click.option('--parallel-param-sampling', type=int, help="Parallel paramater sampling.")
+@click.option('--parallel-param-sampling', type=int, help="Parallel parameter sampling.")
 @click.argument('forwarded_args', nargs=-1, type=click.UNPROCESSED)
 @click.pass_context
 @saves_logs

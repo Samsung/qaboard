@@ -1,6 +1,4 @@
-import React, { Fragment } from "react";
-import axios from "axios";
-const { post } = axios;
+import { Fragment, useState } from "react";
 
 import {
   Classes,
@@ -11,69 +9,57 @@ import {
   NonIdealState,
 } from "@blueprintjs/core";
 import { ConfigurationsTags, ExtraParametersTags } from './tags'
-import { fetchCommit } from "../actions/commit";
+import { http, errorMessage } from "../api/http";
+import { useRefreshCommit } from "../hooks";
 import { toaster } from "../toaster"
 import { SubmissionCallout } from "./logs/BatchSubmissions"
 
 
-class CommitWarningMessages extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      waiting: false,
-    };
-  }
-  
-  refresh = () => {
-    const { project, commit, dispatch } = this.props;
-    dispatch(fetchCommit({project, id: commit.id}))
-  }
+const CommitWarningMessages = ({ project, commit }) => {
+  const [waiting, setWaiting] = useState(false);
+  const refreshCommit = useRefreshCommit();
 
-  restore_artifacts() {
-    const { commit, project } = this.props;
+  const restore_artifacts = () => {
     if (commit === undefined || commit === null) return;
-    this.setState({waiting: true})
+    const refresh = () => refreshCommit(project, commit.id)
+    setWaiting(true)
     toaster.show({message: "Restoring artifacts..."});
-    post(`/api/v1/commit/save-artifacts/`, {hexsha: commit.id, project})
+    http.post(`/api/v1/commit/save-artifacts/`, {hexsha: commit.id, project})
       .then(() => {
-        this.setState({waiting: false})
+        setWaiting(false)
         toaster.show({message: `Restore artifacts.`, intent: Intent.PRIMARY});
-        this.refresh()
-})
+        refresh()
+      })
       .catch(error => {
-        this.setState({waiting: false });
-        toaster.show({message: JSON.stringify(error), intent: Intent.DANGER});
-        this.refresh()
+        setWaiting(false)
+        toaster.show({message: errorMessage(error), intent: Intent.DANGER});
+        refresh()
       });
+  }
 
+  if (commit?.id === null) {
+    return <NonIdealState
+      title="No commit selected"
+      description="Please first select a commit."
+      icon="folder-open"
+    />;
   }
-  
-  render() {
-    const commit = this.props.commit;
-    if (commit?.id===null) {
-      return <NonIdealState
-        title="No commit selected"
-        description="Please first select a commit."
-        icon="folder-open"
-      />;
-    }
-    if (commit?.deleted) {
-      return <Callout
-          icon="trash"
-          title={`This commit's artifacts have been deleted!`}
-        >
-          <p>We can restore the artifacts for you, but you'll likely need to rebuild too..!</p>
-          <Button
-            icon="redo"
-            text="Restore Artifacts"
-            minimal
-            disabled={!!this.state.waiting}
-            onClick={() => this.restore_artifacts(commit)}
-          />
-      </Callout>
-    } 
-    return <span></span>
+  if (commit?.deleted) {
+    return <Callout
+        icon="trash"
+        title={`This commit's artifacts have been deleted!`}
+      >
+        <p>We can restore the artifacts for you, but you'll likely need to rebuild too..!</p>
+        <Button
+          icon="redo"
+          text="Restore Artifacts"
+          minimal
+          disabled={waiting}
+          onClick={restore_artifacts}
+        />
+    </Callout>
   }
+  return <span></span>
 }
 
 
@@ -86,7 +72,7 @@ const SimpleOutputList = ({outputs, intent}) => {
       const has_label = has_metadata && !!o.test_input_metadata.label
       let run_path = `${o.test_input_database === '/' ? '/' : ''}${o.test_input_path}`
       if (o.output_type === "pipeline" || o.test_input_path === "PIPELINE") {
-        run_path = <span>{o.data.batch} <span class={Classes.TEXT_MUTED}>(pipeline)</span></span>
+        run_path = <span>{o.data.batch} <span className={Classes.TEXT_MUTED}>(pipeline)</span></span>
       }
       if (has_label) {
         run_path = o.test_input_metadata.label
@@ -103,161 +89,146 @@ const SimpleOutputList = ({outputs, intent}) => {
 
 
 
-class BatchStatusMessages extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      waiting_stop: false,
-      waiting_redo: false,
-    };
-  }
+const BatchStatusMessages = ({ project, commit, batch }) => {
+  const [waiting_stop, setWaitingStop] = useState(false);
+  const [waiting_redo, setWaitingRedo] = useState(false);
+  const refreshCommit = useRefreshCommit();
 
-  stop_batch(batch) {
-    if (batch === undefined || batch === null) return;
-    this.setState({waiting_stop: true})
-    toaster.show({message: "Stop requested."});
-    post(`/api/v1/batch/stop/`, {id: batch.id})
-    .then(() => {
-      this.setState({waiting_stop: false})
-    })
-    .catch(error => {
-      console.log(error)
-      toaster.show({message: error.response?.data?.error ?? JSON.stringify(error), intent: Intent.DANGER});
-      this.setState({waiting_stop: false, error });
-    });
-  }
-
-  refresh = (refresh_again=true) => {
-    const { project, commit, dispatch } = this.props;
-    dispatch(fetchCommit({project, id: commit.id}))
+  const refresh = (refresh_again = true) => {
+    if (!commit?.id) return
+    refreshCommit(project, commit.id)
     if (refresh_again) {
-      setTimeout(() => this.refresh(false),  1*1000)
-      setTimeout(() => this.refresh(false),  5*1000)
-      setTimeout(() => this.refresh(false), 10*1000)  
+      setTimeout(() => refreshCommit(project, commit.id),  1*1000)
+      setTimeout(() => refreshCommit(project, commit.id),  5*1000)
+      setTimeout(() => refreshCommit(project, commit.id), 10*1000)
     }
-}
+  }
 
-  redo_batch(batch) {
+  const stop_batch = () => {
     if (batch === undefined || batch === null) return;
-    this.setState({waiting_redo: true})
+    setWaitingStop(true)
+    toaster.show({message: "Stop requested."});
+    http.post(`/api/v1/batch/stop/`, {id: batch.id})
+      .catch(error => {
+        console.log(error)
+        toaster.show({message: errorMessage(error), intent: Intent.DANGER});
+      })
+      .finally(() => setWaitingStop(false));
+  }
+
+  const redo_batch = () => {
+    if (batch === undefined || batch === null) return;
+    setWaitingRedo(true)
     toaster.show({message: "Redo requested."});
-    post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: true})
+    http.post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: true})
       .then(() => {
-        this.setState({waiting_redo: false})
         toaster.show({message: `Redo ${batch.label}.`, intent: Intent.PRIMARY});
-        this.refresh()
       })
       .catch(error => {
-        this.setState({waiting_redo: false });
-        toaster.show({message: JSON.stringify(error.response ?? error), intent: Intent.DANGER});
-        this.refresh()
+        toaster.show({message: errorMessage(error), intent: Intent.DANGER});
+      })
+      .finally(() => {
+        setWaitingRedo(false)
+        refresh()
       });
   }
 
+  if (batch === null || batch === undefined  || batch.batch_dir_url === undefined)
+    return <span></span>
 
-  render() {
-    const { batch } = this.props;
-    if (batch === null || batch === undefined  || batch.batch_dir_url === undefined)
-      return <span></span>
-
-    let local_batch_message = (batch.data && batch.data.type === 'local') && (
-      <Callout
-        icon="eye-off"
-        intent={Intent.WARNING}
-        title="Be careful, those are local outputs"
-      >
-        <p>It is possible they didn't use the code under version control.</p>
-        <p>It's fine for debugging. Use your Continuous Integration to share results.</p>
-      </Callout>
-    )
-
-    const outputs = batch.filtered.outputs.map(id => batch.outputs[id])
-    let some_pending = outputs.some(o => o.is_pending);
-    let stop_runs = some_pending && <Callout>
-      <Button icon="stop" disabled={!!this.state.waiting_stop} onClick={() => this.stop_batch(batch)} minimal>Stop runs</Button>
+  let local_batch_message = (batch.data && batch.data.type === 'local') && (
+    <Callout
+      icon="eye-off"
+      intent={Intent.WARNING}
+      title="Be careful, those are local outputs"
+    >
+      <p>It is possible they didn't use the code under version control.</p>
+      <p>It's fine for debugging. Use your Continuous Integration to share results.</p>
     </Callout>
+  )
+
+  const outputs = batch.filtered.outputs.map(id => batch.outputs[id])
+  let some_pending = outputs.some(o => o.is_pending);
+  let stop_runs = some_pending && <Callout>
+    <Button icon="stop" disabled={waiting_stop} onClick={stop_batch} minimal>Stop runs</Button>
+  </Callout>
 
 
-    let running_message = batch.filtered.running_outputs > 0 && (
-      <Callout
-        icon="info-sign"
-        intent={Intent.SUCCESS}
-        title={
-          <Tooltip content={<SimpleOutputList
-            outputs={outputs.filter(o => o.is_running)}
-          />}>
-            <span>
-              {batch.filtered.running_outputs} running
-            </span>
-          </Tooltip>
-        }
-      />
-    )
-    let nb_pending = batch.filtered.pending_outputs - batch.filtered.running_outputs;
-    let pending_message = nb_pending > 0 && (
-      <Callout
-        icon="info-sign"
-        intent={Intent.WARNING}
-        title={
-          <Tooltip content={<SimpleOutputList
-            outputs={outputs.filter(o => o.is_pending && !o.is_running)}
-            intent={Intent.WARNING}
-          />}>
-            <span>
-              {nb_pending} pending
-            </span>
-          </Tooltip>
-        }
-      />
-    )
-    let failed_message = batch.filtered.failed_outputs > 0 && (
-      <Callout
-        icon="error"
+  let running_message = batch.filtered.running_outputs > 0 && (
+    <Callout
+      icon="info-sign"
+      intent={Intent.SUCCESS}
+      title={
+        <Tooltip content={<SimpleOutputList
+          outputs={outputs.filter(o => o.is_running)}
+        />}>
+          <span>
+            {batch.filtered.running_outputs} running
+          </span>
+        </Tooltip>
+      }
+    />
+  )
+  let nb_pending = batch.filtered.pending_outputs - batch.filtered.running_outputs;
+  let pending_message = nb_pending > 0 && (
+    <Callout
+      icon="info-sign"
+      intent={Intent.WARNING}
+      title={
+        <Tooltip content={<SimpleOutputList
+          outputs={outputs.filter(o => o.is_pending && !o.is_running)}
+          intent={Intent.WARNING}
+        />}>
+          <span>
+            {nb_pending} pending
+          </span>
+        </Tooltip>
+      }
+    />
+  )
+  let failed_message = batch.filtered.failed_outputs > 0 && (
+    <Callout
+      icon="error"
+      intent={Intent.DANGER}
+      title={`${batch.filtered.failed_outputs} crashed`}
+    >
+      <p>Be sure to read the logs.</p>
+      <SimpleOutputList
+        outputs={outputs.filter(o => o.is_failed)}
         intent={Intent.DANGER}
-        title={`${batch.filtered.failed_outputs} crashed`}
-      >
-        <p>Be sure to read the logs.</p>
-        <SimpleOutputList
-          outputs={outputs.filter(o => o.is_failed)}
-          intent={Intent.DANGER}
-        />
-      </Callout>
-    )
-
-    let deleted_message = batch.filtered.deleted_outputs > 0 && (
-      <Callout
-        icon="trash"
-        title={`${batch.filtered.deleted_outputs} of the outputs below were deleted`}
-      >
-        <Button
-          icon="redo"
-          text={`Redo Deleted Outputs${this.props.commit?.deleted ? '. Requires artifacts.' : ''}`}
-          minimal
-          disabled={!!this.state.waiting_redo || this.props.commit?.deleted}
-          onClick={() => this.redo_batch(batch)}
-        />
-      </Callout>
-    )
-
-
-    return <Fragment>
-      <SubmissionCallout
-        batch={batch}
-        has_runs={Object.keys(batch.outputs ?? {}).length > 0}
-        project={this.props.project}
-        dispatch={this.props.dispatch}
-        onFinished={this.refresh}
       />
-      {local_batch_message}
-      {running_message}
-      {pending_message}
-      {stop_runs}
-      {failed_message}
-      {deleted_message}
-    </Fragment>;
+    </Callout>
+  )
 
-  }
+  let deleted_message = batch.filtered.deleted_outputs > 0 && (
+    <Callout
+      icon="trash"
+      title={`${batch.filtered.deleted_outputs} of the outputs below were deleted`}
+    >
+      <Button
+        icon="redo"
+        text={`Redo Deleted Outputs${commit?.deleted ? '. Requires artifacts.' : ''}`}
+        minimal
+        disabled={waiting_redo || commit?.deleted}
+        onClick={redo_batch}
+      />
+    </Callout>
+  )
 
+
+  return <Fragment>
+    <SubmissionCallout
+      batch={batch}
+      has_runs={Object.keys(batch.outputs ?? {}).length > 0}
+      onFinished={refresh}
+    />
+    {local_batch_message}
+    {running_message}
+    {pending_message}
+    {stop_runs}
+    {failed_message}
+    {deleted_message}
+  </Fragment>;
 }
 
 

@@ -1,13 +1,13 @@
 /**
- * Tests for MilestonesMenu component filter functionality.
- * 
- * Tests the filtering and sorting of milestones in the MilestonesMenu component.
+ * Tests for the milestones: filtering and sorting them in MilestonesMenu, and saving them with CommitMilestoneEditor.
  * Run with: cd webapp && npm test -- MilestonesMenu
  */
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { act } from 'react';
 
-import { MilestonesMenu } from '../milestones';
+import { MilestonesMenu, CommitMilestoneEditor } from '../milestones';
+import { usePrefsStore } from '../../stores/prefs';
+import { renderWithProviders } from '../../test-utils';
 
 
 const mockMilestones = {
@@ -297,5 +297,72 @@ describe('MilestonesMenu edge cases', () => {
       render(<MilestonesMenu {...defaultProps} milestones={{}} />);
     });
     expect(screen.queryByRole('menuitem')).not.toBeInTheDocument();
+  });
+});
+
+describe('CommitMilestoneEditor', () => {
+  const commit = { id: 'abc999', branch: 'main', committer_name: 'Bob Smith' };
+  const batch = { label: 'default' };
+  const key = 'projA/abc999/default';
+  const editorProps = { project: 'projA', project_shown: 'projA', commit, batch, filter: '', type: 'new' };
+
+  beforeEach(() => {
+    usePrefsStore.setState({ milestones: {} });
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const openEditor = async label => {
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText(label));
+    });
+  };
+
+  it('saves private milestones in the preferences, without mutating the project data', async () => {
+    const project_data = Object.freeze({ data: Object.freeze({ milestones: Object.freeze({}) }), milestones: Object.freeze({}) });
+    renderWithProviders(<CommitMilestoneEditor {...editorProps} project_data={project_data} />, { siteConfig: {} });
+    await openEditor('Save as Milestone');
+    // new milestones are shared by default
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('Shared'));
+    });
+    fireEvent.change(screen.getByLabelText(/Label/), { target: { value: 'v1.0' } });
+    await act(async () => {
+      fireEvent.click(screen.getByText('Save'));
+    });
+    expect(usePrefsStore.getState().milestones.projA[key]).toMatchObject({ label: 'v1.0', commit: 'abc999', branch: 'main', batch: 'default' });
+  });
+
+  it('deletes private milestones', async () => {
+    const milestone = { label: 'old', commit: 'abc999', batch: 'default', date: '2024-01-15T10:00:00Z' };
+    usePrefsStore.setState({ milestones: { projA: { [key]: milestone } } });
+    const project_data = Object.freeze({ data: {}, milestones: Object.freeze({ [key]: milestone }) });
+    renderWithProviders(<CommitMilestoneEditor {...editorProps} project_data={project_data} />, { siteConfig: {} });
+    await openEditor('Edit Milestone');
+    expect(screen.getByLabelText(/Label/)).toHaveValue('old');
+    await act(async () => {
+      fireEvent.click(screen.getByText('Delete'));
+    });
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('alertdialog')).getByText('Delete'));
+    });
+    expect(usePrefsStore.getState().milestones.projA).toEqual({});
+  });
+
+  it('saves shared milestones on the server, then refreshes the projects', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })));
+    const project_data = { data: { milestones: {} }, milestones: {} };
+    const { queryClient } = renderWithProviders(<CommitMilestoneEditor {...editorProps} project_data={project_data} />, { siteConfig: {} });
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    await openEditor('Save as Milestone');
+    fireEvent.change(screen.getByLabelText(/Notes/), { target: { value: 'great results' } });
+    await act(async () => {
+      fireEvent.click(screen.getByText('Save'));
+    });
+    await waitFor(() => expect(invalidate).toHaveBeenCalledWith({ queryKey: ['projects'] }));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ['project'] });
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe('/api/v1/project/milestones/');
+    expect(JSON.parse(init.body)).toMatchObject({ project: 'projA', key, delete: 'false', milestone: { notes: 'great results', commit: 'abc999' } });
+    expect(usePrefsStore.getState().milestones.projA).toBeUndefined();
   });
 });

@@ -180,8 +180,9 @@ it in your branch protection rules if you like.
   status is `success`, or `failed`.
 
 :::note
-With `on: pull_request`, GitHub Actions runs on a merge commit (`GITHUB_SHA`), not on the branch's last commit: the
-results and the status go to that merge commit. Use `on: push` to check the commits you push.
+With `on: pull_request`, GitHub Actions runs on a temporary merge commit (`GITHUB_SHA`): `qa` uses the pull request's
+last commit instead, for the results and the status. Check it out too, see the
+[GitHub Actions example](/docs/ci-integration#example-with-github-actions). `on: push` is usually enough.
 :::
 
 ## Options

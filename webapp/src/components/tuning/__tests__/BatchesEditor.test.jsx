@@ -2,14 +2,18 @@
  * Tests for the "Available Tests" view, that edits the files defining batches.
  * Run with: cd webapp && npm test -- BatchesEditor
  */
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { act } from 'react';
-import axios from 'axios';
 
 import { BatchesEditor } from '../BatchesEditor';
 import { toaster } from '../../../toaster';
+import { http } from '../../../api/http';
+import { history } from '../../../router';
+import { usePrefsStore } from '../../../stores/prefs';
+import { renderWithProviders } from '../../../test-utils';
 
-vi.mock('axios', () => ({ default: { get: vi.fn(), post: vi.fn() } }));
+vi.mock('../../../api/http', async importOriginal => ({ ...await importOriginal(), http: { get: vi.fn(), post: vi.fn() } }));
+const render = ui => renderWithProviders(ui);
 
 // Monaco doesn't run in jsdom
 const fakeEditor = {
@@ -32,10 +36,10 @@ const props = {
   project: 'group/repo/sub',
   commit: { id: 'abc123' },
   config: { inputs: { batches: ['{subproject}/batches.yaml'], database: { linux: '/mnt/db' } } },
-  git: { path_with_namespace: 'group/repo', web_url: 'https://git/group/repo' },
+  git: { path_with_namespace: 'group/repo' },
+  web_url: 'https://git/group/repo',
   available_tests_files: { gr: 'extra-batches', usr: 'alice' },
   docs_root: '/',
-  dispatch: vi.fn(),
 };
 
 beforeEach(() => {
@@ -44,12 +48,11 @@ beforeEach(() => {
     'extra-batches': 'shared-batch:\n  inputs: [a.jpg]\n',
     alice: 'my-batch:\n  inputs:\n  - a.jpg\n  - b.jpg\naliases:\n  all: [my-batch, shared-batch]\n',
   };
-  axios.get.mockReset().mockImplementation((url, { params }) => Promise.resolve({ data: server[params.name] }));
-  axios.post.mockReset().mockImplementation((url, data, { params }) => {
+  http.get.mockReset().mockImplementation((url, { params }) => Promise.resolve({ data: server[params.name] }));
+  http.post.mockReset().mockImplementation((url, data, { params }) => {
     server[params.name] = data.groups;
     return Promise.resolve({ data: 'OK' });
   });
-  props.dispatch.mockReset();
 });
 afterEach(() => act(() => toaster.clear()));
 
@@ -68,8 +71,8 @@ it('shows the private file, its batches and where batches come from', async () =
   expect(within(outline).getByText('2 inputs')).toBeInTheDocument();
   expect(within(outline).getByText('alias → my-batch, shared-batch')).toBeInTheDocument();
 
-  // the commit's files, with the subproject filled in
-  expect(screen.getByRole('link', { name: 'sub/batches.yaml' })).toHaveAttribute('href', 'https://git/group/repo/tree/abc123/sub/batches.yaml');
+  // the commit's files, with the subproject filled in, linked like the git host does (GitLab unless we know better)
+  expect(screen.getByRole('link', { name: 'sub/batches.yaml' })).toHaveAttribute('href', 'https://git/group/repo/-/blob/abc123/sub/batches.yaml');
   expect(screen.getByText('/mnt/db')).toBeInTheDocument();
 
   // jump to a batch
@@ -92,7 +95,7 @@ it('saves with Ctrl+S, and says so next to the editor', async () => {
 
   pressSave();
   expect(await screen.findByText('Saved just now')).toBeInTheDocument();
-  expect(axios.post).toHaveBeenCalledWith(
+  expect(http.post).toHaveBeenCalledWith(
     '/api/v1/tests/groups',
     { project: props.project, groups: 'new-batch:\n  inputs: [c.jpg]\n' },
     { params: { project: props.project, name: 'alice' } },
@@ -101,7 +104,7 @@ it('saves with Ctrl+S, and says so next to the editor', async () => {
 });
 
 it('shows why saving failed', async () => {
-  axios.post.mockImplementation(() => Promise.reject({ response: { status: 400, data: '"mapping values are not allowed here, line 3"' } }));
+  http.post.mockImplementation(() => Promise.reject({ response: { status: 400, data: '"mapping values are not allowed here, line 3"' } }));
   render(<BatchesEditor {...props} />);
   await type('a: b: c\n');
   // the problem is also shown before saving
@@ -119,7 +122,7 @@ it("doesn't overwrite changes saved by someone else", async () => {
 
   const dialog = await screen.findByRole('dialog');
   expect(within(dialog).getByTestId('diff')).toHaveTextContent('theirs: {} => mine: {}');
-  expect(axios.post).not.toHaveBeenCalled();
+  expect(http.post).not.toHaveBeenCalled();
 
   fireEvent.click(within(dialog).getByRole('button', { name: 'Overwrite with mine' }));
   await waitFor(() => expect(server.alice).toBe('mine: {}\n'));
@@ -144,7 +147,7 @@ it('restores unsaved changes after switching views', async () => {
 });
 
 it('lists the tests in a batch, and starts runs', async () => {
-  axios.post.mockImplementation(() => Promise.resolve({ data: { tests: [
+  http.post.mockImplementation(() => Promise.resolve({ data: { tests: [
     { input_path: 'a.jpg', configurations: ['base'] },
     { input_path: 'b.jpg', configurations: ['base', { threshold: 2 }] },
   ] } }));
@@ -155,14 +158,15 @@ it('lists the tests in a batch, and starts runs', async () => {
 
   expect(await screen.findByText('2 tests')).toBeInTheDocument();
   expect(screen.getByText('{"threshold":2}')).toBeInTheDocument();
-  expect(axios.post).toHaveBeenCalledWith(
+  expect(http.post).toHaveBeenCalledWith(
     '/api/v1/tests/group',
     { groups: ['extra-batches', 'alice'] }, // the private file overrides the shared one
     { params: { project: props.project, name: 'my-batch', commit: 'abc123' } },
   );
 
   fireEvent.click(screen.getByRole('button', { name: 'Run…' }));
-  expect(props.dispatch).toHaveBeenCalledWith({ type: expect.any(String), project: props.project, tuning_form: { selected_group: 'my-batch' } });
+  expect(usePrefsStore.getState().tuning[props.project]).toMatchObject({ selected_group: 'my-batch' });
+  expect(new URLSearchParams(history.location.search).get('selected_views')).toBe('tuning');
 });
 
 it('edits the shared file in its own tab', async () => {
@@ -172,8 +176,15 @@ it('edits the shared file in its own tab', async () => {
   expect(await screen.findByLabelText('editor extra-batches.yml')).toHaveValue(server['extra-batches']);
 });
 
+it('opens the private file once we know who the user is', async () => {
+  const { rerender } = render(<BatchesEditor {...props} available_tests_files={{ gr: 'extra-batches', usr: null }} />);
+  expect(await screen.findByLabelText('editor extra-batches.yml')).toBeInTheDocument();
+  rerender(<BatchesEditor {...props} />);
+  expect(await editor()).toHaveValue(server.alice);
+});
+
 it('says why a batch has no tests, and which batch files the server read', async () => {
-  axios.post.mockImplementation(() => Promise.resolve({ data: {
+  http.post.mockImplementation(() => Promise.resolve({ data: {
     tests: [],
     definitions: [{ name: 'my-batch', file: 'sub/batches.yaml' }],
     warnings: ['Inputs not found by the QA-Board server: “a.jpg” under /mnt/db.'],
@@ -204,7 +215,7 @@ it('says why a batch has no tests, and which batch files the server read', async
 });
 
 it("says when a batch isn't defined", async () => {
-  axios.post.mockImplementation(() => Promise.resolve({ data: {
+  http.post.mockImplementation(() => Promise.resolve({ data: {
     tests: [], definitions: [], files: [],
     warnings: ['“nightly” is not defined in the batch files QA-Board could read: sub/batches.yaml.'],
   } }));

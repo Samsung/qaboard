@@ -30,7 +30,7 @@ const defaultOptions = {
 
     colorScale: false,      // will display the pixels that differ using a colorscale
 
-    alpha: 0.1,             // opacity of original image in diff ouput
+    alpha: 0.1,             // opacity of original image in diff output
     aaColor: [255, 255, 0], // color of anti-aliased pixels in diff output
     diffColor: [255, 0, 0]  // color of different pixels in diff output
 };

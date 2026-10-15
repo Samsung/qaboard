@@ -7,9 +7,10 @@ description: Find a project, a commit, a branch or a batch of runs, and filter w
 ## Projects list
 The home page lists all projects that have results.
 
-- **Search** with the *filter projects...* box.
+- **Search** with the *filter projects...* box. It looks at all projects, even those not shown yet.
 - **Pin** a project at the top of the list with its star. Favorites are remembered by your browser only.
 - Projects are sorted by favorites first, then by their latest run. Each card shows when the last run (or commit) happened and how many commits have results.
+- The first 50 projects show up first, more come as you scroll down (or click **Show more**).
 - **Source** opens the project's git repository.
 
 Click a project to open its commit list.
@@ -25,6 +26,7 @@ Project names are git paths, like `group/repo`. In monorepos, each sub-project h
 
 ## Commit list
 The project's home page lists the **latest commits with results**, grouped by day ("Today — 3 commits"). It refreshes every minute.
+The 50 latest commits show up first, more come as you scroll down (or click **More commits**). On a branch page, all the branch's commits in the date range come at once (up to 1000), for the metrics chart. At the end of the [date range](#date-range), **Older commits** looks 7 more days back.
 
 <Shot
   id="commits/feed"
@@ -60,10 +62,23 @@ Each commit row shows:
   caption="Above main's commits, each point is a commit's median latency over its runs. Hover a point to see its commit and the reference it's compared with."
 />
 
-### The filter box
-The **Filter...** box at the top right filters the loaded commits by committer, message, branch and batch names. As you type, it also suggests matching branches: pick one to open it.
+### Searching commits
+The **Filter...** box at the top right searches **all the project's commits**, not only those in the date range (on a branch page, all the branch's commits). Results come as you pause typing, newest first, with a "Searching all commits" banner that counts the matches. When your search could be a branch name (a single word, or a `branch:` term), it also suggests the most recently active branches whose name contains it: pick one to open it.
 
-The [filter syntax](#filter-syntax) is the same as on the commit page: `-word` excludes, regular expressions work.
+| You type | You find commits... |
+|---|---|
+| `denoise` | whose message, committer, branch or batch labels contain "denoise" |
+| `3fa2c1` | the same, or whose hash starts with it, for words of 4 or more hexadecimal characters |
+| `denoise crash` | matching **both** words |
+| `-wip` | **not** matching "wip" |
+| `"fix the crash"` | containing these words together |
+| `branch:feature` | whose branch contains "feature" |
+| `committer:alice` or `author:alice` | by a committer whose name contains "alice" |
+| `batch:tuning` or `label:tuning` | with a batch whose label contains "tuning" |
+| `message:speed` or `msg:speed` | whose message contains "speed" |
+| `id:3fa2`, `commit:3fa2` or `sha:3fa2` | whose hash starts with "3fa2" |
+
+Searches are case-insensitive, and qualifiers can be excluded too (`-branch:release`). Unlike the [filters of the commit page](#filter-syntax), they don't use regular expressions. The search is saved in the URL (`search=`), so a shared link shows the same results.
 
 <Shot
   id="commits/filter"

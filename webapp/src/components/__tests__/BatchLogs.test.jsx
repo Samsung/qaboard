@@ -2,9 +2,10 @@
  * Tests for the logs of a batch: where the logs of the commands that started it are.
  * Run with: cd webapp && npm test -- BatchLogs
  */
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { setupIntersectionMocking, resetIntersectionMocking } from 'react-intersection-observer/test-utils';
 
+import { renderWithProviders } from '../../test-utils';
 import { BatchLogs, commandLogs } from '../BatchLogs';
 
 
@@ -40,7 +41,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-const renderLogs = batch => render(<BatchLogs batch={batch} project="p" commit={{ id: 'abc' }} dispatch={vi.fn()} />)
+const renderLogs = batch => renderWithProviders(<BatchLogs batch={batch} project="p" commit={{ id: 'abc' }} />)
 
 
 describe('commandLogs', () => {

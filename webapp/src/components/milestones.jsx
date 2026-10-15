@@ -1,7 +1,6 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { DateTime } from 'luxon';
-import axios from "axios";
-const { post } = axios;
+import { useQueryClient } from "@tanstack/react-query";
 
 import {
   Colors,
@@ -25,7 +24,8 @@ import {
   Alert,
 } from "@blueprintjs/core";
 
-import { updateMilestones, fetchProjects } from "../actions/projects";
+import { http } from "../api/http";
+import { usePrefsStore } from "../stores/prefs";
 import { match_query } from "../utils";
 import { toaster } from "../toaster"
 
@@ -150,211 +150,115 @@ const MilestoneMenu = ({ project, milestone, onSelect, icon }) => {
 
 
 
-class CommitMilestoneEditor extends React.Component {
-  constructor(props) {
-    super(props);
-    this.state = {
-      is_shared: false,
-      previous_milestone: {},
-      overwrite_milestone: {},
-      // TODO: how exactly do we use current/previous?
-      // FIXME: we should keep proper "milesone" objects for the current milestone
-      //        do we even need the previous milestone?
-      date: new Date(),
-      notes: '',
-      label: '',
-      // we ask for confirmation when users delete/overwrite a milestone
-      show_alert_remove: false,
-      show_alert_overwrite: false,
-    };
-  }
+const CommitMilestoneEditor = ({ project, project_shown, project_data, commit, batch, filter }) => {
+  const queryClient = useQueryClient();
+  const setPrivateMilestone = usePrefsStore(state => state.setMilestone);
+  const deletePrivateMilestone = usePrefsStore(state => state.deleteMilestone);
+  const [is_shared, setIsShared] = useState(false);
+  // the milestone being edited, if it exists
+  const [previous_milestone, setPreviousMilestone] = useState({});
+  const [overwrite_milestone, setOverwriteMilestone] = useState({});
+  const [label, setLabel] = useState('');
+  const [notes, setNotes] = useState('');
+  // we ask for confirmation when users delete/overwrite a milestone
+  const [show_alert_remove, setShowAlertRemove] = useState(false);
+  const [show_alert_overwrite, setShowAlertOverwrite] = useState(false);
 
-  render() {
-    const {
-    	is_shared,
-    	label,
-    	previous_milestone,
-    	notes,
-    	overwrite_milestone,
-    	show_alert_remove,
-    	show_alert_overwrite,
-    } = this.state;
-    const type = milestone_type(this.props);
-    const icon = type === 'none' ? 'star-empty' : (type === 'shared' ? 'crown' : 'star');
-    const color = type === 'none' ? undefined : Colors.GOLD4;
+  const type = milestone_type({ commit, project_shown, project_data, batch });
+  const key = milestone_key(project_shown, commit, batch)
+  const shared_milestones = project_data?.data?.milestones ?? {}
+  const private_milestones = project_data?.milestones ?? {}
+  const icon = type === 'none' ? 'star-empty' : (type === 'shared' ? 'crown' : 'star');
+  const color = type === 'none' ? undefined : Colors.GOLD4;
 
-    const popover_body = <div>
-      <H5>Milestone Info</H5>
-      <Switch
-        label='Shared'
-        checked={is_shared}
-        style={{ width: "200px" }}
-        onChange={this.toggleSharedButton}
-      />
-      <FormGroup inline label="Label" labelInfo="(optional)" labelFor="text-input">
-        <InputGroup
-          id="text-input"
-          value={label}
-          style={{ width: "200px" }}
-          onChange={this.update('label')}
-        />
-      </FormGroup>
-      <FormGroup inline label="Notes" labelFor="text-input" labelInfo="(optional)">
-        <TextArea onChange={this.update('notes')} value={notes} style={{ width: "200px" }} />
-      </FormGroup>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 30 }}>
-        {(type !== 'none') && <>
-          <Button
-            text="Delete"
-            onClick={() => this.setState({ show_alert_remove: true })}
-            intent={Intent.DANGER}
-            style={{ marginRight: 50 }}
-          />
-          <Alert
-            Button className={Classes.POPOVER_DISMISS}
-            canEscapeKeyCancel
-            cancelButtonText="Cancel"
-            confirmButtonText="Delete"
-            icon="trash"
-            intent={Intent.DANGER}
-            isOpen={show_alert_remove}
-            onCancel={() => this.setState({ show_alert_remove: false })}
-            onConfirm={this.deleteMilestone}
-            style={{width: '1200px', maxWidth: "fit-content"}}
-          >
-            <p>Are you sure you want to delete this milestone?
-              <Menu>
-                <MilestoneMenu milestone={previous_milestone}/>
-              </Menu>
-            </p>
-          </Alert>
-        </>}
-        <Button className={Classes.POPOVER_DISMISS} text="Save" intent={Intent.PRIMARY} onClick={this.saveMilestoneMaybeAskForConfirmation} />
-      </div>
-    </div>
-
-    return <>
-      <Popover
-        content={popover_body}
-        placement="right"
-        popoverClassName={Classes.POPOVER_CONTENT_SIZING}
-      >
-        <Tooltip content={type !== 'none' ? "Edit Milestone" : "Save as Milestone"} position={Position.BOTTOM} >
-          <Button minimal style={{ marginRight: '5px' }} onClick={this.updateData}
-          >
-            <Icon icon={icon} color={color} />
-          </Button>
-        </Tooltip>
-      </Popover>
-      <Alert
-        className={Classes.POPOVER_DISMISS}
-        canEscapeKeyCancel
-        cancelButtonText="Cancel"
-        confirmButtonText="Overwrite"
-        icon="warning-sign"
-        intent={Intent.PRIMARY}
-        isOpen={show_alert_overwrite}
-        onCancel={() => this.setState({ show_alert_overwrite: false })}
-        onConfirm={this.saveEditSharedMilestone}
-        style={{width: null, }}
-      >
-        <p>A similar shared milestone already exist: <Menu><MilestoneMenu icon="crown" milestone={overwrite_milestone}/></Menu>.</p>
-        <p>Would you like to overwrite it?</p>
-      </Alert>
-    </>
-  }
-
-
-  // TODO: We really could do all that in ComponentDidMount/ComponentDidUpdate
-  // it would allow us some fine handling of the label/notes, we should keep them without needing to save
-  updateData = () => {
-    const { commit, project_shown, project_data, batch } = this.props;
-    const key = milestone_key(project_shown, commit, batch)
- 
-    const type = milestone_type(this.props)
+  // When the editor opens, we show the milestone's current data
+  const updateData = () => {
     if (type === 'none') {
-      this.setState({
-        date: new Date(),
-        label: '',
-        notes: '',
-        is_shared: true,
-      })      
-    }
-    else if (type === 'private' || type === 'shared') {
-        const private_milestones = project_data.milestones ?? {};
-        const shared_milestones = project_data?.data?.milestones ?? {}
-        const milestones = type === 'private' ? private_milestones : shared_milestones
-        const matching_milestone = milestones[key]
-        this.setState({
-          previous_milestone: {...matching_milestone},
-          label: matching_milestone.label,
-          notes: matching_milestone.notes,
-          is_shared: type === 'shared',
-        })
+      setPreviousMilestone({})
+      setLabel('')
+      setNotes('')
+      setIsShared(true)
+    } else {
+      const matching_milestone = (type === 'private' ? private_milestones : shared_milestones)[key]
+      setPreviousMilestone({...matching_milestone})
+      setLabel(matching_milestone.label ?? '')
+      setNotes(matching_milestone.notes ?? '')
+      setIsShared(type === 'shared')
     }
   }
 
-  updateShared = ({key, milestone, should_delete}) => {
+  const updateShared = async ({key, milestone, should_delete}) => {
     const data = {
-      project: this.props.project,
+      project,
       key,
       milestone,
       "delete": should_delete ? 'true' : 'false',
     };
-    post("/api/v1/project/milestones/", data)
-      .then(() => {
-        toaster.show({
-          message: !!should_delete ? 'Deleted' : 'Saved.',
-          intent: Intent.SUCCESS,
-          timeout: 4500,
-        });
-        // Causes the projects data to update, and the new milestone to be visible
-        this.props.dispatch(fetchProjects())
-      })
-      .catch(error => {
-        // Handle auth errors with user-friendly messages
-        const errorMessage = error.response?.data?.error;
-        if (error.response?.status === 401) {
-          toaster.show({ message: errorMessage || 'Please log in to manage milestones', intent: Intent.DANGER, timeout: 5000 });
-        } else if (error.response?.status === 403) {
-          toaster.show({ message: errorMessage || 'You can only edit or delete your own milestones', intent: Intent.DANGER, timeout: 5000 });
-        } else {
-          toaster.show({ message: errorMessage || `${error}`, intent: Intent.DANGER, timeout: 3000 });
-        }
-      })
+    try {
+      await http.post("/api/v1/project/milestones/", data)
+      toaster.show({
+        message: should_delete ? 'Deleted' : 'Saved.',
+        intent: Intent.SUCCESS,
+        timeout: 4500,
+      });
+      // The projects' data has the shared milestones
+      queryClient.invalidateQueries({queryKey: ['projects']})
+      queryClient.invalidateQueries({queryKey: ['project']})
+    } catch (error) {
+      // Handle auth errors with user-friendly messages
+      const error_message = error.response?.data?.error;
+      if (error.response?.status === 401) {
+        toaster.show({ message: error_message || 'Please log in to manage milestones', intent: Intent.DANGER, timeout: 5000 });
+      } else if (error.response?.status === 403) {
+        toaster.show({ message: error_message || 'You can only edit or delete your own milestones', intent: Intent.DANGER, timeout: 5000 });
+      } else {
+        toaster.show({ message: error_message || `${error}`, intent: Intent.DANGER, timeout: 3000 });
+      }
+      throw error
+    }
   }
 
-  saveEditSharedMilestone = () => {
-    // FIXME: can we avoid this? It really should happen only if a milestone switches between shared<=>private
-    //        otherwise we can just update
+  const deleteMilestone = () => {
+    setShowAlertRemove(false)
+    setShowAlertOverwrite(false)
+    if (type === 'private') {
+      deletePrivateMilestone(project, key)
+      toaster.show({
+        message: "Deleted.",
+        intent: Intent.SUCCESS,
+        timeout: 4000
+      });
+    } else if (type === 'shared') {
+      updateShared({key, should_delete: true}).catch(() => {});
+    }
+  }
 
-    // TODO: we should first update then remove, or update in place...
-    // Remove if the milestone already exists
-    this.deleteMilestone();
-
-    const { commit, dispatch, project, project_shown, project_data, batch, filter } = this.props;
-    const { date, label, notes, is_shared } = this.state
-
-    let milestone = {
+  const saveMilestone = async () => {
+    setShowAlertOverwrite(false)
+    const milestone = {
       label,
       notes,
       commit: commit.id,
       branch: commit.branch,
       batch: batch.label,
       filter,
-      date,
+      date: (type !== 'none' && previous_milestone.date) || new Date(),
       committer_name: commit.committer_name,
+      ...(project !== project_shown ? {project: project_shown} : {}),
     }
-    if (project !== project_shown)
-      milestone.project = project_shown
-    const key = milestone_key(project_shown, commit, batch)
-
-    if (is_shared)
-      this.updateShared({key, milestone});
-    else {
-      const private_milestones = project_data.milestones || {};
-      private_milestones[key] = milestone;
-      dispatch(updateMilestones(project, private_milestones));
+    if (is_shared) {
+      // Saving a shared milestone overwrites the one with the same key
+      try {
+        await updateShared({key, milestone});
+      } catch {
+        return
+      }
+      if (type === 'private')
+        deletePrivateMilestone(project, key)
+    } else {
+      if (type === 'shared')
+        updateShared({key, should_delete: true}).catch(() => {});
+      setPrivateMilestone(project, key, milestone)
       toaster.show({
         message: "Saved",
         intent: Intent.SUCCESS,
@@ -363,60 +267,92 @@ class CommitMilestoneEditor extends React.Component {
     }
   }
 
-  saveMilestoneMaybeAskForConfirmation = () => {
-    const { commit, project_shown, project_data, batch } = this.props;
-    const key = milestone_key(project_shown, commit, batch)
-    const shared_milestones = project_data?.data?.milestones ?? {}
-    if (key in shared_milestones)
-      this.setState({
-        show_alert_overwrite: true,
-        overwrite_milestone: shared_milestones[key],
-      });
-    else
-      this.saveEditSharedMilestone();
-  }
-
-  deleteMilestone = () => {
-    const { dispatch, commit, project, project_shown, project_data, batch } = this.props;
-    const key = milestone_key(project_shown, commit, batch)
-    switch (milestone_type(this.props)) {
-      case "private":
-        const milestones = project_data.milestones || [];
-        delete milestones[key];
-        dispatch(updateMilestones(project, milestones))
-        toaster.show({
-          message: "Deleted.",
-          intent: Intent.SUCCESS,
-          timeout: 4000
-        });
-        break;
-      case "shared":
-        this.updateShared({key, should_delete: true});
-        break;
-      default: // case 'none'
-        return;
+  const saveMilestoneMaybeAskForConfirmation = () => {
+    if (key in shared_milestones) {
+      setShowAlertOverwrite(true)
+      setOverwriteMilestone(shared_milestones[key])
+    } else {
+      saveMilestone();
     }
-
-    this.setState({
-      show_alert_remove: false,
-      show_alert_overwrite: false,
-    });
   }
 
+  const popover_body = <div>
+    <H5>Milestone Info</H5>
+    <Switch
+      label='Shared'
+      checked={is_shared}
+      style={{ width: "200px" }}
+      onChange={() => setIsShared(!is_shared)}
+    />
+    <FormGroup inline label="Label" labelInfo="(optional)" labelFor="milestone-label-input">
+      <InputGroup
+        id="milestone-label-input"
+        value={label}
+        style={{ width: "200px" }}
+        onChange={e => setLabel(e.target.value)}
+      />
+    </FormGroup>
+    <FormGroup inline label="Notes" labelFor="milestone-notes-input" labelInfo="(optional)">
+      <TextArea id="milestone-notes-input" onChange={e => setNotes(e.target.value)} value={notes} style={{ width: "200px" }} />
+    </FormGroup>
+    <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 30 }}>
+      {(type !== 'none') && <>
+        <Button
+          text="Delete"
+          onClick={() => setShowAlertRemove(true)}
+          intent={Intent.DANGER}
+          style={{ marginRight: 50 }}
+        />
+        <Alert
+          className={Classes.POPOVER_DISMISS}
+          canEscapeKeyCancel
+          cancelButtonText="Cancel"
+          confirmButtonText="Delete"
+          icon="trash"
+          intent={Intent.DANGER}
+          isOpen={show_alert_remove}
+          onCancel={() => setShowAlertRemove(false)}
+          onConfirm={deleteMilestone}
+          style={{width: '1200px', maxWidth: "fit-content"}}
+        >
+          <div>Are you sure you want to delete this milestone?
+            <Menu>
+              <MilestoneMenu milestone={previous_milestone}/>
+            </Menu>
+          </div>
+        </Alert>
+      </>}
+      <Button className={Classes.POPOVER_DISMISS} text="Save" intent={Intent.PRIMARY} onClick={saveMilestoneMaybeAskForConfirmation} />
+    </div>
+  </div>
 
-  toggleSharedButton = () => {
-    this.setState({
-      is_shared: !this.state.is_shared,
-    })
-  }
-
-  update = name => event => {
-    this.setState({
-      [name]: event.target.value
-    })
-  }
-
-
+  return <>
+    <Popover
+      content={popover_body}
+      placement="right"
+      popoverClassName={Classes.POPOVER_CONTENT_SIZING}
+    >
+      <Tooltip content={type !== 'none' ? "Edit Milestone" : "Save as Milestone"} position={Position.BOTTOM} >
+        <Button minimal style={{ marginRight: '5px' }} onClick={updateData} aria-label={type !== 'none' ? "Edit Milestone" : "Save as Milestone"}>
+          <Icon icon={icon} color={color} />
+        </Button>
+      </Tooltip>
+    </Popover>
+    <Alert
+      className={Classes.POPOVER_DISMISS}
+      canEscapeKeyCancel
+      cancelButtonText="Cancel"
+      confirmButtonText="Overwrite"
+      icon="warning-sign"
+      intent={Intent.PRIMARY}
+      isOpen={show_alert_overwrite}
+      onCancel={() => setShowAlertOverwrite(false)}
+      onConfirm={saveMilestone}
+    >
+      <div>A similar shared milestone already exist: <Menu><MilestoneMenu icon="crown" milestone={overwrite_milestone}/></Menu>.</div>
+      <p>Would you like to overwrite it?</p>
+    </Alert>
+  </>
 }
 
 

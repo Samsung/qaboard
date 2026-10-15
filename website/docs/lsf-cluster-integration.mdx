@@ -28,7 +28,7 @@ runners:
     # max_memory: 8000            # ask for eg 8000M memory when sending jobs to LSF (0=default)
     # resources: RESOURCE_STRING
     # priority: 10                # LSF priority (-sp)
-    # options: "-W 24:00"         # Specifiy freely other LSF options that bsub accepts
+    # options: "-W 24:00"         # Specify freely other LSF options that bsub accepts
                                   # Will be added after all other CLI flags.
 ```
 
@@ -135,7 +135,7 @@ export QA_RUNNERS_LSF_BRIDGE='ssh my_host_with_lsf_access {bsub_command}'
 export QA_RUNNERS_LSF_BRIDGE='ssh my_host_with_lsf_access su {user} {bsub_command}'
 ```
 
-1. Via project configuraton:
+1. Via project configuration:
 ```yaml {5} title="qaboard.yaml"
 runners:
   lsf:
@@ -144,5 +144,5 @@ runners:
 ```
 
 :::tip
-When using bridges, `qa` will explicitely ask LSF to run in your current working directory, so no need to play games with `ssh 'cd {cwd} && {bsub_command}'`...
+When using bridges, `qa` will explicitly ask LSF to run in your current working directory, so no need to play games with `ssh 'cd {cwd} && {bsub_command}'`...
 :::

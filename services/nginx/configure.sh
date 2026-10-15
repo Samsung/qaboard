@@ -11,10 +11,6 @@ cp -rL /tmp/etc/nginx /etc/nginx.new
 if [ -d /tmp/deployment/nginx/conf.d/ ]; then
   cp -rL /tmp/deployment/nginx/conf.d/* /etc/nginx.new/conf.d/
 fi
-# In development (development.yml), everyone reading the files can read them all: skip asking the backend
-if [ "$QABOARD_FILES_AUTH" = "off" ]; then
-  echo "# QABOARD_FILES_AUTH=off" > /etc/nginx.new/snippets/qaboard-files-auth.conf
-fi
 envsubst < /etc/nginx.new/nginx.conf.template > /etc/nginx.new/nginx.conf
 # Without IPv6 (disabled in the kernel), nginx can't start with "listen [::]:80"
 if [ ! -e /proc/net/if_inet6 ]; then

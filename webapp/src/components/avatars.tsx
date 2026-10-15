@@ -8,6 +8,7 @@ import { Classes, Colors } from "@blueprintjs/core";
 
 import { Link } from "../router";
 import { project_avatar_style } from "../utils";
+import { image_url } from "../git";
 
 
 // White text has a contrast of at least 4.5:1 on all of them,
@@ -55,8 +56,9 @@ export const initialsImage = (name?: string | null, max_letters = 2) => {
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 };
 
-// Avatars from the git hosts go through the backend: it adds our credentials, and only fetches from known hosts
-export const proxiedImage = (url?: string | null) => url ? `/api/v1/gitlab/proxy?url=${encodeURIComponent(url)}` : null;
+// Avatars from public git hosts are loaded directly. The others go through the backend:
+// it adds our credentials, can reach hosts users can't, and only fetches from known hosts (see git.js)
+export const proxiedImage = (url?: string | null): string | null => image_url(url);
 
 
 const AvatarCell = styled.div<{ $size: string }>`
@@ -105,6 +107,8 @@ export function Avatar({ name, src, href, onClick, size = "45px", className, sty
     title={name ?? undefined}
     style={has_image ? img_style ?? undefined : undefined}
     onError={has_image ? () => setFailedSrc(src) : undefined}
+    loading="lazy"
+    decoding="async"
   />;
   return <AvatarCell $size={size} className={className} style={style}>
     {href ? <Link to={href} onClick={onClick}>{avatar}</Link> : avatar}

@@ -73,8 +73,6 @@ not_authorized_error = "The user is not authorized, please contact QA-Board admi
 def create_token():
   if not current_user.is_authenticated:
     return f"Not logged-in", 403
-  # user = User.query.filter_by(user_name='sircdevops').one()
-  # login_user(user, remember=False, duration=timedelta(days=180))
   token = Token(current_user)
   db_session.add(token)
   db_session.commit()
@@ -500,7 +498,6 @@ def saml_auth():
 
         auth.process_response(request_id=request_id)
         errors = auth.get_errors()
-        not_auth_warn = not auth.is_authenticated()
         if len(errors) == 0:
             if 'AuthNRequestID' in session:
                 del session['AuthNRequestID']
@@ -563,17 +560,13 @@ def saml_auth():
     print(" ".join(errors))
     return " ".join(errors), 403
 
-    # self_url = OneLogin_Saml2_Utils.get_self_url(req)
-    # if 'RelayState' in request.form and self_url != request.form['RelayState']:
-    #     return redirect(auth.redirect_to(request.form['RelayState']))
-
 
 def init_saml_auth(req):
     auth = OneLogin_Saml2_Auth(req, custom_base_path=app.config['SAML_PATH'])
     return auth
 
 def prepare_flask_request(request):
-    # If server is behind proxys or balancers use the HTTP_X_FORWARDED fields
+    # If server is behind proxies or balancers use the HTTP_X_FORWARDED fields
     return {
         'https': 'on' if request.environ.get('HTTP_X_FORWARDED_PROTO') == 'https' else 'off',
         'http_host': request.environ.get('HTTP_X_FORWARDED_HOST'),
@@ -584,14 +577,3 @@ def prepare_flask_request(request):
         # 'lowercase_urlencoding': True,
         'post_data': request.form.copy()
     }
-    # url_data = urlparse(request.url)
-    # return {
-    #     'https': 'on' if request.scheme == 'https' else 'off',
-    #     'http_host': request.host,
-    #     'server_port': url_data.port,
-    #     'script_name': request.path,
-    #     'get_data': request.args.copy(),
-    #     # Uncomment if using ADFS as IdP, https://github.com/onelogin/python-saml/pull/144
-    #     # 'lowercase_urlencoding': True,
-    #     'post_data': request.form.copy()
-    # }

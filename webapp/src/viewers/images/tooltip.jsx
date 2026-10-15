@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from "react";
-import axios from 'axios'
+import { useState, useEffect } from "react";
 import { debounce } from "es-toolkit/compat";
 
+import { http, isAbort } from "../../api/http";
 import {
     Tag,
     Classes,
@@ -28,7 +28,7 @@ const Tooltips = ({x, y, x_ref, y_ref, has_reference, first_image, image_url_new
     // Basically it wraps each pixel with a box starting from its index to the index + 1
     // This means for example that OpenseaDragon can show floating point coordinates like 67.67 that belongs to pixel indexd 67.
     // This is actually not a problem because the we floor the value to the lower integer.
-    // Hoever, in the edge case (literaly an EDGE case) where the the cursor is at the end of the box, OpenseaDragon can return the upper bound. 
+    // However, in the edge case (literally an EDGE case) where the the cursor is at the end of the box, OpenseaDragon can return the upper bound. 
     // This means that if you put the cursor on the rightmost edge of the image of width n, you will get the value of n and not n-1.
     const x_floor = (x !== null && x !== undefined) ? Math.max(0, Math.min(image_width - 1, Math.floor(x))) : null;
     const y_floor = (y !== null && y !== undefined) ? Math.max(0, Math.min(image_height - 1, Math.floor(y))) : null;
@@ -72,22 +72,21 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
     // Created once (lazy state initializer) so that the debounce applies across renders.
     // The request to cancel lives in this closure: state would be stale inside the debounced function.
     const [pixel_fetcher] = useState(() => {
-        let cancel_source = null;
+        let controller = null;
         const fetch = debounce( (_x, _y, _image_url) => {
             // console.log(`current ${x} ${y}`);
             // console.log(`new  ${_x} ${_y}`);
             const fetchData = async () => {
                 setLoading(true)
-                if (!!cancel_source)
-                    cancel_source.cancel();
-                const new_cancel_source = axios.CancelToken.source()
-                cancel_source = new_cancel_source
+                controller?.abort()
+                const new_controller = new AbortController()
+                controller = new_controller
                 try {
                     const params = {
                         x: _x, y: _y,
                         image_url: _image_url,
                       }
-                    const result = await axios.get("/api/v1/output/image/pixel", {params, cancelToken: new_cancel_source.token})
+                    const result = await http.get("/api/v1/output/image/pixel", {params, signal: new_controller.signal})
                     const value = Array.isArray(result.data.value) ? result.data.value : [result.data.value]
                     setPixel({
                         x: _x, y: _y,
@@ -101,7 +100,7 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
                     setLoading(false)
                     setError(null)
                 } catch(e) {
-                    if (!axios.isCancel(e)) {
+                    if (!isAbort(e)) {
                         console.log(e)
                         setLoadedOnce(true)
                         setLoading(false)
@@ -116,7 +115,7 @@ const ColorTooltip = ({color, x, y, image_url, base}) => {
         // drop the pending fetch and cancel the request in flight
         const cancel = () => {
             fetch.cancel()
-            cancel_source?.cancel()
+            controller?.abort()
         }
         return { fetch, cancel }
     });
