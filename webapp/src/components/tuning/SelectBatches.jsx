@@ -1,9 +1,12 @@
 import React, { useState, useMemo, useCallback } from "react";
+import styled from "styled-components";
 import {
+  Classes,
   Colors,
   MenuItem,
   Button,
-  NonIdealState
+  NonIdealState,
+  Tooltip,
 } from "@blueprintjs/core";
 import {
   Select,
@@ -38,7 +41,7 @@ const prepare_batch = ({ label, batchData, commit_id, project, project_data }) =
   return {
     label,
     title: (is_milestone ? "⭐ " : "") + title,
-    status: [
+    status: outputs.length === 0 ? (data.optimization ? `${data.iteration} 🔁` : 'no runs') : [
       `${nb_success}/${outputs.length} ✅`,
       nb_failed > 0 ? ` ${nb_failed}❌` : "",
       nb_running > 0 ? ` ${nb_running}🏃` : "",
@@ -66,14 +69,23 @@ const filterBatch = (query, batchItem) => batchItem.searchText.includes(query.tr
 
 const popoverProps = { minimal: true };
 
+const status_title = "✅ finished / total · ❌ failed · 🏃 running · 🔁 auto-tuning iteration"
+
 const BatchLabel = ({ item }) => <>
   <div style={{ fontWeight: 500 }}>{item.title}</div>
-  <div style={{ fontSize: '12px', color: Colors.GRAY1, marginTop: '2px' }}>{item.status}</div>
+  <div className={Classes.TEXT_MUTED} style={{ fontSize: '12px', marginTop: '2px' }} title={status_title}>{item.status}</div>
 </>
 
 const Username = ({ item, style }) => item.username
-  ? <div style={{ fontSize: '11px', color: Colors.GRAY3, fontStyle: 'italic', ...style }}>{item.username}</div>
+  ? <div className={Classes.TEXT_MUTED} style={{ fontSize: '11px', fontStyle: 'italic', ...style }}>{item.username}</div>
   : null
+
+const NoResults = styled.div`
+  color: ${Colors.RED3};
+  .${Classes.DARK} & {
+    color: ${Colors.RED5};
+  }
+`
 
 
 const SelectBatchesNav = ({ commit, onChange, batch, project, project_data }) => {
@@ -127,7 +139,10 @@ const SelectBatchesNav = ({ commit, onChange, batch, project, project_data }) =>
     return <span/>
 
   const has_batches = batchItems.length > 0;
+  // useCommit gives an empty commit while it loads
+  const loading = commit?.is_loaded === false && !has_batches;
   return (
+    <Tooltip content="This commit has no batches yet" disabled={has_batches || loading}>
     <Select
       items={batchItems}
       itemsEqual="label"
@@ -148,6 +163,7 @@ const SelectBatchesNav = ({ commit, onChange, batch, project, project_data }) =>
     >
       <Button
         endIcon="double-caret-vertical"
+        aria-label={`Batch: ${selectedBatch?.title ?? pretty_label(batch)}`}
         disabled={!has_batches}
         style={{ maxWidth: '360px', marginLeft: '5px' }}
       >
@@ -155,13 +171,16 @@ const SelectBatchesNav = ({ commit, onChange, batch, project, project_data }) =>
           <div style={{ flex: 1, textAlign: 'left' }}>
             {selectedBatch
               ? <BatchLabel item={selectedBatch} />
-              : <div style={{ color: Colors.RED2 }}>{pretty_label(batch)} (no results)</div>
+              : loading
+                ? <div className={Classes.SKELETON}>{pretty_label(batch)}</div>
+                : <NoResults>{pretty_label(batch)} (no results)</NoResults>
             }
           </div>
           {selectedBatch && <Username item={selectedBatch} style={{ marginRight: '8px' }} />}
         </div>
       </Button>
     </Select>
+    </Tooltip>
   );
 };
 

@@ -105,7 +105,7 @@ const ExportPlugin = props => {
               marginBottom: "5px",
               background: "none",
               boxShadow: "none",
-              border: "1px solid rgba(28, 33, 39, 0.2)",
+              border: "1px solid var(--qa-border)",
               boxSizing: "border-box",
             }}
             title={export_dir_is_same_fs ? undefined : `(Hard) Links are only available when exporting to the same filesystem (${batch_output_fs}). We avoid symlinks since they are poorly supported on Windows.`}
@@ -140,7 +140,8 @@ const ExportPlugin = props => {
     >
       <ControlGroup>
          <Button
-           disabled={is_loading || path_has_invalid_globs || path.length === 0}
+           disabled={path_has_invalid_globs || path.length === 0}
+           loading={is_loading}
            icon="download"
            onClick={export_to_directory}
          >Export</Button>
@@ -148,6 +149,7 @@ const ExportPlugin = props => {
            onChange={e => setEditedPath(e.target.value)}
            value={path}
            placeholder={'*.png'}
+           aria-label="Files to export (glob pattern)"
            intent={(path_has_invalid_globs || nb_files_exported === 0) ? "warning" : undefined}
          />
       </ControlGroup>

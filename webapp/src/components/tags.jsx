@@ -1,8 +1,8 @@
 import { useState } from "react";
 import {
+  Alert,
+  AnchorButton,
   Classes,
-  Colors,
-  Icon,
   Tag,
   Menu,
   MenuItem,
@@ -17,10 +17,11 @@ import {
 import { http, errorMessage, isAbort } from "../api/http";
 import { useRefreshCommit } from "../hooks";
 import { linux_to_windows } from '../utils'
-import { folder_url } from '../utils/paths'
+import { folder_url, hasPathMappings } from '../utils/paths'
 import { toaster } from "../toaster"
 import { copyWithToast } from "../utils/clipboard"
 import { copyDirectory } from "./logs/DirectoryActions"
+import { runName } from "./logs/RunLogs"
 
 
 const style_skeleton = {
@@ -50,7 +51,7 @@ const StatusTag = ({output, style}) => {
 
 const PlatformTag = ({ platform, inverted }) => {
   if (platform === undefined || platform === null || platform === 'linux') return <span />
-  return <Tag round minimal={!inverted} style={{ marginRight: '5px', marginLeft: '5px' }}>@{platform}</Tag>
+  return <Tag round minimal={!inverted} title="Platform the run used" style={{ marginRight: '5px', marginLeft: '5px' }}>@{platform}</Tag>
 }
 
 const hidden_keys = ["badges", "roi", "auto_rois"]
@@ -104,7 +105,7 @@ const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, to
               <MenuItem
                 icon="duplicate"
                 text="Copy this item"
-                onClick={() => copyWithToast(c)}
+                onClick={() => copyWithToast(c, { what: 'the configuration item' })}
               />
               <MenuItem
                 icon="duplicate"
@@ -142,12 +143,12 @@ const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, to
                          <MenuItem
                            icon="duplicate"
                            text={<span>Copy <em>{`${k}`}</em></span>}
-                           onClick={() => copyWithToast(`${k}: ${JSON.stringify(v)}`)}
+                           onClick={() => copyWithToast(`${k}: ${JSON.stringify(v)}`, { what: k })}
                          />
                          <MenuItem
                            icon="duplicate"
                            text="Copy as JSON"
-                           onClick={() => copyWithToast(JSON.stringify(c, null, 2))}
+                           onClick={() => copyWithToast(JSON.stringify(c, null, 2), { what: 'the configuration item' })}
                          />
                          <MenuItem
                            icon="duplicate"
@@ -187,7 +188,7 @@ const ExtraParametersTags = ({ parameters, intent = Intent.PRIMARY, inverted, be
   const tags = Object.entries(parameters)
     .filter(([k]) => !hidden_keys.includes(k))
     .map(([k, v]) => (
-      <Tag key={k} intent={intent} minimal={!inverted} round interactive onClick={copy} style={{ marginRight: '5px', marginBottom: '3px' }}>
+      <Tag key={k} intent={intent} minimal={!inverted} round interactive onClick={copy} title="Tuning parameters. Click to copy them as JSON" style={{ marginRight: '5px', marginBottom: '3px' }}>
         <strong>{k}: </strong> {JSON.stringify(v)}
       </Tag>
     ));
@@ -200,10 +201,10 @@ const ExtraParametersTags = ({ parameters, intent = Intent.PRIMARY, inverted, be
 
 
 
-const MismatchTag = ({text, explanation}) => {
+const MismatchTag = ({text, what, explanation}) => {
   return <div>
     <Tooltip content={<div>
-        <h3>Comparing to reference:</h3>
+        <h3>The reference run differs. Its {what}:</h3>
         <p>{explanation}</p>
       </div>}
     >
@@ -217,10 +218,10 @@ const MismatchTags = ({mismatch}) => {
     return <span/>
   const { test_input_path, configurations, platform, extra_parameters } = mismatch;
   return <div>
-    {test_input_path  && <MismatchTag text="Input" explanation={test_input_path} />}
-    {configurations   && <MismatchTag text="Config" explanation={<ConfigurationsTags inverted configurations={configurations} />} />}
-    {platform         && <MismatchTag text="Platform" explanation={<PlatformTag inverted platform={platform} />} />}
-    {extra_parameters && <MismatchTag text="Tuning" explanation={Object.keys(extra_parameters).length > 0 ? <ExtraParametersTags inverted parameters={extra_parameters} /> : 'No tuning'} />}
+    {test_input_path  && <MismatchTag text="Input" what="input" explanation={test_input_path} />}
+    {configurations   && <MismatchTag text="Config" what="configuration" explanation={<ConfigurationsTags inverted configurations={configurations} />} />}
+    {platform         && <MismatchTag text="Platform" what="platform" explanation={<PlatformTag inverted platform={platform} />} />}
+    {extra_parameters && <MismatchTag text="Tuning" what="tuning parameters" explanation={Object.keys(extra_parameters).length > 0 ? <ExtraParametersTags inverted parameters={extra_parameters} /> : 'No tuning'} />}
   </div>
 }
 
@@ -253,15 +254,19 @@ const RunBadge = ({badge}) => {
 // What users can do with a run: redo it, mark it as failed, delete it...
 const RunActionsMenu = ({ output, project, commit }) => {
   const [waiting, setWaiting] = useState(false)
+  // deletes need confirming: 'delete' or 'delete-files'
+  const [confirming, setConfirming] = useState(null)
   const refreshCommit = useRefreshCommit()
   const { id, deleted, is_pending } = output
+  const name = runName(output)
   const refresh = () => refreshCommit(project, commit.id)
   const act = (request, requested, done) => {
+    const key = `run-action-${id}`
     setWaiting(true)
-    toaster.show({message: requested});
+    toaster.show({message: requested, icon: 'time'}, key);
     request()
-      .then(() => toaster.show({message: done, intent: Intent.SUCCESS}))
-      .catch(error => toaster.show({message: errorMessage(error), intent: Intent.DANGER}))
+      .then(() => toaster.show({message: done, intent: Intent.SUCCESS}, key))
+      .catch(error => toaster.show({message: errorMessage(error), intent: Intent.DANGER}, key))
       .finally(() => {
         setWaiting(false)
         refresh()
@@ -278,8 +283,8 @@ const RunActionsMenu = ({ output, project, commit }) => {
         disabled={waiting}
         onClick={() => act(
           () => http.put(`/api/v1/output/${id}/`, {is_pending: false, is_running: false, is_failed: true}),
-          "Requested to mark as 'Failed'.",
-          "Marked as failed.",
+          `Marking ${name} as failed…`,
+          `Marked ${name} as failed`,
         )}
       />}
       {id && !is_pending && <MenuItem
@@ -290,26 +295,54 @@ const RunActionsMenu = ({ output, project, commit }) => {
         disabled={waiting}
         onClick={() => act(
           () => http.post(`/api/v1/output/redo/${id}/`, {is_pending: false, is_running: false}),
-          "Requested Redo.",
-          "Redo started.",
+          `Starting ${name} again…`,
+          `Redoing ${name}`,
         )}
       />}
       {id && !deleted && <MenuItem
         icon="trash"
-        text="Delete"
+        text="Delete…"
+        htmlTitle="Delete the run, its metrics and its files"
         intent={Intent.DANGER}
         minimal
         disabled={waiting}
-        onClick={() => act(() => http.delete(`/api/v1/output/${id}/`), "Delete requested.", "Deleted.")}
+        shouldDismissPopover={false}
+        onClick={() => setConfirming('delete')}
       />}
       {id && !deleted && <MenuItem
         icon="trash"
-        text="Delete Output Files"
+        text="Delete Output Files…"
+        htmlTitle="Delete the run's files, keep its metrics"
         intent={Intent.DANGER}
         minimal
         disabled={waiting}
-        onClick={() => act(() => http.delete(`/api/v1/output/${id}/`, {params: {soft: true}}), "Delete requested.", "Deleted.")}
+        shouldDismissPopover={false}
+        onClick={() => setConfirming('delete-files')}
       />}
+      {/* rendered in a portal; while it's open, the menu's popover stays open */}
+      <Alert
+        className={Classes.POPOVER_DISMISS}
+        isOpen={confirming !== null}
+        icon="trash"
+        intent={Intent.DANGER}
+        cancelButtonText="Cancel"
+        confirmButtonText={confirming === 'delete-files' ? "Delete files" : "Delete run"}
+        canEscapeKeyCancel
+        onCancel={() => setConfirming(null)}
+        onConfirm={() => {
+          const files_only = confirming === 'delete-files'
+          setConfirming(null)
+          act(
+            () => http.delete(`/api/v1/output/${id}/`, files_only ? {params: {soft: true}} : undefined),
+            `Deleting ${files_only ? 'the files of ' : ''}${name}…`,
+            `Deleted ${files_only ? 'the files of ' : ''}${name}`,
+          )
+        }}
+      >
+        {confirming === 'delete-files'
+          ? <><p><strong>Delete the files of {name}?</strong></p><p>Its metrics are kept.</p></>
+          : <><p><strong>Delete {name}?</strong></p><p>Its output files and metrics will be deleted. This can't be undone.</p></>}
+      </Alert>
     </Menu>
   )
 }
@@ -352,7 +385,7 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
     <Popover placement="bottom" hoverCloseDelay={200} interactionKind={"hover"} content={
       <RunActionsMenu output={output} project={project} commit={commit} />
     }>
-      <Icon icon="menu" style={{ marginLeft: "5px", color: Colors.GRAY1 }}/>
+      <Button size="small" variant="minimal" icon="menu" className={Classes.TEXT_MUTED} style={{ marginLeft: "5px" }} aria-label="Run actions"/>
     </Popover>}
 
 
@@ -377,34 +410,40 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
         />}
       </Menu>}
     >
-      <a style={{marginLeft: "5px", color: Colors.GRAY1}}
-            target="_blank"
-            rel="noopener noreferrer"
-            href={folder_url(output_dir_url)}
-      >
-        <Icon icon="folder-shared-open" />
-      </a>
+      <AnchorButton
+        size="small"
+        variant="minimal"
+        icon="folder-shared-open"
+        className={Classes.TEXT_MUTED}
+        aria-label="Open the output directory"
+        target="_blank"
+        rel="noopener noreferrer"
+        href={folder_url(output_dir_url)}
+      />
     </Popover>
 
     <Popover hoverCloseDelay={500} interactionKind={"hover"} placement="bottom" content={
       <Menu>
         {output_ref && <MenuDivider title="New Run" />}
-        <MenuItem text="Copy output directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_dir_url)} />
-        <MenuItem text="Copy output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_dir_url, { windows: true })} />
+        <MenuItem text="Copy output directory" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_dir_url)} />
+        {hasPathMappings() && <MenuItem text="Copy output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_dir_url, { windows: true })} />}
         {output_ref && <>
           <MenuDivider title="Reference Run" />
-          <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_ref.output_dir_url)} />
-          <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_ref.output_dir_url, { windows: true })} />
+          <MenuItem text="Copy output directory of the 'Reference'" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_ref.output_dir_url)} />
+          {hasPathMappings() && <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_ref.output_dir_url, { windows: true })} />}
           </>
         }
       </Menu>}
     >
-      <span style={{marginLeft: "5px", marginRight: '5px', color: Colors.GRAY1}}>
-        <Icon
-          title="Copy-to-Clipboard"
-          icon="duplicate"
-        />
-      </span>
+      <Button
+        size="small"
+        variant="minimal"
+        icon="duplicate"
+        className={Classes.TEXT_MUTED}
+        style={{marginRight: '5px'}}
+        aria-label="Copy the output directory"
+        onClick={() => copyDirectory(output_dir_url)}
+      />
     </Popover>
     {cde_shs.map(cde_sh => {
       const cde_dir = cde_sh.replace(/\/?cde.sh$/, '')

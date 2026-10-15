@@ -2,7 +2,7 @@
  * Tests for the commits in lists of commits.
  * Run with: cd webapp && npm test -- CommitRow
  */
-import { screen } from '@testing-library/react';
+import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 import CommitRow from '../CommitRow';
@@ -25,8 +25,8 @@ const project_data = Object.freeze({
   data: Object.freeze({ git: Object.freeze({ path_with_namespace: 'group/proj' }), qatools_config: {}, qatools_metrics: {} }),
 });
 
-const renderRow = () => renderWithProviders(
-  <MemoryRouter><CommitRow commit={commit} project="group/proj" project_data={project_data} /></MemoryRouter>,
+const renderRow = (props = {}) => renderWithProviders(
+  <MemoryRouter><CommitRow commit={commit} project="group/proj" project_data={project_data} {...props} /></MemoryRouter>,
   { siteConfig: {} },
 );
 
@@ -45,5 +45,29 @@ describe('CommitRow', () => {
     renderRow();
     expect(project_data.data.git.web_url).toBeUndefined();
     expect(screen.getByText('abcdef12')).toHaveAttribute('href', 'https://gitlab.com/group/proj/-/commit/abcdef1234567890');
+  });
+
+  it("shows the first line of the message as its title", () => {
+    renderRow({ commit: { ...commit, message: 'Faster denoising\n\nThe LUT was indexed twice.' } });
+    expect(screen.getByText('Faster denoising')).toBeInTheDocument();
+    expect(screen.getByText('The LUT was indexed twice.')).toHaveAttribute('title', 'The LUT was indexed twice.');
+  });
+
+  it('says how many runs failed', () => {
+    renderRow({ commit: { ...commit, batches: { default: { ...commit.batches.nightly, label: 'default', failed_outputs: 2 } } } });
+    expect(screen.getByText('2 failed').closest('a')).toHaveAttribute('href', '/group/proj/commit/abcdef1234567890');
+  });
+
+  it('asks before deleting all the runs', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })));
+    renderRow();
+    fireEvent.mouseEnter(screen.getByLabelText('Commit actions'));
+    fireEvent.click(await screen.findByText('Delete All Runs…'));
+    const alert = within(await screen.findByRole('alertdialog'));
+    expect(alert.getByText('Delete all the runs of abcdef12?')).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
+    fireEvent.click(alert.getByText('Delete runs'));
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/v1/commit/group/proj/abcdef1234567890/batches/', expect.objectContaining({ method: 'DELETE' })));
+    vi.unstubAllGlobals();
   });
 });

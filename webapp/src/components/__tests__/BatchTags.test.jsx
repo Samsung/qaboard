@@ -13,7 +13,7 @@ describe('BatchTags', () => {
   it('counts the runs left by the filter', () => {
     render(<BatchTags batch={counts(8, 2)} />);
     expect(screen.getByText('8 outputs')).toBeInTheDocument();
-    expect(screen.getByText('2 crashed')).toBeInTheDocument();
+    expect(screen.getByText('2 failed')).toBeInTheDocument();
   });
 
   it('says "1 output"', () => {

@@ -97,7 +97,7 @@ const MilestonesMenu = ({project, milestones, title, icon, onSelect, type}) => {
               placeholder="filter milestones by label, branch, owner..."
               leftIcon="filter"
               value={filter}
-              className={filter === '' ? undefined : Intent.PRIMARY}
+              intent={filter === '' ? undefined : Intent.PRIMARY}
               onChange={e => {
                 setFilter(e.target.value)
               }}
@@ -197,7 +197,7 @@ const CommitMilestoneEditor = ({ project, project_shown, project_data, commit, b
     try {
       await http.post("/api/v1/project/milestones/", data)
       toaster.show({
-        message: should_delete ? 'Deleted' : 'Saved.',
+        message: should_delete ? 'Deleted the milestone' : 'Saved the milestone, shared with the project',
         intent: Intent.SUCCESS,
         timeout: 4500,
       });
@@ -224,7 +224,7 @@ const CommitMilestoneEditor = ({ project, project_shown, project_data, commit, b
     if (type === 'private') {
       deletePrivateMilestone(project, key)
       toaster.show({
-        message: "Deleted.",
+        message: "Deleted the milestone",
         intent: Intent.SUCCESS,
         timeout: 4000
       });
@@ -260,15 +260,16 @@ const CommitMilestoneEditor = ({ project, project_shown, project_data, commit, b
         updateShared({key, should_delete: true}).catch(() => {});
       setPrivateMilestone(project, key, milestone)
       toaster.show({
-        message: "Saved",
+        message: "Saved the milestone in this browser",
         intent: Intent.SUCCESS,
         timeout: 5000
       });
     }
   }
 
+  // We ask before replacing a shared milestone, not when users edit it
   const saveMilestoneMaybeAskForConfirmation = () => {
-    if (key in shared_milestones) {
+    if (key in shared_milestones && type !== 'shared') {
       setShowAlertOverwrite(true)
       setOverwriteMilestone(shared_milestones[key])
     } else {
@@ -278,12 +279,14 @@ const CommitMilestoneEditor = ({ project, project_shown, project_data, commit, b
 
   const popover_body = <div>
     <H5>Milestone Info</H5>
-    <Switch
-      label='Shared'
-      checked={is_shared}
-      style={{ width: "200px" }}
-      onChange={() => setIsShared(!is_shared)}
-    />
+    <FormGroup helperText="Shared: everyone on the project sees it. Off: saved in this browser only.">
+      <Switch
+        label='Shared'
+        checked={is_shared}
+        style={{ width: "200px", marginBottom: 0 }}
+        onChange={() => setIsShared(!is_shared)}
+      />
+    </FormGroup>
     <FormGroup inline label="Label" labelInfo="(optional)" labelFor="milestone-label-input">
       <InputGroup
         id="milestone-label-input"
@@ -315,7 +318,7 @@ const CommitMilestoneEditor = ({ project, project_shown, project_data, commit, b
           onConfirm={deleteMilestone}
           style={{width: '1200px', maxWidth: "fit-content"}}
         >
-          <div>Are you sure you want to delete this milestone?
+          <div>Delete this milestone?
             <Menu>
               <MilestoneMenu milestone={previous_milestone}/>
             </Menu>
@@ -332,8 +335,8 @@ const CommitMilestoneEditor = ({ project, project_shown, project_data, commit, b
       placement="right"
       popoverClassName={Classes.POPOVER_CONTENT_SIZING}
     >
-      <Tooltip content={type !== 'none' ? "Edit Milestone" : "Save as Milestone"} position={Position.BOTTOM} >
-        <Button minimal style={{ marginRight: '5px' }} onClick={updateData} aria-label={type !== 'none' ? "Edit Milestone" : "Save as Milestone"}>
+      <Tooltip content={type !== 'none' ? "Edit the milestone" : "Save as a milestone: bookmark these results to compare against later"} position={Position.BOTTOM} >
+        <Button minimal style={{ marginRight: '5px' }} onClick={updateData} aria-label={type !== 'none' ? "Edit the milestone" : "Save as a milestone"}>
           <Icon icon={icon} color={color} />
         </Button>
       </Tooltip>
@@ -349,7 +352,7 @@ const CommitMilestoneEditor = ({ project, project_shown, project_data, commit, b
       onCancel={() => setShowAlertOverwrite(false)}
       onConfirm={saveMilestone}
     >
-      <div>A similar shared milestone already exist: <Menu><MilestoneMenu icon="crown" milestone={overwrite_milestone}/></Menu>.</div>
+      <div>A similar shared milestone already exists: <Menu><MilestoneMenu icon="crown" milestone={overwrite_milestone}/></Menu>.</div>
       <p>Would you like to overwrite it?</p>
     </Alert>
   </>

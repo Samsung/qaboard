@@ -107,4 +107,17 @@ describe('SelectBatchesNav', () => {
     fireEvent.change(screen.getByRole('combobox'), {target: {value: 'batch-2'}});
     expect(within(listbox()).getAllByRole('option')).toHaveLength(10);
   });
+
+  it("doesn't say a batch has no results while the commit loads", () => {
+    const { rerenderNav } = renderNav({commit: {id: 'abc123', batches: {}, is_loaded: false}});
+    expect(screen.queryByText(/no results/)).not.toBeInTheDocument();
+    rerenderNav({commit: {id: 'abc123', batches: {}, is_loaded: true}});
+    expect(screen.getByText('batch-05 (no results)')).toBeInTheDocument();
+  });
+
+  it("doesn't check batches without runs", () => {
+    renderNav({commit: {id: 'abc123', batches: {empty: {label: 'empty', outputs: {}}}}, batch: {label: 'empty'}});
+    expect(screen.getByText('no runs')).toBeInTheDocument();
+    expect(screen.queryByText(/✅/)).not.toBeInTheDocument();
+  });
 });

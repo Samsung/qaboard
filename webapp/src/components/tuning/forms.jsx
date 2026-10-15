@@ -8,6 +8,7 @@ import { usePrefsStore, useTuningForm } from "../../stores/prefs";
 import MonacoEditor from "../MonacoEditor";
 
 import {
+  Alert,
   Classes,
   Callout,
   Intent,
@@ -20,9 +21,10 @@ import {
   Tag,
   Tooltip,
   Popover,
-  Icon,
+  Spinner,
   Tab,
   Tabs,
+  TabsExpander,
 } from "@blueprintjs/core";
 import { toaster } from "../../toaster"
 
@@ -308,6 +310,7 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
   const updateTuning = usePrefsStore(state => state.updateTuning);
   const refresh = useRefreshCommit();
   const [submitted, setSubmitted] = useState(false);
+  const [confirm_reset, setConfirmReset] = useState(false);
   const is_transforming = useRef(false);
 
   const default_parameter_search_auto = useMemo(() => templates['optimize'](config, metrics), [config, metrics]);
@@ -379,10 +382,9 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
 
   const onSubmit = () => {
     setSubmitted(true);
-    toaster.show({
-      message: "Sent!",
-      intent: Intent.SUCCESS
-    });
+    // the same toast says when the experiment started, or why it didn't
+    const toast_key = `tuning-${experiment_name}`
+    toaster.show({ message: `Starting ${experiment_name}…`, icon: 'time' }, toast_key);
     http.post(`/api/v1/commit/${commit.id}/batch`, {
       project,
       batch_label: experiment_name,
@@ -402,9 +404,10 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
       .then(() => {
         setSubmitted(false);
         toaster.show({
-          message: "Acknowledged! You can select the batch here ➡️",
-          intent: Intent.SUCCESS
-        });
+          message: `Started ${experiment_name}`,
+          intent: Intent.SUCCESS,
+          action: { text: 'Show its logs', onClick: () => updateSelected({ selected_batch_new: experiment_name, selected_views: 'logs' }) },
+        }, toast_key);
         setTimeout(() => refresh(project, commit.id),  1*1000)
         setTimeout(() => refresh(project, commit.id),  5*1000)
         setTimeout(() => refresh(project, commit.id), 10*1000)
@@ -415,11 +418,12 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
         const submission = error.response?.data?.submission
         toaster.show({
           message: submission
-            ? "The batch failed to start. Select it to see why, and its logs."
-            : `Something went wrong: ${errorMessage(error)}`,
+            ? `${experiment_name} failed to start. Its logs say why.`
+            : `Could not start ${experiment_name}: ${errorMessage(error)}`,
           intent: Intent.DANGER,
           timeout: 10000,
-        });
+          action: submission ? { text: 'Show its logs', onClick: () => updateSelected({ selected_batch_new: experiment_name, selected_views: 'logs' }) } : undefined,
+        }, toast_key);
         refresh(project, commit.id);
       });
   };
@@ -480,8 +484,10 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
           className={Classes.INPUT}
           style={{ marginLeft: "30px", width: "70px" }}
           placeholder="50"
+          aria-label="Number of samples"
           onChange={updateIterations}
-          type="numeric"
+          type="number"
+          min={1}
           dir="auto"
         />
       )}
@@ -500,7 +506,26 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
 
 
   const panel_auto = <>
-    <Button onClick={() => updateParameterSearchAuto(default_parameter_search_auto)}>Reset</Button>
+    <Button
+      icon="reset"
+      disabled={parameter_search_auto === default_parameter_search_auto}
+      onClick={() => setConfirmReset(true)}
+    >Reset to the default</Button>
+    <Alert
+      isOpen={confirm_reset}
+      icon="reset"
+      intent={Intent.WARNING}
+      cancelButtonText="Cancel"
+      confirmButtonText="Reset"
+      canEscapeKeyCancel
+      onCancel={() => setConfirmReset(false)}
+      onConfirm={() => {
+        setConfirmReset(false);
+        updateParameterSearchAuto(default_parameter_search_auto);
+      }}
+    >
+      <p>Replace your auto-tuning configuration with the default one? Your edits will be lost.</p>
+    </Alert>
     <MonacoEditor
       height={250}
       language='yaml'
@@ -567,13 +592,13 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
               </ul>
             </div>}
             >
-          <span style={{borderBottom: '1px dotted #000', textDecoration: 'none'}}>{tests.length} tests. </span>
+          <span style={{borderBottom: '1px dotted currentColor', textDecoration: 'none'}}>{tests.length} tests. </span>
         </Popover>}
         <p style={{marginBottom: '5px'}}>
-          To know what batches you can use, go to the tab <Tag icon="layout-group-by" interactive minimal round onClick={() => updateSelected({ selected_views: 'groups' })}>Available Tests</Tag>.
+          To know what batches you can use, go to the tab <Button icon="layout-group-by" size="small" variant="minimal" intent={Intent.PRIMARY} text="Available Tests" onClick={() => updateSelected({ selected_views: 'groups' })}/>.
           </p>
         {error && <p><Tag icon='warning-sign' intent={Intent.DANGER}>{error}</Tag></p>}
-        {selected_group_info_loading && <Icon icon="time"/>}
+        {selected_group_info_loading && <span className={Classes.TEXT_MUTED}><Spinner size={12} style={{display: 'inline-flex', marginRight: '5px'}}/>Listing the tests…</span>}
       </>}
       labelFor="selected-group"
     >
@@ -637,12 +662,22 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
     <Tabs renderActiveTabPanelOnly id="search-type" selectedTabId={search_type !== "optimize" ? "search-manual" : "search-optimize"} onChange={updateSearchTab}  defaultSelectedTabId="search-manual">
       <Tab id="search-manual" title="Manual tuning" panel={panel_manual} />
       <Tab id="search-optimize" title={<>Automated tuning</>} panel={panel_auto} />
+      <TabsExpander />
+      <a href={`${docs_root}docs/${search_type !== "optimize" ? 'tuning-from-the-webapp' : 'auto-optimization'}`} target="_blank" rel="noopener noreferrer">
+        {search_type !== "optimize" ? 'How to tune from QA-Board' : 'How auto-tuning works'}
+      </a>
     </Tabs>
 
     <FormGroup
       helperText={!user ? "Please provide a user in the input below"
-                        : (experiment_name.length === 0 ? 'Please give a name to the tuning experiment (the input is above)' : (selected_group_info.tests.length === 0 ? "The batch has no tests: see why under its name" : undefined))}
-      intent={(!user || experiment_name.length === 0 || !total_runs) ? Intent.DANGER : undefined}
+                        : experiment_name.length === 0 ? 'Please give a name to the tuning experiment (the input is above)'
+                        : selected_group_info.tests.length === 0 ? "The batch has no tests: see why under its name"
+                        : search_type === "optimize" ? undefined
+                        : combinations === "invalid" ? "The tuning parameters are not valid JSON, or the function throws"
+                        : total_runs > MAX_RUNS ? `Too many runs: ${total_runs} (at most ${MAX_RUNS}). Use “Sampling” or fewer inputs.`
+                        : total_runs >= 1000 ? "Over 1000 runs: check the cluster has room"
+                        : undefined}
+      intent={(!user || experiment_name.length === 0 || !total_runs || total_runs > MAX_RUNS) ? Intent.DANGER : undefined}
     >
     <Button
       onClick={onSubmit}
@@ -656,13 +691,14 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
       large
       intent={search_type !== "optimize" ? (total_runs < 1000 ? Intent.PRIMARY : Intent.DANGER) : Intent.PRIMARY}
     >
-      Send
+      {search_type === "optimize" ? "Start auto-tuning" : (Number.isFinite(total_runs) && total_runs > 0) ? `Start ${total_runs} run${total_runs === 1 ? '' : 's'}` : "Start runs"}
     </Button>
     </FormGroup>
 
     <FormGroup
         label="Overwrite previous identical runs"
         labelFor="overwrite-old-outputs"
+        helperText="On: runs that already exist in this experiment run again. Off: they're kept, only missing runs start."
         inline
     >
       <Switch
@@ -691,7 +727,7 @@ const TuningForm = ({ project, config, metrics, commit, available_tests_files })
       />
     </FormGroup>} */}
 
-    {lsf_runner &&<Tooltip content="Make sure to setup your shell environment correctly">
+    {lsf_runner &&<Tooltip content="Runs start on the cluster as this user, with their shell environment">
       <Tag icon="user" large minimal style={{marginRight: '5px', marginBottom: '5px'}}>Will run as <strong>{user}</strong></Tag>
     </Tooltip>}
 

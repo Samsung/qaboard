@@ -2,12 +2,13 @@
  * Tests for the tuning form.
  * Run with: cd webapp && npm test -- tuning
  */
-import { screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 
 import { TuningForm, combinations_info, eval_combinations } from '../forms';
 import { renderWithProviders } from '../../../test-utils';
 import { usePrefsStore } from '../../../stores/prefs';
 import { userQuery } from '../../../api/queries';
+import { toaster } from '../../../toaster';
 
 vi.mock('../../MonacoEditor', () => ({
   default: ({ value, onChange, name }) => <textarea data-testid={name} value={value} onChange={e => onChange(e.target.value)}/>,
@@ -55,8 +56,10 @@ describe('TuningForm', () => {
     fireEvent.change(screen.getByTestId('editor-tuning-set'), { target: { value: '{"a": [1, 2, 3]}' } });
     expect(await screen.findByText(/6 total runs/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('Send'));
+    fireEvent.click(screen.getByText('Start 6 runs'));
     await waitFor(() => expect(fetch.mock.calls.some(([url]) => url === '/api/v1/commit/abcdef12/batch?project=proj')).toBe(true));
+    // the toast says when the experiment started (the toaster is mocked in setupTests.js)
+    await waitFor(() => expect(toaster.show).toHaveBeenCalledWith(expect.objectContaining({ message: 'Started my-exp' }), 'tuning-my-exp'));
     const [, init] = fetch.mock.calls.find(([url]) => url === '/api/v1/commit/abcdef12/batch?project=proj');
     expect(JSON.parse(init.body)).toMatchObject({
       batch_label: 'my-exp',
@@ -110,5 +113,15 @@ describe('TuningForm', () => {
     renderWithProviders(<TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>);
     await act(async () => fireEvent.click(screen.getByText('Available Tests')));
     expect(window.location.search).toBe('?selected_views=groups');
+  });
+
+  it('asks before resetting the auto-tuning configuration', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
+    usePrefsStore.getState().updateTuning('proj', { search_type: 'optimize', parameter_search_auto: 'my: edits' });
+    renderWithProviders(<TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>, { siteConfig: {} });
+    fireEvent.click(screen.getByText('Reset to the default'));
+    expect(screen.getByTestId('editor-tuning-auto')).toHaveValue('my: edits');
+    await act(async () => fireEvent.click(within(screen.getByRole('alertdialog')).getByText('Reset')));
+    expect(usePrefsStore.getState().tuning.proj.parameter_search_auto).not.toBe('my: edits');
   });
 });

@@ -88,7 +88,7 @@ describe('RunLogs', () => {
     renderRun()
     fireEvent.click(screen.getByLabelText('Run actions'))
     expect(await screen.findByText('Redo')).toBeInTheDocument()
-    expect(screen.getByText('Delete')).toBeInTheDocument()
+    expect(screen.getByText('Delete…')).toBeInTheDocument()
   })
 
   it('shows the full configuration with the logs', async () => {

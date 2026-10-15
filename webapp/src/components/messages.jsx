@@ -10,7 +10,8 @@ import {
 } from "@blueprintjs/core";
 import { ConfigurationsTags, ExtraParametersTags } from './tags'
 import { http, errorMessage } from "../api/http";
-import { useRefreshCommit } from "../hooks";
+import { useRefreshCommit, updateSelected } from "../hooks";
+import { pretty_label } from "../utils";
 import { toaster } from "../toaster"
 import { SubmissionCallout } from "./logs/BatchSubmissions"
 
@@ -23,16 +24,16 @@ const CommitWarningMessages = ({ project, commit }) => {
     if (commit === undefined || commit === null) return;
     const refresh = () => refreshCommit(project, commit.id)
     setWaiting(true)
-    toaster.show({message: "Restoring artifacts..."});
+    toaster.show({message: "Restoring the artifacts…", icon: 'time'}, 'restore-artifacts');
     http.post(`/api/v1/commit/save-artifacts/`, {hexsha: commit.id, project})
       .then(() => {
         setWaiting(false)
-        toaster.show({message: `Restore artifacts.`, intent: Intent.PRIMARY});
+        toaster.show({message: "Restored the artifacts. Rebuild if your runs need new binaries.", intent: Intent.SUCCESS}, 'restore-artifacts');
         refresh()
       })
       .catch(error => {
         setWaiting(false)
-        toaster.show({message: errorMessage(error), intent: Intent.DANGER});
+        toaster.show({message: `Could not restore the artifacts: ${errorMessage(error)}`, intent: Intent.DANGER}, 'restore-artifacts');
         refresh()
       });
   }
@@ -107,11 +108,15 @@ const BatchStatusMessages = ({ project, commit, batch }) => {
   const stop_batch = () => {
     if (batch === undefined || batch === null) return;
     setWaitingStop(true)
-    toaster.show({message: "Stop requested."});
+    const key = `stop-${batch.id}`
+    toaster.show({message: `Stopping the runs of ${pretty_label(batch)}…`, icon: 'time'}, key);
     http.post(`/api/v1/batch/stop/`, {id: batch.id})
+      .then(() => {
+        toaster.show({message: `Stopping the runs of ${pretty_label(batch)}`, intent: Intent.SUCCESS}, key);
+        refresh()
+      })
       .catch(error => {
-        console.log(error)
-        toaster.show({message: errorMessage(error), intent: Intent.DANGER});
+        toaster.show({message: `Could not stop the runs: ${errorMessage(error)}`, intent: Intent.DANGER}, key);
       })
       .finally(() => setWaitingStop(false));
   }
@@ -119,13 +124,15 @@ const BatchStatusMessages = ({ project, commit, batch }) => {
   const redo_batch = () => {
     if (batch === undefined || batch === null) return;
     setWaitingRedo(true)
-    toaster.show({message: "Redo requested."});
+    const key = `redo-deleted-${batch.id}`
+    const show_logs = { text: "Show the logs", onClick: () => updateSelected({ selected_views: 'logs' }) }
+    toaster.show({message: `Starting the deleted runs of ${pretty_label(batch)} again…`, icon: 'time'}, key);
     http.post(`/api/v1/batch/redo/`, {id: batch.id, only_deleted: true})
       .then(() => {
-        toaster.show({message: `Redo ${batch.label}.`, intent: Intent.PRIMARY});
+        toaster.show({message: `Redoing the deleted runs of ${pretty_label(batch)}`, intent: Intent.SUCCESS, action: show_logs}, key);
       })
       .catch(error => {
-        toaster.show({message: errorMessage(error), intent: Intent.DANGER});
+        toaster.show({message: errorMessage(error), intent: Intent.DANGER, action: error.response?.data?.submission ? show_logs : undefined}, key);
       })
       .finally(() => {
         setWaitingRedo(false)
@@ -190,7 +197,7 @@ const BatchStatusMessages = ({ project, commit, batch }) => {
     <Callout
       icon="error"
       intent={Intent.DANGER}
-      title={`${batch.filtered.failed_outputs} crashed`}
+      title={`${batch.filtered.failed_outputs} failed`}
     >
       <p>Be sure to read the logs.</p>
       <SimpleOutputList
