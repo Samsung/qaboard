@@ -26,10 +26,8 @@ uv pip install -e ../cde-python
 ## SIRC-specific logic still in shared code
 Harmless for other sites (it only triggers on SIRC project names, paths or files), but could become settings:
 - webapp, tuning form (`components/tuning/forms.jsx`): pasted text with `=` rewritten as CDE registers (documented as
-  a generic `key=value` paste). SIRC's projects set what used to be hardcoded in their own config: HW_ALG's branch rule
-  is `tuning.branches: [develop, '*/*{subproject.name}*']` in its qaboard.yaml, `dvs/psp_swip` and `tof/swip_tof`
-  list `inputs.platforms` (`lsf`/Linux, `s8`/Android), and `dvs/psp_swip`'s metrics file has
-  `dashboard_breakdown_by_tag: true` (was its "Algorithmic bottlenecks" section).
+  a generic `key=value` paste). HW_ALG, the only active SIRC project relying on project-specific logic, sets its branch
+  rule in its own qaboard.yaml: `tuning.branches: [develop, '*/*{subproject.name}*']`.
 - webapp: the WebCDE button when outputs contain a `cde.sh` (`components/tags.jsx`), with `QABOARD_WEBCDE_INSTALLER`.
 - webapp: `defaults.js` uses `reference_branch: 'develop'`, the CLI defaults to `master`.
 - webapp: projects without `project.name` in their qaboard.yaml, or with `legacy` (`migrate_legacy_commits.py`), are
