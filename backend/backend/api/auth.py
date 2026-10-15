@@ -23,7 +23,15 @@ from ..models import User, Token
 
 
 login_manager = LoginManager(app)
-is_login_restricted = bool(os.getenv("QABOARD_LOGIN_RESTRICTED", False)) # True/False
+
+def env_flag(name: str) -> bool:
+  """
+  Whether a boolean environment variable is set: "false", "0", "no", "off" or empty mean False,
+  any other value (e.g. "true", "True", "1") means True.
+  """
+  return os.getenv(name, "").strip().lower() not in ("", "0", "false", "no", "off")
+
+is_login_restricted = env_flag("QABOARD_LOGIN_RESTRICTED")
 if is_login_restricted:
   users_restrict_yaml = os.getenv("QABOARD_LOGIN_RESTRICTED_YAML")
   try:
@@ -211,6 +219,18 @@ def login_required(f):
     g.user = user_info
     return f(*args, **kwargs)
   return wrapper
+
+
+def require_project_access(user_info: dict, project_id: str):
+  """
+  None if the user may access the project, else a 403 response to return.
+  Endpoints that change a batch, run or commit must check the project of the object they loaded:
+  `login_required` only checks the `?project=` the client chose.
+  Always None when QABOARD_LOGIN_RESTRICTED is off (`is_authorized_user` is then always true).
+  """
+  if is_authorized_user(user_info, project_id):
+    return None
+  return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
 
 
 @app.route('/api/v1/user/logout/', methods=['POST'])

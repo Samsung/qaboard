@@ -126,7 +126,7 @@ QA-Board can connect to external authentication systems (LDAP, SAML). If needed,
 | `QABOARD_LOGIN_TYPE`   | _LOCAL_  | Set to `LOCAL/LDAP/SAML`                   |
 | `QABOARD_LOGIN_REQUIRED`   | _empty_  | Any non-empty value (e.g. `true`) blocks anonymous users. Leave it unset/empty to allow them: even `false` enables it |
 | `QABOARD_DISABLE_SIGNUP`   | _empty_  | Set to `True` (exactly) to disallow local users from signing up                   |
-| `QABOARD_LOGIN_RESTRICTED`   | _empty_  | Any non-empty value (e.g. `true`) uses a configuration file to allow only specific users (requires backend restart)                   |
+| `QABOARD_LOGIN_RESTRICTED`   | _empty_  | `true` uses a configuration file to allow only specific users (empty, `false` or `0` turn it off) (requires backend restart)                   |
 | `QABOARD_LOGIN_RESTRICTED_YAML`   | _none_  | The path to the users configuration file                     |
 | `QABOARD_LDAP_HOST`   | _none_  | Server hostname (including port)                   |
 | `QABOARD_LDAP_PORT`   | _389_  | Server port, usually 389 (or 636 if SSL is used / **not supported yet!**). |

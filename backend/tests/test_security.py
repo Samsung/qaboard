@@ -7,6 +7,7 @@ import types
 import subprocess
 import importlib.util
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -139,6 +140,160 @@ def test_login_required_checks_project_permissions(auth, dummy_app, monkeypatch)
   handler.assert_not_called()
   with dummy_app.test_request_context("/api/v1/commit/abc/batch?project=public", method="POST"):
     assert auth.login_required(handler)() == "OK"
+
+
+@pytest.mark.parametrize("value, expected", [
+  (None, False), ("", False), ("false", False), ("False", False), ("0", False), ("no", False), ("off", False),
+  ("true", True), ("True", True), ("1", True), ("yes", True),
+])
+def test_env_flag(auth, monkeypatch, value, expected):
+  if value is None:
+    monkeypatch.delenv("QABOARD_TEST_FLAG", raising=False)
+  else:
+    monkeypatch.setenv("QABOARD_TEST_FLAG", value)
+  assert auth.env_flag("QABOARD_TEST_FLAG") is expected
+
+
+# ==========================================
+# Changing a batch or commit checks its own project, not `?project=`
+# ==========================================
+
+class FakeBatch:
+  def __init__(self, project_id, label="default"):
+    self.label = label
+    self.ci_commit = SimpleNamespace(project_id=project_id, hexsha="abc", batches=[self], get_or_create_batch=MagicMock())
+    self.ci_commit.project = SimpleNamespace(milestone_commits=[])
+    self.outputs = []
+    self.changed = []
+
+  def stop(self, db_session):
+    self.changed.append("stop")
+    return {}
+
+  def rename(self, label, db_session):
+    self.changed.append("rename")
+
+  def delete(self, session, **kwargs):
+    self.changed.append("delete")
+
+
+@pytest.fixture
+def restricted(auth, monkeypatch):
+  """QABOARD_LOGIN_RESTRICTED, where alice is logged in and may only access group/A"""
+  monkeypatch.setattr(auth, "is_login_restricted", True)
+  monkeypatch.setattr(auth, "users_restrict_config", {"projects": {
+    "group/A": {"user_name": ["alice"]},
+    "group/B": {"user_name": ["bob"]},
+  }})
+  monkeypatch.setattr(auth, "get_current_user", lambda to_jsonify: {"is_authenticated": True, "user_name": "alice"})
+  return auth
+
+
+@pytest.fixture
+def batch_api(restricted, monkeypatch):
+  """Loads the real backend/api/batch.py, with the real auth checks"""
+  export_to_folder = types.ModuleType('backend.api.export_to_folder')
+  export_to_folder.filter_outputs = lambda filter, outputs: outputs
+  monkeypatch.setitem(sys.modules, 'backend.api.export_to_folder', export_to_folder)
+  path = Path(__file__).parent.parent / "backend" / "api" / "batch.py"
+  spec = importlib.util.spec_from_file_location("backend.api._batch_auth_under_test", path)
+  module = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(module)
+  module.require_project_access = restricted.require_project_access
+  module.Batch = MagicMock()
+  module.db_session = MagicMock()
+  return module
+
+
+def status_of(response):
+  return response[1] if isinstance(response, tuple) else 200
+
+
+BATCH_ACTIONS = [
+  ("stop_batch", "POST", "/api/v1/batch/stop/", {"id": 1}, "stop"),
+  ("rename_batch", "POST", "/api/v1/batch/rename/", {"id": 1, "label": "new-label"}, "rename"),
+  ("delete_batch", "DELETE", "/api/v1/batch/1/", None, "delete"),
+]
+
+@pytest.mark.parametrize("endpoint, method, url, body, action", BATCH_ACTIONS)
+def test_batch_changes_check_the_batch_project(batch_api, restricted, dummy_app, endpoint, method, url, body, action):
+  handler = restricted.login_required(getattr(batch_api, endpoint))
+  args = {"batch_id": 1} if endpoint == "delete_batch" else {}
+  for project, expected_status in [("group/B", 403), ("group/A", 200)]:
+    batch = FakeBatch(project)
+    batch_api.Batch.query.filter.return_value.one.return_value = batch
+    # `?project=group/A` is allowed, but the batch belongs to group/B
+    with dummy_app.test_request_context(f"{url}?project=group/A", method=method, json=body):
+      response = handler(**args)
+    assert status_of(response) == expected_status, project
+    if expected_status == 403:
+      assert response[0].get_json() == {"error": "Forbidden: You don't have permission to access this project"}
+      assert batch.changed == []
+    else:
+      assert action in batch.changed
+
+
+def test_batch_move_checks_the_batch_project(batch_api, restricted, dummy_app):
+  handler = restricted.login_required(batch_api.move_batch)
+  run = SimpleNamespace(batch=None)
+  batch = FakeBatch("group/B")
+  batch.outputs = [run]
+  batch_api.Batch.query.filter.return_value.one.return_value = batch
+  with dummy_app.test_request_context("/api/v1/batch/move/?project=group/A", method="POST", json={"id": 1, "label": "other"}):
+    response = handler()
+  assert status_of(response) == 403
+  assert run.batch is None
+  batch.ci_commit.get_or_create_batch.assert_not_called()
+
+  # The runs move to a batch of the same commit: the destination is in the batch's project
+  batch = FakeBatch("group/A")
+  batch.outputs = [run]
+  batch_api.Batch.query.filter.return_value.one.return_value = batch
+  with dummy_app.test_request_context("/api/v1/batch/move/?project=group/A", method="POST", json={"id": 1, "label": "other"}):
+    response = handler()
+  assert status_of(response) == 200
+  assert run.batch is batch.ci_commit.get_or_create_batch.return_value
+
+
+def test_batch_changes_without_login_restrictions(batch_api, restricted, dummy_app, monkeypatch):
+  monkeypatch.setattr(restricted, "is_login_restricted", False)
+  monkeypatch.setattr(restricted, "users_restrict_config", {})
+  batch = FakeBatch("group/B")
+  batch_api.Batch.query.filter.return_value.one.return_value = batch
+  with dummy_app.test_request_context("/api/v1/batch/stop/", method="POST", json={"id": 1}):
+    response = restricted.login_required(batch_api.stop_batch)()
+  assert status_of(response) == 200
+  assert batch.changed == ["stop"]
+
+
+@pytest.fixture
+def commit_webhooks(restricted, monkeypatch):
+  """Loads the real backend/api/webhooks.py, with the real auth checks"""
+  monkeypatch.setitem(sys.modules, "backend.models.Project", types.SimpleNamespace(update_project=MagicMock()))
+  path = Path(__file__).parent.parent / "backend" / "api" / "webhooks.py"
+  spec = importlib.util.spec_from_file_location("backend.api._webhooks_auth_under_test", path)
+  module = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(module)
+  module.require_project_access = restricted.require_project_access
+  module.CiCommit = MagicMock()
+  module.db_session = MagicMock()
+  return module
+
+
+@pytest.mark.parametrize("project_in_url", [True, False])
+def test_commit_batches_delete_checks_the_commit_project(commit_webhooks, restricted, dummy_app, project_in_url):
+  handler = restricted.login_required(commit_webhooks.delete_commit)
+  query = commit_webhooks.CiCommit.query.filter.return_value
+  if project_in_url:
+    query = query.filter.return_value
+  for project, expected_status in [("group/B", 403), ("group/A", 200)]:
+    batch = FakeBatch(project)
+    query.yield_per.return_value = [batch.ci_commit]
+    url = f"/api/v1/commit/{project}/abc/batches/" if project_in_url else "/api/v1/commit/abc/batches/"
+    with dummy_app.test_request_context(f"{url}?project=group/A", method="DELETE"):
+      response = handler("abc", project_id=project if project_in_url else None)
+    assert status_of(response) == expected_status, project
+    assert batch.changed == ([] if expected_status == 403 else ["stop", "delete"])
 
 
 # ==========================================

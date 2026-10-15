@@ -83,9 +83,10 @@ def configure_project(mock_project):
     return _builder
 
 @pytest.fixture
-def mock_get_user():
-    """Yields the global get_current_user mock and resets it after each test."""
+def mock_get_user(monkeypatch):
+    """Yields the global get_current_user mock and resets it after each test. Users may access all projects."""
     import backend.api.auth as auth
+    monkeypatch.setattr(auth, 'is_authorized_user', MagicMock(return_value=True))
     # Yield get_current_user to test and mock it there as you wish
     yield auth.get_current_user
     
@@ -202,6 +203,21 @@ class TestMilestoneCRUD:
             assert response[1] == 403
             data = response[0].get_json()
             assert 'error' in data
+
+    def test_changes_need_access_to_the_project(self, dummy_app, configure_project, mock_get_user):
+        """POST and DELETE return 403 when the user may not access the project (QABOARD_LOGIN_RESTRICTED)."""
+        import backend.api.auth as auth
+        configure_project({'milestones': {SAMPLE_MILESTONE_KEY: dict(MILESTONE_NO_OWNER)}})
+        mock_get_user.return_value = {'is_authenticated': True, 'user_name': 'bob'}
+        auth.is_authorized_user.return_value = False
+
+        from backend.api.milestones import crud_milestones
+
+        for method, json in [('POST', SAMPLE_POST_JSON), ('DELETE', SAMPLE_DELETE_JSON)]:
+            with dummy_app.test_request_context(method=method, json=json):
+                response = crud_milestones()
+                assert response[1] == 403
+        auth.is_authorized_user.assert_called_with(mock_get_user.return_value, 'test-project')
 
     def test_delete_success_by_owner(self, dummy_app, configure_project, mock_get_user):
         """Owner can delete their own milestone."""

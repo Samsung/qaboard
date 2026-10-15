@@ -6,7 +6,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from backend import app, db_session
 from backend.models import Project
-from .auth import get_current_user
+from .auth import get_current_user, require_project_access
 
 # Note: this endpoint supports GET, but in practice is used only with POST, DELETE
 # Getting milestones data is done by GET "/api/v1/projects" endpoint (backend/backend/api/api.py, get_projects)
@@ -31,6 +31,8 @@ def crud_milestones():
   user_name = user_info.get('user_name')
   if not user_info.get('is_authenticated') or not user_name:
     return jsonify({"error": "Authentication required"}), 401
+  if forbidden := require_project_access(user_info, project_id):
+    return forbidden
 
   # Extract milestone owners and their user name
   milestone_key = data.get('key', '')

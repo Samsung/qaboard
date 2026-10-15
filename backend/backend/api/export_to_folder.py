@@ -10,7 +10,7 @@ from pathlib import Path
 from functools import lru_cache
 
 from requests.utils import quote
-from flask import request, jsonify
+from flask import request, jsonify, g
 from flask_login import current_user
 from sqlalchemy.orm import joinedload
 from polyleven import levenshtein as polyleven_levenshtein
@@ -23,7 +23,7 @@ from backend.fs_utils import as_user, rmtree
 from backend.storage import check_storage_path, UnsafePathError
 from ..models import CiCommit, Batch, slugify_hash
 from ..config import qaboard_url
-from .auth import login_required
+from .auth import login_required, require_project_access
 
 
 @lru_cache(maxsize=1024)
@@ -156,6 +156,9 @@ def commonprefix(m):
 def export_to_folder():
   project_id = request.args['project']
   ref_project_id = request.args.get('ref_project', project_id)
+  # login_required checked `project`: the reference's runs are linked in the export too
+  if ref_project_id != project_id and (forbidden := require_project_access(g.user, ref_project_id)):
+    return forbidden
 
   new_commit_id = request.args['new_commit_id']
   new_commit = load_commit(project_id, new_commit_id)
