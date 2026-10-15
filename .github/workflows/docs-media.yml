@@ -21,6 +21,11 @@ on:
         description: Shot ids to capture, comma-separated globs (commit/*,history/relative)
         type: string
         default: '*'
+      themes:
+        description: The web app's themes to capture the stills and clips in
+        type: choice
+        options: [both, light, dark]
+        default: both
       reseed:
         description: Seed the stories again instead of restoring the snapshot
         type: boolean
@@ -184,10 +189,14 @@ jobs:
         env:
           SHOTS_ONLY: ${{ steps.scope.outputs.only }}
           STRICT: ${{ steps.scope.outputs.strict }}
+          THEMES: ${{ inputs.themes || 'both' }}
         run: |
           retries=1
           if [ "$STRICT" = true ]; then retries=0; fi
-          npx playwright test --project stills --project clips --pass-with-no-tests --retries "$retries"
+          projects=()
+          if [ "$THEMES" != dark ]; then projects+=(--project stills --project clips); fi
+          if [ "$THEMES" != light ]; then projects+=(--project stills-dark --project clips-dark); fi
+          npx playwright test "${projects[@]}" --pass-with-no-tests --retries "$retries"
 
       - name: Record the tapes
         id: tapes

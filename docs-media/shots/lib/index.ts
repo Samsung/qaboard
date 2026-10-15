@@ -18,6 +18,10 @@ export type { Locator, Page } from '@playwright/test';
 /** What a shot shows: elements (several: their union), or a box in viewport coordinates (CSS px) */
 export type Region = Locator | Locator[] | Box;
 
+/** The web app's theme in a capture: it follows prefers-color-scheme, set by the Playwright project (stills-dark...) */
+export type Theme = 'light' | 'dark';
+export const THEMES: Theme[] = ['light', 'dark'];
+
 export interface ShotOptions {
   project: ProjectKey | null;                          // null: not tied to a demo project (login, What's new)
   url: string | ((demo: Demo) => string);
@@ -33,6 +37,7 @@ export interface ShotOptions {
   login?: string | null;                               // persona logged in; default: the project's main author, none without a project
   revision?: number;                                   // bump to publish a capture the dedupe would keep as unchanged
   dedupeTolerance?: number;                            // share of differing pixels still "unchanged", default 0.0005 (clips 0.002)
+  themes?: Theme[];                                    // default both; e.g. ['light'] for a page that has no dark theme
 }
 
 export interface ClipOptions extends Omit<ShotOptions, 'target'> {   // actions: before the recording starts, not drawn
@@ -70,6 +75,17 @@ export interface CaptureEnv {
   settleTimeout?: number;                              // default: waits.ts's DEFAULT_TIMEOUT
 }
 
+/** The theme a capture is in: the color scheme of its browser context */
+export function themeOf(env: CaptureEnv): Theme {
+  return env.contextOptions?.colorScheme === 'dark' ? 'dark' : 'light';
+}
+
+// A shot that only has some themes skips the projects of the others
+function skipOtherThemes(testInfo: TestInfo, options: ShotOptions) {
+  const theme: Theme = (testInfo.project.use as BrowserContextOptions).colorScheme === 'dark' ? 'dark' : 'light';
+  test.skip(!(options.themes ?? THEMES).includes(theme), `not captured in the ${theme} theme`);
+}
+
 const registered = new Set<string>();
 
 function checkOptions(id: string, options: ShotOptions) {
@@ -88,6 +104,7 @@ export function shot(id: ShotId, options: ShotOptions): void {
   if (!isSelected(id)) return;
   const specFile = callerFile();
   test(id, { tag: '@still' }, async ({ browser }, testInfo) => {
+    skipOtherThemes(testInfo, options);
     await captureStill(browser, id, options, envFor(testInfo, specFile));
   });
 }
@@ -100,6 +117,7 @@ export function clip(id: ShotId, options: ClipOptions): void {
   if (!isSelected(id)) return;
   const specFile = callerFile();
   test(id, { tag: '@clip' }, async ({ browser }, testInfo) => {
+    skipOtherThemes(testInfo, options);
     // recording a clip takes 3-6 times its length: each point of a cursor move waits for the page to draw it
     test.setTimeout(Math.max(testInfo.timeout, 300_000));
     await captureClip(browser, id, options, envFor(testInfo, specFile));
@@ -192,9 +210,12 @@ export async function applyMasks(page: Page, options: ShotOptions) {
 }
 
 function prepareDir(id: ShotId, env: CaptureEnv) {
-  const dir = env.dir ?? outDir(id);
-  fs.rmSync(dir, { recursive: true, force: true });
+  const theme = themeOf(env);
+  const dir = env.dir ?? outDir(id, theme);
   fs.mkdirSync(dir, { recursive: true });
+  // a light capture keeps the dark one, in its dark/ folder
+  for (const name of fs.readdirSync(dir))
+    if (env.dir || theme === 'dark' || name !== 'dark') fs.rmSync(path.join(dir, name), { recursive: true, force: true });
   return dir;
 }
 
@@ -208,6 +229,7 @@ function baseMeta(id: ShotId, kind: Kind | 'tape', options: ShotOptions, env: Ca
     app_version: env.demo.appVersion,
     source_spec: sourceSpec(env.specFile),
     captured: new Date().toISOString(),
+    theme: themeOf(env),
     t0: env.demo.t0.toISOString(),
     dedupe_tolerance: options.dedupeTolerance ?? (kind === 'clip' ? DEFAULT_CLIP_DEDUPE_TOLERANCE : DEFAULT_DEDUPE_TOLERANCE),
     ...(options.revision ? { revision: options.revision } : {}),
