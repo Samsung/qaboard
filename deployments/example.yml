@@ -18,8 +18,9 @@ services:
       # Image servers (JSON map of file extensions to IIIF endpoints)
       # - QABOARD_IMAGE_SERVERS={"default": "/iiif"}
 
-      # Observability (set to enable)
+      # Observability with Sentry (set to enable), see https://samsung.github.io/qaboard/docs/backend-admin/monitoring
       # - SENTRY_DSN=https://...@sentry.example.com/1
+      # - SENTRY_ENVIRONMENT=production
 
       # Output path user (for multi-user environments)
       # - QABOARD_DEFAULT_USER=qaboard
