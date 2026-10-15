@@ -218,7 +218,7 @@ const ProjectsList = () => {
                 />
               </div>
             <div>
-              <Tag intent={!!query ? Intent.PRIMARY : undefined} minimal>{rendered_projects.length} {!!query ? 'filtered ' : ''}project{rendered_projects.length === 1 ? '' : 's'}</Tag>
+              {!isPending && <Tag intent={!!query ? Intent.PRIMARY : undefined} minimal>{rendered_projects.length} {!!query ? 'filtered ' : ''}project{rendered_projects.length === 1 ? '' : 's'}</Tag>}
             </div>
           </div>
           {warnings}
