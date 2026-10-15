@@ -24,7 +24,7 @@ import { LogsMenuItem, logs_hint_class } from "./AppSiderLogsItem"
 import { useCommitsList, useComparison, useSiteConfig, useUser, updateSelected } from "./hooks"
 import { useIntegrationStatuses } from "./useIntegrationStatuses"
 import { quota_url } from "./utils"
-import { repo_url, tree_url, commit_url, default_integrations } from "./git"
+import { repo_url, tree_url, commit_url, commits_url as git_commits_url, default_integrations } from "./git"
 
 export const sider_width = sidebar.width.default;
 
@@ -255,6 +255,42 @@ const ProjectSideAvatar = ({ project, project_data = {} }) => {
   )
 }
 
+// Links to the code on the git host. Clicking opens the most useful page (the commit, or the branch's files),
+// hovering lists the others: the commit's changes and files, the subproject's folder, the branch, the repository.
+const external = { target: "_blank", rel: "noopener noreferrer" };
+const short_sha = sha => sha?.slice(0, 8);
+export const CodeMenu = ({ project, project_data, commit, branch }) => {
+  const project_repo = project_data.data?.git?.path_with_namespace || '';
+  // monorepos: projects can be a folder of their repository
+  const subproject = project_repo && project.startsWith(`${project_repo}/`) ? project.slice(project_repo.length + 1) : '';
+  const repo = repo_url(project_data);
+  const sha = commit?.id;
+  const ref = sha ?? branch;
+  const items = [
+    sha && { icon: "git-commit", text: <>Changes in <code>{short_sha(sha)}</code></>, href: commit_url(project_data, sha) },
+    sha && { icon: "folder-close", text: <>Files at <code>{short_sha(sha)}</code></>, href: tree_url(project_data, sha) },
+    sha && subproject && { icon: "folder-open", text: <>{subproject} at <code>{short_sha(sha)}</code></>, href: tree_url(project_data, sha, subproject) },
+    branch && { icon: "folder-close", text: <>Files on {branch}</>, href: tree_url(project_data, branch) },
+    branch && subproject && { icon: "folder-open", text: <>{subproject} on {branch}</>, href: tree_url(project_data, branch, subproject) },
+    branch && { icon: "git-branch", text: <>Commits on {branch}</>, href: git_commits_url(project_data, branch) },
+    { icon: "git-repo", text: "Repository", href: repo },
+  ].filter(Boolean);
+  // the commit, else the project's folder on the branch
+  const main = sha
+    ? (subproject ? tree_url(project_data, sha, subproject) : commit_url(project_data, sha))
+    : (ref && subproject ? tree_url(project_data, ref, subproject) : repo);
+  return <MenuItem
+    icon={sha ? "git-commit" : "git-repo"}
+    text="Code"
+    href={main}
+    {...external}
+    title={sha ? "The commit on your git host. Hover for its files, branch and repository" : "The code on your git host. Hover for more links"}
+    popoverProps={{ hoverCloseDelay: 300 }}
+  >
+    {items.map(({ icon, text, href }) => <MenuItem key={href} icon={icon} text={text} href={href} {...external} labelElement={<Icon icon="share" size={12}/>}/>)}
+  </MenuItem>
+}
+
 // A menu entry that navigates like <Link>: within the app, without reloading it, but ctrl/cmd+click still opens a new tab.
 const MenuItemLink = ({ to, ...props }) => {
   const handleClick = useLinkClickHandler(to)
@@ -296,7 +332,6 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
   let qatools_config = project_data.data?.qatools_config || {};
   let integrations = branch_integrations({ project_data, commit });
   let reference_branch = qatools_config.project?.reference_branch;
-  const git = project_data.data?.git || {};
 
   // in qaboard.yaml users specify milestones as arrays, but here we handle them as a mapping...
   const qatools_milestones_array = qatools_config?.project?.milestones || []
@@ -311,9 +346,6 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
   const is_project_home = selected.route.is_commits && !is_branch;
   const tag = selected.branch ?? selected.committer ?? reference_branch;
   const branch = selected.branch ?? reference_branch;
-  let project_repo = git.path_with_namespace || '';
-  let subproject = project.slice(project_repo.length + 1);
-  let code_url = subproject.length > 0 ? tree_url(project_data, branch, subproject) : repo_url(project_data);
   const commits_url = branch ? `/${path_segment(project)}/commits/${path_segment(branch)}` : `/${path_segment(project)}/commits`;
   const history_url = branch ? `/${path_segment(project)}/history/${path_segment(branch)}` : `/${path_segment(project)}/history`;
   return <>
@@ -323,7 +355,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
       : <MenuItem icon={is_branch ? "git-branch" : 'user'} active text={tag ?? 'All commits'} title={is_branch ? `Commits on ${tag}` : tag && `Commits by ${tag}`}/>
     }
     {!is_committer && <>
-      <MenuItem href={code_url} icon="git-repo" target="_blank" rel="noopener noreferrer" labelElement={<Icon icon="share" />} text="Code"/>
+      <CodeMenu project={project} project_data={project_data} branch={branch}/>
       <MenuItemLink to={history_url} active={is_history} icon="history" text="History"/>
       <SectionDivider />
       <IntegrationsMenus
@@ -379,12 +411,6 @@ const results_integrations = ({ new_batch, commit, project_data }) =>
   new_batch?.data?.qatools_config?.integrations ?? commit?.data?.qatools_config?.integrations ?? project_data.data?.qatools_config?.integrations ?? [];
 
 const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, new_batch, ref_batch, selected_views, default_views, filter, ref_filter, ref_project, user, docs_root, ...integrationProps }) => {
-  const git = project_data.data?.git || {};
-  let project_repo = git.path_with_namespace || '';
-  let subproject = project.slice(project_repo.length + 1);
-  let code_url = !commit?.id ? repo_url(project_data)
-                 : subproject.length > 0 ? tree_url(project_data, commit.id, subproject) : commit_url(project_data, commit.id);
-
   const has_optim = new_batch?.data?.optimization === true;
   const active = view => selected_views.includes(view);
   const set = view => () => updateSelected({ selected_views: view }, { defaults: { selected_views: default_views } })
@@ -433,7 +459,7 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
     <SiderHint content="The commit's build artifacts and qaboard.yaml configuration, diffed with the reference.">
       <MenuItem icon="settings" text="Artifacts & Configs" active={active('parameters')} onClick={set('parameters')} />
     </SiderHint>
-    <MenuItem href={code_url} icon="git-commit" target="_blank" rel="noopener noreferrer" labelElement={<Icon icon="share" />} text="Code" title="See the commit's code on your git host"/>
+    <CodeMenu project={project} project_data={project_data} commit={commit?.id ? commit : undefined} branch={commit?.branch}/>
 
     {/* Tuning Section */}
     <SectionHeader>Tuning</SectionHeader>
