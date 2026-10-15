@@ -48,6 +48,11 @@ export interface ClipOptions extends Omit<ShotOptions, 'target'> {   // actions:
 }
 
 export const VIEWPORT = { width: 1440, height: 900 };
+// A click or a wait for an element that never comes fails after this, naming the locator, instead of using up the
+// test's whole timeout (2 min, then the retry): when the web app changes, the broken specs fail in seconds.
+// Longer waits (a launch, the page settling) pass their own timeout. SHOTS_ACTION_TIMEOUT overrides it (ms).
+export const ACTION_TIMEOUT = Number(process.env.SHOTS_ACTION_TIMEOUT) || 20_000;
+const NAVIGATION_TIMEOUT = 60_000;
 export const DEFAULT_PADDING = 16;
 export const DEFAULT_DEDUPE_TOLERANCE = 0.0005;
 // Clips: in a cursor move, a frame can show what the page drew for the previous point of the path (the hovered pixel's
@@ -181,6 +186,8 @@ async function setupContext(context: BrowserContext, demo: Demo, kind: Kind, sto
 
 async function openPage(browser: Browser, kind: Kind, id: string, options: ShotOptions, env: CaptureEnv) {
   const context = await browser.newContext(contextOptions(kind, env.contextOptions, options.viewport, options.scale));
+  context.setDefaultTimeout(ACTION_TIMEOUT);
+  context.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT);
   await setupContext(context, env.demo, kind, { ...defaultStorage(env.demo), ...options.storage });
   const login = options.login === undefined ? (options.project ? PROJECT_PERSONAS[options.project] : null) : options.login;
   if (login) {

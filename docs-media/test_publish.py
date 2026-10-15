@@ -284,6 +284,21 @@ def test_dark_capture_must_match_the_light_one(tmp_path):
         run_publish(tmp_path)
 
 
+def test_dark_capture_waits_when_its_light_one_failed(tmp_path):
+    # the light capture is published at 1440x900; this run only has a dark one, of another size (the page changed)
+    out = tmp_path / "out"
+    manifest = tmp_path / "media.json"
+    entry = {"kind": "still", "width": 1440, "height": 900, "lqip": "data:image/webp;base64,AA==", "alt": "A synthetic page with six run cards.",
+             "project": "image-quality", "captured": "2026-10-12", "app_version": "1.1.1+0000000",
+             "source_spec": "docs-media/shots/commit.spec.ts",
+             "files": {r: {"key": f"shots/commit/themed/{'0' * 16}.{r}", "bytes": 1} for r in ("avif", "webp", "png")}}
+    manifest.write_text(json.dumps({"$schema": "./media.schema.json", "version": 1, "base_url": "https://qaboard-media.sivoov.app",
+                                    "shots": {"commit/themed": entry}}))
+    still_capture(out / "commit/themed", "dark", dark_image(2880, 1600), id="commit/themed")
+    assert run_publish(tmp_path, manifest) == 0
+    assert json.loads((out / "publish-report.json").read_text())["shots"]["commit/themed (dark)"]["status"] == "skipped"
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q", "-p", "no:cacheprovider", *sys.argv[1:]]))
 

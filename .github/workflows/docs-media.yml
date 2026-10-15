@@ -202,9 +202,11 @@ jobs:
           if [ "$THEMES" != light ]; then projects+=(--project stills-dark --project clips-dark); fi
           npx playwright test "${projects[@]}" --pass-with-no-tests --retries "$retries"
 
+      # Also when some captures failed (not in strict runs): publishing the others keeps what failed as it was, and the
+      # job still fails
       - name: Record the tapes
         id: tapes
-        if: steps.scope.outputs.only != ''
+        if: ${{ !cancelled() && steps.scope.outputs.only != '' && steps.restore.outcome == 'success' && (steps.capture.outcome == 'success' || steps.scope.outputs.strict != 'true') }}
         env:
           ONLY: ${{ steps.scope.outputs.only }}
         # the quickstarts' tapes need the demo-data image, and the demo stack's port: they're recorded below

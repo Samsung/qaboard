@@ -72,7 +72,7 @@ clip('landing/hero', {
     // The Controls panel slides in and out, for longer than the wait after a click (it runs the page's clock in real
     // time): another wait, and it's always done
     const togglePanel = async () => {
-      await ui.click(ui.page.locator('[title="Toggle Controls Panel"]'));
+      await ui.click(ui.page.locator('[aria-expanded][title$=" the controls"]'));
       await ui.settle();
     };
     await togglePanel();

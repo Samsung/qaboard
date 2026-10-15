@@ -676,6 +676,9 @@ Canonical values (`stack.ts`, the only place they're defined; the first one is t
 | Monthly (`17 6 2 * *`, with the release notes) | Full refresh from the snapshot; opens a PR only if something changed beyond the tolerance; runs `publish.py gc` |
 
 - Never on push. One run per ref at a time (`concurrency`), PR runs cancel the previous one.
+- A capture that fails (a spec waiting for an element the web app no longer has fails after 20 s,
+  `SHOTS_ACTION_TIMEOUT`) doesn't stop the others from being published, except in strict runs: the failed shots keep
+  their published version, and the job fails.
 - The stack runs this checkout's images (built like CI's, from its layer cache), so web app changes show.
   `affected.py` computes the affected shots of a pull request.
 - **Affected shots** on a PR: every still and clip (the specs' areas, not the tapes) if `webapp/**` or

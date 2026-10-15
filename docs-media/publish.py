@@ -880,7 +880,13 @@ def publish(args: argparse.Namespace) -> int:
     for e in results:
         old = old_manifest["shots"].get(e.id)
         if e.theme == "dark":
-            merge_dark(e, new_manifest["shots"].get(e.id), old, lights.get(e.id), storage)
+            entry = new_manifest["shots"].get(e.id)
+            # its light capture failed this time, and the published one has another size: it waits for the next run
+            if e.id not in lights and entry and (entry["kind"], entry["width"], entry["height"]) != (e.kind, e.width, e.height):
+                e.status = "skipped"
+                log(f"{e.label}: skipped, it has another size than the published light capture, and no light capture is in this run")
+                continue
+            merge_dark(e, entry, old, lights.get(e.id), storage)
             log(f"{e.label}: {e.status}")
             continue
         same, share, why = unchanged(e, old, storage)
