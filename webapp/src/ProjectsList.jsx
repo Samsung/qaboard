@@ -27,6 +27,7 @@ import AuthButton from "./components/authentication/Auth"
 import PrivateContent from "./components/authentication/PrivateContent"
 import { WhatsNewLink } from './releaseNotes/ReleaseNotes'
 import { ThemeButton } from './components/ThemeButton'
+import Footer, { repository_url } from './components/Footer'
 import { useProjects, useSiteConfig, useUser } from './hooks'
 import { usePrefsStore } from './stores/prefs'
 import { match_query } from "./utils"
@@ -182,12 +183,12 @@ const ProjectsList = () => {
 
   const user_quota_url = user.is_logged && quota_url(quota_url_template, user.user_name);
   return (
-    <>
+    <div style={{minHeight: '100vh', display: 'flex', flexDirection: 'column'}}>
       <Navbar className={Classes.DARK}>
           <NavbarGroup align={Alignment.LEFT}>
               <NavbarHeading><b>QA-Board</b></NavbarHeading>
               <NavbarDivider />
-              <a href="https://github.com/Samsung/qaboard"><Button className={Classes.MINIMAL} icon={github_cat} text="GitHub" style={{color : "#fff"}}/></a>
+              <a href={repository_url}><Button className={Classes.MINIMAL} icon={github_cat} text="GitHub" style={{color : "#fff"}}/></a>
               <a href={`${docs_root}docs/user-guide/overview`}><Button className={Classes.MINIMAL} icon={<Icon icon="help" color="#fff"/>} text="User guide" style={{color : "#fff"}}/></a>
               <WhatsNewLink via="projects-list"><Button className={Classes.MINIMAL} icon={<Icon icon="clean" color="#fff"/>} text="What's new" style={{color : "#fff"}}/></WhatsNewLink>
           </NavbarGroup>
@@ -235,7 +236,8 @@ const ProjectsList = () => {
           </div>)}
         </PrivateContent>
       </Container>
-    </>
+      <Footer/>
+    </div>
   );
 }
 
