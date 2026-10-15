@@ -97,7 +97,8 @@ test('history page navigation', async ({ page }) => {
   await page.getByRole('menuitem', { name: 'History', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/${project}/history/master`));
   await expect(page.getByText('Performance over time')).toBeVisible();
-  await expect(page.getByRole('menuitem', { name: 'Code' })).toHaveAttribute('target', '_blank');
+  // a link to the git host, with a submenu of other links
+  await expect(page.getByRole('menuitem', { name: 'Code' }).locator('a').first()).toHaveAttribute('target', '_blank');
   await expect(page.getByRole('menuitem', { name: 'Milestones' })).toBeVisible();
   // back to the branch's commits
   await page.getByRole('menuitem', { name: 'master', exact: true }).click();
