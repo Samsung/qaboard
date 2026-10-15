@@ -142,6 +142,17 @@ def jenkins_hostname_credentials(build_url):
     },
   }
 
+def jenkins_same_host(url, build_url):
+  """
+  Jenkins gives the URLs of builds with its configured root URL, whose hostname can be another name than
+  the one in build_url (e.g. a FQDN vs a short name). We'd have no credentials for it to check the build status,
+  so we use build_url's scheme and host.
+  """
+  if urlparse(url).hostname in jenkins_credentials:
+    return url
+  base = urlparse(build_url)
+  return urlparse(url)._replace(scheme=base.scheme, netloc=base.netloc).geturl()
+
 def git_hosts_proxied_hostnames():
   """The configured git hosts, their API and where their users' avatars are"""
   for host in [*git_hosts, git_hosts.default]:
@@ -527,12 +538,12 @@ def jenkins_build():
     else:
       url = data['web_url']
     if not url.endswith("/api/json"):
-      url += "/api/json"
+      url = f"{url.rstrip('/')}/api/json"
   else:
     url = data['url']
   jenkins_credentials = jenkins_hostname_credentials(url)
   if not jenkins_credentials:
-    return f"ERROR: No credentials for {url}", "403"
+    return jsonify({"error": f"ERROR: No credentials for {urlparse(url).hostname} in JENKINS_AUTH, to check {url}"}), 403
   try:
     # TODO: add something proper to do retriess
     # https://urllib3.readthedocs.io/en/latest/reference/urllib3.util.html#urllib3.util.Retry
@@ -617,7 +628,7 @@ def jenkins_build_trigger():
       return jsonify({"error": f"ERROR: the integration is missing `build_url` (in your qaboard.yaml)"}), 400
   jenkins_credentials = jenkins_hostname_credentials(data['build_url'])
   if not jenkins_credentials:
-    return f"ERROR: No credentials for {data['build_url']}", "403"
+    return jsonify({"error": f"ERROR: No credentials for {urlparse(data['build_url']).hostname} in JENKINS_AUTH, to trigger {data['build_url']}"}), 403
   build_url = re.sub("/$", "", data['build_url'])
   build_trigger_url = f"{build_url}/buildWithParameters"
   try:
@@ -650,7 +661,7 @@ def jenkins_build_trigger():
       if not url.startswith('/'):
         url = f"/{url}" 
       url = f"{url_info.scheme}://{url_info.netloc}{url}"
-    return url
+    return jenkins_same_host(url, build_url)
 
   build_queue_location = ensure_absolute(build_queue_location)
   time.sleep(5) # jenkins' "quiet period"
