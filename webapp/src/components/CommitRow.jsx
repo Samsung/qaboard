@@ -83,6 +83,23 @@ const LinkButton = ({ to, ...props }) => {
 }
 
 
+// A router link that looks like a minimal tag, e.g. "2 failed" next to the other tags
+const LinkTag = ({ to, intent, style, children }) => {
+  const handleClick = useLinkClickHandler(to)
+  return <a
+    href={to}
+    onClick={handleClick}
+    style={style}
+    className={[Classes.TAG, Classes.MINIMAL, Classes.INTERACTIVE, Classes.intentClass(intent)].filter(Boolean).join(' ')}
+  >
+    <span className={Classes.TEXT_OVERFLOW_ELLIPSIS}>{children}</span>
+  </a>
+}
+
+const runs = n => `${n} run${n === 1 ? '' : 's'}`
+const status_icon_style = { marginLeft: '3px', verticalAlign: '-1px' }
+
+
 // We compare the batch with the same batch in the reference commit
 const commit_page = (project, commit, label) => {
   const search = label !== 'default' ? `?${new URLSearchParams({ batch: label, batch_ref: label })}` : ''
@@ -111,7 +128,7 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
     )
       return (
         <div className={className}>
-        <AnchorButton variant="minimal" href={code_url} text="View the commit" />
+        <AnchorButton variant="minimal" href={code_url} text="View the commit" endIcon="share" />
         {commit.is_recent
           ? <Tooltip content={<span>The CI may still be running: results appear once <code>qa batch</code> uploads them.</span>}>
               <Tag minimal icon="time" style={{ marginLeft: "10px" }}>Waiting for results</Tag>
@@ -120,7 +137,7 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
               <LinkButton
                 style={{ marginLeft: "10px" }}
                 to={commit_page(project, commit, ci_batch_label)}
-                intent={Intent.DANGER}
+                className={Classes.TEXT_MUTED}
                 variant="minimal"
                 text="No results"
               />
@@ -158,27 +175,32 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
         )}
         {ci_batch.failed_outputs > 0 && (
           <Tooltip content="Failed: open the logs to see why">
-            <LinkButton
-              style={{ marginLeft: "10px" }}
+            <LinkTag
               to={commit_page(project, commit, ci_batch_label)}
               intent={Intent.DANGER}
-              variant="minimal"
-              text={`${ci_batch.failed_outputs} failed`}
-            />
+              style={{ marginRight: "4px" }}
+            >
+              {ci_batch.failed_outputs} failed
+            </LinkTag>
           </Tooltip>
         )}
         {tuning_batches_labels.length > 0 && (
           <Tooltip inheritDarkTheme={false} hoverCloseDelay={2000} content={<div>
             {tuning_batches_labels.map(label => {
                 let batch = commit.batches[label];
-                let status = `${batch.valid_outputs}/${batch.valid_outputs+batch.pending_outputs+batch.failed_outputs} ✅`;
-                let failures = batch.failed_outputs > 0 ? `${batch.failed_outputs}❌` : "";
+                const total = batch.valid_outputs + batch.pending_outputs + batch.failed_outputs;
                 return <LinkButton
                         key={label}
                         to={commit_page(project, commit, label)}
                         style={{margin: '5px'}}
                        >
-                  {pretty_label(batch)} &nbsp;•&nbsp;{status}&nbsp;{failures}
+                  {pretty_label(batch)} &nbsp;•&nbsp;
+                  <span title={`${batch.valid_outputs} of ${total} run${total === 1 ? '' : 's'} finished`}>
+                    {batch.valid_outputs}/{total}<Icon icon="tick-circle" size={12} intent={Intent.SUCCESS} style={status_icon_style}/>
+                  </span>
+                  {batch.failed_outputs > 0 && <span title={`${batch.failed_outputs} failed`} style={{marginLeft: '8px'}}>
+                    {batch.failed_outputs}<Icon icon="error" size={12} intent={Intent.DANGER} style={status_icon_style}/>
+                  </span>}
                 </LinkButton>
             })}
             </div>}
@@ -195,7 +217,7 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
         {ci_batch.valid_outputs === 0 && <LinkButton
           style={{ marginLeft: "10px" }}
           to={commit_page(project, commit, ci_batch_label)}
-          intent={Intent.DANGER}
+          className={Classes.TEXT_MUTED}
           variant="minimal"
           text="No results"
         />}
@@ -236,7 +258,7 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
                 </ul>
               </>}
               >
-                <Tag minimal round aria-label="All aggregated metrics">...</Tag>
+                <Tag minimal round aria-label="All aggregated metrics">…</Tag>
               </Tooltip>}
             </Fragment>}
       </Fragment>
@@ -245,12 +267,15 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
       <div className={className}>
         {status_messages}
         {ci_batch.valid_outputs > 0 && (
-          <LinkButton
-            style={{ marginLeft: "10px" }}
-            to={commit_page(project, commit, ci_batch_label)}
-            intent={Intent.SUCCESS}
-            text={`${ci_batch.valid_outputs} ${pretty_label(ci_batch)} run${ci_batch.valid_outputs > 1 ? 's' : ''}`}
-          />
+          <Tooltip content={`Open the ${runs(ci_batch.valid_outputs)} of the ${pretty_label(ci_batch)} batch`}>
+            <LinkButton
+              style={{ marginLeft: "6px" }}
+              to={commit_page(project, commit, ci_batch_label)}
+              variant="outlined"
+              size="small"
+              text={runs(ci_batch.valid_outputs)}
+            />
+          </Tooltip>
         )}
       </div>
     );
@@ -262,7 +287,7 @@ const CommitResultsStyled = styled(CommitResults)`
 const CommitShortId = styled.a`
   font-family: "Menlo", "Liberation Mono", "Consolas", "DejaVu Sans Mono",
     "Ubuntu Mono", "Courier New", "andale mono", "lucida console", monospace;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--qa-link);
 `;
 
@@ -328,7 +353,7 @@ const CommitRow = ({ commit, project, project_data = {}, className, tag, default
                 style={{marginLeft: '2px'}}
                 variant="minimal"
                 size="small"
-                intent={Intent.PRIMARY}
+                className={Classes.TEXT_MUTED}
                 icon="duplicate"
                 aria-label="Copy the commit hash"
                 onClick={() => copyWithToast(commit.id, { what: 'the commit hash' })}
@@ -338,12 +363,12 @@ const CommitRow = ({ commit, project, project_data = {}, className, tag, default
           <PopoverNext
             placement="bottom"
             content={<Menu>
-              {hasPathMappings() && <MenuItem text="Copy Directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url, { windows: true })} />}
-              <MenuItem text="Copy Directory" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url)} />
-              <MenuItem text="View files in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
+              {hasPathMappings() && <MenuItem text="Copy directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url, { windows: true })} />}
+              <MenuItem text="Copy directory" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url)} />
+              <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
               <MenuDivider title="Manage"/>
               <MenuItem
-                text="Delete All Runs…"
+                text="Delete all runs…"
                 icon="trash"
                 intent={Intent.DANGER}
                 disabled={waiting || commit_has_milestones}
@@ -353,7 +378,7 @@ const CommitRow = ({ commit, project, project_data = {}, className, tag, default
                 onClick={() => setConfirmDelete({url: `/api/v1/commit/${project}/${commit.id}/batches/`})}
               />
               {is_subproject && <MenuItem
-                text="Delete All Runs (in all other projects for this commit!)…"
+                text="Delete all runs, in all the projects with this commit…"
                 icon="trash"
                 intent={Intent.DANGER}
                 disabled={waiting || commit_has_milestones}
@@ -388,7 +413,7 @@ const CommitRow = ({ commit, project, project_data = {}, className, tag, default
           </Alert>
 
 
-            <Icon icon="git-branch" />
+            <Icon icon="git-branch" style={{ marginRight: '4px' }} />
             <Link
               style={{
                 color: "var(--qa-text-secondary)",

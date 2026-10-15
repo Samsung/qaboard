@@ -216,9 +216,10 @@ const CommitsListNavbar = () => {
               inputProps={{
                 leftIcon: 'filter',
                 intent: !!search ? Intent.PRIMARY : null,
+                // Suggest only reads the placeholder from inputProps
+                placeholder: "Search commits, or go to a branch or commit…",
+                style: {width: '350px'},
               }}
-              intent={!!search ? 'primary' : 'default'}
-              placeholder="Search commits, or go to a branch or commit…"
               onQueryChange={query => {
                 setWantsBranches(true);
                 onSearchChange(query);
@@ -228,11 +229,15 @@ const CommitsListNavbar = () => {
         {route.is_history &&
           <InputGroup
             value={filter}
-            placeholder="Path, configuration, platform, tag, tuning parameters (key:value)..."
+            placeholder="Filter runs: path, tag, key:value…"
+            title="Filter runs by path, configuration, platform, tag or tuning parameters (key:value)"
+            aria-label="Filter runs"
+            intent={filter ? Intent.PRIMARY : undefined}
             onChange={onFilterChange}
-            type="search"
+            type="text"
             leftIcon="filter"
-            style={{width: '450px'}}
+            rightElement={filter ? <Button size="small" variant="minimal" icon="cross" aria-label="Clear the filter" onClick={() => onFilterChange('')}/> : undefined}
+            style={{width: '320px'}}
           />}
       </NavbarGroup>
     </StyledNavbar>

@@ -38,7 +38,7 @@ describe('CommitRow', () => {
     expect(screen.getByText('feature/denoise').closest('a')).toHaveAttribute('href', '/group/proj/commits/feature/denoise');
     expect(screen.getByText('by alice').closest('a')).toHaveAttribute('href', '/group/proj/committer/alice');
     // we compare with the same batch in the reference
-    expect(screen.getByText('3 nightly runs').closest('a')).toHaveAttribute('href', '/group/proj/commit/abcdef1234567890?batch=nightly&batch_ref=nightly');
+    expect(screen.getByText('3 runs').closest('a')).toHaveAttribute('href', '/group/proj/commit/abcdef1234567890?batch=nightly&batch_ref=nightly');
   });
 
   it("doesn't change the project's data", () => {
@@ -62,7 +62,7 @@ describe('CommitRow', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 200 })));
     renderRow();
     fireEvent.click(screen.getByLabelText('Commit actions'));
-    fireEvent.click(await screen.findByText('Delete All Runs…'));
+    fireEvent.click(await screen.findByText('Delete all runs…'));
     const alert = within(await screen.findByRole('alertdialog'));
     expect(alert.getByText('Delete all the runs of abcdef12?')).toBeInTheDocument();
     expect(fetch).not.toHaveBeenCalled();

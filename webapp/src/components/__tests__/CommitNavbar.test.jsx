@@ -75,6 +75,13 @@ describe('CommitNavbar', () => {
     await waitFor(() => expect(fetch.mock.calls.some(([url, init]) => url.startsWith('/api/v1/batch/3/') && init.method === 'DELETE')).toBe(true));
   });
 
+  it("doesn't show placeholders for a commit that failed to load", () => {
+    const { container } = renderNavbar({ commit: { id: commit.id, batches: {}, is_loaded: true, error: '500 Internal Server Error' } });
+    expect(screen.getByText('Could not load this commit')).toBeInTheDocument();
+    expect(screen.getByText('Error')).toBeInTheDocument();
+    expect(container.querySelector('.bp6-skeleton')).toBeNull();
+  });
+
   it('says when the reference is the same as the new commit', () => {
     renderNavbar({ type: 'ref', same_as_new: true });
     expect(screen.getByText('Same as new')).toBeInTheDocument();

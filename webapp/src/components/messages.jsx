@@ -66,7 +66,8 @@ const CommitWarningMessages = ({ project, commit }) => {
 
 
 
-const SimpleOutputList = ({outputs, intent}) => {
+// link_logs: the run names open their log
+const SimpleOutputList = ({outputs, intent, link_logs = false}) => {
   return <ul className={Classes.LIST}>
     {outputs.map(o => {
       const has_metadata = !!o.test_input_metadata && (Object.keys(o.test_input_metadata).length > 0)
@@ -79,7 +80,11 @@ const SimpleOutputList = ({outputs, intent}) => {
         run_path = o.test_input_metadata.label
       }
       return <li key={o.id}>
-        <strong style={{paddingRight: '5px'}}>{run_path}</strong>
+        <strong style={{paddingRight: '5px'}}>
+          {link_logs && !!o.output_dir_url
+            ? <a href={`${o.output_dir_url}/log.txt`} target="_blank" rel="noopener noreferrer" title="Open its log">{run_path}</a>
+            : run_path}
+        </strong>
         <ConfigurationsTags intent={intent} configurations={o.configurations}/>
         <ExtraParametersTags intent={intent} parameters={o.extra_parameters} before={<br/>} />
       </li>
@@ -156,42 +161,27 @@ const BatchStatusMessages = ({ project, commit, batch }) => {
 
   const outputs = batch.filtered.outputs.map(id => batch.outputs[id])
   let some_pending = outputs.some(o => o.is_pending);
-  let stop_runs = some_pending && <Callout>
-    <Button icon="stop" disabled={waiting_stop} onClick={stop_batch} minimal>Stop runs</Button>
-  </Callout>
+  const nb_running = batch.filtered.running_outputs;
+  const nb_pending = batch.filtered.pending_outputs - batch.filtered.running_outputs;
+  const show_logs = () => updateSelected({ selected_views: 'logs' })
 
-
-  let running_message = batch.filtered.running_outputs > 0 && (
+  // The runs in progress, and how to stop them
+  let progress_message = (nb_running > 0 || nb_pending > 0 || some_pending) && (
     <Callout
-      icon="info-sign"
-      intent={Intent.SUCCESS}
-      title={
-        <Tooltip content={<SimpleOutputList
-          outputs={outputs.filter(o => o.is_running)}
-        />}>
-          <span>
-            {batch.filtered.running_outputs} running
-          </span>
-        </Tooltip>
-      }
-    />
-  )
-  let nb_pending = batch.filtered.pending_outputs - batch.filtered.running_outputs;
-  let pending_message = nb_pending > 0 && (
-    <Callout
-      icon="info-sign"
-      intent={Intent.WARNING}
-      title={
-        <Tooltip content={<SimpleOutputList
-          outputs={outputs.filter(o => o.is_pending && !o.is_running)}
-          intent={Intent.WARNING}
-        />}>
-          <span>
-            {nb_pending} pending
-          </span>
-        </Tooltip>
-      }
-    />
+      icon="time"
+      intent={Intent.PRIMARY}
+      title={<>
+        {nb_running > 0 && <Tooltip content={<SimpleOutputList outputs={outputs.filter(o => o.is_running)}/>}>
+          <span>{nb_running} running</span>
+        </Tooltip>}
+        {nb_running > 0 && nb_pending > 0 && ' · '}
+        {nb_pending > 0 && <Tooltip content={<SimpleOutputList outputs={outputs.filter(o => o.is_pending && !o.is_running)}/>}>
+          <span>{nb_pending} pending</span>
+        </Tooltip>}
+      </>}
+    >
+      {some_pending && <Button size="small" icon="stop" disabled={waiting_stop} onClick={stop_batch}>Stop runs</Button>}
+    </Callout>
   )
   let failed_message = batch.filtered.failed_outputs > 0 && (
     <Callout
@@ -199,11 +189,12 @@ const BatchStatusMessages = ({ project, commit, batch }) => {
       intent={Intent.DANGER}
       title={`${batch.filtered.failed_outputs} failed`}
     >
-      <p>Be sure to read the logs.</p>
       <SimpleOutputList
         outputs={outputs.filter(o => o.is_failed)}
         intent={Intent.DANGER}
+        link_logs
       />
+      <Button size="small" icon="console" onClick={show_logs}>Open the logs</Button>
     </Callout>
   )
 
@@ -230,9 +221,7 @@ const BatchStatusMessages = ({ project, commit, batch }) => {
       onFinished={refresh}
     />
     {local_batch_message}
-    {running_message}
-    {pending_message}
-    {stop_runs}
+    {progress_message}
     {failed_message}
     {deleted_message}
   </Fragment>;

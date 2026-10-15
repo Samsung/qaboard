@@ -35,18 +35,24 @@ import { copyDirectory } from "./logs/DirectoryActions"
 import { hasPathMappings } from "../utils/paths"
 
 
-const CommitMessage = ({ commit, style: extra_style }) => {
+// error: why we could not load the commit, e.g. "404 ..."
+const CommitMessage = ({ commit, error, style: extra_style }) => {
   const style = { whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden', ...extra_style }
   if (!commit?.message) {
-    return <span className={`${Classes.SKELETON} ${Classes.MONOSPACE_TEXT}`} style={style}>This is a placeholder for the commit message. Yep.</span>
+    if (error)
+      return <span className={Classes.TEXT_MUTED} style={style}>{error.startsWith('404') ? "Commit not found" : "Could not load this commit"}</span>
+    return <span className={Classes.SKELETON} style={style}>This is a placeholder for the commit message. Yep.</span>
   }
-  return <span style={style} title={commit.message} className={Classes.MONOSPACE_TEXT} >
+  return <span style={style} title={commit.message}>
     {commit.message}
   </span>
 }
 
-const CommitBranchButton = ({ commit, onClick, style }) => {
+const CommitBranchButton = ({ commit, error, onClick, style }) => {
   const has_branch = !!commit?.branch
+  // we won't learn the branch: no placeholder
+  if (!has_branch && error)
+    return null
   return <span style={style}>
     <Tooltip content={<span>Click to select the latest commit from <code>{has_branch ? commit.branch : 'the branch'}</code></span>}>
       <Button style={{marginLeft: '10px'}} size="small" variant="minimal" onClick={() => { if (has_branch) onClick(commit.branch) }} className={has_branch ? null : Classes.SKELETON} icon="git-branch" >
@@ -365,8 +371,8 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
   const has_any_milestone = [qatools_milestones, shared_milestones, private_milestones].some(m => Object.keys(m).length > 0)
 
   const is_milestone = has_milestones({commit, project, project_data, batch})
-  const milestones_menu = <Menu style={{maxHeight: '500px', overflowY: 'scroll'}}>
-    <MenuDivider title="Change Project"/>
+  const milestones_menu = <Menu style={{maxHeight: '500px', maxWidth: '360px', overflowY: 'auto'}}>
+    <MenuDivider title="Change project"/>
     <ControlGroup>
       <InputGroup
         placeholder="project"
@@ -381,7 +387,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
       />
       <Button icon="arrow-right" aria-label="Show this commit in the project" onClick={() => selectCommit(commit?.id)}></Button>
     </ControlGroup>
-    <MenuDivider title="Quick Actions"/>
+    <MenuDivider title="Quick actions"/>
     <MenuItem text="Switch new/reference" icon="exchange" onClick={switchSelection} />
     <MenuItem text={`Also select as ${type === 'ref' ? 'new' : 'reference'}`} icon={type === 'ref' ? "chevron-up" : "chevron-down"} onClick={copyToOtherType} />
     <MenuItem text="Remove from comparison" icon="cross" onClick={removeSelection} />
@@ -429,11 +435,12 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
               content={type === 'new' ? "New: the results you're looking at" : "Reference: what the new results are compared to. Change it with “Change” or pick a milestone."}
               targetProps={{style: {flex: '0 1 auto', alignSelf: 'center', marginRight: '5px'}}}
             >
-              <Tag style={{ fontFamily: 'monospace' }} minimal>{type}</Tag>
+              <Tag minimal>{type}</Tag>
             </Tooltip>
-            <CommitAvatar size='20px' commit={commit} project={selected[project_attr] ?? project} style={{ marginRight: '5px' }} />
+            {(!error_text || !!commit?.committer_name) && <CommitAvatar size='20px' commit={commit} project={selected[project_attr] ?? project} style={{ marginRight: '5px' }} />}
             <CommitMessage
               commit={commit}
+              error={error_text}
               style={{ maxWidth: "450px", minWidth: "450px", flex: '0 1 auto' }}
             />
           </span>
@@ -452,20 +459,8 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
           <div style={{ flex: '0 1 auto', alignSelf: 'center' }}>
             <InputGroup
               leftIcon="git-commit"
-              style={{
-                width: '160px',
-                fontFamily: 'monospace',
-              }}
-              rightElement={<PopoverNext
-                  placement="bottom"
-                  hoverCloseDelay={200}
-                  interactionKind={"hover"}
-                  content={milestones_menu}
-                >
-                <Button size="small" variant="minimal" icon="edit" aria-label={`Change the ${type === 'new' ? 'new' : 'reference'} commit`}>
-                  <span className="hide-small-screen">Change</span>
-                </Button>
-              </PopoverNext>}
+              style={{ width: '120px' }}
+              inputClassName={Classes.MONOSPACE_TEXT}
               onChange={selectCommit}
               onBlur={() => setTyping(false)}
               small
@@ -475,14 +470,20 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
               key={commit?.id ? shortId(project, commit.id) : ''}
             />
           </div>
-          <span style={{ flex: '0 1 auto', alignSelf: 'center' }}>
-          </span>
+          <PopoverNext
+            placement="bottom-start"
+            content={milestones_menu}
+          >
+            <Button size="small" variant="minimal" icon="edit" style={{ alignSelf: 'center', marginLeft: '2px' }} aria-label={`Change the ${type === 'new' ? 'new' : 'reference'} commit`}>
+              <span className="hide-small-screen">Change</span>
+            </Button>
+          </PopoverNext>
           {!!selected[project_attr] && project !== selected[project_attr] && <Tooltip content={`Results from another project: ${selected[project_attr]}`} targetProps={{style: {alignSelf: "center"}}}>
             <Tag style={{marginLeft: '10px', padding: '5px'}}>{selected[project_attr]}</Tag>
           </Tooltip>}
-          <CommitBranchButton commit={commit} onClick={selectBranch} style={{ flex: '0 1 auto', alignSelf: 'center' }} />
+          <CommitBranchButton commit={commit} error={error_text} onClick={selectBranch} style={{ flex: '0 1 auto', alignSelf: 'center' }} />
 
-          <DoneAtTag project={project} commit={commit} style={{ flex: '0 1 auto', alignSelf: 'center' }} />{" "}
+          {(!error_text || !!commit?.authored_datetime) && <DoneAtTag project={project} commit={commit} style={{ flex: '0 1 auto', alignSelf: 'center' }} />}{" "}
           {same_as_new && <Tooltip content="Same commit as new: pick another reference to compare" targetProps={{style: {alignSelf: "center"}}}>
             <Tag minimal intent={Intent.WARNING} icon="duplicate" style={{ marginLeft: '5px' }}>Same as new</Tag>
           </Tooltip>}
@@ -495,6 +496,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             </span>
           } targetProps={{style: {alignSelf: "center"}}}>
             <Tag
+              minimal
               intent={Intent.DANGER}
               icon="error"
               style={{ marginRight: '5px', marginLeft: '5px' }}>
@@ -508,12 +510,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
       <FormGroup
         labelFor={`filter-${type}-input`}
         style={{ marginBottom: '0px', marginRight: '10px' }}
-        helperText={<>
-          <BatchTags batch={batch?.filtered}/>
-          <Tooltip content={filter_help}>
-            <Button size="small" variant="minimal" icon="help" className={Classes.TEXT_MUTED} aria-label="How to filter runs" style={{marginLeft: '5px'}}/>
-          </Tooltip>
-        </>}
+        helperText={<BatchTags batch={batch?.filtered}/>}
       >
         <InputGroup
           id={`filter-${type}-input`}
@@ -521,8 +518,14 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
           intent={filter_text ? 'primary' : 'default'}
           placeholder={type === 'ref' ? "Filter the reference's runs…" : "Filter runs…"}
           onChange={onFilterChange}
-          type="search"
+          type="text"
           leftIcon="filter"
+          rightElement={<>
+            {!!filter_text && <Button size="small" variant="minimal" icon="cross" aria-label="Clear the filter" onClick={() => onFilterChange('')}/>}
+            <Tooltip content={filter_help}>
+              <Button size="small" variant="minimal" icon="help" className={Classes.TEXT_MUTED} aria-label="How to filter runs"/>
+            </Tooltip>
+          </>}
         />
       </FormGroup>
       <SelectBatchesNav
@@ -660,7 +663,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             onClick={() => setConfirming('delete-all')}
           />
           <MenuItem
-              text={<em>Delete files, keep metadata</em>}
+              text="Delete files, keep metadata"
               shouldDismissPopover={false}
               htmlTitle="Deletes the output files to free storage, keeps the runs and their metrics"
               labelElement={<Switch checked={soft_delete} innerLabelChecked="soft" aria-label="Delete files, keep metadata" onChange={() => setSoftDelete(!soft_delete)} />}

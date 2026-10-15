@@ -133,7 +133,7 @@ describe('CiCommitList', () => {
     fetchMock.mockImplementation(async url => url.startsWith('/api/v1/commits') ? json([]) : respond(url));
     try {
       renderPage(`/${project}`);
-      expect(await screen.findByText('Could not find a commit with results')).toBeInTheDocument();
+      expect(await screen.findByText('No commits with results in the last 3 days')).toBeInTheDocument();
       expect(screen.getByText('Set up your CI')).toHaveAttribute('href', expect.stringMatching(/docs\/ci-integration$/));
       expect(screen.getByText('Search 7 more days')).toBeInTheDocument();
     } finally {

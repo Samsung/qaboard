@@ -248,7 +248,6 @@ const UserMenu = ({ user, logout, avatar_url_template }) => {
           <MenuItem
             text="Log out"
             icon="log-out"
-            intent={Intent.DANGER}
             onClick={logout}
           />
         </UserDropdownMenu>

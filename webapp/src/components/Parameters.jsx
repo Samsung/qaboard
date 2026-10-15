@@ -6,12 +6,12 @@ import {
   Classes,
   Button,
   Tag,
-  Intent,
   Callout,
   FormGroup,
   Switch,
   NonIdealState,
   InputGroup,
+  SegmentedControl,
   Spinner,
 } from "@blueprintjs/core";
 
@@ -79,19 +79,18 @@ const CommitParameters = ({ new_commit, ref_commit, config }) => {
   const help_text = <>
     <p>
       Configurations are defined in your <strong>qaboard.yaml</strong>, eg as <code>artifacts.configurations</code>.
-      <br/>
-      {artifacts.length === 0 && <>Declare other <code>artifacts</code> in <em>qaboard.yaml</em> to explore them here. {artifacts_docs}.</>}
-      {artifacts.length > 0 && "You can explore all your artifacts: "}{artifacts.map((name, idx) => 
-          <Button
-              key={idx}
-              onClick={() => update('params_artifact')(name)}
-              intent={name===artifact ? Intent.PRIMARY : null}
-              style={{margin: '5px'}}
-          >
-              {name}
-          </Button>
-      )}
+      {artifacts.length === 0 && <><br/>Declare other <code>artifacts</code> in <em>qaboard.yaml</em> to explore them here. {artifacts_docs}.</>}
     </p>
+    {artifacts.length > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '15px' }}>
+      <span>Artifacts</span>
+      <SegmentedControl
+        aria-label="Artifacts"
+        size="small"
+        value={artifact}
+        onValueChange={update('params_artifact')}
+        options={artifacts.map(name => ({ value: name, label: name }))}
+      />
+    </div>}
   </>
 
   const fake_output = {is_failed: false, is_running: false, is_pending: false, metrics: {}}
@@ -111,54 +110,51 @@ const CommitParameters = ({ new_commit, ref_commit, config }) => {
   </>
 
 
-  const forms = <Callout style={{marginBottom: '20px', display: 'flex', justifyContent: 'space-between'}}>
+  const forms = <Callout style={{marginBottom: '20px', display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr)) auto', columnGap: '24px', alignItems: 'start'}}>
       <FormGroup
-        inline
         labelFor="show-all-files"
         helperText="By default the only files shown are those that are different/added/removed."
-        style={{flex: '50 1 auto'}}
+        style={{ marginBottom: 0 }}
       >
         <Switch
+          id="show-all-files"
           label="Show all files"
           checked={show_all_files}
           onChange={toggle('params_show_all_files', show_all_files)}
-          style={{ width: "300px" }}
         />
       </FormGroup>
       <FormGroup
-        inline
         labelFor="expand-all"
-        style={{flex: '50 1 auto'}}
+        style={{ marginBottom: 0 }}
       >
         <Switch
+          id="expand-all"
           label="Expand all folders"
           checked={expand_all}
           onChange={toggle('params_expand_all', expand_all)}
-          style={{ width: "300px" }}
         />
         <Switch
           label="Color-blind friendly"
           checked={color_blind_friendly}
           onChange={toggle('params_color_blind_friendly', color_blind_friendly)}
-          style={{ width: "300px" }}
         />
       </FormGroup>
       <FormGroup
-        inline
         labelFor="files-filter"
         helperText="Only show files matching"
-        style={{flex: '50 1 auto'}}
+        style={{ marginBottom: 0 }}
       >
         <InputGroup
+          id="files-filter"
           value={files_filter_text}
-          placeholder="filter by path"
+          placeholder="Filter by path"
           onChange={onFilesFilterChange}
-          type="search"
+          type="text"
           leftIcon="filter"
-          style={{ width: "150px" }}
+          rightElement={files_filter_text ? <Button size="small" variant="minimal" icon="cross" aria-label="Clear the filter" onClick={() => onFilesFilterChange('')}/> : undefined}
         />
       </FormGroup>
-      <span style={{flex: '1 1 auto'}}>{bit_accuracy_help}</span>
+      <span>{bit_accuracy_help}</span>
   </Callout>
 
   return <div>
@@ -177,10 +173,10 @@ const CommitParameters = ({ new_commit, ref_commit, config }) => {
     <div style={{margin: '10px'}}>
       {/* without path mappings, Windows paths would only have flipped slashes */}
       {hasPathMappings() && <Button style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => copyDirectory(new_commit.artifacts_url, { windows: true })}>
-        Copy Path <Tag minimal>windows</Tag>
+        Copy path <Tag minimal>windows</Tag>
       </Button>}
       <Button style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="duplicate" onClick={() => copyDirectory(new_commit.artifacts_url)}>
-        Copy Path {hasPathMappings() && <Tag minimal>linux</Tag>}
+        Copy path {hasPathMappings() && <Tag minimal>linux</Tag>}
       </Button>
       <AnchorButton rel="noopener noreferrer" target="_blank" href={new_commit.artifacts_url} style={{margin: '10px'}} className={Classes.TEXT_MUTED} icon="folder-shared-open">
         View in browser
