@@ -61,10 +61,15 @@ function Player({entry, url, remote, alt, priority, autoplay, loop, onError}: {
 
   useEffect(() => setHydrated(true), []);
 
-  // The sources may have failed before hydration, when React wasn't listening yet
+  // The sources may have failed before hydration, when React wasn't listening yet. A video React just created (a tab
+  // switch, a client-side navigation) is NETWORK_NO_SOURCE too, until the browser has looked at its sources, which it
+  // does once the current task ends: check after that
   useEffect(() => {
-    if (video.current?.networkState === HTMLMediaElement.NETWORK_NO_SOURCE)
-      onError();
+    const timer = setTimeout(() => {
+      if (video.current?.networkState === HTMLMediaElement.NETWORK_NO_SOURCE)
+        onError();
+    });
+    return () => clearTimeout(timer);
   }, []);
 
   const play = useCallback(() => {
