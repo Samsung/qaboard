@@ -319,7 +319,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
   return <>
     {/* The branch's commits: highlighted on their page, a link elsewhere */}
     {(is_project_home || is_history)
-      ? <MenuItemLink to={commits_url} text={project_data.is_loaded ? branch ?? 'All commits' : <span className={Classes.SKELETON}>branch</span>} title={branch ? `Commits on ${branch}` : 'Commits on all branches'} icon='git-branch'/>
+      ? <MenuItemLink to={commits_url} text={(is_branch || project_data.is_loaded) ? branch ?? 'All commits' : <span className={Classes.SKELETON}>branch</span>} title={branch ? `Commits on ${branch}` : 'Commits on all branches'} icon='git-branch'/>
       : <MenuItem icon={is_branch ? "git-branch" : 'user'} active text={tag ?? 'All commits'} title={is_branch ? `Commits on ${tag}` : tag && `Commits by ${tag}`}/>
     }
     {!is_committer && <>
