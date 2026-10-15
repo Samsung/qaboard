@@ -334,11 +334,11 @@ clip('commit/image-diff', {
     await zoom(ui, scope, { x: 25, y: 25 }, 4);
     await ui.hold(1500);
     await ui.caption('Image Diff shows what changed');
-    await ui.click(ui.page.locator('[title="Toggle Controls Panel"]'));
+    await ui.click(ui.page.locator('[aria-expanded][title$=" the controls"]'));
     await ui.hold(500);
     await ui.click(controlsPanel(ui.page).locator('label', { hasText: 'Image Diff' }));
     await ui.settle();
-    await ui.click(ui.page.locator('[title="Toggle Controls Panel"]'));
+    await ui.click(ui.page.locator('[aria-expanded][title$=" the controls"]'));
     await ui.hold(1500);
     await ui.caption('A higher threshold keeps only the halos');
     // from 5% to 15%: the slider spans 0-30% over the width of an image
@@ -450,9 +450,9 @@ clip('commit/video-compare', {
 // The commit bars, fixed at the top of the page: the new commit's, then the reference's. On the right of each, the
 // filter box with the counters under it, then the batch selector.
 const filterBox = (page: Page, type: 'new' | 'ref') =>
-  page.locator('.bp6-form-group', { has: page.locator(`input[placeholder="filter ${type} outputs"]`) });
+  page.locator('.bp6-form-group', { has: page.locator(`input#filter-${type}-input`) });
 const barRight = (page: Page, type: 'new' | 'ref') =>
-  page.locator('.bp6-navbar-group.bp6-align-right', { has: page.locator(`input[placeholder="filter ${type} outputs"]`) });
+  page.locator('.bp6-navbar-group.bp6-align-right', { has: page.locator(`input#filter-${type}-input`) });
 // The Controls panel's Dynamic Options: one entry per option, here the ISP stage
 const dynamicOptions = (page: Page) => controlsPanel(page).getByText('Dynamic Options', { exact: true }).locator('xpath=../..');
 
@@ -464,7 +464,7 @@ shot('commit/batch-picker', {
   caption: 'Each commit can have several batches: CI\'s, your local runs (🏠) and tuning experiments. Pick one to see '
     + 'its runs.',
   actions: async ui => {
-    await ui.click(barRight(ui.page, 'new').locator('.bp6-popover-target button').first());
+    await ui.click(barRight(ui.page, 'new').getByRole('button', { name: /^Batch:/ }));
     await ui.page.locator('.bp6-popover', { hasText: 'tune-denoise' }).waitFor();
     await ui.settle();
   },
@@ -479,12 +479,12 @@ shot('commit/output-filter', {
     + 'only the low-light runs, the sky gradient left out.',
   caption: 'Words narrow down the runs, a minus sign leaves some out; the counters under the box count what\'s left.',
   actions: async ui => {
-    await ui.type(ui.page.locator('input[placeholder="filter new outputs"]'), 'low-light -gradient');
+    await ui.type(ui.page.locator('input#filter-new-input'), 'low-light -gradient');
     await ui.settle();
     await ui.cursor.moveTo({ x: 1300, y: 860 });
   },
   // the filter box and its counters, and the table of the runs left
-  target: page => [filterBox(page, 'new'), page.locator('.bp6-card', { hasText: 'Quality report' })],
+  target: page => [filterBox(page, 'new'), viewCard(page, 'Metrics Table')],
   padding: 8,
 });
 
@@ -691,9 +691,9 @@ const showOnly = (...names: Array<(typeof DET_VIZ)[number]>) => ({ show: Object.
 // int8-minmax against the fp32 release
 const int8 = (d: Demo, opts: { view?: 'summary' | 'table-kpi' | 'table-compare' | 'output-list'; filter?: string; controls?: Record<string, unknown> } = {}) =>
   d.commitUrl(DE, 'int8-minmax', { reference: 'kd-1-2', view: opts.view ?? 'output-list', filter: opts.filter, controls: opts.controls });
-// The view's card: Summary, Quality report (Metrics Table), Improvement report (Metrics Diff)...
-const viewCard = (page: Page, heading: string) =>
-  page.locator('.bp6-card', { has: page.locator('h1, h2, h3', { hasText: new RegExp(`^${heading}$`) }) }).first();
+// A view of the commit page, its title and its card: Summary, Metrics Table, Metrics Diff...
+const viewCard = (page: Page, title: string) =>
+  page.locator('h2', { hasText: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`) }).first().locator('xpath=../..');
 
 // The metrics a view shows: a tag input above it. Replaces one metric with another
 async function swapMetric(ui: Ui, scope: Locator, remove: string, add: string) {
@@ -738,7 +738,7 @@ shot('commit/metrics-table', {
     await ui.cursor.moveTo({ x: 1420, y: 880 });
     await ui.settle();
   },
-  target: page => viewCard(page, 'Quality report'),
+  target: page => viewCard(page, 'Metrics Table'),
   padding: 0,
 });
 
@@ -750,10 +750,10 @@ shot('commit/metrics-diff', {
     + 'every slice.',
   caption: 'The Metrics Diff shows each test\'s change: the int8 model is smaller everywhere, and much worse indoors.',
   actions: async ui => {
-    await swapMetric(ui, viewCard(ui.page, 'Improvement report'), 'Latency per image', 'Model size');
+    await swapMetric(ui, viewCard(ui.page, 'Metrics Diff'), 'Latency per image', 'Model size');
     await ui.cursor.moveTo({ x: 1420, y: 880 });
   },
-  target: page => viewCard(page, 'Improvement report'),
+  target: page => viewCard(page, 'Metrics Diff'),
   padding: 0,
 });
 
@@ -776,7 +776,7 @@ clip('commit/compare-tour', {
     await ui.settle();
     await ui.hold(2500);
     await ui.caption('Sort by mAP, the worst slice first');
-    await ui.click(page.locator('[title="Toggle Controls Panel"]'));
+    await ui.click(page.locator('[aria-expanded][title$=" the controls"]'));
     await ui.hold(400);
     // the Controls panel's Sorting: a select after each label
     const select = (label: string) => page.getByText(label, { exact: true }).last().locator('xpath=following::select[1]');
@@ -788,9 +788,9 @@ clip('commit/compare-tour', {
     await select('Order').selectOption('1');
     await ui.settle();
     await ui.hold(600);
-    await ui.click(page.locator('[title="Toggle Controls Panel"]'));
+    await ui.click(page.locator('[aria-expanded][title$=" the controls"]'));
     await ui.settle();
-    await ui.cursor.moveTo(viewCard(page, 'Improvement report').getByText('slices/indoor').first());
+    await ui.cursor.moveTo(viewCard(page, 'Metrics Diff').getByText('slices/indoor').first());
     await ui.hold(2500);
   },
 });
@@ -820,13 +820,14 @@ shot('commit/change-menu', {
     + 'comparison, then the reference branch main and the shared milestones kd-1.3 and kd-1.2 with their commits.',
   caption: 'Change the reference from its commit bar: swap new and reference, or pick the reference branch or a milestone.',
   actions: async ui => {
-    await ui.hover(ui.page.locator('.bp6-navbar').nth(1).getByText('Change', { exact: true }));
+    await ui.click(ui.page.getByRole('button', { name: 'Change the reference commit' }));
     await ui.page.locator('.bp6-popover .bp6-menu', { hasText: 'Switch new/reference' }).waitFor();
     await ui.settle();
   },
   // the reference's hash and Change, and the menu under them
   target: page => [
-    page.locator('.bp6-navbar').nth(1).locator('.bp6-input-group', { hasText: 'Change' }),
+    page.getByRole('textbox', { name: 'The reference commit' }),
+    page.getByRole('button', { name: 'Change the reference commit' }),
     page.locator('.bp6-popover .bp6-menu', { hasText: 'Switch new/reference' }),
   ],
   padding: 8,
@@ -893,7 +894,7 @@ shot('commit/detections', {
   viewport: { width: 840, height: 640 },
   actions: async ui => {
     // In full screen, the images fill the screen, whatever the cards' width (qaboard.yaml: outputs.style.width)
-    await cards(ui.page).first().locator('[title="Enter Full Screen"]').evaluate(e => (e as HTMLElement).click());
+    await cards(ui.page).first().locator('[aria-label="Full screen"]').evaluate(e => (e as HTMLElement).click());
     await ui.page.waitForFunction(() => !!document.fullscreenElement);
     await ui.settle();
     await ui.tiles();
@@ -939,7 +940,7 @@ shot('commit/artifacts-configs', {
     await ui.settle();
     await mouseAway(ui);
   },
-  target: page => viewCard(page, 'Artifacts & Configurations'),
+  target: page => viewCard(page, 'Artifacts & Configs'),
   padding: 0,
 });
 
@@ -1070,7 +1071,7 @@ shot('commit/run-menu', {
   actions: async ui => {
     await showCard(ui);
     const card = cards(ui.page).first();
-    await ui.hover(card.locator('.bp6-icon-menu').first());
+    await ui.click(card.getByRole('button', { name: 'Run actions' }).first());
     await ui.page.locator('.bp6-popover .bp6-menu', { hasText: 'Delete Output Files' }).waitFor();
     await ui.settle();
   },

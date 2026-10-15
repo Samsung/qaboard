@@ -32,6 +32,7 @@ spec = importlib.util.spec_from_file_location("publish", HERE / "publish.py")
 publish = importlib.util.module_from_spec(spec)
 sys.modules["publish"] = publish
 spec.loader.exec_module(publish)
+VALIDATE = publish.validate
 
 T0 = "2026-10-08T16:00:00.000Z"
 
@@ -238,6 +239,64 @@ def test_selection_and_frames(tmp_path):
     meta = {"scale": 2, "region": {"x": 10, "y": 20, "width": 300, "height": 200}}
     assert publish.video_filters(meta, (2880, 1800)).startswith("crop=600:400:20:40,")
     assert not publish.video_filters({"scale": 2, "region": {"x": 0, "y": 0, "width": 1440, "height": 900}}, (2880, 1800)).startswith("crop")
+
+
+
+def dark_image(width: int, height: int) -> Image.Image:
+    """The same page in a dark theme"""
+    im = ui_image(width, height)
+    return Image.fromarray(255 - np.asarray(im))
+
+
+def test_dark_variant(tmp_path, monkeypatch):
+    out = tmp_path / "out"
+    still_capture(out, "commit/themed", ui_image(2880, 1800))
+    still_capture(out / "commit/themed", "dark", dark_image(2880, 1800), id="commit/themed")
+    # a template with no dark theme: the dark capture is the light one
+    still_capture(out, "ci/no-dark", ui_image(1600, 1000))
+    still_capture(out / "ci/no-dark", "dark", ui_image(1600, 1000), id="ci/no-dark")
+    assert list(publish.find_captures(out, None, "dark")) == ["ci/no-dark", "commit/themed"]
+    assert list(publish.find_captures(out, None)) == ["ci/no-dark", "commit/themed"]
+    manifests = []
+    monkeypatch.setattr(publish, "validate", lambda m: manifests.append(m) or VALIDATE(m))
+    assert run_publish(tmp_path) == 0
+    shots = manifests[-1]["shots"]
+    dark = shots["commit/themed"]["dark"]
+    assert set(dark) == {"files", "lqip"} and set(dark["files"]) == {"avif", "webp", "png"}
+    assert dark["files"]["png"]["key"] != shots["commit/themed"]["files"]["png"]["key"]
+    assert "dark" not in shots["ci/no-dark"]
+    report = json.loads((out / "publish-report.json").read_text())
+    assert report["shots"]["ci/no-dark (dark)"]["status"] == "same as light"
+    assert report["shots"]["commit/themed (dark)"]["status"] == "new"
+    assert publish.served_bytes(manifests[-1]) == sum(
+        f["bytes"] for e in shots.values() for f in publish.entry_files(e) if not f["key"].endswith(".png"))
+
+
+def test_dark_capture_must_match_the_light_one(tmp_path):
+    out = tmp_path / "out"
+    still_capture(out, "commit/themed", ui_image(2880, 1800))
+    still_capture(out / "commit/themed", "dark", dark_image(2880, 1600), id="commit/themed")
+    with pytest.raises(publish.PublishError, match="they must match"):
+        run_publish(tmp_path)
+    # and a dark capture alone has nothing to be a variant of
+    (out / "commit/themed/meta.json").unlink()
+    with pytest.raises(publish.PublishError, match="no light capture"):
+        run_publish(tmp_path)
+
+
+def test_dark_capture_waits_when_its_light_one_failed(tmp_path):
+    # the light capture is published at 1440x900; this run only has a dark one, of another size (the page changed)
+    out = tmp_path / "out"
+    manifest = tmp_path / "media.json"
+    entry = {"kind": "still", "width": 1440, "height": 900, "lqip": "data:image/webp;base64,AA==", "alt": "A synthetic page with six run cards.",
+             "project": "image-quality", "captured": "2026-10-12", "app_version": "1.1.1+0000000",
+             "source_spec": "docs-media/shots/commit.spec.ts",
+             "files": {r: {"key": f"shots/commit/themed/{'0' * 16}.{r}", "bytes": 1} for r in ("avif", "webp", "png")}}
+    manifest.write_text(json.dumps({"$schema": "./media.schema.json", "version": 1, "base_url": "https://qaboard-media.sivoov.app",
+                                    "shots": {"commit/themed": entry}}))
+    still_capture(out / "commit/themed", "dark", dark_image(2880, 1600), id="commit/themed")
+    assert run_publish(tmp_path, manifest) == 0
+    assert json.loads((out / "publish-report.json").read_text())["shots"]["commit/themed (dark)"]["status"] == "skipped"
 
 
 if __name__ == "__main__":

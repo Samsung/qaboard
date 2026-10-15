@@ -215,17 +215,10 @@ outputs:
 ```
 
 ### Point clouds and trajectories
-Point clouds open in a 3D viewer, and 6DoF trajectories are drawn against the ground truth when the run has one.
-
-<Shot
-  id="commit/pointcloud"
-  caption="A keyframe's point cloud against the ground truth's."
-/>
-
-<Shot
-  id="commit/trajectory-6dof"
-  caption="A trajectory against ground truth, in 3D and per axis: the drift starts after a keyframe change."
-/>
+Point clouds open in a 3D viewer, and 6DoF trajectories are drawn against the ground truth when the run has one. Both
+viewers were written for one team's file layouts (`Frame<N>/pointcloud.pcd`, tab-separated poses in
+`camera_poses_debug.csv` with the ground truth in `GT_final.txt`), and they'll be shown here with the robotics example.
+For other layouts, save a [Plot.ly](#plotly-viewer) figure with `scatter3d` traces, like the 3D plot above.
 
 ### More Viewers?
 Tell us what you need! The next we'll implement is likely [**vega**](https://vega.github.io/vega/) specs. It would notably allow us to display `altair` visualizations. We could also have a minimal integration with notebooks, [visdom](https://github.com/facebookresearch/visdom), [webiz](https://webviz.io/)...

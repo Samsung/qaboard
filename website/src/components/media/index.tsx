@@ -19,6 +19,8 @@ export type MediaEntry = {
   duration?: number;
   anchors?: Record<string, Box>;
   files: MediaFiles;
+  /** The same shot in the web app's dark theme, shown in the docs' dark mode */
+  dark?: {lqip: string; files: MediaFiles};
 };
 export type PlannedEntry = {kind?: Kind; shows: string; width?: number; height?: number; caption?: string};
 type MediaData = {
@@ -125,8 +127,7 @@ export function Placeholder({shots, kind = 'still', unavailable = false}: {shots
   );
 }
 
-/** <picture> with AVIF and WebP sources, its intrinsic size (no layout shift), and the LQIP until it loads. */
-export function Picture({entry, url, alt, priority = false, className, lazy = true, onError}: {
+type PictureProps = {
   entry: MediaEntry;
   url: (key: string) => string;
   alt: string;
@@ -135,6 +136,30 @@ export function Picture({entry, url, alt, priority = false, className, lazy = tr
   lazy?: boolean;
   /** The browser couldn't load the image */
   onError?: () => void;
+};
+
+/**
+ * <picture> with AVIF and WebP sources, its intrinsic size (no layout shift), and the LQIP until it loads.
+ * With a dark variant, both are in the page and CSS shows the one of the docs' color mode: no flash after hydration,
+ * and the browser doesn't fetch the hidden one (lazy images in display: none). Eager images load both.
+ */
+export function Picture(props: PictureProps) {
+  const {dark} = props.entry;
+  if (!dark)
+    return <OnePicture {...props} files={props.entry.files} lqip={props.entry.lqip} />;
+  return (
+    <>
+      <OnePicture {...props} files={props.entry.files} lqip={props.entry.lqip} variant={styles.lightOnly} />
+      <OnePicture {...props} files={dark.files} lqip={dark.lqip} variant={styles.darkOnly} />
+    </>
+  );
+}
+
+function OnePicture({entry, files, lqip, variant, url, alt, priority = false, className, lazy = true, onError}: PictureProps & {
+  files: MediaFiles;
+  lqip: string;
+  /** Shown in one color mode only */
+  variant?: string;
 }) {
   const ref = useRef<HTMLImageElement>(null);
   const [loaded, setLoaded] = useState(false);
@@ -145,10 +170,9 @@ export function Picture({entry, url, alt, priority = false, className, lazy = tr
     else if (ref.current?.complete && ref.current.currentSrc)
       onError?.();
   }, []);
-  const {files} = entry;
   const fallback = files.webp ?? files.png ?? files.avif;
   return (
-    <picture>
+    <picture className={variant}>
       {files.avif && <source type="image/avif" srcSet={url(files.avif)} />}
       {files.webp && <source type="image/webp" srcSet={url(files.webp)} />}
       <img
@@ -163,7 +187,7 @@ export function Picture({entry, url, alt, priority = false, className, lazy = tr
         fetchPriority={priority ? 'high' : undefined}
         onLoad={() => setLoaded(true)}
         onError={onError}
-        style={loaded || !entry.lqip ? undefined : {backgroundImage: `url("${entry.lqip}")`}}
+        style={loaded || !lqip ? undefined : {backgroundImage: `url("${lqip}")`}}
       />
     </picture>
   );

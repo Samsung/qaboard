@@ -57,9 +57,11 @@ function loadShotList(siteDir) {
 }
 
 // The files of an entry that readers load. PNG masters only when asked for (e.g. the social card).
-function servedFiles(entry, {png = false} = {}) {
-  const names = entry.kind === 'still' ? ['avif', 'webp', ...(png ? ['png'] : [])] : ['mp4', 'webm', 'poster', 'vtt'];
-  return Object.fromEntries(names.filter(name => entry.files[name]).map(name => [name, entry.files[name]]));
+// `dark`: the files of its dark variant ({} when it has none).
+function servedFiles(entry, {png = false, dark = false} = {}) {
+  const files = dark ? entry.dark?.files ?? {} : entry.files;
+  const names = entry.kind === 'still' ? ['avif', 'webp', ...(png && !dark ? ['png'] : [])] : ['mp4', 'webm', 'poster', 'vtt'];
+  return Object.fromEntries(names.filter(name => files[name]).map(name => [name, files[name]]));
 }
 
 module.exports = {ID_RE, loadManifest, loadShotList, servedFiles};

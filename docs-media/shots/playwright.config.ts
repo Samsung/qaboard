@@ -10,6 +10,8 @@ import { defineConfig, type PlaywrightTestConfig } from '@playwright/test';
 const FONTCONFIG_FILE = process.env.SHOTS_FONTCONFIG_FILE || path.resolve(import.meta.dirname, '..', 'fonts.conf');
 process.env.FONTCONFIG_FILE = FONTCONFIG_FILE;
 
+const THEMES = ['light', 'dark'] as const;
+
 const rendering: PlaywrightTestConfig['use'] = {
   browserName: 'chromium',
   viewport: { width: 1440, height: 900 },
@@ -38,22 +40,29 @@ export default defineConfig({
   projects: [
     // Before capturing: the demo facts, the stack answers, the pinned fonts
     { name: 'setup', testDir: './lib', testMatch: 'capture.setup.ts' },
-    {
-      name: 'stills',
-      testDir: '.',
-      testMatch: '*.spec.ts',
-      grep: /@still/,
-      dependencies: ['setup'],
-      use: { ...rendering, reducedMotion: 'reduce' },
-    },
-    {
-      name: 'clips',
-      testDir: '.',
-      testMatch: '*.spec.ts',
-      grep: /@clip/,
-      dependencies: ['setup'],
-      use: { ...rendering, reducedMotion: 'no-preference' },
-    },
+    // Every shot in both themes of the web app (it follows prefers-color-scheme): out/<id>/ and out/<id>/dark/.
+    // `npm run capture:light` or `capture:dark` for one of them; a shot's `themes` option can leave one out
+    ...THEMES.flatMap(theme => {
+      const suffix = theme === 'dark' ? '-dark' : '';
+      return [
+        {
+          name: `stills${suffix}`,
+          testDir: '.',
+          testMatch: '*.spec.ts',
+          grep: /@still/,
+          dependencies: ['setup'],
+          use: { ...rendering, colorScheme: theme, reducedMotion: 'reduce' as const },
+        },
+        {
+          name: `clips${suffix}`,
+          testDir: '.',
+          testMatch: '*.spec.ts',
+          grep: /@clip/,
+          dependencies: ['setup'],
+          use: { ...rendering, colorScheme: theme, reducedMotion: 'no-preference' as const },
+        },
+      ];
+    }),
     // The lib's tests: fixture pages served locally, no demo stack needed
     { name: 'lib', testDir: './lib/test', testMatch: '*.test.ts', use: rendering },
   ],

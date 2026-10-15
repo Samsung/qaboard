@@ -214,7 +214,7 @@ clip('tuning/launch-to-analysis', {
     await openForm(ui, { send: true });
     await fillGrid(ui);
     // from the batch's name to the Send button, below the commit bars
-    await form(ui.page).getByText('Batch of inputs+configurations:').evaluate(e => window.scrollBy(0, e.getBoundingClientRect().top - 170));
+    await form(ui.page).getByText('Batch of inputs+configurations').evaluate(e => window.scrollBy(0, e.getBoundingClientRect().top - 170));
     await ui.settle();
     await ui.cursor.moveTo({ x: 1300, y: 860 });
   },
@@ -232,7 +232,7 @@ clip('tuning/launch-to-analysis', {
     // the page reloads the commit 1 s later
     await ui.hold(1500);
     await ui.caption('Pick its batch');
-    const picker = page.locator('.bp6-navbar-group.bp6-align-right', { has: page.locator('input[placeholder="filter new outputs"]') })
+    const picker = page.locator('.bp6-navbar-group.bp6-align-right', { has: page.locator('input#filter-new-input') })
       .locator('.bp6-popover-target button').first();
     await ui.click(picker);
     await ui.click(page.locator('.bp6-popover .bp6-menu-item', { hasText: EXPERIMENT }).first());
