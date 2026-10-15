@@ -17,6 +17,8 @@ export const usePrefsStore = create()(persist(
     theme: 'system',
     // how lists of commits look: "comfortable" (a few lines per commit) or "compact" (one line per commit)
     commitListDensity: 'comfortable',
+    // the app's sidebar shows only icons
+    siderCollapsed: false,
 
     toggleFavorite: project => set(state => ({
       favorites: { ...state.favorites, [project]: !state.favorites[project] },
@@ -29,6 +31,7 @@ export const usePrefsStore = create()(persist(
       return { milestones: { ...state.milestones, [project]: milestones } };
     }),
     setTheme: theme => set({ theme }),
+    setSiderCollapsed: collapsed => set({ siderCollapsed: !!collapsed }),
     setCommitListDensity: density => set({ commitListDensity: density === 'compact' ? 'compact' : 'comfortable' }),
     updateTuning: (project, form) => set(state => ({
       tuning: { ...state.tuning, [project]: { ...state.tuning[project], ...form } },

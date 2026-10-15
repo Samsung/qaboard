@@ -79,10 +79,12 @@ const Doc = ({ page, children }) => {
   return <a href={`${docs_root}docs/${page}`} target="_blank" rel="noopener noreferrer">{children}</a>;
 };
 
+const is_mac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform ?? '');
 const shortcuts = [
   { title: "Everywhere", keys: [
     [<Kbd key="?">?</Kbd>, "Open or close this cheat sheet"],
     [<Kbd key="esc">Esc</Kbd>, "Close dialogs and menus"],
+    [<><Kbd>{is_mac ? '⌘' : 'Ctrl'}</Kbd> <Kbd>{'\\'}</Kbd></>, "Collapse or expand the sidebar"],
     [<><Kbd>↑</Kbd> <Kbd>↓</Kbd> <Kbd>Enter</Kbd></>, "Pick an item in the batch selector or filter suggestions"],
   ]},
   { title: "Image and text viewers", keys: [

@@ -1,3 +1,4 @@
+import { createContext, useContext, useEffect } from "react";
 import { Link, useLinkClickHandler, useRouter } from "./router";
 import { path_segment, stringify_query } from "./selection";
 import styled from "styled-components";
@@ -18,15 +19,43 @@ import { MilestonesMenu } from "./components/milestones"
 import AuthButton from "./components/authentication/Auth"
 import { WhatsNewButton } from "./releaseNotes/ReleaseNotes"
 import { ThemeButton } from "./components/ThemeButton"
-import { useHelpSheet } from "./components/HelpSheet"
+import { useHelpSheet, is_typing } from "./components/HelpSheet"
 import { LogsMenuItem, logs_hint_class } from "./AppSiderLogsItem"
 
 import { useCommitsList, useComparison, useSiteConfig, useUser, updateSelected } from "./hooks"
+import { usePrefsStore } from "./stores/prefs"
 import { useIntegrationStatuses } from "./useIntegrationStatuses"
 import { quota_url } from "./utils"
 import { repo_url, tree_url, commit_url, commits_url as git_commits_url, default_integrations } from "./git"
 
-export const sider_width = sidebar.width.default;
+// The sidebar's width, also what the page leaves free for it: a CSS variable (App.css), smaller when collapsed.
+// index.html sets it before the first paint, SiderWidthSync after.
+export const sider_width = 'var(--qa-sider-width)';
+const expanded_width = sidebar.width.default;
+const collapsed_width = '48px';
+export const useSiderCollapsed = () => usePrefsStore(state => !!state.siderCollapsed);
+const SiderCollapsedContext = createContext(false);
+
+const SiderWidthSync = ({ collapsed }) => {
+  useEffect(() => {
+    document.documentElement.style.setProperty('--qa-sider-width', collapsed ? collapsed_width : expanded_width);
+  }, [collapsed]);
+  return null;
+};
+
+// Ctrl+\ (⌘\ on macOS) collapses or expands the sidebar, like in many apps
+export const is_toggle_sider = event => event.key === '\\' && (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
+const useToggleShortcut = toggle => {
+  useEffect(() => {
+    const onKeyDown = event => {
+      if (!is_toggle_sider(event) || event.defaultPrevented || is_typing(event.target)) return;
+      event.preventDefault();
+      toggle();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [toggle]);
+};
 
 // Like Blueprint's dark navigation panels: flat, quiet, the selected view stands out.
 // Blueprint's own menu styles have 2-3 classes of specificity, `&&` gets ours above them.
@@ -190,7 +219,11 @@ const SectionHeader = styled.div`
 `;
 
 const Sider = styled.div`
-    width: ${sidebar.width.default};
+    width: ${sider_width};
+    transition: width 150ms ease;
+    @media (prefers-reduced-motion: reduce) {
+        transition: none;
+    }
     position: fixed;
     height: 100vh;
     top: 0;
@@ -220,19 +253,98 @@ const Sider = styled.div`
 
     scrollbar-width: thin;
     scrollbar-color: ${colors.border} transparent;
+
+    /* Collapsed: a rail of icons. Names show on hover (SiderHint), submenus still open on hover */
+    &&.collapsed {
+        ${SiderHeader} {
+            flex-direction: column;
+            height: auto;
+            padding: ${spacing.sm} 0;
+            gap: 2px;
+        }
+        ${SiderHeader} .qa-brand {
+            display: none;
+        }
+        ${SiderHeader} .qa-header-actions {
+            flex-direction: column;
+            gap: 2px;
+        }
+        ${SiderSection} {
+            padding: ${spacing.sm} 6px;
+        }
+        ${SiderProjectAvatar} a {
+            justify-content: center;
+            padding: ${spacing.xs} 0;
+        }
+        ${SiderProjectAvatar} .project-name {
+            display: none;
+        }
+        ${SectionHeader} {
+            font-size: 0;
+            height: ${borders.width.thin};
+            margin: ${spacing.sm} ${spacing.xs};
+            background: rgba(255, 255, 255, 0.08);
+        }
+        ${SectionHeader}:first-child {
+            display: none;
+        }
+        .bp6-menu-item {
+            justify-content: center;
+            /* the user menu sets its padding inline */
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+        }
+        .bp6-menu-item > .bp6-fill:has(.user-display) {
+            flex: 0 0 auto;
+        }
+        .bp6-menu-item > .bp6-icon {
+            margin-right: 0;
+        }
+        ${SiderMenu} .bp6-menu-item > .bp6-fill,
+        .bp6-menu-item > .bp6-menu-item-label,
+        .bp6-menu-item > .bp6-submenu-icon,
+        .bp6-menu-item > .bp6-fill:not(:has(.user-display)),
+        .user-display,
+        .chevron-icon {
+            display: none;
+        }
+        /* a failure count on Logs becomes a dot */
+        .bp6-menu-item > .bp6-menu-item-label.${logs_hint_class} {
+            display: block;
+            position: absolute;
+            top: 3px;
+            right: 4px;
+            margin: 0;
+        }
+        .bp6-menu-item > .bp6-menu-item-label.${logs_hint_class} .bp6-tag {
+            font-size: 0;
+            min-width: 8px;
+            min-height: 8px;
+            height: 8px;
+            padding: 0;
+        }
+    }
 `
 
 // Hovering a view says what it's for: QA-Board has many, and their names are short
 const hint_delay = 600;
-const SiderHint = ({ content, children }) => <Tooltip
-  content={<span style={{display: 'inline-block', maxWidth: 260}}>{content}</span>}
-  placement="right"
-  hoverOpenDelay={hint_delay}
-  targetTagName="div"
-  fill
->
-  {children}
-</Tooltip>
+// Collapsed, the hint also names the view, and opens sooner: it's the only label
+const SiderHint = ({ name, content, children }) => {
+  const collapsed = useContext(SiderCollapsedContext);
+  return <Tooltip
+    content={<span style={{display: 'inline-block', maxWidth: 260}}>
+      {collapsed && name && <><strong>{name}</strong>{content ? <br/> : null}</>}
+      {content}
+    </span>}
+    placement="right"
+    hoverOpenDelay={collapsed ? 150 : hint_delay}
+    targetTagName="div"
+    fill
+    disabled={!content && !collapsed}
+  >
+    {children}
+  </Tooltip>;
+}
 
 
 // The integrations of the branch pages: from qaboard.yaml, or the defaults for the project's git host
@@ -240,6 +352,7 @@ const branch_integrations = ({ project_data, commit }) =>
   project_data.data?.qatools_config?.integrations ?? commit?.data?.qatools_config?.integrations ?? default_integrations(project_data);
 
 const ProjectSideAvatar = ({ project, project_data = {} }) => {
+  const collapsed = useContext(SiderCollapsedContext);
   let project_name = project.split('/').slice(-1)[0];
   return (
     <SiderProjectAvatar>
@@ -248,6 +361,7 @@ const ProjectSideAvatar = ({ project, project_data = {} }) => {
           className="avatar"
           project={project}
           data={project_data.data}
+          size={collapsed ? "32px" : undefined}
         />
         <span className="project-name">{project_name}</span>
       </Link>
@@ -349,12 +463,16 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
   const history_url = branch ? `/${path_segment(project)}/history/${path_segment(branch)}` : `/${path_segment(project)}/history`;
   return <>
     {/* The branch's commits: highlighted on their page, a link elsewhere */}
-    {(is_project_home || is_history)
-      ? <MenuItemLink to={commits_url} text={(is_branch || project_data.is_loaded) ? branch ?? 'All commits' : <span className={Classes.SKELETON}>branch</span>} title={branch ? `Commits on ${branch}` : 'Commits on all branches'} icon='git-branch'/>
-      : <MenuItem icon={is_branch ? "git-branch" : 'user'} active text={tag ?? 'All commits'} title={is_branch ? `Commits on ${tag}` : tag && `Commits by ${tag}`}/>
-    }
+    <SiderHint name={branch ? `Commits on ${branch}` : tag && !is_branch && !(is_project_home || is_history) ? `Commits by ${tag}` : 'All commits'}>
+      {(is_project_home || is_history)
+        ? <MenuItemLink to={commits_url} text={(is_branch || project_data.is_loaded) ? branch ?? 'All commits' : <span className={Classes.SKELETON}>branch</span>} title={branch ? `Commits on ${branch}` : 'Commits on all branches'} icon='git-branch'/>
+        : <MenuItem icon={is_branch ? "git-branch" : 'user'} active text={tag ?? 'All commits'} title={is_branch ? `Commits on ${tag}` : tag && `Commits by ${tag}`}/>
+      }
+    </SiderHint>
     <CodeMenu project={project} project_data={project_data} branch={branch}/>
-    <MenuItemLink to={history_url} active={is_history} icon="history" text="History"/>
+    <SiderHint name="History" content="The metrics of the branch over time.">
+      <MenuItemLink to={history_url} active={is_history} icon="history" text="History"/>
+    </SiderHint>
     <SectionDivider />
     <IntegrationsMenus
       single_menu
@@ -414,31 +532,31 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
   return <>
     {/* Metrics Section */}
     <SectionHeader>Metrics</SectionHeader>
-    <SiderHint content="The batch's metrics, aggregated over all its runs, compared with the reference.">
+    <SiderHint name="Summary" content="The batch's metrics, aggregated over all its runs, compared with the reference.">
       <MenuItem icon="dashboard" text="Summary" active={active('summary')} onClick={set('summary')}/>
     </SiderHint>
-    <SiderHint content="The metrics of each run, colored by how they compare to their targets.">
+    <SiderHint name="Metrics Table" content="The metrics of each run, colored by how they compare to their targets.">
       <MenuItem icon="locate" text="Metrics Table" active={active('table-kpi')} onClick={set('table-kpi')} />
     </SiderHint>
-    <SiderHint content="For each run, how the metrics changed versus the reference: find regressions.">
+    <SiderHint name="Metrics Diff" content="For each run, how the metrics changed versus the reference: find regressions.">
       <MenuItem icon="heat-grid" text="Metrics Diff" active={active('table-compare')} onClick={set('table-compare')}/>
     </SiderHint>
 
     {/* Runs Section */}
     <SectionHeader>Runs</SectionHeader>
-    <SiderHint content="Images, videos, plots, point clouds... of each run, side by side with the reference, as configured in qaboard.yaml.">
+    <SiderHint name="Visualizations" content="Images, videos, plots, point clouds... of each run, side by side with the reference, as configured in qaboard.yaml.">
       <MenuItem icon="media" text="Visualizations" active={active('output-list')} onClick={set('output-list')} />
     </SiderHint>
-    <SiderHint content="All the files each run created, and which differ from the reference (bit-accuracy).">
+    <SiderHint name="Output Files" content="All the files each run created, and which differ from the reference (bit-accuracy).">
       <MenuItem icon="folder-open" text="Output Files" active={active('bit-accuracy')} onClick={set('bit-accuracy')} />
     </SiderHint>
-    <SiderHint content="The logs of each run, and of the batch's submission: why runs failed.">
+    <SiderHint name="Logs" content="The logs of each run, and of the batch's submission: why runs failed.">
       <LogsMenuItem batch={new_batch} active={active('logs')} onClick={set('logs')} />
     </SiderHint>
 
     {/* Source Section */}
     <SectionHeader>Source</SectionHeader>
-    <SiderHint content="The commit's build artifacts and qaboard.yaml configuration, diffed with the reference.">
+    <SiderHint name="Artifacts & Configs" content="The commit's build artifacts and qaboard.yaml configuration, diffed with the reference.">
       <MenuItem icon="settings" text="Artifacts & Configs" active={active('parameters')} onClick={set('parameters')} />
     </SiderHint>
     <CodeMenu project={project} project_data={project_data} commit={commit?.id ? commit : undefined} branch={commit?.branch}/>
@@ -460,18 +578,37 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
 
     {/* Tuning Section */}
     <SectionHeader>Tuning</SectionHeader>
-    <SiderHint content="The batches of tests you can run: see and edit their definitions.">
+    <SiderHint name="Available Tests" content="The batches of tests you can run: see and edit their definitions.">
       <MenuItem icon="layout-group-by" active={active('groups')} text="Available Tests" onClick={set('groups')} />
     </SiderHint>
-    <SiderHint content="Run this commit on more tests, or with other parameters, from the web app.">
+    <SiderHint name="Run Tests / Tuning" content="Run this commit on more tests, or with other parameters, from the web app.">
       <MenuItem icon="play" text="Run Tests / Tuning" active={active('tuning')} onClick={set('tuning')} />
     </SiderHint>
-    <SiderHint content={has_optim ? "This batch is an auto-tuning: see how the parameters affect the metrics." : "How the tuned parameters affect the metrics. Useful after tuning or auto-tuning."}>
+    <SiderHint name="Tuning Analysis" content={has_optim ? "This batch is an auto-tuning: see how the parameters affect the metrics." : "How the tuned parameters affect the metrics. Useful after tuning or auto-tuning."}>
       <MenuItem icon="predictive-analysis" intent={has_optim ? "primary" : undefined} active={active('optimization')} text="Tuning Analysis" onClick={set('optimization')}/>
     </SiderHint>
   </>
 }
 
+
+const is_mac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform ?? '');
+export const toggle_sider_keys = is_mac ? '⌘ \\' : 'Ctrl \\';
+const CollapseItem = ({ collapsed, onClick }) => <Tooltip
+  content={<span>{collapsed ? 'Expand the sidebar' : 'Collapse the sidebar to icons'} <kbd className={Classes.KEY}>{toggle_sider_keys}</kbd></span>}
+  placement="right"
+  hoverOpenDelay={collapsed ? 150 : hint_delay}
+  targetTagName="div"
+  fill
+>
+  <MenuItem
+    icon={collapsed ? "double-chevron-right" : "double-chevron-left"}
+    text="Collapse"
+    onClick={onClick}
+    aria-label={collapsed ? 'Expand the sidebar' : 'Collapse the sidebar'}
+    aria-expanded={!collapsed}
+    aria-keyshortcuts="Control+\\ Meta+\\"
+  />
+</Tooltip>;
 
 const AppSider = () => {
   const { docs_root } = useSiteConfig();
@@ -495,9 +632,15 @@ const AppSider = () => {
     filter: selected.filter_batch_new, ref_filter: selected.filter_batch_ref, ref_project: selected.ref_project,
   };
   const integrationProps = useIntegrationStatuses(template_context);
+  const collapsed = useSiderCollapsed();
+  const setCollapsed = usePrefsStore(state => state.setSiderCollapsed);
+  const toggle = () => setCollapsed(!usePrefsStore.getState().siderCollapsed);
+  useToggleShortcut(toggle);
 
   return (
-    <Sider className={Classes.DARK}>
+    <SiderCollapsedContext.Provider value={collapsed}>
+    <SiderWidthSync collapsed={collapsed}/>
+    <Sider className={`${Classes.DARK}${collapsed ? ' collapsed' : ''}`} aria-label="Navigation" as="nav">
       {/* Header Section */}
       <SiderHeader>
         <Link to="/" className="qa-brand" title="All the projects">QA-Board</Link>
@@ -564,8 +707,12 @@ const AppSider = () => {
       {/* At the bottom, like in most apps */}
       <SiderFooter>
         <AuthButton appSider={true}/>
+        <SiderMenu>
+          <CollapseItem collapsed={collapsed} onClick={toggle}/>
+        </SiderMenu>
       </SiderFooter>
     </Sider>
+    </SiderCollapsedContext.Provider>
   )
 }
 

@@ -110,7 +110,7 @@ const ProjectApp = ({ pathname }) => {
       <AppSider/>
       <div style={{width: '100%'}}>
         <AppNavbar/>
-        <div style={{paddingLeft: sider_width, minHeight: '100vh', display: 'flex', flexDirection: 'column'}}>
+        <div style={{paddingLeft: sider_width, minHeight: '100vh', display: 'flex', flexDirection: 'column', transition: 'padding-left 150ms ease'}}>
           <Suspense fallback={<EmptyLoading/>}>
             <Main/>
           </Suspense>

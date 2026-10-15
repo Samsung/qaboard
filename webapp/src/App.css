@@ -1,6 +1,8 @@
 /* Colors of the app outside Blueprint's components, for the light and dark themes (src/theme.js).
    Prefer them (or Blueprint's Classes.TEXT_MUTED...) to hardcoded colors. */
 :root {
+  /* the app's sidebar (src/AppSider.jsx): 48px when collapsed */
+  --qa-sider-width: 200px;
   --qa-background: #f0f2f5;
   --qa-surface: #ffffff;
   --qa-surface-alt: #f6f7f9;
