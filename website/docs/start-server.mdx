@@ -122,6 +122,7 @@ QA-Board can connect to external authentication systems (LDAP, SAML). If needed,
 | `QABOARD_PORT_HTTP`    | 5151    | Port mapped to the app on the host                   |
 | `QABOARD_DB_HOST`      | db      | Connect the backend to a non-default database host (e.g. instead of dev'ing with prod dumps, connect directly to it) |
 | `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port               |
+| `QABOARD_DB_POOL_SIZE` / `QABOARD_DB_MAX_OVERFLOW` | 4 / 2 | Database connections kept open by each uwsgi process (it runs 4 threads), and extra ones it may open. PostgreSQL's `max_connections` must cover them, see [Database settings](backend-admin/deployment#database-settings) |
 | `JENKINS_AUTH`         | _none_  | Credentials used to [trigger jenkins jobs](triggering-third-party-tools) on 1 or many jenkins servers. The format is a JSON string looking like `{"hostname_1": {"user": "jenkinsuser", "token": "xxxxx", "crumb": "yyy"}}` ([how-to-get-the-token-crumb?](triggering-third-party-tools))               |
 | `QABOARD_LOGIN_TYPE`   | _LOCAL_  | Set to `LOCAL/LDAP/SAML`                   |
 | `QABOARD_LOGIN_REQUIRED`   | _empty_  | Any non-empty value (e.g. `true`) blocks anonymous users. Leave it unset/empty to allow them: even `false` enables it |
@@ -174,7 +175,7 @@ In the future we plan to introduce a proper "secret" store, per user and per pro
 
 ## (Optional) For "production"
 ### Backups
-The `cron-backup-db` service in *production.yml* makes daily backups of the database. Mount a host directory at `/backups` in your site overlay, and copy the backups off the host. To restore one: `deployments/deploy.py <env file> restore-db <file>.dump`. See [Backups](backend-admin/deployment#backups).
+The `cron-backup-db` service in *production.yml* makes daily backups of the database, and keeps those of the last 14 days (`QABOARD_BACKUP_RETENTION_DAYS`). Mount a host directory at `/backups` in your site overlay, and copy the backups off the host. To restore one: `deployments/deploy.py <env file> restore-db <file>.dump`. See [Backups](backend-admin/deployment#backups).
 
 ### Using SSL / hosting behind a reverse proxy
 What we do is use our own copy of *services/nginx/conf.d/qaboard.conf* in the site overlay (keep its `include snippets/...` lines: they serve the files and the file browser). Files mounted under `/tmp/deployment/nginx/conf.d/` in the `proxy` container are added to (or replace) *services/nginx/conf.d/*:
