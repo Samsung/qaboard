@@ -129,12 +129,14 @@ const no_options = {};
 const no_files = new Set();
 
 const storage_key = 'controls-panel-expanded';
+// Until users choose, the panel starts open only on screens wide enough for it not to cover the results
+const wide_screen = () => typeof window !== 'undefined' && window.innerWidth >= 1600;
 const saved_expanded = () => {
   try {
     const saved = localStorage.getItem(storage_key);
-    return saved !== null ? JSON.parse(saved) : true;
+    return saved !== null ? JSON.parse(saved) : wide_screen();
   } catch {
-    return true;
+    return wide_screen();
   }
 };
 

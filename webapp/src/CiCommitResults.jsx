@@ -336,8 +336,9 @@ const CiCommitResults = () => {
           </>
         )}
 
-      {/* Editing batches has no use for the controls panel, it would cover the editor's side panel */}
-      {(!!new_commit) && selected_views.join(',') !== 'groups' && (
+      {/* Only the views of the runs' results use the controls panel: elsewhere (editing batches, the tuning form...) it would
+          only cover the page. Without results, there is nothing to control either. */}
+      {(!!new_commit) && has_batches && views.some(view => results_views.includes(view)) && (
         <FloatingControlsPanel
           controls={controls}
           visualizations={visualizations}

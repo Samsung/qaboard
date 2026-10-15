@@ -329,7 +329,7 @@ const SuccessBar = ({ success_frac, metric }) => (
         hoverinfo: "none",
         text:
           success_frac > 0.4
-            ? `${percent_formatter.format(100 * success_frac)}% meet target`
+            ? `${percent_formatter.format(100 * success_frac)}% met`
             : "",
         opacity: 1,
         marker: {
@@ -345,7 +345,7 @@ const SuccessBar = ({ success_frac, metric }) => (
         hoverinfo: "none",
         text:
           success_frac < 0.6
-            ? `${percent_formatter.format(100 * (1 - success_frac))}% miss`
+            ? `${percent_formatter.format(100 * (1 - success_frac))}% missed`
             : "",
         opacity: 0.8,
         marker: {
