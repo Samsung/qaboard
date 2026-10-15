@@ -2,7 +2,7 @@
 id: commit-page
 title: The commit page
 sidebar_label: The commit page
-description: The top bars, the controls panel, and what each view of the commit page is for.
+description: The top bars, the view options, and what each view of the commit page is for.
 ---
 The commit page shows the results of one commit (the **new** one) compared with a **reference**. Its URL looks like `/<project>/commit/<hash>?reference=<hash>&batch=...`.
 
@@ -32,8 +32,18 @@ Above the views, messages tell you about the selected batch:
 
 While runs are pending, the page refreshes by itself every 15 seconds.
 
-## The controls panel
-On the right edge of the page, the **Controls** panel (click the dark tab to open or close it, your choice is remembered). It only lists what changes the view you're on:
+<a id="the-controls-panel"></a>
+
+## View options
+On the right of the page, under the top bars, the **View options** panel changes what the views of the runs' results show, and in which order. It's part of the page: the views get narrower to make room for it.
+
+- **Show or hide it**: press <kbd>o</kbd>, or use the arrow at its top. Collapsed, it becomes a thin rail with an icon per section: hover an icon to see what the section is set to, click it to open the panel on that section. A dot on an icon means the section differs from the project's defaults.
+- It starts open when the window has room for it and for the results, else collapsed. Your choice is remembered.
+- **Resize it** by dragging its left edge (or focus the edge and use the arrow keys). Double-click the edge for the default width.
+- On narrow windows, the open panel covers the page instead: <kbd>Esc</kbd> closes it.
+- The number next to its title counts what differs from the project's defaults: hover it for the list.
+
+It only lists what changes the views you're on:
 
 - **Visualizations** (on the Visualizations view): a switch to show or hide each visualization, including the ones hidden by default. The header counts how many are shown. A search box appears when there are many.
 - **Files to show** (on the Visualizations view): when a visualization has several files per run (frames, stages, reports...), pick which one to show. Hover an option to see which visualization and path it's for, and the values found in the runs.
@@ -44,7 +54,7 @@ On the right edge of the page, the **Controls** panel (click the dark tab to ope
 - **Viewers** (on the Visualizations and Output Files views): **Image diff** shows a perceptual difference between new and reference images, and the project's own switches, if its *qaboard.yaml* has `controls`.
 - **Sort runs**: sort by name, run id, storage, a tuning parameter or a metric. Until you choose, runs are sorted by the project's default metric, marked *(default)*. The order reads like the values: *Highest first*, *A to Z*, *Newest first*... It applies to the tables and the run cards.
 
-**Reset**, at the top of the panel, goes back to the project's defaults for the visualizations, the files to show and the viewers. The sorting stays as it is.
+**Reset**, at the top of the panel (or at the bottom of the rail), goes back to the project's defaults for the visualizations, the files to show and the viewers. The sorting stays as it is.
 
 <Shot
   id="commit/controls-panel"
@@ -116,7 +126,7 @@ One row per run, with `new − ref` for each metric, and the change in percent. 
 />
 
 :::tip
-Use the **Sort runs** section of the controls panel to sort runs by a metric, and see the worst regressions first.
+Use the **Sort runs** section of the view options to sort runs by a metric, and see the worst regressions first.
 :::
 
 Yellow **Input**, **Config**, **Platform** or **Tuning** tags (with a `≠` icon) mean the run was compared with a reference run that is not exactly the same. Hover them for details. See [How runs are matched](comparing-results.mdx#how-runs-are-matched).

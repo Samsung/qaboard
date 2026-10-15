@@ -87,6 +87,9 @@ const shortcuts = [
     [<><Kbd>{is_mac ? '⌘' : 'Ctrl'}</Kbd> <Kbd>{'\\'}</Kbd></>, "Collapse or expand the sidebar"],
     [<><Kbd>↑</Kbd> <Kbd>↓</Kbd> <Kbd>Enter</Kbd></>, "Pick an item in the batch selector or filter suggestions"],
   ]},
+  { title: "Commit page", keys: [
+    [<Kbd key="o">o</Kbd>, "Show or hide the view options: visualizations, files to show, viewers, sorting"],
+  ]},
   { title: "Image and text viewers", keys: [
     [<Kbd key="t">t</Kbd>, "Swap new and reference in place, in all the viewers"],
     [<Kbd key="h">h</Kbd>, "Hide or show the new/reference labels"],

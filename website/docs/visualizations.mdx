@@ -35,7 +35,7 @@ Users will get switches to toggle debug visualizations:
 
 <Shot
   id="commit/controls-panel"
-  caption="The Controls panel lists every visualization, with switches for the ones hidden by default, like Color errors and Noise vs signal."
+  caption="The view options list every visualization, with switches for the ones hidden by default, like Color errors and Noise vs signal."
 />
 
 
@@ -277,11 +277,11 @@ outputs:
       #   you will get two select inputs for the frame.
 ```
 
-By default, only one viewer/path is shown at a time, and you get sliders/select to decide what to show. They are in the **Files to show** section of the **Controls** panel, and apply to all runs, but users can turn on **Per run** to choose the value in each run's card (see the [user guide](/docs/user-guide/commit-page#the-controls-panel)).
+By default, only one viewer/path is shown at a time, and you get sliders/select to decide what to show. They are in the **Files to show** section of the **View options**, and apply to all runs, but users can turn on **Per run** to choose the value in each run's card (see the [user guide](/docs/user-guide/commit-page#view-options)).
 
 Each option is named after its part of the path, as a label: `:frame` shows as *Frame*, `:noise_level` as *Noise level*. Name the parts of your paths for your users: prefer `frames/:frame.png` to `frames/(.*)\.png`, whose option gets a name made up from the visualization's.
 
-Runs don't need to have the same values: the **Controls** panel offers the values of all runs, and numbers are sorted as numbers (`2` before `10`). Until users pick a value, each run shows its own default: its last value when the values are numbers (e.g. its last frame), else its first. When a run doesn't have the selected value, its card shows the closest number (or the default) and says so.
+Runs don't need to have the same values: the **View options** offer the values of all runs, and numbers are sorted as numbers (`2` before `10`). Until users pick a value, each run shows its own default: its last value when the values are numbers (e.g. its last frame), else its first. When a run doesn't have the selected value, its card shows the closest number (or the default) and says so.
 
 <Shot
   id="commit/dynamic-options"
