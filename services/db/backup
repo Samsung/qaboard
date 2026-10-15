@@ -1,24 +1,63 @@
 #!/bin/sh
-# Creates a backup
+# Creates a backup: /backups/YYYY-MM-DD.dump (daily, from crond), or /backups/NAME if given a NAME.
+# After a successful daily backup, deletes the daily backups older than BACKUP_RETENTION_DAYS (default 14, 0: keep all):
+# - only files named YYYY-MM-DD.dump: other dumps (e.g. before-upgrade.dump) are deleted by humans,
+# - never the newest $BACKUP_KEEP_MIN (3) daily backups, however old they are (e.g. if backups stopped for a while).
+# Runs with busybox (postgres:*-alpine) as well as GNU tools.
 set -ex
 
+BACKUP_DIR=${BACKUP_DIR:-/backups}
+BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-14}
+BACKUP_KEEP_MIN=${BACKUP_KEEP_MIN:-3}
+DAILY='[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].dump'
+
+prune() {
+  case "$BACKUP_RETENTION_DAYS$BACKUP_KEEP_MIN" in *[!0-9]*)
+    echo "BACKUP_RETENTION_DAYS and BACKUP_KEEP_MIN must be numbers" >&2; exit 1;;
+  esac
+  if [ "$BACKUP_RETENTION_DAYS" -eq 0 ]; then
+    echo "BACKUP_RETENTION_DAYS=0: keeping all the backups"
+    return 0
+  fi
+  # The names sort by date: the newest daily backups are the last ones
+  keep=$(cd "$BACKUP_DIR" && find . -maxdepth 1 -type f -name "$DAILY" | sed 's|^\./||' | sort -r | head -n "$BACKUP_KEEP_MIN")
+  find "$BACKUP_DIR" -maxdepth 1 -type f -name "$DAILY" -mtime +"$BACKUP_RETENTION_DAYS" | sort | while read -r old; do
+    case " $(echo $keep) " in *" $(basename "$old") "*) echo "keeping $old: one of the newest $BACKUP_KEEP_MIN"; continue;; esac
+    echo "deleting $old: older than $BACKUP_RETENTION_DAYS days"
+    rm -f "$old"
+  done
+}
+
+if [ "$1" = "--prune" ]; then
+  prune
+  exit 0
+fi
+
 if [ "$1" = "" ]; then
-    backup=$(date -I).dump
+  backup=$(date -I).dump
 else
-    backup=$1
+  backup=$1
 fi
 
 # Written to a temporary file then renamed: a failed dump never looks like a valid backup
 if [ -z ${AS_USER_NAME+x} ]; then
-  pg_dump -Fc > "/backups/.$backup.tmp"
-  mv "/backups/.$backup.tmp" "/backups/$backup"
+  pg_dump -Fc > "$BACKUP_DIR/.$backup.tmp" || { rm -f "$BACKUP_DIR/.$backup.tmp"; exit 1; }
+  mv "$BACKUP_DIR/.$backup.tmp" "$BACKUP_DIR/$backup"
 else
   # we should use gosu but it's nice to use the official image as-is
   addgroup -S $AS_USER_GROUP -g $AS_USER_GID group                            || true
   adduser --disabled-password $AS_USER_NAME -u $AS_USER_UID -G $AS_USER_GROUP || true
-  su $AS_USER_NAME -c "pg_dump -Fc > '/backups/.$backup.tmp' && mv '/backups/.$backup.tmp' '/backups/$backup'"
+  su $AS_USER_NAME -c "pg_dump -Fc > '$BACKUP_DIR/.$backup.tmp' && mv '$BACKUP_DIR/.$backup.tmp' '$BACKUP_DIR/$backup' || { rm -f '$BACKUP_DIR/.$backup.tmp'; exit 1; }"
 fi
 
-# TODO:
-# - Remove backups older than X
-# - upload the backup to e.g. S3
+# Only daily backups trigger the cleanup. We got here: the new backup succeeded (set -e)
+if [ "$1" = "" ]; then
+  if [ -z ${AS_USER_NAME+x} ]; then
+    prune
+  else
+    # As the owner of the backups: on NFS, root may not be allowed to delete them
+    su $AS_USER_NAME -c "BACKUP_DIR='$BACKUP_DIR' BACKUP_RETENTION_DAYS='$BACKUP_RETENTION_DAYS' BACKUP_KEEP_MIN='$BACKUP_KEEP_MIN' sh '$0' --prune"
+  fi
+fi
+
+# TODO: upload the backup to e.g. S3

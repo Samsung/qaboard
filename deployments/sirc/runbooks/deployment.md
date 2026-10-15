@@ -86,7 +86,7 @@ The source is `QABOARD_SEED_SOURCE` in `deployments/sirc/staging.env` (productio
 > **Caution**: staging still uses the shared storage and the LSF bridge: tuning runs started from staging are real runs.
 
 ## Restoring a backup
-Backups are made daily by the `cron-backup-db` service (at SIRC under `/home/ispq/qaboard_data_prod/database_backups`). The backend is stopped while restoring.
+Backups are made daily by the `cron-backup-db` service (at SIRC under `/home/ispq/qaboard_data_prod/database_backups`). Daily backups older than 14 days are deleted, except the newest 3, see [database.md](database.md#backups). The backend is stopped while restoring.
 ```bash
 deployments/deploy.py deployments/sirc/production.env restore-db 2026-10-01.dump   # or "latest"
 ```

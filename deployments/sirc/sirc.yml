@@ -11,13 +11,17 @@ x-sirc-build-args: &sirc-build-args
 
 services:
   db:
-    # postgres needs a file owned by postgres, and we cannot chown on our shared storage
-    # the default entrypoint changes user from root to postgres and inits the database,
-    # but only if the command starts with "postgres"... so we need to wrap it
-    entrypoint: /init.sh
+    # Loads services/db/qaboard.conf (PostgreSQL settings): init.sh copies it into $PGDATA, where it must be owned
+    # by postgres (we cannot chown on our shared storage), and includes it in postgresql.conf. The default entrypoint
+    # changes user from root to postgres and inits the database, but only if the command starts with "postgres"...
+    # so we need to wrap it. Both files come from the services/db folder, mounted at /opt in docker-compose.yml:
+    # a folder, not single files, whose bind mounts keep showing the old version after `git checkout` replaces them.
+    # Changes to qaboard.conf need a restart of the database: see deployments/sirc/runbooks/database.md
+    entrypoint: /opt/init.sh
+    environment:
+    # Unset: services/db/qaboard.conf. "none": PostgreSQL's defaults (rollback), see the runbook
+    - QABOARD_DB_CONFIG
     volumes:
-    - ./services/db/init.sh:/init.sh
-    - ./services/db/postgres.conf:/postgres.host.conf
     - /home/ispq/qaboard_data_prod/database_backups:/backups
     ports:
       - ${QABOARD_EXPOSED_DB_PORT:-5432}:5432
