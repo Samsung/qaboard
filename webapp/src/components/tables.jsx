@@ -11,11 +11,17 @@ import {
   HTMLTable,
 } from "@blueprintjs/core";
 
-import { Section } from "./layout";
 import { VirtualTbody } from "./VirtualTbody";
 import { PlatformTag, ConfigurationsTags, ExtraParametersTags, RunBadges, RunBadge, MismatchTags } from './tags'
 import { metric_formatter, percent_formatter, MetricHeader } from "./metrics"
 import { diff_cell } from "../utils/compare"
+
+// Inside the view's card: the metrics picker above the table
+const TableArea = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`;
 
 
 
@@ -172,20 +178,20 @@ const TableCompare = ({
   const [label_new, label_ref] = labels || ["new", "ref"];
 
   if (outputs.length === 0)
-    return <Section>{input}<NoRuns new_batch={new_batch}/></Section>;
+    return <TableArea>{input}<NoRuns new_batch={new_batch}/></TableArea>;
   // metrics are compared only when runs have a matching reference run
   if (metrics_.length === 0)
-    return <Section>
+    return <TableArea>
       {input}
       <Callout icon="comparison" intent={Intent.WARNING} title="No metric to compare" style={{ marginTop: '10px' }}>
         {new_batch.metrics_with_refs?.size > 0
           ? "The reference runs don't have the metrics you picked. Pick other metrics above."
           : "The reference has no matching runs. Pick another reference in the second navbar."}
       </Callout>
-    </Section>;
+    </TableArea>;
 
   return (
-    <Section>
+    <TableArea>
       {input}
       <HTMLTable compact>
         <thead>
@@ -216,7 +222,7 @@ const TableCompare = ({
           <CompareRow key={id} index={index} measure={measure} output={output} output_ref={ref_batch?.outputs?.[output.reference_id]} metrics={metrics_}/>
         }/>
       </HTMLTable>
-    </Section>
+    </TableArea>
   );
 };
 
@@ -245,9 +251,9 @@ const TableKpi = ({
   if (new_batch?.outputs === undefined || new_batch?.outputs === null) return <span />;
   const [label_new, label_ref] = labels || ["New", "Ref"];
   if (outputs.length === 0)
-    return <Section>{input}<NoRuns new_batch={new_batch}/></Section>;
+    return <TableArea>{input}<NoRuns new_batch={new_batch}/></TableArea>;
   return (
-    <Section>
+    <TableArea>
       {input}
       <HTMLTable compact>
         <thead>
@@ -284,7 +290,7 @@ const TableKpi = ({
           <KpiRow key={id} index={index} measure={measure} output={output} output_ref={ref_batch?.outputs?.[output.reference_id]} metrics={metrics_} metrics_with_refs={new_batch.metrics_with_refs}/>
         }/>
       </HTMLTable>
-    </Section>
+    </TableArea>
   );
 };
 

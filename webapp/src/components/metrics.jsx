@@ -84,7 +84,7 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
     else if (delta_relative < -neutral_threshold)
       intent_compare = metric_info.smaller_is_better ? Intent.SUCCESS : Intent.DANGER;
     else intent_compare = Intent.DEFAULT;
-    compare_tag = <Tag round minimal intent={intent_compare} htmlTitle="vs the reference run">{delta_relative >= 0 ? '+' : ''}{percent_formatter.format(100 * delta_relative)}%</Tag>;
+    compare_tag = <Tag round minimal intent={intent_compare} htmlTitle="vs the reference run">{format_delta(delta_relative)}</Tag>;
   }
 
   const intent =
