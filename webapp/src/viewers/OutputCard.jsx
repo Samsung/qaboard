@@ -578,6 +578,8 @@ const OutputCard = memo(function OutputCard(props) {
     flex: "0 0 auto",
     // without outputs.style.width in qaboard.yaml: as wide as the page allows, up to 1500px
     width: style.width || 'min(1500px, 100%)',
+    // wider when a viewer needs it, e.g. a plot wider than outputs.style.width: it would spill out of the card
+    minWidth: 'min-content',
     marginBottom: "250px !important",
   }
   const maybe_style_skeleton = output_new.is_running ? style_skeleton : {};
