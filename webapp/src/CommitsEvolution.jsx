@@ -468,6 +468,7 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
       <FormGroup inline>
         <HTMLSelect
           id="select-metric"
+          aria-label="Metric"
           value={selected_metric}
           onChange={update("selected_metric")}
           minimal
@@ -481,6 +482,7 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
         {!breakdown_per_test && (
           <HTMLSelect
             id="select-aggregation"
+            aria-label="Aggregation over the tests"
             value={selected_aggregation}
             onChange={update("selected_aggregation")}
             minimal

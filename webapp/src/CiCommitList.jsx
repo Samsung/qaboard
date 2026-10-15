@@ -68,13 +68,6 @@ const SearchHeader = ({ search, nb_commits, has_more, isFetching }) => (
 );
 
 
-// Servers or proxies can answer errors with whole HTML pages: we only show their status
-const readable_error = error => {
-  const data = error?.response?.data;
-  const is_html = typeof data === 'string' && /<\/?[a-z][^>]*>/i.test(data);
-  const text = is_html ? `${error.response.status} ${error.response.statusText || 'Server error'}` : errorMessage(error);
-  return text.length > 300 ? `${text.slice(0, 300)}…` : text;
-};
 
 
 const CiCommitList = () => {
@@ -125,7 +118,7 @@ const CiCommitList = () => {
         icon="error"
         title="Could not load the commits"
         description={<p style={{ overflowWrap: 'anywhere' }}>
-          <code>{readable_error(error)}</code>
+          <code>{errorMessage(error)}</code>
           {error.response?.status >= 500 && <><br/>If it persists, contact your QA-Board administrators.</>}
         </p>}
         action={<Button icon="refresh" text="Retry" onClick={() => refetch()}/>}

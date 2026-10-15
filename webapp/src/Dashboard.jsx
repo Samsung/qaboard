@@ -25,13 +25,6 @@ import { errorMessage } from "./api/http";
 
 
 
-// Servers or proxies can answer errors with whole HTML pages: we only show their status
-const readable_error = error => {
-  const data = error?.response?.data;
-  const is_html = typeof data === 'string' && /<\/?[a-z][^>]*>/i.test(data);
-  const text = is_html ? `${error.response.status} ${error.response.statusText || 'Server error'}` : errorMessage(error);
-  return text.length > 300 ? `${text.slice(0, 300)}…` : text;
-};
 
 
 const Dashboard = () => {
@@ -63,7 +56,7 @@ const Dashboard = () => {
     <NonIdealState
       title="Could not load the history"
       icon='error'
-      description={<p style={{ overflowWrap: 'anywhere' }}><code>{readable_error(error)}</code></p>}
+      description={<p style={{ overflowWrap: 'anywhere' }}><code>{errorMessage(error)}</code></p>}
       action={<Button icon="refresh" text="Retry" onClick={() => refetch()}/>}
     />
   </Container>
@@ -193,6 +186,7 @@ const Dashboard = () => {
             )}
             <TabsExpander />
             <HTMLSelect
+              aria-label="Sort by"
               value={selected.sort_by ?? metrics.default_metric ?? 'test_input_path'}
               onChange={e => updateSelected({ sort_by: e.target.value }, { replace: true })}
             >
@@ -204,7 +198,7 @@ const Dashboard = () => {
                 </option>
               ))}
             </HTMLSelect>
-            <HTMLSelect value={selected.sort_order} onChange={e => updateSelected({ sort_order: e.target.value }, { replace: true })}>
+            <HTMLSelect aria-label="Sort order" value={selected.sort_order} onChange={e => updateSelected({ sort_order: e.target.value }, { replace: true })}>
               <option value={-1}>descending</option>
               <option value={1}>ascending</option>
             </HTMLSelect>
