@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import styled from "styled-components";
 
 import {
@@ -24,7 +24,7 @@ import { useDynamicOptions } from "./useDynamicOptions";
 import { TuningForm } from "./components/tuning/forms";
 import { BatchesEditor } from "./components/tuning/BatchesEditor";
 import TuningExploration from "./components/tuning/TuningExploration";
-import { useViewerControls } from "./viewers/controls";
+import { useViewerControls, controls_changes, controls_defaults } from "./viewers/controls";
 import { ExportPlugin } from "./plugins/ExportPlugin";
 import { humanFileSize } from "./viewers/bit_accuracy/utils";
 import { project_web_url } from "./utils";
@@ -127,6 +127,13 @@ const CiCommitResults = () => {
     ...controls,
     dynamic_options: { ...controls.dynamic_options, [name]: [value] },
   });
+  const resetDynamicOption = name => setControls({
+    ...controls,
+    dynamic_options: { ...controls.dynamic_options, [name]: undefined },
+  });
+  // What users changed, e.g. visualizations shown or dynamic options, can be reset to the project's defaults
+  const has_controls_changes = Object.keys(controls_changes(controls, controls_defaults(config, ''))).length > 0;
+  const resetControls = () => setControls(controls_defaults(config, ''));
   // Dynamic options are synced across output cards unless users unlink them
   const toggleDynamicOptionSync = name => {
     const sync = controls.dynamic_options_sync?.[name] === false;
@@ -141,10 +148,6 @@ const CiCommitResults = () => {
   }
 
   // The metrics shown in tables
-  const selected_metrics = useMemo(
-    () => selected_metrics_keys.map(m => available_metrics[m]).filter(Boolean),
-    [selected_metrics_keys, available_metrics],
-  );
   const metricTableSelect = <MetricSelect
     available_metrics={available_metrics}
     used_metrics={new_batch.used_metrics}
@@ -404,11 +407,10 @@ const CiCommitResults = () => {
           visualizations={visualizations}
           controls_extra={controls_extra}
           selected_views={selected_views}
-          selected_metrics={selected_metrics}
           new_batch={new_batch}
           available_metrics={available_metrics}
-          metricTableSelect={metricTableSelect}
           sort_by={selected.sort_by}
+          default_sort_by={metrics.default_metric}
           sort_order={selected.sort_order}
           onToggle={toggle}
           onToggleShow={toggle_show}
@@ -417,6 +419,10 @@ const CiCommitResults = () => {
           tuned_params={tuned_params}
           dynamic_options={dynamic.dynamic_options}
           onUpdateDynamicOption={updateDynamicOption}
+          onResetDynamicOption={resetDynamicOption}
+          has_changes={has_controls_changes}
+          onResetControls={resetControls}
+          docs_root={docs_root}
           onToggleDynamicOptionSync={toggleDynamicOptionSync}
           visualizations_with_files={dynamic.visualizations_with_files}
           expandPanel={expand_floating_panel}
