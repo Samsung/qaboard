@@ -433,22 +433,22 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
     />
     {/* Metrics Section */}
     <SectionHeader>Metrics</SectionHeader>
-    <SiderHint content="The batch's metrics, aggregated over all its tests, compared with the reference.">
+    <SiderHint content="The batch's metrics, aggregated over all its runs, compared with the reference.">
       <MenuItem icon="dashboard" text="Summary" active={active('summary')} onClick={set('summary')}/>
     </SiderHint>
-    <SiderHint content="The metrics of each test, colored by how they compare to their targets.">
+    <SiderHint content="The metrics of each run, colored by how they compare to their targets.">
       <MenuItem icon="locate" text="Metrics Table" active={active('table-kpi')} onClick={set('table-kpi')} />
     </SiderHint>
-    <SiderHint content="For each test, how the metrics changed versus the reference: find regressions.">
+    <SiderHint content="For each run, how the metrics changed versus the reference: find regressions.">
       <MenuItem icon="heat-grid" text="Metrics Diff" active={active('table-compare')} onClick={set('table-compare')}/>
     </SiderHint>
 
-    {/* Outputs Section */}
-    <SectionHeader>Outputs</SectionHeader>
-    <SiderHint content="Images, videos, plots, point clouds... of each test, side by side with the reference, as configured in qaboard.yaml.">
+    {/* Runs Section */}
+    <SectionHeader>Runs</SectionHeader>
+    <SiderHint content="Images, videos, plots, point clouds... of each run, side by side with the reference, as configured in qaboard.yaml.">
       <MenuItem icon="media" text="Visualizations" active={active('output-list')} onClick={set('output-list')} />
     </SiderHint>
-    <SiderHint content="All the files each test created, and which differ from the reference (bit-accuracy).">
+    <SiderHint content="All the files each run created, and which differ from the reference (bit-accuracy).">
       <MenuItem icon="folder-open" text="Output Files" active={active('bit-accuracy')} onClick={set('bit-accuracy')} />
     </SiderHint>
     <SiderHint content="The logs of each run, and of the batch's submission: why runs failed.">
@@ -471,7 +471,7 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
       <MenuItem intent={Intent.PRIMARY} icon="play" text="Run Tests / Tuning" active={active('tuning')} onClick={set('tuning')} />
     </SiderHint>
     <SiderHint content={has_optim ? "This batch is an auto-tuning: see how the parameters affect the metrics." : "How the tuned parameters affect the metrics. Useful after tuning or auto-tuning."}>
-      <MenuItem icon="predictive-analysis" intent={has_optim ? "primary" : undefined} active={active('optimization')} text="Analysis" onClick={set('optimization')}/>
+      <MenuItem icon="predictive-analysis" intent={has_optim ? "primary" : undefined} active={active('optimization')} text="Tuning Analysis" onClick={set('optimization')}/>
     </SiderHint>
   </>
 }

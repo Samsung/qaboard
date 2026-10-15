@@ -212,7 +212,7 @@ const CiCommitResults = () => {
 
             {views.includes('parameters') && <Section>
               <Card>
-                <h2 className={Classes.HEADING}>Artifacts & Configurations</h2>
+                <h2 className={Classes.HEADING}>Artifacts & Configs</h2>
                 <CommitParameters
                   project={new_project}
                   config={config}
@@ -247,7 +247,7 @@ const CiCommitResults = () => {
                   </p>}
                 />
               : <Section>
-                <h2 className={Classes.HEADING}>Tuning Experiments</h2>
+                <h2 className={Classes.HEADING}>Run Tests / Tuning</h2>
                 <Card>
                   <PrivateContent enabled={true}>
                     <TuningForm
@@ -264,7 +264,7 @@ const CiCommitResults = () => {
 
             {views.includes('table-compare') && <Section>
               <Card>
-                  <h2 className={Classes.HEADING}>Improvement report</h2>
+                  <h2 className={Classes.HEADING}>Metrics Diff</h2>
                   <TableCompare
                     new_batch={new_batch}
                     ref_batch={ref_batch}
@@ -277,7 +277,7 @@ const CiCommitResults = () => {
 
             {views.includes('table-kpi') && <Section>
               <Card>
-                  <h2 className={Classes.HEADING}>Quality report</h2>
+                  <h2 className={Classes.HEADING}>Metrics Table</h2>
                   <TableKpi
                     new_batch={new_batch}
                     ref_batch={ref_batch}
@@ -322,7 +322,7 @@ const CiCommitResults = () => {
 
             {views.includes('optimization') && <Section>
               <Card>
-                <h2 className={Classes.HEADING}>Auto-Tuning Analysis</h2>
+                <h2 className={Classes.HEADING}>Tuning Analysis</h2>
                 <TuningExploration
                   project={new_project}
                   metrics={metrics}

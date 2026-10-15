@@ -249,7 +249,7 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
             style={{ marginLeft: "10px" }}
             to={commit_page(project, commit, ci_batch_label)}
             intent={Intent.SUCCESS}
-            text={`${ci_batch.valid_outputs} ${pretty_label(ci_batch)} result${ci_batch.valid_outputs > 1 ? 's' : ''}`}
+            text={`${ci_batch.valid_outputs} ${pretty_label(ci_batch)} run${ci_batch.valid_outputs > 1 ? 's' : ''}`}
           />
         )}
       </div>

@@ -149,7 +149,7 @@ const RunDetails = ({ output }) => {
 
 // Why a finished run has no log
 const emptyHints = output => ({
-  "log.txt": output.deleted ? "The run's outputs were deleted." : "The run may have failed before it started, or its files were deleted.",
+  "log.txt": output.deleted ? "The run's output files were deleted." : "The run may have failed before it started, or its files were deleted.",
   "log.lsf.txt": "Only runs on LSF have it.",
 })
 

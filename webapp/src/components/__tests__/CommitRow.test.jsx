@@ -38,7 +38,7 @@ describe('CommitRow', () => {
     expect(screen.getByText('feature/denoise').closest('a')).toHaveAttribute('href', '/group/proj/commits/feature/denoise');
     expect(screen.getByText('by alice').closest('a')).toHaveAttribute('href', '/group/proj/committer/alice');
     // we compare with the same batch in the reference
-    expect(screen.getByText('3 nightly results').closest('a')).toHaveAttribute('href', '/group/proj/commit/abcdef1234567890?batch=nightly&batch_ref=nightly');
+    expect(screen.getByText('3 nightly runs').closest('a')).toHaveAttribute('href', '/group/proj/commit/abcdef1234567890?batch=nightly&batch_ref=nightly');
   });
 
   it("doesn't change the project's data", () => {

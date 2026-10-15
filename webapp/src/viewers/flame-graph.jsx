@@ -172,10 +172,10 @@ const FlameGraphViewer = ({ output_new, output_ref, path }) => {
         value={data_ref ? comparaison : 'new'}
         style={{ marginBottom: '8px' }}
         options={[
-          {value: 'diff-what-did-happen',  label: 'What did happen (runtimes from new, colored with improvement new vs ref)'},
-          {value: 'diff-what-will-happen',  label: 'What will happen (runtimes from ref, colored with improvement new vs ref)'},
+          {value: 'diff-what-did-happen',  label: 'What did happen (runtimes from new, colored by the improvement vs reference)'},
+          {value: 'diff-what-will-happen',  label: 'What will happen (runtimes from reference, colored by the improvement vs reference)'},
           {value: 'new',  label: 'After (new)'},
-          {value: 'ref',  label: 'Before (ref)'},
+          {value: 'ref',  label: 'Before (reference)'},
           {value: 'both', label: 'After & Before'},
         ]}
       />

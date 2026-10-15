@@ -412,7 +412,7 @@ const CommitsEvolutionPerTest = props => {
           ? <span>The performance for each commit may not be evaluated on the same tests</span>
           : <span>Hover over a run to see {show_bit_accuracy
                                            ? `the files it created `
-                                           : `a visualization of its outputs `}
+                                           : `its visualizations `}
                 compared to the previous commit. Click on a commit to freeze it as a reference, double-click to unfreeze it.</span>
         }
       </p>

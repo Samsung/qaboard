@@ -27,7 +27,7 @@ Shortcuts are ignored while you type in a text box.
 - **Click a run's name** on a card to see the history of that input.
 - **Hover almost anything**: metric names show their description, values show their exact number, `≠` tags explain reference mismatches, run names show metadata and paths to copy.
 - **Fullscreen**: each card has a fullscreen button at its top right, great for large images.
-- **Compare two batches of the same commit**: in the commit bar's **Change** menu, **Also Select as Reference**, then pick another batch in the reference bar.
+- **Compare two batches of the same commit**: in the commit bar's **Change** menu, **Also select as reference**, then pick another batch in the reference bar.
 - **Compare across projects**: **Change Project** in the same menu, e.g. to compare two sub-projects of a monorepo.
 - **Sort by a metric** in the controls panel to see the worst regressions first.
 - **Filter with negatives and regexps**: `-night`, `2X5|GW1`, `threshold:0.5`, `fail`. See the [filter syntax](finding-results.mdx#filter-syntax).
@@ -55,7 +55,7 @@ By default it's the latest commit with results on the project's reference branch
 Look for yellow `≠` tags: the best match used another configuration, platform or tuning parameters. Make the reference filter match the new filter, or choose a reference batch with the same tests. See [How runs are matched](comparing-results.mdx#how-runs-are-matched).
 
 ### A run is stuck as pending
-If it's really dead (e.g. killed by the cluster), use **Mark as Failed** in the run's ☰ menu, then **Redo** it. See [Running from the web app](running-from-the-webapp.mdx).
+If it's really dead (e.g. killed by the cluster), use **Mark as failed** in the run's ☰ menu, then **Redo** it. See [Running from the web app](running-from-the-webapp.mdx).
 
 ### My local runs don't show up
 Runs started from your workspace only appear in QA-Board with `qa --share`, see [QA CLI tips](../using-the-qa-cli.mdx). They show up in a batch named after you (`you 🏠 label`), with a warning that they may not match the committed code.

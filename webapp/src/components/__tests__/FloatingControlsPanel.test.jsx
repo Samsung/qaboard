@@ -26,7 +26,7 @@ const panel = (controls, props = {}) => render(<FloatingControlsPanel
   {...props}
 />);
 
-test('options are shown before users select a value, with their default, linked across outputs', () => {
+test('options are shown before users select a value, with their default, linked across runs', () => {
   const onUpdateDynamicOption = vi.fn();
   panel({}, { onUpdateDynamicOption });
   expect(screen.getByText('frame')).toBeInTheDocument();
@@ -38,10 +38,10 @@ test('options are shown before users select a value, with their default, linked 
   expect(onUpdateDynamicOption).toHaveBeenCalledWith('frame', '2');
 });
 
-test('says when the selected value is not in the outputs', () => {
+test('says when the selected value is not in the runs', () => {
   panel({ dynamic_options: { frame: ['8'] } });
   expect(screen.getAllByRole('combobox')[0]).toHaveValue('10');
-  expect(screen.getByText("isn't in these outputs, they show", { exact: false })).toBeInTheDocument();
+  expect(screen.getByText("isn't in these runs, they show", { exact: false })).toBeInTheDocument();
 });
 
 test('says when the batch has no runs, without visualization toggles', () => {
@@ -58,11 +58,11 @@ test('sections tell whether they are expanded', () => {
   expect(sorting).toHaveAttribute('aria-expanded', 'false');
 });
 
-test('unlinked options are chosen in each output', () => {
+test('unlinked options are chosen in each run', () => {
   const onToggleDynamicOptionSync = vi.fn();
   panel({ dynamic_options_sync: { frame: false } }, { onToggleDynamicOptionSync });
-  expect(screen.getByText('per-output')).toBeInTheDocument();
-  expect(screen.getByText('Each output has its own control')).toBeInTheDocument();
+  expect(screen.getByText('per-run')).toBeInTheDocument();
+  expect(screen.getByText('Each run has its own control')).toBeInTheDocument();
   expect(screen.getAllByRole('combobox')[0]).toBeDisabled();
   fireEvent.click(screen.getAllByRole('button').find(b => b.querySelector('[data-icon="link"]')));
   expect(onToggleDynamicOptionSync).toHaveBeenCalledWith('frame');

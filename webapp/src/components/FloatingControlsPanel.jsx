@@ -469,7 +469,7 @@ const FloatingControlsPanel = ({
                               {name}
                             </ControlLabel>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <Tooltip content={isSync ? "Unlink: choose the value in each output" : "Link: all outputs use the value chosen here"}>
+                              <Tooltip content={isSync ? "Unlink: choose the value in each run" : "Link: all runs use the value chosen here"}>
                                 <Button
                                   icon="link"
                                   aria-label={isSync ? `Unlink ${name}` : `Link ${name}`}
@@ -485,7 +485,7 @@ const FloatingControlsPanel = ({
                                 color: isSync ? (is_dark ? Colors.GREEN5 : Colors.GREEN2) : 'var(--qa-text-muted)',
                                 fontWeight: '500'
                               }}>
-                                {isSync ? 'linked' : 'per-output'}
+                                {isSync ? 'linked' : 'per-run'}
                               </span>
                             </div>
                           </div>
@@ -507,10 +507,10 @@ const FloatingControlsPanel = ({
                             showLabel={false}
                           />
                           {!isSync && <div style={{ fontSize: 10, color: 'var(--qa-text-muted)', marginTop: 4 }}>
-                            Each output has its own control
+                            Each run has its own control
                           </div>}
                           {isSync && !exact && <div style={{ fontSize: 10, color: 'var(--qa-text-muted)', marginTop: 4 }}>
-                            <strong>{wanted}</strong> isn't in these outputs, they show <strong>{selectedValue}</strong>
+                            <strong>{wanted}</strong> isn't in these runs, they show <strong>{selectedValue}</strong>
                           </div>}
                         </ControlGroup>
                       );
