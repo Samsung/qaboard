@@ -64,6 +64,9 @@ const sort_projects = favorites => ([id0, d0], [id1, d1]) => {
 }
 
 
+// Aligned with the filter above, and as tall as their skeletons
+const card_style = { margin: '0 0 12px', display: 'flex', alignItems: 'center', minHeight: 120 };
+
 const ProjectCard = ({ project_id, details }) => {
   const is_favorite = usePrefsStore(state => !!state.favorites[project_id]);
   const toggleFavorite = usePrefsStore(state => state.toggleFavorite);
@@ -75,10 +78,7 @@ const ProjectCard = ({ project_id, details }) => {
   const web_url = project_web_url(details)
 
   return (
-    <Card
-      style={{ margin: "15px", display: 'flex', alignItems: 'center'}}
-      elevation={2}
-    >
+    <Card style={card_style}>
       <div style={{'alignSelf': 'center', flex: '0 0 auto', 'marginRight': '10px'}}>
         <ProjectAvatar
           project={project_id}
@@ -137,13 +137,13 @@ const NoMatchingProjects = ({ query, onClear }) => <div style={{marginTop: '10vh
 </div>;
 
 // Placeholder cards while the projects load, the page doesn't jump when they arrive
-const ProjectCardSkeleton = () => <Card style={{ margin: "15px", display: 'flex', alignItems: 'center', gap: '10px'}} elevation={2}>
-  <div className={Classes.SKELETON} style={{width: 40, height: 40, borderRadius: 4}}/>
+const ProjectCardSkeleton = () => <Card style={{ ...card_style, gap: '10px' }}>
+  <div className={Classes.SKELETON} style={{width: 44, height: 44, borderRadius: '50%', flex: 'none'}}/>
   <div style={{flex: 1}}>
     <h5 className={`${Classes.HEADING} ${Classes.SKELETON}`} style={{width: '30%'}}>project</h5>
     <p className={Classes.SKELETON} style={{width: '60%', marginBottom: 0}}>description</p>
   </div>
-  <div className={Classes.SKELETON} style={{width: 120, height: 50}}/>
+  <div className={Classes.SKELETON} style={{width: 120, height: 80}}/>
 </Card>;
 
 // We render projects progressively: sites can have hundreds
@@ -207,8 +207,6 @@ const ProjectsList = () => {
                 <InputGroup
                   intent={!!query ? Intent.PRIMARY : undefined}
                   value={query}
-                  round
-                  large
                   leftIcon="search"
                   placeholder="Filter projects..."
                   aria-label="Filter projects"

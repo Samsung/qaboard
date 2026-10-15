@@ -13,8 +13,10 @@ import {
   Callout,
   Intent,
   Button,
+  ButtonGroup,
   FormGroup,
   HTMLSelect,
+  InputGroup,
   Radio,
   RadioGroup,
   Switch,
@@ -34,6 +36,9 @@ import { BatchDefinitions, BatchWarnings } from './BatchReport'
 
 
 const MAX_RUNS = 5000;
+
+// A button that looks like the links around it
+const link_button_style = { background: 'none', border: 0, padding: 0, font: 'inherit', color: 'var(--qa-link)', cursor: 'pointer' };
 
 // In qaboard.yaml's tuning.branches, {subproject} is the project's folder in the repository, {subproject.name} its last part
 const expand_subproject = (pattern, subproject) => String(pattern)
@@ -324,6 +329,10 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
   const refresh = useRefreshCommit();
   const [submitted, setSubmitted] = useState(false);
   const [confirm_reset, setConfirmReset] = useState(false);
+  // Required fields only turn red once users left them empty, not on a pristine form
+  const [touched, setTouched] = useState({});
+  const touch = name => () => setTouched(touched => touched[name] ? touched : { ...touched, [name]: true });
+  const is_missing = (name, value) => !!touched[name] && !value;
   const is_transforming = useRef(false);
 
   const default_parameter_search_auto = useMemo(() => templates['optimize'](config, metrics), [config, metrics]);
@@ -429,9 +438,11 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
 
   const { tests, warnings, definitions } = selected_group_info;
   const total_runs = combinations * tests.length;
+  // no runs yet (e.g. no batch chosen) is not an error
   const time_intent =
-    (combinations === "invalid" || total_runs===0 || total_runs > MAX_RUNS)
+    (combinations === "invalid" || total_runs > MAX_RUNS)
       ? Intent.DANGER
+      : total_runs === 0 ? Intent.NONE
       : total_runs < 100
         ? Intent.PRIMARY
         : Intent.WARNING;
@@ -442,19 +453,18 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
   const any_runner_configured = !!config.lsf || Object.keys(config.runners || {}).filter(t => t !== 'local' && t !== 'default').length > 0;
 
   const panel_manual = <>
-    <Callout title="Click to see examples of parameter tuning" icon="info-sign" style={{marginBottom: '15px'}}>
-      <p>
-      {["no tuning", "simple-combinations", "list-of-combinations", "1x2 matrix", "function"].map(x => (
-        <Button
-          style={{margin: '4px'}}
-          key={x}
-          onClick={() => updateParameterSearch(templates[x])}
-        >
-          {x}
-        </Button>
-      ))}
-    </p>
-    </Callout>
+    <FormGroup label="Start from an example" style={{marginBottom: '15px'}}>
+      <ButtonGroup variant="outlined" size="small" style={{flexWrap: 'wrap', gap: '4px'}}>
+        {["no tuning", "simple-combinations", "list-of-combinations", "1x2 matrix", "function"].map(x => (
+          <Button
+            key={x}
+            onClick={() => updateParameterSearch(templates[x])}
+          >
+            {x}
+          </Button>
+        ))}
+      </ButtonGroup>
+    </FormGroup>
     <FormGroup
       inline
       labelFor="select-search-type"
@@ -556,26 +566,29 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
       </pre>
     </Callout>}
     <FormGroup
-      helperText={!experiment_name ? "(required)" : "Tip: reuse the label of an existing batch to add runs to it"}
-      label={`Batch label:`}
+      helperText={is_missing('experiment_name', experiment_name) ? "Give the batch a label" : "Tip: reuse the label of an existing batch to add runs to it"}
+      label="Batch label"
+      labelInfo="(required)"
       labelFor="batch-label"
-      intent={!experiment_name ? Intent.DANGER : Intent.PRIMARY}
+      intent={is_missing('experiment_name', experiment_name) ? Intent.DANGER : undefined}
    >
-      <input
+      <InputGroup
         id="batch-label"
-        className={Classes.INPUT}
         style={{ width: "300px" }}
         placeholder="my-tuning-experiment"
         value={experiment_name}
         onChange={updateExperimentName}
+        onBlur={touch('experiment_name')}
+        intent={is_missing('experiment_name', experiment_name) ? Intent.DANGER : undefined}
         type="text"
         dir="auto"
       />
     </FormGroup>
 
     <FormGroup
-      label="Batch of inputs+configurations:"
-      intent={!selected_group ? Intent.DANGER : Intent.PRIMARY}
+      label="Batch of inputs+configurations"
+      labelInfo="(required)"
+      intent={is_missing('selected_group', selected_group) ? Intent.DANGER : undefined}
       helperText={<>
         {tests.length > 0 && <PopoverNext
             inheritDarkTheme popoverClassName={Classes.DARK}
@@ -596,20 +609,21 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
           <span style={{borderBottom: '1px dotted currentColor', textDecoration: 'none'}}>{tests.length} tests. </span>
         </PopoverNext>}
         <p style={{marginBottom: '5px'}}>
-          To know what batches you can use, go to the tab <Button icon="layout-group-by" size="small" variant="minimal" intent={Intent.PRIMARY} text="Available Tests" onClick={() => updateSelected({ selected_views: 'groups' })}/>.
-          </p>
+          {is_missing('selected_group', selected_group) && "Choose a batch. "}
+          Batches are listed in <button type="button" style={link_button_style} onClick={() => updateSelected({ selected_views: 'groups' })}>Available Tests</button>.
+        </p>
         {error && <p><Tag icon='warning-sign' intent={Intent.DANGER}>{error}</Tag></p>}
         {selected_group_info_loading && <span className={Classes.TEXT_MUTED}><Spinner size={12} style={{display: 'inline-flex', marginRight: '5px'}}/>Listing the tests…</span>}
       </>}
       labelFor="selected-group"
     >
-      <input
+      <InputGroup
         id="selected-group"
-        className={Classes.INPUT}
-        intent={Intent.PRIMARY}
         style={{ width: "300px" }}
         placeholder="my-batch, batch-*"
         onChange={updateSelectedGroup}
+        onBlur={touch('selected_group')}
+        intent={is_missing('selected_group', selected_group) ? Intent.DANGER : undefined}
         value={selected_group}
         type="text"
         dir="auto"
@@ -653,7 +667,7 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
                         : total_runs > MAX_RUNS ? `Too many runs: ${total_runs} (at most ${MAX_RUNS}). Use “Sampling” or fewer inputs.`
                         : total_runs >= 1000 ? "Over 1000 runs: check the cluster has room"
                         : undefined}
-      intent={(!user || experiment_name.length === 0 || !total_runs || total_runs > MAX_RUNS) ? Intent.DANGER : undefined}
+      intent={(combinations === "invalid" || total_runs > MAX_RUNS) && search_type !== "optimize" ? Intent.DANGER : undefined}
     >
     <Button
       onClick={onSubmit}

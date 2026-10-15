@@ -34,8 +34,7 @@ describe('TuningExploration', () => {
     renderWithProviders(<HistoryRouter history={history}>
       <TuningExploration batch={batch} selected_metrics={['loss']} available_metrics={available_metrics}/>
     </HistoryRouter>);
-    expect(screen.getByText('4 runs')).toBeInTheDocument();
-    expect(screen.getByText('2 different inputs')).toBeInTheDocument();
+    expect(screen.getByText('4 runs · 2 inputs')).toBeInTheDocument();
     const parcoords = plots.findLast(p => p.data[0].type === 'parcoords');
     expect(parcoords.data[0].dimensions).toEqual([
       { label: 'loss', values: [20, 35] },

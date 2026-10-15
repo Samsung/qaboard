@@ -917,20 +917,23 @@ class ImgViewer extends React.PureComponent {
       {has_reference && <div style={{ minHeight: header_height }}>
         {!hide_labels ? <Tooltip content={switch_help_label}><Tag
           interactive
-          style={{backgroundColor: Colors.CERULEAN4}}
+          minimal
+          intent={Intent.PRIMARY}
           rightIcon="exchange"
           onClick={this.switch_images}
         >new {path !== path_ref && path} <code>{image_width}x{image_height}</code></Tag></Tooltip> : switch_label}
       </div>}
       <div style={single_image_size} id={this.viewer_new.id} key={this.viewer_new.id} />
     </div>
+    // When the files are identical, the card already says it
     const image_ref = <div style={flex} key="ref">
-      {has_reference && <div style={{ minHeight: header_height }}>
-        {!hide_labels ? <Tooltip content={has_same_data ? "The new and reference files have the same hash" : switch_help_label}><Tag
+      {has_reference && !has_same_data && <div style={{ minHeight: header_height }}>
+        {!hide_labels ? <Tooltip content={switch_help_label}><Tag
           interactive
+          minimal
           rightIcon="exchange"
           onClick={this.switch_images}
-        >{!has_same_data ? <span>reference {path !== path_ref && path_ref} <code>{image_width_ref}x{image_height_ref}</code></span> : 'Identical to the reference'}</Tag></Tooltip> : switch_label}
+        ><span>reference {path !== path_ref && path_ref} <code>{image_width_ref}x{image_height_ref}</code></span></Tag></Tooltip> : switch_label}
       </div>}
       <div style={single_image_size} id={this.viewer_ref.id} key={this.viewer_ref.id} hidden={!has_reference || has_same_data} />
     </div>

@@ -227,61 +227,56 @@ const bit_accuracy_help = <PopoverNext content={<BitAccuracyHelp/>} placement="b
 
 
 
+// Three columns of options (each with its help below), and the help on the right
+const form_grid = { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr)) auto', gap: '0 24px', alignItems: 'start', marginBottom: '20px' };
+const form_group = { margin: 0 };
+
 const BitAccuracyForm = ({ show_all_files, hide_runs_without_files, expand_all, color_blind_friendly, files_filter, toggle, update }) => {
-  return <Callout style={{marginBottom: '20px', display: 'flex', justifyContent: 'space-between'}}>
+  return <Callout style={form_grid}>
     <FormGroup
-      inline
-      labelFor="show-all-files"
       helperText="By default the only files shown are the checked files that are different/added/removed."
-      style={{flex: '50 1 auto'}}
+      style={form_group}
     >
       <Switch
         label="Show all files"
         checked={show_all_files}
         onChange={toggle('show_all_files')}
-        style={{ width: "300px" }}
       />
       <Switch
         label="Hide runs without files"
         checked={hide_runs_without_files}
         onChange={toggle('hide_runs_without_files')}
-        style={{ width: "300px" }}
       />
     </FormGroup>
-    <FormGroup
-      inline
-      labelFor="expand-all"
-      style={{flex: '50 1 auto'}}
-    >
+    <FormGroup style={form_group}>
       <Switch
         label="Expand all folders"
         checked={expand_all}
         onChange={toggle('expand_all')}
-        style={{ width: "300px" }}
       />
       <Switch
         label="Color-blind friendly"
         checked={color_blind_friendly}
         onChange={toggle('color_blind_friendly')}
-        style={{ width: "300px" }}
       />
     </FormGroup>
     <FormGroup
-      inline
       labelFor="files-filter"
       helperText={<span>Filter files by path.<br/><code>match:name</code> shows identical files, <code>diff:name</code> different ones</span>}
-      style={{flex: '50 1 auto'}}
+      style={form_group}
     >
       <InputGroup
+        id="files-filter"
         value={files_filter}
-        placeholder="filter by path"
+        placeholder="Filter by path"
+        aria-label="Filter files by path"
         onChange={update('files_filter')}
-        type="search"
+        type="text"
         leftIcon="filter"
-        style={{ width: "150px" }}
+        rightElement={files_filter ? <Button variant="minimal" icon="cross" aria-label="Clear the filter" onClick={() => update('files_filter')('')}/> : undefined}
       />
     </FormGroup>
-    <span style={{flex: '1 1 auto'}}>{bit_accuracy_help}</span>
+    <span>{bit_accuracy_help}</span>
   </Callout>
 }
 

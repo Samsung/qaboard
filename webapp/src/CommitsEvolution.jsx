@@ -24,8 +24,8 @@ import { yAxisSuffix, hasAllMetrics } from "./evolutionAxis";
 import CommitRow from "./components/CommitRow";
 
 
+// As wide as its container
 let default_layout = {
-  width: 1200,
   margin: {
     // will eat into the drawing area
     l: 40,
@@ -34,7 +34,7 @@ let default_layout = {
     t: 0,
     pad: 0
   },
-  autosize: false,
+  autosize: true,
   yaxis: {
     showgrid: false,
     showline: false,
@@ -313,12 +313,10 @@ const CommitsEvolutionPerTest = props => {
     const visualizations = qatools_config?.outputs?.visualizations || qatools_config?.outputs?.detailed_views || []
     const maybe_diff = visualizations.some(v => is_image(v)) && <Switch
         key='diff'
-        intent={Intent.WARNING}
+        style={{marginRight: "8px"}}
         checked={controls.diff || false}
         onChange={toggle('diff')}
-        labelElement={<strong>Image Diff</strong>}
-        innerLabel="off"
-        innerLabelChecked="on"
+        label="Image diff"
       />
     const controls_switches = <>
       {!show_bit_accuracy && visualizations.map((view, idx) => {
@@ -370,7 +368,7 @@ const CommitsEvolutionPerTest = props => {
         output_new={hovered_output}
         output_ref={output_ref?.id ? output_ref : undefined}
         mismatch={mismatch}
-        style={{ width: '1180px', height: '300px' }}
+        style={{ width: '100%', maxWidth: '1180px', height: '300px' }}
         no_header={true}
         type={show_bit_accuracy ? 'bit_accuracy' : undefined}
         show_all_files={props.show_all_files}
@@ -403,6 +401,8 @@ const CommitsEvolutionPerTest = props => {
       <Plot
         data={traces}
         layout={layout}
+        useResizeHandler
+        style={{ width: '100%' }}
         onHover={onHover}
         onClick={onClick}
         onDoubleClick={() => setSelectedRef(false)}

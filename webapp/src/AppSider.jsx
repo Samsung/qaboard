@@ -7,7 +7,6 @@ import { colors, spacing, typography, borders, transitions, sidebar } from './de
 import {
   Button,
   Classes,
-  Intent,
   MenuItem,
   Icon,
   Tooltip,
@@ -341,7 +340,6 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
   const private_milestones = project_data.milestones || {}
   const has_milestones = [qatools_milestones, shared_milestones, private_milestones].some(m => Object.keys(m).length > 0)
 
-  const is_committer = selected.route.is_committer;
   const is_history = selected.route.is_history;
   const is_branch = !!selected.branch;
   const is_project_home = selected.route.is_commits && !is_branch;
@@ -355,55 +353,53 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
       ? <MenuItemLink to={commits_url} text={(is_branch || project_data.is_loaded) ? branch ?? 'All commits' : <span className={Classes.SKELETON}>branch</span>} title={branch ? `Commits on ${branch}` : 'Commits on all branches'} icon='git-branch'/>
       : <MenuItem icon={is_branch ? "git-branch" : 'user'} active text={tag ?? 'All commits'} title={is_branch ? `Commits on ${tag}` : tag && `Commits by ${tag}`}/>
     }
-    {!is_committer && <>
-      <CodeMenu project={project} project_data={project_data} branch={branch}/>
-      <MenuItemLink to={history_url} active={is_history} icon="history" text="History"/>
-      <SectionDivider />
-      <IntegrationsMenus
-        single_menu
-        integrations={integrations}
-        project={project}
-        project_data={project_data}
-        branch={branch}
-        commit={commit}
-        ref_commit={ref_commit}
-        user={user}
-        docs_root={docs_root}
-        {...integrationProps}
-      />
+    <CodeMenu project={project} project_data={project_data} branch={branch}/>
+    <MenuItemLink to={history_url} active={is_history} icon="history" text="History"/>
+    <SectionDivider />
+    <IntegrationsMenus
+      single_menu
+      integrations={integrations}
+      project={project}
+      project_data={project_data}
+      branch={branch}
+      commit={commit}
+      ref_commit={ref_commit}
+      user={user}
+      docs_root={docs_root}
+      {...integrationProps}
+    />
+    <MenuItem
+      text="Milestones"
+      icon="star"
+      title="Results saved to compare against later"
+      popoverProps={{
+        usePortal: true,
+        portalClassName: "limit-overflow",
+        hoverCloseDelay: 2000,
+        transitionDuration: 800,
+      }}
+    >
+      <MilestonesMenu project={project} milestones={qatools_milestones} onSelect={selectMilestone} icon="crown" title="Select a milestone from qaboard.yaml" type="qatools" />
+      <MilestonesMenu project={project} milestones={shared_milestones} onSelect={selectMilestone} icon="crown" type="shared" title="Select a shared milestone" />
+      <MilestonesMenu project={project} milestones={private_milestones} onSelect={selectMilestone} type="private" title="Select a private milestone" />
+      {!has_milestones && <MenuItem
+        disabled
+        multiline
+        icon="info-sign"
+        text={<span style={{display: 'inline-block', maxWidth: 280}}>
+          No milestones yet. Save one with the <Icon icon="star-empty" size={12}/> next to a commit on its page,
+          or list branches under <code>project.milestones</code> in <em>qaboard.yaml</em>.
+        </span>}
+      />}
       <MenuItem
-        text="Milestones"
-        icon="star"
-        title="Results saved to compare against later"
-        popoverProps={{
-          usePortal: true,
-          portalClassName: "limit-overflow",
-          hoverCloseDelay: 2000,
-          transitionDuration: 800,
-        }}
-      >
-        <MilestonesMenu project={project} milestones={qatools_milestones} onSelect={selectMilestone} icon="crown" title="Select a milestone from qaboard.yaml" type="qatools" />
-        <MilestonesMenu project={project} milestones={shared_milestones} onSelect={selectMilestone} icon="crown" type="shared" title="Select a shared milestone" />
-        <MilestonesMenu project={project} milestones={private_milestones} onSelect={selectMilestone} type="private" title="Select a private milestone" />
-        {!has_milestones && <MenuItem
-          disabled
-          multiline
-          icon="info-sign"
-          text={<span style={{display: 'inline-block', maxWidth: 280}}>
-            No milestones yet. Save one with the <Icon icon="star-empty" size={12}/> next to a commit on its page,
-            or list branches under <code>project.milestones</code> in <em>qaboard.yaml</em>.
-          </span>}
-        />}
-        <MenuItem
-          icon="manual"
-          text="Learn about milestones"
-          href={`${docs_root}docs/references-and-milestones`}
-          target="_blank"
-          rel="noopener noreferrer"
-        />
-      </MenuItem>
-      <QuotaMenuItem user={user} project={project} />
-    </>}
+        icon="manual"
+        text="Learn about milestones"
+        href={`${docs_root}docs/references-and-milestones`}
+        target="_blank"
+        rel="noopener noreferrer"
+      />
+    </MenuItem>
+    <QuotaMenuItem user={user} project={project} />
   </>
 }
 
@@ -416,21 +412,6 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
   const active = view => selected_views.includes(view);
   const set = view => () => updateSelected({ selected_views: view }, { defaults: { selected_views: default_views } })
   return <>
-    <IntegrationsMenus
-      integrations={results_integrations({ new_batch, commit, project_data })}
-      project={project}
-      project_data={project_data}
-      commit={commit}
-      ref_commit={ref_commit}
-      docs_root={docs_root}
-      batch={new_batch}
-      ref_batch={ref_batch?.label}
-      filter={filter}
-      ref_filter={ref_filter}
-      ref_project={ref_project}
-      user={user}
-      {...integrationProps}
-    />
     {/* Metrics Section */}
     <SectionHeader>Metrics</SectionHeader>
     <SiderHint content="The batch's metrics, aggregated over all its runs, compared with the reference.">
@@ -461,6 +442,21 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
       <MenuItem icon="settings" text="Artifacts & Configs" active={active('parameters')} onClick={set('parameters')} />
     </SiderHint>
     <CodeMenu project={project} project_data={project_data} commit={commit?.id ? commit : undefined} branch={commit?.branch}/>
+    <IntegrationsMenus
+      integrations={results_integrations({ new_batch, commit, project_data })}
+      project={project}
+      project_data={project_data}
+      commit={commit}
+      ref_commit={ref_commit}
+      docs_root={docs_root}
+      batch={new_batch}
+      ref_batch={ref_batch?.label}
+      filter={filter}
+      ref_filter={ref_filter}
+      ref_project={ref_project}
+      user={user}
+      {...integrationProps}
+    />
 
     {/* Tuning Section */}
     <SectionHeader>Tuning</SectionHeader>
@@ -468,7 +464,7 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
       <MenuItem icon="layout-group-by" active={active('groups')} text="Available Tests" onClick={set('groups')} />
     </SiderHint>
     <SiderHint content="Run this commit on more tests, or with other parameters, from the web app.">
-      <MenuItem intent={Intent.PRIMARY} icon="play" text="Run Tests / Tuning" active={active('tuning')} onClick={set('tuning')} />
+      <MenuItem icon="play" text="Run Tests / Tuning" active={active('tuning')} onClick={set('tuning')} />
     </SiderHint>
     <SiderHint content={has_optim ? "This batch is an auto-tuning: see how the parameters affect the metrics." : "How the tuned parameters affect the metrics. Useful after tuning or auto-tuning."}>
       <MenuItem icon="predictive-analysis" intent={has_optim ? "primary" : undefined} active={active('optimization')} text="Tuning Analysis" onClick={set('optimization')}/>

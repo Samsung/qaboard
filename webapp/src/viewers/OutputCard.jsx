@@ -146,6 +146,16 @@ const history_location = (project, commit, output, type, search) => {
   };
 }
 
+// Long paths are cut, the tags after them stay on the line
+const run_path_style = {
+  display: 'inline-block',
+  maxWidth: '100%',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  verticalAlign: 'bottom',
+};
+
 const OutputHeader = ({ project, commit, output, output_ref, type, manifests, style, prefix, viewable, tags_first=false }) => {
   const has_metadata = !!output.test_input_metadata && (Object.keys(output.test_input_metadata).length > 0)
   const has_label = has_metadata && !!output.test_input_metadata.label
@@ -210,8 +220,8 @@ const OutputHeader = ({ project, commit, output, output_ref, type, manifests, st
       {prefix}
       {tags_first && viewable && tags}
       {output.output_type !== "batch" && !viewable ?
-        <span key="batch-info">{run_path}</span> : <PopoverNext hoverCloseDelay={1000} interactionKind={PopoverInteractionKind.HOVER} content={popover_content}>
-        <span key="batch-info">
+        <span key="batch-info" style={run_path_style}>{run_path}</span> : <PopoverNext hoverCloseDelay={1000} interactionKind={PopoverInteractionKind.HOVER} content={popover_content}>
+        <span key="batch-info" style={run_path_style}>
           <Link
             to={history_location(project, commit, output, type, window.location.search)}
             onClick={go_to_history}
@@ -234,9 +244,8 @@ const OutputHeader = ({ project, commit, output, output_ref, type, manifests, st
 
 
 const condensed_header_style = {
-  fontSize: ".7rem",
-  fontWeight: 500,
-  letterSpacing: "-1px",
+  fontSize: 13,
+  fontWeight: 600,
   lineHeight: 1.6,
 };
 

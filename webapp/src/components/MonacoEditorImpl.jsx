@@ -28,11 +28,20 @@ self.MonacoEnvironment = {
 // Use the bundled monaco instead of downloading it from a CDN
 loader.config({ monaco });
 
+// In the dark theme, editors have the background of the cards they are in (--qa-surface in App.css)
+const dark_theme = "qa-dark";
+monaco.editor.defineTheme(dark_theme, {
+  base: "vs-dark",
+  inherit: true,
+  rules: [],
+  colors: { "editor.background": "#252a31" },
+});
+
 // Monaco's theme is global: all the editors follow the app's theme
 const useMonacoTheme = () => {
   const dark = useIsDark();
-  useEffect(() => monaco.editor.setTheme(dark ? "vs-dark" : "vs"), [dark]);
-  return dark ? "vs-dark" : "light";
+  useEffect(() => monaco.editor.setTheme(dark ? dark_theme : "vs"), [dark]);
+  return dark ? dark_theme : "light";
 }
 
 // Same props as react-monaco-editor, which we used to use

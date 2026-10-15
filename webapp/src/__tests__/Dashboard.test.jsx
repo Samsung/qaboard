@@ -78,7 +78,7 @@ describe('Dashboard', () => {
     const commit = { id: 'abcdef12', branch: 'master', message: 'm', authored_datetime: '2026-10-01T10:00:00Z', batches: {} };
     vi.stubGlobal('fetch', server(() => json([commit]), { available_metrics: {} }));
     renderPage(`/${project}/history/master`);
-    expect(await screen.findByText('Metrics per-test')).toBeInTheDocument();
+    expect(await screen.findByText('Metrics per test')).toBeInTheDocument();
     expect(screen.queryByText('Metrics per input tag')).not.toBeInTheDocument();
   });
 });

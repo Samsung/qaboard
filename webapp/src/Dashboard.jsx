@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { DateTime } from "luxon";
+import styled from "styled-components";
 
 import {
   Button,
@@ -23,9 +24,29 @@ import { empty_batch } from "./defaults";
 import { errorMessage } from "./api/http";
 
 
-
-
-
+// Like the views of the commit pages: the title on a row above the card
+const ViewSection = styled(Section)`
+  margin-top: 0;
+  margin-bottom: 32px;
+`;
+const ViewHeader = styled.div`
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 12px;
+  h2 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 20px;
+    line-height: 28px;
+    margin: 0;
+  }
+  p {
+    margin: 0;
+  }
+`;
 
 const Dashboard = () => {
   const { project, project_data, selected, new_commit, ref_commit, new_batch, ref_batch, selected_batch_new } = useComparison();
@@ -86,16 +107,18 @@ const Dashboard = () => {
   />;
 
   const outputs_nb = new_batch.filtered.outputs.length
-  const count = outputs_nb > 0 ? <p className={Classes.TEXT_MUTED}>{outputs_nb} run{outputs_nb > 1 ? 's' : ''}</p> : <span/>
+  const count = outputs_nb > 0 && <p className={Classes.TEXT_MUTED}>{outputs_nb} run{outputs_nb > 1 ? 's' : ''}</p>
   return (
-    <Container style={{paddingTop: '50px'}}>
-      <Section>
-        <Card elevation={1} style={{ breakInside: "avoid" }}>
+    <Container style={{ marginTop: 0, paddingTop: 50 + 16 }}>
+      <ViewSection style={{ breakInside: "avoid" }}>
+        <ViewHeader>
           {/* a small spinner while refreshing: a big one would push the page down */}
-          <h2 className={Classes.HEADING} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <h2 className={Classes.HEADING}>
             Performance over time
             {isFetching && <Spinner size={16} aria-label="Refreshing"/>}
           </h2>
+        </ViewHeader>
+        <Card>
           <CommitsEvolution
             project={project}
             project_data={project_data}
@@ -108,16 +131,17 @@ const Dashboard = () => {
             per_output_granularity
             default_breakdown_per_test={true}
             onSelect={commits => updateSelected(commits, { replace: true })}
-            style={{ marginTop: "20px" }}
           />
         </Card>
-      </Section>
+      </ViewSection>
 
       {has_reference && (
-        <Section style={{ breakAfter: "always", breakInside: "avoid" }}>
-          <Card elevation={0}>
+        <ViewSection style={{ breakAfter: "always", breakInside: "avoid" }}>
+          <ViewHeader>
             <h2 className={Classes.HEADING}>Metrics distribution</h2>
             {count}
+          </ViewHeader>
+          <Card>
             <MetricsSummary
               selected_metrics={selected_metrics}
               project={project}
@@ -127,14 +151,16 @@ const Dashboard = () => {
               ref_batch={ref_batch}
             />
           </Card>
-        </Section>
+        </ViewSection>
       )}
 
       {/* the metrics file's dashboard_breakdown_by_tag: the summary per tag of the inputs' metadata */}
-      {dashboard_breakdown_by_tag && <Section>
-        <Card elevation={1}>
+      {dashboard_breakdown_by_tag && <ViewSection>
+        <ViewHeader>
           <h2 className={Classes.HEADING}>Metrics per input tag</h2>
           {count}
+        </ViewHeader>
+        <Card>
           <MetricsSummary
             breakdown_by_tag
             selected_metrics={selected_metrics}
@@ -145,11 +171,13 @@ const Dashboard = () => {
             ref_batch={empty_batch}
           />
         </Card>
-      </Section>}
+      </ViewSection>}
 
-      <Section>
+      <ViewSection>
+        <ViewHeader>
+          <h2 className={Classes.HEADING}>Metrics per test</h2>
+        </ViewHeader>
         <Card>
-          <h2 className={Classes.HEADING}>Metrics per-test</h2>
           {/* Named like the views of the commit pages */}
           <Tabs
             renderActiveTabPanelOnly
@@ -205,7 +233,7 @@ const Dashboard = () => {
             </HTMLSelect>
           </Tabs>
         </Card>
-      </Section>
+      </ViewSection>
     </Container>
   );
 }

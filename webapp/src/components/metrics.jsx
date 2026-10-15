@@ -7,7 +7,6 @@ import {
   NonIdealState,
   Tag,
   Button,
-  Icon,
   Intent,
   Callout,
   MenuItem,
@@ -325,7 +324,8 @@ const SuccessBar = ({ success_frac, metric }) => (
         orientation: "h",
         name: "Meet the target",
         x: [100 * success_frac],
-        textposition: "auto",
+        textposition: "inside",
+        insidetextanchor: "middle",
         hoverinfo: "none",
         text:
           success_frac > 0.4
@@ -341,12 +341,9 @@ const SuccessBar = ({ success_frac, metric }) => (
         orientation: "h",
         name: "Miss the target",
         x: [100 * (1 - success_frac)],
-        textposition: "auto",
         hoverinfo: "none",
-        text:
-          success_frac < 0.6
-            ? `${percent_formatter.format(100 * (1 - success_frac))}% missed`
-            : "",
+        // no label: it doesn't fit, the tooltip says it
+        text: "",
         opacity: 0.8,
         marker: {
           color: Colors.RED5
@@ -492,6 +489,13 @@ const MetricSelect = ({ available_metrics = {}, used_metrics, selected, onChange
   />;
 };
 
+// e.g. "+3%", and "0%" for tiny changes, not "-0%"
+const format_delta = delta_relative => {
+  const percent = 100 * delta_relative;
+  if (Math.abs(percent) < 0.5) return "0%";
+  return `${percent > 0 ? "+" : ""}${percent_formatter.format(percent)}%`;
+};
+
 const delta_intent = (delta_relative, smaller_is_better) => {
   if (delta_relative > 0.01) return smaller_is_better ? Intent.DANGER : Intent.SUCCESS;
   if (delta_relative < -0.01) return smaller_is_better ? Intent.SUCCESS : Intent.DANGER;
@@ -502,6 +506,9 @@ const breakdown_layout = {
   width: 850,
   xaxis: { fixedrange: true, title: "", tickfont: { size: 8 }},
 };
+
+// The reference's color in the plots
+const ref_swatch = { display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: color_ref, marginRight: 8, verticalAlign: 'middle' };
 
 const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, xaxis_labels }) => {
   const breakdown_by_tag = outputs_by_tag !== undefined;
@@ -533,16 +540,15 @@ const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, xa
         <>
           {ref_values.length > 0 && <MetricTile>
             <Tooltip content={`Reference median: ${m.scale * ref_med}${m.suffix ?? ''} over ${ref_values.length} run${ref_values.length === 1 ? '' : 's'}`}>
-              <h3 className={Classes.HEADING} style={{ color: color_ref }}>
-                <Icon style={{verticalAlign: 'middle'}} icon="swap-horizontal" className={Classes.TEXT_MUTED} size={16}/> {metric_formatter(m.scale * ref_med, m)}{m.suffix}
+              <h3 className={Classes.HEADING} style={{ fontSize: 18 }}>
+                <span aria-hidden style={ref_swatch}/>
+                {metric_formatter(m.scale * ref_med, m)}{m.suffix}
+                <span className={Classes.TEXT_MUTED}> reference</span>
               </h3>
             </Tooltip>
             <h5 className={Classes.HEADING}>
               <Tooltip content={`Change of the median vs the reference: ${delta_relative > 0 ? '+' : ''}${metric_formatter(100 * delta_relative)}%. ${m.smaller_is_better ? 'Lower' : 'Higher'} is better.`}>
-              <Tag intent={intent}>
-                {delta_relative > 0 ? "+" : ""}
-                {percent_formatter.format(100 * delta_relative)}%
-              </Tag>
+              <Tag intent={intent} minimal round>{format_delta(delta_relative)}</Tag>
               </Tooltip>
             </h5>
             {(m.target !== undefined && !!ref_pc_good) && <SuccessBar success_frac={ref_pc_good} metric={m}/>}

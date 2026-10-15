@@ -27,9 +27,9 @@ const PanelContainer = styled.div`
   width: 320px;
   max-height: 80vh;
   overflow-y: auto;
+  border-radius: 4px 0 0 4px;
   z-index: 19;
   transition: right 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), visibility 0s linear ${props => props.isExpanded ? '0s' : '0.3s'};
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
   scrollbar-width: thin;
   scrollbar-color: var(--qa-border) transparent;
 
@@ -76,7 +76,6 @@ const StyledCard = styled(Card)`
   border-radius: 4px 0 0 4px;
   height: 100%;
   background-color: var(--qa-surface-alt);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.15) !important;
 `;
 
 const PanelContent = styled.div`
@@ -336,7 +335,8 @@ const FloatingControlsPanel = ({
         aria-expanded={expanded}
       />
       
-      <PanelContainer isExpanded={expanded}>
+      {/* Blueprint's elevation, on the container: its overflow would cut the card's shadow */}
+      <PanelContainer isExpanded={expanded} className={Classes.ELEVATION_2}>
 
       <StyledCard>
         <PanelContent>

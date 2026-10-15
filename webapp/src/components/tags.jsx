@@ -3,6 +3,8 @@ import {
   Alert,
   AnchorButton,
   Classes,
+  Icon,
+  Spinner,
   Tag,
   Menu,
   MenuItem,
@@ -33,19 +35,20 @@ const style_skeleton = {
 }
 
 
+// A run's status, quiet when it went fine. The same width for all statuses: the names next to it line up.
+const status_style = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none', width: 26 };
 const StatusTag = ({output, style}) => {
-  const intent = output.is_failed
-                 ? Intent.DANGER
-                 : output.is_pending ? Intent.WARNING : Intent.SUCCESS;
-  const tag_text = output.is_failed ? "" : output.is_pending ? (output.is_running ? "🏃" : "⏳") : "";
-  const tag_title = output.is_failed ? "Failed" : output.is_pending ? (output.is_running ? "Running" : "Pending") : undefined;
-  return <Tag
-    title={tag_title}
-    icon={output.is_failed ? "cross" : (output.is_pending ? undefined : "tick")}
-    style={output.is_running ? {...style, ...style_skeleton} : style}
-    intent={intent}>{tag_text}
-  </Tag>
-
+  let status;
+  if (output.is_failed)
+    status = <Tag minimal intent={Intent.DANGER} icon="cross" aria-label="Failed"/>;
+  else if (output.is_running)
+    status = <Spinner size={12} aria-label="Running"/>;
+  else if (output.is_pending)
+    status = <Icon icon="time" size={12} className={Classes.TEXT_MUTED} aria-label="Pending"/>;
+  else
+    status = <Icon icon="tick-circle" size={12} intent={Intent.SUCCESS} aria-label="Succeeded"/>;
+  const title = output.is_failed ? "Failed" : output.is_running ? "Running" : output.is_pending ? "Pending" : "Succeeded";
+  return <span title={title} style={{ ...status_style, ...style }}>{status}</span>;
 }
 
 const PlatformTag = ({ platform, inverted }) => {
@@ -77,7 +80,7 @@ const convertToTuningFormat = (configurations) => {
   return Object.keys(merged).length > 0 ? JSON.stringify(merged, null, 2) : null;
 };
 
-const ConfigurationsTags = ({configurations, inverted, intent=Intent.PRIMARY, toplevel=true}) => {
+const ConfigurationsTags = ({configurations, inverted, intent, toplevel=true}) => {
     // Some configuration key names are used and shown by viewers - we don't display them here...
     const tags = configurations.map((c, idx) => {
       const wrapper_style = { marginRight: '5px', marginBottom: '3px', fontWeight: '400' }

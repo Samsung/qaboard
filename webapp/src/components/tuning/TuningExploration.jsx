@@ -5,16 +5,21 @@ import { get as _get } from "es-toolkit/compat";
 import Plot from "../Plot";
 import { Button, Classes, Callout, Colors, Intent, NonIdealState, Spinner, Tag, FormGroup, Switch, HTMLSelect } from "@blueprintjs/core";
 
-import { Section } from "../../components/layout";
+import { useIsDark } from "../../theme";
 import { groupBy, hash_color, median, average, event_value } from "../../utils";
 import { convergence, convergence_traces } from "./convergence";
 
-// No "Send to Cloud" or "Edit chart" links: they would upload the data to Plotly's public Chart Studio
+// No "Send to Cloud" or "Edit chart" links: they would upload the data to Plotly's public Chart Studio.
+// The modebar only shows on hover.
 const config = {
-  displayModeBar: true,
+  displayModeBar: 'hover',
+  displaylogo: false,
   showSendToCloud: false,
   showLink: false,
 };
+
+// Viridis without its darkest purples, that would disappear on the dark theme's background
+const viridis_dark = [[0, '#3b528b'], [0.25, '#2c728e'], [0.5, '#21918c'], [0.75, '#5ec962'], [1, '#fde725']];
 
 const metric_formatter = new Intl.NumberFormat("en-US", {
   style: "decimal",
@@ -223,6 +228,7 @@ const ParallelTuningPlot = memo(({
   parameters,
   aggregation,
 }) => {
+  const dark = useIsDark();
   const metrics_aggregated_by_params = aggregate_by_params(outputs, metrics, aggregation)
     .map(([extra_parameters_s, aggregated_metrics]) => [
       JSON.parse(extra_parameters_s),
@@ -234,7 +240,7 @@ const ParallelTuningPlot = memo(({
   const some_different = values => new Set(values).size > 1;
   const line = {
     color: values(main_metric),
-    colorscale: 'Viridis',
+    colorscale: dark ? viridis_dark : 'Viridis',
     showscale: true,
     reversescale: main_metric.smaller_is_better,
     colorbar: {
@@ -252,8 +258,13 @@ const ParallelTuningPlot = memo(({
     return all_good(v) && some_different(v);
   });
   const parameters_with_different_values = parameters.filter(p => some_different(metrics_aggregated_by_params.map(([params]) => _get(params, p))));
+  // the axes' labels follow the theme
+  const font = { color: dark ? '#d3d8de' : '#1c2127' };
   const traces = [{
     type: 'parcoords',
+    labelfont: font,
+    tickfont: font,
+    rangefont: { color: dark ? '#abb3bf' : '#5f6b7c' },
     line: all_good(line.color) ? line : undefined,
     dimensions: [
       ...metrics_with_different_values.map(metric => ({
@@ -509,7 +520,7 @@ const TuningExploration = ({ batch, selected_metrics: selected_metrics_, availab
   }));
 
   return (
-    <Section>
+    <div>
       {batch_data.optimization && <Callout icon='crown' title="Best parameters">
         {Object.entries(batch_data.best_params ?? {}).map(([k, v]) =>
           <Tag key={k} minimal round intent={Intent.SUCCESS} style={{"margin":'3px'}}>{k}: {JSON.stringify(v)}</Tag>
@@ -520,10 +531,9 @@ const TuningExploration = ({ batch, selected_metrics: selected_metrics_, availab
         <p className={Classes.TEXT_MUTED}>found at iteration {batch_data.best_iter}/{batch_data.iteration}</p>
       </Callout>}
 
-      {!batch_data.optimization && <>
-        <h3 className={Classes.HEADING}>{total_outputs} run{total_outputs>1 && "s"}</h3>
-        <p className={Classes.TEXT_MUTED}>{number_inputs} {number_inputs>1 && "different "}input{number_inputs>1 && "s"}</p>
-      </>}
+      {!batch_data.optimization && <p className={Classes.TEXT_MUTED}>
+        {total_outputs} run{total_outputs === 1 ? "" : "s"} · {number_inputs} input{number_inputs === 1 ? "" : "s"}
+      </p>}
 
       <div style={{paddingBottom: '10px'}}>
         {input}
@@ -641,7 +651,7 @@ const TuningExploration = ({ batch, selected_metrics: selected_metrics_, availab
           parameter={selected_parameter}
         />
       </>}
-    </Section>
+    </div>
   );
 };
 
