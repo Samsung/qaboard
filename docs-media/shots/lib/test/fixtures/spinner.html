@@ -14,6 +14,8 @@
   <div id="loading" class="bp6-spinner"></div>
   <div id="content" hidden>Loaded</div>
   <div id="running" class="masked"><div class="bp6-spinner"></div> a batch still running</div>
+  <!-- a run's status while it runs: never waited for -->
+  <span aria-label="Running"><div class="bp6-spinner" style="width: 12px; height: 12px"></div></span>
   <script>
     // a spinner while a slow request is in flight, then a second request, like a page loading its data
     window.__start = Date.now();
