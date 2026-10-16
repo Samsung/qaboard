@@ -211,6 +211,7 @@
 <li class="">Playing or pausing a video that has no reference no longer raises errors ("pause is not a function").</li>
 <li class="">Videos your browser can't play (e.g. HEVC) say so, with the command to convert them, instead of staying black. Animated <em>.webp</em> and <em>.gif</em> files now show, side by side with the reference's, instead of a black box or their bytes as text.</li>
 <li class="">The Summary's box plots on a log scale show a few round ticks, instead of labels that overlapped.</li>
+<li class="">In the video viewer's Toggle mode, clicking "Toggle" again flips between the new and reference videos, like the <code>t</code> shortcut.</li>
 </ul>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="logs">Logs<a href="https://samsung.github.io/qaboard/release-notes/2026-10#logs" class="hash-link" aria-label="Direct link to Logs" title="Direct link to Logs" translate="no">​</a></h3>
 <ul>
@@ -235,6 +236,7 @@
 <li class="">The projects list shows the description from <em>qaboard.yaml</em> (<code>project.description</code>) for projects that aren't on GitHub or GitLab too.</li>
 <li class="">History's y axis no longer cuts off the start of its top label ("000 ms" for 1000 ms).</li>
 <li class="">The chart above a branch's commits leaves out the commits that don't have the metric, instead of drawing gaps in its line.</li>
+<li class="">Typing a commit id in the commits list's search and pressing Enter no longer leaves "[object Object]" in the search box.</li>
 </ul>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="runs-batches-and-tuning">Runs, batches and tuning<a href="https://samsung.github.io/qaboard/release-notes/2026-10#runs-batches-and-tuning" class="hash-link" aria-label="Direct link to Runs, batches and tuning" title="Direct link to Runs, batches and tuning" translate="no">​</a></h3>
 <ul>
@@ -286,6 +288,8 @@
 <li class="">nginx starts on hosts without IPv6, instead of failing on its <code>listen [::]:80</code> line.</li>
 <li class="">Repositories whose clone is broken are cloned again, instead of failing until an admin deletes them. The broken clone is only replaced once the new clone succeeded.</li>
 <li class="">Tag pushes record the tag's whole name: its first character was cut.</li>
+<li class="">Pushes to repositories with files or folders whose name only looks like <em>qaboard.yaml</em> (for example an agent skill folder named <code>qaboard-yaml</code>) no longer fail: only files named exactly <em>qaboard.yaml</em> or <em>qatools.yaml</em> define projects.</li>
+<li class="">Jenkins integrations show the status of the builds they trigger when Jenkins' own URL uses another hostname than the integration's <code>build_url</code> (for example a full domain name): checking them failed with a 403 because no credentials matched that hostname in <code>JENKINS_AUTH</code>.</li>
 <li class="">Servers outside SIRC no longer show avatars from SIRC's directory for GitLab users without one: set <code>QABOARD_AVATAR_URL</code> to use your own (<a class="" href="https://samsung.github.io/qaboard/docs/deploy#optional-environment-variables">environment variables</a>).</li>
 </ul>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="security-and-data-safety">Security and data safety<a href="https://samsung.github.io/qaboard/release-notes/2026-10#security-and-data-safety" class="hash-link" aria-label="Direct link to Security and data safety" title="Direct link to Security and data safety" translate="no">​</a></h3>

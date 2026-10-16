@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.c1ca28c2.css">
-<script src="/qaboard/assets/js/runtime~main.7a5c15b9.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.3a5b9f60.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.8a315988.js" defer="defer"></script>
 </head>
 <body>
@@ -223,6 +223,7 @@
 <li class="">Playing or pausing a video that has no reference no longer raises errors (&quot;pause is not a function&quot;).</li>
 <li class="">Videos your browser can&#x27;t play (e.g. HEVC) say so, with the command to convert them, instead of staying black. Animated <em>.webp</em> and <em>.gif</em> files now show, side by side with the reference&#x27;s, instead of a black box or their bytes as text.</li>
 <li class="">The Summary&#x27;s box plots on a log scale show a few round ticks, instead of labels that overlapped.</li>
+<li class="">In the video viewer&#x27;s Toggle mode, clicking &quot;Toggle&quot; again flips between the new and reference videos, like the <code>t</code> shortcut.</li>
 </ul>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="logs">Logs<a href="#logs" class="hash-link" aria-label="Direct link to Logs" title="Direct link to Logs" translate="no">​</a></h3>
 <ul>
@@ -247,6 +248,7 @@
 <li class="">The projects list shows the description from <em>qaboard.yaml</em> (<code>project.description</code>) for projects that aren&#x27;t on GitHub or GitLab too.</li>
 <li class="">History&#x27;s y axis no longer cuts off the start of its top label (&quot;000 ms&quot; for 1000 ms).</li>
 <li class="">The chart above a branch&#x27;s commits leaves out the commits that don&#x27;t have the metric, instead of drawing gaps in its line.</li>
+<li class="">Typing a commit id in the commits list&#x27;s search and pressing Enter no longer leaves &quot;[object Object]&quot; in the search box.</li>
 </ul>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="runs-batches-and-tuning">Runs, batches and tuning<a href="#runs-batches-and-tuning" class="hash-link" aria-label="Direct link to Runs, batches and tuning" title="Direct link to Runs, batches and tuning" translate="no">​</a></h3>
 <ul>
@@ -298,6 +300,8 @@
 <li class="">nginx starts on hosts without IPv6, instead of failing on its <code>listen [::]:80</code> line.</li>
 <li class="">Repositories whose clone is broken are cloned again, instead of failing until an admin deletes them. The broken clone is only replaced once the new clone succeeded.</li>
 <li class="">Tag pushes record the tag&#x27;s whole name: its first character was cut.</li>
+<li class="">Pushes to repositories with files or folders whose name only looks like <em>qaboard.yaml</em> (for example an agent skill folder named <code>qaboard-yaml</code>) no longer fail: only files named exactly <em>qaboard.yaml</em> or <em>qatools.yaml</em> define projects.</li>
+<li class="">Jenkins integrations show the status of the builds they trigger when Jenkins&#x27; own URL uses another hostname than the integration&#x27;s <code>build_url</code> (for example a full domain name): checking them failed with a 403 because no credentials matched that hostname in <code>JENKINS_AUTH</code>.</li>
 <li class="">Servers outside SIRC no longer show avatars from SIRC&#x27;s directory for GitLab users without one: set <code>QABOARD_AVATAR_URL</code> to use your own (<a class="" href="/qaboard/docs/deploy#optional-environment-variables">environment variables</a>).</li>
 </ul>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="security-and-data-safety">Security and data safety<a href="#security-and-data-safety" class="hash-link" aria-label="Direct link to Security and data safety" title="Direct link to Security and data safety" translate="no">​</a></h3>
