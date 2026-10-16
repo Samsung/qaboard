@@ -15,7 +15,10 @@ const imageRow = (scope: Page | Locator) => newImage(scope).locator('xpath=../..
 // the line above the images with the hovered pixel's coordinates, color swatches and values (and, with histograms,
 // the info icon above it)
 const pixelValues = (scope: Page | Locator) => scope.getByText(/^x: \d+, y: \d+$/).locator('xpath=../../..');
-const controlsPanel = (page: Page) => page.locator('.bp6-card', { has: page.getByText('Controls', { exact: true }) }).last();
+// The View options, docked on the right of the commit page (the user's choice is remembered: controls-panel-expanded)
+const controlsPanel = (page: Page) => page.locator('aside[aria-label="View options"]');
+// Its toggle: "Show the view options" on its rail, "Collapse the view options" when open
+const PANEL_TOGGLE = 'button[aria-expanded][aria-label$=" the view options"]';
 
 // `commit` against `reference`, the linux runs matching `filter` (the hw-model platform runs the same inputs)
 const compare = (d: Demo, commit: string, reference: string, filter: string, opts: { view?: 'output-list' | 'bit_accuracy'; controls?: Record<string, unknown> } = {}) =>
@@ -105,17 +108,17 @@ shot('commit/controls-panel', {
   // the color chart and the slanted edge have plots, some hidden by default
   url: d => halos(d, 'charts/(color|slanted) base'),
   storage: { 'controls-panel-expanded': 'true' },
-  alt: 'The Controls panel open on the right of the run cards: an Image Diff switch, a switch per visualization, '
-    + 'including the hidden Color errors and Noise vs signal, and the sorting options.',
-  caption: 'The Controls panel shows or hides visualizations, turns Image Diff on, and sorts the runs.',
+  alt: 'The View options docked on the right of the run cards: a switch per visualization, including the hidden Color '
+    + 'errors and Noise vs signal, the Image diff switch, and how the runs are sorted.',
+  caption: 'The View options show or hide visualizations, turn Image diff on, and sort the runs.',
   actions: async ui => {
     const panel = controlsPanel(ui.page);
-    // fold Dynamic Options, so that Sorting fits
-    await ui.click(panel.getByText('Dynamic Options', { exact: true }));
+    // fold Files to show, so that Sort runs fits
+    await ui.click(panel.getByRole('button', { name: 'Files to show', exact: true }));
     await ui.hold(400);
-    await ui.anchor('visualizations', panel.getByText('Visualizations', { exact: true }));
-    await ui.anchor('image-diff', panel.locator('label', { hasText: 'Image Diff' }));
-    await ui.anchor('sorting', panel.getByText('Sorting', { exact: true }));
+    await ui.anchor('visualizations', panel.getByRole('button', { name: 'Visualizations', exact: true }));
+    await ui.anchor('image-diff', panel.locator('label', { hasText: 'Image diff' }));
+    await ui.anchor('sorting', panel.getByRole('button', { name: 'Sort runs', exact: true }));
   },
 });
 
@@ -315,7 +318,7 @@ shot('commit/output-files', {
 clip('commit/image-diff', {
   project: IQ,
   url: d => halos(d, 'photos/facade base'),
-  alt: 'Zooming into the new image of the facade, the reference follows; the Controls panel opens and Image Diff turns '
+  alt: 'Zooming into the new image of the facade, the reference follows; the View options open and Image diff turns '
     + 'on; raising the threshold leaves only the window frame\'s halos.',
   caption: 'Synced zoom, then Image Diff and its threshold.',
   // While the Controls panel is open, its text lands 1 pixel apart in about a third of the recordings (0.27-0.30% of
@@ -334,11 +337,11 @@ clip('commit/image-diff', {
     await zoom(ui, scope, { x: 25, y: 25 }, 4);
     await ui.hold(1500);
     await ui.caption('Image Diff shows what changed');
-    await ui.click(ui.page.locator('[aria-expanded][title$=" the controls"]'));
+    await ui.click(ui.page.locator(PANEL_TOGGLE));
     await ui.hold(500);
-    await ui.click(controlsPanel(ui.page).locator('label', { hasText: 'Image Diff' }));
+    await ui.click(controlsPanel(ui.page).locator('label', { hasText: 'Image diff' }));
     await ui.settle();
-    await ui.click(ui.page.locator('[aria-expanded][title$=" the controls"]'));
+    await ui.click(ui.page.locator(PANEL_TOGGLE));
     await ui.hold(1500);
     await ui.caption('A higher threshold keeps only the halos');
     // from 5% to 15%: the slider spans 0-30% over the width of an image
@@ -452,9 +455,9 @@ clip('commit/video-compare', {
 const filterBox = (page: Page, type: 'new' | 'ref') =>
   page.locator('.bp6-form-group', { has: page.locator(`input#filter-${type}-input`) });
 const barRight = (page: Page, type: 'new' | 'ref') =>
-  page.locator('.bp6-navbar-group.bp6-align-right', { has: page.locator(`input#filter-${type}-input`) });
-// The Controls panel's Dynamic Options: one entry per option, here the ISP stage
-const dynamicOptions = (page: Page) => controlsPanel(page).getByText('Dynamic Options', { exact: true }).locator('xpath=../..');
+  page.locator('.bp6-navbar-group', { has: page.locator(`input#filter-${type}-input`) });
+// The View options' Files to show: one entry per option, here the ISP stage
+const dynamicOptions = (page: Page) => controlsPanel(page).locator('section', { has: page.getByRole('button', { name: 'Files to show', exact: true }) });
 
 shot('commit/batch-picker', {
   project: IQ,
@@ -522,9 +525,9 @@ shot('commit/dynamic-options', {
   project: IQ,
   url: d => stages(d, 'night-street|facade low-light', 3),
   storage: { 'controls-panel-expanded': 'true' },
-  alt: 'The Controls panel\'s Dynamic Options: the stage option, synced, its slider on 3. Next to it, the night street\'s '
+  alt: 'The View options\' Files to show: the stage option, synced, its slider on 3. Next to it, the night street\'s '
     + 'card shows stages/3.jpg, the denoised image, new and reference.',
-  caption: 'Dynamic Options pick the file each card shows, here the ISP stage. Synced, one slider drives every run.',
+  caption: 'Files to show picks the file each card shows, here the ISP stage. Synced, one slider drives every run.',
   actions: async ui => {
     const card = cards(ui.page).filter({ hasText: 'photos/night-street.png' }).first();
     const scrollToCard = () => card.evaluate(card => window.scrollBy(0, card.getBoundingClientRect().top - 160));
@@ -545,7 +548,7 @@ clip('commit/dynamic-outputs', {
   project: IQ,
   url: d => stages(d, 'night-street|facade low-light', 1),
   storage: { 'controls-panel-expanded': 'true' },
-  alt: 'The stage slider of the Controls panel steps from the raw sensor mosaic to the tone-mapped image of the facade\'s '
+  alt: 'The stage slider of the View options steps from the raw sensor mosaic to the tone-mapped image of the facade\'s '
     + 'window, new and reference changing together; scrolling down, the night street\'s card follows the slider too.',
   caption: 'One slider over the ISP\'s stages drives every run\'s card.',
   // the facade's tone-mapped output, new and reference
@@ -761,7 +764,7 @@ clip('commit/compare-tour', {
   project: DE,
   url: d => int8(d, { view: 'summary', filter: 'int8' }),
   alt: 'The Summary of the int8 runs against the fp32 release; a click on Metrics Diff in the sidebar shows each slice\'s '
-    + 'change; in the Controls panel, sorting by mAP from the lowest brings the indoor slice, -35%, to the top.',
+    + 'change; in the View options, sorting by mAP from the lowest brings the indoor slice, -35%, to the top.',
   caption: 'From the Summary to each test\'s change, sorted to bring the worst slice to the top.',
   actions: async ui => {
     await ui.plots();
@@ -776,19 +779,19 @@ clip('commit/compare-tour', {
     await ui.settle();
     await ui.hold(2500);
     await ui.caption('Sort by mAP, the worst slice first');
-    await ui.click(page.locator('[aria-expanded][title$=" the controls"]'));
+    await ui.click(page.locator(PANEL_TOGGLE));
     await ui.hold(400);
-    // the Controls panel's Sorting: a select after each label
-    const select = (label: string) => page.getByText(label, { exact: true }).last().locator('xpath=following::select[1]');
-    await ui.cursor.moveTo(select('Sort By'));
-    await select('Sort By').selectOption('map');
+    // the View options' Sort runs: what, then the order
+    const select = (label: string) => controlsPanel(page).getByRole('combobox', { name: label });
+    await ui.cursor.moveTo(select('Sort runs by'));
+    await select('Sort runs by').selectOption('map');
     await ui.settle();
     await ui.hold(600);
-    await ui.cursor.moveTo(select('Order'));
-    await select('Order').selectOption('1');
+    await ui.cursor.moveTo(select('Sort order'));
+    await select('Sort order').selectOption('1');
     await ui.settle();
     await ui.hold(600);
-    await ui.click(page.locator('[aria-expanded][title$=" the controls"]'));
+    await ui.click(page.locator(PANEL_TOGGLE));
     await ui.settle();
     await ui.cursor.moveTo(viewCard(page, 'Metrics Diff').getByText('slices/indoor').first());
     await ui.hold(2500);

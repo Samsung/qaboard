@@ -149,7 +149,7 @@ function contextOptions(kind: Kind, base: BrowserContextOptions = {}, viewport?:
 /**
  * Every page starts with this localStorage (docs-media/README.md#determinism), plus the shot's `storage`:
  * - What's new was seen up to T0's date, so it doesn't pop up (webapp/src/releaseNotes/logic.js accepts a date);
- * - the Controls panel is collapsed.
+ * - the View options (the controls panel) are collapsed.
  */
 export function defaultStorage(demo: Demo): Record<string, string> {
   return {
