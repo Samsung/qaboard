@@ -14,7 +14,7 @@ const newImage = (scope: Page | Locator) => scope.locator('[id^="image-viewer-"]
 // The View options, docked on the right of the commit page (the user's choice is remembered: controls-panel-expanded)
 const controlsPanel = (page: Page) => page.locator('aside[aria-label="View options"]');
 // Its toggle: "Show the view options" on its rail, "Collapse the view options" when open
-const PANEL_TOGGLE = 'button[aria-expanded][aria-label$=" the view options"]';
+const PANEL_TOGGLE = 'button[aria-label$=" the view options"]';
 
 // An element's box once it stopped moving: hovering an image shows the pixel values above it, which push it down
 async function stableBox(target: Locator) {

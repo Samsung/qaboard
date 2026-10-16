@@ -239,7 +239,7 @@ clip('tuning/launch-to-analysis', {
     await ui.click(picker);
     await ui.click(page.locator('.bp6-popover .bp6-menu-item', { hasText: EXPERIMENT }).first());
     await ui.caption('Its Analysis compares the runs');
-    await ui.click(page.getByText('Analysis', { exact: true }).first());
+    await ui.click(page.getByText(/^(Tuning )?Analysis$/).first());
     // from its title: the page kept the form's scroll
     await page.evaluate(() => window.scrollTo(0, 0));
     await ui.plots({ timeout: 60_000 });

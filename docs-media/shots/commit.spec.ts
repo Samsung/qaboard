@@ -18,7 +18,7 @@ const pixelValues = (scope: Page | Locator) => scope.getByText(/^x: \d+, y: \d+$
 // The View options, docked on the right of the commit page (the user's choice is remembered: controls-panel-expanded)
 const controlsPanel = (page: Page) => page.locator('aside[aria-label="View options"]');
 // Its toggle: "Show the view options" on its rail, "Collapse the view options" when open
-const PANEL_TOGGLE = 'button[aria-expanded][aria-label$=" the view options"]';
+const PANEL_TOGGLE = 'button[aria-label$=" the view options"]';
 
 // `commit` against `reference`, the linux runs matching `filter` (the hw-model platform runs the same inputs)
 const compare = (d: Demo, commit: string, reference: string, filter: string, opts: { view?: 'output-list' | 'bit_accuracy'; controls?: Record<string, unknown> } = {}) =>
