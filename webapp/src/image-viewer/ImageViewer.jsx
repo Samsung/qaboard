@@ -112,6 +112,9 @@ export const ImageViewer = ({
   const mode = comparing ? (MODES.some(m => m.value === stored_mode) ? stored_mode : 'side-by-side') : 'single';
   const [diff_setting, setDiff] = useControllable(diff_prop, defaultDiff, onDiffChange);
   const diff = normalizeDiff(diff_setting);
+  // In difference mode, the images show on each side of the difference ('between', new | difference | reference), or not
+  const diff_layout = diff_setting?.layout === 'alone' ? 'alone' : 'between';
+  const toggleDiffLayout = () => setDiff({ ...diff, layout: diff_layout === 'alone' ? 'between' : 'alone' });
   const [adjustments_setting, setAdjustments] = useControllable(adjustments_prop, defaultAdjustments, onAdjustmentsChange);
   const adjustments = normalizeAdjustments(adjustments_setting);
   // Which values are written on the pixels: the images' own ('image', with getPixels), the displayed ones, or 'off'
@@ -159,6 +162,10 @@ export const ImageViewer = ({
   const main_size = size_a ?? size_b;
   const aspect = main_size ? main_size.height / main_size.width : 3 / 4;
   const side_by_side = mode === 'side-by-side';
+  const diff_between = mode === 'difference' && diff_layout === 'between';
+  // The images show apart: side by side, or on each side of their difference
+  const apart = side_by_side || diff_between;
+  const columns = side_by_side ? 2 : diff_between ? 3 : 1;
   // Full screen: the images take all the room below the header
   const [fullscreen, setFullscreen] = useState(false);
   useEffect(() => {
@@ -170,10 +177,10 @@ export const ImageViewer = ({
   const max_height = Math.max(120, fullscreen
     ? window_height - header_height - 24
     : typeof maxHeight === 'function' ? maxHeight(window_height) : maxHeight);
-  const per_pane = Math.max(0, side_by_side ? (available - GAP) / 2 : available);
+  const per_pane = Math.max(0, (available - (columns - 1) * GAP) / columns);
   const pane_width = Math.floor(Math.min(per_pane, max_height / aspect));
   const pane_height = Math.floor(pane_width * aspect);
-  const stage_width = side_by_side ? 2 * pane_width + GAP : pane_width;
+  const stage_width = columns * pane_width + (columns - 1) * GAP;
 
   // The images
   useEffect(() => {
@@ -200,6 +207,19 @@ export const ImageViewer = ({
   const first = swapped ? 'b' : 'a';
   const second = swapped ? 'a' : 'b';
   const swap = () => setSwapped(s => !s);
+  // Picking the mode shown again: Toggle flips the images, Difference shows or hides the images on its sides
+  const pickMode = value => {
+    if (value === mode && value === 'toggle') swap();
+    else if (value === mode && value === 'difference') toggleDiffLayout();
+    else setMode(value);
+  };
+
+  // Gestures on the difference between the images move them
+  const diff_pane = useRef(null);
+  useEffect(() => {
+    if (!diff_between || !diff_pane.current) return;
+    return controller.trackGestures(diff_pane.current);
+  }, [controller, diff_between]);
 
   // Regions of interest
   const [selection, setSelection] = useState(() => defaultRegionSet ? { set: defaultRegionSet, index: 0 } : null);
@@ -273,7 +293,7 @@ export const ImageViewer = ({
       switch (event.key) {
         case '1': case '2': case '3': case '4':
           if (!comparing) return false;
-          setMode(MODES[Number(event.key) - 1].value);
+          pickMode(MODES[Number(event.key) - 1].value);
           return true;
         case 't':
           if (!comparing) return false;
@@ -337,6 +357,7 @@ export const ImageViewer = ({
     const style = { width: pane_width, height: pane_height, left: 0 };
     if (name === 'b' && !comparing) return { ...style, visibility: 'hidden', pointerEvents: 'none' };
     if (side_by_side) return { ...style, left: name === first ? 0 : pane_width + GAP };
+    if (diff_between) return { ...style, left: name === first ? 0 : 2 * (pane_width + GAP) };
     if (mode === 'wipe') return name === second ? { ...style, zIndex: 2, clipPath: `inset(0 0 0 ${wipe * pane_width}px)` } : { ...style, zIndex: 1 };
     if (mode === 'toggle') return name === first ? { ...style, zIndex: 2 } : { ...style, visibility: 'hidden' };
     // difference: the image receives the gestures, under the difference
@@ -390,8 +411,8 @@ export const ImageViewer = ({
   >
     <div className="qiv-osd" ref={element => { if (element) controller.attach(name, element); }} style={{ filter }} />
     {pixelValues(name)}
-    <Crosshair controller={controller} pane={name} local={side_by_side} />
-    {side_by_side && label(name, 'left')}
+    <Crosshair controller={controller} pane={name} />
+    {apart && label(name, 'left')}
     {pane_error(name)}
   </div>;
 
@@ -435,18 +456,16 @@ export const ImageViewer = ({
     </svg>
     <div className="qiv-header" ref={header}>
     <div className="qiv-toolbar">
-      {comparing && <Segmented
-        label="Compare"
-        options={MODES}
-        value={mode}
-        onChange={value => {
-          // clicking Toggle again flips the images, like t
-          if (value === 'toggle' && mode === 'toggle') swap();
-          else setMode(value);
-        }}
+      {comparing && <Segmented label="Compare" options={MODES} value={mode} onChange={pickMode} />}
+      {mode === 'difference' && <Button
+        icon="three-columns"
+        title={diff_between ? 'Show the difference alone (4)' : `Show the images on each side of the difference: ${labels.a} | difference | ${labels.b} (4)`}
+        active={diff_between}
+        aria-pressed={diff_between}
+        onClick={toggleDiffLayout}
       />}
-      {comparing && mode !== 'difference' && <Button icon="exchange" title={`Swap ${labels.a} and ${labels.b} (t)`} onClick={swap} active={swapped} aria-pressed={swapped} />}
-      {mode === 'difference' && <DiffSettings diff={diff} onChange={setDiff} />}
+      {comparing && (mode !== 'difference' || diff_between) && <Button icon="exchange" title={`Swap ${labels.a} and ${labels.b} (t)`} onClick={swap} active={swapped} aria-pressed={swapped} />}
+      {mode === 'difference' && <DiffSettings diff={diff} onChange={value => setDiff({ ...value, layout: diff_layout })} />}
       {notice}
       <span className="qiv-spacer" />
       <span className="qiv-tools">
@@ -527,13 +546,24 @@ export const ImageViewer = ({
     >
       {pane('a')}
       {pane('b')}
-      {mode === 'difference' && <div className="qiv-pane qiv-diff-pane" style={{ width: pane_width, height: pane_height, left: 0, zIndex: 3 }}>
+      {mode === 'difference' && <div
+        ref={diff_pane}
+        className={`qiv-pane qiv-diff-pane ${diff_between ? 'qiv-diff-between' : ''}`}
+        style={{ width: pane_width, height: pane_height, left: diff_between ? pane_width + GAP : 0, zIndex: 3 }}
+        onPointerMove={diff_between ? event => controller.hover('diff', event.clientX, event.clientY, event.currentTarget) : undefined}
+        onPointerLeave={diff_between ? () => controller.unhover() : undefined}
+      >
         <DiffLayer controller={controller} diff={diff} active={visible} width={pane_width} height={pane_height} canvasRef={diff_canvas} onError={setDiffError} />
         {pixelValues('diff')}
+        <Crosshair controller={controller} pane="diff" />
+        {diff_between && !hide_labels && <>
+          <span className="qiv-label qiv-label-left qiv-label-diff" title={`How ${labels.a} differs from ${labels.b}`}>difference</span>
+          <div className="qiv-stage-notes"><DiffLegend diff={diff} /></div>
+        </>}
         {diff_error && <div className="qiv-message qiv-pane-message">{diff_error}</div>}
       </div>}
       {!hide_labels && <div className="qiv-stage-notes">
-        {mode === 'difference' && <DiffLegend diff={diff} />}
+        {mode === 'difference' && !diff_between && <DiffLegend diff={diff} />}
         <ValuesBadge drawn={pixel_source !== 'off' ? values_drawn : null} />
       </div>}
       {mode === 'wipe' && <>

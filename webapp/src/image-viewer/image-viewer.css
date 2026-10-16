@@ -464,6 +464,13 @@
   pointer-events: none;
   background: transparent;
 }
+/* between the images, it moves them like they do */
+.qiv-diff-pane.qiv-diff-between {
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+  background: var(--qiv-pane);
+}
 .qiv-diff-pane .qiv-legend,
 .qiv-diff-pane .qiv-message {
   pointer-events: auto;
@@ -507,29 +514,8 @@
 .qiv-crosshair {
   position: absolute;
   z-index: 3;
-  width: 21px;
-  height: 21px;
-  margin: -10px 0 0 -10px;
+  margin: -12.5px 0 0 -12.5px;
   pointer-events: none;
-}
-.qiv-crosshair::before,
-.qiv-crosshair::after {
-  content: "";
-  position: absolute;
-  background: #fff;
-  box-shadow: 0 0 2px rgba(0, 0, 0, 0.9);
-}
-.qiv-crosshair::before {
-  left: 10px;
-  top: 0;
-  width: 1px;
-  height: 21px;
-}
-.qiv-crosshair::after {
-  top: 10px;
-  left: 0;
-  width: 21px;
-  height: 1px;
 }
 .qiv-wipe {
   position: absolute;
@@ -820,4 +806,11 @@
   border-radius: 3px;
   font-family: var(--qiv-mono);
   font-size: 11px;
+}
+
+/* the difference's label, between the images */
+.qiv-label.qiv-label-diff {
+  cursor: default;
+  background: var(--qiv-surface);
+  color: var(--qiv-text);
 }

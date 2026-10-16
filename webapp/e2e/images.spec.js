@@ -178,6 +178,49 @@ test('compares images side by side, with a wipe, toggling, and as their differen
   await expect(page.getByRole('radio', { name: 'Side by side' })).toHaveAttribute('aria-checked', 'true');
 });
 
+test('shows the difference between the images, or alone', async ({ page }) => {
+  await setup(page);
+  await expect(page.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
+  await page.getByRole('radio', { name: 'Difference' }).click();
+
+  // new | difference | reference
+  const diff_pane = page.locator('.qiv-diff-between');
+  await expect(diff_pane).toBeVisible();
+  const [a, diff, b] = await Promise.all([
+    page.getByRole('button', { name: /^new 512×384/ }).boundingBox(),
+    diff_pane.boundingBox(),
+    page.getByRole('button', { name: /^reference 512×384/ }).boundingBox(),
+  ]);
+  expect(a.x).toBeLessThan(diff.x);
+  expect(diff.x + diff.width).toBeLessThan(b.x);
+  await expect(page.locator('.qiv-label-diff')).toHaveText('difference');
+  await expect.poll(() => darkPixels(page.locator('canvas.qiv-diff'), [0.2, 0.27, 0.27, 0.36])).toBeGreaterThan(100);
+
+  // hovering the difference: the pixel's values, and a cross on both images
+  await page.mouse.move(diff.x + diff.width * 120 / 512, diff.y + diff.height * 120 / 384);
+  await expect(page.locator('.qiv-readout')).toContainText(/x 1[12]\d y 1[12]\d/);
+  await expect(page.locator('.qiv-crosshair')).toHaveCount(3);
+
+  // the wheel on the difference zooms the images
+  const before = await zoom(page);
+  for (let i = 0; i < 3; i++) {
+    await page.mouse.wheel(0, -100);
+    await page.waitForTimeout(100);
+  }
+  await expect.poll(() => zoom(page)).toBeGreaterThan(before * 1.5);
+  await expect(page.locator('.qiv-readout')).toContainText(/x 1[12]\d y 1[12]\d/);
+
+  // Difference again: the difference alone, larger
+  await page.getByRole('radio', { name: 'Difference' }).click();
+  await expect(diff_pane).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^new 512×384/ })).toBeHidden();
+  expect((await page.locator('.qiv-diff-pane').boundingBox()).width).toBeGreaterThan(1.5 * diff.width);
+  await expect(page).toHaveURL(/alone/);
+  // and back
+  await page.keyboard.press('4');
+  await expect(diff_pane).toBeVisible();
+});
+
 test('writes the values of the pixels on them when zoomed in', async ({ page }) => {
   const { pixel_requests } = await setup(page);
   const stage = page.locator('.qiv-stage');

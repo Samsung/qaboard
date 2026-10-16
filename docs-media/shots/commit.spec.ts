@@ -1,20 +1,13 @@
 // The commit page (docs-media/shots.yaml: commit/*), on the camera ISP project (examples/image-quality).
 // The story: a bilateral denoiser wins PSNR but adds halos along edges (merge-bilateral), against the isp-4.1 release.
 import { clip, shot, type Demo, type Locator, type Page, type Ui } from './lib';
+import { diffMax, imageRow, newImage, pixelValues, preset, stableBox, toolbar } from './imageViewer';
 
 const IQ = 'image-quality';
 
 // Run cards; in a card, the viewer of each visualization (Output first), with new and reference images
-// (src/image-viewer/: its toolbar, the line with the hovered pixel's values, then the images)
 const cards = (page: Page) => page.locator('.output-card.bp6-card');
 const viewer = (scope: Page | Locator, index = 0) => scope.locator(`[id="${index}-0"]`).first();
-// the new image's pane (then the reference's, then the difference's)
-const newImage = (scope: Page | Locator) => scope.locator('.qiv-pane').first();
-// the images, side by side or one over the other
-const imageRow = (scope: Page | Locator) => scope.locator('.qiv-stage').first();
-const toolbar = (scope: Page | Locator) => scope.locator('.qiv-toolbar').first();
-// the line above the images with the hovered pixel's coordinates, colors and values
-const pixelValues = (scope: Page | Locator) => scope.locator('.qiv-readout').first();
 // The View options, docked on the right of the commit page (the user's choice is remembered: controls-panel-expanded)
 const controlsPanel = (page: Page) => page.locator('aside[aria-label="View options"]');
 // Its toggle: "Show the view options" on its rail, "Collapse the view options" when open
@@ -31,19 +24,6 @@ const halos = (d: Demo, filter: string, controls?: Record<string, unknown>) =>
 async function showCard(ui: Ui, index = 0, top = 160) {
   await cards(ui.page).nth(index).evaluate((card, top) => window.scrollBy(0, card.getBoundingClientRect().top - top), top);
   await ui.settle();
-}
-
-// An element's box once it stopped moving, e.g. after the layout changed with the comparison mode
-async function stableBox(target: Locator) {
-  let previous = await target.boundingBox();
-  for (let i = 0; i < 20; i++) {
-    await target.page().waitForTimeout(150);
-    const box = await target.boundingBox();
-    if (box && JSON.stringify(box) === JSON.stringify(previous)) return box;
-    previous = box;
-  }
-  if (!previous) throw new Error(`[commit.spec] ${target} has no box`);
-  return previous;
 }
 
 // Hovers a point of the new image, given in % of its box, once the images stopped moving
@@ -68,28 +48,6 @@ async function zoom(ui: Ui, scope: Page | Locator, at: { x: number; y: number },
 async function mouseAway(ui: Ui) {
   await ui.cursor.moveTo({ x: 1000, y: 140 });
   await ui.hold(500);
-}
-
-// Clicks a region of interest preset above the images, by its label, or "Full Image" in the regions menu. The viewer
-// opens on the input's first preset, but how close depends on its size when it opened: click it again for the same
-// zoom every time.
-async function preset(ui: Ui, scope: Page | Locator, label: string) {
-  if (label === 'Full Image') {
-    await ui.click(scope.getByRole('button', { name: 'Regions of interest' }));
-    await ui.click(ui.page.getByRole('menuitem', { name: 'Full image' }));
-  } else {
-    const exact = new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
-    await ui.click(scope.locator('.qiv-region', { hasText: exact }).first());
-  }
-  // no focus ring left around the thumbnail
-  await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-  await ui.settle();
-}
-
-// The difference shown with the colormap's last color (perceptual: 1% to 30%), above the images
-async function diffMax(ui: Ui, scope: Page | Locator, max: number) {
-  await scope.getByLabel('Difference shown in the last color').selectOption(String(max));
-  await ui.settle();
 }
 
 
@@ -145,9 +103,10 @@ shot('commit/image-sbs', {
 shot('commit/image-perceptual-diff', {
   project: IQ,
   url: d => halos(d, 'photos/facade base', { image_mode: 'difference' }),
-  alt: 'The perceptual difference of the facade window, new against reference: the window frame\'s edges show in yellow '
-    + 'to dark red, the flat wall fades to light gray. Above it, the comparison modes and the difference\'s settings.',
-  caption: 'The difference shows where the images differ; raise its maximum until only the halos stand out.',
+  alt: 'The facade window, new and reference on each side of their perceptual difference: the window frame\'s edges '
+    + 'show in yellow to dark red, the flat wall fades to light gray. Above them, the comparison modes and the '
+    + 'difference\'s settings.',
+  caption: 'The difference shows between the images where they differ; raise its maximum until only the halos stand out.',
   actions: async ui => {
     await showCard(ui);
     await preset(ui, viewer(ui.page), 'Window frame (halos)');
@@ -162,8 +121,8 @@ shot('commit/pixel-tooltip', {
   project: IQ,
   url: d => compare(d, 'bilateral-denoise', 'isp-4-1', 'charts/siemens-star base linux'),
   alt: 'The center of a Siemens star, new and reference: above the images, the hovered pixel\'s coordinates, its values '
-    + 'in both images and their difference; a crosshair marks the pixel on the reference.',
-  caption: 'Hover a pixel: its values in both images and their difference show above them, and a crosshair marks the same spot on the reference.',
+    + 'in both images and their difference; a crosshair marks the pixel on both images.',
+  caption: 'Hover a pixel: its values in both images and their difference show above them, and a crosshair marks the same spot on both images.',
   actions: async ui => {
     await showCard(ui);
     await preset(ui, viewer(ui.page), 'Center (aliasing)');
@@ -282,9 +241,9 @@ shot('commit/output-files', {
 clip('commit/image-diff', {
   project: IQ,
   url: d => halos(d, 'photos/facade base'),
-  alt: 'Zooming into the new image of the facade, the reference follows; a wipe across them; then their difference, '
-    + 'whose maximum goes up until only the window frame\'s halos stand out.',
-  caption: 'Synced zoom, a wipe, then the difference and its maximum.',
+  alt: 'Zooming into the new image of the facade, the reference follows; a wipe across them; then their difference '
+    + 'between them, whose maximum goes up until only the window frame\'s halos stand out.',
+  caption: 'Synced zoom, a wipe, then the difference between the images, and its maximum.',
   actions: async ui => {
     await showCard(ui);
     await preset(ui, viewer(ui.page), 'Window frame (halos)');

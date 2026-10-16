@@ -29,6 +29,8 @@ export interface DiffSettings {
   gain?: number;
   /** "perceptual" (a fraction, e.g. 0.05) and "deltaE" (e.g. 5): the difference shown with the colormap's last color */
   max?: number;
+  /** "between": the images on each side of the difference (the default), or "alone" */
+  layout?: 'between' | 'alone';
 }
 
 export interface Adjustments {

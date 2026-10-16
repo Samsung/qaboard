@@ -167,7 +167,7 @@ resolution), and show a cross where the pointer is on the others. Viewers off-sc
 | `image` | URL or `{ url \| iiif, label?, href?, ... }` | required | The image |
 | `reference` | same, or `null` | `null` | What it's compared with |
 | `mode`, `defaultMode`, `onModeChange` | `'side-by-side' \| 'wipe' \| 'toggle' \| 'difference'` | `'side-by-side'` | How they're compared |
-| `diff`, `defaultDiff`, `onDiffChange` | `{ method, gain?, max? }` | `{ method: 'perceptual' }` | [The difference](#the-difference) |
+| `diff`, `defaultDiff`, `onDiffChange` | `{ method, gain?, max?, layout? }` | `{ method: 'perceptual' }` | [The difference](#the-difference), and whether the images show on its sides (`layout: 'between'`, the default) or not (`'alone'`) |
 | `adjustments`, `defaultAdjustments`, `onAdjustmentsChange` | `{ brightness, contrast, gamma, sharpen, channel, falseColor, invert }` | none | How images look. Only the display changes. |
 | `pixelValues`, `defaultPixelValues`, `onPixelValuesChange` | `'image' \| 'display' \| 'off'` | `'image'` | [Values](#pixel-values-the-images-or-the-displayed-ones) written on the pixels when zoomed in. `'image'` needs `getPixels`, else they're the displayed ones. |
 | `getPixels` | `(image, { x, y, w, h }, { signal }) => Promise<{ data, width, height, channels?, mode? } \| { values, mode? }>` | | The image's own values, by tiles of 64×64 |
@@ -197,6 +197,9 @@ double-click zooms in.
 | `perceptual` | `max` (1% to 30%) | Perceived color difference in the YIQ space (Kotsarenko and Ramos, as in pixelmatch), as a fraction of the largest possible. |
 | `deltaE` | `max` (ΔE 1 to 20) | CIEDE2000 color difference. Under 1 it is imperceptible, about 2.3 just noticeable. |
 | `exact` | | In red, the pixels that differ at all. |
+
+By default the difference shows between the two images (new | difference | reference), all synced: zoom or pan any of
+them. Click **Difference** again (or press <kbd>4</kbd> again) to see it alone, larger.
 
 Heatmaps show small differences in yellow and large ones (up to `max`) in black, over a faded copy of the image that
 tells where you are. A legend says what the colors mean. Hovering shows the difference per channel, and the method's

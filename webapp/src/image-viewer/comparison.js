@@ -110,9 +110,12 @@ export class Comparison {
       // the image moved under the pointer, e.g. zoomed with the keyboard: it's over another pixel
       const { hovered } = this;
       if (hovered) {
-        const point = this.pointAt(hovered.name, hovered.clientX, hovered.clientY);
+        const point = this.pointAt(hovered.pane, hovered.clientX, hovered.clientY, hovered.element);
         const current = this.pointer?.point;
-        if (point && (!current || point.x !== current.x || point.y !== current.y)) this.setPointerState({ point, pane: hovered.name, remote: false });
+        if (point && (!current || point.x !== current.x || point.y !== current.y)) {
+          this.setPointerState({ point, pane: hovered.pane, remote: false });
+          this.group?.pointer(point);
+        }
       }
       this.drawListeners.forEach(listener => listener());
     });
@@ -466,20 +469,66 @@ export class Comparison {
     return this.viewers[name]?.drawer?.canvas ?? null;
   }
 
-  // The viewport point under a mouse event on a pane
-  pointAt(name, clientX, clientY) {
-    const viewer = this.viewers[name];
+  // The viewer whose geometry a pane has: other panes, e.g. the difference, are drawn like the first image
+  geometry(pane) {
+    return pane === 'b' ? 'b' : 'a';
+  }
+
+  // The viewport point under a mouse event on a pane (or on another element of the size of the panes)
+  pointAt(pane, clientX, clientY, element = null) {
+    const viewer = this.viewers[this.geometry(pane)];
     if (!viewer) return null;
-    const rect = viewer.element.getBoundingClientRect();
+    const rect = (element ?? viewer.element).getBoundingClientRect();
     return viewer.viewport.pointFromPixel(new OpenSeadragon.Point(clientX - rect.left, clientY - rect.top), true);
   }
 
-  hover(name, clientX, clientY) {
-    this.hovered = { name, clientX, clientY };
-    const point = this.pointAt(name, clientX, clientY);
+  hover(pane, clientX, clientY, element = null) {
+    this.hovered = { pane, clientX, clientY, element };
+    const point = this.pointAt(pane, clientX, clientY, element);
     if (!point) return;
-    this.setPointerState({ point, pane: name, remote: false });
+    this.setPointerState({ point, pane, remote: false });
     this.group?.pointer(point);
+  }
+
+  // Gestures on another element of the size of the panes, e.g. the difference between the images, move the images
+  // like on the first one. Returns a function that stops.
+  trackGestures(element) {
+    const viewport = () => this.viewers.a?.viewport;
+    const moved = () => {
+      this.lead('a');
+      return viewport();
+    };
+    const tracker = new OpenSeadragon.MouseTracker({
+      element,
+      scrollHandler: event => {
+        event.preventDefault = true;
+        const v = moved();
+        if (!v) return;
+        v.zoomBy(this.viewers.a.zoomPerScroll ** event.scroll, v.pointFromPixel(event.position, true));
+        v.applyConstraints();
+      },
+      dragHandler: event => {
+        const v = moved();
+        v?.panBy(v.deltaPointsFromPixels(event.delta.negate()));
+      },
+      dragEndHandler: () => viewport()?.applyConstraints(),
+      pinchHandler: event => {
+        const v = moved();
+        if (!v) return;
+        const center = v.pointFromPixel(event.center, true);
+        const last_center = v.pointFromPixel(event.lastCenter, true);
+        v.zoomBy(event.distance / event.lastDistance, center, true);
+        v.panBy(last_center.minus(center), true);
+        v.applyConstraints();
+      },
+      dblClickHandler: event => {
+        const v = moved();
+        if (!v) return;
+        v.zoomBy(this.viewers.a.zoomPerClick, v.pointFromPixel(event.position, true));
+        v.applyConstraints();
+      },
+    });
+    return () => tracker.destroy();
   }
 
   unhover() {
@@ -491,8 +540,8 @@ export class Comparison {
   }
 
   // Where a viewport point is in a pane, in CSS pixels
-  screenPoint(name, point) {
-    const viewport = this.viewers[name]?.viewport;
+  screenPoint(pane, point) {
+    const viewport = this.viewers[this.geometry(pane)]?.viewport;
     if (!viewport || !point) return null;
     return viewport.pixelFromPoint(new OpenSeadragon.Point(point.x, point.y), true);
   }

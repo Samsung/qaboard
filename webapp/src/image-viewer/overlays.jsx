@@ -215,16 +215,22 @@ export const PixelValues = ({ controller, pane, source, width, height, tiles, im
 };
 
 
-// A cross where the pointer is: on synced viewers, and with `local`, on the pane the pointer is not over
-export const Crosshair = ({ controller, pane, local }) => {
+// A cross where the pointer is, on every pane and synced viewer, the one under the mouse included: the same pixel
+// everywhere, also in screenshots, which have no cursor
+export const Crosshair = ({ controller, pane }) => {
   const pointer = useSyncExternalStore(controller.subscribePointer, controller.getPointer);
   const [, redraw] = useState(0);
   useEffect(() => controller.onDraw(() => redraw(n => n + 1)), [controller]);
-  if (!pointer || (!pointer.remote && (!local || pointer.pane === pane))) return null;
+  if (!pointer) return null;
   const position = controller.screenPoint(pane, pointer.point);
   if (!position) return null;
-  return <div className="qiv-crosshair" style={{ left: position.x, top: position.y }} />;
+  // white over a dark outline, to show on any image; open in its middle, to see the pixel
+  return <svg className="qiv-crosshair" style={{ left: position.x, top: position.y }} width="25" height="25" viewBox="0 0 25 25" aria-hidden="true">
+    <path d={CROSS} stroke="rgba(0, 0, 0, 0.75)" strokeWidth="3" />
+    <path d={CROSS} stroke="#fff" strokeWidth="1" />
+  </svg>;
 };
+const CROSS = 'M12.5 0v9M12.5 16v9M0 12.5h9M16 12.5h9';
 
 
 // Where the view is in the whole image, when zoomed in. Click or drag to go elsewhere.

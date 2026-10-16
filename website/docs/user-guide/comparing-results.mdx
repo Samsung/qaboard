@@ -84,10 +84,10 @@ Compare the images above them, like videos:
 
 | Mode | What you see |
 |---|---|
-| **Side by side** | New on the left, reference on the right. A cross shows where your mouse is on the other image. |
+| **Side by side** | New on the left, reference on the right. A cross marks the pixel under your mouse on both. |
 | **Wipe** | One image over the other: drag the divider to see new on one side, reference on the other. |
 | **Toggle** | One image at a time: click it, or press <kbd>t</kbd>, to flip to the other in place. Differences jump out. |
-| **Difference** | [Where the images differ](#the-difference), with a legend. |
+| **Difference** | [Where the images differ](#the-difference), between them (new, difference, reference) or alone. |
 
 The mode applies to every image viewer of the page, and is saved in the URL: a link shows the same comparison. Press
 <kbd>1</kbd> to <kbd>4</kbd> over a viewer to switch, or pick it in the **View options** (**Viewers** › **Compare images**).
@@ -113,7 +113,10 @@ The toolbar shows the zoom: **100%** is one image pixel per screen pixel, **1:1*
 />
 
 ### The difference
-In **Difference** mode, pick how to measure it next to the modes:
+In **Difference** mode, the difference shows between the two images, all three in sync: zoom or pan any of them, and a
+cross marks the pixel under your mouse on each. Click **Difference** again (or press <kbd>4</kbd> again, or the
+three-columns button next to it) to see the difference alone, larger, and back. Pick how to measure it next to the
+modes:
 
 | Measure | What it shows |
 |---|---|
@@ -131,7 +134,7 @@ differences can average out. Zoom to 100% or more to compare every pixel, or let
 
 <Shot
   id="commit/image-perceptual-diff"
-  caption="With the maximum raised, the flat wall fades to gray and only the window frame's edges stay marked: yellow where the images differ a little, orange to dark red where they differ more."
+  caption="The difference between the images, its maximum raised: the flat wall fades to gray and only the window frame's edges stay marked, yellow where the images differ a little, orange to dark red where they differ more."
 />
 
 ### Pixel values: the image's, or the displayed ones
@@ -159,7 +162,7 @@ the displayed values.
 
 <Shot
   id="commit/pixel-tooltip"
-  caption="Hover a pixel of the Siemens star: the line above the images shows its coordinates, its values in both images and their difference, and a crosshair marks the same spot on the reference."
+  caption="Hover a pixel of the Siemens star: the line above the images shows its coordinates, its values in both images and their difference, and a crosshair marks the same spot on both images."
 />
 
 ### Full screen
