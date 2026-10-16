@@ -15,8 +15,6 @@ Check items off or delete them when done, add new ones with enough context for s
 ## Performance
 Found in an audit (October 2026), not done yet. Measure with `npm run bench` before and after.
 - [ ] **ToF viewer** (`src/viewers/tof/TofOutputCard.jsx`): three.js renders every frame even when idle, and `renderer.dispose()` is commented out, so WebGL contexts leak (browsers drop the oldest after ~16). Render on demand and dispose on unmount, when someone can check point clouds visually. Image viewers got the same fix.
-- [ ] **Frame sliders of the View options** (`DynamicOptionControl.jsx`) write to the URL on every tick, which re-renders every output card. Throttle them, or update on release, which loses the live preview.
-- [ ] **Output cards off-screen** are still laid out and painted: try `content-visibility: auto; contain-intrinsic-size: auto 600px` on the cards' container. Check that viewers measuring their size (OpenSeadragon's autoResize) don't force layouts of the skipped cards.
 - [ ] **Branch pages** render up to 1000 commit rows, each with ~10 tooltips/popovers and an always-mounted `<Alert>` (`CommitMenu`): mount the alert only when it's open, or virtualize the rows.
 - [ ] **Resizing the side panel** sets `--qa-side-panel-space` on `<html>` on every pointermove, restyling the whole document; the sidebar animates the content's `padding-left`. Set the variable on `.qa-content-area`, or apply the width on pointerup.
 - [ ] **Commit page polling** re-downloads every output every 15s while some are pending, forever if they're stuck. Back off with the batch size, or add a light status endpoint.
