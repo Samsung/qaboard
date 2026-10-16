@@ -65,6 +65,9 @@ ARG SENTRY_URL=""
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
 RUN npm run build
+# nginx serves the compressed files as they are (gzip_static), instead of compressing them on each request
+RUN find build/assets -type f \( -name '*.js' -o -name '*.css' -o -name '*.svg' -o -name '*.ttf' -o -name '*.json' \) -size +1k \
+      -exec gzip -9 --keep {} +
 
 
 FROM debian:bookworm-slim AS production

@@ -55,10 +55,13 @@ describe('CommitNavbar', () => {
     expect(queryClient.getQueryData(commitQuery({ project: 'p', id: latest.id }).queryKey)).toMatchObject({ id: latest.id });
   });
 
-  it('selects commits by id', () => {
+  it('selects commits by id, once users pause typing', async () => {
     renderNavbar();
-    fireEvent.change(screen.getByDisplayValue('abcdef12'), { target: { value: '1234abcd' } });
-    expect(window.location.pathname).toBe('/p/commit/1234abcd');
+    const input = screen.getByDisplayValue('abcdef12');
+    fireEvent.change(input, { target: { value: '1234' } });
+    fireEvent.change(input, { target: { value: '1234abcd' } });
+    expect(window.location.pathname).not.toBe('/p/commit/1234');
+    await waitFor(() => expect(window.location.pathname).toBe('/p/commit/1234abcd'));
   });
 
   it('asks before deleting a batch, and says the filter does not apply', async () => {

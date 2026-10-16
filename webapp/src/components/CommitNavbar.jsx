@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -361,6 +361,15 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
     setTyping(true)
   };
 
+  // We wait for users to pause typing: each id we put in the URL fetches a commit with all its outputs
+  const typing_timer = useRef(null)
+  useEffect(() => () => clearTimeout(typing_timer.current), [])
+  const typeCommit = event => {
+    const id = event.target.value
+    clearTimeout(typing_timer.current)
+    typing_timer.current = setTimeout(() => selectCommit(id), 300)
+  }
+
   const removeSelection = () => updateSelected({ [commit_attr]: '' })
 
   const selectBranch = async branch => {
@@ -514,7 +523,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
               leftIcon="git-commit"
               style={{ width: '120px' }}
               inputClassName={Classes.MONOSPACE_TEXT}
-              onChange={selectCommit}
+              onChange={typeCommit}
               onBlur={() => setTyping(false)}
               small
               placeholder="commit id"

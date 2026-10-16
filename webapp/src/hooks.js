@@ -87,6 +87,24 @@ export function useCommit({ project, id, branch, enabled = true, placeholder }) 
 }
 
 // To refresh a commit after acting on it: refresh(project, id)
+// Hovering a commit, or focusing one of its links, for a moment starts loading its page: the commit with its outputs,
+// and the reference it's compared to by default. Returns the props to put on the commit's element.
+export function usePrefetchCommitPage(project, commit_id) {
+  const queryClient = useQueryClient();
+  const timer = useRef(null);
+  const cancel = () => clearTimeout(timer.current);
+  useEffect(() => cancel, []);
+  const prefetch = () => {
+    if (!project || !commit_id) return;
+    cancel();
+    timer.current = setTimeout(() => {
+      queryClient.prefetchQuery(commitQuery({ project, id: commit_id }));
+      queryClient.prefetchQuery(commitQuery({ project }));
+    }, 150);
+  };
+  return { onMouseEnter: prefetch, onFocus: prefetch, onMouseLeave: cancel };
+}
+
 export function useRefreshCommit() {
   const queryClient = useQueryClient();
   return (project, id) => invalidateCommit(queryClient, project, id);
@@ -181,7 +199,14 @@ function useCommitsListState(selected, project_data, { enabled, refetchInterval,
   });
   const latest_commit = derived.latest_commit ?? (wants_latest ? latest_on_default?.[0] : undefined);
 
-  return { ...query, data, ...derived, latest_commit, date_range, project, search, paginated, qatools_metrics };
+  // Only what pages use: TanStack Query re-renders components when the fields they read change, and spreading
+  // the whole query would read them all (dataUpdatedAt, isStale, failureCount...)
+  const { error, refetch, isPending, isSuccess, isFetching, hasNextPage, fetchNextPage, isFetchingNextPage } = query;
+  return useMemo(() => ({
+    data, ...derived, latest_commit, date_range, project, search, paginated, qatools_metrics,
+    error, refetch, isPending, isSuccess, isFetching, isPlaceholderData, hasNextPage, fetchNextPage, isFetchingNextPage,
+  }), [data, derived, latest_commit, date_range, project, search, paginated, qatools_metrics,
+    error, refetch, isPending, isSuccess, isFetching, isPlaceholderData, hasNextPage, fetchNextPage, isFetchingNextPage]);
 }
 
 
@@ -213,10 +238,12 @@ function useComparisonState() {
 
   // On the commit page, the commits are fetched with all their outputs, elsewhere they come from the list of commits
   const on_commit_page = route.is_commit;
+  // new commits appear on lists of commits, unless they end before today (searches ignore the dates)
+  const [loaded_at] = useState(() => Date.now());
+  const may_get_new_commits = !!selected.search?.trim() || selected.date_range[1] >= loaded_at;
   const list_options = {
     enabled: !on_commit_page,
-    // new commits appear on lists of commits
-    refetchInterval: route.is_list ? 60 * 1000 : undefined,
+    refetchInterval: route.is_list && may_get_new_commits ? 60 * 1000 : undefined,
   };
   const searched_list = useCommitsListState(selected, project_data, list_options);
   // Searching doesn't change the commits compared by default, nor the project's latest commit.

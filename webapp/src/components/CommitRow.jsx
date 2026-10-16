@@ -21,7 +21,7 @@ import {
 } from "@blueprintjs/core";
 
 import { http, errorMessage } from "../api/http";
-import { useRefreshCommit } from "../hooks";
+import { usePrefetchCommitPage, useRefreshCommit } from "../hooks";
 import { CommitAvatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
 import { format, shortId, pretty_label } from "../utils";
@@ -409,9 +409,10 @@ const ComfortableCommitRow = ({ commit, project, project_data = {}, className, t
   const [message_title, ...message_body_lines] = (commit.message ?? '').split(/\r?\n/)
   const message_body = message_body_lines.join('\n').trim()
   const short_id = shortId(project, commit.id)
+  const prefetch = usePrefetchCommitPage(project, has_data ? commit.id : null)
 
   return (
-    <CommitRowWrapper className={className}>
+    <CommitRowWrapper className={className} {...prefetch}>
       <CommitAvatar
         commit={commit}
         project={project}
@@ -698,9 +699,10 @@ const CompactCommitRow = ({ commit, project, project_data = {}, className, tag, 
   const short_id = shortId(project, commit.id)
   const date = DateTime.fromISO(commit.authored_datetime ?? '', { zone: 'utc' })
   const committer = commit.committer_name
+  const prefetch = usePrefetchCommitPage(project, has_data ? commit.id : null)
 
   return (
-    <CompactRowWrapper className={className}>
+    <CompactRowWrapper className={className} {...prefetch}>
       <CompactCell><CommitStatusIcon commit={commit} default_batch={default_batch}/></CompactCell>
       <Tooltip content="View the commit's diff">
         <CommitShortId href={git_commit_url(project_data, commit.id)} className={has_data ? undefined : Classes.SKELETON}>
