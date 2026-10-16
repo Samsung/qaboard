@@ -88,6 +88,11 @@ span.bp6-popover-target {
   color: var(--qa-text);
 }
 
+/* A run's card, scrolled to (e.g. from "Where they differ, in all runs"): below the commit bars */
+.output-card[data-output-id] {
+  scroll-margin-top: 170px;
+}
+
 /* A run's card in full screen (OutputCard.jsx): taller than the screen, it scrolls */
 .fullscreen-enabled {
   box-sizing: border-box;

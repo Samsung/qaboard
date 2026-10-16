@@ -160,8 +160,8 @@ shot('commit/auto-roi', {
   project: IQ,
   url: d => halos(d, 'photos/facade base'),
   alt: 'The regions of interest menu open over the facade run: Full image, the input\'s Presets, and the regions where '
-    + 'the images differ most, found by the server; above the images, thumbnails of the twenty regions it found, a dot '
-    + 'colored by how much they differ.',
+    + 'the images differ most, found by the server; above the images, thumbnails of the regions it found, labelled with '
+    + 'how much the images differ there.',
   caption: 'Jump between the regions of interest preset for the input, or let QA-Board find where the images differ most.',
   actions: async ui => {
     const scope = viewer(ui.page);
@@ -183,6 +183,29 @@ shot('commit/auto-roi', {
     viewer(page).locator('.qiv-regions').first(),
   ],
   padding: 4,
+});
+
+shot('commit/regions-all-runs', {
+  project: IQ,
+  url: d => halos(d, 'base'),
+  alt: 'The list of a commit\'s runs ranked by how much their output images differ from the reference\'s: the photos '
+    + 'with the new denoiser\'s halos first, a bar and a percentage for each, then the runs whose images are identical.',
+  caption: 'Where they differ, in all the runs: the runs whose images changed most first.',
+  actions: async ui => {
+    const scope = viewer(ui.page);
+    await showCard(ui);
+    await ui.click(scope.getByRole('button', { name: 'Regions of interest' }));
+    await ui.click(ui.page.getByRole('menuitem', { name: /^Where they differ, in all \d+ runs/ }));
+    // the server reads each image once: the test wall (113 MP) takes a few seconds
+    await ui.page.waitForFunction(() => {
+      const progress = document.querySelector('.bp6-dialog')?.textContent?.match(/(\d+) \/ (\d+)/);
+      return !!progress && progress[1] === progress[2];
+    }, null, { timeout: 180_000 });
+    await mouseAway(ui);
+    await ui.settle();
+  },
+  target: page => page.locator('.bp6-dialog').first(),
+  padding: 8,
 });
 
 shot('commit/image-filters', {

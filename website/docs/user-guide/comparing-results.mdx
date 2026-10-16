@@ -175,10 +175,19 @@ The regions button above the images zooms on:
 - **Presets**: the regions of the input, from its metadata or the configuration (see [regions of interest](../visualizations.mdx#regions-of-interest)).
   The viewer opens on the first one.
 - **Where they differ**: the server compares the full images and finds where they differ most, by perceptual difference,
-  structure (SSIM) or ΔE 2000.
+  structure (SSIM) or ΔE 2000. Each region says how much, e.g. *#1 · 3.2%*. The first time the server reads an image
+  takes a few seconds, then it's quick: results are kept.
 
-Step through the regions with the arrows (or <kbd>[</kbd> <kbd>]</kbd>), or click their thumbnails. **Full image** goes
-back to the whole image. **Copy the view as a region** copies the coordinates of what you see, in the format of presets.
+The set you pick applies to every viewer of the same file, in all the runs' cards. Step through the regions with the
+arrows (or <kbd>[</kbd> <kbd>]</kbd>), or click their thumbnails. **Full image** goes back to the whole image. **Copy the
+view as a region** copies the coordinates of what you see, in the format of presets.
+
+#### Which runs changed most
+**Where they differ, in all N runs…** (in the regions menu) compares the images of every run of the page with their
+reference, a few at a time, and ranks the runs by their largest difference, with the ones that didn't change at all
+counted as *identical*. Pick how to compare at the top. **Show** takes you to a run's card, its viewer on the region
+that differs most; the other viewers show their own regions too. Closing the list doesn't stop the comparisons:
+**Stop** does.
 
 <Shot
   id="commit/auto-roi"

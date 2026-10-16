@@ -347,16 +347,26 @@ export const AdjustmentsPanel = ({ adjustments, onChange }) => {
 
 // --- Regions of interest ---
 
-export const RegionsMenu = ({ sets, selected, onSelect, onCopy, close }) => <div className="qiv-menu" role="menu">
+// actions: the app's, e.g. finding the regions of other images too: [{ id, label, icon?, title?, onClick }]
+export const RegionsMenu = ({ sets, selected, actions = [], onSelect, onCopy, close }) => <div className="qiv-menu" role="menu">
   <MenuItem text="Full image" icon="zoom-to-fit" active={!selected} onClick={() => { onSelect(null); close(); }} />
   {sets.length > 0 && <MenuDivider title="Regions of interest" />}
   {sets.map(set => <MenuItem
     key={set.id}
     text={set.label}
+    title={set.description}
     active={selected === set.id}
     icon={selected === set.id ? 'tick' : undefined}
     label={set.loading ? <Spinner size={12} /> : set.regions ? `${set.regions.length}` : set.load ? 'find' : ''}
     onClick={() => { onSelect(set.id); close(); }}
+  />)}
+  {actions.length > 0 && <MenuDivider />}
+  {actions.map(action => <MenuItem
+    key={action.id}
+    text={action.label}
+    title={action.title}
+    icon={action.icon}
+    onClick={() => { action.onClick(); close(); }}
   />)}
   <MenuDivider />
   <MenuItem text="Copy the view as a region" icon="clipboard" onClick={() => { onCopy(); close(); }} />
@@ -373,7 +383,7 @@ export const RegionsStrip = ({ set, index, image, size, onSelect, onRetry }) => 
     {set.loading && <span className="qiv-muted"><Spinner size={12} /> Finding regions…</span>}
     {set.error && <span className="qiv-error">{set.error} {set.load && <Button text="Retry" onClick={onRetry} />}</span>}
     {!set.loading && !set.error && regions.length === 0 && <span className="qiv-muted">
-      {set.regions ? 'No regions' : set.load ? <Button text="Find regions" onClick={onRetry} /> : null}
+      {set.regions ? set.empty ?? 'No regions' : set.load ? <Button text="Find regions" onClick={onRetry} /> : null}
     </span>}
     {regions.length > 1 && <Button icon="chevron-left" title="Previous region" onClick={() => onSelect((index - 1 + regions.length) % regions.length)} />}
     <div className="qiv-regions-list" ref={strip}>

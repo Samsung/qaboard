@@ -91,7 +91,10 @@ export const ImageViewer = ({
   onPixelValuesChange,
   syncKey = null,
   regionSets = [],
+  regionSet: region_set_prop,
   defaultRegionSet = null,
+  onRegionSetChange,
+  regionActions = [],
   getPixels,
   maxHeight = DEFAULT_MAX_HEIGHT,
   theme,
@@ -221,34 +224,43 @@ export const ImageViewer = ({
     return controller.trackGestures(diff_pane.current);
   }, [controller, diff_between]);
 
-  // Regions of interest
-  const [selection, setSelection] = useState(() => defaultRegionSet ? { set: defaultRegionSet, index: 0 } : null);
-  const active_set = selection ? regionSets.find(set => set.id === selection.set) : null;
-  const active_region = active_set?.regions?.[selection?.index ?? 0] ?? null;
-  const region_key = active_region ? JSON.stringify([active_set.id, selection.index, active_region]) : null;
+  // Regions of interest: the set shown (controlled with onRegionSetChange, e.g. the same for several viewers, or not),
+  // and the region of the set
+  const [selected_set, setSelectedSet] = useControllable(region_set_prop, defaultRegionSet, onRegionSetChange);
+  const [region_index, setRegionIndex] = useState({ set: selected_set, index: 0 });
+  const index = region_index.set === selected_set ? region_index.index : 0;
+  const active_set = selected_set ? regionSets.find(set => set.id === selected_set) ?? null : null;
+  const active_region = active_set?.regions?.[index] ?? null;
+  const region_key = active_region ? JSON.stringify([active_set.id, index, active_region]) : null;
   useEffect(() => {
     controller.setRegion(active_region);
     if (active_region) controller.fitRegion(active_region);
     // oxlint-disable-next-line react/exhaustive-deps
   }, [controller, region_key]);
+  // the whole image again, also when another viewer picked it
+  const had_set = useRef(!!selected_set);
+  useEffect(() => {
+    if (!selected_set && had_set.current) controller.fit();
+    had_set.current = !!selected_set;
+  }, [controller, selected_set]);
   useEffect(() => {
     if (active_set && !active_set.regions && !active_set.loading && !active_set.error) active_set.load?.();
   }, [active_set]);
   // Picking the region shown again shows it again, e.g. after zooming elsewhere
   const selectSet = id => {
-    setSelection(id ? { set: id, index: 0 } : null);
+    setSelectedSet(id);
+    setRegionIndex({ set: id, index: 0 });
     const first_region = regionSets.find(set => set.id === id)?.regions?.[0];
-    if (!id) controller.fit();
-    else if (first_region) controller.fitRegion(first_region);
+    if (first_region) controller.fitRegion(first_region);
   };
-  const selectRegion = index => {
-    setSelection(s => ({ ...s, index }));
-    const region = active_set?.regions?.[index];
+  const selectRegion = next => {
+    setRegionIndex({ set: selected_set, index: next });
+    const region = active_set?.regions?.[next];
     if (region) controller.fitRegion(region);
   };
   const stepRegion = step => {
     const count = active_set?.regions?.length ?? 0;
-    if (count > 0) selectRegion(((selection?.index ?? 0) + step + count) % count);
+    if (count > 0) selectRegion((index + step + count) % count);
   };
 
   const notify = text => {
@@ -486,7 +498,7 @@ export const ImageViewer = ({
         title="Regions of interest"
         className={active_set ? 'qiv-intent' : ''}
       />}>
-        {({ close }) => <RegionsMenu sets={regionSets} selected={selection?.set ?? null} onSelect={selectSet} onCopy={copyRegion} close={close} />}
+        {({ close }) => <RegionsMenu sets={regionSets} selected={active_set?.id ?? null} actions={regionActions} onSelect={selectSet} onCopy={copyRegion} close={close} />}
       </Popover>
       <Popover align="end" button={props => <Button {...props} icon="flash" title="Adjust the display: brightness, contrast, gamma, channels…" className={adjusted ? 'qiv-intent qiv-dot' : ''} />}>
         <AdjustmentsPanel adjustments={adjustments} onChange={setAdjustments} />
@@ -522,7 +534,7 @@ export const ImageViewer = ({
     </div>
     {active_set && <RegionsStrip
       set={active_set}
-      index={selection.index}
+      index={index}
       image={images.a}
       size={size_a}
       onSelect={selectRegion}

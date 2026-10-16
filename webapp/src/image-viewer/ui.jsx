@@ -97,7 +97,7 @@ export const Popover = ({ button, children, align = 'start', className = '', ope
   </span>;
 };
 
-export const MenuItem = ({ icon, text, label, active, disabled, onClick, href }) => {
+export const MenuItem = ({ icon, text, label, title, active, disabled, onClick, href }) => {
   const content = <>
     <Icon icon={icon ?? 'tick'} className={icon || active ? '' : 'qiv-hidden'} />
     <span className="qiv-menu-text">{text}</span>
@@ -105,7 +105,7 @@ export const MenuItem = ({ icon, text, label, active, disabled, onClick, href })
   </>;
   if (href)
     return <a className="qiv-menu-item" href={href} target="_blank" rel="noopener noreferrer" onClick={onClick}>{content}</a>;
-  return <button type="button" className={`qiv-menu-item ${active ? 'qiv-active' : ''}`} role="menuitem" disabled={disabled} onClick={onClick}>{content}</button>;
+  return <button type="button" className={`qiv-menu-item ${active ? 'qiv-active' : ''}`} role="menuitem" title={title} disabled={disabled} onClick={onClick}>{content}</button>;
 };
 
 export const MenuDivider = ({ title }) => title

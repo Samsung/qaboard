@@ -1,16 +1,19 @@
 // The image viewer in QA-Board: compares an image of a run with the same image of its reference run.
 // It maps runs, their files and the site's image servers to the viewer's props (src/image-viewer/README.md).
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Tag } from '@blueprintjs/core';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
 
 import { ImageViewer } from '../../image-viewer';
-import { http } from '../../api/http';
+import { errorMessage, http, isAbort } from '../../api/http';
 import { useSiteConfig } from '../../hooks';
 import { usePrefsStore } from '../../stores/prefs';
 import { is_same_data } from '../../utils';
 import { build_image_name, iiif_url } from './utils';
 import { regionProviders } from './regionProviders';
+import { regionsQuery } from './regionSearch';
+import { differenceProviders, RegionsTriage, usePagePairs } from './RegionsTriage';
 import './image-viewer-theme.css';
 
 
@@ -59,45 +62,38 @@ const useAdjustmentsStore = create(set => ({
   set: (path, adjustments) => set(state => ({ by_path: { ...state.by_path, [path]: adjustments } })),
 }));
 
-// The regions of interest of the providers, found on demand
+// The region set shown is the same for the viewers of a visualization, e.g. where the images differ
+const useRegionSetStore = create(set => ({
+  by_path: {},
+  set: (path, id) => set(state => ({ by_path: { ...state.by_path, [path]: id } })),
+}));
+
+// The regions of interest of the providers. Those found on demand are shared by the page (regionSearch.js): a search
+// for all the runs fills each viewer.
 const useRegionSets = context => {
-  const { output_new, output_ref, path, path_ref } = context;
-  const key = `${output_new?.id} ${output_ref?.id} ${path} ${path_ref}`;
-  const [found, setFound] = useState({ key, sets: {} });
-  // the searches for another image, or after the viewer is gone, are cancelled
-  const [searches] = useState(() => new Set());
-  useEffect(() => () => {
-    searches.forEach(search => search.abort());
-    searches.clear();
-  }, [searches, key]);
-  const current = found.key === key ? found.sets : {};
-  const start = id => setFound(f => ({ key, sets: { ...(f.key === key ? f.sets : {}), [id]: { loading: true } } }));
-  // results for another image are dropped
-  const update = (id, state) => setFound(f => f.key === key ? { key, sets: { ...f.sets, [id]: state } } : f);
+  const queryClient = useQueryClient();
+  const providers = regionProviders().filter(provider => !provider.available || provider.available(context));
+  const finders = providers.filter(provider => !provider.regions && provider.find);
+  // what's found, without searching: only when users pick the set
+  const found = useQueries({ queries: finders.map(provider => ({ ...regionsQuery(provider, context), enabled: false })) });
   const sets = [];
-  for (const provider of regionProviders()) {
-    if (provider.available && !provider.available(context)) continue;
+  for (const provider of providers) {
     const base = { id: provider.id, label: provider.label, description: provider.description };
     if (provider.regions) {
       const regions = provider.regions(context);
       if (regions?.length) sets.push({ ...base, regions });
       continue;
     }
-    if (!provider.find) continue;
-    const state = current[provider.id] ?? {};
+    const i = finders.indexOf(provider);
+    if (i === -1) continue;
+    const { data, error, fetchStatus } = found[i];
     sets.push({
       ...base,
-      ...state,
-      load: () => {
-        if (state.loading) return;
-        start(provider.id);
-        const search = new AbortController();
-        searches.add(search);
-        provider.find(context, { signal: search.signal }).then(
-          regions => update(provider.id, { regions }),
-          error => search.signal.aborted || update(provider.id, { error: error?.response?.data?.error ?? error?.message ?? String(error) }),
-        ).finally(() => searches.delete(search));
-      },
+      empty: provider.empty,
+      regions: data,
+      loading: fetchStatus === 'fetching',
+      error: error && !isAbort(error) ? errorMessage(error) : undefined,
+      load: () => queryClient.fetchQuery(regionsQuery(provider, context, 'high')).catch(() => {}),
     });
   }
   return sets;
@@ -137,6 +133,30 @@ const ImageViewerForRuns = ({
   const same_data = identical && output_ref?.id !== output_new.id;
   const reference = identical ? null : referenceImage({ output_ref, path_ref, manifests, image_servers });
   const region_sets = useRegionSets({ output_new, output_ref: reference ? output_ref : null, path, path_ref });
+  const region_set = useRegionSetStore(state => state.by_path[path]);
+  const setRegionSet = useRegionSetStore(state => state.set);
+
+  // Where the images differ, for all the runs of the page: from the viewers of the page's runs
+  const pairs = usePagePairs();
+  const [triage, setTriage] = useState(null);
+  const in_page = !!reference && pairs.some(pair => pair.output_new.id === output_new.id);
+  const comparing = differenceProviders()[0];
+  const region_actions = in_page && comparing && pairs.length > 1 ? [{
+    id: 'all-runs',
+    icon: 'search',
+    label: `Where they differ, in all ${pairs.length} runs…`,
+    title: 'Compare the images of every run of the page with their reference, and rank the runs by how much they differ',
+    onClick: () => {
+      // the dialog shows over the page
+      if (document.fullscreenElement) document.exitFullscreen?.();
+      setTriage(region_set?.startsWith?.('auto-') ? region_set : comparing.id);
+    },
+  }] : [];
+  const showRun = id => {
+    setRegionSet(path, triage);
+    setTriage(null);
+    document.querySelector(`.output-card[data-output-id="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   return <ImageViewer
     className="qaboard-image-viewer"
@@ -154,13 +174,17 @@ const ImageViewerForRuns = ({
     // the same input's images are synced, e.g. the other runs', or the other visualizations of a run
     syncKey={output_new.test_input_path ?? null}
     regionSets={region_sets}
+    regionSet={region_set}
     defaultRegionSet={region_sets.some(set => set.id === 'presets') ? 'presets' : null}
+    onRegionSetChange={id => setRegionSet(path, id)}
+    regionActions={region_actions}
     getPixels={getPixels}
     maxHeight={height => height - (fullscreen ? 120 : 260)}
     notice={<>
       {label && <span className="qaboard-image-viewer-label">{label}</span>}
       {/* no tooltips: they wouldn't show in full screen */}
       {same_data && <Tag minimal icon="duplicate" title="The new and reference files have the same hash">same as the reference</Tag>}
+      {triage && <RegionsTriage path={path} path_ref={path_ref} provider={triage} onProviderChange={setTriage} onShow={showRun} onClose={() => setTriage(null)} />}
     </>}
   />;
 };

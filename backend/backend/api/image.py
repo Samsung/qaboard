@@ -12,7 +12,7 @@ from qaboard.api import url_to_dir
 from backend import app
 from ..models import Output
 from ..config import qaboard_url
-from .image_diff import find_rois
+from .image_diff import METHODS, difference_map, find_regions
 from ..images import read_image, ImageType
 
 import os
@@ -37,6 +37,9 @@ image_cache_dir = Path(os.environ.get('QABOARD_IMAGE_CACHE_DIR', qaboard_data_di
 image_cache_dir.mkdir(exist_ok=True, parents=True)
 # The disk space they can use: we remove the least recently used
 image_cache_bytes = float(os.environ.get('QABOARD_IMAGE_CACHE_GB', '20')) * 1e9
+# The regions where two images differ, once found: keyed by the files (and when they changed) and how they're compared
+regions_cache_dir = image_cache_dir / 'regions'
+regions_cache_dir.mkdir(exist_ok=True)
 
 
 _thread_locks = {}
@@ -78,11 +81,15 @@ def clear_memmapped_cache_dir(keep=None):
     data.unlink(missing_ok=True)
     data.with_suffix('.json').unlink(missing_ok=True)
     total -= size
-  # what interrupted processes left, and old locks
+  # what interrupted processes left, old locks, and the regions where images differ that nobody asked for in a month
   now = time.time()
-  for path in [*image_cache_dir.glob('*.tmp'), *image_cache_dir.glob('*.lock')]:
+  for path, age in [
+    *((path, 3600) for path in image_cache_dir.glob('*.tmp')),
+    *((path, 3600) for path in image_cache_dir.glob('*.lock')),
+    *((path, 30 * 24 * 3600) for path in regions_cache_dir.glob('*.json')),
+  ]:
     try:
-      if now - path.stat().st_mtime > 3600:
+      if now - path.stat().st_mtime > age:
         path.unlink(missing_ok=True)
     except FileNotFoundError:
       pass
@@ -265,21 +272,56 @@ def get_pixels():
   })
 
 
+REGIONS_VERSION = 2
+
 @app.route("/api/v1/output/image/diff", methods=['GET', 'POST'])
 def get_rois():
-  data = request.json
-  print(data)
-  image_path_new = url_to_dir(data['output_dir_url_new']) / data["path"]
-  image_path_ref = url_to_dir(data['output_dir_url_ref']) / data["path"]
-  blobs = find_rois(
-    image_path_new,
-    image_path_ref,
-    data["diff_type"],
-    data['threshold'],
-    data['diameter'],
-    data['count']
-  )
-  return jsonify(blobs)
+  """
+  The regions where two images differ most, the largest difference first: [{x, y, w, h, peak_x, peak_y, value, diff}]
+  JSON body: output_dir_url_new, output_dir_url_ref, path, path_ref (default: path), diff_type (yiq, ssim, ciede2000),
+  count (default 20). See image_diff.py.
+  """
+  data = request.get_json(silent=True) or {}
+  try:
+    path_new = Path(url_to_dir(data['output_dir_url_new'])) / data['path']
+    path_ref = Path(url_to_dir(data['output_dir_url_ref'])) / (data.get('path_ref') or data['path'])
+  except KeyError as e:
+    return jsonify({"error": f"Missing {e}"}), 400
+  method = data.get('diff_type', 'yiq')
+  if method not in METHODS:
+    return jsonify({"error": f"Unknown diff_type {method}, use one of {', '.join(METHODS)}"}), 400
+  count = min(100, max(1, int(data.get('count') or 20)))
+  for label, path in (('new', path_new), ('reference', path_ref)):
+    if not path.is_file():
+      return jsonify({"error": f"The {label} run has no {path.name}"}), 404
+
+  stats = [path_new.stat(), path_ref.stat()]
+  key = json.dumps([REGIONS_VERSION, str(path_new), str(path_ref), [(s.st_size, s.st_mtime_ns) for s in stats], method, count])
+  cached = regions_cache_dir / f"{hashlib.sha1(key.encode()).hexdigest()}.json"
+  try:
+    return Response(cached.read_bytes(), mimetype='application/json', headers={'X-Regions-Cache': 'hit'})
+  except FileNotFoundError:
+    pass
+
+  start = time.time()
+  images = []
+  for label, path in (('new', path_new), ('reference', path_ref)):
+    image, _, error = maybe_memmapped_read_image(path)
+    if error:
+      return jsonify({"error": f"Can't read the {label} image: {error}"}), 400
+    images.append(image)
+  image_new, image_ref = images
+  if image_new.shape[:2] != image_ref.shape[:2]:
+    (h1, w1), (h2, w2) = image_new.shape[:2], image_ref.shape[:2]
+    return jsonify({"error": f"The images have different sizes: {w1}x{h1} and {w2}x{h2}"}), 400
+  decoded = time.time()
+  delta, factor = difference_map(image_new, image_ref, method)
+  body = json.dumps(find_regions(delta, factor, image_new.shape, count)).encode()
+  tmp = cached.with_name(f"{cached.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+  tmp.write_bytes(body)
+  tmp.rename(cached)
+  timing = f"decode;dur={1000 * (decoded - start):.0f}, compare;dur={1000 * (time.time() - decoded):.0f}"
+  return Response(body, mimetype='application/json', headers={'X-Regions-Cache': 'miss', 'Server-Timing': timing})
 
 
 

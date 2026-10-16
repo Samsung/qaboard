@@ -589,7 +589,7 @@ const OutputCard = memo(function OutputCard(props) {
   }
   const maybe_style_skeleton = output_new.is_running ? style_skeleton : {};
 
-  return <div style={container_style} className="output-card" ref={in_view_ref}>
+  return <div style={container_style} className="output-card" data-output-id={output_new.id} ref={in_view_ref}>
     <FullScreenableSlimCard
       updateFullscreen={setFullscreen}
       className="output-card"

@@ -18,43 +18,60 @@ const imageOf = (hexsha, file) => file === 'stages/denoise.png'
   ? { ...size, pixel: (x, y) => images[hexsha].pixel(x, y).map(v => 255 - v) }
   : images[hexsha];
 
-const output = (id, hexsha, metadata = {}) => ({
+// a run of the commit: `run` names its input (A by default), and its folder (hexsha-run)
+const output = (id, hexsha, metadata = {}, run = null) => ({
   id, platform: 'linux', configurations: ['base'], extra_parameters: {}, metrics: {}, data: {},
   is_failed: false, is_pending: false, is_running: false, deleted: false,
   created_date: '2026-09-01T10:00:00Z',
-  output_dir_url: `/s/mnt/qaboard/${hexsha}/output`,
-  test_input_database: '/mnt/database', test_input_path: 'images/A.png', test_input_metadata: metadata,
+  output_dir_url: `/s/mnt/qaboard/${hexsha}${run ? `-${run}` : ''}/output`,
+  test_input_database: '/mnt/database', test_input_path: `images/${run ?? 'A'}.png`, test_input_metadata: metadata,
 });
-const commit = (hexsha, batch_id, message, metadata, qatools_config) => ({
+// the runs' ids: the batch's, or batch * 100 + their index
+const runOutputs = (hexsha, batch_id, metadata, runs) => Object.fromEntries(runs.length === 1 && !runs[0]
+  ? [[batch_id, output(batch_id, hexsha, metadata)]]
+  : runs.map((run, i) => [batch_id * 100 + i, output(batch_id * 100 + i, hexsha, metadata, run)]));
+// the commit of a run's folder (hexsha-run)
+const hexshaOf = folder => folder.split('-')[0];
+const commit = (hexsha, batch_id, message, metadata, qatools_config, runs = [null]) => ({
   id: hexsha, hexsha, project_id: project, branch: 'master', committer_name: 'Alice', message,
   authored_datetime: '2026-09-01T10:00:00Z', committed_datetime: '2026-09-01T10:00:00Z',
   latest_output_datetime: '2026-09-01T10:00:00Z', parents: [], deleted: false,
   data: { qatools_config },
   batches: { default: {
     id: batch_id, label: 'default', data: {},
-    valid_outputs: 1, pending_outputs: 0, running_outputs: 0, failed_outputs: 0, deleted_outputs: 0,
-    outputs: { [batch_id]: output(batch_id, hexsha, metadata) },
+    valid_outputs: runs.length, pending_outputs: 0, running_outputs: 0, failed_outputs: 0, deleted_outputs: 0,
+    outputs: runOutputs(hexsha, batch_id, metadata, runs),
   } },
 });
 
-const setup = async (page, { metadata = {}, manifests, qatools_config = default_config } = {}) => {
+// differences: by run, the largest difference the server finds, for the regions where they differ (none: identical)
+const setup = async (page, { metadata = {}, manifests, qatools_config = default_config, runs, differences = {} } = {}) => {
   const api = {
     '/api/v1/config': {},
     '/api/v1/user/me/': { is_authenticated: true, user_id: 1, user_name: 'alice', full_name: 'Alice', email: 'alice@example.com', login_type: 'local' },
     '/api/v1/projects': { [project]: { data: { qatools_config }, latest_commit_datetime: '2026-09-01T10:00:00Z', total_commits: 2 } },
     '/api/v1/project': { qatools_config },
     '/api/v1/project/branches': ['master'],
-    '/api/v1/commit/new': commit('new', 1, 'New', metadata, qatools_config),
-    '/api/v1/commit/ref': commit('ref', 2, 'Reference', metadata, qatools_config),
+    '/api/v1/commit/new': commit('new', 1, 'New', metadata, qatools_config, runs),
+    '/api/v1/commit/ref': commit('ref', 2, 'Reference', metadata, qatools_config, runs),
   };
   const pixel_requests = [];
+  const diff_requests = [];
   await page.addInitScript(() => localStorage.setItem('qaboard.release-notes.last-seen', '9999-12-31'));
   await page.route('**/api/**', route => {
     const url = new URL(route.request().url());
     // The image's "raw" values: 10-bit
+    // Where they differ: a square, as much as `differences` says
+    if (url.pathname === '/api/v1/output/image/diff') {
+      const body = route.request().postDataJSON();
+      diff_requests.push(body);
+      const run = body.output_dir_url_new.split('/')[4].split('-')[1];
+      const value = differences[run];
+      return route.fulfill({ json: value ? [{ x: 90, y: 90, w: 60, h: 60, peak_x: 120, peak_y: 120, value, diff: 1 }] : [] });
+    }
     if (url.pathname === '/api/v1/output/image/pixels') {
-      const [, , , , hexsha, , ...file] = url.searchParams.get('image_url').split('/');
-      const image = imageOf(hexsha, file.join('/'));
+      const [, , , , folder, , ...file] = url.searchParams.get('image_url').split('/');
+      const image = imageOf(hexshaOf(folder), file.join('/'));
       const [x, y, w, h] = ['x', 'y', 'w', 'h'].map(k => Number(url.searchParams.get(k)));
       pixel_requests.push({ x, y, w, h });
       const [cw, ch] = [Math.min(w, image.width - x), Math.min(h, image.height - y)];
@@ -72,7 +89,7 @@ const setup = async (page, { metadata = {}, manifests, qatools_config = default_
   });
   await page.route('**/s/**', route => {
     const { pathname } = new URL(route.request().url());
-    const hexsha = pathname.split('/')[4];
+    const hexsha = hexshaOf(pathname.split('/')[4]);
     if (pathname.endsWith('/manifest.outputs.json'))
       return route.fulfill({ json: manifests?.[hexsha] ?? { 'image.png': { st_size: 1000, md5: hexsha } } });
     return route.fulfill({ status: 404 });
@@ -80,13 +97,13 @@ const setup = async (page, { metadata = {}, manifests, qatools_config = default_
   await page.route('**/iiif/2/**', route => {
     const { pathname } = new URL(route.request().url());
     const [identifier, ...request] = pathname.replace(/^\/iiif\/2\//, '').split('/');
-    const [, , hexsha, , ...file] = decodeURIComponent(identifier).split('/');
-    const image = imageOf(hexsha, file.join('/'));
+    const [, , folder, , ...file] = decodeURIComponent(identifier).split('/');
+    const image = imageOf(hexshaOf(folder), file.join('/'));
     if (request.join('/') === 'info.json') return route.fulfill({ json: info(identifier, image) });
     return route.fulfill({ body: tile(request.join('/'), image), contentType: 'image/png' });
   });
   await page.goto(`/${project}/commit/new?reference=ref&selected_views=output-list`);
-  return { pixel_requests };
+  return { pixel_requests, diff_requests };
 };
 
 const errors = [];
@@ -305,6 +322,36 @@ test('shows the regions of interest of the input', async ({ page }) => {
   await page.getByRole('menuitem', { name: 'Full image' }).click();
   await expect(regions).toHaveCount(0);
   await expect.poll(() => zoom(page)).toBeLessThan(200);
+});
+
+test('finds where the images differ in all the runs, and ranks them', async ({ page }) => {
+  const { diff_requests } = await setup(page, { runs: ['A', 'B', 'C'], differences: { A: 0.3, C: 0.05 } });
+  const first = page.locator('.output-card[data-output-id="100"]');
+  await expect(first.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
+  await first.getByRole('button', { name: 'Regions of interest' }).click();
+  await page.getByRole('menuitem', { name: 'Where they differ, in all 3 runs…' }).click();
+
+  // the runs that differ most first
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('Where the images differ, in 3 runs');
+  await expect(dialog).toContainText('3 / 3 · 1 identical');
+  const rows = dialog.locator('tbody tr');
+  await expect(rows.nth(0)).toContainText('images/A.png');
+  await expect(rows.nth(0)).toContainText('30.0%');
+  await expect(rows.nth(1)).toContainText('images/C.png');
+  await expect(rows.nth(1)).toContainText('5.0%');
+  await expect(rows.nth(2)).toContainText('identical');
+  expect(diff_requests.map(body => body.path)).toEqual(['image.png', 'image.png', 'image.png']);
+
+  // go to a run: its viewer shows where its images differ
+  await rows.nth(1).getByRole('button', { name: 'Show' }).click();
+  await expect(dialog).toHaveCount(0);
+  const card = page.locator('.output-card[data-output-id="102"]');
+  await expect(card.locator('.qiv-regions')).toContainText('Where they differ: perceptual');
+  await expect(card.locator('.qiv-region').first()).toContainText('#1 · 5.0%');
+  // and so do the others, with what was found already
+  await expect(first.locator('.qiv-region').first()).toContainText('#1 · 30.0%');
+  expect(diff_requests).toHaveLength(3);
 });
 
 test('shows one image when the reference is the same file', async ({ page }) => {

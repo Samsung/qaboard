@@ -288,6 +288,14 @@ shots:
     features: [auto-roi]
     phase: 1
     status: published
+  - id: commit/regions-all-runs
+    kind: still
+    project: image-quality
+    shows: The runs of the merge-bilateral commit ranked by how much their images differ from the release's, from the photos with halos to the identical ones.
+    pages: [user-guide/comparing-results]
+    features: [auto-roi]
+    phase: 1
+    status: planned
   - id: commit/image-filters
     kind: still
     project: image-quality

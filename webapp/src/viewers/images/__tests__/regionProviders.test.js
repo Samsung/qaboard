@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 
-import { blobToRegion, presetRegions, registerRegionProvider, regionProviders } from '../regionProviders';
+import { differenceToRegion, formatDifference, presetRegions, registerRegionProvider, regionProviders } from '../regionProviders';
 
 
 describe('presetRegions', () => {
@@ -25,13 +25,16 @@ describe('presetRegions', () => {
 });
 
 
-describe('blobToRegion', () => {
-  it('centers the region on the peak found by the server', () => {
-    expect(blobToRegion({ x: 100, y: 50, r: 10, diff: 0.25 }, 2)).toMatchObject({ x: 90, y: 40, w: 20, h: 20, label: '#3 · 25%' });
+describe('differenceToRegion', () => {
+  it('labels the regions found by the server with how much the images differ there', () => {
+    expect(differenceToRegion('yiq')({ x: 90, y: 40, w: 20, h: 30, value: 0.0321, diff: 0.25 }, 2))
+      .toMatchObject({ x: 90, y: 40, w: 20, h: 30, value: 0.0321, label: '#3 · 3.2%' });
+    expect(formatDifference('ciede2000', 4.56)).toBe('ΔE 4.6');
+    expect(formatDifference('ssim', 0.214)).toBe('1−SSIM 0.21');
   });
 
   it('gives the largest differences the darkest color', () => {
-    const brightness = diff => blobToRegion({ x: 10, y: 10, r: 5, diff }, 0).color.match(/\d+/g).map(Number).reduce((a, b) => a + b);
+    const brightness = diff => differenceToRegion('yiq')({ x: 10, y: 10, w: 5, h: 5, value: 1, diff }, 0).color.match(/\d+/g).map(Number).reduce((a, b) => a + b);
     expect(brightness(1)).toBeLessThan(brightness(0));
     expect(brightness(3)).toEqual(brightness(1));
   });

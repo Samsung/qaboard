@@ -151,6 +151,10 @@ Users step through regions (with thumbnails for IIIF images), or copy the region
 />
 ```
 
+Control the set shown (`regionSet`, `onRegionSetChange`) to show the same in several viewers, and add your own actions
+to the regions menu with `regionActions`: QA-Board's finds where the images differ for all the runs of a page, then
+ranks the runs.
+
 ### Synced viewers
 Viewers with the same `syncKey` zoom and pan together, when their images have the same aspect ratio (whatever their
 resolution), and show a cross where the pointer is on the others. Viewers off-screen catch up when they show.
@@ -172,8 +176,9 @@ resolution), and show a cross where the pointer is on the others. Viewers off-sc
 | `pixelValues`, `defaultPixelValues`, `onPixelValuesChange` | `'image' \| 'display' \| 'off'` | `'image'` | [Values](#pixel-values-the-images-or-the-displayed-ones) written on the pixels when zoomed in. `'image'` needs `getPixels`, else they're the displayed ones. |
 | `getPixels` | `(image, { x, y, w, h }, { signal }) => Promise<{ data, width, height, channels?, mode? } \| { values, mode? }>` | | The image's own values, by tiles of 64×64 |
 | `syncKey` | `string` | | Viewers with the same key are synced |
-| `regionSets` | `[{ id, label, regions?, loading?, error?, load? }]` | `[]` | Regions of interest |
-| `defaultRegionSet` | `string` | | The set shown first |
+| `regionSets` | `[{ id, label, regions?, loading?, error?, load?, empty? }]` | `[]` | Regions of interest |
+| `regionSet`, `defaultRegionSet`, `onRegionSetChange` | `string \| null` | | The set shown (`null`: the full image) |
+| `regionActions` | `[{ id, label, icon?, title?, onClick }]` | `[]` | Your actions in the regions menu |
 | `maxHeight` | `number \| (windowHeight) => number` | `h => h - 160` | The highest images can be |
 | `theme` | `'light' \| 'dark'` | the system's | Or use the [CSS variables](#theming) |
 | `notice`, `toolbarExtra` | React nodes | | Your own things in the toolbar |

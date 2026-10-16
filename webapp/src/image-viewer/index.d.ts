@@ -72,6 +72,18 @@ export interface RegionSet {
   error?: string;
   /** Finds the regions, e.g. by asking a server. Called when users pick the set and it has no regions. */
   load?: () => void;
+  /** Shown when the set has no regions, e.g. "No difference found". Default: "No regions" */
+  empty?: string;
+}
+
+/** An action of the app in the regions menu, e.g. finding the regions of all the images of a page */
+export interface RegionAction {
+  id: string;
+  label: string;
+  /** One of the viewer's icons, e.g. "search" (icons.js) */
+  icon?: string;
+  title?: string;
+  onClick: () => void;
 }
 
 export interface PixelRegion {
@@ -136,8 +148,13 @@ export interface ImageViewerProps {
 
   /** Regions of interest users can step through */
   regionSets?: RegionSet[];
+  /** The set shown (null: the full image), controlled with onRegionSetChange, e.g. the same for several viewers, or not, from defaultRegionSet */
+  regionSet?: string | null;
   /** The id of the set shown first, e.g. "presets" */
   defaultRegionSet?: string | null;
+  onRegionSetChange?: (id: string | null) => void;
+  /** The app's actions in the regions menu */
+  regionActions?: RegionAction[];
 
   /**
    * The images' own values, e.g. raw or 16-bit, shown under the pointer and on the pixels.
