@@ -267,46 +267,46 @@
     },
     "commit/batch-picker": {
       "alt": "The new commit's batch selector open: the CI batch, run by ci, 18 of 18 runs successful; ines 🏠 ines-halo, Ines's local runs, 5 of 5; and the tune-denoise tuning experiment, 60 of 60.",
-      "app_version": "1.1.1+d434630",
+      "app_version": "1.1.1+be26c26",
       "caption": "Each commit can have several batches: CI's, your local runs (🏠) and tuning experiments. Pick one to see its runs.",
-      "captured": "2026-10-15",
+      "captured": "2026-10-16",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 8154,
-            "key": "shots/commit/batch-picker/05c9669f12e52fcc.avif"
+            "bytes": 8895,
+            "key": "shots/commit/batch-picker/8d423c57a16c3758.avif"
           },
           "png": {
-            "bytes": 38369,
-            "key": "shots/commit/batch-picker/777e2de2c05e48ac.png"
+            "bytes": 40300,
+            "key": "shots/commit/batch-picker/f84918a69fccfd14.png"
           },
           "webp": {
-            "bytes": 14918,
-            "key": "shots/commit/batch-picker/af1bf3eb9435fb7d.webp"
+            "bytes": 15794,
+            "key": "shots/commit/batch-picker/8125dceec18eefca.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAABwAQCdASoQAAkAA4BaJZQCdAFAAAD+7+XlOHXj7sBwMbtqNua5561AAAA="
+        "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAACQAQCdASoQAAkAA4BaJZWDrRgAiwAA/vBAthmQQm1kSJuaOBPEhXdAAAA="
       },
       "files": {
         "avif": {
-          "bytes": 8640,
-          "key": "shots/commit/batch-picker/3740f63de72f8aec.avif"
+          "bytes": 9293,
+          "key": "shots/commit/batch-picker/bf86230ea8da1954.avif"
         },
         "png": {
-          "bytes": 36098,
-          "key": "shots/commit/batch-picker/2c2bf666e1c028eb.png"
+          "bytes": 37753,
+          "key": "shots/commit/batch-picker/ae8508ffaf8c6df4.png"
         },
         "webp": {
-          "bytes": 16184,
-          "key": "shots/commit/batch-picker/c041c4c5f8a0f607.webp"
+          "bytes": 16740,
+          "key": "shots/commit/batch-picker/14da837b0a9cfe44.webp"
         }
       },
       "height": 239,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAAAwAQCdASoQAAkAA4BaJaQAA3AA/vIVMQmIhjcacHWGf/LtZ84QAA==",
+      "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAAAwAQCdASoQAAkAA4BaJaQAA3AA/vOVYaYF+8bmomJMPLzNMZGudqxwAAA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
-      "width": 457
+      "width": 464
     },
     "commit/bit-accuracy-diff": {
       "alt": "Output Files of the facade run on the hw-model platform: a click on regs.txt shows its diff below the tree, Next Diff jumps to the ROUNDING register, from 0 to 2; a Ctrl-click on metrics.json adds its diff below. Then a commit that only changed the docs: its run is bit-accurate.",
@@ -456,64 +456,64 @@
       "width": 1440
     },
     "commit/controls-panel": {
-      "alt": "The Controls panel open on the right of the run cards: an Image Diff switch, a switch per visualization, including the hidden Color errors and Noise vs signal, and the sorting options.",
+      "alt": "The View options docked on the right of the run cards: a switch per visualization, including the hidden Color errors and Noise vs signal, the Image diff switch, and how the runs are sorted.",
       "anchors": {
         "image-diff": {
-          "h": 1.71,
-          "w": 16.11,
-          "x": 81.67,
-          "y": 52.88
+          "h": 2,
+          "w": 18.54,
+          "x": 80.35,
+          "y": 57.11
         },
         "sorting": {
-          "h": 1.71,
-          "w": 3.76,
-          "x": 81.67,
-          "y": 78.39
+          "h": 4,
+          "w": 19.38,
+          "x": 79.79,
+          "y": 61.89
         },
         "visualizations": {
-          "h": 1.71,
-          "w": 7.04,
-          "x": 81.67,
-          "y": 44.24
+          "h": 4,
+          "w": 14.32,
+          "x": 79.79,
+          "y": 21.11
         }
       },
-      "app_version": "1.1.1+d434630",
-      "caption": "The Controls panel shows or hides visualizations, turns Image Diff on, and sorts the runs.",
-      "captured": "2026-10-15",
+      "app_version": "1.1.1+be26c26",
+      "caption": "The View options show or hide visualizations, turn Image diff on, and sort the runs.",
+      "captured": "2026-10-16",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 75517,
-            "key": "shots/commit/controls-panel/54aef69f3647fded.avif"
+            "bytes": 72439,
+            "key": "shots/commit/controls-panel/e283a2b4fcda6491.avif"
           },
           "png": {
-            "bytes": 648158,
-            "key": "shots/commit/controls-panel/481cdbce41e0d4a1.png"
+            "bytes": 485780,
+            "key": "shots/commit/controls-panel/322108c6b4b84c9d.png"
           },
           "webp": {
-            "bytes": 139114,
-            "key": "shots/commit/controls-panel/6f2bf15a2ccec0d7.webp"
+            "bytes": 132656,
+            "key": "shots/commit/controls-panel/a1198dacb8ebc166.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRkQAAABXRUJQVlA4IDgAAADQAQCdASoQAAoAA4BaJZwAAuc/4NNdiAD+8yawfxywidCHZ7YRS+tKVWkouzQgWrX77fj9DZAAAA=="
+        "lqip": "data:image/webp;base64,UklGRl4AAABXRUJQVlA4IFIAAADwAQCdASoQAAoAA4BaJZwAAu1vq5DGkwAA/vNMBqtXS6/WEHtK0q4OQD5Yu+hu37ztQPRc1AYuQTj0y6LsldgoHVNPB6o5xhD6kHkFYhLFhAAA"
       },
       "files": {
         "avif": {
-          "bytes": 79328,
-          "key": "shots/commit/controls-panel/c511ca399c743946.avif"
+          "bytes": 73042,
+          "key": "shots/commit/controls-panel/6fe4543756f94514.avif"
         },
         "png": {
-          "bytes": 495679,
-          "key": "shots/commit/controls-panel/5abb623011651cb9.png"
+          "bytes": 651315,
+          "key": "shots/commit/controls-panel/1a313ea2b923bde6.png"
         },
         "webp": {
-          "bytes": 143790,
-          "key": "shots/commit/controls-panel/c6493790da0bfbd2.webp"
+          "bytes": 136254,
+          "key": "shots/commit/controls-panel/580888d98beef7ec.webp"
         }
       },
       "height": 900,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRkYAAABXRUJQVlA4IDoAAADQAQCdASoQAAoAA4BaJaQAAudkUvdUAAD8P4bt+gt7Uf/rYXyjQ4X7+QRWxCWL44TFR6WNVceUaAAA",
+      "lqip": "data:image/webp;base64,UklGRlIAAABXRUJQVlA4IEYAAADwAQCdASoQAAoAA4BaJaQAAp1eh0AO6QAA/D9rXT/LK/MzOtQcr0zYIP98Frf/QLUNZ/n9ut1d7NRZKGTW0Cp1QQh8AAAA",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
@@ -657,9 +657,9 @@
       "width": 840
     },
     "commit/dynamic-options": {
-      "alt": "The Controls panel's Dynamic Options: the stage option, synced, its slider on 3. Next to it, the night street's card shows stages/3.jpg, the denoised image, new and reference.",
+      "alt": "The View options' Files to show: the stage option, synced, its slider on 3. Next to it, the night street's card shows stages/3.jpg, the denoised image, new and reference.",
       "app_version": "1.1.1+f175b5f",
-      "caption": "Dynamic Options pick the file each card shows, here the ISP stage. Synced, one slider drives every run.",
+      "caption": "Files to show picks the file each card shows, here the ISP stage. Synced, one slider drives every run.",
       "captured": "2026-10-16",
       "dark": {
         "files": {
@@ -700,53 +700,53 @@
       "width": 1440
     },
     "commit/dynamic-outputs": {
-      "alt": "The stage slider of the Controls panel steps from the raw sensor mosaic to the tone-mapped image of the facade's window, new and reference changing together; scrolling down, the night street's card follows the slider too.",
-      "app_version": "1.1.1+d434630",
+      "alt": "The stage slider of the View options steps from the raw sensor mosaic to the tone-mapped image of the facade's window, new and reference changing together; scrolling down, the night street's card follows the slider too.",
+      "app_version": "1.1.1+be26c26",
       "caption": "One slider over the ISP's stages drives every run's card.",
-      "captured": "2026-10-15",
+      "captured": "2026-10-16",
       "dark": {
         "files": {
           "mp4": {
-            "bytes": 709926,
-            "key": "shots/commit/dynamic-outputs/66d89dad64f8071f.mp4"
+            "bytes": 712716,
+            "key": "shots/commit/dynamic-outputs/b984ac4c75d83860.mp4"
           },
           "poster": {
-            "bytes": 90486,
-            "key": "shots/commit/dynamic-outputs/b60e7366ec86dae2.webp"
+            "bytes": 91088,
+            "key": "shots/commit/dynamic-outputs/1c3447faab0e0382.webp"
           },
           "vtt": {
             "bytes": 299,
             "key": "shots/commit/dynamic-outputs/e320a88c2584285c.vtt"
           },
           "webm": {
-            "bytes": 604270,
-            "key": "shots/commit/dynamic-outputs/13be98669a41ac50.webm"
+            "bytes": 616315,
+            "key": "shots/commit/dynamic-outputs/d30db1e80ed5b54e.webm"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRlgAAABXRUJQVlA4IEwAAADQAQCdASoQAAoAA4BaJZwAAtx0o/A4AAD+81ENJVFRxrutrTl9nDpJ3r8Fl270jH5PVKVeBBiaHha5D3A/kAyTB3fLVIHVkFnNukAA"
+        "lqip": "data:image/webp;base64,UklGRlgAAABXRUJQVlA4IEwAAADQAQCdASoQAAoAA4BaJZwAAudKKLFMQAD+80wGqB1MIYc/If/hJ+VH1iw1Sw2RwuDki274KsHF6mIaP8XFXQAFjhMEmgdWQWc0FMAA"
       },
       "duration": 10.87,
       "files": {
         "mp4": {
-          "bytes": 710993,
-          "key": "shots/commit/dynamic-outputs/48df9bf62e253ec7.mp4"
+          "bytes": 714247,
+          "key": "shots/commit/dynamic-outputs/03ae9ca075002959.mp4"
         },
         "poster": {
-          "bytes": 91506,
-          "key": "shots/commit/dynamic-outputs/ce7a71a4e783bc87.webp"
+          "bytes": 92284,
+          "key": "shots/commit/dynamic-outputs/98e0522b6d88bdf6.webp"
         },
         "vtt": {
           "bytes": 299,
           "key": "shots/commit/dynamic-outputs/e320a88c2584285c.vtt"
         },
         "webm": {
-          "bytes": 605010,
-          "key": "shots/commit/dynamic-outputs/4ef1156f66d836d3.webm"
+          "bytes": 613024,
+          "key": "shots/commit/dynamic-outputs/885223cd7ea43456.webm"
         }
       },
       "height": 900,
       "kind": "clip",
-      "lqip": "data:image/webp;base64,UklGRlwAAABXRUJQVlA4IFAAAABQAgCdASoQAAoAA4BaJZQC/OD0jhCaQL9t/wAA/cfXqJSaBkjhjHld8qOyJVrFTiVK3/UGZjETS6ia1VAm7/3ysmi/curR//FyNRXQAL0AAA==",
+      "lqip": "data:image/webp;base64,UklGRloAAABXRUJQVlA4IE4AAAAQAgCdASoQAAoAA4BaJZQC/OD0j269G4pCAPw/a10/y0H7w6DUs+St2NnB2I7jfK134yWqD3bi/GxFN1Yd3P10F/lYePHy+RlKDHeFkAA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
@@ -2385,19 +2385,19 @@
       "dark": {
         "files": {
           "avif": {
-            "bytes": 6987,
-            "key": "shots/integrations/menu/1a455b3031ba8361.avif"
+            "bytes": 6865,
+            "key": "shots/integrations/menu/88734d5465db7a60.avif"
           },
           "png": {
-            "bytes": 28992,
-            "key": "shots/integrations/menu/a5ce96c77e2c3f73.png"
+            "bytes": 27681,
+            "key": "shots/integrations/menu/4d5350335d012629.png"
           },
           "webp": {
-            "bytes": 12328,
-            "key": "shots/integrations/menu/944c037968cbc79e.webp"
+            "bytes": 12264,
+            "key": "shots/integrations/menu/0f7ffe58f1d5cf24.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAACwAQCdASoQAAUAA4BaJZwAAp/YjdnAAP7yytzM67xRCNAit+eo4AAA"
+        "lqip": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAACQAQCdASoQAAUAA4BaJZwAAp0/X8gA/vLK3MzrvKWaJHsRivLcUAAA"
       },
       "files": {
         "avif": {
@@ -2505,31 +2505,31 @@
     },
     "landing/every-stage": {
       "alt": "The facade's window, stage by stage of the camera pipeline: the raw sensor mosaic, demosaiced, denoised, sharpened, then tone-mapped.",
-      "app_version": "1.1.1+d434630",
+      "app_version": "1.1.1+be26c26",
       "caption": "A slider over the camera pipeline's stages, from the raw mosaic to the output.",
-      "captured": "2026-10-15",
+      "captured": "2026-10-16",
       "duration": 9.87,
       "files": {
         "mp4": {
-          "bytes": 170760,
-          "key": "shots/landing/every-stage/9d0002fa76171db7.mp4"
+          "bytes": 172733,
+          "key": "shots/landing/every-stage/43e492ce885cbbb0.mp4"
         },
         "poster": {
-          "bytes": 16588,
-          "key": "shots/landing/every-stage/0e922c4e4e72babd.webp"
+          "bytes": 16874,
+          "key": "shots/landing/every-stage/9f6ce71c1a3de885.webp"
         },
         "vtt": {
           "bytes": 227,
           "key": "shots/landing/every-stage/636acb159822a2dd.vtt"
         },
         "webm": {
-          "bytes": 157073,
-          "key": "shots/landing/every-stage/f51b0168f83e3d4c.webm"
+          "bytes": 158075,
+          "key": "shots/landing/every-stage/06951a76d1b28244.webm"
         }
       },
       "height": 366,
       "kind": "clip",
-      "lqip": "data:image/webp;base64,UklGRlAAAABXRUJQVlA4IEQAAADQAQCdASoQAAsAA4BaJYgCdAEZOQjmUAD+1+KbPnjc91WhN8/nnYfHPyqc4A0yjE6Zd6mwnRNAWWckGBUrdyjif2yAAA==",
+      "lqip": "data:image/webp;base64,UklGRlQAAABXRUJQVlA4IEgAAACwAQCdASoQAAsAA4BaJQBOgBY03HYgAP7X4ps+esgXenTHcuKIn8ZK4C+PIr6WCUkvuJYOcelx3GWJXByQYJXBq6Lw+ciAAAA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/landing.spec.ts",
       "width": 585
