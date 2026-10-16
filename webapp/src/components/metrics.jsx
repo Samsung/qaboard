@@ -39,7 +39,6 @@ const metric_formatter = (value, metric) => {
     return value
   }
   // 3 significant digits by default
-  // https://mathjs.org/docs/reference/functions/format.html
   return format(value, {precision: metric?.precision ?? 3})
   // This doesn't support scientific notation.. but above there
   // are not thousant separators... ^^

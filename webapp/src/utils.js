@@ -1,17 +1,6 @@
 import { interpolateRainbow } from "d3-scale-chromatic";
 import md5 from "js-md5";
 
-// https://mathjs.org/docs/custom_bundling.html
-import {
-  create,
-  medianDependencies,
-  formatDependencies
-} from 'mathjs/number'
-const { median: mathjs_median, format } = create({
-  medianDependencies,
-  formatDependencies,
-})
-
 import { memoized_levenshtein } from "./levenshtein";
 import { setPathMappings, linux_to_windows } from "./utils/paths";
 import { repo_url } from "./git";
@@ -31,8 +20,42 @@ const average = array => {
   return array.filter(x => x !== undefined).reduce((a, b) => a + b, 0) / array.length;
 };
 const median = array => {
-  let array_filtered = array.filter(x => x !== undefined && x !== null)
-  return array_filtered.length > 0 ? mathjs_median(array_filtered) : null;
+  const sorted = array.filter(x => x !== undefined && x !== null).sort((a, b) => a - b);
+  if (sorted.length === 0) return null;
+  const middle = sorted.length >> 1;
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+};
+
+// Formats numbers like mathjs' format(value, {precision}), that we no longer bundle (65kB):
+// `precision` significant digits rounded half up from the shortest representation (1.005 => "1.01"), no trailing zeros,
+// exponential notation below 1e-3 and from 1e5. format(1234.5, {precision: 3}) => "1230", format(123456, {precision: 3}) => "1.23e+5"
+const format = (value, { precision } = {}) => {
+  if (!Number.isFinite(value)) return String(value);
+  // 1234.5 => digits "12345", exponent 3
+  const [, sign, mantissa, exp = '0'] = /^(-?)([\d.]+)(?:e([+-]\d+))?$/.exec(String(value));
+  const dot = mantissa.indexOf('.');
+  let digits = mantissa.replace('.', '');
+  let exponent = Number(exp) + (dot === -1 ? mantissa.length : dot) - 1;
+  const leading_zeros = /^0*/.exec(digits)[0].length;
+  exponent -= leading_zeros;
+  digits = digits.slice(leading_zeros).replace(/0+$/, '');
+  if (!digits) { digits = '0'; exponent = 0; }
+  if (precision && digits.length > precision) {
+    const round_up = digits[precision] >= '5';
+    digits = digits.slice(0, precision);
+    if (round_up) {
+      // 999 => 1000
+      const rounded = String(BigInt(digits) + 1n);
+      if (rounded.length > digits.length) exponent++;
+      digits = rounded.slice(0, precision);
+    }
+    digits = digits.replace(/0+$/, '') || '0';
+  }
+  if (exponent < -3 || exponent >= 5)
+    return `${sign}${digits[0]}${digits.length > 1 ? `.${digits.slice(1)}` : ''}e${exponent >= 0 ? '+' : ''}${exponent}`;
+  if (exponent < 0) return `${sign}0.${'0'.repeat(-exponent - 1)}${digits}`;
+  if (digits.length <= exponent + 1) return sign + digits.padEnd(exponent + 1, '0');
+  return `${sign}${digits.slice(0, exponent + 1)}.${digits.slice(exponent + 1)}`;
 };
 
 
