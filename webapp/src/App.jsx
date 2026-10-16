@@ -5,7 +5,6 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 
 import { Classes } from "@blueprintjs/core";
 
-import * as Sentry from "@sentry/react";
 import { StyleSheetManager } from "styled-components";
 import isPropValid from "@emotion/is-prop-valid";
 
@@ -17,6 +16,7 @@ import { initSentry, initPostHog } from "./analytics";
 import { Layout } from "./components/layout";
 import ProjectsList from "./ProjectsList";
 import ErrorPage from "./components/ErrorPage";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import EmptyLoading from "./components/EmptyLoading";
 import Footer from "./components/Footer";
 import { ThemeSync } from "./theme";
@@ -26,7 +26,6 @@ import "@blueprintjs/core/lib/css/blueprint.css";
 // include blueprint-icons.css for icon font support
 import "@blueprintjs/icons/lib/css/blueprint-icons.css";
 import "@blueprintjs/select/lib/css/blueprint-select.css";
-import "@blueprintjs/datetime/lib/css/blueprint-datetime.css";
 
 import "./App.css";
 
@@ -73,7 +72,7 @@ const App = ({ persist = true }) => {
   const providerProps = persist ? { client: queryClient, persistOptions, onSuccess: onCacheRestored } : { client: queryClient };
   return <Provider {...providerProps}>
     <ThemeSync/>
-    <Sentry.ErrorBoundary fallback={props => <Fallback {...props}/>}>
+    <ErrorBoundary fallback={props => <Fallback {...props}/>}>
       <Analytics/>
       <StyleSheetManager shouldForwardProp={shouldForwardProp}>
         <ReleaseNotesProvider>
@@ -84,7 +83,7 @@ const App = ({ persist = true }) => {
           </HelpSheetProvider>
         </ReleaseNotesProvider>
       </StyleSheetManager>
-    </Sentry.ErrorBoundary>
+    </ErrorBoundary>
     <Suspense><ReactQueryDevtools buttonPosition="bottom-left"/></Suspense>
   </Provider>
 }
@@ -124,4 +123,4 @@ const ProjectApp = ({ pathname }) => {
 }
 
 
-export default Sentry.withProfiler(App);
+export default App;

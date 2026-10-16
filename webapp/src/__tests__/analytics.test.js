@@ -5,6 +5,7 @@ const sentry = vi.hoisted(() => ({
   addIntegration: vi.fn(),
   browserTracingIntegration: vi.fn(options => ({ name: 'BrowserTracing', options })),
   replayIntegration: vi.fn(() => ({ name: 'Replay' })),
+  captureException: vi.fn(),
 }));
 vi.mock('@sentry/react', () => sentry);
 
@@ -18,18 +19,18 @@ const routeName = () => '/:project_id+/commit/:name+';
 describe('sentryOptions', () => {
   it('uses the server configuration', async () => {
     const { sentryOptions } = await import('../analytics');
-    const options = sentryOptions(config, routeName);
+    const options = sentryOptions(config, routeName, sentry);
     expect(options.dsn).toBe(config.sentry_dsn);
     expect(options.environment).toBe('staging');
     expect(options.tracesSampleRate).toBe(0.5);
     // transactions, that all Sentry servers understand
     expect(options.traceLifecycle).toBe('static');
-    expect(sentryOptions({ ...config, sentry_trace_lifecycle: 'stream' }, routeName).traceLifecycle).toBe('stream');
+    expect(sentryOptions({ ...config, sentry_trace_lifecycle: 'stream' }, routeName, sentry).traceLifecycle).toBe('stream');
   });
 
   it('has defaults', async () => {
     const { sentryOptions } = await import('../analytics');
-    const options = sentryOptions({ sentry_dsn: config.sentry_dsn }, routeName);
+    const options = sentryOptions({ sentry_dsn: config.sentry_dsn }, routeName, sentry);
     expect(options.environment).toBe('production');
     expect(options.tracesSampleRate).toBe(0.2);
     // set when building the image
@@ -46,7 +47,7 @@ describe('sentryOptions', () => {
 
   it('names transactions after routes', async () => {
     const { sentryOptions } = await import('../analytics');
-    const [tracing] = sentryOptions(config, routeName).integrations;
+    const [tracing] = sentryOptions(config, routeName, sentry).integrations;
     expect(tracing.options.beforeStartSpan({ name: '/a/b/commit/123', op: 'pageload' }))
       .toEqual({ name: '/:project_id+/commit/:name+', op: 'pageload' });
   });

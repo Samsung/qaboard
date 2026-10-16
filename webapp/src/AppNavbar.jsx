@@ -1,11 +1,10 @@
 import styled from "styled-components";
 
 import { Suggest } from "@blueprintjs/select";
-import { DateRangeInput } from "@blueprintjs/datetime";
-import enUS from "date-fns/locale/en-US";
 import {
   Classes,
   Intent,
+  ControlGroup,
   Navbar,
   NavbarGroup,
   InputGroup,
@@ -15,7 +14,7 @@ import {
   Tooltip,
 } from "@blueprintjs/core";
 
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { useRouter } from "./router";
 import { path_segment } from "./selection";
 import { CommitNavbar, commit_header_styles } from "./components/CommitNavbar";
@@ -23,6 +22,8 @@ import { SelectBatchesNav } from "./components/tuning/SelectBatches";
 import { useBranches, useCommitsList, useComparison, useUrlText, updateSelected } from "./hooks";
 
 import { sider_width } from './AppSider'
+
+const DateRangeInput = lazy(() => import("./components/DateRangeInput"));
 
 
 
@@ -194,9 +195,12 @@ const CommitsListNavbar = () => {
   return (
     <StyledNavbar>
       <NavbarGroup style={{marginLeft: '20px'}}>
+        {/* Until the picker loads, the same inputs, so that the navbar doesn't move */}
+        <Suspense fallback={<ControlGroup>
+          {date_range.map((date, index) => <InputGroup key={index} {...date_input_props} value={date?.toLocaleDateString() ?? ""} disabled readOnly/>)}
+        </ControlGroup>}>
         <Tooltip content="Searches look at all the commits, whatever the dates." disabled={!is_searching}>
         <DateRangeInput
-          locale={enUS}
           endInputProps={{...date_input_props, 'aria-label': 'End date'}}
           startInputProps={{...date_input_props, 'aria-label': 'Start date'}}
           disabled={is_searching}
@@ -209,6 +213,7 @@ const CommitsListNavbar = () => {
           shortcuts
         />
         </Tooltip>
+        </Suspense>
         <div style={{marginLeft: '5px'}}>
           <Tooltip content="Check for new commits">
             <Button icon="refresh" aria-label="Check for new commits" disabled={list.isFetching} minimal onClick={() => list.refetch()}/>
