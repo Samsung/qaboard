@@ -5,7 +5,7 @@ import path from 'node:path';
 import { test } from '@playwright/test';
 import type { Browser, BrowserContext, BrowserContextOptions, Locator, Page, TestInfo } from '@playwright/test';
 import { DEMO_PASSWORD, demo as loadDemo, PROJECT_PERSONAS, type Demo, type ProjectKey } from './demo';
-import { callerFile, checkId, isSelected, outDir, sourceSpec, type ShotId } from './ids';
+import { callerFile, checkId, isSelected, outDir, outRoot, sourceSpec, type ShotId } from './ids';
 import { anchorsInPercent, cursorInitScript, UiImpl, type Box, type Ui } from './overlay';
 import { Recorder } from './record';
 import { NetworkTracker, settle } from './waits';
@@ -342,6 +342,19 @@ export async function shotRegion(page: Page, target: Region | undefined, padding
   return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
 }
 
+// What the page showed when a capture failed: the lib closes its context, so Playwright's own snapshot is empty.
+// In out/test-results/failures/, which the workflow uploads with the gallery
+async function failureScreenshot(page: Page, id: ShotId, env: CaptureEnv) {
+  const file = path.join(outRoot(), 'test-results', 'failures', `${id.replace('/', '--')}${themeOf(env) === 'dark' ? '--dark' : ''}.png`);
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    await page.screenshot({ path: file, timeout: 5000 });
+    console.warn(`[shots] ${id}: what the page showed, in ${path.relative(process.cwd(), file)}`);
+  } catch {
+    // the page may be gone
+  }
+}
+
 /** Captures out/<id>/still.png and meta.json */
 export async function captureStill(browser: Browser, id: ShotId, options: ShotOptions, env: CaptureEnv) {
   checkOptions(id, options);
@@ -370,6 +383,9 @@ export async function captureStill(browser: Browser, id: ShotId, options: ShotOp
     };
     fs.writeFileSync(path.join(dir, 'meta.json'), JSON.stringify(meta, null, 2) + '\n');
     return { dir, meta };
+  } catch (error) {
+    await failureScreenshot(page, id, env);
+    throw error;
   } finally {
     await context.close();
   }
@@ -422,6 +438,9 @@ export async function captureClip(browser: Browser, id: ShotId, options: ClipOpt
     };
     fs.writeFileSync(path.join(dir, 'meta.json'), JSON.stringify(meta, null, 2) + '\n');
     return { dir, meta };
+  } catch (error) {
+    await failureScreenshot(page, id, env);
+    throw error;
   } finally {
     await context.close();
   }
