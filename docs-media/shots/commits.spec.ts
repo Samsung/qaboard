@@ -110,7 +110,7 @@ shot('commits/milestones-menu', {
     const shared = dialog.getByRole('switch', { name: 'Shared' }).or(dialog.locator('input[type="checkbox"]')).first();
     if (await shared.isChecked()) await ui.click(dialog.locator('label', { hasText: 'Shared' }));
     if (await shared.isChecked()) throw new Error('[commits.spec] the milestone would be shared');
-    await ui.type(dialog.locator('#text-input'), 'entropy-try');
+    await ui.type(dialog.locator('#milestone-label-input'), 'entropy-try');
     await ui.type(dialog.locator('textarea'), 'entropy calibration: a little worse everywhere');
     await ui.click(dialog.getByRole('button', { name: 'Save' }));
     await dialog.waitFor({ state: 'hidden' });

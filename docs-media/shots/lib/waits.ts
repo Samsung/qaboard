@@ -102,11 +102,13 @@ export async function networkIdle(page: Page, tracker: NetworkTracker, opts: Wai
   );
 }
 
-// Visible spinners, skeletons and progress bars, except in masked elements
+// Visible spinners, skeletons and progress bars, except in masked elements, and the spinners that say a run is running
+// (its status, "Running" tags): they stay as long as the run runs, a page with one is loaded
 export async function spinners(page: Page): Promise<number> {
   return page.evaluate(selector => {
     const visible = (el: Element) => {
       if (el.closest('[data-shot-mask]')) return false;
+      if (el.closest('[aria-label="Running"], .bp6-tag')) return false;
       const rect = el.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return false;
       const style = getComputedStyle(el);
