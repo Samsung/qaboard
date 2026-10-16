@@ -186,6 +186,7 @@ class ImgViewer extends React.PureComponent {
       ...this.viewer_ref,
     });
     this.Init().then(() => {
+      if (this.unmounted) return;
       this.viewer_new.addOnceHandler('update-viewport', () => this.setState({ ready: true }), {}, 3);
       this.InitMouseTracker(this.props);
       this.InitZoomSync();
@@ -409,17 +410,12 @@ class ImgViewer extends React.PureComponent {
     this.abort_controller?.abort();
     this.UnregisterZoomSync?.()
 
-    if (this.viewer_new) {
-      unregister_filter_sync(this.viewer_new)
-      // this.viewer_new.imageLoader.clear()  
-      // this.viewer_new.destroy();
-      // this.viewer_new = null;
-    }
-    if (this.viewer_ref) {
-      unregister_filter_sync(this.viewer_ref)
-      // this.viewer_new.imageLoader.clear()  
-      // this.viewer_ref.destroy();
-      // this.viewer_ref = null;
+    // Open viewers redraw on every animation frame, and OpenSeadragon keeps a reference to them: we destroy them
+    for (const viewer of [this.viewer_new, this.viewer_ref]) {
+      if (!viewer) continue;
+      unregister_filter_sync(viewer)
+      viewer.mouse_tracker?.destroy()
+      viewer.destroy?.()
     }
     // remove viewers from output_viewers
     window.removeEventListener('keypress', this.keyboard);

@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 import Plot from "./components/Plot";
 import {
@@ -265,6 +265,9 @@ const CommitsEvolutionPerTest = props => {
     [available_metrics, metrics, aggregation, relative, shown_commit, shown_commit_ref],
   );
 
+  // Moving over the plot hovers many points: the page shows the commits once the pointer pauses on one
+  const select_timer = useRef(null);
+  useEffect(() => () => clearTimeout(select_timer.current), []);
   const onHover = e => {
     const { pointNumber: point_number, curveNumber: curve_number } = e.points[0];
     // when not doing per-input display, test_input_path and configuration will be undefined
@@ -272,7 +275,8 @@ const CommitsEvolutionPerTest = props => {
     const commit = commits[point_number];
     const commit_ref = point_number < commits.length ? commits[point_number + 1] : null;
     const update_ref = !selected_ref && !!commit_ref;
-    onSelect?.({ new_commit_id: commit.id, ...(update_ref ? { ref_commit_id: commit_ref.id } : {}) });
+    clearTimeout(select_timer.current);
+    select_timer.current = setTimeout(() => onSelect?.({ new_commit_id: commit.id, ...(update_ref ? { ref_commit_id: commit_ref.id } : {}) }), 150);
     setHovered({ label, test_input_path, configurations });
     setHoveredCommit(commit);
     if (update_ref) setHoveredCommitRef(commit_ref);
@@ -281,6 +285,7 @@ const CommitsEvolutionPerTest = props => {
     const { pointNumber: point_number, curveNumber: curve_number } = e.points[0];
     const { label, test_input_path, configurations, commits } = traces_metadata[curve_number];
     const commit = commits[point_number];
+    clearTimeout(select_timer.current);
     onSelect?.({ ref_commit_id: commit.id, new_commit_id: commit.id });
     setSelectedRef(true);
     setHovered({ label, test_input_path, configurations });
