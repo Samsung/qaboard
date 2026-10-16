@@ -180,10 +180,20 @@ export const ImageViewer = ({
   const max_height = Math.max(120, fullscreen
     ? window_height - header_height - 24
     : typeof maxHeight === 'function' ? maxHeight(window_height) : maxHeight);
-  const per_pane = Math.max(0, (available - (columns - 1) * GAP) / columns);
-  const pane_width = Math.floor(Math.min(per_pane, max_height / aspect));
+  const fit = (columns, rows) => Math.floor(Math.max(0, Math.min(
+    (available - (columns - 1) * GAP) / columns,
+    (max_height - (rows - 1) * GAP) / rows / aspect,
+  )));
+  // The difference between the images: in a row, or in full screen, under them when the images are larger so
+  const stacked = diff_between && fullscreen && fit(2, 2) > fit(3, 1);
+  const pane_width = stacked ? fit(2, 2) : fit(columns, 1);
   const pane_height = Math.floor(pane_width * aspect);
-  const stage_width = columns * pane_width + (columns - 1) * GAP;
+  const stage_width = stacked ? 2 * pane_width + GAP : columns * pane_width + (columns - 1) * GAP;
+  const stage_height = stacked ? 2 * pane_height + GAP : pane_height;
+  // where the difference is
+  const diff_position = !diff_between ? { left: 0, top: 0 }
+    : stacked ? { left: Math.round((pane_width + GAP) / 2), top: pane_height + GAP }
+    : { left: pane_width + GAP, top: 0 };
 
   // The images
   useEffect(() => {
@@ -369,7 +379,7 @@ export const ImageViewer = ({
     const style = { width: pane_width, height: pane_height, left: 0 };
     if (name === 'b' && !comparing) return { ...style, visibility: 'hidden', pointerEvents: 'none' };
     if (side_by_side) return { ...style, left: name === first ? 0 : pane_width + GAP };
-    if (diff_between) return { ...style, left: name === first ? 0 : 2 * (pane_width + GAP) };
+    if (diff_between) return { ...style, left: name === first ? 0 : (stacked ? 1 : 2) * (pane_width + GAP) };
     if (mode === 'wipe') return name === second ? { ...style, zIndex: 2, clipPath: `inset(0 0 0 ${wipe * pane_width}px)` } : { ...style, zIndex: 1 };
     if (mode === 'toggle') return name === first ? { ...style, zIndex: 2 } : { ...style, visibility: 'hidden' };
     // difference: the image receives the gestures, under the difference
@@ -554,14 +564,14 @@ export const ImageViewer = ({
     <div
       ref={stage}
       className={`qiv-stage qiv-mode-${mode}`}
-      style={{ width: stage_width, height: pane_height }}
+      style={{ width: stage_width, height: stage_height }}
     >
       {pane('a')}
       {pane('b')}
       {mode === 'difference' && <div
         ref={diff_pane}
         className={`qiv-pane qiv-diff-pane ${diff_between ? 'qiv-diff-between' : ''}`}
-        style={{ width: pane_width, height: pane_height, left: diff_between ? pane_width + GAP : 0, zIndex: 3 }}
+        style={{ width: pane_width, height: pane_height, ...diff_position, zIndex: 3 }}
         onPointerMove={diff_between ? event => controller.hover('diff', event.clientX, event.clientY, event.currentTarget) : undefined}
         onPointerLeave={diff_between ? () => controller.unhover() : undefined}
       >

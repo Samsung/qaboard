@@ -80,6 +80,20 @@ def test_several_regions_largest_first():
   assert regions[1]['diff'] < 1
 
 
+def test_regions_are_spread_out():
+  # a large area that differs everywhere (e.g. leaves), and one smaller difference elsewhere
+  image = gradient(800, 1200)
+  changed = image.copy()
+  noise = np.random.default_rng(0).integers(0, 256, (300, 400, 3), dtype=np.uint8)
+  changed[0:300, 0:400] = noise
+  changed = with_square(changed, 900, 600, 30, (60, 60, 60))
+  regions = regions_of(changed, image)
+  # not twenty views of the noise: the square is among the first
+  assert any(contains(r, 915, 615) for r in regions[:5])
+  # and they show some context
+  assert all(r['w'] >= 150 and r['h'] >= 150 for r in regions)
+
+
 def test_gray_16_bit_and_rgba_images():
   gray = (np.mgrid[0:300, 0:300][1] * 200).astype(np.uint16)
   changed = gray.copy()

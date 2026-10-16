@@ -16,7 +16,6 @@ import math
 import numpy as np
 import skimage.color
 from scipy import ndimage as ndi
-from skimage.feature import peak_local_max
 from skimage.metrics import structural_similarity
 
 
@@ -165,44 +164,48 @@ def find_regions(delta, factor, shape, count=20):
   The regions where the difference peaks, the largest first:
   [{x, y, w, h, peak_x, peak_y, value, diff}], in the pixels of images of `shape`. value is the peak's difference,
   diff its fraction of the largest peak's.
+
+  The largest difference left, its region, then the difference in and around the region is set aside: users want
+  regions spread out, not twenty views of the same place (e.g. leaves, which differ everywhere).
   """
   delta = np.nan_to_num(delta, nan=0.0, posinf=0.0, neginf=0.0)
   top = float(delta.max()) if delta.size else 0.0
   if top <= 1e-6:
     return []
   height, width = shape[:2]
-  min_distance = max(2, min(delta.shape) // 64)
-  peaks = peak_local_max(delta, min_distance=min_distance, threshold_abs=top * 0.02, exclude_border=False, num_peaks=4 * count)
+  rows, columns = delta.shape
+  left_over = delta.copy()
   regions = []
   # around a peak, where the difference stays above half of it: at most this many cells away
   window = max(8, min(delta.shape) // 8)
-  for cy, cx in peaks.tolist():
-    value = float(delta[cy, cx])
-    # a peak in a region we already have: the same difference
-    px, py = (cx + 0.5) * factor, (cy + 0.5) * factor
-    if any(r['x'] <= px < r['x'] + r['w'] and r['y'] <= py < r['y'] + r['h'] for r in regions):
-      continue
+  for _ in range(count):
+    cy, cx = np.unravel_index(int(np.argmax(left_over)), left_over.shape)
+    value = float(left_over[cy, cx])
+    if value <= top * 0.02:
+      break
     y0, x0 = max(0, cy - window), max(0, cx - window)
     local = delta[y0:cy + window + 1, x0:cx + window + 1] >= value / 2
     labels, _ = ndi.label(local)
     ys, xs = np.nonzero(labels == labels[cy - y0, cx - x0])
     left, right = (x0 + xs.min()) * factor, (x0 + xs.max() + 1) * factor
     top_, bottom = (y0 + ys.min()) * factor, (y0 + ys.max() + 1) * factor
-    # with some context around, and not too small to see
+    # with some context around: about 200 pixels at least, 2 to 4 times larger than the pixels when the viewer shows it
     size = max(right - left, bottom - top_) * 1.5
-    size = max(size, 48, max(width, height) / 40)
+    size = max(size, min(192, max(width, height) / 2))
     w = min(width, max(right - left + size / 2, size))
     h = min(height, max(bottom - top_ + size / 2, size))
     x = min(max(0, (left + right) / 2 - w / 2), width - w)
     y = min(max(0, (top_ + bottom) / 2 - h / 2), height - h)
     regions.append({
       "x": int(round(x)), "y": int(round(y)), "w": int(round(w)), "h": int(round(h)),
-      "peak_x": int(min(width - 1, px)), "peak_y": int(min(height - 1, py)),
+      "peak_x": int(min(width - 1, (cx + 0.5) * factor)), "peak_y": int(min(height - 1, (cy + 0.5) * factor)),
       "value": value,
     })
-    if len(regions) >= count:
-      break
-  regions.sort(key=lambda r: r["value"], reverse=True)
+    # the region, and half of its size around it
+    left_over[
+      max(0, int((y - h / 2) // factor)):min(rows, math.ceil((y + 1.5 * h) / factor)),
+      max(0, int((x - w / 2) // factor)):min(columns, math.ceil((x + 1.5 * w) / factor)),
+    ] = 0
   for r in regions:
     r["diff"] = r["value"] / top
   return regions

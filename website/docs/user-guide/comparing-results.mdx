@@ -167,7 +167,8 @@ the displayed values.
 
 ### Full screen
 The **full screen** button at the right of the viewer's toolbar (or <kbd>f</kbd>) gives the whole screen to the images,
-with the toolbar: modes, the difference, regions and pixel values all work there. <kbd>Esc</kbd> or <kbd>f</kbd> leaves.
+with the toolbar: modes, the difference, regions and pixel values all work there. The difference goes under the two
+images when that makes them larger. <kbd>Esc</kbd> or <kbd>f</kbd> leaves.
 The button at the top right of each card shows the whole card in full screen instead, with its file picker.
 
 ### Regions of interest
@@ -175,8 +176,9 @@ The regions button above the images zooms on:
 - **Presets**: the regions of the input, from its metadata or the configuration (see [regions of interest](../visualizations.mdx#regions-of-interest)).
   The viewer opens on the first one.
 - **Where they differ**: the server compares the full images and finds where they differ most, by perceptual difference,
-  structure (SSIM) or ΔE 2000. Each region says how much, e.g. *#1 · 3.2%*. The first time the server reads an image
-  takes a few seconds, then it's quick: results are kept.
+  structure (SSIM) or ΔE 2000. Each region says how much, e.g. *#1 · 3.2%*. They're spread over the image (an area
+  that differs everywhere, like leaves, gives one region, not twenty) and show some context around the difference.
+  The first time the server reads an image takes a few seconds, then it's quick: results are kept.
 
 The set you pick applies to every viewer of the same file, in all the runs' cards. Step through the regions with the
 arrows (or <kbd>[</kbd> <kbd>]</kbd>), or click their thumbnails. **Full image** goes back to the whole image. **Copy the

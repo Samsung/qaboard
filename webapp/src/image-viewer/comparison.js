@@ -560,8 +560,11 @@ export class Comparison {
   // The displayed color at a viewport point: [r, g, b, a], or null
   displayPixel(name, point) {
     const canvas = this.canvas(name);
-    const position = this.screenPoint(name, point);
-    if (!canvas || !position) return null;
+    // at the center of the image pixel under the point: at its edge, the screen pixel may show the next one
+    const pixel = this.imagePixel(name, point);
+    if (!canvas || !pixel) return null;
+    const position = this.screenPoint(name, this.images[name].item.imageToViewportCoordinates(pixel.x + 0.5, pixel.y + 0.5, true));
+    if (!position) return null;
     const ratio = OpenSeadragon.pixelDensityRatio;
     const x = Math.floor(position.x * ratio);
     const y = Math.floor(position.y * ratio);

@@ -269,6 +269,27 @@ test('writes the values of the pixels on them when zoomed in', async ({ page }) 
   await expect(page.locator('.qiv-values-badge')).toHaveText('Values: displayed, 8-bit');
 });
 
+test('reads the displayed value of the pixel it names, also on the edges of pixels', async ({ page }) => {
+  await setup(page);
+  await expect(page.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
+  const pane = page.locator('.qiv-pane').first();
+  const box = await pane.boundingBox();
+  // zoomed on the dark square's left edge (x = 100)
+  await page.mouse.move(box.x + box.width * 100 / 512, box.y + box.height * 120 / 384);
+  for (let i = 0; i < 4; i++) await page.keyboard.press('+');
+  await expect.poll(() => zoom(page)).toBeGreaterThan(300);
+  await page.waitForTimeout(1000);
+  const readout = page.locator('.qiv-readout');
+  const values = /new image (\d+) (\d+) (\d+) RGB;10 display (\d+) (\d+) (\d+)/;
+  // across the edge, a fraction of a pixel at a time: the image's values (10-bit, 4x) are those of the color shown
+  for (let dx = -12; dx <= 12; dx += 1.3) {
+    await page.mouse.move(box.x + box.width * 100 / 512 + dx, box.y + box.height * 120 / 384 + dx / 3);
+    await expect(readout).toContainText(values);
+    const [, r, g, b, dr, dg, db] = (await readout.textContent()).match(values).map(Number);
+    expect([dr, dg, db], `at ${dx}`).toEqual([r / 4, g / 4, b / 4]);
+  }
+});
+
 test('keeps the zoom when the file shown changes', async ({ page }) => {
   const files = { 'stages/denoise.png': { st_size: 1000, md5: 'a' }, 'stages/sharpen.png': { st_size: 1000, md5: 'b' } };
   await setup(page, {
@@ -304,7 +325,15 @@ test('compares in full screen', async ({ page }) => {
   await expect.poll(async () => (await page.locator('.qiv-stage').boundingBox()).height).toBeGreaterThan(before.height);
   await page.getByRole('radio', { name: 'Wipe' }).click();
   await expect(page.getByRole('separator', { name: 'Wipe' })).toBeVisible();
+  // on a tall screen, the difference goes under the images, where they're larger than in a row
+  await page.setViewportSize({ width: 1280, height: 1024 });
+  await page.getByRole('radio', { name: 'Difference' }).click();
+  const diff = page.locator('.qiv-diff-between');
+  await expect(diff).toBeVisible();
+  await expect.poll(async () => (await diff.boundingBox()).y).toBeGreaterThan((await page.getByRole('button', { name: /^new 512×384/ }).boundingBox()).y + 300);
   await page.getByRole('button', { name: 'Exit full screen (f or Esc)' }).click();
+  // in the card, in a row
+  await expect.poll(async () => Math.abs((await diff.boundingBox()).y - (await page.locator('.qiv-pane').first().boundingBox()).y)).toBeLessThan(2);
   await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBe(null);
 });
 
