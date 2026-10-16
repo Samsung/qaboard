@@ -307,7 +307,7 @@ const OutputCard = memo(function OutputCard(props) {
   const {
     project, commit, config, metrics, type, output_new, output_ref, files_filter, no_header,
     show_all_files, hide_runs_without_files, expand_all, color_blind_friendly,
-    onRegisterOutputOptions, onToggleDynamicOptionSync,
+    onRegisterOutputOptions, onToggleDynamicOptionSync, onControlsChange,
   } = props;
   const controls = props.controls ?? {};
   const sync_prefs = controls.dynamic_options_sync ?? no_options;
@@ -523,6 +523,7 @@ const OutputCard = memo(function OutputCard(props) {
           manifests={manifests}
           {...view}
           {...controls}
+          onControlsChange={onControlsChange}
           path={path}
           path_ref={path_ref}
           style={{ ...style, ...view.style }}

@@ -1,0 +1,251 @@
+# Image viewer
+
+A React component to compare images: **side by side**, with a **wipe**, **toggling** between them, or as their
+**difference**, with synced deep zoom, the **values of the pixels** written on them when zoomed in, regions of
+interest, histograms and display adjustments. It is [QA-Board](https://github.com/Samsung/qaboard)'s image viewer, and
+works in any React app.
+
+It depends on React (19.2+) and [OpenSeadragon](https://openseadragon.github.io/) (6.x) only.
+
+```jsx
+import { ImageViewer } from '@qaboard/image-viewer';
+import '@qaboard/image-viewer/style.css';
+
+<ImageViewer image="/results/new/out.png" reference="/results/ref/out.png" />
+```
+
+- [Install](#install)
+- [Usage](#usage): images, comparison modes, the image's own pixel values, regions of interest, sync
+- [Props](#props)
+- [The difference](#the-difference)
+- [Theming](#theming)
+- [How it works](#how-it-works)
+- [Development and publishing](#development-and-publishing)
+
+
+## Install
+The package is built from QA-Board's repository:
+
+```bash
+cd webapp
+npm ci
+npm run build:image-viewer      # => build-image-viewer/
+cd build-image-viewer
+npm pack                        # => qaboard-image-viewer-0.1.0.tgz
+```
+
+then, in your app:
+
+```bash
+npm install react react-dom openseadragon@^6.1.1 /path/to/qaboard-image-viewer-0.1.0.tgz
+```
+
+Once it's on a registry (see [Publishing](#publishing)): `npm install @qaboard/image-viewer openseadragon`.
+
+Import the stylesheet once, e.g. next to your app's entry point: `import '@qaboard/image-viewer/style.css'`.
+
+
+## Usage
+
+### Images
+An image is a URL, or an object:
+
+```jsx
+// A plain image (PNG, JPEG, WebP...), loaded at once
+<ImageViewer image="/results/out.png" />
+
+// With labels, shown on the images and in the pixel values
+<ImageViewer
+  image={{ url: '/results/new/out.png', label: 'ISP v2' }}
+  reference={{ url: '/results/ref/out.png', label: 'ISP v1' }}
+/>
+
+// Large images, streamed tile by tile from an IIIF image server (e.g. Cantaloupe or IIPImage):
+// the URL of the image's IIIF service, without "/info.json"
+<ImageViewer image={{ iiif: 'https://iiif.example.com/iiif/2/runs%2F42%2Fout.tiff', href: '/files/runs/42/out.tiff' }} />
+```
+
+`iiifUrl(server, path)` builds the URL of a file on servers whose identifiers are paths:
+`iiifUrl('https://iiif.example.com/iiif/2/', 'runs/42/out.tiff')`.
+
+The images don't have to be "new" and "reference": compare an output with the input, two stages of a pipeline, two
+algorithms... The labels say which is which.
+
+> **CORS**: the viewer reads the pixels it displays (for the difference, the values and the histograms). Images served
+> from another origin need an `Access-Control-Allow-Origin` header.
+
+### Comparison modes
+Users pick the mode in the toolbar, or with the keys 1 to 4. To control it, e.g. to apply it to all the viewers of a
+page or to save it in the URL:
+
+```jsx
+const [mode, setMode] = useState('side-by-side');
+<ImageViewer image={a} reference={b} mode={mode} onModeChange={setMode} />
+```
+
+The same goes for `diff` / `onDiffChange` (how the difference is computed), `adjustments` / `onAdjustmentsChange`
+and `showPixelValues` / `onShowPixelValuesChange`. Without them, the viewer keeps its own state, from
+`defaultMode`, `defaultDiff`...
+
+### The image's own pixel values
+By default, users see the **displayed** values: 8-bit RGB. For 16-bit, float or raw images, give the viewer a way to
+read the image's own values: they show under the pointer, and on the pixels when users zoom in.
+
+```jsx
+const getPixels = async (image, { x, y, w, h }, { signal }) => {
+  const params = new URLSearchParams({ path: image.path, x, y, w, h });
+  const response = await fetch(`/api/pixels?${params}`, { signal });
+  return response.json(); // { values: [[...], ...], mode: 'I;16' }
+};
+
+<ImageViewer image={{ iiif, path: 'runs/42/out.tiff' }} getPixels={getPixels} />
+```
+
+`values` are the rows of the region, each pixel a number or an array of channels, like numpy's
+`image[y:y+h, x:x+w].tolist()`. The viewer asks for one pixel under the pointer, and for the region in view once users
+zoom in (at most 128×128 pixels). Your fields (here `path`) are passed back. A server could be:
+
+```python
+@app.route("/api/pixels")
+def pixels():
+  x, y, w, h = (int(request.args[k]) for k in "xywh")
+  image = read_image(request.args["path"])  # a numpy array, cached: users hover a lot
+  return jsonify(values=image[y:y+h, x:x+w].tolist(), mode=str(image.dtype))
+```
+
+QA-Board's is `GET /api/v1/output/image/pixels` (backend/backend/api/image.py).
+
+### Regions of interest
+Users step through regions (with thumbnails for IIIF images), or copy the region in view:
+
+```jsx
+<ImageViewer
+  image={image}
+  regionSets={[
+    // in the pixels of the image, or of an image of another size: they're scaled
+    { id: 'charts', label: 'Charts', regions: [{ x: 120, y: 80, w: 400, h: 300, label: 'ColorChecker', imageWidth: 4000, imageHeight: 3000 }] },
+    // found on demand, when users pick the set
+    { id: 'auto', label: 'Where they differ', regions: found, loading, error, load: () => findRegions() },
+  ]}
+  defaultRegionSet="charts"
+/>
+```
+
+### Synced viewers
+Viewers with the same `syncKey` zoom and pan together, when their images have the same aspect ratio (whatever their
+resolution), and show a cross where the pointer is on the others. Viewers off-screen catch up when they show.
+
+```jsx
+<ImageViewer image={rgb} syncKey="scene-12" />
+<ImageViewer image={depth} syncKey="scene-12" />
+```
+
+
+## Props
+| Prop | Type | Default | |
+|---|---|---|---|
+| `image` | URL or `{ url \| iiif, label?, href?, ... }` | required | The image |
+| `reference` | same, or `null` | `null` | What it's compared with |
+| `mode`, `defaultMode`, `onModeChange` | `'side-by-side' \| 'wipe' \| 'toggle' \| 'difference'` | `'side-by-side'` | How they're compared |
+| `diff`, `defaultDiff`, `onDiffChange` | `{ method, gain?, max? }` | `{ method: 'perceptual' }` | [The difference](#the-difference) |
+| `adjustments`, `defaultAdjustments`, `onAdjustmentsChange` | `{ brightness, contrast, gamma, sharpen, channel, falseColor, invert }` | none | How images look. Only the display changes. |
+| `showPixelValues`, `defaultShowPixelValues`, `onShowPixelValuesChange` | `boolean` | `true` | Values written on the pixels when zoomed in |
+| `getPixels` | `(image, { x, y, w, h }, { signal }) => Promise<{ values, mode? }>` | | The image's own values |
+| `syncKey` | `string` | | Viewers with the same key are synced |
+| `regionSets` | `[{ id, label, regions?, loading?, error?, load? }]` | `[]` | Regions of interest |
+| `defaultRegionSet` | `string` | | The set shown first |
+| `maxHeight` | `number \| (windowHeight) => number` | `h => h - 160` | The highest images can be |
+| `theme` | `'light' \| 'dark'` | the system's | Or use the [CSS variables](#theming) |
+| `notice`, `toolbarExtra` | React nodes | | Your own things in the toolbar |
+| `className`, `style` | | | On the viewer's root |
+
+The types are in `index.d.ts`. The package also exports helpers: `iiifUrl`, `thumbnailUrl`, `openImage`,
+`DIFF_METHODS`, `normalizeDiff`, `diffAt`, `regionAsYaml`, `scaleRegion`, `clipRegion`, `MODES`.
+
+### Keyboard
+For the viewer under the mouse, or that has the focus: <kbd>1</kbd>–<kbd>4</kbd> the mode, <kbd>t</kbd> swap the
+images (flip in toggle mode, like a click), <kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd> zoom, <kbd>p</kbd> pixel values,
+<kbd>h</kbd> labels, <kbd>[</kbd> <kbd>]</kbd> previous / next region. The wheel or a pinch zooms, a drag pans, a
+double-click zooms in.
+
+
+## The difference
+| `method` | Setting | What it shows |
+|---|---|---|
+| `absolute` | `gain` (×1 to ×64) | Each channel of \|new − reference\|, amplified. Black where identical. |
+| `signed` | `gain` | Luma of new − reference: red where new is brighter, blue where darker. |
+| `perceptual` | `max` (1% to 30%) | Perceived color difference in the YIQ space (Kotsarenko and Ramos, as in pixelmatch), as a fraction of the largest possible. |
+| `deltaE` | `max` (ΔE 1 to 20) | CIEDE2000 color difference. Under 1 it is imperceptible, about 2.3 just noticeable. |
+| `exact` | | In red, the pixels that differ at all. |
+
+Heatmaps show small differences in yellow and large ones (up to `max`) in black, over a faded copy of the image that
+tells where you are. A legend says what the colors mean. Hovering shows the difference per channel, and the method's
+measure, e.g. ΔE.
+
+It is computed on what the viewer **displays**: 8-bit sRGB at the screen's resolution. Zoomed out, a screen pixel is a
+downscaled version of many image pixels, and small differences can average out: zoom to 1:1 or more to compare every
+pixel. For the full images, compare them on a server (QA-Board's "Where they differ" regions do).
+
+
+## Theming
+The viewer follows the system's light or dark theme, or `theme`. To match your app, override its CSS variables:
+
+```css
+.qiv {
+  --qiv-text: #1c2127;            --qiv-text-muted: #5f6b7c;
+  --qiv-surface: #fff;            --qiv-surface-alt: #f6f7f9;
+  --qiv-border: rgba(17, 20, 24, 0.15);
+  --qiv-hover: rgba(143, 153, 168, 0.18);
+  --qiv-pressed: rgba(45, 114, 210, 0.16);
+  --qiv-accent: #2d72d2;          /* active buttons, links */
+  --qiv-primary: #2d72d2;         /* the image's label */
+  --qiv-warning: #c87619;         /* the reference's label, changed adjustments */
+  --qiv-danger: #cd4246;
+  --qiv-stage: #1c2127;           /* behind the images */
+  --qiv-pane: #111418;
+  --qiv-shadow: 0 2px 10px rgba(17, 20, 24, 0.2);
+  --qiv-mono: ui-monospace, monospace;
+}
+```
+
+The defaults have no specificity (`:where`): any rule wins. QA-Board's are in `webapp/src/viewers/images/image-viewer-theme.css`.
+The viewer inherits the font of the page.
+
+
+## How it works
+| File | |
+|---|---|
+| `ImageViewer.jsx` | The component: layout per mode, toolbar, keyboard, regions |
+| `comparison.js` | The OpenSeadragon viewers of the two images, loading, sync, reading the displayed pixels. React subscribes to it. |
+| `sync.js` | Groups of viewers that zoom and pan together (`syncKey`) |
+| `sources.js` | Images (URLs, IIIF) to OpenSeadragon tile sources. PNG tiles when the server has them: JPEG would change the values. |
+| `metrics.js` | The difference methods (YIQ, CIEDE2000...), used without WebGL, for the values under the pointer, and by the tests |
+| `diffRenderer.js` | The difference on the GPU: one WebGL context shared by all the viewers (browsers keep ~16 per page) |
+| `overlays.jsx` | Drawn over the images: the difference, pixel values, crosshairs, minimap |
+| `panels.jsx` | Values under the pointer, histograms, adjustments, regions |
+| `adjustments.js` | Display adjustments, as an SVG filter: they don't touch the pixels we read |
+| `regions.js`, `pixels.js`, `colormaps.js` | Helpers |
+| `ui.jsx`, `icons.js`, `image-viewer.css` | Buttons, menus, icons (from Blueprint): the viewer doesn't need a UI kit |
+
+Notes on OpenSeadragon 6: the viewer uses its canvas drawer, not the default WebGL one, to read the pixels it draws
+(and so that many viewers don't use up the page's WebGL contexts). It doesn't use OpenSeadragon's controls or plugins.
+
+
+## Development and publishing
+
+```bash
+cd webapp
+npm start                       # then open http://localhost:3000/image-viewer.html: the viewer alone, with generated images
+npm test -- --run src/image-viewer
+npm run e2e -- e2e/images.spec.js   # after npm run build: the viewer in QA-Board, with a mocked IIIF server
+```
+
+The viewer must not import anything from QA-Board: QA-Board adapts it in `webapp/src/viewers/images/`
+(`QaboardImageViewer.jsx`: runs, image servers, pixel values, regions of interest).
+
+### Publishing
+1. Bump `version` in `src/image-viewer/package.json` ([semver](https://semver.org/): a new major for any breaking
+   change of the props), and note the changes in QA-Board's release notes.
+2. `npm run build:image-viewer`, then in `build-image-viewer/`: `npm publish --access public` (or
+   `--registry https://your-registry/` for a private registry).
+3. Check it in a fresh app: `npm install @qaboard/image-viewer openseadragon`, then render a viewer.

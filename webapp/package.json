@@ -10,6 +10,7 @@
   "scripts": {
     "start": "vite",
     "build": "vite build",
+    "build:image-viewer": "vite build --config vite.image-viewer.config.js",
     "preview": "vite preview",
     "test": "vitest",
     "lint": "oxlint",
@@ -48,7 +49,7 @@
     "luxon": "^3.7.2",
     "monaco-editor": "^0.57.0",
     "normalize.css": "^8.0.1",
-    "openseadragon": "^3.1.0",
+    "openseadragon": "^6.1.1",
     "path-to-regexp": "^6.2.1",
     "path-to-regexp-v1": "npm:path-to-regexp@^1.9.0",
     "plotly.js": "^3.7.0",

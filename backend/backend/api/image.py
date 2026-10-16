@@ -119,6 +119,18 @@ def maybe_memmapped_read_image(image_path):
     except Exception as e:
       return None, None, e
 
+def _image_meta(meta):
+  """What the image's values are, e.g. {"mode": "I;16"}"""
+  if ImageType is not None:
+    try:
+      meta = ImageType(*meta)
+    except:
+      pass
+    if isinstance(meta, ImageType):
+      meta = {"mode": meta.id}
+  return meta
+
+
 @app.route("/api/v1/output/image/pixel", methods=['GET', 'POST'])
 def get_pixel():
   x = int(request.args['x'])
@@ -132,16 +144,46 @@ def get_pixel():
   image, meta, error = maybe_memmapped_read_image(image_path)
   if error:
     return jsonify({"error": str(error)}), 400
-  if ImageType is not None:
-    try:
-      meta = ImageType(*meta)
-    except:
-      pass
-    if isinstance(meta, ImageType):
-      meta = {"mode": meta.id}
   return jsonify({
     "value": image[y,x].tolist(),
-    "meta": meta,
+    "meta": _image_meta(meta),
+  })
+
+
+# The image viewer writes the values of the pixels on them when users zoom in: it asks for those in view
+MAX_REGION_PIXELS = 256 * 256
+
+@app.route("/api/v1/output/image/pixels", methods=['GET'])
+def get_pixels():
+  """
+  The values of the pixels of a region of an image: image[y:y+h, x:x+w], as nested lists (rows, then pixels, then
+  channels for color images). The region is cut at the image's right and bottom edges.
+  """
+  try:
+    x, y, w, h = (int(request.args[k]) for k in ('x', 'y', 'w', 'h'))
+  except (KeyError, ValueError):
+    return jsonify({"error": "x, y, w and h must be integers"}), 400
+  if x < 0 or y < 0 or w <= 0 or h <= 0 or w * h > MAX_REGION_PIXELS:
+    return jsonify({"error": f"The region must be in the image, with 1 to {MAX_REGION_PIXELS} pixels"}), 400
+  image_url = request.args.get('image_url')
+  if not image_url:
+    return jsonify({"error": "image_url is required"}), 400
+  image_path = Path(url_to_dir(image_url))
+  if not image_path.exists():
+    return jsonify({"error": f"Cannot find {image_path}"}), 404
+  image, meta, error = maybe_memmapped_read_image(image_path)
+  if error:
+    return jsonify({"error": str(error)}), 400
+  height, width = image.shape[:2]
+  region = np.asarray(image[y:y+h, x:x+w])
+  # NaN and infinity are not JSON
+  if region.dtype.kind == 'f' and not np.isfinite(region).all():
+    region = np.where(np.isfinite(region), region, None)
+  return jsonify({
+    "values": region.tolist(),
+    "meta": _image_meta(meta),
+    "width": int(width),
+    "height": int(height),
   })
 
 

@@ -13,9 +13,10 @@
   <div id="new" class="viewer"></div>
   <div id="ref" class="viewer"></div>
   <script>
-    // Like the web app's image viewer (webapp/src/viewers/images/images.jsx): two IIIF viewers, synced
+    // Like the web app's image viewer (webapp/src/image-viewer/comparison.js): two IIIF viewers, with the canvas drawer
     const options = id => ({
       id,
+      drawer: 'canvas',
       prefixUrl: '',
       showNavigationControl: false,
       animationTime: 1.2,

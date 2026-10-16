@@ -5,16 +5,16 @@ import { clip, shot, type Demo, type Locator, type Page, type Ui } from './lib';
 const IQ = 'image-quality';
 
 // Run cards; in a card, the viewer of each visualization (Output first), with new and reference images
+// (src/image-viewer/: its toolbar, the line with the hovered pixel's values, then the images)
 const cards = (page: Page) => page.locator('.output-card.bp6-card');
 const viewer = (scope: Page | Locator, index = 0) => scope.locator(`[id="${index}-0"]`).first();
-const images = (scope: Page | Locator) => scope.locator('[id^="image-viewer-"]');
-const newImage = (scope: Page | Locator) => images(scope).nth(0);
-const refImage = (scope: Page | Locator) => images(scope).nth(1);
-// the images (new, Image Diff, reference) with their labels
-const imageRow = (scope: Page | Locator) => newImage(scope).locator('xpath=../..');
-// the line above the images with the hovered pixel's coordinates, color swatches and values (and, with histograms,
-// the info icon above it)
-const pixelValues = (scope: Page | Locator) => scope.getByText(/^x: \d+, y: \d+$/).locator('xpath=../../..');
+// the new image's pane (then the reference's, then the difference's)
+const newImage = (scope: Page | Locator) => scope.locator('.qiv-pane').first();
+// the images, side by side or one over the other
+const imageRow = (scope: Page | Locator) => scope.locator('.qiv-stage').first();
+const toolbar = (scope: Page | Locator) => scope.locator('.qiv-toolbar').first();
+// the line above the images with the hovered pixel's coordinates, colors and values
+const pixelValues = (scope: Page | Locator) => scope.locator('.qiv-readout').first();
 // The View options, docked on the right of the commit page (the user's choice is remembered: controls-panel-expanded)
 const controlsPanel = (page: Page) => page.locator('aside[aria-label="View options"]');
 // Its toggle: "Show the view options" on its rail, "Collapse the view options" when open
@@ -33,8 +33,7 @@ async function showCard(ui: Ui, index = 0, top = 160) {
   await ui.settle();
 }
 
-// An element's box once it stopped moving. Hovering an image shows the hovered pixel's values above the images, which
-// pushes them down: measured before, a point on the image would land elsewhere, depending on timing.
+// An element's box once it stopped moving, e.g. after the layout changed with the comparison mode
 async function stableBox(target: Locator) {
   let previous = await target.boundingBox();
   for (let i = 0; i < 20; i++) {
@@ -65,27 +64,31 @@ async function zoom(ui: Ui, scope: Page | Locator, at: { x: number; y: number },
   await ui.settle();
 }
 
-// The mouse out of the viewers: their buttons fade out, the crosshairs go away
+// The mouse out of the viewers: the crosshairs go away
 async function mouseAway(ui: Ui) {
   await ui.cursor.moveTo({ x: 1000, y: 140 });
   await ui.hold(500);
 }
 
-// Clicks a region of interest preset under the viewer, by its label. The viewer opens on the input's first preset,
-// but how close depends on its size when it opened: click it again for the same zoom every time.
+// Clicks a region of interest preset above the images, by its label, or "Full Image" in the regions menu. The viewer
+// opens on the input's first preset, but how close depends on its size when it opened: click it again for the same
+// zoom every time.
 async function preset(ui: Ui, scope: Page | Locator, label: string) {
-  const exact = new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
-  await ui.click(scope.locator('a.bp6-button', { hasText: exact }).first());
+  if (label === 'Full Image') {
+    await ui.click(scope.getByRole('button', { name: 'Regions of interest' }));
+    await ui.click(ui.page.getByRole('menuitem', { name: 'Full image' }));
+  } else {
+    const exact = new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+    await ui.click(scope.locator('.qiv-region', { hasText: exact }).first());
+  }
   // no focus ring left around the thumbnail
   await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await ui.settle();
 }
 
-// The diff threshold: the slider above the Image Diff, 1% per arrow key
-async function diffThreshold(ui: Ui, scope: Page | Locator, steps: number) {
-  const handle = scope.locator('.bp6-slider-handle').first();
-  await ui.click(handle);
-  for (let i = 0; i < steps; i++) await ui.press('ArrowRight');
+// The difference shown with the colormap's last color (perceptual: 1% to 30%), above the images
+async function diffMax(ui: Ui, scope: Page | Locator, max: number) {
+  await scope.getByLabel('Difference shown in the last color').selectOption(String(max));
   await ui.settle();
 }
 
@@ -109,15 +112,15 @@ shot('commit/controls-panel', {
   url: d => halos(d, 'charts/(color|slanted) base'),
   storage: { 'controls-panel-expanded': 'true' },
   alt: 'The View options docked on the right of the run cards: a switch per visualization, including the hidden Color '
-    + 'errors and Noise vs signal, the Image diff switch, and how the runs are sorted.',
-  caption: 'The View options show or hide visualizations, turn Image diff on, and sort the runs.',
+    + 'errors and Noise vs signal, how image viewers compare images, and how the runs are sorted.',
+  caption: 'The View options show or hide visualizations, pick how images are compared, and sort the runs.',
   actions: async ui => {
     const panel = controlsPanel(ui.page);
     // fold Files to show, so that Sort runs fits
     await ui.click(panel.getByRole('button', { name: 'Files to show', exact: true }));
     await ui.hold(400);
     await ui.anchor('visualizations', panel.getByRole('button', { name: 'Visualizations', exact: true }));
-    await ui.anchor('image-diff', panel.locator('label', { hasText: 'Image diff' }));
+    await ui.anchor('image-diff', panel.getByText('Compare images', { exact: true }));
     await ui.anchor('sorting', panel.getByRole('button', { name: 'Sort runs', exact: true }));
   },
 });
@@ -141,26 +144,26 @@ shot('commit/image-sbs', {
 
 shot('commit/image-perceptual-diff', {
   project: IQ,
-  url: d => halos(d, 'photos/facade base', { diff: true }),
-  alt: 'New image, Image Diff and reference image of the facade window: in the diff, the window frame\'s edges show in '
-    + 'yellow and orange, the flat wall stays white.',
-  caption: 'Image Diff shows where the images differ; raise its threshold until only the halos stand out.',
+  url: d => halos(d, 'photos/facade base', { image_mode: 'difference' }),
+  alt: 'The perceptual difference of the facade window, new against reference: the window frame\'s edges show in yellow '
+    + 'to dark red, the flat wall fades to light gray. Above it, the comparison modes and the difference\'s settings.',
+  caption: 'The difference shows where the images differ; raise its maximum until only the halos stand out.',
   actions: async ui => {
     await showCard(ui);
     await preset(ui, viewer(ui.page), 'Window frame (halos)');
-    await diffThreshold(ui, viewer(ui.page), 10);
+    await diffMax(ui, viewer(ui.page), 0.2);
     await mouseAway(ui);
   },
-  target: page => imageRow(viewer(page)),
+  target: page => [toolbar(viewer(page)), imageRow(viewer(page))],
   padding: 4,
 });
 
 shot('commit/pixel-tooltip', {
   project: IQ,
   url: d => compare(d, 'bilateral-denoise', 'isp-4-1', 'charts/siemens-star base linux'),
-  alt: 'The center of a Siemens star, new and reference: above the images, the hovered pixel\'s coordinates and its RGB '
-    + 'values in both images; crosshairs mark the pixel on both.',
-  caption: 'Hover a pixel: its values in both images show above them, and a crosshair marks the same spot on the reference.',
+  alt: 'The center of a Siemens star, new and reference: above the images, the hovered pixel\'s coordinates, its values '
+    + 'in both images and their difference; a crosshair marks the pixel on the reference.',
+  caption: 'Hover a pixel: its values in both images and their difference show above them, and a crosshair marks the same spot on the reference.',
   actions: async ui => {
     await showCard(ui);
     await preset(ui, viewer(ui.page), 'Center (aliasing)');
@@ -169,117 +172,78 @@ shot('commit/pixel-tooltip', {
     await ui.settle();
   },
   target: page => [pixelValues(viewer(page)), imageRow(viewer(page))],
-  // flush: the selected preset's thumbnail is right above the values
-  padding: 0,
+  padding: 4,
 });
 
 shot('commit/roi-histograms', {
   project: IQ,
   url: d => halos(d, 'photos/sky-gradient low-light'),
-  alt: 'A rectangle selected on the sky gradient; below the images, the red, green, blue and luma histograms of the '
-    + 'region, new and reference overlaid.',
-  caption: 'Select a region to compare its histograms, new against reference.',
+  alt: 'Zoomed on a band of the sky gradient; below the images, the red, green, blue and luma histograms of what they '
+    + 'show, new and reference overlaid.',
+  caption: 'Zoom on a region to compare its histograms, new against reference.',
   // the images and the histograms under them
   viewport: { width: 1440, height: 1200 },
   actions: async ui => {
     const scope = viewer(ui.page);
     await showCard(ui);
     await preset(ui, scope, 'Full Image');
-    await hoverImage(ui, scope, { x: 50, y: 50 });
-    await ui.click(scope.locator('[title="Select a region to see its histogram"]').first());
-    // a band of the sky, where the gradient's banding shows. On the tool's button, the pixel values went away: back on
-    // the image, they show again and push the images down, before the drag starts
-    await hoverImage(ui, scope, { x: 20, y: 15 });
-    // The values show a moment after the mouse is back on the image, and push it down: measured before, the region
-    // landed 18 px higher in some captures (the hovered pixel at y 329 instead of 367). Once they show, the image stays
-    // in place
-    await pixelValues(scope).waitFor({ state: 'visible' });
-    const box = await stableBox(newImage(scope));
-    await ui.drag({ x: box.x + box.width * 0.2, y: box.y + box.height * 0.15 }, { x: box.x + box.width * 0.6, y: box.y + box.height * 0.45 });
-    const after = await newImage(scope).boundingBox();
-    if (JSON.stringify(after) !== JSON.stringify(box))
-      throw new Error(`[commit.spec] the image moved during the drag: ${JSON.stringify(box)} then ${JSON.stringify(after)}`);
+    // a band of the sky, where the gradient's banding shows
+    await zoom(ui, scope, { x: 40, y: 30 }, 3);
+    await ui.click(scope.getByRole('button', { name: 'Histogram of the view' }));
     await mouseAway(ui);
     await ui.settle();
   },
-  // the pixel values, the images, the histograms (their axes and legend, not the plot's empty margins)
-  target: page => [
-    pixelValues(viewer(page)),
-    imageRow(viewer(page)),
-    viewer(page).locator('.js-plotly-plot g.cartesianlayer').first(),
-    viewer(page).locator('.js-plotly-plot g.legend').first(),
-  ],
+  target: page => [pixelValues(viewer(page)), imageRow(viewer(page)), viewer(page).locator('.qiv-histogram').first()],
   padding: 4,
 });
 
 shot('commit/auto-roi', {
   project: IQ,
   url: d => halos(d, 'photos/facade base'),
-  alt: 'The View ROIs menu open over the facade run, with Full Image, ROI Presets and Auto ROIs checked; below it, '
-    + 'thumbnails of the twenty regions where new and reference differ most, found automatically, a dot colored by how much.',
+  alt: 'The regions of interest menu open over the facade run: Full image, the input\'s Presets, and the regions where '
+    + 'the images differ most, found by the server; above the images, thumbnails of the twenty regions it found, a dot '
+    + 'colored by how much they differ.',
   caption: 'Jump between the regions of interest preset for the input, or let QA-Board find where the images differ most.',
   actions: async ui => {
     const scope = viewer(ui.page);
-    // lower than the other shots: the menu opens upwards, it must clear the commit bars
-    await showCard(ui, 0, 260);
-    const menu = scope.getByText(/^View /).first();
-    await ui.hover(menu);
-    await ui.click(ui.page.getByRole('menuitem', { name: 'Auto ROIs' }));
-    await ui.click(scope.getByRole('button', { name: 'Find Regions of Interest' }));
+    await showCard(ui);
+    const menu = scope.getByRole('button', { name: 'Regions of interest' });
+    await ui.click(menu);
+    await ui.click(ui.page.getByRole('menuitem', { name: /^Where they differ: perceptual/ }));
+    await scope.locator('.qiv-regions .qiv-region').nth(1).waitFor({ state: 'visible', timeout: 60_000 });
     await ui.settle();
     // the menu again, over the regions found
     await mouseAway(ui);
-    await ui.hover(menu);
+    await ui.click(menu);
     await ui.settle();
   },
-  // the run's name and metrics, the menu, and the thumbnails of the regions found (not the images below, zoomed on the
-  // first region until its pixels show)
+  // the run's name and metrics, the menu, and the thumbnails of the regions found
   target: page => [
     cards(page).first().getByText('photos/facade.png', { exact: true }),
-    page.locator('.bp6-popover .bp6-menu').last(),
-    viewer(page).locator('a.bp6-button').last().locator('xpath=ancestor::div[1]'),
+    viewer(page).locator('.qiv-popover').first(),
+    viewer(page).locator('.qiv-regions').first(),
   ],
-  // flush: the images' labels start right below the thumbnails
-  padding: 0,
+  padding: 4,
 });
 
 shot('commit/image-filters', {
   project: IQ,
   url: d => halos(d, 'photos/night-street low-light'),
-  alt: 'The Image Tools panel over the night street\'s shadows, with brightness raised and gamma lowered: the noise '
-    + 'of both images shows.',
-  caption: 'Image Tools filters apply to both images at once: here brightness and gamma reveal the noise in the shadows.',
+  alt: 'The display adjustments open over the night street\'s shadows, with brightness and gamma raised: the noise of '
+    + 'both images shows.',
+  caption: 'Adjustments apply to both images at once: here brightness and gamma reveal the noise in the shadows.',
   actions: async ui => {
     const scope = viewer(ui.page);
     await showCard(ui);
     await preset(ui, scope, 'Shadows (noise)');
-    await hoverImage(ui, scope, { x: 50, y: 50 });
-    await ui.click(scope.locator('[title="Image Tools"]').first());
-    // the new image's tools (the reference viewer has its own, synced)
-    const tools = ui.page.locator('[id^="osd-imagetools-"]').first();
-    const slider = (name: string) => tools.locator(`input[type="range"][id^="osd-filter-${name}-"]`);
+    await ui.click(scope.getByRole('button', { name: /^Adjust the display/ }));
+    const slider = (name: string) => scope.locator('.qiv-slider', { hasText: name }).locator('input[type="range"]');
     // keyboard on the range inputs: a click would jump to where it lands
     await slider('Brightness').focus();
     await ui.press('PageUp');
     await slider('Gamma').focus();
-    for (let i = 0; i < 8; i++) await ui.press('ArrowLeft');
-    await ui.settle();
+    for (let i = 0; i < 12; i++) await ui.press('ArrowRight');
     await ui.hover(newImage(scope), { position: await hoverImage(ui, scope, { x: 60, y: 45 }) });
-    await ui.settle();
-    // back on the button: the panel and the viewer's buttons hide when the mouse leaves the image. OpenSeadragon shows
-    // the button's hover image (its third <img>) when it sees the mouse enter: a viewer redrawn under the mouse misses
-    // that, so enter again until it shows
-    const button = scope.locator('[title="Image Tools"]').first();
-    for (let attempt = 1; ; attempt++) {
-      await ui.hover(button);
-      try {
-        await button.locator('img').nth(2).waitFor({ state: 'visible', timeout: 1000 });
-        break;
-      } catch (error) {
-        if (attempt === 3) throw error;
-        await ui.hover(newImage(scope), { position: { x: 20, y: 20 } });
-      }
-    }
     await ui.settle();
   },
   // the run's name and metrics, and the viewer
@@ -318,17 +282,12 @@ shot('commit/output-files', {
 clip('commit/image-diff', {
   project: IQ,
   url: d => halos(d, 'photos/facade base'),
-  alt: 'Zooming into the new image of the facade, the reference follows; the View options open and Image diff turns '
-    + 'on; raising the threshold leaves only the window frame\'s halos.',
-  caption: 'Synced zoom, then Image Diff and its threshold.',
-  // While the Controls panel is open, its text lands 1 pixel apart in about a third of the recordings (0.27-0.30% of
-  // the frames differ, cause unknown): docs-media/README.md#known-issues
-  dedupeTolerance: 0.005,
+  alt: 'Zooming into the new image of the facade, the reference follows; a wipe across them; then their difference, '
+    + 'whose maximum goes up until only the window frame\'s halos stand out.',
+  caption: 'Synced zoom, a wipe, then the difference and its maximum.',
   actions: async ui => {
     await showCard(ui);
     await preset(ui, viewer(ui.page), 'Window frame (halos)');
-    // the pixel values show above the images from the first hover on: not while recording, they'd push them down
-    await hoverImage(ui, viewer(ui.page), { x: 50, y: 50 });
     await mouseAway(ui);
   },
   script: async ui => {
@@ -336,20 +295,21 @@ clip('commit/image-diff', {
     await ui.caption('Zoom in one image: the other follows');
     await zoom(ui, scope, { x: 25, y: 25 }, 4);
     await ui.hold(1500);
-    await ui.caption('Image Diff shows what changed');
-    await ui.click(ui.page.locator(PANEL_TOGGLE));
-    await ui.hold(500);
-    await ui.click(controlsPanel(ui.page).locator('label', { hasText: 'Image diff' }));
+    await ui.caption('Wipe across them');
+    await ui.click(scope.getByRole('radio', { name: 'Wipe' }));
     await ui.settle();
-    await ui.click(ui.page.locator(PANEL_TOGGLE));
+    const divider = scope.getByRole('separator', { name: 'Wipe' });
+    const stage = await stableBox(imageRow(scope));
+    const from = (await divider.boundingBox())!;
+    await ui.drag(divider, { x: stage.x + stage.width * 0.25, y: from.y + from.height / 2 });
+    await ui.drag(divider, { x: stage.x + stage.width * 0.75, y: from.y + from.height / 2 });
+    await ui.hold(1000);
+    await ui.caption('Their difference shows what changed');
+    await ui.click(scope.getByRole('radio', { name: 'Difference' }));
+    await ui.settle();
     await ui.hold(1500);
-    await ui.caption('A higher threshold keeps only the halos');
-    // from 5% to 15%: the slider spans 0-30% over the width of an image
-    const handle = scope.locator('.bp6-slider-handle').first();
-    const track = (await scope.locator('.bp6-slider').first().boundingBox())!;
-    const from = (await handle.boundingBox())!;
-    await ui.drag(handle, { x: from.x + from.width / 2 + track.width / 3, y: from.y + from.height / 2 });
-    await ui.settle();
+    await ui.caption('A higher maximum keeps only the halos');
+    await diffMax(ui, scope, 0.2);
     await ui.hold(2500);
   },
 });
@@ -674,13 +634,13 @@ for (const [id, commit, alt, caption] of [
       const scope = viewer(ui.page);
       await preset(ui, scope, 'Leaves over a window');
       await zoom(ui, scope, { x: 82, y: 42 }, 4);
+      // the image only: no "new" label over it (the keys act on the viewer under the mouse)
+      await ui.press('h');
       await mouseAway(ui);
     },
     target: page => newImage(viewer(page)),
     padding: 0,
   });
-
-void refImage;
 
 
 // The object detector (examples/detection-eval): the first int8 model (int8-minmax) is 3.5x smaller than fp32, but

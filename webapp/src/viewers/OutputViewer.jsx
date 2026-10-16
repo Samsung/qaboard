@@ -9,7 +9,7 @@ import { ViewerLoading } from "./ViewerStates"
 
 
 const LoadableTextViewer = lazy(() => import('./textViewer' /* webpackChunkName: "text-viewer" */));
-const LoadableImageViewer = lazy(() => import('./images/images' /* webpackChunkName: "image-viewer" */));
+const LoadableImageViewer = lazy(() => import('./images/QaboardImageViewer'));
 const LoadableVideoViewer = lazy(() => import('./videos/VideoViewer' /* webpackChunkName: "video-viewer" */));
 const LoadableHtmlViewer = lazy(() => import('./html' /* webpackChunkName: "html-viewer" */));
 const LoadableBitAccuracyViewer = lazy(() => import('./bit_accuracy/bitAccuracyViewer' /* webpackChunkName: "bit-accuracy-viewer" */));

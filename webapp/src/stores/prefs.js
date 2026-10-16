@@ -19,6 +19,8 @@ export const usePrefsStore = create()(persist(
     commitListDensity: 'comfortable',
     // the app's sidebar shows only icons
     siderCollapsed: false,
+    // the image viewers write the values of the pixels on them, when zoomed in
+    imagePixelValues: true,
 
     toggleFavorite: project => set(state => ({
       favorites: { ...state.favorites, [project]: !state.favorites[project] },
@@ -32,6 +34,7 @@ export const usePrefsStore = create()(persist(
     }),
     setTheme: theme => set({ theme }),
     setSiderCollapsed: collapsed => set({ siderCollapsed: !!collapsed }),
+    setImagePixelValues: shown => set({ imagePixelValues: !!shown }),
     setCommitListDensity: density => set({ commitListDensity: density === 'compact' ? 'compact' : 'comfortable' }),
     updateTuning: (project, form) => set(state => ({
       tuning: { ...state.tuning, [project]: { ...state.tuning[project], ...form } },

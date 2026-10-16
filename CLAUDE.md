@@ -49,7 +49,11 @@ npm run build           # Production build (Vite)
 npm test                # Vitest (watch mode), `npm test -- --run` for a single run
 npm run lint            # oxlint
 npm run e2e             # Playwright smoke tests on the production build (after npm run build)
+npm run build:image-viewer  # the image viewer as an npm package, see src/image-viewer/README.md
 ```
+The image viewer (`webapp/src/image-viewer/`) is a standalone React component on OpenSeadragon: it must not import
+from the app (a test checks it). QA-Board adapts it in `webapp/src/viewers/images/` (runs, image servers, pixel values,
+regions of interest providers). `npm start` then `/image-viewer.html` shows it alone, with generated images.
 
 ### Backend Development (Python Flask)
 ```bash
