@@ -79,12 +79,29 @@ export interface PixelRegion {
   h: number;
 }
 
-export interface Pixels {
+/** The values of a region: flat, row by row and channel by channel (a typed array is best) */
+export interface PixelData {
+  data: ArrayLike<number>;
+  width: number;
+  height: number;
+  /** By default, data.length / (width * height) */
+  channels?: number;
+  /** What the values are, e.g. "I;16" or "RGB;10" */
+  mode?: string;
+}
+
+/** The values of a region, as rows of pixels */
+export interface PixelRows {
   /** The rows of the region, each pixel a number or its channels: like numpy's image[y:y+h, x:x+w].tolist() */
   values: (number | number[])[][];
   /** What the values are, e.g. "I;16" or "RGB" */
   mode?: string;
 }
+
+export type Pixels = PixelData | PixelRows;
+
+/** The values written on the pixels: the image's own (with getPixels), the displayed 8-bit ones, or none */
+export type PixelValuesSource = 'image' | 'display' | 'off';
 
 export interface ImageViewerProps {
   /** The image */
@@ -107,10 +124,10 @@ export interface ImageViewerProps {
   defaultAdjustments?: Adjustments;
   onAdjustmentsChange?: (adjustments: Adjustments) => void;
 
-  /** Write the values of the pixels on them, when zoomed in enough */
-  showPixelValues?: boolean;
-  defaultShowPixelValues?: boolean;
-  onShowPixelValuesChange?: (shown: boolean) => void;
+  /** The values written on the pixels when zoomed in enough. 'image' needs getPixels, else they're the displayed ones. Default: 'image' */
+  pixelValues?: PixelValuesSource;
+  defaultPixelValues?: PixelValuesSource;
+  onPixelValuesChange?: (source: PixelValuesSource) => void;
 
   /** Viewers with the same key, showing images of the same aspect ratio, zoom and pan together */
   syncKey?: string | null;
@@ -122,6 +139,7 @@ export interface ImageViewerProps {
 
   /**
    * The images' own values, e.g. raw or 16-bit, shown under the pointer and on the pixels.
+   * Asked by tiles of 64x64 pixels (cut at the image's edges), kept, and cancelled with the signal when no longer needed.
    * Without it, the viewer shows the displayed 8-bit RGB values.
    */
   getPixels?: (image: ImageDescriptor, region: PixelRegion, options: { signal: AbortSignal }) => Promise<Pixels>;

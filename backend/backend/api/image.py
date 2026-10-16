@@ -1,12 +1,11 @@
 """
-Returns a list of rois.
-Create a pdf report of rois comparison.
+The pixel values of images, the regions where two images differ most, and a PDF report of these regions.
 """
 import time
 from pathlib import Path
 
 import numpy as np
-from flask import request, jsonify
+from flask import request, jsonify, Response
 
 from qaboard.api import url_to_dir 
 
@@ -16,108 +15,154 @@ from ..config import qaboard_url
 from .image_diff import find_rois
 from ..images import read_image, ImageType
 
-try:
-  import uwsgi
-  import contextlib
-
-  @contextlib.contextmanager
-  def _cache_lock():
-    uwsgi.lock()
-    try:
-      yield
-    finally:
-      uwsgi.unlock()
-
-except ImportError:
-  import threading
-  import contextlib
-  _lock = threading.Lock()
-
-  @contextlib.contextmanager
-  def _cache_lock():
-    with _lock:
-      yield
-
 import os
 import json
 import hashlib
+import threading
+import contextlib
+from collections import OrderedDict
+
+try:
+  import fcntl
+except ImportError: # not on Linux
+  fcntl = None
 
 from backend.config import qaboard_data_dir
+
+# The pixel values of images, decoded once and kept on disk, memory-mapped.
+# We work with huge images (100-200MP). Decoding them can take seconds (e.g. raw formats), but the image viewer asks for
+# their values as users hover them, and for the regions they zoom on. Once decoded, reading a region only reads it.
+# An in-memory LRU cache would use too much memory: images can be 300MB, and each worker would keep its own copies.
 image_cache_dir = Path(os.environ.get('QABOARD_IMAGE_CACHE_DIR', qaboard_data_dir / 'cache' / 'images'))
 image_cache_dir.mkdir(exist_ok=True, parents=True)
-
-def clear_memmapped_cache_dir():
-    cache_size = 20
-    # it will be called concurrently so maybe the files are already deleted! 
-    file_data = list(image_cache_dir.glob('*.dat'))
-
-    def maybe_mtime(path):
-      try: # avoid TOCTOU
-        return path.stat().st_mtime
-      except:
-        return None
-    file_data_ts = [(p, maybe_mtime(p)) for p in file_data]
-    file_data_ts.sort(key=lambda p_ts: -p_ts[1] if p_ts[1] else 0) # oldest last
-    for file, _ in file_data_ts[cache_size:]:
-        print(f"RM {file}")
-        try:
-          file.unlink(missing_ok=True)
-          file_info = file.with_suffix('.json')
-          file_info.unlink(missing_ok=True)
-        except:
-          # other processes might have already deleted the files
-          pass
+# The disk space they can use: we remove the least recently used
+image_cache_bytes = float(os.environ.get('QABOARD_IMAGE_CACHE_GB', '20')) * 1e9
 
 
-def memmapped_read_image(data_path, info_path):
-  with info_path.open() as f:
+_thread_locks = {}
+_thread_locks_guard = threading.Lock()
+
+@contextlib.contextmanager
+def _image_lock(hash):
+  """One process at a time decodes an image, and other images are decoded at the same time"""
+  if fcntl is None:
+    with _thread_locks_guard:
+      lock = _thread_locks.setdefault(hash, threading.Lock())
+    with lock:
+      yield
+    return
+  with open(image_cache_dir / f"{hash}.lock", 'a') as f:
+    fcntl.flock(f, fcntl.LOCK_EX)
     try:
-      info = json.load(f)
-    except:
-      # It's possible writes from the previous call didn't sync
-      # on the shared storage... So we retry after waiting just a little bit
-      time.sleep(1)
-      try:
-        info = json.load(f)
-      except Exception as e:
-        return None, None, e
-  fp = np.memmap(data_path, dtype=info['dtype'], mode='r', shape=tuple(info['shape']))
-  return fp, info['meta'], None
+      yield
+    finally:
+      fcntl.flock(f, fcntl.LOCK_UN)
 
 
-def maybe_memmapped_read_image(image_path):
+def clear_memmapped_cache_dir(keep=None):
+  """Removes the least recently used images until the cache fits in image_cache_bytes"""
+  entries = []
+  for data in image_cache_dir.glob('*.dat'):
+    try: # other processes may have deleted it
+      stat = data.stat()
+    except FileNotFoundError:
+      continue
+    entries.append((stat.st_mtime, stat.st_size, data))
+  total = sum(size for _, size, _ in entries)
+  for _, size, data in sorted(entries): # least recently used first
+    if total <= image_cache_bytes:
+      break
+    if data.stem == keep:
+      continue
+    print(f"RM {data}")
+    data.unlink(missing_ok=True)
+    data.with_suffix('.json').unlink(missing_ok=True)
+    total -= size
+  # what interrupted processes left, and old locks
+  now = time.time()
+  for path in [*image_cache_dir.glob('*.tmp'), *image_cache_dir.glob('*.lock')]:
+    try:
+      if now - path.stat().st_mtime > 3600:
+        path.unlink(missing_ok=True)
+    except FileNotFoundError:
+      pass
+
+
+# The images this process opened recently: hash => [array, meta, when we last marked it as used]
+_opened = OrderedDict()
+_opened_lock = threading.Lock()
+_opened_max = 32
+
+def _open_cached(hash, data_path, info_path):
+  with _opened_lock:
+    entry = _opened.get(hash)
+    if entry is not None:
+      _opened.move_to_end(hash)
+  if entry is None:
+    info = json.loads(info_path.read_text())
+    entry = [np.memmap(data_path, dtype=info['dtype'], mode='r', shape=tuple(info['shape'])), info['meta'], 0]
+    with _opened_lock:
+      _opened[hash] = entry
+      while len(_opened) > _opened_max:
+        _opened.popitem(last=False)
+  # Recently used images stay in the cache. Once a minute is enough.
+  now = time.time()
+  if now - entry[2] > 60:
+    entry[2] = now
+    try:
+      os.utime(data_path)
+    except FileNotFoundError: # another process removed it: we still have it open
+      pass
+  return entry[0], entry[1]
+
+
+def decoded_image(image_path):
+  """The image's pixel values as a (memory-mapped) numpy array, and what they are. Raises if it can't be read."""
   key = f"{image_path}-{image_path.stat().st_mtime}"
   hash = hashlib.sha1(key.encode()).hexdigest()
-  image_cache_data = image_cache_dir / f"{hash}.dat"
-  image_cache_info = image_cache_dir / f"{hash}.json"
-  is_cached = lambda: image_cache_data.exists() and image_cache_info.exists()
+  data_path = image_cache_dir / f"{hash}.dat"
+  info_path = image_cache_dir / f"{hash}.json"
   # Hot path: no lock needed, just read
-  if is_cached():
-    print(f'HIT {image_path}')
-    return memmapped_read_image(image_cache_data, image_cache_info)
-
-  print(f'MISS {image_path}')
-
-  with _cache_lock():
+  with _opened_lock:
+    opened = hash in _opened
+  if opened or (data_path.exists() and info_path.exists()):
     try:
-      if is_cached():
-        return memmapped_read_image(image_cache_data, image_cache_info)
-      clear_memmapped_cache_dir()
-      image, meta = read_image(image_path)
-      print(f'READ', meta)
-      tmp_data = image_cache_data.with_suffix('.tmp')
-      tmp_info = image_cache_info.with_suffix('.tmp.json')
+      return _open_cached(hash, data_path, info_path)
+    except (FileNotFoundError, json.JSONDecodeError):
+      pass # removed meanwhile, or written by a process that died
+  with _image_lock(hash):
+    if data_path.exists() and info_path.exists():
+      return _open_cached(hash, data_path, info_path)
+    print(f'MISS {image_path}')
+    image, meta = read_image(image_path)
+    image = np.asarray(image)
+    # unique names: on shared storage, processes on other hosts may write it too
+    tmp = f"{hash}.{os.getpid()}.{threading.get_ident()}"
+    tmp_data = image_cache_dir / f"{tmp}.dat.tmp"
+    tmp_info = image_cache_dir / f"{tmp}.json.tmp"
+    try:
       fp = np.memmap(tmp_data, dtype=image.dtype, mode='w+', shape=image.shape)
       fp[:] = image[:]
       fp.flush()
       del fp
-      with tmp_info.open('w') as fmeta:
-        json.dump({"meta": meta, "shape": image.shape, "dtype": str(image.dtype)}, fmeta)
-      tmp_data.rename(image_cache_data)
-      tmp_info.rename(image_cache_info)
-      return memmapped_read_image(image_cache_data, image_cache_info)
-    except Exception as e:
-      return None, None, e
+      tmp_info.write_text(json.dumps({"meta": meta, "shape": image.shape, "dtype": str(image.dtype)}))
+      tmp_data.rename(data_path)
+      tmp_info.rename(info_path)
+    finally:
+      tmp_data.unlink(missing_ok=True)
+      tmp_info.unlink(missing_ok=True)
+    clear_memmapped_cache_dir(keep=hash)
+    return _open_cached(hash, data_path, info_path)
+
+
+def maybe_memmapped_read_image(image_path):
+  """Like decoded_image, but returns (image, meta, error)"""
+  try:
+    image, meta = decoded_image(image_path)
+    return image, meta, None
+  except Exception as e:
+    return None, None, e
+
 
 def _image_meta(meta):
   """What the image's values are, e.g. {"mode": "I;16"}"""
@@ -150,14 +195,30 @@ def get_pixel():
   })
 
 
-# The image viewer writes the values of the pixels on them when users zoom in: it asks for those in view
+# The image viewer asks for the values of the regions users hover or zoom on, by tiles of 64x64 pixels
 MAX_REGION_PIXELS = 256 * 256
+
+# The types of JavaScript's typed arrays
+JAVASCRIPT_DTYPES = {'uint8', 'int8', 'uint16', 'int16', 'uint32', 'int32', 'float32', 'float64'}
+
+def _for_javascript(region):
+  """The region as a C-ordered, little-endian array of a type JavaScript reads"""
+  if region.dtype == np.bool_:
+    region = region.astype(np.uint8)
+  elif region.dtype == np.float16:
+    region = region.astype(np.float32)
+  elif region.dtype.name not in JAVASCRIPT_DTYPES: # e.g. 64-bit integers
+    region = region.astype(np.float64)
+  return np.ascontiguousarray(region, dtype=region.dtype.newbyteorder('<'))
+
 
 @app.route("/api/v1/output/image/pixels", methods=['GET'])
 def get_pixels():
   """
-  The values of the pixels of a region of an image: image[y:y+h, x:x+w], as nested lists (rows, then pixels, then
-  channels for color images). The region is cut at the image's right and bottom edges.
+  The values of the pixels of a region of an image: image[y:y+h, x:x+w]. The region is cut at the image's right and
+  bottom edges. As JSON: nested lists (rows, then pixels, then channels for color images). With format=binary: the
+  values, little-endian, with their type and shape in the headers X-Pixels-Dtype (e.g. uint16) and X-Pixels-Shape
+  (height,width[,channels]): smaller and faster to read.
   """
   try:
     x, y, w, h = (int(request.args[k]) for k in ('x', 'y', 'w', 'h'))
@@ -175,13 +236,30 @@ def get_pixels():
   if error:
     return jsonify({"error": str(error)}), 400
   height, width = image.shape[:2]
+  if x >= width or y >= height:
+    return jsonify({"error": f"The region starts outside the {width}x{height} image"}), 400
+  meta = _image_meta(meta)
   region = np.asarray(image[y:y+h, x:x+w])
+
+  if request.args.get('format') == 'binary':
+    region = _for_javascript(region)
+    mode = meta.get('mode') if isinstance(meta, dict) else None
+    headers = {
+      'X-Pixels-Dtype': region.dtype.name,
+      'X-Pixels-Shape': ','.join(str(n) for n in region.shape),
+      'X-Image-Width': str(width),
+      'X-Image-Height': str(height),
+    }
+    if mode:
+      headers['X-Pixels-Mode'] = str(mode)
+    return Response(region.tobytes(), mimetype='application/octet-stream', headers=headers)
+
   # NaN and infinity are not JSON
   if region.dtype.kind == 'f' and not np.isfinite(region).all():
     region = np.where(np.isfinite(region), region, None)
   return jsonify({
     "values": region.tolist(),
-    "meta": _image_meta(meta),
+    "meta": meta,
     "width": int(width),
     "height": int(height),
   })

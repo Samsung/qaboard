@@ -598,11 +598,20 @@
   background: rgba(255, 201, 64, 0.12);
   pointer-events: none;
 }
-.qiv-legend {
+/* bottom left of the images: the difference's legend, what the values on the pixels are */
+.qiv-stage-notes {
   position: absolute;
   left: 6px;
   bottom: 6px;
-  z-index: 4;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: calc(100% - 150px);
+}
+.qiv-legend,
+.qiv-values-badge {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -613,6 +622,9 @@
   color: #fff;
   font-size: 11px;
   white-space: nowrap;
+}
+.qiv-values-badge {
+  gap: 6px;
 }
 .qiv-legend .qiv-muted {
   color: #c5cbd3;
@@ -743,4 +755,69 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* The header: toolbar, regions, the values under the pointer */
+.qiv-header {
+  width: 100%;
+}
+
+/* Full screen: the images take the room left by the header */
+.qiv.qiv-fullscreen {
+  margin: 0;
+  padding: 8px 12px;
+  overflow: auto;
+  background: var(--qiv-surface);
+}
+
+/* "image" or "display": users mix up the image's values and the displayed ones */
+.qiv-chip {
+  display: inline-block;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--qiv-surface-alt);
+  box-shadow: inset 0 0 0 1px var(--qiv-border);
+  color: var(--qiv-text-muted);
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 15px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+.qiv-values-panel {
+  width: 340px;
+}
+.qiv-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.qiv-option:hover {
+  background: var(--qiv-hover);
+}
+.qiv-option input {
+  margin-top: 3px;
+  accent-color: var(--qiv-accent);
+}
+.qiv-option.qiv-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.qiv-option-description {
+  display: block;
+  margin-top: 2px;
+  color: var(--qiv-text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.qiv-hint kbd {
+  padding: 0 3px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 3px;
+  font-family: var(--qiv-mono);
+  font-size: 11px;
 }

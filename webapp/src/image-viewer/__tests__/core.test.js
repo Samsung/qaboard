@@ -4,7 +4,8 @@ import { iiifTileFormat, iiifTileSource, iiifUrl, imageKey, normalizeImage, open
 import { joinSyncGroup, syncGroupKey, viewportAfterImageChange } from '../sync';
 import { clipRegion, regionAsYaml, regionToViewport, scaleRegion, uniqueRegions, viewportToRegion } from '../regions';
 import { changedAdjustments, describeAdjustments, filterPrimitives } from '../adjustments';
-import { cellFont, formatNumber, formatSigned, pixelFrom, textColorOn, visiblePixels } from '../pixels';
+import { cellFont, formatNumber, formatSigned, textColorOn, visiblePixels } from '../pixels';
+import { normalizePixels, PixelTiles, TILE } from '../pixelTiles';
 
 
 describe('images', () => {
@@ -164,14 +165,6 @@ describe('adjustments', () => {
 
 
 describe('pixels', () => {
-  it('finds values in the fetched region', () => {
-    const pixels = { region: { x: 10, y: 20, w: 2, h: 2 }, values: [[1, 2], [3, [4, 5, 6]]] };
-    expect(pixelFrom(pixels, 10, 20)).toEqual([1]);
-    expect(pixelFrom(pixels, 11, 21)).toEqual([4, 5, 6]);
-    expect(pixelFrom(pixels, 12, 21)).toBe(null);
-    expect(pixelFrom(null, 0, 0)).toBe(null);
-  });
-
   it('formats values', () => {
     expect(formatNumber(255, 16)).toBe('0xff');
     expect(formatNumber(0.123456)).toBe('0.1235');
@@ -197,6 +190,76 @@ describe('pixels', () => {
     expect(cellFont(40, 1, 3)).toBeGreaterThan(cellFont(40, 3, 3));
     expect(cellFont(32, 3, 3)).toBe(null);
     expect(cellFont(200, 1, 3)).toBe(16);
+  });
+});
+
+
+describe('pixel tiles', () => {
+  const image = { iiif: '/iiif/2/a', file: 'a.tiff' };
+  const size = { width: 100, height: 70 };
+  // a 16-bit RGB image whose values say where they are
+  const getPixels = vi.fn(async (_, { x, y, w, h }) => ({
+    data: Uint16Array.from({ length: w * h * 3 }, (_, i) => {
+      const pixel = Math.floor(i / 3);
+      return [x + (pixel % w), y + Math.floor(pixel / w), 7][i % 3];
+    }),
+    width: w,
+    height: h,
+    channels: 3,
+    mode: 'RGB;16',
+  }));
+  const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+
+  it('reads nested rows (numpy tolist) or flat arrays', () => {
+    expect(normalizePixels({ values: [[1, 2], [3, 4]] })).toEqual({ w: 2, h: 2, channels: 1, data: [1, 2, 3, 4] });
+    expect(normalizePixels({ values: [[[1, 2], [3, null]]] })).toEqual({ w: 2, h: 1, channels: 2, data: [1, 2, 3, null] });
+    expect(normalizePixels({ data: new Uint8Array(6), width: 2, height: 1 }).channels).toBe(3);
+  });
+
+  it('asks for the tiles of a region once, cut at the edges of the image', async () => {
+    getPixels.mockClear();
+    const tiles = new PixelTiles();
+    tiles.setGetPixels(getPixels);
+    expect(tiles.get(image, 70, 65)).toBe(undefined);
+    tiles.request(image, size, { x0: 60, y0: 60, x1: 70, y1: 70 });
+    tiles.request(image, size, { x0: 60, y0: 60, x1: 70, y1: 70 });
+    await flush();
+    expect(getPixels.mock.calls.map(([, region]) => region)).toEqual([
+      { x: 0, y: 0, w: TILE, h: TILE },
+      { x: TILE, y: 0, w: 100 - TILE, h: TILE },
+      { x: 0, y: TILE, w: TILE, h: 70 - TILE },
+      { x: TILE, y: TILE, w: 100 - TILE, h: 70 - TILE },
+    ]);
+    expect(tiles.get(image, 70, 65)).toEqual([70, 65, 7]);
+    expect(tiles.mode(image)).toBe('RGB;16');
+    // another image doesn't share them
+    expect(tiles.get({ iiif: '/iiif/2/b' }, 70, 65)).toBe(undefined);
+  });
+
+  it('only asks for the latest pixel under the pointer while one is in flight', async () => {
+    getPixels.mockClear();
+    const tiles = new PixelTiles();
+    tiles.setGetPixels(getPixels);
+    tiles.requestLatest(image, size, 1, 1);
+    tiles.requestLatest(image, size, 70, 1);
+    tiles.requestLatest(image, size, 1, 65);
+    tiles.requestLatest(image, size, 70, 65);
+    await flush();
+    await flush();
+    expect(getPixels.mock.calls.map(([, { x, y }]) => [x, y])).toEqual([[0, 0], [TILE, TILE]]);
+  });
+
+  it("says why values can't be read, and doesn't ask again right away", async () => {
+    const failing = vi.fn(async () => { throw new Error('Cannot find out.tiff'); });
+    const tiles = new PixelTiles();
+    tiles.setGetPixels(failing);
+    tiles.requestLatest(image, size, 1, 1);
+    await flush();
+    expect(tiles.get(image, 1, 1)).toBe(null);
+    expect(tiles.error(image)).toBe('Cannot find out.tiff');
+    tiles.requestLatest(image, size, 2, 2);
+    tiles.request(image, size, { x0: 0, y0: 0, x1: 5, y1: 5 });
+    expect(failing).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -3,7 +3,7 @@ import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, useSyncEx
 
 import { pixelDensityRatio } from './comparison';
 import { renderDiff } from './diffRenderer';
-import { cellFont, formatNumber, formatSigned, MAX_FETCHED_PIXELS, MIN_CELL, pixelFrom, textColorOn, visiblePixels } from './pixels';
+import { cellFont, formatNumber, formatSigned, MIN_CELL, textColorOn, visiblePixels } from './pixels';
 import { imageKey, thumbnailUrl } from './sources';
 
 // Redraws after the viewers draw (once per frame), and when `deps` change
@@ -48,7 +48,8 @@ export const DiffLayer = ({ controller, diff, active, width, height, canvasRef, 
 
 
 // The values of the pixels, written on them once users zoom in enough.
-// pane: 'a', 'b', or 'diff' (new − reference). raw: the image's values fetched in the visible region, by pane.
+// pane: 'a', 'b', or 'diff' (new − reference). source: 'image' (the images' own values, from `tiles`), 'display' (the
+// 8-bit colors the viewers draw), or 'off'.
 const sample_canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
 const sampleCenters = (source, transform, visible, ratio) => {
   const cols = visible.x1 - visible.x0;
@@ -68,20 +69,22 @@ const sampleCenters = (source, transform, visible, ratio) => {
   return context.getImageData(0, 0, cols, rows).data;
 };
 
-// Draws the values of the pixels in the element (a canvas over a pane), once they are large enough to read
-const drawPixelValues = (element, { controller, pane, enabled, width, height, raw, base, diffCanvas }) => {
+// Draws the values of the pixels in the element (a canvas over a pane), once they are large enough to read.
+// Returns what it wrote: { source: 'image' | 'display', loading, mode }, or null (mode: what the image values are).
+const drawPixelValues = (element, { controller, pane, source, width, height, tiles, images, base, diffCanvas }) => {
   const ratio = pixelDensityRatio();
   sizeCanvas(element, width, height, ratio);
   const context = element.getContext('2d');
   context.setTransform(1, 0, 0, 1, 0, 0);
   context.clearRect(0, 0, element.width, element.height);
-  if (!enabled) return;
-  const source = pane === 'diff' ? 'a' : pane;
-  const transform = controller.imageTransform(source);
-  const size = controller.getSnapshot()[source];
-  if (!transform || !size?.width || transform.scale < MIN_CELL) return;
+  if (source === 'off') return null;
+  const reference = pane === 'diff' ? 'a' : pane;
+  const transform = controller.imageTransform(reference);
+  const snapshot = controller.getSnapshot();
+  const size = snapshot[reference];
+  if (!transform || !size?.width || transform.scale < MIN_CELL) return null;
   const visible = visiblePixels(transform, { width, height }, size);
-  if (!visible) return;
+  if (!visible) return null;
   const cols = visible.x1 - visible.x0;
   const rows = visible.y1 - visible.y0;
   let displayed, background;
@@ -97,23 +100,34 @@ const drawPixelValues = (element, { controller, pane, enabled, width, height, ra
     }
   } catch {
     // the image server doesn't send CORS headers
-    return;
+    return null;
   }
 
-  // The values to write in each pixel
+  // The images' own values, by tiles. The difference of the images' values needs images of the same size: with
+  // another resolution, the same coordinates are another place of the scene.
+  const same_size = snapshot.a.width === snapshot.b.width && snapshot.a.height === snapshot.b.height;
+  const image_values = source === 'image' && !!tiles?.getPixels && (pane !== 'diff' || same_size);
+  if (image_values)
+    for (const name of pane === 'diff' ? ['a', 'b'] : [pane]) tiles.request(images[name], snapshot[name], visible);
+  let loading = false;
+
+  // The values to write in each pixel, or undefined while we don't know them
   const values = (i, j) => {
     const x = visible.x0 + i;
     const y = visible.y0 + j;
     const k = 4 * (j * cols + i);
     if (pane === 'diff') {
-      const raw_a = pixelFrom(raw?.a, x, y);
-      const raw_b = pixelFrom(raw?.b, x, y);
-      if (raw_a && raw_b && raw_a.length === raw_b.length) return raw_a.map((v, c) => v - raw_b[c]);
-      return [0, 1, 2].map(c => displayed.a[k + c] - displayed.b[k + c]);
+      if (!image_values) return [0, 1, 2].map(c => displayed.a[k + c] - displayed.b[k + c]);
+      const value_a = tiles.get(images.a, x, y);
+      const value_b = tiles.get(images.b, x, y);
+      if (value_a === undefined || value_b === undefined) loading = true;
+      if (!value_a || !value_b || value_a.length !== value_b.length) return undefined;
+      return value_a.map((v, c) => v - value_b[c]);
     }
-    const raw_value = pixelFrom(raw?.[pane], x, y);
-    if (raw_value) return raw_value;
-    return [displayed[k], displayed[k + 1], displayed[k + 2]];
+    if (!image_values) return [displayed[k], displayed[k + 1], displayed[k + 2]];
+    const value = tiles.get(images[pane], x, y);
+    if (value === undefined) loading = true;
+    return value ?? undefined;
   };
   // Gray images: one value per pixel
   let gray = true;
@@ -122,13 +136,17 @@ const drawPixelValues = (element, { controller, pane, enabled, width, height, ra
   for (let j = 0; j < rows; j++) {
     for (let i = 0; i < cols; i++) {
       const v = values(i, j);
+      if (!v) {
+        cells.push(null);
+        continue;
+      }
       if (v.length > 1 && v.some(c => c !== v[0])) gray = false;
-      const text = v.map(c => pane === 'diff' ? formatSigned(c) : formatNumber(c, base));
+      const text = v.map(c => c === null ? '–' : pane === 'diff' ? formatSigned(c) : formatNumber(c, base));
       digits = Math.max(digits, ...text.map(t => t.length));
       cells.push(text);
     }
   }
-  const lines = gray ? 1 : Math.max(...cells.map(c => c.length));
+  const lines = gray ? 1 : Math.max(1, ...cells.map(c => c?.length ?? 0));
   const font_size = cellFont(transform.scale, lines, digits);
   const { origin, scale } = transform;
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
@@ -148,7 +166,8 @@ const drawPixelValues = (element, { controller, pane, enabled, width, height, ra
   context.strokeStyle = 'rgba(128, 128, 128, 0.45)';
   context.lineWidth = 1 / ratio;
   context.stroke();
-  if (!font_size) return;
+  const drawn = { source: image_values ? 'image' : 'display', loading, mode: image_values ? tiles.mode(images[reference]) : null };
+  if (!font_size) return drawn;
 
   context.font = `${font_size}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
   context.textAlign = 'center';
@@ -158,6 +177,7 @@ const drawPixelValues = (element, { controller, pane, enabled, width, height, ra
   for (let j = 0; j < rows; j++) {
     for (let i = 0; i < cols; i++) {
       const text = cells[j * cols + i];
+      if (!text) continue;
       const shown = gray ? text.slice(0, 1) : text;
       const k = 4 * (j * cols + i);
       const color = textColorOn(background[k], background[k + 1], background[k + 2]);
@@ -173,66 +193,25 @@ const drawPixelValues = (element, { controller, pane, enabled, width, height, ra
       });
     }
   }
+  return drawn;
 };
 
-export const PixelValues = ({ controller, pane, enabled, width, height, raw, base, diffCanvas }) => {
+// onDrawn({ source, loading, mode } | null): what it shows, when it changes
+export const PixelValues = ({ controller, pane, source, width, height, tiles, images, base, diffCanvas, onDrawn }) => {
   const canvas = useRef(null);
+  // the images' values arrive by tiles
+  const version = useSyncExternalStore(tiles.subscribe, tiles.getVersion);
+  const last = useRef(undefined);
   useRedraw(controller, () => {
-    if (canvas.current) drawPixelValues(canvas.current, { controller, pane, enabled, width, height, raw, base, diffCanvas });
-  }, [enabled, width, height, raw, base, pane]);
+    if (!canvas.current) return;
+    const drawn = drawPixelValues(canvas.current, { controller, pane, source, width, height, tiles, images, base, diffCanvas });
+    const key = JSON.stringify(drawn);
+    if (key !== last.current) {
+      last.current = key;
+      onDrawn?.(drawn);
+    }
+  }, [source, width, height, version, base, pane, imageKey(images.a), imageKey(images.b)]);
   return <canvas ref={canvas} className="qiv-pixel-values" style={{ width, height }} />;
-};
-
-
-// The image's own values in the visible region, from the app's getPixels, once users zoomed in enough to see them.
-// We fetch a margin around the view: panning doesn't refetch right away.
-export const useVisiblePixels = ({ controller, pane, image, getPixels, enabled, width, height }) => {
-  const [pixels, setPixels] = useState(null);
-  const key = imageKey(image);
-  const state = useRef({ timer: null, abort: null, fetched: null });
-  const check = useEffectEvent(() => {
-    const s = state.current;
-    if (!enabled || !getPixels || !image) return;
-    const transform = controller.imageTransform(pane);
-    const size = controller.getSnapshot()[pane];
-    if (!transform || !size?.width || transform.scale < MIN_CELL) return;
-    const visible = visiblePixels(transform, { width, height }, size);
-    if (!visible) return;
-    const f = s.fetched;
-    if (f && f.key === key && visible.x0 >= f.x && visible.y0 >= f.y && visible.x1 <= f.x + f.w && visible.y1 <= f.y + f.h) return;
-    clearTimeout(s.timer);
-    s.timer = setTimeout(() => {
-      // half a view more on each side, if we can
-      const w = visible.x1 - visible.x0;
-      const h = visible.y1 - visible.y0;
-      const x = Math.max(0, visible.x0 - Math.ceil(w / 2));
-      const y = Math.max(0, visible.y0 - Math.ceil(h / 2));
-      let region = { x, y, w: Math.min(size.width, visible.x1 + Math.ceil(w / 2)) - x, h: Math.min(size.height, visible.y1 + Math.ceil(h / 2)) - y };
-      if (region.w * region.h > MAX_FETCHED_PIXELS) region = { x: visible.x0, y: visible.y0, w, h };
-      if (region.w * region.h > MAX_FETCHED_PIXELS) return;
-      s.abort?.abort();
-      const abort = new AbortController();
-      s.abort = abort;
-      s.fetched = { ...region, key };
-      Promise.resolve(getPixels(image, region, { signal: abort.signal })).then(result => {
-        if (!abort.signal.aborted && result?.values) setPixels({ region, values: result.values, mode: result.mode, key });
-      }, error => {
-        if (abort.signal.aborted || error?.name === 'AbortError') return;
-        s.fetched = null;
-        setPixels({ region, values: null, error: error?.message ?? String(error), key });
-      });
-    }, 150);
-  });
-  useEffect(() => controller.onDraw(() => check()), [controller]);
-  useEffect(() => {
-    check();
-  }, [enabled, key, getPixels, width, height]);
-  useEffect(() => () => {
-    clearTimeout(state.current.timer);
-    state.current.abort?.abort();
-  }, []);
-  // only for the image shown now
-  return pixels?.key === key && enabled ? pixels : null;
 };
 
 

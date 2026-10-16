@@ -50,27 +50,28 @@ const makeImage = (width, height, reference) => new Promise(resolve => {
   canvas.toBlob(blob => resolve(URL.createObjectURL(blob)), 'image/png');
 });
 
-// The image's values: what we drew, but as 10-bit values, like a raw image
+// The image's values: what we drew, but as 10-bit values, like a raw image. The viewer asks by tiles of 64x64.
+const decoded = new Map();
+const decode = url => {
+  if (!decoded.has(url)) decoded.set(url, (async () => {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    context.drawImage(img, 0, 0);
+    return context;
+  })());
+  return decoded.get(url);
+};
 const getPixels = async (image, { x, y, w, h }) => {
-  const img = new Image();
-  img.src = image.url;
-  await img.decode();
-  const canvas = document.createElement('canvas');
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
-  const context = canvas.getContext('2d');
-  context.drawImage(img, 0, 0);
-  const data = context.getImageData(x, y, w, h).data;
-  const values = [];
-  for (let j = 0; j < h; j++) {
-    const row = [];
-    for (let i = 0; i < w; i++) {
-      const k = 4 * (j * w + i);
-      row.push([data[k] * 4, data[k + 1] * 4, data[k + 2] * 4]);
-    }
-    values.push(row);
-  }
-  return { values, mode: 'RGB;10' };
+  const rgba = (await decode(image.url)).getImageData(x, y, w, h).data;
+  const data = new Uint16Array(w * h * 3);
+  for (let i = 0; i < w * h; i++)
+    for (let c = 0; c < 3; c++) data[3 * i + c] = rgba[4 * i + c] * 4;
+  return { data, width: w, height: h, channels: 3, mode: 'RGB;10' };
 };
 
 const App = () => {

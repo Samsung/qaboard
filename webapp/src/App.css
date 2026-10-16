@@ -88,7 +88,11 @@ span.bp6-popover-target {
   color: var(--qa-text);
 }
 
+/* A run's card in full screen (OutputCard.jsx): taller than the screen, it scrolls */
 .fullscreen-enabled {
+  box-sizing: border-box;
+  padding: 12px 16px;
+  overflow: auto;
   background: var(--qa-surface);
 }
 

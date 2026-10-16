@@ -137,7 +137,8 @@ export class Comparison {
     this.viewers[name] = viewer;
     viewer.addHandler('viewport-change', () => this.onViewportChange(name));
     viewer.addHandler('update-viewport', () => this.scheduleDraw());
-    for (const event of ['canvas-enter', 'canvas-press', 'canvas-scroll', 'canvas-pinch', 'canvas-drag'])
+    // Users lead with gestures, not by moving the mouse over another pane: it would stop the zoom of the other halfway
+    for (const event of ['canvas-press', 'canvas-scroll', 'canvas-pinch', 'canvas-drag'])
       viewer.addHandler(event, () => this.lead(name));
     viewer.addHandler('canvas-click', event => {
       if (event.quick) this.onClick?.(name, event);
@@ -224,7 +225,7 @@ export class Comparison {
     entry.opened = null;
     // until it's replaced, the entry has the size of the image shown
     const shown = { width: entry.width, height: entry.height };
-    const previous = name === 'a' ? this.captureViewport() : null;
+    const previous = name === 'a' ? this.captureViewport(shown) : null;
     const restore = viewportAfterImageChange(previous, opened);
     const old_items = [];
     for (let i = 0; i < viewer.world.getItemCount(); i++) old_items.push(viewer.world.getItemAt(i));
@@ -252,6 +253,8 @@ export class Comparison {
         entry.tileErrors = 0;
         entry.fullyLoaded = item.getFullyLoaded();
         item.addHandler('fully-loaded-change', event => {
+          // an image that was replaced meanwhile: its tiles may still arrive
+          if (this.images[name] !== entry || entry.item !== item) return;
           entry.fullyLoaded = event.fullyLoaded;
           if (event.fullyLoaded) this.removeItems(name, item);
           this.emit();
@@ -265,6 +268,7 @@ export class Comparison {
         if (this.images[name] !== entry) return;
         entry.status = 'error';
         entry.error = { message: event?.message ?? 'Could not open the image' };
+        this.removeItems(name);
         this.emit();
       },
     });
@@ -272,10 +276,9 @@ export class Comparison {
 
   // Where the viewers look once an image was added
   place(name, restore, first) {
-    const a = this.images.a;
     if (name === 'b') {
-      if (a?.item) this.copyViewport('a', 'b');
-      else this.home(true);
+      if (this.viewers.a?.world.getItemCount() > 0) this.copyViewport('a', 'b');
+      else this.viewers.b?.viewport.goHome(true);
       return;
     }
     if (restore?.action === 'keep') {
@@ -295,10 +298,11 @@ export class Comparison {
     return { zoom: viewport.getZoom(true), center: viewport.getCenter(true) };
   }
 
-  captureViewport() {
-    const a = this.images.a;
-    if (!a?.item || !a.width || !a.height) return null;
-    return { ...this.viewportOf('a'), width: a.width, height: a.height };
+  // The viewport of the image's viewer, with the size of the image it shows (size), or null when it shows none
+  captureViewport(size) {
+    const viewer = this.viewers.a;
+    if (!viewer || viewer.world.getItemCount() === 0 || !size?.width || !size?.height) return null;
+    return { ...this.viewportOf('a'), width: size.width, height: size.height };
   }
 
   // Both viewers, at once

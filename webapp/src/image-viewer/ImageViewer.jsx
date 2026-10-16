@@ -8,13 +8,16 @@ import { DEFAULT_DIFF, normalizeDiff } from './metrics';
 import { regionAsYaml } from './regions';
 import { DEFAULT_MODE, MODES } from './modes';
 import { normalizeImage } from './sources';
-import { Crosshair, DiffLayer, Minimap, PixelValues, useVisiblePixels } from './overlays';
-import { AdjustmentsPanel, DiffLegend, DiffSettings, Histogram, Readout, RegionsMenu, RegionsStrip, Shortcuts } from './panels';
+import { PixelTiles } from './pixelTiles';
+import { Crosshair, DiffLayer, Minimap, PixelValues } from './overlays';
+import { AdjustmentsPanel, DiffLegend, DiffSettings, Histogram, Readout, RegionsMenu, RegionsStrip, Shortcuts, ValuesBadge, ValuesPanel } from './panels';
 import { Button, Icon, MenuDivider, MenuItem, Popover, Segmented, Spinner } from './ui';
 import './image-viewer.css';
 
 const GAP = 4;
 const ZOOM_STEP = 1.5;
+// The viewer under the mouse gets the keyboard shortcuts
+let hovered_viewer = null;
 
 // A prop users can control, or leave to the viewer
 const useControllable = (value, initial, onChange) => {
@@ -83,9 +86,9 @@ export const ImageViewer = ({
   adjustments: adjustments_prop,
   defaultAdjustments,
   onAdjustmentsChange,
-  showPixelValues: show_pixel_values_prop,
-  defaultShowPixelValues = true,
-  onShowPixelValuesChange,
+  pixelValues: pixel_values_prop,
+  defaultPixelValues = 'image',
+  onPixelValuesChange,
   syncKey = null,
   regionSets = [],
   defaultRegionSet = null,
@@ -111,7 +114,14 @@ export const ImageViewer = ({
   const diff = normalizeDiff(diff_setting);
   const [adjustments_setting, setAdjustments] = useControllable(adjustments_prop, defaultAdjustments, onAdjustmentsChange);
   const adjustments = normalizeAdjustments(adjustments_setting);
-  const [show_pixel_values, setShowPixelValues] = useControllable(show_pixel_values_prop, defaultShowPixelValues, onShowPixelValuesChange);
+  // Which values are written on the pixels: the images' own ('image', with getPixels), the displayed ones, or 'off'
+  const [values_setting, setValuesSetting] = useControllable(pixel_values_prop, defaultPixelValues, onPixelValuesChange);
+  const pixel_source = values_setting === 'off' ? 'off' : (values_setting === 'display' || !getPixels) ? 'display' : 'image';
+  const last_values = useRef('image');
+  const [values_drawn, setValuesDrawn] = useState(null);
+  const [tiles] = useState(() => new PixelTiles());
+  useLayoutEffect(() => tiles.setGetPixels(getPixels));
+  useEffect(() => () => tiles.dispose(), [tiles]);
   const [swapped, setSwapped] = useState(false);
   const [wipe, setWipe] = useState(0.5);
   const [hide_labels, setHideLabels] = useState(false);
@@ -121,13 +131,18 @@ export const ImageViewer = ({
   const [message, setMessage] = useState(null);
   const diff_canvas = useRef(null);
 
-  // Layout: as wide as we can, as high as the window allows
+  // Layout: as wide as we can, as high as the window allows. The header (toolbar, regions, values) is as wide as we can be.
   const root = useRef(null);
+  const header = useRef(null);
   const [available, setAvailable] = useState(0);
+  const [header_height, setHeaderHeight] = useState(0);
   const [window_height, setWindowHeight] = useState(() => window.innerHeight);
   useLayoutEffect(() => {
-    const element = root.current;
-    const measure = () => setAvailable(element.clientWidth);
+    const element = header.current;
+    const measure = () => {
+      setAvailable(element.clientWidth);
+      setHeaderHeight(element.offsetHeight);
+    };
     measure();
     if (typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(measure);
@@ -144,7 +159,17 @@ export const ImageViewer = ({
   const main_size = size_a ?? size_b;
   const aspect = main_size ? main_size.height / main_size.width : 3 / 4;
   const side_by_side = mode === 'side-by-side';
-  const max_height = Math.max(120, typeof maxHeight === 'function' ? maxHeight(window_height) : maxHeight);
+  // Full screen: the images take all the room below the header
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const onChange = () => setFullscreen(!!root.current && document.fullscreenElement === root.current);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+  const can_fullscreen = typeof document !== 'undefined' && !!document.fullscreenEnabled;
+  const max_height = Math.max(120, fullscreen
+    ? window_height - header_height - 24
+    : typeof maxHeight === 'function' ? maxHeight(window_height) : maxHeight);
   const per_pane = Math.max(0, side_by_side ? (available - GAP) / 2 : available);
   const pane_width = Math.floor(Math.min(per_pane, max_height / aspect));
   const pane_height = Math.floor(pane_width * aspect);
@@ -189,13 +214,21 @@ export const ImageViewer = ({
   useEffect(() => {
     if (active_set && !active_set.regions && !active_set.loading && !active_set.error) active_set.load?.();
   }, [active_set]);
+  // Picking the region shown again shows it again, e.g. after zooming elsewhere
   const selectSet = id => {
     setSelection(id ? { set: id, index: 0 } : null);
+    const first_region = regionSets.find(set => set.id === id)?.regions?.[0];
     if (!id) controller.fit();
+    else if (first_region) controller.fitRegion(first_region);
+  };
+  const selectRegion = index => {
+    setSelection(s => ({ ...s, index }));
+    const region = active_set?.regions?.[index];
+    if (region) controller.fitRegion(region);
   };
   const stepRegion = step => {
     const count = active_set?.regions?.length ?? 0;
-    if (count > 0) setSelection(s => ({ ...s, index: (s.index + step + count) % count }));
+    if (count > 0) selectRegion(((selection?.index ?? 0) + step + count) % count);
   };
 
   const notify = text => {
@@ -222,14 +255,18 @@ export const ImageViewer = ({
   const primitives = filterPrimitives(adjustments);
   const filter = primitives.length > 0 ? `url(#${filter_id})` : undefined;
 
-  // The image's own values, when zoomed in
-  const pixels_enabled = show_pixel_values && visible && !!getPixels;
-  const fetched_a = useVisiblePixels({ controller, pane: 'a', image: images.a, getPixels, enabled: pixels_enabled, width: pane_width, height: pane_height });
-  const fetched_b = useVisiblePixels({ controller, pane: 'b', image: comparing ? images.b : null, getPixels, enabled: pixels_enabled && comparing, width: pane_width, height: pane_height });
-  const fetched = { a: fetched_a, b: fetched_b };
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement === root.current) document.exitFullscreen?.();
+    else root.current?.requestFullscreen?.().catch(error => notify(`Can't go full screen: ${error.message}`));
+  };
+  // The values on the pixels: p hides them, and shows those shown before
+  const setValues = value => {
+    if (value !== 'off') last_values.current = value;
+    setValuesSetting(value);
+  };
+  const toggleValues = () => setValues(values_setting === 'off' ? last_values.current : 'off');
 
-  // Keyboard shortcuts, for the viewer that has the focus, or under the mouse
-  const hovered = useRef(false);
+  // Keyboard shortcuts, for the viewer under the mouse, else the one that has the focus
   const on_key = useRef(null);
   useLayoutEffect(() => {
     on_key.current = event => {
@@ -246,7 +283,11 @@ export const ImageViewer = ({
           setHideLabels(hide => !hide);
           return true;
         case 'p':
-          setShowPixelValues(!show_pixel_values);
+          toggleValues();
+          return true;
+        case 'f':
+          if (!can_fullscreen) return false;
+          toggleFullscreen();
           return true;
         case '+': case '=':
           controller.zoomBy(ZOOM_STEP);
@@ -271,13 +312,16 @@ export const ImageViewer = ({
       if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
       const target = event.target;
       if (target instanceof Element && target.closest('input:not([type="range"]):not([type="checkbox"]), textarea, select, [contenteditable="true"]')) return;
-      const focus = document.activeElement;
-      const active = root.current?.contains(focus) || (hovered.current && (!focus || focus === document.body));
+      const active = hovered_viewer ? hovered_viewer === root.current : !!root.current?.contains(document.activeElement);
       if (!active || !on_key.current(event)) return;
       event.preventDefault();
     };
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    const element = root.current;
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      if (hovered_viewer === element) hovered_viewer = null;
+    };
   }, []);
 
   // The wipe's divider
@@ -322,6 +366,21 @@ export const ImageViewer = ({
     </div>;
   };
 
+  // the pane whose values say what the values on the pixels are
+  const values_pane = mode === 'difference' ? 'diff' : side_by_side ? 'a' : first;
+  const pixelValues = pane => <PixelValues
+    controller={controller}
+    pane={pane}
+    source={visible ? pixel_source : 'off'}
+    width={pane_width}
+    height={pane_height}
+    tiles={tiles}
+    images={images}
+    base={base}
+    diffCanvas={pane === 'diff' ? diff_canvas : undefined}
+    onDrawn={pane === values_pane ? setValuesDrawn : undefined}
+  />;
+
   const pane = name => <div
     key={name}
     className="qiv-pane"
@@ -330,7 +389,7 @@ export const ImageViewer = ({
     onPointerLeave={() => controller.unhover()}
   >
     <div className="qiv-osd" ref={element => { if (element) controller.attach(name, element); }} style={{ filter }} />
-    <PixelValues controller={controller} pane={name} enabled={show_pixel_values && visible} width={pane_width} height={pane_height} raw={fetched} base={base} />
+    {pixelValues(name)}
     <Crosshair controller={controller} pane={name} local={side_by_side} />
     {side_by_side && label(name, 'left')}
     {pane_error(name)}
@@ -363,17 +422,18 @@ export const ImageViewer = ({
 
   return <div
     ref={root}
-    className={`qiv ${className}`}
+    className={`qiv ${fullscreen ? 'qiv-fullscreen' : ''} ${className}`}
     data-theme={theme}
     style={style}
-    onPointerEnter={() => { hovered.current = true; }}
-    onPointerLeave={() => { hovered.current = false; }}
+    onPointerEnter={() => { hovered_viewer = root.current; }}
+    onPointerLeave={() => { if (hovered_viewer === root.current) hovered_viewer = null; }}
   >
     <svg className="qiv-filters" aria-hidden="true" width="0" height="0">
       <filter id={filter_id} colorInterpolationFilters="sRGB">
         {primitives.map((primitive, i) => <FilterPrimitive key={i} primitive={primitive} />)}
       </filter>
     </svg>
+    <div className="qiv-header" ref={header}>
     <div className="qiv-toolbar">
       {comparing && <Segmented
         label="Compare"
@@ -412,7 +472,15 @@ export const ImageViewer = ({
       <Popover align="end" button={props => <Button {...props} icon="flash" title="Adjust the display: brightness, contrast, gamma, channels…" className={adjusted ? 'qiv-intent qiv-dot' : ''} />}>
         <AdjustmentsPanel adjustments={adjustments} onChange={setAdjustments} />
       </Popover>
-      <Button icon="numerical" title={`${show_pixel_values ? 'Hide' : 'Show'} the pixel values when zoomed in (p)`} active={show_pixel_values} aria-pressed={show_pixel_values} onClick={() => setShowPixelValues(!show_pixel_values)} />
+      <Popover align="end" button={props => <Button
+        {...props}
+        icon="numerical"
+        label="Pixel values"
+        title={`Values written on the pixels when zoomed in: ${pixel_source === 'image' ? "the image's own" : pixel_source === 'display' ? 'the displayed ones' : 'off'} (p)`}
+        className={pixel_source !== 'off' ? 'qiv-intent' : ''}
+      />}>
+        <ValuesPanel source={pixel_source} available={!!getPixels} onChange={setValues} />
+      </Popover>
       <Button icon="timeline-area-chart" title="Histogram of the view" active={show_histogram} aria-pressed={show_histogram} onClick={() => setShowHistogram(!show_histogram)} />
       <span className="qiv-group">
         <Button icon="zoom-out" title="Zoom out (−)" onClick={() => controller.zoomBy(1 / ZOOM_STEP)} />
@@ -426,6 +494,11 @@ export const ImageViewer = ({
       <Popover align="end" button={props => <Button {...props} icon="key-command" title="Keyboard shortcuts" />}>
         <Shortcuts />
       </Popover>
+      {can_fullscreen && <Button
+        icon={fullscreen ? 'minimize' : 'fullscreen'}
+        title={fullscreen ? 'Exit full screen (f or Esc)' : 'Full screen (f)'}
+        onClick={toggleFullscreen}
+      />}
       </span>
     </div>
     {active_set && <RegionsStrip
@@ -433,20 +506,20 @@ export const ImageViewer = ({
       index={selection.index}
       image={images.a}
       size={size_a}
-      onSelect={index => setSelection(s => ({ ...s, index }))}
+      onSelect={selectRegion}
       onRetry={() => active_set.load?.()}
     />}
     <Readout
       controller={controller}
+      tiles={tiles}
       images={images}
       comparing={comparing}
       diff={diff}
-      getPixels={getPixels}
-      fetched={fetched}
       base={base}
       onToggleBase={() => setBase(b => b === 10 ? 16 : 10)}
       sizes={{ a: size_a, b: size_b }}
     />
+    </div>
     <div
       ref={stage}
       className={`qiv-stage qiv-mode-${mode}`}
@@ -456,9 +529,12 @@ export const ImageViewer = ({
       {pane('b')}
       {mode === 'difference' && <div className="qiv-pane qiv-diff-pane" style={{ width: pane_width, height: pane_height, left: 0, zIndex: 3 }}>
         <DiffLayer controller={controller} diff={diff} active={visible} width={pane_width} height={pane_height} canvasRef={diff_canvas} onError={setDiffError} />
-        <PixelValues controller={controller} pane="diff" enabled={show_pixel_values && visible} width={pane_width} height={pane_height} raw={fetched} base={base} diffCanvas={diff_canvas} />
+        {pixelValues('diff')}
         {diff_error && <div className="qiv-message qiv-pane-message">{diff_error}</div>}
-        {!hide_labels && <DiffLegend diff={diff} />}
+      </div>}
+      {!hide_labels && <div className="qiv-stage-notes">
+        {mode === 'difference' && <DiffLegend diff={diff} />}
+        <ValuesBadge drawn={pixel_source !== 'off' ? values_drawn : null} />
       </div>}
       {mode === 'wipe' && <>
         {label(first, 'left')}

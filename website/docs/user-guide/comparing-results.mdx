@@ -134,18 +134,38 @@ differences can average out. Zoom to 100% or more to compare every pixel, or let
   caption="With the maximum raised, the flat wall fades to gray and only the window frame's edges stay marked: yellow where the images differ a little, orange to dark red where they differ more."
 />
 
-### Pixel values
-Hover an image to see the pixel's coordinates, its values in the new and reference images and their difference (**Δ**,
-per channel, and the measure picked for the difference, e.g. ΔE). For 16-bit, float or raw images, you get the image's
-own values, read by the server, next to the displayed 8-bit ones. Click the line to switch to hexadecimal.
+### Pixel values: the image's, or the displayed ones
+Hover an image to see the pixel's coordinates, its values in the new and reference images, and their difference
+(**Δ**). There are two kinds of values, and the line says which is which:
+
+- **image**: the values in the file, as your code saved them: 10-bit, 16-bit, float, raw... The server reads them, and
+  shows what they are, e.g. `RGB;10`, `I;16` (16-bit gray) or `F` (float).
+- **display**: the 8-bit color on your screen. To show an image, the server converts it (16-bit to 8-bit, raw to
+  RGB...), and zoomed out, a screen pixel averages many image pixels. It's what you see, not your data. It's only
+  listed when it differs from the image values.
+
+**Δ** is the difference of the image values when both images have the same size, else of the displayed ones. The
+measure picked for [the difference](#the-difference) (perceptual, ΔE...) is always computed on the displayed colors.
+Click the line to switch to hexadecimal.
 
 Zoom in further and the values show **on the pixels themselves**, in black or white so that you can read them; in
-**Difference** mode, it's new − reference. The **123** button, or <kbd>p</kbd>, hides them.
+**Difference** mode, it's new − reference. A badge under the images says which ones you're reading: *Values: image
+(I;16)* or *Values: displayed, 8-bit*. Pick them with the **123** button above the images (**Image values**,
+**Displayed values** or **Off**); <kbd>p</kbd> hides or shows them.
+
+The image values arrive by tiles of 64×64 pixels: the first ones can take a moment while the server opens the image,
+the next ones are quick. When the server can't read the file, the line says *unavailable*: hover it to see why, and use
+the displayed values.
 
 <Shot
   id="commit/pixel-tooltip"
   caption="Hover a pixel of the Siemens star: the line above the images shows its coordinates, its values in both images and their difference, and a crosshair marks the same spot on the reference."
 />
+
+### Full screen
+The **full screen** button at the right of the viewer's toolbar (or <kbd>f</kbd>) gives the whole screen to the images,
+with the toolbar: modes, the difference, regions and pixel values all work there. <kbd>Esc</kbd> or <kbd>f</kbd> leaves.
+The button at the top right of each card shows the whole card in full screen instead, with its file picker.
 
 ### Regions of interest
 The regions button above the images zooms on:

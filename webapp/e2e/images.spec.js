@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test';
 import { info, tile } from './fixtures/iiif';
 
 const project = 'group/repo';
-const qatools_config = { outputs: { visualizations: [{ name: 'Output', path: 'image.png' }] } };
+const default_config = { outputs: { visualizations: [{ name: 'Output', path: 'image.png' }] } };
 
 // A gradient. The new image has a dark square the reference doesn't have.
 const size = { width: 512, height: 384 };
@@ -13,6 +13,10 @@ const images = {
   new: { ...size, pixel: (x, y) => square(x, y) ? [20, 20, 20] : [x >> 1, y >> 1, 128] },
   ref: { ...size, pixel: (x, y) => [x >> 1, y >> 1, 128] },
 };
+// the image of a file of a run: stages/denoise.png is the inverted image
+const imageOf = (hexsha, file) => file === 'stages/denoise.png'
+  ? { ...size, pixel: (x, y) => images[hexsha].pixel(x, y).map(v => 255 - v) }
+  : images[hexsha];
 
 const output = (id, hexsha, metadata = {}) => ({
   id, platform: 'linux', configurations: ['base'], extra_parameters: {}, metrics: {}, data: {},
@@ -21,7 +25,7 @@ const output = (id, hexsha, metadata = {}) => ({
   output_dir_url: `/s/mnt/qaboard/${hexsha}/output`,
   test_input_database: '/mnt/database', test_input_path: 'images/A.png', test_input_metadata: metadata,
 });
-const commit = (hexsha, batch_id, message, metadata) => ({
+const commit = (hexsha, batch_id, message, metadata, qatools_config) => ({
   id: hexsha, hexsha, project_id: project, branch: 'master', committer_name: 'Alice', message,
   authored_datetime: '2026-09-01T10:00:00Z', committed_datetime: '2026-09-01T10:00:00Z',
   latest_output_datetime: '2026-09-01T10:00:00Z', parents: [], deleted: false,
@@ -33,15 +37,15 @@ const commit = (hexsha, batch_id, message, metadata) => ({
   } },
 });
 
-const setup = async (page, { metadata = {}, manifests } = {}) => {
+const setup = async (page, { metadata = {}, manifests, qatools_config = default_config } = {}) => {
   const api = {
     '/api/v1/config': {},
     '/api/v1/user/me/': { is_authenticated: true, user_id: 1, user_name: 'alice', full_name: 'Alice', email: 'alice@example.com', login_type: 'local' },
     '/api/v1/projects': { [project]: { data: { qatools_config }, latest_commit_datetime: '2026-09-01T10:00:00Z', total_commits: 2 } },
     '/api/v1/project': { qatools_config },
     '/api/v1/project/branches': ['master'],
-    '/api/v1/commit/new': commit('new', 1, 'New', metadata),
-    '/api/v1/commit/ref': commit('ref', 2, 'Reference', metadata),
+    '/api/v1/commit/new': commit('new', 1, 'New', metadata, qatools_config),
+    '/api/v1/commit/ref': commit('ref', 2, 'Reference', metadata, qatools_config),
   };
   const pixel_requests = [];
   await page.addInitScript(() => localStorage.setItem('qaboard.release-notes.last-seen', '9999-12-31'));
@@ -49,10 +53,18 @@ const setup = async (page, { metadata = {}, manifests } = {}) => {
     const url = new URL(route.request().url());
     // The image's "raw" values: 10-bit
     if (url.pathname === '/api/v1/output/image/pixels') {
-      const hexsha = url.searchParams.get('image_url').split('/')[4];
+      const [, , , , hexsha, , ...file] = url.searchParams.get('image_url').split('/');
+      const image = imageOf(hexsha, file.join('/'));
       const [x, y, w, h] = ['x', 'y', 'w', 'h'].map(k => Number(url.searchParams.get(k)));
       pixel_requests.push({ x, y, w, h });
-      const values = Array.from({ length: h }, (_, j) => Array.from({ length: w }, (_, i) => images[hexsha].pixel(x + i, y + j).map(v => 4 * v)));
+      const [cw, ch] = [Math.min(w, image.width - x), Math.min(h, image.height - y)];
+      const values = Array.from({ length: ch }, (_, j) => Array.from({ length: cw }, (_, i) => image.pixel(x + i, y + j).map(v => 4 * v)));
+      if (url.searchParams.get('format') === 'binary')
+        return route.fulfill({
+          body: Buffer.from(Uint16Array.from(values.flat(2)).buffer),
+          contentType: 'application/octet-stream',
+          headers: { 'X-Pixels-Dtype': 'uint16', 'X-Pixels-Shape': `${ch},${cw},3`, 'X-Pixels-Mode': 'RGB;10' },
+        });
       return route.fulfill({ json: { values, meta: { mode: 'RGB;10' } } });
     }
     const key = Object.keys(api).sort((a, b) => b.length - a.length).find(k => url.pathname.startsWith(k));
@@ -68,9 +80,10 @@ const setup = async (page, { metadata = {}, manifests } = {}) => {
   await page.route('**/iiif/2/**', route => {
     const { pathname } = new URL(route.request().url());
     const [identifier, ...request] = pathname.replace(/^\/iiif\/2\//, '').split('/');
-    const hexsha = decodeURIComponent(identifier).split('/')[2];
-    if (request.join('/') === 'info.json') return route.fulfill({ json: info(identifier, images[hexsha]) });
-    return route.fulfill({ body: tile(request.join('/'), images[hexsha]), contentType: 'image/png' });
+    const [, , hexsha, , ...file] = decodeURIComponent(identifier).split('/');
+    const image = imageOf(hexsha, file.join('/'));
+    if (request.join('/') === 'info.json') return route.fulfill({ json: info(identifier, image) });
+    return route.fulfill({ body: tile(request.join('/'), image), contentType: 'image/png' });
   });
   await page.goto(`/${project}/commit/new?reference=ref&selected_views=output-list`);
   return { pixel_requests };
@@ -87,6 +100,16 @@ test.afterEach(() => {
 });
 
 const zoom = async page => parseFloat(await page.locator('.qiv-zoom').textContent());
+// The zoom once its animation is over
+const settledZoom = async page => {
+  let last = null;
+  await expect.poll(async () => {
+    const previous = last;
+    last = await zoom(page);
+    return last === previous;
+  }, { intervals: [250] }).toBe(true);
+  return last;
+};
 
 // How many pixels of a canvas are drawn (dark: and dark), in a region given in fractions of its size
 const countPixels = (canvas, [x0, y0, x1, y1], dark) => canvas.evaluate((canvas, [x0, y0, x1, y1, dark]) => {
@@ -115,8 +138,10 @@ test('compares images side by side, with a wipe, toggling, and as their differen
   await page.mouse.move(box.x + pane_width * 120 / 512, box.y + box.height * 120 / 384);
   const readout = page.locator('.qiv-readout');
   await expect(readout).toContainText(/x 1[12]\d y 1[12]\d/);
-  await expect(readout).toContainText('RGB;10 80 80 80');
-  await expect(readout).toContainText('Δ −');
+  // the image's own values (10-bit), and the displayed ones
+  await expect(readout).toContainText('image 80 80 80 RGB;10');
+  await expect(readout).toContainText('display 20 20 20');
+  await expect(readout).toContainText('Δ image −');
 
   // the difference: dark where the square is, nothing elsewhere
   await page.getByRole('radio', { name: 'Difference' }).click();
@@ -167,10 +192,60 @@ test('writes the values of the pixels on them when zoomed in', async ({ page }) 
   await expect.poll(() => pixel_requests.some(r => r.w * r.h > 100)).toBe(true);
   const values = page.locator('canvas.qiv-pixel-values').first();
   await expect.poll(() => countPixels(values, [0, 0, 1, 1])).toBeGreaterThan(200);
-  // hidden with p
+  // fetched by tiles of 64x64
+  expect(pixel_requests.every(r => r.w <= 64 && r.h <= 64)).toBe(true);
+  await expect(page.locator('.qiv-values-badge')).toHaveText('Values: image (RGB;10)');
+  // or the displayed ones
+  await page.getByRole('button', { name: 'Pixel values' }).click();
+  await page.getByRole('radio', { name: /^Displayed values/ }).check();
+  await expect(page.locator('.qiv-values-badge')).toHaveText('Values: displayed, 8-bit');
+  await page.keyboard.press('Escape');
+  // hidden with p, and back
+  await page.mouse.move(box.x + box.width / 4, box.y + box.height / 2);
   await page.keyboard.press('p');
   await expect.poll(() => countPixels(values, [0, 0, 1, 1])).toBe(0);
+  await expect(page.locator('.qiv-values-badge')).toHaveCount(0);
   await page.keyboard.press('p');
+  await expect(page.locator('.qiv-values-badge')).toHaveText('Values: displayed, 8-bit');
+});
+
+test('keeps the zoom when the file shown changes', async ({ page }) => {
+  const files = { 'stages/denoise.png': { st_size: 1000, md5: 'a' }, 'stages/sharpen.png': { st_size: 1000, md5: 'b' } };
+  await setup(page, {
+    qatools_config: { outputs: { visualizations: [{ name: 'Output', path: 'stages/:stage.png' }] } },
+    manifests: { new: files, ref: { 'stages/denoise.png': { st_size: 1000, md5: 'c' }, 'stages/sharpen.png': { st_size: 1000, md5: 'd' } } },
+  });
+  await expect(page.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
+  // where the stage is picked (the panel narrows the viewer)
+  await page.getByRole('button', { name: 'Show the view options' }).click();
+  await page.waitForTimeout(500);
+  const box = await page.locator('.qiv-stage').boundingBox();
+  await page.mouse.move(box.x + box.width / 4, box.y + box.height / 2);
+  for (let i = 0; i < 5; i++) await page.keyboard.press('+');
+  const before = await settledZoom(page);
+  expect(before).toBeGreaterThan(400);
+  // the first stage, inverted
+  await expect(page.locator('.qiv-readout')).toContainText('x 256 y 192 new image 508 636 508');
+  await page.getByLabel('Stage', { exact: true }).selectOption('sharpen');
+  // the same pixel is under the pointer, of the other stage
+  await page.mouse.move(box.x + box.width / 4 + 1, box.y + box.height / 2);
+  await page.mouse.move(box.x + box.width / 4, box.y + box.height / 2);
+  await expect(page.locator('.qiv-readout')).toContainText('x 256 y 192 new image 512 384 512');
+  expect(await settledZoom(page)).toBe(before);
+});
+
+test('compares in full screen', async ({ page }) => {
+  await setup(page);
+  await expect(page.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
+  const before = await page.locator('.qiv-stage').boundingBox();
+  await page.getByRole('button', { name: 'Full screen (f)' }).click();
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement?.classList.contains('qiv'))).toBe(true);
+  // the images take the screen
+  await expect.poll(async () => (await page.locator('.qiv-stage').boundingBox()).height).toBeGreaterThan(before.height);
+  await page.getByRole('radio', { name: 'Wipe' }).click();
+  await expect(page.getByRole('separator', { name: 'Wipe' })).toBeVisible();
+  await page.getByRole('button', { name: 'Exit full screen (f or Esc)' }).click();
+  await expect.poll(() => page.evaluate(() => document.fullscreenElement)).toBe(null);
 });
 
 test('shows the regions of interest of the input', async ({ page }) => {

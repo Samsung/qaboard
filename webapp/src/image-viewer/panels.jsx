@@ -4,60 +4,65 @@ import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } fro
 import { ADJUSTMENT_SLIDERS, CHANNELS, DEFAULT_ADJUSTMENTS, FALSE_COLORS, changedAdjustments, normalizeAdjustments } from './adjustments';
 import { cssGradient } from './colormaps';
 import { DIFF_METHODS, diffAt, diffLegend, formatDiffValue, normalizeDiff } from './metrics';
-import { formatNumber, formatSigned, pixelFrom } from './pixels';
+import { formatNumber, formatSigned } from './pixels';
 import { clipRegion } from './regions';
 import { imageKey, thumbnailUrl } from './sources';
-import { Button, Icon, MenuDivider, MenuItem, Popover, Segmented, Select, Spinner } from './ui';
+import { Button, MenuDivider, MenuItem, Popover, Segmented, Select, Spinner } from './ui';
 
 
 // --- Values under the pointer ---
 
-// The image's own value of one pixel, from the app's getPixels, a moment after the pointer stops
-const useHoverPixel = (getPixels, image, pixel, fetched) => {
-  const [result, setResult] = useState(null);
+// Users mix them up: we say which is which
+export const IMAGE_VALUES = "The image's own values: what the file contains (raw, 16-bit, float...), read by the server";
+export const DISPLAY_VALUES = 'The displayed values: the 8-bit color on your screen, after the image server converted the image for display';
+
+// The image's own value of the pixel, from the tiles. null without getPixels.
+const useImageValue = (tiles, image, size, pixel) => {
+  // The tiles change outside React: the compiler would keep the first value it read
+  'use no memo';
+  // the values arrive by tiles
+  useSyncExternalStore(tiles.subscribe, tiles.getVersion);
   const key = imageKey(image);
   const x = pixel?.x;
   const y = pixel?.y;
-  const covered = pixel && pixelFrom(fetched, x, y);
   useEffect(() => {
-    if (!getPixels || !image || x === undefined || covered) return;
-    const abort = new AbortController();
-    const timer = setTimeout(() => {
-      Promise.resolve(getPixels(image, { x, y, w: 1, h: 1 }, { signal: abort.signal })).then(data => {
-        if (!abort.signal.aborted) setResult({ key, x, y, value: pixelFrom({ region: { x, y }, values: data?.values }, x, y), mode: data?.mode });
-      }, error => {
-        if (!abort.signal.aborted && error?.name !== 'AbortError') setResult({ key, x, y, error: error?.message ?? String(error) });
-      });
-    }, 120);
-    return () => {
-      clearTimeout(timer);
-      abort.abort();
-    };
+    if (key && x !== undefined) tiles.requestLatest(image, size, x, y);
     // oxlint-disable-next-line react/exhaustive-deps
-  }, [getPixels, key, x, y, !!covered]);
-  if (covered) return { value: covered, mode: fetched.mode, fresh: true };
-  if (!result || result.key !== key) return null;
-  return { ...result, fresh: result.x === x && result.y === y };
+  }, [tiles, key, size?.width, size?.height, x, y]);
+  if (!tiles.getPixels || !image || x === undefined) return null;
+  const value = tiles.get(image, x, y);
+  return { value, mode: tiles.mode(image), error: value === null ? tiles.error(image) : null };
 };
 
 const Values = ({ values, base, signed = false }) => <span className="qiv-values">
-  {values.map(v => signed ? formatSigned(v) : formatNumber(v, base)).join(' ')}
+  {values.map(v => v === null ? '–' : signed ? formatSigned(v) : formatNumber(v, base)).join(' ')}
 </span>;
 
-const ImageValues = ({ label, pixel, display, raw, base, intent }) => <span className="qiv-readout-image">
+export const Chip = ({ children, title }) => <span className="qiv-chip" title={title}>{children}</span>;
+
+const same_values = (display, value) => !!value && !!display && (
+  value.length === 1 ? display[0] === value[0] && display[1] === value[0] && display[2] === value[0]
+    : value.length >= 3 && [0, 1, 2].every(c => display[c] === value[c]));
+
+const ImageValues = ({ label, pixel, display, image, base, intent }) => <span className="qiv-readout-image">
   <span className={`qiv-readout-label qiv-${intent}`}>{label}</span>{' '}
   {display && <span className="qiv-swatch" style={{ background: `rgb(${display[0]},${display[1]},${display[2]})` }} title="The displayed color" />}
-  {raw?.value && <span title={`The image's value${raw.mode ? ` (${raw.mode})` : ''}`} className={raw.fresh ? '' : 'qiv-muted'}>
-    {raw.mode && <span className="qiv-muted">{raw.mode} </span>}<Values values={raw.value} base={base} />{' '}
+  {image && <span title={`${IMAGE_VALUES}${image.mode ? `. Here: ${image.mode}` : ''}`}>
+    <Chip>image</Chip>{' '}
+    {image.value ? <Values values={image.value} base={base} />
+      : image.value === undefined ? <span className="qiv-muted">…</span>
+      : <span className="qiv-warning-text" title={image.error ?? "Can't read the image's values"}>unavailable</span>}
+    {image.mode && <span className="qiv-muted"> {image.mode}</span>}{' '}
   </span>}
-  {display && !(raw?.value && display.slice(0, 3).every((v, i) => v === raw.value[i])) && <span title="The displayed value (8-bit RGB)">
-    {raw?.value && <span className="qiv-muted">display </span>}<Values values={display.slice(0, 3)} base={base} />{' '}
+  {display && !same_values(display, image?.value) && <span title={DISPLAY_VALUES}>
+    <Chip>display</Chip> <Values values={display.slice(0, 3)} base={base} />{' '}
   </span>}
-  {raw?.error && <span title={raw.error}><Icon icon="warning-sign" size={12} className="qiv-warning" /></span>}
   {!display && pixel === null && <span className="qiv-muted">outside</span>}
 </span>;
 
-export const Readout = ({ controller, images, comparing, diff, getPixels, fetched, base, onToggleBase, sizes }) => {
+export const Readout = ({ controller, tiles, images, comparing, diff, base, onToggleBase, sizes }) => {
+  // It reads the viewers (what's under the pointer, the colors drawn) as it renders: nothing to memoize
+  'use no memo';
   const pointer = useSyncExternalStore(controller.subscribePointer, controller.getPointer);
   // the displayed values change as tiles load
   const [, redraw] = useState(0);
@@ -71,8 +76,8 @@ export const Readout = ({ controller, images, comparing, diff, getPixels, fetche
   const pixel_b = point && comparing ? controller.imagePixel('b', point) : null;
   const display_a = pixel_a && controller.displayPixel('a', point);
   const display_b = pixel_b && controller.displayPixel('b', point);
-  const raw_a = useHoverPixel(getPixels, images.a, pixel_a, fetched.a);
-  const raw_b = useHoverPixel(getPixels, comparing ? images.b : null, pixel_b, fetched.b);
+  const image_a = useImageValue(tiles, images.a, sizes.a, pixel_a);
+  const image_b = useImageValue(tiles, comparing ? images.b : null, sizes.b, pixel_b);
 
   if (!point) {
     const size = s => s?.width ? `${s.width}×${s.height}` : '…';
@@ -80,13 +85,15 @@ export const Readout = ({ controller, images, comparing, diff, getPixels, fetche
       {comparing
         ? <span>{images.a?.label ?? 'new'} {size(sizes.a)} · {images.b?.label ?? 'reference'} {size(sizes.b)}</span>
         : <span>{size(sizes.a)}</span>}
-      <span className="qiv-readout-hint">Hover for pixel values · scroll to zoom · drag to pan</span>
+      <span className="qiv-readout-hint">Hover a pixel for its values · scroll to zoom · drag to pan</span>
     </div>;
   }
   const { method } = normalizeDiff(diff);
   const delta = display_a && display_b ? diffAt(diff, display_a, display_b) : null;
-  const raw_delta = raw_a?.value && raw_b?.value && raw_a.value.length === raw_b.value.length
-    ? raw_a.value.map((v, i) => v - raw_b.value[i]) : null;
+  // the difference of the images' values, for images of the same size
+  const same_size = sizes.a?.width === sizes.b?.width && sizes.a?.height === sizes.b?.height;
+  const image_delta = same_size && image_a?.value && image_b?.value && image_a.value.length === image_b.value.length
+    ? image_a.value.map((v, i) => v === null || image_b.value[i] === null ? null : v - image_b.value[i]) : null;
   const coordinates = pixel_a ?? pixel_b;
   return <button
     type="button"
@@ -98,19 +105,47 @@ export const Readout = ({ controller, images, comparing, diff, getPixels, fetche
     {pixel_b && pixel_a && (pixel_b.x !== pixel_a.x || pixel_b.y !== pixel_a.y) && <span className="qiv-coordinates qiv-muted">
       (ref x {pixel_b.x} y {pixel_b.y})
     </span>}
-    <ImageValues label={images.a?.label ?? 'new'} intent="primary" pixel={pixel_a} display={display_a} raw={raw_a} base={base} />
-    {comparing && <ImageValues label={images.b?.label ?? 'reference'} intent="warning" pixel={pixel_b} display={display_b} raw={raw_b} base={base} />}
+    <ImageValues label={images.a?.label ?? 'new'} intent="primary" pixel={pixel_a} display={display_a} image={image_a} base={base} />
+    {comparing && <ImageValues label={images.b?.label ?? 'reference'} intent="warning" pixel={pixel_b} display={display_b} image={image_b} base={base} />}
     {delta && <span className="qiv-readout-image" title={`${images.a?.label ?? 'new'} − ${images.b?.label ?? 'reference'}`}>
       <span className="qiv-readout-label">Δ</span>{' '}
-      {raw_delta
-        ? <span title="Difference of the image values"><Values values={raw_delta} signed /></span>
-        : <span title="Difference of the displayed values"><Values values={delta.delta} signed /></span>}
+      {image_delta
+        ? <span title={IMAGE_VALUES}><Chip>image</Chip> <Values values={image_delta} signed /></span>
+        : <span title={DISPLAY_VALUES}><Chip>display</Chip> <Values values={delta.delta} signed /></span>}
       {formatDiffValue(method, delta.value) && <span className="qiv-diff-value" title={`${DIFF_METHODS[method].title}, on the displayed colors`}>
-        {method === 'perceptual' ? 'perceptual ' : ''}{formatDiffValue(method, delta.value)}
+        {' '}{method === 'perceptual' ? 'perceptual ' : ''}{formatDiffValue(method, delta.value)}
       </span>}
     </span>}
   </button>;
 };
+
+
+// Which values are written on the pixels
+export const ValuesPanel = ({ source, available, onChange }) => {
+  const options = [
+    { value: 'image', label: 'Image values', description: `${IMAGE_VALUES}.`, disabled: !available },
+    { value: 'display', label: 'Displayed values', description: `${DISPLAY_VALUES}.` },
+    { value: 'off', label: 'Off' },
+  ];
+  return <div className="qiv-panel qiv-values-panel" role="radiogroup" aria-label="Values written on the pixels">
+    <div className="qiv-panel-title"><span>Values written on the pixels</span></div>
+    {options.map(option => <label key={option.value} className={`qiv-option ${option.disabled ? 'qiv-disabled' : ''}`}>
+      <input type="radio" name="qiv-values" value={option.value} checked={source === option.value} disabled={option.disabled} onChange={() => onChange(option.value)} />
+      <span>
+        <strong>{option.label}</strong>
+        {option.description && <span className="qiv-option-description">{option.description}</span>}
+        {option.disabled && <span className="qiv-option-description">Not available for these images.</span>}
+      </span>
+    </label>)}
+    <div className="qiv-hint">They show once you zoom in enough. The line above the images shows both for the pixel under the pointer. <kbd>p</kbd> shows or hides them.</div>
+  </div>;
+};
+
+// What the values on the pixels are, when they show
+export const ValuesBadge = ({ drawn }) => drawn && <div className="qiv-values-badge" title={drawn.source === 'image' ? IMAGE_VALUES : DISPLAY_VALUES}>
+  {drawn.source === 'image' ? <>Values: image{drawn.mode ? ` (${drawn.mode})` : ''}</> : <>Values: displayed, 8-bit</>}
+  {drawn.loading && <Spinner size={10} label="Loading the values" />}
+</div>;
 
 
 // --- Histograms ---

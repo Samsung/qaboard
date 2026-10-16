@@ -1,8 +1,8 @@
 # Image viewer
 
 A React component to compare images: **side by side**, with a **wipe**, **toggling** between them, or as their
-**difference**, with synced deep zoom, the **values of the pixels** written on them when zoomed in, regions of
-interest, histograms and display adjustments. It is [QA-Board](https://github.com/Samsung/qaboard)'s image viewer, and
+**difference**, with synced deep zoom, the **values of the pixels** (the image's own: raw, 16-bit, float...) written on
+them when zoomed in, full screen, regions of interest, histograms and display adjustments. It is [QA-Board](https://github.com/Samsung/qaboard)'s image viewer, and
 works in any React app.
 
 It depends on React (19.2+) and [OpenSeadragon](https://openseadragon.github.io/) (6.x) only.
@@ -15,7 +15,7 @@ import '@qaboard/image-viewer/style.css';
 ```
 
 - [Install](#install)
-- [Usage](#usage): images, comparison modes, the image's own pixel values, regions of interest, sync
+- [Usage](#usage): images, comparison modes, pixel values (the image's or the displayed ones), regions of interest, sync
 - [Props](#props)
 - [The difference](#the-difference)
 - [Theming](#theming)
@@ -84,36 +84,56 @@ const [mode, setMode] = useState('side-by-side');
 ```
 
 The same goes for `diff` / `onDiffChange` (how the difference is computed), `adjustments` / `onAdjustmentsChange`
-and `showPixelValues` / `onShowPixelValuesChange`. Without them, the viewer keeps its own state, from
+and `pixelValues` / `onPixelValuesChange`. Without them, the viewer keeps its own state, from
 `defaultMode`, `defaultDiff`...
 
-### The image's own pixel values
-By default, users see the **displayed** values: 8-bit RGB. For 16-bit, float or raw images, give the viewer a way to
-read the image's own values: they show under the pointer, and on the pixels when users zoom in.
+### Pixel values: the image's, or the displayed ones
+There are two kinds of values, and the viewer always says which one users look at:
+
+- **Image values**: the file's own, e.g. 10-bit RGB, 16-bit gray, float depth, raw. What algorithms compute on.
+- **Displayed values**: the 8-bit sRGB colors on the screen. Image servers and browsers convert images to show them
+  (16-bit to 8-bit, raw to RGB...), and zoomed out a screen pixel averages many image pixels. They're what users see,
+  not the data.
+
+Without more, the viewer only knows the displayed values. Give it `getPixels` to read the image's: they show under the
+pointer next to the displayed ones (labelled `image` and `display`), and on the pixels when users zoom in, with a badge
+("Values: image (I;16)" or "Values: displayed, 8-bit"). Users switch between them in the toolbar's values menu, or hide
+them with <kbd>p</kbd>.
 
 ```jsx
 const getPixels = async (image, { x, y, w, h }, { signal }) => {
   const params = new URLSearchParams({ path: image.path, x, y, w, h });
   const response = await fetch(`/api/pixels?${params}`, { signal });
-  return response.json(); // { values: [[...], ...], mode: 'I;16' }
+  if (!response.ok) throw new Error(`Can't read the values: ${response.status}`);
+  const [height, width, channels = 1] = response.headers.get('X-Shape').split(',').map(Number);
+  return { data: new Uint16Array(await response.arrayBuffer()), width, height, channels, mode: 'I;16' };
 };
 
 <ImageViewer image={{ iiif, path: 'runs/42/out.tiff' }} getPixels={getPixels} />
 ```
 
-`values` are the rows of the region, each pixel a number or an array of channels, like numpy's
-`image[y:y+h, x:x+w].tolist()`. The viewer asks for one pixel under the pointer, and for the region in view once users
-zoom in (at most 128×128 pixels). Your fields (here `path`) are passed back. A server could be:
+It resolves to the region's values as a flat array, row by row, channel by channel (`{ data, width, height, channels?,
+mode? }`, a typed array is best), or as rows of pixels, each a number or an array of channels (`{ values, mode? }`, like
+numpy's `image[y:y+h, x:x+w].tolist()`). `mode` says what they are. Your fields (here `path`) are passed back.
+
+The viewer asks for **tiles of 64×64 pixels** (aligned on multiples of 64, cut at the image's edges): the tile under the
+pointer, and the tiles in view once the values are written on the pixels. It keeps the last 512, sends only the latest
+request while users move the pointer, and asks again for a tile that failed after 10 s. Most of the time goes to
+decoding the image on the server: cache the decoded images there. A server could be:
 
 ```python
 @app.route("/api/pixels")
 def pixels():
   x, y, w, h = (int(request.args[k]) for k in "xywh")
-  image = read_image(request.args["path"])  # a numpy array, cached: users hover a lot
-  return jsonify(values=image[y:y+h, x:x+w].tolist(), mode=str(image.dtype))
+  image = read_image(request.args["path"])  # a numpy array (height, width[, channels]), cached
+  region = np.ascontiguousarray(image[y:y+h, x:x+w], dtype="<u2")
+  return Response(region.tobytes(), mimetype="application/octet-stream",
+                  headers={"X-Shape": ",".join(map(str, region.shape))})
 ```
 
-QA-Board's is `GET /api/v1/output/image/pixels` (backend/backend/api/image.py).
+JSON works too, but binary is about 3× smaller and needs no parsing. QA-Board's server is
+`GET /api/v1/output/image/pixels?image_url=…&x=…&y=…&w=…&h=…&format=binary` (backend/backend/api/image.py): it
+answers with the values' type and shape in `X-Pixels-Dtype` and `X-Pixels-Shape`, and keeps the decoded images on disk.
 
 ### Regions of interest
 Users step through regions (with thumbnails for IIIF images), or copy the region in view:
@@ -149,8 +169,8 @@ resolution), and show a cross where the pointer is on the others. Viewers off-sc
 | `mode`, `defaultMode`, `onModeChange` | `'side-by-side' \| 'wipe' \| 'toggle' \| 'difference'` | `'side-by-side'` | How they're compared |
 | `diff`, `defaultDiff`, `onDiffChange` | `{ method, gain?, max? }` | `{ method: 'perceptual' }` | [The difference](#the-difference) |
 | `adjustments`, `defaultAdjustments`, `onAdjustmentsChange` | `{ brightness, contrast, gamma, sharpen, channel, falseColor, invert }` | none | How images look. Only the display changes. |
-| `showPixelValues`, `defaultShowPixelValues`, `onShowPixelValuesChange` | `boolean` | `true` | Values written on the pixels when zoomed in |
-| `getPixels` | `(image, { x, y, w, h }, { signal }) => Promise<{ values, mode? }>` | | The image's own values |
+| `pixelValues`, `defaultPixelValues`, `onPixelValuesChange` | `'image' \| 'display' \| 'off'` | `'image'` | [Values](#pixel-values-the-images-or-the-displayed-ones) written on the pixels when zoomed in. `'image'` needs `getPixels`, else they're the displayed ones. |
+| `getPixels` | `(image, { x, y, w, h }, { signal }) => Promise<{ data, width, height, channels?, mode? } \| { values, mode? }>` | | The image's own values, by tiles of 64×64 |
 | `syncKey` | `string` | | Viewers with the same key are synced |
 | `regionSets` | `[{ id, label, regions?, loading?, error?, load? }]` | `[]` | Regions of interest |
 | `defaultRegionSet` | `string` | | The set shown first |
@@ -165,7 +185,7 @@ The types are in `index.d.ts`. The package also exports helpers: `iiifUrl`, `thu
 ### Keyboard
 For the viewer under the mouse, or that has the focus: <kbd>1</kbd>–<kbd>4</kbd> the mode, <kbd>t</kbd> swap the
 images (flip in toggle mode, like a click), <kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd> zoom, <kbd>p</kbd> pixel values,
-<kbd>h</kbd> labels, <kbd>[</kbd> <kbd>]</kbd> previous / next region. The wheel or a pinch zooms, a drag pans, a
+<kbd>h</kbd> labels, <kbd>f</kbd> full screen (<kbd>Esc</kbd> leaves), <kbd>[</kbd> <kbd>]</kbd> previous / next region. The wheel or a pinch zooms, a drag pans, a
 double-click zooms in.
 
 

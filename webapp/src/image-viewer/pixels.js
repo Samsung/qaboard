@@ -1,18 +1,5 @@
 // Pixel values: the displayed ones, read from what the viewer draws (8-bit RGB), and the image's own values (e.g.
-// 16-bit, raw Bayer...) that apps can give with the `getPixels(image, region, { signal })` prop. It resolves to
-//   { values, mode? }
-// where `values` are the rows of the region, each pixel a number or an array of channel values, like numpy's
-// image[y:y+h, x:x+w].tolist(), and `mode` names them, e.g. "I;16" or "RGB".
-
-// The value of the pixel (x, y), in image coordinates, from a region fetched with getPixels: an array of channel
-// values, or null if it's outside the region
-export const pixelFrom = (pixels, x, y) => {
-  if (!pixels?.values) return null;
-  const row = pixels.values[y - pixels.region.y];
-  const value = row?.[x - pixels.region.x];
-  if (value === undefined || value === null) return null;
-  return Array.isArray(value) ? value : [value];
-};
+// 16-bit, raw Bayer...) that apps can give with the `getPixels(image, region, { signal })` prop: see pixelTiles.js.
 
 export const formatNumber = (value, base = 10) => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return String(value);
@@ -49,6 +36,3 @@ export const cellFont = (cell, lines, digits) => {
   // several lines of tiny text are unreadable
   return size >= (lines > 1 ? 9 : 7) ? Math.floor(size * 2) / 2 : null;
 };
-
-// How many pixels the overlay can ask the app's getPixels for at once
-export const MAX_FETCHED_PIXELS = 128 * 128;

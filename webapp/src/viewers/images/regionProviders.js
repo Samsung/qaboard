@@ -7,7 +7,8 @@
 //     description: 'shown on hover',
 //     // Regions known right away, e.g. from the run's metadata: an array, or null when it has none for this image
 //     regions: context => [{ x, y, w, h, label?, color?, imageWidth?, imageHeight? }] | null,
-//     // ...or regions found on demand, when users pick the set, e.g. by a server
+//     // ...or regions found on demand, when users pick the set, e.g. by a server. The signal aborts when the viewer
+//     // shows another image, or goes away.
 //     find: async (context, { signal }) => [...regions],
 //     // Whether to offer it for this image (by default, always)
 //     available: context => boolean,

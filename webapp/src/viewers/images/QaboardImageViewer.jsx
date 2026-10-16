@@ -1,7 +1,7 @@
 // The image viewer in QA-Board: compares an image of a run with the same image of its reference run.
 // It maps runs, their files and the site's image servers to the viewer's props (src/image-viewer/README.md).
-import { useState } from 'react';
-import { Tag, Tooltip } from '@blueprintjs/core';
+import { useEffect, useState } from 'react';
+import { Tag } from '@blueprintjs/core';
 import { create } from 'zustand';
 
 import { ImageViewer } from '../../image-viewer';
@@ -36,10 +36,20 @@ const referenceImage = ({ output_ref, path_ref, manifests, image_servers }) => {
   return available ? runImage(output_ref, path_ref, manifests.reference, image_servers, 'reference') : null;
 };
 
-// The image's own values (e.g. 16-bit, raw...), read by the server
+// The image's own values (e.g. 16-bit, raw...), read by the server, as binary: the viewer asks for tiles of 64x64
+const TYPED_ARRAYS = {
+  uint8: Uint8Array, int8: Int8Array, uint16: Uint16Array, int16: Int16Array,
+  uint32: Uint32Array, int32: Int32Array, float32: Float32Array, float64: Float64Array,
+};
 const getPixels = async (image, { x, y, w, h }, { signal }) => {
-  const { data } = await http.get('/api/v1/output/image/pixels', { params: { image_url: image.file, x, y, w, h }, signal });
-  return { values: data.values, mode: data.meta?.mode ?? data.meta?.imageType };
+  const { data, headers } = await http.get('/api/v1/output/image/pixels', {
+    params: { image_url: image.file, x, y, w, h, format: 'binary' },
+    responseType: 'arraybuffer',
+    signal,
+  });
+  const [height, width, channels = 1] = headers.get('X-Pixels-Shape').split(',').map(Number);
+  const TypedArray = TYPED_ARRAYS[headers.get('X-Pixels-Dtype')] ?? Float64Array;
+  return { data: new TypedArray(data), width, height, channels, mode: headers.get('X-Pixels-Mode') ?? undefined };
 };
 
 // Display adjustments are shared by the viewers of the same visualization, so that the runs stay comparable.
@@ -51,9 +61,15 @@ const useAdjustmentsStore = create(set => ({
 
 // The regions of interest of the providers, found on demand
 const useRegionSets = context => {
-  const { output_new, output_ref, path } = context;
-  const key = `${output_new?.id} ${output_ref?.id} ${path}`;
+  const { output_new, output_ref, path, path_ref } = context;
+  const key = `${output_new?.id} ${output_ref?.id} ${path} ${path_ref}`;
   const [found, setFound] = useState({ key, sets: {} });
+  // the searches for another image, or after the viewer is gone, are cancelled
+  const [searches] = useState(() => new Set());
+  useEffect(() => () => {
+    searches.forEach(search => search.abort());
+    searches.clear();
+  }, [searches, key]);
   const current = found.key === key ? found.sets : {};
   const start = id => setFound(f => ({ key, sets: { ...(f.key === key ? f.sets : {}), [id]: { loading: true } } }));
   // results for another image are dropped
@@ -75,10 +91,12 @@ const useRegionSets = context => {
       load: () => {
         if (state.loading) return;
         start(provider.id);
-        provider.find(context, {}).then(
+        const search = new AbortController();
+        searches.add(search);
+        provider.find(context, { signal: search.signal }).then(
           regions => update(provider.id, { regions }),
-          error => update(provider.id, { error: error?.response?.data?.error ?? error?.message ?? String(error) }),
-        );
+          error => search.signal.aborted || update(provider.id, { error: error?.response?.data?.error ?? error?.message ?? String(error) }),
+        ).finally(() => searches.delete(search));
       },
     });
   }
@@ -101,8 +119,8 @@ const ImageViewerForRuns = ({
   onControlsChange,
 }) => {
   const { image_servers } = useSiteConfig();
-  const show_pixel_values = usePrefsStore(state => state.imagePixelValues);
-  const setShowPixelValues = usePrefsStore(state => state.setImagePixelValues);
+  const pixel_values = usePrefsStore(state => state.imagePixelValues);
+  const setPixelValues = usePrefsStore(state => state.setImagePixelValues);
   const adjustments = useAdjustmentsStore(state => state.by_path[path]);
   const setAdjustments = useAdjustmentsStore(state => state.set);
 
@@ -131,8 +149,8 @@ const ImageViewerForRuns = ({
     onDiffChange={value => onControlsChange ? onControlsChange({ image_diff: value }) : setLocalDiff(value)}
     adjustments={adjustments}
     onAdjustmentsChange={value => setAdjustments(path, value)}
-    showPixelValues={show_pixel_values}
-    onShowPixelValuesChange={setShowPixelValues}
+    pixelValues={pixel_values}
+    onPixelValuesChange={setPixelValues}
     // the same input's images are synced, e.g. the other runs', or the other visualizations of a run
     syncKey={output_new.test_input_path ?? null}
     regionSets={region_sets}
@@ -141,9 +159,8 @@ const ImageViewerForRuns = ({
     maxHeight={height => height - (fullscreen ? 120 : 260)}
     notice={<>
       {label && <span className="qaboard-image-viewer-label">{label}</span>}
-      {same_data && <Tooltip content="The new and reference files have the same hash">
-        <Tag minimal icon="duplicate">same as the reference</Tag>
-      </Tooltip>}
+      {/* no tooltips: they wouldn't show in full screen */}
+      {same_data && <Tag minimal icon="duplicate" title="The new and reference files have the same hash">same as the reference</Tag>}
     </>}
   />;
 };
