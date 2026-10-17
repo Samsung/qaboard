@@ -23,7 +23,7 @@ import {
 
 import { OutputViewer } from "./OutputViewer";
 import { MetricsTags } from "../components/metrics";
-import { OutputTags, ExtraParametersTags, StatusTag, RunBadges, style_skeleton } from '../components/tags'
+import { OutputTags, StatusTag, RunBadges, style_skeleton } from '../components/tags'
 import { humanFileSize, humanElapsedTime } from "./bit_accuracy/utils";
 
 import { Link, history } from "../router"
@@ -243,7 +243,6 @@ const OutputHeader = ({ project, commit, output, output_ref, type, manifests, st
     </h5>
     <p style={{maxWidth: '600px'}}>
       <RunBadges output={output}></RunBadges>
-      <ExtraParametersTags parameters={output.extra_parameters} />
     </p>
   </>
 }

@@ -8,7 +8,7 @@ import {
   Tooltip,
   NonIdealState,
 } from "@blueprintjs/core";
-import { ConfigurationsTags, ExtraParametersTags } from './tags'
+import { ConfigurationsTags } from './tags'
 import { http, errorMessage } from "../api/http";
 import { useRefreshCommit, updateSelected } from "../hooks";
 import { pretty_label } from "../utils";
@@ -85,8 +85,7 @@ const SimpleOutputList = ({outputs, intent, link_logs = false}) => {
             ? <a href={`${o.output_dir_url}/log.txt`} target="_blank" rel="noopener noreferrer" title="Open its log">{run_path}</a>
             : run_path}
         </strong>
-        <ConfigurationsTags intent={intent} configurations={o.configurations}/>
-        <ExtraParametersTags intent={intent} parameters={o.extra_parameters} before={<br/>} />
+        <ConfigurationsTags intent={intent} configurations={o.configurations} tuning={o.extra_parameters}/>
       </li>
       }
     )}

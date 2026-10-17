@@ -15,6 +15,8 @@ import { DEFAULT_MODE, MODES } from "../image-viewer/modes";
 import DynamicOptionControl from "./DynamicOptionControl";
 import { defaultRule, optionLabel, resolveOptionValue } from "../utils/dynamicOptions";
 import SidePanel from "./SidePanel";
+import { SharedSettings, useSharedConfiguration, useHideSharedSettings } from "../configurations/ConfigurationsTags";
+import { HideSharedSwitch } from "../configurations/ConfigurationOverview";
 
 // The commit page's View options: what the views of the runs' results show, and in which order.
 // Docked on the right of the page (see SidePanel), they only list what changes the views selected.
@@ -124,10 +126,14 @@ const ViewOptionsPanel = ({
     visualizations: true,
     dynamic_options: true,
     viewers: true,
+    configuration: true,
     sorting: true,
   });
 
   const [visualizationFilter, setVisualizationFilter] = useState("");
+  // what all the runs shown share, hidden in each run (see ConfigurationsTags)
+  const shared = useSharedConfiguration();
+  const hide_shared = useHideSharedSettings();
 
   const [prev_reveal_files, setPrevRevealFiles] = useState(revealFiles);
   if (revealFiles !== prev_reveal_files) {
@@ -314,6 +320,7 @@ const ViewOptionsPanel = ({
         .filter(control => !!controls[control.name] !== !!control.default)
         .map(control => `${control.label || humanize(control.name)} ${controls[control.name] ? 'on' : 'off'}`),
     ],
+    configuration: shared?.collapse && !hide_shared ? ['Shared settings shown in each run'] : [],
     sorting: sort_changed ? [`Sorted by ${sort_label(sort_value)}, ${order_label}`] : [],
   };
 
@@ -368,6 +375,20 @@ const ViewOptionsPanel = ({
       icon: 'eye-open',
       summary: viewers_summary,
       content: viewer_switches,
+    },
+    shared?.tokens.length > 0 && {
+      id: 'configuration',
+      title: 'Configuration',
+      icon: 'properties',
+      summary: `${shared.tokens.length} settings shared by all ${shared.runs} runs${shared.collapse ? (hide_shared ? ', hidden in each run' : ', shown in each run') : ''}`,
+      meta: <Meta>{shared.tokens.length} shared</Meta>,
+      content: <>
+        <Hint>Shared by all {shared.runs} runs shown{shared.collapse && hide_shared ? ': each run shows only what\'s specific to it' : ''}.</Hint>
+        <div style={{ maxHeight: 180, overflowY: 'auto', marginBottom: 8 }}>
+          <SharedSettings tokens={shared.tokens} />
+        </div>
+        {shared.collapse && <HideSharedSwitch />}
+      </>,
     },
     {
       id: 'sorting',

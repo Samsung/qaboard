@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 
 import {
@@ -32,6 +32,9 @@ import { project_web_url } from "./utils";
 import PrivateContent from "./components/authentication/PrivateContent"
 import ViewOptionsPanel from "./components/ViewOptionsPanel";
 import { useSidePanelExpanded } from "./components/SidePanel";
+import { SharedConfigurationContext } from "./configurations/ConfigurationsTags";
+import { ConfigurationOverview } from "./configurations/ConfigurationOverview";
+import { shared_configuration, reference_pairs, changes_in_all_runs } from "./configurations/tokens";
 
 
 // Every view of the commit: its title (and maybe a few muted details) on one row above its content
@@ -192,6 +195,14 @@ const CiCommitResults = () => {
     onRegisterOutputOptions: dynamic.register,
     onToggleDynamicOptionSync: toggleDynamicOptionSync,
   };
+  // What the runs shown share is hidden in each run: it updates as users filter runs.
+  // shared_configuration and changes_in_all_runs return the same objects when they don't change, so cards don't re-render
+  const shared_settings = shared_configuration(new_batch.filtered.outputs.map(id => new_batch.outputs[id]));
+  const all_runs_changes = changes_in_all_runs(reference_pairs(new_batch));
+  const shared = useMemo(
+    () => shared_settings && { ...shared_settings, changes_in_all_runs: all_runs_changes },
+    [shared_settings, all_runs_changes],
+  );
   const docs_link = <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/visualizations`}>Read the docs</a>;
 
   // Until the commit loads, if it doesn't exist, or if it has no results yet, views of its results would look empty
@@ -240,6 +251,7 @@ const CiCommitResults = () => {
   }
   // the views shown on the page
   const views = selected_views.filter(view => !hidden_views.includes(view));
+  const shows_runs = ['output-list', 'bit-accuracy', 'table-compare', 'table-kpi'].some(view => views.includes(view));
   const shows_state = selected_views.some(view => hidden_views.includes(view));
   const storage = new_batch.filtered.outputs
     .map(id => new_batch.outputs[id]?.data?.storage ?? 0)
@@ -249,6 +261,7 @@ const CiCommitResults = () => {
   const header_height = show_ref_navbar ? 150 : 75;
 
   return (
+    <SharedConfigurationContext value={shared}>
     <Container style={{ marginTop: 0, paddingTop: header_height + header_gap }}>
 
       {(!new_commit || !ref_commit) && show_ref_navbar && <Messages>
@@ -261,6 +274,7 @@ const CiCommitResults = () => {
               {warning_messages}
               {/* the selected batch's runs are unrelated to editing batch definitions, and would push the editor down */}
               {!selected_views.includes('groups') && <BatchStatusMessages project={new_project} commit={new_commit} batch={new_batch} />}
+              {shows_runs && <ConfigurationOverview new_batch={new_batch} />}
             </Messages>
 
             {shows_state && <ViewSection>{commit_state}</ViewSection>}
@@ -438,6 +452,7 @@ const CiCommitResults = () => {
         />
       )}
     </Container>
+    </SharedConfigurationContext>
   );
 }
 

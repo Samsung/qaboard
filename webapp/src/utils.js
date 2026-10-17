@@ -1,7 +1,7 @@
 import { interpolateRainbow } from "d3-scale-chromatic";
 import md5 from "js-md5";
 
-import { memoized_levenshtein } from "./levenshtein";
+import { config_distance } from "./configurations/tokens";
 import { setPathMappings, linux_to_windows } from "./utils/paths";
 import { repo_url } from "./git";
 import { toaster } from "./toaster";
@@ -120,8 +120,8 @@ const matching_output = ({ output, batch, index }) => {
     return {
       o,
       dist_input_path: 1 - Number(o.input_path === output.input_path || o.test_input_path === output.test_input_path),
-      dist_configurations: memoized_levenshtein(o.configurations_str ?? '', output.configurations_str ?? ''),
-      dist_extra_parameters: memoized_levenshtein(o.extra_parameters_str ?? '', output.extra_parameters_str ?? ''),
+      dist_configurations: config_distance(o.configurations, output.configurations),
+      dist_extra_parameters: config_distance(o.extra_parameters, output.extra_parameters),
     };
   });
   // We prefer to compare an ouput versus a similar one
@@ -142,7 +142,25 @@ const matching_output = ({ output, batch, index }) => {
     platform: ref_match_score & 2 ? output_ref.platform : null,
     extra_parameters: ref_match_score & 1 ? output_ref.extra_parameters : null,
   } : null;
+  // only when there are some: the mismatch is compared with the backend's in tests/fixtures/metrics-compare.json
+  const alternatives = imperfect_match ? count_alternatives(candidates) : 0;
+  if (alternatives > 0) mismatch.alternatives = alternatives;
   return { output_ref, mismatch };
+};
+
+// How many reference runs, with other settings, have as many different settings as the one we picked:
+// only how similar their values are (the distances' fractional part) made us choose.
+const count_alternatives = candidates => {
+  const [best] = candidates;
+  const same = (a, b) => Math.floor(a) === Math.floor(b);
+  const settings = new Set();
+  for (const c of candidates.slice(1)) {
+    if (c.dist_input_path !== best.dist_input_path) continue;
+    if (!same(c.dist_configurations, best.dist_configurations) || !same(c.dist_extra_parameters, best.dist_extra_parameters)) continue;
+    if (c.o.configurations_str === best.o.configurations_str && c.o.extra_parameters_str === best.o.extra_parameters_str) continue;
+    settings.add(`${c.o.configurations_str}\u0000${c.o.extra_parameters_str}`);
+  }
+  return settings.size;
 };
 
 const run_key = o => `${o.input_path}\u0000${o.configurations_str}\u0000${o.extra_parameters_str}\u0000${o.platform}`;

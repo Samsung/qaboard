@@ -11,7 +11,7 @@ import {
 } from "@blueprintjs/core";
 
 import { VirtualTbody } from "./VirtualTbody";
-import { PlatformTag, ConfigurationsTags, ExtraParametersTags, RunBadges, RunBadge, MismatchTags } from './tags'
+import { PlatformTag, ConfigurationsTags, RunBadges, RunBadge, MismatchTags } from './tags'
 import { metric_formatter, percent_formatter, MetricHeader } from "./metrics"
 import { diff_cell } from "../utils/compare"
 
@@ -47,11 +47,11 @@ const RowHeaderCell = ({ output }) => {
   const test_input = output.test_input_metadata?.label ?? `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`
   return (
     <th scope="row">
-      {test_input} <ExtraParametersTags parameters={output.extra_parameters} />
+      {test_input}{' '}
       <RunBadges output={output}></RunBadges>
       <PlatformTag platform={output.platform}/>
-      <ConfigurationsTags configurations={output.configurations}/>
-      <MismatchTags mismatch={output.reference_mismatch}/>
+      <ConfigurationsTags configurations={output.configurations} tuning={output.extra_parameters} mismatch={output.reference_mismatch}/>
+      <MismatchTags mismatch={output.reference_mismatch} configurations={output.configurations} tuning={output.extra_parameters}/>
       {output.is_failed && <Tag style={{marginLeft: '5px'}} intent={Intent.DANGER}>Failed</Tag>}
     </th>
   );

@@ -52,6 +52,7 @@ It only lists what changes the views you're on:
   - Turn on **Per run** to choose the value in each run's card instead. **Same for all runs**, in a card, turns it back off.
   - The reset button next to an option goes back to the default. Changing an option keeps the image viewers' zoom and selected region.
 - **Viewers** (on the Visualizations and Output Files views): **Compare images** picks how all the image viewers compare new and reference: side by side, with a wipe, toggling between them, or their difference. You can also pick it above any image. Then come the project's own switches, if its *qaboard.yaml* has `controls`.
+- **Configuration** (on the views that show runs): the settings all the runs shown share, and **Hide them in each run**, to show in each run only what's specific to it (see [reading configurations](/docs/user-guide/comparing-results#reading-configurations)).
 - **Sort runs**: sort by name, run id, storage, a tuning parameter or a metric. Until you choose, runs are sorted by the project's default metric, marked *(default)*. The order reads like the values: *Highest first*, *A to Z*, *Newest first*... It applies to the tables and the run cards.
 
 **Reset**, at the top of the panel (or at the bottom of the rail), goes back to the project's defaults for the visualizations, the files to show and the viewers. The sorting stays as it is.
@@ -129,7 +130,7 @@ One row per run, with `new − ref` for each metric, and the change in percent. 
 Use the **Sort runs** section of the view options to sort runs by a metric, and see the worst regressions first.
 :::
 
-Yellow **Input**, **Config**, **Platform** or **Tuning** tags (with a `≠` icon) mean the run was compared with a reference run that is not exactly the same. Hover them for details. See [How runs are matched](comparing-results.mdx#how-runs-are-matched).
+Yellow **Input**, **Config** or **Platform** tags (with a `≠` icon) mean the run was compared with a reference run that is not exactly the same. Hover them for details. See [How runs are matched](comparing-results.mdx#how-runs-are-matched).
 
 ### Visualizations
 One card per run, with its main metrics (and their change vs the reference) and the visualizations configured for the project: images, plots, videos, text, HTML, flame graphs, point clouds... The reference is shown next to the new result.

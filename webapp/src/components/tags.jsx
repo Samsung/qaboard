@@ -20,8 +20,9 @@ import { useRefreshCommit, useSiteConfig } from "../hooks";
 import { linux_to_windows } from '../utils'
 import { folder_url, hasPathMappings } from '../utils/paths'
 import { toaster } from "../toaster"
-import { copyWithToast } from "../utils/clipboard"
 import { copyDirectory } from "./logs/DirectoryActions"
+import { hidden_keys } from "../configurations/tokens"
+import { ConfigurationsTags, ConfigurationDiff } from "../configurations/ConfigurationsTags"
 import { runName } from "./logs/RunLogs"
 
 
@@ -56,153 +57,6 @@ const PlatformTag = ({ platform, inverted }) => {
   return <Tag round minimal={!inverted} title="Platform the run used" style={{ marginRight: '5px', marginLeft: '5px' }}>@{platform}</Tag>
 }
 
-const hidden_keys = ["badges", "roi", "auto_rois"]
-
-// Helper function to convert configuration to tuning format
-const convertToTuningFormat = (configurations) => {
-  const merged = {};
-  
-  configurations.forEach(config => {
-    if (typeof config === 'object' && config !== null) {
-      Object.entries(config)
-        .filter(([k]) => !hidden_keys.includes(k))
-        .forEach(([key, value]) => {
-          // Handle numeric vectors/arrays specially
-          if (Array.isArray(value) && value.every(item => typeof item === 'number')) {
-            merged[key] = [[[value]]];
-          } else {
-            merged[key] = [value];
-          }
-        });
-    }
-  });
-  
-  return Object.keys(merged).length > 0 ? JSON.stringify(merged, null, 2) : null;
-};
-
-const ConfigurationsTags = ({configurations, inverted, intent, toplevel=true}) => {
-    // Some configuration key names are used and shown by viewers - we don't display them here...
-    const tags = configurations.map((c, idx) => {
-      const wrapper_style = { marginRight: '5px', marginBottom: '3px', fontWeight: '400' }
-      
-      if (typeof (c) === 'string') {
-        const stringTag = <Tag
-          intent={intent}
-          round
-          minimal={!inverted}
-          interactive
-          key={idx}
-          style={wrapper_style}
-        >{c}</Tag>
-        
-        if (!toplevel) return stringTag;
-        
-        return <PopoverNext
-          key={idx}
-          placement="bottom"
-          hoverCloseDelay={200}
-          interactionKind={"hover"}
-          content={
-            <Menu>
-              <MenuItem
-                icon="duplicate"
-                text="Copy this item"
-                onClick={() => copyWithToast(c, { what: 'the configuration item' })}
-              />
-              <MenuItem
-                icon="duplicate"
-                text="Copy full configuration"
-                onClick={() => copyWithToast(JSON.stringify(configurations, null, 2), { what: 'the configuration' })}
-              />
-              {convertToTuningFormat(configurations) && <MenuItem
-                icon="duplicate"
-                text="Copy full config in tuning format"
-                onClick={() => copyWithToast(convertToTuningFormat(configurations), { what: 'the configuration in tuning format' })}
-              />}
-            </Menu>
-          }
-        >
-          {stringTag}
-        </PopoverNext>
-      } else {
-        const objectTags = <span style={wrapper_style} key={idx}>
-          {Object.entries(c)
-                 .filter(([k]) => !hidden_keys.includes(k))
-                 .map( ([k, v]) => {
-                   const tag = <Tag round interactive minimal={!inverted} key={k} intent={intent}>
-                     <strong>{k}:</strong> {JSON.stringify(v)}
-                   </Tag>
-                   
-                   if (!toplevel) return tag;
-                   
-                   return <PopoverNext
-                     key={k}
-                     placement="bottom"
-                     hoverCloseDelay={200}
-                     interactionKind={"hover"}
-                     content={
-                       <Menu>
-                         <MenuItem
-                           icon="duplicate"
-                           text={<span>Copy <em>{`${k}`}</em></span>}
-                           onClick={() => copyWithToast(`${k}: ${JSON.stringify(v)}`, { what: k })}
-                         />
-                         <MenuItem
-                           icon="duplicate"
-                           text="Copy as JSON"
-                           onClick={() => copyWithToast(JSON.stringify(c, null, 2), { what: 'the configuration item' })}
-                         />
-                         <MenuItem
-                           icon="duplicate"
-                           text="Copy full configuration"
-                           onClick={() => copyWithToast(JSON.stringify(configurations, null, 2), { what: 'the configuration' })}
-                         />
-                         {convertToTuningFormat(configurations) && <MenuItem
-                           icon="duplicate"
-                           text="Copy full configuration in tuning format"
-                           onClick={() => copyWithToast(convertToTuningFormat(configurations), { what: 'the configuration in tuning format' })}
-                         />}
-                       </Menu>
-                     }
-                   >
-                     {tag}
-                   </PopoverNext>
-                 })}
-          </span>
-          
-        return objectTags;
-      }
-    })
-
-    if (!toplevel)
-      return tags
-      
-    return <span>{tags}</span>
-}
-
-
-const ExtraParametersTags = ({ parameters, intent = Intent.PRIMARY, inverted, before }) => {
-  if (Object.keys(parameters).length === 0)
-    return <span />
-
-  const pretty_json = JSON.stringify(parameters, null, 2);
-  const copy = () => copyWithToast(pretty_json, { what: 'the parameters' });
-  const tags = Object.entries(parameters)
-    .filter(([k]) => !hidden_keys.includes(k))
-    .map(([k, v]) => (
-      <Tag key={k} intent={intent} minimal={!inverted} round interactive onClick={copy} title="Tuning parameters. Click to copy them as JSON" style={{ marginRight: '5px', marginBottom: '3px' }}>
-        <strong>{k}: </strong> {JSON.stringify(v)}
-      </Tag>
-    ));
-
-  return <span>
-    {before}
-    {tags}
-  </span>
-}
-
-
-
 const MismatchTag = ({text, what, explanation}) => {
   return <div>
     <Tooltip content={<div>
@@ -215,15 +69,24 @@ const MismatchTag = ({text, what, explanation}) => {
   </div>
 }
 
-const MismatchTags = ({mismatch}) => {
+// Configurations are long: we show how they differ, like `git diff`. With the tuning parameters, settings like the others.
+const ConfigMismatchTag = ({ configurations, tuning, mismatch }) => <div>
+  <PopoverNext placement="bottom" interactionKind="hover" hoverCloseDelay={200} content={
+    <ConfigurationDiff configurations={configurations} tuning={tuning} mismatch={mismatch} />
+  }>
+    <Tag intent={Intent.WARNING} icon="not-equal-to" interactive style={{ verticalAlign: 'baseline', marginLeft: "4px" }}>Config</Tag>
+  </PopoverNext>
+</div>
+
+// `configurations` and `tuning` are the run's: the mismatch has its reference's
+const MismatchTags = ({mismatch, configurations, tuning}) => {
   if (mismatch===null || mismatch===undefined)
     return <span/>
-  const { test_input_path, configurations, platform, extra_parameters } = mismatch;
+  const { test_input_path, platform } = mismatch;
   return <div>
     {test_input_path  && <MismatchTag text="Input" what="input" explanation={test_input_path} />}
-    {configurations   && <MismatchTag text="Config" what="configuration" explanation={<ConfigurationsTags inverted configurations={configurations} />} />}
+    {(mismatch.configurations || mismatch.extra_parameters) && <ConfigMismatchTag configurations={configurations} tuning={tuning} mismatch={mismatch} />}
     {platform         && <MismatchTag text="Platform" what="platform" explanation={<PlatformTag inverted platform={platform} />} />}
-    {extra_parameters && <MismatchTag text="Tuning" what="tuning parameters" explanation={Object.keys(extra_parameters).length > 0 ? <ExtraParametersTags inverted parameters={extra_parameters} /> : 'No tuning'} />}
   </div>
 }
 
@@ -384,7 +247,7 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
   return <span style={style}>
     {deleted && <Tag icon="trash">deleted</Tag>}
     <PlatformTag platform={platform} />
-    <ConfigurationsTags configurations={configurations} />
+    <ConfigurationsTags configurations={configurations} tuning={output.extra_parameters} mismatch={mismatch} />
 
     {output_type !== "batch" &&
     <PopoverNext placement="bottom" content={
@@ -481,9 +344,9 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
       />
       </Tooltip>}
     )}
-    <MismatchTags mismatch={mismatch}/>
+    <MismatchTags mismatch={mismatch} configurations={configurations} tuning={output.extra_parameters}/>
   </span>
 }
 
 
-export { hidden_keys, RunActionsMenu, StatusTag, PlatformTag, ConfigurationsTags, ExtraParametersTags, MismatchTags, OutputTags, RunBadge, RunBadges, style_skeleton };
+export { hidden_keys, RunActionsMenu, StatusTag, PlatformTag, ConfigurationsTags, MismatchTags, OutputTags, RunBadge, RunBadges, style_skeleton };
