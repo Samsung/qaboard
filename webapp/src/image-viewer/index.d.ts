@@ -76,6 +76,12 @@ export interface RegionSet {
   empty?: string;
 }
 
+/** A blind test: what the image (`image`, not `reference`) is called, and whether users revealed which is which */
+export interface BlindTest {
+  a: 'A' | 'B';
+  revealed?: boolean;
+}
+
 /** An action of the app in the regions menu, e.g. finding the regions of all the images of a page */
 export interface RegionAction {
   id: string;
@@ -155,6 +161,19 @@ export interface ImageViewerProps {
   onRegionSetChange?: (id: string | null) => void;
   /** The app's actions in the regions menu */
   regionActions?: RegionAction[];
+
+  /** The reference shows first (left, or in toggle mode), controlled with onSwappedChange, e.g. for every viewer of a page */
+  swapped?: boolean;
+  defaultSwapped?: boolean;
+  onSwappedChange?: (swapped: boolean) => void;
+
+  /**
+   * A blind test: the images are called A and B. Without it, the viewer runs its own (h, or the Blind test button).
+   * Controlled, the viewer asks with onBlindTestChange: 'start' (show the images in a random order with `swapped`, the
+   * first one called A), 'reveal', then 'end'.
+   */
+  blindTest?: BlindTest | null;
+  onBlindTestChange?: (action: 'start' | 'reveal' | 'end') => void;
 
   /**
    * The images' own values, e.g. raw or 16-bit, shown under the pointer and on the pixels.

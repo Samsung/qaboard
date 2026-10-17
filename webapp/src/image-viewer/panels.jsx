@@ -60,7 +60,9 @@ const ImageValues = ({ label, pixel, display, image, base, intent }) => <span cl
   {!display && pixel === null && <span className="qiv-muted">outside</span>}
 </span>;
 
-export const Readout = ({ controller, tiles, images, comparing, diff, base, onToggleBase, sizes }) => {
+// The pixel under the pointer, in the order the images show (order: ['a', 'b'] or ['b', 'a']), named by `names`, e.g.
+// A and B during a blind test (neutral: no colors that tell new from reference).
+export const Readout = ({ controller, tiles, images, comparing, names, order, neutral, diff, base, onToggleBase, sizes }) => {
   // It reads the viewers (what's under the pointer, the colors drawn) as it renders: nothing to memoize
   'use no memo';
   const pointer = useSyncExternalStore(controller.subscribePointer, controller.getPointer);
@@ -72,29 +74,40 @@ export const Readout = ({ controller, tiles, images, comparing, diff, base, onTo
   const hovering = pointer && !pointer.remote ? pointer.point : null;
   if (hovering && hovering !== last) setLast(hovering);
   const point = hovering ?? last;
-  const pixel_a = point && controller.imagePixel('a', point);
-  const pixel_b = point && comparing ? controller.imagePixel('b', point) : null;
-  const display_a = pixel_a && controller.displayPixel('a', point);
-  const display_b = pixel_b && controller.displayPixel('b', point);
-  const image_a = useImageValue(tiles, images.a, sizes.a, pixel_a);
-  const image_b = useImageValue(tiles, comparing ? images.b : null, sizes.b, pixel_b);
+  const pixel = {
+    a: point ? controller.imagePixel('a', point) : null,
+    b: point && comparing ? controller.imagePixel('b', point) : null,
+  };
+  const display = {
+    a: pixel.a && controller.displayPixel('a', point),
+    b: pixel.b && controller.displayPixel('b', point),
+  };
+  const value = {
+    a: useImageValue(tiles, images.a, sizes.a, pixel.a),
+    b: useImageValue(tiles, comparing ? images.b : null, sizes.b, pixel.b),
+  };
+  const shown = comparing ? order : ['a'];
+  const [first, second] = order;
+  const intent = name => neutral ? 'neutral' : name === 'a' ? 'primary' : 'warning';
 
   if (!point) {
     const size = s => s?.width ? `${s.width}×${s.height}` : '…';
     return <div className="qiv-readout qiv-muted">
-      {comparing
-        ? <span>{images.a?.label ?? 'new'} {size(sizes.a)} · {images.b?.label ?? 'reference'} {size(sizes.b)}</span>
-        : <span>{size(sizes.a)}</span>}
+      <span>{shown.map(name => comparing ? `${names[name]} ${size(sizes[name])}` : size(sizes[name])).join(' · ')}</span>
       <span className="qiv-readout-hint">Hover a pixel for its values · scroll to zoom · drag to pan</span>
     </div>;
   }
   const { method } = normalizeDiff(diff);
-  const delta = display_a && display_b ? diffAt(diff, display_a, display_b) : null;
+  // the second subtracted from the first, as shown
+  const delta = display[first] && display[second] ? diffAt(diff, display[first], display[second]) : null;
   // the difference of the images' values, for images of the same size
   const same_size = sizes.a?.width === sizes.b?.width && sizes.a?.height === sizes.b?.height;
-  const image_delta = same_size && image_a?.value && image_b?.value && image_a.value.length === image_b.value.length
-    ? image_a.value.map((v, i) => v === null || image_b.value[i] === null ? null : v - image_b.value[i]) : null;
-  const coordinates = pixel_a ?? pixel_b;
+  const value_first = value[first]?.value;
+  const value_second = value[second]?.value;
+  const image_delta = same_size && value_first && value_second && value_first.length === value_second.length
+    ? value_first.map((v, i) => v === null || value_second[i] === null ? null : v - value_second[i]) : null;
+  const coordinates = pixel[first] ?? pixel[second];
+  const moved = pixel[first] && pixel[second] && (pixel[second].x !== pixel[first].x || pixel[second].y !== pixel[first].y);
   return <button
     type="button"
     className={`qiv-readout ${hovering ? '' : 'qiv-stale'}`}
@@ -102,12 +115,9 @@ export const Readout = ({ controller, tiles, images, comparing, diff, base, onTo
     title={`The pixel under the pointer. Click to show the values in ${base === 10 ? 'hexadecimal' : 'decimal'}`}
   >
     {coordinates && <span className="qiv-coordinates">x {coordinates.x} y {coordinates.y} </span>}
-    {pixel_b && pixel_a && (pixel_b.x !== pixel_a.x || pixel_b.y !== pixel_a.y) && <span className="qiv-coordinates qiv-muted">
-      (ref x {pixel_b.x} y {pixel_b.y})
-    </span>}
-    <ImageValues label={images.a?.label ?? 'new'} intent="primary" pixel={pixel_a} display={display_a} image={image_a} base={base} />
-    {comparing && <ImageValues label={images.b?.label ?? 'reference'} intent="warning" pixel={pixel_b} display={display_b} image={image_b} base={base} />}
-    {delta && <span className="qiv-readout-image" title={`${images.a?.label ?? 'new'} − ${images.b?.label ?? 'reference'}`}>
+    {moved && <span className="qiv-coordinates qiv-muted">({names[second]} x {pixel[second].x} y {pixel[second].y}) </span>}
+    {shown.map(name => <ImageValues key={name} label={names[name]} intent={intent(name)} pixel={pixel[name]} display={display[name]} image={value[name]} base={base} />)}
+    {delta && <span className="qiv-readout-image" title={`${names[first]} − ${names[second]}`}>
       <span className="qiv-readout-label">Δ</span>{' '}
       {image_delta
         ? <span title={IMAGE_VALUES}><Chip>image</Chip> <Values values={image_delta} signed /></span>
@@ -185,7 +195,7 @@ const readHistograms = (controller, comparing) => {
   }
 };
 
-export const Histogram = ({ controller, comparing, labels }) => {
+export const Histogram = ({ controller, comparing, names }) => {
   const canvas = useRef(null);
   const [error, setError] = useState(null);
   const timer = useRef(null);
@@ -244,8 +254,8 @@ export const Histogram = ({ controller, comparing, labels }) => {
       <span>Histogram of the view</span>
       <span className="qiv-histogram-legend">
         {CHANNEL_NAMES.map((name, i) => <span key={name} style={{ color: CHANNEL_COLORS[i] }}>{name}</span>)}
-        <span className="qiv-muted">— {labels.a}</span>
-        {comparing && <span className="qiv-muted">- - {labels.b}</span>}
+        <span className="qiv-muted">— {names.a}</span>
+        {comparing && <span className="qiv-muted">- - {names.b}</span>}
       </span>
     </div>
     {error ? <div className="qiv-message">{error}</div> : <canvas ref={canvas} aria-label="Histograms of the displayed images" />}
@@ -277,7 +287,8 @@ export const DiffSettings = ({ diff, onChange }) => {
   </span>;
 };
 
-export const DiffLegend = ({ diff }) => {
+// names: of the images, first then second as they show, e.g. ['new', 'reference']
+export const DiffLegend = ({ diff, names = ['new', 'reference'] }) => {
   const legend = diffLegend(diff);
   const { method } = normalizeDiff(diff);
   return <div className="qiv-legend" title={DIFF_METHODS[method].description}>
@@ -288,7 +299,7 @@ export const DiffLegend = ({ diff }) => {
       <span>{legend.to}</span>
     </>}
     {method === 'absolute' && <span>black: identical · {legend.to}: full color</span>}
-    {method === 'signed' && <span className="qiv-muted">blue: darker · red: brighter</span>}
+    {method === 'signed' && <span className="qiv-muted">red: {names[0]} brighter · blue: darker</span>}
     {method === 'exact' && <span><span className="qiv-swatch" style={{ background: 'rgb(230,30,30)' }} /> differs</span>}
   </div>;
 };
@@ -421,7 +432,7 @@ export const SHORTCUTS = [
   ['Drag', 'Pan (drag the divider to wipe)'],
   ['Double-click', 'Zoom in'],
   ['p', 'Show / hide the pixel values when zoomed in'],
-  ['h', 'Hide / show the labels'],
+  ['h', 'Blind test: the images in a random order, called A and B. h again reveals them, then ends it'],
   ['[ ]', 'Previous / next region of interest'],
 ];
 

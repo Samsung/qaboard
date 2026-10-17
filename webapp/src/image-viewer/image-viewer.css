@@ -420,6 +420,9 @@
 .qiv-readout-label.qiv-primary {
   color: var(--qiv-primary);
 }
+.qiv-readout-label.qiv-neutral {
+  color: var(--qiv-text);
+}
 .qiv-readout-label.qiv-warning {
   color: var(--qiv-warning);
 }
@@ -499,6 +502,10 @@
 }
 .qiv-label.qiv-warning {
   background: #c87619;
+}
+/* during a blind test: nothing tells new from reference */
+.qiv-label.qiv-neutral {
+  background: #5f6b7c;
 }
 .qiv-label-left {
   left: 6px;

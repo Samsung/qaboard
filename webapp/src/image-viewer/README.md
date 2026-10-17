@@ -155,6 +155,32 @@ Control the set shown (`regionSet`, `onRegionSetChange`) to show the same in sev
 to the regions menu with `regionActions`: QA-Board's finds where the images differ for all the runs of a page, then
 ranks the runs.
 
+### Blind test
+**Blind test** (next to Swap, or <kbd>h</kbd>) shows the images in a random order, called A and B in the labels, the
+values under the pointer, the histograms and the menus. **Reveal** then shows which was which, and **Done** goes back
+to the image first. To run one test over several viewers, control it: QA-Board shuffles each viewer of the page with
+its own coin, from the test's seed.
+
+```jsx
+const [swapped, setSwapped] = useState(false);
+const [test, setTest] = useState(null); // { seed, swapped: when it started, revealed }
+// heads or tails for this viewer and this test, e.g. a hash of the seed and an id of the viewer
+const shuffled = !!test && coin(test.seed, id);
+<ImageViewer
+  image={a}
+  reference={b}
+  swapped={swapped !== shuffled}
+  onSwappedChange={() => setSwapped(s => !s)}
+  // what showed first when the test started is A
+  blindTest={test && { a: test.swapped !== shuffled ? 'B' : 'A', revealed: test.revealed }}
+  onBlindTestChange={action => {
+    if (action === 'start') setTest({ seed: Math.random(), swapped, revealed: false });
+    else if (action === 'reveal') setTest(t => ({ ...t, revealed: true }));
+    else { setTest(null); setSwapped(false); }
+  }}
+/>
+```
+
 ### Synced viewers
 Viewers with the same `syncKey` zoom and pan together, when their images have the same aspect ratio (whatever their
 resolution), and show a cross where the pointer is on the others. Viewers off-screen catch up when they show.
@@ -179,6 +205,8 @@ resolution), and show a cross where the pointer is on the others. Viewers off-sc
 | `regionSets` | `[{ id, label, regions?, loading?, error?, load?, empty? }]` | `[]` | Regions of interest |
 | `regionSet`, `defaultRegionSet`, `onRegionSetChange` | `string \| null` | | The set shown (`null`: the full image) |
 | `regionActions` | `[{ id, label, icon?, title?, onClick }]` | `[]` | Your actions in the regions menu |
+| `swapped`, `defaultSwapped`, `onSwappedChange` | `boolean` | `false` | The reference shows first. Control it to swap several viewers at once |
+| `blindTest`, `onBlindTestChange` | `{ a: 'A' \| 'B', revealed? } \| null` | | [A blind test](#blind-test), controlled, e.g. for every viewer of a page |
 | `maxHeight` | `number \| (windowHeight) => number` | `h => h - 160` | The highest images can be |
 | `theme` | `'light' \| 'dark'` | the system's | Or use the [CSS variables](#theming) |
 | `notice`, `toolbarExtra` | React nodes | | Your own things in the toolbar |
@@ -190,7 +218,7 @@ The types are in `index.d.ts`. The package also exports helpers: `iiifUrl`, `thu
 ### Keyboard
 For the viewer under the mouse, or that has the focus: <kbd>1</kbd>–<kbd>4</kbd> the mode, <kbd>t</kbd> swap the
 images (flip in toggle mode, like a click), <kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd> zoom, <kbd>p</kbd> pixel values,
-<kbd>h</kbd> labels, <kbd>f</kbd> full screen (<kbd>Esc</kbd> leaves), <kbd>[</kbd> <kbd>]</kbd> previous / next region. The wheel or a pinch zooms, a drag pans, a
+<kbd>h</kbd> blind test (then reveal, then end), <kbd>f</kbd> full screen (<kbd>Esc</kbd> leaves), <kbd>[</kbd> <kbd>]</kbd> previous / next region. The wheel or a pinch zooms, a drag pans, a
 double-click zooms in.
 
 

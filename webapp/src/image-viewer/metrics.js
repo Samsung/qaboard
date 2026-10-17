@@ -21,7 +21,7 @@ export const DIFF_METHODS = {
   signed: {
     label: 'Signed',
     title: 'Luma of new − reference, amplified',
-    description: 'Red where new is brighter than the reference, blue where it is darker.',
+    description: 'Red where the first image (new, unless swapped) is brighter than the second, blue where it is darker.',
     setting: 'gain',
     values: [1, 2, 4, 8, 16, 32, 64],
     default: 4,

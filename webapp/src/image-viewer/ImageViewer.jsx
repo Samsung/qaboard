@@ -95,6 +95,11 @@ export const ImageViewer = ({
   defaultRegionSet = null,
   onRegionSetChange,
   regionActions = [],
+  swapped: swapped_prop,
+  defaultSwapped = false,
+  onSwappedChange,
+  blindTest: blind_prop,
+  onBlindTestChange,
   getPixels,
   maxHeight = DEFAULT_MAX_HEIGHT,
   theme,
@@ -128,9 +133,34 @@ export const ImageViewer = ({
   const [tiles] = useState(() => new PixelTiles());
   useLayoutEffect(() => tiles.setGetPixels(getPixels));
   useEffect(() => () => tiles.dispose(), [tiles]);
-  const [swapped, setSwapped] = useState(false);
+  // The reference first (on the left, or shown in toggle mode): controlled with onSwappedChange, e.g. for all the viewers
+  // of a page, or not
+  const [swapped, setSwapped] = useControllable(swapped_prop, defaultSwapped, onSwappedChange);
+  // A blind test: the images are called A and B ({ a: 'A' | 'B', revealed }), in a random order. Controlled with
+  // blindTest and onBlindTestChange('start' | 'reveal' | 'end'), e.g. for all the viewers of a page, or not.
+  const [own_blind, setOwnBlind] = useState(null);
+  const blind = blind_prop !== undefined ? blind_prop : own_blind;
+  const blindTest = action => {
+    if (blind_prop !== undefined) return onBlindTestChange?.(action);
+    if (action === 'start') {
+      const coin = Math.random() < 0.5;
+      setSwapped(coin);
+      setOwnBlind({ a: coin ? 'B' : 'A', revealed: false });
+    } else if (action === 'reveal') {
+      setOwnBlind(b => b && { ...b, revealed: true });
+    } else {
+      setOwnBlind(null);
+      setSwapped(false);
+    }
+  };
+  const nextBlindStep = () => blindTest(!blind ? 'start' : blind.revealed ? 'end' : 'reveal');
+  // What the images are called: new and reference, A and B during a blind test, both once revealed
+  const hidden = !!blind && !blind.revealed;
+  const other_letter = letter => letter === 'A' ? 'B' : 'A';
+  const names = !blind ? labels
+    : blind.revealed ? { a: `${labels.a} · ${blind.a}`, b: `${labels.b} · ${other_letter(blind.a)}` }
+    : { a: blind.a, b: other_letter(blind.a) };
   const [wipe, setWipe] = useState(0.5);
-  const [hide_labels, setHideLabels] = useState(false);
   const [base, setBase] = useState(10);
   const [show_histogram, setShowHistogram] = useState(false);
   const [diff_error, setDiffError] = useState(null);
@@ -219,7 +249,7 @@ export const ImageViewer = ({
 
   const first = swapped ? 'b' : 'a';
   const second = swapped ? 'a' : 'b';
-  const swap = () => setSwapped(s => !s);
+  const swap = () => setSwapped(!swapped);
   // Picking the mode shown again: Toggle flips the images, Difference shows or hides the images on its sides
   const pickMode = value => {
     if (value === mode && value === 'toggle') swap();
@@ -322,7 +352,8 @@ export const ImageViewer = ({
           swap();
           return true;
         case 'h':
-          setHideLabels(hide => !hide);
+          if (!comparing) return false;
+          nextBlindStep();
           return true;
         case 'p':
           toggleValues();
@@ -388,22 +419,22 @@ export const ImageViewer = ({
   };
 
   const resolution = name => snapshot[name].width ? <span className="qiv-label-detail">{snapshot[name].width}×{snapshot[name].height}</span> : null;
-  const label = (name, position) => hide_labels || !comparing ? null : <button
+  const label = (name, position) => !comparing ? null : <button
     key={`label-${name}-${position}`}
     type="button"
-    className={`qiv-label qiv-label-${position} ${name === 'a' ? 'qiv-primary' : 'qiv-warning'}`}
-    title="Swap the images (t). Hide the labels with h"
+    className={`qiv-label qiv-label-${position} ${hidden ? 'qiv-neutral' : name === 'a' ? 'qiv-primary' : 'qiv-warning'}`}
+    title={hidden ? 'Blind test: which is new? Swap them (t), reveal with h' : 'Swap the images (t). Blind test: h'}
     onClick={swap}
     onPointerDown={event => event.stopPropagation()}
   >
-    {labels[name]}{resolution(name)}
+    {names[name]}{resolution(name)}
   </button>;
 
   const pane_error = name => {
     const error = snapshot[name].error;
     if (!error) return null;
     return <div className="qiv-message qiv-pane-message">
-      <strong>Can't show {comparing ? `the ${labels[name]} image` : 'the image'}</strong>
+      <strong>Can't show {comparing ? `the ${names[name]} image` : 'the image'}</strong>
       <span>{error.message}</span>
       {error.url && <a href={error.url} target="_blank" rel="noopener noreferrer">See why</a>}
     </div>;
@@ -414,6 +445,7 @@ export const ImageViewer = ({
   const pixelValues = pane => <PixelValues
     controller={controller}
     pane={pane}
+    order={[first, second]}
     source={visible ? pixel_source : 'off'}
     width={pane_width}
     height={pane_height}
@@ -447,16 +479,17 @@ export const ImageViewer = ({
   const copy = (source, what, adjusted = true) => copied(() => copyCanvas(source, adjusted ? filter : undefined), what).then(notify);
   const base_name = (images.a?.href ?? images.a?.url ?? images.a?.iiif ?? 'image').split('/').pop().split(/[?#]/)[0].replace(/(%2F)/gi, '_').replace(/\.[^.]*$/, '');
   const export_menu = ({ close }) => <div className="qiv-menu" role="menu">
-    <MenuItem icon="duplicate" text={`Copy the ${labels.a} image`} disabled={!can_copy('a')} onClick={() => { copy(controller.canvas('a'), `${labels.a} image`); close(); }} />
-    {comparing && <MenuItem icon="duplicate" text={`Copy the ${labels.b} image`} disabled={!can_copy('b')} onClick={() => { copy(controller.canvas('b'), `${labels.b} image`); close(); }} />}
+    <MenuItem icon="duplicate" text={`Copy the ${names.a} image`} disabled={!can_copy('a')} onClick={() => { copy(controller.canvas('a'), `${names.a} image`); close(); }} />
+    {comparing && <MenuItem icon="duplicate" text={`Copy the ${names.b} image`} disabled={!can_copy('b')} onClick={() => { copy(controller.canvas('b'), `${names.b} image`); close(); }} />}
     {mode === 'difference' && <MenuItem icon="duplicate" text="Copy the difference" onClick={() => { copy(diff_canvas.current, 'difference', false); close(); }} />}
     <MenuDivider />
-    <MenuItem icon="download" text={`Save the ${labels.a} view (PNG)`} disabled={!can_copy('a')} onClick={() => { saveCanvas(controller.canvas('a'), filter, `${base_name}.${labels.a}.png`); close(); }} />
-    {comparing && <MenuItem icon="download" text={`Save the ${labels.b} view (PNG)`} disabled={!can_copy('b')} onClick={() => { saveCanvas(controller.canvas('b'), filter, `${base_name}.${labels.b}.png`); close(); }} />}
+    <MenuItem icon="download" text={`Save the ${names.a} view (PNG)`} disabled={!can_copy('a')} onClick={() => { saveCanvas(controller.canvas('a'), filter, `${base_name}.${names.a}.png`); close(); }} />
+    {comparing && <MenuItem icon="download" text={`Save the ${names.b} view (PNG)`} disabled={!can_copy('b')} onClick={() => { saveCanvas(controller.canvas('b'), filter, `${base_name}.${names.b}.png`); close(); }} />}
     {mode === 'difference' && <MenuItem icon="download" text="Save the difference (PNG)" onClick={() => { saveCanvas(diff_canvas.current, undefined, `${base_name}.difference.png`); close(); }} />}
-    {(images.a?.href || images.b?.href) && <MenuDivider />}
-    {images.a?.href && <MenuItem icon="media" text={`Open the ${labels.a} file`} href={images.a.href} onClick={close} />}
-    {comparing && images.b?.href && <MenuItem icon="media" text={`Open the ${labels.b} file`} href={images.b.href} onClick={close} />}
+    {/* their URLs would tell which is which during a blind test */}
+    {!hidden && (images.a?.href || images.b?.href) && <MenuDivider />}
+    {!hidden && images.a?.href && <MenuItem icon="media" text={`Open the ${names.a} file`} href={images.a.href} onClick={close} />}
+    {!hidden && comparing && images.b?.href && <MenuItem icon="media" text={`Open the ${names.b} file`} href={images.b.href} onClick={close} />}
     {changedAdjustments(adjustments).length > 0 && <div className="qiv-hint">Copied with the adjustments: {describeAdjustments(adjustments).join(', ')}</div>}
   </div>;
 
@@ -481,12 +514,23 @@ export const ImageViewer = ({
       {comparing && <Segmented label="Compare" options={MODES} value={mode} onChange={pickMode} />}
       {mode === 'difference' && <Button
         icon="three-columns"
-        title={diff_between ? 'Show the difference alone (4)' : `Show the images on each side of the difference: ${labels.a} | difference | ${labels.b} (4)`}
+        title={diff_between ? 'Show the difference alone (4)' : `Show the images on each side of the difference: ${names[first]} | difference | ${names[second]} (4)`}
         active={diff_between}
         aria-pressed={diff_between}
         onClick={toggleDiffLayout}
       />}
-      {comparing && (mode !== 'difference' || diff_between) && <Button icon="exchange" title={`Swap ${labels.a} and ${labels.b} (t)`} onClick={swap} active={swapped} aria-pressed={swapped} />}
+      {comparing && (mode !== 'difference' || diff_between) && <Button icon="exchange" title={`Swap ${names[first]} and ${names[second]} (t)`} onClick={swap} active={swapped && !hidden} aria-pressed={swapped && !hidden} />}
+      {comparing && <Button
+        icon={!blind ? 'eye-off' : blind.revealed ? 'tick' : 'eye-open'}
+        text={!blind ? 'Blind test' : blind.revealed ? 'Done' : 'Reveal'}
+        title={!blind ? 'Blind test: the images in a random order, called A and B (h)'
+          : blind.revealed ? 'End the blind test: new and reference again, new first (h)'
+          : 'Blind test: reveal which image is which (h)'}
+        className={blind ? 'qiv-intent' : ''}
+        active={!!blind}
+        aria-pressed={!!blind}
+        onClick={nextBlindStep}
+      />}
       {mode === 'difference' && <DiffSettings diff={diff} onChange={value => setDiff({ ...value, layout: diff_layout })} />}
       {notice}
       <span className="qiv-spacer" />
@@ -545,7 +589,7 @@ export const ImageViewer = ({
     {active_set && <RegionsStrip
       set={active_set}
       index={index}
-      image={images.a}
+      image={hidden ? images[first] : images.a}
       size={size_a}
       onSelect={selectRegion}
       onRetry={() => active_set.load?.()}
@@ -555,6 +599,9 @@ export const ImageViewer = ({
       tiles={tiles}
       images={images}
       comparing={comparing}
+      names={names}
+      order={[first, second]}
+      neutral={hidden}
       diff={diff}
       base={base}
       onToggleBase={() => setBase(b => b === 10 ? 16 : 10)}
@@ -575,19 +622,19 @@ export const ImageViewer = ({
         onPointerMove={diff_between ? event => controller.hover('diff', event.clientX, event.clientY, event.currentTarget) : undefined}
         onPointerLeave={diff_between ? () => controller.unhover() : undefined}
       >
-        <DiffLayer controller={controller} diff={diff} active={visible} width={pane_width} height={pane_height} canvasRef={diff_canvas} onError={setDiffError} />
+        <DiffLayer controller={controller} order={[first, second]} diff={diff} active={visible} width={pane_width} height={pane_height} canvasRef={diff_canvas} onError={setDiffError} />
         {pixelValues('diff')}
         <Crosshair controller={controller} pane="diff" />
-        {diff_between && !hide_labels && <>
-          <span className="qiv-label qiv-label-left qiv-label-diff" title={`How ${labels.a} differs from ${labels.b}`}>difference</span>
-          <div className="qiv-stage-notes"><DiffLegend diff={diff} /></div>
+        {diff_between && <>
+          <span className="qiv-label qiv-label-left qiv-label-diff" title={`${names[first]} − ${names[second]}`}>difference</span>
+          <div className="qiv-stage-notes"><DiffLegend diff={diff} names={[names[first], names[second]]} /></div>
         </>}
         {diff_error && <div className="qiv-message qiv-pane-message">{diff_error}</div>}
       </div>}
-      {!hide_labels && <div className="qiv-stage-notes">
-        {mode === 'difference' && !diff_between && <DiffLegend diff={diff} />}
+      <div className="qiv-stage-notes">
+        {mode === 'difference' && !diff_between && <DiffLegend diff={diff} names={[names[first], names[second]]} />}
         <ValuesBadge drawn={pixel_source !== 'off' ? values_drawn : null} />
-      </div>}
+      </div>
       {mode === 'wipe' && <>
         {label(first, 'left')}
         {label(second, 'right')}
@@ -620,9 +667,9 @@ export const ImageViewer = ({
         </div>
       </>}
       {mode === 'toggle' && label(first, 'left')}
-      <Minimap controller={controller} image={images.a} size={size_a} />
+      <Minimap controller={controller} image={hidden ? images[first] : images.a} size={size_a} />
     </div>
-    {show_histogram && <Histogram controller={controller} comparing={comparing} labels={labels} />}
+    {show_histogram && <Histogram controller={controller} comparing={comparing} names={names} />}
   </div>;
 };
 

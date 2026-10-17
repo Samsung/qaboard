@@ -383,6 +383,67 @@ test('finds where the images differ in all the runs, and ranks them', async ({ p
   expect(diff_requests).toHaveLength(3);
 });
 
+// The labels of a card's images, from left to right
+const labelsOf = async card => {
+  const labels = await card.locator('.qiv-stage .qiv-label:not(.qiv-label-diff)').evaluateAll(elements => elements
+    .filter(e => e.getBoundingClientRect().width > 0 && getComputedStyle(e).visibility !== 'hidden')
+    .map(e => [e.getBoundingClientRect().x, e.textContent.replace(/\d+×\d+$/, '').trim()]));
+  return labels.sort((a, b) => a[0] - b[0]).map(([, text]) => text);
+};
+
+test('swaps or flips the images of every viewer of the page', async ({ page }) => {
+  await setup(page, { runs: ['A', 'B'] });
+  const [first, second] = [100, 101].map(id => page.locator(`.output-card[data-output-id="${id}"]`));
+  await expect(second.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
+  await expect.poll(() => labelsOf(second)).toEqual(['new', 'reference']);
+  // t over one viewer swaps them all
+  await first.locator('.qiv-pane').first().hover({ position: { x: 50, y: 50 } });
+  await page.keyboard.press('t');
+  await expect.poll(() => labelsOf(second)).toEqual(['reference', 'new']);
+  await expect.poll(() => labelsOf(first)).toEqual(['reference', 'new']);
+  // in toggle mode, a click on one image flips them all
+  await first.getByRole('radio', { name: 'Toggle' }).click();
+  await expect.poll(() => labelsOf(second)).toEqual(['reference']);
+  await first.locator('.qiv-stage').click({ position: { x: 60, y: 60 } });
+  await expect.poll(() => labelsOf(second)).toEqual(['new']);
+  await expect.poll(() => labelsOf(first)).toEqual(['new']);
+});
+
+test('runs a blind test: shuffled, called A and B, then revealed', async ({ page }) => {
+  // the test's seed: the first and third viewers show the reference first, the second doesn't
+  await page.addInitScript(() => { Math.random = () => 0.25; });
+  await setup(page, { runs: ['A', 'B', 'C'] });
+  const cards = [100, 101, 102].map(id => page.locator(`.output-card[data-output-id="${id}"]`));
+  await expect(cards[1].getByRole('button', { name: /^new 512×384/ })).toBeVisible();
+
+  // from the toolbar, or h
+  await cards[0].getByRole('button', { name: 'Blind test' }).click();
+  for (const card of cards.slice(0, 2)) await expect.poll(() => labelsOf(card)).toEqual(['A', 'B']);
+  // nothing tells which is new: names, the values' colors, the swap button
+  const pane = cards[1].locator('.qiv-pane').first();
+  await pane.hover({ position: { x: 120, y: 100 } });
+  const readout = cards[1].locator('.qiv-readout');
+  await expect(readout).toContainText(/A image \d+/);
+  await expect(readout).not.toContainText(/new|reference/);
+  await expect(cards[0].getByRole('button', { name: /^Swap/ })).toHaveAttribute('aria-pressed', 'false');
+
+  // swapping keeps the names with the images
+  await page.keyboard.press('t');
+  await expect.poll(() => labelsOf(cards[1])).toEqual(['B', 'A']);
+  await page.keyboard.press('t');
+
+  // which was which
+  await cards[1].getByRole('button', { name: 'Reveal' }).click();
+  await expect.poll(() => labelsOf(cards[0])).toEqual(['reference · A', 'new · B']);
+  await expect.poll(() => labelsOf(cards[1])).toEqual(['new · A', 'reference · B']);
+  // done: new first again
+  await pane.hover({ position: { x: 120, y: 100 } });
+  await page.keyboard.press('h');
+  await expect.poll(() => labelsOf(cards[0])).toEqual(['new', 'reference']);
+  await expect.poll(() => labelsOf(cards[1])).toEqual(['new', 'reference']);
+  await expect(cards[0].getByRole('button', { name: 'Blind test' })).toBeVisible();
+});
+
 test('shows one image when the reference is the same file', async ({ page }) => {
   await setup(page, { manifests: {
     new: { 'image.png': { st_size: 1000, md5: 'same' } },

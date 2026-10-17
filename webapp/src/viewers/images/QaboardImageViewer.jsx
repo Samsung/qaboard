@@ -62,6 +62,32 @@ const useAdjustmentsStore = create(set => ({
   set: (path, adjustments) => set(state => ({ by_path: { ...state.by_path, [path]: adjustments } })),
 }));
 
+// Which image shows first, and the blind test, are the same for every viewer of the page: swapping or flipping one
+// swaps them all, so that it's clear what we're looking at. During a blind test, each viewer shows its images in a
+// random order (from the test's seed and the viewer), called A and B, until users reveal them.
+const usePageComparisonStore = create(set => ({
+  swapped: false,
+  // { seed, swapped: when it started, revealed }
+  blind: null,
+  swap: () => set(state => ({ swapped: !state.swapped })),
+  blindTest: action => set(state => {
+    if (action === 'start') return { blind: { seed: Math.floor(Math.random() * 2 ** 31), swapped: state.swapped, revealed: false } };
+    if (action === 'reveal') return state.blind ? { blind: { ...state.blind, revealed: true } } : {};
+    // the end: new first again
+    return { blind: null, swapped: false };
+  }),
+}));
+
+// Heads or tails, the same for a seed and a key (FNV-1a, then mixed)
+export const coin = (seed, key) => {
+  let h = (2166136261 ^ seed) >>> 0;
+  for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
+  h ^= h >>> 15;
+  h = Math.imul(h, 2246822507);
+  h ^= h >>> 13;
+  return (h & 1) === 1;
+};
+
 // The region set shown is the same for the viewers of a visualization, e.g. where the images differ
 const useRegionSetStore = create(set => ({
   by_path: {},
@@ -135,6 +161,14 @@ const ImageViewerForRuns = ({
   const region_sets = useRegionSets({ output_new, output_ref: reference ? output_ref : null, path, path_ref });
   const region_set = useRegionSetStore(state => state.by_path[path]);
   const setRegionSet = useRegionSetStore(state => state.set);
+  const page_swapped = usePageComparisonStore(state => state.swapped);
+  const page_blind = usePageComparisonStore(state => state.blind);
+  const swapPage = usePageComparisonStore(state => state.swap);
+  const blindTestPage = usePageComparisonStore(state => state.blindTest);
+  // during a blind test, this viewer's images in a random order
+  const shuffled = !!page_blind && coin(page_blind.seed, `${output_new.id} ${path}`);
+  // what shows first when the test started is A
+  const blind_test = page_blind ? { a: page_blind.swapped !== shuffled ? 'B' : 'A', revealed: page_blind.revealed } : null;
 
   // Where the images differ, for all the runs of the page: from the viewers of the page's runs
   const pairs = usePagePairs();
@@ -178,6 +212,10 @@ const ImageViewerForRuns = ({
     defaultRegionSet={region_sets.some(set => set.id === 'presets') ? 'presets' : null}
     onRegionSetChange={id => setRegionSet(path, id)}
     regionActions={region_actions}
+    swapped={page_swapped !== shuffled}
+    onSwappedChange={swapPage}
+    blindTest={blind_test}
+    onBlindTestChange={blindTestPage}
     getPixels={getPixels}
     maxHeight={height => height - (fullscreen ? 120 : 260)}
     notice={<>

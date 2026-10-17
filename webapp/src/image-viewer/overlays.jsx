@@ -25,14 +25,15 @@ const sizeCanvas = (canvas, width, height, ratio) => {
 
 
 // The difference of the two images, as displayed. Computed only while `active`.
-export const DiffLayer = ({ controller, diff, active, width, height, canvasRef, onError }) => {
+// order: the images as they show, ['a', 'b'] or ['b', 'a']: the difference is the first − the second
+export const DiffLayer = ({ controller, order = ['a', 'b'], diff, active, width, height, canvasRef, onError }) => {
   const canvas = useRef(null);
   useLayoutEffect(() => {
     if (canvasRef) canvasRef.current = canvas.current;
   });
   useRedraw(controller, () => {
-    const a = controller.canvas('a');
-    const b = controller.canvas('b');
+    const a = controller.canvas(order[0]);
+    const b = controller.canvas(order[1]);
     if (!active || !a || !b || !canvas.current) return;
     // until both viewers drew the same region
     if (!controller.aligned()) return;
@@ -42,14 +43,14 @@ export const DiffLayer = ({ controller, diff, active, width, height, canvasRef, 
     } catch (error) {
       onError(error.message);
     }
-  }, [active, diff?.method, diff?.gain, diff?.max, width, height]);
+  }, [active, diff?.method, diff?.gain, diff?.max, width, height, order.join()]);
   return <canvas ref={canvas} className="qiv-diff" style={{ width, height }} />;
 };
 
 
 // The values of the pixels, written on them once users zoom in enough.
-// pane: 'a', 'b', or 'diff' (new − reference). source: 'image' (the images' own values, from `tiles`), 'display' (the
-// 8-bit colors the viewers draw), or 'off'.
+// pane: 'a', 'b', or 'diff' (the first image shown − the second, see `order`). source: 'image' (the images' own
+// values, from `tiles`), 'display' (the 8-bit colors the viewers draw), or 'off'.
 const sample_canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
 const sampleCenters = (source, transform, visible, ratio) => {
   const cols = visible.x1 - visible.x0;
@@ -71,7 +72,7 @@ const sampleCenters = (source, transform, visible, ratio) => {
 
 // Draws the values of the pixels in the element (a canvas over a pane), once they are large enough to read.
 // Returns what it wrote: { source: 'image' | 'display', loading, mode }, or null (mode: what the image values are).
-const drawPixelValues = (element, { controller, pane, source, width, height, tiles, images, base, diffCanvas }) => {
+const drawPixelValues = (element, { controller, pane, order = ['a', 'b'], source, width, height, tiles, images, base, diffCanvas }) => {
   const ratio = pixelDensityRatio();
   sizeCanvas(element, width, height, ratio);
   const context = element.getContext('2d');
@@ -90,8 +91,8 @@ const drawPixelValues = (element, { controller, pane, source, width, height, til
   let displayed, background;
   try {
     if (pane === 'diff') {
-      const a = sampleCenters(controller.canvas('a'), transform, visible, ratio);
-      const b = sampleCenters(controller.canvas('b'), transform, visible, ratio);
+      const a = sampleCenters(controller.canvas(order[0]), transform, visible, ratio);
+      const b = sampleCenters(controller.canvas(order[1]), transform, visible, ratio);
       displayed = { a, b };
       background = diffCanvas?.current ? sampleCenters(diffCanvas.current, transform, visible, ratio) : a;
     } else {
@@ -118,8 +119,8 @@ const drawPixelValues = (element, { controller, pane, source, width, height, til
     const k = 4 * (j * cols + i);
     if (pane === 'diff') {
       if (!image_values) return [0, 1, 2].map(c => displayed.a[k + c] - displayed.b[k + c]);
-      const value_a = tiles.get(images.a, x, y);
-      const value_b = tiles.get(images.b, x, y);
+      const value_a = tiles.get(images[order[0]], x, y);
+      const value_b = tiles.get(images[order[1]], x, y);
       if (value_a === undefined || value_b === undefined) loading = true;
       if (!value_a || !value_b || value_a.length !== value_b.length) return undefined;
       return value_a.map((v, c) => v - value_b[c]);
@@ -197,20 +198,20 @@ const drawPixelValues = (element, { controller, pane, source, width, height, til
 };
 
 // onDrawn({ source, loading, mode } | null): what it shows, when it changes
-export const PixelValues = ({ controller, pane, source, width, height, tiles, images, base, diffCanvas, onDrawn }) => {
+export const PixelValues = ({ controller, pane, order, source, width, height, tiles, images, base, diffCanvas, onDrawn }) => {
   const canvas = useRef(null);
   // the images' values arrive by tiles
   const version = useSyncExternalStore(tiles.subscribe, tiles.getVersion);
   const last = useRef(undefined);
   useRedraw(controller, () => {
     if (!canvas.current) return;
-    const drawn = drawPixelValues(canvas.current, { controller, pane, source, width, height, tiles, images, base, diffCanvas });
+    const drawn = drawPixelValues(canvas.current, { controller, pane, order, source, width, height, tiles, images, base, diffCanvas });
     const key = JSON.stringify(drawn);
     if (key !== last.current) {
       last.current = key;
       onDrawn?.(drawn);
     }
-  }, [source, width, height, version, base, pane, imageKey(images.a), imageKey(images.b)]);
+  }, [source, width, height, version, base, pane, order?.join(), imageKey(images.a), imageKey(images.b)]);
   return <canvas ref={canvas} className="qiv-pixel-values" style={{ width, height }} />;
 };
 
