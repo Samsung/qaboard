@@ -16,73 +16,255 @@
             <description><![CDATA[QA-Board now works with GitHub as well as GitLab, Gitea/Forgejo and Bitbucket, searches all of a project's commits, opens big commits much faster, and has a file browser and a video viewer. A quickstart, a user guide and release notes in the app help you get started; admins, check your git host settings before upgrading, and at SIRC install one more package when you upgrade qaboard.]]></description>
             <content:encoded><![CDATA[<div class="releaseNote_PSHz"><span class="version_NYcp">qaboard v<!-- -->1.1.1</span><p class="description_UTc_">QA-Board now works with GitHub as well as GitLab, Gitea/Forgejo and Bitbucket, searches all of a project's commits, opens big commits much faster, and has a file browser and a video viewer. A quickstart, a user guide and release notes in the app help you get started; admins, check your git host settings before upgrading, and at SIRC install one more package when you upgrade qaboard.</p><div class="grid_sZjw"><div class="card_ukht"><span class="audience_eP3Q project-integration_Ky7h">Project integration</span><h3 class="title_hdm3">GitHub and other git hosts</h3><p class="text_FLe0">QA-Board works with repositories on GitHub and GitHub Enterprise as well as GitLab, and receives the push events of Gitea, Forgejo and Bitbucket Cloud. On GitHub, <code>qa batch</code> sets a commit status that links to the results, and you can start GitHub Actions workflows from the web app. The experimental <code>qa gate</code> fails the CI when quality regresses.</p><a href="https://samsung.github.io/qaboard/docs/project-init#optional-connect-your-git-host">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">Search all your commits, browse your files</h3><p class="text_FLe0">The commit list's Filter box searches all of a project's commits, not only the last days: by message, committer, branch, batch or hash. Open a folder under <code>/s/</code> to get a file browser. Commit pages with 1000 runs filter and sort without freezing, and big commit lists and the projects list load much faster.</p><a href="https://samsung.github.io/qaboard/docs/user-guide/finding-results#searching-commits">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q">Users</span><h3 class="title_hdm3">What's new, a user guide, logs and videos</h3><p class="text_FLe0">Release notes pop up once a month is over: read them again from the sparkles button in the sidebar. A new user guide, with screenshots of demo projects, explains the web app. Logs update live, with search, failed LSF runs show why LSF stopped them, and videos compare with a wipe, frame by frame.</p><a href="https://samsung.github.io/qaboard/docs/user-guide/whats-new">Learn more →</a></div><div class="card_ukht"><span class="audience_eP3Q admins_lbEZ">Admins</span><h3 class="title_hdm3">Quickstart, Kubernetes, and upgrading</h3><p class="text_FLe0">Try QA-Board with one Compose file and demo projects. <code>deployments/deploy.py</code> rolls out new backend replicas next to the old ones and rolls back instantly, and each release publishes its images and a Helm chart. Before upgrading, keep <code>GITLAB_HOST</code> set or list your GitLab in <code>QABOARD_GIT_HOSTS</code>: a migration records the git host of each project.</p><a href="https://samsung.github.io/qaboard/docs/backend-admin/git-hosts#upgrading-from-older-versions">Learn more →</a></div></div></div><h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="web-app">Web app<a href="https://samsung.github.io/qaboard/release-notes/2026-10#web-app" class="hash-link" aria-label="Direct link to Web app" title="Direct link to Web app" translate="no">​</a></h2>
 <ul>
-<li class="">Added the "What's new" panel: the release notes, newest first, with a search box. The link <code>/#whats-new</code> opens it, handy to share in a chat.</li>
-<li class="">The "What's new" dialog pops up once a month (or quarter) is over, with everything that changed in it. The notes of the current month show in the panel as a preview, tagged "In progress".</li>
-<li class="">The sidebar's help button opens the new <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/overview">user guide</a>.</li>
-<li class="">The Logs view lets you filter runs (all, failed, running), and tags failed runs with the reason (e.g. "LSF: out of memory").</li>
-<li class="">In the Logs view, each run fits on one line, with its configuration in short and buttons to open its output directory, redo, mark as failed or delete it. The full configuration shows when you open the run's logs, and the logs no longer get wider than the window.</li>
-<li class="">The sidebar's Logs entry shows how many runs failed, or are still running.</li>
-<li class="">Switch between a run's <code>log.txt</code>, <code>log.lsf.txt</code> and <code>log.dask.txt</code>. For LSF runs, a summary shows the exit reason, host, run time and memory used vs requested, with hints that point to the batch's <code>lsf:</code> options.</li>
-<li class="">Batches started from QA-Board (tuning, "Run Tests") show whether <code>qa batch</code> is waiting for LSF, running, failed (with the error) or didn't start any run, with a link to its logs.</li>
-<li class="">Follow links to code, commits and branches on your project's own git host, with the right URLs for GitHub, GitLab, Gitea/Forgejo and Bitbucket, instead of a hardcoded GitLab server.</li>
-<li class="">Shows the "Quotas" links only when the server has a quota dashboard.</li>
-<li class="">The error page links to your server's support page.</li>
-<li class="">The URL now keeps everything you select: the commit list's date range, the metrics shown in tables, the commits highlighted on the History page. Share the link, reload, or use the back button: you get the same view. Typing filters and toggling viewer options no longer adds entries to the browser's history.</li>
-<li class="">Dynamic options (e.g. which frame to show) work across runs with different values: the controls panel lists the values of all runs, and a run that doesn't have the selected value shows the closest one and says so. Options are linked across runs from the start, and unlinking one gives each card its own selector, starting from the same value. See the <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/commit-page#the-controls-panel">user guide</a>.</li>
-<li class="">Links are much shorter: the URL only keeps what differs from the defaults (batch, filters, metrics, view, visualization controls, plot options).</li>
-<li class="">Open a folder under <code>/s/</code> in your browser to get the new <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/files">file browser</a>: sort and filter files (e.g. <code>*.png</code>), copy their Linux or Windows paths, paste a path to go there, and navigate with the keyboard (press <code>?</code>). Scripts and <code>curl</code> still get nginx's plain index.</li>
-<li class="">In the file browser, a bar shows the run whose folder you are in, with its status and a link to its results: <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/files#runs">redo it, delete it or mark it as failed</a> from there.</li>
-<li class="">The Available Tests view is a real editor for your private and shared batches: it flags YAML mistakes as you type, shows if your changes are saved next to the Save button (or <code>Ctrl+S</code>), lets you review or discard them, and keeps them if you leave before saving. It also warns instead of overwriting someone else's changes to the shared batches. See the <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/commit-page#available-tests">user guide</a>.</li>
-<li class="">The Available Tests view lists the batches in each file: go to one, list the tests it resolves to on the commit, or run it in one click.</li>
-<li class="">The Available Tests editor flags inputs that <code>qa batch</code> can't use as you type: an empty <code>-</code>, or a number, date or <code>yes</code> that should be in quotes.</li>
-<li class="">When a batch has no tests in Available Tests or Run Tests / Tuning, see why: a file of <code>inputs.batches</code> that isn't in the commit's artifacts (with the path QA-Board looked for), a file that isn't valid YAML, a batch that no file defines, or inputs the server didn't find under the database. Available Tests also lists the batch files it read, and which one defines the batch. See the <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/commit-page#available-tests">user guide</a>.</li>
-<li class="">Copy the path of a run's output directory from the Logs view, next to the button that opens it. When your server has Windows path mappings, the confirmation offers the Windows path too. The batch directory, and the folders of batches started from QA-Board, have the same buttons.</li>
-<li class="">See where the logs of each command that started a batch are: in the CI job (with a link), or in QA-Board (one click shows them). The batch's own <code>log.txt</code> only shows when it exists. See the <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/commit-page#logs">user guide</a>.</li>
-<li class="">Show more of very long logs: they show their last 50,000 lines to stay fast, and say if the hidden lines have errors or matches for your search.</li>
-<li class="">When you filter a batch's runs, the commit bar menu redoes only the runs that match the filter. Follow redone runs in the Logs view, under "Started from QA-Board". See the <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/running-from-the-webapp">user guide</a>.</li>
-<li class="">Find your way around from the History page: the sidebar shows the project's navigation (the branch's commits, Code, History, Integrations, Milestones), and moving between these pages no longer reloads the app.</li>
-<li class="">See who made a commit at a glance: when there's no avatar picture, committers, users and projects show their initials on a color that stays the same everywhere.</li>
-<li class="">The Tuning Analysis view of a <code>qa optimize</code> experiment plots its convergence itself: each iteration's objective and the best one so far, even when matplotlib isn't installed where <code>qa optimize</code> ran.</li>
-<li class="">Run cards fit the window when <em>qaboard.yaml</em> doesn't set their width (<code>outputs.style.width</code>): they used to be 1500 px wide, wider than a laptop's screen.</li>
-<li class="">Link to History with or without the breakdown per test, or relative to the first commit: <code>?breakdown_per_test=false</code> and <code>?relative=true</code> in the URL now work.</li>
-<li class="">Compare videos with a wipe, by toggling between them in place, or as their difference, besides side by side. Zoom with the mouse wheel or a pinch and drag to pan: both videos follow, and zoomed in you see the actual pixels. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/comparing-results#video-viewer">comparing videos</a>.</li>
-<li class="">Step through videos frame by frame with the arrow keys, scrub, slow down to 0.1× or loop: new and reference stay on the same frame, and wait for each other when one is still downloading.</li>
-<li class="">Copy the current frame of a video (new, reference or their difference) to the clipboard, or save it as a PNG.</li>
-<li class="">Start the GitHub Actions workflows declared in your project's <code>qaboard.yaml</code> from the Integrations menu, and follow the run you started, even when GitHub ran it on a newer commit of the branch. Only users who can access the project can see or start them (<a class="" href="https://samsung.github.io/qaboard/docs/triggering-third-party-tools#start-github-actions-workflows">GitHub Actions</a>).</li>
-<li class="">See the status of a GitHub Actions workflow's latest run for the commit, with a link to it, in the Integrations menu.</li>
-<li class="">See your git host's defaults in the Integrations menu of branch pages, when your project configures none and QA-Board knows its git host: GitLab's pipeline status, or a link to GitHub Actions (<a class="" href="https://samsung.github.io/qaboard/docs/triggering-third-party-tools#default-integrations">default integrations</a>).</li>
-<li class="">Hides the Integrations menu's badges that fail to load, e.g. for private projects or projects without CI.</li>
-<li class="">See commit authors' avatars from GitHub, Gitea/Forgejo and Bitbucket, learned from push events, or else their Gravatar.</li>
-<li class="">Loads avatars and badges from public git hosts (github.com, Bitbucket, Codeberg, and your server's git hosts that aren't GitLab) directly, which is faster. Those from your GitLab hosts and Gravatar still load through the server, which can reach hosts you can't.</li>
-<li class="">Search all of a project's commits from the commit list's <strong>Filter...</strong> box, not only those in the date range: by message, committer, branch, batch or hash. Use <code>branch:</code>, <code>committer:</code>, <code>batch:</code>, <code>message:</code> or <code>id:</code> to look at one field, and <code>-word</code> to exclude (<a class="" href="https://samsung.github.io/qaboard/docs/user-guide/finding-results#searching-commits">searching commits</a>).</li>
-<li class="">Scroll through long commit lists: they show the 50 latest commits, then more as you scroll, so big projects open much faster. Branch pages still get their whole date range at once (up to 1000 commits), for their metrics chart.</li>
-<li class="">Click <strong>Older commits</strong> at the end of the commit list to look a week further back.</li>
-<li class="">Open the projects list much faster on sites with hundreds of projects: it downloads less, and shows more projects as you scroll.</li>
-<li class="">Jump to a branch from the <strong>Filter...</strong> box: when your search can be a branch name (one word, or a <code>branch:</code> term), it suggests the most recently active branches that match, even in projects with thousands of branches.</li>
-<li class="">Switch to a dark theme with the theme button next to "What's new" in the sidebar, the projects list or the file browser. By default the web app follows your system's theme; plots, editors and viewers follow it too.</li>
-<li class="">Press <code>?</code> for a cheat sheet: keyboard shortcuts, QA-Board's words, the filter syntax and links to the docs. The sidebar's <strong>?</strong> button opens it too.</li>
-<li class="">The sidebar's <strong>Code</strong> menu links to the commit, its files, your subproject's folder, the branch and the repository on your git host.</li>
-<li class="">Hover a view in the commit page's sidebar to see what it shows. The sidebar is calmer, its selected view stands out, and your login moved to its bottom.</li>
-<li class="">Pages say what's happening instead of staying blank or showing empty views: while they load, when they fail (with a <strong>Retry</strong> button), and when there's nothing to show yet, with what to do next and a link to the docs. For example, a commit without results explains how to get some, and an empty Metrics Diff says why there is nothing to compare.</li>
-<li class="">Deleting runs, batches or a commit's results, redoing a whole batch and resetting the tuning form ask you first, with how many runs are affected. Notifications name what was acted on, and starting runs offers to show their logs.</li>
-<li class="">Find more explanations on hover: run statuses, aggregated metrics, <code>new</code>/<code>ref</code>, targets in the metrics tables, and milestones. The reference's bar says when it's the same commit as the new one.</li>
-<li class="">Metrics Diff colors small changes and shows them precisely ("-0.37%" instead of "-0%"). The Summary's bars say how many runs met their metric's target.</li>
-<li class="">A calmer, more consistent look: every view's title sits above its card, cards are flat, commit messages use the regular font, configurations are grey tags, run statuses are small icons, and the commit list's run counts are outlined buttons instead of big green ones. Filters have their help and a clear button inside the box.</li>
-<li class="">When a commit fails to load, its bar says so instead of showing loading placeholders forever, and a project without results yet shows how to get some instead of an error.</li>
-<li class="">The footer stays at the bottom of the window, with links to What's new, the cheat sheet and QA-Board on GitHub.</li>
-<li class="">The controls panel only shows on the views of a commit's results, and starts closed on screens narrower than 1600px.</li>
-<li class="">Buttons that were only icons have labels for screen readers, and the menus they open can be reached with the keyboard.</li>
-<li class="">The web app says "runs" everywhere, like the docs ("8 runs", "Redo failed runs"), and page titles match the sidebar's names: Metrics Table instead of "Quality report", Metrics Diff instead of "Improvement report", and the Analysis view is now Tuning Analysis.</li>
-<li class="">The commit, batch and run action menus open on click instead of hover, so they no longer open by accident and work on touch screens. When a run has no reference and there's no Windows path to choose, its folder and copy buttons act directly.</li>
-<li class="">Pages use the width next to the sidebar instead of jumping between fixed widths, and the commit page's views no longer spill out of the window on laptop screens.</li>
-<li class="">The commit page's header fits narrower windows on one line: long commit messages and branches are cut with "…", and labels with an icon hide before anything overlaps.</li>
-<li class="">In the dark theme, the metrics tables' colors are softer: neutral values stay close to the card's color and only clear improvements and regressions stand out.</li>
-<li class="">Switch commit lists to <strong>Compact</strong> to see one commit per line, in aligned columns, with the full message, metrics and other batches on hover. The web app remembers your choice.</li>
-<li class="">Open the export box from the new <strong>Export</strong> button next to the Visualizations and Output Files titles; press Enter to export, and find the last export's paths when you reopen it.</li>
-<li class="">See and change what the commit page shows from a clearer controls panel: <strong>Files to show</strong> (formerly Dynamic options) names each option and says which visualization it's for. Until you pick a value it shows each run's default, e.g. its last frame. You can choose a value per run, or reset it.</li>
-<li class="">The commit page's view options are now a panel docked on the right that makes room for the results instead of covering them. Collapsed, a rail shows an icon per section, with a dot when something differs from the project's defaults. Press <code>o</code> to show or hide it, or drag its edge to resize it. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/commit-page#view-options">View options</a>.</li>
-<li class="">The view options count what you changed from the project's defaults and list the changes on hover, so you can tell why a view looks different.</li>
-<li class="">Collapse the sidebar to a rail of icons for more room, with <strong>Collapse</strong> at its bottom or <code>Ctrl+\</code> (<code>⌘\</code> on macOS). Hover an icon for its name; the web app remembers your choice.</li>
+<li class="">
+<p>Added the "What's new" panel: the release notes, newest first, with a search box. The link <code>/#whats-new</code> opens it, handy to share in a chat.</p>
+</li>
+<li class="">
+<p>The "What's new" dialog pops up once a month (or quarter) is over, with everything that changed in it. The notes of the current month show in the panel as a preview, tagged "In progress".</p>
+</li>
+<li class="">
+<p>The sidebar's help button opens the new <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/overview">user guide</a>.</p>
+</li>
+<li class="">
+<p>The Logs view lets you filter runs (all, failed, running), and tags failed runs with the reason (e.g. "LSF: out of memory").</p>
+</li>
+<li class="">
+<p>In the Logs view, each run fits on one line, with its configuration in short and buttons to open its output directory, redo, mark as failed or delete it. The full configuration shows when you open the run's logs, and the logs no longer get wider than the window.</p>
+</li>
+<li class="">
+<p>The sidebar's Logs entry shows how many runs failed, or are still running.</p>
+</li>
+<li class="">
+<p>Switch between a run's <code>log.txt</code>, <code>log.lsf.txt</code> and <code>log.dask.txt</code>. For LSF runs, a summary shows the exit reason, host, run time and memory used vs requested, with hints that point to the batch's <code>lsf:</code> options.</p>
+</li>
+<li class="">
+<p>Batches started from QA-Board (tuning, "Run Tests") show whether <code>qa batch</code> is waiting for LSF, running, failed (with the error) or didn't start any run, with a link to its logs.</p>
+</li>
+<li class="">
+<p>Follow links to code, commits and branches on your project's own git host, with the right URLs for GitHub, GitLab, Gitea/Forgejo and Bitbucket, instead of a hardcoded GitLab server.</p>
+</li>
+<li class="">
+<p>Shows the "Quotas" links only when the server has a quota dashboard.</p>
+</li>
+<li class="">
+<p>The error page links to your server's support page.</p>
+</li>
+<li class="">
+<p>The URL now keeps everything you select: the commit list's date range, the metrics shown in tables, the commits highlighted on the History page. Share the link, reload, or use the back button: you get the same view. Typing filters and toggling viewer options no longer adds entries to the browser's history.</p>
+</li>
+<li class="">
+<p>Dynamic options (e.g. which frame to show) work across runs with different values: the controls panel lists the values of all runs, and a run that doesn't have the selected value shows the closest one and says so. Options are linked across runs from the start, and unlinking one gives each card its own selector, starting from the same value. See the <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/commit-page#the-controls-panel">user guide</a>.</p>
+</li>
+<li class="">
+<p>Links are much shorter: the URL only keeps what differs from the defaults (batch, filters, metrics, view, visualization controls, plot options).</p>
+</li>
+<li class="">
+<p>Open a folder under <code>/s/</code> in your browser to get the new <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/files">file browser</a>: sort and filter files (e.g. <code>*.png</code>), copy their Linux or Windows paths, paste a path to go there, and navigate with the keyboard (press <code>?</code>). Scripts and <code>curl</code> still get nginx's plain index.</p>
+</li>
+<li class="">
+<p>In the file browser, a bar shows the run whose folder you are in, with its status and a link to its results: <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/files#runs">redo it, delete it or mark it as failed</a> from there.</p>
+</li>
+<li class="">
+<p>The Available Tests view is a real editor for your private and shared batches: it flags YAML mistakes as you type, shows if your changes are saved next to the Save button (or <code>Ctrl+S</code>), lets you review or discard them, and keeps them if you leave before saving. It also warns instead of overwriting someone else's changes to the shared batches. See the <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/commit-page#available-tests">user guide</a>.</p>
+</li>
+<li class="">
+<p>The Available Tests view lists the batches in each file: go to one, list the tests it resolves to on the commit, or run it in one click.</p>
+</li>
+<li class="">
+<p>The Available Tests editor flags inputs that <code>qa batch</code> can't use as you type: an empty <code>-</code>, or a number, date or <code>yes</code> that should be in quotes.</p>
+</li>
+<li class="">
+<p>When a batch has no tests in Available Tests or Run Tests / Tuning, see why: a file of <code>inputs.batches</code> that isn't in the commit's artifacts (with the path QA-Board looked for), a file that isn't valid YAML, a batch that no file defines, or inputs the server didn't find under the database. Available Tests also lists the batch files it read, and which one defines the batch. See the <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/commit-page#available-tests">user guide</a>.</p>
+</li>
+<li class="">
+<p>Copy the path of a run's output directory from the Logs view, next to the button that opens it. When your server has Windows path mappings, the confirmation offers the Windows path too. The batch directory, and the folders of batches started from QA-Board, have the same buttons.</p>
+</li>
+<li class="">
+<p>See where the logs of each command that started a batch are: in the CI job (with a link), or in QA-Board (one click shows them). The batch's own <code>log.txt</code> only shows when it exists. See the <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/commit-page#logs">user guide</a>.</p>
+</li>
+<li class="">
+<p>Show more of very long logs: they show their last 50,000 lines to stay fast, and say if the hidden lines have errors or matches for your search.</p>
+</li>
+<li class="">
+<p>When you filter a batch's runs, the commit bar menu redoes only the runs that match the filter. Follow redone runs in the Logs view, under "Started from QA-Board". See the <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/running-from-the-webapp">user guide</a>.</p>
+</li>
+<li class="">
+<p>Find your way around from the History page: the sidebar shows the project's navigation (the branch's commits, Code, History, Integrations, Milestones), and moving between these pages no longer reloads the app.</p>
+</li>
+<li class="">
+<p>See who made a commit at a glance: when there's no avatar picture, committers, users and projects show their initials on a color that stays the same everywhere.</p>
+</li>
+<li class="">
+<p>The Tuning Analysis view of a <code>qa optimize</code> experiment plots its convergence itself: each iteration's objective and the best one so far, even when matplotlib isn't installed where <code>qa optimize</code> ran.</p>
+</li>
+<li class="">
+<p>Run cards fit the window when <em>qaboard.yaml</em> doesn't set their width (<code>outputs.style.width</code>): they used to be 1500 px wide, wider than a laptop's screen.</p>
+</li>
+<li class="">
+<p>Link to History with or without the breakdown per test, or relative to the first commit: <code>?breakdown_per_test=false</code> and <code>?relative=true</code> in the URL now work.</p>
+</li>
+<li class="">
+<p>Compare videos with a wipe, by toggling between them in place, or as their difference, besides side by side. Zoom with the mouse wheel or a pinch and drag to pan: both videos follow, and zoomed in you see the actual pixels. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/comparing-results#video-viewer">comparing videos</a>.</p>
+</li>
+<li class="">
+<p>Step through videos frame by frame with the arrow keys, scrub, slow down to 0.1× or loop: new and reference stay on the same frame, and wait for each other when one is still downloading.</p>
+</li>
+<li class="">
+<p>Copy the current frame of a video (new, reference or their difference) to the clipboard, or save it as a PNG.</p>
+</li>
+<li class="">
+<p>Start the GitHub Actions workflows declared in your project's <code>qaboard.yaml</code> from the Integrations menu, and follow the run you started, even when GitHub ran it on a newer commit of the branch. Only users who can access the project can see or start them (<a class="" href="https://samsung.github.io/qaboard/docs/triggering-third-party-tools#start-github-actions-workflows">GitHub Actions</a>).</p>
+</li>
+<li class="">
+<p>See the status of a GitHub Actions workflow's latest run for the commit, with a link to it, in the Integrations menu.</p>
+</li>
+<li class="">
+<p>See your git host's defaults in the Integrations menu of branch pages, when your project configures none and QA-Board knows its git host: GitLab's pipeline status, or a link to GitHub Actions (<a class="" href="https://samsung.github.io/qaboard/docs/triggering-third-party-tools#default-integrations">default integrations</a>).</p>
+</li>
+<li class="">
+<p>Hides the Integrations menu's badges that fail to load, e.g. for private projects or projects without CI.</p>
+</li>
+<li class="">
+<p>See commit authors' avatars from GitHub, Gitea/Forgejo and Bitbucket, learned from push events, or else their Gravatar.</p>
+</li>
+<li class="">
+<p>Loads avatars and badges from public git hosts (github.com, Bitbucket, Codeberg, and your server's git hosts that aren't GitLab) directly, which is faster. Those from your GitLab hosts and Gravatar still load through the server, which can reach hosts you can't.</p>
+</li>
+<li class="">
+<p>Search all of a project's commits from the commit list's <strong>Filter...</strong> box, not only those in the date range: by message, committer, branch, batch or hash. Use <code>branch:</code>, <code>committer:</code>, <code>batch:</code>, <code>message:</code> or <code>id:</code> to look at one field, and <code>-word</code> to exclude (<a class="" href="https://samsung.github.io/qaboard/docs/user-guide/finding-results#searching-commits">searching commits</a>).</p>
+</li>
+<li class="">
+<p>Scroll through long commit lists: they show the 50 latest commits, then more as you scroll, so big projects open much faster. Branch pages still get their whole date range at once (up to 1000 commits), for their metrics chart.</p>
+</li>
+<li class="">
+<p>Click <strong>Older commits</strong> at the end of the commit list to look a week further back.</p>
+</li>
+<li class="">
+<p>Open the projects list much faster on sites with hundreds of projects: it downloads less, and shows more projects as you scroll.</p>
+</li>
+<li class="">
+<p>Jump to a branch from the <strong>Filter...</strong> box: when your search can be a branch name (one word, or a <code>branch:</code> term), it suggests the most recently active branches that match, even in projects with thousands of branches.</p>
+</li>
+<li class="">
+<p>Switch to a dark theme with the theme button next to "What's new" in the sidebar, the projects list or the file browser. By default the web app follows your system's theme; plots, editors and viewers follow it too.</p>
+</li>
+<li class="">
+<p>Press <code>?</code> for a cheat sheet: keyboard shortcuts, QA-Board's words, the filter syntax and links to the docs. The sidebar's <strong>?</strong> button opens it too.</p>
+</li>
+<li class="">
+<p>The sidebar's <strong>Code</strong> menu links to the commit, its files, your subproject's folder, the branch and the repository on your git host.</p>
+</li>
+<li class="">
+<p>Hover a view in the commit page's sidebar to see what it shows. The sidebar is calmer, its selected view stands out, and your login moved to its bottom.</p>
+</li>
+<li class="">
+<p>Pages say what's happening instead of staying blank or showing empty views: while they load, when they fail (with a <strong>Retry</strong> button), and when there's nothing to show yet, with what to do next and a link to the docs. For example, a commit without results explains how to get some, and an empty Metrics Diff says why there is nothing to compare.</p>
+</li>
+<li class="">
+<p>Deleting runs, batches or a commit's results, redoing a whole batch and resetting the tuning form ask you first, with how many runs are affected. Notifications name what was acted on, and starting runs offers to show their logs.</p>
+</li>
+<li class="">
+<p>Find more explanations on hover: run statuses, aggregated metrics, <code>new</code>/<code>ref</code>, targets in the metrics tables, and milestones. The reference's bar says when it's the same commit as the new one.</p>
+</li>
+<li class="">
+<p>Metrics Diff colors small changes and shows them precisely ("-0.37%" instead of "-0%"). The Summary's bars say how many runs met their metric's target.</p>
+</li>
+<li class="">
+<p>A calmer, more consistent look: every view's title sits above its card, cards are flat, commit messages use the regular font, configurations are grey tags, run statuses are small icons, and the commit list's run counts are outlined buttons instead of big green ones. Filters have their help and a clear button inside the box.</p>
+</li>
+<li class="">
+<p>When a commit fails to load, its bar says so instead of showing loading placeholders forever, and a project without results yet shows how to get some instead of an error.</p>
+</li>
+<li class="">
+<p>The footer stays at the bottom of the window, with links to What's new, the cheat sheet and QA-Board on GitHub.</p>
+</li>
+<li class="">
+<p>The controls panel only shows on the views of a commit's results, and starts closed on screens narrower than 1600px.</p>
+</li>
+<li class="">
+<p>Buttons that were only icons have labels for screen readers, and the menus they open can be reached with the keyboard.</p>
+</li>
+<li class="">
+<p>The web app says "runs" everywhere, like the docs ("8 runs", "Redo failed runs"), and page titles match the sidebar's names: Metrics Table instead of "Quality report", Metrics Diff instead of "Improvement report", and the Analysis view is now Tuning Analysis.</p>
+</li>
+<li class="">
+<p>The commit, batch and run action menus open on click instead of hover, so they no longer open by accident and work on touch screens. When a run has no reference and there's no Windows path to choose, its folder and copy buttons act directly.</p>
+</li>
+<li class="">
+<p>Pages use the width next to the sidebar instead of jumping between fixed widths, and the commit page's views no longer spill out of the window on laptop screens.</p>
+</li>
+<li class="">
+<p>The commit page's header fits narrower windows on one line: long commit messages and branches are cut with "…", and labels with an icon hide before anything overlaps.</p>
+</li>
+<li class="">
+<p>In the dark theme, the metrics tables' colors are softer: neutral values stay close to the card's color and only clear improvements and regressions stand out.</p>
+</li>
+<li class="">
+<p>Switch commit lists to <strong>Compact</strong> to see one commit per line, in aligned columns, with the full message, metrics and other batches on hover. The web app remembers your choice.</p>
+</li>
+<li class="">
+<p>Open the export box from the new <strong>Export</strong> button next to the Visualizations and Output Files titles; press Enter to export, and find the last export's paths when you reopen it.</p>
+</li>
+<li class="">
+<p>See and change what the commit page shows from a clearer controls panel: <strong>Files to show</strong> (formerly Dynamic options) names each option and says which visualization it's for. Until you pick a value it shows each run's default, e.g. its last frame. You can choose a value per run, or reset it.</p>
+</li>
+<li class="">
+<p>The commit page's view options are now a panel docked on the right that makes room for the results instead of covering them. Collapsed, a rail shows an icon per section, with a dot when something differs from the project's defaults. Press <code>o</code> to show or hide it, or drag its edge to resize it. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/commit-page#view-options">View options</a>.</p>
+</li>
+<li class="">
+<p>The view options count what you changed from the project's defaults and list the changes on hover, so you can tell why a view looks different.</p>
+</li>
+<li class="">
+<p>Collapse the sidebar to a rail of icons for more room, with <strong>Collapse</strong> at its bottom or <code>Ctrl+\</code> (<code>⌘\</code> on macOS). Hover an icon for its name; the web app remembers your choice.</p>
+</li>
+<li class="">
+<p>Compare images like videos: side by side, with a wipe, toggling between them in place (click the image or press <code>t</code>), or as their difference. Pick the mode above any image, or with the keys 1 to 4: it applies to all the images of the page, and links keep it. Swapping or flipping the images in one viewer does it in all of them, so they all show the same one. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/comparing-results#image-viewers">comparing images</a>.</p>
+</li>
+<li class="">
+<p>Run a blind test: <strong>Blind test</strong> above the images (or <code>h</code>) shows each viewer's images in a random order, called A and B everywhere, then <strong>Reveal</strong> shows which was which, and <strong>Done</strong> goes back to new first. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/comparing-results#blind-test">blind test</a>.</p>
+</li>
+<li class="">
+<p>See the difference between the new and reference images, all three in sync, with a cross on the pixel under your mouse in each: zoom or pan any of them. Click <strong>Difference</strong> again, or press <code>4</code> again, to see it alone and larger. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/comparing-results#the-difference">the difference</a>.</p>
+</li>
+<li class="">
+<p>Choose how to measure the difference between images: perceptual (YIQ), ΔE 2000, absolute or signed per channel, or any change at all, with a legend of the colors. Hover a pixel to see the difference per channel, and its ΔE or perceptual difference.</p>
+</li>
+<li class="">
+<p>Zoom in and read the values of the pixels, written on them in black or white so that they stay readable: the image's own values (10-bit, 16-bit, float, raw...) or the 8-bit colors on screen, picked from the <strong>123</strong> button above the images. A badge says which ones you're reading, <code>p</code> hides them, and in difference mode they're new − reference. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/comparing-results#pixel-values-the-images-or-the-displayed-ones">pixel values</a>.</p>
+</li>
+<li class="">
+<p>Hover an image to see the pixel's own values, labelled <em>image</em> with what they are (e.g. <code>I;16</code>), next to the color on screen, labelled <em>display</em>, in both images, and their difference.</p>
+</li>
+<li class="">
+<p>Compare images in full screen: the button at the right of the image viewer's toolbar, or <code>f</code>, gives the screen to the images, with all the viewer's tools, and the difference under them when that makes them larger. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/comparing-results#full-screen">full screen</a>.</p>
+</li>
+<li class="">
+<p>Adjust how images look with brightness, contrast, gamma, sharpening, one channel (R, G, B or luma), false colors or inverted colors. They apply to both images and to the same visualization of the other runs; the pixel values, the difference and the histograms stay the images'.</p>
+</li>
+<li class="">
+<p>See the histograms of the region in view, new and reference overlaid, from the histogram button above the images: zoom on a region instead of selecting it.</p>
+</li>
+<li class="">
+<p>Find your way in large images: a minimap shows where you are once you zoom in, the zoom level says how many screen pixels an image pixel takes (100% is one), and <strong>1:1</strong> goes there.</p>
+</li>
+<li class="">
+<p>Step through the regions of interest with their thumbnails above the images, or with <code>[</code> and <code>]</code>. The regions menu finds where images differ most, by perceptual difference, SSIM or ΔE 2000, and copies the region in view in the format of presets.</p>
+</li>
+<li class="">
+<p>Pick how images are compared in the View options (<strong>Compare images</strong>), which replaces the Image diff switch. Links made with Image diff on open in difference mode.</p>
+</li>
+<li class="">
+<p>Copy or save the new, reference or difference image as you see them, with the adjustments, or open the original files, from the copy button above the images. The image viewer's keys act on the viewer under the mouse, like the video viewer's.</p>
+</li>
+<li class="">
+<p>Find which runs' images changed most: <strong>Where they differ, in all N runs…</strong> in the image viewer's regions menu compares every run of the page with its reference and ranks them, from the largest difference to the identical ones. <strong>Show</strong> takes you to a run, on the region that changed most. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/comparing-results#which-runs-changed-most">which runs changed most</a>.</p>
+</li>
+<li class="">
+<p>See how much images differ in each of the regions where they differ (e.g. <em>#1 · 3.2%</em>). The regions are spread over the image, one per place that changed instead of twenty on the same leaves, and show the difference with some context around. The region set you pick applies to every viewer of the same file.</p>
+</li>
+<li class="">
+<p>Use QA-Board's image viewer in your own React apps: it builds as a package (<code>npm run build:image-viewer</code>), with its props documented in its <a href="https://github.com/Samsung/qaboard/tree/master/webapp/src/image-viewer" target="_blank" rel="noopener noreferrer" class="">README</a>.</p>
+</li>
 </ul>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2026-10#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
 <ul>
@@ -113,63 +295,186 @@
 </ul>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2026-10#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
 <ul>
-<li class="">Zero-downtime deploys with <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/deployment">deployments/deploy.py</a>: images tagged per version, several backend replicas behind nginx, rolling updates, <code>rollback</code>, <code>status</code> and <code>restore-db</code>.</li>
-<li class=""><code>deploy.py seed-db</code> fills a staging database with only production's recent data.</li>
-<li class="">A <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/kubernetes">Helm chart</a> to run QA-Board on Kubernetes.</li>
-<li class="">The backend has a <code>/api/v1/health</code> endpoint, shuts down gracefully, and keeps working when redis is down.</li>
-<li class="">Security: actions that run commands (redo, tuning, stopping or deleting batches...) now require a login and run as the logged-in user, and their inputs are escaped. See SECURITY.md.</li>
-<li class="">Security: the server only writes, deletes or runs code in the folders listed in <code>QABOARD_STORAGE_ROOTS</code> (default: <code>/mnt/qaboard</code>), and refuses results stored elsewhere. <strong>If your projects store results in other folders, set it before upgrading</strong> (see <a class="" href="https://samsung.github.io/qaboard/docs/deploy#optional-environment-variables">environment variables</a>).</li>
-<li class="">Require a secret in push webhooks: set <code>QABOARD_WEBHOOK_SECRET</code>, and the same secret in your repositories' webhooks, so that only your git hosts can send push events (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/git-hosts#webhooks">webhooks</a>).</li>
-<li class="">Each batch started from QA-Board gets its own folder with its scripts and logs, under the batch's <code>qaboard-batches/</code>.</li>
-<li class="">The web app links to the docs served by your server at <code>/docs/</code>, which match its version, instead of the public website. Set <code>QABOARD_DOCS_ROOT</code> to use another docs site.</li>
-<li class="">Configure the quota dashboard and support links with <code>QABOARD_QUOTA_URL_TEMPLATE</code> and <code>QABOARD_SUPPORT_URL</code>.</li>
-<li class="">Tell users which credentials to use when they can't log in, with <code>QABOARD_LOGIN_HINT</code>, and where to install WebCDE, which opens runs with a <code>cde.sh</code>, with <code>QABOARD_WEBCDE_INSTALLER</code> (<a class="" href="https://samsung.github.io/qaboard/docs/deploy#optional-environment-variables">environment variables</a>). The tuning form's feedback link goes to <code>QABOARD_SUPPORT_URL</code>.</li>
-<li class="">Security: the server only loads avatars and badges for the web app from your GitLab hosts and gravatar. <strong>If your projects' <code>avatar_url</code> or badges (<code>integrations[].src</code>) come from other hosts, list them in <code>QABOARD_PROXY_HOSTS</code></strong> (see <a class="" href="https://samsung.github.io/qaboard/docs/deploy#optional-environment-variables">environment variables</a>).</li>
-<li class="">Restrict who can read the files of restricted projects, or of the folders you list under <code>paths</code> in <code>users_restrict.yml</code>: nginx asks the backend before sending each file (see <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/user-management#restricting-who-can-read-files">user management</a>). If you use your own nginx configuration, include <code>snippets/qaboard-files.conf</code> in the <code>/s/</code> locations to get the file browser.</li>
-<li class="">In the folders listed in <code>QABOARD_FILES_UNIX_PERMISSIONS</code> (e.g. <code>/home</code>), users only read the files that their own Unix account can read (see <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/user-management#unix-permissions">user management</a>).</li>
-<li class="">Without a complete <code>/etc/passwd</code>, e.g. with LDAP or SSSD, <code>QABOARD_ACCOUNTS_COMMAND</code> (and <code>QABOARD_GROUPS_COMMAND</code>) gives the backend the users' accounts, refreshed daily: the file browser shows owners' names instead of their ids (see <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/user-management#users-accounts">users' accounts</a>).</li>
-<li class="">Redoing, deleting or marking a run as failed now requires access to its project, for restricted projects.</li>
-<li class="">Scripts can send results that describe their commit with only <code>commit_sha</code> and <code>commit_authored_datetime</code>: the other <code>commit_*</code> fields (branch, message, committer, parents) are optional, and the server doesn't need access to the git repository.</li>
-<li class="">Add pages for your own users to the docs your server serves: put them in <code>website/site-docs/&lt;site&gt;/</code> and build with <code>QABOARD_SITE=&lt;site&gt;</code>. They get their own menu, and the installation page links to them. At SIRC, "At SIRC" has the install commands and SIRC specifics.</li>
-<li class="">Pull QA-Board's images from <code>ghcr.io/samsung/qaboard</code>: <code>docker-compose.yml</code> uses them by default, each release has its own tags (e.g. <code>backend-1.2.0</code>), and <code>QABOARD_IMAGE</code> picks another registry.</li>
-<li class="">Install QA-Board on Kubernetes from the Helm chart published with each release, <code>oci://ghcr.io/samsung/charts/qaboard</code> (see <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/kubernetes">Kubernetes</a>).</li>
-<li class="">Try QA-Board on your laptop with kind: <code>charts/qaboard/quickstart.yaml</code> and <code>charts/qaboard/kind.yaml</code> start a small cluster where the <code>qa</code> CLI can save results (see <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/kubernetes">the quickstart</a>).</li>
-<li class="">Mount the storage where runs save results with the chart's new <code>results</code> setting (an existing claim, a new volume, NFS or a node folder): the chart mounts it where the backend, nginx and Cantaloupe expect it, and sets <code>QABOARD_STORAGE_ROOTS</code>.</li>
-<li class="">The <code>website</code> image (the docs your server serves) is built from the repository's root, like the <code>frontend</code> image: if you build it without <code>docker compose</code>, run <code>docker build -f website/Dockerfile .</code>.</li>
-<li class="">At SIRC, QA-Board no longer serves the storage over WebDAV (<code>/davs/algo/</code>): it let anyone write and delete files. <code>services/nginx/webdav.conf</code> explains how to bring it back.</li>
-<li class="">Get the numbers of the Summary and Metrics Diff views from scripts and agents, with the experimental <code>/api/v1/commit/&lt;sha&gt;/compare</code>: each metric's median vs a reference, each run vs its reference run, and how many runs failed. See <a class="" href="https://samsung.github.io/qaboard/docs/quality-gate#from-scripts-and-agents">Quality gate</a>.</li>
-<li class="">Try QA-Board on your computer with demo projects to look at: download one Compose file, <code>deployments/quickstart/compose.yml</code>, and run <code>docker compose up -d --wait</code> (see the <a class="" href="https://samsung.github.io/qaboard/docs/get-started/quickstart">quickstart</a>). It only answers on your computer.</li>
-<li class="">Show the docs' demo projects on a Helm install with the chart's new <code>demoData</code> setting, which the kind quickstart (<code>quickstart.yaml</code>) turns on: they're restored once, before QA-Board first starts, and never over existing data. The demo data is published with each release, as <code>ghcr.io/samsung/qaboard:demo-data-&lt;version&gt;</code>.</li>
-<li class="">Build the website image behind a proxy that blocks some of the docs' media (e.g. videos), or all of them: with <code>QABOARD_MEDIA_MISSING=remote</code>, readers' browsers load those shots from the media host or your mirror (<code>QABOARD_MEDIA_BASE_URL</code>), and with <code>QABOARD_MEDIA_MISSING=placeholder</code> they render as placeholders, instead of failing the build. A proxy's "blocked" page is reported as such, without retrying.</li>
-<li class="">Configure all your git hosts (GitHub and GitHub Enterprise, GitLab, Gitea/Forgejo, Bitbucket, other git servers), each with its own token and webhook secret, with <code>QABOARD_GIT_HOSTS</code> (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/git-hosts">git hosts</a>).</li>
-<li class="">Keeps your current git settings working: <code>GITLAB_HOST</code> (also without a scheme, or with credentials), <code>GITLAB_ACCESS_TOKEN</code>, <code>GITHUB_ACCESS_TOKEN</code>, <code>QABOARD_GITHUB_HOSTS</code> for GitHub Enterprise, and <code>QABOARD_GITLAB_HOSTS</code>, whose hostnames are other names of <code>GITLAB_HOST</code>. A GitLab and a GitHub host can share a hostname (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/git-hosts#backward-compatibility">backward compatibility</a>).</li>
-<li class="">Records each existing project's git host, with a migration that uses the deploy's git host settings. <strong>Before upgrading, keep <code>GITLAB_HOST</code> set</strong>, or list your GitLab in <code>QABOARD_GIT_HOSTS</code> with the hostnames older projects used (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/git-hosts#upgrading-from-older-versions">upgrading</a>).</li>
-<li class="">Receives the push events of repositories on Gitea, Forgejo and Bitbucket Cloud, at <code>/webhook/gitea</code> (or <code>/webhook/forgejo</code>) and <code>/webhook/bitbucket</code> (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/git-hosts#webhooks">webhooks</a>, <a class="" href="https://samsung.github.io/qaboard/docs/project-init#optional-connect-your-git-host">project setup</a>).</li>
-<li class="">Stops saving git tokens in new clones' <code>.git/config</code>, or showing them in error messages: git gets them from a credential helper, and only for their own host (it needs git 2.31 or newer). Clones made by older versions still have the token in their remote URL: <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/git-hosts#tokens">remove it</a>.</li>
-<li class="">Stops sending git tokens, and GitLab session cookies, to another host when git or API calls are redirected there.</li>
-<li class="">Reads git tokens and webhook secrets only from its environment, not from the CLI's shared secrets file (<code>QA_SECRETS</code>).</li>
-<li class="">Refuses push events for git hosts without a webhook secret, once any host has one or <code>QABOARD_WEBHOOK_SECRET</code> is set (<code>401</code>): otherwise anyone could claim a repository is on such a host.</li>
-<li class="">Refuses push events from git hosts the server doesn't know (<code>403</code>), without reading the rest of the payload. Pushes to <code>/webhook/gitlab</code> from unknown hostnames still go to your GitLab, like before.</li>
-<li class="">Refuses push events that would move an existing project to another git host (<code>409</code>).</li>
-<li class="">Refuses webhook payloads over 25 MB (<code>413</code>), the most GitHub sends.</li>
-<li class="">Answers and ignores webhook events other than pushes, like GitHub's <code>ping</code>.</li>
-<li class="">Keeps starting, and running migrations, when the git host settings are invalid: the server logs the error, and refuses webhooks (<code>503</code>) until you fix them.</li>
-<li class="">Lists of commits answer many times faster on big projects, and use much less memory: they no longer load every output of every commit.</li>
-<li class="">API: page through <code>/api/v1/commits</code> with <code>limit</code> and <code>offset</code> (the <code>X-Has-More</code> response header tells if there are more), and search all of a project's commits with <code>q</code> (<a class="" href="https://samsung.github.io/qaboard/docs/apis#lists-of-commits-branches-and-projects">lists of commits</a>). Without them, it answers as before.</li>
-<li class="">API: get the most recently active branches matching a text with <code>/api/v1/project/branches?q=...&amp;limit=...</code>.</li>
-<li class="">API: get a much smaller list of projects with <code>/api/v1/projects?summary=true</code>.</li>
-<li class="">Adds two indexes on <code>ci_commits</code>, to list commits faster. They are built without blocking writes, which can take a few minutes on big databases. If building one fails, the next deploy builds it again.</li>
-<li class="">Starts even when the database has migrations it doesn't know, made by a newer version, e.g. after a rollback: it keeps them.</li>
-<li class="">Versions from before October 2026 don't start on a database migrated by this one: to roll back to them, first undo the newer migrations (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/deployment">rollbacks</a>).</li>
-<li class="">The Helm chart's migrations Job gets the chart's <code>config:</code> settings, which data migrations need (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/kubernetes">Kubernetes</a>).</li>
-<li class="">Tune PostgreSQL with a settings file: use <code>services/db/init.sh</code> as the database's entrypoint and it includes <code>services/db/qaboard.conf</code> (or your own, <code>QABOARD_DB_CONFIG</code>) in PostgreSQL's configuration at every start, and in new databases right away, with the <code>pg_stat_statements</code> extension (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/deployment#database-settings">database settings</a>).</li>
-<li class="">Size the backend's database connection pools with <code>QABOARD_DB_POOL_SIZE</code> and <code>QABOARD_DB_MAX_OVERFLOW</code> (default 4 and 2 per uwsgi process, instead of 10 and 5): PostgreSQL's <code>max_connections</code> can stay small. The backend checks connections before using them, so it keeps working after a restart of the database.</li>
-<li class="">Daily database backups older than 14 days are deleted after each successful backup, but never the newest 3, nor dumps with other names. Set <code>QABOARD_BACKUP_RETENTION_DAYS</code> to keep them longer (<code>0</code> keeps them all). <strong>Before upgrading, move the old daily backups you want to keep</strong> (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/deployment#backups">backups</a>).</li>
-<li class="">The database gets two minutes to stop cleanly (<code>stop_grace_period</code> in <em>production.yml</em>), instead of being killed after 10 seconds and replaying its log at the next start.</li>
-<li class="">See where the backend spends its time in Sentry: traces of API requests include their database queries, and a share of the backend's processes are profiled (<code>SENTRY_PROFILE_SESSION_SAMPLE_RATE</code>). Celery workers report their errors and tasks too (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/monitoring">Monitoring with Sentry</a>).</li>
-<li class="">See the web app's page loads, web vitals (LCP, CLS, INP) and the API requests they make in the same Sentry trace as the backend's work, with readable stack traces: set <code>SENTRY_AUTH_TOKEN</code>, <code>SENTRY_ORG</code>, <code>SENTRY_PROJECT</code> and <code>SENTRY_URL</code> when you build the <code>frontend</code> image to upload its source maps, that are then no longer served.</li>
-<li class="">Tell deployments and versions apart in Sentry: events are tagged with <code>SENTRY_ENVIRONMENT</code> (default: production) and the release, the version the images were built from. Send the web app's events to its own project with <code>SENTRY_FRONTEND_DSN</code>.</li>
-<li class="">Sentry is enabled by <code>SENTRY_DSN</code> alone (it also required <code>FLASK_ENV=production</code>), traces 20% of requests by default (<code>SENTRY_TRACES_SAMPLE_RATE</code>, <code>SENTRY_SAMPLE_RATE</code> still works), and checks the Sentry server's certificate: with the CA installed by the <code>CA_CERT_URL</code> build argument, or <code>SENTRY_CA_CERTS</code>. Users are identified by their username only, and tokens in URLs and headers are filtered out.</li>
+<li class="">
+<p>Zero-downtime deploys with <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/deployment">deployments/deploy.py</a>: images tagged per version, several backend replicas behind nginx, rolling updates, <code>rollback</code>, <code>status</code> and <code>restore-db</code>.</p>
+</li>
+<li class="">
+<p><code>deploy.py seed-db</code> fills a staging database with only production's recent data.</p>
+</li>
+<li class="">
+<p>A <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/kubernetes">Helm chart</a> to run QA-Board on Kubernetes.</p>
+</li>
+<li class="">
+<p>The backend has a <code>/api/v1/health</code> endpoint, shuts down gracefully, and keeps working when redis is down.</p>
+</li>
+<li class="">
+<p>Security: actions that run commands (redo, tuning, stopping or deleting batches...) now require a login and run as the logged-in user, and their inputs are escaped. See SECURITY.md.</p>
+</li>
+<li class="">
+<p>Security: the server only writes, deletes or runs code in the folders listed in <code>QABOARD_STORAGE_ROOTS</code> (default: <code>/mnt/qaboard</code>), and refuses results stored elsewhere. <strong>If your projects store results in other folders, set it before upgrading</strong> (see <a class="" href="https://samsung.github.io/qaboard/docs/deploy#optional-environment-variables">environment variables</a>).</p>
+</li>
+<li class="">
+<p>Require a secret in push webhooks: set <code>QABOARD_WEBHOOK_SECRET</code>, and the same secret in your repositories' webhooks, so that only your git hosts can send push events (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/git-hosts#webhooks">webhooks</a>).</p>
+</li>
+<li class="">
+<p>Each batch started from QA-Board gets its own folder with its scripts and logs, under the batch's <code>qaboard-batches/</code>.</p>
+</li>
+<li class="">
+<p>The web app links to the docs served by your server at <code>/docs/</code>, which match its version, instead of the public website. Set <code>QABOARD_DOCS_ROOT</code> to use another docs site.</p>
+</li>
+<li class="">
+<p>Configure the quota dashboard and support links with <code>QABOARD_QUOTA_URL_TEMPLATE</code> and <code>QABOARD_SUPPORT_URL</code>.</p>
+</li>
+<li class="">
+<p>Tell users which credentials to use when they can't log in, with <code>QABOARD_LOGIN_HINT</code>, and where to install WebCDE, which opens runs with a <code>cde.sh</code>, with <code>QABOARD_WEBCDE_INSTALLER</code> (<a class="" href="https://samsung.github.io/qaboard/docs/deploy#optional-environment-variables">environment variables</a>). The tuning form's feedback link goes to <code>QABOARD_SUPPORT_URL</code>.</p>
+</li>
+<li class="">
+<p>Security: the server only loads avatars and badges for the web app from your GitLab hosts and gravatar. <strong>If your projects' <code>avatar_url</code> or badges (<code>integrations[].src</code>) come from other hosts, list them in <code>QABOARD_PROXY_HOSTS</code></strong> (see <a class="" href="https://samsung.github.io/qaboard/docs/deploy#optional-environment-variables">environment variables</a>).</p>
+</li>
+<li class="">
+<p>Restrict who can read the files of restricted projects, or of the folders you list under <code>paths</code> in <code>users_restrict.yml</code>: nginx asks the backend before sending each file (see <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/user-management#restricting-who-can-read-files">user management</a>). If you use your own nginx configuration, include <code>snippets/qaboard-files.conf</code> in the <code>/s/</code> locations to get the file browser.</p>
+</li>
+<li class="">
+<p>In the folders listed in <code>QABOARD_FILES_UNIX_PERMISSIONS</code> (e.g. <code>/home</code>), users only read the files that their own Unix account can read (see <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/user-management#unix-permissions">user management</a>).</p>
+</li>
+<li class="">
+<p>Without a complete <code>/etc/passwd</code>, e.g. with LDAP or SSSD, <code>QABOARD_ACCOUNTS_COMMAND</code> (and <code>QABOARD_GROUPS_COMMAND</code>) gives the backend the users' accounts, refreshed daily: the file browser shows owners' names instead of their ids (see <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/user-management#users-accounts">users' accounts</a>).</p>
+</li>
+<li class="">
+<p>Redoing, deleting or marking a run as failed now requires access to its project, for restricted projects.</p>
+</li>
+<li class="">
+<p>Scripts can send results that describe their commit with only <code>commit_sha</code> and <code>commit_authored_datetime</code>: the other <code>commit_*</code> fields (branch, message, committer, parents) are optional, and the server doesn't need access to the git repository.</p>
+</li>
+<li class="">
+<p>Add pages for your own users to the docs your server serves: put them in <code>website/site-docs/&lt;site&gt;/</code> and build with <code>QABOARD_SITE=&lt;site&gt;</code>. They get their own menu, and the installation page links to them. At SIRC, "At SIRC" has the install commands and SIRC specifics.</p>
+</li>
+<li class="">
+<p>Pull QA-Board's images from <code>ghcr.io/samsung/qaboard</code>: <code>docker-compose.yml</code> uses them by default, each release has its own tags (e.g. <code>backend-1.2.0</code>), and <code>QABOARD_IMAGE</code> picks another registry.</p>
+</li>
+<li class="">
+<p>Install QA-Board on Kubernetes from the Helm chart published with each release, <code>oci://ghcr.io/samsung/charts/qaboard</code> (see <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/kubernetes">Kubernetes</a>).</p>
+</li>
+<li class="">
+<p>Try QA-Board on your laptop with kind: <code>charts/qaboard/quickstart.yaml</code> and <code>charts/qaboard/kind.yaml</code> start a small cluster where the <code>qa</code> CLI can save results (see <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/kubernetes">the quickstart</a>).</p>
+</li>
+<li class="">
+<p>Mount the storage where runs save results with the chart's new <code>results</code> setting (an existing claim, a new volume, NFS or a node folder): the chart mounts it where the backend, nginx and Cantaloupe expect it, and sets <code>QABOARD_STORAGE_ROOTS</code>.</p>
+</li>
+<li class="">
+<p>The <code>website</code> image (the docs your server serves) is built from the repository's root, like the <code>frontend</code> image: if you build it without <code>docker compose</code>, run <code>docker build -f website/Dockerfile .</code>.</p>
+</li>
+<li class="">
+<p>At SIRC, QA-Board no longer serves the storage over WebDAV (<code>/davs/algo/</code>): it let anyone write and delete files. <code>services/nginx/webdav.conf</code> explains how to bring it back.</p>
+</li>
+<li class="">
+<p>Get the numbers of the Summary and Metrics Diff views from scripts and agents, with the experimental <code>/api/v1/commit/&lt;sha&gt;/compare</code>: each metric's median vs a reference, each run vs its reference run, and how many runs failed. See <a class="" href="https://samsung.github.io/qaboard/docs/quality-gate#from-scripts-and-agents">Quality gate</a>.</p>
+</li>
+<li class="">
+<p>Try QA-Board on your computer with demo projects to look at: download one Compose file, <code>deployments/quickstart/compose.yml</code>, and run <code>docker compose up -d --wait</code> (see the <a class="" href="https://samsung.github.io/qaboard/docs/get-started/quickstart">quickstart</a>). It only answers on your computer.</p>
+</li>
+<li class="">
+<p>Show the docs' demo projects on a Helm install with the chart's new <code>demoData</code> setting, which the kind quickstart (<code>quickstart.yaml</code>) turns on: they're restored once, before QA-Board first starts, and never over existing data. The demo data is published with each release, as <code>ghcr.io/samsung/qaboard:demo-data-&lt;version&gt;</code>.</p>
+</li>
+<li class="">
+<p>Build the website image behind a proxy that blocks some of the docs' media (e.g. videos), or all of them: with <code>QABOARD_MEDIA_MISSING=remote</code>, readers' browsers load those shots from the media host or your mirror (<code>QABOARD_MEDIA_BASE_URL</code>), and with <code>QABOARD_MEDIA_MISSING=placeholder</code> they render as placeholders, instead of failing the build. A proxy's "blocked" page is reported as such, without retrying.</p>
+</li>
+<li class="">
+<p>Configure all your git hosts (GitHub and GitHub Enterprise, GitLab, Gitea/Forgejo, Bitbucket, other git servers), each with its own token and webhook secret, with <code>QABOARD_GIT_HOSTS</code> (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/git-hosts">git hosts</a>).</p>
+</li>
+<li class="">
+<p>Keeps your current git settings working: <code>GITLAB_HOST</code> (also without a scheme, or with credentials), <code>GITLAB_ACCESS_TOKEN</code>, <code>GITHUB_ACCESS_TOKEN</code>, <code>QABOARD_GITHUB_HOSTS</code> for GitHub Enterprise, and <code>QABOARD_GITLAB_HOSTS</code>, whose hostnames are other names of <code>GITLAB_HOST</code>. A GitLab and a GitHub host can share a hostname (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/git-hosts#backward-compatibility">backward compatibility</a>).</p>
+</li>
+<li class="">
+<p>Records each existing project's git host, with a migration that uses the deploy's git host settings. <strong>Before upgrading, keep <code>GITLAB_HOST</code> set</strong>, or list your GitLab in <code>QABOARD_GIT_HOSTS</code> with the hostnames older projects used (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/git-hosts#upgrading-from-older-versions">upgrading</a>).</p>
+</li>
+<li class="">
+<p>Receives the push events of repositories on Gitea, Forgejo and Bitbucket Cloud, at <code>/webhook/gitea</code> (or <code>/webhook/forgejo</code>) and <code>/webhook/bitbucket</code> (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/git-hosts#webhooks">webhooks</a>, <a class="" href="https://samsung.github.io/qaboard/docs/project-init#optional-connect-your-git-host">project setup</a>).</p>
+</li>
+<li class="">
+<p>Stops saving git tokens in new clones' <code>.git/config</code>, or showing them in error messages: git gets them from a credential helper, and only for their own host (it needs git 2.31 or newer). Clones made by older versions still have the token in their remote URL: <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/git-hosts#tokens">remove it</a>.</p>
+</li>
+<li class="">
+<p>Stops sending git tokens, and GitLab session cookies, to another host when git or API calls are redirected there.</p>
+</li>
+<li class="">
+<p>Reads git tokens and webhook secrets only from its environment, not from the CLI's shared secrets file (<code>QA_SECRETS</code>).</p>
+</li>
+<li class="">
+<p>Refuses push events for git hosts without a webhook secret, once any host has one or <code>QABOARD_WEBHOOK_SECRET</code> is set (<code>401</code>): otherwise anyone could claim a repository is on such a host.</p>
+</li>
+<li class="">
+<p>Refuses push events from git hosts the server doesn't know (<code>403</code>), without reading the rest of the payload. Pushes to <code>/webhook/gitlab</code> from unknown hostnames still go to your GitLab, like before.</p>
+</li>
+<li class="">
+<p>Refuses push events that would move an existing project to another git host (<code>409</code>).</p>
+</li>
+<li class="">
+<p>Refuses webhook payloads over 25 MB (<code>413</code>), the most GitHub sends.</p>
+</li>
+<li class="">
+<p>Answers and ignores webhook events other than pushes, like GitHub's <code>ping</code>.</p>
+</li>
+<li class="">
+<p>Keeps starting, and running migrations, when the git host settings are invalid: the server logs the error, and refuses webhooks (<code>503</code>) until you fix them.</p>
+</li>
+<li class="">
+<p>Lists of commits answer many times faster on big projects, and use much less memory: they no longer load every output of every commit.</p>
+</li>
+<li class="">
+<p>API: page through <code>/api/v1/commits</code> with <code>limit</code> and <code>offset</code> (the <code>X-Has-More</code> response header tells if there are more), and search all of a project's commits with <code>q</code> (<a class="" href="https://samsung.github.io/qaboard/docs/apis#lists-of-commits-branches-and-projects">lists of commits</a>). Without them, it answers as before.</p>
+</li>
+<li class="">
+<p>API: get the most recently active branches matching a text with <code>/api/v1/project/branches?q=...&amp;limit=...</code>.</p>
+</li>
+<li class="">
+<p>API: get a much smaller list of projects with <code>/api/v1/projects?summary=true</code>.</p>
+</li>
+<li class="">
+<p>Adds two indexes on <code>ci_commits</code>, to list commits faster. They are built without blocking writes, which can take a few minutes on big databases. If building one fails, the next deploy builds it again.</p>
+</li>
+<li class="">
+<p>Starts even when the database has migrations it doesn't know, made by a newer version, e.g. after a rollback: it keeps them.</p>
+</li>
+<li class="">
+<p>Versions from before October 2026 don't start on a database migrated by this one: to roll back to them, first undo the newer migrations (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/deployment">rollbacks</a>).</p>
+</li>
+<li class="">
+<p>The Helm chart's migrations Job gets the chart's <code>config:</code> settings, which data migrations need (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/kubernetes">Kubernetes</a>).</p>
+</li>
+<li class="">
+<p>Tune PostgreSQL with a settings file: use <code>services/db/init.sh</code> as the database's entrypoint and it includes <code>services/db/qaboard.conf</code> (or your own, <code>QABOARD_DB_CONFIG</code>) in PostgreSQL's configuration at every start, and in new databases right away, with the <code>pg_stat_statements</code> extension (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/deployment#database-settings">database settings</a>).</p>
+</li>
+<li class="">
+<p>Size the backend's database connection pools with <code>QABOARD_DB_POOL_SIZE</code> and <code>QABOARD_DB_MAX_OVERFLOW</code> (default 4 and 2 per uwsgi process, instead of 10 and 5): PostgreSQL's <code>max_connections</code> can stay small. The backend checks connections before using them, so it keeps working after a restart of the database.</p>
+</li>
+<li class="">
+<p>Daily database backups older than 14 days are deleted after each successful backup, but never the newest 3, nor dumps with other names. Set <code>QABOARD_BACKUP_RETENTION_DAYS</code> to keep them longer (<code>0</code> keeps them all). <strong>Before upgrading, move the old daily backups you want to keep</strong> (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/deployment#backups">backups</a>).</p>
+</li>
+<li class="">
+<p>The database gets two minutes to stop cleanly (<code>stop_grace_period</code> in <em>production.yml</em>), instead of being killed after 10 seconds and replaying its log at the next start.</p>
+</li>
+<li class="">
+<p>See where the backend spends its time in Sentry: traces of API requests include their database queries, and a share of the backend's processes are profiled (<code>SENTRY_PROFILE_SESSION_SAMPLE_RATE</code>). Celery workers report their errors and tasks too (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/monitoring">Monitoring with Sentry</a>).</p>
+</li>
+<li class="">
+<p>See the web app's page loads, web vitals (LCP, CLS, INP) and the API requests they make in the same Sentry trace as the backend's work, with readable stack traces: set <code>SENTRY_AUTH_TOKEN</code>, <code>SENTRY_ORG</code>, <code>SENTRY_PROJECT</code> and <code>SENTRY_URL</code> when you build the <code>frontend</code> image to upload its source maps, that are then no longer served.</p>
+</li>
+<li class="">
+<p>Tell deployments and versions apart in Sentry: events are tagged with <code>SENTRY_ENVIRONMENT</code> (default: production) and the release, the version the images were built from. Send the web app's events to its own project with <code>SENTRY_FRONTEND_DSN</code>.</p>
+</li>
+<li class="">
+<p>Sentry is enabled by <code>SENTRY_DSN</code> alone (it also required <code>FLASK_ENV=production</code>), traces 20% of requests by default (<code>SENTRY_TRACES_SAMPLE_RATE</code>, <code>SENTRY_SAMPLE_RATE</code> still works), and checks the Sentry server's certificate: with the CA installed by the <code>CA_CERT_URL</code> build argument, or <code>SENTRY_CA_CERTS</code>. Users are identified by their username only, and tokens in URLs and headers are filtered out.</p>
+</li>
+<li class="">
+<p>The API reads the values of a region of an image, for the image viewer's pixel values: <code>GET /api/v1/output/image/pixels</code> with <code>image_url</code>, <code>x</code>, <code>y</code>, <code>w</code> and <code>h</code> (up to 256×256 pixels), as JSON, or as binary with <code>format=binary</code> (their type and shape in the <code>X-Pixels-Dtype</code> and <code>X-Pixels-Shape</code> headers).</p>
+</li>
+<li class="">
+<p>The API finding where two images differ (<code>POST /api/v1/output/image/diff</code>) returns regions as <code>x</code>, <code>y</code>, <code>w</code>, <code>h</code> with the peak's <code>value</code> (comparable across images) and its fraction of the largest (<code>diff</code>), instead of a center and radius. It takes the reference's file name as <code>path_ref</code>, answers 404 for a missing file and 400 for images of different sizes, and keeps its results.</p>
+</li>
+<li class="">
+<p>Images whose pixel values users read are decoded once and kept on disk, up to <code>QABOARD_IMAGE_CACHE_GB</code> (20 GB by default, the least recently used are removed), in <code>QABOARD_IMAGE_CACHE_DIR</code>. See <a class="" href="https://samsung.github.io/qaboard/docs/deploy">the server's settings</a>.</p>
+</li>
 </ul>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="documentation">Documentation<a href="https://samsung.github.io/qaboard/release-notes/2026-10#documentation" class="hash-link" aria-label="Direct link to Documentation" title="Direct link to Documentation" translate="no">​</a></h2>
 <ul>
@@ -209,6 +514,8 @@
 <li class="">Start the web app faster: it downloads a quarter less JavaScript on first load (date picker, error reporting and number formatting load only when needed), and servers send precompressed files.</li>
 <li class="">Open a commit sooner from the lists of commits: hovering a commit starts loading its page.</li>
 <li class="">Open the commits of a project you visited recently sooner after a reload: they no longer wait for the project's configuration.</li>
+<li class="">Find where images differ faster: on a 12 MP image in under a second instead of 4 to 8 seconds, on a 96 MP image in 4 to 5 seconds instead of 6 to 18 (under a second for another way to compare), and at once the next time. Differences of a few pixels in large images are no longer missed.</li>
+<li class="">Read the values of pixels in large 16-bit or raw images without waiting: the image viewer loads them by tiles of 64×64 pixels and keeps them, the server sends them as binary, decodes each image once even when many users open it at the same time, and no longer decodes images again after 20 others.</li>
 <li class="">Hover the History plot and image-heavy pages more smoothly: the page updates once you pause on a commit, and image viewers you've left no longer keep redrawing in the background.</li>
 </ul>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2026-10#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
@@ -229,6 +536,8 @@
 <li class="">Running integrations show a spinning icon again, and the bit-accuracy legend's gray icons have a color.</li>
 <li class="">Dynamic options no longer show an empty card when a run doesn't have the selected value, sort numbers as numbers (<code>2</code> before <code>10</code>), and no longer split into options like <code>frame_1234</code> that control nothing. Whether an option is linked is no longer remembered across projects.</li>
 <li class="">In the image viewer, changing a Dynamic Option (e.g. a slider over your pipeline's stages) keeps the zoom and the selected ROI, for the new and reference images, instead of zooming out to the whole image, most often when the reference's image showed up. Images with another aspect ratio fit the selected ROI again.</li>
+<li class="">The regions where images differ most (formerly Auto ROIs) are centered on the differences, instead of starting at them.</li>
+<li class="">A run's card in full screen has a button to leave it, and scrolls when it's taller than the screen, instead of its content sticking to the screen's edges.</li>
 <li class="">Hiding a visualization shown by default takes one click instead of two.</li>
 <li class="">A run is compared with the reference run of the same platform: when the reference batch had the same input and configuration on two platforms, the other platform's run was picked.</li>
 <li class="">The Improvement report showed "=" for metrics that changed, and badges for those that didn't.</li>
