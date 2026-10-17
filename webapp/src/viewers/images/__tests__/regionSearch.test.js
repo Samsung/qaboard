@@ -51,6 +51,30 @@ describe('the limiter of searches', () => {
     await flush();
     expect(ran).toBe(false);
   });
+
+  it('says which searches started, not the ones waiting for their turn', async () => {
+    const limiter = createLimiter(1);
+    let changes = 0;
+    limiter.subscribe(() => changes++);
+    const gates = { a: deferred(), b: deferred() };
+    const a = limiter.run(() => gates.a.promise, { id: 'a' });
+    const b = limiter.run(() => gates.b.promise, { id: 'b' });
+    await flush();
+    const before = limiter.started();
+    expect(Object.keys(before)).toEqual(['a']);
+    expect(before.a).toBeLessThanOrEqual(Date.now());
+    gates.a.resolve();
+    await a;
+    await flush();
+    expect(Object.keys(limiter.started())).toEqual(['b']);
+    // a new object when it changes
+    expect(limiter.started()).not.toBe(before);
+    gates.b.resolve();
+    await b;
+    await flush();
+    expect(limiter.started()).toEqual({});
+    expect(changes).toBe(4);
+  });
 });
 
 describe('the runs of the page', () => {

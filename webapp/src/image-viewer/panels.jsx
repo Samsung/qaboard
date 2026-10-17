@@ -44,21 +44,29 @@ const same_values = (display, value) => !!value && !!display && (
   value.length === 1 ? display[0] === value[0] && display[1] === value[0] && display[2] === value[0]
     : value.length >= 3 && [0, 1, 2].every(c => display[c] === value[c]));
 
-const ImageValues = ({ label, pixel, display, image, base, intent }) => <span className="qiv-readout-image">
-  <span className={`qiv-readout-label qiv-${intent}`}>{label}</span>{' '}
-  {display && <span className="qiv-swatch" style={{ background: `rgb(${display[0]},${display[1]},${display[2]})` }} title="The displayed color" />}
-  {image && <span title={`${IMAGE_VALUES}${image.mode ? `. Here: ${image.mode}` : ''}`}>
-    <Chip>image</Chip>{' '}
-    {image.value ? <Values values={image.value} base={base} />
-      : image.value === undefined ? <span className="qiv-muted">…</span>
-      : <span className="qiv-warning-text" title={image.error ?? "Can't read the image's values"}>unavailable</span>}
-    {image.mode && <span className="qiv-muted"> {image.mode}</span>}{' '}
-  </span>}
-  {display && !same_values(display, image?.value) && <span title={DISPLAY_VALUES}>
-    <Chip>display</Chip> <Values values={display.slice(0, 3)} base={base} />{' '}
-  </span>}
-  {!display && pixel === null && <span className="qiv-muted">outside</span>}
-</span>;
+// 8-bit images, that screens show as they are: their displayed values differ only when zoomed out (blended with their
+// neighbors), the swatch shows them
+const SCREEN_MODES = ['L', 'LA', 'RGB', 'RGBA', 'RGBX'];
+
+const ImageValues = ({ label, pixel, display, image, base, intent }) => {
+  const screen = !!image?.value && SCREEN_MODES.includes(image.mode);
+  return <span className="qiv-readout-image">
+    <span className={`qiv-readout-label qiv-${intent}`}>{label}</span>{' '}
+    {display && <span className="qiv-swatch" style={{ background: `rgb(${display[0]},${display[1]},${display[2]})` }} title="The displayed color" />}
+    {screen && <span title={`${IMAGE_VALUES}. Here: ${image.mode}, 8-bit, as displayed once zoomed in`}><Values values={image.value} base={base} />{' '}</span>}
+    {image && !screen && <span title={`${IMAGE_VALUES}${image.mode ? `. Here: ${image.mode}` : ''}`}>
+      <Chip>image</Chip>{' '}
+      {image.value ? <Values values={image.value} base={base} />
+        : image.value === undefined ? <span className="qiv-muted">…</span>
+        : <span className="qiv-warning-text" title={image.error ?? "Can't read the image's values"}>unavailable</span>}
+      {image.mode && <span className="qiv-muted"> {image.mode}</span>}{' '}
+    </span>}
+    {display && !screen && !same_values(display, image?.value) && <span title={DISPLAY_VALUES}>
+      <Chip>display</Chip> <Values values={display.slice(0, 3)} base={base} />{' '}
+    </span>}
+    {!display && pixel === null && <span className="qiv-muted">outside</span>}
+  </span>;
+};
 
 // The pixel under the pointer, in the order the images show (order: ['a', 'b'] or ['b', 'a']), named by `names`, e.g.
 // A and B during a blind test (neutral: no colors that tell new from reference).

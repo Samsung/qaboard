@@ -176,6 +176,9 @@ Hover an image to see the pixel's coordinates, its values in the new and referen
   RGB...), and zoomed out, a screen pixel averages many image pixels. It's what you see, not your data. It's only
   listed when it differs from the image values.
 
+8-bit images (`L`, `RGB`, `RGBA`) show one set of values, the image's: the screen shows them as they are, and the swatch
+next to them shows the color on screen.
+
 **Δ** is the difference of the image values when both images have the same size, else of the displayed ones. The
 measure picked for [the difference](#the-difference) (perceptual, ΔE...) is always computed on the displayed colors.
 Click the line to switch to hexadecimal.
@@ -209,14 +212,17 @@ The regions button above the images zooms on:
   that differs everywhere, like leaves, gives one region, not twenty) and show some context around the difference.
   The first time the server reads an image takes a few seconds, then it's quick: results are kept.
 
-The set you pick applies to every viewer of the same file, in all the runs' cards. Step through the regions with the
+The set you pick applies to every viewer of the same file on the page, in all the runs' cards. **Where they differ**
+is for the page where you pick it: on another page, the viewers don't compare their images until you ask, since that
+compares all its runs again. Step through the regions with the
 arrows (or <kbd>[</kbd> <kbd>]</kbd>), or click their thumbnails. **Full image** goes back to the whole image. **Copy the
 view as a region** copies the coordinates of what you see, in the format of presets.
 
 #### Which runs changed most
 **Where they differ, in all N runs…** (in the regions menu) compares the images of every run of the page with their
-reference, a few at a time, and ranks the runs by their largest difference, with the ones that didn't change at all
-counted as *identical*. Pick how to compare at the top. **Show** takes you to a run's card, its viewer on the region
+reference, three at a time, and ranks the runs by their largest difference, with the ones that didn't change at all
+counted as *identical*. The list says which runs it's comparing and for how long, and which wait for their turn: the
+first comparisons of large images take a few seconds each, and those running together end at about the same time. Pick how to compare at the top. **Show** takes you to a run's card, its viewer on the region
 that differs most; the other viewers show their own regions too. Closing the list doesn't stop the comparisons:
 **Stop** does.
 

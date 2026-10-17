@@ -4,12 +4,22 @@
 // runs found, and the other way around. Searches can take seconds the first time the server reads an image: a few at
 // a time, the ones users asked for in a viewer before the others.
 
-// Searches at the same time, for the whole page
+import { useSyncExternalStore } from 'react';
+
+// Searches at the same time, for the whole page. Their server threads finish them about 2x sooner than one by one,
+// but at about the same time: users see which are running.
 const CONCURRENCY = 3;
 
 export const createLimiter = (concurrency = CONCURRENCY) => {
   const queue = [];
   let running = 0;
+  // the tasks running, by id: when they started. A new object when it changes (useSyncExternalStore)
+  let started = {};
+  const listeners = new Set();
+  const setStarted = value => {
+    started = value;
+    listeners.forEach(listener => listener());
+  };
   const next = () => {
     while (running < concurrency && queue.length > 0) {
       const task = queue.shift();
@@ -18,15 +28,20 @@ export const createLimiter = (concurrency = CONCURRENCY) => {
         continue;
       }
       running++;
+      if (task.id) setStarted({ ...started, [task.id]: Date.now() });
       Promise.resolve().then(task.fn).then(task.resolve, task.reject).finally(() => {
         running--;
+        if (task.id) {
+          const { [task.id]: _, ...others } = started;
+          setStarted(others);
+        }
         next();
       });
     }
   };
-  // priority 'high' goes before what's waiting
-  const run = (fn, { signal, priority = 'low' } = {}) => new Promise((resolve, reject) => {
-    const task = { fn, signal, resolve, reject };
+  // priority 'high' goes before what's waiting. id: to know when it started
+  const run = (fn, { signal, priority = 'low', id } = {}) => new Promise((resolve, reject) => {
+    const task = { fn, signal, resolve, reject, id };
     if (priority === 'high') queue.unshift(task);
     else queue.push(task);
     // cancelled while waiting: out of the queue
@@ -38,10 +53,17 @@ export const createLimiter = (concurrency = CONCURRENCY) => {
     }, { once: true });
     next();
   });
-  return { run, pending: () => queue.length + running };
+  const subscribe = listener => {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  };
+  return { run, concurrency, pending: () => queue.length + running, started: () => started, subscribe };
 };
 
 export const limiter = createLimiter();
+
+// The searches running (not waiting for their turn): { [JSON of their query key]: when they started }
+export const useStartedSearches = () => useSyncExternalStore(limiter.subscribe, limiter.started);
 
 export const regionsKey = (provider_id, { output_new, output_ref, path, path_ref }) =>
   ['image-regions', provider_id, output_new?.output_dir_url ?? output_new?.id, output_ref?.output_dir_url ?? output_ref?.id ?? null, path, path_ref ?? path];
@@ -49,7 +71,7 @@ export const regionsKey = (provider_id, { output_new, output_ref, path, path_ref
 // The query of a provider's regions for an image pair. context: { output_new, output_ref, path, path_ref }
 export const regionsQuery = (provider, context, priority = 'low') => ({
   queryKey: regionsKey(provider.id, context),
-  queryFn: ({ signal }) => limiter.run(() => provider.find(context, { signal }), { signal, priority }),
+  queryFn: ({ signal, queryKey }) => limiter.run(() => provider.find(context, { signal }), { signal, priority, id: JSON.stringify(queryKey) }),
   // the server keeps them, until the files change
   staleTime: Infinity,
   gcTime: 60 * 60 * 1000,
