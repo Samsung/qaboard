@@ -298,7 +298,11 @@ const IntegrationsMenus = props => {
               icon="info-sign"
               target="_blank"
               href={`${docs_root}docs/triggering-third-party-tools`}
-              text="Click to learn how to link to docs/artifacts, or trigger webhooks, GitLab CI jobs, GitHub Actions workflows and Jenkins builds..."
+              // on a few lines: on one, the submenu is wider than small windows
+              multiline
+              text={<span style={{display: 'inline-block', maxWidth: 280}}>
+                Click to learn how to link to docs/artifacts, or trigger webhooks, GitLab CI jobs, GitHub Actions workflows and Jenkins builds...
+              </span>}
           />
       </>}
     </MenuItem>}

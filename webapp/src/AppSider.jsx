@@ -399,7 +399,8 @@ export const CodeMenu = ({ project, project_data, commit, branch }) => {
     href={main}
     {...external}
     title={sha ? "The commit on your git host. Hover for its files, branch and repository" : "The code on your git host. Hover for more links"}
-    popoverProps={{ hoverCloseDelay: 300 }}
+    // In a portal, like the sidebar's other submenus: the sidebar scrolls, so it would cut the submenu off, or flip it off-screen on the left
+    popoverProps={{ usePortal: true, hoverCloseDelay: 300 }}
   >
     {items.map(({ icon, text, href }) => <MenuItem key={href} icon={icon} text={text} href={href} {...external} labelElement={<Icon icon="share" size={12}/>}/>)}
   </MenuItem>
