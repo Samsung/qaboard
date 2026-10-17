@@ -289,6 +289,7 @@ const Sider = styled.div`
             display: none;
         }
         .bp6-menu-item {
+            position: relative;
             justify-content: center;
             /* the user menu sets its padding inline */
             padding-left: 0 !important;
@@ -300,13 +301,21 @@ const Sider = styled.div`
         .bp6-menu-item > .bp6-icon {
             margin-right: 0;
         }
-        ${SiderMenu} .bp6-menu-item > .bp6-fill,
         .bp6-menu-item > .bp6-menu-item-label,
         .bp6-menu-item > .bp6-submenu-icon,
-        .bp6-menu-item > .bp6-fill:not(:has(.user-display)),
         .user-display,
         .chevron-icon {
             display: none;
+        }
+        /* the names of the items: hidden, but still their names for screen readers */
+        ${SiderMenu} .bp6-menu-item > .bp6-fill,
+        .bp6-menu-item > .bp6-fill:not(:has(.user-display)) {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip-path: inset(50%);
+            white-space: nowrap;
         }
         /* a failure count on Logs becomes a dot */
         .bp6-menu-item > .bp6-menu-item-label.${logs_hint_class} {
@@ -494,8 +503,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
       popoverProps={{
         usePortal: true,
         portalClassName: "limit-overflow",
-        hoverCloseDelay: 2000,
-        transitionDuration: 800,
+        hoverCloseDelay: 300,
       }}
     >
       <MilestonesMenu project={project} milestones={qatools_milestones} onSelect={selectMilestone} icon="crown" title="Select a milestone from qaboard.yaml" type="qatools" />

@@ -136,15 +136,20 @@ test('sidebar submenus open in view', async ({ page }) => {
       });
       expect(hit, `"${await link.textContent()}" can be seen and clicked`).toBe(true);
     }
+    // and closes soon once the mouse leaves
     await page.mouse.move(viewport.width - 10, viewport.height / 2);
-    await expect(submenu).toBeHidden();
+    await expect(submenu).toBeHidden({ timeout: 1000 });
   };
   // links to the commit on the git host
   await expect_submenu_in_view(nav.getByRole('menuitem', { name: 'Code' }), 'Repository');
   await expect_submenu_in_view(nav.getByRole('menuitem', { name: 'Integrations' }), /learn how to link/);
-  // collapsed to icons
+  // collapsed to icons, the items keep their names
   await nav.getByRole('menuitem', { name: 'Collapse the sidebar' }).click();
-  await expect_submenu_in_view(nav.getByTitle(/^The commit on your git host/), 'Repository');
+  await expect(nav.getByRole('menuitem', { name: 'Expand the sidebar' })).toBeVisible();
+  for (const name of ['Summary', 'Visualizations', 'Artifacts & Configs', 'Integrations', 'Tuning Analysis'])
+    await expect(nav.getByRole('menuitem', { name, exact: true })).toBeVisible();
+  expect(await nav.ariaSnapshot()).not.toMatch(/- menuitem:?\s*$/m);
+  await expect_submenu_in_view(nav.getByRole('menuitem', { name: 'Code', exact: true }), 'Repository');
   await page.waitForLoadState('networkidle');
 });
 

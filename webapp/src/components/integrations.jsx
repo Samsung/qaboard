@@ -241,8 +241,8 @@ const IntegrationsMenus = props => {
       text="Integrations"
       popoverProps={{
         usePortal: true,
-        hoverCloseDelay: 2000,
-        transitionDuration: 1000,
+        // closes soon once the mouse leaves, like the sidebar's other submenus (the search stays)
+        hoverCloseDelay: 300,
         onOpening: () => {startUpdateIntegrationStatuses?.(5000)},
         onClosed: stopUpdateIntegrationStatuses,
         // Prevent closing when interacting with search input
