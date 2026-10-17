@@ -82,7 +82,8 @@ export default defineConfig(({ mode }) => ({
     sentry(),
   ],
   define: {
-    'import.meta.env.QABOARD_RELEASE': JSON.stringify(release ?? ''),
+    // Not in the tests: they'd depend on the shell's environment (e.g. QABOARD_VERSION set by an .envrc)
+    'import.meta.env.QABOARD_RELEASE': JSON.stringify(mode === 'test' ? '' : release ?? ''),
   },
   server: {
     port: 3000,
