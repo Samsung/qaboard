@@ -115,17 +115,23 @@ const SlimCard = styled(Card)`
   overflow: "auto";
 `;
 
+// The button is in the full screen element, to exit too. No tooltips in there: they show outside of it.
 const FullScreenableSlimCard = ({ updateFullscreen, className, style, children }) => {
   const handle = useFullScreenHandle();
   return <SlimCard compact className={className} style={style}>
-    <div style={{position: "relative"}}>
-      <div style={{position: "absolute", right: "0px", top: "0px"}}>
-        <Tooltip content="Full screen (Esc to exit)">
-          <Button size="small" variant="minimal" icon="fullscreen" aria-label="Full screen" onClick={handle.enter}/>
-        </Tooltip>
-      </div>
-    </div>
     <FullScreen handle={handle} onChange={state => updateFullscreen(state)}>
+      <div style={{position: "relative"}}>
+        <div style={{position: "absolute", right: "0px", top: "0px", zIndex: 1}}>
+          <Button
+            size="small"
+            variant="minimal"
+            icon={handle.active ? "minimize" : "fullscreen"}
+            aria-label={handle.active ? "Exit full screen" : "Full screen"}
+            title={handle.active ? "Exit full screen (Esc)" : "Full screen: this run's visualizations. Images have their own, in their toolbar"}
+            onClick={handle.active ? handle.exit : handle.enter}
+          />
+        </div>
+      </div>
       {children}
     </FullScreen>
   </SlimCard>
@@ -307,7 +313,7 @@ const OutputCard = memo(function OutputCard(props) {
   const {
     project, commit, config, metrics, type, output_new, output_ref, files_filter, no_header,
     show_all_files, hide_runs_without_files, expand_all, color_blind_friendly,
-    onRegisterOutputOptions, onToggleDynamicOptionSync,
+    onRegisterOutputOptions, onToggleDynamicOptionSync, onControlsChange,
   } = props;
   const controls = props.controls ?? {};
   const sync_prefs = controls.dynamic_options_sync ?? no_options;
@@ -523,6 +529,7 @@ const OutputCard = memo(function OutputCard(props) {
           manifests={manifests}
           {...view}
           {...controls}
+          onControlsChange={onControlsChange}
           path={path}
           path_ref={path_ref}
           style={{ ...style, ...view.style }}
@@ -582,7 +589,7 @@ const OutputCard = memo(function OutputCard(props) {
   }
   const maybe_style_skeleton = output_new.is_running ? style_skeleton : {};
 
-  return <div style={container_style} className="output-card" ref={in_view_ref}>
+  return <div style={container_style} className="output-card" data-output-id={output_new.id} ref={in_view_ref}>
     <FullScreenableSlimCard
       updateFullscreen={setFullscreen}
       className="output-card"

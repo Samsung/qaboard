@@ -18,7 +18,6 @@ import { useSelected, useSiteConfig, useUrlText, updateSelected } from "./hooks"
 import { OutputCard } from "./viewers/OutputCard";
 import { useViewerControls } from "./viewers/controls";
 import { BitAccuracyForm, bit_accuracy_url_defaults } from "./viewers/bit_accuracy/utils";
-import { is_image } from "./viewers/images/utils"
 import { hash_color, match_query, average, median, matching_output } from "./utils";
 import { yAxisSuffix, hasAllMetrics } from "./evolutionAxis";
 import CommitRow from "./components/CommitRow";
@@ -316,13 +315,6 @@ const CommitsEvolutionPerTest = props => {
       : { output_ref: undefined, mismatch: null };
     const controls_extra = qatools_config?.outputs?.controls || []
     const visualizations = qatools_config?.outputs?.visualizations || qatools_config?.outputs?.detailed_views || []
-    const maybe_diff = visualizations.some(v => is_image(v)) && <Switch
-        key='diff'
-        style={{marginRight: "8px"}}
-        checked={controls.diff || false}
-        onChange={toggle('diff')}
-        label="Image diff"
-      />
     const controls_switches = <>
       {!show_bit_accuracy && visualizations.map((view, idx) => {
         if (!view.default_hidden || controls.show?.[view.name] === undefined || controls.show?.[view.name] === null)
@@ -335,7 +327,6 @@ const CommitsEvolutionPerTest = props => {
                 label={view.label || view.name || view.path}
                />
       })}
-      {maybe_diff}
       {controls_extra.map(control => <Switch
           style={{marginRight: "8px"}}
           key={control.name}
@@ -380,6 +371,7 @@ const CommitsEvolutionPerTest = props => {
         expand_all={props.expand_all}
         files_filter={props.files_filter}
         controls={controls}
+        onControlsChange={changes => updateControls({ ...controls, ...changes })}
       />}
     </div>;
   }

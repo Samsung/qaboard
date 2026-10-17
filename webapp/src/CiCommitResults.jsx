@@ -118,6 +118,8 @@ const CiCommitResults = () => {
   const [reveal_files, setRevealFiles] = useState(0);
 
   const toggle = name => () => setControls({ ...controls, [name]: !controls[name] });
+  // e.g. how image viewers compare images, set from any of them
+  const updateControls = changes => setControls({ ...controls, ...changes });
   // Visualizations are shown unless hidden by default
   const is_shown = name => controls.show?.[name] ?? !visualizations.find(v => v.name === name)?.default_hidden;
   const toggle_show = name => () => setControls({ ...controls, show: { ...controls.show, [name]: !is_shown(name) } });
@@ -186,6 +188,7 @@ const CiCommitResults = () => {
     new_batch,
     ref_batch,
     controls,
+    onControlsChange: updateControls,
     onRegisterOutputOptions: dynamic.register,
     onToggleDynamicOptionSync: toggleDynamicOptionSync,
   };
@@ -416,6 +419,7 @@ const CiCommitResults = () => {
           default_sort_by={metrics.default_metric}
           sort_order={selected.sort_order}
           onToggle={toggle}
+          onUpdateControls={updateControls}
           onToggleShow={toggle_show}
           onUpdate={update}
           has_tuning={has_tuning}

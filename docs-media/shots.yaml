@@ -231,7 +231,7 @@ shots:
   - id: commit/controls-panel
     kind: still
     project: image-quality
-    shows: The Controls panel open, with the visualization switches (hidden ones included), Image Diff and Sorting.
+    shows: The Controls panel open, with the visualization switches (hidden ones included), how images are compared, and Sorting.
     pages: [user-guide/commit-page, visualizations]
     anchors: [visualizations, image-diff, sorting]
     phase: 1
@@ -248,7 +248,7 @@ shots:
   - id: commit/image-diff
     kind: clip
     project: image-quality
-    shows: Zooming in one image moves the other; Image Diff turns on; raising the threshold leaves only the halos.
+    shows: Zooming in one image moves the other; a wipe across them; their difference between them, whose maximum goes up until only the halos stand out.
     pages: [user-guide/comparing-results, visualizations, tour, use-cases/image-quality, landing]
     features: [image-synced-zoom, image-diff]
     needs: merge-bilateral vs isp-4-1
@@ -257,7 +257,7 @@ shots:
   - id: commit/image-perceptual-diff
     kind: still
     project: image-quality
-    shows: "Image Diff on, threshold set: halos stand out around edges, noise differences stay dark."
+    shows: "New and reference on each side of their difference, its maximum raised: halos stand out around edges, the flat wall fades to gray."
     pages: [user-guide/comparing-results, landing]
     features: [image-diff]
     needs: merge-bilateral vs isp-4-1
@@ -266,7 +266,7 @@ shots:
   - id: commit/pixel-tooltip
     kind: still
     project: image-quality
-    shows: Hovering a Siemens star shows the pixel's values in both images, with a crosshair at the same spot on the reference.
+    shows: Hovering a Siemens star shows the pixel's values in both images and their difference, with a crosshair at the same spot on both images.
     pages: [user-guide/comparing-results]
     features: [pixel-tooltip, image-synced-zoom]
     needs: bilateral-denoise vs isp-4-1
@@ -275,7 +275,7 @@ shots:
   - id: commit/roi-histograms
     kind: still
     project: image-quality
-    shows: A region of the sky gradient selected, with its RGB and luma histograms, new against reference.
+    shows: Zoomed on a band of the sky gradient, with the RGB and luma histograms of the view, new against reference.
     pages: [user-guide/comparing-results, landing]
     features: [roi-histograms]
     phase: 1
@@ -283,15 +283,23 @@ shots:
   - id: commit/auto-roi
     kind: still
     project: image-quality
-    shows: The ROI menu with the input's preset regions and the Auto ROIs where the images differ most.
+    shows: The regions of interest menu with the input's presets and the regions where the images differ most, found by the server.
     pages: [user-guide/comparing-results, visualizations, landing]
     features: [auto-roi]
     phase: 1
     status: published
+  - id: commit/regions-all-runs
+    kind: still
+    project: image-quality
+    shows: The runs of the merge-bilateral commit ranked by how much their images differ from the release's, from the photos with halos to the identical ones.
+    pages: [user-guide/comparing-results]
+    features: [auto-roi]
+    phase: 1
+    status: planned
   - id: commit/image-filters
     kind: still
     project: image-quality
-    shows: Brightness, gamma and sharpen applied to both images of the night street, revealing noise in the shadows.
+    shows: Brightness and gamma adjusted on both images of the night street, revealing noise in the shadows.
     pages: [user-guide/comparing-results, landing]
     features: [image-filters]
     phase: 1
@@ -687,7 +695,7 @@ shots:
   - id: landing/hero
     kind: clip
     project: image-quality
-    shows: "A 16 s loop: the Metrics Diff (PSNR and edge overshoot up), then synced zoom on the facade, Image Diff and its threshold, and back to the Metrics Diff."
+    shows: "A 16 s loop: the Metrics Diff (PSNR and edge overshoot up), then synced zoom on the facade, the difference between the images and its maximum, and back to the Metrics Diff."
     pages: [landing]
     features: [image-synced-zoom, image-diff]
     needs: merge-bilateral vs isp-4-1
@@ -696,7 +704,7 @@ shots:
   - id: landing/social-card
     kind: still
     project: image-quality
-    shows: "The 1200x630 social card (every page's Open Graph image), rendered from docs-media/shots/templates/social-card.html: the logo, the tagline, and a crop of the commit page like the hero's: the facade's run, its metrics, the new image and its Image Diff."
+    shows: "The 1200x630 social card (every page's Open Graph image), rendered from docs-media/shots/templates/social-card.html: the logo, the tagline, and a crop of the commit page like the hero's: the facade's run, its metrics, the new image and the difference next to it."
     pages: [landing]
     needs: merge-bilateral vs isp-4-1
     phase: 2

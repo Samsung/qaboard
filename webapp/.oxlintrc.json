@@ -14,8 +14,8 @@
     "no-extra-boolean-cast": "off"
   },
   "overrides": [
-    { "files": ["vite.config.js", "playwright.config.js", "releaseNotes.js", "e2e/**"], "env": { "node": true } },
+    { "files": ["vite.config.js", "vite.image-viewer.config.js", "playwright.config.js", "releaseNotes.js", "e2e/**"], "env": { "node": true } },
     { "files": ["**/*.test.{js,jsx,ts,tsx}"], "env": { "vitest": true } }
   ],
-  "ignorePatterns": ["build/**", "src/viewers/tof/*Controls.js", "src/viewers/tof/PCDLoader.js"]
+  "ignorePatterns": ["build/**", "build-image-viewer/**", "src/viewers/tof/*Controls.js", "src/viewers/tof/PCDLoader.js"]
 }

@@ -51,17 +51,17 @@ It only lists what changes the views you're on:
   - The value you pick applies to all runs. The panel lists the values of all runs, and a run that doesn't have the selected value shows the closest one, with a note on its card.
   - Turn on **Per run** to choose the value in each run's card instead. **Same for all runs**, in a card, turns it back off.
   - The reset button next to an option goes back to the default. Changing an option keeps the image viewers' zoom and selected region.
-- **Viewers** (on the Visualizations and Output Files views): **Image diff** shows a perceptual difference between new and reference images, and the project's own switches, if its *qaboard.yaml* has `controls`.
+- **Viewers** (on the Visualizations and Output Files views): **Compare images** picks how all the image viewers compare new and reference: side by side, with a wipe, toggling between them, or their difference. You can also pick it above any image. Then come the project's own switches, if its *qaboard.yaml* has `controls`.
 - **Sort runs**: sort by name, run id, storage, a tuning parameter or a metric. Until you choose, runs are sorted by the project's default metric, marked *(default)*. The order reads like the values: *Highest first*, *A to Z*, *Newest first*... It applies to the tables and the run cards.
 
 **Reset**, at the top of the panel (or at the bottom of the rail), goes back to the project's defaults for the visualizations, the files to show and the viewers. The sorting stays as it is.
 
 <Shot
   id="commit/controls-panel"
-  caption="The switches include the visualizations hidden by default. Image diff and the sorting apply to every card."
+  caption="The switches include the visualizations hidden by default. How images are compared and the sorting apply to every card."
   callouts={[
     {anchor: 'visualizations', label: 'Visualizations'},
-    {anchor: 'image-diff', label: 'Image diff'},
+    {anchor: 'image-diff', label: 'Compare images'},
     {anchor: 'sorting', label: 'Sort runs'},
   ]}
 />
@@ -151,7 +151,7 @@ On each card:
 - **Folder icon**: open the output directory (or the reference's) in the browser. **Copy icon**: copy the new or reference output directory, as a Windows or Linux path.
 - **Fullscreen** button at the top right of the card.
 
-Cards load their files when you scroll to them. The image viewer has many tools: synced zoom, pixel values, perceptual diff, regions of interest, filters and histograms. See [Comparing results](comparing-results.mdx#image-viewers) and the [list of viewers](../visualizations.mdx#available-file-viewers).
+Cards load their files when you scroll to them. The image viewer has many tools: synced zoom, a wipe, the difference, pixel values, regions of interest, adjustments and histograms. See [Comparing results](comparing-results.mdx#image-viewers) and the [list of viewers](../visualizations.mdx#available-file-viewers).
 
 The **Export** button next to the view's title gathers matching files from all runs in one shared directory: see [Sharing](sharing.mdx#exporting-files).
 
