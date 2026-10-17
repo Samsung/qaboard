@@ -218,6 +218,27 @@
 <p>Collapse the sidebar to a rail of icons for more room, with <strong>Collapse</strong> at its bottom or <code>Ctrl+\</code> (<code>⌘\</code> on macOS). Hover an icon for its name; the web app remembers your choice.</p>
 </li>
 <li class="">
+<p>See at a glance what's specific to each run: settings that all the runs shown share are hidden behind "··· N shared" tags, and listed once at the top of the page. It follows the filter. Turn it off with <strong>Hide them in each run</strong> (<a class="" href="https://samsung.github.io/qaboard/docs/user-guide/comparing-results#reading-configurations">reading configurations</a>).</p>
+</li>
+<li class="">
+<p>Read lists in configurations: <code>[1, 0.98, 0.95]</code>, long lists with their first values and their size (<code>… 64 values</code>, <code>3×3</code>), and where they changed (<code>…0.619, 0.7 → 0.635, 0.651…</code>). Lists of objects have a setting per value, like <code>layers[1].stride: 2</code>.</p>
+</li>
+<li class="">
+<p>Tuning parameters show with the configuration, as settings like the others with a wrench, and are compared with the reference's the same way.</p>
+</li>
+<li class="">
+<p>Copy a run's settings as <code>qa</code> options (<code>-c … --tuning …</code>), as JSON or as a tuning search space, and a setting as text or JSON, from their hover menu.</p>
+</li>
+<li class="">
+<p>See how a run's configuration differs from its reference run's: added settings in green (+), removed ones struck through in red (−), changed values as <code>gain: 3 → 4</code>, and only the changed part of strings: <code>conf/[day → night].yaml</code>. Hover the <strong>Config</strong> tag for a <code>git diff</code>-like view, and any setting to know what it means.</p>
+</li>
+<li class="">
+<p>The top of the commit page says how many runs are compared to a reference run with another configuration, and which changes they have: changes all runs share are listed there once, instead of on every run.</p>
+</li>
+<li class="">
+<p>Runs are compared with the reference run whose configuration has the fewest different settings, then the most similar values (<code>base-v1</code> is closer to <code>base-v2</code> than to <code>other</code>). It used to count different characters, which was slow with long configurations and could pick a less similar run. The <strong>Config</strong> tag says when other reference runs were as close.</p>
+</li>
+<li class="">
 <p>Compare images like videos: side by side, with a wipe, toggling between them in place (click the image or press <code>t</code>), or as their difference. Pick the mode above any image, or with the keys 1 to 4: it applies to all the images of the page, and links keep it. Swapping or flipping the images in one viewer does it in all of them, so they all show the same one. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/comparing-results#image-viewers">comparing images</a>.</p>
 </li>
 <li class="">
