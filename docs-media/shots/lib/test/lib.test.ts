@@ -242,6 +242,25 @@ test('a target of several elements crops to their union', async ({ browser }, te
   expect(Math.abs(meta.height - expected.height)).toBeLessThanOrEqual(2);
 });
 
+test('dark captures go in a dark/ folder, which light captures keep', async ({ browser }, testInfo) => {
+  const previous = process.env.SHOTS_OUT;
+  process.env.SHOTS_OUT = testInfo.outputPath('out');
+  try {
+    const options = { ...base, url: '/app.html', target: (page: import('@playwright/test').Page) => page.locator('#card') };
+    const light = { ...env(''), dir: undefined };
+    const dark = { ...light, contextOptions: { ...light.contextOptions, colorScheme: 'dark' as const } };
+    const first = await captureStill(browser, 'commit/themed', options, light);
+    const night = await captureStill(browser, 'commit/themed', options, dark);
+    expect(night.dir).toBe(path.join(first.dir, 'dark'));
+    expect([first.meta.theme, night.meta.theme]).toEqual(['light', 'dark']);
+    await captureStill(browser, 'commit/themed', options, light);
+    expect(fs.existsSync(path.join(night.dir, 'still.png'))).toBe(true);
+  } finally {
+    if (previous === undefined) delete process.env.SHOTS_OUT;
+    else process.env.SHOTS_OUT = previous;
+  }
+});
+
 test('a target box crops to it, within the viewport', async ({ browser }, testInfo) => {
   const { dir, meta } = await captureStill(browser, 'commit/box', {
     ...base,

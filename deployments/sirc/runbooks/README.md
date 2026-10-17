@@ -11,6 +11,7 @@ They used to be pages of the public docs website. The website now only has the g
 | Runbook | What for |
 |---------|----------|
 | [deployment.md](deployment.md) | Environments (production on `qa`, staging on `alginfra1`), GitLab CI deploys, rollbacks, staging data, backups, first-time host setup |
+| [database.md](database.md) | PostgreSQL settings (`services/db/qaboard.conf`), applying them (restart), slow queries, backup retention |
 | [troubleshooting.md](troubleshooting.md) | Logs, shells, restarts, disk full |
 | [host-upgrades.md](host-upgrades.md) | Maintenance of the `qa` host: pause deploys, backup, restart, checks |
 | [ssl-certificates.md](ssl-certificates.md) | Getting the HTTPS certificate from IT |

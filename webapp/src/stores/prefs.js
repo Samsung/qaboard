@@ -13,6 +13,12 @@ export const usePrefsStore = create()(persist(
     milestones: {},
     // project => what's in the tuning form
     tuning: {},
+    // "system" (follows the OS), "light" or "dark", see src/theme.js
+    theme: 'system',
+    // how lists of commits look: "comfortable" (a few lines per commit) or "compact" (one line per commit)
+    commitListDensity: 'comfortable',
+    // the app's sidebar shows only icons
+    siderCollapsed: false,
     // runs show only the settings of their configuration that not all runs share
     hide_shared_settings: true,
 
@@ -26,16 +32,23 @@ export const usePrefsStore = create()(persist(
       const { [key]: _deleted, ...milestones } = state.milestones[project] ?? {};
       return { milestones: { ...state.milestones, [project]: milestones } };
     }),
+    setTheme: theme => set({ theme }),
+    setSiderCollapsed: collapsed => set({ siderCollapsed: !!collapsed }),
+    setCommitListDensity: density => set({ commitListDensity: density === 'compact' ? 'compact' : 'comfortable' }),
     toggleHideSharedSettings: () => set(state => ({ hide_shared_settings: !state.hide_shared_settings })),
     updateTuning: (project, form) => set(state => ({
       tuning: { ...state.tuning, [project]: { ...state.tuning[project], ...form } },
     })),
   }),
+  // New preferences don't need a new version: the saved state is merged into the defaults above, so preferences saved
+  // before they existed get their default. A new version without a `migrate` function would drop everything users saved.
   { name: 'qaboard-prefs', version: 1 },
 ));
 
 export const usePrivateMilestones = project => usePrefsStore(state => state.milestones[project] ?? empty);
 export const useTuningForm = project => usePrefsStore(state => state.tuning[project] ?? empty);
+// whatever was saved, "comfortable" or "compact"
+export const useCommitListDensity = () => usePrefsStore(state => state.commitListDensity === 'compact' ? 'compact' : 'comfortable');
 
 
 // Until October 2026 those preferences were saved by redux-persist, in IndexedDB via localForage.

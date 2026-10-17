@@ -14,7 +14,7 @@ import {
   HTMLSelect,
   Tooltip,
   Button,
-  Popover,
+  PopoverNext,
   Menu,
   MenuItem,
   MenuDivider,
@@ -27,10 +27,12 @@ import { OutputTags, StatusTag, RunBadges, style_skeleton } from '../components/
 import { humanFileSize, humanElapsedTime } from "./bit_accuracy/utils";
 
 import { Link, history } from "../router"
+import { updateSelected } from "../hooks";
 import { http, errorMessage } from "../api/http";
 import { output_files_stale_time, invalidateOutputFiles } from "../api/queries";
 import { parse_query, path_segment, stringify_query } from "../selection";
 import { linux_to_windows, is_same_data } from '../utils'
+import { hasPathMappings } from '../utils/paths'
 import { is_image } from "./images/utils"
 import { copyWithToast } from "../utils/clipboard"
 import {
@@ -38,6 +40,7 @@ import {
   calculateOptionValues,
   configureOption,
   generateViewPaths,
+  optionLabel,
   resolveOptionValue,
 } from "../utils/dynamicOptions"
 
@@ -116,7 +119,11 @@ const FullScreenableSlimCard = ({ updateFullscreen, className, style, children }
   const handle = useFullScreenHandle();
   return <SlimCard compact className={className} style={style}>
     <div style={{position: "relative"}}>
-      <Tag title="Enter Full Screen" style={{position: "absolute", right: "0px", top: "0px"}} icon="fullscreen" interactive minimal onClick={handle.enter}/>
+      <div style={{position: "absolute", right: "0px", top: "0px"}}>
+        <Tooltip content="Full screen (Esc to exit)">
+          <Button size="small" variant="minimal" icon="fullscreen" aria-label="Full screen" onClick={handle.enter}/>
+        </Tooltip>
+      </div>
     </div>
     <FullScreen handle={handle} onChange={state => updateFullscreen(state)}>
       {children}
@@ -139,6 +146,16 @@ const history_location = (project, commit, output, type, search) => {
     }),
   };
 }
+
+// Long paths are cut, the tags after them stay on the line
+const run_path_style = {
+  display: 'inline-block',
+  maxWidth: '100%',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  verticalAlign: 'bottom',
+};
 
 const OutputHeader = ({ project, commit, output, output_ref, type, manifests, style, prefix, viewable, tags_first=false }) => {
   const has_metadata = !!output.test_input_metadata && (Object.keys(output.test_input_metadata).length > 0)
@@ -176,7 +193,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, manifests, st
     {!!output.test_input_database && <>
       <MenuDivider key={"Database"} title="Database" />
       <MenuItem key="database-linux" text={output.test_input_database} icon="duplicate" onClick={on_copy(output.test_input_database)} />
-      <MenuItem key="database-windows" text={linux_to_windows(output.test_input_database)} icon="duplicate" onClick={on_copy(linux_to_windows(output.test_input_database))} />
+      {hasPathMappings() && <MenuItem key="database-windows" text={linux_to_windows(output.test_input_database)} icon="duplicate" onClick={on_copy(linux_to_windows(output.test_input_database))} />}
     </>}
     {!!output.test_input_path && <>
       <MenuDivider key={"Input path"} title="Input path" />
@@ -189,31 +206,33 @@ const OutputHeader = ({ project, commit, output, output_ref, type, manifests, st
         <pre>{JSON.stringify(output.test_input_metadata, null, 2)}</pre>
       </MenuItem>
     </>}
-    <MenuDivider key={"Output-Info"} title="Output Info" />
-    {!!output?.metrics?.compute_time && <MenuItem key="compute-time" text={humanElapsedTime(output.metrics.compute_time)} icon="stopwatch" />}
+    <MenuDivider key={"Output-Info"} title="Run Info" />
+    {!!output?.metrics?.compute_time && <MenuItem key="compute-time" text={humanElapsedTime(output.metrics.compute_time)} label="compute time" icon="stopwatch" />}
     <MenuItem
       key="created-date"
       text={<span title={output.created_date}> {DateTime.fromISO(output.created_date, { zone: 'utc' }).toRelative()}</span>}
+      label="created"
       icon="calendar"
     />
-    {!!output?.data?.storage && <MenuItem key="storage" text={humanFileSize(output.data.storage, true)} icon="folder-close" />}
+    {!!output?.data?.storage && <MenuItem key="storage" text={humanFileSize(output.data.storage, true)} label="storage" icon="folder-close" />}
   </Menu>
   return <>
     <h5 className={Classes.HEADING} style={style} >
       {prefix}
       {tags_first && viewable && tags}
       {output.output_type !== "batch" && !viewable ?
-        <span key="batch-info">{run_path}</span> : <Popover hoverCloseDelay={1000} interactionKind={PopoverInteractionKind.HOVER} content={popover_content}>
-        <span key="batch-info">
+        <span key="batch-info" style={run_path_style}>{run_path}</span> : <PopoverNext hoverCloseDelay={1000} interactionKind={PopoverInteractionKind.HOVER} content={popover_content}>
+        <span key="batch-info" style={run_path_style}>
           <Link
             to={history_location(project, commit, output, type, window.location.search)}
             onClick={go_to_history}
+            title="See this input's results over time"
             style={{ color: 'inherit' }}
           >
             {run_path}
           </Link>
         </span>
-      </Popover>}
+      </PopoverNext>}
       {!tags_first && viewable && tags}
     </h5>
     <p style={{maxWidth: '600px'}}>
@@ -225,18 +244,17 @@ const OutputHeader = ({ project, commit, output, output_ref, type, manifests, st
 
 
 const condensed_header_style = {
-  fontSize: ".7rem",
-  fontWeight: 500,
-  letterSpacing: "-1px",
+  fontSize: 13,
+  fontWeight: 600,
   lineHeight: 1.6,
 };
 
 const option_style = {
   marginBottom: '8px',
   padding: '8px',
-  backgroundColor: '#f5f8fa',
+  backgroundColor: 'var(--qa-surface-alt)',
   borderRadius: '3px',
-  border: '1px solid #e1e8ed'
+  border: '1px solid var(--qa-border)'
 };
 
 const fallback_style = {
@@ -251,21 +269,37 @@ const sync_button_style = {
   opacity: 0.6,
   transition: 'opacity 0.2s ease-out'
 };
-
-const path_header_style = {
-  fontSize: '12px',
-  color: '#5c7080',
-  marginBottom: '8px',
-  borderBottom: '1px solid #e1e8ed',
-  fontFamily: 'monospace',
-  backgroundColor: '#f5f8fa',
-  padding: '4px 8px',
-  borderRadius: '3px',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  transition: 'all 0.2s ease-out'
+// PathHeader sets its opacity, higher on hover
+const unlink_button_style = {
+  minHeight: '16px',
+  minWidth: '16px',
+  padding: '2px',
 };
+
+const PathHeader = styled.div`
+  font-size: 12px;
+  color: var(--qa-text-muted);
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--qa-border);
+  font-family: monospace;
+  background-color: var(--qa-surface-alt);
+  padding: 4px 8px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background-color 0.2s ease-out;
+  &:hover {
+    background-color: var(--qa-hover);
+  }
+  .${Classes.BUTTON} {
+    opacity: 0.6;
+    transition: opacity 0.2s ease-out;
+  }
+  .${Classes.BUTTON}:hover, .${Classes.BUTTON}:focus-visible {
+    opacity: 1;
+  }
+`;
 
 
 const OutputCard = memo(function OutputCard(props) {
@@ -377,7 +411,7 @@ const OutputCard = memo(function OutputCard(props) {
 
     const options_inputs = new_options.map(([name, option]) => {
       const option_key = `option-${name}`;
-      const option_label = isNaN(name) ? name : option.pattern;
+      const option_label = isNaN(name) ? optionLabel(name) : option.pattern;
       const not_found = !option.exact && option.value !== undefined && <Tag minimal intent={Intent.WARNING} icon="info-sign" style={fallback_style}>
         {option_label} <strong>{option.wanted}</strong> isn't in this run, showing <strong>{option.value}</strong>
       </Tag>;
@@ -389,9 +423,9 @@ const OutputCard = memo(function OutputCard(props) {
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
             <span style={{ fontSize: '12px', fontWeight: '500', flex: 1 }}>{option_label}</span>
             {onToggleDynamicOptionSync && (
-              <Tooltip content="Link this option: all outputs will use the value from the controls panel">
+              <Tooltip content={`Use the ${option_label} chosen in the view options for all runs`}>
                 <Button icon="link" minimal small onClick={() => onToggleDynamicOptionSync(name)} style={sync_button_style}>
-                  unlinked
+                  Same for all runs
                 </Button>
               </Tooltip>
             )}
@@ -437,8 +471,7 @@ const OutputCard = memo(function OutputCard(props) {
       let path_ref = path;
       let ref_available = path === undefined || !!manifest_ref?.[path];
       // Fallback for ref: if file doesn't exist, try TIFF then BMP (old behavior for PNG)
-      // we changed the output format in HW_ALG from bmp to png in May 2024
-      // but we still want to compare results across branches - for some time at least.
+      // so that projects that switched their images from BMP to PNG can still compare with older references.
       if (path?.endsWith('.png') && !ref_available) {
         const tiff_path = path.replace(/\.png$/i, '.tiff');
         const bmp_path = path.replace(/\.png$/, '.bmp');
@@ -454,46 +487,33 @@ const OutputCard = memo(function OutputCard(props) {
       const has_same_data = !is_image(view) && output_ref?.id !== output_new.id && is_same_data(path, manifest_new?.[path], manifest_ref?.[path_ref])
       return <div key={key} id={key}>
         {(paths.length > 1 || relevant_synced.length > 0) && (
-          <div
-            className="path-header"
-            style={path_header_style}
-            onMouseEnter={e => {
-              e.currentTarget.style.backgroundColor = '#e8f4f8';
-              e.currentTarget.style.borderColor = '#bfccd6';
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.backgroundColor = '#f5f8fa';
-              e.currentTarget.style.borderColor = '#e1e8ed';
-            }}
-          >
+          <PathHeader className="path-header">
             <span style={{ flex: 1, marginRight: '8px' }}>{path}</span>
             {relevant_synced.length > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                 {relevant_synced.map(option_name => (
                   <Tooltip
                     key={option_name}
-                    content={`Unlink "${option_name}" to choose its value in each output`}
+                    content={`${optionLabel(option_name)}: the same for all runs, set in the controls panel. Click to choose it per run.`}
                     position="top"
                   >
                     <Button
                       icon="unlink"
                       minimal
                       small
+                      aria-label={`Choose ${optionLabel(option_name)} per run`}
                       onClick={() => onToggleDynamicOptionSync?.(option_name)}
-                      style={sync_button_style}
-                      onMouseEnter={e => { e.currentTarget.style.opacity = '1'; }}
-                      onMouseLeave={e => { e.currentTarget.style.opacity = '0.6'; }}
+                      style={unlink_button_style}
                     />
                   </Tooltip>
                 ))}
-                <span style={{ fontSize: '10px', color: '#106ba3', fontWeight: '500', marginLeft: '4px' }}>
-                  linked
-                </span>
               </div>
             )}
-          </div>
+          </PathHeader>
         )}
-        {has_same_data && <div><Tag style={{marginTop: "5px"}} minimal icon="duplicate">same-data-compared</Tag></div>}
+        {has_same_data && <div><Tooltip content="The new and reference files have the same hash">
+          <Tag style={{marginTop: "5px"}} minimal icon="duplicate">Identical to the reference</Tag>
+        </Tooltip></div>}
         <OutputViewer
           key={key}
           id={key}
@@ -528,6 +548,7 @@ const OutputCard = memo(function OutputCard(props) {
       output_new={output_new}
       output_ref={output_ref}
       manifests={manifests}
+      files_loading={query_new.isLoading}
       config={config}
       style={style}
       show_all_files={show_all_files}
@@ -554,6 +575,8 @@ const OutputCard = memo(function OutputCard(props) {
     flex: "0 0 auto",
     // without outputs.style.width in qaboard.yaml: as wide as the page allows, up to 1500px
     width: style.width || 'min(1500px, 100%)',
+    // wider when a viewer needs it, e.g. a plot wider than outputs.style.width: it would spill out of the card
+    minWidth: 'min-content',
     marginBottom: "250px !important",
   }
   const maybe_style_skeleton = output_new.is_running ? style_skeleton : {};
@@ -568,17 +591,26 @@ const OutputCard = memo(function OutputCard(props) {
         minHeight: type !== 'bit_accuracy' ? "400px" : undefined,
       }}
     >
-      {error.new && <Tooltip key="error-new" content={<span dangerouslySetInnerHTML={{ __html: error_html(error.new) }} />}>
-        <Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @new</Tag>
-      </Tooltip>}
-      {error.reference && <Tooltip key="error-ref" content={<span dangerouslySetInnerHTML={{ __html: error_html(error.reference) }} />}>
-        <Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Download error @reference</Tag>
-      </Tooltip>}
-      {error.parse && <Tooltip key="error-parse" content={<ul>{error.parse.map(e => <li key={e.path}><strong>{e.path}:</strong> {e.message}</li>)}</ul>}>
-        <Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Parsing Error</Tag>
+      {error.new && <span key="error-new">
+        <Tooltip content={<span dangerouslySetInnerHTML={{ __html: error_html(error.new) }} />}>
+          <Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Could not list the run's files</Tag>
+        </Tooltip>
+        <Button size="small" variant="minimal" icon="refresh" text="Retry" onClick={() => query_new.refetch()}/>
+      </span>}
+      {error.reference && <span key="error-ref">
+        <Tooltip content={<span dangerouslySetInnerHTML={{ __html: error_html(error.reference) }} />}>
+          <Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Could not list the reference's files</Tag>
+        </Tooltip>
+        <Button size="small" variant="minimal" icon="refresh" text="Retry" onClick={() => query_ref.refetch()}/>
+      </span>}
+      {error.parse && <Tooltip key="error-parse" content={<>
+        <ul>{error.parse.map(e => <li key={e.path}><strong>{e.path}:</strong> {e.message}</li>)}</ul>
+        Check <code>outputs.visualizations</code> in qaboard.yaml
+      </>}>
+        <Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Invalid visualization path</Tag>
       </Tooltip>}
       {error.registration && <Tooltip key="error-registration" content={<span>{error.registration}</span>}>
-        <Tag style={{ margin: '5px' }} intent={Intent.WARNING}>Registration Error</Tag>
+        <Tag style={{ margin: '5px' }} intent={Intent.WARNING}>Could not read the visualization options</Tag>
       </Tooltip>}
 
       {!no_header && <OutputHeader
@@ -593,8 +625,12 @@ const OutputCard = memo(function OutputCard(props) {
         style={condensed_header_style}
         prefix={output_new.is_running && <StatusTag output={output_new} style={{ marginRight: '5px' }}/>}
       />}
-      {output_new.is_failed && <Tag key="new-failed" intent={Intent.DANGER}>Failed</Tag>}
-      {output_ref?.is_failed && <Tag key="ref-failed" intent={Intent.WARNING}>Reference Failed</Tag>}
+      {/* History shows cards as hover previews, without a logs view */}
+      {output_new.is_failed && (no_header
+        ? <Tag key="new-failed" intent={Intent.DANGER}>Failed</Tag>
+        : <Button key="new-failed" size="small" variant="minimal" intent={Intent.DANGER} icon="error" text="Failed: see the logs" onClick={() => updateSelected({ selected_views: 'logs' })}/>
+      )}
+      {output_ref?.is_failed && <Tag key="ref-failed" intent={Intent.WARNING}>Reference failed</Tag>}
       {output_new.deleted && <Tag key="new-deleted" intent={Intent.DANGER}>Deleted</Tag>}
       {output_ref?.deleted && <Tag key="ref-deleted" intent={Intent.WARNING}>Reference deleted</Tag>}
       {content}

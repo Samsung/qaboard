@@ -74,6 +74,36 @@ DEFAULT_POLL_INTERVAL_SECONDS = 30          # 0.5 minute
 # Statuses while a Jenkins build is not finished yet
 ACTIVE_BUILD_STATUSES = frozenset({"BLOCKED", "STUCK", "running"})
 
+def build_powershell_env(context_env: Dict[str, Any]) -> List[str]:
+  """Render custom node env vars as `$Env:KEY = 'value'` lines (single quotes escaped by doubling).
+  A `prepend_path` key is special: instead of setting a variable, it prepends to the existing PATH."""
+  env_lines = []
+  env = dict(context_env)
+
+  # $PATH-like: prepend dirs to the existing PATH instead of overwriting it
+  prepend_path = env.pop('prepend_path', None)
+  if prepend_path:
+    if isinstance(prepend_path, str):
+      prepend_path = [prepend_path]
+
+    # build the joined PATH with the prepended paths
+    joined = ';'.join(str(path) for path in prepend_path)
+    # single quotes are escaped by doubling, per PowerShell's single-quoted string rules
+    escaped_joined = joined.replace("'", "''")
+    # PowerShell single-quoted strings are literal: $env:PATH is concatenated at runtime, not interpolated
+    env_lines.append(f"$Env:PATH = '{escaped_joined};' + $env:PATH")
+    
+    # a regular PATH key would overwrite the prepended value since it's rendered after
+    if 'PATH' in env:
+      secho("[WARNING] Ignoring the custom PATH since prepend_path takes precedence", fg='yellow')
+      del env['PATH']
+
+  for key, value in env.items():
+    # single quotes are escaped by doubling, per PowerShell's single-quoted string rules
+    escaped_value = str(value).replace("'", "''")
+    env_lines.append(f"$Env:{key} = '{escaped_value}'")
+  return env_lines
+
 
 def resolve_poll_settings(timeout_seconds: Optional[float] = None, interval_seconds: Optional[float] = None) -> Tuple[int, int]:
   """Resolve the polling timeout and interval: explicit params > environment variables > defaults."""
@@ -261,8 +291,10 @@ class JenkinsWindowsRunner(BaseRunner):
     # Can't use commands with more than 256 characters, so we use a script to save space
     command = self.run_context.command
     assert command
-    # external callers may pass a duck-typed context without a job_options attribute
+
+    # external callers may pass a duck-typed context without those attributes
     job_options = getattr(self.run_context, 'job_options', None)
+    context_env = getattr(self.run_context, 'env', None) or {}
 
     if not log_path:
       log_path = self.run_context.output_dir / 'log.txt'
@@ -281,6 +313,7 @@ class JenkinsWindowsRunner(BaseRunner):
       # TODO: use this? job_options.get('user', user)
       f'cd "{linux_to_windows(os.getcwd())}"',
       f"$Env:QA_USER = '{user}'",
+      *build_powershell_env(context_env),
       # https://stackoverflow.com/questions/40098771/changing-powershells-default-output-encoding-to-utf-8
       "$PSDefaultParameterValues['Out-File:Encoding'] = 'utf8'",
       f"$ErrorActionPreference = \"{get_error_action(job_options)}\"",

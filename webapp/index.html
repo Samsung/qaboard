@@ -8,6 +8,18 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
     <title>QA-Board</title>
+    <script>
+      // Apply the saved theme and sidebar width before the first paint (see src/theme.js, src/AppSider.jsx)
+      try {
+        var prefs = JSON.parse(localStorage.getItem('qaboard-prefs') || '{}').state || {};
+        var theme = prefs.theme;
+        if (prefs.siderCollapsed) document.documentElement.style.setProperty('--qa-sider-width', '48px');
+        if (theme === 'dark' || (theme !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('bp6-dark');
+          document.documentElement.style.colorScheme = 'dark';
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>

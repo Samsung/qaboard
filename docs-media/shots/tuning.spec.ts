@@ -118,12 +118,14 @@ async function openForm(ui: Ui, { send = false } = {}) {
   await ui.settle();
 }
 const form = (page: Page) => page.locator('.bp6-card', { has: page.getByPlaceholder('my-tuning-experiment') }).first();
+// The form's button: "Start 8 runs", "Start auto-tuning"
+const start = (page: Page) => form(page).getByRole('button', { name: /^Start (auto-tuning|\d+ runs?|runs)$/ });
 
 shot('tuning/auto-form', {
   project: DE,
   url: d => d.commitUrl(DE, 'int8-percentile', { view: 'summary' }),
   alt: 'The Automated tuning tab of the Run Tests / Tuning form, with the int8 model\'s tuning in YAML: 20 evaluations, '
-    + 'the solver\'s seed and 8 initial points, then the objective, AP small and mAP; the Send button below.',
+    + 'the solver\'s seed and 8 initial points, then the objective, AP small and mAP; the Start auto-tuning button below.',
   caption: 'Automated tuning searches the parameters with `qa optimize`: describe the search space and the objective in YAML.',
   // tall enough that the Controls panel's button, halfway down the screen, is below the editor
   viewport: { width: 1440, height: 1600 },
@@ -139,8 +141,8 @@ shot('tuning/auto-form', {
     await ui.cursor.moveTo({ x: 1400, y: 1550 });
     await ui.settle();
   },
-  // the tabs, the editor and the Send button
-  target: page => [form(page).getByRole('tablist'), form(page).getByRole('button', { name: 'Send' })],
+  // the tabs, the editor and the Start button
+  target: page => [form(page).getByRole('tablist'), start(page)],
   padding: 8,
 });
 
@@ -178,7 +180,7 @@ shot('tuning/manual-form', {
   url: d => d.commitUrl(DE, 'int8-percentile', { view: 'summary' }),
   alt: 'The Run Tests / Tuning form: experiment int8-nms on the quant-search batch (2 tests), the Manual tuning tab '
     + 'with a grid of score_threshold 0.2 and 0.3 by nms_iou 0.5 and 0.7, "Explores 4 combinations", "8 total runs", '
-    + 'and the Send button.',
+    + 'and the Start 8 runs button.',
   caption: 'Run a batch with other parameters: here every combination of 2 score thresholds and 2 NMS IoUs, 8 runs.',
   viewport: { width: 1440, height: 1500 },
   actions: async ui => {
@@ -187,10 +189,10 @@ shot('tuning/manual-form', {
     await ui.cursor.moveTo({ x: 1400, y: 1450 });
     await ui.settle();
   },
-  // from the experiment's name to the Send button
+  // from the batch's label to the Start button
   target: page => [
-    form(page).getByText('Experiment name:', { exact: false }).first(),
-    form(page).getByRole('button', { name: 'Send' }),
+    form(page).getByText('Batch label', { exact: false }).first(),
+    start(page),
   ],
   // not the callout above
   padding: 8,
@@ -203,7 +205,7 @@ shot('tuning/manual-form', {
 clip('tuning/launch-to-analysis', {
   project: DE,
   url: d => d.commitUrl(DE, 'int8-percentile', { view: 'summary' }),
-  alt: 'The Run Tests / Tuning form with a grid of score_threshold by nms_iou on quant-search, 8 runs: Send starts it. '
+  alt: 'The Run Tests / Tuning form with a grid of score_threshold by nms_iou on quant-search, 8 runs: Start 8 runs launches it. '
     + 'Then its batch, int8-nms, is picked, and its Analysis shows the runs in parallel coordinates.',
   caption: 'Start a sweep from the browser, then compare its runs in the Analysis view.',
   dedupeTolerance: 0.01,
@@ -213,8 +215,8 @@ clip('tuning/launch-to-analysis', {
     deleteLaunched();
     await openForm(ui, { send: true });
     await fillGrid(ui);
-    // from the batch's name to the Send button, below the commit bars
-    await form(ui.page).getByText('Batch of inputs+configurations:').evaluate(e => window.scrollBy(0, e.getBoundingClientRect().top - 170));
+    // from the batch's name to the Start button, below the commit bars
+    await form(ui.page).getByText('Batch of inputs+configurations').evaluate(e => window.scrollBy(0, e.getBoundingClientRect().top - 170));
     await ui.settle();
     await ui.cursor.moveTo({ x: 1300, y: 860 });
   },
@@ -222,9 +224,9 @@ clip('tuning/launch-to-analysis', {
     const { page } = ui;
     await ui.caption('A grid of 2 parameters: 8 runs');
     await ui.hold(1500);
-    await ui.caption('Send runs it on this commit');
+    await ui.caption('Start runs it on this commit');
     const launched = page.waitForResponse(r => /\/api\/v1\/commit\/[0-9a-f]+\/batch/.test(r.url()) && r.request().method() === 'POST', { timeout: 600_000 });
-    await ui.click(form(page).getByRole('button', { name: 'Send' }));
+    await ui.click(start(page));
     // the runs, cut from the clip
     const response = await launched;
     if (!response.ok()) throw new Error(`[tuning.spec] the batch failed: ${response.status()} ${(await response.text()).slice(-2000)}`);
@@ -232,12 +234,12 @@ clip('tuning/launch-to-analysis', {
     // the page reloads the commit 1 s later
     await ui.hold(1500);
     await ui.caption('Pick its batch');
-    const picker = page.locator('.bp6-navbar-group.bp6-align-right', { has: page.locator('input[placeholder="filter new outputs"]') })
-      .locator('.bp6-popover-target button').first();
+    const picker = page.locator('.bp6-navbar-group', { has: page.locator('input#filter-new-input') })
+      .getByRole('button', { name: /^Batch:/ });
     await ui.click(picker);
     await ui.click(page.locator('.bp6-popover .bp6-menu-item', { hasText: EXPERIMENT }).first());
     await ui.caption('Its Analysis compares the runs');
-    await ui.click(page.getByText('Analysis', { exact: true }).first());
+    await ui.click(page.getByText(/^(Tuning )?Analysis$/).first());
     // from its title: the page kept the form's scroll
     await page.evaluate(() => window.scrollTo(0, 0));
     await ui.plots({ timeout: 60_000 });

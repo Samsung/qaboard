@@ -1,10 +1,17 @@
 import { HTMLSelect, Slider } from '@blueprintjs/core';
 
-const DynamicOptionControl = ({ 
-  name, 
-  option, 
-  selectedValue, 
-  onChange, 
+// The input of a dynamic option: a slider over consecutive numbers (e.g. frames), else a select.
+// Without selectedValue but with a defaultLabel (e.g. "Each run's last"), it says that each run shows its own default:
+// the select gets it as its first entry, the slider's handle sits at the end the default is at.
+// Choosing that entry calls onChange(undefined).
+const DynamicOptionControl = ({
+  name,
+  label = name,
+  option,
+  selectedValue,
+  defaultLabel,
+  defaultRule = 'first',
+  onChange,
   disabled = false,
   small = false,
   showLabel = false,
@@ -13,19 +20,9 @@ const DynamicOptionControl = ({
   if (!option.values || option.values.length === 0) {
     return null;
   }
-  
-  // Use selectedValue or fall back to first available value
-  const valueToUse = selectedValue || option.values[0];
 
-  const controlStyle = {
-    ...(showLabel ? {} : {
-      marginLeft: '5px',
-      marginRight: '5px',
-      paddingLeft: '5px',
-      paddingRight: '5px'
-    }),
-    ...style
-  };
+  const unset = (selectedValue === undefined || selectedValue === null) && !!defaultLabel;
+  const valueToUse = selectedValue || option.values[0];
 
   const handleChange = (value) => {
     if (typeof onChange === 'function') {
@@ -33,44 +30,48 @@ const DynamicOptionControl = ({
     }
   };
 
+  const label_element = showLabel && (
+    <div style={{ fontSize: '12px', color: 'var(--qa-text-muted)', marginBottom: '4px' }}>
+      {label}
+    </div>
+  );
+
   if (option.type === 'slider') {
-    const labelStepSize = Math.pow(10, Math.floor(Math.log10(option.max - option.min)));
+    const value = unset ? (defaultRule === 'last' ? option.max : option.min) : parseFloat(valueToUse);
     return (
-      <div style={controlStyle} title={showLabel ? undefined : name}>
-        {showLabel && (
-          <div style={{ fontSize: '12px', color: '#5c7080', marginBottom: '4px' }}>
-            {name}
-          </div>
-        )}
+      // the handle shows the value: the ends are enough as labels.
+      // Blueprint's slider overflows its box by half a handle on each side
+      <div style={{ padding: '0 8px', ...style }}>
+        {label_element}
         <Slider
-          value={parseFloat(valueToUse)}
+          value={value}
           min={option.min}
           max={option.max}
           onChange={(value) => {
             const rawValue = option.toRaw?.[value] || value;
             handleChange(rawValue);
           }}
-          labelStepSize={labelStepSize}
-          showTrackFill
+          labelValues={[option.min, option.max]}
+          labelRenderer={(value, opts) => opts?.isHandleTooltip && unset ? (defaultRule === 'last' ? 'Last' : 'First') : value}
+          showTrackFill={!unset}
           disabled={disabled}
+          handleHtmlProps={{ 'aria-label': label, 'aria-valuetext': unset ? defaultLabel : undefined }}
         />
       </div>
     );
   } else {
     return (
-      <div style={controlStyle} title={showLabel ? undefined : name}>
-        {showLabel && (
-          <div style={{ fontSize: '12px', color: '#5c7080', marginBottom: '4px' }}>
-            {name}
-          </div>
-        )}
+      <div style={style}>
+        {label_element}
         <HTMLSelect
-          value={valueToUse}
-          onChange={(e) => handleChange(e.target.value)}
+          value={unset ? '' : valueToUse}
+          onChange={(e) => handleChange(e.target.value === '' ? undefined : e.target.value)}
           disabled={disabled || option.values.length === 1}
           fill
           small={small}
+          aria-label={label}
         >
+          {defaultLabel && <option value="">{defaultLabel} (default)</option>}
           {option.values.map(value => (
             <option key={value} value={value}>{value}</option>
           ))}

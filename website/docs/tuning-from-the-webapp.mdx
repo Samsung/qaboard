@@ -41,12 +41,31 @@ The QA-Board server starts tuning runs with the runner chosen by its `QABOARD_TU
 ### 3. Logged-in users
 Starting tuning experiments requires a logged-in user, and runs are started as that user. See [user management](backend-admin/user-management).
 
+### Optional settings in *qaboard.yaml*
+```yaml title="qaboard.yaml"
+inputs:
+  # Let users choose a platform, passed to `qa --platform`. By default runs use "linux".
+  platforms:
+    - name: linux
+      label: Linux
+    - name: android
+      label: Android
+
+tuning:
+  # If your CI only saves artifacts on some branches, list them (globs, "*" matches "/" too):
+  # on the commits of other branches, the tuning form warns that tuning may not work, and how to save the artifacts.
+  # In monorepos, {subproject} is the project's folder in the repository and {subproject.name} its last part.
+  branches:
+    - develop
+    - '*/*{subproject.name}*'  # e.g. alice/denoise-v2 for the project in isp/denoise
+```
+
 ## Tips for users
 How to start runs is described in the [user guide](/docs/user-guide/running-from-the-webapp). A few shortcuts:
 - To start from an existing run's parameters, hover its configuration tags and choose **Copy full config in tuning format**, then paste it in the manual tuning editor.
 - Pasting lines of `key=value` in the manual tuning editor converts them to the tuning format: `block.threshold=10` becomes `"block.threshold": [10]`, and space-separated matrices like `[1 2 3]` become JSON arrays.
 - In the **Available Tests** view, where you can define your own batches, <kbd>Ctrl</kbd>+<kbd>S</kbd> (or <kbd>Cmd</kbd>+<kbd>S</kbd>) saves the batches file you are editing.
-- Once runs are done, the **Analysis** view (`selected_views=optimization`) shows the tuning exploration plots: sensitivity to each parameter and to pairs of parameters (box plots, contours), a parallel coordinates plot, the trade-off between two metrics, and for `qa optimize` experiments the best parameters and the convergence. See the [user guide](/docs/user-guide/commit-page#analysis).
+- Once runs are done, the **Tuning Analysis** view (`selected_views=optimization`) shows the tuning exploration plots: sensitivity to each parameter and to pairs of parameters (box plots, contours), a parallel coordinates plot, the trade-off between two metrics, and for `qa optimize` experiments the best parameters and the convergence. See the [user guide](/docs/user-guide/commit-page#tuning-analysis).
 
 ## Other tuning workflows
 Tuning from QA-Board runs the code of a commit. Depending on where you are in your work, other workflows fit better:

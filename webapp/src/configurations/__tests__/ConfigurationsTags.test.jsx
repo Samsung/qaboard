@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
+import { Classes } from '@blueprintjs/core';
 
 import { ConfigurationsTags, ConfigurationDiff, SharedConfigurationContext, qa_options } from '../ConfigurationsTags';
 import { ConfigurationOverview } from '../ConfigurationOverview';
@@ -119,5 +120,28 @@ describe('ConfigurationOverview', () => {
   it('says nothing when there is nothing to say', () => {
     const { container } = render(<ConfigurationOverview new_batch={batch({ 1: { id: 1, configurations: ['base'], reference_id: 2 } })} />);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe('lists', () => {
+  it('shortens long lists, with their size', () => {
+    const lut = Array.from({ length: 256 }, (_, i) => i);
+    const { container } = render(<ConfigurationsTags configurations={[{ lut, ccm: [[1, 0, 0], [0, 1, 0], [0, 0, 1]], gains: [1, 0.98] }]} />);
+    expect([...container.querySelectorAll(`.${Classes.TAG}`)].map(tag => tag.textContent)).toEqual([
+      'lut: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, …] 256 values',
+      'ccm: [[1, 0, 0], [0, 1, 0], [0, 0, 1]]',
+      'gains: [1, 0.98]',
+    ]);
+  });
+
+  it('shows where long lists changed', () => {
+    const lut = Array.from({ length: 64 }, (_, i) => i);
+    const changed = lut.map(v => v === 40 ? 41 : v);
+    render(<ConfigurationsTags configurations={[{ lut: changed }]} mismatch={{ configurations: [{ lut }] }} />);
+    expect(screen.getByLabelText(/^changed: lut/)).toHaveTextContent('lut: …37, 38, 39, 40→41, 41, 42, 43…');
+  });
+
+  it('copies a setting of a list of objects as JSON', () => {
+    expect(qa_options([{ layers: [{ stride: 2 }] }])).toBe(`-c '{"layers":[{"stride":2}]}'`);
   });
 });

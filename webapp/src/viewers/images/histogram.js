@@ -1,3 +1,5 @@
+import { Classes } from "@blueprintjs/core";
+
 var empty = Array(256);
 for (var i = 0; i < 256; i++) {
   empty[i] = 0;
@@ -9,6 +11,13 @@ const rgb = {
      {name: 'Green', color: 'green', 'legendgroup': 'Green'},
      {name: 'Blue', color: 'blue', 'legendgroup': 'Blue'},
      {name: 'Y', color: 'black', 'legendgroup': 'Y'},
+   ],
+  // on dark backgrounds
+  'new-dark': [
+     {name: 'Red', color: 'red', 'legendgroup': 'Red'},
+     {name: 'Green', color: 'green', 'legendgroup': 'Green'},
+     {name: 'Blue', color: 'blue', 'legendgroup': 'Blue'},
+     {name: 'Y', color: 'white', 'legendgroup': 'Y'},
    ],
   'ref': [
      {name: 'Red', color: 'pink', 'legendgroup': 'Red'},
@@ -47,19 +56,22 @@ const histogram_traces = (viewer, rect, label) =>  {
     console.log(e)
   }
 
+  // the theme when the histogram is computed (when the image or the selection change)
+  const is_dark = document.documentElement.classList.contains(Classes.DARK)
+  const colors = rgb[is_dark && label === 'new' ? 'new-dark' : label]
   return data.map( (y, idx) => ({
     type: 'scatter',
     fill: 'tozeroy',
     x: Object.keys(y),
     y: y.map(e => e / total_pixels),
-    name: `${rgb[label][idx].name} @${label}`,
-    legendgroup: rgb[label][idx].legendgroup,
+    name: `${colors[idx].name} @${label}`,
+    legendgroup: colors[idx].legendgroup,
     // fillcolor: '#ab63fa',
     // line: {
       // color: '#ab63fa'
     // }
     marker: {
-       ...rgb[label][idx],
+       ...colors[idx],
        opacity: 0.5,
     },
   }))

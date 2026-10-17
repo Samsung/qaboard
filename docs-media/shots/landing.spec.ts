@@ -11,7 +11,10 @@ const sidebar = (page: Page, view: string) => page.getByRole('menuitem', { name:
 const cards = (page: Page) => page.locator('.output-card.bp6-card');
 const viewer = (scope: Page | Locator, index = 0) => scope.locator(`[id="${index}-0"]`).first();
 const newImage = (scope: Page | Locator) => scope.locator('[id^="image-viewer-"]').first();
-const controlsPanel = (page: Page) => page.locator('.bp6-card', { has: page.getByText('Controls', { exact: true }) }).last();
+// The View options, docked on the right of the commit page (the user's choice is remembered: controls-panel-expanded)
+const controlsPanel = (page: Page) => page.locator('aside[aria-label="View options"]');
+// Its toggle: "Show the view options" on its rail, "Collapse the view options" when open
+const PANEL_TOGGLE = 'button[aria-label$=" the view options"]';
 
 // An element's box once it stopped moving: hovering an image shows the pixel values above it, which push it down
 async function stableBox(target: Locator) {
@@ -72,12 +75,12 @@ clip('landing/hero', {
     // The Controls panel slides in and out, for longer than the wait after a click (it runs the page's clock in real
     // time): another wait, and it's always done
     const togglePanel = async () => {
-      await ui.click(ui.page.locator('[title="Toggle Controls Panel"]'));
+      await ui.click(ui.page.locator(PANEL_TOGGLE));
       await ui.settle();
     };
     await togglePanel();
     await ui.hold(300);
-    await ui.click(controlsPanel(ui.page).locator('label', { hasText: 'Image Diff' }));
+    await ui.click(controlsPanel(ui.page).locator('label', { hasText: 'Image diff' }));
     await ui.settle();
     await togglePanel();
     await ui.hold(1300);
@@ -173,7 +176,7 @@ clip('landing/deep-zoom', {
 });
 
 // Dynamic outputs: `stages/:stage.jpg` in qaboard.yaml gives a slider over the ISP's stages, synced across runs
-const dynamicOptions = (page: Page) => controlsPanel(page).getByText('Dynamic Options', { exact: true }).locator('xpath=../..');
+const dynamicOptions = (page: Page) => controlsPanel(page).locator('section', { has: page.getByRole('button', { name: 'Files to show', exact: true }) });
 
 clip('landing/every-stage', {
   project: IQ,
@@ -293,6 +296,8 @@ shot('landing/social-card', {
   project: IQ,
   url: d => compare(d, 'merge-bilateral', 'isp-4-1', 'photos/facade base linux', { controls: { diff: true } }),
   scale: 1,
+  // og:image has no dark variant
+  themes: ['light'],
   alt: 'QA-Board, "Tests tell you it runs. QA-Board shows you it\'s better." Next to it, a run on the commit page: PSNR '
     + 'and SSIM up, the new image of a window and its Image Diff, where the frame\'s halos stand out.',
   caption: 'The social card of the docs.',

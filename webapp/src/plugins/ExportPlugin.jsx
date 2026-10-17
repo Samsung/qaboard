@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 
 import { http, errorMessage } from "../api/http";
 import { linux_to_windows, are_on_same_filesystem, extract_drive_and_folder } from '../utils'
 
 import {
+  Classes,
   Intent,
   Tag,
   Callout,
@@ -11,7 +12,9 @@ import {
   ControlGroup,
   InputGroup,
   Button,
+  PopoverNext,
   SegmentedControl,
+  Tooltip,
 } from "@blueprintjs/core";
 
 import { toaster } from "../toaster"
@@ -28,7 +31,10 @@ const default_path = (config, path) => {
 
 const no_errors = [];
 
-// Exports the outputs' files to a shared directory
+export const export_help = "Gather the files matching a pattern from all the runs shown, new and reference, into one shared directory";
+
+// Exports the runs' files to a shared directory. A button opens the form: its state, and the last export's paths,
+// stay while it's closed.
 const ExportPlugin = props => {
   const { config, batch_dir_url } = props;
   const [edited_path, setEditedPath] = useState(null);
@@ -39,6 +45,8 @@ const ExportPlugin = props => {
   const [result, setResult] = useState({ errors: no_errors, nb_files_exported: null });
   const { errors, nb_files_exported, nb_outputs_exported, linux_export_dir, windows_export_dir } = result;
 
+  const path_input = useRef(null);
+  const input_id = useId();
   const path = edited_path ?? default_path(config, props.path);
   const batch_dir = (batch_dir_url ?? '').slice(2);
   const batch_output_fs = extract_drive_and_folder(linux_to_windows(batch_dir));
@@ -90,10 +98,13 @@ const ExportPlugin = props => {
   // **/**.png => Invalid pattern: '**' can only be an entire path component
   const invalidPattern = /(?:^|\/)(\*\*(?!\/?$|\/))/;
   const path_has_invalid_globs = invalidPattern.test(path) || path.startsWith("/")
+  const can_export = !path_has_invalid_globs && path.length > 0
 
-  return <Callout style={{marginBottom: '20px', marginTop: '15px'}}>
+  const form = <div style={{ padding: '15px 15px 5px', width: 'min(540px, calc(100vw - 40px))', boxSizing: 'border-box' }}>
     <FormGroup
-      labelFor="pluging-copy"
+      label="Files to export"
+      labelFor={input_id}
+      labelInfo="(glob pattern)"
       helperText={<div>
         {path_has_invalid_globs && path.startsWith('/') && <><Tag minimal intent="warning">File patterns must be relative.</Tag><br/></>}
         {path_has_invalid_globs && !path.startsWith('/') && <><Tag minimal intent="warning"><code>**</code> must be entire path components: <code>/**/</code>.</Tag><br/></>}
@@ -105,7 +116,7 @@ const ExportPlugin = props => {
               marginBottom: "5px",
               background: "none",
               boxShadow: "none",
-              border: "1px solid rgba(28, 33, 39, 0.2)",
+              border: "1px solid var(--qa-border)",
               boxSizing: "border-box",
             }}
             title={export_dir_is_same_fs ? undefined : `(Hard) Links are only available when exporting to the same filesystem (${batch_output_fs}). We avoid symlinks since they are poorly supported on Windows.`}
@@ -138,18 +149,24 @@ const ExportPlugin = props => {
         You can use <a rel="noopener noreferrer" target="_blank" href="https://docs.python.org/3/library/fnmatch.html">wildcard globs</a>, eg '*.txt' or '**/*.jpg' ('**/' matches 0 or more)
       </div>}
     >
-      <ControlGroup>
-         <Button
-           disabled={is_loading || path_has_invalid_globs || path.length === 0}
-           icon="download"
-           onClick={export_to_directory}
-         >Export</Button>
+      <ControlGroup fill>
          <InputGroup
+           id={input_id}
+           inputRef={path_input}
            onChange={e => setEditedPath(e.target.value)}
+           onKeyDown={e => { if (e.key === 'Enter' && can_export && !is_loading) export_to_directory(); }}
            value={path}
            placeholder={'*.png'}
            intent={(path_has_invalid_globs || nb_files_exported === 0) ? "warning" : undefined}
          />
+         <Button
+           className={Classes.FIXED}
+           intent="primary"
+           disabled={!can_export}
+           loading={is_loading}
+           icon="download"
+           onClick={export_to_directory}
+         >Export</Button>
       </ControlGroup>
       {linux_export_dir && <div style={{marginTop: '10px'}}>
         <p><Tag>Windows</Tag> <code>{windows_export_dir}</code></p>
@@ -168,7 +185,14 @@ const ExportPlugin = props => {
         })}</ul>
         </Callout>}
     </FormGroup>
-  </Callout>
+  </div>;
+
+  return <PopoverNext content={form} placement="bottom-end" onOpened={() => path_input.current?.focus()}>
+    {/* the focus comes back to the button when the popover closes: that shouldn't open the tooltip */}
+    <Tooltip content={export_help} placement="top" openOnTargetFocus={false}>
+      <Button variant="outlined" icon="export" text="Export" aria-label="Export files"/>
+    </Tooltip>
+  </PopoverNext>
 };
 
 

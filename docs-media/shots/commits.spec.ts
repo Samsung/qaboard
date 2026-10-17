@@ -12,7 +12,7 @@ const at = (d: Demo, days: number, time: string) => `${day(d, days)}T${time}:00Z
 
 // The commits' cards, one per day
 const days = (page: Page) => page.locator('.bp6-card', { has: page.getByText(/ — \d+ commits?$/) });
-const filterBox = (page: Page) => page.locator('.bp6-navbar input[placeholder="Search..."]').first();
+const filterBox = (page: Page) => page.locator('.bp6-navbar input[placeholder^="Search commits"]').first();
 
 // Hovers the point of the first line of a Plotly chart at that date (CommitsEvolution draws a point per commit)
 async function hoverPoint(ui: Ui, plot: Locator, date: string) {
@@ -75,7 +75,7 @@ shot('commits/filter', {
     await ui.click(filterBox(ui.page));
     await ui.settle();
     await ui.type(filterBox(ui.page), 'cache', { delayMs: 80 });
-    await ui.page.waitForFunction(() => (document.querySelector('.bp6-navbar input[placeholder="Search..."]') as HTMLInputElement | null)?.value === 'cache',
+    await ui.page.waitForFunction(() => (document.querySelector('.bp6-navbar input[placeholder^="Search commits"]') as HTMLInputElement | null)?.value === 'cache',
       undefined, { timeout: 5000 });
     await ui.page.locator('.bp6-popover .bp6-menu', { hasText: 'Go to commit' }).waitFor();
     // the caret at the end, nothing selected
@@ -110,7 +110,7 @@ shot('commits/milestones-menu', {
     const shared = dialog.getByRole('switch', { name: 'Shared' }).or(dialog.locator('input[type="checkbox"]')).first();
     if (await shared.isChecked()) await ui.click(dialog.locator('label', { hasText: 'Shared' }));
     if (await shared.isChecked()) throw new Error('[commits.spec] the milestone would be shared');
-    await ui.type(dialog.locator('#text-input'), 'entropy-try');
+    await ui.type(dialog.locator('#milestone-label-input'), 'entropy-try');
     await ui.type(dialog.locator('textarea'), 'entropy calibration: a little worse everywhere');
     await ui.click(dialog.getByRole('button', { name: 'Save' }));
     await dialog.waitFor({ state: 'hidden' });

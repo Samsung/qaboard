@@ -91,6 +91,20 @@ describe('OutputCardsList', () => {
     expect(urls().filter(url => url === '/s/out/0/manifest.outputs.json')).toHaveLength(1);
   });
 
+  it('says when the batch has no runs, or when none matches the filter', () => {
+    const empty = { new_batch: { outputs: {}, filtered: { outputs: [] } }, ref_batch: { outputs: {} } };
+    const { unmount } = render_list({ ...props, ...empty });
+    expect(screen.getByText('No runs in this batch yet')).toBeInTheDocument();
+    unmount();
+
+    const { new_batch, ref_batch } = batches(2);
+    renderWithProviders(<MemoryRouter initialEntries={['/p/commit/abc?filter=nothing']}>
+      <OutputCardsList {...props} ref_batch={ref_batch} new_batch={{ ...new_batch, filtered: { outputs: [] } }}/>
+    </MemoryRouter>);
+    expect(screen.getByText('No run matches “nothing”')).toBeInTheDocument();
+    expect(screen.getByText('Clear the filter')).toBeInTheDocument();
+  });
+
   it("doesn't mutate the batches", () => {
     const { new_batch, ref_batch } = batches(5);
     Object.freeze(new_batch.filtered.outputs);
@@ -112,7 +126,7 @@ describe('OutputCardsList', () => {
     const [output_id, options] = onRegisterOutputOptions.mock.calls.at(-1);
     expect(output_id).toBe(0);
     expect(options.scene.values).toEqual(['a', 'b']);
-    expect(await screen.findByText('No viewer is defined for type: unknown/type')).toBeInTheDocument();
+    expect(await screen.findByText(/No viewer for the type/)).toHaveTextContent('unknown/type');
     // linked: no control in the card
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     expect(screen.getByText('a/out.bin')).toBeInTheDocument();
@@ -124,7 +138,7 @@ describe('OutputCardsList', () => {
     const controls = { ...props.controls, dynamic_options: { frame: ['8'] } };
     renderWithProviders(<MemoryRouter><OutputCardsList {...props} {...batches(1)} config={config} controls={controls} onRegisterOutputOptions={vi.fn()} /></MemoryRouter>);
     act(() => mockAllIsIntersecting(true));
-    expect(await screen.findByText(/isn't in this run, showing/)).toHaveTextContent("frame 8 isn't in this run, showing 10");
+    expect(await screen.findByText(/isn't in this run, showing/)).toHaveTextContent("Frame 8 isn't in this run, showing 10");
     expect(screen.getByText('10/out.bin')).toBeInTheDocument();
   });
 
@@ -138,7 +152,7 @@ describe('OutputCardsList', () => {
     expect(select).toHaveValue('b');
     fireEvent.change(select, { target: { value: 'a' } });
     expect(select).toHaveValue('a');
-    fireEvent.click(screen.getByText('unlinked'));
+    fireEvent.click(screen.getByText('Same for all runs'));
     expect(onToggleDynamicOptionSync).toHaveBeenCalledWith('scene');
   });
 });

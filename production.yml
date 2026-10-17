@@ -6,6 +6,9 @@ services:
   db:
     shm_size: 1g
     restart: always
+    # PostgreSQL writes its dirty buffers (a checkpoint) before stopping: give it time instead of being killed after
+    # docker's default 10s, which would make the next start replay the WAL (crash recovery)
+    stop_grace_period: 120s
     # On-prem, it can be helpful to expose the database and use various analytics products
     # ports:
     # - 5432:5432
@@ -65,6 +68,9 @@ services:
       PGDATABASE: qaboard
       PGUSER: qaboard
       PGPASSWORD: password
+      # Daily backups (YYYY-MM-DD.dump) older than this are deleted, but never the newest 3. 0: keep them all.
+      # Other dumps (e.g. before-upgrade.dump) are never deleted. See services/db/backup
+      BACKUP_RETENTION_DAYS: ${QABOARD_BACKUP_RETENTION_DAYS:-14}
       # Uncomment and set to run backups as a specific user (useful with NFS)
       # AS_USER_NAME: qaboard
       # AS_USER_GROUP: qaboard

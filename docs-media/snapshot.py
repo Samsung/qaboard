@@ -10,11 +10,15 @@ Saves and restores the demo stack's data (the database and the seeded results) a
   uv run docs-media/snapshot.py save                   # the running demo stack -> snapshots/<key>.tar.zst
   uv run docs-media/snapshot.py restore                # snapshots/<key>.tar.zst -> a fresh demo stack
   uv run docs-media/snapshot.py restore --latest       # the most recent snapshot, whatever its key
+  uv run docs-media/snapshot.py pick                   # the snapshot this checkout can restore (exit 1: seed)
   uv run docs-media/snapshot.py list | info [KEY] | delete KEY
   uv run docs-media/snapshot.py image --tag ghcr.io/<owner>/qaboard:demo-data   # the demo-data image, from a snapshot
 
 - The key is a hash of what the data depends on: examples/**, docs-media/seed.py, backend/backend/models/** and
   qaboard/** (git-tracked and untracked files, not ignored ones). When it changes, the stories must be seeded again.
+- `pick` prints this checkout's key when its snapshot exists. Else the newest snapshot taken from a commit with the same
+  stories (examples/** and docs-media/seed.py): the CLI, the backend and its models don't change what the stories
+  seed, and the backend migrates the restored database when it starts. Else it exits with 1: seed the stories.
 - In R2 (bucket qaboard-ci, $R2_BUCKET): snapshots/<key>.tar.zst, and its metadata snapshots/<key>.json
   (key, T0, projects and their commits' shas, app version, images...). R2_ACCOUNT_ID, R2_ACCESS_KEY_ID and
   R2_SECRET_ACCESS_KEY come from the environment.
@@ -50,6 +54,8 @@ import stack  # noqa: E402
 from stack import log, REPO  # noqa: E402
 
 KEY_PATHS = ['examples', 'docs-media/seed.py', 'backend/backend/models', 'qaboard']
+# What the seeded data really depends on: a snapshot of other key paths can be restored (`pick`)
+STORY_PATHS = ['examples', 'docs-media/seed.py']
 BUCKET = os.environ.get('R2_BUCKET', 'qaboard-ci')
 PREFIX = 'snapshots/'
 
@@ -231,6 +237,41 @@ def latest_key(client) -> str:
     raise SystemExit(f"ERROR: no snapshot in {BUCKET}/{PREFIX}")
   newest = max(objects, key=lambda o: o['LastModified'])
   return newest['Key'][len(PREFIX):-len('.tar.zst')]
+
+
+def same_stories(sha) -> bool:
+  """Whether the commit `sha` has this checkout's stories (examples/** and docs-media/seed.py)"""
+  if not sha:
+    return False
+  # the commit may be unknown here (a deleted branch, a shallow clone): then it doesn't match
+  known = subprocess.run(['git', 'cat-file', '-e', f'{sha}^{{commit}}'], cwd=REPO, capture_output=True).returncode == 0
+  if not known:
+    return False
+  changed = subprocess.run(['git', 'diff', '--quiet', sha, '--', *STORY_PATHS], cwd=REPO, capture_output=True)
+  return changed.returncode == 0
+
+
+def pick(client, max_candidates: int = 20):
+  """The key of the snapshot to restore: this checkout's, else the newest with the same stories, else None"""
+  key = snapshot_key()
+  snapshots = []
+  for page in client.get_paginator('list_objects_v2').paginate(Bucket=BUCKET, Prefix=PREFIX):
+    snapshots += [o for o in page.get('Contents', []) if o['Key'].endswith('.tar.zst')]
+  keys = [o['Key'][len(PREFIX):-len('.tar.zst')] for o in sorted(snapshots, key=lambda o: o['LastModified'], reverse=True)]
+  if key in keys:
+    log(f"Snapshot {key} is this checkout's", 'green')
+    return key
+  for candidate in keys[:max_candidates]:
+    try:
+      metadata = json.loads(client.get_object(Bucket=BUCKET, Key=f"{PREFIX}{candidate}.json")['Body'].read())
+    except client.exceptions.NoSuchKey:
+      continue
+    git = metadata.get('git') or {}
+    if not git.get('dirty') and same_stories(git.get('sha')):
+      log(f"No snapshot {key}: snapshot {candidate} (from {git['sha'][:8]}) has the same stories", 'green')
+      return candidate
+  log(f"No snapshot {key}, and none of the {min(len(keys), max_candidates)} newest has these stories", 'yellow')
+  return None
 
 
 def fetch(args) -> Path:
@@ -481,7 +522,7 @@ def build_image(args):
 
 def main():
   parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-  parser.add_argument('command', choices=['key', 'save', 'restore', 'list', 'info', 'delete', 'image'])
+  parser.add_argument('command', choices=['key', 'pick', 'save', 'restore', 'list', 'info', 'delete', 'image'])
   parser.add_argument('key_arg', nargs='?', help="info, delete: the snapshot's key (info: default to this checkout's)")
   parser.add_argument('--key', help="save, restore, image: another key than this checkout's")
   parser.add_argument('--latest', action='store_true', help="restore, image: the most recent snapshot")
@@ -496,6 +537,11 @@ def main():
 
   if args.command == 'key':
     print(snapshot_key())
+  elif args.command == 'pick':
+    picked = pick(r2())
+    if not picked:
+      sys.exit(1)
+    print(picked)
   elif args.command == 'save':
     save(args)
   elif args.command == 'restore':

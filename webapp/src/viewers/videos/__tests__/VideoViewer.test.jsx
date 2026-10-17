@@ -89,6 +89,17 @@ describe('VideoViewer', () => {
     expect(again.container.querySelector('.video-wipe')).not.toBeNull();
   });
 
+  it('flips between the videos when clicking Toggle again', () => {
+    const { container } = viewer({ output_ref: output('ref') });
+    const shown = () => container.querySelector('.video-label')?.textContent;
+    fireEvent.click(screen.getByRole('radio', { name: 'Toggle' }));
+    expect(shown()).toMatch(/^new/);
+    fireEvent.click(screen.getByRole('radio', { name: 'Toggle' }));
+    expect(shown()).toMatch(/^reference/);
+    fireEvent.click(screen.getByRole('radio', { name: 'Toggle' }));
+    expect(shown()).toMatch(/^new/);
+  });
+
   it('gives the keyboard back to the videos after picking a mode', () => {
     viewer({ output_ref: output('ref') });
     fireEvent.click(screen.getByRole('radio', { name: 'Wipe' }));

@@ -1,13 +1,14 @@
 import { useState } from "react";
 import {
+  Alert,
+  AnchorButton,
   Classes,
-  Colors,
   Icon,
+  Spinner,
   Tag,
   Menu,
   MenuItem,
   MenuDivider,
-  Popover,
   PopoverNext,
   Intent,
   Tooltip,
@@ -15,13 +16,14 @@ import {
 } from "@blueprintjs/core";
 
 import { http, errorMessage, isAbort } from "../api/http";
-import { useRefreshCommit } from "../hooks";
+import { useRefreshCommit, useSiteConfig } from "../hooks";
 import { linux_to_windows } from '../utils'
-import { folder_url } from '../utils/paths'
+import { folder_url, hasPathMappings } from '../utils/paths'
 import { toaster } from "../toaster"
 import { copyDirectory } from "./logs/DirectoryActions"
 import { hidden_keys } from "../configurations/tokens"
 import { ConfigurationsTags, ConfigurationDiff } from "../configurations/ConfigurationsTags"
+import { runName } from "./logs/RunLogs"
 
 
 const style_skeleton = {
@@ -34,30 +36,31 @@ const style_skeleton = {
 }
 
 
+// A run's status, quiet when it went fine. The same width for all statuses: the names next to it line up.
+const status_style = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flex: 'none', width: 26 };
 const StatusTag = ({output, style}) => {
-  const intent = output.is_failed
-                 ? Intent.DANGER
-                 : output.is_pending ? Intent.WARNING : Intent.SUCCESS;
-  const tag_text = output.is_failed ? "" : output.is_pending ? (output.is_running ? "🏃" : "⏳") : "";
-  const tag_title = output.is_failed ? "Failed" : output.is_pending ? (output.is_running ? "Running" : "Pending") : undefined;
-  return <Tag
-    title={tag_title}
-    icon={output.is_failed ? "cross" : (output.is_pending ? undefined : "tick")}
-    style={output.is_running ? {...style, ...style_skeleton} : style}
-    intent={intent}>{tag_text}
-  </Tag>
-
+  let status;
+  if (output.is_failed)
+    status = <Tag minimal intent={Intent.DANGER} icon="cross" aria-label="Failed"/>;
+  else if (output.is_running)
+    status = <Spinner size={12} aria-label="Running"/>;
+  else if (output.is_pending)
+    status = <Icon icon="time" size={12} className={Classes.TEXT_MUTED} aria-label="Pending"/>;
+  else
+    status = <Icon icon="tick-circle" size={12} intent={Intent.SUCCESS} aria-label="Succeeded"/>;
+  const title = output.is_failed ? "Failed" : output.is_running ? "Running" : output.is_pending ? "Pending" : "Succeeded";
+  return <span title={title} style={{ ...status_style, ...style }}>{status}</span>;
 }
 
 const PlatformTag = ({ platform, inverted }) => {
   if (platform === undefined || platform === null || platform === 'linux') return <span />
-  return <Tag round minimal={!inverted} style={{ marginRight: '5px', marginLeft: '5px' }}>@{platform}</Tag>
+  return <Tag round minimal={!inverted} title="Platform the run used" style={{ marginRight: '5px', marginLeft: '5px' }}>@{platform}</Tag>
 }
 
-const MismatchTag = ({text, explanation}) => {
+const MismatchTag = ({text, what, explanation}) => {
   return <div>
     <Tooltip content={<div>
-        <h3>Comparing to reference:</h3>
+        <h3>The reference run differs. Its {what}:</h3>
         <p>{explanation}</p>
       </div>}
     >
@@ -81,9 +84,9 @@ const MismatchTags = ({mismatch, configurations, tuning}) => {
     return <span/>
   const { test_input_path, platform } = mismatch;
   return <div>
-    {test_input_path  && <MismatchTag text="Input" explanation={test_input_path} />}
+    {test_input_path  && <MismatchTag text="Input" what="input" explanation={test_input_path} />}
     {(mismatch.configurations || mismatch.extra_parameters) && <ConfigMismatchTag configurations={configurations} tuning={tuning} mismatch={mismatch} />}
-    {platform         && <MismatchTag text="Platform" explanation={<PlatformTag inverted platform={platform} />} />}
+    {platform         && <MismatchTag text="Platform" what="platform" explanation={<PlatformTag inverted platform={platform} />} />}
   </div>
 }
 
@@ -116,15 +119,19 @@ const RunBadge = ({badge}) => {
 // What users can do with a run: redo it, mark it as failed, delete it...
 const RunActionsMenu = ({ output, project, commit }) => {
   const [waiting, setWaiting] = useState(false)
+  // deletes need confirming: 'delete' or 'delete-files'
+  const [confirming, setConfirming] = useState(null)
   const refreshCommit = useRefreshCommit()
   const { id, deleted, is_pending } = output
+  const name = runName(output)
   const refresh = () => refreshCommit(project, commit.id)
   const act = (request, requested, done) => {
+    const key = `run-action-${id}`
     setWaiting(true)
-    toaster.show({message: requested});
+    toaster.show({message: requested, icon: 'time'}, key);
     request()
-      .then(() => toaster.show({message: done, intent: Intent.SUCCESS}))
-      .catch(error => toaster.show({message: errorMessage(error), intent: Intent.DANGER}))
+      .then(() => toaster.show({message: done, intent: Intent.SUCCESS}, key))
+      .catch(error => toaster.show({message: errorMessage(error), intent: Intent.DANGER}, key))
       .finally(() => {
         setWaiting(false)
         refresh()
@@ -134,15 +141,15 @@ const RunActionsMenu = ({ output, project, commit }) => {
     <Menu>
       {id && is_pending && <MenuItem
         icon="stop"
-        text="Mark as Failed"
+        text="Mark as failed"
         htmlTitle="For runs stuck as pending or running: their job is gone and will never report"
         intent={Intent.WARNING}
         minimal
         disabled={waiting}
         onClick={() => act(
           () => http.put(`/api/v1/output/${id}/`, {is_pending: false, is_running: false, is_failed: true}),
-          "Requested to mark as 'Failed'.",
-          "Marked as failed.",
+          `Marking ${name} as failed…`,
+          `Marked ${name} as failed`,
         )}
       />}
       {id && !is_pending && <MenuItem
@@ -153,32 +160,61 @@ const RunActionsMenu = ({ output, project, commit }) => {
         disabled={waiting}
         onClick={() => act(
           () => http.post(`/api/v1/output/redo/${id}/`, {is_pending: false, is_running: false}),
-          "Requested Redo.",
-          "Redo started.",
+          `Starting ${name} again…`,
+          `Redoing ${name}`,
         )}
       />}
       {id && !deleted && <MenuItem
         icon="trash"
-        text="Delete"
+        text="Delete…"
+        htmlTitle="Delete the run, its metrics and its files"
         intent={Intent.DANGER}
         minimal
         disabled={waiting}
-        onClick={() => act(() => http.delete(`/api/v1/output/${id}/`), "Delete requested.", "Deleted.")}
+        shouldDismissPopover={false}
+        onClick={() => setConfirming('delete')}
       />}
       {id && !deleted && <MenuItem
         icon="trash"
-        text="Delete Output Files"
+        text="Delete output files…"
+        htmlTitle="Delete the run's files, keep its metrics"
         intent={Intent.DANGER}
         minimal
         disabled={waiting}
-        onClick={() => act(() => http.delete(`/api/v1/output/${id}/`, {params: {soft: true}}), "Delete requested.", "Deleted.")}
+        shouldDismissPopover={false}
+        onClick={() => setConfirming('delete-files')}
       />}
+      {/* rendered in a portal; while it's open, the menu's popover stays open */}
+      <Alert
+        className={Classes.POPOVER_DISMISS}
+        isOpen={confirming !== null}
+        icon="trash"
+        intent={Intent.DANGER}
+        cancelButtonText="Cancel"
+        confirmButtonText={confirming === 'delete-files' ? "Delete files" : "Delete run"}
+        canEscapeKeyCancel
+        onCancel={() => setConfirming(null)}
+        onConfirm={() => {
+          const files_only = confirming === 'delete-files'
+          setConfirming(null)
+          act(
+            () => http.delete(`/api/v1/output/${id}/`, files_only ? {params: {soft: true}} : undefined),
+            `Deleting ${files_only ? 'the files of ' : ''}${name}…`,
+            `Deleted ${files_only ? 'the files of ' : ''}${name}`,
+          )
+        }}
+      >
+        {confirming === 'delete-files'
+          ? <><p><strong>Delete the files of {name}?</strong></p><p>Its metrics are kept.</p></>
+          : <><p><strong>Delete {name}?</strong></p><p>Its output files and metrics will be deleted. This can't be undone.</p></>}
+      </Alert>
     </Menu>
   )
 }
 
 
-// Asks WebCDE, running on the user's machine, to open the output
+// Asks WebCDE, running on the user's machine, to open the output.
+// WebCDE is a desktop app that replays runs whose outputs have a cde.sh, its service listens on localhost:2020.
 const open_in_webcde = async ({ output, commit, cde_sh }) => {
   const { platform, output_dir_url } = output
   const cde_dir = cde_sh.replace(/\/?cde.sh$/, '')
@@ -203,6 +239,8 @@ const open_in_webcde = async ({ output, commit, cde_sh }) => {
 const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, style }) => {
   const [waiting, setWaiting] = useState(false)
   const refreshCommit = useRefreshCommit()
+  // where users install WebCDE, from QABOARD_WEBCDE_INSTALLER
+  const { webcde_installer } = useSiteConfig()
   const refresh = () => refreshCommit(project, commit.id)
   const { platform, configurations, output_dir_url, deleted, output_type } = output;
   const cde_shs = !deleted ? Object.keys(manifests?.new ?? []).filter(path => path.endsWith("cde.sh")) : []
@@ -212,63 +250,72 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
     <ConfigurationsTags configurations={configurations} tuning={output.extra_parameters} mismatch={mismatch} />
 
     {output_type !== "batch" &&
-    <Popover placement="bottom" hoverCloseDelay={200} interactionKind={"hover"} content={
+    <PopoverNext placement="bottom" content={
       <RunActionsMenu output={output} project={project} commit={commit} />
     }>
-      <Icon icon="menu" style={{ marginLeft: "5px", color: Colors.GRAY1 }}/>
-    </Popover>}
+      <Button size="small" variant="minimal" icon="menu" className={Classes.TEXT_MUTED} style={{ marginLeft: "5px" }} aria-label="Run actions"/>
+    </PopoverNext>}
 
-
-    <Popover hoverCloseDelay={500} interactionKind={"hover"} placement="bottom" content={
+    {/* The menus open on click: their buttons only act directly when there is nothing to choose from */}
+    {output_ref ? <PopoverNext placement="bottom" content={
       <Menu>
         <MenuItem
-          text="Open output directory in browser"
+          text="Open the output directory in the browser"
           target="_blank"
           rel="noopener noreferrer"
           href={folder_url(output_dir_url)}
           className={Classes.TEXT_MUTED} minimal
           icon="folder-shared-open"
         />
-        {output_ref &&
         <MenuItem
-          text="Open the Reference's output directory in browser"
+          text="Open the reference's output directory in the browser"
           target="_blank"
           rel="noopener noreferrer"
           href={folder_url(output_ref.output_dir_url)}
           className={Classes.TEXT_MUTED} minimal
           icon="folder-shared-open"
-        />}
+        />
       </Menu>}
     >
-      <a style={{marginLeft: "5px", color: Colors.GRAY1}}
-            target="_blank"
-            rel="noopener noreferrer"
-            href={folder_url(output_dir_url)}
-      >
-        <Icon icon="folder-shared-open" />
-      </a>
-    </Popover>
+      <Button size="small" variant="minimal" icon="folder-shared-open" className={Classes.TEXT_MUTED} aria-label="Open the output directory"/>
+    </PopoverNext> : <Tooltip content="Open the output directory" hoverOpenDelay={300}>
+      <AnchorButton
+        size="small"
+        variant="minimal"
+        icon="folder-shared-open"
+        className={Classes.TEXT_MUTED}
+        aria-label="Open the output directory"
+        target="_blank"
+        rel="noopener noreferrer"
+        href={folder_url(output_dir_url)}
+      />
+    </Tooltip>}
 
-    <Popover hoverCloseDelay={500} interactionKind={"hover"} placement="bottom" content={
+    {(output_ref || hasPathMappings()) ? <PopoverNext placement="bottom" content={
       <Menu>
         {output_ref && <MenuDivider title="New Run" />}
-        <MenuItem text="Copy output directory" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_dir_url)} />
-        <MenuItem text="Copy output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_dir_url, { windows: true })} />
+        <MenuItem text="Copy output directory" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_dir_url)} />
+        {hasPathMappings() && <MenuItem text="Copy output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_dir_url, { windows: true })} />}
         {output_ref && <>
           <MenuDivider title="Reference Run" />
-          <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>linux</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_ref.output_dir_url)} />
-          <MenuItem text="Copy output directory of the 'Reference'" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_ref.output_dir_url, { windows: true })} />
+          <MenuItem text="Copy the reference's output directory" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_ref.output_dir_url)} />
+          {hasPathMappings() && <MenuItem text="Copy the reference's output directory" label={<Tag minimal>windows</Tag>} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(output_ref.output_dir_url, { windows: true })} />}
           </>
         }
       </Menu>}
     >
-      <span style={{marginLeft: "5px", marginRight: '5px', color: Colors.GRAY1}}>
-        <Icon
-          title="Copy-to-Clipboard"
-          icon="duplicate"
-        />
-      </span>
-    </Popover>
+      <Button size="small" variant="minimal" icon="duplicate" className={Classes.TEXT_MUTED} style={{marginRight: '5px'}} aria-label="Copy the output directory"/>
+    </PopoverNext> : <Tooltip content="Copy the path of the output directory" hoverOpenDelay={300}>
+      <Button
+        size="small"
+        variant="minimal"
+        icon="duplicate"
+        className={Classes.TEXT_MUTED}
+        style={{marginRight: '5px'}}
+        aria-label="Copy the path of the output directory"
+        onClick={() => copyDirectory(output_dir_url)}
+      />
+    </Tooltip>}
     {cde_shs.map(cde_sh => {
       const cde_dir = cde_sh.replace(/\/?cde.sh$/, '')
       return <Tooltip key={cde_sh} content="Open in WebCDE">
@@ -283,7 +330,7 @@ const OutputTags = ({ output, output_ref, mismatch, manifests, project, commit, 
             open_in_webcde({ output, commit, cde_sh })
               .then(() => toaster.show({message: "Sent to WebCDE", intent: Intent.SUCCESS}))
               .catch(error => {
-                const help_text = "Sorry we could not connect to CDEWebService. Please start WebCDE.exe (download from \\\\netapp\\Joint\\WebCDE\\WebCDE_Setup.exe)"
+                const help_text = `Could not connect to WebCDE (CDEWebService) on your computer. Please start WebCDE.exe${webcde_installer ? ` (install it from ${webcde_installer})` : ''}.`
                 toaster.show({
                   message: error.webcde_unreachable ? help_text : errorMessage(error),
                   intent: Intent.DANGER,

@@ -3,6 +3,7 @@
 import React, {useCallback, useEffect, useRef, useState} from 'react';
 import clsx from 'clsx';
 import Head from '@docusaurus/Head';
+import {useColorMode} from '@docusaurus/theme-common';
 import {Caption, MediaEntry, Placeholder, styles, useShot} from './media';
 
 export type ClipProps = {
@@ -60,10 +61,15 @@ function Player({entry, url, remote, alt, priority, autoplay, loop, onError}: {
 
   useEffect(() => setHydrated(true), []);
 
-  // The sources may have failed before hydration, when React wasn't listening yet
+  // The sources may have failed before hydration, when React wasn't listening yet. A video React just created (a tab
+  // switch, a client-side navigation) is NETWORK_NO_SOURCE too, until the browser has looked at its sources, which it
+  // does once the current task ends: check after that
   useEffect(() => {
-    if (video.current?.networkState === HTMLMediaElement.NETWORK_NO_SOURCE)
-      onError();
+    const timer = setTimeout(() => {
+      if (video.current?.networkState === HTMLMediaElement.NETWORK_NO_SOURCE)
+        onError();
+    });
+    return () => clearTimeout(timer);
   }, []);
 
   const play = useCallback(() => {
@@ -190,6 +196,8 @@ function Player({entry, url, remote, alt, priority, autoplay, loop, onError}: {
 export default function Clip({id, caption, alt, maxWidth, priority = false, autoplay = 'inview', loop = true}: ClipProps) {
   const shot = useShot(id);
   const [unavailable, setUnavailable] = useState(false);
+  // In the docs' dark mode, the dark variant (pages are rendered in light mode, then hydrated): a new player loads it
+  const {colorMode} = useColorMode();
   if (shot.status !== 'published' || unavailable) {
     const planned = shot.status === 'planned' ? shot.planned : null;
     return (
@@ -199,10 +207,12 @@ export default function Clip({id, caption, alt, maxWidth, priority = false, auto
       </figure>
     );
   }
-  const {entry, url, remote} = shot;
+  const {url, remote} = shot;
+  const dark = colorMode === 'dark' && !!shot.entry.dark;
+  const entry = dark ? {...shot.entry, ...shot.entry.dark!} : shot.entry;
   const isTape = entry.kind === 'tape';
   const width = Math.min(maxWidth ?? entry.width, entry.width);
-  const player = <Player entry={entry} url={url} remote={remote} alt={alt ?? entry.alt} priority={priority} autoplay={autoplay} loop={loop} onError={() => setUnavailable(true)} />;
+  const player = <Player key={dark ? 'dark' : 'light'} entry={entry} url={url} remote={remote} alt={alt ?? entry.alt} priority={priority} autoplay={autoplay} loop={loop} onError={() => setUnavailable(true)} />;
   return (
     <figure className={styles.figure} style={{maxWidth: isTape ? `calc(${width}px + 2 * var(--qbm-tape-padding))` : width}}>
       {isTape ? (

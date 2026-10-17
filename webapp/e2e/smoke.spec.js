@@ -97,7 +97,8 @@ test('history page navigation', async ({ page }) => {
   await page.getByRole('menuitem', { name: 'History', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/${project}/history/master`));
   await expect(page.getByText('Performance over time')).toBeVisible();
-  await expect(page.getByRole('menuitem', { name: 'Code' })).toHaveAttribute('target', '_blank');
+  // a link to the git host, with a submenu of other links
+  await expect(page.getByRole('menuitem', { name: 'Code' }).locator('a').first()).toHaveAttribute('target', '_blank');
   await expect(page.getByRole('menuitem', { name: 'Milestones' })).toBeVisible();
   // back to the branch's commits
   await page.getByRole('menuitem', { name: 'master', exact: true }).click();
@@ -114,5 +115,27 @@ test('avatars that fail to load show initials', async ({ page }) => {
   const avatar = page.getByRole('link', { name: 'Alice', exact: true }).getByRole('img');
   await expect(avatar).toHaveAttribute('src', /^data:image\/svg\+xml,/);
   await expect(avatar).toHaveAttribute('title', 'Alice');
+  await page.waitForLoadState('networkidle');
+});
+
+// Users can list commits one line each: the choice is remembered
+test('compact commit list', async ({ page }) => {
+  await page.goto(`/${project}/commits`);
+  const row = page.getByRole('listitem').filter({ hasText: 'Hello world' });
+  await expect(row).toBeVisible();
+  const comfortable_height = (await row.boundingBox()).height;
+  await page.getByRole('radio', { name: 'Compact' }).click();
+  await expect(page.getByRole('radio', { name: 'Compact' })).toHaveAttribute('aria-checked', 'true');
+  await expect(row.getByRole('link', { name: 'Alice', exact: true })).toHaveAttribute('href', `/${project}/committer/Alice`);
+  // one line, the whole message on hover
+  expect((await row.boundingBox()).height).toBeLessThan(Math.min(comfortable_height, 45));
+  await expect(row.getByText('Hello world')).toHaveAttribute('title', 'Hello world');
+  await page.reload();
+  await expect(page.getByRole('radio', { name: 'Compact' })).toHaveAttribute('aria-checked', 'true');
+  await expect(row).toBeVisible();
+  // the commit's branch, from its row
+  await row.getByRole('link', { name: 'master' }).click();
+  await expect(page).toHaveURL(new RegExp(`/${project}/commits/master`));
+  await expect(page.getByText('Hello world').first()).toBeVisible();
   await page.waitForLoadState('networkidle');
 });

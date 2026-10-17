@@ -1,0 +1,259 @@
+# PostgreSQL settings, restarts and backups (SIRC)
+
+SIRC's runbook. The generic version is on the docs website:
+[Database settings](https://samsung.github.io/qaboard/docs/backend-admin/deployment#database-settings)
+(source: `website/docs/backend-admin/deployment.mdx`).
+
+How it works:
+- The settings are in [`services/db/qaboard.conf`](../../../services/db/qaboard.conf): only what differs from PostgreSQL's
+  defaults, each with why. It is sized for the `qa` host (8 cores, 31 GB, shared with other stacks), and its
+  `max_connections` comment shows how it was computed from the backends' connection pools.
+- `services/db/init.sh` is the db container's entrypoint (`deployments/sirc/sirc.yml`). At every start it copies
+  `qaboard.conf` to `$PGDATA/qaboard.conf` and makes sure `$PGDATA/postgresql.conf` ends with
+  `include_if_exists = 'qaboard.conf'`. For a new, empty database, it does the same right after `initdb`, and creates
+  the `pg_stat_statements` extension.
+- **`ALTER SYSTEM` wins over `qaboard.conf`**: its values are in `$PGDATA/postgresql.auto.conf`, read last. Don't use it:
+  change `qaboard.conf` instead.
+- Changes to `qaboard.conf` are **not** applied by a deploy: see [Changing a setting](#changing-a-setting).
+- `QABOARD_DB_CONFIG=none` (in the env file or the shell) makes `init.sh` remove the include: PostgreSQL starts with its
+  previous settings. It's the [rollback](#rollback).
+
+Before this, `services/db/postgres.conf` was copied to `$PGDATA/postgres.conf`, a file PostgreSQL never reads: the
+tuned values were never applied. Some values had been set by hand (`ALTER SYSTEM`, or edits of `postgresql.conf`).
+
+Every command below runs on the host, from the checkout, in bash:
+```bash
+ssh qa
+bash  # the login shell (tcsh) can't source .envrc
+cd /home/ispq/qaboard_prod && source deployments/sirc/.envrc
+# shortcuts used below
+dc() { docker compose --env-file deployments/sirc/production.env "$@"; }
+psql_qa() { dc exec -T db psql -U qaboard -d qaboard "$@"; }
+```
+For staging: `ssh alginfra1`, `cd /home/ispq/qaboard_staging`, and `deployments/sirc/staging.env` in `dc`.
+
+## Apply the PostgreSQL config (needs a DB restart)
+The first deploy that ships `services/db/qaboard.conf` (and the new `init.sh`) **recreates the db container**, because
+its compose definition changed (entrypoint, environment, `stop_grace_period`). That's the restart that applies the
+settings. GitLab CI deploys `master` to staging, then to production, automatically: prepare before merging.
+
+During the restart (10 to 60 s), requests fail with 500 errors: announce a short maintenance. No need to stop the
+backends first: the deploy restarts the database before it replaces the backends, and the new backends check their
+connections before using them (`pool_pre_ping`).
+
+### 1. Before merging: pause production deploys
+In GitLab, set the CI/CD variable `QABOARD_PROD_DEPLOY=manual` (see [deployment.md](deployment.md#automatic-deploys-gitlab-ci-at-sirc)).
+Staging still deploys automatically: do steps 2 to 4 on `alginfra1` first, or right after staging's deploy if you
+missed it (then skip step 3 for staging and do it before a `dc restart db`).
+
+### 2. Pre-checks, and keep a record
+```bash
+mkdir -p ~/pg-config; D=$(date +%F)
+# a. All the settings that are not defaults, and where they come from
+psql_qa -c "SELECT name, setting, unit, source, sourcefile FROM pg_settings WHERE source NOT IN ('default','override') ORDER BY sourcefile, name" | tee ~/pg-config/settings-before-$D.txt
+# b. ALTER SYSTEM values
+dc exec -T db sh -c 'cat $PGDATA/postgresql.auto.conf' | tee ~/pg-config/auto-before-$D.conf
+# c. Values set in postgresql.conf (hand edits?), and no include yet
+dc exec -T db sh -c 'grep -nE "^[[:space:]]*[a-z_.]+[[:space:]]*=" $PGDATA/postgresql.conf' | tee ~/pg-config/postgresql-conf-before-$D.txt
+# d. Connections
+psql_qa -c "SELECT state, count(*) FROM pg_stat_activity GROUP BY 1 ORDER BY 2 DESC"
+# e. Memory left on the host (shared_buffers grows by 2 GB), and where the data is
+free -g
+docker volume inspect qaboard_prod_db --format '{{ .Mountpoint }}' | xargs df -hT
+# f. A recent backup
+ls -lht /home/ispq/qaboard_data_prod/database_backups/ | head -5
+```
+What to expect, and what to do if it differs:
+- **a.** Only `max_stack_depth` (environment variable), `application_name` (client), and lines from
+  `.../postgresql.conf` (`DateStyle`, `TimeZone`, `lc_*`, `listen_addresses`, `max_connections`, `max_wal_size`,
+  `min_wal_size`, `shared_buffers`, `dynamic_shared_memory_type`, `log_timezone`, `default_text_search_config`).
+  - A line whose `sourcefile` is `.../postgresql.auto.conf` (we expect `shared_buffers` = 2GB, `work_mem` = 8MB):
+    `ALTER SYSTEM` was used. Do step 3.
+  - Something else, e.g. a `source` of `command line`: someone started postgres with `-c`. Look at
+    `dc config db` before going further.
+- **b.** Only the two comment lines (`# Do not edit this file manually!`...) means no `ALTER SYSTEM`. Lines like
+  `shared_buffers = '2GB'`: do step 3.
+- **c.** The docker image's lines: `listen_addresses = '*'`, `max_connections = 100`, `shared_buffers = 128MB`,
+  `dynamic_shared_memory_type = posix`, `max_wal_size = 1GB`, `min_wal_size = 80MB`, `log_timezone`, `datestyle`,
+  `timezone`, `lc_*`, `default_text_search_config`. Other values were edited by hand: nothing to do, the include at
+  the end of the file wins over them; keep the record. No `include_if_exists` line yet.
+- **d.** A few dozen connections, most `idle`. Some `idle in transaction` are expected (see [Idle in transaction](#idle-in-transaction)).
+- **e.** `available` must be at least 6 GB. Otherwise, stop: lower `shared_buffers` in `qaboard.conf` first.
+  The `db` volume is under docker's data root (`/var/lib/docker/volumes/...`): write down its filesystem type
+  (`ext4`/`xfs`: local disk, `nfs`: network storage). The settings suit both.
+- **f.** Today's or yesterday's `YYYY-MM-DD.dump`, of a size similar to the previous days. If not, run a backup first:
+  `dc run --rm cron-backup-db /etc/periodic/daily/backup before-pg-config.dump` (minutes; check its size after).
+
+### 3. Remove the ALTER SYSTEM values (only if step 2 found some)
+They would win over `qaboard.conf`. They are recorded in `~/pg-config/auto-before-$D.conf`. If one of them is not in
+`qaboard.conf` and you want to keep it, add it to `qaboard.conf` in a merge request instead. Do this right before the
+deploy (step 4):
+```bash
+psql_qa -c "ALTER SYSTEM RESET ALL"
+dc exec -T db sh -c 'cat $PGDATA/postgresql.auto.conf'
+```
+Expect `ALTER SYSTEM`, then only the two comment lines. Don't reload the configuration (`pg_reload_conf()`): it would
+apply PostgreSQL's defaults (e.g. `work_mem` = 4MB) until the restart. Nothing else reloads it by itself.
+
+### 4. The restart: deploy
+Pick a quiet time (not around 02:00, when the daily backup runs). Write the dirty buffers to disk first, so that
+PostgreSQL stops quickly:
+```bash
+psql_qa -c "CHECKPOINT"
+```
+Expect `CHECKPOINT` (it can take a minute). Then deploy: in GitLab, click `deploy:production` on the pipeline of the
+merge commit. Or by hand:
+```bash
+git fetch && git checkout --detach <merge commit>
+deployments/deploy.py deployments/sirc/production.env up --version <first 8 characters of the merge commit>
+```
+In the deploy's log, expect after `Applying database migrations`: `Container qaboard_prod-db-1  Recreate` then
+`Recreated` and `Started`, then the rolling update of the backend. Follow the database's log meanwhile:
+```bash
+dc logs -f --tail 20 db
+```
+Expect `[init.sh] /var/lib/postgresql/data/postgresql.conf includes qaboard.conf (copied from /opt/qaboard.conf)`,
+then `database system is ready to accept connections`.
+- **The db container was not recreated** (the log says `Running` for db, or no `Recreate`): the checkout is not the new
+  version. Check `git log -1`, then `deployments/deploy.py deployments/sirc/production.env compose up -d --no-deps db`.
+- **PostgreSQL doesn't start** (`dc ps db` shows `Restarting`, the log has `FATAL`): read the `FATAL` line. Typically
+  `could not map anonymous shared memory` (not enough memory for `shared_buffers`) or `invalid value for parameter`.
+  [Roll back](#rollback) right away, then fix `qaboard.conf`.
+
+### 5. Post-checks
+```bash
+# a. The values, and that they come from qaboard.conf
+psql_qa -h 127.0.0.1 -c "SELECT name, current_setting(name) AS value, sourcefile FROM pg_settings
+  WHERE name IN ('max_connections', 'shared_buffers', 'effective_cache_size', 'work_mem', 'maintenance_work_mem',
+  'max_wal_size', 'min_wal_size', 'checkpoint_completion_target', 'effective_io_concurrency', 'random_page_cost',
+  'idle_in_transaction_session_timeout', 'tcp_keepalives_idle', 'shared_preload_libraries', 'pg_stat_statements.track',
+  'track_io_timing', 'log_min_duration_statement', 'log_checkpoints', 'log_temp_files', 'log_lock_waits',
+  'log_autovacuum_min_duration', 'log_connections', 'log_disconnections', 'huge_pages', 'listen_addresses')
+  ORDER BY name"
+# b. Nothing from ALTER SYSTEM anymore
+psql_qa -c "SELECT name, setting FROM pg_settings WHERE sourcefile LIKE '%postgresql.auto.conf'"
+# c. pg_stat_statements: the existing database needs the extension once (new databases get it from init.sh)
+psql_qa -c "CREATE EXTENSION IF NOT EXISTS pg_stat_statements"
+psql_qa -c "SELECT count(*) FROM pg_stat_statements"
+# d. Connections
+psql_qa -c "SELECT state, count(*) FROM pg_stat_activity GROUP BY 1 ORDER BY 2 DESC"
+# e. Everything is up
+deployments/deploy.py deployments/sirc/production.env status
+dc logs --since 10m db | grep -E "FATAL|ERROR|PANIC"
+free -g
+```
+What to expect:
+- **a.** 24 rows, all with `sourcefile` = `/var/lib/postgresql/data/qaboard.conf`, and these values:
+
+  | name | value | | name | value |
+  |------|-------|-|------|-------|
+  | checkpoint_completion_target | 0.9 | | log_temp_files | 10MB |
+  | effective_cache_size | 14GB | | maintenance_work_mem | 512MB |
+  | effective_io_concurrency | 200 | | max_connections | 250 |
+  | huge_pages | off | | max_wal_size | 4GB |
+  | idle_in_transaction_session_timeout | 10min | | min_wal_size | 1GB |
+  | listen_addresses | * | | pg_stat_statements.track | top |
+  | log_autovacuum_min_duration | 1min | | random_page_cost | 1.5 |
+  | log_checkpoints | on | | shared_buffers | 4GB |
+  | log_connections | off | | shared_preload_libraries | pg_stat_statements |
+  | log_disconnections | off | | tcp_keepalives_idle | 300 |
+  | log_lock_waits | on | | track_io_timing | on |
+  | log_min_duration_statement | 1s | | work_mem | 16MB |
+
+  `tcp_keepalives_idle` shows `0` without `-h 127.0.0.1` (a Unix socket has no TCP keepalives): that's fine. If
+  `-h 127.0.0.1` asks for a password, run the query without it.
+  - `shared_buffers` 2GB or `work_mem` 8MB, from `postgresql.auto.conf`: step 3 was missed. Do it now, then
+    `psql_qa -c "CHECKPOINT"` and `dc restart db` (another short outage).
+  - All values are PostgreSQL's defaults, `sourcefile` is `postgresql.conf`: the include is missing. Check
+    `dc exec -T db sh -c 'tail -3 $PGDATA/postgresql.conf; ls -l $PGDATA/qaboard.conf'` and the `[init.sh]` lines of
+    `dc logs db`.
+- **b.** `(0 rows)`.
+- **c.** `CREATE EXTENSION` (or a notice that it already exists), then a count above 0, growing as people use QA-Board.
+  `pg_stat_statements must be loaded via shared_preload_libraries`: the config is not applied, see a.
+- **d.** Fewer connections than before (the backends' pools are smaller: at most 6 per uwsgi process), far below 250.
+- **e.** All containers `running`, backends `healthy`; no `FATAL`/`PANIC` after the restart (a few
+  `terminating connection due to administrator command` during the restart are expected); `available` memory still
+  above a few GB.
+
+Then remove `QABOARD_PROD_DEPLOY=manual` in GitLab. The next day, check the slow queries log works:
+`dc logs --since 24h db | grep -c "duration:"`.
+
+### Rollback
+If PostgreSQL doesn't start, or the host runs out of memory, go back to the previous settings:
+```bash
+QABOARD_DB_CONFIG=none deployments/deploy.py deployments/sirc/production.env compose up -d --no-deps db
+dc logs --tail 20 db
+```
+Expect `[init.sh] QABOARD_DB_CONFIG=none: removed qaboard.conf from /var/lib/postgresql/data/postgresql.conf`, then
+`database system is ready to accept connections`. PostgreSQL now has the values of `postgresql.conf`: if step 3 reset
+`ALTER SYSTEM` values, set them again from your record (`~/pg-config/auto-before-*.conf`), then restart:
+```bash
+cat ~/pg-config/auto-before-*.conf    # e.g. shared_buffers = '2GB'
+psql_qa -c "ALTER SYSTEM SET shared_buffers = '2GB'"   # one per line of the record
+psql_qa -c "CHECKPOINT"
+dc restart db
+```
+The next deploy would apply `qaboard.conf` again (the db container is recreated without `QABOARD_DB_CONFIG`): keep
+production deploys manual, and commit `QABOARD_DB_CONFIG=none` to `deployments/sirc/production.env` (or a fix of
+`qaboard.conf`) before resuming them. With the old `max_connections = 100`, the new pools still fit (up to 98
+connections from the backends, 196 during a deploy: don't deploy while rolled back, or raise it).
+
+## Changing a setting
+1. Change `services/db/qaboard.conf` in a merge request, check the value is valid for PostgreSQL 12 **and** 18 (start
+   both `postgres:12-alpine` and `postgres:18-alpine` with it), and merge it. The deploy updates the checkout, but
+   does not restart the database: the db container mounts the `services/db` folder, its definition didn't change.
+2. After the deploy, copy the file and reload. Settings that don't need a restart (`work_mem`, `random_page_cost`,
+   the `log_*`, timeouts...) apply at once:
+   ```bash
+   dc exec -T -u postgres db sh -c 'cp /opt/qaboard.conf $PGDATA/qaboard.conf'
+   psql_qa -c "SELECT pg_reload_conf()"
+   psql_qa -c "SELECT name, setting, error FROM pg_file_settings WHERE error IS NOT NULL"
+   psql_qa -c "SELECT name FROM pg_settings WHERE pending_restart"
+   ```
+   Expect `t`, then either `(0 rows)` or only rows with the error `setting could not be applied`: those settings need a
+   restart, and the last query lists them too (`shared_buffers`, `max_connections`, `shared_preload_libraries`,
+   `huge_pages`...). Any other error (e.g. `invalid value`) means the file is wrong: PostgreSQL keeps the previous value
+   of that setting, but would refuse to start with it. Fix the file before any restart.
+3. If there are some, restart at a quiet time (10 to 60 s of errors): `psql_qa -c "CHECKPOINT"`, then `dc restart db`
+   (it reruns `init.sh`). Check with the [post-checks](#5-post-checks).
+
+`max_connections` must cover the pools: `(QABOARD_DB_POOL_SIZE + QABOARD_DB_MAX_OVERFLOW) * QABOARD_UWSGI_PROCESSES *
+QABOARD_BACKEND_REPLICAS`, twice during deploys. Update the arithmetic in `qaboard.conf` when you change one of them.
+
+## Idle in transaction
+A session is `idle in transaction` while a request holds a transaction open and does something else: reading files on
+NFS, git, SSH to LSF, HTTP calls. It holds locks and keeps vacuum from cleaning up. Requests end within uwsgi's
+`harakiri` (300 s); PostgreSQL ends sessions idle in a transaction for more than 10 minutes
+(`idle_in_transaction_session_timeout`) and logs `terminating connection due to idle-in-transaction timeout`.
+To see them, with the last query they ran (it tells which code path):
+```bash
+psql_qa -c "SELECT pid, client_addr, now() - xact_start AS xact_age, now() - state_change AS idle_for, left(query, 100) AS last_query
+  FROM pg_stat_activity WHERE state = 'idle in transaction' ORDER BY xact_start"
+```
+Ages of a few seconds are normal. Over 5 minutes, report the `last_query`.
+
+## Slow queries
+```bash
+# The queries that take the most time overall (PostgreSQL 12; from 13 on: total_exec_time and mean_exec_time)
+psql_qa -c "SELECT round(total_time) AS total_ms, calls, round(mean_time) AS mean_ms, left(query, 120) AS query
+  FROM pg_stat_statements ORDER BY total_time DESC LIMIT 20"
+# Statements over 1s, checkpoints, temporary files, lock waits, autovacuum runs over 60s
+dc logs --since 24h db | grep -E "duration:|checkpoint complete|temporary file|still waiting|automatic vacuum" | tail -50
+# Start over (e.g. after a fix)
+psql_qa -c "SELECT pg_stat_statements_reset()"
+```
+
+## Backups
+The `cron-backup-db` service writes `YYYY-MM-DD.dump` daily to `/home/ispq/qaboard_data_prod/database_backups`. After a
+successful backup, it deletes the daily backups older than `QABOARD_BACKUP_RETENTION_DAYS` (default 14, `0` keeps them
+all), but never the newest 3. Files with other names (`before-upgrade.dump`...) are never deleted: remove them by hand.
+
+> **The first backup after deploying this deletes all the daily backups older than 14 days.** Before deploying,
+> move the ones you want to keep to another name or folder (e.g. one per month: `mv 2026-09-01.dump monthly-2026-09-01.dump`),
+> or set `QABOARD_BACKUP_RETENTION_DAYS` in `deployments/sirc/production.env`.
+
+Check it works:
+```bash
+dc logs --since 48h cron-backup-db | grep -E "deleting|keeping|error"
+ls -lht /home/ispq/qaboard_data_prod/database_backups/ | head
+```

@@ -30,8 +30,9 @@ export function outRoot(): string {
   return process.env.SHOTS_OUT ? path.resolve(process.env.SHOTS_OUT) : path.join(DOCS_MEDIA_DIR, 'out');
 }
 
-export function outDir(id: ShotId): string {
-  return path.join(outRoot(), ...id.split('/'));
+// Dark captures go in a dark/ folder inside the light one's: docs-media/out/<area>/<subject>/dark/
+export function outDir(id: ShotId, theme: 'light' | 'dark' = 'light'): string {
+  return path.join(outRoot(), ...id.split('/'), ...(theme === 'dark' ? ['dark'] : []));
 }
 
 // A glob over ids, like the workflow's `only` input: `*` matches anything, `?` one character, `,` separates globs.

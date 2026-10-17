@@ -7,10 +7,7 @@ description: An object detector quantized to int8 that loses a slice and small o
 For computer vision and ML engineers who ship models to devices, where quantization, input size and model size trade
 off against accuracy. This page follows the detector example.
 
-:::info Screenshots coming
 The example project is [`examples/detection-eval`](https://github.com/Samsung/qaboard/tree/master/examples/detection-eval).
-Its screenshots show as placeholders until they're captured.
-:::
 
 ## The problem
 One mAP number hides where a model got worse. Quantizing a detector to int8 makes it several times smaller, and the
@@ -34,7 +31,7 @@ Its story:
 1. The first int8 model is 3.5 times smaller, which is what the robot's accelerator needs. It loses 35% of its mAP
    on the indoor slice, and some of the small objects.
 2. Per-channel weights and percentile calibration bring the indoor slice back.
-3. `qa optimize` searches the quantization and post-processing settings; the Analysis view shows which ones matter.
+3. `qa optimize` searches the quantization and post-processing settings; the Tuning Analysis view shows which ones matter.
    With them, the int8 model finds small objects as well as the last fp32 release.
 4. The tuned model ships as a milestone, the next reference.
 
@@ -56,7 +53,7 @@ the indoor slice.
 
 <Shot id="commit/html-report" />
 
-**Automated tuning**: `qa optimize` tries quantization settings; the Analysis view shows their convergence, each
+**Automated tuning**: `qa optimize` tries quantization settings; the Tuning Analysis view shows their convergence, each
 parameter's effect, and the trade-offs.
 
 <Shot id="tuning/analysis" />
@@ -73,7 +70,7 @@ with `side_by_side: false` the web app draws the reference dashed and faded on t
 <RepoFile path="examples/detection-eval/qaboard.yaml" title="qaboard.yaml" section="inputs,outputs,gate" />
 
 The variants are configurations (`fp32`, `int8`, `size-320`...), so each run shows them as tags. To compare int8
-with fp32 on the same commit, select the commit as the reference too (**Also Select as Reference**), then filter each
+with fp32 on the same commit, select the commit as the reference too (**Also select as reference**), then filter each
 bar's runs by configuration. See [Picking a reference](/docs/user-guide/comparing-results#picking-a-reference).
 
 ## Run this example

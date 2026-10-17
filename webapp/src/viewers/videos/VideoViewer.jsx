@@ -54,7 +54,7 @@ const SHORTCUTS = [
   ['Drag', 'Pan (or move the wipe when not zoomed)'],
   ['+ − 0', 'Zoom in / out / fit'],
   ['1 2 3 4', 'Side by side / wipe / toggle / difference'],
-  ['t', 'Swap new and reference'],
+  ['t', 'Swap new and reference (or click Toggle again)'],
   ['h', 'Hide the labels'],
   ['m', 'Mute / unmute'],
 ];
@@ -543,7 +543,9 @@ const VideoViewer = ({
           options={modes.map(({ value, label, icon }) => ({ value, label, icon }))}
           value={mode}
           onValueChange={value => {
-            setMode(value);
+            // clicking "Toggle" again flips between the videos, like "t"
+            if (value === 'toggle' && mode === 'toggle') swap();
+            else setMode(value);
             // the keys go to the videos, not to the buttons (arrows would change the mode)
             stage.current.focus({ preventScroll: true });
           }}

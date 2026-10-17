@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { Classes, Tag } from "@blueprintjs/core";
+import { Button, Classes, Tag, Tooltip } from "@blueprintjs/core";
 import MonacoEditor, { MonacoDiffEditor, preloadMonaco } from "../components/MonacoEditor";
 
-import { errorMessage } from "../api/http";
 import { fileQuery } from "../api/queries";
 import { is_same_data } from "../utils"
+import { ViewerError } from "./ViewerStates";
 
 // TODO: Implement a way to hide identical lines in the diff viewer
 // 1. We could use the diffNavigator
@@ -89,7 +89,7 @@ function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideByS
 
   const is_loaded = !!text_url_new && !query_new.isPending && (!text_url_ref || !query_ref.isPending);
   if (!is_loaded) return <span/>;
-  if (query_new.isError && !always_show_diff) return <span>{errorMessage(query_new.error)}</span>
+  if (query_new.isError && !always_show_diff) return <ViewerError path={filename} error={query_new.error}/>
 
   const data = {
     new: query_new.data ?? '',
@@ -133,16 +133,18 @@ function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideByS
   return <>
     <h3 className={Classes.HEADING}>
       <span style={{marginRight: "5px"}}>{filename}</span>
-      <Tag>{show_diff ? `${shown_left} ➡️ ` : ""}{shown_left==="reference" ? "new" : "reference"}</Tag>
-      {!no_reference && <Tag interactive style={{marginLeft: "5px", verticalAlign: "bottom"}} icon={renderSideBySide ? "comparison" : "align-justify"} minimal onClick={() => setRenderSideBySide(!renderSideBySide)}>
+      {show_diff
+        ? <Tooltip content="Press T to swap new and reference"><Tag>{shown_left} ➡️ {shown_left==="reference" ? "new" : "reference"}</Tag></Tooltip>
+        : <Tag>new</Tag>}
+      {!no_reference && <Button size="small" variant="minimal" style={{marginLeft: "5px", verticalAlign: "bottom"}} icon={renderSideBySide ? "comparison" : "align-justify"} onClick={() => setRenderSideBySide(!renderSideBySide)}>
         {renderSideBySide ? "Side-by-side" : "Inline diff"}
-      </Tag>}
-      {!no_reference && !has_same_data && <Tag interactive style={{marginLeft: "5px", verticalAlign: "bottom"}} icon="double-chevron-right" minimal onClick={() => editor.current?.goToDiff('next')}>
-        Next Diff
-      </Tag>}
-      {!no_reference && has_same_data && <Tag style={{marginLeft: "5px", verticalAlign: "bottom"}} icon="duplicate" minimal>
-        Same Content
-      </Tag>}
+      </Button>}
+      {!no_reference && !has_same_data && <Button size="small" variant="minimal" style={{marginLeft: "5px", verticalAlign: "bottom"}} icon="double-chevron-right" onClick={() => editor.current?.goToDiff('next')}>
+        Next diff
+      </Button>}
+      {!no_reference && has_same_data && <Tooltip content="The new and reference files have the same hash">
+        <Tag style={{marginLeft: "5px", verticalAlign: "bottom"}} icon="duplicate" minimal>Identical to the reference</Tag>
+      </Tooltip>}
     </h3>
     {editor_element}
   </>

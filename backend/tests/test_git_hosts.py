@@ -539,3 +539,32 @@ def test_gitlab_jobs(integrations, dummy_app, monkeypatch):
   with dummy_app.test_request_context("/api/v1/gitlab/job/play", method="POST", json={**params, "gitlab_host": "https://github.com"}):
     integrations.gitlab_play_manual_job()
   github.api.assert_not_called()
+
+
+def test_jenkins_build_urls_use_the_configured_host(integrations, dummy_app, monkeypatch):
+  # Jenkins answers with its configured root URL, here a FQDN, while JENKINS_AUTH and build_url use a short name
+  monkeypatch.setattr(integrations, "jenkins_credentials", {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
+  queue = response(json_data={"url": "queue/item/7/", "executable": {"url": "http://jenkins.example.com:8080/job/x/12/"}})
+  trigger = response(status_code=201)
+  trigger.headers = {"location": "http://jenkins.example.com:8080/queue/item/7/"}
+  requests = MagicMock()
+  requests.post.return_value = trigger
+  requests.get.return_value = queue
+  monkeypatch.setattr(integrations, "requests", requests)
+  data, status = call(integrations, dummy_app, "jenkins_build_trigger", {"build_url": "http://jenkins:8080/job/x", "params": {}})
+  data = data.get_json()
+  assert status == 200
+  assert requests.get.call_args.args[0] == "http://jenkins:8080/queue/item/7/api/json"
+  assert data["web_url"] == "http://jenkins:8080/job/x/12/"
+  assert data["url"] == "http://jenkins:8080/queue/item/7/"
+
+  # The web app then checks the build status with the URLs we gave
+  requests.get.return_value = response(json_data={"building": False, "result": "SUCCESS"})
+  result = call(integrations, dummy_app, "jenkins_build", data)
+  assert result[0].get_json()["status"] == "success"
+  assert requests.get.call_args.args[0] == "http://jenkins:8080/job/x/12/api/json"
+  assert requests.get.call_args.kwargs["auth"].username == "u"
+  # Credentials only go to the hosts in JENKINS_AUTH
+  requests.get.reset_mock()
+  assert call(integrations, dummy_app, "jenkins_build", {"web_url": "http://elsewhere/job/x/1/"})[1] == 403
+  requests.get.assert_not_called()

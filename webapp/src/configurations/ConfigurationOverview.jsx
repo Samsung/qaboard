@@ -1,7 +1,7 @@
 // At the top of the commit page: the settings all runs share, and how their configurations differ from the reference.
 import { useMemo, useState } from "react";
 import styled from "styled-components";
-import { Button, Classes, Colors, Icon, Intent, Switch, Tag } from "@blueprintjs/core";
+import { Button, Classes, Icon, Intent, Switch, Tag } from "@blueprintjs/core";
 
 import { usePrefsStore } from "../stores/prefs";
 import { copyWithToast } from "../utils/clipboard";
@@ -10,13 +10,11 @@ import { SettingText, SharedSettings, useSharedConfiguration, useHideSharedSetti
 
 
 const Box = styled.div`
-  border: 1px solid ${Colors.LIGHT_GRAY1};
+  background: var(--qa-surface);
+  border: 1px solid var(--qa-border);
   border-radius: 4px;
   padding: 8px 12px;
   margin-bottom: 10px;
-  .${Classes.DARK} & {
-    border-color: ${Colors.DARK_GRAY5};
-  }
 `;
 
 const Row = styled.div`
@@ -49,9 +47,9 @@ const op_tags = {
 const shown_settings = 8;
 const shown_changes = 4;
 
-const setting_line = token => token.kind === 'param' ? `${token.key}: ${token.text}` : token.text;
+const setting_line = token => token.kind === 'param' ? `${token.key}: ${token.display}` : token.text;
 
-// The switch is also in the controls panel
+// The switch is also in the View options panel
 export const HideSharedSwitch = ({ label = "Hide them in each run", style }) => {
   const hide = useHideSharedSettings();
   const toggle = usePrefsStore(state => state.toggleHideSharedSettings);

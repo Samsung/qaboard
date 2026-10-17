@@ -8,23 +8,46 @@
 // Some configuration keys are used and shown by viewers - we don't display them as settings
 export const hidden_keys = ["badges", "roi", "auto_rois"];
 
+// Values as people write them: [1, 0.98, 0.95] rather than JSON's [1,0.98,0.95]
+export const format_value = value => {
+  if (Array.isArray(value)) return `[${value.map(format_value).join(', ')}]`;
+  if (value !== null && typeof value === 'object')
+    return `{${Object.entries(value).map(([k, v]) => `${JSON.stringify(k)}: ${format_value(v)}`).join(', ')}}`;
+  return JSON.stringify(value) ?? String(value);
+};
+
+// `text` identifies the value (JSON), `display` is how we show it
 const string_token = (text, item) => ({
-  kind: 'string', source: 'config', id: `s\u0000${text}`, full: `s\u0000${text}`, key: null, text, item,
+  kind: 'string', source: 'config', id: `s\u0000${text}`, full: `s\u0000${text}`, key: null, text, display: text, item,
 });
 const param_token = (key, value, item, source) => {
   const text = JSON.stringify(value) ?? String(value);
   const tag = source === 'tuning' ? 't' : 'p';
-  return { kind: 'param', source, id: `${tag}\u0000${key}`, full: `${tag}\u0000${key}\u0000${text}`, key, text, value, item };
+  return {
+    kind: 'param', source, id: `${tag}\u0000${key}`, full: `${tag}\u0000${key}\u0000${text}`, key, text, display: format_value(value), value, item,
+  };
 };
 
-const flatten = (object, prefix, item, source, tokens) => {
-  for (const [key, value] of Object.entries(object)) {
-    if (!prefix && hidden_keys.includes(key)) continue;
-    const path = prefix ? `${prefix}.${key}` : key;
-    const is_object = value !== null && typeof value === 'object' && !Array.isArray(value);
-    if (is_object && Object.keys(value).length > 0) flatten(value, path, item, source, tokens);
-    else tokens.push(param_token(path, value, item, source));
+const is_object = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+const has_objects = array => array.some(v => is_object(v) && Object.keys(v).length > 0);
+
+// Each leaf is a setting. Lists of objects (e.g. layers: [{type: "conv", ...}, ...]) have a setting per leaf too,
+// "layers[0].type", so that their changes show. Lists of values are one setting: "lens_shading: [1, 0.98, 0.95]".
+const visit = (value, path, item, source, tokens) => {
+  if (is_object(value) && Object.keys(value).length > 0) {
+    for (const [key, v] of Object.entries(value)) {
+      if (!path && hidden_keys.includes(key)) continue;
+      visit(v, path ? `${path}.${key}` : key, item, source, tokens);
+    }
+  } else if (Array.isArray(value) && has_objects(value)) {
+    value.forEach((v, i) => visit(v, `${path}[${i}]`, item, source, tokens));
+  } else {
+    tokens.push(param_token(path, value, item, source));
   }
+};
+// an empty object has no settings
+const flatten = (object, prefix, item, source, tokens) => {
+  if (Object.keys(object).length > 0) visit(object, prefix, item, source, tokens);
 };
 
 const compute_tokens = configurations => {
@@ -200,10 +223,13 @@ export const config_distance = (configurations_a, configurations_b) =>
   tokens_distance(config_tokens(configurations_a), config_tokens(configurations_b));
 
 
+const string_separator = /[\s/\\.,:;=_\-@|+()[\]{}"']/;
+// In values like [1, 0.98, -0.5], numbers are words: 0.7 → 0.635, not 0.[7 → 635]
+export const value_separator = /[\s,:[\]{}"]/;
+
 // Where two strings differ, e.g. "conf/day.yaml" and "conf/night.yaml": "conf/", "day", "night", ".yaml".
 // We cut at separators, to show "gain=[10 → 12]" rather than "gain=1[0 → 2]".
-const separator = /[\s/\\.,:;=_\-@|+()[\]{}"']/;
-export const string_change = (before, after) => {
+export const string_change = (before, after, separator = string_separator) => {
   let p = 0;
   while (p < before.length && p < after.length && before[p] === after[p]) p++;
   let s = 0;
@@ -326,10 +352,10 @@ const elisions = strings => {
     const common = Math.max(i > 0 ? lcp(s, sorted[i - 1]) : 0, i < sorted.length - 1 ? lcp(s, sorted[i + 1]) : 0);
     // the prefix ends after a separator
     let end = common;
-    while (end > 0 && !separator.test(s[end - 1])) end--;
+    while (end > 0 && !string_separator.test(s[end - 1])) end--;
     // keep the last folder or word of the prefix
     let start = end - 1;
-    while (start > 0 && !separator.test(s[start - 1])) start--;
+    while (start > 0 && !string_separator.test(s[start - 1])) start--;
     if (start >= min_elided) result.set(s, start);
   });
   return result;

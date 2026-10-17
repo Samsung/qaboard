@@ -1,6 +1,6 @@
 import {
   config_tokens, diff_configurations, diff_tokens, config_distance, string_change, shared_configuration, summarize_changes, count_changes,
-  run_tokens, output_tokens, reference_tokens,
+  run_tokens, output_tokens, reference_tokens, value_separator,
 } from '../tokens';
 
 const describe_ops = ops => ops.map(({ op, token, ref }) =>
@@ -141,5 +141,31 @@ describe('summarize_changes', () => {
       [run_tokens(['c', { g: 2 }, 'x']), run_tokens(['c', { g: 2 }])],
     ]);
     expect(changes.map(c => [c.op, c.token.text, c.runs])).toEqual([['changed', '2', 2], ['added', 'x', 1]]);
+  });
+});
+
+describe('lists', () => {
+  it('keeps lists of values as one setting, shown as people write them', () => {
+    const [ccm] = config_tokens([{ ccm: [[1, 0], [0, 1.5]] }]);
+    expect(ccm).toMatchObject({ key: 'ccm', text: '[[1,0],[0,1.5]]', display: '[[1, 0], [0, 1.5]]' });
+  });
+
+  it('has a setting per leaf of lists of objects, so that their changes show', () => {
+    const layers = [{ type: 'conv', stride: 1 }, { type: 'pool' }];
+    expect(config_tokens([{ layers, tags: ['a', 'b'] }]).map(t => `${t.key}=${t.text}`))
+      .toEqual(['layers[0].type="conv"', 'layers[0].stride=1', 'layers[1].type="pool"', 'tags=["a","b"]']);
+    const ops = diff_configurations([{ layers: [layers[0], { type: 'pool', size: 2 }] }], [{ layers }]);
+    expect(describe_ops(ops)).toEqual(['same layers[0].type="conv"', 'same layers[0].stride=1', 'same layers[1].type="pool"', 'added layers[1].size=2']);
+  });
+
+  it("ignores empty objects, but not empty lists", () => {
+    expect(config_tokens([{}, { a: [] }]).map(t => t.display)).toEqual(['[]']);
+  });
+});
+
+describe('string_change in values', () => {
+  it('keeps numbers whole', () => {
+    expect(string_change('[0.7, 1]', '[0.635, 1]', value_separator)).toEqual({ prefix: '[', before: '0.7', after: '0.635', suffix: ', 1]' });
+    expect(string_change('-0.5', '-0.25', value_separator)).toMatchObject({ before: '-0.5', after: '-0.25' });
   });
 });

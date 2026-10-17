@@ -3,14 +3,14 @@ import json
 
 from gitdb.exc import BadName
 import ujson
-from flask import request, jsonify, make_response
+from flask import request, jsonify, make_response, g
 
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.attributes import flag_modified
 
 from backend import app, db_session
-from .auth import is_authorized_user, login_required
+from .auth import is_authorized_user, login_required, require_project_access
 from ..models import Project, CiCommit, latest_successful_commit, Batch
 from ..storage import UnsafePathError
 
@@ -63,7 +63,7 @@ def api_ci_commit(commit_id=None):
     branch = request.args.get('branch', default_branch)
     ci_commit = latest_successful_commit(db_session, project_id=project_id, branch=branch, batch_label=request.args.get('batch'))
     if not ci_commit:
-      return jsonify({'error': f'Sorry, we cant find any commit with results for the {project_id} on {branch}.'}), 404
+      return jsonify({'error': f'No commit with results yet for {project_id} on {branch}.'}), 404
   else:
     try:
       ci_commit = (db_session
@@ -151,6 +151,8 @@ def commit_save_artifacts():
     if not request.json['project'].startswith(ci_commit.project_id):
       print(f'skip {ci_commit.project_id}')
       continue
+    if forbidden := require_project_access(g.user, ci_commit.project_id):
+      return forbidden
     print(f"[save-artifacts] {ci_commit}")
     # FIXME: in the clean crontab we remove commits without runs
     # if we rely on artifacts from a subproject without runs, it will cause issues... 

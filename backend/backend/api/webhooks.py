@@ -6,14 +6,14 @@ API calls to update batches and outputs.
 import sys
 import json
 
-from flask import request, jsonify
+from flask import request, jsonify, g
 from sqlalchemy.orm.attributes import flag_modified
 
 from backend import app, db_session
 from ..models import CiCommit, Output, Project
 from ..models.Project import update_project
 from ..git_hosts import git_hosts, committers, HOST_TYPES, UntrustedHost
-from .auth import login_required
+from .auth import login_required, require_project_access
 
 
 @app.route('/api/v1/commit/<path:project_id>/<commit_id>/batches', methods=['DELETE'])
@@ -27,6 +27,8 @@ def delete_commit(commit_id, project_id=None):
     if project_id:
       ci_commits = ci_commits.filter(CiCommit.project_id == project_id)
     for ci_commit in ci_commits.yield_per(1000):
+      if forbidden := require_project_access(g.user, ci_commit.project_id):
+        return forbidden
       print("DELETING", ci_commit)
       if ci_commit.hexsha in ci_commit.project.milestone_commits:
         return f"403 ERROR: Cannot delete milestones", 403

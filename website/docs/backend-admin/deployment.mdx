@@ -103,10 +103,29 @@ services:
     - /srv/qaboard/backups:/backups
 ```
 
+After each successful daily backup (`YYYY-MM-DD.dump`), the daily backups older than `QABOARD_BACKUP_RETENTION_DAYS` days (default 14, `0` keeps them all) are deleted, but never the newest 3. Other dumps, like `before-upgrade.dump`, are never deleted: remove them yourself. Before upgrading from an older version, move the old daily backups you want to keep to another name or folder.
+
 To restore a backup (the backend is stopped meanwhile):
 ```bash
 deployments/deploy.py deployments/mysite/production.env restore-db 2026-10-01.dump   # or "latest"
 ```
+
+## Database settings
+PostgreSQL starts with its defaults, sized for a small machine. To tune it, use `services/db/init.sh` as the `db` service's entrypoint, with a file of settings next to it, or set `QABOARD_DB_CONFIG` to your own file. `services/db/qaboard.conf` is an example, sized for an 8-core, 32 GB host shared with other services, with the reason for each value:
+
+```yaml title="deployments/mysite/mysite.yml"
+services:
+  db:
+    # docker-compose.yml mounts services/db/ at /opt
+    entrypoint: /opt/init.sh
+    environment:
+    - QABOARD_DB_CONFIG=/opt/mysite.conf  # default: /opt/qaboard.conf
+```
+
+At every start, `init.sh` copies the file into the database's folder and includes it at the end of `postgresql.conf`. For a new database, it does it right after creating it, and creates the `pg_stat_statements` extension (for an existing database, run `CREATE EXTENSION IF NOT EXISTS pg_stat_statements;` once). `QABOARD_DB_CONFIG=none` removes the include, to go back to the previous settings.
+- Settings like `shared_buffers` or `max_connections` need a restart of PostgreSQL: `docker compose restart db`, about a minute of errors. A deploy doesn't restart the database when only the file changed. Run `CHECKPOINT;` first, so that PostgreSQL stops faster.
+- Values set with `ALTER SYSTEM` (in `postgresql.auto.conf`) win over the file. Check where each value comes from with `SELECT name, setting, sourcefile FROM pg_settings WHERE source NOT IN ('default', 'override');`, and remove them with `ALTER SYSTEM RESET ALL;` (applied at the next restart).
+- `max_connections` must cover the backends' connection pools: each uwsgi process opens up to `QABOARD_DB_POOL_SIZE` + `QABOARD_DB_MAX_OVERFLOW` connections (default 4 + 2), times `QABOARD_UWSGI_PROCESSES`, times `QABOARD_BACKEND_REPLICAS`, and twice that during a deploy, when the old and new backends run side by side. Add your other clients (backups, dashboards, admins).
 
 ## Host maintenance
 Before upgrading the host (CPU, memory, storage, OS...):
@@ -160,3 +179,5 @@ In the env file, or the shell's environment (which takes precedence):
 | `QABOARD_RUN_MIGRATIONS` | 1 | Set to 0 to not run migrations when the backend starts |
 | `QABOARD_SEED_SOURCE` | _none_ | `seed-db`: the database to copy recent data from, `postgresql://user:password@host:port/db` |
 | `QABOARD_SEED_DAYS` | 30 | `seed-db`: keep the commits of the last N days |
+| `QABOARD_BACKUP_RETENTION_DAYS` | 14 | Daily backups older than this are deleted, except the newest 3. `0` keeps them all |
+| `QABOARD_DB_CONFIG` | `qaboard.conf` next to `init.sh` | With `services/db/init.sh` as the db's entrypoint: the PostgreSQL settings file, `none` to remove it (see [Database settings](#database-settings)) |

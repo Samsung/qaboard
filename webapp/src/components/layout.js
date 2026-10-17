@@ -1,51 +1,25 @@
 import styled from "styled-components";
 
 
+// The page's content: its width follows the content area (the window minus the sidebar), not the window,
+// so that pages look the same whatever the sidebar takes. The side margins grow with the content area.
 const Container = styled.div`
-  padding-left: 0;
-  list-style: none;
+  box-sizing: border-box;
+  width: 100%;
   margin-top: 20px;
   margin-bottom: 10px;
-  box-sizing: border-box;
-
-  padding-right: 15px;
-  padding-left: 15px;
-  margin-right: auto;
-  margin-left: auto;
-  /* the widths below are for the whole window, but the sidebar takes some of it */
-  max-width: 100%;
-  @media (min-width: 768px) {
-    width: 750px;
-  }
-  @media (min-width: 992px) {
-    width: 970px;
-  }
-  @media (min-width: 1300px) {
-    width: 1270px;
-  }
-  @media (min-width: 1500px) {
-    width: auto;
-    margin-right: 6%;
-    margin-left: 6%;
-  }
+  /* percentages are of the content area's width */
+  padding-left: clamp(16px, 4%, 96px);
+  padding-right: clamp(16px, 4%, 96px);
 `;
 
+// A view of the page: as wide as the content area, wider if its content needs it (e.g. a table with many metrics)
 const Section = styled.div`
   margin-bottom: 40px;
   margin-top: 30px;
   width: fit-content;
-  @media (max-width: 1400px) {
-    min-width: 850px;
-  }
-  @media (min-width: 1400px) {
-    min-width: 1000px;
-  }
-  @media (min-width: 1800px) {
-    min-width: 1400px;
-  }
-  @media (min-width: 2400px) {
-    min-width: 2000px;
-  }
+  min-width: 100%;
+  box-sizing: border-box;
 `;
 
 
@@ -56,7 +30,7 @@ const Layout = styled.div`
   flex-direction: row;
   box-sizing: border-box;
   // style
-  background: #f0f2f5;
+  background: var(--qa-background);
   min-height: 750px;
 `
 

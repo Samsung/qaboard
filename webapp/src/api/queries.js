@@ -20,11 +20,15 @@ export const default_site_config = {
   path_mappings: [],
   docs_root: '/',
   avatar_url_template: null,
-  sentry_traces_sample_rate: 1.0,
+  sentry_traces_sample_rate: 0.2,
+  sentry_environment: 'production',
+  sentry_trace_lifecycle: 'static',
   git_web_url: 'https://gitlab.com',
   git_hosts: [],
   quota_url_template: null,
   support_url: 'https://github.com/Samsung/qaboard/issues',
+  login_hint: null,
+  webcde_installer: null,
 };
 
 // Some helpers read the site's configuration outside of React

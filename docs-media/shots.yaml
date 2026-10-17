@@ -313,7 +313,7 @@ shots:
     features: [video-compare]
     needs: merge-bilateral vs isp-4-1 (video batch)
     phase: 2
-    status: planned
+    status: captured
   - id: commit/dynamic-outputs
     kind: clip
     project: image-quality
@@ -585,7 +585,7 @@ shots:
   - id: tuning/manual-form
     kind: still
     project: detection-eval
-    shows: Run Tests / Tuning on int8-percentile, experiment int8-nms on quant-search (2 tests), with a grid over score_threshold and nms_iou, 4 combinations, "8 total runs", and Send.
+    shows: Run Tests / Tuning on int8-percentile, experiment int8-nms on quant-search (2 tests), with a grid over score_threshold and nms_iou, 4 combinations, "8 total runs", and the Start 8 runs button.
     pages: [user-guide/running-from-the-webapp, tuning-from-the-webapp]
     needs: int8-percentile
     phase: 2

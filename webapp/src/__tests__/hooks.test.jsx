@@ -1,9 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 
-import { useUrlText, useCommit, useProjectData } from '../hooks';
+import { useUrlText, useCommit, useProjectData, usePrefetchCommitPage } from '../hooks';
 import { usePrefsStore } from '../stores/prefs';
-import { commitsQuery, commitsPagesQuery } from '../api/queries';
+import { commitQuery, commitsQuery, commitsPagesQuery } from '../api/queries';
 import { makeQueryClient } from '../test-utils';
 
 
@@ -98,4 +98,34 @@ test("useProjectData merges /api/v1/project, which answers with the project's da
   expect(result.current.data.git.path_with_namespace).toBe('p');
   expect(result.current.data.qatools_config.project.reference_branch).toBe('main');
   vi.unstubAllGlobals();
+});
+
+
+describe('usePrefetchCommitPage', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() });
+
+  const render = queryClient => renderHook(() => usePrefetchCommitPage('p', 'abc'), {
+    wrapper: ({ children }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
+  });
+
+  test('loads the commit and its default reference when users linger', () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    const queryClient = makeQueryClient();
+    const { result } = render(queryClient);
+    act(() => result.current.onMouseEnter());
+    act(() => vi.advanceTimersByTime(200));
+    expect(queryClient.getQueryState(commitQuery({ project: 'p', id: 'abc' }).queryKey)?.fetchStatus).toBe('fetching');
+    expect(queryClient.getQueryState(commitQuery({ project: 'p' }).queryKey)?.fetchStatus).toBe('fetching');
+  });
+
+  test('does nothing when users only pass by', () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    const queryClient = makeQueryClient();
+    const { result } = render(queryClient);
+    act(() => result.current.onMouseEnter());
+    act(() => result.current.onMouseLeave());
+    act(() => vi.advanceTimersByTime(200));
+    expect(fetch).not.toHaveBeenCalled();
+  });
 });

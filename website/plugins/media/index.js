@@ -19,11 +19,16 @@ const {syncMedia} = require('./download');
 const PLUGIN_NAME = 'qaboard-media';
 const LOCAL_HOSTS = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\])(:\d+)?$/;
 
-// What the components need from a manifest entry (global data is in every page's bundle): files are keys
-function clientEntry(entry, files) {
+const keysOf = files => Object.fromEntries(Object.entries(files).map(([name, file]) => [name, file.key]));
+
+// What the components need from a manifest entry (global data is in every page's bundle): files are keys.
+// `dark`: the files of the dark variant, shown in the docs' dark mode, or null.
+function clientEntry(entry, files, dark) {
   const {kind, width, height, lqip, alt, caption, duration, anchors} = entry;
-  const keys = Object.fromEntries(Object.entries(files).map(([name, file]) => [name, file.key]));
-  return {kind, width, height, lqip, alt, caption, duration, anchors, files: keys};
+  const client = {kind, width, height, lqip, alt, caption, duration, anchors, files: keysOf(files)};
+  if (dark && Object.keys(dark).length)
+    client.dark = {lqip: entry.dark.lqip, files: keysOf(dark)};
+  return client;
 }
 
 function plannedEntry(entry, listed) {
@@ -121,10 +126,11 @@ module.exports = function qaboardMediaPlugin(context, options = {}) {
         published.forEach(id => (content.planned[id] = plannedEntry(manifest.shots[id], shotList?.[id])));
       } else {
         const files = Object.fromEntries(published.map(id => [id, servedFiles(manifest.shots[id], {png: pngIds.has(id)})]));
-        published.forEach(id => (content.shots[id] = clientEntry(manifest.shots[id], files[id])));
+        const darkFiles = Object.fromEntries(published.map(id => [id, servedFiles(manifest.shots[id], {dark: true})]));
+        published.forEach(id => (content.shots[id] = clientEntry(manifest.shots[id], files[id], darkFiles[id])));
         if (config.mode === 'local') {
           content.base = `/${SERVED_PREFIX}/`;
-          const wanted = published.flatMap(id => Object.values(files[id]));
+          const wanted = published.flatMap(id => [...Object.values(files[id]), ...Object.values(darkFiles[id])]);
           const allowFailures = config.missing !== 'fail' && !config.strict;
           const stats = await syncMedia(wanted, {baseUrl, destDir: cacheDir, allowFailures, log: m => logger.info(`[qaboard-media] ${m}`)});
           if (stats.removed)
@@ -132,6 +138,11 @@ module.exports = function qaboardMediaPlugin(context, options = {}) {
           // QABOARD_MEDIA_MISSING: shots with a file we couldn't download become placeholders,
           // or readers load them from the media host (the components show a placeholder if that fails too)
           const failed = new Set(stats.failed);
+          // A dark variant that couldn't be downloaded: the dark mode shows the light shot
+          const darkIncomplete = published.filter(id => Object.values(darkFiles[id]).some(file => failed.has(file.key)));
+          darkIncomplete.forEach(id => delete content.shots[id].dark);
+          if (darkIncomplete.length)
+            logger.warn(`[qaboard-media] ${darkIncomplete.length} shots show their light capture in dark mode, some files of their dark variant could not be downloaded: ${darkIncomplete.join(', ')}`);
           const incomplete = published.filter(id => Object.values(files[id]).some(file => failed.has(file.key)));
           if (incomplete.length && config.missing === 'remote') {
             content.remoteBase = `${baseUrl}/`;

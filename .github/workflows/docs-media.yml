@@ -21,6 +21,11 @@ on:
         description: Shot ids to capture, comma-separated globs (commit/*,history/relative)
         type: string
         default: '*'
+      themes:
+        description: The web app's themes to capture the stills and clips in
+        type: choice
+        options: [both, light, dark]
+        default: both
       reseed:
         description: Seed the stories again instead of restoring the snapshot
         type: boolean
@@ -163,8 +168,10 @@ jobs:
           RESEED: ${{ steps.scope.outputs.reseed }}
         run: |
           key=$(uv run docs-media/snapshot.py key)
-          if [ "$RESEED" != true ] && uv run docs-media/snapshot.py info "$key" > /dev/null 2>&1; then
-            uv run docs-media/snapshot.py restore
+          # this checkout's snapshot, else one with the same stories (examples/, seed.py): seeding takes over an hour
+          if [ "$RESEED" != true ] && picked=$(uv run docs-media/snapshot.py pick); then
+            uv run docs-media/snapshot.py restore --key "$picked"
+            key=$picked
           else
             echo "::notice::Seeding the stories (snapshot $key)"
             fresh=--fresh
@@ -174,6 +181,8 @@ jobs:
             done
             uv run docs-media/snapshot.py save --force
           fi
+          # the snapshot the stack runs, for the demo-data image
+          echo "DEMO_SNAPSHOT=$key" >> "$GITHUB_ENV"
           # the stack's version, recorded with each shot
           echo "DEMO_APP_VERSION=$(python3 -c 'import sys; sys.path.insert(0, "docs-media/demo"); import stack; print(stack.backend_version())')" >> "$GITHUB_ENV"
 
@@ -184,14 +193,20 @@ jobs:
         env:
           SHOTS_ONLY: ${{ steps.scope.outputs.only }}
           STRICT: ${{ steps.scope.outputs.strict }}
+          THEMES: ${{ inputs.themes || 'both' }}
         run: |
           retries=1
           if [ "$STRICT" = true ]; then retries=0; fi
-          npx playwright test --project stills --project clips --pass-with-no-tests --retries "$retries"
+          projects=()
+          if [ "$THEMES" != dark ]; then projects+=(--project stills --project clips); fi
+          if [ "$THEMES" != light ]; then projects+=(--project stills-dark --project clips-dark); fi
+          npx playwright test "${projects[@]}" --pass-with-no-tests --retries "$retries"
 
+      # Also when some captures failed (not in strict runs): publishing the others keeps what failed as it was, and the
+      # job still fails
       - name: Record the tapes
         id: tapes
-        if: steps.scope.outputs.only != ''
+        if: ${{ !cancelled() && steps.scope.outputs.only != '' && steps.restore.outcome == 'success' && (steps.capture.outcome == 'success' || steps.scope.outputs.strict != 'true') }}
         env:
           ONLY: ${{ steps.scope.outputs.only }}
         # the quickstarts' tapes need the demo-data image, and the demo stack's port: they're recorded below
@@ -202,7 +217,7 @@ jobs:
       - name: Demo-data image
         id: demo-data
         if: ${{ !cancelled() && steps.restore.outcome == 'success' }}
-        run: uv run docs-media/snapshot.py image --tag "$QABOARD_IMAGE:demo-data-$QABOARD_VERSION"
+        run: uv run docs-media/snapshot.py image --key "$DEMO_SNAPSHOT" --tag "$QABOARD_IMAGE:demo-data-$QABOARD_VERSION"
       - name: Test the demo-data image with the Docker Compose quickstart
         id: quickstart
         if: ${{ !cancelled() && steps.demo-data.outcome == 'success' }}

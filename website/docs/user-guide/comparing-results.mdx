@@ -32,7 +32,7 @@ In the **ref** bar (or the **new** bar, it works the same way):
 |---|---|
 | **Change Project** | Pick results from another project, e.g. another sub-project of a monorepo, or a fork. |
 | **Switch new/reference** | Swaps the two commits, with their batches and filters. |
-| **Also Select as Reference** / **as New** | Copies this commit, batch and filter to the other bar. Handy to compare two batches of the **same** commit, e.g. a tuning experiment vs CI. |
+| **Also select as reference** / **as new** | Copies this commit, batch and filter to the other bar. Handy to compare two batches of the **same** commit, e.g. a tuning experiment vs CI. |
 | **Remove from comparison** | Clears the commit. |
 | The reference branch | Selects its latest commit. |
 | Milestones | From *qaboard.yaml*, shared, or private. The milestone's batch and filter are selected too. |
@@ -40,7 +40,7 @@ In the **ref** bar (or the **new** bar, it works the same way):
 Each bar also has its own **batch selector** and **filter**: you can compare any batch of any commit with any other.
 
 :::tip
-To see what a tuning experiment changed, select its batch in the new bar, then use **Also Select as Reference** and pick the **CI** batch in the reference bar.
+To see what a tuning experiment changed, select its batch in the new bar, then use **Also select as reference** and pick the **CI** batch in the reference bar.
 :::
 
 ## How runs are matched
@@ -49,7 +49,7 @@ For each new run, QA-Board finds the most similar reference run: first the same 
 When the best match is not identical, yellow tags warn you on the run: **Input**, **Config** or **Platform** (with a `≠` icon). Hover them to see what the reference used: **Config** shows how the configurations and tuning parameters differ, like `git diff`, and says when other reference runs were as close. If a run has no match at all, it has no reference values or visualizations.
 
 ## Reading configurations
-A run's configuration is a list of settings: each string (`base`, `conf/night.yaml`) and each value of its JSON objects (`isp.nr.strength: 2`). Its tuning parameters (`qa --tuning`) are settings too, shown after the configuration with a wrench. Configurations tend to grow long, and most of it is the same for all runs. To show you what matters, runs only show their **own** settings:
+A run's configuration is a list of settings: each string (`base`, `conf/night.yaml`) and each value of its JSON objects (`isp.nr.strength: 2`). A list of values is one setting, long ones show their first values and their size (`tone_lut: [0, 0.016, 0.032, …] 64 values`, `ccm: [[1.6, -0.4, -0.2], …] 3×3`); a list of objects has a setting per value (`layers[1].stride: 2`), so that you see which one changed. Its tuning parameters (`qa --tuning`) are settings too, shown after the configuration with a wrench. Configurations tend to grow long, and most of it is the same for all runs. To show you what matters, runs only show their **own** settings:
 
 - **What all the runs shown share** is hidden behind dashed **··· 9 shared** tags: where they are when they come first or last (`··· 2 shared` `night.yaml` `··· 7 shared`), else in one tag, first. Hover them to see those settings, click to show them in this run. The top of the page lists them once, next to **All 12 runs**. It follows the filter: filter runs, and what they share is hidden too.
 - **Long strings that vary between runs** start with `…` when they share a long beginning, e.g. `…scenes/night.yaml`. Hover them for the full string.
@@ -66,10 +66,10 @@ A run's configuration is a list of settings: each string (`base`, `conf/night.ya
 
 To copy settings, hover them: copy a setting as text or JSON, or the run's settings as `qa` options (`-c base -c '{"gain": 4}' --tuning '{"nr": 2}'`), as JSON, or as a tuning search space. The **Config** tag's diff copies the changes, or the reference's `qa` options.
 
-To always see full configurations, turn off **Hide them in each run**, at the top of the page or in the **Configuration** section of the controls panel. Runs then show all their settings, the shared ones in grey. Short configurations (one or two short settings) are never hidden, and the Logs view always shows full configurations.
+To always see full configurations, turn off **Hide them in each run**, at the top of the page or in the **Configuration** section of the **View options** panel. Runs then show all their settings, the shared ones outlined. Short configurations (one or two short settings) are never hidden, and the Logs view always shows full configurations.
 
 :::caution
-Matching only uses the reference runs left by the **filter ref outputs** box. If you filter the new runs, filter the reference the same way.
+Matching only uses the reference runs left by the reference's filter box (**Filter the reference's runs…**). If you filter the new runs, filter the reference the same way.
 :::
 
 ## Milestones
@@ -118,7 +118,7 @@ Zoom (mouse wheel) or pan (drag) in one image and the others follow. All the vie
 To flip between the two images in place, click the **new** or **reference** label, or press <kbd>t</kbd>: differences jump out. Press <kbd>h</kbd> to hide the labels.
 
 ### Image Diff
-Turn on **Image Diff** in the **Controls** panel to show a perceptual color difference between the images. The slider sets the saturation threshold.
+Turn on **Image diff** in the **Viewers** section of the **View options** to show a perceptual color difference between the images. The slider sets the saturation threshold.
 
 <Shot
   id="commit/image-perceptual-diff"

@@ -7,7 +7,6 @@ import styled from "styled-components";
 import {
   Button,
   Classes,
-  Colors,
   Icon,
   Intent,
   Menu,
@@ -19,7 +18,7 @@ import {
 
 import { copyWithToast } from "../utils/clipboard";
 import { usePrefsStore } from "../stores/prefs";
-import { run_tokens, reference_tokens, diff_tokens, count_changes, string_change, change_key, hidden_keys } from "./tokens";
+import { run_tokens, reference_tokens, diff_tokens, count_changes, string_change, change_key, format_value, value_separator, hidden_keys } from "./tokens";
 
 
 // What all the runs on the page share (see shared_configuration), null when we show a single run
@@ -56,9 +55,37 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 const shorten = (text, n = 60) => text.length > n ? `${text.slice(0, n - 1)}…` : text;
 const shorten_start = (text, n = 24) => text.length > n ? `…${text.slice(-(n - 4))}` : text;
 const shorten_end = (text, n = 24) => text.length > n ? `${text.slice(0, n - 4)}…` : text;
-export const setting_text = token => token.kind === 'param' ? `${token.key}: ${token.text}` : token.text;
-// "isp.nr.strength": 2 as {"isp": {"nr": {"strength": 2}}}
-const setting_json = token => JSON.stringify(token.key.split('.').reduceRight((value, key) => ({ [key]: value }), token.value));
+export const setting_text = token => token.kind === 'param' ? `${token.key}: ${token.display}` : token.text;
+// "isp.nr.strength": 2 as {"isp": {"nr": {"strength": 2}}}, "layers[1].type" as {"layers": [null, {"type": ...}]}
+const setting_json = token => {
+  const path = token.key.split(/\.|(?=\[)/).map(part => part.startsWith('[') ? Number(part.slice(1, -1)) : part);
+  return JSON.stringify(path.reduceRight((value, key) => {
+    if (typeof key !== 'number') return { [key]: value };
+    const array = Array(key + 1).fill(null);
+    array[key] = value;
+    return array;
+  }, token.value));
+};
+
+// Long lists show their first values, and their size: [0, 0.1, 0.2, …] 256 values, [[1, 0, 0], …] 3×3
+const max_value_length = 48;
+const list_size = list => list.length > 0 && list.every(row => Array.isArray(row) && row.length === list[0].length)
+  ? `${list.length}×${list[0].length}`
+  : `${list.length} values`;
+const ShortValue = ({ token }) => {
+  const { display, value } = token;
+  if (display.length <= max_value_length) return display;
+  if (!Array.isArray(value)) return shorten(display, max_value_length);
+  const items = [];
+  let length = 0;
+  for (const item of value) {
+    const text = format_value(item);
+    if (items.length > 0 && length + text.length > max_value_length - 12) break;
+    items.push(shorten(text, max_value_length - 12));
+    length += text.length + 2;
+  }
+  return <>[{items.join(', ')}, …] <span style={{ opacity: 0.65 }}>{list_size(value)}</span></>;
+};
 
 
 const Was = styled.del`
@@ -86,13 +113,27 @@ const Key = ({ token }) => {
 };
 
 // A setting, or how it changed. `elide`: hide that many characters of a string, e.g. a long folder all runs share
-export const SettingText = ({ d, full = false, elide = 0 }) => {
+// `value_only`: a changed setting's value, without its key
+export const SettingText = ({ d, full = false, elide = 0, value_only = false }) => {
   const { op, token, ref } = d;
   const short = full ? (x => x) : shorten;
-  if (op === 'changed' && token.kind === 'param')
-    return <><Key token={token} /><Was>{short(ref.text)}</Was><Arrow /><Now>{short(token.text)}</Now></>;
+  // long values, e.g. lists: only where they changed, [1, 0.98, 0.95 → 0.9]
+  const key = !value_only && token.kind === 'param' && <Key token={token} />;
+  if (op === 'changed' && token.kind === 'param' && Math.max(ref.display.length, token.display.length) <= 24)
+    return <>{key}<Was>{ref.display}</Was><Arrow /><Now>{token.display}</Now></>;
+  if (op === 'changed' && token.kind === 'param') {
+    const { prefix, before, after, suffix } = string_change(ref.display, token.display, value_separator);
+    return <>
+      {key}
+      {full ? prefix : shorten_start(prefix, 16)}
+      {before && <Was>{short(before)}</Was>}
+      {before && after && <Arrow />}
+      {after && <Now>{short(after)}</Now>}
+      {full ? suffix : shorten_end(suffix, 16)}
+    </>;
+  }
   if (op === 'changed') {
-    const { prefix, before, after, suffix } = string_change(ref.text, token.text);
+    const { prefix, before, after, suffix } = string_change(ref.display, token.display);
     return <>
       {full ? prefix : shorten_start(prefix)}
       {before && <Was>{short(before)}</Was>}
@@ -102,7 +143,7 @@ export const SettingText = ({ d, full = false, elide = 0 }) => {
     </>;
   }
   const string = elide > 0 && !full ? `…${token.text.slice(elide)}` : token.text;
-  const text = token.kind === 'param' ? <><Key token={token} />{short(token.text)}</> : short(string);
+  const text = token.kind === 'param' ? <><Key token={token} />{full ? token.display : <ShortValue token={token} />}</> : short(string);
   return op === 'removed' ? <Was style={{ opacity: 1 }}>{text}</Was> : text;
 };
 
@@ -122,7 +163,7 @@ const Explanation = ({ d, shared, elided }) => {
     changed: [Intent.WARNING, 'exchange', 'Changed', 'The reference run has another value.'],
   }[op] ?? (shared ? [Intent.NONE, 'people', 'Shared', `All ${shared.runs} runs have this setting.`] : null);
   const tuning = token.source === 'tuning';
-  const long = elided || token.text.length > 60 || (ref?.text.length ?? 0) > 60;
+  const long = elided || token.display.length > max_value_length || (ref?.display.length ?? 0) > max_value_length;
   if (!status && !long && !tuning) return null;
   return <div style={{ padding: '6px 8px', maxWidth: 420 }}>
     {status && <p style={{ margin: 0 }}>
@@ -191,7 +232,8 @@ const wrapper_style = { marginRight: '5px', marginBottom: '3px', fontWeight: 400
 const Setting = ({ d, configurations, tuning, intent, inverted, interactive, muted, shared }) => {
   const { icon, intent: op_intent } = op_style[d.op] ?? {};
   const elide = d.token.kind === 'string' ? shared?.elided?.get(d.token.text) ?? 0 : 0;
-  const tag = <Tag
+  const Component = muted && !op_intent ? SharedTag : Tag;
+  const tag = <Component
     round
     minimal={!inverted}
     interactive={interactive}
@@ -202,7 +244,7 @@ const Setting = ({ d, configurations, tuning, intent, inverted, interactive, mut
     aria-label={d.op === 'same' ? undefined : `${d.op}: ${setting_text(d.token)}`}
   >
     <SettingText d={d} elide={d.op === 'changed' ? 0 : elide} />
-  </Tag>;
+  </Component>;
   if (!interactive) return tag;
   return <PopoverNext
     placement="bottom"
@@ -215,16 +257,25 @@ const Setting = ({ d, configurations, tuning, intent, inverted, interactive, mut
 };
 
 
+// Settings all runs share: outlined when they're shown, dashed when they're hidden
+const SharedTag = styled(Tag)`
+  &&& {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--qa-border);
+    color: var(--qa-text-muted);
+  }
+`;
 const GapTag = styled(Tag)`
   &&& {
     background: transparent;
     box-shadow: none;
-    border: 1px dashed ${Colors.GRAY3};
-    color: ${Colors.GRAY1};
+    border: 1px dashed currentColor;
+    color: var(--qa-text-muted);
     cursor: pointer;
   }
-  .${Classes.DARK} &&& {
-    color: ${Colors.GRAY4};
+  &&&:hover {
+    background: var(--qa-hover);
+    color: var(--qa-text);
   }
 `;
 
@@ -276,7 +327,7 @@ const Gap = ({ tokens, changes, shared, configurations, tuning, onShow }) => {
         onClick={() => copyWithToast(qa_options(configurations, tuning), { what: 'the qa options' })}
       />
       <p className={Classes.TEXT_MUTED} style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
-        The top of the page lists them. To always show them, use the controls panel.
+        The top of the page lists them. To always show them, use the View options panel (press o).
       </p>
     </div>}
   >
@@ -294,7 +345,7 @@ const Gap = ({ tokens, changes, shared, configurations, tuning, onShow }) => {
  *   and the changes from the reference they all have. They're behind "··· N shared" tags, where they are
  *   when they're at the start or the end, else in one tag, first.
  */
-export const ConfigurationsTags = ({ configurations, tuning = null, mismatch = null, inverted, intent = Intent.PRIMARY, toplevel = true, collapse = true }) => {
+export const ConfigurationsTags = ({ configurations, tuning = null, mismatch = null, inverted, intent = Intent.NONE, toplevel = true, collapse = true }) => {
   const shared = useSharedConfiguration();
   const hide_shared = useHideSharedSettings();
   const [show_shared, setShowShared] = useState(false);
@@ -390,10 +441,7 @@ const DiffTable = styled.table`
 `;
 
 // e.g. [1, 2, 3] → [1, 2, 4] highlights only the last number
-const ValueChange = ({ d }) => <SettingText
-  d={{ op: 'changed', token: { ...d.token, kind: 'string' }, ref: { ...d.ref, kind: 'string' } }}
-  full
-/>;
+const ValueChange = ({ d }) => <SettingText d={d} full value_only />;
 
 const Legend = () => <p className={Classes.TEXT_MUTED} style={{ fontSize: 12, margin: '8px 0 0 0' }}>
   <strong>+</strong> only in this run · <strong>−</strong> only in the reference run · <strong>~</strong> changed: reference → this run
@@ -442,7 +490,7 @@ export const ConfigurationDiff = ({ configurations, tuning = null, mismatch, con
     rows.push(<tr key={i} style={{ background: row_colors[op] }} className={op === 'same' ? Classes.TEXT_MUTED : undefined}>
       <td className="sign" aria-label={op}>{signs[op]}</td>
       {token.kind === 'param'
-        ? <><td className="key"><Key token={token} /></td><td>{op === 'changed' ? <ValueChange d={d} /> : token.text}</td></>
+        ? <><td className="key"><Key token={token} /></td><td>{op === 'changed' ? <ValueChange d={d} /> : token.display}</td></>
         : <td colSpan={2}>{op === 'changed' ? <SettingText d={d} full /> : token.text}</td>}
     </tr>);
   });

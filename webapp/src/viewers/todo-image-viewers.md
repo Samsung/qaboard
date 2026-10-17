@@ -5,8 +5,7 @@
 
 ## Architecture
 - IIIF client/server
-- run as a docker container on planet31 
-- available as qa:7000 (until qa-iif:443)
+- runs as a docker container (the cantaloupe service), served under /iiif/
 - viewers will translate URLS from /s/ into the host.
 
 

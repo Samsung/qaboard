@@ -20,7 +20,7 @@ const DoneAtTagUnstyled = ({ project, commit, className, style }) => {
       </span>
       {" "}
       <Link
-       className={maybe_skeletton}
+       className={`done-at-by ${maybe_skeletton ?? ''}`}
        to={`/${project}/committer/${commit?.committer_name}`}
       >
         by {commit?.committer_name ?? defaults.committer_name}
@@ -30,7 +30,7 @@ const DoneAtTagUnstyled = ({ project, commit, className, style }) => {
 }
 
 const DoneAtTag = styled(DoneAtTagUnstyled)`
-  color: rgba(0, 0, 0, 0.55);
+  color: var(--qa-text-muted);
   white-space: nowrap;
   box-sizing: border-box;
   margin-left: 5px;

@@ -104,7 +104,8 @@ shot('history/image-diff', {
 const SL = 'serving-latency';
 const lastTwoWeeks = (d: Demo, filter?: string) => d.historyUrl(SL, 'main', { from: day(d, -15), to: day(d, 0), ...(filter ? { filter } : {}) });
 // The chart, its title and options
-const performanceOverTime = (page: Page) => page.locator('.bp6-card', { has: page.getByText('Performance over time', { exact: true }) }).first();
+// The History view's title and its card (the title is above the card, like the commit page's views)
+const performanceOverTime = (page: Page) => page.locator('h2', { hasText: /^Performance over time/ }).first().locator('xpath=../..');
 
 shot('history/performance-over-time', {
   project: SL,

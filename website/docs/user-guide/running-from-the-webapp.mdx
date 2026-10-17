@@ -17,21 +17,21 @@ You don't need a terminal to start runs: the web app can redo runs, run a commit
 | To... | Where |
 |---|---|
 | Redo **one run** | On its card (Visualizations or Output Files views), ☰ menu → **Redo** |
-| Redo the **failed** runs of a batch | Commit bar menu (☰) → **Redo Failed Outputs** |
-| Redo **deleted** runs | Commit bar menu → **Redo Deleted Outputs**, or the button in the "N of the outputs below were deleted" message |
-| Redo **all** runs of a batch | Commit bar menu → **Redo All Outputs** |
+| Redo the **failed** runs of a batch | Commit bar menu (☰) → **Redo failed runs** |
+| Redo **deleted** runs | Commit bar menu → **Redo deleted runs**, or the button in the "N of the runs below were deleted" message |
+| Redo **all** runs of a batch | Commit bar menu → **Redo all runs** |
 | **Stop** pending runs | The **Stop runs** button above the views, shown while runs are pending |
-| Unblock a run stuck as pending | On its card, ☰ menu → **Mark as Failed** |
+| Unblock a run stuck as pending | On its card, ☰ menu → **Mark as failed** |
 | Delete runs or only their files | Card ☰ menu (one run), or commit bar menu (failed runs, the batch, several batches) |
 
 Redone runs use the commit's saved artifacts and the same input, configuration and parameters. They also use the runner they were started with, and the batch's runner settings, like how many runs can run at the same time: QA-Board starts them together, with a single `qa batch`. Its logs are in the [Logs](commit-page.mdx#logs) view, under "Started from QA-Board".
 
 <Shot
   id="commit/run-menu"
-  caption="A run card's menu: redo it, delete it, or delete only its output files. While a run is pending or running, Mark as Failed replaces Redo."
+  caption="A run card's menu: redo it, delete it, or delete only its output files. While a run is pending or running, Mark as failed replaces Redo."
 />
 
-When you filter the batch's runs, the commit bar menu's redo actions only redo the runs that match the filter: **Redo the N Filtered Outputs**, **Redo Filtered Failed Outputs**...
+When you filter the batch's runs, the commit bar menu's redo actions only redo the runs that match the filter: **Redo the N runs that match the filter…**, **Redo filtered failed runs**...
 
 The page refreshes by itself while runs are pending: follow their progress with the counters next to the filter box, or in the [Logs](commit-page.mdx#logs) view.
 
@@ -42,9 +42,11 @@ Delete actions are immediate. Milestones are protected: QA-Board won't delete ba
 ## Running tests and tuning
 To run a commit's code on other inputs, or with other parameters, open the commit page and select **Run Tests / Tuning** in the sidebar.
 
-1. **Experiment name**: the label of the new batch. Reusing the name of an existing experiment adds runs to it.
+1. **Batch label**: the label of the new batch. Reusing the label of an existing batch adds runs to it.
 2. **Batch of inputs+configurations**: the name of a batch of tests, like `my-batch`, or several, like `batch-*`. Hover **N tests** to check which inputs and configurations it includes. When the batch has no tests, a warning under it says why (a batch file missing from the commit's artifacts, a batch defined nowhere, inputs not found...). The [Available Tests](commit-page.mdx#available-tests) view lists the batches you can use, and lets you define your own.
 3. If the project supports several **platforms**, pick one.
+
+   If the project's CI only saves the build (the artifacts runs need) on some branches, a warning at the top of the form says so on the commits of other branches, with the commands to save it yourself.
 4. Choose the parameters:
    - **Manual tuning**: write the parameters to try, as JSON. Click the examples (*simple-combinations*, *list-of-combinations*, *1x2 matrix*...) to get started. Choose **All combinations** (a grid) or **Sampling** a number of them. The total number of runs is shown before you send.
    - **Automated tuning**: describe the search space and the objective in YAML, and let the optimizer ([scikit-optimize](https://scikit-optimize.github.io/)) choose the parameters. It needs the project to compute metrics.
@@ -63,7 +65,7 @@ To run a commit's code on other inputs, or with other parameters, open the commi
 
 Then select the new batch in the batch selector to follow it. When it's done:
 - compare it with the CI batch (see the [tip in Comparing results](comparing-results.mdx#picking-a-reference)),
-- open the **Analysis** view to see how metrics depend on the parameters, and the best parameters found by an automated tuning.
+- open the **Tuning Analysis** view to see how metrics depend on the parameters, and the best parameters found by an automated tuning.
 
 Batches started from QA-Board are listed in the [Logs](commit-page.mdx#logs) view with the command QA-Board ran and its logs:
 
