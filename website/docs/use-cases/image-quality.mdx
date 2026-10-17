@@ -2,7 +2,7 @@
 id: image-quality
 title: "Image quality: a camera pipeline"
 sidebar_label: Image quality
-description: A camera ISP whose new denoiser wins PSNR but adds halos. Synced image viewers, Image Diff, deep zoom on a 113 MP image, per-stage outputs and bit-accuracy checks of a fixed-point model.
+description: A camera ISP whose new denoiser wins PSNR but adds halos. Synced image viewers, their difference, deep zoom on a 113 MP image, per-stage outputs and bit-accuracy checks of a fixed-point model.
 ---
 For camera, ISP and imaging teams, and for embedded teams that hand an algorithm over to silicon. This page follows the
 camera ISP example: what it computes, how the team uses QA-Board, and the configuration that does it.
@@ -37,7 +37,7 @@ halos.
 
 <Shot id="commit/image-sbs" />
 
-**Image Diff** shows where the images differ; raising its threshold leaves only the halos.
+Their **difference** shows where the images differ; raising its maximum leaves only the halos.
 
 <Clip id="commit/image-diff" />
 

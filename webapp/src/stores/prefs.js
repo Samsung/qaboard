@@ -19,6 +19,8 @@ export const usePrefsStore = create()(persist(
     commitListDensity: 'comfortable',
     // the app's sidebar shows only icons
     siderCollapsed: false,
+    // the values the image viewers write on the pixels, when zoomed in: 'image' (their own), 'display' or 'off'
+    imagePixelValues: 'image',
     // runs show only the settings of their configuration that not all runs share
     hide_shared_settings: true,
 
@@ -34,6 +36,7 @@ export const usePrefsStore = create()(persist(
     }),
     setTheme: theme => set({ theme }),
     setSiderCollapsed: collapsed => set({ siderCollapsed: !!collapsed }),
+    setImagePixelValues: values => set({ imagePixelValues: values }),
     setCommitListDensity: density => set({ commitListDensity: density === 'compact' ? 'compact' : 'comfortable' }),
     toggleHideSharedSettings: () => set(state => ({ hide_shared_settings: !state.hide_shared_settings })),
     updateTuning: (project, form) => set(state => ({

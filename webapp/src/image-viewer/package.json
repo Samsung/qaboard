@@ -1,0 +1,47 @@
+{
+  "name": "@qaboard/image-viewer",
+  "version": "0.1.0",
+  "description": "Compare images in React: side by side, wipe, toggle and difference, synced deep zoom (IIIF), pixel values",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./index.js",
+  "module": "./index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./style.css": "./style.css"
+  },
+  "sideEffects": [
+    "*.css"
+  ],
+  "files": [
+    "index.js",
+    "index.js.map",
+    "index.d.ts",
+    "style.css",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "openseadragon": "^6.1.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Samsung/qaboard.git",
+    "directory": "webapp/src/image-viewer"
+  },
+  "keywords": [
+    "image",
+    "compare",
+    "diff",
+    "viewer",
+    "react",
+    "openseadragon",
+    "iiif",
+    "deepzoom"
+  ]
+}

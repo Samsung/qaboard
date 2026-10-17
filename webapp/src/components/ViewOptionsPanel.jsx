@@ -11,6 +11,7 @@ import {
   Tooltip,
 } from "@blueprintjs/core";
 import { is_image } from "../viewers/images/utils";
+import { DEFAULT_MODE, MODES } from "../image-viewer/modes";
 import DynamicOptionControl from "./DynamicOptionControl";
 import { defaultRule, optionLabel, resolveOptionValue } from "../utils/dynamicOptions";
 import SidePanel from "./SidePanel";
@@ -97,6 +98,8 @@ const ViewOptionsPanel = ({
   default_sort_by,
   sort_order,
   onToggle,
+  // (changes) => {}, e.g. how image viewers compare images
+  onUpdateControls = noop,
   onToggleShow,
   onUpdate,
   has_tuning,
@@ -151,7 +154,10 @@ const ViewOptionsPanel = ({
   const shows_cards = (selected_views.includes('output-list') || selected_views.includes('bit-accuracy')) && nb_runs !== 0;
   // only the visualizations view shows visualizations, and uses their options
   const shows_visualizations = selected_views.includes('output-list') && nb_runs !== 0;
-  const maybe_diff = visualizations.some(v => is_image(v));
+  const has_images = visualizations.some(v => is_image(v));
+  // `diff` is how URLs said "difference" before there were comparison modes
+  const image_mode = controls.image_mode ?? (controls.diff ? 'difference' : DEFAULT_MODE);
+  const image_mode_label = MODES.find(m => m.value === image_mode)?.label ?? image_mode;
   // the summary doesn't list runs
   const sorting_applies = selected_views.some(view => view !== 'summary');
 
@@ -187,12 +193,18 @@ const ViewOptionsPanel = ({
     />);
 
   const viewer_switches = [
-    ...(maybe_diff ? [<Switch
-      key='diff'
-      checked={controls.diff || false}
-      onChange={onToggle('diff')}
-      labelElement={<Explained label="Image diff" explanation="Adds the perceptual color difference between the new and reference images to each image viewer." />}
-    />] : []),
+    ...(has_images ? [<OptionHeader key="image_mode" style={{ marginBottom: 8 }}>
+      <Explained label="Compare images" explanation="How the image viewers show the new and reference images: side by side, with a wipe, toggling between them, or their difference. You can also pick it above any image, or with the keys 1 to 4." />
+      <div className="option-actions">
+        <HTMLSelect
+          value={image_mode}
+          onChange={event => onUpdateControls({ image_mode: event.target.value, diff: undefined })}
+          aria-label="Compare images"
+          options={MODES.map(({ value, label }) => ({ value, label }))}
+          small
+        />
+      </div>
+    </OptionHeader>] : []),
     ...controls_extra.map(control => <Switch
       key={control.name}
       checked={!!controls[control.name]}
@@ -303,7 +315,7 @@ const ViewOptionsPanel = ({
         .map(([name]) => `${optionLabel(name)}: chosen per run`),
     ],
     viewers: [
-      ...(maybe_diff && controls.diff ? ['Image diff on'] : []),
+      ...(has_images && image_mode !== DEFAULT_MODE ? [`Images: ${image_mode_label.toLowerCase()}`] : []),
       ...controls_extra
         .filter(control => !!controls[control.name] !== !!control.default)
         .map(control => `${control.label || humanize(control.name)} ${controls[control.name] ? 'on' : 'off'}`),
@@ -312,10 +324,11 @@ const ViewOptionsPanel = ({
     sorting: sort_changed ? [`Sorted by ${sort_label(sort_value)}, ${order_label}`] : [],
   };
 
-  const viewers_on = [
-    ...(maybe_diff && controls.diff ? ['Image diff'] : []),
-    ...controls_extra.filter(control => !!controls[control.name]).map(control => control.label || humanize(control.name)),
-  ];
+  const viewers_on = controls_extra.filter(control => !!controls[control.name]).map(control => control.label || humanize(control.name));
+  const viewers_summary = [
+    ...(has_images ? [`Images ${image_mode_label.toLowerCase()}`] : []),
+    ...(viewers_on.length > 0 ? [`${viewers_on.join(', ')} on`] : controls_extra.length > 0 ? ['others off'] : []),
+  ].join(', ');
   const sections = [
     shows_visualizations && {
       id: 'visualizations',
@@ -360,7 +373,7 @@ const ViewOptionsPanel = ({
       id: 'viewers',
       title: 'Viewers',
       icon: 'eye-open',
-      summary: viewers_on.length > 0 ? `${viewers_on.join(', ')} on` : 'All off',
+      summary: viewers_summary,
       content: viewer_switches,
     },
     shared?.tokens.length > 0 && {

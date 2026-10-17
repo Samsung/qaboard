@@ -2,7 +2,7 @@
 id: comparing-results
 title: Comparing results
 sidebar_label: Comparing results
-description: New vs reference, picking a reference, milestones, synced image and video viewers and metric colors.
+description: New vs reference, picking a reference, milestones, comparing images and videos (synced, wipe, difference, pixel values) and metric colors.
 ---
 QA-Board always shows the results of a **new** commit next to a **reference** (`ref`). Knowing what you compare to is half the job.
 
@@ -100,7 +100,28 @@ Private milestones are stored in your browser: they don't follow you to another 
 :::
 
 ## Image viewers
-Images are shown side by side: **new** on one side, **reference** on the other.
+Compare the images above them, like videos:
+
+| Mode | What you see |
+|---|---|
+| **Side by side** | New on the left, reference on the right. A cross marks the pixel under your mouse on both. |
+| **Wipe** | One image over the other: drag the divider to see new on one side, reference on the other. |
+| **Toggle** | One image at a time: click it, or press <kbd>t</kbd>, to flip to the other in place, in every viewer of the page. Differences jump out. |
+| **Difference** | [Where the images differ](#the-difference), between them (new, difference, reference) or alone. |
+
+The mode applies to every image viewer of the page, and is saved in the URL: a link shows the same comparison. Press
+<kbd>1</kbd> to <kbd>4</kbd> over a viewer to switch, or pick it in the **View options** (**Viewers** › **Compare images**).
+**Swap** (or <kbd>t</kbd>) exchanges new and reference in every viewer of the page, so they all show the same one
+first. When both runs saved the same file, the viewer shows one image, tagged *same as the reference*.
+
+### Blind test
+To judge images without knowing which is new, click **Blind test** next to **Swap** above the images, or press
+<kbd>h</kbd>. Every viewer of the page then shows its two images in a random order, called **A** and **B**: in their
+labels, the values under the pointer and the histograms. Nothing else tells them apart: compare, swap them (in toggle
+mode, <kbd>t</kbd> flips between A and B), and pick the one you prefer.
+
+The same button, now **Reveal** (or <kbd>h</kbd>), shows which was which, e.g. *reference · A*, without moving the
+images. Then **Done** (or <kbd>h</kbd>) ends the test: new first again everywhere.
 
 <Shot
   id="commit/image-sbs"
@@ -108,53 +129,120 @@ Images are shown side by side: **new** on one side, **reference** on the other.
 />
 
 ### Synced zoom and pan
-Zoom (mouse wheel) or pan (drag) in one image and the others follow. All the viewers of the same input with the same image proportions stay in sync, including the other visualizations of the run. Images of different sizes are still synced as long as their proportions match.
+Zoom (mouse wheel, pinch, or <kbd>+</kbd> <kbd>-</kbd>) or pan (drag) in one image and the others follow. All the
+viewers of the same input with the same image proportions stay in sync, including the other visualizations of the run.
+Images of different sizes are still synced as long as their proportions match.
+
+The toolbar shows the zoom: **100%** is one image pixel per screen pixel, **1:1** goes there, the percentage (or
+<kbd>0</kbd>) fits the image again. Zoomed in, a minimap shows where you are in the image: click or drag it to go elsewhere.
 
 <Clip
   id="commit/image-diff"
-  caption="Zoom in one image and the reference follows. With Image Diff on, raising the threshold leaves only the halos."
+  caption="Zoom in one image and the reference follows. Wipe across them, then see their difference: raising its maximum leaves only the halos."
 />
 
-To flip between the two images in place, click the **new** or **reference** label, or press <kbd>t</kbd>: differences jump out. Press <kbd>h</kbd> to hide the labels.
+### The difference
+In **Difference** mode, the difference shows between the two images, all three in sync: zoom or pan any of them, and a
+cross marks the pixel under your mouse on each. Click **Difference** again (or press <kbd>4</kbd> again, or the
+three-columns button next to it) to see the difference alone, larger, and back. Pick how to measure it next to the
+modes:
 
-### Image Diff
-Turn on **Image diff** in the **Viewers** section of the **View options** to show a perceptual color difference between the images. The slider sets the saturation threshold.
+| Measure | What it shows |
+|---|---|
+| **Perceptual** | How different the colors look (YIQ color space), from yellow (a little) to black (the maximum you pick, 1% to 30%). |
+| **ΔE 2000** | The CIEDE2000 color difference. Under 1 you can't see it, about 2.3 is just noticeable. |
+| **Absolute** | Each channel of \|new − reference\|, amplified ×1 to ×64. Black means identical. |
+| **Signed** | Red where new is brighter, blue where it's darker, amplified. |
+| **Any change** | In red, every pixel whose value changed at all. |
+
+Where the images don't differ, a faded copy of the image tells you where you are. A legend says what the colors mean.
+
+The difference is computed on what the viewer displays: zoomed out, a screen pixel averages many image pixels, and small
+differences can average out. Zoom to 100% or more to compare every pixel, or let the server compare the full images: see
+[regions of interest](#regions-of-interest).
 
 <Shot
   id="commit/image-perceptual-diff"
-  caption="With the threshold raised, the flat wall fades to white and only the window frame's edges stay marked: yellow where the images differ a little, orange to dark red where they differ more."
+  caption="The difference between the images, its maximum raised: the flat wall fades to gray and only the window frame's edges stay marked, yellow where the images differ a little, orange to dark red where they differ more."
 />
 
-### Pixel values
-Hover an image to see the pixel's coordinates and RGB values, in the new and reference images, with a cross at the same spot on the other images.
+### Pixel values: the image's, or the displayed ones
+Hover an image to see the pixel's coordinates, its values in the new and reference images, and their difference
+(**Δ**). There are two kinds of values, and the line says which is which:
+
+- **image**: the values in the file, as your code saved them: 10-bit, 16-bit, float, raw... The server reads them, and
+  shows what they are, e.g. `RGB;10`, `I;16` (16-bit gray) or `F` (float).
+- **display**: the 8-bit color on your screen. To show an image, the server converts it (16-bit to 8-bit, raw to
+  RGB...), and zoomed out, a screen pixel averages many image pixels. It's what you see, not your data. It's only
+  listed when it differs from the image values.
+
+**Δ** is the difference of the image values when both images have the same size, else of the displayed ones. The
+measure picked for [the difference](#the-difference) (perceptual, ΔE...) is always computed on the displayed colors.
+Click the line to switch to hexadecimal.
+
+Zoom in further and the values show **on the pixels themselves**, in black or white so that you can read them; in
+**Difference** mode, it's new − reference. A badge under the images says which ones you're reading: *Values: image
+(I;16)* or *Values: displayed, 8-bit*. Pick them with the **123** button above the images (**Image values**,
+**Displayed values** or **Off**); <kbd>p</kbd> hides or shows them.
+
+The image values arrive by tiles of 64×64 pixels: the first ones can take a moment while the server opens the image,
+the next ones are quick. When the server can't read the file, the line says *unavailable*: hover it to see why, and use
+the displayed values.
 
 <Shot
   id="commit/pixel-tooltip"
-  caption="Hover a pixel of the Siemens star: the line above the images shows its coordinates and its values in both images, and a crosshair marks the same spot on the reference."
+  caption="Hover a pixel of the Siemens star: the line above the images shows its coordinates, its values in both images and their difference, and a crosshair marks the same spot on both images."
 />
 
+### Full screen
+The **full screen** button at the right of the viewer's toolbar (or <kbd>f</kbd>) gives the whole screen to the images,
+with the toolbar: modes, the difference, regions and pixel values all work there. The difference goes under the two
+images when that makes them larger. <kbd>Esc</kbd> or <kbd>f</kbd> leaves.
+The button at the top right of each card shows the whole card in full screen instead, with its file picker.
+
 ### Regions of interest
-The ROI menu above the image (**View ROIs**) zooms on preset regions, when the inputs have them, or on **Auto ROIs**: **Find Regions of Interest** looks for the regions where the images differ most, by the measure of difference you pick (SSIM, CIE 2000...). Step through the regions with the arrows, or click their thumbnails. **Copy current ROI** copies the current view's coordinates.
+The regions button above the images zooms on:
+- **Presets**: the regions of the input, from its metadata or the configuration (see [regions of interest](../visualizations.mdx#regions-of-interest)).
+  The viewer opens on the first one.
+- **Where they differ**: the server compares the full images and finds where they differ most, by perceptual difference,
+  structure (SSIM) or ΔE 2000. Each region says how much, e.g. *#1 · 3.2%*. They're spread over the image (an area
+  that differs everywhere, like leaves, gives one region, not twenty) and show some context around the difference.
+  The first time the server reads an image takes a few seconds, then it's quick: results are kept.
+
+The set you pick applies to every viewer of the same file, in all the runs' cards. Step through the regions with the
+arrows (or <kbd>[</kbd> <kbd>]</kbd>), or click their thumbnails. **Full image** goes back to the whole image. **Copy the
+view as a region** copies the coordinates of what you see, in the format of presets.
+
+#### Which runs changed most
+**Where they differ, in all N runs…** (in the regions menu) compares the images of every run of the page with their
+reference, a few at a time, and ranks the runs by their largest difference, with the ones that didn't change at all
+counted as *identical*. Pick how to compare at the top. **Show** takes you to a run's card, its viewer on the region
+that differs most; the other viewers show their own regions too. Closing the list doesn't stop the comparisons:
+**Stop** does.
 
 <Shot
   id="commit/auto-roi"
-  caption="Auto ROIs take you straight to the spots where new and reference differ most, next to the input's preset regions."
+  caption="The regions where new and reference differ most take you straight to what changed, next to the input's preset regions."
 />
 
 ### Histograms
-The selection button in the toolbar (or <kbd>c</kbd>) lets you select a region and see its RGB and luminance histograms.
+The histogram button shows the red, green, blue and luminance histograms of what the images show, new (solid) and
+reference (dashed): zoom on a region to see its histograms.
 
 <Shot
   id="commit/roi-histograms"
   caption="A region of the sky gradient, with its RGB and luminance histograms for the new and the reference image."
 />
 
-### Filters
-A button in the viewer's toolbar opens Brightness, Contrast, Gamma and Sharpen sliders. They apply to all the viewers of the same visualization, so new and reference stay comparable.
+### Adjust the display
+The adjustments button changes how the images look: brightness, contrast, gamma, sharpening, one channel (R, G, B or
+luma) as gray levels, false colors, inverted colors. They apply to both images, and to the same visualization in the
+other runs, so that they stay comparable. Only the display changes: the pixel values, the difference and the
+histograms are the images'. A dot on the button reminds you they're on.
 
 <Shot
   id="commit/image-filters"
-  caption="More brightness and less gamma on both images of the night street reveal the noise hidden in the shadows: blotchy in the new image, a finer grain in the reference."
+  caption="More brightness and gamma on both images of the night street reveal the noise hidden in the shadows: blotchy in the new image, a finer grain in the reference."
 />
 
 ### Large images
@@ -165,7 +253,9 @@ Large images are streamed tile by tile, so zooming in a 100 MP image stays fast.
   caption="From the whole 113 MP test wall down to single pixels of a Siemens star, with both images in sync."
 />
 
-You can also copy the new, reference or diff image to your clipboard, to paste it in a chat or a slide.
+The copy button copies the new or reference image (with the adjustments), or the difference, as you see them, to paste
+them in a chat or a slide, or saves them as PNG files. It also opens the original files. The keyboard button lists the
+shortcuts.
 
 ## Video viewer
 Videos play in sync with the reference's. Pick how to compare them above the videos:

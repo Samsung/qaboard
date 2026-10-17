@@ -72,6 +72,12 @@ docker compose --env-file deployments/production.env rm -v cantaloupe
 deployments/deploy.py deployments/production.env compose up -d cantaloupe
 ```
 
+Remove the decoded images that the pixel values are read from (they're decoded again when needed), or lower
+[`QABOARD_IMAGE_CACHE_GB`](../start-server.mdx):
+```bash
+deployments/deploy.py deployments/production.env compose exec backend sh -c 'rm -rf "${QABOARD_IMAGE_CACHE_DIR:-${QABOARD_DATA_DIR:-/var/qaboard}/cache/images}"/*'
+```
+
 Remove unused docker images (`deploy.py` already removes the images of old versions, it keeps the last 3):
 ```bash
 docker image prune # -a
