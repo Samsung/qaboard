@@ -86,15 +86,15 @@ website shows them at `/release-notes` (with RSS/Atom feeds).
   or old periods; periods can't overlap). The format is documented in `website/release-notes/_template.md`.
 - **In the same PR as any user-visible change** (web app, `qa` CLI, qaboard.yaml, server/admin), add a
   bullet to the current month's note, under the right section: `## Web app`, `## CLI and project setup`,
-  `## Server and administration`, `## Documentation`, `## Performance`, `## Fixes` (grouped by area under `###`
-  headings when there are many). If the month's file doesn't exist,
+  `## Server and administration`, `## Documentation`, `## Performance`, `## Fixes` (grouped by theme under `###`
+  headings when there are many, in every section). If the month's file doesn't exist,
   create it as a draft: `website/release-notes/release_notes.py draft 2026-11 --write` (pre-filled from
   the git log, keeps `draft: true`). Skip refactors, CI-only and typo changes.
 - **Write for the reader**: one change per bullet, starting with a verb, saying what they can now do.
   No commit shas, no names, no internal hostnames or ticket ids: the repo and website are public.
   Link docs as `[text](/docs/page-id)`.
 - **Publishing** (maintainers, at the start of the next month or for a big release): curate the bullets,
-  write `description` (1-2 sentences) and 2-4 `highlights` (title, `audience`: users | project-integration |
+  write `description` (1-2 sentences) and 2-4 `highlights` (up to 8 for a big release) (title, `audience`: users | project-integration |
   admins, a Blueprint `icon` name, plain-text `description` (backticks for code), optional `link: /docs/...`), set `date`
   to the publication date, and remove `draft: true`. Until its period is over, a published note is a
   preview in the panel ("In progress"), so keep adding bullets as work lands: it pops up once, after the
