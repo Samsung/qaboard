@@ -96,7 +96,8 @@ There are two kinds of values, and the viewer always says which one users look a
   not the data.
 
 Without more, the viewer only knows the displayed values. Give it `getPixels` to read the image's: they show under the
-pointer next to the displayed ones (labelled `image` and `display`), and on the pixels when users zoom in, with a badge
+pointer next to the displayed ones (labelled `image` and `display`; for 8-bit images, whose `mode` is `L`, `LA`, `RGB`,
+`RGBA` or `RGBX`, only the image's, unlabelled), and on the pixels when users zoom in, with a badge
 ("Values: image (I;16)" or "Values: displayed, 8-bit"). Users switch between them in the toolbar's values menu, or hide
 them with <kbd>p</kbd>.
 

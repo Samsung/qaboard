@@ -1,14 +1,14 @@
 // Where the images of a visualization differ, in every run of the page: the server compares each with its reference,
 // a few at a time, and the runs are ranked by their largest difference. Each viewer shows the regions found for its
 // run (the results are shared, regionSearch.js).
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { Button, Dialog, DialogBody, DialogFooter, HTMLSelect, Icon, ProgressBar, Spinner } from '@blueprintjs/core';
 
 import { errorMessage, isAbort } from '../../api/http';
 import { useComparison } from '../../hooks';
 import { formatDifference, regionProviders } from './regionProviders';
-import { regionsQuery, runPairs } from './regionSearch';
+import { limiter, regionsKey, regionsQuery, runPairs, useStartedSearches } from './regionSearch';
 
 // The providers that compare images, e.g. auto-yiq
 export const differenceProviders = () => regionProviders().filter(provider => provider.find && provider.diff_type);
@@ -21,6 +21,17 @@ export const usePagePairs = () => {
   const new_batch = comparison?.new_batch;
   const ref_batch = comparison?.ref_batch;
   return useMemo(() => runPairs({ new_batch, ref_batch }), [new_batch, ref_batch]);
+};
+
+// The time, every second while `active`
+const useNow = active => {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [active]);
+  return now;
 };
 
 export const RegionsTriage = ({ path, path_ref, provider: provider_id, onProviderChange, onShow, onClose }) => {
@@ -40,15 +51,22 @@ export const RegionsTriage = ({ path, path_ref, provider: provider_id, onProvide
   // oxlint-disable-next-line react/exhaustive-deps
   useEffect(start, [provider.id, contexts]);
 
+  // the searches that started, and how long ago: the others wait for their turn
+  const started = useStartedSearches();
   const rows = contexts.map((context, i) => {
     const { data, error, fetchStatus } = results[i];
-    const status = data ? 'done' : fetchStatus === 'fetching' ? 'running' : error && !isAbort(error) ? 'error' : 'idle';
-    return { ...context, status, regions: data, top: data?.[0]?.value ?? 0, error: status === 'error' ? errorMessage(error) : null };
+    const since = started[JSON.stringify(regionsKey(provider.id, context))];
+    const status = data ? 'done'
+      : fetchStatus === 'fetching' ? (since ? 'running' : 'waiting')
+      : error && !isAbort(error) ? 'error' : 'idle';
+    return { ...context, status, since, regions: data, top: data?.[0]?.value ?? 0, error: status === 'error' ? errorMessage(error) : null };
   });
-  const order = { done: 0, running: 1, idle: 2, error: 3 };
+  const order = { done: 0, running: 1, waiting: 2, idle: 3, error: 4 };
   rows.sort((a, b) => order[a.status] - order[b.status] || b.top - a.top);
   const done = rows.filter(row => row.status === 'done' || row.status === 'error').length;
-  const running = rows.some(row => row.status === 'running');
+  const comparing = rows.filter(row => row.status === 'running').length;
+  const running = rows.some(row => row.status === 'running' || row.status === 'waiting');
+  const now = useNow(comparing > 0);
   const largest = Math.max(...rows.map(row => row.top), 0);
   const identical = rows.filter(row => row.status === 'done' && row.regions.length === 0).length;
 
@@ -62,13 +80,13 @@ export const RegionsTriage = ({ path, path_ref, provider: provider_id, onProvide
           onChange={event => onProviderChange(event.target.value)}
         />
         <code style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{path}</code>
-        <span>{done} / {contexts.length}{identical > 0 ? ` · ${identical} identical` : ''}</span>
+        <span>{done} / {contexts.length}{comparing > 0 ? ` · comparing ${comparing}` : ''}{identical > 0 ? ` · ${identical} identical` : ''}</span>
       </div>
       <ProgressBar value={contexts.length ? done / contexts.length : 1} animate={running} stripes={running} intent={running ? 'primary' : 'success'} />
       <p className="bp6-text-muted" style={{ margin: '10px 0' }}>
-        The runs whose images differ most first. The server compares the full images: the first time it reads an image
-        takes a few seconds, then it's quick. Each viewer of <code>{path}</code> shows the regions found for its run,
-        also after you close this.
+        The runs whose images differ most first. The server compares the full images, {limiter.concurrency} runs at a
+        time: the first time it reads an image takes a few seconds, then it's quick. Each viewer of <code>{path}</code>
+        shows the regions found for its run, also after you close this.
       </p>
       <div style={{ maxHeight: '50vh', overflowY: 'auto' }}>
         <table className="bp6-html-table bp6-compact bp6-interactive" style={{ width: '100%' }}>
@@ -83,7 +101,10 @@ export const RegionsTriage = ({ path, path_ref, provider: provider_id, onProvide
                   </span>
                   {formatDifference(provider.diff_type, row.top)}
                 </span>)}
-                {row.status === 'running' && <Spinner size={14} />}
+                {row.status === 'running' && <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Spinner size={14} /> comparing… {Math.max(0, Math.round((now - row.since) / 1000))} s
+                </span>}
+                {row.status === 'waiting' && <span className="bp6-text-muted">waiting</span>}
                 {row.status === 'idle' && <span className="bp6-text-muted">not compared</span>}
                 {row.status === 'error' && <span className="bp6-text-danger" title={row.error}><Icon icon="warning-sign" size={12} /> {row.error}</span>}
               </td>
