@@ -318,6 +318,8 @@ test('keeps the zoom when the file shown changes', async ({ page }) => {
 test('compares in full screen', async ({ page }) => {
   await setup(page);
   await expect(page.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
+  // a tall screen (browsers don't resize a window in full screen)
+  await page.setViewportSize({ width: 1280, height: 1024 });
   const before = await page.locator('.qiv-stage').boundingBox();
   await page.getByRole('button', { name: 'Full screen (f)' }).click();
   await expect.poll(() => page.evaluate(() => document.fullscreenElement?.classList.contains('qiv'))).toBe(true);
@@ -326,7 +328,6 @@ test('compares in full screen', async ({ page }) => {
   await page.getByRole('radio', { name: 'Wipe' }).click();
   await expect(page.getByRole('separator', { name: 'Wipe' })).toBeVisible();
   // on a tall screen, the difference goes under the images, where they're larger than in a row
-  await page.setViewportSize({ width: 1280, height: 1024 });
   await page.getByRole('radio', { name: 'Difference' }).click();
   const diff = page.locator('.qiv-diff-between');
   await expect(diff).toBeVisible();
