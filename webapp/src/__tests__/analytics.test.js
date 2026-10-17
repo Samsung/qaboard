@@ -8,6 +8,8 @@ const sentry = vi.hoisted(() => ({
   captureException: vi.fn(),
 }));
 vi.mock('@sentry/react', () => sentry);
+// Imported up front: a dynamic import in a test counts in its timeout, and the first one can be slow on busy machines
+import { sentryOptions, tracePropagationTargets } from '../analytics';
 
 const config = {
   sentry_dsn: 'https://key@sentry.example.com/1',
@@ -17,8 +19,7 @@ const config = {
 const routeName = () => '/:project_id+/commit/:name+';
 
 describe('sentryOptions', () => {
-  it('uses the server configuration', async () => {
-    const { sentryOptions } = await import('../analytics');
+  it('uses the server configuration', () => {
     const options = sentryOptions(config, routeName, sentry);
     expect(options.dsn).toBe(config.sentry_dsn);
     expect(options.environment).toBe('staging');
@@ -28,8 +29,7 @@ describe('sentryOptions', () => {
     expect(sentryOptions({ ...config, sentry_trace_lifecycle: 'stream' }, routeName, sentry).traceLifecycle).toBe('stream');
   });
 
-  it('has defaults', async () => {
-    const { sentryOptions } = await import('../analytics');
+  it('has defaults', () => {
     const options = sentryOptions({ sentry_dsn: config.sentry_dsn }, routeName, sentry);
     expect(options.environment).toBe('production');
     expect(options.tracesSampleRate).toBe(0.2);
@@ -37,16 +37,14 @@ describe('sentryOptions', () => {
     expect(options.release).toBeUndefined();
   });
 
-  it('propagates traces to our API only', async () => {
-    const { tracePropagationTargets } = await import('../analytics');
+  it('propagates traces to our API only', () => {
     const matches = url => tracePropagationTargets.some(target => target.test(url));
     expect(matches('/api/v1/commit/abc')).toBe(true);
     expect(matches('/s/some/file.txt')).toBe(false);
     expect(matches('https://gitlab.example.com/api/v4/projects')).toBe(false);
   });
 
-  it('names transactions after routes', async () => {
-    const { sentryOptions } = await import('../analytics');
+  it('names transactions after routes', () => {
     const [tracing] = sentryOptions(config, routeName, sentry).integrations;
     expect(tracing.options.beforeStartSpan({ name: '/a/b/commit/123', op: 'pageload' }))
       .toEqual({ name: '/:project_id+/commit/:name+', op: 'pageload' });

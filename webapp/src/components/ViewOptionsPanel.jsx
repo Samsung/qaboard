@@ -7,7 +7,7 @@ import {
   Button,
   Icon,
   InputGroup,
-  Popover,
+  PopoverNext,
   Tooltip,
 } from "@blueprintjs/core";
 import { is_image } from "../viewers/images/utils";
@@ -364,9 +364,9 @@ const ViewOptionsPanel = ({
       summary_has_changes: true,
       summary: option_infos.map(({ label, isSync, picked, selectedValue, default_label }) =>
         `${label} ${!isSync ? 'per run' : picked ? selectedValue : (default_label ?? selectedValue).toLowerCase()}`).join(', '),
-      meta: <Popover content={dynamic_options_help} interactionKind="hover" placement="left" hoverOpenDelay={200}>
+      meta: <PopoverNext content={dynamic_options_help} interactionKind="hover" placement="left" hoverOpenDelay={200}>
         <Button icon="help" variant="minimal" size="small" aria-label="What are the files to show?" />
-      </Popover>,
+      </PopoverNext>,
       content: option_rows,
     },
     shows_cards && viewer_switches.length > 0 && {
