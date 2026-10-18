@@ -44,8 +44,9 @@ const commit = (hexsha, batch_id, message, metadata, qatools_config, runs = [nul
   } },
 });
 
-// differences: by run, the largest difference the server finds, for the regions where they differ (none: identical)
-const setup = async (page, { metadata = {}, manifests, qatools_config = default_config, runs, differences = {} } = {}) => {
+// differences: by run, the largest difference the server finds, for the regions where they differ (none: identical),
+// after diff_delay ms. eight_bit: the image's own values are 8-bit RGB (else 10-bit)
+const setup = async (page, { metadata = {}, manifests, qatools_config = default_config, runs, differences = {}, diff_delay = 0, eight_bit = false } = {}) => {
   const api = {
     '/api/v1/config': {},
     '/api/v1/user/me/': { is_authenticated: true, user_id: 1, user_name: 'alice', full_name: 'Alice', email: 'alice@example.com', login_type: 'local' },
@@ -58,7 +59,7 @@ const setup = async (page, { metadata = {}, manifests, qatools_config = default_
   const pixel_requests = [];
   const diff_requests = [];
   await page.addInitScript(() => localStorage.setItem('qaboard.release-notes.last-seen', '9999-12-31'));
-  await page.route('**/api/**', route => {
+  await page.route('**/api/**', async route => {
     const url = new URL(route.request().url());
     // The image's "raw" values: 10-bit
     // Where they differ: a square, as much as `differences` says
@@ -67,6 +68,7 @@ const setup = async (page, { metadata = {}, manifests, qatools_config = default_
       diff_requests.push(body);
       const run = body.output_dir_url_new.split('/')[4].split('-')[1];
       const value = differences[run];
+      if (diff_delay) await new Promise(resolve => setTimeout(resolve, diff_delay));
       return route.fulfill({ json: value ? [{ x: 90, y: 90, w: 60, h: 60, peak_x: 120, peak_y: 120, value, diff: 1 }] : [] });
     }
     if (url.pathname === '/api/v1/output/image/pixels') {
@@ -75,14 +77,15 @@ const setup = async (page, { metadata = {}, manifests, qatools_config = default_
       const [x, y, w, h] = ['x', 'y', 'w', 'h'].map(k => Number(url.searchParams.get(k)));
       pixel_requests.push({ x, y, w, h });
       const [cw, ch] = [Math.min(w, image.width - x), Math.min(h, image.height - y)];
-      const values = Array.from({ length: ch }, (_, j) => Array.from({ length: cw }, (_, i) => image.pixel(x + i, y + j).map(v => 4 * v)));
+      const values = Array.from({ length: ch }, (_, j) => Array.from({ length: cw }, (_, i) => image.pixel(x + i, y + j).map(v => eight_bit ? v : 4 * v)));
+      const mode = eight_bit ? 'RGB' : 'RGB;10';
       if (url.searchParams.get('format') === 'binary')
         return route.fulfill({
-          body: Buffer.from(Uint16Array.from(values.flat(2)).buffer),
+          body: Buffer.from((eight_bit ? Uint8Array : Uint16Array).from(values.flat(2)).buffer),
           contentType: 'application/octet-stream',
-          headers: { 'X-Pixels-Dtype': 'uint16', 'X-Pixels-Shape': `${ch},${cw},3`, 'X-Pixels-Mode': 'RGB;10' },
+          headers: { 'X-Pixels-Dtype': eight_bit ? 'uint8' : 'uint16', 'X-Pixels-Shape': `${ch},${cw},3`, 'X-Pixels-Mode': mode },
         });
-      return route.fulfill({ json: { values, meta: { mode: 'RGB;10' } } });
+      return route.fulfill({ json: { values, meta: { mode } } });
     }
     const key = Object.keys(api).sort((a, b) => b.length - a.length).find(k => url.pathname.startsWith(k));
     return route.fulfill({ json: key ? api[key] : {} });
@@ -105,6 +108,12 @@ const setup = async (page, { metadata = {}, manifests, qatools_config = default_
   await page.goto(`/${project}/commit/new?reference=ref&selected_views=output-list`);
   return { pixel_requests, diff_requests };
 };
+
+// Another page of the app, without reloading it
+const navigate = (page, url) => page.evaluate(url => {
+  history.pushState({}, '', url);
+  dispatchEvent(new PopStateEvent('popstate'));
+}, url);
 
 const errors = [];
 test.beforeEach(async ({ page }) => {
@@ -290,6 +299,21 @@ test('reads the displayed value of the pixel it names, also on the edges of pixe
   }
 });
 
+test('shows one set of values for 8-bit images', async ({ page }) => {
+  await setup(page, { eight_bit: true });
+  await expect(page.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
+  // zoomed out, the screen blends the pixels with their neighbors: their displayed values differ a bit
+  const box = await page.locator('.qiv-pane').first().boundingBox();
+  await page.mouse.move(box.x + box.width * 0.47, box.y + box.height * 0.45);
+  const readout = page.locator('.qiv-readout');
+  await expect(readout).toContainText(/x \d+ y \d+ new/);
+  const [x, y] = (await readout.textContent()).match(/x (\d+) y (\d+)/).slice(1).map(Number);
+  // the image's values: the gradient's
+  await expect(readout).toContainText(`new ${x >> 1} ${y >> 1} 128 reference ${x >> 1} ${y >> 1} 128`);
+  await expect(readout).not.toContainText('display');
+  await expect(readout).not.toContainText('RGB');
+});
+
 test('keeps the zoom when the file shown changes', async ({ page }) => {
   const files = { 'stages/denoise.png': { st_size: 1000, md5: 'a' }, 'stages/sharpen.png': { st_size: 1000, md5: 'b' } };
   await setup(page, {
@@ -382,6 +406,33 @@ test('finds where the images differ in all the runs, and ranks them', async ({ p
   // and so do the others, with what was found already
   await expect(first.locator('.qiv-region').first()).toContainText('#1 · 30.0%');
   expect(diff_requests).toHaveLength(3);
+
+  // on another page, nothing is compared until users ask
+  await navigate(page, `/${project}/commit/ref?reference=new&selected_views=output-list`);
+  const other = page.locator('.output-card[data-output-id="200"]');
+  await expect(other.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
+  await page.waitForTimeout(1000);
+  await expect(page.locator('.qiv-region')).toHaveCount(0);
+  expect(diff_requests).toHaveLength(3);
+  // back on the page, what was found shows again
+  await page.goBack();
+  await expect(first.locator('.qiv-region').first()).toContainText('#1 · 30.0%');
+  expect(diff_requests).toHaveLength(3);
+});
+
+test('says which runs it compares, and which wait for their turn', async ({ page }) => {
+  await setup(page, { runs: ['A', 'B', 'C', 'D', 'E'], differences: { A: 0.3 }, diff_delay: 1500 });
+  const first = page.locator('.output-card').first();
+  await expect(first.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
+  await first.getByRole('button', { name: 'Regions of interest' }).click();
+  await page.getByRole('menuitem', { name: 'Where they differ, in all 5 runs…' }).click();
+  const dialog = page.getByRole('dialog');
+  // 3 at a time
+  await expect(dialog).toContainText('0 / 5 · comparing 3');
+  await expect(dialog.locator('tbody tr', { hasText: 'comparing…' })).toHaveCount(3);
+  await expect(dialog.locator('tbody tr', { hasText: 'waiting' })).toHaveCount(2);
+  await expect(dialog).toContainText('3 / 5 · comparing 2');
+  await expect(dialog).toContainText('5 / 5 · 4 identical');
 });
 
 // The labels of a card's images, from left to right

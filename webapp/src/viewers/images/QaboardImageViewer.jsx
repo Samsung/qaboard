@@ -3,11 +3,12 @@
 import { useState } from 'react';
 import { Tag } from '@blueprintjs/core';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
+import { useLocation } from 'react-router';
 import { create } from 'zustand';
 
 import { ImageViewer } from '../../image-viewer';
 import { errorMessage, http, isAbort } from '../../api/http';
-import { useSiteConfig } from '../../hooks';
+import { useComparison, useSiteConfig } from '../../hooks';
 import { usePrefsStore } from '../../stores/prefs';
 import { is_same_data } from '../../utils';
 import { build_image_name, iiif_url } from './utils';
@@ -88,11 +89,19 @@ export const coin = (seed, key) => {
   return (h & 1) === 1;
 };
 
-// The region set shown is the same for the viewers of a visualization, e.g. where the images differ
+// The region set shown is the same for the viewers of a visualization, e.g. where the images differ. Searches (sets
+// found on demand) are opt-in on each page: on the next, they'd compare the images of all its runs again.
 const useRegionSetStore = create(set => ({
+  // { [path]: { id, page } }
   by_path: {},
-  set: (path, id) => set(state => ({ by_path: { ...state.by_path, [path]: id } })),
+  set: (path, id, page) => set(state => ({ by_path: { ...state.by_path, [path]: { id, page } } })),
 }));
+
+// The page, for the region sets: the commits, batches... it compares
+const usePageKey = () => {
+  const comparison = useComparison();
+  return [useLocation().pathname, comparison?.new_batch?.id, comparison?.ref_batch?.id].join(' ');
+};
 
 // The regions of interest of the providers. Those found on demand are shared by the page (regionSearch.js): a search
 // for all the runs fills each viewer.
@@ -159,8 +168,14 @@ const ImageViewerForRuns = ({
   const same_data = identical && output_ref?.id !== output_new.id;
   const reference = identical ? null : referenceImage({ output_ref, path_ref, manifests, image_servers });
   const region_sets = useRegionSets({ output_new, output_ref: reference ? output_ref : null, path, path_ref });
-  const region_set = useRegionSetStore(state => state.by_path[path]);
-  const setRegionSet = useRegionSetStore(state => state.set);
+  const page = usePageKey();
+  const chosen = useRegionSetStore(state => state.by_path[path]);
+  const setChosen = useRegionSetStore(state => state.set);
+  const setRegionSet = id => setChosen(path, id, page);
+  const is_search = id => !!region_sets.find(set => set.id === id)?.load;
+  const region_set = chosen && (chosen.page === page || !is_search(chosen.id))
+    ? chosen.id
+    : region_sets.some(set => set.id === 'presets') ? 'presets' : null;
   const page_swapped = usePageComparisonStore(state => state.swapped);
   const page_blind = usePageComparisonStore(state => state.blind);
   const swapPage = usePageComparisonStore(state => state.swap);
@@ -187,7 +202,7 @@ const ImageViewerForRuns = ({
     },
   }] : [];
   const showRun = id => {
-    setRegionSet(path, triage);
+    setRegionSet(triage);
     setTriage(null);
     document.querySelector(`.output-card[data-output-id="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -209,8 +224,7 @@ const ImageViewerForRuns = ({
     syncKey={output_new.test_input_path ?? null}
     regionSets={region_sets}
     regionSet={region_set}
-    defaultRegionSet={region_sets.some(set => set.id === 'presets') ? 'presets' : null}
-    onRegionSetChange={id => setRegionSet(path, id)}
+    onRegionSetChange={setRegionSet}
     regionActions={region_actions}
     swapped={page_swapped !== shuffled}
     onSwappedChange={swapPage}
