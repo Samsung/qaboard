@@ -18,8 +18,8 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.8b97510b.css">
-<script src="/qaboard/assets/js/runtime~main.3f353504.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.7e271e3a.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.225f3532.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.e670e986.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -121,6 +121,8 @@ shows what they are, e.g. <code>RGB;10</code>, <code>I;16</code> (16-bit gray) o
 RGB...), and zoomed out, a screen pixel averages many image pixels. It&#x27;s what you see, not your data. It&#x27;s only
 listed when it differs from the image values.</li>
 </ul>
+<p>8-bit images (<code>L</code>, <code>RGB</code>, <code>RGBA</code>) show one set of values, the image&#x27;s: the screen shows them as they are, and the swatch
+next to them shows the color on screen.</p>
 <p><strong>Δ</strong> is the difference of the image values when both images have the same size, else of the displayed ones. The
 measure picked for <a href="#the-difference" class="">the difference</a> (perceptual, ΔE...) is always computed on the displayed colors.
 Click the line to switch to hexadecimal.</p>
@@ -147,13 +149,16 @@ structure (SSIM) or ΔE 2000. Each region says how much, e.g. <em>#1 · 3.2%</em
 that differs everywhere, like leaves, gives one region, not twenty) and show some context around the difference.
 The first time the server reads an image takes a few seconds, then it&#x27;s quick: results are kept.</li>
 </ul>
-<p>The set you pick applies to every viewer of the same file, in all the runs&#x27; cards. Step through the regions with the
+<p>The set you pick applies to every viewer of the same file on the page, in all the runs&#x27; cards. <strong>Where they differ</strong>
+is for the page where you pick it: on another page, the viewers don&#x27;t compare their images until you ask, since that
+compares all its runs again. Step through the regions with the
 arrows (or <kbd>[</kbd> <kbd>]</kbd>), or click their thumbnails. <strong>Full image</strong> goes back to the whole image. <strong>Copy the
 view as a region</strong> copies the coordinates of what you see, in the format of presets.</p>
 <h4 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="which-runs-changed-most">Which runs changed most<a href="#which-runs-changed-most" class="hash-link" aria-label="Direct link to Which runs changed most" title="Direct link to Which runs changed most" translate="no">​</a></h4>
 <p><strong>Where they differ, in all N runs…</strong> (in the regions menu) compares the images of every run of the page with their
-reference, a few at a time, and ranks the runs by their largest difference, with the ones that didn&#x27;t change at all
-counted as <em>identical</em>. Pick how to compare at the top. <strong>Show</strong> takes you to a run&#x27;s card, its viewer on the region
+reference, three at a time, and ranks the runs by their largest difference, with the ones that didn&#x27;t change at all
+counted as <em>identical</em>. The list says which runs it&#x27;s comparing and for how long, and which wait for their turn: the
+first comparisons of large images take a few seconds each, and those running together end at about the same time. Pick how to compare at the top. <strong>Show</strong> takes you to a run&#x27;s card, its viewer on the region
 that differs most; the other viewers show their own regions too. Closing the list doesn&#x27;t stop the comparisons:
 <strong>Stop</strong> does.</p>
 <figure class="figure_SMyr" style="max-width:1170px"><div class="frame_gpSn" data-zoom="true"><picture class="lightOnly_JDk_"><source type="image/avif" srcset="/qaboard/media/shots/commit/auto-roi/5beb9ae7188fcdf1.avif"><source type="image/webp" srcset="/qaboard/media/shots/commit/auto-roi/b4f6d40c511487fd.webp"><img class="image_k94w" src="/qaboard/media/shots/commit/auto-roi/b4f6d40c511487fd.webp" alt="The View ROIs menu open over the facade run, with Full Image, ROI Presets and Auto ROIs checked; below it, thumbnails of the twenty regions where new and reference differ most, found automatically, a dot colored by how much." width="1170" height="324" loading="lazy" decoding="async" style="background-image:url(&quot;data:image/webp;base64,UklGRjoAAABXRUJQVlA4IC4AAADQAQCdASoQAAUAA4BaJZQC7AEO137PgAD+7h0dGZ9K7nAZMhay9NOFzLqCAAAA&quot;)"></picture><picture class="darkOnly_Nywl"><source type="image/avif" srcset="/qaboard/media/shots/commit/auto-roi/5366434ae36c50c3.avif"><source type="image/webp" srcset="/qaboard/media/shots/commit/auto-roi/fc2eac7a3f0b7547.webp"><img class="image_k94w" src="/qaboard/media/shots/commit/auto-roi/fc2eac7a3f0b7547.webp" alt="The View ROIs menu open over the facade run, with Full Image, ROI Presets and Auto ROIs checked; below it, thumbnails of the twenty regions where new and reference differ most, found automatically, a dot colored by how much." width="1170" height="324" loading="lazy" decoding="async" style="background-image:url(&quot;data:image/webp;base64,UklGRjoAAABXRUJQVlA4IC4AAADwAQCdASoQAAUAA4BaJZwC7AEXfIL4NAAA/t1Bik7WuPcG5Y6+JGDzTHqS0AAA&quot;)"></picture><button type="button" class="zoomButton_wDMu" aria-label="Enlarge image" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"></path></svg></button></div><figcaption class="caption_G95k"><span>The regions where new and reference differ most take you straight to what changed, next to the input&#x27;s preset regions.</span></figcaption><dialog class="dialog_okoU" aria-label="The View ROIs menu open over the facade run, with Full Image, ROI Presets and Auto ROIs checked; below it, thumbnails of the twenty regions where new and reference differ most, found automatically, a dot colored by how much."></dialog></figure>
