@@ -143,22 +143,23 @@ class Project(Base):
     ))
     if hexsha:
       # milestones may use a short commit id
+      # (not LIKE: "_" and "%" in a milestone's commit would be wildcards)
       query = query.filter(or_(
         Milestone.commit_hexsha == hexsha,
-        and_(func.length(Milestone.commit_hexsha) >= 7, literal(hexsha).startswith(Milestone.commit_hexsha)),
+        and_(func.length(Milestone.commit_hexsha) >= 7, func.substr(literal(hexsha), 1, func.length(Milestone.commit_hexsha)) == Milestone.commit_hexsha),
       ))
     return query.all()
 
   @property
   def milestone_batches(self):
-    """(project, commit) => the labels of its batches that are milestones. Only their results are kept."""
-    from ..milestones import milestone_batches
-    return milestone_batches(self.milestones_on())
+    """The batches that are milestones (a MilestoneBatches). Only their results are kept."""
+    from ..milestones import MilestoneBatches
+    return MilestoneBatches(self.milestones_on())
 
   @property
   def milestone_commits(self):
     """Commits with milestones or protected by qaboard.yaml. For cleanups that only know commits, not batches."""
-    return [*self.protected_ref_commits, *(hexsha for _, hexsha in self.milestone_batches)]
+    return [*self.protected_ref_commits, *self.milestone_batches.commits()]
 
 
   @staticmethod

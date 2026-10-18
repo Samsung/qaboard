@@ -11,12 +11,11 @@ Create Date: 2026-10-18 09:00:00.000000
 
 """
 import json
+import datetime
 
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
-
-from backend.milestones import from_legacy
 
 
 # revision identifiers, used by Alembic.
@@ -24,6 +23,39 @@ revision = 'a4c2e8f1b7d3'
 down_revision = 'e7f3b2a91c40'
 branch_labels = None
 depends_on = None
+
+
+# A copy of backend.milestones.from_legacy as it was: migrations must not change when the app does
+def from_legacy(key, milestone, project_id):
+  if not isinstance(milestone, dict) or not isinstance(milestone.get('commit'), str) or not milestone['commit']:
+    return None
+  date = None
+  if isinstance(milestone.get('date'), str):
+    try:
+      date = datetime.datetime.fromisoformat(milestone['date'].replace('Z', '+00:00'))
+      if date.tzinfo is not None:
+        date = date.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+    except ValueError:
+      date = None
+  commit_project = milestone.get('project')
+  data = {k: milestone[k] for k in ('branch', 'committer_name') if isinstance(milestone.get(k), str)}
+  data['legacy_key'] = key
+  owners = [o for o in milestone.get('owners') or [] if isinstance(o, dict) and isinstance(o.get('user_name'), str)]
+  if owners:
+    data['legacy_owners'] = owners
+  return {
+    'project_id': project_id,
+    'label': str(milestone.get('label') or '')[:200],
+    'group': '',
+    'notes': str(milestone.get('notes') or '')[:20_000],
+    'commit_hexsha': milestone['commit'],
+    'commit_project_id': commit_project if isinstance(commit_project, str) and commit_project != project_id else None,
+    'batch': str(milestone.get('batch') or 'default'),
+    'filter': str(milestone.get('filter') or ''),
+    'data': data,
+    'created_at': date,
+    'updated_at': date,
+  }
 
 
 def upgrade():
@@ -72,7 +104,7 @@ def upgrade():
     VALUES (:project_id, :user_id, true, :label, :group, :notes, :commit_hexsha, :commit_project_id, :batch, :filter, CAST(:data AS jsonb),
             COALESCE(:created_at, now()), COALESCE(:updated_at, now()))
   """)
-  count = 0
+  count, skipped = 0, 0
   for project_id, milestones in projects:
     if isinstance(milestones, str):
       milestones = json.loads(milestones)
@@ -81,17 +113,19 @@ def upgrade():
         continue
       fields = from_legacy(key, milestone, project_id)
       if fields is None:
-        print(f"Skipping the milestone {key} of {project_id}: {milestone}")
+        print(f"WARNING: skipping the milestone {key} of {project_id}, it has no commit: {milestone}")
+        skipped += 1
         continue
       owners = [users[o['user_name']] for o in fields['data'].get('legacy_owners', []) if o['user_name'] in users]
-      bind.execute(insert, {
-        'user_id': owners[0] if owners else None,
-        'created_at': None, 'updated_at': None,
-        **fields,
-        'data': json.dumps(fields['data']),
-      })
-      count += 1
-  print(f"Copied {count} shared milestones")
+      # One bad milestone must not abort the migration: migrate.sh would then just stamp it, and copy nothing
+      try:
+        with bind.begin_nested():
+          bind.execute(insert, {**fields, 'user_id': owners[0] if owners else None, 'data': json.dumps(fields['data'])})
+        count += 1
+      except Exception as e:
+        print(f"WARNING: could not copy the milestone {key} of {project_id}: {e}")
+        skipped += 1
+  print(f"Copied {count} shared milestones" + (f", skipped {skipped} (see the warnings above)" if skipped else ""))
 
 
 def downgrade():

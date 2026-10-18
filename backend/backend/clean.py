@@ -44,7 +44,6 @@ from sqlalchemy import or_, not_
 
 from .database import db_session
 from .models import Project, CiCommit, Batch, Output
-from .milestones import batches_of_commit
 
 
 now = datetime.datetime.utcnow()
@@ -259,7 +258,7 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
 
         protected_commits = project.protected_ref_commits
         milestone_batches = project.milestone_batches
-        secho(f"keeping {len(protected_commits)} commits protected in qaboard.yaml, and {sum(len(b) for b in milestone_batches.values())} milestone batches", dim=True)
+        secho(f"keeping {len(protected_commits)} commits protected in qaboard.yaml, and {len(milestone_batches)} milestone batches", dim=True)
         commits = (
             db_session.query(CiCommit)
             .filter(CiCommit.project == project)
@@ -280,7 +279,7 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
             secho(f"@{commit.project_id}  {commit.branch}  {commit.hexsha} {commit.authored_datetime}", fg='cyan')
             outputs = (db_session.query(Output).join(Batch).filter(Batch.ci_commit_id == commit.id))
             # We keep the batches that are milestones, and what they need to be redone or compared: the artifacts
-            kept_batches = batches_of_commit(milestone_batches, project.id, commit.hexsha)
+            kept_batches = milestone_batches.of_commit(project.id, commit.hexsha)
             if kept_batches:
                 secho(f"  keeping the milestone batches: {', '.join(sorted(kept_batches))}", fg='yellow')
                 outputs = outputs.filter(Batch.label.notin_(kept_batches))

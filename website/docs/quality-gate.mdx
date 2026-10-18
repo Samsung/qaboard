@@ -230,5 +230,5 @@ an API token, see [APIs](/docs/apis).
 - Tags can't be references yet: use the tagged commit's sha.
 - A branch's commits are those QA-Board first saw on that branch. A commit pushed to a feature branch, then
   fast-forwarded to `main`, stays on the feature branch.
-- Milestones must be shared to be found by name (`#<id>` finds any), and the gate compares the batches with the same
-  label, whatever batch the milestone was saved on.
+- Milestones must be shared to be found by name (`#<id>` finds any). The gate compares with the milestone's batch
+  (unless you set `reference_batch`), but not with its filter: all the runs of the batch are compared.

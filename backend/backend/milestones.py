@@ -122,22 +122,20 @@ def same_results(a: dict, b: dict) -> bool:
   return all((a.get(k) or '') == (b.get(k) or '') for k in keys) and (a.get('commit_project_id') or None) == (b.get('commit_project_id') or None)
 
 
-def can_edit(owner_id: Optional[int], user_id: Optional[int], data: Optional[dict] = None, user_name: Optional[str] = None) -> bool:
+def can_edit(owner_id: Optional[int], user_id: Optional[int], data: Optional[dict] = None, user_name: Optional[str] = None, shared: bool = True) -> bool:
   """
-  Owners edit their milestones. Imported milestones without owner can be edited by any logged-in user,
-  or, if they had owners we don't know as users yet, by them.
+  Owners edit their milestones. Shared milestones without owner (imported, or whose owner was deleted) can be edited
+  by any logged-in user, or, if they had owners we don't know as users yet, by them.
+  Personal milestones without owner can't be edited: nobody can see them anymore, except from their link.
   """
   if not user_id:
     return False
   if owner_id is not None:
     return owner_id == user_id
+  if not shared:
+    return False
   legacy_owners = [o.get('user_name') for o in (data or {}).get('legacy_owners', [])]
   return not legacy_owners or user_name in legacy_owners
-
-
-def can_see(owner_id: Optional[int], shared: bool, user_id: Optional[int]) -> bool:
-  """Whether we list it for the user. Their link works for everyone who can see the project."""
-  return bool(shared) or owner_id is None or (user_id is not None and owner_id == user_id)
 
 
 def slugify(label: str) -> str:
@@ -146,7 +144,7 @@ def slugify(label: str) -> str:
   return slug[:60].strip('-')
 
 
-def serialize(milestone, user_id: Optional[int] = None, favorite_ids: Iterable[int] = (), user_name: Optional[str] = None) -> dict:
+def serialize(milestone, user_id: Optional[int] = None, favorite_ids: Set[int] = frozenset(), user_name: Optional[str] = None) -> dict:
   data = milestone.data or {}
   owner = milestone.user
   return {
@@ -165,27 +163,36 @@ def serialize(milestone, user_id: Optional[int] = None, favorite_ids: Iterable[i
     'message': data.get('message'),
     'owner': {'user_name': owner.user_name, 'full_name': owner.full_name} if owner else None,
     'is_mine': user_id is not None and milestone.user_id == user_id,
-    'can_edit': can_edit(milestone.user_id, user_id, data, user_name),
-    'is_favorite': milestone.id in set(favorite_ids),
+    'can_edit': can_edit(milestone.user_id, user_id, data, user_name, milestone.shared),
+    'is_favorite': milestone.id in favorite_ids,
     'slug': slugify(milestone.label or ''),
     'created_at': milestone.created_at.isoformat() + 'Z' if milestone.created_at else None,
     'updated_at': milestone.updated_at.isoformat() + 'Z' if milestone.updated_at else None,
   }
 
 
-def milestone_batches(milestones: Iterable) -> Dict[Tuple[str, str], Set[str]]:
-  """(results project, commit) => the labels of its batches that are milestones. The cleanup keeps them."""
-  batches: Dict[Tuple[str, str], Set[str]] = {}
-  for m in milestones:
-    project_id = m.commit_project_id or m.project_id
-    batches.setdefault((project_id, m.commit_hexsha), set()).add(m.batch or 'default')
-  return batches
+class MilestoneBatches:
+  """
+  (results project, commit) => the labels of its batches that are milestones. The cleanup keeps them.
+  Milestones may use a short commit id: we look those up separately, so that lookups stay fast.
+  """
+  def __init__(self, milestones: Iterable):
+    self.by_commit: Dict[Tuple[str, str], Set[str]] = {}
+    for m in milestones:
+      project_id = m.commit_project_id or m.project_id
+      self.by_commit.setdefault((project_id, m.commit_hexsha), set()).add(m.batch or 'default')
+    self.short = [(key, labels) for key, labels in self.by_commit.items() if 7 <= len(key[1]) < 40]
 
+  def __len__(self):
+    return sum(len(labels) for labels in self.by_commit.values())
 
-def batches_of_commit(batches: Dict[Tuple[str, str], Set[str]], project_id: str, hexsha: str) -> Set[str]:
-  """The milestone batches of a commit. Milestones may use a short commit id."""
-  labels = set(batches.get((project_id, hexsha), set()))
-  for (p, sha), commit_labels in batches.items():
-    if p == project_id and sha != hexsha and len(sha) >= 7 and hexsha.startswith(sha):
-      labels |= commit_labels
-  return labels
+  def commits(self):
+    return [hexsha for _, hexsha in self.by_commit]
+
+  def of_commit(self, project_id: str, hexsha: str) -> Set[str]:
+    """The milestone batches of a commit"""
+    labels = set(self.by_commit.get((project_id, hexsha), set()))
+    for (p, sha), commit_labels in self.short:
+      if p == project_id and sha != hexsha and hexsha.startswith(sha):
+        labels |= commit_labels
+    return labels

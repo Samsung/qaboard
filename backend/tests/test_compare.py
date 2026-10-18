@@ -235,8 +235,9 @@ def test_missing_batch(compare_api, dummy_app):
 
 def test_milestone_reference(compare_api, dummy_app):
   milestones = [
-    SimpleNamespace(id=12, label='v2.4.0', commit_hexsha=REF_HEXSHA, commit_project_id=None, batch='default'),
-    SimpleNamespace(id=11, label='v2.3.0', commit_hexsha='0000000', commit_project_id=None, batch='default'),
+    SimpleNamespace(id=12, label='v2.4.0', commit_hexsha=REF_HEXSHA, commit_project_id=None, batch='default', filter='', data={}),
+    SimpleNamespace(id=11, label='v2.3.0', commit_hexsha='0000000', commit_project_id=None, batch='default', filter='', data={}),
+    SimpleNamespace(id=10, label='', commit_hexsha=REF_HEXSHA, commit_project_id=None, batch='nightly', filter='indoor', data={'legacy_key': f'p/{REF_HEXSHA}/nightly'}),
   ]
   compare_api.milestones_of = lambda project_id, milestone_id=None: [m for m in milestones if milestone_id in (None, m.id)]
   new = make_commit(HEXSHA, {'default': fixture_outputs('new')})
@@ -246,6 +247,12 @@ def test_milestone_reference(compare_api, dummy_app):
   # from its link: /p/milestone/12-v2-4-0
   data = call(compare_api, dummy_app, {HEXSHA: new, REF_HEXSHA: ref}, 'project=p&reference=%2312').get_json()
   assert (data['reference']['type'], data['reference']['id']) == ('milestone', REF_HEXSHA)
+  # keys from before October 2026 still work, and we compare with the milestone's batch
+  ref_nightly = make_commit(REF_HEXSHA, {'nightly': fixture_outputs('ref')}, id=2)
+  data = call(compare_api, dummy_app, {HEXSHA: new, REF_HEXSHA: ref_nightly}, f'project=p&reference=p/{REF_HEXSHA}/nightly').get_json()
+  assert (data['reference']['type'], data['reference']['batch']) == ('milestone', 'nightly')
+  assert any('filter of the milestone' in m for m in data['messages'])
+  assert data['status'] != 'missing'
   data = call(compare_api, dummy_app, {HEXSHA: new, REF_HEXSHA: ref}, 'project=p&reference=v2.3.0').get_json()
   assert (data['status'], data['reference']['id']) == ('missing', None)
   assert data['messages'] == ['The commit of the milestone "v2.3.0" has no results.']

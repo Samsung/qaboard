@@ -143,7 +143,7 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
   const matching = list.filter(m => matcher(search_text(m)));
   const favorites = matching.filter(m => m.is_favorite).sort(by_date);
   const mine = matching.filter(m => m.is_mine);
-  const team = matching.filter(m => !m.is_mine && (m.shared || !m.owner));
+  const team = matching.filter(m => !m.is_mine && m.shared);
   const matching_refs = refs.filter(ref => matcher(`${ref} qaboard.yaml`));
   const nothing = list.length === 0 && refs.length === 0;
   const no_match = !nothing && favorites.length + mine.length + team.length + matching_refs.length === 0;

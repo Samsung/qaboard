@@ -44,7 +44,7 @@ Logged-in users can also delete results from a commit's page, in the batch's men
 - With the *Delete files, keep metadata* switch, only the files are deleted, and the runs stay listed (they can be redone later). You can then also give a file pattern, like `*.png` or `**/*.py`, to delete only the matching files.
 - **Delete multiple batches** at once.
 
-Batches that are [milestones](../references-and-milestones) are protected: their runs can't all be deleted this way (only their files can). Deleting all the runs of a commit keeps its milestone batches.
+Batches that are [milestones](../references-and-milestones) are protected: their runs can't all be deleted this way (only their files, or their failed runs, can). Deleting all the runs of a commit keeps its milestone batches.
 
 ## Recovering lost data?
 Well, you won't be able to do that. What you should try to do is make everything **reproducible**.

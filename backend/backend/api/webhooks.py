@@ -26,27 +26,33 @@ def delete_commit(commit_id, project_id=None):
     ci_commits = CiCommit.query.filter(CiCommit.hexsha == commit_id)
     if project_id:
       ci_commits = ci_commits.filter(CiCommit.project_id == project_id)
-    for ci_commit in ci_commits.yield_per(1000):
+    ci_commits = ci_commits.all()
+    if not ci_commits:
+      return f"404 ERROR: Cannot find commit", 404
+    # Checked for all the projects first: we delete everything or nothing
+    for ci_commit in ci_commits:
       if forbidden := require_project_access(g.user, ci_commit.project_id):
         return forbidden
-      print("DELETING", ci_commit)
       if ci_commit.hexsha in ci_commit.project.protected_ref_commits:
-        return jsonify({"error": "This commit is protected in qaboard.yaml: it's the reference branch's latest commit, or listed in project.milestones."}), 403
+        return jsonify({"error": f"This commit is protected in the qaboard.yaml of {ci_commit.project_id}: it's the reference branch's latest commit, or listed in project.milestones."}), 403
+    kept = set()
+    for ci_commit in ci_commits:
+      print("DELETING", ci_commit)
       # Batches that are milestones are kept
-      kept = {b for m in ci_commit.project.milestones_on(ci_commit.hexsha) for b in [m.batch or 'default']}
+      milestone_batches = {m.batch or 'default' for m in ci_commit.project.milestones_on(ci_commit.hexsha)}
       for batch in ci_commit.batches:
-        if batch.label in kept:
+        if batch.label in milestone_batches:
           print(f" > keeping the milestone {batch}")
+          kept.add(batch.label)
           continue
         print(f" > {batch}")
         stop_status = batch.stop(db_session)
         if "error" in stop_status:
           return jsonify(stop_status), 500
         batch.delete(session=db_session)
-      return {"status": "OK", "kept": sorted(kept)}
+    return {"status": "OK", "kept": sorted(kept)}
   except Exception as e:
     return f"404 ERROR {e}: {commit_id} in {project_id}", 404
-  return f"404 ERROR: Cannot find commit", 404
 
 
 

@@ -231,7 +231,9 @@ describe('saving milestones', () => {
     expect(dialog.getByText(/Only Dan D can edit it/)).toBeInTheDocument();
     expect(dialog.queryByLabelText('Name')).toBeNull();
     fireEvent.click(dialog.getByText('Save my own'));
-    expect(dialog.getByLabelText('Name')).toHaveValue('Bob baseline');
+    // a copy of a shared milestone is personal, with another name, until users decide otherwise
+    expect(dialog.getByLabelText('Name')).toHaveValue('Bob baseline (mine)');
+    expect(dialog.getByText(/Listed only for you/)).toBeInTheDocument();
     expect(dialog.getByText('Save milestone')).toBeInTheDocument();
   });
 
@@ -262,6 +264,16 @@ describe('milestones saved in browsers by older versions', () => {
     renderImport(alice);
     await waitFor(() => expect(usePrefsStore.getState().milestones).toEqual({ 'no-access': { k: { commit: 'x' } } }));
     expect(calls[0].body).toEqual({ milestones: legacy });
+  });
+
+  test("are sent once when the server can't take them", async () => {
+    usePrefsStore.setState({ milestones: { secret: { k: { commit: 'abc' } } } });
+    const calls = stubApi({ 'POST /api/v1/milestones/import': { imported: 0, done: [], skipped: [{ project: 'secret', reason: 'no access' }] } });
+    renderImport(alice);
+    await waitFor(() => expect(calls).toHaveLength(1));
+    await new Promise(resolve => setTimeout(resolve, 50));
+    expect(calls).toHaveLength(1);
+    expect(usePrefsStore.getState().milestones).toEqual({ secret: { k: { commit: 'abc' } } });
   });
 
   test('stay in the browser until users log in', async () => {

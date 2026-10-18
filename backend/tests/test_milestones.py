@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from backend.milestones import (
-  clean_fields, from_legacy, same_results, can_edit, can_see, slugify, serialize, milestone_batches, batches_of_commit, normalize_group,
+  clean_fields, from_legacy, same_results, can_edit, slugify, serialize, MilestoneBatches, normalize_group,
 )
 
 SHA = 'aaaaaaaa11111111aaaaaaaa11111111aaaaaaaa'
@@ -92,15 +92,12 @@ class TestPermissions:
 
   def test_milestones_without_owner(self):
     assert can_edit(None, 2)
+    # e.g. the owner was deleted: their personal milestones stay theirs
+    assert not can_edit(None, 2, {}, 'bob', shared=False)
     # imported with owners that never logged in since: only them
     data = {'legacy_owners': [{'user_name': 'zed'}]}
     assert not can_edit(None, 2, data, 'bob')
     assert can_edit(None, 2, data, 'zed')
-
-  def test_who_sees_them(self):
-    assert can_see(1, True, None)
-    assert can_see(1, False, 1)
-    assert not can_see(1, False, 2)
 
 
 def test_slugs():
@@ -123,11 +120,13 @@ def test_milestone_batches():
     make_milestone(batch='default'), make_milestone(batch='tuning'),
     make_milestone(commit_project_id='other', batch='x'), make_milestone(commit_hexsha=SHA[:8], batch='short'),
   ]
-  batches = milestone_batches(milestones)
-  assert batches[('p', SHA)] == {'default', 'tuning'}
-  assert batches[('other', SHA)] == {'x'}
-  assert batches_of_commit(batches, 'p', SHA) == {'default', 'tuning', 'short'}
-  assert batches_of_commit(batches, 'p', 'f' * 40) == set()
+  batches = MilestoneBatches(milestones)
+  assert batches.by_commit[('p', SHA)] == {'default', 'tuning'}
+  assert batches.by_commit[('other', SHA)] == {'x'}
+  assert batches.of_commit('p', SHA) == {'default', 'tuning', 'short'}
+  assert batches.of_commit('p', 'f' * 40) == set()
+  assert batches.of_commit('other', SHA) == {'x'}
+  assert len(batches) == 4
 
 
 # ==========================================
@@ -248,3 +247,11 @@ def test_import(api, dummy_app):
   assert (data['imported'], data['done']) == (1, ['gone', 'p'])
   assert [(m.label, m.batch, m.user_id, m.shared) for m in added] == [('try', 'tuning', 2, False)]
   assert [s['reason'] for s in data['skipped']] == ["The project doesn't exist", 'Not a milestone']
+
+
+def test_saving_needs_access_to_the_results_project(api, dummy_app):
+  api.Project.query.filter.return_value = MagicMock(**{'one_or_none.return_value': SimpleNamespace(id='p')})
+  api.is_authorized_user.side_effect = lambda user, project: project != 'secret'
+  response = call(dummy_app, api.create_milestone, method='POST', json={'project': 'p', 'commit': SHA, 'commit_project': 'secret'})
+  assert response.status_code == 403
+  api.db.add.assert_not_called()

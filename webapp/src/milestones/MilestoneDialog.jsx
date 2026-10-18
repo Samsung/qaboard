@@ -150,6 +150,12 @@ const MilestoneForm = ({ project, milestone: existing, target: new_target, runs,
   const { save, remove, toggleFavorite } = useMilestoneActions(project);
   // others' milestones are read-only. Users can save their own copy.
   const [copying, setCopying] = useState(false);
+  // a copy is the user's own: personal, until they decide to share it
+  const copy = () => {
+    setCopying(true);
+    setVisibility('personal');
+    setLabel(label => `${label} (mine)`);
+  };
   const milestone = copying ? null : existing;
   const target = milestone ? target_of(milestone) : (new_target ?? target_of(existing));
   const read_only = !!milestone && !milestone.can_edit;
@@ -266,7 +272,7 @@ const MilestoneForm = ({ project, milestone: existing, target: new_target, runs,
           aria-pressed={is_favorite}
           onClick={() => toggleFavorite({ ...existing, is_favorite }).catch(() => {})}
         />}
-        {read_only && user.is_logged && <Button variant="minimal" icon="duplicate" text="Save my own" onClick={() => setCopying(true)}/>}
+        {read_only && user.is_logged && <Button variant="minimal" icon="duplicate" text="Save my own" onClick={copy}/>}
         {milestone?.can_edit && <Button variant="minimal" intent={Intent.DANGER} icon="trash" text="Delete" onClick={() => setConfirmDelete(true)}/>}
       </span>}
     </DialogFooter>

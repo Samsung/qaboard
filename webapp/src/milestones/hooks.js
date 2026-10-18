@@ -87,14 +87,18 @@ export const useImportLegacyMilestones = () => {
   const user = useUser();
   const legacy = useLegacyMilestones();
   const queryClient = useQueryClient();
-  const importing = useRef(false);
+  // what we last tried to import: milestones the server can't take (e.g. projects the user can't access) stay in the
+  // browser, and we don't send them again and again
+  const attempted = useRef(null);
   const count = count_legacy(legacy);
   useEffect(() => {
-    if (!user.is_logged || count === 0 || importing.current) return;
-    importing.current = true;
+    if (!user.is_logged || count === 0) return;
+    const key = `${user.user_name}:${JSON.stringify(legacy)}`;
+    if (attempted.current === key) return;
+    attempted.current = key;
     importMilestones(legacy)
       .then(({ imported, done }) => {
-        usePrefsStore.getState().forgetLegacyMilestones(done);
+        if (done.length > 0) usePrefsStore.getState().forgetLegacyMilestones(done);
         if (imported > 0) {
           toaster.show({
             message: `Moved ${imported} milestone${imported > 1 ? 's' : ''} from this browser to your account: they now follow you on every computer.`,
@@ -103,8 +107,7 @@ export const useImportLegacyMilestones = () => {
         }
         queryClient.invalidateQueries({ queryKey: ['milestones'] });
       })
-      // we'll try again next time
-      .catch(error => console.warn('Could not move the milestones saved in this browser', error))
-      .finally(() => { importing.current = false; });
-  }, [user.is_logged, count, legacy, queryClient]);
+      // we'll try again next time the app loads
+      .catch(error => console.warn('Could not move the milestones saved in this browser', error));
+  }, [user.is_logged, user.user_name, count, legacy, queryClient]);
 };

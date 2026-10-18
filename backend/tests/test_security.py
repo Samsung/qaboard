@@ -288,7 +288,7 @@ def test_commit_batches_delete_checks_the_commit_project(commit_webhooks, restri
     query = query.filter.return_value
   for project, expected_status in [("group/B", 403), ("group/A", 200)]:
     batch = FakeBatch(project)
-    query.yield_per.return_value = [batch.ci_commit]
+    query.all.return_value = [batch.ci_commit]
     url = f"/api/v1/commit/{project}/abc/batches/" if project_in_url else "/api/v1/commit/abc/batches/"
     with dummy_app.test_request_context(f"{url}?project=group/A", method="DELETE"):
       response = handler("abc", project_id=project if project_in_url else None)

@@ -10,7 +10,7 @@ import { path_segment, stringify_query } from "../selection";
 import { pretty_label } from "../utils";
 
 
-// What lookups need, computed once per answer: by id, and by commit
+// What lookups need, computed once per answer: by id, by commit, and those with a short commit id (rare)
 export const index_milestones = (list = []) => {
   const by_id = {};
   const by_commit = {};
@@ -18,7 +18,8 @@ export const index_milestones = (list = []) => {
     by_id[m.id] = m;
     (by_commit[m.commit] ??= []).push(m);
   }
-  return { list, by_id, by_commit };
+  const short = list.filter(m => (m.commit?.length ?? 40) < 40);
+  return { list, by_id, by_commit, short };
 };
 export const no_milestones = index_milestones([]);
 
@@ -63,7 +64,9 @@ const same_commit = (a, b) => !!a && !!b && (a === b || (a.length >= 7 && b.star
 export const milestones_of = (index, { project, commit, batch, filter }) => {
   if (!commit) return [];
   // milestones may have a short commit id
-  const candidates = [...(index.by_commit[commit] ?? []), ...index.list.filter(m => m.commit !== commit && same_commit(m.commit, commit))];
+  // milestones with a short id, or all of them if we're given a short id: commit lists call this for each row
+  const maybe_same = commit.length < 40 ? index.list : (index.short ?? index.list);
+  const candidates = [...(index.by_commit[commit] ?? []), ...maybe_same.filter(m => m.commit !== commit && same_commit(m.commit, commit))];
   return candidates
     .filter(m => !project || results_project(m) === project)
     .filter(m => batch === undefined || (m.batch ?? 'default') === batch)

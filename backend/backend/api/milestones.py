@@ -70,7 +70,9 @@ def list_milestones():
   user_info, user_id = current_user_info()
   if not is_authorized_user(user_info, project_id):
     return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
-  visible = [Milestone.shared == True, Milestone.user_id == None]
+  # shared milestones, and the user's own. Personal milestones are only listed for their owner,
+  # even after their owner is deleted (user_id becomes NULL): their links still work.
+  visible = [Milestone.shared == True]
   if user_id:
     visible.append(Milestone.user_id == user_id)
   milestones = (Milestone.query
@@ -80,7 +82,8 @@ def list_milestones():
                 .all())
   favorites = favorite_ids(user_id)
   # Favorites can be other users' personal milestones, opened from their link
-  others = [i for i in favorites if i not in {m.id for m in milestones}]
+  listed = {m.id for m in milestones}
+  others = [i for i in favorites if i not in listed]
   if others:
     milestones += Milestone.query.filter(Milestone.project_id == project_id).filter(Milestone.id.in_(others)).all()
   return jsonify({"milestones": [answer(m, user_info, favorites) for m in milestones]})
@@ -102,6 +105,9 @@ def create_milestone():
   fields, error = clean_fields(body)
   if error:
     return jsonify({"error": error}), 400
+  # milestones protect their batch from deletion: only in projects the user can see
+  if fields['commit_project_id'] and (forbidden := require_project_access(user_info, fields['commit_project_id'])):
+    return forbidden
   commit_info = fields.pop('commit_info', None)
   milestone = Milestone(project_id=project_id, user_id=user_id, data={}, **fields)
   set_commit_info(milestone, commit_info)
@@ -142,6 +148,8 @@ def edit_milestone(milestone_id):
   fields, error = clean_fields(request.get_json(silent=True) or {}, partial=True)
   if error:
     return jsonify({"error": error}), 400
+  if fields.get('commit_project_id') and (forbidden := require_project_access(user_info, fields['commit_project_id'])):
+    return forbidden
   set_commit_info(milestone, fields.pop('commit_info', None))
   for name, value in fields.items():
     setattr(milestone, name, value)
