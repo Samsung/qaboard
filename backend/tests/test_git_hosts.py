@@ -574,7 +574,9 @@ def test_jenkins_build_trigger_errors(integrations, dummy_app, monkeypatch):
   monkeypatch.setattr(integrations, "jenkins_credentials", {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
   requests = MagicMock()
   monkeypatch.setattr(integrations, "requests", requests)
-  requests.get.return_value = response(json_data={"url": "queue/item/7/", "executable": {"url": "http://jenkins/job/x/12/"}})
+  job = {"property": [{"_class": "jenkins.model.BuildDiscarderProperty"}]}
+  queue = response(json_data={"url": "queue/item/7/", "executable": {"url": "http://jenkins/job/x/12/"}})
+  requests.get.side_effect = lambda url, **kwargs: response(json_data=job) if url == "http://jenkins/job/x/api/json" else queue
   def jenkins(status_code, text="", location=None):
     r = response(status_code=status_code)
     r.text = text
@@ -582,12 +584,21 @@ def test_jenkins_build_trigger_errors(integrations, dummy_app, monkeypatch):
       r.headers = {"location": location}
     return r
 
-  # Jobs without parameters don't accept buildWithParameters
-  requests.post.side_effect = [jenkins(500, "<html><h2>java.lang.IllegalStateException: This build is not parameterized!</h2></html>"), jenkins(201, location="http://jenkins/queue/item/7/")]
+  # Jobs without parameters don't accept buildWithParameters, and Jenkins only tells admins why
+  oops = "<html><h2>Oops!</h2><p>A problem occurred while processing the request.</p></html>"
+  requests.post.side_effect = [jenkins(500, oops), jenkins(201, location="http://jenkins/queue/item/7/")]
   data, status = call(integrations, dummy_app, "jenkins_build_trigger", {"build_url": "http://jenkins/job/x/", "params": None})
   assert status == 200
   assert [c.args[0] for c in requests.post.call_args_list] == ["http://jenkins/job/x/buildWithParameters", "http://jenkins/job/x/build"]
   assert all(c.kwargs["allow_redirects"] is False for c in requests.post.call_args_list)
+  # Jobs with parameters only get one try
+  job = {"property": [{"parameterDefinitions": [{"name": "commit"}]}]}
+  requests.post.reset_mock()
+  requests.post.side_effect = [jenkins(500, oops)]
+  data, status = call(integrations, dummy_app, "jenkins_build_trigger", {"build_url": "http://jenkins/job/x", "params": {}})
+  assert status == 500
+  assert "HTTP 500 from POST http://jenkins/job/x/buildWithParameters: Oops! A problem occurred" in data.get_json()["error"]
+  assert requests.post.call_count == 1
 
   # Errors say what Jenkins said, not its whole HTML page
   for answer, expected in [

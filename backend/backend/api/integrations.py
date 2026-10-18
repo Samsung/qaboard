@@ -154,6 +154,16 @@ def jenkins_same_host(url, build_url):
   base = urlparse(build_url)
   return urlparse(url)._replace(scheme=base.scheme, netloc=base.netloc).geturl()
 
+def jenkins_job_is_parameterized(build_url, jenkins_credentials):
+  """True unless Jenkins says the job has no parameters"""
+  try:
+    r = requests.get(f"{build_url}/api/json", params={"tree": "property[parameterDefinitions[name]]"}, timeout=30, **jenkins_credentials)
+    r.raise_for_status()
+    return any(p.get('parameterDefinitions') for p in r.json().get('property', []))
+  except Exception as e:
+    print(f"WARNING: could not check if {build_url} has parameters: {e}")
+    return True
+
 def jenkins_error(r, url):
   """Explains a Jenkins error response, whose body is usually a whole HTML page"""
   hints = {
@@ -666,7 +676,9 @@ def jenkins_build_trigger():
   build_trigger_url = f"{build_url}/buildWithParameters"
   try:
     r_build = post(build_trigger_url)
-    if not r_build.ok and 'is not parameterized' in r_build.text:
+    # Jenkins refuses buildWithParameters for jobs without parameters, but only tells admins why:
+    # others get "A problem occurred while processing the request"
+    if not r_build.ok and not jenkins_job_is_parameterized(build_url, jenkins_credentials):
       build_trigger_url = f"{build_url}/build"
       r_build = post(build_trigger_url)
   except Exception as e:
