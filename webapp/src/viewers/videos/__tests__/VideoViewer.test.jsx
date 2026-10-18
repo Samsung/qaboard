@@ -113,17 +113,17 @@ describe('VideoViewer', () => {
     load(video_new);
     load(screen.getByLabelText('Reference video'));
     // not hovered: nothing happens
-    fireEvent.keyDown(window, { key: '2' });
+    fireEvent.keyDown(document, { key: '2' });
     expect(container.querySelector('.video-wipe')).toBeNull();
     fireEvent.pointerEnter(container.querySelector('.video-viewer'));
-    fireEvent.keyDown(window, { key: '2' });
+    fireEvent.keyDown(document, { key: '2' });
     expect(container.querySelector('.video-wipe')).not.toBeNull();
     // t swaps the sides
     const labels = () => [...container.querySelectorAll('.video-label')].map(label => `${label.textContent}@${label.classList.contains('left') ? 'left' : 'right'}`);
     expect(labels()).toEqual(['new640×360@left', 'reference640×360@right']);
-    fireEvent.keyDown(window, { key: 't' });
+    fireEvent.keyDown(document, { key: 't' });
     expect(labels()).toEqual(['reference640×360@left', 'new640×360@right']);
-    fireEvent.keyDown(window, { key: ' ' });
+    fireEvent.keyDown(document, { key: ' ' });
     expect(video_new.play).toHaveBeenCalled();
   });
 

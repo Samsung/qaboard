@@ -122,7 +122,7 @@ const CiCommitResults = () => {
 
   const toggle = name => () => setControls({ ...controls, [name]: !controls[name] });
   // e.g. how image viewers compare images, set from any of them
-  const updateControls = changes => setControls({ ...controls, ...changes });
+  const updateControls = changes => setControls(controls => ({ ...controls, ...changes }));
   // Visualizations are shown unless hidden by default
   const is_shown = name => controls.show?.[name] ?? !visualizations.find(v => v.name === name)?.default_hidden;
   const toggle_show = name => () => setControls({ ...controls, show: { ...controls.show, [name]: !is_shown(name) } });

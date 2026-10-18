@@ -106,19 +106,24 @@ Compare the images above them, like videos:
 |---|---|
 | **Side by side** | New on the left, reference on the right. A cross marks the pixel under your mouse on both. |
 | **Wipe** | One image over the other: drag the divider to see new on one side, reference on the other. |
-| **Toggle** | One image at a time: click it, or press <kbd>t</kbd>, to flip to the other in place, in every viewer of the page. Differences jump out. |
+| **Toggle** | One image at a time: click it, or press <kbd>t</kbd>, to flip to the other in place, then to their difference, then back, in every viewer of the page. Differences jump out. |
 | **Difference** | [Where the images differ](#the-difference), between them (new, difference, reference) or alone. |
 
 The mode applies to every image viewer of the page, and is saved in the URL: a link shows the same comparison. Press
-<kbd>1</kbd> to <kbd>4</kbd> over a viewer to switch, or pick it in the **View options** (**Viewers** › **Compare images**).
+<kbd>1</kbd> to <kbd>4</kbd> to switch, or pick it in the **View options** (**Viewers** › **Compare images**).
 **Swap** (or <kbd>t</kbd>) exchanges new and reference in every viewer of the page, so they all show the same one
-first. When both runs saved the same file, the viewer shows one image, tagged *same as the reference*.
+first. The difference stays between them. When one image shows, or the difference alone, it goes to the other image,
+then to their difference, then back to the first: its tooltip says what's next.
+
+The keys work anywhere on the page, also while you scroll: on the viewer under your mouse, else the one you used last,
+or the first one in view. When both runs saved the same file, the viewer shows one image, tagged *same as the reference*.
 
 ### Blind test
 To judge images without knowing which is new, click **Blind test** next to **Swap** above the images, or press
 <kbd>h</kbd>. Every viewer of the page then shows its two images in a random order, called **A** and **B**: in their
 labels, the values under the pointer and the histograms. Nothing else tells them apart: compare, swap them (in toggle
-mode, <kbd>t</kbd> flips between A and B), and pick the one you prefer.
+mode, <kbd>t</kbd> goes from A to B, then to their difference), and pick the one you prefer. Swapping, toggling and the
+test itself apply to every viewer of the page.
 
 The same button, now **Reveal** (or <kbd>h</kbd>), shows which was which, e.g. *reference · A*, without moving the
 images. Then **Done** (or <kbd>h</kbd>) ends the test: new first again everywhere.

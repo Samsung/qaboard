@@ -371,7 +371,7 @@ const CommitsEvolutionPerTest = props => {
         expand_all={props.expand_all}
         files_filter={props.files_filter}
         controls={controls}
-        onControlsChange={changes => updateControls({ ...controls, ...changes })}
+        onControlsChange={changes => updateControls(controls => ({ ...controls, ...changes }))}
       />}
     </div>;
   }

@@ -396,7 +396,7 @@ const VideoViewer = ({
       const focus = document.activeElement;
       const active = element.contains(focus) || (hovered.current && (!focus || focus === document.body));
       if (!active || !onKey.current(event)) return;
-      // it also stops the image viewers from handling "t" (they listen to keypress)
+      // it also stops the image viewers from handling "t" (they listen on window, after document)
       event.preventDefault();
       handled_space = event.key === ' ';
     };
@@ -406,11 +406,11 @@ const VideoViewer = ({
       event.preventDefault();
       handled_space = false;
     };
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keyup', onKeyUp);
     return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('keyup', onKeyUp);
     };
   }, []);
 

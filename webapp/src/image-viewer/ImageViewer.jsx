@@ -16,8 +16,29 @@ import './image-viewer.css';
 
 const GAP = 4;
 const ZOOM_STEP = 1.5;
-// The viewer under the mouse gets the keyboard shortcuts
+// The keyboard shortcuts work all over the page: they go to the viewer in full screen, else the one under the mouse, else
+// the one with the focus, else the one used last if it's in view, else the first in view
+const viewers = new Set();
 let hovered_viewer = null;
+let last_viewer = null;
+const in_view = element => {
+  const rect = element.getBoundingClientRect();
+  return rect.width > 0 && rect.bottom > 0 && rect.top < window.innerHeight;
+};
+const keyboardViewer = () => {
+  if (viewers.has(document.fullscreenElement)) return document.fullscreenElement;
+  if (hovered_viewer) return hovered_viewer;
+  const focused = [...viewers].find(viewer => viewer.contains(document.activeElement));
+  if (focused) return focused;
+  if (viewers.has(last_viewer) && in_view(last_viewer)) return last_viewer;
+  return [...viewers].filter(in_view).sort((a, b) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)[0] ?? null;
+};
+// each viewer listens to the keys: they agree on the one that handles a key
+const keyboard_viewers = new WeakMap();
+const keyboardViewerOf = event => {
+  if (!keyboard_viewers.has(event)) keyboard_viewers.set(event, keyboardViewer());
+  return keyboard_viewers.get(event);
+};
 
 // A prop users can control, or leave to the viewer
 const useControllable = (value, initial, onChange) => {
@@ -250,6 +271,28 @@ export const ImageViewer = ({
   const first = swapped ? 'b' : 'a';
   const second = swapped ? 'a' : 'b';
   const swap = () => setSwapped(!swapped);
+  // The toggle (t, the swap button, a click on the image shown alone): when both images show, they swap sides (around
+  // their difference). When one shows, or their difference alone: the first image, the other, their difference, and
+  // again. The first is new, or A during a blind test: with swapped shared by the viewers of a page, they all stay in step.
+  const single = mode === 'toggle' || (mode === 'difference' && diff_layout === 'alone');
+  const lead = blind?.a === 'B' ? 'b' : 'a';
+  const other = lead === 'a' ? 'b' : 'a';
+  const flip = () => {
+    if (!single || (mode === 'toggle' && first === lead)) return swap();
+    if (mode === 'toggle') {
+      // their difference: the first image minus the other
+      swap();
+      setDiff({ ...diff, layout: 'alone' });
+      setMode('difference');
+      return;
+    }
+    if (first !== lead) swap();
+    setMode('toggle');
+  };
+  const flip_title = !single ? `Swap the sides: ${names[second]} | ${names[first]}`
+    : mode === 'toggle' && first === lead ? `Show the ${names[other]} image`
+    : mode === 'toggle' ? `Show the difference: ${names[lead]} − ${names[other]}`
+    : `Show the ${names[lead]} image`;
   // Picking the mode shown again: Toggle flips the images, Difference shows or hides the images on its sides
   const pickMode = value => {
     if (value === mode && value === 'toggle') swap();
@@ -313,12 +356,10 @@ export const ImageViewer = ({
     copied(() => navigator.clipboard.writeText(regionAsYaml(region, size_a)), 'region in view').then(notify);
   };
 
-  // Clicking the image flips it in toggle mode
-  const mode_ref = useRef(mode);
+  // Clicking the image shown alone, or their difference, shows the next one
   useLayoutEffect(() => {
-    mode_ref.current = mode;
     controller.setOnClick(() => {
-      if (mode_ref.current === 'toggle') swap();
+      if (single) flip();
     });
   });
 
@@ -349,7 +390,7 @@ export const ImageViewer = ({
           return true;
         case 't':
           if (!comparing) return false;
-          swap();
+          flip();
           return true;
         case 'h':
           if (!comparing) return false;
@@ -385,15 +426,17 @@ export const ImageViewer = ({
       if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
       const target = event.target;
       if (target instanceof Element && target.closest('input:not([type="range"]):not([type="checkbox"]), textarea, select, [contenteditable="true"]')) return;
-      const active = hovered_viewer ? hovered_viewer === root.current : !!root.current?.contains(document.activeElement);
-      if (!active || !on_key.current(event)) return;
+      if (keyboardViewerOf(event) !== root.current || !on_key.current(event)) return;
       event.preventDefault();
     };
     window.addEventListener('keydown', onKeyDown);
     const element = root.current;
+    viewers.add(element);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
+      viewers.delete(element);
       if (hovered_viewer === element) hovered_viewer = null;
+      if (last_viewer === element) last_viewer = null;
     };
   }, []);
 
@@ -423,8 +466,8 @@ export const ImageViewer = ({
     key={`label-${name}-${position}`}
     type="button"
     className={`qiv-label qiv-label-${position} ${hidden ? 'qiv-neutral' : name === 'a' ? 'qiv-primary' : 'qiv-warning'}`}
-    title={hidden ? 'Blind test: which is new? Swap them (t), reveal with h' : 'Swap the images (t). Blind test: h'}
-    onClick={swap}
+    title={`${flip_title} (t). ${hidden ? 'Blind test: which is new? Reveal with h' : 'Blind test: h'}`}
+    onClick={flip}
     onPointerDown={event => event.stopPropagation()}
   >
     {names[name]}{resolution(name)}
@@ -501,8 +544,9 @@ export const ImageViewer = ({
     className={`qiv ${fullscreen ? 'qiv-fullscreen' : ''} ${className}`}
     data-theme={theme}
     style={style}
-    onPointerEnter={() => { hovered_viewer = root.current; }}
+    onPointerEnter={() => { hovered_viewer = last_viewer = root.current; }}
     onPointerLeave={() => { if (hovered_viewer === root.current) hovered_viewer = null; }}
+    onFocus={() => { last_viewer = root.current; }}
   >
     <svg className="qiv-filters" aria-hidden="true" width="0" height="0">
       <filter id={filter_id} colorInterpolationFilters="sRGB">
@@ -519,7 +563,7 @@ export const ImageViewer = ({
         aria-pressed={diff_between}
         onClick={toggleDiffLayout}
       />}
-      {comparing && (mode !== 'difference' || diff_between) && <Button icon="exchange" title={`Swap ${names[first]} and ${names[second]} (t)`} onClick={swap} active={swapped && !hidden} aria-pressed={swapped && !hidden} />}
+      {comparing && <Button icon="exchange" title={`${flip_title} (t)`} onClick={flip} active={swapped && !hidden} aria-pressed={swapped && !hidden} />}
       {comparing && <Button
         icon={!blind ? 'eye-off' : blind.revealed ? 'tick' : 'eye-open'}
         text={!blind ? 'Blind test' : blind.revealed ? 'Done' : 'Reveal'}

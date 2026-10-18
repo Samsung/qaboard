@@ -23,11 +23,12 @@ export const Button = ({ icon, text, children, active = false, className = '', t
     {(text || children) && <span>{text}{children}</span>}
   </button>;
 
-// One of a few options, e.g. the comparison mode. Arrow keys move between options, like radio buttons.
+// One of a few options, e.g. the comparison mode. The left and right arrows move between options, like radio buttons
+// (not up and down: users scroll the page with them).
 export const Segmented = ({ options, value, onChange, label, className = '' }) => {
   const refs = useRef([]);
   const onKeyDown = (event, index) => {
-    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+    const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
     if (!step) return;
     event.preventDefault();
     event.stopPropagation();
