@@ -162,7 +162,7 @@ class FakeBatch:
   def __init__(self, project_id, label="default"):
     self.label = label
     self.ci_commit = SimpleNamespace(project_id=project_id, hexsha="abc", batches=[self], get_or_create_batch=MagicMock())
-    self.ci_commit.project = SimpleNamespace(milestone_commits=[])
+    self.ci_commit.project = SimpleNamespace(protected_ref_commits=[], milestones_on=lambda hexsha=None: [])
     self.outputs = []
     self.changed = []
 
@@ -401,8 +401,6 @@ UNAUTHENTICATED_ENDPOINTS = {
   ("tuning.py", "groups"),
   # authenticated with the git host's webhook secret (QABOARD_WEBHOOK_SECRET by default)
   ("webhooks.py", "gitlab_webhook"), ("webhooks.py", "github_webhook"), ("webhooks.py", "gitea_webhook"), ("webhooks.py", "bitbucket_webhook"),
-  # TODO: require a login, check the web app first
-  ("milestones.py", "crud_milestones"),
 }
 
 def test_endpoints_that_change_things_require_login():

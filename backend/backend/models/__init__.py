@@ -6,3 +6,4 @@ from .Batch import *
 from .CiCommit import *
 from .Project import *
 from .User import *
+from .Milestone import *

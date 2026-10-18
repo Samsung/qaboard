@@ -8,7 +8,7 @@ the median of each metric and its change, each run next to its reference run, an
 Query parameters:
 - `project` (required)
 - `batch`: the batch label, default `default` (the CI batch, shown as "CI": `ci` also names it)
-- `reference`: a milestone (its label), a commit sha or a branch (its latest commit with runs in the batch).
+- `reference`: a shared milestone (its label, or `#<id>` for any milestone), a commit sha or a branch (its latest commit with runs in the batch).
    Default: the commit's `gate.reference` in qaboard.yaml, else `project.reference_branch`.
 - `reference_batch`: the reference's batch label, default `batch`
 - `metrics`: a comma-separated list of metrics, default all those with numbers in the commit's runs
@@ -21,7 +21,7 @@ from flask import request, jsonify
 
 from backend import app, db_session
 from .auth import is_authorized_user
-from ..models import CiCommit, Batch
+from ..models import CiCommit, Batch, Milestone
 from ..compare import compare_outputs, run_counts, manifests_mismatch
 from ..storage import is_storage_path
 
@@ -81,13 +81,20 @@ def find_branch_commit(project_id: str, branch: str, label: str, commit):
   return None
 
 
-def find_milestone(project, reference: str):
-  """The shared milestone with this label (or key), the latest if there are several"""
-  milestones = (project.data or {}).get('milestones') or {}
-  matches = [m for key, m in milestones.items() if isinstance(m, dict) and reference in (m.get('label'), key)]
-  if not matches:
-    return None
-  return max(matches, key=lambda m: str(m.get('date') or ''))
+def milestones_of(project_id: str, milestone_id=None):
+  """The project's shared milestones, the latest first. With an id, that milestone, shared or not."""
+  query = Milestone.query.filter(Milestone.project_id == project_id)
+  if milestone_id is not None:
+    return query.filter(Milestone.id == milestone_id).all()
+  return query.filter(Milestone.shared == True).order_by(Milestone.updated_at.desc()).all()
+
+
+def find_milestone(project_id: str, reference: str):
+  """The shared milestone with this label (the latest if there are several), or with this id: `#12`, from its link"""
+  by_id = re.fullmatch(r'#(\d+)', reference)
+  if by_id:
+    return next(iter(milestones_of(project_id, int(by_id.group(1)))), None)
+  return next((m for m in milestones_of(project_id) if m.label == reference), None)
 
 
 def commit_config(commit) -> dict:
@@ -103,11 +110,11 @@ def default_reference(commit) -> str:
 def resolve_reference(commit, reference: str, label: str):
   """The reference commit (or None), and how we found it"""
   info = {'requested': reference, 'type': 'branch', 'milestone': None}
-  milestone = find_milestone(commit.project, reference)
+  milestone = find_milestone(commit.project_id, reference)
   if milestone:
-    info.update(type='milestone', milestone=milestone.get('label'))
-    sha = str(milestone.get('commit') or '')
-    found = find_commit(commit.project_id, sha) if re.fullmatch(r'[0-9a-fA-F]{4,64}', sha) else None
+    info.update(type='milestone', milestone=milestone.label or reference)
+    sha = str(milestone.commit_hexsha or '')
+    found = find_commit(milestone.commit_project_id or commit.project_id, sha) if re.fullmatch(r'[0-9a-fA-F]{4,64}', sha) else None
     return found, info
   if re.fullmatch(r'[0-9a-fA-F]{7,64}', reference):
     found = find_commit(commit.project_id, reference)

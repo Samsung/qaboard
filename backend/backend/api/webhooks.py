@@ -30,15 +30,20 @@ def delete_commit(commit_id, project_id=None):
       if forbidden := require_project_access(g.user, ci_commit.project_id):
         return forbidden
       print("DELETING", ci_commit)
-      if ci_commit.hexsha in ci_commit.project.milestone_commits:
-        return f"403 ERROR: Cannot delete milestones", 403
+      if ci_commit.hexsha in ci_commit.project.protected_ref_commits:
+        return jsonify({"error": "This commit is protected in qaboard.yaml: it's the reference branch's latest commit, or listed in project.milestones."}), 403
+      # Batches that are milestones are kept
+      kept = {b for m in ci_commit.project.milestones_on(ci_commit.hexsha) for b in [m.batch or 'default']}
       for batch in ci_commit.batches:
+        if batch.label in kept:
+          print(f" > keeping the milestone {batch}")
+          continue
         print(f" > {batch}")
         stop_status = batch.stop(db_session)
         if "error" in stop_status:
           return jsonify(stop_status), 500
         batch.delete(session=db_session)
-      return {"status": "OK"}
+      return {"status": "OK", "kept": sorted(kept)}
   except Exception as e:
     return f"404 ERROR {e}: {commit_id} in {project_id}", 404
   return f"404 ERROR: Cannot find commit", 404
