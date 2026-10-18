@@ -137,7 +137,8 @@
         "by": {"$ref": "#/$defs/person"},
         "batch": {"type": "string", "default": "default"},
         "filter": {"type": "string"},
-        "kind": {"enum": ["shared", "config"], "default": "shared"},
+        "kind": {"enum": ["shared", "personal", "config"], "default": "shared"},
+        "group": {"type": "string", "maxLength": 80},
         "branch": {"$ref": "#/$defs/branch"}
       },
       "if": {"properties": {"kind": {"const": "config"}}, "required": ["kind"]},

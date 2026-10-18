@@ -10,14 +10,14 @@ The commit page shows the results of one commit (the **new** one) compared with 
 There are two bars, **new** on top and **ref** below. Each one shows:
 
 - The commit message, its author and date.
-- A **star** to save the commit as a [milestone](comparing-results.mdx#milestones).
+- A **star** to save the results you see (the commit's batch and filter) as a [milestone](comparing-results.mdx#milestones). When they are one, the star is filled and the milestone's name shows next to it.
 - The **commit hash** field: type another hash to switch commits, or hover **Change** for more options (switch new and reference, pick a branch or a milestone...). See [Picking a reference](comparing-results.mdx#picking-a-reference).
 - The **branch**: click it to select the latest commit of that branch.
 - A **filter** box and the counters of runs (runs, running, pending, failed). See the [filter syntax](finding-results.mdx#filter-syntax).
 - The **batch selector** (see [Batches](finding-results.mdx#batches)).
 - A **refresh** button, and a **menu** (☰) with:
   - *Commit*: copy the commit's artifacts directory (Windows or Linux path), view it in the browser.
-  - *Batch*: copy the batch's output directory, view it in the browser, move runs to another batch, rename the batch, **redo** failed, deleted or all runs, and delete runs (all, failed only, or several batches at once). The *Delete files, keep metadata* switch deletes only the files, optionally matching patterns like `*.png`. Milestones are protected from deletion.
+  - *Batch*: copy the batch's output directory, view it in the browser, move runs to another batch, rename the batch, **redo** failed, deleted or all runs, and delete runs (all, failed only, or several batches at once). The *Delete files, keep metadata* switch deletes only the files, optionally matching patterns like `*.png`. Batches that are milestones are protected: delete the milestone first, or delete only their files.
 
 :::info
 The reference bar is hidden on the **Logs**, **Available Tests** and **Run Tests / Tuning** views: they only concern the new commit.

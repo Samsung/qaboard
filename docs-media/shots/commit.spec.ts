@@ -745,19 +745,24 @@ clip('commit/compare-tour', {
 
 shot('commit/milestone', {
   project: DE,
-  url: d => d.commitUrl(DE, 'kd-1-3', { reference: 'kd-1-2', view: 'table-kpi' }),
-  alt: 'The milestone dialog of the kd-1.3 release commit, opened from the crown next to its hash: Shared on, the label '
-    + 'kd-1.3, the notes "int8, per-channel, recalibrated", and the Delete and Save buttons.',
-  caption: 'A commit\'s star makes it a milestone: give it a label and notes, and share it with everyone on the project.',
+  // the abandoned entropy calibration: worth keeping, to compare the next calibration with
+  url: d => d.commitUrl(DE, 'entropy-calib', { reference: 'kd-1-2', view: 'table-kpi' }),
+  alt: 'The "Save as a milestone" dialog of the entropy-calib commit, opened from the star next to its hash: a summary of '
+    + 'the commit, its CI batch and its runs, then the name entropy-try, the group quant/calibration, notes, and "Only me" '
+    + 'selected for who sees it.',
+  caption: 'Saving the results of a commit: the dialog says what it saves, then asks for a name, a group and who sees it.',
   actions: async ui => {
-    // the new commit's bar: a crown, it's a shared milestone
-    await ui.click(ui.page.locator('button:has(.bp6-icon-crown)').first());
-    await ui.page.locator('.bp6-popover', { hasText: 'Milestone Info' }).waitFor();
+    const { page } = ui;
+    await ui.click(page.getByRole('button', { name: 'Save as a milestone' }).first());
+    const dialog = page.getByRole('dialog', { name: 'Save as a milestone' });
+    await dialog.waitFor();
+    await dialog.getByLabel('Name').fill('');
+    await ui.type(dialog.getByLabel('Name'), 'entropy-try');
+    await ui.type(dialog.getByLabel(/Group/), 'quant/calibration');
+    await ui.type(dialog.getByLabel(/Notes/), 'Entropy calibration: a little worse everywhere');
     await ui.settle();
-    await ui.anchor('shared', ui.page.locator('.bp6-popover label', { hasText: 'Shared' }));
   },
-  // the crown, and the dialog next to it
-  target: page => [page.locator('button:has(.bp6-icon-crown)').first(), page.locator('.bp6-popover', { hasText: 'Milestone Info' })],
+  target: page => page.getByRole('dialog', { name: 'Save as a milestone' }),
   padding: 8,
 });
 
@@ -765,7 +770,7 @@ shot('commit/change-menu', {
   project: DE,
   url: d => d.commitUrl(DE, 'kd-1-3', { reference: 'kd-1-2', view: 'table-kpi' }),
   alt: 'The reference commit\'s Change menu: a project box, Switch new/reference, Also Select as New, Remove from '
-    + 'comparison, then the reference branch main and the shared milestones kd-1.3 and kd-1.2 with their commits.',
+    + 'comparison, the reference branch main, then the milestones kd-1.3 and kd-1.2 with their batch, branch and commit.',
   caption: 'Change the reference from its commit bar: swap new and reference, or pick the reference branch or a milestone.',
   actions: async ui => {
     await ui.click(ui.page.getByRole('button', { name: 'Change the reference commit' }));
