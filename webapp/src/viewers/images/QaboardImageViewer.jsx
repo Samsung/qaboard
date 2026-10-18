@@ -10,7 +10,7 @@ import { ImageViewer } from '../../image-viewer';
 import { errorMessage, http, isAbort } from '../../api/http';
 import { useComparison, useSiteConfig } from '../../hooks';
 import { usePrefsStore } from '../../stores/prefs';
-import { is_same_data } from '../../utils';
+import { at_most, is_same_data } from '../../utils';
 import { build_image_name, iiif_url } from './utils';
 import { regionProviders } from './regionProviders';
 import { regionsQuery } from './regionSearch';
@@ -209,7 +209,7 @@ const ImageViewerForRuns = ({
 
   return <ImageViewer
     className="qaboard-image-viewer"
-    style={{ width: fullscreen ? '100%' : style?.width, maxWidth: '100%' }}
+    style={{ width: fullscreen ? '100%' : at_most(style?.width), maxWidth: '100%' }}
     image={image}
     reference={reference}
     mode={mode}

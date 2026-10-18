@@ -85,7 +85,7 @@ export const RegionsTriage = ({ path, path_ref, provider: provider_id, onProvide
       <ProgressBar value={contexts.length ? done / contexts.length : 1} animate={running} stripes={running} intent={running ? 'primary' : 'success'} />
       <p className="bp6-text-muted" style={{ margin: '10px 0' }}>
         The runs whose images differ most first. The server compares the full images, {limiter.concurrency} runs at a
-        time: the first time it reads an image takes a few seconds, then it's quick. Each viewer of <code>{path}</code>
+        time: the first time it reads an image takes a few seconds, then it's quick. Each viewer of <code>{path}</code>{' '}
         shows the regions found for its run, also after you close this.
       </p>
       <div style={{ maxHeight: '50vh', overflowY: 'auto' }}>

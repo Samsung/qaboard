@@ -11,7 +11,8 @@ export const PLOTS_QUIET_MS = 300;
 // A request still in flight after that long is long-polling (or stuck): it doesn't keep the page busy
 export const LONG_POLL_MS = 10_000;
 
-const SPINNERS = '.bp6-spinner, .bp6-skeleton, .bp6-progress-bar, .qiv-spinner';
+// progress bars that stopped animating are done, e.g. "Where they differ, in all runs" once every run is compared
+const SPINNERS = '.bp6-spinner, .bp6-skeleton, .bp6-progress-bar:not(.bp6-no-animation), .qiv-spinner';
 const IIIF = /\/iiif\//;
 // Requests that never count: dev servers' sockets and pings
 const IGNORED_URLS = [/^data:/, /^blob:/, /\/@vite\/client/, /\/__vite_ping/, /\/sockjs-node/];

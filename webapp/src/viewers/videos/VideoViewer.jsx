@@ -17,7 +17,7 @@ import {
 
 import { useInView } from 'react-intersection-observer';
 
-import { is_same_data } from '../../utils';
+import { at_most, is_same_data } from '../../utils';
 import { toaster } from '../../toaster';
 import { SyncedPlayback } from './syncedPlayback';
 import { FIT, clampView, panBy, transformOf, videoPointAt, zoomAt, zoomLimits, zoomTo } from './viewTransform';
@@ -532,7 +532,7 @@ const VideoViewer = ({
     <div
       ref={root}
       className="video-viewer"
-      style={{ width: style?.width, maxWidth: '100%' }}
+      style={{ width: at_most(style?.width), maxWidth: '100%' }}
       onPointerEnter={() => { hovered.current = true; }}
       onPointerLeave={() => { hovered.current = false; setPointer(null); }}
     >

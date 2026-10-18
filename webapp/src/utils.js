@@ -488,6 +488,12 @@ const metrics_fill_defaults = available_metrics => {
 }
 
 
+// A width from qaboard.yaml (e.g. outputs.style.width: 1180px), as a maximum: narrower when the page is, e.g. when
+// the View options take room on the right
+const at_most = width => width === undefined || width === null || width === ''
+  ? undefined
+  : `min(${typeof width === 'number' ? `${width}px` : width}, 100%)`;
+
 const checked_cde_attrs = ["width", "height", "format", "imageType", "md5_data"]
 const is_same_data = (path, meta_1, meta_2) => {
   if (meta_1 === undefined || meta_1 === null || meta_2 === undefined || meta_2 === null)
@@ -576,5 +582,6 @@ export {
   event_value,
   project_web_url,
   is_same_data,
+  at_most,
   copyElementToClipboard,
 };

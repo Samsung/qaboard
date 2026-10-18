@@ -188,8 +188,8 @@ shot('commit/auto-roi', {
 shot('commit/regions-all-runs', {
   project: IQ,
   url: d => halos(d, 'base'),
-  alt: 'The list of a commit\'s runs ranked by how much their output images differ from the reference\'s: the photos '
-    + 'with the new denoiser\'s halos first, a bar and a percentage for each, then the runs whose images are identical.',
+  alt: 'The list of a commit\'s runs ranked by how much their output images differ from the reference\'s, with a bar, '
+    + 'a percentage and the number of regions found for each; the 113 MP test wall, a TIFF, has no out.png to compare.',
   caption: 'Where they differ, in all the runs: the runs whose images changed most first.',
   actions: async ui => {
     const scope = viewer(ui.page);
@@ -204,8 +204,11 @@ shot('commit/regions-all-runs', {
     await mouseAway(ui);
     await ui.settle();
   },
-  target: page => page.locator('.bp6-dialog').first(),
-  padding: 8,
+  // a box: the dialog is centered over the commit bars, that crops to elements leave out
+  target: async page => {
+    const dialog = await stableBox(page.locator('.bp6-dialog').first());
+    return { x: dialog.x - 8, y: dialog.y - 8, width: dialog.width + 16, height: dialog.height + 16 };
+  },
 });
 
 shot('commit/image-filters', {

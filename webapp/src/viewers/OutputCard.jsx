@@ -31,7 +31,7 @@ import { updateSelected } from "../hooks";
 import { http, errorMessage } from "../api/http";
 import { output_files_stale_time, invalidateOutputFiles } from "../api/queries";
 import { parse_query, path_segment, stringify_query } from "../selection";
-import { linux_to_windows, is_same_data } from '../utils'
+import { at_most, linux_to_windows, is_same_data } from '../utils'
 import { hasPathMappings } from '../utils/paths'
 import { is_image } from "./images/utils"
 import { copyWithToast } from "../utils/clipboard"
@@ -580,8 +580,8 @@ const OutputCard = memo(function OutputCard(props) {
 
   const container_style = {
     flex: "0 0 auto",
-    // without outputs.style.width in qaboard.yaml: as wide as the page allows, up to 1500px
-    width: style.width || 'min(1500px, 100%)',
+    // as wide as the page allows, up to outputs.style.width in qaboard.yaml, else 1500px
+    width: at_most(style.width || '1500px'),
     // wider when a viewer needs it, e.g. a plot wider than outputs.style.width: it would spill out of the card
     minWidth: 'min-content',
     marginBottom: "250px !important",

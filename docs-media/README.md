@@ -405,7 +405,7 @@ shot('commit/pixel-tooltip', {
   1. `document.fonts.ready`;
   2. no request in flight for 500 ms, ignoring long-polling (a request in flight for over 10 s); the page's load
      events count as activity;
-  3. no `.bp6-spinner`, `.bp6-skeleton` or `.bp6-progress-bar` visible, except the spinners that say a run is running
+  3. no `.bp6-spinner`, `.bp6-skeleton` or animated `.bp6-progress-bar` visible, except the spinners that say a run is running
      (its status, `aria-label="Running"`, and in tags): they stay while it runs;
   4. `ui.tiles()`: no `/iiif/` request in flight for 750 ms and every `.openseadragon-canvas` has drawn. The viewer
      tracks OpenSeadragon's `fully-loaded-change` internally but doesn't expose it: until it does (a `data-shot`
