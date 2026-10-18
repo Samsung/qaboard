@@ -568,3 +568,33 @@ def test_jenkins_build_urls_use_the_configured_host(integrations, dummy_app, mon
   requests.get.reset_mock()
   assert call(integrations, dummy_app, "jenkins_build", {"web_url": "http://elsewhere/job/x/1/"})[1] == 403
   requests.get.assert_not_called()
+
+
+def test_jenkins_build_trigger_errors(integrations, dummy_app, monkeypatch):
+  monkeypatch.setattr(integrations, "jenkins_credentials", {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
+  requests = MagicMock()
+  monkeypatch.setattr(integrations, "requests", requests)
+  requests.get.return_value = response(json_data={"url": "queue/item/7/", "executable": {"url": "http://jenkins/job/x/12/"}})
+  def jenkins(status_code, text="", location=None):
+    r = response(status_code=status_code)
+    r.text = text
+    if location:
+      r.headers = {"location": location}
+    return r
+
+  # Jobs without parameters don't accept buildWithParameters
+  requests.post.side_effect = [jenkins(500, "<html><h2>java.lang.IllegalStateException: This build is not parameterized!</h2></html>"), jenkins(201, location="http://jenkins/queue/item/7/")]
+  data, status = call(integrations, dummy_app, "jenkins_build_trigger", {"build_url": "http://jenkins/job/x/", "params": None})
+  assert status == 200
+  assert [c.args[0] for c in requests.post.call_args_list] == ["http://jenkins/job/x/buildWithParameters", "http://jenkins/job/x/build"]
+  assert all(c.kwargs["allow_redirects"] is False for c in requests.post.call_args_list)
+
+  # Errors say what Jenkins said, not its whole HTML page
+  for answer, expected in [
+    (jenkins(403, "<html><head><style>body {}</style><title>Error 403</title></head><body>Access Denied: u is missing the Job/Build permission</body></html>"), "HTTP 403 from POST http://jenkins/job/x/buildWithParameters (check the user and token in JENKINS_AUTH, and that the user can build the job): Error 403 Access Denied: u is missing the Job/Build permission"),
+    (jenkins(302, location="http://jenkins/login"), "redirected to http://jenkins/login"),
+  ]:
+    requests.post.side_effect = [answer]
+    data, status = call(integrations, dummy_app, "jenkins_build_trigger", {"build_url": "http://jenkins/job/x", "params": {}})
+    assert status == 500
+    assert expected in data.get_json()["error"]
