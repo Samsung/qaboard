@@ -294,6 +294,7 @@
 <ul>
 <li class="">The controls panel shows the sort actually used, the project's default metric, instead of <em>Name</em>, and Output Files no longer shows an empty visualization filter.</li>
 <li class="">Run cards grow to fit a plot wider than their configured width (<code>outputs.style.width</code>), instead of the plot spilling out of the card.</li>
+<li class="">Run cards with a configured width (<code>outputs.style.width</code>) get narrower when the page is, e.g. when the View options are open, instead of going under them and hiding the image viewer's zoom and settings.</li>
 <li class="">Visualization cards line up from the left, instead of being pushed to the edges of the page.</li>
 <li class="">The Tuning Analysis view's efficient frontier colors points by nested tuning parameters (like <code>denoise.strength</code>) instead of drawing black dots.</li>
 <li class="">Dynamic options no longer show an empty card when a run doesn't have the selected value, sort numbers as numbers (<code>2</code> before <code>10</code>), and no longer split into options like <code>frame_1234</code> that control nothing. Whether an option is linked is no longer remembered across projects.</li>
