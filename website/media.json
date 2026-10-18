@@ -154,22 +154,22 @@
     },
     "cli/gate": {
       "alt": "A terminal in CI runs qa gate on the coding agent's shared cache against its parent: in the rules table, p99 is thousands of percent worse where 10% is allowed, and the gate fails with exit code 1. On the sharded cache, p99 is better than the parent's, every rule passes and it exits with 0.",
-      "app_version": "1.1.1+e681790",
+      "app_version": "1.1.1+70d5266",
       "caption": "qa gate compares a commit's CI batch with a reference, rule by rule, and fails the job when one breaks.",
-      "captured": "2026-10-14",
-      "duration": 18.84,
+      "captured": "2026-10-18",
+      "duration": 18.76,
       "files": {
         "mp4": {
-          "bytes": 183551,
-          "key": "shots/cli/gate/d8dad46bd19ed929.mp4"
+          "bytes": 183305,
+          "key": "shots/cli/gate/e9774cef215884e4.mp4"
         },
         "poster": {
-          "bytes": 45812,
-          "key": "shots/cli/gate/98c5a9ffb4227906.webp"
+          "bytes": 45730,
+          "key": "shots/cli/gate/df7f9997b8f512b2.webp"
         },
         "webm": {
-          "bytes": 223410,
-          "key": "shots/cli/gate/fb0c824f533720b3.webm"
+          "bytes": 220818,
+          "key": "shots/cli/gate/c20fb41393fbc7cd.webm"
         }
       },
       "height": 720,
@@ -223,87 +223,87 @@
       "width": 1142
     },
     "commit/auto-roi": {
-      "alt": "The View ROIs menu open over the facade run, with Full Image, ROI Presets and Auto ROIs checked; below it, thumbnails of the twenty regions where new and reference differ most, found automatically, a dot colored by how much.",
-      "app_version": "1.1.1+f175b5f",
+      "alt": "The regions of interest menu open over the facade run: Full image, the input's Presets, and the regions where the images differ most, found by the server; above the images, thumbnails of the regions it found, labelled with how much the images differ there.",
+      "app_version": "1.1.1+70d5266",
       "caption": "Jump between the regions of interest preset for the input, or let QA-Board find where the images differ most.",
-      "captured": "2026-10-16",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 23628,
-            "key": "shots/commit/auto-roi/5366434ae36c50c3.avif"
+            "bytes": 63679,
+            "key": "shots/commit/auto-roi/1a666fd166bca384.avif"
           },
           "png": {
-            "bytes": 208302,
-            "key": "shots/commit/auto-roi/6b26161519bca144.png"
+            "bytes": 288451,
+            "key": "shots/commit/auto-roi/5d301819b8ad178f.png"
           },
           "webp": {
-            "bytes": 39992,
-            "key": "shots/commit/auto-roi/fc2eac7a3f0b7547.webp"
+            "bytes": 102348,
+            "key": "shots/commit/auto-roi/60327ceb31f8245b.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRjoAAABXRUJQVlA4IC4AAADwAQCdASoQAAUAA4BaJZwC7AEXfIL4NAAA/t1Bik7WuPcG5Y6+JGDzTHqS0AAA"
+        "lqip": "data:image/webp;base64,UklGRlIAAABXRUJQVlA4IEYAAACwAQCdASoQAAUAA4BaJQBOj+ABb3rQAP7b4JsWVD0W2+BdRXnhm989I/RRrCOsw3H+/nYiFPeuSa0kfCp3k9qDd4m3cAAA"
       },
       "files": {
         "avif": {
-          "bytes": 23647,
-          "key": "shots/commit/auto-roi/5beb9ae7188fcdf1.avif"
+          "bytes": 64680,
+          "key": "shots/commit/auto-roi/89230d350a21c989.avif"
         },
         "png": {
-          "bytes": 204739,
-          "key": "shots/commit/auto-roi/b5bce1b682acfbf3.png"
+          "bytes": 279393,
+          "key": "shots/commit/auto-roi/5704531c30d20dc4.png"
         },
         "webp": {
-          "bytes": 41970,
-          "key": "shots/commit/auto-roi/b4f6d40c511487fd.webp"
+          "bytes": 104028,
+          "key": "shots/commit/auto-roi/fabaf80800cccfb5.webp"
         }
       },
-      "height": 324,
+      "height": 362,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRjoAAABXRUJQVlA4IC4AAADQAQCdASoQAAUAA4BaJZQC7AEO137PgAD+7h0dGZ9K7nAZMhay9NOFzLqCAAAA",
+      "lqip": "data:image/webp;base64,UklGRlAAAABXRUJQVlA4IEQAAACwAQCdASoQAAUAA4BaJQBOgB5fs17AAP7h9QWtRRJmpU5J6oKS164gUWyDQI23pKyXKT4kedZDzsIxC0q+zevKY0mAAA==",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
-      "width": 1170
+      "width": 1188
     },
     "commit/batch-picker": {
       "alt": "The new commit's batch selector open: the CI batch, run by ci, 18 of 18 runs successful; ines 🏠 ines-halo, Ines's local runs, 5 of 5; and the tune-denoise tuning experiment, 60 of 60.",
-      "app_version": "1.1.1+be26c26",
+      "app_version": "1.1.1+70d5266",
       "caption": "Each commit can have several batches: CI's, your local runs (🏠) and tuning experiments. Pick one to see its runs.",
-      "captured": "2026-10-16",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 8895,
-            "key": "shots/commit/batch-picker/8d423c57a16c3758.avif"
+            "bytes": 8963,
+            "key": "shots/commit/batch-picker/b81d2a5e52b713ae.avif"
           },
           "png": {
-            "bytes": 40300,
-            "key": "shots/commit/batch-picker/f84918a69fccfd14.png"
+            "bytes": 45722,
+            "key": "shots/commit/batch-picker/9a35fc36cde10976.png"
           },
           "webp": {
-            "bytes": 15794,
-            "key": "shots/commit/batch-picker/8125dceec18eefca.webp"
+            "bytes": 15838,
+            "key": "shots/commit/batch-picker/5d306f74c6d55511.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAACQAQCdASoQAAkAA4BaJZWDrRgAiwAA/vBAthmQQm1kSJuaOBPEhXdAAAA="
+        "lqip": "data:image/webp;base64,UklGRjoAAABXRUJQVlA4IC4AAADwAQCdASoQAAkAA4BaJZQCdAEO5yOQTAAA/vDMor+7N/z7LK8gwQCce+RRbmQA"
       },
       "files": {
         "avif": {
-          "bytes": 9293,
-          "key": "shots/commit/batch-picker/bf86230ea8da1954.avif"
+          "bytes": 9406,
+          "key": "shots/commit/batch-picker/619312c00938a77d.avif"
         },
         "png": {
-          "bytes": 37753,
-          "key": "shots/commit/batch-picker/ae8508ffaf8c6df4.png"
+          "bytes": 41133,
+          "key": "shots/commit/batch-picker/91464e3eb2d76526.png"
         },
         "webp": {
-          "bytes": 16740,
-          "key": "shots/commit/batch-picker/14da837b0a9cfe44.webp"
+          "bytes": 16694,
+          "key": "shots/commit/batch-picker/253ef7afc304815f.webp"
         }
       },
       "height": 239,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAAAwAQCdASoQAAkAA4BaJaQAA3AA/vOVYaYF+8bmomJMPLzNMZGudqxwAAA=",
+      "lqip": "data:image/webp;base64,UklGRkIAAABXRUJQVlA4IDYAAADQAQCdASoQAAkAA4BaJaQAAxZgsiI0gAD+9xafTtzmbodTU4bWSuod1WQlE6L4LpeOL7wAAAA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 464
@@ -362,113 +362,113 @@
     },
     "commit/change-menu": {
       "alt": "The reference commit's Change menu: a project box, Switch new/reference, Also Select as New, Remove from comparison, then the reference branch main and the shared milestones kd-1.3 and kd-1.2 with their commits.",
-      "app_version": "1.1.1+f175b5f",
+      "app_version": "1.1.1+70d5266",
       "caption": "Change the reference from its commit bar: swap new and reference, or pick the reference branch or a milestone.",
-      "captured": "2026-10-16",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 25729,
-            "key": "shots/commit/change-menu/6aac90f8e0c1c596.avif"
+            "bytes": 24874,
+            "key": "shots/commit/change-menu/2f4752a6c118596d.avif"
           },
           "png": {
-            "bytes": 101883,
-            "key": "shots/commit/change-menu/a2ec96b7a99ebd91.png"
+            "bytes": 97764,
+            "key": "shots/commit/change-menu/bc3dda9114f17470.png"
           },
           "webp": {
-            "bytes": 54240,
-            "key": "shots/commit/change-menu/c0919dd123e16da0.webp"
+            "bytes": 50190,
+            "key": "shots/commit/change-menu/2ed04608a41e951d.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRkYAAABXRUJQVlA4IDoAAADwAQCdASoQABAAA4BaJZwCdAEUoBWQ7gAA/u6xaOqmtMiVWi74Bnk9EqAsDhY+wWtDuFhdXNH1LdAA"
+        "lqip": "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAADwAQCdASoQABAAA4BaJZwC7ADdIWtbmAAA/vDfWk5hcqMa+BK49dVRRokGZJE+3gAAAA=="
       },
       "files": {
         "avif": {
-          "bytes": 26459,
-          "key": "shots/commit/change-menu/483496a00b6d10fa.avif"
+          "bytes": 26054,
+          "key": "shots/commit/change-menu/6ba0f40c037c748c.avif"
         },
         "png": {
-          "bytes": 99636,
-          "key": "shots/commit/change-menu/6127fa73e71f237c.png"
+          "bytes": 96173,
+          "key": "shots/commit/change-menu/e473646ab54e3348.png"
         },
         "webp": {
-          "bytes": 56896,
-          "key": "shots/commit/change-menu/59c8b075232eda3d.webp"
+          "bytes": 52462,
+          "key": "shots/commit/change-menu/6ccf44bd3426b836.webp"
         }
       },
       "height": 475,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRkwAAABXRUJQVlA4IEAAAADwAQCdASoQABAAA4BaJZwAAvh7LpJKoYAA/vT1nVdLu60pT3ihUzi9rh5Q7KSODVW1UAIrI/9F2otwe0f3oAAA",
+      "lqip": "data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAADwAQCdASoQABAAA4BaJaQAAu1/oRdbHAAA/vcQECX1pH/rFSBywKqwdOPAT6ztcK0y+AAA",
       "project": "detection-eval",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 496
     },
     "commit/compare-tour": {
       "alt": "The Summary of the int8 runs against the fp32 release; a click on Metrics Diff in the sidebar shows each slice's change; in the View options, sorting by mAP from the lowest brings the indoor slice, -35%, to the top.",
-      "app_version": "1.1.1+1060653",
+      "app_version": "1.1.1+70d5266",
       "caption": "From the Summary to each test's change, sorted to bring the worst slice to the top.",
-      "captured": "2026-10-16",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "mp4": {
-            "bytes": 295958,
-            "key": "shots/commit/compare-tour/25ae26fba768bef6.mp4"
+            "bytes": 306730,
+            "key": "shots/commit/compare-tour/8e6df00aa38aae47.mp4"
           },
           "poster": {
-            "bytes": 63054,
-            "key": "shots/commit/compare-tour/ac565a12510b5e60.webp"
+            "bytes": 66724,
+            "key": "shots/commit/compare-tour/c57e1a9df0a54a76.webp"
           },
           "vtt": {
             "bytes": 220,
             "key": "shots/commit/compare-tour/0b6484151a11793f.vtt"
           },
           "webm": {
-            "bytes": 453547,
-            "key": "shots/commit/compare-tour/a9a158d0e435776c.webm"
+            "bytes": 492689,
+            "key": "shots/commit/compare-tour/7849d54b8526e2dd.webm"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAACwAQCdASoQAAoAA4BaJZwAAudhki9QAP7zJrEM7Pwc+i8/EmX/Q9NPeEAAAA=="
+        "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAABQAQCdASoQAAoAA4BaJZwABAAAAP7wyg/CPtVtL7LfaVUZYoV0xYAh6e8IAA=="
       },
       "duration": 13.77,
       "files": {
         "mp4": {
-          "bytes": 308978,
-          "key": "shots/commit/compare-tour/e5413a5a06954096.mp4"
+          "bytes": 317162,
+          "key": "shots/commit/compare-tour/3b2c96b73d8b3020.mp4"
         },
         "poster": {
-          "bytes": 65728,
-          "key": "shots/commit/compare-tour/bd855bfdf6fb398c.webp"
+          "bytes": 70068,
+          "key": "shots/commit/compare-tour/469b487cbe3f4c13.webp"
         },
         "vtt": {
           "bytes": 220,
           "key": "shots/commit/compare-tour/0b6484151a11793f.vtt"
         },
         "webm": {
-          "bytes": 454188,
-          "key": "shots/commit/compare-tour/5d5edeab7d62fc41.webm"
+          "bytes": 493739,
+          "key": "shots/commit/compare-tour/b642f28aff4f9ba5.webm"
         }
       },
       "height": 900,
       "kind": "clip",
-      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAACQAQCdASoQAAoAA4BaJYwAAzobfoAA/D+G7foFkcfOx39la6z5TIOOuoUaIcQq++YWaLTUBL9fcoaFEAA=",
+      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAADwAQCdASoQAAoAA4BaJZQC7AEsZ0j1rSAA/D+G7fojBPAS9Y/ZbR3/iyyC/cpY7H5EdiJLPEHOfVw4AAA=",
       "project": "detection-eval",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
     },
     "commit/controls-panel": {
-      "alt": "The View options docked on the right of the run cards: a switch per visualization, including the hidden Color errors and Noise vs signal, the Image diff switch, and how the runs are sorted.",
+      "alt": "The View options docked on the right of the run cards: a switch per visualization, including the hidden Color errors and Noise vs signal, how image viewers compare images, and how the runs are sorted.",
       "anchors": {
         "image-diff": {
-          "h": 2,
-          "w": 18.54,
+          "h": 1.89,
+          "w": 7.37,
           "x": 80.35,
-          "y": 57.11
+          "y": 57.89
         },
         "sorting": {
           "h": 4,
           "w": 19.38,
           "x": 79.79,
-          "y": 61.89
+          "y": 75.67
         },
         "visualizations": {
           "h": 4,
@@ -477,43 +477,43 @@
           "y": 21.11
         }
       },
-      "app_version": "1.1.1+1060653",
-      "caption": "The View options show or hide visualizations, turn Image diff on, and sort the runs.",
-      "captured": "2026-10-16",
+      "app_version": "1.1.1+70d5266",
+      "caption": "The View options show or hide visualizations, pick how images are compared, and sort the runs.",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 72439,
-            "key": "shots/commit/controls-panel/e283a2b4fcda6491.avif"
+            "bytes": 85040,
+            "key": "shots/commit/controls-panel/b1db36b3c5721b7c.avif"
           },
           "png": {
-            "bytes": 485780,
-            "key": "shots/commit/controls-panel/322108c6b4b84c9d.png"
+            "bytes": 458953,
+            "key": "shots/commit/controls-panel/8ddafc0726120218.png"
           },
           "webp": {
-            "bytes": 132656,
-            "key": "shots/commit/controls-panel/a1198dacb8ebc166.webp"
+            "bytes": 155140,
+            "key": "shots/commit/controls-panel/775f4f02e15b21ae.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRl4AAABXRUJQVlA4IFIAAADwAQCdASoQAAoAA4BaJZwAAu1vq5DGkwAA/vNMBqtXS6/WEHtK0q4OQD5Yu+hu37ztQPRc1AYuQTj0y6LsldgoHVNPB6o5xhD6kHkFYhLFhAAA"
+        "lqip": "data:image/webp;base64,UklGRkoAAABXRUJQVlA4ID4AAADQAQCdASoQAAoAA4BaJZwAAuU7DMOkAAD+8yaWmm4b/oWYlf8vv+x3mROYrSlrgP3+i5VD0Hzq7g64jcBAAA=="
       },
       "files": {
         "avif": {
-          "bytes": 74689,
-          "key": "shots/commit/controls-panel/3a9e77e096ec146d.avif"
+          "bytes": 87052,
+          "key": "shots/commit/controls-panel/d1ce41a2a2b6f3f2.avif"
         },
         "png": {
-          "bytes": 484562,
-          "key": "shots/commit/controls-panel/20266cdcf85c7d66.png"
+          "bytes": 451710,
+          "key": "shots/commit/controls-panel/f455ed4e7967b62a.png"
         },
         "webp": {
-          "bytes": 137374,
-          "key": "shots/commit/controls-panel/0d63d2b1cbff9d1c.webp"
+          "bytes": 159696,
+          "key": "shots/commit/controls-panel/b6f2e4dc7f294945.webp"
         }
       },
       "height": 900,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRlIAAABXRUJQVlA4IEYAAADwAQCdASoQAAoAA4BaJaQAAp1eh0Y+sgAA/D9rXT/LK/MzOtQcr0zYKjv+UMIGhm1FJSHxGdg+krboKIsleJ5ATd+3Z4AA",
+      "lqip": "data:image/webp;base64,UklGRkQAAABXRUJQVlA4IDgAAADQAQCdASoQAAoAA4BaJaQAAzottvaQAAD8P4bt+g/XSZUTrecNZ+Ru0Z+vHkSy9YQYfYg7gAAAAA==",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
@@ -563,138 +563,138 @@
     },
     "commit/deep-zoom": {
       "alt": "The 113-megapixel test wall, new and reference side by side: zooming from the whole wall to a small Siemens star until single pixels show, both images in sync.",
-      "app_version": "1.1.1+f175b5f",
+      "app_version": "1.1.1+70d5266",
       "caption": "Deep zoom on a 113 MP image: the viewers load only the tiles they show.",
-      "captured": "2026-10-16",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "mp4": {
-            "bytes": 457112,
-            "key": "shots/commit/deep-zoom/31d795cd95e8c287.mp4"
+            "bytes": 392814,
+            "key": "shots/commit/deep-zoom/fec62466be6fb8f4.mp4"
           },
           "poster": {
-            "bytes": 69648,
-            "key": "shots/commit/deep-zoom/89d5f7eb75ea0421.webp"
+            "bytes": 68224,
+            "key": "shots/commit/deep-zoom/34523929477dc57e.webp"
           },
           "vtt": {
             "bytes": 206,
             "key": "shots/commit/deep-zoom/07cd274700726495.vtt"
           },
           "webm": {
-            "bytes": 677090,
-            "key": "shots/commit/deep-zoom/1c929094c75387f6.webm"
+            "bytes": 588921,
+            "key": "shots/commit/deep-zoom/54c38790e353921e.webm"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRkoAAABXRUJQVlA4ID4AAACwAQCdASoQAAoAA4BaJZwAAtrZIgoAAP7zJqWEcNJdON/SHXywyUv+Nos1NU2thJ7Fo7h2xEk77Ww/YkMAAA=="
+        "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAADQAQCdASoQAAoAA4BaJZwAAtzgynKsAAD+8yalhHc9mKq58QIAr6wH7YcPrqhadwOblqePykUBukXIAAA="
       },
       "duration": 7.27,
       "files": {
         "mp4": {
-          "bytes": 466870,
-          "key": "shots/commit/deep-zoom/3e23a52c61b68400.mp4"
+          "bytes": 386061,
+          "key": "shots/commit/deep-zoom/3979fba6df459612.mp4"
         },
         "poster": {
-          "bytes": 69780,
-          "key": "shots/commit/deep-zoom/e2cda97e7b6c4109.webp"
+          "bytes": 69396,
+          "key": "shots/commit/deep-zoom/b59147e595ba8ae7.webp"
         },
         "vtt": {
           "bytes": 206,
           "key": "shots/commit/deep-zoom/07cd274700726495.vtt"
         },
         "webm": {
-          "bytes": 676055,
-          "key": "shots/commit/deep-zoom/a754452d940e35d9.webm"
+          "bytes": 587812,
+          "key": "shots/commit/deep-zoom/cfdd74689c7cf0ea.webm"
         }
       },
       "height": 900,
       "kind": "clip",
-      "lqip": "data:image/webp;base64,UklGRkoAAABXRUJQVlA4ID4AAACwAQCdASoQAAoAA4BaJaQAAzk4l+boAPw/hu36DnMhYRh76Bke1KfNw9VHldML+tUxknzJwG86oukQ/8qAAA==",
+      "lqip": "data:image/webp;base64,UklGRkYAAABXRUJQVlA4IDoAAACwAQCdASoQAAoAA4BaJaQAAudIK/AAAPa//FBzN5MYsc6yWbq0iaqqBcqHlHVsESG3LbiA2+fIAAAA",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
     },
     "commit/detections": {
       "alt": "A hall with people and cars pasted in, new and reference side by side: the int8 model (left) finds one of the people, the fp32 release (right) three. What each missed is outlined in red: two more people on the left; the faded person and the three cars on both.",
-      "app_version": "1.1.1+d434630",
+      "app_version": "1.1.1+70d5266",
       "caption": "Each run draws its detections, ground truth in red where it missed: the int8 model misses two people fp32 finds.",
-      "captured": "2026-10-15",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 244500,
-            "key": "shots/commit/detections/0f7055271aef96af.avif"
+            "bytes": 223682,
+            "key": "shots/commit/detections/313b095ee0cb97e0.avif"
           },
           "png": {
-            "bytes": 1169069,
-            "key": "shots/commit/detections/70ed718842bbb7b3.png"
+            "bytes": 1090644,
+            "key": "shots/commit/detections/99538bf9ab163777.png"
           },
           "webp": {
-            "bytes": 361674,
-            "key": "shots/commit/detections/7a4c37cf09ed14d9.webp"
+            "bytes": 344394,
+            "key": "shots/commit/detections/db5facb3db5a45e8.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRjoAAABXRUJQVlA4IC4AAADQAQCdASoQAAYAA4BaJYwC7AEOjjTzgAD+5ofAf41eL/aQrETR/UwaztquoLgA"
+        "lqip": "data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAACwAQCdASoQAAYAA4BaJYwC7ACCbeoAAP7ddXBQHeUxNs72kvYr1dmPvb+IrOMLAbF05kAA"
       },
       "files": {
         "avif": {
-          "bytes": 243451,
-          "key": "shots/commit/detections/09aa6d32824a55e3.avif"
+          "bytes": 223237,
+          "key": "shots/commit/detections/9fdb027356c25d49.avif"
         },
         "png": {
-          "bytes": 1169707,
-          "key": "shots/commit/detections/2f00ac0da87ac1b6.png"
+          "bytes": 1091024,
+          "key": "shots/commit/detections/aaf1140bd4f5ac0b.png"
         },
         "webp": {
-          "bytes": 362664,
-          "key": "shots/commit/detections/a010859e62a739fd.webp"
+          "bytes": 344214,
+          "key": "shots/commit/detections/ffebf239ef6a26a5.webp"
         }
       },
-      "height": 302,
+      "height": 269,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRkQAAABXRUJQVlA4IDgAAADwAQCdASoQAAYAA4BaJYwCdAEORd240AAA/qwtMg3OkWS2N8eco3/60BWu6hOuCPGDsweKQAAAAA==",
+      "lqip": "data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAACwAQCdASoQAAYAA4BaJYwC7ACCbeoAAP7ddXBQHeUxNs72kvYr1dmPvb+IrOMLAbF05kAA",
       "project": "detection-eval",
       "source_spec": "docs-media/shots/commit.spec.ts",
-      "width": 840
+      "width": 808
     },
     "commit/dynamic-options": {
       "alt": "The View options' Files to show: the stage option, synced, its slider on 3. Next to it, the night street's card shows stages/3.jpg, the denoised image, new and reference.",
-      "app_version": "1.1.1+f175b5f",
+      "app_version": "1.1.1+70d5266",
       "caption": "Files to show picks the file each card shows, here the ISP stage. Synced, one slider drives every run.",
-      "captured": "2026-10-16",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 158604,
-            "key": "shots/commit/dynamic-options/6afe10f9aff0b4ee.avif"
+            "bytes": 170020,
+            "key": "shots/commit/dynamic-options/ca75967ba78418e0.avif"
           },
           "png": {
-            "bytes": 542428,
-            "key": "shots/commit/dynamic-options/9d6fbf86ad00e0c4.png"
+            "bytes": 635296,
+            "key": "shots/commit/dynamic-options/7fc9174101be187f.png"
           },
           "webp": {
-            "bytes": 235284,
-            "key": "shots/commit/dynamic-options/52d8543a151979b8.webp"
+            "bytes": 253288,
+            "key": "shots/commit/dynamic-options/6ec03f86240e7a15.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRkIAAABXRUJQVlA4IDYAAADwAQCdASoQAAoAA4BaJZQCdAD0dpFzBQAA/vMqYbo7Mt+hH2F8R2+dysXj657LtXg13sbrAAA="
+        "lqip": "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAABwAQCdASoQAAoAA4BaJZwCdAFAAAD+8LeEumPQfjd/AveNUMwiPmPcVolCqyjmtdcAAA=="
       },
       "files": {
         "avif": {
-          "bytes": 161118,
-          "key": "shots/commit/dynamic-options/e07a7ac7e57fef55.avif"
+          "bytes": 171483,
+          "key": "shots/commit/dynamic-options/45bfee90115f3e15.avif"
         },
         "png": {
-          "bytes": 543118,
-          "key": "shots/commit/dynamic-options/fb78f708059b9bdd.png"
+          "bytes": 632436,
+          "key": "shots/commit/dynamic-options/a1eae16e57f7b8da.png"
         },
         "webp": {
-          "bytes": 240904,
-          "key": "shots/commit/dynamic-options/276acf9febd3d3c3.webp"
+          "bytes": 258312,
+          "key": "shots/commit/dynamic-options/47c2af6cc67e7c5e.webp"
         }
       },
       "height": 900,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRl4AAABXRUJQVlA4IFIAAADwAQCdASoQAAoAA4BaJZQCdAEf/L6h1xAA/D+G7fqQho6jxTW7p2JF+XvIgg+R4TxJ9nBTZ3M7I0TJ5eKYpVOxb0IMlDgwdyXUzXlqyPT2UAAA",
+      "lqip": "data:image/webp;base64,UklGRlwAAABXRUJQVlA4IFAAAADQAQCdASoQAAoAA4BaJZwAAzrlY+0ckAD8P4bt+f7ap9r1zfWdiFrA5oDGPSk7bdTPjqX7W9Tbb6vmngymZ7X1+xBNziC6nK5u298OWrbAAA==",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
@@ -753,46 +753,46 @@
     },
     "commit/export": {
       "alt": "The filter box with \"photos low-light\" and 4 outputs; below, the Export button opened on a box with the pattern *.png, the Windows and Linux paths of the export folder, and \"8 files exported from 4 runs\".",
-      "app_version": "1.1.1+f175b5f",
+      "app_version": "1.1.1+70d5266",
       "caption": "Export gathers the files matching a pattern from the filtered runs into one folder, as links.",
-      "captured": "2026-10-16",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 25735,
-            "key": "shots/commit/export/b772d634489f4c36.avif"
+            "bytes": 25861,
+            "key": "shots/commit/export/04f6afafaf7d5ead.avif"
           },
           "png": {
-            "bytes": 107097,
-            "key": "shots/commit/export/c3794db3d65d3afa.png"
+            "bytes": 106351,
+            "key": "shots/commit/export/7e746955496ac50d.png"
           },
           "webp": {
-            "bytes": 52422,
-            "key": "shots/commit/export/ece3111a63735883.webp"
+            "bytes": 52214,
+            "key": "shots/commit/export/4712dd833670c664.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAADwAQCdASoQAA8AA4BaJZQCdAEO+/LK5OAA/vFoKDIr1g/u6ciYwKQL72ZnezzgAAA="
+        "lqip": "data:image/webp;base64,UklGRjoAAABXRUJQVlA4IC4AAADQAQCdASoQAA8AA4BaJZQCdAEO+/KbAAD+8WgoMivWEFjHVlj2x7L6A3nkBAAA"
       },
       "files": {
         "avif": {
-          "bytes": 27580,
-          "key": "shots/commit/export/f1637c01d9c12c69.avif"
+          "bytes": 27516,
+          "key": "shots/commit/export/711e4caf14b03c5a.avif"
         },
         "png": {
-          "bytes": 106278,
-          "key": "shots/commit/export/43d81befd548e790.png"
+          "bytes": 104036,
+          "key": "shots/commit/export/511199bfc62ce1fa.png"
         },
         "webp": {
-          "bytes": 55480,
-          "key": "shots/commit/export/a07e47c154c7242d.webp"
+          "bytes": 55244,
+          "key": "shots/commit/export/6e7a5361a8c74014.webp"
         }
       },
       "height": 511,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAADQAQCdASoQAA8AA4BaJZwAAud7csUDAAD++BVi5caPm9hvnwUKunN0kDu4TmEIBAA=",
+      "lqip": "data:image/webp;base64,UklGRjwAAABXRUJQVlA4IDAAAADQAQCdASoQAA8AA4BaJZwAAueHgQBLsAD++BFnyvMDSbGJyhJB5NlLIkA88pbCAAA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
-      "width": 556
+      "width": 550
     },
     "commit/flame-diff": {
       "alt": "A differential CPU flame graph of the steady-high run: in the workers and the ingress, the shared cache's respond and lookup, with the response rendering under them, are new, in orange; the model's forward pass, which runs less, is blue.",
@@ -839,296 +839,296 @@
     },
     "commit/halo-after": {
       "alt": "The same leaves once the sharpening is clamped: the edges stay crisp, with only faint rims.",
-      "app_version": "1.1.1+f175b5f",
+      "app_version": "1.1.1+70d5266",
       "caption": "With the clamp, the edges stay crisp and the halos fade.",
-      "captured": "2026-10-16",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 22876,
-            "key": "shots/commit/halo-after/75c47dee73d9fe17.avif"
+            "bytes": 24981,
+            "key": "shots/commit/halo-after/8829e4bd7a1f35d1.avif"
           },
           "png": {
-            "bytes": 44326,
-            "key": "shots/commit/halo-after/85442e2232b7d0f3.png"
+            "bytes": 89828,
+            "key": "shots/commit/halo-after/35b64e7ce06a1f0c.png"
           },
           "webp": {
-            "bytes": 26366,
-            "key": "shots/commit/halo-after/5e123fe629b07840.webp"
+            "bytes": 30686,
+            "key": "shots/commit/halo-after/79dea71ab2896d0e.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRnYAAABXRUJQVlA4IGoAAABQAgCdASoQAAsAA4BaJZACdAYtVwj/D68y7wAA/oodyWHjo+y8LBEkRbH/QyAUgsZl8ubL4DlnI/ZW9KOWU/H4A/zLDaW+SbSvKDDZlK8ZSdIe+n3Xj2ejJ40YPoa8uyhAuPUHQ6hkgAAA"
+        "lqip": "data:image/webp;base64,UklGRnoAAABXRUJQVlA4IG4AAAAwAgCdASoQAAsAA4BaJZACdAYvraZveLG2AAD+ih2yG7YiImglwVG9TzN+WZQriE7mfBsiSsPxdWB7n4LCuLQj2Ozw/9VocQOWVvC2PJsyIrmXYgl+0bW02ecnxIuYhxa5pSC8AM+HQobB0cAAAA=="
       },
       "files": {
         "avif": {
-          "bytes": 22852,
-          "key": "shots/commit/halo-after/30599b3c58531ce6.avif"
+          "bytes": 23188,
+          "key": "shots/commit/halo-after/b4a1914337c87e00.avif"
         },
         "png": {
-          "bytes": 44317,
-          "key": "shots/commit/halo-after/d44d24e19b3f1165.png"
+          "bytes": 48220,
+          "key": "shots/commit/halo-after/ff482c4b6d3f8053.png"
         },
         "webp": {
-          "bytes": 26336,
-          "key": "shots/commit/halo-after/a632a2c167e84b44.webp"
+          "bytes": 27234,
+          "key": "shots/commit/halo-after/15cb94b94f13e882.webp"
         }
       },
-      "height": 391,
+      "height": 393,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRnYAAABXRUJQVlA4IGoAAABQAgCdASoQAAsAA4BaJZACdAYtVwj/D68yYWAA/oodyWHjo+y8LBEkRbH/QyAUgsZl8ubL4DlnI/ZW9KOWU/H4A/zLDaW+SbSvKDDZlK8ZSdIe+SJxG1AFWNmGUQHuabogaHyEbEmEgAAA",
+      "lqip": "data:image/webp;base64,UklGRngAAABXRUJQVlA4IGwAAABQAgCdASoQAAsAA4BaJZgCdAYvXzGS+fZnJIAA/oodsZumOAoSZmh5hqJs3tLXmoN3HaFmU5wzqziDdUIA8Hu3y4pnwheRmIBr8cLUnO3kN4M07mGFYEVJ6VTSI6N8JhAyA8w0PkI2JMJAAAA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
-      "width": 585
+      "width": 588
     },
     "commit/halo-before": {
       "alt": "Leaves in front of the facade, after the bilateral denoiser: a dark rim outlines every leaf against the wall.",
-      "app_version": "1.1.1+f175b5f",
+      "app_version": "1.1.1+70d5266",
       "caption": "With the bilateral denoiser and its detail boost, dark halos outline the leaves.",
-      "captured": "2026-10-16",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 24139,
-            "key": "shots/commit/halo-before/a4db398c65bb0125.avif"
+            "bytes": 24770,
+            "key": "shots/commit/halo-before/510dc57415428539.avif"
           },
           "png": {
-            "bytes": 46028,
-            "key": "shots/commit/halo-before/46f38732506a76c2.png"
+            "bytes": 50042,
+            "key": "shots/commit/halo-before/f63e4c53134c25b1.png"
           },
           "webp": {
-            "bytes": 28688,
-            "key": "shots/commit/halo-before/1dedaadfbca5da1b.webp"
+            "bytes": 29572,
+            "key": "shots/commit/halo-before/ac03e05c5281de89.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRngAAABXRUJQVlA4IGwAAABwAgCdASoQAAsAA4BaJZACdAYvNwkYhS9dMR0AAP6KHcmpLkFMDXorKN6UfoiEN2TVK9b6fC1u650bVTud56AimagXukpFJxhX+Oc0eTZWgLIzfXtLY7bPR4Uc1yrzAeSXZQgXHqDodQyQAAA="
+        "lqip": "data:image/webp;base64,UklGRnYAAABXRUJQVlA4IGoAAAAwAgCdASoQAAsAA4BaJZgCdAYvXaY2wKzsAAD+ih2xm7YZImglwVG8xzt6+ZQriE2sGbek7O5ewk3PN6iJQQR8uKZ8L8t3UsouMnUswk2ZOIw28ncotipPSqaNwjfBjR2HxB6ZIUNg6OAA"
       },
       "files": {
         "avif": {
-          "bytes": 24088,
-          "key": "shots/commit/halo-before/4338cc47cb4ee89d.avif"
+          "bytes": 26736,
+          "key": "shots/commit/halo-before/3e68a2873e68f358.avif"
         },
         "png": {
-          "bytes": 46013,
-          "key": "shots/commit/halo-before/360354a8a640e8a4.png"
+          "bytes": 91543,
+          "key": "shots/commit/halo-before/bd8e1d4d982f9100.png"
         },
         "webp": {
-          "bytes": 28632,
-          "key": "shots/commit/halo-before/0d0722a98afacc27.webp"
+          "bytes": 32844,
+          "key": "shots/commit/halo-before/9d4020acb9f7d64a.webp"
         }
       },
-      "height": 391,
+      "height": 393,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRngAAABXRUJQVlA4IGwAAABQAgCdASoQAAsAA4BaJZACdAYvXwkYhS9eqHQA/oodyakuQkwNeiso3pR+sgAPVTPw7vmyW/3ekFMsOlS3WcDE/P+oFJom1NSy9QcoXwOLWWkZNvJ3KLYqT0rk+2vVPsoWNnoV86DodQyQAAA=",
+      "lqip": "data:image/webp;base64,UklGRnoAAABXRUJQVlA4IG4AAABwAgCdASoQAAsAA4BaJZACdAYtzzF9cDyD+duAAP6KHbBP584It6QIKUVYZMar15hjL/ZESC29lnqDh5yt6UcwC2Qi29jrEHw8EkQ0PK5bh7WXRBR7EEqCjGl5AynX0bb09B2RruwS5BDWdQPAAA==",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
-      "width": 585
+      "width": 588
     },
     "commit/html-report": {
       "alt": "The int8 run's HTML report on small-objects: mAP 0.338, AP50 0.507, AP small 0.341, latency and model size; AP per class for person and car, AP and recall by object size, latency, then the images with the most missed objects, boxes drawn.",
-      "app_version": "1.1.1+d434630",
+      "app_version": "1.1.1+70d5266",
       "caption": "Your code can write an HTML report: it shows in the run's card, here with the images where the model missed the most objects.",
-      "captured": "2026-10-15",
+      "captured": "2026-10-18",
       "files": {
         "avif": {
-          "bytes": 90989,
-          "key": "shots/commit/html-report/a41e90fe911f278d.avif"
+          "bytes": 90658,
+          "key": "shots/commit/html-report/0631a811b4466a8e.avif"
         },
         "png": {
-          "bytes": 902779,
-          "key": "shots/commit/html-report/b9d2b6dc1da1fc50.png"
+          "bytes": 902428,
+          "key": "shots/commit/html-report/61e92bc786906f3d.png"
         },
         "webp": {
-          "bytes": 146626,
-          "key": "shots/commit/html-report/ce15783f79332487.webp"
+          "bytes": 145824,
+          "key": "shots/commit/html-report/8a3b8136a8395fed.webp"
         }
       },
       "height": 815,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRkYAAABXRUJQVlA4IDoAAADwAQCdASoQABAAA4BaJZwAAxf8G2txqMAA/vYod3RFc2ZmKkX8s2NrzjaVoxKr5aFNjwvlIyuA8AAA",
+      "lqip": "data:image/webp;base64,UklGRkYAAABXRUJQVlA4IDoAAADwAQCdASoQABAAA4BaJZwAAxf8Gx70+AAA/vYod3RFc2ZmLRsTbUUaz8lnaqxKr5aEIBXiuIrZwHgA",
       "project": "detection-eval",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 824
     },
     "commit/image-diff": {
-      "alt": "Zooming into the new image of the facade, the reference follows; the View options open and Image diff turns on; raising the threshold leaves only the window frame's halos.",
-      "app_version": "1.1.1+1060653",
-      "caption": "Synced zoom, then Image Diff and its threshold.",
-      "captured": "2026-10-16",
+      "alt": "Zooming into the new image of the facade, the reference follows; a wipe across them; then their difference between them, whose maximum goes up until only the window frame's halos stand out.",
+      "app_version": "1.1.1+70d5266",
+      "caption": "Synced zoom, a wipe, then the difference between the images, and its maximum.",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "mp4": {
-            "bytes": 378861,
-            "key": "shots/commit/image-diff/f3921d74fd9067d2.mp4"
+            "bytes": 497257,
+            "key": "shots/commit/image-diff/d3add2654c2e0d8f.mp4"
           },
           "poster": {
-            "bytes": 68750,
-            "key": "shots/commit/image-diff/43c964d15b0a4745.webp"
+            "bytes": 110330,
+            "key": "shots/commit/image-diff/5b3b589142eb6cef.webp"
           },
           "vtt": {
-            "bytes": 207,
-            "key": "shots/commit/image-diff/524bf4e390626bb8.vtt"
+            "bytes": 259,
+            "key": "shots/commit/image-diff/a06b784c7eba6dc2.vtt"
           },
           "webm": {
-            "bytes": 477364,
-            "key": "shots/commit/image-diff/d4f989c5d2a252a5.webm"
+            "bytes": 613514,
+            "key": "shots/commit/image-diff/22a26535b181ba59.webm"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRlYAAABXRUJQVlA4IEoAAAAQAgCdASoQAAoAA4BaJZQC7AEPhsO5+YPAAP7zTAam3WBT2imH1ZjVZepPzTRMKGXNE/HusVLXTgAw8r+k2otdql4sscPIcUAAAA=="
+        "lqip": "data:image/webp;base64,UklGRmIAAABXRUJQVlA4IFYAAACwAQCdASoQAAoAA4BaJZAAAveEKqcAAP7xtGKO+m+Q2vzCq+t7GfoWGHDn4VpMOfwb9G6thYAQ8iWurr1grUXP249II8fSTNBhQYMe907el7QB78QAAA=="
       },
-      "duration": 11.13,
+      "duration": 12.67,
       "files": {
         "mp4": {
-          "bytes": 380271,
-          "key": "shots/commit/image-diff/f831e06cf0d5fa0e.mp4"
+          "bytes": 500922,
+          "key": "shots/commit/image-diff/2ba080eefec470b5.mp4"
         },
         "poster": {
-          "bytes": 69330,
-          "key": "shots/commit/image-diff/1565cbf5ec4eec23.webp"
+          "bytes": 110718,
+          "key": "shots/commit/image-diff/ed86948a4e9cbdd5.webp"
         },
         "vtt": {
-          "bytes": 207,
-          "key": "shots/commit/image-diff/524bf4e390626bb8.vtt"
+          "bytes": 259,
+          "key": "shots/commit/image-diff/a06b784c7eba6dc2.vtt"
         },
         "webm": {
-          "bytes": 471772,
-          "key": "shots/commit/image-diff/bbaf9e4aef21c5b7.webm"
+          "bytes": 609042,
+          "key": "shots/commit/image-diff/b8d3a9a85048fca6.webm"
         }
       },
       "height": 900,
       "kind": "clip",
-      "lqip": "data:image/webp;base64,UklGRlYAAABXRUJQVlA4IEoAAADwAQCdASoQAAoAA4BaJZwAAlxS2CdCvwAA/cfXh7V+q4od1ODcsyFCyIxwv+T8gSqt4fbT4ln+8fLWaTJUJuiqmomraclc2FQAAA==",
+      "lqip": "data:image/webp;base64,UklGRlgAAABXRUJQVlA4IEwAAADQAQCdASoQAAoAA4BaJZgC7AEO/gSQgAD8P4uZ39VbL59nlmyeQx/E1FDc593Y5qTPpxUtojV14F6eFysw1cCzpEaFHAIXXNdNkAAA",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
     },
     "commit/image-filters": {
-      "alt": "The Image Tools panel over the night street's shadows, with brightness raised and gamma lowered: the noise of both images shows.",
-      "app_version": "1.1.1+f175b5f",
-      "caption": "Image Tools filters apply to both images at once: here brightness and gamma reveal the noise in the shadows.",
-      "captured": "2026-10-16",
+      "alt": "The display adjustments open over the night street's shadows, with brightness and gamma raised: the noise of both images shows.",
+      "app_version": "1.1.1+70d5266",
+      "caption": "Adjustments apply to both images at once: here brightness and gamma reveal the noise in the shadows.",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 153348,
-            "key": "shots/commit/image-filters/a711aa9d0a40973f.avif"
+            "bytes": 193767,
+            "key": "shots/commit/image-filters/546abd619daec550.avif"
           },
           "png": {
-            "bytes": 477471,
-            "key": "shots/commit/image-filters/40225bcbf6139f2c.png"
+            "bytes": 585469,
+            "key": "shots/commit/image-filters/c332963d42144ffb.png"
           },
           "webp": {
-            "bytes": 208316,
-            "key": "shots/commit/image-filters/c2068f44e4beec77.webp"
+            "bytes": 276112,
+            "key": "shots/commit/image-filters/420a2cba31de6d94.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRkYAAABXRUJQVlA4IDoAAAAQAgCdASoQAAkAA4BaJQBOkBLjAxAvAk8AAP7b3+uKLRyJiVr66EY3B/TDtEkUFCpICADJT3PMQAAA"
+        "lqip": "data:image/webp;base64,UklGRlIAAABXRUJQVlA4IEYAAADwAQCdASoQAAgAA4BaJaACdAEKo7U68IAA/uX1q5i8C62D5hrGdoW+TySXzrwtrsUiTFek3d8U/9ijc+AblwJ4siGp0AAA"
       },
       "files": {
         "avif": {
-          "bytes": 154458,
-          "key": "shots/commit/image-filters/0224c4e1bcfe55f4.avif"
+          "bytes": 195533,
+          "key": "shots/commit/image-filters/3237e5902b943085.avif"
         },
         "png": {
-          "bytes": 477300,
-          "key": "shots/commit/image-filters/e5a66c84d2f8a304.png"
+          "bytes": 578466,
+          "key": "shots/commit/image-filters/cd3855baed7009c1.png"
         },
         "webp": {
-          "bytes": 209752,
-          "key": "shots/commit/image-filters/4db2f18eec387e4e.webp"
+          "bytes": 280604,
+          "key": "shots/commit/image-filters/829717e5a9f68191.webp"
         }
       },
-      "height": 631,
+      "height": 585,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRlAAAABXRUJQVlA4IEQAAADQAQCdASoQAAkAA4BaJQBOkCYjAOrKsAD+5/rsZLTi+g2aOAdmIYeL4oXllT4oKjQuSxZHLesTWASTn59RHxkvWoAAAA==",
+      "lqip": "data:image/webp;base64,UklGRloAAABXRUJQVlA4IE4AAADQAQCdASoQAAgAA4BaJaACdADDqnZiYAD+tC+lEAIt75pMHg+Qyh2OAQvrdP0H8V59uXc050Qbkr5yY3l0UWeQ/PDGxbup8IGwyktkgAA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
-      "width": 1178
+      "width": 1188
     },
     "commit/image-perceptual-diff": {
-      "alt": "New image, Image Diff and reference image of the facade window: in the diff, the window frame's edges show in yellow and orange, the flat wall stays white.",
-      "app_version": "1.1.1+f175b5f",
-      "caption": "Image Diff shows where the images differ; raise its threshold until only the halos stand out.",
-      "captured": "2026-10-16",
+      "alt": "The facade window, new and reference on each side of their perceptual difference: the window frame's edges show in yellow to dark red, the flat wall fades to light gray. Above them, the comparison modes and the difference's settings.",
+      "app_version": "1.1.1+70d5266",
+      "caption": "The difference shows between the images where they differ; raise its maximum until only the halos stand out.",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 46044,
-            "key": "shots/commit/image-perceptual-diff/e1624c47575ea34d.avif"
+            "bytes": 75384,
+            "key": "shots/commit/image-perceptual-diff/3572c0c6593369e0.avif"
           },
           "png": {
-            "bytes": 255442,
-            "key": "shots/commit/image-perceptual-diff/41b733f91eda9e94.png"
+            "bytes": 392845,
+            "key": "shots/commit/image-perceptual-diff/46edad5752e7e61f.png"
           },
           "webp": {
-            "bytes": 67384,
-            "key": "shots/commit/image-perceptual-diff/e3e858e18e4bca9c.webp"
+            "bytes": 121312,
+            "key": "shots/commit/image-perceptual-diff/1fbe747d0cfc1d76.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRlAAAABXRUJQVlA4IEQAAADwAQCdASoQAAYAA4BaJZQCdAEO9EAqWAAA/cIAy4T74H2KXiF6B05TnMJsv8wWGi1V4sV+Gy4zh07HCb9SSHnyMLoYAA=="
+        "lqip": "data:image/webp;base64,UklGRk4AAABXRUJQVlA4IEIAAADQAQCdASoQAAYAA4BaJYgCdAD0ckEmAAD+hfA+7ZET+7Z501ov3GY2ccyqEcooBbUDiSFewk5umEGTNFdYQ00gAAA="
       },
       "files": {
         "avif": {
-          "bytes": 46651,
-          "key": "shots/commit/image-perceptual-diff/9aedd92b2838ab2c.avif"
+          "bytes": 75443,
+          "key": "shots/commit/image-perceptual-diff/2ed0473c5506b38a.avif"
         },
         "png": {
-          "bytes": 250561,
-          "key": "shots/commit/image-perceptual-diff/b2855e17a39c50e2.png"
+          "bytes": 389888,
+          "key": "shots/commit/image-perceptual-diff/d5c5871afe811500.png"
         },
         "webp": {
-          "bytes": 68372,
-          "key": "shots/commit/image-perceptual-diff/f41a7fefe7ae63a1.webp"
+          "bytes": 121578,
+          "key": "shots/commit/image-perceptual-diff/1c6f96b5c44c7417.webp"
         }
       },
-      "height": 378,
+      "height": 387,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRlIAAABXRUJQVlA4IEYAAAAQAgCdASoQAAYAA4BaJZQCdAEDe1AK/GSAAP6bsw7nbq236SOGDtIpAc546ESlM5gN659iQ6aWyDLNgtcPxJgKp2p0aAAA",
+      "lqip": "data:image/webp;base64,UklGRk4AAABXRUJQVlA4IEIAAADwAQCdASoQAAYAA4BaJYgCdAD0lEfCTgAA/smEndR5Lz45vsNlRkWjqcYSkRDVG1NgUGWJY0l8oeWm+joaSMPnAAA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
-      "width": 1178
+      "width": 1188
     },
     "commit/image-sbs": {
       "alt": "New and reference images of the facade, zoomed on leaves in front of the wall: in the new image, dark halos outline every leaf.",
-      "app_version": "1.1.1+f175b5f",
+      "app_version": "1.1.1+70d5266",
       "caption": "Both images at the same zoom: only the new denoiser outlines the leaves with dark halos.",
-      "captured": "2026-10-16",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 48982,
-            "key": "shots/commit/image-sbs/cef382f98b037f3d.avif"
+            "bytes": 50552,
+            "key": "shots/commit/image-sbs/886acfe1f73ea00c.avif"
           },
           "png": {
-            "bytes": 97937,
-            "key": "shots/commit/image-sbs/2ac26b112326dfce.png"
+            "bytes": 144821,
+            "key": "shots/commit/image-sbs/a0ab58cb514cdfae.png"
           },
           "webp": {
-            "bytes": 58254,
-            "key": "shots/commit/image-sbs/8ea733bf746b2aca.webp"
+            "bytes": 61794,
+            "key": "shots/commit/image-sbs/83ddeb6fc2d298b2.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRl4AAABXRUJQVlA4IFIAAAAQAgCdASoQAAYAA4BaJQBOj+ACQ0XylboAAP54/Q6lBYfcoNnMNbl0iiJ6E7jtVEWOfgJ62Okm2vfVxcu9ZdUKN72stgolrhCP3NEo9sOigAAA"
+        "lqip": "data:image/webp;base64,UklGRmAAAABXRUJQVlA4IFQAAADQAQCdASoQAAYAA4BaJQBOgMXSeAHRQAD+JbgL9T6CxfEw1uHXHQbshEFxVnrLyDXtBp0SxntQ9zHXnS0vuTn+nb1ep4zkiuSVVk8SRPxkuISAAAA="
       },
       "files": {
         "avif": {
-          "bytes": 48982,
-          "key": "shots/commit/image-sbs/14d1ade5ca4a1e81.avif"
+          "bytes": 50821,
+          "key": "shots/commit/image-sbs/4625e2505ce44bd2.avif"
         },
         "png": {
-          "bytes": 97963,
-          "key": "shots/commit/image-sbs/4585f71cfa6f4d61.png"
+          "bytes": 144936,
+          "key": "shots/commit/image-sbs/616b871027af411f.png"
         },
         "webp": {
-          "bytes": 59374,
-          "key": "shots/commit/image-sbs/915c4a62fbdfd7db.webp"
+          "bytes": 61614,
+          "key": "shots/commit/image-sbs/434659358ec7333c.webp"
         }
       },
-      "height": 416,
+      "height": 393,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRlwAAABXRUJQVlA4IFAAAAAQAgCdASoQAAYAA4BaJQBOj+AQUo7PNxoAAPpOciY24/XGvzPnsQDl9Vma5kLjr+pAJtXoRrq6a6d+tsy5yQLnnJ1ss3QEFIjVRPYEcUQAAA==",
+      "lqip": "data:image/webp;base64,UklGRl4AAABXRUJQVlA4IFIAAAAQAgCdASoQAAYAA4BaJQBOj+AQUg77waCAAP4luAvxxPg3LRaCeAEdNWt9GeDVmHsQ4wsLMdX92NFVIv+7arw+P3MZbrlcP7KRnhD8t5eLAAAA",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
-      "width": 1170
+      "width": 1180
     },
     "commit/latency-cdf": {
       "alt": "The steady-high run of the shared cache against its parent: p50 and p99 a hundred times the reference's or more. On log axes, the new line sits near a second from the median on, the reference's stays under the 12 ms SLO line until the far tail.",
@@ -1175,86 +1175,86 @@
     },
     "commit/metrics-diff": {
       "alt": "The Metrics Diff of the int8 runs against the fp32 release, slice by slice: indoor mAP -35% and AP small -34% in orange, AP small -7% on small-objects and -15% outdoor, warehouse better, and the model size -72% in green on every slice.",
-      "app_version": "1.1.1+f175b5f",
+      "app_version": "1.1.1+70d5266",
       "caption": "The Metrics Diff shows each test's change: the int8 model is smaller everywhere, and much worse indoors.",
-      "captured": "2026-10-16",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 36007,
-            "key": "shots/commit/metrics-diff/d58661d3abd7e616.avif"
+            "bytes": 29259,
+            "key": "shots/commit/metrics-diff/e24910ca738856af.avif"
           },
           "png": {
-            "bytes": 138150,
-            "key": "shots/commit/metrics-diff/de09a4ffeb2cbaf2.png"
+            "bytes": 115047,
+            "key": "shots/commit/metrics-diff/7861a546ef389b29.png"
           },
           "webp": {
-            "bytes": 81574,
-            "key": "shots/commit/metrics-diff/6e73ad0d3b07ddb0.webp"
+            "bytes": 69138,
+            "key": "shots/commit/metrics-diff/b47d2f239c632d6a.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRkIAAABXRUJQVlA4IDYAAABQAQCdASoQAAgAA4BaJYwABDOAAP7vx89XX+O6KNrWDKd+Ml2kJ5Tq8pXsp+aDZhOMuROAAAA="
+        "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAADQAQCdASoQAAcAA4BaJYwAAp3KoFNQAAD+7ES0AnTvZHTJd4iR35d30AA="
       },
       "files": {
         "avif": {
-          "bytes": 35397,
-          "key": "shots/commit/metrics-diff/bdb681349769d760.avif"
+          "bytes": 28122,
+          "key": "shots/commit/metrics-diff/60da4d2a0937c7be.avif"
         },
         "png": {
-          "bytes": 138647,
-          "key": "shots/commit/metrics-diff/2f96f700ebd466a7.png"
+          "bytes": 112462,
+          "key": "shots/commit/metrics-diff/d1cbcc0d8f53ca36.png"
         },
         "webp": {
-          "bytes": 84382,
-          "key": "shots/commit/metrics-diff/c020a206816cf54c.webp"
+          "bytes": 71756,
+          "key": "shots/commit/metrics-diff/76905d329aabbade.webp"
         }
       },
-      "height": 522,
+      "height": 422,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRloAAABXRUJQVlA4IE4AAACQAQCdASoQAAgAA4BaJaAAAhZZdQAA/vU+zFaNKeJvb0I3DTxckN62I7GF8R54i4DXCHGE+jcxJx/BixyMpQBkvtaDWFKfWtRfn4AAAAA=",
+      "lqip": "data:image/webp;base64,UklGRlIAAABXRUJQVlA4IEYAAADwAQCdASoQAAcAA4BaJbAC7AEDfZozL4AA/vOIff865/pKjizagOkYGWwajg9h4SiHETjIVIwmL3AjWizGv8KirjTcvUAA",
       "project": "detection-eval",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1104
     },
     "commit/metrics-table": {
       "alt": "The Metrics Table of the first int8 commit: a row per slice and model, mAP, AP50, AP small and latency, new and reference. mAP cells go from green on small-objects to orange on indoor and warehouse, by their distance to the 0.15 target in the header; latency cells are green.",
-      "app_version": "1.1.1+f175b5f",
+      "app_version": "1.1.1+70d5266",
       "caption": "One row per test, colored by the distance to the targets set in metrics.yaml, shown in the headers.",
-      "captured": "2026-10-16",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 42904,
-            "key": "shots/commit/metrics-table/6f4648825e1f311c.avif"
+            "bytes": 45475,
+            "key": "shots/commit/metrics-table/dd40011862d12e48.avif"
           },
           "png": {
-            "bytes": 214608,
-            "key": "shots/commit/metrics-table/bee94faf583c9a88.png"
+            "bytes": 228634,
+            "key": "shots/commit/metrics-table/b18728dc5df52c8a.png"
           },
           "webp": {
-            "bytes": 120658,
-            "key": "shots/commit/metrics-table/6b7bd6ffadbb1ac7.webp"
+            "bytes": 126606,
+            "key": "shots/commit/metrics-table/cd8d48fa3da1faf5.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRkYAAABXRUJQVlA4IDoAAACQAQCdASoQAAsAA4BaJZTuAGMAMoAA/u/E7PncAzmgRdbRpUX3F4W+wisTzNxY5XWIogZl6Q1OgAAA"
+        "lqip": "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAABwAQCdASoQAAsAA4BaJZTyFACmgAD+78TssOCL7wPjA/ciJ05483JeUbo2Z19myRoAAA=="
       },
       "files": {
         "avif": {
-          "bytes": 43892,
-          "key": "shots/commit/metrics-table/262fc79b459149e2.avif"
+          "bytes": 46540,
+          "key": "shots/commit/metrics-table/9f8a45cd3d378552.avif"
         },
         "png": {
-          "bytes": 217211,
-          "key": "shots/commit/metrics-table/93ade53cb5d59ab9.png"
+          "bytes": 231462,
+          "key": "shots/commit/metrics-table/671590080eda34f4.png"
         },
         "webp": {
-          "bytes": 125634,
-          "key": "shots/commit/metrics-table/ddb00452d6bb9b0d.webp"
+          "bytes": 130444,
+          "key": "shots/commit/metrics-table/c3c5274724e14480.webp"
         }
       },
       "height": 719,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRl4AAABXRUJQVlA4IFIAAADQAQCdASoQAAsAA4BaJZAAAlxBZ2XyAAD+9ixMJnricU3opJr6TV+RoqExZRXlB4nQ14YG2ILvoCX4txuiC48f3U0R4rFciTb0eZ0vP75xoAAA",
+      "lqip": "data:image/webp;base64,UklGRloAAABXRUJQVlA4IE4AAACwAQCdASoQAAsAA4BaJZAAAlvTwwkoAP705OrfYO39jnITsi8ZpyRy4vLs46Dc30a4YaMRKQ8IPmU9Lm4DAM7uKxXIk3yY4rp7VVIAAAA=",
       "project": "detection-eval",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1104
@@ -1269,43 +1269,43 @@
           "y": 16.3
         }
       },
-      "app_version": "1.1.1+f175b5f",
+      "app_version": "1.1.1+70d5266",
       "caption": "A commit's star makes it a milestone: give it a label and notes, and share it with everyone on the project.",
-      "captured": "2026-10-16",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 12419,
-            "key": "shots/commit/milestone/c738fd1db23350dd.avif"
+            "bytes": 12593,
+            "key": "shots/commit/milestone/efdb54cda3b47eb0.avif"
           },
           "png": {
-            "bytes": 50379,
-            "key": "shots/commit/milestone/826a18f0bebb5bb9.png"
+            "bytes": 51883,
+            "key": "shots/commit/milestone/0630d1e34fbac16e.png"
           },
           "webp": {
-            "bytes": 20502,
-            "key": "shots/commit/milestone/87df30386132398c.webp"
+            "bytes": 20766,
+            "key": "shots/commit/milestone/13e4f26202ff5973.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRjoAAABXRUJQVlA4IC4AAABwAQCdASoQAA4AA4BaJZQC7AF1AAD+7+OMJPw1398AobdVUrpAXVhmqG6V5wAA"
+        "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAADQAQCdASoQAA4AA4BaJZQC7AEf/x3C4AD+7MFSgfTnTFjPFb6SZPQmo8kAAA=="
       },
       "files": {
         "avif": {
-          "bytes": 13261,
-          "key": "shots/commit/milestone/ea60246300743894.avif"
+          "bytes": 13417,
+          "key": "shots/commit/milestone/3e7a567d9d25eb8f.avif"
         },
         "png": {
-          "bytes": 47654,
-          "key": "shots/commit/milestone/adc91d63afb78ca5.png"
+          "bytes": 48774,
+          "key": "shots/commit/milestone/1edf6a2c5bd56edc.png"
         },
         "webp": {
-          "bytes": 21448,
-          "key": "shots/commit/milestone/0fef01683b4260ce.webp"
+          "bytes": 21732,
+          "key": "shots/commit/milestone/d312e26054737385.webp"
         }
       },
       "height": 362,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAACwAQCdASoQAA4AA4BaJZwAAu1hUXAAAP72QCJUiJZmJ7vBVT+3wvYSZfF5h9vCcOAAAA==",
+      "lqip": "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAABwAQCdASoQAA4AA4BaJZ1L5AGIAAD+89ZKbfv0H+Nd8qS0TS4HqIL5tVyAIFM7ZwAAAA==",
       "project": "detection-eval",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 418
@@ -1397,47 +1397,47 @@
       "width": 1120
     },
     "commit/pixel-tooltip": {
-      "alt": "The center of a Siemens star, new and reference: above the images, the hovered pixel's coordinates and its RGB values in both images; crosshairs mark the pixel on both.",
-      "app_version": "1.1.1+f175b5f",
-      "caption": "Hover a pixel: its values in both images show above them, and a crosshair marks the same spot on the reference.",
-      "captured": "2026-10-16",
+      "alt": "The center of a Siemens star, new and reference: above the images, the hovered pixel's coordinates, its values in both images and their difference; a crosshair marks the pixel on both images.",
+      "app_version": "1.1.1+70d5266",
+      "caption": "Hover a pixel: its values in both images and their difference show above them, and a crosshair marks the same spot on both images.",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 84613,
-            "key": "shots/commit/pixel-tooltip/97c093d319165fd0.avif"
+            "bytes": 79071,
+            "key": "shots/commit/pixel-tooltip/f910f2ebc2c31fad.avif"
           },
           "png": {
-            "bytes": 195538,
-            "key": "shots/commit/pixel-tooltip/093e08bf639f98c9.png"
+            "bytes": 170189,
+            "key": "shots/commit/pixel-tooltip/333381118f2d4ea6.png"
           },
           "webp": {
-            "bytes": 132602,
-            "key": "shots/commit/pixel-tooltip/410f7cc727bd442b.webp"
+            "bytes": 125966,
+            "key": "shots/commit/pixel-tooltip/9bbe62501544a7e8.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAADQAQCdASoQAAcAA4BaJaQAAubTqgZaAADiAnIkCJH1Ya080GRt26AAAAA="
+        "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAACwAQCdASoQAAYAA4BaJaQAAcXxKGIAAPjhr4qsNV7HkhfcwoTekVm47AAAAA=="
       },
       "files": {
         "avif": {
-          "bytes": 84105,
-          "key": "shots/commit/pixel-tooltip/037b5a98c647c090.avif"
+          "bytes": 79022,
+          "key": "shots/commit/pixel-tooltip/bb546dc66d48b785.avif"
         },
         "png": {
-          "bytes": 194467,
-          "key": "shots/commit/pixel-tooltip/d5323b13892a85e9.png"
+          "bytes": 169585,
+          "key": "shots/commit/pixel-tooltip/00b9df873c62b144.png"
         },
         "webp": {
-          "bytes": 132214,
-          "key": "shots/commit/pixel-tooltip/83b4016149dad07c.webp"
+          "bytes": 125654,
+          "key": "shots/commit/pixel-tooltip/67a7edce43490077.webp"
         }
       },
-      "height": 441,
+      "height": 423,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAACQAQCdASoQAAcAA4BaJaQAAuWIKJAA/rYVET7Jh3Cff8CM+xEAAA==",
+      "lqip": "data:image/webp;base64,UklGRjAAAABXRUJQVlA4ICQAAACQAQCdASoQAAYAA4BaJaQAAuWt2ogA/peN7EcqkPnoqnYAAAA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
-      "width": 1170
+      "width": 1188
     },
     "commit/plotly-overlay": {
       "alt": "Precision-recall curves of the indoor slice, one per class: the int8 model's solid, the fp32 release's dashed in the same color. The legend gives each curve's AP50: person drops from 0.19 to 0.06.",
@@ -1483,98 +1483,98 @@
       "width": 856
     },
     "commit/roi-histograms": {
-      "alt": "A rectangle selected on the sky gradient; below the images, the red, green, blue and luma histograms of the region, new and reference overlaid.",
-      "app_version": "1.1.1+f175b5f",
-      "caption": "Select a region to compare its histograms, new against reference.",
-      "captured": "2026-10-16",
+      "alt": "Zoomed on a band of the sky gradient; below the images, the red, green, blue and luma histograms of what they show, new and reference overlaid.",
+      "app_version": "1.1.1+70d5266",
+      "caption": "Zoom on a region to compare its histograms, new against reference.",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 186992,
-            "key": "shots/commit/roi-histograms/5741e5b8d499df54.avif"
+            "bytes": 116152,
+            "key": "shots/commit/roi-histograms/52f660c05993f319.avif"
           },
           "png": {
-            "bytes": 2642403,
-            "key": "shots/commit/roi-histograms/cef48e4683e0f0cc.png"
+            "bytes": 1175942,
+            "key": "shots/commit/roi-histograms/b3a20012b3786855.png"
           },
           "webp": {
-            "bytes": 219196,
-            "key": "shots/commit/roi-histograms/4ff14224dbba3f00.webp"
+            "bytes": 139028,
+            "key": "shots/commit/roi-histograms/423948c7e98f5758.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRkoAAABXRUJQVlA4ID4AAADQAQCdASoQAAsAA4BaJQBOgCHYK8sf8AD2prkuq6tm4RwD2bbp+ewuWoHbZ2mSkhCyxyeOK2O3b8pg/UIAAA=="
+        "lqip": "data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAADQAQCdASoQAAgAA4BaJZwCdAEOwW1xQAD+BcwzvQZOQa/uwr2frOOCn8+bDQzQgWENjIAA"
       },
       "files": {
         "avif": {
-          "bytes": 185541,
-          "key": "shots/commit/roi-histograms/964712b97e057f4c.avif"
+          "bytes": 117017,
+          "key": "shots/commit/roi-histograms/f66a28bc1b75d21a.avif"
         },
         "png": {
-          "bytes": 2635361,
-          "key": "shots/commit/roi-histograms/08de0aa6938abad2.png"
+          "bytes": 1173043,
+          "key": "shots/commit/roi-histograms/59985c31fdee7a69.png"
         },
         "webp": {
-          "bytes": 218984,
-          "key": "shots/commit/roi-histograms/684b3e9d2e0d9f88.webp"
+          "bytes": 143526,
+          "key": "shots/commit/roi-histograms/589913ee442bc7bd.webp"
         }
       },
-      "height": 753,
+      "height": 569,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRkoAAABXRUJQVlA4ID4AAAAQAgCdASoQAAsAA4BaJYwCdH8AGBwANaWAAP63cKl1bQWt7wpU/W0OuAxxlU2ybYIU2fxdNUBL9e8ttGagAA==",
+      "lqip": "data:image/webp;base64,UklGRkIAAABXRUJQVlA4IDYAAADQAQCdASoQAAgAA4BaJZwC7AEPDATMQAD+yKEPggeTxPlmh3W+HWXctb1B+HwmpqfWhBgAAAA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
-      "width": 1178
+      "width": 1188
     },
     "commit/run-badges": {
       "alt": "The header of a run card: the input slices/small-objects with its int8 and size-320 configuration tags, Config and Tuning tags in orange, then a \"Model card kd-1.3\" badge with a link icon next to the run's model parameter, and its metrics against the reference.",
       "anchors": {
         "badge": {
-          "h": 8.6,
-          "w": 18.31,
-          "x": 6.51,
-          "y": 63.35
+          "h": 10.26,
+          "w": 15.8,
+          "x": 5.62,
+          "y": 58.71
         }
       },
-      "app_version": "1.1.1+d434630",
+      "app_version": "1.1.1+70d5266",
       "caption": "Runs can return badges, like a link to the model card of the model they evaluated.",
-      "captured": "2026-10-15",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 9558,
-            "key": "shots/commit/run-badges/0566164847f300a1.avif"
+            "bytes": 10059,
+            "key": "shots/commit/run-badges/6224b0d819c99fcc.avif"
           },
           "png": {
-            "bytes": 30645,
-            "key": "shots/commit/run-badges/c2b23ce8d781228c.png"
+            "bytes": 32430,
+            "key": "shots/commit/run-badges/035c09853db3e92c.png"
           },
           "webp": {
-            "bytes": 17278,
-            "key": "shots/commit/run-badges/bf4f0a3395dc5425.webp"
+            "bytes": 18616,
+            "key": "shots/commit/run-badges/6c0bdcfbdf9445ab.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRjoAAABXRUJQVlA4IC4AAADwAQCdASoQAAYAA4BaJZQCsAEUr0ORNAAA/uYxTehbgx1Td1GUM4jpX3gjAAAA"
+        "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAACwAQCdASoQAAUAA4BaJYwAApZDvNQAAP7lJT4pd3Vmi1L29t+3jgfiIwAAAA=="
       },
       "files": {
         "avif": {
-          "bytes": 10213,
-          "key": "shots/commit/run-badges/040275a01c61f1c5.avif"
+          "bytes": 10363,
+          "key": "shots/commit/run-badges/ba0ffa9f904f213d.avif"
         },
         "png": {
-          "bytes": 31012,
-          "key": "shots/commit/run-badges/304b5c016ffd4fa9.png"
+          "bytes": 32585,
+          "key": "shots/commit/run-badges/2ce601c6b2218906.png"
         },
         "webp": {
-          "bytes": 17696,
-          "key": "shots/commit/run-badges/4f1ea5ed0c230966.webp"
+          "bytes": 18542,
+          "key": "shots/commit/run-badges/1066c3045b71889f.webp"
         }
       },
-      "height": 186,
+      "height": 156,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAACwAQCdASoQAAYAA4BaJZwAAseyau0AAP7z4aNSZIAPbBKns2xpMwauEAA=",
+      "lqip": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAACQAQCdASoQAAUAA4BaJZwAAuTrUqAA/vPp8k4LiC7q09KPyl1gAA==",
       "project": "detection-eval",
       "source_spec": "docs-media/shots/commit.spec.ts",
-      "width": 522
+      "width": 605
     },
     "commit/run-menu": {
       "alt": "The menu of the steady-high run's card, open under its menu icon: Redo, Delete, and Delete Output Files.",
@@ -1802,43 +1802,43 @@
     },
     "commit/visualizations": {
       "alt": "A run card of the facade photo: PSNR, SSIM and runtime with their changes against the reference, preset regions of interest, and the new and reference images side by side, zoomed on a window.",
-      "app_version": "1.1.1+f175b5f",
+      "app_version": "1.1.1+70d5266",
       "caption": "Each run shows its main metrics against the reference, then its outputs, new and reference side by side.",
-      "captured": "2026-10-16",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 95314,
-            "key": "shots/commit/visualizations/75829018729e5494.avif"
+            "bytes": 113143,
+            "key": "shots/commit/visualizations/eb2e903be47d7520.avif"
           },
           "png": {
-            "bytes": 525131,
-            "key": "shots/commit/visualizations/7efa71e7d27e12a1.png"
+            "bytes": 571630,
+            "key": "shots/commit/visualizations/e36c5a1d5ff8232e.png"
           },
           "webp": {
-            "bytes": 154176,
-            "key": "shots/commit/visualizations/20440611d802bbc1.webp"
+            "bytes": 182888,
+            "key": "shots/commit/visualizations/af343a6fdc997436.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRlAAAABXRUJQVlA4IEQAAAAQAgCdASoQAAoAA4BaJZQC7AEPfqDLflaAAP7zTAam3WBQNuzNzbkJ1FTF0NXPyhtl/jARtpAwimFAOa85jfTVtErAAA=="
+        "lqip": "data:image/webp;base64,UklGRkoAAABXRUJQVlA4ID4AAADQAQCdASoQAAoAA4BaJZQC7AEOY7/WAAD+8yaWn69I6jbrkwnYA8hWNWHA68S8g+xSBGvha29oe/TrPAAAAA=="
       },
       "files": {
         "avif": {
-          "bytes": 97470,
-          "key": "shots/commit/visualizations/40b11f21f2a2a7ea.avif"
+          "bytes": 114819,
+          "key": "shots/commit/visualizations/cc18dd79d272946e.avif"
         },
         "png": {
-          "bytes": 525203,
-          "key": "shots/commit/visualizations/5d75e66871864770.png"
+          "bytes": 568896,
+          "key": "shots/commit/visualizations/f6f3234d9e17ac23.png"
         },
         "webp": {
-          "bytes": 159292,
-          "key": "shots/commit/visualizations/128661e7ebcaaade.webp"
+          "bytes": 185602,
+          "key": "shots/commit/visualizations/99cec459507ad758.webp"
         }
       },
       "height": 900,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRlgAAABXRUJQVlA4IEwAAADQAQCdASoQAAoAA4BaJZQAAsfy912XQAD9x9eHtX6rih3U4M8xH/LVL8lVVQ6EBubpf1C2h8aogGeGcxFqFpKlQMpcUdn73idlyiQA",
+      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAADQAQCdASoQAAoAA4BaJZQAAudIPsCAAAD2v/xQcze1V4ZviF7mhl6jdYNQeWgF6aoxtMOIuFrTvLlEgAA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
@@ -2250,43 +2250,43 @@
     },
     "history/image-diff": {
       "alt": "PSNR of the facade photo over six weeks of main, a point per commit, with a jump at the merge of the bilateral denoiser. Below, that commit and the one before, and their output images: only the new one outlines the leaves.",
-      "app_version": "1.1.1+f175b5f",
+      "app_version": "1.1.1+70d5266",
       "caption": "Hover a point to compare its commit's outputs with the commit before: the PSNR jumps when the bilateral denoiser is merged, and the leaves get halos.",
-      "captured": "2026-10-16",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 54652,
-            "key": "shots/history/image-diff/9da3e5fe677b524d.avif"
+            "bytes": 102555,
+            "key": "shots/history/image-diff/b5253a80f2c0d6ce.avif"
           },
           "png": {
-            "bytes": 247102,
-            "key": "shots/history/image-diff/9bbb576e48a28e6a.png"
+            "bytes": 365373,
+            "key": "shots/history/image-diff/053cd830fbcaa5be.png"
           },
           "webp": {
-            "bytes": 107468,
-            "key": "shots/history/image-diff/aa7791a7a299e023.webp"
+            "bytes": 169532,
+            "key": "shots/history/image-diff/006654d97fb37171.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAABwAQCdASoQAAwAA4BaJZQC7AF1AAD+8EJT/uW27OOQ9BlhynkfqFHa8SSLPt+BIEAAAA=="
+        "lqip": "data:image/webp;base64,UklGRmAAAABXRUJQVlA4IFQAAADwAQCdASoQABAAA4BaJZQC7AEOJBE9/gAA/vDGiibMiJ2mHhbnI2iIlV1l+7TbqUisUkfVkbVnTWunKEbm/hrguPocnXAwzTDz7/PGeOY++gcAAAA="
       },
       "files": {
         "avif": {
-          "bytes": 56008,
-          "key": "shots/history/image-diff/15d15ce051837854.avif"
+          "bytes": 103673,
+          "key": "shots/history/image-diff/ec75b8ea6678faab.avif"
         },
         "png": {
-          "bytes": 244641,
-          "key": "shots/history/image-diff/1e815fd38caf9108.png"
+          "bytes": 361817,
+          "key": "shots/history/image-diff/9b4c83ce2e7f700a.png"
         },
         "webp": {
-          "bytes": 109244,
-          "key": "shots/history/image-diff/690953c7e78b6656.webp"
+          "bytes": 171124,
+          "key": "shots/history/image-diff/39bedb2107482eeb.webp"
         }
       },
-      "height": 810,
+      "height": 1112,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRkIAAABXRUJQVlA4IDYAAADQAQCdASoQAAwAA4BaJZwAAxf9fQhP2AD+9yptKdqBF3LaZa/C+PbNT0fzIIDPs8iqQAGgAAA=",
+      "lqip": "data:image/webp;base64,UklGRmAAAABXRUJQVlA4IFQAAAAwAgCdASoQABAAA4BaJZQAAxf9gAZIS23sAAD+9yptX8Atw9YJ3QuxylyKBy31XAVJ6CtYoi1rQcR8rUK+zmYUwk5XrA1GofBmWbEN4B2VvviP2AA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/history.spec.ts",
       "width": 1115
@@ -2379,43 +2379,43 @@
     },
     "integrations/menu": {
       "alt": "The sidebar's Integrations menu open on a commit: links to the K3 calibration report and the ISP tuning guide, and the \"Send to the tuning bench\" webhook, with a status tag saying its job is queued.",
-      "app_version": "1.1.1+1060653",
+      "app_version": "1.1.1+70d5266",
       "caption": "Integrations link to your tools and trigger them: after a click, the webhook's tag shows the job's status.",
-      "captured": "2026-10-16",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 6987,
-            "key": "shots/integrations/menu/1a455b3031ba8361.avif"
+            "bytes": 6685,
+            "key": "shots/integrations/menu/ca0aca1250fac2d1.avif"
           },
           "png": {
-            "bytes": 28992,
-            "key": "shots/integrations/menu/a5ce96c77e2c3f73.png"
+            "bytes": 26312,
+            "key": "shots/integrations/menu/280ab174953959c5.png"
           },
           "webp": {
-            "bytes": 12328,
-            "key": "shots/integrations/menu/944c037968cbc79e.webp"
+            "bytes": 11994,
+            "key": "shots/integrations/menu/1fc9bc9298e1c0d6.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAACwAQCdASoQAAUAA4BaJZwAAp/YjdnAAP7yytzM67xRCNAit+eo4AAA"
+        "lqip": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAADQAQCdASoQAAUAA4BaJZwAAq4K4FjdAAD+8srczOu8UQjPVXDZAAAA"
       },
       "files": {
         "avif": {
-          "bytes": 6949,
-          "key": "shots/integrations/menu/1b2e087622c34ed1.avif"
+          "bytes": 6691,
+          "key": "shots/integrations/menu/0131a84ed0a223dc.avif"
         },
         "png": {
-          "bytes": 29317,
-          "key": "shots/integrations/menu/726150dc562ad2e6.png"
+          "bytes": 26848,
+          "key": "shots/integrations/menu/9161ec06d6b7b688.png"
         },
         "webp": {
-          "bytes": 12388,
-          "key": "shots/integrations/menu/e24f169904cd3791.webp"
+          "bytes": 12042,
+          "key": "shots/integrations/menu/25e229df1fbb23e8.webp"
         }
       },
       "height": 119,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAACwAQCdASoQAAUAA4BaJZwAAqseKbNUAP7yytzM7AHYElP3dZW4oAAA",
+      "lqip": "data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAACwAQCdASoQAAUAA4BaJZwAAqzB2AcAAP7yytzM7AHZoAuoWTYDZAAA",
       "project": "image-quality",
       "source_spec": "docs-media/shots/integrations.spec.ts",
       "width": 438
@@ -2474,183 +2474,204 @@
     },
     "landing/deep-zoom": {
       "alt": "The 113-megapixel test wall: zooming from the whole wall into a small Siemens star until single pixels show.",
-      "app_version": "1.1.1+f175b5f",
+      "app_version": "1.1.1+70d5266",
       "caption": "Deep zoom on a 113 MP image: the viewer loads only the tiles it shows.",
-      "captured": "2026-10-16",
+      "captured": "2026-10-18",
       "duration": 7.2,
       "files": {
         "mp4": {
-          "bytes": 148437,
-          "key": "shots/landing/deep-zoom/1cad67d7ce083d1e.mp4"
+          "bytes": 129756,
+          "key": "shots/landing/deep-zoom/0e569b5a34a1717d.mp4"
         },
         "poster": {
-          "bytes": 9394,
-          "key": "shots/landing/deep-zoom/e03779603c55f36d.webp"
+          "bytes": 8942,
+          "key": "shots/landing/deep-zoom/ec2abe4497817ea4.webp"
         },
         "vtt": {
           "bytes": 167,
           "key": "shots/landing/deep-zoom/7bf88770758ea4eb.vtt"
         },
         "webm": {
-          "bytes": 186571,
-          "key": "shots/landing/deep-zoom/1112c9c97c54dc2e.webm"
+          "bytes": 159675,
+          "key": "shots/landing/deep-zoom/2ac60787cb42577d.webm"
         }
       },
-      "height": 366,
+      "height": 368,
       "kind": "clip",
-      "lqip": "data:image/webp;base64,UklGRi4AAABXRUJQVlA4ICIAAACwAQCdASoQAAsAA4BaJaQAAuQfgsmAAPzHj2XoCPvcmAAA",
+      "lqip": "data:image/webp;base64,UklGRiwAAABXRUJQVlA4ICAAAACQAQCdASoQAAsAA4BaJaQAApL6IZAA/MZXhHiaF7SAAA==",
       "project": "image-quality",
       "source_spec": "docs-media/shots/landing.spec.ts",
-      "width": 585
+      "width": 588
     },
     "landing/every-stage": {
       "alt": "The facade's window, stage by stage of the camera pipeline: the raw sensor mosaic, demosaiced, denoised, sharpened, then tone-mapped.",
-      "app_version": "1.1.1+be26c26",
+      "app_version": "1.1.1+70d5266",
       "caption": "A slider over the camera pipeline's stages, from the raw mosaic to the output.",
-      "captured": "2026-10-16",
+      "captured": "2026-10-18",
+      "dark": {
+        "files": {
+          "mp4": {
+            "bytes": 296543,
+            "key": "shots/landing/every-stage/307cbeaa095ab1dd.mp4"
+          },
+          "poster": {
+            "bytes": 32754,
+            "key": "shots/landing/every-stage/f96d60920b5db798.webp"
+          },
+          "vtt": {
+            "bytes": 227,
+            "key": "shots/landing/every-stage/636acb159822a2dd.vtt"
+          },
+          "webm": {
+            "bytes": 247789,
+            "key": "shots/landing/every-stage/69b00507b30e4576.webm"
+          }
+        },
+        "lqip": "data:image/webp;base64,UklGRlIAAABXRUJQVlA4IEYAAACwAQCdASoQAAkAA4BaJYwCdADJctfAAPa7cNGUa5ZcpS6IOrNFE0TdaOJnA7TsmyX+OgShDZitf2BcF2RMPTJ0kNQ0/ogA"
+      },
       "duration": 9.87,
       "files": {
         "mp4": {
-          "bytes": 172733,
-          "key": "shots/landing/every-stage/43e492ce885cbbb0.mp4"
+          "bytes": 293626,
+          "key": "shots/landing/every-stage/0a9ec3285377f051.mp4"
         },
         "poster": {
-          "bytes": 16874,
-          "key": "shots/landing/every-stage/9f6ce71c1a3de885.webp"
+          "bytes": 32430,
+          "key": "shots/landing/every-stage/fb5aa106ae0b5804.webp"
         },
         "vtt": {
           "bytes": 227,
           "key": "shots/landing/every-stage/636acb159822a2dd.vtt"
         },
         "webm": {
-          "bytes": 158075,
-          "key": "shots/landing/every-stage/06951a76d1b28244.webm"
+          "bytes": 247372,
+          "key": "shots/landing/every-stage/23b12ee117a12d96.webm"
         }
       },
-      "height": 366,
+      "height": 493,
       "kind": "clip",
-      "lqip": "data:image/webp;base64,UklGRlQAAABXRUJQVlA4IEgAAACwAQCdASoQAAsAA4BaJQBOgBY03HYgAP7X4ps+esgXenTHcuKIn8ZK4C+PIr6WCUkvuJYOcelx3GWJXByQYJXBq6Lw+ciAAAA=",
+      "lqip": "data:image/webp;base64,UklGRlgAAABXRUJQVlA4IEwAAADQAQCdASoQAAkAA4BaJYwCdACyZnQIAAD2u3DRlGuWXKUuiDmxz+9AOREee3/2pxN9MPK+nuC9IcbcgEKXuMfBMRLZo0zqcZ9L3eAA",
       "project": "image-quality",
       "source_spec": "docs-media/shots/landing.spec.ts",
-      "width": 585
+      "width": 960
     },
     "landing/hero": {
-      "alt": "The Metrics Diff of a new denoiser: PSNR up, edge overshoot up 163%. In the facade's images, zooming into one zooms the other, Image Diff turns on, and a higher threshold leaves only the halos; then back to the Metrics Diff.",
-      "app_version": "1.1.1+1060653",
+      "alt": "The Metrics Diff of a new denoiser: PSNR up, edge overshoot up 163%. In the facade's images, zooming into one zooms the other, their difference shows between them, and a higher maximum leaves only the halos; then back to the Metrics Diff.",
+      "app_version": "1.1.1+70d5266",
       "caption": "Metrics and images side by side: the new denoiser wins PSNR, and the images show the halos it adds.",
-      "captured": "2026-10-16",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "mp4": {
-            "bytes": 453268,
-            "key": "shots/landing/hero/3c6caefa1898ba3f.mp4"
+            "bytes": 462278,
+            "key": "shots/landing/hero/53a2467e5da03a65.mp4"
           },
           "poster": {
-            "bytes": 93106,
-            "key": "shots/landing/hero/f77a95b65dddb1b0.webp"
+            "bytes": 125108,
+            "key": "shots/landing/hero/a51c41230d9d9ab3.webp"
           },
           "vtt": {
-            "bytes": 361,
-            "key": "shots/landing/hero/e25398cf665165be.vtt"
+            "bytes": 365,
+            "key": "shots/landing/hero/77a4ae38629db7df.vtt"
           },
           "webm": {
-            "bytes": 601487,
-            "key": "shots/landing/hero/651bb22c1ee1e18f.webm"
+            "bytes": 568729,
+            "key": "shots/landing/hero/b22be735a1fa1af5.webm"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRlAAAABXRUJQVlA4IEQAAAAQAgCdASoQAAoAA4BaJZwC7AEO/vjipZwAAP7zS/OcXgpO1G2SMXZDmM8a7F6fcMuckaAv5rTD/mADbJs6NzGkDBWAAA=="
+        "lqip": "data:image/webp;base64,UklGRl4AAABXRUJQVlA4IFIAAADwAQCdASoQAAoAA4BaJYwBTAA8MccyyqAA/vMmtMFpi4PDLtyYTgFY8R7zqM/rw5ebkjArIFfu9dzvxRbXeDO/Koo4jciyxV3HJo1Y0T12hGAA"
       },
-      "duration": 15.93,
+      "duration": 12.93,
       "files": {
         "mp4": {
-          "bytes": 459000,
-          "key": "shots/landing/hero/5430959bd421c1da.mp4"
+          "bytes": 463041,
+          "key": "shots/landing/hero/b61f28d377ec3ae2.mp4"
         },
         "poster": {
-          "bytes": 94490,
-          "key": "shots/landing/hero/41ebbe7302903876.webp"
+          "bytes": 125908,
+          "key": "shots/landing/hero/a3f63acc43a9c447.webp"
         },
         "vtt": {
-          "bytes": 361,
-          "key": "shots/landing/hero/e25398cf665165be.vtt"
+          "bytes": 365,
+          "key": "shots/landing/hero/77a4ae38629db7df.vtt"
         },
         "webm": {
-          "bytes": 604392,
-          "key": "shots/landing/hero/8ae8d0baefa8e7c9.webm"
+          "bytes": 567710,
+          "key": "shots/landing/hero/bc2f65c4ad5e6f52.webm"
         }
       },
       "height": 900,
       "kind": "clip",
-      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAADQAQCdASoQAAoAA4BaJZwAAp0oBMQukAD8P2tdP8sr8Oga0T+EbXGhcPIaknuhcI2Oj0mCjKSwFCBWAAA=",
+      "lqip": "data:image/webp;base64,UklGRlgAAABXRUJQVlA4IEwAAACQAQCdASoQAAoAA4BaJQAAU6F6zAAA/D+IxzOsPVicugkud6u9CwVwGG3wnzTbe0l1Jtd23RJrBf23LX9ngBqt0nd+Luqe6i95AAAA",
       "project": "image-quality",
       "source_spec": "docs-media/shots/landing.spec.ts",
       "width": 1440
     },
     "landing/pixel-values": {
       "alt": "The facade's window frame, new and reference images: above them, the hovered pixel's coordinates and its RGB values in both images, with their colors; crosshairs mark the pixel in both.",
-      "app_version": "1.1.1+d434630",
-      "caption": "Hover a pixel: its values in both images, and a crosshair on the other.",
-      "captured": "2026-10-15",
+      "app_version": "1.1.1+70d5266",
+      "caption": "Hover a pixel: its values in both images, and a crosshair on both.",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 45034,
-            "key": "shots/landing/pixel-values/17b72e0145fbfc01.avif"
+            "bytes": 39736,
+            "key": "shots/landing/pixel-values/2fd9dcc3e6f22132.avif"
           },
           "png": {
-            "bytes": 247009,
-            "key": "shots/landing/pixel-values/2e5a50ce51803be9.png"
+            "bytes": 187707,
+            "key": "shots/landing/pixel-values/56e746d7ba380bd8.png"
           },
           "webp": {
-            "bytes": 64240,
-            "key": "shots/landing/pixel-values/0010e117f3445465.webp"
+            "bytes": 55818,
+            "key": "shots/landing/pixel-values/020333b7a2774411.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRlYAAABXRUJQVlA4IEoAAADQAQCdASoQAAoAA4BaJZACdAEO/cHJAADypiopfdkxQfU9nPYrwT48ZXo8jVM44z87q+FUoVlmCXrzDLpb5Fr8wTS39Xi6LAAAAA=="
+        "lqip": "data:image/webp;base64,UklGRlwAAABXRUJQVlA4IFAAAADwAQCdASoQAAoAA4BaJZACdADdIyJDxwAA+6XYatHETmy2CBkdW1diNWTEJBOU2CznZhbJsqvtjNdPvfaaDEphASov0WvzBQzw5Why0AAAAA=="
       },
       "files": {
         "avif": {
-          "bytes": 44962,
-          "key": "shots/landing/pixel-values/777f3268985e5ef3.avif"
+          "bytes": 39953,
+          "key": "shots/landing/pixel-values/8c3227fcaf778c30.avif"
         },
         "png": {
-          "bytes": 246521,
-          "key": "shots/landing/pixel-values/23e1435652a9b22b.png"
+          "bytes": 188549,
+          "key": "shots/landing/pixel-values/0bdc7a3d693f9e31.png"
         },
         "webp": {
-          "bytes": 64268,
-          "key": "shots/landing/pixel-values/4ce048273fa5924b.webp"
+          "bytes": 55618,
+          "key": "shots/landing/pixel-values/2cc66ba816b2f66d.webp"
         }
       },
       "height": 490,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRlgAAABXRUJQVlA4IEwAAADwAQCdASoQAAoAA4BaJZACdAEQFDJlg3AA/tPraaa/eGvS7CAN+8DY0dGaOpN7l/nRBe1uhmw0tTA2n+uPWJoJ3HRbrT+jHPEpeIAA",
+      "lqip": "data:image/webp;base64,UklGRlgAAABXRUJQVlA4IEwAAADwAQCdASoQAAoAA4BaJZACdAEQFDJlwlQA/uf+vT7269Gq+W+4jqLmBYwvRepoa2Qonqlygm8N8EkWdOiEYem4ibownGcRM9iqAAAA",
       "project": "image-quality",
       "source_spec": "docs-media/shots/landing.spec.ts",
       "width": 784
     },
     "landing/social-card": {
-      "alt": "QA-Board, \"Tests tell you it runs. QA-Board shows you it's better.\" Next to it, a run on the commit page: PSNR and SSIM up, the new image of a window and its Image Diff, where the frame's halos stand out.",
-      "app_version": "1.1.1+d434630",
+      "alt": "QA-Board, \"Tests tell you it runs. QA-Board shows you it's better.\" Next to it, a run on the commit page: PSNR and SSIM up, the new image of a window and the difference next to it, where the frame's halos stand out.",
+      "app_version": "1.1.1+70d5266",
       "caption": "The social card of the docs.",
-      "captured": "2026-10-15",
+      "captured": "2026-10-18",
       "files": {
         "avif": {
-          "bytes": 27551,
-          "key": "shots/landing/social-card/e9a7b04ba66fc4f4.avif"
+          "bytes": 31462,
+          "key": "shots/landing/social-card/b1c5b20c621f7349.avif"
         },
         "png": {
-          "bytes": 195305,
-          "key": "shots/landing/social-card/44bac377a8498a7c.png"
+          "bytes": 202469,
+          "key": "shots/landing/social-card/00272a77bbdd4d2c.png"
         },
         "webp": {
-          "bytes": 45786,
-          "key": "shots/landing/social-card/3ca82557a647183f.webp"
+          "bytes": 50836,
+          "key": "shots/landing/social-card/f25f47c01fad4763.webp"
         }
       },
       "height": 630,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAACwAQCdASoQAAkAA4BaJQAAR5CsU+1gAP7zyJ6m+WkLEhb31jVyNZ/IaNppYiXeBd/gaSn5olZBNXQAAAA=",
+      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAADwAQCdASoQAAkAA4BaJQBdgCB/82oARAAA/vPInqb5aQlnuvCLi8t3EinMm7If/FdWuMyHeU4It4sAAAA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/landing.spec.ts",
       "width": 1200
@@ -2845,16 +2866,16 @@
       "dark": {
         "files": {
           "avif": {
-            "bytes": 29944,
-            "key": "shots/projects/home/ff732c11958e986e.avif"
+            "bytes": 29938,
+            "key": "shots/projects/home/317131be0161fca6.avif"
           },
           "png": {
-            "bytes": 114877,
-            "key": "shots/projects/home/f9bd5bb9e81d6ef6.png"
+            "bytes": 115640,
+            "key": "shots/projects/home/075cf57390212c38.png"
           },
           "webp": {
-            "bytes": 64886,
-            "key": "shots/projects/home/0bb4b03e7596f9b4.webp"
+            "bytes": 64880,
+            "key": "shots/projects/home/439e26dfe2116d9d.webp"
           }
         },
         "lqip": "data:image/webp;base64,UklGRigAAABXRUJQVlA4IBwAAABQAQCdASoQAAcAA4BaJZwABAAAAP7wn0oTbUIA"
@@ -3289,43 +3310,43 @@
     },
     "whats-new/drawer": {
       "alt": "The What's new panel: a search box, then the release notes newest first. The current month's note is tagged In progress and open on its highlights; the notes not seen yet are tagged New.",
-      "app_version": "1.1.1+d434630",
+      "app_version": "1.1.1+70d5266",
       "caption": "The What's new panel keeps every release note, newest first, with a search box. The current month shows as In progress.",
-      "captured": "2026-10-15",
+      "captured": "2026-10-18",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 75087,
-            "key": "shots/whats-new/drawer/2bf8fc71cb4c431d.avif"
+            "bytes": 68609,
+            "key": "shots/whats-new/drawer/5d1d9076c603caaa.avif"
           },
           "png": {
-            "bytes": 253480,
-            "key": "shots/whats-new/drawer/abe4c6ae48e56826.png"
+            "bytes": 208465,
+            "key": "shots/whats-new/drawer/21ee0996b867db53.png"
           },
           "webp": {
-            "bytes": 174504,
-            "key": "shots/whats-new/drawer/5cdb89693ebb6b06.webp"
+            "bytes": 140734,
+            "key": "shots/whats-new/drawer/95b592d1abf3e836.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRkoAAABXRUJQVlA4ID4AAABwAwCdASoQABQAPu1iqU2ppaOiMAgBMB2JaVefVt+U/y/HFgAA/u0WqEjEAFJdoRBY/tU/lqMrCGthZhAAAA=="
+        "lqip": "data:image/webp;base64,UklGRkwAAABXRUJQVlA4IEAAAACQAwCdASoQABQAPu1iqU2ppaOiMAgBMB2JZ1/2Vt+VA0zIqjeAAP7tldR31S87TrgTs9bk6XI/rN2mDLit8rAA"
       },
       "files": {
         "avif": {
-          "bytes": 76296,
-          "key": "shots/whats-new/drawer/e4f606e3b57316f0.avif"
+          "bytes": 70185,
+          "key": "shots/whats-new/drawer/3843bdea37d04adc.avif"
         },
         "png": {
-          "bytes": 248745,
-          "key": "shots/whats-new/drawer/f401eab8212e6185.png"
+          "bytes": 205018,
+          "key": "shots/whats-new/drawer/f3e7ec92eaff287c.png"
         },
         "webp": {
-          "bytes": 175102,
-          "key": "shots/whats-new/drawer/6f89f56d4ff77f21.webp"
+          "bytes": 141596,
+          "key": "shots/whats-new/drawer/f78c600d39fd478d.webp"
         }
       },
       "height": 900,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAACwAwCdASoQABQAPu1iqU2ppaOiMAgBMB2JaQAAW+/P3znPMZgC4AD+7XznEMAMcN4wvao06yIyQYoAAAA=",
+      "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAABQAwCdASoQABQAPu1iqU2ppaOiMAgBMB2JaWR5ADcoUOoAAAD+8GMDwGidaemZkqFOOzDUPZR2dYXAAAA=",
       "project": null,
       "source_spec": "docs-media/shots/whats-new.spec.ts",
       "width": 720
