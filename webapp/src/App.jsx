@@ -35,6 +35,8 @@ import { HelpSheetProvider } from "./components/HelpSheet"
 import PrivateContent from "./components/authentication/PrivateContent"
 import AppSider, { sider_width } from './AppSider'
 import AppNavbar from './AppNavbar'
+import { MilestoneDialogHost } from "./milestones/MilestoneDialog"
+import { useImportLegacyMilestones } from "./milestones/hooks"
 
 // In development, inspect queries and their cache: https://tanstack.com/query/latest/docs/framework/react/devtools
 const ReactQueryDevtools = import.meta.env.DEV
@@ -99,12 +101,21 @@ const Routes = () => {
 }
 
 
+// Milestones older versions saved in browsers move to the user's account
+const ImportLegacyMilestones = () => {
+  useImportLegacyMilestones();
+  return null;
+}
+
+
 const ProjectApp = ({ pathname }) => {
   const matched = matchRoutes(routes, pathname);
   if (!matched) return null;
   const { route: { main: Main }, match } = matched;
   return <RouteMatch match={match}>
     <ComparisonProvider>
+    <ImportLegacyMilestones/>
+    <MilestoneDialogHost/>
     <Layout className={Classes.UI_TEXT}>
       <AppSider/>
       <div style={{width: '100%'}}>

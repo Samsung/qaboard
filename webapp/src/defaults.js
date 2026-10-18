@@ -39,8 +39,6 @@ export const default_project = {
 		qatools_config: default_qatools_config
 	},
 	git: {},
-	// private milestones, saved in the browser
-	milestones: {},
 	is_favorite: false,
 }
 

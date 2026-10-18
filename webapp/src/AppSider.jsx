@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { Link, useLinkClickHandler, useRouter } from "./router";
-import { path_segment, stringify_query } from "./selection";
+import { path_segment } from "./selection";
 import styled from "styled-components";
 
 import { colors, spacing, typography, borders, transitions, sidebar } from './design/tokens';
@@ -8,14 +8,18 @@ import { colors, spacing, typography, borders, transitions, sidebar } from './de
 import {
   Button,
   Classes,
+  Colors,
   MenuItem,
   Icon,
   Tooltip,
+  PopoverNext,
 } from "@blueprintjs/core";
 
 import { ProjectAvatar } from "./components/avatars";
 import { IntegrationsMenus } from "./components/integrations";
-import { MilestonesMenu } from "./components/milestones"
+import { MilestonesPanel } from "./milestones/MilestonesPanel"
+import { useMilestones } from "./milestones/hooks"
+import { milestone_name, milestone_path, milestone_location, milestones_of } from "./milestones/api"
 import AuthButton from "./components/authentication/Auth"
 import { WhatsNewButton } from "./releaseNotes/ReleaseNotes"
 import { ThemeButton } from "./components/ThemeButton"
@@ -436,33 +440,65 @@ const QuotaMenuItem = ({ user, project }) => {
   />
 }
 
-const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_commit = {}, user, docs_root, ...integrationProps }) => {
+// Milestones: a menu to pick any of them, and the user's favorites one click away
+const max_sider_favorites = 6;
+const SiderMilestones = ({ project, project_data, docs_root }) => {
+  const collapsed = useContext(SiderCollapsedContext);
   const { history } = useRouter();
   const { selected } = useComparison();
-  // Milestones from qaboard.yaml are branches (or tags), the others are commits
-  const selectMilestone = milestone => {
+  const index = useMilestones(project);
+  const { list } = index;
+  const [is_open, setOpen] = useState(false);
+  const favorites = list.filter(m => m.is_favorite).sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
+  const shown = { project: selected.new_project ?? project, commit: selected.route.is_commit ? selected.new_commit_id : null, batch: selected.selected_batch_new, filter: selected.filter_batch_new };
+  const current = milestones_of(index, shown);
+  const select = milestone => {
+    setOpen(false);
+    // from qaboard.yaml: a branch, tag or commit
     if (!milestone.commit)
-      return updateSelected({ branch: milestone.branch });
-    history.push({
-      pathname: `/${path_segment(project)}/commit/${path_segment(milestone.commit)}`,
-      search: stringify_query({
-        new_project: milestone.project !== project ? milestone.project : undefined,
-        batch: milestone.batch,
-        filter: milestone.filter,
-      }),
-    });
+      return history.push(`/${path_segment(project)}/commits/${path_segment(milestone.branch)}`);
+    history.push(milestone_location(milestone));
   };
+  return <>
+    <PopoverNext
+      isOpen={is_open}
+      onInteraction={setOpen}
+      placement="right-start"
+      content={<MilestonesPanel project={project} project_data={project_data} docs_root={docs_root} selected={shown} onSelect={select}/>}
+    >
+      <SiderHint name="Milestones" content="Results saved to compare with later: yours, the project's, your favorites.">
+        <MenuItem
+          icon="star"
+          text="Milestones"
+          label={list.length > 0 ? String(list.length) : undefined}
+          title={collapsed ? undefined : "Search all the milestones"}
+          aria-haspopup="menu"
+          aria-expanded={is_open}
+        />
+      </SiderHint>
+    </PopoverNext>
+    {!collapsed && favorites.slice(0, max_sider_favorites).map(m => <MenuItemLink
+      key={m.id}
+      to={milestone_path(m)}
+      icon={<Icon icon="heart" size={12} color={Colors.RED5}/>}
+      text={milestone_name(m)}
+      title={`${milestone_name(m)}: your favorite milestone. ${m.notes ?? ''}`}
+      active={current.some(c => c.id === m.id)}
+      style={{ paddingLeft: 24, minHeight: 26, fontSize: 13 }}
+    />)}
+    {!collapsed && favorites.length > max_sider_favorites && <MenuItem
+      text={`${favorites.length - max_sider_favorites} more favorites…`}
+      style={{ paddingLeft: 24, minHeight: 26, fontSize: 12 }}
+      onClick={() => setOpen(true)}
+    />}
+  </>;
+};
 
+const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_commit = {}, user, docs_root, ...integrationProps }) => {
+  const { selected } = useComparison();
   let qatools_config = project_data.data?.qatools_config || {};
   let integrations = branch_integrations({ project_data, commit });
   let reference_branch = qatools_config.project?.reference_branch;
-
-  // in qaboard.yaml users specify milestones as arrays, but here we handle them as a mapping...
-  const qatools_milestones_array = qatools_config?.project?.milestones || []
-  const qatools_milestones = Object.fromEntries(Object.entries(qatools_milestones_array).map( ([key, branch])=> [key, {branch}] ))
-  const shared_milestones = project_data?.data?.milestones || {}
-  const private_milestones = project_data.milestones || {}
-  const has_milestones = [qatools_milestones, shared_milestones, private_milestones].some(m => Object.keys(m).length > 0)
 
   const is_history = selected.route.is_history;
   const is_branch = !!selected.branch;
@@ -496,36 +532,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
       docs_root={docs_root}
       {...integrationProps}
     />
-    <MenuItem
-      text="Milestones"
-      icon="star"
-      title="Results saved to compare against later"
-      popoverProps={{
-        usePortal: true,
-        portalClassName: "limit-overflow",
-        hoverCloseDelay: 300,
-      }}
-    >
-      <MilestonesMenu project={project} milestones={qatools_milestones} onSelect={selectMilestone} icon="crown" title="Select a milestone from qaboard.yaml" type="qatools" />
-      <MilestonesMenu project={project} milestones={shared_milestones} onSelect={selectMilestone} icon="crown" type="shared" title="Select a shared milestone" />
-      <MilestonesMenu project={project} milestones={private_milestones} onSelect={selectMilestone} type="private" title="Select a private milestone" />
-      {!has_milestones && <MenuItem
-        disabled
-        multiline
-        icon="info-sign"
-        text={<span style={{display: 'inline-block', maxWidth: 280}}>
-          No milestones yet. Save one with the <Icon icon="star-empty" size={12}/> next to a commit on its page,
-          or list branches under <code>project.milestones</code> in <em>qaboard.yaml</em>.
-        </span>}
-      />}
-      <MenuItem
-        icon="manual"
-        text="Learn about milestones"
-        href={`${docs_root}docs/references-and-milestones`}
-        target="_blank"
-        rel="noopener noreferrer"
-      />
-    </MenuItem>
+    <SiderMilestones project={project} project_data={project_data} docs_root={docs_root}/>
     <QuotaMenuItem user={user} project={project} />
   </>
 }
@@ -596,6 +603,9 @@ const ProjectSideResults = ({ project, project_data = {}, commit, ref_commit, ne
     <SiderHint name="Tuning Analysis" content={has_optim ? "This batch is an auto-tuning: see how the parameters affect the metrics." : "How the tuned parameters affect the metrics. Useful after tuning or auto-tuning."}>
       <MenuItem icon="predictive-analysis" intent={has_optim ? "primary" : undefined} active={active('optimization')} text="Tuning Analysis" onClick={set('optimization')}/>
     </SiderHint>
+
+    <SectionHeader>Milestones</SectionHeader>
+    <SiderMilestones project={project} project_data={project_data} docs_root={docs_root}/>
   </>
 }
 

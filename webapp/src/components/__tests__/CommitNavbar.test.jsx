@@ -29,7 +29,7 @@ const renderNavbar = (props = {}, search = '') => {
     <CommitNavbar
       type="new"
       project="p"
-      project_data={{ data: { qatools_config: {} }, milestones: {} }}
+      project_data={{ data: { qatools_config: {} } }}
       commit={commit}
       batch={{ label: 'default', filtered: {} }}
       filter=""
@@ -37,7 +37,7 @@ const renderNavbar = (props = {}, search = '') => {
       update={() => () => {}}
       {...props}
     />
-  </MemoryRouter>, { siteConfig: {} });
+  </MemoryRouter>, { siteConfig: {}, milestones: { p: [] } });
 };
 
 

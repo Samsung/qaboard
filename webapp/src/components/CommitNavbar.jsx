@@ -24,7 +24,10 @@ import { MultiSelect } from "@blueprintjs/select";
 import { CommitAvatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
 import { SelectBatchesNav } from "./tuning/SelectBatches";
-import { has_milestones, MilestonesMenu, CommitMilestoneEditor } from "./milestones"
+import { MilestonesPanel } from "../milestones/MilestonesPanel"
+import { CommitMilestoneButton } from "../milestones/CommitMilestone"
+import { milestones_of, results_project } from "../milestones/api"
+import { useMilestones } from "../milestones/hooks"
 
 import { shortId, pretty_label } from "../utils";
 import { http, errorMessage } from "../api/http";
@@ -178,6 +181,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
   const [waiting, setWaiting] = useState(false);
   const [soft_delete, setSoftDelete] = useState(false);
   const { docs_root } = useSiteConfig();
+  const milestones = useMilestones(project);
   // the batch action users need to confirm: 'redo-all', 'delete-failed' or 'delete-all'
   const [confirming, setConfirming] = useState(null);
   const [show_rename_dialog, setShowRenameDialog] = useState(false);
@@ -290,8 +294,8 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
       const batch = commit.batches[label]
       if (batch === undefined)
         continue
-      if (has_milestones({commit, project, project_data, batch})) {
-        toaster.show({message: `Cannot delete ${label} because it is a milestone`, intent: Intent.WARNING});
+      if (!soft_delete && milestones_of(milestones, {project: selected[project_attr] ?? project, commit: commit.id, batch: label}).length > 0) {
+        toaster.show({message: `Kept ${pretty_label(batch)}: it is a milestone`, intent: Intent.WARNING});
         continue
       }
       requests.push(http.delete(`/api/v1/batch/${batch.id}/`, {
@@ -389,9 +393,9 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
       return selectBranch(milestone.branch)
     updateSelected({
       [commit_attr]: milestone.commit,
-      [batch_attr]: milestone.batch,
-      [filter_attr]: milestone.filter,
-      [project_attr]: milestone.project ?? project,
+      [batch_attr]: milestone.batch || 'default',
+      [filter_attr]: milestone.filter ?? '',
+      [project_attr]: results_project(milestone),
     })
   };
 
@@ -425,49 +429,38 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
   const qatools_config = project_data?.data?.qatools_config
   const reference_branch = qatools_config?.project?.reference_branch ?? 'master';
 
-  // in qaboard.yaml users specify milestones as arrays, but here we handle them as a mapping...
-  const qatools_milestones_array = qatools_config?.project?.milestones ?? []
-  const qatools_milestones = Object.fromEntries(Object.entries(qatools_milestones_array).map( ([key, branch])=> [key, {branch}] ))
-  const shared_milestones = project_data?.data?.milestones ?? {}
-  const private_milestones = project_data?.milestones ?? {}
-  const has_any_milestone = [qatools_milestones, shared_milestones, private_milestones].some(m => Object.keys(m).length > 0)
-
-  const is_milestone = has_milestones({commit, project, project_data, batch})
-  const milestones_menu = <Menu style={{maxHeight: '500px', maxWidth: '360px', overflowY: 'auto'}}>
-    <MenuDivider title="Change project"/>
-    <ControlGroup>
-      <InputGroup
-        placeholder="project"
-        leftIcon="git-repo"
-        value={project_input ?? selected[project_attr]}
-        onChange={e => setProjectInput(e.target.value)}
-        onBlur={e => {
-          setProjectInput(e.target.value)
-          selectCommit(commit?.id, e.target.value)
-        }}
-        fill
-      />
-      <Button icon="arrow-right" aria-label="Show this commit in the project" onClick={() => selectCommit(commit?.id)}></Button>
-    </ControlGroup>
-    <MenuDivider title="Quick actions"/>
-    <MenuItem text="Switch new/reference" icon="exchange" onClick={switchSelection} />
-    <MenuItem text={`Also select as ${type === 'ref' ? 'new' : 'reference'}`} icon={type === 'ref' ? "chevron-up" : "chevron-down"} onClick={copyToOtherType} />
-    <MenuItem text="Remove from comparison" icon="cross" onClick={removeSelection} />
-    <MenuDivider title="Select"/>
-    <MenuItem text={reference_branch} icon="git-branch" onClick={() => selectBranch(reference_branch)} />
-    <MilestonesMenu project={project} milestones={qatools_milestones} onSelect={selectMilestone} icon="crown" title="Select a milestone from qaboard.yaml" type="qatools" />
-    {!has_any_milestone && <>
-      <MenuItem
-        disabled
-        multiline
-        icon="star-empty"
-        text={<>No milestones yet. Save one with ☆ next to a commit on its page, or list branches under <code>project.milestones</code> in qaboard.yaml.</>}
-      />
-      <MenuItem icon="manual" text="Learn more" href={`${docs_root}docs/references-and-milestones`} target="_blank" rel="noopener noreferrer" />
+  const is_milestone = milestones_of(milestones, {project: selected[project_attr] ?? project, commit: commit?.id, batch: batch?.label ?? 'default'}).length > 0
+  // The Change menu: quick actions, then the milestones to pick from
+  const change_menu = <MilestonesPanel
+    project={project}
+    project_data={project_data}
+    docs_root={docs_root}
+    selected={{project: selected[project_attr] ?? project, commit: commit?.id, batch: batch?.label, filter: batch_filter}}
+    onSelect={selectMilestone}
+    before={<>
+      <MenuDivider title="Change project"/>
+      <ControlGroup>
+        <InputGroup
+          placeholder="project"
+          leftIcon="git-repo"
+          value={project_input ?? selected[project_attr]}
+          onChange={e => setProjectInput(e.target.value)}
+          onBlur={e => {
+            setProjectInput(e.target.value)
+            selectCommit(commit?.id, e.target.value)
+          }}
+          fill
+        />
+        <Button icon="arrow-right" aria-label="Show this commit in the project" onClick={() => selectCommit(commit?.id)}></Button>
+      </ControlGroup>
+      <MenuDivider title="Quick actions"/>
+      <MenuItem text="Switch new/reference" icon="exchange" onClick={switchSelection} />
+      <MenuItem text={`Also select as ${type === 'ref' ? 'new' : 'reference'}`} icon={type === 'ref' ? "chevron-up" : "chevron-down"} onClick={copyToOtherType} />
+      <MenuItem text="Remove from comparison" icon="cross" onClick={removeSelection} />
+      <MenuItem text={reference_branch} label="reference branch" icon="git-branch" onClick={() => selectBranch(reference_branch)} />
+      <MenuDivider/>
     </>}
-    <MilestonesMenu project={project} milestones={shared_milestones} onSelect={selectMilestone} icon="crown" type="shared" title="Select a shared milestone" />
-    <MilestonesMenu project={project} milestones={private_milestones} onSelect={selectMilestone} type="private" title="Select a private milestone" />
-  </Menu>
+  />
 
   const has_selected_batch = !!commit?.batches && !!batch && Object.keys(commit.batches).includes(batch.label)
   // With a filter, we only redo the runs that match it
@@ -509,14 +502,13 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
         </div>
         <div style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
 
-          <CommitMilestoneEditor
+          <CommitMilestoneButton
             project={project}
             project_shown={selected[project_attr]}
-            project_data={project_data}
             commit={commit}
             batch={batch}
             filter={batch_filter}
-            type={type}
+            runs={commit?.batches ? (batch_filter ? batch?.filtered?.outputs?.length : nb_runs(batch)) : undefined}
           />
           <div style={{ flex: '0 1 auto', alignSelf: 'center' }}>
             <InputGroup
@@ -534,7 +526,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
           </div>
           <PopoverNext
             placement="bottom-start"
-            content={milestones_menu}
+            content={change_menu}
           >
             <Button size="small" variant="minimal" icon="edit" style={{ alignSelf: 'center', marginLeft: '2px' }} aria-label={`Change the ${type === 'new' ? 'new' : 'reference'} commit`}>
               <span className="commit-header-optional">Change</span>
@@ -595,7 +587,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
         commit={commit}
         batch={batch}
         project={project}
-        project_data={project_data}
+        milestone_batches={milestones_of(milestones, {project: selected[project_attr] ?? project, commit: commit?.id}).map(m => m.batch || 'default')}
         onChange={update(`selected_batch_${type}`)}
         hide_counts
       />
@@ -717,12 +709,12 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             onClick={() => setConfirming('delete-failed')}
           />
           <MenuItem
-            icon={!is_milestone ? "trash" : "crown"}
+            icon={!is_milestone ? "trash" : "star"}
             text={`Delete all runs${soft_delete ? "' files" : ''}…`}
             intent={Intent.DANGER}
             minimal
             disabled={waiting || (is_milestone && !soft_delete)}
-            htmlTitle={(is_milestone && !soft_delete) ? "This batch is a milestone: only its files can be deleted (switch on “Delete files, keep metadata”)." : undefined}
+            htmlTitle={(is_milestone && !soft_delete) ? "This batch is a milestone: delete the milestone first, or delete only its files (switch on “Delete files, keep metadata”)." : undefined}
             onClick={() => setConfirming('delete-all')}
           />
           <MenuItem
@@ -809,7 +801,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             >
             </MultiSelect>
             <p><Button size="small" onClick={() => setShowDeleteBatchesValues(Object.keys(commit?.batches ?? {}))}>Select all batches</Button></p>
-            <p>We won't delete batches defined as milestones.</p>
+            <p>Batches that are milestones are kept, unless you only delete their files.</p>
           </div>
           <div className={Classes.DIALOG_FOOTER}>
             <div className={Classes.DIALOG_FOOTER_ACTIONS}>

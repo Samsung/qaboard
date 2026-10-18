@@ -5,6 +5,7 @@ import { route_paths } from "./route_paths";
 const CiCommitList = lazy(() => import("./CiCommitList"));
 const CiCommitResults = lazy(() => import("./CiCommitResults"));
 const Dashboard = lazy(() => import("./Dashboard"));
+const MilestonePage = lazy(() => import("./milestones/MilestonePage"));
 
 const pages = {
   committer: CiCommitList,
@@ -16,6 +17,7 @@ const pages = {
   dashboard: Dashboard,
   history_branch: Dashboard,
   history: Dashboard,
+  milestone: MilestonePage,
   project: CiCommitList,
 };
 
