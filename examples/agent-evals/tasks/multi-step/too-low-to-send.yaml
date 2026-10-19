@@ -5,4 +5,5 @@ checks:
   - tool_called: {name: get_battery, arguments: {robot: K3-023}}
   - tool_not_called: {name: assign_mission}
   - answer_contains: 31%
+  - answer_matches: '(?i)\b(not|only|under|below|too low|less)\b'   # and doesn't claim it was sent
   - max_turns: 4

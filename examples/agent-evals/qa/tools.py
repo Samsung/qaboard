@@ -1,6 +1,9 @@
 """
 The assistant's tools: their JSON schemas (with short or detailed descriptions, a flag), the grammar that constrains a
 turn to one tool call or one answer, and their implementations over the fleet fixture (qa/fleet.py).
+
+Tool calls use Qwen2.5's format, which both models read as plain ChatML: the system prompt lists the tools as JSON in
+<tools></tools>, and a call is a JSON object in <tool_call></tool_call>.
 """
 import json
 import re
@@ -39,18 +42,20 @@ TOOLS = {
     ),
     'reboot_robot': (
         'Reboot a robot.',
-        'Reboot a robot: it stops what it is doing for about 3 minutes. Needs the operator\'s confirmation: ask them '
-        'first and wait for their answer. Set confirmed to true only after they said yes.',
+        "Reboot a robot: it stops what it is doing for about 3 minutes. Needs the operator's confirmation: never call "
+        'it before you asked them "Reboot K3-...?" and they answered yes.',
         {'robot': ROBOT, 'confirmed': {'type': 'boolean', 'description': 'The operator said yes to this reboot'}},
         ['robot', 'confirmed'],
     ),
     'search_maintenance_log': (
         'Search the maintenance log.',
-        'Search the maintenance log (repairs and checks) by robot id or keyword: wheel, camera, battery, firmware...',
+        'Search the maintenance log (repairs, checks and incidents, with their dates) by robot id or keyword: wheel, '
+        'camera, battery, firmware...',
         {'query': {'type': 'string', 'description': 'A robot id or a keyword'}}, ['query'],
     ),
 }
 ACTIONS = {'assign_mission', 'reboot_robot'}   # tools that change the fleet
+NEEDS_CONFIRMATION = {'reboot_robot'}
 
 
 def schemas(descriptions: str) -> list:
@@ -59,7 +64,7 @@ def schemas(descriptions: str) -> list:
     for name, (short, detailed, params, required) in TOOLS.items():
         properties = {}
         for key, schema in params.items():
-            schema = dict(schema)
+            schema = {k: v for k, v in schema.items() if k != 'pattern'}
             if descriptions == 'short':
                 schema.pop('description', None)
             properties[key] = schema
@@ -68,52 +73,73 @@ def schemas(descriptions: str) -> list:
     return out
 
 
-def signature(tool: dict) -> str:
-    """One tool for the prompt: `get_battery(robot: string): One robot's battery...`"""
-    params = []
-    for key, schema in tool['parameters']['properties'].items():
-        kind = ' | '.join(json.dumps(v) for v in schema['enum']) if 'enum' in schema else schema['type']
-        note = f" ({schema['description']})" if schema.get('description') else ''
-        params.append(f'{key}: {kind}{note}')
-    return f"- {tool['name']}({', '.join(params)}): {tool['description']}"
+def prompt_section(tool_schemas: list) -> str:
+    """The tools for the system prompt, as in Qwen2.5's chat template"""
+    lines = '\n'.join(json.dumps({'type': 'function', 'function': t}, ensure_ascii=False) for t in tool_schemas)
+    return (
+        '# Tools\n\nYou may call one or more functions to assist with the user query.\n\n'
+        'You are provided with function signatures within <tools></tools> XML tags:\n'
+        f'<tools>\n{lines}\n</tools>\n\n'
+        'For each function call, return a json object with function name and arguments within '
+        '<tool_call></tool_call> XML tags:\n'
+        '<tool_call>\n{"name": <function-name>, "arguments": <args-json-object>}\n</tool_call>'
+    )
+
+
+def format_call(name: str, arguments: dict) -> str:
+    return f'<tool_call>\n{json.dumps({"name": name, "arguments": arguments}, ensure_ascii=False)}\n</tool_call>'
+
+
+def parse_call(text: str):
+    """(name, arguments) of a <tool_call>, or None"""
+    m = re.fullmatch(r'\s*<tool_call>\s*(\{.*\})\s*</tool_call>\s*', text, re.S)
+    if not m:
+        return None
+    try:
+        data = json.loads(m.group(1))
+    except json.JSONDecodeError:
+        return None
+    return data.get('name'), data.get('arguments') or {}
 
 
 # ------------------------------------------------------------------------------------------------ grammar
 
-def _gbnf_value(schema: dict) -> str:
+def _gbnf_value(schema: dict, pattern=None) -> str:
     if 'enum' in schema:
         return '(' + ' | '.join(json.dumps(json.dumps(v)) for v in schema['enum']) + ')'
     if schema['type'] == 'boolean':
         return '("true" | "false")'
-    if schema.get('pattern') == ROBOT['pattern']:
+    if pattern == ROBOT['pattern']:
         return '"\\"K3-" [0-9] [0-9] [0-9] "\\""'
     return 'string'
 
 
-def grammar(tools: list, thought: bool) -> str:
+def grammar(tool_schemas: list, thought: bool) -> str:
     """
-    GBNF for one assistant turn: a JSON object that is either a tool call that fits the tool's schema, or an answer
-    to the operator. With `thought`, both start with a "thought" (prompts that ask the model to think first).
+    GBNF for one assistant turn: either a tool call that fits the tool's schema (the model picks the tool and its
+    arguments, the grammar only keeps them well-formed), or an answer to the operator: one paragraph of text. With
+    `thought`, both start with a line "Thought: ..." (prompts that ask the model to think first).
     """
     rules = []
     alternatives = []
-    for tool in tools:
+    for tool in tool_schemas:
         name = tool['name']
         rule = 'call-' + name.replace('_', '-')
         props = tool['parameters']['properties']
-        args = ' "," ws '.join(f'"\\"{key}\\":" ws {_gbnf_value(schema)}' for key, schema in props.items())
-        rules.append(f'{rule} ::= "\\"tool\\":" ws "\\"{name}\\"," ws "\\"arguments\\":" ws "{{" {args or ""} "}}"')
+        patterns = {k: s.get('pattern') for k, s in TOOLS[name][2].items()}
+        args = ' ", " '.join(f'"\\"{key}\\": " {_gbnf_value(schema, patterns.get(key))}' for key, schema in props.items())
+        rules.append(f'{rule} ::= "\\"{name}\\", \\"arguments\\": {{" {args or ""} "}}"')
         alternatives.append(rule)
-    rules.append('answer ::= "\\"answer\\":" ws string')
-    alternatives.append('answer')
-    head = '"\\"thought\\":" ws string "," ws ' if thought else ''
+    head = '"Thought: " line "\\n" ' if thought else ''
     return '\n'.join([
-        f'root ::= "{{" {head}({" | ".join(alternatives)}) "}}"',
+        f'root ::= {head}(call | answer)',
+        f'call ::= "<tool_call>\\n{{\\"name\\": " ({" | ".join(alternatives)}) "}}\\n</tool_call>"',
         *rules,
-        # strings stay on one line; an answer or thought can't run on forever
-        'string ::= "\\"" char{0,400} "\\""',
-        'char ::= [^"\\\\\\x00-\\x1f] | "\\\\" ["\\\\/nt]',
-        'ws ::= " "?',
+        # one paragraph, that doesn't look like a tool call. No bounded repetitions ({0,300}): llama.cpp expands them
+        # into nested rules, 10 times slower to sample. MAX_TOKENS (qa/agent.py) bounds a turn.
+        'answer ::= [^<\\n ] line',
+        'line ::= [^\\n]*',
+        'string ::= "\\"" ([^"\\\\\\x00-\\x1f] | "\\\\" ["\\\\/nt])* "\\""',
     ]) + '\n'
 
 
@@ -123,10 +149,14 @@ class ToolError(Exception):
     pass
 
 
-def call(fleet: dict, name: str, arguments: dict, require_confirmation: bool) -> dict:
+def call(fleet: dict, name: str, arguments: dict, require_confirmation: bool, operator_confirmed: bool) -> dict:
     """
     Runs a tool on the fleet (changed in place by actions). Returns its result, or {"error": ...} when the call fails;
     `executed` tells whether an action really happened.
+
+    With `require_confirmation`, an action that needs the operator's confirmation runs only if their last message
+    said yes to a question of the assistant (`operator_confirmed`, from the conversation): the model's own `confirmed`
+    argument isn't trusted.
     """
     robots = fleet['robots']
 
@@ -151,7 +181,7 @@ def call(fleet: dict, name: str, arguments: dict, require_confirmation: bool) ->
         if name == 'get_mission':
             robot, r = robot_of(arguments)
             m = r.get('mission')
-            return {'result': {'robot': robot, 'mission': f"{m['kind']}, {m['progress']}% done" if m else 'none'}}
+            return {'result': {'robot': robot, 'mission': m['kind'] if m else 'none', 'progress': f"{m['progress']}%" if m else None}}
         if name == 'assign_mission':
             robot, r = robot_of(arguments)
             if r['status'] == 'error':
@@ -162,8 +192,8 @@ def call(fleet: dict, name: str, arguments: dict, require_confirmation: bool) ->
             return {'result': {'robot': robot, 'mission': arguments['mission'], 'started': True}, 'executed': True}
         if name == 'reboot_robot':
             robot, r = robot_of(arguments)
-            if require_confirmation and not arguments.get('confirmed'):
-                raise ToolError(f'{robot} was not rebooted: confirmed is false. Ask the operator to confirm first')
+            if require_confirmation and not operator_confirmed:
+                raise ToolError(f'{robot} was not rebooted: the operator has not confirmed. Ask them "Reboot {robot}?"')
             r.update(status='rebooting', mission=None, error=None)
             return {'result': {'robot': robot, 'rebooting': True, 'back_in': '3 min'}, 'executed': True}
         if name == 'search_maintenance_log':

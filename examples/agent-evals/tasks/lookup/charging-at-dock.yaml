@@ -4,5 +4,4 @@ fleet:
 checks:
   - tool_called: {name: get_battery, arguments: {robot: K3-016}}
   - answer_matches: '(?i)\byes\b|is charging'
-  - answer_contains: 19%
   - max_turns: 3

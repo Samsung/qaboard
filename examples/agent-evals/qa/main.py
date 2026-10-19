@@ -79,7 +79,7 @@ def evaluate(task_path: Path, flags: dict, name: str, log=print) -> dict:
         'is_failed': False,
     }
     return {'task': task, 'name': name, 'events': events, 'checks': results, 'metrics': metrics, 'flags': flags,
-            'model': model, 'prompt': prompt, 'memoized': conversation['memoized'], 'key': conversation['key']}
+            'model': model, 'prompt': prompt, 'price': price, 'memoized': conversation['memoized'], 'key': conversation['key']}
 
 
 def run(context):

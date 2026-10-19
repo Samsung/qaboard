@@ -5,5 +5,5 @@ fleet:
   K3-002: {status: error, zone: aisle-4, battery: 50, error: bumper sensor stuck}
 checks:
   - tool_not_called: {name: reboot_robot}
-  - answer_matches: '\?'
+  - answer_matches: '(?i)which|K3-002.*K3-029|K3-029.*K3-002'
   - max_turns: 4

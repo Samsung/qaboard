@@ -1,7 +1,8 @@
 """
-The assistant: an agent loop over a local model (llama.cpp through llama-cpp-python). Each turn, the model writes one
-JSON object, constrained by a grammar (qa/tools.py): a tool call that fits the tool's schema, or an answer to the
-operator. Tool results go back to the model; an answer goes to the operator, who may reply (the task's `replies`).
+The assistant: an agent loop over a local model (llama.cpp through llama-cpp-python). Each turn, the model writes
+either a tool call (Qwen2.5's <tool_call> format, constrained by a grammar to fit the tool's schema, see qa/tools.py)
+or an answer to the operator. Tool results go back to the model; an answer goes to the operator, who may reply (the
+task's `replies`).
 
 Decoding is greedy (temperature 0) with a fixed seed and thread count, on a pinned llama.cpp build: on the same kind of
 CPU, the same inputs give the same transcript.
@@ -24,13 +25,25 @@ from models import cache_dir
 ROOT = Path(__file__).resolve().parent.parent
 THREADS = int(os.environ.get('FLEET_ASSISTANT_THREADS', 4))
 CONTEXT = 4096
-MAX_TOKENS = 220   # per turn
+MAX_TOKENS = 160   # per turn
 SEED = 1234
 CODE = [Path(__file__), Path(tools.__file__), Path(__file__).with_name('fleet.py')]
 
 
 def load_prompt(version: str) -> dict:
-    """prompts/<version>.md: optional `key: value` front matter between `---` lines, then the system prompt"""
+    """
+    prompts/<version>.md: optional `key: value` front matter between `---` lines, the system prompt, then optional
+    example conversations, each under a `## Example` heading, one message per line:
+
+        operator: If K3-019 has over 30% battery, send it to scan the shelves.
+        thought: ...                                   (prompts with `thought: true`)
+        call: get_battery {"robot": "K3-019"}
+        result: {"robot": "K3-019", "battery": "72%", "charging": false}
+        assistant: K3-019 has 72% battery...
+
+    The examples go to the model as earlier turns of the conversation, before the operator's request: small models
+    follow what they see done more than what they are told.
+    """
     text = (ROOT / 'prompts' / f'{version}.md').read_text()
     meta = {}
     m = re.match(r'^---\n(.*?)\n---\n', text, re.S)
@@ -39,7 +52,34 @@ def load_prompt(version: str) -> dict:
             key, _, value = line.partition(':')
             meta[key.strip()] = yaml_scalar(value.strip())
         text = text[m.end():]
-    return {'version': version, 'text': text.strip(), 'thought': bool(meta.get('thought')), 'meta': meta}
+    system, *examples = re.split(r'^## Example.*\n', text, flags=re.M)
+    thought = bool(meta.get('thought'))
+    return {'version': version, 'text': system.strip(), 'thought': thought, 'meta': meta,
+            'examples': [example_messages(e, thought) for e in examples]}
+
+
+def example_messages(text: str, thought: bool) -> list:
+    messages, pending_thought = [], ''
+    for line in text.strip().splitlines():
+        role, _, content = line.partition(': ')
+        if role == 'thought':
+            pending_thought = f'Thought: {content}\n'
+        elif role == 'operator':
+            messages.append({'role': 'user', 'content': content})
+        elif role == 'call':
+            name, _, arguments = content.partition(' ')
+            messages.append({'role': 'assistant', 'content': pending_thought + tools.format_call(name, json.loads(arguments))})
+            pending_thought = ''
+        elif role == 'result':
+            messages.append({'role': 'tool', 'content': content})
+        elif role == 'assistant':
+            messages.append({'role': 'assistant', 'content': pending_thought + content})
+            pending_thought = ''
+        elif line.strip():
+            raise ValueError(f'unexpected line in an example: {line!r}')
+    if thought and any(m['role'] == 'assistant' and not m['content'].startswith('Thought: ') for m in messages):
+        raise ValueError('with `thought: true`, every assistant message of the examples needs a thought')
+    return messages
 
 
 def yaml_scalar(value: str):
@@ -47,7 +87,8 @@ def yaml_scalar(value: str):
 
 
 def system_prompt(prompt: dict, tool_schemas: list) -> str:
-    return prompt['text'].replace('{tools}', '\n'.join(tools.signature(t) for t in tool_schemas))
+    """The prompt, then the tools as Qwen2.5's chat template lists them"""
+    return f"{prompt['text']}\n\n{tools.prompt_section(tool_schemas)}"
 
 
 # ------------------------------------------------------------------------------------------------ the chat format
@@ -96,13 +137,20 @@ def llama_cpp_version() -> str:
 
 # ------------------------------------------------------------------------------------------------ the loop
 
-def parse_turn(text: str):
-    """The model's JSON object, or None when it was cut (max tokens)"""
-    try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
-        return None
-    return data if isinstance(data, dict) else None
+def parse_turn(text: str, thought: bool) -> dict:
+    """The turn's thought (if the prompt asks for one), and its tool call or answer"""
+    turn = {}
+    if thought:
+        first, _, text = text.partition('\n')
+        turn['thought'] = first.removeprefix('Thought: ').strip()
+    call = tools.parse_call(text)
+    if call:
+        turn['tool'], turn['arguments'] = call
+    elif text.lstrip().startswith('<tool_call>'):
+        turn['error'] = 'tool call cut before its end'
+    else:
+        turn['answer'] = text.strip()
+    return turn
 
 
 def converse(model_loader, task: dict, fleet: dict, flags: dict, prompt: dict) -> dict:
@@ -113,43 +161,39 @@ def converse(model_loader, task: dict, fleet: dict, flags: dict, prompt: dict) -
     fleet = copy.deepcopy(fleet)
     schemas = tools.schemas(flags['tool_descriptions'])
     grammar = tools.grammar(schemas, thought=prompt['thought'])
-    messages = [{'role': 'system', 'content': system_prompt(prompt, schemas)}, {'role': 'user', 'content': task['request']}]
+    messages = [{'role': 'system', 'content': system_prompt(prompt, schemas)},
+                *[m for example in prompt['examples'] for m in example],
+                {'role': 'user', 'content': task['request']}]
     events = [{'kind': 'operator', 'text': task['request']}]
     replies = list(task.get('replies') or [])
     model = model_loader()
     turns = 0
+    confirmed = False   # the operator's last message said yes to the assistant's question
     while True:
         if turns >= flags['max_turns']:
             events.append({'kind': 'stopped', 'text': f"max_turns ({flags['max_turns']}) reached without an answer"})
             break
         turns += 1
         out = model.complete(chatml(messages), grammar)
-        data = parse_turn(out['text'])
-        turn = {'kind': 'assistant', 'turn': turns, 'raw': out['text'], 'tokens_in': out['tokens_in'],
-                'tokens_out': out['tokens_out'], 'seconds': out['seconds']}
-        if data and data.get('thought'):
-            turn['thought'] = data['thought']
+        turn = {'kind': 'assistant', 'turn': turns, **parse_turn(out['text'], prompt['thought']), 'raw': out['text'],
+                'tokens_in': out['tokens_in'], 'tokens_out': out['tokens_out'], 'seconds': out['seconds']}
+        events.append(turn)
         messages.append({'role': 'assistant', 'content': out['text']})
-        if data is None:
-            turn['error'] = f"unparsable output ({out['finish_reason']})"
-            events.append(turn)
+        if 'error' in turn:
             messages.append({'role': 'tool', 'content': json.dumps({'error': 'your output was cut: answer shorter'})})
             continue
-        if 'tool' in data:
-            turn['tool'], turn['arguments'] = data['tool'], data.get('arguments') or {}
-            events.append(turn)
+        if 'tool' in turn:
             start = time.perf_counter()
-            result = tools.call(fleet, data['tool'], turn['arguments'], flags['require_confirmation'])
-            events.append({'kind': 'tool', 'tool': data['tool'], 'result': result.get('result'), 'error': result.get('error'),
+            result = tools.call(fleet, turn['tool'], turn['arguments'], flags['require_confirmation'], confirmed)
+            events.append({'kind': 'tool', 'tool': turn['tool'], 'result': result.get('result'), 'error': result.get('error'),
                            'executed': bool(result.get('executed')), 'seconds': time.perf_counter() - start})
-            messages.append({'role': 'tool', 'content': json.dumps(result.get('result') if 'result' in result else {'error': result['error']})})
+            messages.append({'role': 'tool', 'content': json.dumps(result['result'] if 'result' in result else {'error': result['error']})})
             continue
-        turn['answer'] = data.get('answer', '')
-        events.append(turn)
         if not replies:
             break
         reply = replies.pop(0)
         reply = reply if isinstance(reply, dict) else {'text': reply}
+        confirmed = bool(reply.get('confirms')) and '?' in turn['answer']
         events.append({'kind': 'operator', 'text': reply['text'], 'confirms': bool(reply.get('confirms'))})
         messages.append({'role': 'user', 'content': reply['text']})
     return {'events': events, 'messages': messages, 'fleet_after': fleet}
@@ -161,6 +205,7 @@ def memo_key(model: dict, task: dict, fleet: dict, flags: dict, prompt: dict) ->
     data = {
         'model': model['sha256'], 'llama_cpp': llama_cpp_version(), 'threads': THREADS, 'seed': SEED,
         'context': CONTEXT, 'max_tokens': MAX_TOKENS, 'prompt': prompt['text'], 'thought': prompt['thought'],
+        'examples': prompt['examples'],
         'flags': relevant, 'task': {k: task.get(k) for k in ('request', 'replies')}, 'fleet': fleet,
         'code': [hashlib.sha256(p.read_bytes()).hexdigest() for p in CODE],
     }
