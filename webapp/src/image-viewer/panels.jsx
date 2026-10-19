@@ -4,7 +4,7 @@ import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } fro
 import { ADJUSTMENT_SLIDERS, CHANNELS, DEFAULT_ADJUSTMENTS, FALSE_COLORS, changedAdjustments, normalizeAdjustments } from './adjustments';
 import { cssGradient } from './colormaps';
 import { DIFF_METHODS, diffAt, diffLegend, formatDiffValue, normalizeDiff } from './metrics';
-import { CHANNELS as HISTOGRAM_CHANNELS, LABELLED_TICKS, TICKS, dragRange, formatShare, histogram, histogramMax, rangeDrag, toggleChannel, valueAt } from './histogram';
+import { ALL_CHANNELS, CHANNELS as HISTOGRAM_CHANNELS, LABELLED_TICKS, TICKS, dragRange, formatShare, histogram, histogramMax, rangeDrag, toggleChannel, valueAt } from './histogram';
 import { formatNumber, formatSigned } from './pixels';
 import { clipRegion } from './regions';
 import { imageKey, thumbnailUrl } from './sources';
@@ -300,7 +300,9 @@ const ChannelNames = ({ channels }) => HISTOGRAM_CHANNELS.map((name, c) => chann
 
 // What the viewers display, by value, per channel. Users drag on it to highlight a range of values on the images.
 // channels: those shown, [r, g, b, y]. range: { lo, hi } or null. The highlighted pixels have the channels shown in the range.
-export const Histogram = ({ controller, comparing, names, channels, onChannelsChange, range, onRangeChange }) => {
+// Without onRangeChange, users can't pick a range (the video viewer doesn't highlight values).
+export const Histogram = ({ controller, comparing, names, channels = ALL_CHANNELS, onChannelsChange, range = null, onRangeChange }) => {
+  const selectable = !!onRangeChange;
   const canvas = useRef(null);
   const plot = useRef(null);
   const [error, setError] = useState(null);
@@ -367,7 +369,7 @@ export const Histogram = ({ controller, comparing, names, channels, onChannelsCh
   };
   const CURSORS = { new: 'crosshair', move: 'grab', lo: 'ew-resize', hi: 'ew-resize' };
   const onPointerDown = event => {
-    if (event.button !== 0) return;
+    if (!selectable || event.button !== 0) return;
     const { value, slack } = valueOf(event);
     const kind = rangeDrag(range, value, slack);
     drag.current = { kind, start: { range, value }, x: event.clientX, moved: false };
@@ -377,6 +379,7 @@ export const Histogram = ({ controller, comparing, names, channels, onChannelsCh
   const onPointerMove = event => {
     const { value, slack } = valueOf(event);
     setHover(value);
+    if (!selectable) return;
     const current = drag.current;
     if (!current) {
       event.currentTarget.style.cursor = CURSORS[rangeDrag(range, value, slack)];
@@ -393,6 +396,7 @@ export const Histogram = ({ controller, comparing, names, channels, onChannelsCh
     if (current && !current.moved && (current.kind === 'new' || current.kind === 'move')) onRangeChange(null);
   };
   const onKeyDown = event => {
+    if (!selectable) return;
     if (event.key === 'Escape' && range) {
       event.preventDefault();
       onRangeChange(null);
@@ -424,7 +428,7 @@ export const Histogram = ({ controller, comparing, names, channels, onChannelsCh
             style={{ '--qiv-channel': CHANNEL_COLORS[c] }}
             aria-pressed={channels[c]}
             title={`${CHANNEL_TITLES[c]}: click to show it alone${channels[c] && shown === 1 ? ' (now: click to show all)' : ''}, shift+click to show or hide it. The range you drag applies to the channels shown.`}
-            onClick={event => onChannelsChange(toggleChannel(channels, c, event.shiftKey))}
+            onClick={event => onChannelsChange?.(toggleChannel(channels, c, event.shiftKey))}
           >
             <i className="qiv-histogram-swatch" />{name}
           </button>)}
@@ -436,19 +440,16 @@ export const Histogram = ({ controller, comparing, names, channels, onChannelsCh
     <div
       ref={plot}
       className="qiv-histogram-plot"
-      role="slider"
-      tabIndex={0}
-      aria-label="Histograms of the displayed images. Drag to highlight a range of values on the images: the arrows move it, Escape clears it"
-      aria-valuemin={0}
-      aria-valuemax={255}
-      aria-valuenow={range?.lo ?? 0}
-      aria-valuetext={range ? `${range.lo} to ${range.hi}` : 'no range'}
+      role={selectable ? 'slider' : 'img'}
+      tabIndex={selectable ? 0 : undefined}
+      aria-label={selectable ? 'Histograms of the displayed images. Drag to highlight a range of values on the images: the arrows move it, Escape clears it' : 'Histograms of the displayed images'}
+      {...selectable && { 'aria-valuemin': 0, 'aria-valuemax': 255, 'aria-valuenow': range?.lo ?? 0, 'aria-valuetext': range ? `${range.lo} to ${range.hi}` : 'no range' }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={() => { drag.current = null; }}
       onPointerLeave={() => setHover(null)}
-      onDoubleClick={() => onRangeChange(null)}
+      onDoubleClick={() => onRangeChange?.(null)}
       onKeyDown={onKeyDown}
     >
       <canvas ref={canvas} aria-hidden="true" />
@@ -478,7 +479,7 @@ export const Histogram = ({ controller, comparing, names, channels, onChannelsCh
         {first && <span className="qiv-muted">{formatShare(first.selected, first.total)}{comparing ? ` of ${names.a}` : ' of the view'}</span>}
         {second && <span className="qiv-muted">{formatShare(second.selected, second.total)} of {names.b}</span>}
         <Button icon="cross" title="Stop highlighting (Esc, or click the histogram)" className="qiv-small" onClick={() => onRangeChange(null)} />
-      </span> : <span className="qiv-muted">Drag to highlight a range of values on the images</span>}
+      </span> : selectable ? <span className="qiv-muted">Drag to highlight a range of values on the images</span> : <span />}
       <span className="qiv-histogram-readout qiv-mono">
         {hover !== null && first ? <>
           <span>{hover}</span>

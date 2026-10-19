@@ -8,6 +8,7 @@
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 
 import { DEFAULT_DIFF, normalizeDiff } from '../../image-viewer/metrics';
+import { ALL_CHANNELS } from '../../image-viewer/histogram';
 import { MODES } from '../../image-viewer/modes';
 import { changedAdjustments, filterPrimitives, normalizeAdjustments } from '../../image-viewer/adjustments';
 import { AdjustmentsPanel, DiffLegend, DiffSettings, Histogram, RegionsMenu, RegionsStrip } from '../../image-viewer/panels';
@@ -162,6 +163,7 @@ export const VideoCompare = ({
   const [view, setView] = useState(FIT);
   const [base, setBase] = useState(10);
   const [show_histogram, setShowHistogram] = useState(false);
+  const [histogram_channels, setHistogramChannels] = useState(ALL_CHANNELS);
   const [diff_error, setDiffError] = useState(null);
   const [message, setMessage] = useState(null);
   // where the pointer is: { x, y, pane } in pane coordinates
@@ -910,7 +912,7 @@ export const VideoCompare = ({
       />}
       {differences?.frames && <span className="video-difference-summary qiv-muted" title={differences.summaryTitle}>{differences.summary}</span>}
     </Transport>}
-    {show_histogram && !animation && <Histogram controller={histogram_source} comparing={comparing} names={{ a: names[first], b: names[second] }} />}
+    {show_histogram && !animation && <Histogram controller={histogram_source} comparing={comparing} names={{ a: names[first], b: names[second] }} channels={histogram_channels} onChannelsChange={setHistogramChannels} />}
   </div>;
 };
 

@@ -90,6 +90,22 @@ describe('VideoViewer', () => {
     expect(labels(container)).toEqual(['new640×360@left', 'reference640×360@left']);
   });
 
+  it('shows the histogram of the frames, and its channels', () => {
+    // it used to crash: "TypeError: Cannot read properties of undefined (reading 'join')"
+    const { container } = viewer({ output_ref: output('ref') });
+    load(screen.getByLabelText('New video'));
+    load(screen.getByLabelText('Reference video'));
+    fireEvent.click(screen.getByRole('button', { name: 'Histogram of the frames' }));
+    const histogram = within(container.querySelector('.qiv-histogram'));
+    // the video viewer doesn't highlight values
+    expect(histogram.queryByRole('slider')).toBeNull();
+    expect(histogram.queryByText(/Drag to highlight/)).toBeNull();
+    const red = histogram.getByRole('button', { name: 'R' });
+    fireEvent.click(red);
+    expect(red).toHaveAttribute('aria-pressed', 'true');
+    expect(histogram.getByRole('button', { name: 'G' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
   it('shows one video when the reference is the same file', () => {
     viewer({ output_ref: output('ref'), manifests: { new: manifest('a'), reference: manifest('a') } });
     expect(screen.queryByLabelText('Reference video')).toBeNull();
