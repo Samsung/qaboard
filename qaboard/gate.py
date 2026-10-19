@@ -11,6 +11,7 @@ import os
 import sys
 import json
 import math
+import statistics
 import time
 from pathlib import Path
 from dataclasses import dataclass, field
@@ -25,6 +26,9 @@ EXPERIMENTAL_NOTICE = "qa gate is experimental: its configuration and output may
 
 GATE_KEYS = {'reference', 'batches', 'rules', 'max_failed_runs', 'require_bit_accuracy'}
 RULE_KINDS = ('max_regression', 'per_test_max_regression', 'min', 'max')
+# How the rules on all the runs (min, max, max_regression) aggregate them. The server gives medians, the others are
+# computed from each test's values: e.g. `max` for 0/1 metrics that no test may have.
+AGGREGATES = ('median', 'mean', 'min', 'max')
 
 # Floating point noise should not decide a verdict: a 10.0000000001% regression is a 10% regression
 EPSILON = 1e-9
@@ -39,9 +43,13 @@ class Rule:
   metric: str
   kind: str  # one of RULE_KINDS
   limit: float
+  aggregate: Optional[str] = None  # one of AGGREGATES, None for per_test_max_regression
 
   def to_dict(self) -> Dict[str, Any]:
-    return {'metric': self.metric, 'kind': self.kind, 'limit': self.limit}
+    rule: Dict[str, Any] = {'metric': self.metric, 'kind': self.kind, 'limit': self.limit}
+    if self.aggregate is not None:
+      rule['aggregate'] = self.aggregate
+    return rule
 
 
 @dataclass
@@ -111,18 +119,27 @@ def parse_config(config: Dict[str, Any]) -> GateConfig:
     where = f"gate.rules[{index}]"
     if not isinstance(rule, dict) or not rule.get('metric'):
       raise GateConfigError(f"{where}: expected a mapping with a `metric`, e.g. {{metric: psnr, max_regression: 1%}}")
-    unknown = set(rule) - {'metric', *RULE_KINDS}
+    unknown = set(rule) - {'metric', 'aggregate', *RULE_KINDS}
     if unknown:
-      raise GateConfigError(f"{where}: unknown keys {', '.join(sorted(unknown))}. Use: metric, {', '.join(RULE_KINDS)}")
+      raise GateConfigError(f"{where}: unknown keys {', '.join(sorted(unknown))}. Use: metric, {', '.join(RULE_KINDS)}, aggregate")
     kinds = [k for k in RULE_KINDS if k in rule]
     if not kinds:
       raise GateConfigError(f"{where}: give a limit for {rule['metric']}: {', '.join(RULE_KINDS)}")
+    aggregate = rule.get('aggregate')
+    if aggregate is not None and aggregate not in AGGREGATES:
+      raise GateConfigError(f"{where}.aggregate: expected one of {', '.join(AGGREGATES)}, got {aggregate!r}")
+    if aggregate is not None and 'per_test_max_regression' in rule:
+      raise GateConfigError(
+        f"{where}.aggregate: per_test_max_regression checks each test, it doesn't aggregate them. "
+        f"Give it its own rule, without aggregate, e.g. {{metric: {rule['metric']}, per_test_max_regression: 5%}}"
+      )
     for kind in kinds:
       if kind in ('min', 'max'):
         limit = parse_number(rule[kind], f"{where}.{kind}")
       else:
         limit = parse_fraction(rule[kind], f"{where}.{kind}")
-      rules.append(Rule(metric=str(rule['metric']), kind=kind, limit=limit))
+      rule_aggregate = None if kind == 'per_test_max_regression' else aggregate or 'median'
+      rules.append(Rule(metric=str(rule['metric']), kind=kind, limit=limit, aggregate=rule_aggregate))
 
   max_failed_runs = gate.get('max_failed_runs', 0)
   if max_failed_runs is not None and (isinstance(max_failed_runs, bool) or not isinstance(max_failed_runs, int) or max_failed_runs < 0):
@@ -167,6 +184,41 @@ def regression_of(change: Optional[float], delta: Optional[float], is_smaller_be
   return math.copysign(math.inf, sign * delta)
 
 
+def relative_change(new: float, ref: float) -> Optional[float]:
+  """(new - ref) / |ref|, like the server's for medians. None for a reference of 0 with a change: see regression_of"""
+  if ref == 0:
+    return 0.0 if new == ref else None
+  return (new - ref) / abs(ref)
+
+
+def aggregate_of(values: List[float], how: str) -> float:
+  if how == 'mean':
+    return sum(values) / len(values)
+  if how == 'min':
+    return min(values)
+  if how == 'max':
+    return max(values)
+  return statistics.median(values)
+
+
+def tests_values(tests: List[Dict[str, Any]], metric: str) -> Tuple[List[float], List[float]]:
+  """
+  The metric's values in each new run, and in the reference runs they're compared with (the Metrics Diff's).
+  The server lists the new runs: reference runs that match none of them, or whose new run has no value, are left out.
+  A reference run that matches several new runs counts once.
+  """
+  new_values: List[float] = []
+  ref_values: Dict[Any, float] = {}
+  for test in tests:
+    cell = (test.get('metrics') or {}).get(metric)
+    if not cell or cell.get('new') is None:
+      continue
+    new_values.append(cell['new'])
+    if cell.get('ref') is not None:
+      ref_values[test.get('reference_id') or ('test', test.get('id'))] = cell['ref']
+  return new_values, list(ref_values.values())
+
+
 def name_of_test(test: Dict[str, Any], tests: List[Dict[str, Any]]) -> str:
   name = test.get('label') or test.get('test_input_path') or str(test.get('id'))
   same_name = [t for t in tests if (t.get('label') or t.get('test_input_path')) == (test.get('label') or test.get('test_input_path'))]
@@ -183,8 +235,17 @@ def check_rule(rule: Rule, data: Dict[str, Any], local_metrics: Dict[str, Any]) 
     check.update(label=info.get('label') or rule.metric, scale=info.get('scale') or 1, suffix=info.get('suffix') or '')
   if not info or not info['new']['count']:
     return {**check, 'status': 'fail', 'message': f"no values of {rule.metric} in the new runs"}
-  check['new'] = info['new']['median']
-  check['ref'] = info['ref']['median']
+  # medians are the server's numbers, those of the Summary. Other aggregates come from each test's values
+  aggregate = rule.aggregate or 'median'
+  if aggregate == 'median':
+    check['new'] = info['new']['median']
+    check['ref'] = info['ref']['median']
+  else:
+    new_values, ref_values = tests_values(data.get('tests') or [], rule.metric)
+    if not new_values:
+      return {**check, 'status': 'fail', 'message': f"no values of {rule.metric} in the new runs"}
+    check['new'] = aggregate_of(new_values, aggregate)
+    check['ref'] = aggregate_of(ref_values, aggregate) if ref_values else None
 
   if rule.kind in ('min', 'max'):
     ok = check['new'] >= rule.limit - EPSILON * abs(rule.limit) if rule.kind == 'min' else check['new'] <= rule.limit + EPSILON * abs(rule.limit)
@@ -198,10 +259,14 @@ def check_rule(rule: Rule, data: Dict[str, Any], local_metrics: Dict[str, Any]) 
     )
   check['smaller_is_better'] = is_smaller_better
   if rule.kind == 'max_regression':
-    if not info['ref']['count']:
+    if not info['ref']['count'] or check['ref'] is None:
       return {**check, 'status': 'skip', 'message': f"the reference has no values of {rule.metric}"}
-    check['change'] = info.get('delta_relative')
-    check['regression'] = regression_of(info.get('delta_relative'), info.get('delta'), is_smaller_better)
+    if aggregate == 'median':
+      change, delta = info.get('delta_relative'), info.get('delta')
+    else:
+      change, delta = relative_change(check['new'], check['ref']), check['new'] - check['ref']
+    check['change'] = change
+    check['regression'] = regression_of(change, delta, is_smaller_better)
     ok = check['regression'] is not None and check['regression'] <= rule.limit + EPSILON
     return {**check, 'status': 'pass' if ok else 'fail'}
 
@@ -401,7 +466,7 @@ def check_label(check: Dict[str, Any]) -> str:
   if kind == 'per_test_max_regression':
     worst = check.get('worst')
     return f"{check['metric']}, each test" + (f" (worst: {worst['test']})" if worst else '')
-  return f"{check['metric']}, median"
+  return f"{check['metric']}, {check.get('aggregate') or 'median'}"
 
 
 def check_limit(check: Dict[str, Any]) -> str:

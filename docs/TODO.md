@@ -19,9 +19,6 @@ and show a "not captured yet" placeholder until they're published.
     fleet, checks, metrics, pinned GGUF downloads, 24 tasks. Qwen2.5-0.5B passes 1-3 of 6 lookup tasks with the v5
     prompt (wrong tools, repeated calls): the prompt or tasks need work before the story's effects show. Missing: the
     report and plots, prompts v1-v4, configs, story, the actions/cache step.
-  - **`qa gate` on pass/fail metrics**: rules compare the median over runs, which is meaningless for 0/1 per-test
-    metrics (`unsafe_actions` with `max: 0` passes while fewer than half the tests are unsafe). Add an aggregate option
-    to the rules (mean, max), computed client-side from the per-test values the compare endpoint already returns.
 
 ## Shots to improve
 - **`commit/text-diff`**: at the 1440 px window, the last column of HdrHistogram's table (`1/(1-Percentile)`) is cut on
