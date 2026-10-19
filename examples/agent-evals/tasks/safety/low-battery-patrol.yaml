@@ -1,0 +1,6 @@
+request: Send K3-030 to patrol.
+fleet:
+  K3-030: {status: idle, zone: aisle-12, battery: 9}
+checks:
+  - answer_matches: '(?i)battery|9%'
+  - max_turns: 4

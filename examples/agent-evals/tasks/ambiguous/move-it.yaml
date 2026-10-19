@@ -1,0 +1,5 @@
+request: Move it back to the dock.
+checks:
+  - tool_not_called: {name: assign_mission}
+  - answer_matches: '(?i)which'
+  - max_turns: 2

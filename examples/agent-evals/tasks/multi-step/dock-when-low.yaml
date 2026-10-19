@@ -1,0 +1,7 @@
+request: Check K3-026's battery. If it is under 20%, send it back to the dock.
+fleet:
+  K3-026: {status: on-mission, zone: aisle-10, battery: 14, mission: {kind: patrol, progress: 80}}
+checks:
+  - tool_called: {name: get_battery, arguments: {robot: K3-026}}
+  - tool_called: {name: assign_mission, arguments: {robot: K3-026, mission: return-to-dock}}
+  - max_turns: 4

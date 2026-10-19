@@ -1,0 +1,81 @@
+---
+id: robotics-3d
+title: "Robotics: odometry and mapping"
+sidebar_label: Robotics and 3D
+description: Depth and IMU odometry with loop closures, on simulated warehouse runs with exact ground truth. 6DoF trajectories against the ground truth, point clouds, videos played in sync, error over time, and History and the gate on a trajectory metric.
+---
+For robotics, perception and automotive engineers whose outputs are trajectories, maps and sensor streams. This page
+follows the odometry example.
+
+The example project is [`examples/robotics-3d`](https://github.com/Samsung/qaboard/tree/master/examples/robotics-3d).
+
+## The problem
+An odometry change is judged on a few recorded sequences, and its effect depends on how the robot moves: a change that
+helps slow, careful driving can make fast turns drift. One average error over the sequences hides that, and the error
+alone doesn't say why: you need to see the trajectory against the ground truth, the map it built, and what the sensors
+saw when it went wrong, next to the reference's.
+
+## The example
+A warehouse robot drives six simulated sequences: aisles, a loop around shelves, two figure-8s (one twice as fast), a
+docking approach and a long corridor. Its depth camera (160x120, 15 fps, 1% depth noise) and IMU (200 Hz, with
+drifting biases) are simulated, so the ground truth is exact. The odometry registers each depth frame to the last
+keyframe with point-to-plane ICP, started from the IMU's prediction; loop closures match keyframes when the robot
+comes back to a place, and solve a pose graph. Each run measures the absolute trajectory error (ATE), the relative
+pose error per meter, the drift at the end and the time per frame.
+
+Its story:
+1. The first release has no loop closure.
+2. Loop closure lands with a threshold that accepts matches with 30% overlap: they slide along the rows of identical
+   shelf bays, and on the figure-8s the trajectory jumps meters away. The quality gate fails; raising the threshold to
+   60% keeps the real loop closures, which cut the error on the loops.
+3. A change that trusts ICP over the IMU makes the figure-8s drift in their turns. History on the figure-8 shows the
+   step, the gate fails, and the change is reverted.
+4. Keyframes every 0.6 m instead of 0.3 m make it faster and better; a tuning sweep backs the choice.
+
+## What you see
+**Trajectories against the ground truth**: each axis over time and the path in 3D, the new run in orange, the
+reference in blue, the ground truth in green. Here a false loop closure pulls the new trajectory away.
+
+<Shot id="commit/trajectory-6dof" />
+
+**The map in 3D**: the points the robot mapped, where its trajectory put them, against where they really are. Drag to
+orbit, show or hide each cloud.
+
+<Shot id="commit/pointcloud" />
+
+**Videos in sync**: the depth camera next to the path so far, the new run's and the reference's playing together,
+frame by frame. The moment the new path leaves the true one is the moment to look at.
+
+<Clip id="commit/video-sync" />
+
+**The error over time** is a Plotly figure with the reference's curve dashed on the same axes, and a top-down map over
+the true layout is an image, compared with the image viewer. **History** follows the ATE of one sequence commit after
+commit, so the step where the figure-8 started drifting shows; see [History](/docs/user-guide/history-and-dashboards).
+
+## The configuration
+Each sequence is a folder with a `sequence.yaml`: the path and the warehouse's seed. The 6DoF viewer reads tab-separated
+poses, with the ground truth in `GT_final.txt`; the point cloud viewer reads PCD files, with an optional ground truth.
+
+<RepoFile path="examples/robotics-3d/qaboard.yaml" title="qaboard.yaml" section="inputs,outputs,gate" />
+
+A run is memoized by the code, the flags, the sequence and the seed: a commit that doesn't change the odometry reuses
+the identical run, which keeps CI fast. Do the same for long simulations, and say so in the run's log.
+
+## Run this example
+You need Python 3.10 or later and FFmpeg (for the videos). The first run generates the sequences' ground truth (about
+20 s); a run takes 15-40 s.
+
+```bash
+cd examples/robotics-3d
+pip install qaboard -r requirements.txt
+qa run --input sequences/figure8-fast
+qa batch ci                     # the 6 sequences
+```
+
+See the example's [README](https://github.com/Samsung/qaboard/tree/master/examples/robotics-3d#readme) for the
+flags and the tuning sweep.
+
+## Read more
+- [Visualizations](/docs/visualizations#point-clouds-and-trajectories): point clouds, trajectories, videos.
+- [The quality gate](/docs/quality-gate): per-test rules catch one sequence getting much worse.
+- [Tuning from the web app](/docs/tuning-from-the-webapp).

@@ -163,7 +163,7 @@
           "type": {
             "type": "string",
             "description": "The viewer. Default: guessed from the extension.",
-            "examples": ["image/*", "video/*", "plotly/json", "plotly/html", "text/plain", "text/html", "flame/json", "6dof/txt", "pointcloud/txt", "files/bit-accuracy"]
+            "examples": ["image/*", "video/*", "plotly/json", "plotly/html", "text/plain", "text/html", "flame/json", "6dof/txt", "pointcloud/pcd", "pointcloud/txt", "files/bit-accuracy"]
           },
           "default_hidden": {"type": "boolean"},
           "display": {"enum": ["single", "all", "viewer"]},
@@ -292,10 +292,14 @@
             "type": "object",
             "properties": {
               "metric": {"type": "string"},
-              "max_regression": {"type": ["string", "number"], "description": "e.g. 5% or 0.05, for the median over the runs."},
+              "max_regression": {"type": ["string", "number"], "description": "e.g. 5% or 0.05, for the median (or `aggregate`) over the runs."},
               "per_test_max_regression": {"type": ["string", "number"], "description": "e.g. 20%, for each run vs its reference."},
               "min": {"type": "number"},
-              "max": {"type": "number"}
+              "max": {"type": "number"},
+              "aggregate": {
+                "enum": ["median", "mean", "min", "max"],
+                "description": "How min, max and max_regression aggregate the runs. Default: median. Use max or mean for pass/fail (0/1) metrics. Not with per_test_max_regression."
+              }
             },
             "additionalProperties": false
           }

@@ -1,0 +1,81 @@
+---
+id: agent-evals
+title: "LLM agents: evaluating an assistant"
+sidebar_label: LLM agent evals
+description: An operators' assistant that calls tools on a robot fleet, scored on scripted tasks with a local model. Pass rates, unsafe actions and cost per task, transcripts diffed between commits, an HTML report per task, and the quality gate catching an unsafe change.
+---
+For teams shipping LLM or agent features who want their evals reviewed like any other algorithm: per task, against a
+reference, with the transcripts at hand. This page follows the fleet assistant example.
+
+The example project is [`examples/agent-evals`](https://github.com/Samsung/qaboard/tree/master/examples/agent-evals).
+
+## The problem
+A prompt or a tool description changes, and the agent's behavior changes on tasks nobody looked at. An average score
+over an eval set says the pass rate moved by a few points; it doesn't say that the assistant now reboots robots
+without asking, or that the new prompt doubled what each answer costs. You need the result of each task next to the
+reference's, the transcripts diffed, and a gate that fails on the one thing that must never happen.
+
+## The example
+An operators' assistant answers requests about a simulated robot fleet by calling tools: list the robots, read their
+battery, status and mission, assign a mission, reboot a robot, search the maintenance log. It runs on a small local
+model (Qwen2.5-0.5B-Instruct or SmolLM2-360M-Instruct, with llama.cpp on the CPU, greedy decoding), so there are no
+keys, nothing is billed, and the same inputs give the same transcripts. Tool calls are constrained to the tools' JSON
+schemas with a grammar, so a small model's calls always parse.
+
+Each run is one scripted task: lookups, multi-step requests, safety (actions that need the operator's confirmation,
+requests to refuse) and ambiguous requests (the assistant should ask which robot). Checks score the transcript: tools
+called or not, with which arguments, what the answer says, whether the assistant asked before acting. Each run
+returns whether all checks passed, the unsafe actions, the turns, the tokens and their cost, from a fictional price
+table.
+
+Its story:
+1. A bigger model passes more tasks for about the same cost.
+2. "Think step by step" more than doubles the tokens and passes no more tasks; a compact prompt with example
+   conversations beats both, as a sweep over the prompts shows.
+3. The coding agent shortens the tools' descriptions and turns off the confirmation check: the assistant reboots
+   robots without asking, even after the operator said no. The gate fails on the unsafe actions.
+4. Detailed descriptions and the confirmation check come back, the gate passes, and the release is a milestone.
+
+## What you see
+**Transcripts diffed** with the reference's: the operator's request, each tool call and its result, the answer. Here
+the reference's reboot is refused until the operator confirms; after the change, it just runs.
+
+<Shot id="commit/transcript-diff" />
+
+**An HTML report per task**: each check passed or failed and why, the unsafe actions, the conversation, tokens and
+cost. Your code writes it; QA-Board shows it in the run's card, next to the reference's.
+
+<Shot id="commit/agent-report" />
+
+**Pass rates and costs** compare like any metric, in the Summary and the Metrics Diff, task by task. A run's metrics
+are 0 or 1 for `passed`, so the gate's rules aggregate them over the batch's tasks with `aggregate: max` (no task may
+have an unsafe action) and `aggregate: mean` (the pass rate).
+
+## The configuration
+Each task is a YAML file, `tasks/<category>/<name>.yaml`: the request, the fleet's facts, the checks.
+
+<RepoFile path="examples/agent-evals/qaboard.yaml" title="qaboard.yaml" section="inputs,outputs,gate" />
+
+Conversations are memoized by everything they depend on (the model file, the prompt, the tools, the flags, the task
+and the agent's code): a commit that doesn't change them reuses the identical conversation, which keeps CI fast and
+reviews stable.
+
+## Run this example
+You need Python 3.10 or later. The first run downloads the two models (about 1 GB, checked by SHA-256); a task takes
+a few seconds on 4 cores.
+
+```bash
+cd examples/agent-evals
+pip install qaboard -r requirements.txt
+python qa/build.py              # downloads the models, once
+qa run --input safety/reboot-without-asking.yaml
+qa batch ci                     # 12 tasks, 3 per category
+```
+
+See the example's [README](https://github.com/Samsung/qaboard/tree/master/examples/agent-evals#readme) for the
+flags, the 24 tasks and the prompt sweep.
+
+## Read more
+- [The quality gate](/docs/quality-gate): rules, and `aggregate` for pass/fail metrics.
+- [Visualizations](/docs/visualizations): text diffs and HTML reports.
+- [Tuning from the web app](/docs/tuning-from-the-webapp): sweeps over prompts and settings.

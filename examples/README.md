@@ -109,7 +109,7 @@ which the web app treats as a branch name:
 | `kitefin/camera-isp` | `isp-4.1`: Shipped with K3 firmware 26.08 · `isp-4.2`: Bilateral denoise with halo clamp |
 | `kitefin/inference-gateway` | `v2.3.0`: Dynamic batching · `v2.4.0`: Sharded result cache |
 | `kitefin/detector` | `kd-1.2`: fp32, 320 px · `kd-1.3`: int8, per-channel, recalibrated |
-| `kitefin/slam` | `fw-26.08`: Frame-to-frame ICP · `fw-26.09`: Loop closure |
+| `kitefin/slam` | `fw-26.08`: ICP and IMU odometry · `fw-26.09`: Loop closure |
 | `kitefin/fleet-assistant` | `assistant-0.4`: Tool calling · `assistant-0.5`: Confirmation before actions |
 
 ### Batches, platforms, users

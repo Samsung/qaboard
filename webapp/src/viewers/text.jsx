@@ -62,7 +62,11 @@ const is_t_key = ev => {
 
 const count_lines = text => (text?.match(/\r?\n/g)?.length ?? 0) + 1;
 // enough for the longest file, up to max_lines. Outside of the component: the React Compiler fails on Math.min/max there
-const editor_height = (data, max_lines) => 18 * Math.min(Math.max(count_lines(data.new), count_lines(data.reference)), max_lines) + 10;
+// Inline, changed lines show twice (removed, then added): count both files' lines then.
+const editor_height = (data, max_lines, inline) => {
+  const lines = inline ? count_lines(data.new) + count_lines(data.reference) : Math.max(count_lines(data.new), count_lines(data.reference));
+  return 18 * Math.min(lines, max_lines) + 10;
+};
 
 
 function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideBySide: side_by_side_default, always_show_diff, only_diff, manifests, width, max_lines = 40, language: language_prop, is_running }) {
@@ -105,7 +109,7 @@ function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideByS
   const no_reference = !text_url_ref || !data.reference || (!!text_url_new && text_url_new === text_url_ref);
   const show_diff = !no_reference || always_show_diff;
 
-  const height = editor_height(data, max_lines);
+  const height = editor_height(data, max_lines, show_diff && !renderSideBySide);
   const editor_language = language_prop || language(filename);
   const editor_element = show_diff
     ? <MonacoDiffEditor
@@ -118,6 +122,8 @@ function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideByS
         options={{
           ...editor_options,
           renderSideBySide,
+          // what the button says, even in a narrow card (Monaco switches to inline under 900 px by default)
+          useInlineViewWhenSpaceIsLimited: false,
         }}
         editorDidMount={instance => { editor.current = instance }}
       />

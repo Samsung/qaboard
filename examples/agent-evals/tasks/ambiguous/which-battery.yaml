@@ -1,0 +1,5 @@
+request: What's the battery level?
+checks:
+  - answer_matches: '\?'
+  - tool_not_called: {name: get_battery}
+  - max_turns: 2

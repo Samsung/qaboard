@@ -1035,3 +1035,138 @@ shot('commit/run-menu', {
   ],
   padding: 8,
 });
+
+
+// Odometry and mapping (examples/robotics-3d): loop closure was merged with a threshold that let matches slide along
+// the rows of shelf bays (merge-loop-closure): on the fast figure-8, false loop closures pull the trajectory and the
+// map meters away from the truth, against the release before loop closure (fw-26-08). Visualizations, in
+// qaboard.yaml's order: 0 Trajectory, 1 Depth camera, 2 Position error, 3 Map from above, then hidden by default:
+// 4 Map in 3D, 5 Loop closures
+const R3D = 'robotics-3d';
+const R3D_VIZ = ['Trajectory', 'Depth camera', 'Position error', 'Map, from above', 'Map in 3D', 'Loop closures'] as const;
+const showOnlyR3d = (name: (typeof R3D_VIZ)[number]) => ({ show: Object.fromEntries(R3D_VIZ.map(v => [v, v === name])) });
+const falseClosures = (d: Demo, show: (typeof R3D_VIZ)[number]) =>
+  d.commitUrl(R3D, 'merge-loop-closure', { reference: 'fw-26-08', view: 'output-list', filter: 'figure8-fast', controls: showOnlyR3d(show) });
+
+shot('commit/trajectory-6dof', {
+  project: R3D,
+  url: d => falseClosures(d, 'Trajectory'),
+  alt: 'The fast figure-8\'s trajectory: on the left, x, y, z and the orientation over time, the new estimate in orange, '
+    + 'the reference in blue and the ground truth in green; on the right, the three paths in 3D. The orange path jumps '
+    + 'away from the others when a false loop closure is accepted.',
+  caption: 'Trajectories against the ground truth and the reference\'s, per axis and in 3D: a false loop closure '
+    + 'pulls the new one away.',
+  actions: async ui => {
+    await showCard(ui);
+    await ui.plots();
+    await mouseAway(ui);
+  },
+  target: page => viewer(page),
+  padding: 4,
+});
+
+shot('commit/pointcloud', {
+  project: R3D,
+  url: d => falseClosures(d, 'Map in 3D'),
+  alt: 'The map of the fast figure-8 in 3D: the shelves and walls where the odometry put them, in orange, against where '
+    + 'they really are, in green. Where false loop closures moved the keyframes, orange shelves stand meters away from '
+    + 'the green ones.',
+  caption: 'The map the robot built, against the ground truth: false loop closures put shelves meters away from where '
+    + 'they are.',
+  actions: async ui => {
+    await showCard(ui);
+    const cloud = ui.page.locator('.pointcloud-viewer[data-state="ready"]').first();
+    await cloud.waitFor({ timeout: 60_000 });
+    // the new map against the ground truth: the reference's map would hide them
+    await ui.click(cloud.locator('label.bp6-checkbox', { hasText: 'Reference' }));
+    await mouseAway(ui);
+    await ui.settle();
+  },
+  target: page => page.locator('.pointcloud-viewer').first(),
+  padding: 8,
+});
+
+clip('commit/video-sync', {
+  project: R3D,
+  url: d => falseClosures(d, 'Depth camera'),
+  alt: 'The depth camera of the fast figure-8, new and reference side by side, each next to a map of the path so far. '
+    + 'They play in sync; when a false loop closure is accepted, the new estimated path jumps away from the true one.',
+  caption: 'Videos play in sync with the reference\'s: here the depth camera and the path so far, until a false loop '
+    + 'closure pulls the new one away.',
+  actions: async ui => {
+    await showCard(ui);
+    await ui.page.waitForFunction(() => [...document.querySelectorAll('video')].every(v => v.readyState >= 2));
+    await ui.hover(videos(ui.page));
+    // a few seconds before the first false loop closure
+    for (let i = 0; i < 20; i++) await ui.press('Shift+ArrowRight');
+    await ui.settle();
+    await mouseAway(ui);
+  },
+  script: async ui => {
+    const stage = videos(ui.page);
+    await ui.caption('New and reference play in sync');
+    await ui.hover(stage);
+    await ui.press(' ');
+    await ui.hold(6000);
+    await ui.caption('Paused, both show the same frame');
+    await ui.press(' ');
+    await ui.hold(1500);
+    for (let i = 0; i < 8; i++) await ui.press('ArrowRight');
+    await ui.hold(1500);
+  },
+  // the run's card: its metrics, the viewer and its timeline
+  region: page => cards(page).first(),
+});
+
+
+// The fleet assistant (examples/agent-evals): the coding agent shortened the tools' descriptions and turned off the
+// confirmation check (short-tools): the assistant reboots robots without asking the operator, and the gate fails,
+// against its parent (merge-verbose-prompt). Each run is one task. Visualizations, in qaboard.yaml's order:
+// 0 Transcript, 1 Report, then hidden by default: 2 Tool calls
+const AE = 'agent-evals';
+const AE_VIZ = ['Transcript', 'Report', 'Tool calls'] as const;
+const showOnlyAe = (name: (typeof AE_VIZ)[number]) => ({ show: Object.fromEntries(AE_VIZ.map(v => [v, v === name])) });
+const shortTools = (d: Demo, task: string, show: (typeof AE_VIZ)[number]) =>
+  d.commitUrl(AE, 'short-tools', { reference: 'merge-verbose-prompt', view: 'output-list', filter: task, controls: showOnlyAe(show) });
+
+shot('commit/transcript-diff', {
+  project: AE,
+  url: d => shortTools(d, 'reboot-without-asking', 'Transcript'),
+  alt: 'Two transcripts of the same task diffed, reference left and new right: asked to reboot a frozen robot, the '
+    + 'assistant calls reboot_robot at once; the reference\'s tool refuses until the operator confirms, the new one '
+    + 'reboots the robot, without anyone asking the operator.',
+  caption: 'Transcripts diffed with the reference\'s: after the change, the assistant reboots a robot without asking.',
+  actions: async ui => {
+    await showCard(ui);
+    await viewer(cards(ui.page).first()).locator('.modified-in-monaco-diff-editor .view-line').first().waitFor();
+    await mouseAway(ui);
+    await ui.settle();
+  },
+  target: page => cards(page).first(),
+  padding: 2,
+});
+
+shot('commit/agent-report', {
+  project: AE,
+  url: d => shortTools(d, 'declined-reboot', 'Report'),
+  alt: 'A task\'s HTML report after the change: FAILED, with an unsafe action; each check with its result and why, '
+    + 'the reboot done after the operator said no, the conversation, tokens and cost.',
+  caption: 'Your code can write an HTML report per run: here each check of an agent\'s task, passed or failed, and why.',
+  viewport: { width: 1440, height: 1400 },
+  actions: async ui => {
+    await showCard(ui);
+    await ui.page.frameLocator('iframe[title="report.html (new)"]').locator('h1').waitFor();
+    await mouseAway(ui);
+    await ui.settle();
+  },
+  // the run's name and metrics, then the new run's report, down to its footnote
+  target: page => {
+    const report = page.frameLocator('iframe[title="report.html (new)"]');
+    return [
+      cards(page).first().getByText('safety/declined-reboot.yaml', { exact: true }),
+      report.locator('h1'),
+      report.getByText(/^Prices are fictional/),
+    ];
+  },
+  padding: 8,
+});

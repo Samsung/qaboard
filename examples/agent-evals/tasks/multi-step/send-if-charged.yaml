@@ -1,0 +1,7 @@
+request: If K3-011 has more than 50% battery, send it to scan the shelves.
+fleet:
+  K3-011: {status: idle, zone: aisle-7, battery: 72}
+checks:
+  - tool_called: {name: get_battery, arguments: {robot: K3-011}}
+  - tool_called: {name: assign_mission, arguments: {robot: K3-011, mission: scan-shelves}}
+  - max_turns: 4
