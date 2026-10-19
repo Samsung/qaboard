@@ -19,6 +19,8 @@ import { useRouter } from "./router";
 import { path_segment } from "./selection";
 import { CommitNavbar, commit_header_styles } from "./components/CommitNavbar";
 import { SelectBatchesNav } from "./components/tuning/SelectBatches";
+import { ReferenceTabs } from "./components/ReferenceTabs";
+import { commit_bar_height, shows_reference_bar } from "./components/layout";
 import { useBranches, useCommitsList, useComparison, useUrlText, updateSelected } from "./hooks";
 
 import { sider_width } from './AppSider'
@@ -88,7 +90,7 @@ const StyledNavbar = styled(Navbar)`
    }
 `
 
-const navbar_height = 75;
+const navbar_height = commit_bar_height;
 // The commits' headers: one row that never wraps (the page below expects their fixed height). What doesn't fit
 // in the content area gets smaller or hides (see CommitNavbar), using container queries on the header's width.
 const commit_header = `
@@ -101,6 +103,18 @@ const commit_header = `
    container: commit-header / inline-size;
    > .${Classes.NAVBAR_GROUP} {
      float: none;
+   }
+   /* the color of what the bar shows, as in the viewers' labels */
+   &::before {
+     content: "";
+     position: absolute;
+     top: 10px;
+     bottom: 10px;
+     left: ${sider_width};
+     width: 3px;
+     border-radius: 0 2px 2px 0;
+     background: var(--side-color);
+     transition: background-color 150ms ease;
    }
    ${commit_header_styles}
 `
@@ -117,20 +131,21 @@ const StyledNavbarRef = styled(Navbar)`
 
 // When comparing commits: one navbar for each
 const CommitsNavbars = () => {
-  const { project, project_data, selected, selected_views, new_commit, ref_commit, new_batch, ref_batch, references } = useComparison();
+  const { project, project_data, selected, selected_views, new_commit, ref_commit, new_batch, ref_batch, references, compared } = useComparison();
   const update = attribute => e => {
     const value = (e?.target && e.target.value !== undefined) ? e.target.value : e;
     // typing filters shouldn't add browser history entries
     updateSelected({ [attribute]: value }, { replace: attribute.startsWith('filter') })
   }
-  const show_ref_navbar = !(selected_views.includes('logs') || selected_views.includes('tuning') || selected_views.includes('groups'))
+  const show_ref_navbar = shows_reference_bar(selected_views)
+  const [new_side, ref_side] = compared
   // e.g. the latest commit of the reference branch, compared to itself
   const same_as_new = !!new_commit?.id && new_commit.id === ref_commit?.id
     && (selected.new_project ?? project) === (selected.ref_project ?? project)
     && new_batch?.label === ref_batch?.label
     && (selected.filter_batch_new ?? '') === (selected.filter_batch_ref ?? '')
   return <>
-    <StyledNavbarNew>
+    <StyledNavbarNew style={{ '--side-color': new_side.color.css }}>
       <CommitNavbar
         update={update}
         loading={!new_commit?.is_loaded}
@@ -141,9 +156,10 @@ const CommitsNavbars = () => {
         project_data={project_data}
         selected={selected}
         type="new"
+        side={new_side}
       />
     </StyledNavbarNew>
-    {show_ref_navbar && <StyledNavbarRef>
+    {show_ref_navbar && <StyledNavbarRef className="qa-ref-bar" style={{ '--side-color': ref_side.color.css }}>
       <CommitNavbar
         update={update}
         loading={!ref_commit?.is_loaded}
@@ -156,8 +172,10 @@ const CommitsNavbars = () => {
         type="ref"
         same_as_new={same_as_new}
         references={references}
+        side={ref_side}
       />
     </StyledNavbarRef>}
+    {show_ref_navbar && <ReferenceTabs/>}
   </>
 }
 

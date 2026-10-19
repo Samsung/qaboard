@@ -49,7 +49,8 @@ export const make_api = ({ nb_outputs, nb_commits }) => {
     id: `c${String(i).padStart(4, '0')}`, nb_outputs, seed: i + 1, with_outputs: false,
     authored_datetime: new Date(Date.UTC(2026, 8, 1, 10) - i * 3600 * 1000).toISOString(),
   }));
-  const commit_details = Object.fromEntries(commits.slice(0, 2).map((c, i) => [c.id, make_commit({ ...c, nb_outputs, seed: i + 1 })]));
+  // the first ones' results: c0000 is compared with c0001, or c0002 when switching references
+  const commit_details = Object.fromEntries(commits.slice(0, 3).map((c, i) => [c.id, make_commit({ ...c, nb_outputs, seed: i + 1 })]));
   return {
     '/api/v1/config': {},
     '/api/v1/user/me/': { is_authenticated: true, user_id: 1, user_name: 'alice', full_name: 'Alice', email: 'alice@example.com', login_type: 'local' },

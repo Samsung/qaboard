@@ -2,7 +2,7 @@
 // What we write in the URL must read back the same.
 import {
   selection_from_url, url_for_selection, date_range_from_query, route_info,
-  show_reference, add_reference, remove_reference, show_as_new,
+  show_reference, add_reference, remove_reference, show_as_new, move_reference, duplicate_reference, rename_reference,
 } from '../selection';
 import { matchRoutes } from '../router';
 import { route_paths } from '../route_paths';
@@ -191,9 +191,9 @@ describe('several references', () => {
 
   test('without other references, the reference is the only one', () => {
     const s = select('/p/commit/a?reference=b&batch_ref=x&filter_ref=f');
-    expect(s.references).toEqual([{ project: 'p', commit_id: 'b', batch: 'x', filter: 'f' }]);
+    expect(s.references).toEqual([{ project: 'p', commit_id: 'b', batch: 'x', filter: 'f', label: '' }]);
     expect(s.ref_index).toBe(0);
-    expect(select('/p/commit/a').references).toEqual([{ project: 'p', commit_id: null, batch: 'default', filter: '' }]);
+    expect(select('/p/commit/a').references).toEqual([{ project: 'p', commit_id: null, batch: 'default', filter: '', label: '' }]);
   });
 
   test('the reference shown is at ref_index among the others', () => {
@@ -207,7 +207,7 @@ describe('several references', () => {
 
   test('references with a batch, filter or project', () => {
     const { url, selected } = act('/p/commit/a?reference=b', add_reference, { commit_id: 'c', batch: 'tuning', filter: 'scene:1', project: 'other' });
-    expect(selected.references[1]).toEqual({ commit_id: 'c', batch: 'tuning', filter: 'scene:1', project: 'other' });
+    expect(selected.references[1]).toEqual({ commit_id: 'c', batch: 'tuning', filter: 'scene:1', project: 'other', label: '' });
     // the old reference, now not shown, is only a commit id
     expect(new URLSearchParams(url.split('?')[1]).get('compare')).toBe('b');
     expect(selected).toMatchObject({ ref_commit_id: 'c', selected_batch_ref: 'tuning', filter_batch_ref: 'scene:1', ref_project: 'other', ref_index: 1 });
@@ -253,8 +253,8 @@ describe('several references', () => {
     expect(selected.new_commit_id).toBe('c');
     expect(selected.selected_batch_new).toBe('default');
     expect(selected.references).toEqual([
-      { project: 'p', commit_id: 'b', batch: 'default', filter: '' },
-      { project: 'p', commit_id: 'a', batch: 'x', filter: '' },
+      { project: 'p', commit_id: 'b', batch: 'default', filter: '', label: '' },
+      { project: 'p', commit_id: 'a', batch: 'x', filter: '', label: '' },
     ]);
     expect(url).toBe('/p/commit/c?reference=b&compare%5B0%5D%5Bcommit%5D=a&compare%5B0%5D%5Bbatch%5D=x');
   });
@@ -262,5 +262,41 @@ describe('several references', () => {
   test('changing the reference shown keeps the others', () => {
     const { selected } = roundtrip('/p/commit/a?reference=b&compare=c', { ref_commit_id: 'z' });
     expect(ids(selected)).toEqual(['z', 'c']);
+  });
+
+  test('reordering keeps the reference shown', () => {
+    const url = '/p/commit/a?reference=b&compare=c&compare=d';
+    const { url: next, selected } = act(url, move_reference, 0, 2);
+    expect(ids(selected)).toEqual(['c', 'd', 'b']);
+    expect(selected).toMatchObject({ ref_commit_id: 'b', ref_index: 2 });
+    expect(next).toBe('/p/commit/a?reference=b&compare=c&compare=d&ref_index=2');
+    expect(ids(act(url, move_reference, 2, 1).selected)).toEqual(['b', 'd', 'c']);
+    // out of the list: nothing changes
+    expect(move_reference(select(url), 0, -1)).toEqual({});
+  });
+
+  test('a duplicate is shown, next to the original, to change its batch or filter', () => {
+    const { url, selected } = act('/p/commit/a?reference=b&batch_ref=x&label_ref=v1&compare=c', duplicate_reference, 0);
+    expect(ids(selected)).toEqual(['b', 'b', 'c']);
+    expect(selected).toMatchObject({ ref_index: 1, selected_batch_ref: 'x', label_ref: '' });
+    // then users change its batch: the original keeps its own
+    const changed = roundtrip(url, { selected_batch_ref: 'y' }).selected;
+    expect(changed.references.map(r => r.batch)).toEqual(['x', 'y', 'default']);
+    expect(changed.references[0].label).toBe('v1');
+  });
+
+  test('users name what they compare, the names are in the URL', () => {
+    const s = select('/p/commit/a?label=ISP%20v2&reference=b&label_ref=ISP%20v1');
+    expect(s).toMatchObject({ label_new: 'ISP v2', label_ref: 'ISP v1' });
+    expect(s.references[0].label).toBe('ISP v1');
+    // the others' names go with them
+    const { url, selected } = act('/p/commit/a?reference=b&compare=c', rename_reference, 1, 'night');
+    expect(selected.references[1].label).toBe('night');
+    expect(url).toBe('/p/commit/a?reference=b&compare%5B0%5D%5Bcommit%5D=c&compare%5B0%5D%5Blabel%5D=night');
+    // and follow them when they are shown, or shown as new
+    expect(act(url, show_reference, 1).selected).toMatchObject({ ref_commit_id: 'c', label_ref: 'night' });
+    expect(act(url, show_as_new, 1).selected).toMatchObject({ new_commit_id: 'c', label_new: 'night' });
+    // no name: as before
+    expect(roundtrip('/p/commit/a?label=x', { label_new: '' }).url).toBe('/p/commit/a?');
   });
 });

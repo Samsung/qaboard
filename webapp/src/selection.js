@@ -19,6 +19,9 @@ const url_keys = {
   selected_batch_ref: "batch_ref",
   filter_batch_new: "filter",
   filter_batch_ref: "filter_ref",
+  // what users call the new and the reference results, instead of "new" and "reference"
+  label_new: "label",
+  label_ref: "label_ref",
   // the references that are not shown, see `references` below
   other_refs: "compare",
 };
@@ -70,9 +73,10 @@ const to_day = date => DateTime.fromJSDate(date).toISODate();
 
 // Users can select several references, and compare the new commit with one of them at a time.
 // The one shown is in ?reference=&batch_ref=&filter_ref=&ref_project= as before, so that existing links and code
-// keep working. The others are in ?compare=: commit ids, or {commit, batch, filter, project} when not the defaults.
+// keep working. The others are in ?compare=: commit ids, or {commit, batch, filter, project, label} when not the defaults.
 // ?ref_index= is where the shown one is in the list: switching references keeps their order.
-// A "side" of the comparison: { project, commit_id, batch, filter }, project defaults to the page's.
+// A "side" of the comparison: { project, commit_id, batch, filter, label }, project defaults to the page's,
+// label is what users call it ('' by default: viewers use its milestone's name, else "new" or "reference").
 const side_from_query = (item, project) => {
   const value = typeof item === 'object' && item !== null ? item : { commit: item };
   return {
@@ -80,6 +84,7 @@ const side_from_query = (item, project) => {
     commit_id: value.commit ?? null,
     batch: value.batch || 'default',
     filter: value.filter ?? '',
+    label: value.label ?? '',
   };
 };
 
@@ -89,6 +94,7 @@ const side_to_query = (side, project) => {
     batch: side.batch && side.batch !== 'default' ? side.batch : undefined,
     filter: side.filter || undefined,
     project: side.project && side.project !== project ? side.project : undefined,
+    label: side.label || undefined,
   };
   const fields = Object.entries(value).filter(([, v]) => v !== undefined);
   return fields.length === 1 && fields[0][0] === 'commit' ? value.commit : Object.fromEntries(fields);
@@ -101,6 +107,7 @@ const other_refs_to_query = (sides, project) => {
   return items.every(item => typeof item === 'string') ? items : Object.fromEntries(items.map((item, index) => [index, item]));
 };
 
+// The same results: we don't add them twice (users can duplicate a reference to change its batch or filter)
 export const same_side = (a, b) => !!a && !!b
   && (a.commit_id ?? null) === (b.commit_id ?? null)
   && a.project === b.project
@@ -112,7 +119,11 @@ const new_side = selected => ({
   commit_id: selected.new_commit_id,
   batch: selected.selected_batch_new,
   filter: selected.filter_batch_new,
+  label: selected.label_new,
 });
+
+// Only what goes in the URL: references from useComparison() have more
+const as_side = ({ project, commit_id, batch, filter, label }) => ({ project, commit_id, batch, filter, label });
 
 // The selection changes to show `references` (a list of sides), with the one at `index` compared with the new commit
 export const references_changes = (references, index) => {
@@ -122,7 +133,8 @@ export const references_changes = (references, index) => {
     ref_commit_id: shown.commit_id ?? undefined,
     selected_batch_ref: shown.batch || 'default',
     filter_batch_ref: shown.filter ?? '',
-    other_refs: references.filter((_, i) => i !== index),
+    label_ref: shown.label ?? '',
+    other_refs: references.filter((_, i) => i !== index).map(as_side),
     ref_index: index,
   };
 };
@@ -133,7 +145,7 @@ export const show_reference = (selected, index) => references_changes(selected.r
 
 // ...add a reference, and show it. If we have it already, we show it.
 export const add_reference = (selected, side) => {
-  const side_ = { project: selected.project, batch: 'default', filter: '', ...side };
+  const side_ = { project: selected.project, batch: 'default', filter: '', label: '', ...side };
   const { references } = selected;
   const existing = references.findIndex(r => same_side(r, side_));
   if (existing >= 0) return references_changes(references, existing);
@@ -161,7 +173,30 @@ export const show_as_new = (selected, index) => {
     new_commit_id: side.commit_id,
     selected_batch_new: side.batch || 'default',
     filter_batch_new: side.filter ?? '',
+    label_new: side.label ?? '',
   };
+};
+
+// ...move a reference elsewhere in the list, e.g. by dragging it. The one shown stays shown.
+export const move_reference = (selected, from, to) => {
+  const { references, ref_index } = selected;
+  if (to < 0 || to >= references.length || from === to) return {};
+  const moved = references.filter((_, i) => i !== from);
+  moved.splice(to, 0, references[from]);
+  return references_changes(moved, moved.indexOf(references[ref_index]));
+};
+
+// ...add a copy of a reference next to it, and show it: to change its batch or filter, and compare both
+export const duplicate_reference = (selected, index) => {
+  const { references } = selected;
+  const copy = { ...as_side(references[index]), label: '' };
+  return references_changes([...references.slice(0, index + 1), copy, ...references.slice(index + 1)], index + 1);
+};
+
+// ...call a reference something else, '' for its default name
+export const rename_reference = (selected, index, label) => {
+  const { references, ref_index } = selected;
+  return references_changes(references.map((r, i) => i === index ? { ...r, label } : r), ref_index);
 };
 
 
@@ -186,6 +221,7 @@ export const selection_from_url = (match, search) => {
     commit_id: query.reference ?? query.commit_ref_folder ?? null,
     batch: query.batch_ref || "default",
     filter: query.filter_ref ?? "",
+    label: query.label_ref ?? "",
   };
   const other_refs = (as_list(query.compare) ?? []).filter(item => item !== '').map(item => side_from_query(item, project));
   const ref_index = Math.min(Math.max(0, Math.trunc(Number(query.ref_index)) || 0), other_refs.length);
@@ -211,6 +247,8 @@ export const selection_from_url = (match, search) => {
     selected_batch_ref: ref_side.batch,
     filter_batch_new: query.filter ?? "",
     filter_batch_ref: ref_side.filter,
+    label_new: query.label ?? "",
+    label_ref: ref_side.label,
 
     // the reference compared is references[ref_index], the same as ref_commit_id, selected_batch_ref...
     references,
@@ -242,6 +280,8 @@ const selection_defaults = {
   search: '',
   sort_order: -1,
   ref_index: 0,
+  label_new: '',
+  label_ref: '',
 };
 const same_value = (value, default_value) => Array.isArray(value) || Array.isArray(default_value)
   ? JSON.stringify([].concat(value)) === JSON.stringify([].concat(default_value))

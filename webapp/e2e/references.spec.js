@@ -50,26 +50,32 @@ test.afterEach(async ({}, testInfo) => {
 test('switch between references', async ({ page }) => {
   await page.goto(`/${project}/commit/${a}?reference=${b}&compare=${c}&compare=${d}`);
   await expect(page.getByText('Release 1.0').first()).toBeVisible();
-  await expect(page.getByRole('button', { name: /Reference 1 of 3/ })).toBeVisible();
+  await expect(page.getByRole('tab')).toHaveCount(3);
 
-  await page.getByRole('button', { name: 'Next reference' }).click();
+  await page.getByRole('tab', { name: /^Reference 2:/ }).click();
   await expect(page.getByText('Tuning the sharpening').first()).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`reference=${c}`));
   await page.keyboard.press('r');
   await expect(page.getByText('Latest on master').first()).toBeVisible();
-
-  await page.getByRole('button', { name: /Reference 3 of 3/ }).click();
-  await expect(page.getByText('Compare with one of 3 references')).toBeVisible();
+  await expect(page.getByRole('tab', { name: /^Reference 3:/ })).toHaveAttribute('aria-selected', 'true');
   await page.waitForLoadState('networkidle');
 });
 
-test('add a reference', async ({ page }) => {
+test('stack a reference, rename what we compare', async ({ page }) => {
   await page.goto(`/${project}/commit/${a}?reference=${b}`);
   await expect(page.getByText('Release 1.0').first()).toBeVisible();
-  await page.getByRole('button', { name: 'Compare with more references' }).click();
-  await page.getByRole('textbox', { name: 'Add a commit as reference' }).fill(c);
+  // the handle shows when hovering the reference's bar
+  await page.locator('.qa-ref-bar').hover();
+  await page.getByRole('button', { name: 'Stack a reference' }).click();
+  await page.getByRole('textbox', { name: 'Add a commit or a branch as reference' }).fill(c);
   await page.keyboard.press('Enter');
   await expect(page.getByText('Tuning the sharpening').first()).toBeVisible();
-  await expect(page.getByRole('button', { name: /Reference 2 of 2/ })).toBeVisible();
+  await expect(page.getByRole('tab')).toHaveCount(2);
+
+  await page.getByRole('button', { name: 'new: rename' }).click();
+  await page.getByRole('textbox', { name: 'Name instead of “new”' }).fill('ISP v2');
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/label=ISP\+v2|label=ISP%20v2/);
+  await expect(page.getByRole('button', { name: 'ISP v2: rename' })).toBeVisible();
   await page.waitForLoadState('networkidle');
 });

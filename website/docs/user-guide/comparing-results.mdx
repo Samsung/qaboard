@@ -33,6 +33,7 @@ In the **ref** bar (or the **new** bar, it works the same way):
 | **Change Project** | Pick results from another project, e.g. another sub-project of a monorepo, or a fork. |
 | **Switch new/reference** | Swaps the two commits, with their batches and filters. |
 | **Also select as reference** / **as new** | Copies this commit, batch and filter to the other bar. Handy to compare two batches of the **same** commit, e.g. a tuning experiment vs CI. |
+| **Stack another reference…** | In the ref bar: compare with [several references](#several-references), one at a time. |
 | **Remove from comparison** | Clears the commit. With [several references](#several-references), removes the one shown. |
 | The reference branch | Selects its latest commit. |
 | Milestones | Your favorites, your milestones, the project's, and those from *qaboard.yaml*. The milestone's batch and filter are selected too. |
@@ -43,17 +44,28 @@ Each bar also has its own **batch selector** and **filter**: you can compare any
 To see what a tuning experiment changed, select its batch in the new bar, then use **Also select as reference** and pick the **CI** batch in the reference bar.
 :::
 
+## Naming what you compare
+Click **new** or **ref** at the start of a bar to rename it, for example `ISP v2` and `ISP v1`. Viewers then call the images and videos by these names, and the names are in the URL: links you share keep them. Erase the name to go back to "new" or "reference".
+
+When the results are a [milestone](#milestones), they are named after it, and you rename the milestone instead.
+
+Each side has its color, in its bar and in the viewers' labels: **new** is blue, the reference purple. Red, green and orange are never used for them: they say what got better, worse, or needs a look.
+
 ## Several references
-To compare with several references, for example the last release, a tuning experiment and the latest `master`, select them all and switch between them: the new commit is compared with one at a time.
+To compare with several references, for example the last release, a tuning experiment and the latest `master`, stack them and switch between them: the new commit is compared with one at a time.
 
-In the **ref** bar, click the layers button next to `ref` (**Compare with more references**), then add a commit hash, the reference branch or a milestone: it's shown right away, and the reference you were looking at stays in the list. The bar then shows which one you are looking at, like **‹ 2/3 ›**:
+Hover the **ref** bar: **Stack a reference** shows below it. Add a commit, a branch (its latest commit), a milestone, or the same reference again to change its batch or filter. It's shown right away, and the reference you were looking at stays.
 
-- Click **‹** and **›**, or press <kbd>r</kbd> and <kbd>Shift</kbd> <kbd>r</kbd>, to compare with the next or previous reference. They keep their batch and filter.
-- Click **2/3** to list them: click one to compare with it, the up arrow to show it as the new results (the new commit takes its place in the list), **×** to remove it.
+The references then show as tabs below the bars, each in its color (purple, magenta, teal, violet, then gray), with a star for milestones:
 
-The references are in the page's URL: share it, and others can switch between the same references.
+- Click a tab, or press <kbd>r</kbd> and <kbd>Shift</kbd> <kbd>r</kbd>, to compare with the next or previous reference. Each keeps its batch, filter and name.
+- Drag tabs to reorder them (or <kbd>Alt</kbd> <kbd>←</kbd> <kbd>→</kbd>), double-click one to rename it, press <kbd>Delete</kbd> to remove it.
+- Right-click a tab, or its **⋯**, to duplicate it, show it as the new results (the new commit takes its place), move or remove it.
+- Hover a tab for its commit, branch, batch and filter. "= new" says it shows the same results as the new commit.
 
-When the new or reference results are a [milestone](#milestones), the image and video viewers call them by its name instead of "new" and "reference". With several references, a reference that isn't a milestone is called by its number in the list, like "reference 2".
+The references are in the page's URL: share it, and others can switch between the same references. Only the reference shown is loaded; hovering a tab loads it ahead.
+
+When a reference is not a milestone and you didn't name it, viewers call it by its number, like "reference 2".
 
 ## How runs are matched
 For each new run, QA-Board finds the most similar reference run: first the same input, then the closest configuration, the closest tuning parameters, and the same platform. The closest is the one with the fewest different settings; between as many, the one whose values are the most similar: for `base-v1`, `base-v2` rather than `other`, for `gain: 3`, `gain: 4` rather than `gain: 100`.

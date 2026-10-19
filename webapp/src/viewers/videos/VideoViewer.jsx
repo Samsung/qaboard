@@ -98,6 +98,8 @@ const VideoViewer = ({
   const video = {
     url: fileUrl(output_new, path),
     label: labels?.new ?? 'new',
+    color: labels?.colors?.new.hex,
+    textColor: labels?.colors?.new.text,
     file: file_new,
     info: query_new.data,
     size: manifests?.new?.[path]?.st_size,
@@ -105,6 +107,8 @@ const VideoViewer = ({
   const reference = comparing ? {
     url: fileUrl(output_ref, path_reference),
     label: labels?.reference ?? 'reference',
+    color: labels?.colors?.reference.hex,
+    textColor: labels?.colors?.reference.text,
     file: file_ref,
     info: query_ref.data,
     size: manifests?.reference?.[path_reference]?.st_size,

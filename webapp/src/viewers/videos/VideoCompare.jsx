@@ -14,6 +14,7 @@ import { changedAdjustments, filterPrimitives, normalizeAdjustments } from '../.
 import { AdjustmentsPanel, DiffLegend, DiffSettings, Histogram, RegionsMenu, RegionsStrip } from '../../image-viewer/panels';
 import { PixelTiles } from '../../image-viewer/pixelTiles';
 import { regionAsYaml, scaleRegion } from '../../image-viewer/regions';
+import { imageColors } from '../../image-viewer/sources';
 import { Button, FilterPrimitive, Icon, MenuDivider, MenuItem, Popover, Segmented, Spinner } from '../../image-viewer/ui';
 import '../../image-viewer/image-viewer.css';
 
@@ -77,7 +78,7 @@ let hovered_viewer = null;
 
 
 export const VideoCompare = ({
-  // { url, label?, href?, info?, size? }: info is what's in the file (backend/videos.py), size its bytes
+  // { url, label?, color?, textColor?, href?, info?, size? }: info is what's in the file (backend/videos.py), size its bytes
   video,
   reference = null,
   // when the reference is the same file: shown once, and said
@@ -734,7 +735,7 @@ export const VideoCompare = ({
   return <div
     ref={root}
     className={`qiv video-viewer ${fullscreen ? 'qiv-fullscreen' : ''} ${className}`}
-    style={style}
+    style={{ ...imageColors(video, reference), ...style }}
     onPointerEnter={() => { hovered_viewer = root.current; }}
     onPointerLeave={() => {
       if (hovered_viewer === root.current) hovered_viewer = null;

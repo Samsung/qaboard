@@ -11,6 +11,7 @@
   --qiv-accent: #2d72d2;
   --qiv-primary: #2d72d2;
   --qiv-warning: #c87619;
+  --qiv-reference: #9752fe;
   --qiv-danger: #cd4246;
   --qiv-stage: #1c2127;
   --qiv-pane: #111418;
@@ -28,6 +29,7 @@
   --qiv-accent: #8abbff;
   --qiv-primary: #4c90f0;
   --qiv-warning: #ec9a3c;
+  --qiv-reference: #9c4bf5;
   --qiv-stage: #111418;
   --qiv-pane: #0b0d10;
   --qiv-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
@@ -44,6 +46,7 @@
     --qiv-accent: #8abbff;
     --qiv-primary: #4c90f0;
     --qiv-warning: #ec9a3c;
+    --qiv-reference: #9c4bf5;
     --qiv-stage: #111418;
     --qiv-pane: #0b0d10;
     --qiv-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
@@ -418,13 +421,13 @@
   font-weight: 600;
 }
 .qiv-readout-label.qiv-primary {
-  color: var(--qiv-primary);
+  color: var(--qiv-a, var(--qiv-primary));
 }
 .qiv-readout-label.qiv-neutral {
   color: var(--qiv-text);
 }
 .qiv-readout-label.qiv-warning {
-  color: var(--qiv-warning);
+  color: var(--qiv-b, var(--qiv-reference));
 }
 .qiv-swatch {
   display: inline-block;
@@ -498,11 +501,14 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   cursor: pointer;
 }
+/* the images' own colors (their `color` and `textColor`), else blue for the first, purple for the second */
 .qiv-label.qiv-primary {
-  background: #2d72d2;
+  background: var(--qiv-a, #2d72d2);
+  color: var(--qiv-a-text, #fff);
 }
 .qiv-label.qiv-warning {
-  background: #c87619;
+  background: var(--qiv-b, #9752fe);
+  color: var(--qiv-b-text, #fff);
 }
 /* during a blind test: nothing tells new from reference */
 .qiv-label.qiv-neutral {

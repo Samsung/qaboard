@@ -9,7 +9,7 @@ import {
   Spinner,
 } from "@blueprintjs/core";
 
-import { Container, Section } from "./components/layout";
+import { Container, Section, commit_header_height, shows_reference_bar } from "./components/layout";
 import { MetricsSummary, MetricSelect } from "./components/metrics";
 import { CommitWarningMessages, BatchStatusMessages } from "./components/messages";
 
@@ -168,7 +168,7 @@ const CiCommitResults = () => {
   const visualizations = [...(config_outputs.visualizations || []), ...(config_outputs.detailed_views || [])];
   const tuned_params = new_batch.sorted_extra_parameters.filter(p => new_batch.extra_parameters[p].size > 1)
   const has_tuning = tuned_params.length > 0
-  const show_ref_navbar = !(selected_views.includes('logs') || selected_views.includes('tuning') || selected_views.includes('groups'))
+  const show_ref_navbar = shows_reference_bar(selected_views)
   // TODO: migrate the availble-tests-files to DB
   const available_tests_files = { gr: "extra-batches", usr: user.user_name ?? null };
   const export_plugin = <ExportPlugin
@@ -260,7 +260,7 @@ const CiCommitResults = () => {
     .reduce((running_total, storage) => running_total + storage, 0);
   const nb_runs = new_batch.filtered.outputs.length;
   // the commits' fixed headers
-  const header_height = show_ref_navbar ? 150 : 75;
+  const header_height = commit_header_height({ selected_views, references: comparison.references });
 
   return (
     <SharedConfigurationContext value={shared}>

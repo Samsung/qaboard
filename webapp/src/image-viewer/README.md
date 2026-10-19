@@ -54,10 +54,10 @@ An image is a URL, or an object:
 // A plain image (PNG, JPEG, WebP...), loaded at once
 <ImageViewer image="/results/out.png" />
 
-// With labels, shown on the images and in the pixel values
+// With labels, shown on the images and in the pixel values, maybe in their own colors (else blue and purple)
 <ImageViewer
   image={{ url: '/results/new/out.png', label: 'ISP v2' }}
-  reference={{ url: '/results/ref/out.png', label: 'ISP v1' }}
+  reference={{ url: '/results/ref/out.png', label: 'ISP v1', color: '#cf0494', textColor: '#fff' }}
 />
 
 // Large images, streamed tile by tile from an IIIF image server (e.g. Cantaloupe or IIPImage):
@@ -198,7 +198,7 @@ resolution), and show a cross where the pointer is on the others. Viewers off-sc
 ## Props
 | Prop | Type | Default | |
 |---|---|---|---|
-| `image` | URL or `{ url \| iiif, label?, href?, ... }` | required | The image |
+| `image` | URL or `{ url \| iiif, label?, color?, textColor?, href?, ... }` | required | The image. `color`: of its label (blue by default, purple for `reference`), `textColor`: of the label's text (white) |
 | `reference` | same, or `null` | `null` | What it's compared with |
 | `mode`, `defaultMode`, `onModeChange` | `'side-by-side' \| 'wipe' \| 'single' \| 'difference'` | `'side-by-side'` | How they're compared |
 | `diff`, `defaultDiff`, `onDiffChange` | `{ method, gain?, max?, layout? }` | `{ method: 'perceptual' }` | [The difference](#the-difference), and whether the images show on its sides (`layout: 'between'`, the default) or not (`'alone'`) |

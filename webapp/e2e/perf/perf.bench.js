@@ -131,6 +131,24 @@ const scenarios = {
       await page.locator('.output-card').nth(10).waitFor({ timeout: 60_000 });
     });
   },
+  // with several references, "r" compares with the next one: we fetch it, then match its runs with the new ones
+  'commit page: switch references': async page => {
+    const cdp = await setup(page);
+    await page.goto(`/${project}/commit/c0000?reference=c0001&compare=c0002`);
+    await page.getByText(/^PSNR/).first().waitFor({ timeout: 60_000 });
+    const shows = number => page.locator(`[role="tab"][aria-selected="true"][aria-label^="Reference ${number}:"]`).waitFor({ timeout: 60_000 });
+    const first = await measure(page, cdp, async () => {
+      await page.keyboard.press('r');
+      await shows(2);
+      await page.waitForFunction(() => new URLSearchParams(location.search).get('reference') === 'c0002');
+    });
+    // back to a reference we've seen: it's cached
+    const back = await measure(page, cdp, async () => {
+      await page.keyboard.press('r');
+      await shows(1);
+    });
+    return { ...first, back_time: back.time, back_blocking: back.blocking };
+  },
   'commit page: open the metrics table': async page => {
     const cdp = await setup(page);
     await page.goto(`/${project}/commit/c0000?reference=c0001`);
