@@ -131,7 +131,7 @@ def test_optimization_rejects_inconsistent_iterations(batch_api, dummy_app, opti
 
 
 def test_qa_notify_requests_an_email(batch_api, monkeypatch):
-  # `qa batch` asks with QA_NOTIFY=email (backend/notifications/)
+  # `qa batch` asks for an email, unless QA_NOTIFY=none (backend/notifications/)
   requests = []
   def request(session, command_id, ci_commit, batch, user_name, data=None):
     requests.append((command_id, user_name, data))

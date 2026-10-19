@@ -13,12 +13,12 @@ class TestNotifyChannel(unittest.TestCase):
     from qaboard.notify import notify_channel
     return notify_channel(is_ci, nested, started_by_qaboard, environ=environ)
 
-  def test_opt_in(self):
-    self.assertEqual(self.channel({'QA_NOTIFY': 'email'}), 'email')
+  def test_on_by_default(self):
+    self.assertEqual(self.channel({}), 'email')
+    self.assertEqual(self.channel({'QA_NOTIFY': ''}), 'email')
     self.assertEqual(self.channel({'QA_NOTIFY': ' Email '}), 'email')
-    for off in ('', '0', 'none', 'off', 'false'):
+    for off in ('0', 'none', 'off', 'false', 'NO'):
       self.assertIsNone(self.channel({'QA_NOTIFY': off}))
-    self.assertIsNone(self.channel({}))
 
   def test_unknown_channels_warn(self):
     with mock.patch('click.secho') as secho:
@@ -56,24 +56,16 @@ class TestNested(unittest.TestCase):
       self.assertEqual(os.environ['QA_BATCH_ROOT_COMMAND_ID'], 'outer')
 
 
-class TestHint(unittest.TestCase):
-  def hint(self, environ, waits=False, isatty=True, **kwargs):
-    from qaboard.notify import shows_hint
-    options = {'is_ci': False, 'nested': False, 'started_by_qaboard': False, **kwargs}
-    with mock.patch('sys.stderr') as stderr:
-      stderr.isatty.return_value = isatty
-      return shows_hint(waits=waits, environ=environ, **options)
+class TestRunnersForwardTheRootCommand(unittest.TestCase):
+  """Nested `qa batch` (e.g. pipeline steps) run in runs: they must inherit QA_BATCH_ROOT_COMMAND_ID"""
+  def test_celery(self):
+    from qaboard.runners.celery import is_secret
+    self.assertFalse(is_secret('QA_BATCH_ROOT_COMMAND_ID'))
 
-  def test_hint_for_people_at_a_terminal(self):
-    self.assertTrue(self.hint({}))
-    # they see when the runs end
-    self.assertFalse(self.hint({}, waits=True))
-    self.assertFalse(self.hint({}, isatty=False))
-    # setting QA_NOTIFY, even to "none", hides it
-    self.assertFalse(self.hint({'QA_NOTIFY': 'none'}))
-    self.assertFalse(self.hint({}, is_ci=True))
-    self.assertFalse(self.hint({}, nested=True))
-    self.assertFalse(self.hint({}, started_by_qaboard=True))
+  def test_dask(self):
+    from qaboard.runners.dask_runner import forwarded_env
+    with mock.patch.dict(os.environ, {'QA_BATCH_ROOT_COMMAND_ID': 'root-1'}):
+      self.assertEqual(forwarded_env()['QA_BATCH_ROOT_COMMAND_ID'], 'root-1')
 
 
 class TestPrintNotification(unittest.TestCase):

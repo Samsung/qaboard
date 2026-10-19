@@ -867,14 +867,14 @@ def start_tuning(hexsha):
 
 def notify_when_done(data, command_id, ci_commit, batch, user, do_optimize):
     """
-    If users asked for it, we email them when the batch's runs end.
-    Returns what the web app tells users: {"channel", "recipient"} or {"error"}, or None if they didn't ask.
+    We email users when the batch's runs end (for now everyone gets them, clients can send notify: false).
+    Returns what the web app tells users: {"channel", "recipient"} or {"error"}, or None without email.
     """
-    if data.get('notify') not in ('email', True):
+    if data.get('notify', 'email') not in ('email', True):
         return None
     if do_optimize:
-        # its iterations are separate batches: between them no runs are pending
-        return {"error": "Emails when automated tuning ends are not supported yet."}
+        # not supported yet: its iterations are separate batches, between them no runs are pending
+        return None
     notification, error = request_batch_notification(
         db_session, command_id, ci_commit, batch, user,
         email=g.user.get('email'),

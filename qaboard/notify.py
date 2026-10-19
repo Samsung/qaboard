@@ -1,18 +1,18 @@
 """
-Users can get an email from QA-Board when the runs of their `qa batch` end: `export QA_NOTIFY=email`.
+QA-Board emails users when the runs of their `qa batch` end. On by default, `export QA_NOTIFY=none` turns it off.
 QA-Board's server knows when the last run ends, see backend/notifications/ in QA-Board's repository.
 
 We never ask in CI, for `qa batch` commands started by other ones (e.g. pipeline steps, `qa optimize` iterations:
 their runs count as the first command's), or for batches started from QA-Board (it asks itself).
+The runners forward the environment to runs, so nested commands know the first one from QA_BATCH_ROOT_COMMAND_ID.
 """
 import os
-import sys
 from typing import Optional
 
 import click
 
 
-off_values = ('', '0', 'false', 'no', 'none', 'off')
+off_values = ('0', 'false', 'no', 'none', 'off')
 
 
 def is_nested(environ=os.environ) -> bool:
@@ -36,29 +36,16 @@ def inherit_root_command(ctx, root_command_id):
 
 
 def notify_channel(is_ci: bool, nested: bool, started_by_qaboard: bool, environ=os.environ) -> Optional[str]:
-  """"email" if users want an email when the batch ends, else None"""
-  value = (environ.get('QA_NOTIFY') or '').strip().lower()
+  """"email" if users get an email when the batch ends (the default), else None"""
+  value = (environ.get('QA_NOTIFY') or 'email').strip().lower()
   if value in off_values:
     return None
   if value != 'email':
-    click.secho(f"WARNING: QA_NOTIFY={value} is not supported, only QA_NOTIFY=email", fg='yellow', err=True)
+    click.secho(f"WARNING: QA_NOTIFY={value} is not supported, only QA_NOTIFY=email (the default) or none", fg='yellow', err=True)
     return None
   if is_ci or nested or started_by_qaboard:
     return None
   return 'email'
-
-
-def shows_hint(is_ci: bool, nested: bool, started_by_qaboard: bool, waits: bool, environ=os.environ) -> bool:
-  """
-  Whether we suggest QA_NOTIFY=email: to people at a terminal, whose runs go on after `qa batch` returns or
-  run elsewhere (LSF...). Setting QA_NOTIFY to anything, e.g. none, hides it.
-  """
-  if 'QA_NOTIFY' in environ or is_ci or nested or started_by_qaboard or waits:
-    return False
-  try:
-    return sys.stderr.isatty()
-  except Exception:
-    return False
 
 
 def print_notification(notification):
@@ -68,4 +55,4 @@ def print_notification(notification):
   if notification.get('error'):
     click.secho(f"QA_NOTIFY: {notification['error']}", fg='yellow', err=True)
   elif notification.get('recipient'):
-    click.secho(f"QA-Board will email {notification['recipient']} when the runs end.", fg='green', err=True)
+    click.secho(f"QA-Board will email {notification['recipient']} when the runs end (`export QA_NOTIFY=none` to stop).", dim=True, err=True)

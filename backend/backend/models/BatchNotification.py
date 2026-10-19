@@ -1,5 +1,5 @@
 """
-Notifications users asked for when a `qa batch` command ends, e.g. "Email me when it ends" when tuning from QA-Board.
+Notifications sent when a `qa batch` command ends, e.g. an email when tuning started from QA-Board ends.
 
 One row per `qa batch` command (its command_id). Runs remember the command that started them in
 Output.data.root_command_id: runs started by nested `qa batch` commands (e.g. the steps of pipelines) keep the

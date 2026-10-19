@@ -91,27 +91,18 @@ describe('TuningForm', () => {
       { user: { is_logged: true, user_name: 'alice' }, siteConfig: {} },
     );
     // emails are not configured
-    expect(screen.queryByText('Email me when it ends')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('tuning-email-note')).not.toBeInTheDocument();
     unmount();
 
     renderWithProviders(
       <TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>,
       { user: { is_logged: true, user_name: 'alice' }, siteConfig: { email_notifications: true } },
     );
-    const email_switch = screen.getByLabelText('Email me when it ends');
-    expect(email_switch).toBeChecked();
+    expect(screen.getByTestId('tuning-email-note')).toHaveTextContent('QA-Board will email you when the last run ends.');
     fireEvent.click(await screen.findByText('Start 1 run'));
     await waitFor(() => expect(toaster.show).toHaveBeenCalledWith(expect.objectContaining({ message: 'Started exp. QA-Board will email alice@example.com when it ends.' }), 'tuning-exp'));
-    const start = () => fetch.mock.calls.filter(([url]) => url === '/api/v1/commit/abcdef12/batch?project=proj').at(-1);
-    expect(JSON.parse(start()[1].body).notify).toBe('email');
-
-    // users can opt out, we remember it
-    fireEvent.click(email_switch);
-    expect(usePrefsStore.getState().tuning.proj.notify_email).toBe(false);
-    await waitFor(() => expect(screen.getByText('Start 1 run')).not.toBeDisabled());
-    fireEvent.click(screen.getByText('Start 1 run'));
-    await waitFor(() => expect(start()).not.toBeUndefined());
-    await waitFor(() => expect(JSON.parse(start()[1].body).notify).toBeUndefined());
+    const [, init] = fetch.mock.calls.find(([url]) => url === '/api/v1/commit/abcdef12/batch?project=proj');
+    expect(JSON.parse(init.body).notify).toBe('email');
   });
 
   it('runs as the logged-in user, even when they are known after the form showed', async () => {

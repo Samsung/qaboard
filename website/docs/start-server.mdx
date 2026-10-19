@@ -180,7 +180,7 @@ In the future we plan to introduce a proper "secret" store, per user and per pro
 :::
 
 ### Emails
-QA-Board can email users when the batches they start end: from the web app (**Email me when it ends** in the tuning form) or with `qa batch` and `QA_NOTIFY=email` ([what users get](user-guide/running-from-the-webapp#emails-when-batches-end)). To enable it, give the backend an SMTP server, e.g. in your env file:
+QA-Board can email users when the batches they start end, from the web app or with `qa --share batch` ([what users get](user-guide/running-from-the-webapp#emails-when-batches-end)). Once the backend has an SMTP server, everyone gets them, except in CI. Users turn them off in the terminal with `QA_NOTIFY=none`. Configure it e.g. in your env file:
 
 ```bash title=".env"
 QABOARD_SMTP_HOST=smtp.example.com

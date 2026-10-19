@@ -260,9 +260,9 @@ def email_content(summary, info) -> dict:
   details.append(('Started', ' · '.join(x for x in (info.get('started_at'), f"from {source}", f"as {info['user_name']}" if info.get('user_name') else None) if x), None))
 
   if info.get('source') == 'webapp':
-    reason = "You get this email because you chose “Email me when it ends” when you started this batch in QA-Board."
+    reason = "You get this email because you started this batch from QA-Board."
   else:
-    reason = "You get this email because you ran qa batch with QA_NOTIFY=email."
+    reason = "You get this email because you started this batch with qa batch. To stop them: export QA_NOTIFY=none."
   return {
     'status': status,
     'color': colors[status],

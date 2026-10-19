@@ -131,7 +131,7 @@ def update_batch():
 
 def cli_notification(data, command, ci_commit, batch):
   """
-  `qa batch` asks for an email when its runs end if users opted in with QA_NOTIFY=email.
+  `qa batch` asks for an email when its runs end, unless users turned it off with QA_NOTIFY=none.
   Returns what the CLI tells users: {"channel", "recipient"} or {"error"}, or None if nothing was asked.
   """
   for command_id, command_data in (command or {}).items():

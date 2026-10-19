@@ -370,7 +370,6 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
     experiment_name = "",
     platform = "linux",
     overwrite = true,
-    notify_email = true,
     selected_group = "",
     search_type = "grid",
     parameter_search = templates["no tuning"],
@@ -410,10 +409,10 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
       groups: Object.values(available_tests_files ?? {}),
       user,
       overwrite,
-      // an email when the last run ends (not for automated tuning yet)
-      notify: email_notifications && notify_email && search_type !== 'optimize' ? 'email' : undefined,
+      // an email when the last run ends (everyone gets them for now, not for automated tuning yet)
+      notify: email_notifications && search_type !== 'optimize' ? 'email' : undefined,
     };
-  }, [project, experiment_name, platform, search_type, search_options, parameter_search, parameter_search_auto, selected_group, available_tests_files, user, overwrite, email_notifications, notify_email]);
+  }, [project, experiment_name, platform, search_type, search_options, parameter_search, parameter_search_auto, selected_group, available_tests_files, user, overwrite, email_notifications]);
   const check = useTuningCheck({ project, commit_id: commit?.id, request, is_logged });
   // the answer to the last start, until users change something
   const [submit_check, setSubmitCheck] = useState(null);
@@ -427,7 +426,6 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
   const updateSelectedGroup = e => updateTuning(project, { selected_group: e.target.value.replace(/ *$/, "") });
   const updateExperimentName = e => updateTuning(project, { experiment_name: e.target.value.replace(/[^\w_.@:=]/g, "-") });
   const updateOverwrite = e => updateTuning(project, { overwrite: e.target.checked });
-  const updateNotifyEmail = e => updateTuning(project, { notify_email: e.target.checked });
   const updateParameterSearch = new_parameter_search => updateTuning(project, { parameter_search: new_parameter_search });
   const updateParameterSearchAuto = new_parameter_search => updateTuning(project, { parameter_search_auto: new_parameter_search });
   const updateSearchTab = new_tab => updateTuning(project, { search_type: new_tab === "search-manual" ? "grid" : "optimize" });
@@ -756,6 +754,9 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
     >
       {search_type === "optimize" ? "Start auto-tuning" : (Number.isFinite(total_runs) && total_runs > 0) ? `Start ${total_runs} run${total_runs === 1 ? '' : 's'}` : "Start runs"}
     </Button>
+    {email_notifications && search_type !== "optimize" && <p className={Classes.TEXT_MUTED} style={{marginTop: '8px'}} data-testid="tuning-email-note">
+      QA-Board will email you when the last run ends.
+    </p>}
     </FormGroup>
 
     <FormGroup
@@ -771,21 +772,6 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
       />
     </FormGroup>
 
-    {email_notifications && <FormGroup
-        label="Email me when it ends"
-        labelFor="notify-email"
-        helperText={search_type === "optimize"
-          ? "Not available for automated tuning yet."
-          : "One email, when the last run ends: results, best parameters and what failed."}
-        inline
-    >
-      <Switch
-        id="notify-email"
-        checked={notify_email && search_type !== "optimize"}
-        disabled={search_type === "optimize"}
-        onChange={updateNotifyEmail}
-      />
-    </FormGroup>}
 
     {/* {lsf_runner && <FormGroup
       label="Run as"

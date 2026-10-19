@@ -119,7 +119,7 @@ def test_render_partial_failure():
   # The preheader, shown in inboxes after the subject
   assert re.search(r'1 of 3 runs failed in 1 h 02 min · best PSNR: 32 dB with strength=0.3', html)
   assert 'View results: https://qa.example.com/isp/denoiser/commit/abcdef1234567890?batch=sweep' in text
-  assert 'Email me when it ends' in text
+  assert 'you started this batch from QA-Board' in text
 
 
 def test_render_success_and_failure():
@@ -129,7 +129,8 @@ def test_render_success_and_failure():
   subject, html, text = render_batch_email(summarize([run(1, failed=True)], metrics_config), {**info, 'source': 'cli', 'label': 'default'})
   assert subject == 'default: 1 run failed · isp/denoiser'
   assert 'The run failed' in html
-  assert 'QA_NOTIFY=email' in text
+  # how to stop them
+  assert 'QA_NOTIFY=none' in text
   # the default batch has no ?batch=
   assert 'https://qa.example.com/isp/denoiser/commit/abcdef1234567890"' in html
 
@@ -277,8 +278,11 @@ def test_webapp_requests(monkeypatch, dummy_app):
   with dummy_app.test_request_context('/'):
     tuning.g.user = {'user_name': 'jdoe', 'email': 'jdoe@example.com'}
     assert tuning.notify_when_done({'notify': False}, 'c1', None, None, 'jdoe', False) is None
-    assert 'not supported' in tuning.notify_when_done({'notify': 'email'}, 'c1', None, None, 'jdoe', True)['error']
+    # not for automated tuning yet
+    assert tuning.notify_when_done({'notify': 'email'}, 'c1', None, None, 'jdoe', True) is None
     assert tuning.notify_when_done({'notify': 'email', 'batch_label': 'x'}, 'c1', None, None, 'jdoe', False) == {'error': "can't send emails"}
+    # on by default, e.g. for clients that don't know about emails
+    assert tuning.notify_when_done({'batch_label': 'x'}, 'c1', None, None, 'jdoe', False) == {'error': "can't send emails"}
 
 
 @pytest.fixture
