@@ -9,7 +9,8 @@ import { regionAsYaml } from './regions';
 import { DEFAULT_MODE, MODES } from './modes';
 import { normalizeImage } from './sources';
 import { PixelTiles } from './pixelTiles';
-import { Crosshair, DiffLayer, Minimap, PixelValues } from './overlays';
+import { ALL_CHANNELS } from './histogram';
+import { Crosshair, DiffLayer, HighlightLayer, Minimap, PixelValues } from './overlays';
 import { AdjustmentsPanel, DiffLegend, DiffSettings, Histogram, Readout, RegionsMenu, RegionsStrip, Shortcuts, ValuesBadge, ValuesPanel } from './panels';
 import { Button, Icon, MenuDivider, MenuItem, Popover, Segmented, Spinner } from './ui';
 import './image-viewer.css';
@@ -184,6 +185,10 @@ export const ImageViewer = ({
   const [wipe, setWipe] = useState(0.5);
   const [base, setBase] = useState(10);
   const [show_histogram, setShowHistogram] = useState(false);
+  // The channels the histogram shows, and the range of values it highlights on the images (with the channels shown)
+  const [histogram_channels, setHistogramChannels] = useState(ALL_CHANNELS);
+  const [highlight_range, setHighlightRange] = useState(null);
+  const highlight = show_histogram && highlight_range ? { ...highlight_range, channels: histogram_channels } : null;
   const [diff_error, setDiffError] = useState(null);
   const [message, setMessage] = useState(null);
   const diff_canvas = useRef(null);
@@ -499,6 +504,11 @@ export const ImageViewer = ({
     onDrawn={pane === values_pane ? setValuesDrawn : undefined}
   />;
 
+  // Whether a pane's image shows
+  const shown = name => !comparing ? name === 'a'
+    : mode === 'single' ? name === first
+    : mode === 'difference' ? diff_between
+    : true;
   const pane = name => <div
     key={name}
     className="qiv-pane"
@@ -507,6 +517,7 @@ export const ImageViewer = ({
     onPointerLeave={() => controller.unhover()}
   >
     <div className="qiv-osd" ref={element => { if (element) controller.attach(name, element); }} style={{ filter }} />
+    <HighlightLayer controller={controller} pane={name} highlight={highlight} active={visible && shown(name)} width={pane_width} height={pane_height} />
     {pixelValues(name)}
     <Crosshair controller={controller} pane={name} />
     {apart && label(name, 'left')}
@@ -610,7 +621,7 @@ export const ImageViewer = ({
       />}>
         <ValuesPanel source={pixel_source} available={!!getPixels} onChange={setValues} />
       </Popover>
-      <Button icon="timeline-area-chart" title="Histogram of the view" active={show_histogram} aria-pressed={show_histogram} onClick={() => setShowHistogram(!show_histogram)} />
+      <Button icon="timeline-area-chart" title="Histogram of the view: drag on it to highlight a range of values" active={show_histogram} aria-pressed={show_histogram} onClick={() => setShowHistogram(!show_histogram)} />
       <span className="qiv-group">
         <Button icon="zoom-out" title="Zoom out (−)" onClick={() => controller.zoomBy(1 / ZOOM_STEP)} />
         <Button className="qiv-zoom" text={zoom ? `${zoom < 0.1 ? (100 * zoom).toFixed(1) : Math.round(100 * zoom)}%` : '–'} title="Fit (0). Scroll or pinch to zoom, drag to pan. 100%: one image pixel per screen pixel" onClick={() => controller.fit()} />
@@ -713,7 +724,15 @@ export const ImageViewer = ({
       {mode === 'single' && label(first, 'left')}
       <Minimap controller={controller} image={hidden ? images[first] : images.a} size={size_a} />
     </div>
-    {show_histogram && <Histogram controller={controller} comparing={comparing} names={names} />}
+    {show_histogram && <Histogram
+      controller={controller}
+      comparing={comparing}
+      names={names}
+      channels={histogram_channels}
+      onChannelsChange={setHistogramChannels}
+      range={highlight_range}
+      onRangeChange={setHighlightRange}
+    />}
   </div>;
 };
 
