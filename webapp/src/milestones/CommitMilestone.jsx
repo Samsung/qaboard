@@ -3,7 +3,7 @@
 import { Button, Classes, Colors, Icon, Position, Tag, Tooltip } from "@blueprintjs/core";
 
 import { copyWithToast } from "../utils/clipboard";
-import { milestone_name, milestones_of, comparison_url } from "./api";
+import { milestone_name, milestones_of, comparison_url, summarize_loaded_runs } from "./api";
 import { useMilestones } from "./hooks";
 import { openMilestoneDialog } from "./MilestoneDialog";
 
@@ -24,7 +24,10 @@ export const CommitMilestoneButton = ({ project, project_shown, commit, batch, f
     : openMilestoneDialog({
         project,
         runs,
-        target: { commit, batch: selection.batch, filter: filter ?? '', commit_project: results_project !== project ? results_project : null },
+        target: {
+          commit, batch: selection.batch, filter: filter ?? '', commit_project: results_project !== project ? results_project : null,
+          runs_summary: batch?.outputs ? summarize_loaded_runs(batch.outputs, filter ? batch.filtered?.outputs : undefined) : undefined,
+        },
       });
   const tooltip = milestone
     ? <span>Milestone: <strong>{milestone_name(milestone)}</strong>. {milestone.can_edit ? 'Click to edit it, copy its link…' : 'Click for details, its link…'}</span>

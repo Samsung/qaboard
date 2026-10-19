@@ -24,6 +24,7 @@ import { match_query, pretty_label } from "../utils";
 import { copyWithToast } from "../utils/clipboard";
 import {
   milestone_name, milestone_url, owner_name, relative_date, results_project, group_parts,
+  milestone_search_text, runs_matches, dataset_label,
 } from "./api";
 import { useMilestones, useMilestoneActions, useLegacyMilestones, count_legacy } from "./hooks";
 import { openMilestoneDialog } from "./MilestoneDialog";
@@ -61,6 +62,12 @@ const Panel = styled(Menu)`
     margin: 0 5px;
     opacity: 0.6;
   }
+  .qa-milestone-matched {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 3px;
+  }
   .qa-milestone-actions {
     display: flex;
     align-items: center;
@@ -94,12 +101,6 @@ const SectionTitle = ({ title, count, hint }) => <li className={Classes.MENU_HEA
   </h6>
 </li>;
 
-
-// What the search box matches
-const search_text = m => [
-  m.label, m.group, m.notes, m.branch, m.batch, pretty_label({ label: m.batch || 'default' }), m.filter, m.commit, m.message,
-  m.committer_name, m.owner?.full_name, m.owner?.user_name, m.shared ? 'shared' : 'personal', m.commit_project,
-].filter(Boolean).join(' ');
 
 const by_date = (a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? '');
 
@@ -147,7 +148,7 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
 
   const matcher = match_query(search);
   const is_searching = search.trim().length > 0;
-  const matching = list.filter(m => matcher(search_text(m)));
+  const matching = list.filter(m => matcher(milestone_search_text(m)));
   const favorites = matching.filter(m => m.is_favorite).sort(by_date);
   const mine = matching.filter(m => m.is_mine);
   const team = matching.filter(m => !m.is_mine && m.shared);
@@ -164,7 +165,7 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
 
   const is_selected = m => !!selected && results_project(m) === selected.project && !!selected.commit
     && (selected.commit === m.commit || selected.commit.startsWith(m.commit)) && (m.batch || 'default') === (selected.batch || 'default') && (m.filter || '') === (selected.filter || '');
-  const item_props = { onSelect, onEdit: milestone => openMilestoneDialog({ project, milestone }), is_selected, project, favorite_group };
+  const item_props = { onSelect, onEdit: milestone => openMilestoneDialog({ project, milestone }), is_selected, project, favorite_group, search };
 
   // Enter picks the first result
   const first = favorites[0] ?? mine[0] ?? team[0];
@@ -178,7 +179,7 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
     {before}
       {list.length + refs.length > 3 && <div className="qa-milestones-search">
         <InputGroup
-          placeholder="Search by name, group, branch, batch, owner…"
+          placeholder="Search by name, group, dataset, branch, owner…"
           leftIcon="search"
           value={search}
           onChange={e => setSearch(e.target.value)}
@@ -308,11 +309,13 @@ const FavoriteGroup = ({ section, group, milestones, expand, ...props }) => {
 };
 
 
-export const MilestoneItem = ({ milestone: m, onSelect, onEdit, is_selected, project, show_owner, depth = 0 }) => {
+export const MilestoneItem = ({ milestone: m, onSelect, onEdit, is_selected, project, show_owner, search, depth = 0 }) => {
   const user = useUser();
   const { toggleFavorite } = useMilestoneActions(project);
   const selected = is_selected?.(m);
   const owner = owner_name(m);
+  // listed because of a dataset or qa batch its runs used: say which
+  const matched = runs_matches(m, search);
   return <MenuItem
     icon={<Icon icon={m.shared ? 'crown' : 'star'} color={Colors.GOLD4} title={m.shared ? 'Shared with the project' : 'Personal'}/>}
     style={{ paddingLeft: 7 + 16 * depth }}
@@ -331,6 +334,11 @@ export const MilestoneItem = ({ milestone: m, onSelect, onEdit, is_selected, pro
         {show_owner && !m.is_mine && owner && <span title="Saved by">{owner}</span>}
         {!!m.updated_at && <span title={`Saved ${m.created_at}`}>{relative_date(m.updated_at)}</span>}
       </div>
+      {matched.length > 0 && <div className="qa-milestone-matched">
+        {matched.slice(0, 3).map(v => <Tag key={`${v.kind}-${v.name}`} minimal intent={Intent.PRIMARY} icon={v.kind === 'dataset' ? 'database' : v.kind === 'qa batch' ? 'layout-skew-grid' : 'desktop'} title={`Its runs used the ${v.kind} ${v.name}`}>
+          {v.kind}: {v.kind === 'dataset' ? dataset_label(v.name) : v.name}
+        </Tag>)}
+      </div>}
     </div>}
     labelElement={<span className="qa-milestone-actions">
       {!!m.notes && <Tooltip content={<div style={{ maxWidth: 320, whiteSpace: 'pre-wrap' }}>{m.notes}</div>} placement="left">

@@ -14,8 +14,8 @@ from flask import request, jsonify
 from sqlalchemy import or_
 
 from backend import app, db_session
-from backend.models import Project, Milestone, MilestoneFavorite, MilestoneGroupFavorite
-from backend.milestones import normalize_group, clean_fields, from_legacy, same_results, can_edit, serialize
+from backend.models import Project, Milestone, MilestoneFavorite, MilestoneGroupFavorite, CiCommit, Batch, Output, TestInput
+from backend.milestones import summarize_runs, normalize_group, clean_fields, from_legacy, same_results, can_edit, serialize
 from .auth import get_current_user, require_project_access, is_authorized_user, login_required
 
 
@@ -57,6 +57,39 @@ def get_milestone(milestone_id):
   return milestone, user_info, None
 
 
+def compute_runs(milestone):
+  """Saves in the milestone what its runs used (datasets, qa batches, platforms), see summarize_runs"""
+  hexsha = milestone.commit_hexsha
+  commit_filter = CiCommit.hexsha == hexsha if len(hexsha) >= 40 else CiCommit.hexsha.startswith(hexsha)
+  rows = (db_session
+          .query(Output.output_type, Output.platform, Output.configurations, Output.extra_parameters, Output.data,
+                 Output.is_failed, Output.is_pending, TestInput.path, TestInput.database, TestInput.data)
+          .join(Batch, Output.batch_id == Batch.id)
+          .join(CiCommit, Batch.ci_commit_id == CiCommit.id)
+          .outerjoin(TestInput, Output.test_input_id == TestInput.id)
+          .filter(CiCommit.project_id == milestone.results_project_id, commit_filter, Batch.label == (milestone.batch or 'default'))
+          .filter(or_(Output.deleted == False, Output.deleted == None))
+          .all())
+  runs = [{
+    'output_type': output_type, 'platform': platform, 'configurations': configurations, 'extra_parameters': extra_parameters,
+    'batch': (data or {}).get('batch'), 'is_failed': is_failed, 'is_pending': is_pending,
+    'path': path, 'database': database, 'metadata': (input_data or {}).get('metadata') or {},
+  } for output_type, platform, configurations, extra_parameters, data, is_failed, is_pending, path, database, input_data in rows]
+  milestone.data = {**(milestone.data or {}), 'runs': summarize_runs(runs, milestone.filter)}
+
+
+def try_compute_runs(milestone):
+  # milestones are saved even if we can't describe their runs
+  try:
+    compute_runs(milestone)
+  except Exception as e:
+    print(f"WARNING: could not describe the runs of {milestone}: {e}")
+
+
+# milestones from before we described their runs get described when they're listed, a few at a time
+BACKFILL_PER_REQUEST = 10
+
+
 def set_commit_info(milestone, commit_info):
   if commit_info:
     milestone.data = {**(milestone.data or {}), **commit_info}
@@ -83,6 +116,12 @@ def list_milestones():
                 .all())
   favorites = favorite_ids(user_id)
   # Favorites can be other users' personal milestones, opened from their link
+  missing_runs = [m for m in milestones if 'runs' not in (m.data or {})][:BACKFILL_PER_REQUEST]
+  if missing_runs:
+    for m in missing_runs:
+      try_compute_runs(m)
+      db_session.add(m)
+    db_session.commit()
   listed = {m.id for m in milestones}
   others = [i for i in favorites if i not in listed]
   if others:
@@ -116,6 +155,7 @@ def create_milestone():
   commit_info = fields.pop('commit_info', None)
   milestone = Milestone(project_id=project_id, user_id=user_id, data={}, **fields)
   set_commit_info(milestone, commit_info)
+  try_compute_runs(milestone)
   db_session.add(milestone)
   db_session.commit()
   return jsonify(answer(milestone, user_info, set())), 201
@@ -158,6 +198,9 @@ def edit_milestone(milestone_id):
   set_commit_info(milestone, fields.pop('commit_info', None))
   for name, value in fields.items():
     setattr(milestone, name, value)
+  # other results, or asked to look again (e.g. runs finished since it was saved)
+  if {'commit_hexsha', 'batch', 'filter', 'commit_project_id'} & set(fields) or (request.get_json(silent=True) or {}).get('refresh_runs'):
+    try_compute_runs(milestone)
   # Whoever edits a milestone without owner becomes its owner
   if milestone.user_id is None:
     milestone.user_id = user_id

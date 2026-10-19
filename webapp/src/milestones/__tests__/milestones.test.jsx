@@ -14,7 +14,7 @@ import { ManageMilestones } from '../ManageMilestones';
 import MilestonePage from '../MilestonePage';
 import { unstable_HistoryRouter as HistoryRouter } from 'react-router';
 import { RouteMatch, history } from '../../router';
-import { comparison_path } from '../api';
+import { comparison_path, milestone_search_text, runs_matches, summarize_loaded_runs, dataset_label } from '../api';
 import { MilestoneDialogHost, openMilestoneDialog } from '../MilestoneDialog';
 import { CommitMilestoneButton } from '../CommitMilestone';
 import { useImportLegacyMilestones } from '../hooks';
@@ -37,7 +37,10 @@ const make = (fields = {}) => ({
 
 const milestones = [
   make({ id: 1, label: 'Release 1.0', shared: true, group: 'releases', updated_at: '2026-09-01T10:00:00Z', is_mine: false, can_edit: false, owner: { user_name: 'bob', full_name: 'Bob B' } }),
-  make({ id: 2, label: 'Best denoiser', group: 'tuning/denoiser', batch: 'sweep-3', filter: 'gain:4', is_favorite: true, notes: 'psnr +0.4' }),
+  make({
+    id: 2, label: 'Best denoiser', group: 'tuning/denoiser', batch: 'sweep-3', filter: 'gain:4', is_favorite: true, notes: 'psnr +0.4',
+    runs: { count: 12, failed: 1, inputs: 12, databases: [{ name: '/data/indoor/2024', runs: 8 }, { name: '/data/night', runs: 4 }], batches: [{ name: 'nightly-hdr', runs: 12 }], platforms: [{ name: 'linux', runs: 12 }] },
+  }),
   make({ id: 3, label: 'Quick check', updated_at: '2026-10-02T10:00:00Z' }),
   make({ id: 4, label: 'Bob baseline', shared: true, is_mine: false, can_edit: false, owner: { user_name: 'dan', full_name: 'Dan D' }, commit: 'f'.repeat(40) }),
 ];
@@ -388,5 +391,57 @@ describe('milestone links', () => {
   test('not a milestone link', () => {
     renderPage('best');
     expect(screen.getByText("This link doesn't point to a milestone")).toBeInTheDocument();
+  });
+});
+
+
+describe('datasets', () => {
+  const best = milestones[1];
+
+  test('the search matches what the runs used, and says so', () => {
+    expect(dataset_label('/data/indoor/2024')).toBe('indoor/2024');
+    expect(milestone_search_text(best)).toContain('dataset:/data/indoor/2024');
+    expect(runs_matches(best, 'nightly')).toEqual([{ kind: 'qa batch', name: 'nightly-hdr' }]);
+    expect(runs_matches(best, 'dataset:night').map(v => v.name)).toEqual(['/data/night']);
+    // it matched by its own name: nothing to explain
+    expect(runs_matches(best, 'denoiser')).toEqual([]);
+  });
+
+  test('in the milestones menu, with why it matched', () => {
+    renderWithProviders(<MilestonesPanel project="p" onSelect={() => {}}/>, { user: alice, milestones: { p: milestones } });
+    fireEvent.change(screen.getByLabelText('Search milestones'), { target: { value: 'dataset:indoor' } });
+    expect(screen.getAllByText('Best denoiser')).toHaveLength(2);
+    expect(screen.queryByText('Quick check')).toBeNull();
+    expect(screen.getAllByText('dataset: indoor/2024')).toHaveLength(2);
+  });
+
+  test('the Manage dialog shows the notes and runs, and filters by dataset', () => {
+    history.replace('/p/commits');
+    renderWithProviders(<HistoryRouter history={history}><RouteMatch match={{ path: '/:project_id+/commits', params: { project_id: 'p' } }}>
+      <ManageMilestones isOpen project="p" onClose={() => {}}/>
+    </RouteMatch></HistoryRouter>, { user: alice, milestones: { p: milestones } });
+    expect(screen.getByText('psnr +0.4')).toBeInTheDocument();
+    expect(screen.getByText('12 runs, 1 failed')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Dataset'), { target: { value: 'qa-batch:nightly-hdr' } });
+    expect(document.querySelectorAll('tbody tr')).toHaveLength(1);
+    expect(screen.getByText('nightly-hdr')).toBeInTheDocument();
+  });
+
+  test('saving shows the datasets of the runs that match the filter', async () => {
+    const outputs = {
+      1: { test_input_database: '/data/indoor', data: { batch: 'nightly' }, platform: 'linux' },
+      2: { test_input_database: '/data/night', data: { batch: 'nightly' }, platform: 'linux', is_failed: true },
+      3: { output_type: 'optim_iteration' },
+    };
+    expect(summarize_loaded_runs(outputs, ['2'])).toEqual({ count: 1, failed: 1, databases: [{ name: '/data/night', runs: 1 }], batches: [{ name: 'nightly', runs: 1 }], platforms: [{ name: 'linux', runs: 1 }] });
+    renderWithProviders(<>
+      <CommitMilestoneButton project="p" commit={{ id: SHA, branch: 'main' }} batch={{ label: 'default', outputs, filtered: { outputs: ['1', '2'] } }} filter="indoor|night" runs={2}/>
+      <MilestoneDialogHost/>
+    </>, { user: alice, milestones: { p: [] } });
+    fireEvent.click(screen.getByLabelText('Save as a milestone'));
+    const dialog = within(await screen.findByRole('dialog'));
+    expect(dialog.getByText('Datasets')).toBeInTheDocument();
+    expect(dialog.getByText('data/night')).toBeInTheDocument();
+    expect(dialog.getByText('qa batches')).toBeInTheDocument();
   });
 });

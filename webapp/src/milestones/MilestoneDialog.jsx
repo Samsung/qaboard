@@ -25,7 +25,7 @@ import { useUser } from "../hooks";
 import { pretty_label } from "../utils";
 import { copyWithToast } from "../utils/clipboard";
 import {
-  milestone_name, milestone_url, owner_name, relative_date, results_project,
+  milestone_name, milestone_url, owner_name, relative_date, results_project, dataset_label,
 } from "./api";
 import { useMilestones, useMilestoneActions } from "./hooks";
 
@@ -81,6 +81,20 @@ export const ResultsSummary = ({ project, target, runs }) => {
       <dt>Project</dt>
       <dd><Tag minimal icon="git-repo">{commit_project}</Tag></dd>
     </>}
+    {(target.runs_summary?.databases?.length ?? 0) > 0 && <>
+      <dt>Datasets</dt>
+      <dd title={target.runs_summary.databases.map(d => `${d.name} (${d.runs} runs)`).join('\n')}>
+        {target.runs_summary.databases.slice(0, 4).map(d => <Tag key={d.name} minimal round icon="database" style={{ marginRight: 4 }}>{dataset_label(d.name)} <span className={Classes.TEXT_MUTED}>{d.runs}</span></Tag>)}
+        {target.runs_summary.databases.length > 4 && <span className={Classes.TEXT_MUTED}>+{target.runs_summary.databases.length - 4}</span>}
+      </dd>
+    </>}
+    {(target.runs_summary?.batches?.length ?? 0) > 0 && <>
+      <dt>qa batches</dt>
+      <dd title={target.runs_summary.batches.map(b => `${b.name} (${b.runs} runs)`).join('\n')}>
+        {target.runs_summary.batches.slice(0, 4).map(b => <Tag key={b.name} minimal round icon="layout-skew-grid" style={{ marginRight: 4 }}>{b.name} <span className={Classes.TEXT_MUTED}>{b.runs}</span></Tag>)}
+        {target.runs_summary.batches.length > 4 && <span className={Classes.TEXT_MUTED}>+{target.runs_summary.batches.length - 4}</span>}
+      </dd>
+    </>}
   </Summary>;
 };
 
@@ -90,6 +104,7 @@ const target_of = m => ({
   batch: m.batch,
   filter: m.filter,
   commit_project: m.commit_project,
+  runs_summary: m.runs,
 });
 
 // A name for new milestones: users can keep it, or type over it

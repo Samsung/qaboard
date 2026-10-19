@@ -3,6 +3,7 @@ What milestones are, without the database: validating what clients send, importi
 versions, and what we answer. The API is in api/milestones.py, the model in models/Milestone.py.
 """
 import re
+import json
 import datetime
 from typing import Optional, Tuple, Dict, Set, Iterable
 
@@ -161,6 +162,8 @@ def serialize(milestone, user_id: Optional[int] = None, favorite_ids: Set[int] =
     'branch': data.get('branch'),
     'committer_name': data.get('committer_name'),
     'message': data.get('message'),
+    # what its runs used, see summarize_runs. None until it's computed
+    'runs': data.get('runs'),
     'owner': {'user_name': owner.user_name, 'full_name': owner.full_name} if owner else None,
     'is_mine': user_id is not None and milestone.user_id == user_id,
     'can_edit': can_edit(milestone.user_id, user_id, data, user_name, milestone.shared),
@@ -196,3 +199,66 @@ class MilestoneBatches:
       if p == project_id and sha != hexsha and hexsha.startswith(sha):
         labels |= commit_labels
     return labels
+
+
+# What a milestone's runs used: their datasets (the databases of their inputs), the `qa batch` definitions they ran,
+# their platforms. Saved with the milestone when it's saved, so milestones can be found by dataset.
+MAX_VALUES = 50
+
+
+def run_matcher(query: str):
+  """
+  Whether a run matches a filter of the web app's commit page, e.g. "indoor -night gain:3".
+  Like `filter_batch` (webapp/src/utils.js) and `filter_outputs` (api/export_to_folder.py): tokens are regular
+  expressions searched in the run's path, platform, configurations, parameters, batch, metadata and status
+  (not its database, like the web app).
+  """
+  query = re.sub(r'(=+|: +)', ':', (query or '').strip().lower().replace('"', ''))
+  tokens = query.split()
+  negative = [t[1:] for t in tokens if t.startswith('-') and len(t) > 1]
+  positive = [t for t in tokens if not t.startswith('-')]
+
+  def search(token, text):
+    try:
+      return re.search(token, text) is not None
+    except re.error:
+      return token in text
+
+  def matches(run: dict) -> bool:
+    compact = lambda value: json.dumps(value or {}, separators=(',', ':'))
+    searched = ' '.join([
+      str(run.get('path') or ''), str(run.get('platform') or ''),
+      compact(run.get('configurations')), compact(run.get('extra_parameters')), str(run.get('batch') or ''),
+      compact(run.get('metadata')), 'fail crash' if run.get('is_failed') else '', 'pending running' if run.get('is_pending') else '',
+    ]).replace('"', '').lower()
+    if any(search(t, searched) for t in negative):
+      return False
+    return all(search(t, searched) for t in positive)
+  return matches
+
+
+def summarize_runs(runs: Iterable[dict], filter_: str = '') -> dict:
+  """
+  runs: {path, database, platform, batch (the `qa batch` it ran in), configurations, extra_parameters, metadata,
+  is_failed, is_pending, output_type}. Only the runs that match the milestone's filter count.
+  """
+  matches = run_matcher(filter_)
+  runs = [r for r in runs if r.get('output_type') != 'optim_iteration' and matches(r)]
+
+  def counts(key):
+    values: Dict[str, int] = {}
+    for r in runs:
+      value = r.get(key)
+      if value:
+        values[str(value)] = values.get(str(value), 0) + 1
+    return [{'name': name, 'runs': n} for name, n in sorted(values.items(), key=lambda kv: (-kv[1], kv[0]))[:MAX_VALUES]]
+
+  return {
+    'count': len(runs),
+    'failed': sum(1 for r in runs if r.get('is_failed')),
+    'inputs': len({(r.get('database'), r.get('path')) for r in runs}),
+    'databases': counts('database'),
+    'batches': counts('batch'),
+    'platforms': counts('platform'),
+    'computed_at': datetime.datetime.utcnow().isoformat() + 'Z',
+  }

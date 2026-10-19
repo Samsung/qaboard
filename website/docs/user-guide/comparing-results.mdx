@@ -100,6 +100,8 @@ Pick milestones from the **Change** menu of the commit bars (to compare with the
 
 The search box matches everything a milestone says: name, group, notes, branch, batch, filter, commit, owner. <kbd>Enter</kbd> picks the first result. Hover a milestone to add it to your favorites, copy its link or edit it.
 
+It also matches what the milestone's runs used, recorded when it was saved: their **datasets** (the databases of their inputs), the **qa batches** they ran in, and their platforms. Type `dataset:indoor`, `qa-batch:nightly` or `platform:arm` to search only those; plain words search them too. When a milestone is listed only because of its runs, it says why, e.g. *dataset: indoor/2024*. The save dialog shows them before you save.
+
 <Shot
   id="commits/milestones-menu"
   caption="Your favorites first, then your milestones by group, then the project's."
@@ -109,7 +111,7 @@ The search box matches everything a milestone says: name, group, notes, branch, 
 - A commit can have several milestones, e.g. one per filter.
 
 ### Managing milestones
-**Manage milestones…**, at the bottom of the milestones menus, opens all the project's milestones in a table. Sort them by last update (the default), creation date, name or group, search them, and show only yours, the shared ones or your favorites. From each row: **Open** it, use it **As reference** (on a commit page), add it to your favorites, copy its link, or edit it.
+**Manage milestones…**, at the bottom of the milestones menus, opens all the project's milestones in a table, with their notes and what their runs used (how many, their datasets and qa batches). Sort them by last update (the default), creation date, name or group, search them, show only yours, the shared ones or your favorites, and pick a **dataset** or qa batch to see only the milestones whose runs used it. From each row: **Open** it, use it **As reference** (on a commit page), add it to your favorites, copy its link, or edit it.
 
 Select several milestones to move them to a group, share them, make them personal or delete them at once (only yours: others' milestones are skipped). Select exactly two to **Compare** them: the most recent is the new results, swap them with the arrows, or copy the link to the comparison.
 

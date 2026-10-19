@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from backend.milestones import (
-  clean_fields, from_legacy, same_results, can_edit, slugify, serialize, MilestoneBatches, normalize_group,
+  clean_fields, from_legacy, same_results, can_edit, slugify, serialize, MilestoneBatches, normalize_group, run_matcher, summarize_runs,
 )
 
 SHA = 'aaaaaaaa11111111aaaaaaaa11111111aaaaaaaa'
@@ -267,3 +267,35 @@ def test_favorite_groups(api, dummy_app):
   assert response.get_json() == {'section': 'mine', 'group': 'tuning/denoiser', 'is_favorite': True}
   assert [(f.user_id, f.project_id, f.section, f.group) for f in added] == [(2, 'p', 'mine', 'tuning/denoiser')]
   assert call(dummy_app, api.favorite_group, method='POST', json={'project': 'p', 'section': 'others', 'group': 'x'}).status_code == 400
+
+
+
+RUNS = [
+  {'path': 'indoor/kitchen.raw', 'database': '/data/indoor', 'platform': 'linux', 'batch': 'nightly', 'configurations': [{'gain': 3}], 'metadata': {'light': 'low'}},
+  {'path': 'indoor/office.raw', 'database': '/data/indoor', 'platform': 'linux', 'batch': 'nightly', 'configurations': [{'gain': 4}], 'is_failed': True},
+  {'path': 'night/street.raw', 'database': '/data/night', 'platform': 'arm', 'batch': 'night-set', 'configurations': [{'gain': 3}]},
+  {'path': 'iteration', 'database': '/data/night', 'output_type': 'optim_iteration'},
+]
+
+
+def test_run_filter_is_the_web_apps():
+  assert run_matcher('')(RUNS[0])
+  assert run_matcher('indoor')(RUNS[0]) and not run_matcher('indoor')(RUNS[2])
+  assert run_matcher('gain:3')(RUNS[0]) and not run_matcher('gain:3')(RUNS[1])
+  assert run_matcher('-street')(RUNS[0]) and not run_matcher('-street')(RUNS[2])
+  assert run_matcher('light:low')(RUNS[0])
+  assert run_matcher('fail')(RUNS[1]) and not run_matcher('fail')(RUNS[0])
+  # not a valid regular expression: searched as text
+  assert not run_matcher('gain[')(RUNS[0])
+
+
+def test_summarize_runs():
+  summary = summarize_runs(RUNS)
+  assert (summary['count'], summary['failed'], summary['inputs']) == (3, 1, 3)
+  assert summary['databases'] == [{'name': '/data/indoor', 'runs': 2}, {'name': '/data/night', 'runs': 1}]
+  assert summary['batches'] == [{'name': 'nightly', 'runs': 2}, {'name': 'night-set', 'runs': 1}]
+  assert summary['platforms'] == [{'name': 'linux', 'runs': 2}, {'name': 'arm', 'runs': 1}]
+  # with the milestone's filter
+  filtered = summarize_runs(RUNS, 'gain:3')
+  assert filtered['count'] == 2
+  assert [d['name'] for d in filtered['databases']] == ['/data/indoor', '/data/night']
