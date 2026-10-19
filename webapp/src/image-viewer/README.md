@@ -1,6 +1,6 @@
 # Image viewer
 
-A React component to compare images: **side by side**, with a **wipe**, **toggling** between them, or as their
+A React component to compare images: **side by side**, with a **wipe**, **one at a time** in place, or as their
 **difference**, with synced deep zoom, the **values of the pixels** (the image's own: raw, 16-bit, float...) written on
 them when zoomed in, full screen, regions of interest, histograms and display adjustments. It is [QA-Board](https://github.com/Samsung/qaboard)'s image viewer, and
 works in any React app.
@@ -200,7 +200,7 @@ resolution), and show a cross where the pointer is on the others. Viewers off-sc
 |---|---|---|---|
 | `image` | URL or `{ url \| iiif, label?, href?, ... }` | required | The image |
 | `reference` | same, or `null` | `null` | What it's compared with |
-| `mode`, `defaultMode`, `onModeChange` | `'side-by-side' \| 'wipe' \| 'toggle' \| 'difference'` | `'side-by-side'` | How they're compared |
+| `mode`, `defaultMode`, `onModeChange` | `'side-by-side' \| 'wipe' \| 'toggle' \| 'difference'` | `'side-by-side'` | How they're compared. `'toggle'` is called *Single* in the toolbar |
 | `diff`, `defaultDiff`, `onDiffChange` | `{ method, gain?, max?, layout? }` | `{ method: 'perceptual' }` | [The difference](#the-difference), and whether the images show on its sides (`layout: 'between'`, the default) or not (`'alone'`) |
 | `adjustments`, `defaultAdjustments`, `onAdjustmentsChange` | `{ brightness, contrast, gamma, sharpen, channel, falseColor, invert }` | none | How images look. Only the display changes. |
 | `pixelValues`, `defaultPixelValues`, `onPixelValuesChange` | `'image' \| 'display' \| 'off'` | `'image'` | [Values](#pixel-values-the-images-or-the-displayed-ones) written on the pixels when zoomed in. `'image'` needs `getPixels`, else they're the displayed ones. |

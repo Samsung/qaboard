@@ -27,13 +27,13 @@ import { copyFrame, fileUrl, mediaErrorMessage, saveFrame, usePreference } from 
 import './videos.css';
 
 // Compares the video of a run with its reference's: they play in sync, frame by frame, side by side,
-// with a wipe, toggled, or as their difference. Zoom (wheel, pinch) and pan (drag) apply to both.
+// with a wipe, one at a time (single), or as their difference. Zoom (wheel, pinch) and pan (drag) apply to both.
 // Animated images (.webp, .gif) are compared too, but the browser plays them on its own.
 
 const MODES = [
   { value: 'side-by-side', label: 'Side by side', icon: 'split-columns' },
   { value: 'wipe', label: 'Wipe', icon: 'drag-handle-vertical' },
-  { value: 'toggle', label: 'Toggle', icon: 'swap-horizontal' },
+  { value: 'toggle', label: 'Single', icon: 'media' },
   { value: 'difference', label: 'Difference', icon: 'contrast' },
 ];
 const GAINS = [1, 2, 4, 8, 16, 32, 64];
@@ -54,7 +54,7 @@ const SHORTCUTS = [
   ['Drag', 'Pan (or move the wipe when not zoomed)'],
   ['+ − 0', 'Zoom in / out / fit'],
   ['1 2 3 4', 'Side by side / wipe / toggle / difference'],
-  ['t', 'Swap new and reference (or click Toggle again)'],
+  ['t', 'Swap new and reference (or click Single again)'],
   ['h', 'Hide the labels'],
   ['m', 'Mute / unmute'],
 ];
@@ -543,7 +543,7 @@ const VideoViewer = ({
           options={modes.map(({ value, label, icon }) => ({ value, label, icon }))}
           value={mode}
           onValueChange={value => {
-            // clicking "Toggle" again flips between the videos, like "t"
+            // clicking "Single" again flips between the videos, like "t"
             if (value === 'toggle' && mode === 'toggle') swap();
             else setMode(value);
             // the keys go to the videos, not to the buttons (arrows would change the mode)

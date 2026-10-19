@@ -191,8 +191,8 @@ test('compares images side by side, with a wipe, toggling, and as their differen
   await page.mouse.up();
   await expect(divider).toHaveAttribute('aria-valuenow', /^7[4-6]$/);
 
-  // toggle: a click or t shows the other image, then their difference, then the first again
-  await page.getByRole('radio', { name: 'Toggle' }).click();
+  // single: a click or t shows the other image, then their difference, then the first again
+  await page.getByRole('radio', { name: 'Single' }).click();
   await expect(page.locator('.qiv-label')).toHaveText(/^new/);
   await stage.click({ position: { x: 50, y: 50 } });
   await expect(page.locator('.qiv-label')).toHaveText(/^reference/);
@@ -202,7 +202,7 @@ test('compares images side by side, with a wipe, toggling, and as their differen
   await expect(page.locator('.qiv-diff-pane')).toBeVisible();
   await expect(page.locator('.qiv-label')).toHaveCount(0);
   await stage.click({ position: { x: 50, y: 50 } });
-  await expect(page.getByRole('radio', { name: 'Toggle' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('radio', { name: 'Single' })).toHaveAttribute('aria-checked', 'true');
   await expect(page.locator('.qiv-label')).toHaveText(/^new/);
 
   // the keyboard picks the mode of the viewer under the mouse
@@ -465,8 +465,8 @@ test('swaps or flips the images of every viewer of the page', async ({ page }) =
   await page.keyboard.press('t');
   await expect.poll(() => labelsOf(second)).toEqual(['new', 'reference']);
   await expect(second.locator('.qiv-diff-between')).toBeVisible();
-  // in toggle mode, a click on one image shows the other in all of them, then their difference, then the first
-  await first.getByRole('radio', { name: 'Toggle' }).click();
+  // in single mode, a click on one image shows the other in all of them, then their difference, then the first
+  await first.getByRole('radio', { name: 'Single' }).click();
   await expect.poll(() => labelsOf(second)).toEqual(['new']);
   await first.locator('.qiv-stage').click({ position: { x: 60, y: 60 } });
   await expect.poll(() => labelsOf(second)).toEqual(['reference']);

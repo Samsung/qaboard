@@ -57,7 +57,7 @@ Extensions                                          | Type         | Viewer     
 
 ### Image viewer
   * Supports all common image formats, and raw images with an [IIIF](https://iiif.io) server that reads them.
-  * Compares new and reference side by side, with a wipe, toggling between them, or as their difference: perceptual (YIQ), ΔE 2000, absolute or signed per channel, or any change.
+  * Compares new and reference side by side, with a wipe, one at a time (single), or as their difference: perceptual (YIQ), ΔE 2000, absolute or signed per channel, or any change.
   * Fast and smooth zoom & pan, synced across runs and visualizations. Fast image streaming via IIIF.
   * The values of the hovered pixel in both images, and their difference, with a synced cursor on the other images. For 16-bit or raw images, the image's own values, read by the server.
   * Zoomed in, the values written on the pixels.
@@ -187,7 +187,7 @@ We love Brendan Gregg's [flame charts](http://www.brendangregg.com/flamegraphs.h
 
 ### Video viewer
   * New and reference play in sync, frame by frame: paused, both show the same frame.
-  * Compare them side by side, with a wipe (drag the divider), by toggling between them (<kbd>t</kbd>), or as their difference (amplified up to ×64).
+  * Compare them side by side, with a wipe (drag the divider), one at a time (single, <kbd>t</kbd> flips), or as their difference (amplified up to ×64).
   * Zoom with the mouse wheel or a pinch, drag to pan: both videos follow, even when their resolutions differ. Zoomed in, you see the actual pixels and their coordinates.
   * Step frame by frame, scrub, slow down to 0.1×, loop.
   * Copy or save the current frame as a PNG.

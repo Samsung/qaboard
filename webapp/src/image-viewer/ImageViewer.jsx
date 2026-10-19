@@ -1,4 +1,4 @@
-// Compares an image with a reference: side by side, with a wipe, toggling between them, or as their difference.
+// Compares an image with a reference: side by side, with a wipe, one at a time (single), or as their difference.
 // See README.md for the props.
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 
@@ -154,7 +154,7 @@ export const ImageViewer = ({
   const [tiles] = useState(() => new PixelTiles());
   useLayoutEffect(() => tiles.setGetPixels(getPixels));
   useEffect(() => () => tiles.dispose(), [tiles]);
-  // The reference first (on the left, or shown in toggle mode): controlled with onSwappedChange, e.g. for all the viewers
+  // The reference first (on the left, or shown in single mode): controlled with onSwappedChange, e.g. for all the viewers
   // of a page, or not
   const [swapped, setSwapped] = useControllable(swapped_prop, defaultSwapped, onSwappedChange);
   // A blind test: the images are called A and B ({ a: 'A' | 'B', revealed }), in a random order. Controlled with
@@ -293,7 +293,7 @@ export const ImageViewer = ({
     : mode === 'toggle' && first === lead ? `Show the ${names[other]} image`
     : mode === 'toggle' ? `Show the difference: ${names[lead]} − ${names[other]}`
     : `Show the ${names[lead]} image`;
-  // Picking the mode shown again: Toggle flips the images, Difference shows or hides the images on its sides
+  // Picking the mode shown again: Single flips the images, Difference shows or hides the images on its sides
   const pickMode = value => {
     if (value === mode && value === 'toggle') swap();
     else if (value === mode && value === 'difference') toggleDiffLayout();

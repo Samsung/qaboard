@@ -433,7 +433,7 @@ export const RegionsStrip = ({ set, index, image, size, onSelect, onRetry }) => 
 // --- Keyboard shortcuts ---
 
 export const SHORTCUTS = [
-  ['1 2 3 4', 'Side by side / wipe / toggle / difference (4 again: between the images, or alone)'],
+  ['1 2 3 4', 'Side by side / wipe / single / difference (4 again: between the images, or alone)'],
   ['t', 'Toggle: swap the sides. Showing one image or the difference alone: the other image, the difference, and again'],
   ['+ − 0', 'Zoom in / out / fit'],
   ['Wheel, pinch', 'Zoom'],

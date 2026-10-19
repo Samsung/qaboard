@@ -89,14 +89,14 @@ describe('VideoViewer', () => {
     expect(again.container.querySelector('.video-wipe')).not.toBeNull();
   });
 
-  it('flips between the videos when clicking Toggle again', () => {
+  it('flips between the videos when clicking Single again', () => {
     const { container } = viewer({ output_ref: output('ref') });
     const shown = () => container.querySelector('.video-label')?.textContent;
-    fireEvent.click(screen.getByRole('radio', { name: 'Toggle' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Single' }));
     expect(shown()).toMatch(/^new/);
-    fireEvent.click(screen.getByRole('radio', { name: 'Toggle' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Single' }));
     expect(shown()).toMatch(/^reference/);
-    fireEvent.click(screen.getByRole('radio', { name: 'Toggle' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Single' }));
     expect(shown()).toMatch(/^new/);
   });
 
