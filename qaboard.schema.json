@@ -1,0 +1,329 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://samsung.github.io/qaboard/qaboard.schema.json",
+  "title": "QA-Board project configuration (qaboard.yaml)",
+  "description": "Configures how `qa` runs your code and how QA-Board shows the results. Subprojects' qaboard.yaml are merged on top of their parents'. Docs: https://samsung.github.io/qaboard/docs/project-init",
+  "type": ["object", "null"],
+  "properties": {
+    "root": {"type": "boolean", "description": "Don't merge the qaboard.yaml of the parent folders, e.g. in a git submodule."},
+    "include": {"type": "string", "description": "A YAML file (relative to the root qaboard.yaml) merged under this one."},
+    "project": {"$ref": "#/$defs/project"},
+    "inputs": {"$ref": "#/$defs/inputs"},
+    "outputs": {"$ref": "#/$defs/outputs"},
+    "artifacts": {"$ref": "#/$defs/artifacts"},
+    "storage": {"$ref": "#/$defs/storage"},
+    "ci_root": {"$ref": "#/$defs/storage", "deprecated": true, "description": "Old name of `storage`."},
+    "runners": {"$ref": "#/$defs/runners"},
+    "lsf": {"$ref": "batches.schema.json#/$defs/lsf_runner", "deprecated": true, "description": "Old place of `runners.lsf`."},
+    "bit_accuracy": {"$ref": "#/$defs/bit_accuracy"},
+    "gate": {"$ref": "#/$defs/gate"},
+    "integrations": {"$ref": "#/$defs/integrations"},
+    "tuning": {
+      "type": "object",
+      "properties": {
+        "branches": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Globs of the branches people can tune from the web app. `{subproject}` and `{subproject.name}` are replaced."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+
+  "$defs": {
+    "project": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string", "description": "The project's id, often the git repository's path, e.g. `group/repo`. Subprojects get `<name>/<subfolder>`. `{root_path}` and `{project_path}` are replaced."},
+        "url": {"type": "string", "description": "The git repository's URL, e.g. `git@github.com:group/repo.git`. The same in all subprojects."},
+        "type": {"type": "string", "description": "Unused, `git`."},
+        "remote_type": {"type": "string", "description": "Unused: the git host's type is found from `url`."},
+        "entrypoint": {"type": "string", "description": "The Python file with your `run` (and `postprocess`, `metadata`, `iter_inputs`...) functions, relative to the root qaboard.yaml."},
+        "reference_branch": {"type": "string", "description": "The branch whose latest commit is the default reference. Default: master."},
+        "milestones": {"type": "array", "items": {"type": "string"}, "description": "Branches, tags or commits shown as milestones to compare with. Their results are never deleted."},
+        "avatar_url": {"type": "string", "description": "Default: the git host's avatar."},
+        "description": {"type": "string", "description": "Default: the git host's description."}
+      },
+      "additionalProperties": false
+    },
+
+    "inputs": {
+      "type": "object",
+      "description": "How `qa` finds the inputs. All these settings can be changed per input type (inputs.types) and per batch. Other keys are allowed: your entrypoint's `iter_inputs` gets them. Docs: https://samsung.github.io/qaboard/docs/inputs",
+      "properties": {
+        "database": {"$ref": "batches.schema.json#/$defs/database"},
+        "globs": {"$ref": "batches.schema.json#/$defs/globs"},
+        "glob": {"$ref": "batches.schema.json#/$defs/globs", "description": "Same as globs."},
+        "use_parent_folder": {"$ref": "batches.schema.json#/$defs/use_parent_folder"},
+        "batches": {"$ref": "#/$defs/batches_files"},
+        "groups": {"$ref": "#/$defs/batches_files", "deprecated": true, "description": "Old name of `batches`."},
+        "allow_duplicate_batches": {"type": "boolean", "description": "When several batch files define a batch, run all of them instead of the last one."},
+        "configs": {"$ref": "batches.schema.json#/$defs/configurations", "description": "The default configurations."},
+        "configurations": {"$ref": "batches.schema.json#/$defs/configurations", "description": "Same as configs."},
+        "configuration": {"$ref": "batches.schema.json#/$defs/configurations", "description": "Same as configs."},
+        "runners": {"$ref": "#/$defs/runners", "description": "Runner settings for these inputs."},
+        "platforms": {
+          "type": "array",
+          "description": "The platforms people can choose in the web app's tuning form.",
+          "items": {
+            "type": "object",
+            "properties": {"name": {"type": "string"}, "label": {"type": "string"}},
+            "additionalProperties": false
+          }
+        },
+        "types": {
+          "type": "object",
+          "description": "Types of inputs (images, videos...) with their own settings. Choose them with `qa --type`, or `type:` in batches.",
+          "properties": {
+            "default": {"type": "string", "description": "The type used when none is given."}
+          },
+          "additionalProperties": {"$ref": "#/$defs/input_type"}
+        }
+      },
+      "additionalProperties": true
+    },
+    "input_type": {
+      "type": ["object", "null"],
+      "description": "Settings for this type of inputs, overriding the ones under inputs.",
+      "properties": {
+        "database": {"$ref": "batches.schema.json#/$defs/database"},
+        "globs": {"$ref": "batches.schema.json#/$defs/globs"},
+        "glob": {"$ref": "batches.schema.json#/$defs/globs", "description": "Same as globs."},
+        "use_parent_folder": {"$ref": "batches.schema.json#/$defs/use_parent_folder"},
+        "configs": {"$ref": "batches.schema.json#/$defs/configurations"},
+        "configurations": {"$ref": "batches.schema.json#/$defs/configurations"},
+        "configuration": {"$ref": "batches.schema.json#/$defs/configurations"},
+        "runners": {"$ref": "#/$defs/runners"}
+      },
+      "additionalProperties": true
+    },
+    "batches_files": {
+      "description": "The files defining batches, relative to the root qaboard.yaml. Globs and `{project}`/`{subproject}` work. When several files define a batch, the last one wins.",
+      "anyOf": [
+        {"type": "string"},
+        {"type": "array", "items": {"anyOf": [{"type": "string"}, {"$ref": "batches.schema.json#/$defs/database"}]}},
+        {"$ref": "batches.schema.json#/$defs/database"}
+      ]
+    },
+
+    "outputs": {
+      "type": "object",
+      "properties": {
+        "metrics": {"type": "string", "description": "The YAML file describing your metrics, relative to the root qaboard.yaml. Docs: https://samsung.github.io/qaboard/docs/computing-quantitative-metrics"},
+        "visualizations": {"$ref": "#/$defs/visualizations"},
+        "detailed_views": {"$ref": "#/$defs/visualizations", "deprecated": true, "description": "Old name of `visualizations`."},
+        "style": {"type": "object", "description": "CSS for the visualizations' containers, e.g. `width: 840px`."},
+        "controls": {
+          "type": "array",
+          "description": "Controls in the web app that pass parameters to all viewers.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {"enum": ["toggle"]},
+              "name": {"type": "string"},
+              "label": {"type": "string"},
+              "default": {}
+            },
+            "additionalProperties": false
+          }
+        },
+        "default_tab_details": {
+          "description": "The tab(s) shown first on commit pages.",
+          "anyOf": [
+            {"$ref": "#/$defs/tab"},
+            {"type": "array", "items": {"$ref": "#/$defs/tab"}}
+          ]
+        },
+        "action_on_existing": {
+          "enum": ["run", "postprocess", "sync", "skip", "assert-exists"],
+          "description": "What `qa batch` does when the runs already have results. Default: run."
+        },
+        "action_on_pending": {
+          "enum": ["wait", "sync", "skip", "run"],
+          "description": "What `qa batch` does when the runs are already pending. Default: wait."
+        },
+        "output_dir_uses_database": {"type": "boolean", "description": "Include the database in the runs' output directories."}
+      },
+      "additionalProperties": false
+    },
+    "tab": {
+      "enum": ["summary", "bit-accuracy", "bit_accuracy", "groups", "logs", "optimization", "output-list", "output_list", "parameters", "table-compare", "table_compare", "table-kpi", "table_kpi", "tuning"]
+    },
+    "visualizations": {
+      "type": ["array", "null"],
+      "description": "How to show the runs' output files. Docs: https://samsung.github.io/qaboard/docs/visualizations",
+      "items": {
+        "type": "object",
+        "description": "Other keys are options of the viewer.",
+        "properties": {
+          "name": {"type": "string"},
+          "path": {"type": "string", "description": "Path of the file in the output directory. `:name` and `(regex)` parts let people choose the file."},
+          "type": {
+            "type": "string",
+            "description": "The viewer. Default: guessed from the extension.",
+            "examples": ["image/*", "video/*", "plotly/json", "plotly/html", "text/plain", "text/html", "flame/json", "6dof/txt", "pointcloud/txt", "files/bit-accuracy"]
+          },
+          "default_hidden": {"type": "boolean"},
+          "display": {"enum": ["single", "all", "viewer"]},
+          "style": {"type": "object", "description": "CSS for this visualization's container."}
+        },
+        "additionalProperties": true
+      }
+    },
+
+    "artifacts": {
+      "type": ["object", "null"],
+      "description": "The files saved by `qa save-artifacts` (binaries, configurations...), so the web app can run your code for this commit. Docs: https://samsung.github.io/qaboard/docs/storage/artifacts",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "glob": {"$ref": "batches.schema.json#/$defs/globs"},
+          "globs": {"$ref": "batches.schema.json#/$defs/globs"}
+        },
+        "additionalProperties": false
+      }
+    },
+
+    "storage": {
+      "description": "Where results are saved. `{project}`, `{subproject}` and `{user}` are replaced. Docs: https://samsung.github.io/qaboard/docs/storage/where-is-the-data-saved",
+      "anyOf": [
+        {"type": "string"},
+        {
+          "type": "object",
+          "properties": {
+            "linux": {"type": "string"},
+            "windows": {"type": "string"},
+            "path": {"type": "string"},
+            "outputs": {"$ref": "batches.schema.json#/$defs/database"},
+            "artifacts": {
+              "anyOf": [
+                {"type": "string"},
+                {
+                  "type": "object",
+                  "properties": {
+                    "linux": {"type": "string"},
+                    "windows": {"type": "string"},
+                    "path": {"type": "string"},
+                    "subproject": {"type": "string"}
+                  },
+                  "additionalProperties": false
+                }
+              ]
+            },
+            "garbage": {
+              "type": "object",
+              "description": "Deleting old results. Docs: https://samsung.github.io/qaboard/docs/storage/deleting-old-data",
+              "properties": {
+                "after": {"type": "string", "description": "e.g. 1month, 2weeks."},
+                "can_delete_reference_branch": {"type": "boolean"},
+                "artifacts": {
+                  "type": "object",
+                  "properties": {
+                    "delete": {"type": "boolean"},
+                    "keep": {"type": "array", "items": {"type": "string"}}
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+
+    "runners": {
+      "type": ["object", "null"],
+      "description": "Where `qa batch` runs: locally, or on a cluster. Docs: https://samsung.github.io/qaboard/docs/using-the-qa-cli#batch-runners",
+      "properties": {
+        "default": {"$ref": "batches.schema.json#/$defs/runner_name", "description": "Default: the first runner configured here other than local."},
+        "local": {"$ref": "batches.schema.json#/$defs/local_runner"},
+        "lsf": {
+          "$ref": "batches.schema.json#/$defs/lsf_runner",
+          "description": "Settings of the LSF runner (bsub). `long_queue` is used to optimize parameters from the web app."
+        },
+        "celery": {"$ref": "batches.schema.json#/$defs/celery_runner"},
+        "dask": {"$ref": "batches.schema.json#/$defs/dask_runner"},
+        "windows": {"$ref": "batches.schema.json#/$defs/windows_runner"},
+        "jenkins": {
+          "type": "object",
+          "description": "The Jenkins job that runs on Windows machines, for the `windows` runner.",
+          "properties": {
+            "build_url": {"type": "string"},
+            "token": {"type": "string"}
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+
+    "bit_accuracy": {
+      "type": ["object", "null"],
+      "description": "Docs: https://samsung.github.io/qaboard/docs/bit-accuracy",
+      "properties": {
+        "patterns": {"$ref": "batches.schema.json#/$defs/globs", "description": "The output files compared. Default: all."},
+        "ignore": {"$ref": "batches.schema.json#/$defs/globs", "description": "Output files not compared."},
+        "plaintext": {"type": "array", "items": {"type": "string"}, "description": "Text files, compared with normalized end of lines. The others are binary. Don't set both plaintext and binary."},
+        "binary": {"type": "array", "items": {"type": "string"}, "description": "Binary files. The others are text."},
+        "on_reference_failed_ci": {"enum": ["compare-first-parent"]},
+        "max_parents_depth": {"type": "integer", "description": "With on_reference_failed_ci, how many parents we try. Default: 5."},
+        "failed_ci_job_name": {"type": "string", "description": "The CI job whose failure means the CI failed. Default: the commit's status."},
+        "failed_ci": {"deprecated": true, "description": "Not read: use failed_ci_job_name."}
+      },
+      "additionalProperties": false
+    },
+
+    "gate": {
+      "type": "object",
+      "description": "Experimental: `qa gate` fails the CI when results regress vs a reference. Docs: https://samsung.github.io/qaboard/docs/quality-gate",
+      "properties": {
+        "reference": {"type": "string", "description": "A branch, milestone or commit. Default: project.reference_branch."},
+        "batches": {
+          "anyOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}],
+          "description": "The labels of the batches to check. Default: default."
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "metric": {"type": "string"},
+              "max_regression": {"type": ["string", "number"], "description": "e.g. 5% or 0.05, for the median over the runs."},
+              "per_test_max_regression": {"type": ["string", "number"], "description": "e.g. 20%, for each run vs its reference."},
+              "min": {"type": "number"},
+              "max": {"type": "number"}
+            },
+            "additionalProperties": false
+          }
+        },
+        "max_failed_runs": {"type": ["integer", "null"]},
+        "require_bit_accuracy": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+
+    "integrations": {
+      "type": ["array", "null"],
+      "description": "Links and buttons in the web app, e.g. to start CI jobs. Docs: https://samsung.github.io/qaboard/docs/triggering-external-ci-tools",
+      "items": {
+        "type": "object",
+        "description": "Other keys are passed to the menu item (text, href, icon, label, intent...).",
+        "properties": {
+          "text": {"type": "string"},
+          "href": {"type": "string"},
+          "sub": {"$ref": "#/$defs/integrations"},
+          "webhook": {"type": "object"},
+          "gitlabCI": {"type": "object", "properties": {"job_name": {"type": "string"}}},
+          "githubActions": {"type": "object", "properties": {"workflow": {"type": "string"}, "ref": {"type": "string"}, "inputs": {"type": "object"}}},
+          "jenkins": {"type": "object", "properties": {"build_url": {"type": "string"}, "token": {"type": "string"}, "parameters": {"type": "object"}}},
+          "in_menu": {"type": "boolean"}
+        },
+        "additionalProperties": true
+      }
+    }
+  }
+}
