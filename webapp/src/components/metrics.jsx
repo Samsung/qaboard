@@ -266,47 +266,29 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
   );
 };
 
-const disable_axe = {
-  fixedrange: true,
-  zeroline: false,
-  showgrid: false,
-  showline: false,
-  showticklabel: false,
-  ticks: "",
-  autotick: true
-};
-
-const layout_tiles = {
-  barmode: "stack",
-  font: {
-    color: "#fff"
-  },
-  yaxis: {
-    ...disable_axe,
-    title: "",
-    color: "#fff",
-    tickcolor: "#fff"
-  },
-  xaxis: {
-    ...disable_axe,
-    title: "",
-    color: "#fff",
-    tickcolor: "#fff"
-  },
-  showlegend: false,
-  margin: {
-    l: 0,
-    r: 0,
-    b: 0,
-    t: 0,
-    pad: 0
-  },
-  width: 150,
-  height: 25,
-  autosize: false,
-  plot_bgcolor: "rgba(0,0,0,0)",
-  paper_bgcolor: "rgba(0,0,0,0)"
-};
+// The runs that meet the target, then those that miss it. Not a Plotly plot: there are two per metric,
+// and drawing them took a good part of the time the summary needs to update, e.g. when switching references.
+const SuccessBarTrack = styled.span`
+  display: inline-flex;
+  width: 150px;
+  height: 20px;
+  margin: 2px 0 3px;
+  vertical-align: middle;
+  font-size: 12px;
+  line-height: 20px;
+  color: #fff;
+  white-space: nowrap;
+  & > :first-child {
+    background: ${Colors.GREEN3};
+    text-align: center;
+    overflow: hidden;
+  }
+  & > :last-child {
+    flex: 1;
+    background: ${Colors.RED5};
+    opacity: 0.8;
+  }
+`;
 
 // e.g. "80% of runs meet the target (≤ 10ms)"
 const success_tooltip = (success_frac, m) =>
@@ -314,42 +296,13 @@ const success_tooltip = (success_frac, m) =>
 
 const SuccessBar = ({ success_frac, metric }) => (
   <Tooltip content={success_tooltip(success_frac, metric)}>
-  <Plot
-    data={[
-      {
-        type: "bar",
-        orientation: "h",
-        name: "Meet the target",
-        x: [100 * success_frac],
-        textposition: "inside",
-        insidetextanchor: "middle",
-        hoverinfo: "none",
-        text:
-          success_frac > 0.4
-            ? `${percent_formatter.format(100 * success_frac)}% met`
-            : "",
-        opacity: 1,
-        marker: {
-          color: Colors.GREEN3
-        }
-      },
-      {
-        type: "bar",
-        orientation: "h",
-        name: "Miss the target",
-        x: [100 * (1 - success_frac)],
-        hoverinfo: "none",
-        // no label: it doesn't fit, the tooltip says it
-        text: "",
-        opacity: 0.8,
-        marker: {
-          color: Colors.RED5
-        }
-      }
-    ]}
-    layout={layout_tiles}
-    config={{ displayModeBar: false }}
-  />
+    <SuccessBarTrack>
+      <span style={{ width: `${100 * success_frac}%` }}>
+        {success_frac > 0.4 && `${percent_formatter.format(100 * success_frac)}% met`}
+      </span>
+      {/* no label: it doesn't fit, the tooltip says it */}
+      <span/>
+    </SuccessBarTrack>
   </Tooltip>
 );
 
