@@ -88,6 +88,19 @@ The default can be set in *qaboard.yaml* with `outputs.action_on_existing`.
 
 Similarly, `--action-on-pending` (or `outputs.action_on_pending`) decides what to do when the same runs are already pending: `wait` (default, then run), `sync` (use those runs' results), `skip` or `run` (run as usual, can cause races).
 
+### Email when the runs end
+QA-Board emails you when the runs of `qa --share batch` end:
+
+```bash
+qa --share batch my-batch
+#=> QA-Board will email jdoe@example.com when the runs end (`export QA_NOTIFY=none` to stop).
+```
+
+It's the same email users get when they start a batch from the web app ([what it says](user-guide/running-from-the-webapp#emails-when-batches-end)): one per `qa batch`, when its last run ends.
+- To stop them, `export QA_NOTIFY=none`.
+- It needs `--share`: QA-Board only knows about the runs it saves.
+- It's never sent in CI, nor for `qa batch` commands started by other ones, like the steps of a pipeline or the iterations of `qa optimize`: their runs count as the first command's runs, and its email comes when they are all done. Nested `qa batch` know the first one from the `QA_BATCH_ROOT_COMMAND_ID` environment variable, that all runners forward to the runs (local, LSF, Dask and Celery).
+
 ### Running a list of runs
 Instead of batches, `qa batch --runs-file runs.json` does the runs listed in a JSON file. QA-Board uses it to redo runs: they are started together, so the batch's runner settings (e.g. its concurrency) apply to all of them.
 

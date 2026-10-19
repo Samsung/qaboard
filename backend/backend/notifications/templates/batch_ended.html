@@ -1,0 +1,212 @@
+{#
+  Sent when a batch users asked to hear about ends: see backend/notifications/batch_email.py.
+  Outlook 2016/2019 render emails with Word: tables for layout, inline styles and bgcolor attributes,
+  widths in attributes, padding on cells only, VML for the button. No flexbox, grid, CSS variables or web fonts.
+  Preview it with: python backend/backend/notifications/preview.py
+#}
+{% set font = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" %}
+{% set mono = "Consolas,'SFMono-Regular',Menlo,'Liberation Mono',monospace" %}
+{% macro section_title(text) %}
+<p style="margin:0 0 10px 0;font-family:{{ font }};font-size:11px;line-height:16px;mso-line-height-rule:exactly;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#5F6B7C;">{{ text }}</p>
+{% endmacro %}
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+<title>{{ subject }}</title>
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:AllowPNG/><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<style>table, td, th, p, a, span, div { font-family: 'Segoe UI', Arial, sans-serif !important; } .mono { font-family: Consolas, 'Courier New', monospace !important; }</style>
+<![endif]-->
+<style>
+  body { margin: 0; padding: 0; width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  table, td { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+  a { color: #1B69B6; }
+  a:hover { text-decoration: underline !important; }
+  @media only screen and (max-width: 620px) {
+    .container { width: 100% !important; }
+    .px { padding-left: 20px !important; padding-right: 20px !important; }
+    .stat { display: inline-block !important; width: 50% !important; box-sizing: border-box; border-right: 0 !important; }
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background-color:#F0F2F5;" bgcolor="#F0F2F5">
+<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;color:#F0F2F5;">{{ preheader }}{% for _ in range(60) %}&#847;&zwnj;&nbsp;{% endfor %}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#F0F2F5" style="background-color:#F0F2F5;">
+<tr>
+<td align="center" style="padding:24px 12px 32px 12px;">
+<!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center"><tr><td><![endif]-->
+<table role="presentation" class="container" width="600" cellpadding="0" cellspacing="0" border="0" align="center" style="width:600px;max-width:600px;">
+
+  {# Header: dark, like the web app's sidebar #}
+  <tr>
+    <td bgcolor="#1C2127" class="px" style="background-color:#1C2127;padding:14px 32px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td style="font-family:{{ font }};font-size:15px;line-height:20px;mso-line-height-rule:exactly;font-weight:700;color:#FFFFFF;letter-spacing:0.2px;">
+            <a href="{{ links.results }}" style="color:#FFFFFF;text-decoration:none;">QA-Board</a>
+          </td>
+          <td align="right" style="font-family:{{ font }};font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#ABB3BF;">{{ project_name }}</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td bgcolor="{{ color.accent }}" height="4" style="background-color:{{ color.accent }};height:4px;font-size:4px;line-height:4px;mso-line-height-rule:exactly;">&nbsp;</td>
+  </tr>
+
+  {# Verdict and what to do #}
+  <tr>
+    <td bgcolor="#FFFFFF" class="px" style="background-color:#FFFFFF;padding:28px 32px 4px 32px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td bgcolor="{{ color.background }}" style="background-color:{{ color.background }};padding:3px 8px;font-family:{{ font }};font-size:11px;line-height:16px;mso-line-height-rule:exactly;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;color:{{ color.text }};">
+            {% if status == 'success' %}Succeeded{% elif status == 'danger' %}Failed{% else %}{{ summary.failed }} failed{% endif %}
+          </td>
+        </tr>
+      </table>
+      <h1 style="margin:14px 0 6px 0;font-family:{{ font }};font-size:22px;line-height:30px;mso-line-height-rule:exactly;font-weight:600;color:#1C2127;word-break:break-word;">{{ headline }}</h1>
+      <p style="margin:0 0 22px 0;font-family:{{ font }};font-size:15px;line-height:22px;mso-line-height-rule:exactly;color:#404854;">{{ verdict }}{% if duration != '–' %} in {{ duration }}{% endif %}.</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td>
+            <!--[if mso]>
+            <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="{{ links.results }}" style="height:40px;v-text-anchor:middle;width:168px;" arcsize="8%" stroke="f" fillcolor="#2D72D2">
+              <w:anchorlock/>
+              <center style="color:#FFFFFF;font-family:'Segoe UI',Arial,sans-serif;font-size:14px;font-weight:600;">View results</center>
+            </v:roundrect>
+            <![endif]-->
+            <!--[if !mso]><!-- --><a href="{{ links.results }}" style="display:inline-block;width:168px;background-color:#2D72D2;border-radius:3px;color:#FFFFFF;font-family:{{ font }};font-size:14px;font-weight:600;line-height:40px;text-align:center;text-decoration:none;-webkit-text-size-adjust:none;">View results</a><!--<![endif]-->
+          </td>
+          {% if links.failed %}
+          <td style="padding-left:20px;font-family:{{ font }};font-size:14px;line-height:20px;mso-line-height-rule:exactly;">
+            <a href="{{ links.failed }}" style="color:#1B69B6;text-decoration:none;font-weight:600;">Logs of the failed runs</a>
+          </td>
+          {% elif links.tuning %}
+          <td style="padding-left:20px;font-family:{{ font }};font-size:14px;line-height:20px;mso-line-height-rule:exactly;">
+            <a href="{{ links.tuning }}" style="color:#1B69B6;text-decoration:none;font-weight:600;">Compare the parameters</a>
+          </td>
+          {% endif %}
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  {# Counts #}
+  <tr>
+    <td bgcolor="#FFFFFF" class="px" style="background-color:#FFFFFF;padding:24px 32px 8px 32px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #E5E8EB;">
+        <tr>
+          {% for label, value, value_color in [('Runs', '{:,}'.format(summary.total), '#1C2127'), ('Succeeded', '{:,}'.format(summary.succeeded), '#1C6E42' if summary.succeeded else '#1C2127'), ('Failed', '{:,}'.format(summary.failed), '#AC2F33' if summary.failed else '#1C2127'), ('Duration', duration, '#1C2127')] %}
+          <td class="stat" width="25%" valign="top" style="width:25%;padding:12px 16px;{% if not loop.last %}border-right:1px solid #E5E8EB;{% endif %}">
+            <p style="margin:0;font-family:{{ font }};font-size:11px;line-height:16px;mso-line-height-rule:exactly;font-weight:600;letter-spacing:0.6px;text-transform:uppercase;color:#5F6B7C;">{{ label }}</p>
+            <p style="margin:2px 0 0 0;font-family:{{ font }};font-size:20px;line-height:28px;mso-line-height-rule:exactly;font-weight:600;color:{{ value_color }};">{{ value }}</p>
+          </td>
+          {% endfor %}
+        </tr>
+      </table>
+    </td>
+  </tr>
+
+  {# Main metrics #}
+  {% if summary.metrics %}
+  <tr>
+    <td bgcolor="#FFFFFF" class="px" style="background-color:#FFFFFF;padding:20px 32px 4px 32px;">
+      {{ section_title('Main metrics · median of the successful runs') }}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        {% for metric in summary.metrics %}
+        <tr>
+          <td style="padding:8px 0;border-top:1px solid #E5E8EB;font-family:{{ font }};font-size:14px;line-height:20px;mso-line-height-rule:exactly;color:#404854;">{{ metric.label }}</td>
+          <td align="right" style="padding:8px 0 8px 12px;border-top:1px solid #E5E8EB;font-family:{{ font }};font-size:14px;line-height:20px;mso-line-height-rule:exactly;font-weight:600;color:#1C2127;white-space:nowrap;">{{ metric.value }}</td>
+          <td align="right" width="150" style="width:150px;padding:8px 0 8px 12px;border-top:1px solid #E5E8EB;font-family:{{ font }};font-size:13px;line-height:20px;mso-line-height-rule:exactly;white-space:nowrap;{% if metric.meets_target is true %}color:#1C6E42;{% elif metric.meets_target is false %}color:#AC2F33;{% else %}color:#8F99A8;{% endif %}">
+            {% if metric.meets_target is true %}&#9679;&nbsp;Meets target {{ metric.target }}{% elif metric.meets_target is false %}&#9679;&nbsp;Misses target {{ metric.target }}{% else %}&nbsp;{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+    </td>
+  </tr>
+  {% endif %}
+
+  {# Tuning: the best parameters #}
+  {% if summary.ranking %}
+  <tr>
+    <td bgcolor="#FFFFFF" class="px" style="background-color:#FFFFFF;padding:20px 32px 4px 32px;">
+      {{ section_title('Best parameters · ' ~ summary.ranking.metric ~ ', ' ~ summary.ranking.direction) }}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        {% for row in summary.ranking.rows %}
+        <tr>
+          <td width="28" valign="top" style="width:28px;padding:8px 0;border-top:1px solid #E5E8EB;font-family:{{ font }};font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#8F99A8;">{{ row.rank }}</td>
+          <td valign="top" class="mono" style="padding:8px 0;border-top:1px solid #E5E8EB;font-family:{{ mono }};font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#1C2127;word-break:break-all;">{{ row.params }}{% if row.failed %}<span style="font-family:{{ font }};color:#AC2F33;"> · {{ row.failed }} failed</span>{% endif %}</td>
+          <td align="right" valign="top" style="padding:8px 0 8px 12px;border-top:1px solid #E5E8EB;font-family:{{ font }};font-size:14px;line-height:20px;mso-line-height-rule:exactly;font-weight:{% if loop.first %}700{% else %}600{% endif %};color:{% if loop.first %}#1C6E42{% else %}#1C2127{% endif %};white-space:nowrap;">{{ row.value }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+      <p style="margin:6px 0 0 0;font-family:{{ font }};font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#5F6B7C;">
+        {% if summary.ranking.more %}And {{ summary.ranking.more }} more combination{% if summary.ranking.more > 1 %}s{% endif %}. {% endif %}<a href="{{ links.tuning }}" style="color:#1B69B6;text-decoration:none;">Compare all the parameters</a>
+      </p>
+    </td>
+  </tr>
+  {% endif %}
+
+  {# What failed #}
+  {% if summary.failed_runs %}
+  <tr>
+    <td bgcolor="#FFFFFF" class="px" style="background-color:#FFFFFF;padding:20px 32px 4px 32px;">
+      {{ section_title('Failed runs') }}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        {% for run in summary.failed_runs %}
+        <tr>
+          <td width="12" valign="top" style="width:12px;padding:9px 0;border-top:1px solid #E5E8EB;font-size:10px;line-height:20px;mso-line-height-rule:exactly;color:#CD4246;">&#9679;</td>
+          <td valign="top" style="padding:8px 0;border-top:1px solid #E5E8EB;">
+            <p class="mono" style="margin:0;font-family:{{ mono }};font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#1C2127;word-break:break-all;">{{ run.input }}</p>
+            {% if run.details %}<p style="margin:0;font-family:{{ font }};font-size:12px;line-height:18px;mso-line-height-rule:exactly;color:#5F6B7C;word-break:break-all;">{{ run.details }}</p>{% endif %}
+          </td>
+          <td align="right" valign="top" style="padding:8px 0 8px 12px;border-top:1px solid #E5E8EB;font-family:{{ font }};font-size:13px;line-height:20px;mso-line-height-rule:exactly;white-space:nowrap;">
+            <a href="{{ run.url }}" style="color:#1B69B6;text-decoration:none;">Logs</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </table>
+      {% if summary.more_failed %}
+      <p style="margin:6px 0 0 0;font-family:{{ font }};font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#5F6B7C;">And {{ summary.more_failed }} more. <a href="{{ links.failed }}" style="color:#1B69B6;text-decoration:none;">See all the failed runs</a></p>
+      {% endif %}
+    </td>
+  </tr>
+  {% endif %}
+
+  {# Context #}
+  <tr>
+    <td bgcolor="#FFFFFF" class="px" style="background-color:#FFFFFF;padding:20px 32px 28px 32px;">
+      {{ section_title('Details') }}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        {% for label, value, url in details %}
+        <tr>
+          <td width="96" valign="top" style="width:96px;padding:6px 0;border-top:1px solid #E5E8EB;font-family:{{ font }};font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#5F6B7C;">{{ label }}</td>
+          <td valign="top" style="padding:6px 0;border-top:1px solid #E5E8EB;font-family:{{ font }};font-size:13px;line-height:20px;mso-line-height-rule:exactly;color:#1C2127;word-break:break-word;">{% if url %}<a href="{{ url }}" style="color:#1B69B6;text-decoration:none;">{{ value }}</a>{% else %}{{ value }}{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </td>
+  </tr>
+
+  {# Why this email #}
+  <tr>
+    <td class="px" style="padding:20px 32px 0 32px;font-family:{{ font }};font-size:12px;line-height:18px;mso-line-height-rule:exactly;color:#738091;">
+      <p style="margin:0 0 6px 0;">{{ reason }} QA-Board sends one email per batch, when its last run ends, and never for CI runs.</p>
+      <p style="margin:0;"><a href="{{ links.results }}" style="color:#5F6B7C;text-decoration:underline;">Open in QA-Board</a>{% if docs_url %} &nbsp;·&nbsp; <a href="{{ docs_url }}" style="color:#5F6B7C;text-decoration:underline;">About these emails</a>{% endif %}</p>
+    </td>
+  </tr>
+
+</table>
+<!--[if mso]></td></tr></table><![endif]-->
+</td>
+</tr>
+</table>
+</body>
+</html>

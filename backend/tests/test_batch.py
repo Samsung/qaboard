@@ -128,3 +128,20 @@ def test_optimization_rejects_inconsistent_iterations(batch_api, dummy_app, opti
   assert status == 400
   batch_api.CiCommit.get_or_create.assert_not_called()
   assert optimization.ci_run.batch is optimization.batches["default"]
+
+
+def test_qa_notify_requests_an_email(batch_api, monkeypatch):
+  # `qa batch` asks for an email, unless QA_NOTIFY=none (backend/notifications/)
+  requests = []
+  def request(session, command_id, ci_commit, batch, user_name, data=None):
+    requests.append((command_id, user_name, data))
+    return MagicMock(recipient=f'{user_name}@example.com'), None
+  monkeypatch.setattr(batch_api, 'request_batch_notification', request)
+  data = {'job_type': 'local', 'batch_label': '@jdoe| test', 'platform': 'linux'}
+  assert batch_api.cli_notification(data, None, None, None) is None
+  assert batch_api.cli_notification(data, {'c1': {'user': 'jdoe'}}, None, None) is None
+  command = {'c1': {'user': 'jdoe', 'notify': {'channel': 'email', 'batches': ['low-light']}}}
+  assert batch_api.cli_notification(data, command, None, None) == {'channel': 'email', 'recipient': 'jdoe@example.com'}
+  assert requests == [('c1', 'jdoe', {'source': 'cli', 'label': '@jdoe| test', 'selected_group': 'low-light', 'platform': 'linux'})]
+  assert 'CI' in batch_api.cli_notification({**data, 'job_type': 'ci'}, command, None, None)['error']
+  assert len(requests) == 1

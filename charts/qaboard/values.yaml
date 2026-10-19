@@ -25,6 +25,11 @@ config:
   # Where the backend may write, delete or run code. The chart sets it to results.mountPath: set it when you mount
   # other storage (extraVolumeMounts), separated by ":"
   # QABOARD_STORAGE_ROOTS: /mnt/qaboard:/algo
+  # Emails when the batches users start end (website/docs/start-server.mdx#emails). A QABOARD_SMTP_PASSWORD goes in the secret
+  # QABOARD_SMTP_HOST: smtp.example.com
+  # QABOARD_EMAIL_FROM: QA-Board <qaboard-noreply@example.com>
+  # QABOARD_EMAIL_DOMAIN: example.com
+  # QABOARD_URL: https://qaboard.example.com
 
 # The storage where runs save their results (outputs and artifacts), shared by the `qa` CLI and the server.
 # Runs tell the server the path of their results: everything must see the storage at the same absolute path,

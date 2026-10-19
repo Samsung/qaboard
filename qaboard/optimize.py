@@ -51,6 +51,9 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
   if job_url:
     command_data['job_url'] = job_url
   command={command_id: command_data}
+  # Each iteration runs `qa batch`: they are part of this command (and never send QA_NOTIFY emails)
+  from .notify import inherit_root_command
+  inherit_root_command(ctx, os.environ.get('QA_BATCH_ROOT_COMMAND_ID') or command_id)
 
   batch_dir_for = lambda label: batch_dir(outputs_commit, label, save_with_ci=True)
   optim_dir = batch_dir_for(ctx.obj['batch_label'])

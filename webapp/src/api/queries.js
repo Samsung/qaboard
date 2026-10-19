@@ -29,6 +29,8 @@ export const default_site_config = {
   support_url: 'https://github.com/Samsung/qaboard/issues',
   login_hint: null,
   webcde_installer: null,
+  // whether users can ask for an email when the batches they start end
+  email_notifications: false,
 };
 
 // Some helpers read the site's configuration outside of React

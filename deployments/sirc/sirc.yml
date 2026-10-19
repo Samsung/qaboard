@@ -63,6 +63,13 @@ services:
     - QABOARD_QUOTA_URL_TEMPLATE=https://metabase.transchip.com/dashboard/154-storage-cleanup-dashboard?project={project}&username={user_name}
     - QABOARD_SUPPORT_URL=mailto:arthur.flam@samsung.com
     - QABOARD_LOGIN_HINT=Try your Windows credentials.
+    # Links in emails and exports
+    - QABOARD_URL=https://qa
+    # TODO(sirc): the SMTP relay IT gives us, then users can get emails when their batches end (start-server.mdx#emails)
+    # - QABOARD_SMTP_HOST=<smtp relay>
+    # - QABOARD_EMAIL_FROM=QA-Board <...>
+    # - QABOARD_EMAIL_DOMAIN=<users' email domain, for LDAP accounts without an email>
+    - QABOARD_EMAIL_TIMEZONE=Asia/Jerusalem
     - 'QABOARD_WEBCDE_INSTALLER=\\netapp\Joint\WebCDE\WebCDE_Setup.exe'
     - QABOARD_IMAGE_CACHE_DIR=/algo/qa_db/image_cache
     # The server only writes, deletes or runs code in these folders (the shared storage mounted below)

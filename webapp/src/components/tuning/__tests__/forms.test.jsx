@@ -81,6 +81,30 @@ describe('TuningForm', () => {
     });
   });
 
+  it('asks for an email when the batch ends, if the server can send them', async () => {
+    usePrefsStore.getState().updateTuning('proj', { experiment_name: 'exp', selected_group: 'nightly' });
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(url => url.startsWith('/api/v1/tests/group?')
+      ? json({ tests: [{ input_path: 'a.jpg', configurations: ['base'] }] })
+      : url.startsWith('/api/v1/commit/abcdef12/batch?') ? json({ notification: { channel: 'email', recipient: 'alice@example.com' } }) : json({}));
+    const { unmount } = renderWithProviders(
+      <TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>,
+      { user: { is_logged: true, user_name: 'alice' }, siteConfig: {} },
+    );
+    // emails are not configured
+    expect(screen.queryByTestId('tuning-email-note')).not.toBeInTheDocument();
+    unmount();
+
+    renderWithProviders(
+      <TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>,
+      { user: { is_logged: true, user_name: 'alice' }, siteConfig: { email_notifications: true } },
+    );
+    expect(screen.getByTestId('tuning-email-note')).toHaveTextContent('QA-Board will email you when the last run ends.');
+    fireEvent.click(await screen.findByText('Start 1 run'));
+    await waitFor(() => expect(toaster.show).toHaveBeenCalledWith(expect.objectContaining({ message: 'Started exp. QA-Board will email alice@example.com when it ends.' }), 'tuning-exp'));
+    const [, init] = fetch.mock.calls.find(([url]) => url === '/api/v1/commit/abcdef12/batch?project=proj');
+    expect(JSON.parse(init.body).notify).toBe('email');
+  });
+
   it('runs as the logged-in user, even when they are known after the form showed', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
     const local_config = { project: { reference_branch: 'main' }, runners: { local: {} }, inputs: {} };
