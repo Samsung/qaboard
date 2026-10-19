@@ -194,6 +194,8 @@ const CiCommitResults = () => {
     onControlsChange: updateControls,
     onRegisterOutputOptions: dynamic.register,
     onToggleDynamicOptionSync: toggleDynamicOptionSync,
+    // what viewers call the new and reference results, e.g. their milestones' names
+    labels: comparison.labels,
   };
   // What the runs shown share is hidden in each run: it updates as users filter runs.
   // shared_configuration and changes_in_all_runs return the same objects when they don't change, so cards don't re-render

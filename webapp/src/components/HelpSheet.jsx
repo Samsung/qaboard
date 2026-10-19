@@ -89,6 +89,7 @@ const shortcuts = [
   ]},
   { title: "Commit page", keys: [
     [<Kbd key="o">o</Kbd>, "Show or hide the view options: visualizations, files to show, viewers, sorting"],
+    [<><Kbd>r</Kbd> <Kbd>Shift</Kbd> <Kbd>r</Kbd></>, "Compare with the next or previous reference, when you selected several"],
   ]},
   { title: "Image and text viewers", keys: [
     [<Kbd key="t">t</Kbd>, "Swap new and reference in place, in all the viewers"],

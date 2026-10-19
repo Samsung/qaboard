@@ -19,6 +19,8 @@ const url_keys = {
   selected_batch_ref: "batch_ref",
   filter_batch_new: "filter",
   filter_batch_ref: "filter_ref",
+  // the references that are not shown, see `references` below
+  other_refs: "compare",
 };
 
 const route_names = Object.fromEntries(Object.entries(route_paths).map(([name, path]) => [path, name]));
@@ -66,6 +68,103 @@ export const date_range_from_query = query => {
 const to_day = date => DateTime.fromJSDate(date).toISODate();
 
 
+// Users can select several references, and compare the new commit with one of them at a time.
+// The one shown is in ?reference=&batch_ref=&filter_ref=&ref_project= as before, so that existing links and code
+// keep working. The others are in ?compare=: commit ids, or {commit, batch, filter, project} when not the defaults.
+// ?ref_index= is where the shown one is in the list: switching references keeps their order.
+// A "side" of the comparison: { project, commit_id, batch, filter }, project defaults to the page's.
+const side_from_query = (item, project) => {
+  const value = typeof item === 'object' && item !== null ? item : { commit: item };
+  return {
+    project: value.project || project,
+    commit_id: value.commit ?? null,
+    batch: value.batch || 'default',
+    filter: value.filter ?? '',
+  };
+};
+
+const side_to_query = (side, project) => {
+  const value = {
+    commit: side.commit_id ?? undefined,
+    batch: side.batch && side.batch !== 'default' ? side.batch : undefined,
+    filter: side.filter || undefined,
+    project: side.project && side.project !== project ? side.project : undefined,
+  };
+  const fields = Object.entries(value).filter(([, v]) => v !== undefined);
+  return fields.length === 1 && fields[0][0] === 'commit' ? value.commit : Object.fromEntries(fields);
+};
+
+// Plain commit ids are repeated: ?compare=a&compare=b, else qs's indices: ?compare[0][commit]=a&compare[0][batch]=b
+const other_refs_to_query = (sides, project) => {
+  const items = sides.map(side => side_to_query(side, project));
+  if (items.length === 0) return undefined;
+  return items.every(item => typeof item === 'string') ? items : Object.fromEntries(items.map((item, index) => [index, item]));
+};
+
+export const same_side = (a, b) => !!a && !!b
+  && (a.commit_id ?? null) === (b.commit_id ?? null)
+  && a.project === b.project
+  && (a.batch || 'default') === (b.batch || 'default')
+  && (a.filter ?? '') === (b.filter ?? '');
+
+const new_side = selected => ({
+  project: selected.new_project,
+  commit_id: selected.new_commit_id,
+  batch: selected.selected_batch_new,
+  filter: selected.filter_batch_new,
+});
+
+// The selection changes to show `references` (a list of sides), with the one at `index` compared with the new commit
+export const references_changes = (references, index) => {
+  const shown = references[index];
+  return {
+    ref_project: shown.project,
+    ref_commit_id: shown.commit_id ?? undefined,
+    selected_batch_ref: shown.batch || 'default',
+    filter_batch_ref: shown.filter ?? '',
+    other_refs: references.filter((_, i) => i !== index),
+    ref_index: index,
+  };
+};
+
+// What to change in the selection to... (pure: they take the selection, and return the changes for updateSelected)
+// ...compare the new commit with another of the references
+export const show_reference = (selected, index) => references_changes(selected.references, index);
+
+// ...add a reference, and show it. If we have it already, we show it.
+export const add_reference = (selected, side) => {
+  const side_ = { project: selected.project, batch: 'default', filter: '', ...side };
+  const { references } = selected;
+  const existing = references.findIndex(r => same_side(r, side_));
+  if (existing >= 0) return references_changes(references, existing);
+  return references_changes([...references, side_], references.length);
+};
+
+// ...remove a reference. Removing the one shown shows the next one. The last one can't be removed.
+export const remove_reference = (selected, index) => {
+  const { references, ref_index } = selected;
+  if (references.length <= 1) return {};
+  const remaining = references.filter((_, i) => i !== index);
+  const shown = index === ref_index ? Math.min(index, remaining.length - 1) : ref_index - (index < ref_index ? 1 : 0);
+  return references_changes(remaining, shown);
+};
+
+// ...see a reference as the new results: the new commit takes its place in the references
+export const show_as_new = (selected, index) => {
+  const { references, ref_index } = selected;
+  const side = references[index];
+  if (!side?.commit_id || !selected.new_commit_id) return {};
+  const swapped = references.map((r, i) => i === index ? new_side(selected) : r);
+  return {
+    ...references_changes(swapped, ref_index),
+    new_project: side.project,
+    new_commit_id: side.commit_id,
+    selected_batch_new: side.batch || 'default',
+    filter_batch_new: side.filter ?? '',
+  };
+};
+
+
 // Pure, so it's easy to test: (route match, location.search) => selection
 export const selection_from_url = (match, search) => {
   const { path, params } = match;
@@ -81,6 +180,17 @@ export const selection_from_url = (match, search) => {
     new_commit_id = query.commit ?? null;
 
   const selected_views = as_list(query.selected_views)?.map(v => v.replace('_', '-'));
+
+  const ref_side = {
+    project: query.ref_project || project,
+    commit_id: query.reference ?? query.commit_ref_folder ?? null,
+    batch: query.batch_ref || "default",
+    filter: query.filter_ref ?? "",
+  };
+  const other_refs = (as_list(query.compare) ?? []).filter(item => item !== '').map(item => side_from_query(item, project));
+  const ref_index = Math.min(Math.max(0, Math.trunc(Number(query.ref_index)) || 0), other_refs.length);
+  // All the references, in the order users picked them. The one at ref_index is compared with the new commit.
+  const references = [...other_refs.slice(0, ref_index), ref_side, ...other_refs.slice(ref_index)];
   return {
     project,
     route,
@@ -95,12 +205,16 @@ export const selection_from_url = (match, search) => {
     ref_project: query.ref_project || project,
 
     new_commit_id,
-    ref_commit_id: query.reference ?? query.commit_ref_folder ?? null,
+    ref_commit_id: ref_side.commit_id,
 
     selected_batch_new: query.batch || query.batch_new || "default",
-    selected_batch_ref: query.batch_ref || "default",
+    selected_batch_ref: ref_side.batch,
     filter_batch_new: query.filter ?? "",
-    filter_batch_ref: query.filter_ref ?? "",
+    filter_batch_ref: ref_side.filter,
+
+    // the reference compared is references[ref_index], the same as ref_commit_id, selected_batch_ref...
+    references,
+    ref_index,
 
     // filter the list of commits
     search: query.search ?? "",
@@ -127,6 +241,7 @@ const selection_defaults = {
   filter_batch_ref: '',
   search: '',
   sort_order: -1,
+  ref_index: 0,
 };
 const same_value = (value, default_value) => Array.isArray(value) || Array.isArray(default_value)
   ? JSON.stringify([].concat(value)) === JSON.stringify([].concat(default_value))
@@ -181,6 +296,14 @@ export const url_for_selection = (selected, { pathname, search }, defaults = {})
     }
   }
 
+  if ('other_refs' in selected) {
+    const { other_refs, ...rest } = selected;
+    const value = other_refs_to_query(other_refs ?? [], project);
+    if (value === undefined) delete query.compare;
+    else query.compare = value;
+    selected = rest;
+  }
+
   for (const [key, value] of Object.entries(selected)) {
     if (key === 'new_commit_id') continue;
     const url_key = url_keys[key] ?? key;
@@ -197,6 +320,8 @@ export const url_for_selection = (selected, { pathname, search }, defaults = {})
   // the page's project is implicit
   if (query.new_project === project) delete query.new_project;
   if (query.ref_project === project) delete query.ref_project;
+  // without other references, the reference shown is the only one
+  if (!query.compare) delete query.ref_index;
   return { pathname, search: stringify_query(query) };
 };
 

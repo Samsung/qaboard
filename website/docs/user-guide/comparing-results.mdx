@@ -33,7 +33,7 @@ In the **ref** bar (or the **new** bar, it works the same way):
 | **Change Project** | Pick results from another project, e.g. another sub-project of a monorepo, or a fork. |
 | **Switch new/reference** | Swaps the two commits, with their batches and filters. |
 | **Also select as reference** / **as new** | Copies this commit, batch and filter to the other bar. Handy to compare two batches of the **same** commit, e.g. a tuning experiment vs CI. |
-| **Remove from comparison** | Clears the commit. |
+| **Remove from comparison** | Clears the commit. With [several references](#several-references), removes the one shown. |
 | The reference branch | Selects its latest commit. |
 | Milestones | Your favorites, your milestones, the project's, and those from *qaboard.yaml*. The milestone's batch and filter are selected too. |
 
@@ -42,6 +42,18 @@ Each bar also has its own **batch selector** and **filter**: you can compare any
 :::tip
 To see what a tuning experiment changed, select its batch in the new bar, then use **Also select as reference** and pick the **CI** batch in the reference bar.
 :::
+
+## Several references
+To compare with several references, for example the last release, a tuning experiment and the latest `master`, select them all and switch between them: the new commit is compared with one at a time.
+
+In the **ref** bar, click the layers button next to `ref` (**Compare with more references**), then add a commit hash, the reference branch or a milestone: it's shown right away, and the reference you were looking at stays in the list. The bar then shows which one you are looking at, like **‹ 2/3 ›**:
+
+- Click **‹** and **›**, or press <kbd>r</kbd> and <kbd>Shift</kbd> <kbd>r</kbd>, to compare with the next or previous reference. They keep their batch and filter.
+- Click **2/3** to list them: click one to compare with it, the up arrow to show it as the new results (the new commit takes its place in the list), **×** to remove it.
+
+The references are in the page's URL: share it, and others can switch between the same references.
+
+When the new or reference results are a [milestone](#milestones), the image and video viewers call them by its name instead of "new" and "reference". With several references, a reference that isn't a milestone is called by its number in the list, like "reference 2".
 
 ## How runs are matched
 For each new run, QA-Board finds the most similar reference run: first the same input, then the closest configuration, the closest tuning parameters, and the same platform. The closest is the one with the fewest different settings; between as many, the one whose values are the most similar: for `base-v1`, `base-v2` rather than `other`, for `gain: 3`, `gain: 4` rather than `gain: 100`.

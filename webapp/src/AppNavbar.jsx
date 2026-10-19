@@ -117,7 +117,7 @@ const StyledNavbarRef = styled(Navbar)`
 
 // When comparing commits: one navbar for each
 const CommitsNavbars = () => {
-  const { project, project_data, selected, selected_views, new_commit, ref_commit, new_batch, ref_batch } = useComparison();
+  const { project, project_data, selected, selected_views, new_commit, ref_commit, new_batch, ref_batch, references } = useComparison();
   const update = attribute => e => {
     const value = (e?.target && e.target.value !== undefined) ? e.target.value : e;
     // typing filters shouldn't add browser history entries
@@ -155,6 +155,7 @@ const CommitsNavbars = () => {
         selected={selected}
         type="ref"
         same_as_new={same_as_new}
+        references={references}
       />
     </StyledNavbarRef>}
   </>

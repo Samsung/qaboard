@@ -24,6 +24,7 @@ import { MultiSelect } from "@blueprintjs/select";
 import { CommitAvatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
 import { SelectBatchesNav } from "./tuning/SelectBatches";
+import { ReferencesSwitcher } from "./ReferencesSwitcher";
 import { MilestonesPanel } from "../milestones/MilestonesPanel"
 import { CommitMilestoneButton } from "../milestones/CommitMilestone"
 import { milestones_of, results_project } from "../milestones/api"
@@ -33,6 +34,7 @@ import { shortId, pretty_label } from "../utils";
 import { http, errorMessage, isArtifactsError } from "../api/http";
 import { commitQuery } from "../api/queries";
 import { useRefreshCommit, useUrlText, updateSelected, useSiteConfig, useUser } from "../hooks";
+import { remove_reference } from "../selection";
 import { LoginMenuItem } from "./authentication/login";
 import { toaster } from "../toaster"
 import { copyDirectory } from "./logs/DirectoryActions"
@@ -176,7 +178,8 @@ const confirmations = {
 
 // The "new" or "reference" commit we compare: which commit, batch and filter.
 // same_as_new: the reference shows the same results as the new commit, there is nothing to compare
-const CommitNavbar = ({ update, loading, commit, batch, filter, project, project_data, selected, type, same_as_new = false }) => {
+// references: for the reference, all those users selected (see useComparison), we show one at a time
+const CommitNavbar = ({ update, loading, commit, batch, filter, project, project_data, selected, type, same_as_new = false, references }) => {
   const queryClient = useQueryClient();
   const refreshCommit = useRefreshCommit();
   const [waiting, setWaiting] = useState(false);
@@ -379,7 +382,10 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
     typing_timer.current = setTimeout(() => selectCommit(id), 300)
   }
 
-  const removeSelection = () => updateSelected({ [commit_attr]: '' })
+  // with several references, the next one is shown
+  const removeSelection = () => references?.length > 1
+    ? updateSelected(remove_reference({ ...selected, references }, selected.ref_index))
+    : updateSelected({ [commit_attr]: '' })
 
   const selectBranch = async branch => {
     const commit_project = selected[project_attr]
@@ -497,6 +503,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             >
               <Tag minimal>{type}</Tag>
             </Tooltip>
+            {type === 'ref' && !!references && <ReferencesSwitcher/>}
             {(!error_text || !!commit?.committer_name) && <CommitAvatar size='20px' commit={commit} project={selected[project_attr] ?? project} style={{ marginRight: '5px' }} />}
             <CommitMessage
               commit={commit}

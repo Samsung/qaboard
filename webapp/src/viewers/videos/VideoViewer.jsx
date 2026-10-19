@@ -76,6 +76,8 @@ const VideoViewer = ({
   fps,
   style,
   fullscreen,
+  // what to call the new and reference videos
+  labels,
 }) => {
   const queryClient = useQueryClient();
   const signed_in = useUser().is_logged;
@@ -95,14 +97,14 @@ const VideoViewer = ({
 
   const video = {
     url: fileUrl(output_new, path),
-    label: 'new',
+    label: labels?.new ?? 'new',
     file: file_new,
     info: query_new.data,
     size: manifests?.new?.[path]?.st_size,
   };
   const reference = comparing ? {
     url: fileUrl(output_ref, path_reference),
-    label: 'reference',
+    label: labels?.reference ?? 'reference',
     file: file_ref,
     info: query_ref.data,
     size: manifests?.reference?.[path_reference]?.st_size,

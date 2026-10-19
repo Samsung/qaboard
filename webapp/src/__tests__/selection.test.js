@@ -1,6 +1,9 @@
 // The selection (commits, batches, filters, views...) is derived from the URL, and changed by navigating.
 // What we write in the URL must read back the same.
-import { selection_from_url, url_for_selection, date_range_from_query, route_info } from '../selection';
+import {
+  selection_from_url, url_for_selection, date_range_from_query, route_info,
+  show_reference, add_reference, remove_reference, show_as_new,
+} from '../selection';
 import { matchRoutes } from '../router';
 import { route_paths } from '../route_paths';
 
@@ -178,4 +181,86 @@ test('the default date range is the last days', () => {
   expect((to - from) / (24 * 3600 * 1000)).toBeCloseTo(4, 0);
   // invalid dates are ignored
   expect(date_range_from_query({ from: 'yesterday' })[0]).toEqual(from);
+});
+
+
+describe('several references', () => {
+  const ids = selected => selected.references.map(r => r.commit_id);
+  // applies an action on the selection of a URL, and reads the selection back
+  const act = (url, action, ...args) => roundtrip(url, action(select(url), ...args));
+
+  test('without other references, the reference is the only one', () => {
+    const s = select('/p/commit/a?reference=b&batch_ref=x&filter_ref=f');
+    expect(s.references).toEqual([{ project: 'p', commit_id: 'b', batch: 'x', filter: 'f' }]);
+    expect(s.ref_index).toBe(0);
+    expect(select('/p/commit/a').references).toEqual([{ project: 'p', commit_id: null, batch: 'default', filter: '' }]);
+  });
+
+  test('the reference shown is at ref_index among the others', () => {
+    const s = select('/p/commit/a?reference=c&compare=b&compare=d&ref_index=1');
+    expect(ids(s)).toEqual(['b', 'c', 'd']);
+    expect(s.ref_commit_id).toBe('c');
+    // out of range: clamped
+    expect(select('/p/commit/a?reference=c&compare=b&ref_index=9').ref_index).toBe(1);
+    expect(select('/p/commit/a?reference=c&compare=b&ref_index=x').ref_index).toBe(0);
+  });
+
+  test('references with a batch, filter or project', () => {
+    const { url, selected } = act('/p/commit/a?reference=b', add_reference, { commit_id: 'c', batch: 'tuning', filter: 'scene:1', project: 'other' });
+    expect(selected.references[1]).toEqual({ commit_id: 'c', batch: 'tuning', filter: 'scene:1', project: 'other' });
+    // the old reference, now not shown, is only a commit id
+    expect(new URLSearchParams(url.split('?')[1]).get('compare')).toBe('b');
+    expect(selected).toMatchObject({ ref_commit_id: 'c', selected_batch_ref: 'tuning', filter_batch_ref: 'scene:1', ref_project: 'other', ref_index: 1 });
+  });
+
+  test('switching keeps their order', () => {
+    const url = '/p/commit/a?reference=b&compare=c&compare=d';
+    const { url: next, selected } = act(url, show_reference, 2);
+    expect(ids(selected)).toEqual(['b', 'c', 'd']);
+    expect(selected.ref_commit_id).toBe('d');
+    expect(next).toBe('/p/commit/a?reference=d&compare=b&compare=c&ref_index=2');
+    // back to the first: no ref_index in the URL
+    expect(act(next, show_reference, 0).url).toBe('/p/commit/a?reference=b&compare=c&compare=d');
+  });
+
+  test('adding a reference shows it, adding one we have shows it', () => {
+    const { url, selected } = act('/p/commit/a?reference=b', add_reference, { commit_id: 'c' });
+    expect(ids(selected)).toEqual(['b', 'c']);
+    expect(selected.ref_commit_id).toBe('c');
+    const again = act(url, add_reference, { commit_id: 'b' }).selected;
+    expect(ids(again)).toEqual(['b', 'c']);
+    expect(again.ref_commit_id).toBe('b');
+  });
+
+  test('removing a reference', () => {
+    const url = '/p/commit/a?reference=c&compare=b&compare=d&ref_index=1';
+    // the one shown: the next one is shown
+    expect(act(url, remove_reference, 1).selected).toMatchObject({ ref_commit_id: 'd', ref_index: 1 });
+    // the last one shown: the one before
+    expect(act('/p/commit/a?reference=d&compare=b&ref_index=1', remove_reference, 1).selected).toMatchObject({ ref_commit_id: 'b', ref_index: 0 });
+    // another one: the same is shown
+    const before = act(url, remove_reference, 0).selected;
+    expect(ids(before)).toEqual(['c', 'd']);
+    expect(before).toMatchObject({ ref_commit_id: 'c', ref_index: 0 });
+    // the last one can't be removed
+    expect(remove_reference(select('/p/commit/a?reference=b'), 0)).toEqual({});
+    // without other references, the URL is as before
+    expect(act('/p/commit/a?reference=b&compare=c', remove_reference, 1).url).toBe('/p/commit/a?reference=b');
+  });
+
+  test('a reference shown as new: the new commit takes its place', () => {
+    const { url, selected } = act('/p/commit/a?batch=x&reference=b&compare=c', show_as_new, 1);
+    expect(selected.new_commit_id).toBe('c');
+    expect(selected.selected_batch_new).toBe('default');
+    expect(selected.references).toEqual([
+      { project: 'p', commit_id: 'b', batch: 'default', filter: '' },
+      { project: 'p', commit_id: 'a', batch: 'x', filter: '' },
+    ]);
+    expect(url).toBe('/p/commit/c?reference=b&compare%5B0%5D%5Bcommit%5D=a&compare%5B0%5D%5Bbatch%5D=x');
+  });
+
+  test('changing the reference shown keeps the others', () => {
+    const { selected } = roundtrip('/p/commit/a?reference=b&compare=c', { ref_commit_id: 'z' });
+    expect(ids(selected)).toEqual(['z', 'c']);
+  });
 });
