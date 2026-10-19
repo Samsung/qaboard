@@ -19,7 +19,7 @@ export interface ImageDescriptor {
   [key: string]: unknown;
 }
 
-export type Mode = 'side-by-side' | 'wipe' | 'toggle' | 'difference';
+export type Mode = 'side-by-side' | 'wipe' | 'single' | 'difference';
 
 export type DiffMethod = 'absolute' | 'signed' | 'perceptual' | 'deltaE' | 'exact';
 
@@ -162,7 +162,7 @@ export interface ImageViewerProps {
   /** The app's actions in the regions menu */
   regionActions?: RegionAction[];
 
-  /** The reference shows first (left, or in toggle mode), controlled with onSwappedChange, e.g. for every viewer of a page */
+  /** The reference shows first (left, or in single mode), controlled with onSwappedChange, e.g. for every viewer of a page */
   swapped?: boolean;
   defaultSwapped?: boolean;
   onSwappedChange?: (swapped: boolean) => void;

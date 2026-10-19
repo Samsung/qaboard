@@ -27,13 +27,13 @@ import { copyFrame, fileUrl, mediaErrorMessage, saveFrame, usePreference } from 
 import './videos.css';
 
 // Compares the video of a run with its reference's: they play in sync, frame by frame, side by side,
-// with a wipe, toggled, or as their difference. Zoom (wheel, pinch) and pan (drag) apply to both.
+// with a wipe, one at a time (single), or as their difference. Zoom (wheel, pinch) and pan (drag) apply to both.
 // Animated images (.webp, .gif) are compared too, but the browser plays them on its own.
 
 const MODES = [
   { value: 'side-by-side', label: 'Side by side', icon: 'split-columns' },
   { value: 'wipe', label: 'Wipe', icon: 'drag-handle-vertical' },
-  { value: 'toggle', label: 'Toggle', icon: 'swap-horizontal' },
+  { value: 'single', label: 'Single', icon: 'media' },
   { value: 'difference', label: 'Difference', icon: 'contrast' },
 ];
 const GAINS = [1, 2, 4, 8, 16, 32, 64];
@@ -53,8 +53,8 @@ const SHORTCUTS = [
   ['Wheel, pinch', 'Zoom'],
   ['Drag', 'Pan (or move the wipe when not zoomed)'],
   ['+ − 0', 'Zoom in / out / fit'],
-  ['1 2 3 4', 'Side by side / wipe / toggle / difference'],
-  ['t', 'Swap new and reference (or click Toggle again)'],
+  ['1 2 3 4', 'Side by side / wipe / single / difference'],
+  ['t', 'Swap new and reference (or click Single again)'],
   ['h', 'Hide the labels'],
   ['m', 'Mute / unmute'],
 ];
@@ -158,7 +158,7 @@ const VideoViewer = ({
   const info_ref = useMediaInfo(comparing ? element_ref : null);
 
   const [stored_mode, setMode] = usePreference('mode', 'side-by-side');
-  const mode = comparing ? (modes.some(m => m.value === stored_mode) ? stored_mode : 'side-by-side') : 'single';
+  const mode = comparing ? (modes.some(m => m.value === stored_mode) ? stored_mode : 'side-by-side') : 'no-reference';
   const [gain, setGain] = usePreference('gain', 4);
   const [swapped, setSwapped] = useState(false);
   const [hide_labels, setHideLabels] = useState(false);
@@ -396,7 +396,7 @@ const VideoViewer = ({
       const focus = document.activeElement;
       const active = element.contains(focus) || (hovered.current && (!focus || focus === document.body));
       if (!active || !onKey.current(event)) return;
-      // it also stops the image viewers from handling "t" (they listen to keypress)
+      // it also stops the image viewers from handling "t" (they listen on window, after document)
       event.preventDefault();
       handled_space = event.key === ' ';
     };
@@ -406,11 +406,11 @@ const VideoViewer = ({
       event.preventDefault();
       handled_space = false;
     };
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keyup', onKeyUp);
     return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('keyup', onKeyUp);
     };
   }, []);
 
@@ -442,7 +442,7 @@ const VideoViewer = ({
     const base = { width: pane.width, height: pane.height, left: 0 };
     if (side_by_side) return { ...base, left: is_first ? 0 : pane.width + GAP };
     if (mode === 'wipe' && !is_first) return { ...base, clipPath: `inset(0 0 0 ${wipe * pane.width}px)` };
-    if ((mode === 'toggle' && !is_first) || mode === 'difference') return { ...base, opacity: 0 };
+    if ((mode === 'single' && !is_first) || mode === 'difference') return { ...base, opacity: 0 };
     return base;
   };
   const contentStyle = media => {
@@ -481,7 +481,7 @@ const VideoViewer = ({
   const labels = !comparing ? null
     : side_by_side ? null  // in their slot
     : mode === 'wipe' ? <>{label(first, 'left')}{label(second, 'right')}</>
-    : mode === 'toggle' ? label(first, 'left')
+    : mode === 'single' ? label(first, 'left')
     : !hide_labels && <Tag className="video-label left" intent={Intent.NONE}>|new − reference| × {gain}</Tag>;
 
   const slot = (which, src, setElement, media, video_poster) => {
@@ -543,8 +543,8 @@ const VideoViewer = ({
           options={modes.map(({ value, label, icon }) => ({ value, label, icon }))}
           value={mode}
           onValueChange={value => {
-            // clicking "Toggle" again flips between the videos, like "t"
-            if (value === 'toggle' && mode === 'toggle') swap();
+            // clicking "Single" again flips between the videos, like "t"
+            if (value === 'single' && mode === 'single') swap();
             else setMode(value);
             // the keys go to the videos, not to the buttons (arrows would change the mode)
             stage.current.focus({ preventScroll: true });

@@ -191,12 +191,18 @@ test('compares images side by side, with a wipe, toggling, and as their differen
   await page.mouse.up();
   await expect(divider).toHaveAttribute('aria-valuenow', /^7[4-6]$/);
 
-  // toggle: click to flip
-  await page.getByRole('radio', { name: 'Toggle' }).click();
+  // single: a click or t shows the other image, then their difference, then the first again
+  await page.getByRole('radio', { name: 'Single' }).click();
   await expect(page.locator('.qiv-label')).toHaveText(/^new/);
   await stage.click({ position: { x: 50, y: 50 } });
   await expect(page.locator('.qiv-label')).toHaveText(/^reference/);
+  await expect(page.getByRole('button', { name: /^Show the difference: new − reference/ })).toBeVisible();
   await page.keyboard.press('t');
+  await expect(page.getByRole('radio', { name: 'Difference' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('.qiv-diff-pane')).toBeVisible();
+  await expect(page.locator('.qiv-label')).toHaveCount(0);
+  await stage.click({ position: { x: 50, y: 50 } });
+  await expect(page.getByRole('radio', { name: 'Single' })).toHaveAttribute('aria-checked', 'true');
   await expect(page.locator('.qiv-label')).toHaveText(/^new/);
 
   // the keyboard picks the mode of the viewer under the mouse
@@ -453,12 +459,51 @@ test('swaps or flips the images of every viewer of the page', async ({ page }) =
   await page.keyboard.press('t');
   await expect.poll(() => labelsOf(second)).toEqual(['reference', 'new']);
   await expect.poll(() => labelsOf(first)).toEqual(['reference', 'new']);
-  // in toggle mode, a click on one image flips them all
-  await first.getByRole('radio', { name: 'Toggle' }).click();
-  await expect.poll(() => labelsOf(second)).toEqual(['reference']);
+  // in difference mode, the difference stays in the middle
+  await first.getByRole('radio', { name: 'Difference' }).click();
+  await expect.poll(() => labelsOf(second)).toEqual(['reference', 'new']);
+  await page.keyboard.press('t');
+  await expect.poll(() => labelsOf(second)).toEqual(['new', 'reference']);
+  await expect(second.locator('.qiv-diff-between')).toBeVisible();
+  // in single mode, a click on one image shows the other in all of them, then their difference, then the first
+  await first.getByRole('radio', { name: 'Single' }).click();
+  await expect.poll(() => labelsOf(second)).toEqual(['new']);
   await first.locator('.qiv-stage').click({ position: { x: 60, y: 60 } });
+  await expect.poll(() => labelsOf(second)).toEqual(['reference']);
+  await expect.poll(() => labelsOf(first)).toEqual(['reference']);
+  await first.locator('.qiv-stage').click({ position: { x: 60, y: 60 } });
+  for (const card of [first, second]) {
+    await expect(card.locator('.qiv-diff-pane')).toBeVisible();
+    await expect.poll(() => labelsOf(card)).toEqual([]);
+  }
+  await page.keyboard.press('t');
   await expect.poll(() => labelsOf(second)).toEqual(['new']);
   await expect.poll(() => labelsOf(first)).toEqual(['new']);
+});
+
+test('takes the keys anywhere on the page, also while scrolling', async ({ page }) => {
+  await setup(page, { runs: ['A', 'B'] });
+  const [first, second] = [100, 101].map(id => page.locator(`.output-card[data-output-id="${id}"]`));
+  await expect.poll(() => labelsOf(second)).toEqual(['new', 'reference']);
+  // the mouse over no viewer, nothing focused
+  await page.mouse.move(2, 300);
+  await page.keyboard.press('t');
+  await expect.poll(() => labelsOf(first)).toEqual(['reference', 'new']);
+  await expect.poll(() => labelsOf(second)).toEqual(['reference', 'new']);
+  await page.keyboard.press('3');
+  await expect.poll(() => labelsOf(second)).toEqual(['reference']);
+  // after using the toolbar of a viewer
+  await second.getByRole('button', { name: /^Show the difference/ }).click();
+  await expect(second.locator('.qiv-diff-pane')).toBeVisible();
+  await page.mouse.move(2, 300);
+  await page.mouse.wheel(0, 200);
+  await page.keyboard.press('t');
+  await expect.poll(() => labelsOf(first)).toEqual(['new']);
+  await expect.poll(() => labelsOf(second)).toEqual(['new']);
+  // the arrows scroll the page, they don't change the mode
+  await second.getByRole('radio', { name: 'Side by side' }).click();
+  await page.keyboard.press('ArrowDown');
+  await expect(second.getByRole('radio', { name: 'Side by side' })).toHaveAttribute('aria-checked', 'true');
 });
 
 test('runs a blind test: shuffled, called A and B, then revealed', async ({ page }) => {
@@ -483,6 +528,14 @@ test('runs a blind test: shuffled, called A and B, then revealed', async ({ page
   await page.keyboard.press('t');
   await expect.poll(() => labelsOf(cards[1])).toEqual(['B', 'A']);
   await page.keyboard.press('t');
+  // toggling, from anywhere on the page: A everywhere, then B, then their difference, then A
+  await page.keyboard.press('3');
+  await page.mouse.move(2, 300);
+  for (const [i, expected] of [['A'], ['B'], [], ['A']].entries()) {
+    if (i > 0) await page.keyboard.press('t');
+    for (const card of cards.slice(0, 2)) await expect.poll(() => labelsOf(card)).toEqual(expected);
+  }
+  await page.keyboard.press('1');
 
   // which was which
   await cards[1].getByRole('button', { name: 'Reveal' }).click();

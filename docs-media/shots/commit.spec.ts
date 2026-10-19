@@ -377,8 +377,8 @@ clip('commit/video-compare', {
     await ui.wheel(stage, -1000, { steps: 5, position: { x: box.width * zoomAt.x, y: box.height * zoomAt.y } });
     await ui.hold(1200);
 
-    await ui.caption('Toggle: press t to flip them in place');
-    await ui.click(ui.page.getByRole('radio', { name: 'Toggle' }));
+    await ui.caption('Single: press t to flip them in place');
+    await ui.click(ui.page.getByRole('radio', { name: 'Single' }));
     await ui.settle();
     await ui.cursor.moveTo(at(zoomAt.x + 0.08, zoomAt.y + 0.1));
     await ui.hold(400);

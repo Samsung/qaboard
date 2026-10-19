@@ -194,7 +194,7 @@ const ViewOptionsPanel = ({
 
   const viewer_switches = [
     ...(has_images ? [<OptionHeader key="image_mode" style={{ marginBottom: 8 }}>
-      <Explained label="Compare images" explanation="How the image viewers show the new and reference images: side by side, with a wipe, toggling between them, or their difference. You can also pick it above any image, or with the keys 1 to 4." />
+      <Explained label="Compare images" explanation="How the image viewers show the new and reference images: side by side, with a wipe, one at a time (single), or their difference. You can also pick it above any image, or with the keys 1 to 4." />
       <div className="option-actions">
         <HTMLSelect
           value={image_mode}
