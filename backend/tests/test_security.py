@@ -395,7 +395,7 @@ UNAUTHENTICATED_ENDPOINTS = {
   ("outputs.py", "new_output_webhook"), ("batch.py", "update_batch"), ("commit.py", "api_ci_commit"),
   ("integrations.py", "jenkins_build_trigger"),
   # read-only, POST is only used to send parameters
-  ("image.py", "get_pixel"), ("image.py", "get_rois"), ("image.py", "get_report"),
+  ("image.py", "get_pixel"), ("image.py", "get_rois"), ("image.py", "get_report"), ("video.py", "get_video_diff"),
   ("integrations.py", "gitlab_job"), ("integrations.py", "jenkins_build"), ("integrations.py", "github_workflow_run"),
   # checks the login itself when writing
   ("tuning.py", "groups"),
