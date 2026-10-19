@@ -18,8 +18,8 @@ import { MultiSelect } from "@blueprintjs/select";
 
 import { logTickValues } from "./logTicks";
 import { RunBadge } from "./tags";
-import { format, plotly_palette, match_query } from "../utils";
-import { summary_outputs, metric_values, summary_stats, mixed_parameters } from "../utils/compare";
+import { format, plotly_palette, match_query, metric_info, with_undeclared_metrics } from "../utils";
+import { summary_outputs, metric_values, summary_stats, mixed_parameters, changed_metrics } from "../utils/compare";
 import { useIsDark } from "../theme";
 import { useSiteConfig } from "../hooks";
 import { plot_color, with_default_labels } from "../sideColors";
@@ -45,8 +45,17 @@ const percent_formatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0
 });
 
-const MetricHeader = ({short_label, label, description, condensed=false, suffix, show_suffix=false}) => {
-    return <Tooltip content={<span><strong>{label}</strong> {description}</span>}>
+// For metrics that don't say which way is better, e.g. those that were not declared
+const direction_unknown = "QA-Board doesn't know if higher or lower values are better: it shows changes in neutral colors.";
+const is_direction_unknown = metric => metric.smaller_is_better === null;
+
+// `hint`: how the view shows the metric
+const MetricHeader = ({short_label, label, description, condensed=false, suffix, show_suffix=false, smaller_is_better, hint}) => {
+    return <Tooltip content={<span>
+      <strong>{label}</strong> {description}
+      {smaller_is_better === null && <><br/>{direction_unknown}</>}
+      {hint && <><br/>{hint}</>}
+    </span>}>
           <>
             {condensed ? short_label: label}
             {show_suffix && `${label}${!!suffix ? ` [${suffix}]` : ''}`}
@@ -70,7 +79,9 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
     const delta_relative = (value - value_ref) / value_ref;
     const neutral_threshold = metric_info.target_passfail ? 0 : 0.01
     let intent_compare;
-    if (delta_relative > neutral_threshold)
+    if (is_direction_unknown(metric_info))
+      intent_compare = Intent.DEFAULT;
+    else if (delta_relative > neutral_threshold)
       intent_compare = metric_info.smaller_is_better ? Intent.DANGER : Intent.SUCCESS;
     else if (delta_relative < -neutral_threshold)
       intent_compare = metric_info.smaller_is_better ? Intent.SUCCESS : Intent.DANGER;
@@ -87,7 +98,7 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
   return <CompoundTag
     style={{margin: '3px', paddingTop: "0px", paddingBottom: "0px"}}
     minimal
-    intent={metric_info.target ? intent : null}
+    intent={metric_info.target && !is_direction_unknown(metric_info) ? intent : null}
     leftContent={<MetricHeader condensed {...metric_info_rest}/>}
   >
     {value_component}
@@ -96,17 +107,21 @@ const MetricTag = ({ metrics_new, metrics_ref, metric_info }) => {
 };
 
 
-const MetricsTags = memo(({ metrics_new, metrics_ref, available_metrics = {}, selected_metrics = [] }) =>
-  selected_metrics
-    .filter(key => metrics_new[key] !== undefined && available_metrics[key] !== undefined)
+// The run's metrics, declared or not. By default, the first few.
+const MetricsTags = memo(({ metrics_new, metrics_ref, available_metrics = {}, selected_metrics }) => {
+  const keys = selected_metrics?.length > 0
+    ? selected_metrics
+    : Object.keys(with_undeclared_metrics(available_metrics, Object.keys(metrics_new))).filter(key => metrics_new[key] !== undefined).slice(0, 6);
+  return keys
+    .filter(key => metrics_new[key] !== undefined)
     .map(key =>
       <MetricTag key={key}
         metrics_new={metrics_new}
         metrics_ref={metrics_ref}
-        metric_info={available_metrics[key]}
+        metric_info={metric_info(available_metrics, key)}
       />
-    )
-);
+    );
+});
 
 
 
@@ -183,7 +198,7 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
   );
 
   const shapes = [];
-  if (metric.target) {
+  if (metric.target && !is_direction_unknown(metric)) {
     const min_y = Math.min(...all_values) * metric.scale;
     const max_y = Math.max(...all_values) * metric.scale;
     const threshold = metric.target * metric.scale;
@@ -324,21 +339,28 @@ const no_runs = { outputs: {}, filtered: { outputs: [] } };
 // labels: what the commit page calls the new and reference results, and their colors (useComparison().labels)
 const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: xaxis_labels_, metrics, selected_metrics: selected_metrics_, labels }) => {
   const { available_metrics = {}, summary_metrics = [] } = metrics ?? {};
-  // By default we show the metrics we were given, or the project's summary metrics.
-  // Users can change the selection, until the default changes.
-  const default_keys = (selected_metrics_ ?? summary_metrics.filter(k => !!available_metrics[k]).map(k => available_metrics[k]))
-    .map(m => m.key);
-  const default_signature = default_keys.join('\n');
-  const [user_selection, setUserSelection] = useState(null);
-  const selected_keys = user_selection?.default_signature === default_signature ? user_selection.keys : default_keys;
-  const selected_metrics = selected_keys.map(k => available_metrics[k]).filter(Boolean);
-  const setSelectedKeys = keys => setUserSelection({ default_signature, keys });
+  const used_metrics = new_batch?.used_metrics;
 
   // The same runs as GET /api/v1/commit/<sha>/compare, see utils/compare.js
   const { outputs_new, outputs_ref } = useMemo(
     () => new_batch?.filtered ? summary_outputs(new_batch, ref_batch?.filtered ? ref_batch : no_runs) : { outputs_new: [], outputs_ref: [] },
     [new_batch, ref_batch],
   );
+  // By default we show the metrics we were given, or the project's summary metrics,
+  // else those that changed the most vs the reference.
+  const configured_keys = selected_metrics_?.map(m => m.key) ?? (Array.isArray(summary_metrics) && summary_metrics.length > 0 ? summary_metrics : null);
+  const is_automatic = configured_keys === null;
+  const changed_keys = useMemo(
+    () => is_automatic ? changed_metrics(outputs_new, outputs_ref, Object.keys(available_metrics).filter(k => used_metrics?.has(k))) : [],
+    [is_automatic, outputs_new, outputs_ref, available_metrics, used_metrics],
+  );
+  const default_keys = is_automatic ? changed_keys : configured_keys;
+  // Users can change the selection, until the configuration changes: not when runs finish or are filtered.
+  const default_signature = is_automatic ? '(automatic)' : configured_keys.join('\n');
+  const [user_selection, setUserSelection] = useState(null);
+  const selected_keys = user_selection?.default_signature === default_signature ? user_selection.keys : default_keys;
+  const selected_metrics = selected_keys.map(k => metric_info(available_metrics, k));
+  const setSelectedKeys = keys => setUserSelection({ default_signature, keys });
   const { tags, outputs_by_tag } = useMemo(
     () => breakdown_by_tag ? tags_breakdown(outputs_new) : { tags: {}, outputs_by_tag: {} },
     [breakdown_by_tag, outputs_new],
@@ -373,7 +395,11 @@ const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: 
           </Tag>
         )}
       {no_runs_state}
-      {!no_runs_state && default_keys.length === 0 && selected_metrics.length === 0 && <NoSummaryMetrics/>}
+      {!no_runs_state && is_automatic && default_keys.length === 0 && selected_metrics.length === 0 && <NoSummaryMetrics/>}
+      {!no_runs_state && is_automatic && default_keys.length > 0 && selected_keys === default_keys && <AutomaticSummaryNote
+        count={default_keys.length}
+        has_reference={outputs_ref.length > 0}
+      />}
       {!no_runs_state && selected_metrics.map(m =>
         <MetricSummary
           key={m.key}
@@ -385,6 +411,7 @@ const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: 
           sides={sides}
         />
       )}
+      {!no_runs_state && <UndeclaredMetricsNote metrics={selected_metrics}/>}
     </div>
   );
 };
@@ -393,12 +420,38 @@ const NoSummaryMetrics = () => {
   const { docs_root } = useSiteConfig();
   return <NonIdealState
     icon="th-list"
-    title="No summary metrics configured"
+    title="No metrics to summarize"
     description={<p>
-      Pick metrics above, or list them under <code>summary_metrics</code> in your metrics file to show them by default.{" "}
+      The runs don't have metrics with numbers: return them from your <code>run()</code> function.{" "}
       <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/computing-quantitative-metrics`}>Learn more</a>
     </p>}
   />;
+};
+
+const note_style = { margin: '12px 0 0' };
+
+// The project didn't choose which metrics to summarize
+const AutomaticSummaryNote = ({ count, has_reference }) => {
+  const { docs_root } = useSiteConfig();
+  return <p className={Classes.TEXT_MUTED} style={note_style}>
+    {has_reference
+      ? `The ${count} metrics that changed the most vs the reference.`
+      : `The first ${count} metrics.`}{" "}
+    Pick others above, or choose those shown by default with <code>summary_metrics</code> in your metrics file.{" "}
+    <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/computing-quantitative-metrics#choosing-the-metrics-shown-by-default`}>Learn more</a>
+  </p>;
+};
+
+// Helps declare metrics: the web app can't tell good from bad without knowing which way is better
+const UndeclaredMetricsNote = ({ metrics }) => {
+  const { docs_root } = useSiteConfig();
+  const unknown = metrics.filter(is_direction_unknown);
+  if (unknown.length === 0) return null;
+  const names = unknown.slice(0, 3).map(m => m.label).join(', ') + (unknown.length > 3 ? ` and ${unknown.length - 3} more` : '');
+  return <p className={Classes.TEXT_MUTED} style={note_style}>
+    Higher or lower is better? QA-Board doesn't know for {names}: it shows their changes in neutral colors.{" "}
+    <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/computing-quantitative-metrics#declaring-metrics`}>Declare them</a> where your code computes them.
+  </p>;
 };
 
 const filterMetric = (query, metric) => match_query(query)(`${metric.key} ${metric.label} ${metric.short_label}`);
@@ -450,6 +503,7 @@ const format_delta = delta_relative => {
 };
 
 const delta_intent = (delta_relative, smaller_is_better) => {
+  if (smaller_is_better === null) return Intent.DEFAULT;
   if (delta_relative > 0.01) return smaller_is_better ? Intent.DANGER : Intent.SUCCESS;
   if (delta_relative < -0.01) return smaller_is_better ? Intent.SUCCESS : Intent.DANGER;
   return Intent.DEFAULT;
@@ -487,7 +541,7 @@ const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, xa
           <h5 className={Classes.HEADING}>{m.short_label}</h5>
         </Tooltip>
         <br/>
-        {m.target !== undefined && <SuccessBar success_frac={new_pc_good} metric={m}/>}
+        {new_pc_good !== null && <SuccessBar success_frac={new_pc_good} metric={m}/>}
       </MetricTile>
 
       {!breakdown_by_tag && (
@@ -501,11 +555,11 @@ const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, xa
               </h3>
             </Tooltip>
             <h5 className={Classes.HEADING}>
-              <Tooltip content={`Change of the median vs the reference: ${delta_relative > 0 ? '+' : ''}${metric_formatter(100 * delta_relative)}%. ${m.smaller_is_better ? 'Lower' : 'Higher'} is better.`}>
+              <Tooltip content={`Change of the median vs the reference: ${delta_relative > 0 ? '+' : ''}${metric_formatter(100 * delta_relative)}%. ${is_direction_unknown(m) ? direction_unknown : `${m.smaller_is_better ? 'Lower' : 'Higher'} is better.`}`}>
               <Tag intent={intent} minimal round>{format_delta(delta_relative)}</Tag>
               </Tooltip>
             </h5>
-            {(m.target !== undefined && !!ref_pc_good) && <SuccessBar success_frac={ref_pc_good} metric={m}/>}
+            {!!ref_pc_good && <SuccessBar success_frac={ref_pc_good} metric={m}/>}
           </MetricTile>}
           {new_values.length > 1 && <HistogramComparaison
             series={ref_values.length > 0 ? [new_values, ref_values] : [new_values]}

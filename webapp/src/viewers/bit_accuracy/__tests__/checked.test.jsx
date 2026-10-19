@@ -46,7 +46,7 @@ describe('bitAccuracyChecker', () => {
     const checked = bitAccuracyChecker(undefined);
     expect(checked('out.png')).toBe(true);
     expect(checked('stages/4.png')).toBe(true);
-    for (const file of ['metrics.json', 'run.json', 'log.txt', 'log.lsf.txt', 'manifest.inputs.json', '.nfs0001234'])
+    for (const file of ['metrics.json', 'metrics_definitions.json', 'run.json', 'log.txt', 'log.lsf.txt', 'manifest.inputs.json', '.nfs0001234'])
       expect(checked(file)).toBe(false);
     expect(bitAccuracyChecker({ patterns: [] })('out.png')).toBe(true);
     expect(bitAccuracyChecker({ patterns: null })('out.png')).toBe(true);

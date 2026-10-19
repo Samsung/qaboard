@@ -13,11 +13,11 @@
       },
       "additionalProperties": {"$ref": "#/$defs/metric"}
     },
-    "default_metric": {"type": "string", "description": "The metric selected by default, e.g. to sort and color results."},
-    "main_metrics": {"$ref": "#/$defs/metric_list", "description": "Shown in the results tables and the output cards."},
-    "summary_metrics": {"$ref": "#/$defs/metric_list", "description": "Shown in the summary histograms."},
-    "dashboard_metrics": {"$ref": "#/$defs/metric_list", "description": "Shown in the History page's histograms. Default: main_metrics."},
-    "dashboard_evolution_metrics": {"$ref": "#/$defs/metric_list", "description": "Available in the History page's plot over time. Default: main_metrics."},
+    "default_metric": {"type": "string", "description": "The metric selected by default: to sort runs, in lists of commits and their plot over time."},
+    "main_metrics": {"$ref": "#/$defs/metric_list", "description": "Shown in the results tables and on the run cards. Metrics don't need to be declared. Default: the tables show the declared metrics and others up to 20 columns, the run cards the first 6."},
+    "summary_metrics": {"$ref": "#/$defs/metric_list", "description": "Shown in the Summary. Default: those that changed the most vs the reference."},
+    "dashboard_metrics": {"$ref": "#/$defs/metric_list", "description": "Shown in the History page's summary and tables. Default: main_metrics, else the Summary picks."},
+    "dashboard_evolution_metrics": {"$ref": "#/$defs/metric_list", "description": "Available in the History page's plot over time. Default: main_metrics, else all the metrics of its commits."},
     "dashboard_breakdown_by_tag": {"type": "boolean", "description": "On the History page, summarize the metrics per tag of the inputs (their metadata's `tags`)."}
   },
   "additionalProperties": false,
@@ -29,13 +29,13 @@
         "label": {"type": "string", "description": "Default: the metric's key."},
         "short_label": {"type": "string", "description": "For tables and small spaces. Default: label."},
         "description": {"type": "string", "description": "Shown in tooltips."},
-        "smaller_is_better": {"type": ["boolean", "string"], "description": "Default: true."},
+        "smaller_is_better": {"type": ["boolean", "string", "null"], "description": "Whether smaller values are better. null: neither, the web app shows changes in neutral colors. Left out: true in metrics files, unknown (like null) in metrics_definitions.json and in code."},
         "target": {"type": "number", "description": "The value to reach. Results are colored by how they compare to it."},
         "target_passfail": {"type": "boolean", "description": "The target is pass/fail: show results as passed or failed."},
         "scale": {"type": "number", "description": "Values are multiplied by it when shown, e.g. 100 for a percentage. Default: 1."},
         "suffix": {"type": "string", "description": "Shown after the values, e.g. `%` or ` ms`."},
         "precision": {"type": "integer", "description": "Significant digits shown. Default: 3."},
-        "plot_scale": {"enum": ["log", "linear"], "description": "The scale of the axis in plots."}
+        "plot_scale": {"enum": ["log", "linear"], "description": "The scale of the axis in plots. Default: log in the Summary's box plots, linear on the History page."}
       },
       "additionalProperties": false
     },

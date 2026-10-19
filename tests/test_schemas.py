@@ -36,7 +36,7 @@ class TestSchemas(unittest.TestCase):
 
   def test_schemas_are_valid(self):
     from jsonschema import Draft202012Validator
-    self.assertEqual(set(self.schemas), {'batches.schema.json', 'qaboard.schema.json', 'metrics.schema.json'})
+    self.assertEqual(set(self.schemas), {'batches.schema.json', 'qaboard.schema.json', 'metrics.schema.json', 'metrics_definitions.schema.json'})
     for name, schema in self.schemas.items():
       with self.subTest(name):
         Draft202012Validator.check_schema(schema)
@@ -66,6 +66,15 @@ class TestSchemas(unittest.TestCase):
         self.assertEqual(self.errors(schema_name, yaml.safe_load(text)), [])
     # every file in qa/ is covered
     self.assertEqual({p.name for p in (sample / 'qa').glob('*.yaml')}, {'batches.yaml', 'metrics.yaml'})
+
+  def test_metrics_definitions(self):
+    # what runs write next to their metrics.json (qaboard/metrics.py)
+    self.assertEqual(self.errors('metrics_definitions.schema.json', {
+      'latency': {'suffix': ' ms', 'smaller_is_better': True, 'target': 15}, 'frames': {'smaller_is_better': None},
+    }), [])
+    for value in [{'latency': {'sufix': 'ms'}}, {'latency': 1}, []]:
+      with self.subTest(value):
+        self.assertNotEqual(self.errors('metrics_definitions.schema.json', value), [])
 
   def test_metrics(self):
     self.assertEqual(self.errors('metrics.schema.json', {

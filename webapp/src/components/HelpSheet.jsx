@@ -139,7 +139,7 @@ const HelpSheet = ({ isOpen, onClose }) => {
             <dt>Batch</dt><dd>Runs of the same commit, with a label. <strong>CI</strong> is the batch your CI runs; tuning experiments get their own. <Doc page="batches-running-on-multiple-inputs">Batches</Doc></dd>
             <dt>New, reference</dt><dd>Results are always compared: each run with the reference's run of the same input. <Doc page="references-and-milestones">References</Doc></dd>
             <dt>Milestone</dt><dd>A commit and batch you keep as a reference: a release, a benchmark.</dd>
-            <dt>Target</dt><dd>A metric's goal, from your metrics file: tables and the Summary color runs that meet it. <Doc page="computing-quantitative-metrics">Metrics</Doc></dd>
+            <dt>Target</dt><dd>A metric's goal, declared by your code or metrics file: tables and the Summary color runs that meet it. <Doc page="computing-quantitative-metrics">Metrics</Doc></dd>
             <dt>Artifacts</dt><dd>The build your CI saved for a commit, so you can run it again from the web app. <Doc page="storage/artifacts">Artifacts</Doc></dd>
           </dl>
           <h4>Filtering runs</h4>

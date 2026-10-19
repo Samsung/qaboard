@@ -230,6 +230,7 @@ def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, manifest_name='m
     ignore.append('log.txt')              # contains timestamps
     ignore.append('log.lsf.txt')          # contains timestamps
     ignore.append('metrics.json')         # contains measured run time
+    ignore.append('metrics_definitions.json') # how to show metrics, not outputs
     ignore.append('.nfs000*')             # NFS temporary files
 
     missing_runs = False
