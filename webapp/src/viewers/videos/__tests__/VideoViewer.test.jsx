@@ -90,6 +90,33 @@ describe('VideoViewer', () => {
     expect(labels(container)).toEqual(['new640×360@left', 'reference640×360@left']);
   });
 
+  it('highlights a range of values picked on the histogram', () => {
+    // it used to crash: "TypeError: Cannot read properties of undefined (reading 'join')"
+    const { container } = viewer({ output_ref: output('ref') });
+    load(screen.getByLabelText('New video'));
+    load(screen.getByLabelText('Reference video'));
+    fireEvent.click(screen.getByRole('button', { name: 'Histogram of the frames' }));
+    const histogram = within(container.querySelector('.qiv-histogram'));
+    const red = histogram.getByRole('button', { name: 'R' });
+    fireEvent.click(red);
+    expect(red).toHaveAttribute('aria-pressed', 'true');
+    expect(histogram.getByRole('button', { name: 'G' })).toHaveAttribute('aria-pressed', 'false');
+    expect(container.querySelectorAll('.video-highlight')).toHaveLength(0);
+
+    // drag from 64 to 128 on a 256px wide histogram
+    const plot = histogram.getByRole('slider');
+    plot.getBoundingClientRect = () => ({ left: 0, top: 0, width: 256, height: 120, right: 256, bottom: 120 });
+    fireEvent.pointerDown(plot, { button: 0, clientX: 64 });
+    fireEvent.pointerMove(plot, { clientX: 128 });
+    fireEvent.pointerUp(plot, { clientX: 128 });
+    expect(plot).toHaveAttribute('aria-valuetext', '64 to 128');
+    // over both videos, side by side
+    expect(container.querySelectorAll('.video-highlight')).toHaveLength(2);
+
+    fireEvent.click(histogram.getByRole('button', { name: /Stop highlighting/ }));
+    expect(container.querySelectorAll('.video-highlight')).toHaveLength(0);
+  });
+
   it('shows one video when the reference is the same file', () => {
     viewer({ output_ref: output('ref'), manifests: { new: manifest('a'), reference: manifest('a') } });
     expect(screen.queryByLabelText('Reference video')).toBeNull();

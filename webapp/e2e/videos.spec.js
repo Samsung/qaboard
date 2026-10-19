@@ -246,3 +246,48 @@ test('says which frames show, their decoded values, and where the videos differ'
   await expect(page.getByLabel('Frames shown')).toHaveText('Frame 74 · bothP');
   await expect(page.locator('.video-region-outline').first()).toBeVisible();
 });
+
+test('highlights the values picked on the histogram', async ({ page }) => {
+  await setup(page, { manifests: {
+    new: { 'video.mp4': { st_size: videos.new.length, md5: 'new' } },
+    ref: { 'video.mp4': { st_size: videos.ref.length, md5: 'ref' } },
+  } });
+  await loaded(page.getByLabel('New video'));
+  await loaded(page.getByLabel('Reference video'));
+  await page.getByRole('button', { name: 'Histogram of the frames' }).click();
+  const plot = page.locator('.qiv-histogram-plot');
+  await plot.scrollIntoViewIfNeeded();
+  const box = await plot.boundingBox();
+  await page.mouse.move(box.x + 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await expect(plot).toHaveAttribute('aria-valuetext', /^0 to 25[45]$/);
+  await expect(page.locator('.qiv-histogram-summary')).toContainText('Highlighted');
+
+  // over both videos, at the screen's resolution: with all the values, stripes everywhere
+  const highlights = page.locator('.video-stage canvas.video-highlight');
+  await expect(highlights).toHaveCount(2);
+  const shares = () => highlights.evaluateAll(canvases => canvases.map(canvas => {
+    const copy = document.createElement('canvas');
+    copy.width = canvas.width;
+    copy.height = canvas.height;
+    const context = copy.getContext('2d');
+    context.drawImage(canvas, 0, 0);
+    const data = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let light = 0;
+    let shown = 0;
+    for (let k = 0; k < data.length; k += 4) {
+      if (data[k + 3] === 0) continue;
+      shown++;
+      if (data[k] > 200 && data[k + 1] > 150 && data[k + 2] < 100) light++;
+    }
+    return [canvas.width === Math.round(canvas.clientWidth * devicePixelRatio), Math.round(10 * light / shown) / 10];
+  }));
+  await expect.poll(shares).toEqual([[true, 0.5], [true, 0.5]]);
+
+  // Escape stops highlighting
+  await plot.focus();
+  await page.keyboard.press('Escape');
+  await expect(highlights).toHaveCount(0);
+});
