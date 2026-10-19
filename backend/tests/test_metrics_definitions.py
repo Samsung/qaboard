@@ -4,14 +4,33 @@ Tests for backend/metrics_definitions.py: the metrics runs declare in code, save
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import backend.metrics_definitions as md
 from backend.metrics_definitions import clean_definitions, merged_definitions, available_metrics, save_metrics_definitions
 
 
 def test_clean_definitions():
   assert clean_definitions(None) == {}
   assert clean_definitions([{"a": 1}]) == {}
-  assert clean_definitions({"a": {"suffix": "%"}, "b": 1, 2: {}}) == {"a": {"suffix": "%"}, "2": {}}
-  assert clean_definitions({str(i): {} for i in range(5001)}) == {}
+  assert clean_definitions({"a": {"suffix": "%"}, "b": 1, 2: {"label": "Two"}, "c": {}}) == {"a": {"suffix": "%"}, "2": {"label": "Two"}}
+  assert clean_definitions({str(i): {"label": "x"} for i in range(5001)}) == {}
+
+
+def test_clean_definitions_checks_what_clients_send():
+  # the endpoint is not authenticated: wrong types would break /compare (and qa gate), prototype keys the web app
+  definitions = clean_definitions({
+    "psnr": {"target": "30", "smaller_is_better": "false", "suffix": " dB", "unknown": 1},
+    "__proto__": {"label": "x"},
+    "constructor": {"label": "x"},
+    "x" * 201: {"label": "x"},
+  })
+  assert definitions == {"psnr": {"smaller_is_better": False, "suffix": " dB"}}
+
+
+def test_too_many_definitions():
+  known = {str(i): {} for i in range(md.MAX_DEFINITIONS)}
+  # new metrics are ignored, known ones are still updated
+  assert merged_definitions(known, {"new": {"label": "x"}}) is None
+  assert merged_definitions(known, {"new": {"label": "x"}, "0": {"label": "zero"}})["0"] == {"label": "zero"}
 
 
 def test_merged_definitions():
@@ -63,9 +82,9 @@ def test_saves_in_the_commit_and_the_reference_branch():
 
 def test_projects_without_definitions_get_them():
   commit = make_commit(None, None)
-  save_metrics_definitions(MagicMock(), commit, run_data({"psnr": {}}))
-  assert commit.data == {"metrics_definitions": {"psnr": {}}}
-  assert commit.project.data == {"metrics_definitions": {"psnr": {}}}
+  save_metrics_definitions(MagicMock(), commit, run_data({"psnr": {"label": "PSNR"}}))
+  assert commit.data == {"metrics_definitions": {"psnr": {"label": "PSNR"}}}
+  assert commit.project.data == {"metrics_definitions": {"psnr": {"label": "PSNR"}}}
 
 
 def test_nothing_new_writes_nothing():

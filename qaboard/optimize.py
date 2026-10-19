@@ -344,7 +344,13 @@ def make_loss(metric, options):
   Return a loss function of the form: loss(metric, metric_target)
   """
   loss = options.get('loss', 'identity')
-  smaller_is_better = available_metrics[metric].get('smaller_is_better', True)
+  from .gate import smaller_is_better as direction
+  smaller_is_better = direction(metric, available_metrics, None)
+  if smaller_is_better is None:
+    raise ValueError(
+      f"qa optimize: declare whether smaller values of {metric} are better in your metrics file (outputs.metrics in qaboard.yaml), "
+      f"with `smaller_is_better`, so that it knows what to minimize"
+    )
   sign_inversion = (1 if smaller_is_better else -1)
   if loss == 'identity':
     loss_inner = lambda x, x_t: x * sign_inversion
@@ -413,7 +419,9 @@ def batch_objective(project, commit_id, batch_label, config_objective):
     for output in this_batch_info['outputs'].values():
       if 'target' in config_objective and ('shift' in loss_name or 'relative' in loss_name):
         if use_default_targets:
-          metric_target = available_metrics[metric]['target']
+          metric_target = (available_metrics.get(metric) or {}).get('target')
+          if metric_target is None:
+            raise ValueError(f"qa optimize: {metric} has no target in your metrics file (outputs.metrics in qaboard.yaml)")
         else:
           output_target = matching_output(RunContext.from_api_output(output), target_batch_info['outputs'].values())
           if not output_target:

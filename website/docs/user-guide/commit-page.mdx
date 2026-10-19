@@ -108,7 +108,7 @@ If the batch mixes several values of tuning parameters, a warning reminds you th
 
 The reference values only use reference runs on the same inputs as the new runs.
 
-When the project doesn't choose its summary metrics, the Summary shows the metrics that changed the most vs the reference.
+When the project doesn't choose its summary metrics, the Summary shows up to 8 metrics: those that changed the most vs the reference. Without a choice either, the tables show the project's declared metrics, and others up to 20 columns: pick more with the metrics selector above them.
 
 :::info Metrics in neutral colors
 QA-Board shows all the metrics of the runs. For some, it may not know if higher or lower values are better: a metric that the project didn't declare, or a count where neither is better. Their changes are shown in **gray** in the Summary and in **blue** in the tables, never green or red, and hovering their name says so. Ask the project's maintainers to [declare them](/docs/computing-quantitative-metrics#declaring-metrics).

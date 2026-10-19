@@ -7,7 +7,7 @@ import { Classes } from '@blueprintjs/core';
 
 import { TableCompare, TableKpi } from '../tables';
 import { MetricsSummary, MetricsTags } from '../metrics';
-import { metrics_fill_defaults } from '../../utils';
+import { metrics_fill_defaults, with_undeclared_metrics } from '../../utils';
 import { renderWithProviders } from '../../test-utils';
 
 vi.mock('../Plot', () => ({ default: () => <div data-testid="plot"/> }));
@@ -141,11 +141,30 @@ describe('TableKpi', () => {
     const cells = [...container.querySelectorAll('tbody tr')].map(row => row.querySelectorAll('td'));
     const strength = td => Number(td.style.getPropertyValue('--heat-strength'));
     expect(cells.map(([runtime]) => strength(runtime))).toEqual([0, 0.5, 1]);
-    expect(screen.getByRole('columnheader', { name: /Runtime/ })).toHaveAttribute('title', expect.stringContaining('compared with the other runs'));
     // PSNR has a target: green when it's met, red when it's not
     const [, psnr_a] = cells[0];
     const [r, g] = psnr_a.style.getPropertyValue('--heat').match(/\d+/g).map(Number);
     expect(g).toBeGreaterThan(r);
+  });
+
+  it('shows at most 20 columns of metrics that were not declared, unless users pick them', () => {
+    const keys = Array.from({ length: 30 }, (_, i) => `m${String(i).padStart(2, '0')}`);
+    const runs = {
+      outputs: { a: output('a', { loss: 1, ...Object.fromEntries(keys.map(k => [k, 1])) }) },
+      filtered: { outputs: ['a'] },
+      used_metrics: new Set(['loss', ...keys]),
+      metrics_with_refs: new Set(),
+    };
+    const all = with_undeclared_metrics(available_metrics, runs.used_metrics);
+    const headers = container => container.querySelectorAll('thead tr:first-child th').length - 1;
+    const { container, unmount } = renderWithProviders(<TableKpi new_batch={runs} ref_batch={{ outputs: {} }} metrics={[]} available_metrics={all}/>);
+    // the declared metric, and 19 others
+    expect(headers(container)).toBe(20);
+    expect(screen.getByText('20 of 31 metrics. Pick others above.')).toBeInTheDocument();
+    unmount();
+    const picked = renderWithProviders(<TableKpi new_batch={runs} ref_batch={{ outputs: {} }} metrics={keys} available_metrics={all}/>);
+    expect(headers(picked.container)).toBe(30);
+    expect(screen.queryByText(/Pick others above/)).not.toBeInTheDocument();
   });
 
   it('shows the unit of metrics without a target, without a stray space', () => {
@@ -176,6 +195,23 @@ describe('MetricsSummary', () => {
     renderWithProviders(<MetricsSummary metrics={{ available_metrics, summary_metrics: [] }} new_batch={new_batch} ref_batch={ref_a}/>, { siteConfig: {} });
     expect(screen.getAllByRole('heading', { level: 5, name: /^(loss|time)$/ }).map(h => h.textContent)).toEqual(['loss', 'time']);
     expect(screen.getByText(/The 2 metrics that changed the most vs the reference/)).toBeInTheDocument();
+  });
+
+  it('keeps the metrics users pick while runs finish, and when nothing is configured', () => {
+    const { rerender } = renderWithProviders(<MetricsSummary metrics={{ available_metrics, summary_metrics: [] }} new_batch={new_batch} ref_batch={ref_a}/>, { siteConfig: {} });
+    fireEvent.click(screen.getAllByLabelText('Remove tag')[0]);
+    expect(screen.queryByRole('heading', { level: 5, name: 'loss' })).not.toBeInTheDocument();
+    // a refetch: new runs, with other changes
+    const refetched = { ...new_batch, outputs: { ...new_batch.outputs, b: { ...new_batch.outputs.b, metrics: { loss: 9, time: 1 } } } };
+    rerender(<MetricsSummary metrics={{ available_metrics, summary_metrics: [] }} new_batch={refetched} ref_batch={ref_a}/>);
+    expect(screen.queryByRole('heading', { level: 5, name: 'loss' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 5, name: 'time' })).toBeInTheDocument();
+  });
+
+  it('shows nothing when users clear the selection', () => {
+    renderWithProviders(<MetricsSummary metrics={{ available_metrics, summary_metrics: [] }} selected_metrics={[]} new_batch={new_batch} ref_batch={ref_a}/>, { siteConfig: {} });
+    expect(screen.queryByRole('heading', { level: 5 })).not.toBeInTheDocument();
+    expect(screen.queryByText('No metrics to summarize')).not.toBeInTheDocument();
   });
 
   it("helps declare the metrics that don't say which way is better", () => {

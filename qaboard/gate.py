@@ -141,9 +141,11 @@ def parse_config(config: Dict[str, Any]) -> GateConfig:
 
 def smaller_is_better(metric: str, local_metrics: Dict[str, Any], server_info: Optional[Dict[str, Any]]) -> Optional[bool]:
   """
-  Whether a smaller value is better, from the metrics' definitions: the metrics file (outputs.metrics in qaboard.yaml),
-  else what the server knows, e.g. metrics declared in code. None if unknown.
+  Whether a smaller value is better. Like the web app, from what the server knows: the commit's metrics file with the
+  metrics declared in code, which win. Else from the local metrics file (outputs.metrics in qaboard.yaml). None if unknown.
   """
+  if server_info and server_info.get('declared') and server_info.get('smaller_is_better') is not None:
+    return bool(server_info['smaller_is_better'])
   if metric in local_metrics:
     definition = local_metrics.get(metric) or {}
     # like the web app: metrics files leave it out when smaller is better, null says there is no better direction
@@ -155,8 +157,6 @@ def smaller_is_better(metric: str, local_metrics: Dict[str, Any], server_info: O
     if isinstance(value, str):
       return value.lower() != 'false'
     return bool(value)
-  if server_info and server_info.get('declared') and server_info.get('smaller_is_better') is not None:
-    return bool(server_info['smaller_is_better'])
   return None
 
 

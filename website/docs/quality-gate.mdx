@@ -64,7 +64,8 @@ Each rule names a metric, and one or more limits:
 - **Worse** comes from your metrics' definitions, in your code or your metrics file (see
   [Declaring metrics](/docs/computing-quantitative-metrics#declaring-metrics)): with `smaller_is_better: false`, a
   smaller value is worse. Regression rules need to know which way is better: they fail with an error for metrics that
-  were not declared, or that don't say. `min` and `max` work with any metric.
+  were not declared, declared in code without `smaller_is_better`, or with `smaller_is_better: null`. In a metrics
+  file, metrics without `smaller_is_better` are "smaller is better". `min` and `max` work with any metric.
 - Give regressions as percentages (`5%`) or fractions (`0.05`), relative to the magnitude of the reference's value.
 - Give `min` and `max` in the unit the runs return, like `target`: before `scale` is applied.
 - Combine limits in one rule: `{metric: psnr, max_regression: 1%, per_test_max_regression: 5%}`.

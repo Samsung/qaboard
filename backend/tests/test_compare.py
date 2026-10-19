@@ -133,6 +133,8 @@ def test_manifests_mismatch():
   assert manifests_mismatch(new, ref) == ['regs.txt', 'stages/1.png']
   assert manifests_mismatch(new, ref, {'patterns': ['*.png']}) == ['stages/1.png']
   assert manifests_mismatch(new, ref, {'patterns': '*.png', 'ignore': 'stages'}) == []
+  # how to show metrics changes, the outputs don't
+  assert manifests_mismatch({'metrics_definitions.json': {'md5': 'a'}}, {'metrics_definitions.json': {'md5': 'b'}}) == []
 
 
 # ==========================================
@@ -196,6 +198,16 @@ def test_compare_endpoint_metrics_declared_in_code(compare_api, dummy_app):
   metrics = call(compare_api, dummy_app, {HEXSHA: new}, 'project=kitefin/camera-isp&reference=main', branch_commit=ref).get_json()['metrics']
   assert (metrics['runtime']['declared'], metrics['runtime']['smaller_is_better']) == (True, None)
   assert (metrics['psnr']['declared'], metrics['psnr']['smaller_is_better']) == (False, None)
+  # like the web app (`??`), a commit's empty metrics file counts: the project's definitions don't apply
+  new = make_commit(HEXSHA, {'default': fixture_outputs('new')}, branch='feature', data={'qatools_metrics': {}}, project=project)
+  metrics = call(compare_api, dummy_app, {HEXSHA: new}, 'project=kitefin/camera-isp&reference=main', branch_commit=ref).get_json()['metrics']
+  assert metrics['runtime']['declared'] is False
+
+
+def test_pass_rate_needs_a_numeric_target():
+  # e.g. `target: "30"` in a metrics file
+  comparison = compare_outputs(fixture_outputs('new'), fixture_outputs('ref'), {'psnr': {'smaller_is_better': False, 'target': '30'}}, metrics=['psnr'])
+  assert comparison['metrics']['psnr']['new']['pass_rate'] is None
 
 
 def test_compare_endpoint(compare_api, dummy_app):

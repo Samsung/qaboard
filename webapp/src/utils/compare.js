@@ -51,7 +51,7 @@ const has_key = (params, key) => {
 
 // The share of runs that meet the metric's target, null without a target, or when we don't know which way is better
 export const pass_rate = (values, metric) => {
-  if (metric.target === undefined || metric.target === null || values.length === 0)
+  if (!is_number(metric.target) || values.length === 0)
     return null;
   if (metric.smaller_is_better === null || metric.smaller_is_better === undefined)
     return null;
@@ -91,7 +91,7 @@ export const diff_cell = (metric_new, metric_ref) => {
 const not_summarized_by_default = new Set(['compute_time']);
 
 // The metrics the Summary shows when projects don't choose: those that changed the most vs the reference
-// (the relative change of their median), else the first ones. `keys` are in the order to show them by default.
+// (the change of their median, relative to the larger median), else the first ones. `keys` are in the order to show them by default.
 // Only for the web app.
 export const changed_metrics = (outputs_new, outputs_ref, keys, max = 8) => {
   const change = key => {
@@ -99,9 +99,10 @@ export const changed_metrics = (outputs_new, outputs_ref, keys, max = 8) => {
     if (new_values.length === 0) return null;
     const ref_values = metric_values(outputs_ref, key);
     if (ref_values.length === 0) return -1;
-    const { delta, delta_relative } = summary_stats(new_values, ref_values, {});
+    const { new_med, ref_med, delta } = summary_stats(new_values, ref_values, {});
     if (delta === 0) return 0;
-    return Number.isFinite(delta_relative) ? Math.abs(delta_relative) : Infinity;
+    // relative to the larger of both: from 0 to 2, also when the reference is 0
+    return Math.abs(delta) / Math.max(Math.abs(new_med), Math.abs(ref_med));
   };
   return keys
     .filter(key => !not_summarized_by_default.has(key))

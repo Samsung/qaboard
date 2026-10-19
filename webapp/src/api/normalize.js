@@ -13,7 +13,7 @@ export const normalize_metrics = (qatools_metrics, definitions) => {
     ...merged,
     available_metrics: metrics_fill_defaults(merged.available_metrics),
     // dotted keys hide definitions, e.g. YAML anchors
-    main_metrics: (merged.main_metrics ?? []).filter(m => !m.startsWith('.')),
+    main_metrics: Array.isArray(merged.main_metrics) ? merged.main_metrics.filter(m => typeof m === 'string' && !m.startsWith('.')) : [],
   };
 };
 

@@ -173,14 +173,28 @@ const useTableData = ({ new_batch, metrics, available_metrics, with_refs_only })
   const metrics_key = metrics.join('\n');
   const used_metrics = new_batch?.used_metrics;
   const metrics_with_refs = new_batch?.metrics_with_refs;
-  const metrics_ = useMemo(() => {
+  const { metrics_, hidden_count } = useMemo(() => {
     const keys = metrics_key ? metrics_key.split('\n') : Object.keys(available_metrics);
-    return keys
+    const shown = keys
       .filter(m => used_metrics?.has(m) && (!with_refs_only || metrics_with_refs?.has(m)))
       .map(m => metric_info(available_metrics, m));
+    if (metrics_key)
+      return { metrics_: shown, hidden_count: 0 };
+    // Without a selection: the declared metrics, and the others while there is room
+    const declared = shown.filter(m => m.declared !== false);
+    const undeclared = shown.filter(m => m.declared === false).slice(0, Math.max(0, max_default_columns - declared.length));
+    const metrics_ = [...declared, ...undeclared];
+    return { metrics_, hidden_count: shown.length - metrics_.length };
   }, [metrics_key, available_metrics, used_metrics, metrics_with_refs, with_refs_only]);
-  return { outputs, metrics_ };
+  return { outputs, metrics_, hidden_count };
 };
+
+// Runs can have hundreds of metrics
+const max_default_columns = 20;
+
+const HiddenMetrics = ({ count, shown }) => count > 0 && <p className={Classes.TEXT_MUTED} style={{ margin: 0 }}>
+  {shown} of {shown + count} metrics. Pick others above.
+</p>;
 
 // Instead of a table with headers only
 const NoRuns = ({ new_batch }) => {
@@ -216,7 +230,7 @@ const TableCompare = ({
   input,
   labels
 }) => {
-  const { outputs, metrics_ } = useTableData({ new_batch, metrics, available_metrics, with_refs_only: true });
+  const { outputs, metrics_, hidden_count } = useTableData({ new_batch, metrics, available_metrics, with_refs_only: true });
   if (new_batch === undefined || new_batch === null || new_batch.outputs === undefined || new_batch.outputs === null) return <span />;
   const [label_new, label_ref] = labels || ["new", "ref"];
 
@@ -236,6 +250,7 @@ const TableCompare = ({
   return (
     <TableArea>
       {input}
+      <HiddenMetrics count={hidden_count} shown={metrics_.length}/>
       <HTMLTable compact>
         <thead>
           <tr>
@@ -292,7 +307,7 @@ const TableKpi = ({
   input,
   labels
 }) => {
-  const { outputs, metrics_ } = useTableData({ new_batch, metrics, available_metrics, with_refs_only: false });
+  const { outputs, metrics_, hidden_count } = useTableData({ new_batch, metrics, available_metrics, with_refs_only: false });
   // Metrics we can't color by their target are shaded by how values rank among the new runs'
   const rankers = useMemo(() => Object.fromEntries(metrics_
     .filter(m => !has_target(m) || is_direction_unknown(m))
@@ -305,17 +320,14 @@ const TableKpi = ({
   return (
     <TableArea>
       {input}
+      <HiddenMetrics count={hidden_count} shown={metrics_.length}/>
       <HTMLTable compact>
         <thead>
           <tr>
             <th />
             {metrics_.map(m => (
-              <th
-                colSpan={new_batch.metrics_with_refs.has(m.key) ? 2 : 1}
-                key={m.key}
-                title={rankers[m.key] ? "The darker, the larger the value, compared with the other runs." : undefined}
-              >
-                <MetricHeader condensed {...without_key(m)}/>
+              <th colSpan={new_batch.metrics_with_refs.has(m.key) ? 2 : 1} key={m.key}>
+                <MetricHeader condensed {...without_key(m)} hint={rankers[m.key] ? "Cells are darker for larger values, compared with the other runs." : undefined}/>
                 {!!m.target && <Tooltip content={is_direction_unknown(m)
                   ? "Target. QA-Board doesn't know if higher or lower values are better: declare it to color cells by the target."
                   : "Target: cells are green when runs meet it, red when they don't."}>

@@ -2,6 +2,7 @@
 import { compute_batches, compute_config, available_batch } from '../selectors/batches';
 import { normalize_commit, normalize_metrics } from '../api/normalize';
 import { matching_output, index_outputs } from '../utils';
+import { used_metrics_signature, with_used_metrics } from '../hooks';
 
 const deep_freeze = o => {
   Object.values(o).forEach(v => typeof v === 'object' && v !== null && deep_freeze(v));
@@ -113,6 +114,25 @@ test('normalize_metrics merges the metrics declared in code', () => {
   // projects without a metrics file
   expect(normalize_metrics(undefined, { frames: {} }).available_metrics.frames.label).toBe('frames');
   expect(normalize_metrics(undefined, undefined)).toBeUndefined();
+});
+
+test('normalize_metrics ignores main metrics that are not names', () => {
+  // e.g. "- " with no value in a metrics file
+  expect(normalize_metrics({ main_metrics: ['psnr', null, 3, '.hidden'] }).main_metrics).toEqual(['psnr']);
+  expect(normalize_metrics({ main_metrics: 'psnr' }).main_metrics).toEqual([]);
+});
+
+test('the metrics stay the same object while the runs have the same metrics', () => {
+  const metrics = normalize_metrics({ available_metrics: { psnr: {} } });
+  // e.g. when users filter runs: a new Set with the same metrics
+  const key = used_metrics_signature(new Set(['psnr', 'latency']));
+  const with_latency = with_used_metrics(metrics, key);
+  expect(Object.keys(with_latency.available_metrics)).toEqual(['psnr', 'latency']);
+  expect(with_used_metrics(metrics, used_metrics_signature(new Set(['latency', 'psnr'])))).toEqual(with_latency);
+  expect(key).toBe(used_metrics_signature(new Set(['latency', 'psnr'])));
+  // nothing missing: the same object
+  expect(with_used_metrics(metrics, used_metrics_signature(new Set(['psnr'])))).toBe(metrics);
+  expect(with_used_metrics(metrics, '')).toBe(metrics);
 });
 
 test('normalize_commit gives the metrics declared in code to the commit and the batches with their own metrics file', () => {

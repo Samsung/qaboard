@@ -116,7 +116,7 @@ def median(values: List[float]) -> Optional[float]:
 def pass_rate(values: List[float], metric: Dict) -> Optional[float]:
   """The share of runs that meet the metric's target, like the Summary's success bar"""
   target = metric.get('target')
-  if target is None or not values or metric['smaller_is_better'] is None:
+  if not is_number(target) or not values or metric['smaller_is_better'] is None:
     return None
   if metric['smaller_is_better']:
     return sum(1 for v in values if v <= target) / len(values)
@@ -277,7 +277,7 @@ def run_counts(outputs: List[Dict]) -> Dict[str, int]:
 # ---------------------------------------------------------------------------- bit accuracy, like `qa check-bit-accuracy`
 
 # files that change from run to run, always ignored (see `is_bit_accurate` in qaboard/bit_accuracy.py)
-IGNORED_FILES = ['manifest.inputs.json', 'run.json', 'log.txt', 'log.lsf.txt', 'metrics.json', '.nfs000*']
+IGNORED_FILES = ['manifest.inputs.json', 'run.json', 'log.txt', 'log.lsf.txt', 'metrics.json', 'metrics_definitions.json', '.nfs000*']
 CHECKED_CDE_ATTRS = ["width", "height", "format", "imageType", "md5_data"]
 
 

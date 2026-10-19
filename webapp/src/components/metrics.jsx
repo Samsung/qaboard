@@ -57,10 +57,12 @@ const percent_formatter = new Intl.NumberFormat("en-US", {
 const direction_unknown = "QA-Board doesn't know if higher or lower values are better: it shows changes in neutral colors.";
 const is_direction_unknown = metric => metric.smaller_is_better === null;
 
-const MetricHeader = ({short_label, label, description, condensed=false, suffix, show_suffix=false, smaller_is_better}) => {
+// `hint`: how the view shows the metric
+const MetricHeader = ({short_label, label, description, condensed=false, suffix, show_suffix=false, smaller_is_better, hint}) => {
     return <Tooltip content={<span>
       <strong>{label}</strong> {description}
       {smaller_is_better === null && <><br/>{direction_unknown}</>}
+      {hint && <><br/>{hint}</>}
     </span>}>
           <>
             {condensed ? short_label: label}
@@ -396,15 +398,15 @@ const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: 
   );
   // By default we show the metrics we were given, or the project's summary metrics,
   // else those that changed the most vs the reference.
-  const configured_keys = (selected_metrics_?.map(m => m.key) ?? summary_metrics).filter(k => used_metrics?.has(k));
-  const is_automatic = configured_keys.length === 0;
+  const configured_keys = selected_metrics_?.map(m => m.key) ?? (Array.isArray(summary_metrics) && summary_metrics.length > 0 ? summary_metrics : null);
+  const is_automatic = configured_keys === null;
   const changed_keys = useMemo(
     () => is_automatic ? changed_metrics(outputs_new, outputs_ref, Object.keys(available_metrics).filter(k => used_metrics?.has(k))) : [],
     [is_automatic, outputs_new, outputs_ref, available_metrics, used_metrics],
   );
   const default_keys = is_automatic ? changed_keys : configured_keys;
-  // Users can change the selection, until the default changes.
-  const default_signature = default_keys.join('\n');
+  // Users can change the selection, until the configuration changes: not when runs finish or are filtered.
+  const default_signature = is_automatic ? '(automatic)' : configured_keys.join('\n');
   const [user_selection, setUserSelection] = useState(null);
   const selected_keys = user_selection?.default_signature === default_signature ? user_selection.keys : default_keys;
   const selected_metrics = selected_keys.map(k => metric_info(available_metrics, k));
@@ -442,7 +444,7 @@ const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: 
           </Tag>
         )}
       {no_runs_state}
-      {!no_runs_state && default_keys.length === 0 && selected_metrics.length === 0 && <NoSummaryMetrics/>}
+      {!no_runs_state && is_automatic && default_keys.length === 0 && selected_metrics.length === 0 && <NoSummaryMetrics/>}
       {!no_runs_state && is_automatic && default_keys.length > 0 && selected_keys === default_keys && <AutomaticSummaryNote
         count={default_keys.length}
         has_reference={outputs_ref.length > 0}

@@ -19,8 +19,7 @@ import { Container, Section } from "./components/layout";
 import { MetricsSummary, MetricSelect } from "./components/metrics";
 import { TableCompare, TableKpi } from "./components/tables";
 
-import { useCommitsList, useComparison, updateSelected } from "./hooks";
-import { empty_batch } from "./defaults";
+import { useCommitsList, useComparison, updateSelected, used_metrics_signature, with_used_metrics } from "./hooks";
 import { errorMessage } from "./api/http";
 import { metric_info, with_undeclared_metrics } from "./utils";
 
@@ -49,6 +48,16 @@ const ViewHeader = styled.div`
   }
 `;
 
+// The metrics of the runs of these commits, declared ones first, then the others, and the run time last: it's rarely
+// the most interesting
+const history_metrics = (commits, batch_label, available_metrics) => {
+  const used = new Set();
+  commits.forEach(commit => Object.values(commit.batches?.[batch_label]?.outputs ?? {})
+    .forEach(output => Object.keys(output.metrics ?? {}).forEach(key => used.add(key))));
+  const keys = Object.keys(with_undeclared_metrics(available_metrics, used)).filter(key => used.has(key));
+  return [...keys.filter(key => key !== 'compute_time'), ...keys.filter(key => key === 'compute_time')];
+};
+
 const Dashboard = () => {
   const { project, project_data, selected, new_commit, ref_commit, new_batch, ref_batch, selected_batch_new } = useComparison();
   const { commits, error, refetch, isPending, isFetching, date_range, qatools_metrics } = useCommitsList();
@@ -60,15 +69,16 @@ const Dashboard = () => {
 
   // On branches, the metrics configuration comes from the latest commit. All the metrics of the runs are shown, declared or not.
   const used_metrics = new_batch.used_metrics;
+  const used_metrics_key = used_metrics_signature(used_metrics);
   const metrics = useMemo(
-    () => ({ ...qatools_metrics, available_metrics: with_undeclared_metrics(qatools_metrics?.available_metrics, used_metrics) }),
-    [qatools_metrics, used_metrics],
+    () => with_used_metrics(qatools_metrics ?? {}, used_metrics_key),
+    [qatools_metrics, used_metrics_key],
   );
   const { available_metrics, main_metrics, dashboard_metrics, dashboard_evolution_metrics, dashboard_breakdown_by_tag } = metrics;
-  // without configuration, those of the runs
+  // Without configuration, the plot over time offers the metrics of all the commits shown (the latest may still be running)
   const evolution_metrics = useMemo(
-    () => dashboard_evolution_metrics || (main_metrics?.length ? main_metrics : Object.keys(available_metrics).filter(k => used_metrics.has(k))),
-    [dashboard_evolution_metrics, main_metrics, available_metrics, used_metrics],
+    () => dashboard_evolution_metrics || (main_metrics?.length ? main_metrics : history_metrics(commits, selected_batch_new, qatools_metrics?.available_metrics)),
+    [dashboard_evolution_metrics, main_metrics, commits, selected_batch_new, qatools_metrics],
   );
 
   // null: the project's default metrics, else the summary chooses
@@ -173,7 +183,7 @@ const Dashboard = () => {
             project_data={project_data}
             metrics={metrics}
             new_batch={new_batch}
-            ref_batch={empty_batch}
+            ref_batch={ref_batch}
           />
         </Card>
       </ViewSection>}

@@ -144,6 +144,7 @@ describe('metrics that were not declared', () => {
 
   it('have no pass rate: we don\'t know which way is better', () => {
     expect(pass_rate([1, 2], { target: 1.5, smaller_is_better: null })).toBeNull();
+    expect(pass_rate([1, 2], { target: '1.5', smaller_is_better: true })).toBeNull();
     expect(pass_rate([1, 2], { target: 1.5, smaller_is_better: true })).toBe(0.5);
   });
 
@@ -156,5 +157,7 @@ describe('metrics that were not declared', () => {
     expect(changed_metrics(outputs([{ e: 1 }]), outputs_ref, ['c', 'e', 'b', 'a'])).toEqual(['e']);
     // without reference, in the order we're given
     expect(changed_metrics(outputs_new, [], ['c', 'b', 'a'], 2)).toEqual(['c', 'b']);
+    // a reference at 0 doesn't make the change infinite: 0 → 1 (1) is ranked with 1 → 4 (0.75) and 10 → 20 (0.5)
+    expect(changed_metrics(outputs([{ x: 1, y: 4, z: 20 }]), outputs([{ x: 0, y: 1, z: 10 }]), ['z', 'y', 'x'])).toEqual(['x', 'y', 'z']);
   });
 });

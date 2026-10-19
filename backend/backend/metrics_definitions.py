@@ -13,25 +13,43 @@ from typing import Any, Dict, Optional
 
 from sqlalchemy.orm.attributes import flag_modified
 
+from qaboard.metrics import clean_definition
 
-# a run declaring more is likely a bug: we don't let it bloat the commit
+
+# More is likely a bug, e.g. a metric per frame: we don't let it bloat commits and projects, which most pages load
 MAX_DEFINITIONS = 5000
+MAX_KEY_LENGTH = 200
+# keys that would change the prototype of the web app's objects
+FORBIDDEN_KEYS = {'__proto__', 'constructor', 'prototype'}
 
 
 def clean_definitions(definitions: Any) -> Dict[str, Dict]:
-  """The definitions we keep: a mapping of metric keys to objects"""
-  if not isinstance(definitions, dict):
+  """
+  The definitions we keep: metric keys mapped to their valid fields (`clean_definition` in qaboard/metrics.py, like the
+  CLI). The endpoint is not authenticated: we don't trust what clients send.
+  """
+  if not isinstance(definitions, dict) or len(definitions) > MAX_DEFINITIONS:
     return {}
-  cleaned = {str(k): v for k, v in definitions.items() if isinstance(v, dict)}
-  if len(cleaned) > MAX_DEFINITIONS:
-    return {}
+  cleaned = {}
+  for key, definition in definitions.items():
+    key = str(key)
+    if not key or len(key) > MAX_KEY_LENGTH or key in FORBIDDEN_KEYS:
+      continue
+    definition, _invalid = clean_definition(definition)
+    if definition:
+      cleaned[key] = definition
   return cleaned
 
 
 def merged_definitions(known: Optional[Dict], new: Dict) -> Optional[Dict]:
-  """The known definitions updated with new ones, each replaced as a whole. None when nothing changes."""
+  """
+  The known definitions updated with new ones, each replaced as a whole. None when nothing changes.
+  Beyond MAX_DEFINITIONS, we only update the known ones.
+  """
   known = known or {}
   changed = {key: definition for key, definition in new.items() if known.get(key) != definition}
+  if len(known) + sum(1 for key in changed if key not in known) > MAX_DEFINITIONS:
+    changed = {key: definition for key, definition in changed.items() if key in known}
   if not changed:
     return None
   return {**known, **changed}

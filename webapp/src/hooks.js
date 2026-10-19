@@ -15,6 +15,16 @@ import { available_batch, compute_batches, compute_config } from "./selectors/ba
 import { default_project } from "./defaults";
 import { with_undeclared_metrics } from "./utils";
 
+// The keys of a Set of metrics, as a string that only changes when they do
+export const used_metrics_signature = used_metrics => [...(used_metrics ?? [])].sort().join('\n');
+
+// The project's metrics with all those of the runs (`used_metrics_key`, from used_metrics_signature), declared or not.
+// The same object when no metric is missing.
+export const with_used_metrics = (metrics, used_metrics_key) => {
+  const available_metrics = with_undeclared_metrics(metrics?.available_metrics, used_metrics_key ? used_metrics_key.split('\n') : []);
+  return available_metrics === metrics?.available_metrics ? metrics : { ...metrics, available_metrics };
+};
+
 export { useSelected, updateSelected };
 
 
@@ -285,11 +295,12 @@ function useComparisonState() {
     [selected.selected_views, default_views],
   );
 
-  // All the metrics of the runs, declared or not
-  const used_metrics = batches.new_batch.used_metrics;
+  // All the metrics of the runs, declared or not. The batch's used metrics are a new Set when users filter or sort runs:
+  // the metrics change only with their keys, so that output cards don't re-render.
+  const used_metrics_key = used_metrics_signature(batches.new_batch.used_metrics);
   const metrics = useMemo(
-    () => ({ ...config.metrics, available_metrics: with_undeclared_metrics(config.metrics.available_metrics, used_metrics) }),
-    [config.metrics, used_metrics],
+    () => with_used_metrics(config.metrics, used_metrics_key),
+    [config.metrics, used_metrics_key],
   );
 
   return useMemo(
