@@ -77,7 +77,8 @@ const icon_style = {
   marginRight: '10px',
 }
 
-const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref, colors) => node => {
+// labels: what the commit page calls the new and reference runs
+const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref, colors, labels) => node => {
     const { match, missing_from_reference, missing_from_new, checked } = node.nodeData;
     const is_folder = node.childNodes !== undefined;
     // files that bit_accuracy.patterns don't check (and folders with only those) are greyed
@@ -157,7 +158,7 @@ const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref,
         {output_new && !missing_from_new && (
           <MenuItem
             icon="download"
-            text="Download (New)"
+            text={`Download (${labels?.new ?? 'New'})`}
             onClick={() => {
               const downloadUrl = `${output_new.output_dir_url}/${node.id}`;
               window.open(downloadUrl, '_blank');
@@ -167,7 +168,7 @@ const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref,
         {output_ref && !missing_from_reference && (
           <MenuItem
             icon="download"
-            text="Download (Reference)"
+            text={`Download (${labels?.reference ?? 'Reference'})`}
             onClick={() => {
               const downloadUrl = `${output_ref.output_dir_url}/${node.id}`;
               window.open(downloadUrl, '_blank');
@@ -230,7 +231,7 @@ const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref,
 
 // Compares the files of the new and reference outputs.
 // NOTE: it modifies the trees, callers give us trees they just built from the manifests
-const mergeTrees = (tree_new, tree_ref, { files_filter, show_all_files, output_new, output_ref, color_blind_friendly, bit_accuracy, colors }) => {
+const mergeTrees = (tree_new, tree_ref, { files_filter, show_all_files, output_new, output_ref, color_blind_friendly, bit_accuracy, colors, labels }) => {
   if (tree_new === null || tree_new === undefined)
     return { mixed: [] }
 
@@ -268,7 +269,7 @@ const mergeTrees = (tree_new, tree_ref, { files_filter, show_all_files, output_n
   tree_compared = tree_compared.sort( (a, b) => a.label.localeCompare(b.label) )
 
   const has_ref = tree_ref !== null && tree_ref !== undefined
-  forEachNode(tree_compared, applyStyle(has_ref, has_ref && color_blind_friendly, output_new, output_ref, colors))
+  forEachNode(tree_compared, applyStyle(has_ref, has_ref && color_blind_friendly, output_new, output_ref, colors, labels))
   return { mixed: tree_compared, summary };
 }
 
@@ -295,15 +296,16 @@ const BitAccuracyViewer = props_ => {
   // folders users expanded (true) or collapsed (false)
   const [expanded, setExpanded] = useState({});
   const is_dark = useIsDark();
+  const { new: label_new, reference: label_ref } = props_.labels ?? {};
 
   const { mixed: tree, summary } = useMemo(() => {
     if (!manifests) return { mixed: [] };
     return mergeTrees(
       manifests.new ? to_tree(manifests.new) : undefined,
       manifests.reference ? to_tree(manifests.reference) : undefined,
-      { files_filter, show_all_files, output_new, output_ref, color_blind_friendly, bit_accuracy, colors: state_colors(is_dark) },
+      { files_filter, show_all_files, output_new, output_ref, color_blind_friendly, bit_accuracy, colors: state_colors(is_dark), labels: { new: label_new, reference: label_ref } },
     );
-  }, [manifests, files_filter, show_all_files, output_new, output_ref, color_blind_friendly, bit_accuracy, is_dark]);
+  }, [manifests, files_filter, show_all_files, output_new, output_ref, color_blind_friendly, bit_accuracy, is_dark, label_new, label_ref]);
   const { bit_accurate } = summary ?? {};
 
   const has_filter = !!files_filter && files_filter.length > 0;

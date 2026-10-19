@@ -197,6 +197,9 @@ const CiCommitResults = () => {
     // what viewers call the new and reference results, e.g. their milestones' names
     labels: comparison.labels,
   };
+  // the tables' columns: [new, reference]
+  const { new: label_new, reference: label_ref } = comparison.labels;
+  const table_labels = useMemo(() => [label_new, label_ref], [label_new, label_ref]);
   // What the runs shown share is hidden in each run: it updates as users filter runs.
   // shared_configuration and changes_in_all_runs return the same objects when they don't change, so cards don't re-render
   const shared_settings = shared_configuration(new_batch.filtered.outputs.map(id => new_batch.outputs[id]));
@@ -291,6 +294,7 @@ const CiCommitResults = () => {
                   available_metrics={available_metrics}
                   new_batch={new_batch}
                   ref_batch={ref_batch}
+                  labels={comparison.labels}
                 />
               </Card>
              </ViewSection>}
@@ -356,6 +360,7 @@ const CiCommitResults = () => {
                     metrics={selected_metrics_keys}
                     available_metrics={available_metrics}
                     input={metricTableSelect}
+                    labels={table_labels}
                   />
               </Card>
              </ViewSection>}
@@ -369,6 +374,7 @@ const CiCommitResults = () => {
                     metrics={selected_metrics_keys}
                     available_metrics={available_metrics}
                     input={metricTableSelect}
+                    labels={table_labels}
                   />
               </Card>
              </ViewSection>}

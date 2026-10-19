@@ -69,6 +69,19 @@ describe('BitAccuracyViewer', () => {
     expect(screen.queryByText(/No differences/)).not.toBeInTheDocument();
   });
 
+  it('downloads the new or reference file, under their names', async () => {
+    const labels = { new: 'ISP v2', reference: 'v1.4' };
+    const { unmount } = render(<BitAccuracyViewer manifests={manifests} output_new={output_new} output_ref={output_ref} show_all_files />);
+    fireEvent.mouseEnter(screen.getByText('1 B'));
+    expect(await screen.findByText('Download (New)')).toBeInTheDocument();
+    expect(screen.getByText('Download (Reference)')).toBeInTheDocument();
+    unmount();
+    render(<BitAccuracyViewer manifests={manifests} output_new={output_new} output_ref={output_ref} show_all_files labels={labels} />);
+    fireEvent.mouseEnter(screen.getByText('1 B'));
+    expect(await screen.findByText('Download (ISP v2)')).toBeInTheDocument();
+    expect(screen.getByText('Download (v1.4)')).toBeInTheDocument();
+  });
+
   it('says why no file is shown', () => {
     const { rerender } = render(<BitAccuracyViewer manifests={{ new: manifests.reference, reference: manifests.reference }} output_new={output_new} output_ref={output_ref} />);
     expect(screen.getByText(/No differences with the reference/)).toBeInTheDocument();

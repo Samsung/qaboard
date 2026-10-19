@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fileQuery } from "../api/queries";
 import { html_base_url, html_with_base } from "./htmlDocument";
 import { ViewerError, ViewerLoading } from "./ViewerStates";
+import { with_default_labels } from "../sideColors";
 
 
 // An HTML output in its own document: its styles stay out of the app, and its relative links (images/1.jpg) resolve
@@ -30,7 +31,7 @@ const HtmlFrame = ({ html, base, width, title }) => {
 // Files are cached: switching between views doesn't fetch them again
 const htmlQuery = (url, is_running) => fileQuery(url, { is_running, responseType: 'text' });
 
-const HtmlViewer = ({ path, output_new, output_ref, style }) => {
+const HtmlViewer = ({ path, output_new, output_ref, style, labels }) => {
   const url_new = output_new?.output_dir_url && path ? `${output_new.output_dir_url}/${path}` : undefined;
   const has_reference = !!output_ref?.output_dir_url;
   const url_ref = url_new && has_reference ? `${output_ref.output_dir_url}/${path}` : undefined;
@@ -42,12 +43,15 @@ const HtmlViewer = ({ path, output_new, output_ref, style }) => {
   if (query_new.isError) return <ViewerError path={path} error={query_new.error}/>
 
   const width = style?.width || '400px';
+  // what the commit page calls them, in their colors
+  const sides = with_default_labels(labels);
+  const heading = (key, fallback) => <h3><span aria-hidden style={{ color: sides.colors[key].css }}>●</span> {labels?.[key] ?? fallback}</h3>;
   return <>
-    {has_reference && <h3>New</h3>}
-    <HtmlFrame html={query_new.data ?? ""} base={html_base_url(output_new.output_dir_url, path)} width={width} title={`${path} (new)`}/>
+    {has_reference && heading('new', 'New')}
+    <HtmlFrame html={query_new.data ?? ""} base={html_base_url(output_new.output_dir_url, path)} width={width} title={`${path} (${sides.new})`}/>
     {has_reference && <>
-      <h3>Reference</h3>
-      <HtmlFrame html={query_ref.data || ""} base={html_base_url(output_ref.output_dir_url, path)} width={width} title={`${path} (reference)`}/>
+      {heading('reference', 'Reference')}
+      <HtmlFrame html={query_ref.data || ""} base={html_base_url(output_ref.output_dir_url, path)} width={width} title={`${path} (${sides.reference})`}/>
     </>}
   </>
 }

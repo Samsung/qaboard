@@ -22,17 +22,9 @@ import { format, plotly_palette, match_query } from "../utils";
 import { summary_outputs, metric_values, summary_stats, mixed_parameters } from "../utils/compare";
 import { useIsDark } from "../theme";
 import { useSiteConfig } from "../hooks";
+import { plot_color, with_default_labels } from "../sideColors";
 
 
-
-// todo: we should use the colors defined by @blueprint, and JS helpers to alpha-ize, darken, etc.
-const color = "rgba(255, 157, 0, 1)";
-const color_ref = "rgba(55, 126, 184, 1)";
-const colors = [color, color_ref];
-
-const color_a = "rgba(255, 157, 0, .4)";
-const color_ref_a = "rgba(55, 126, 184, .4)";
-const colors_a = [color_a, color_ref_a];
 
 const metric_formatter = (value, metric) => {
   if (isNaN(value)) {
@@ -148,9 +140,13 @@ const with_log_ticks = (layout, values) => {
   return { ...layout, yaxis: { ...layout.yaxis, tickvals }, margin: { ...layout.margin, t: Math.max(layout.margin?.t ?? 0, 8) } };
 };
 
-const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly_default_colors }) => {
+// colors: the side colors (src/sideColors.js) of the series, by default new's and the reference's
+const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly_default_colors, colors: side_colors }) => {
   const xdata = xaxis_labels || ["New", "Reference"];
-  const axis_color = useIsDark() ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.8)";
+  const is_dark = useIsDark();
+  const axis_color = is_dark ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.8)";
+  const default_colors = with_default_labels().colors;
+  const colors = (side_colors ?? [default_colors.new, default_colors.reference]).map(c => plot_color(c, is_dark));
   const base_layout = {
     bargap: 0,
     bargroupgap: 0,
@@ -242,10 +238,10 @@ const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly
     jitter: 0.5,
     whiskerwidth: 0.3,
     boxmean: true,
-    fillcolor: use_plotly_default_colors ? undefined : colors_a[i],
+    fillcolor: use_plotly_default_colors ? undefined : `${colors[i]}66`,
     marker: {
       size: 8,
-      color: use_plotly_default_colors ? undefined : colors_a[i],
+      color: use_plotly_default_colors ? undefined : `${colors[i]}66`,
     },
     line: {
       width: 2,
@@ -372,7 +368,8 @@ const tags_breakdown = outputs => {
 
 const no_runs = { outputs: {}, filtered: { outputs: [] } };
 
-const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: xaxis_labels_, metrics, selected_metrics: selected_metrics_ }) => {
+// labels: what the commit page calls the new and reference results, and their colors (useComparison().labels)
+const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: xaxis_labels_, metrics, selected_metrics: selected_metrics_, labels }) => {
   const { available_metrics = {}, summary_metrics = [] } = metrics ?? {};
   // By default we show the metrics we were given, or the project's summary metrics.
   // Users can change the selection, until the default changes.
@@ -395,7 +392,8 @@ const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: 
   );
 
   if (new_batch === null) return <span />;
-  const xaxis_labels = xaxis_labels_ || ["New", "Reference"];
+  const xaxis_labels = xaxis_labels_ || (labels ? [labels.new, labels.reference] : ["New", "Reference"]);
+  const sides = with_default_labels(labels);
 
   const batch_data = new_batch.data || {};
   const has_runs = new_batch.filtered?.outputs?.length > 0;
@@ -431,6 +429,7 @@ const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: 
           outputs_ref={outputs_ref}
           outputs_by_tag={breakdown_by_tag ? outputs_by_tag : undefined}
           xaxis_labels={xaxis_labels}
+          sides={sides}
         />
       )}
     </div>
@@ -508,10 +507,11 @@ const breakdown_layout = {
   xaxis: { fixedrange: true, title: "", tickfont: { size: 8 }},
 };
 
-// The reference's color in the plots
-const ref_swatch = { display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: color_ref, marginRight: 8, verticalAlign: 'middle' };
+// A side's color in the plots, next to its numbers
+const swatch = color => ({ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: color, marginRight: 8, verticalAlign: 'middle' });
 
-const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, xaxis_labels }) => {
+// sides: the names and colors of what we compare (with_default_labels)
+const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, xaxis_labels, sides }) => {
   const breakdown_by_tag = outputs_by_tag !== undefined;
   // The same numbers as GET /api/v1/commit/<sha>/compare, see utils/compare.js
   const new_values = metric_values(outputs_new, m.key);
@@ -542,9 +542,9 @@ const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, xa
           {ref_values.length > 0 && <MetricTile>
             <Tooltip content={`Reference median: ${m.scale * ref_med}${m.suffix ?? ''} over ${ref_values.length} run${ref_values.length === 1 ? '' : 's'}`}>
               <h3 className={Classes.HEADING} style={{ fontSize: 18 }}>
-                <span aria-hidden style={ref_swatch}/>
+                <span aria-hidden style={swatch(sides.colors.reference.css)}/>
                 {metric_formatter(m.scale * ref_med, m)}{m.suffix}
-                <span className={Classes.TEXT_MUTED}> reference</span>
+                <span className={Classes.TEXT_MUTED}> {sides.reference}</span>
               </h3>
             </Tooltip>
             <h5 className={Classes.HEADING}>
@@ -558,6 +558,7 @@ const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, xa
             series={ref_values.length > 0 ? [new_values, ref_values] : [new_values]}
             metric={m}
             xaxis_labels={xaxis_labels}
+            colors={[sides.colors.new, sides.colors.reference]}
           />}
         </>
       )}
