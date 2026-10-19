@@ -14,13 +14,14 @@ import geometry as G
 import loop_closure
 import sensors
 
-MAX_SOURCE_POINTS = 1200      # points of each frame used by ICP, sampled after voxel downsampling
+MAX_SOURCE_POINTS = 2500      # points of each frame used by ICP, sampled after voxel downsampling
 MAX_CORRESPONDENCE = 0.25     # m
 HUBER = 0.04                  # m
 SIGMA_ICP = 0.02              # m, per point...
 ICP_POINTS = 150              # ...as if that many points were independent
 SIGMA_PRIOR_ROT = 0.004       # rad, the IMU's prediction over a frame
 SIGMA_PRIOR_T = 0.01          # m
+DEGENERATE = 0.02             # translation directions that fewer than ~2% of the points constrain follow the prior
 VELOCITY_GAIN = 0.5           # how much of ICP's correction goes into the velocity estimate
 
 
@@ -63,7 +64,7 @@ class Keyframe:
         self.planar = self.curvature < 0.08
         self.distance = 0.0                     # traveled since the start, m
         self.signature = None
-        self.keypoints = None
+        self.coarse = None
 
 
 def icp(source, target, T, iterations, prior=None, prior_weight=0.0, max_corr=MAX_CORRESPONDENCE):
@@ -72,7 +73,7 @@ def icp(source, target, T, iterations, prior=None, prior_weight=0.0, max_corr=MA
     prior: the predicted T, kept in the cost with prior_weight (0-1, against ICP's weight). Returns T and stats.
     """
     info = np.zeros((6, 6))
-    n_iter, inliers, rmse = 0, 0, np.inf
+    n_iter, inliers, rmse, degenerate = 0, 0, np.inf, 0
     for n_iter in range(1, iterations + 1):
         moved = G.apply(T, source)
         dist, idx = target.tree.query(moved, distance_upper_bound=max_corr)
@@ -94,12 +95,19 @@ def icp(source, target, T, iterations, prior=None, prior_weight=0.0, max_corr=MA
             H += L
             g -= L @ e
         delta = -np.linalg.solve(H + 1e-9 * np.eye(6), g)
+        if prior is not None:
+            # Degenerate directions (an aisle, a corridor: nothing in view says how far along it the robot moved): ICP
+            # can't tell, and its noise would decide. Its translation along them stays where the prior put it.
+            eigenvalues, directions = np.linalg.eigh(J[:, 3:].T @ (J[:, 3:] * w[:, None]) / len(r))
+            weak = directions[:, eigenvalues < DEGENERATE]
+            delta[3:] -= weak @ (weak.T @ delta[3:])
+            degenerate = weak.shape[1]
         T = G.exp(delta) @ T
         inliers = int((np.abs(r) < 0.03).sum())
         rmse = float(np.sqrt(np.mean(r ** 2)))
         if np.linalg.norm(delta[:3]) < 1e-5 and np.linalg.norm(delta[3:]) < 1e-4:
             break
-    return T, {'iterations': n_iter, 'inliers': inliers, 'rmse': rmse, 'information': info}
+    return T, {'iterations': n_iter, 'inliers': inliers, 'rmse': rmse, 'information': info, 'degenerate': degenerate}
 
 
 class Odometry:
@@ -126,7 +134,7 @@ class Odometry:
             start = time.perf_counter()
             points = sensors.backproject(depth)
             if k == 0:
-                self._new_keyframe(k, T, points, distance)
+                self._new_keyframe(k, T, depth, distance)
             else:
                 # IMU prediction from the previous frame
                 R, p = T[:3, :3].copy(), T[:3, 3].copy()
@@ -145,7 +153,7 @@ class Odometry:
                     p = p + v_pred * dt + 0.5 * a_world * dt ** 2
                     v_pred = v_pred + a_world * dt
                     R = R @ Rotation.from_rotvec(gyro[j] * dt).as_matrix()
-                predicted = G.pose(R, p)
+                predicted = G.orthonormalize(G.pose(R, p))
                 kf = self.keyframes[-1]
                 source = voxel_downsample(points, self.flags['voxel_size'])
                 if len(source) > MAX_SOURCE_POINTS:
@@ -154,20 +162,22 @@ class Odometry:
                 rel, stats = icp(source, kf, prior_rel, int(self.flags['icp_iterations']), prior=prior_rel,
                                  prior_weight=float(self.flags['imu_weight']))
                 self.icp_stats.append(stats)
-                T = kf.pose @ rel
+                T = G.orthonormalize(kf.pose @ rel)
                 # the velocity follows the IMU, corrected by part of what ICP moved the prediction
                 v = v_pred + VELOCITY_GAIN * (T[:3, 3] - predicted[:3, 3]) / dt_frame
                 distance += np.linalg.norm(T[:3, 3] - p_start)
                 if (np.linalg.norm(rel[:3, 3]) > self.flags['keyframe_dist']
                         or G.angle_deg(rel) > self.flags['keyframe_angle']):
-                    T = self._new_keyframe(k, T, points, distance, stats['information'])
+                    T = self._new_keyframe(k, T, depth, distance, stats['information'])
             kf_index = len(self.keyframes) - 1
             self.frame_keyframe.append(kf_index)
             self.frame_relative.append(G.inv(self.keyframes[kf_index].pose) @ T)
             self.online.append(T.copy())
             self.times.append(time.perf_counter() - start)
 
-    def _new_keyframe(self, frame, T, points, distance, information=None):
+    def _new_keyframe(self, frame, T, depth, distance, information=None):
+        # keyframes are registered to many times: their depth is smoothed first, for cleaner surfaces and normals
+        points = sensors.backproject(sensors.smooth_depth(depth, radius=1))
         kf = Keyframe(frame, T.copy(), points, self.flags['voxel_size'])
         kf.distance = distance
         index = len(self.keyframes)
@@ -177,10 +187,10 @@ class Odometry:
             self.graph.add_edge(index - 1, index, G.inv(prev.pose) @ kf.pose, kind='odometry')
         if self.flags['loop_closure']:
             loop_closure.describe(kf)
-            match = loop_closure.find(self.keyframes, index, self.flags)
+            match = loop_closure.find(self.keyframes, index)
             if match is not None:
                 other, Z, stats = match
-                if stats['inliers'] >= self.flags['loop_min_inliers']:
+                if stats['overlap'] >= self.flags['loop_min_overlap']:
                     self.graph.add_edge(other, index, Z, kind='loop')
                     self.closures.append({'frame': frame, 'keyframe': index, 'matched': other, **stats})
                     poses = self.graph.optimize([k.pose for k in self.keyframes])

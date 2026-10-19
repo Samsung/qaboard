@@ -5,3 +5,4 @@ inputs/.generate.lock
 # results of local runs, and the flags of the build
 output/
 build/
+.cache/

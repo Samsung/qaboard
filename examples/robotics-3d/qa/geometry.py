@@ -14,6 +14,14 @@ def pose(R=None, t=None):
     return T
 
 
+def orthonormalize(T):
+    """T with its rotation projected back onto SO(3): products of poses drift, and inv() assumes a rotation"""
+    U, _, Vt = np.linalg.svd(T[:3, :3])
+    out = T.copy()
+    out[:3, :3] = U @ np.diag([1.0, 1.0, np.linalg.det(U @ Vt)]) @ Vt
+    return out
+
+
 def inv(T):
     Ti = np.eye(4)
     R = T[:3, :3]

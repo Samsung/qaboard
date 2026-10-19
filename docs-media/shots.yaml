@@ -33,7 +33,7 @@ features:
   text-diff: Monaco text diff with Next Diff
   video-sync: Videos played in sync with the reference
   video-compare: Videos compared frame by frame, side by side, with a wipe, toggled or as their difference, synced zoom
-  pointcloud: Point cloud viewer
+  pointcloud: Point clouds in 3D against the reference's and a ground truth
   trajectory-6dof: 6DoF trajectories against ground truth
   bit-accuracy-tree: Bit-accuracy tree of output files with in-place diff
   live-log-tail: Live log tail, error count, jump to next error
@@ -463,28 +463,30 @@ shots:
   - id: commit/video-sync
     kind: clip
     project: robotics-3d
-    shows: The depth camera videos of new and reference playing in sync on figure8-fast.
-    pages: [recipes/side-by-side-videos, use-cases/robotics-3d]
+    shows: The depth camera and the path so far on figure8-fast, new and reference playing in sync, until a false loop closure pulls the new path away.
+    pages: [visualizations, use-cases/robotics-3d]
     features: [video-sync]
+    needs: merge-loop-closure vs fw-26-08
     phase: 3
-    status: planned
+    status: published
   - id: commit/pointcloud
     kind: still
     project: robotics-3d
-    shows: A keyframe's point cloud against the ground truth's.
+    shows: The map figure8-fast built, in 3D, against where its points really are; false loop closures put shelves meters away.
     pages: [visualizations, use-cases/robotics-3d]
     features: [pointcloud]
+    needs: merge-loop-closure vs fw-26-08
     phase: 3
-    status: planned
+    status: published
   - id: commit/trajectory-6dof
     kind: still
     project: robotics-3d
-    shows: The figure8-fast trajectory against ground truth in 3D and per axis; the drift after the keyframe change.
+    shows: The figure8-fast trajectory against the ground truth and the reference's, per axis and in 3D; a false loop closure pulls it away.
     pages: [visualizations, use-cases/robotics-3d]
     features: [trajectory-6dof]
-    needs: keyframe-dist vs fw-26-09
+    needs: merge-loop-closure vs fw-26-08
     phase: 3
-    status: planned
+    status: published
   - id: commit/transcript-diff
     kind: still
     project: agent-evals

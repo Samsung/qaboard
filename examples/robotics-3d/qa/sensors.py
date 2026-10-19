@@ -85,3 +85,23 @@ def imu(truth_poses, truth_rate, rng):
     gyro = omega + gyro_bias + rng.normal(0, 0.004, (n, 3))
     accel = specific + accel_bias + rng.normal(0, 0.04, (n, 3))
     return t, gyro, accel
+
+
+def smooth_depth(depth, radius=2, tolerance=0.03):
+    """
+    Edge-preserving smoothing of a depth image: each pixel becomes the mean of its (2r+1)² neighbors whose depth is
+    within `tolerance` (relative) of its own, so that surfaces are averaged and depth edges kept. 0 is no data.
+    """
+    d = depth.astype(np.float64)
+    valid = d > 0
+    padded = np.pad(d, radius, mode='constant')
+    total = np.zeros_like(d)
+    count = np.zeros_like(d)
+    for dy in range(2 * radius + 1):
+        for dx in range(2 * radius + 1):
+            n = padded[dy:dy + HEIGHT, dx:dx + WIDTH]
+            ok = (n > 0) & (np.abs(n - d) < tolerance * np.maximum(d, 1e-6))
+            total += np.where(ok, n, 0)
+            count += ok
+    out = np.where(valid & (count > 0), total / np.maximum(count, 1), 0)
+    return out.astype(np.float32)
