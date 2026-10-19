@@ -2,7 +2,7 @@
 id: comparing-results
 title: Comparing results
 sidebar_label: Comparing results
-description: New vs reference, picking a reference, milestones, comparing images and videos (synced, wipe, difference, pixel values) and metric colors.
+description: New vs reference, picking a reference, milestones, comparing images and videos (synced, wipe, difference, pixel values, exact frames, where they differ) and metric colors.
 ---
 QA-Board always shows the results of a **new** commit next to a **reference** (`ref`). Knowing what you compare to is half the job.
 
@@ -35,7 +35,7 @@ In the **ref** bar (or the **new** bar, it works the same way):
 | **Also select as reference** / **as new** | Copies this commit, batch and filter to the other bar. Handy to compare two batches of the **same** commit, e.g. a tuning experiment vs CI. |
 | **Remove from comparison** | Clears the commit. |
 | The reference branch | Selects its latest commit. |
-| Milestones | From *qaboard.yaml*, shared, or private. The milestone's batch and filter are selected too. |
+| Milestones | Your favorites, your milestones, the project's, and those from *qaboard.yaml*. The milestone's batch and filter are selected too. |
 
 Each bar also has its own **batch selector** and **filter**: you can compare any batch of any commit with any other.
 
@@ -73,30 +73,57 @@ Matching only uses the reference runs left by the reference's filter box (**Filt
 :::
 
 ## Milestones
-Milestones are bookmarks for references worth keeping: a release, a benchmark, "the best tuning so far". They are kept by the cleanup of old results, and protected from deletion.
+Milestones are bookmarks for results worth comparing with: a release, a benchmark, "the best tuning so far". A milestone is a commit's **batch**, maybe with a **filter**. The cleanup of old results keeps the batches that are milestones (and only them, not the commit's other batches), and they can't be deleted by mistake.
 
-There are three kinds:
+### Saving a milestone
+Click the **star** next to the commit hash in the new or ref bar. A dialog shows what you are about to save (the commit, its batch, the filter and how many runs match) and asks for:
 
-| Kind | Who sees it | How to create it |
-|---|---|---|
-| **From *qaboard.yaml*** (crown icon) | Everyone | The project's *qaboard.yaml* lists branches, tags or commits under `project.milestones`. See [References & Milestones](../references-and-milestones.mdx#project-references). |
-| **Shared** (crown icon) | Everyone | The star in a commit bar, with **Shared** on. |
-| **Private** (star icon) | Only you, in this browser | The star in a commit bar, with **Shared** off. |
-
-To save a milestone, click the **star** next to the commit hash in the new or ref bar. Give it an optional **label** and **notes**, choose whether it's **Shared**, then **Save**:
+- A **name**: one is suggested, type over it to say why it matters.
+- A **group** (optional), like `releases` or `tuning/denoiser`: milestones are listed by group, `/` makes subgroups. The groups you already use are suggested.
+- **Notes** (optional): what changed, what to look at.
+- **Who sees it in their lists**: *Only me*, or *Everyone on the project*.
 
 <Shot
   id="commit/milestone"
-  caption="A shared milestone for a release: its label and notes tell everyone why it's worth comparing with."
+  caption="Saving the results of a commit: the dialog says what it saves, then asks for a name, a group and who sees it."
 />
 
-- A milestone remembers the commit, the selected **batch** and **filter**.
-- Click the star again to edit or **Delete** it. You can only edit or delete shared milestones that you created, and you need to be logged in.
-- Pick milestones from the **Change** menu of the commit bars, or from the **Milestones** menu of the project's sidebar. With many milestones, filter them by label, branch or owner, and sort them by date.
-- Milestone commits show a star in the commit list, and milestone batches a `⭐` in the batch selector.
+You need to be logged in: milestones are saved in your account, so they follow you on every computer. When the results you look at are a milestone, the star is filled (a crown for shared milestones) and the milestone's name shows next to it: click either to edit it, copy its link, add it to your favorites or delete it. Only its owner can edit a milestone; others can **Save my own** copy.
+
+### Finding milestones
+Pick milestones from the **Change** menu of the commit bars (to compare with them), or from the sidebar's **Milestones** menu (to open them). Both list:
+
+1. Your **favorites**: click the heart of a milestone, or of a group to keep all its milestones first, even those saved later. The sidebar also lists them, one click away.
+2. **My milestones**, by group. Click a group to collapse it: it stays collapsed.
+3. The milestones **shared with the project**, with who saved them.
+4. The references listed in *qaboard.yaml* (see [References & Milestones](../references-and-milestones.mdx#project-references)).
+
+The search box matches everything a milestone says: name, group, notes, branch, batch, filter, commit, owner. <kbd>Enter</kbd> picks the first result. Hover a milestone to add it to your favorites, copy its link or edit it.
+
+It also matches what the milestone's runs used, recorded when it was saved: their **datasets** (the databases of their inputs), the **qa batches** they ran in, and their platforms. Type `dataset:indoor`, `qa-batch:nightly` or `platform:arm` to search only those; plain words search them too. When a milestone is listed only because of its runs, it says why, e.g. *dataset: indoor/2024*. The save dialog shows them before you save.
+
+<Shot
+  id="commits/milestones-menu"
+  caption="Your favorites first, then your milestones by group, then the project's."
+/>
+
+- Milestone commits show a star in the commit list (hover it for their names), and milestone batches a star in the batch selector.
+- A commit can have several milestones, e.g. one per filter.
+
+### Managing milestones
+**Manage milestones…**, at the bottom of the milestones menus, opens all the project's milestones in a table, with their notes and what their runs used (how many, their datasets and qa batches). Sort them by last update (the default), creation date, name or group, search them, show only yours, the shared ones or your favorites, and pick a **dataset** or qa batch to see only the milestones whose runs used it. From each row: **Open** it, use it **As reference** (on a commit page), add it to your favorites, copy its link, or edit it.
+
+Select several milestones to move them to a group, share them, make them personal or delete them at once (only yours: others' milestones are skipped). Select exactly two to **Compare** them: the most recent is the new results, swap them with the arrows, or copy the link to the comparison.
+
+### Links to milestones
+Each milestone has a link, like `https://qaboard/my/project/milestone/12-best-denoiser`: copy it from the menus or the milestone's dialog. It opens the milestone's results. Only the number matters, so renaming a milestone keeps its links working. Anyone who can see the project can open the link, even for milestones that are only listed for you.
+
+To share a comparison of two milestones, add the reference milestone with `?vs=`: `https://qaboard/my/project/milestone/12-best-denoiser?vs=14-release-1-0`. Copy it from **Manage milestones…** (select the two milestones), or from the link button next to the reference's milestone when the new and reference results are both milestones.
+
+If a link's milestone was deleted, the page says which one it was, and offers to open the other milestone of a comparison. If only the reference milestone of a comparison was deleted, the new milestone opens, compared with the project's default reference, and a message says so.
 
 :::note
-Private milestones are stored in your browser: they don't follow you to another computer or browser.
+Before October 2026, "private" milestones were saved in your browser. Log in once with that browser: they move to your account, as milestones listed only for you.
 :::
 
 ## Image viewers
@@ -106,19 +133,24 @@ Compare the images above them, like videos:
 |---|---|
 | **Side by side** | New on the left, reference on the right. A cross marks the pixel under your mouse on both. |
 | **Wipe** | One image over the other: drag the divider to see new on one side, reference on the other. |
-| **Toggle** | One image at a time: click it, or press <kbd>t</kbd>, to flip to the other in place, in every viewer of the page. Differences jump out. |
+| **Single** | One image at a time, in place: click it, or press <kbd>t</kbd>, to flip to the other in place, then to their difference, then back, in every viewer of the page. Differences jump out. |
 | **Difference** | [Where the images differ](#the-difference), between them (new, difference, reference) or alone. |
 
 The mode applies to every image viewer of the page, and is saved in the URL: a link shows the same comparison. Press
-<kbd>1</kbd> to <kbd>4</kbd> over a viewer to switch, or pick it in the **View options** (**Viewers** › **Compare images**).
+<kbd>1</kbd> to <kbd>4</kbd> to switch, or pick it in the **View options** (**Viewers** › **Compare images**).
 **Swap** (or <kbd>t</kbd>) exchanges new and reference in every viewer of the page, so they all show the same one
-first. When both runs saved the same file, the viewer shows one image, tagged *same as the reference*.
+first. The difference stays between them. When one image shows, or the difference alone, it goes to the other image,
+then to their difference, then back to the first: its tooltip says what's next.
+
+The keys work anywhere on the page, also while you scroll: on the viewer under your mouse, else the one you used last,
+or the first one in view. When both runs saved the same file, the viewer shows one image, tagged *same as the reference*.
 
 ### Blind test
 To judge images without knowing which is new, click **Blind test** next to **Swap** above the images, or press
 <kbd>h</kbd>. Every viewer of the page then shows its two images in a random order, called **A** and **B**: in their
-labels, the values under the pointer and the histograms. Nothing else tells them apart: compare, swap them (in toggle
-mode, <kbd>t</kbd> flips between A and B), and pick the one you prefer.
+labels, the values under the pointer and the histograms. Nothing else tells them apart: compare, swap them (in single
+mode, <kbd>t</kbd> goes from A to B, then to their difference), and pick the one you prefer. Swapping, toggling and the
+test itself apply to every viewer of the page.
 
 The same button, now **Reveal** (or <kbd>h</kbd>), shows which was which, e.g. *reference · A*, without moving the
 images. Then **Done** (or <kbd>h</kbd>) ends the test: new first again everywhere.
@@ -190,7 +222,8 @@ Zoom in further and the values show **on the pixels themselves**, in black or wh
 
 The image values arrive by tiles of 64×64 pixels: the first ones can take a moment while the server opens the image,
 the next ones are quick. When the server can't read the file, the line says *unavailable*: hover it to see why, and use
-the displayed values.
+the displayed values. The server reads the image values, and finds where images differ, for signed-in users only:
+signed out, you see the displayed values, and the viewer says to sign in.
 
 <Shot
   id="commit/pixel-tooltip"
@@ -233,7 +266,16 @@ that differs most; the other viewers show their own regions too. Closing the lis
 
 ### Histograms
 The histogram button shows the red, green, blue and luminance histograms of what the images show, new (solid) and
-reference (dashed): zoom on a region to see its histograms.
+reference (dashed): zoom on a region to see its histograms. Where the channels overlap, their colors blend. Hover the
+histogram to read the share of the pixels at a value, in each channel.
+
+- **Pick the channels**: click R, G, B or Y (luminance) above the histogram to show that channel alone, click it again
+  to show them all. Shift+click shows or hides one channel.
+- **Highlight a range of values**: drag on the histogram. Stripes show the pixels in the range on the images, and the
+  rest is dimmed. Below the histogram, you see which share of each image is highlighted. A pixel is highlighted when
+  all the channels shown are in the range, so show one channel alone to pick its values, e.g. the clipped reds. Drag the
+  range's edges to resize it, or its middle to move it (the arrow keys move it too). Click the histogram, or press
+  Escape, to clear it.
 
 <Shot
   id="commit/roi-histograms"
@@ -264,16 +306,18 @@ them in a chat or a slide, or saves them as PNG files. It also opens the origina
 shortcuts.
 
 ## Video viewer
-Videos play in sync with the reference's. Pick how to compare them above the videos:
+Videos play in sync with the reference's, and compare like images: the video viewer has the image viewer's modes,
+difference methods, display adjustments and pixel values. Pick how to compare them above the videos:
 
 | Mode | What you see |
 |---|---|
 | **Side by side** | New on the left, reference on the right. A cross shows where your mouse is on the other video. |
 | **Wipe** | One video over the other: drag the divider to see new on one side, reference on the other. |
-| **Toggle** | One video at a time: press <kbd>t</kbd> (or click its label) to flip to the other, in place. |
-| **Difference** | How much each pixel differs, per color channel, amplified (×1 to ×64). Black means identical. |
+| **Single** | One video at a time, in place: <kbd>t</kbd> shows the other, then their difference, then the first again. |
+| **Difference** | Between the videos (new \| difference \| reference), or alone, larger (click **Difference** again). Computed [like the images'](#the-difference): perceptual, ΔE 2000, absolute, signed, or any change. |
 
-QA-Board remembers your choice for all videos. **Swap** (or <kbd>t</kbd>) exchanges new and reference.
+QA-Board remembers your choice for all videos. **Swap** (or <kbd>t</kbd>) exchanges the sides, and **Blind test**
+(<kbd>h</kbd>) shows the videos in a random order, called A and B, until you reveal them.
 
 <Clip
   id="commit/video-compare"
@@ -282,9 +326,56 @@ QA-Board remembers your choice for all videos. **Swap** (or <kbd>t</kbd>) exchan
 
 - **Play and pause**: click the videos, or press <kbd>Space</kbd>. Paused, both videos show the same frame.
 - **Frame by frame**: <kbd>←</kbd> and <kbd>→</kbd>, or the step buttons. <kbd>Shift</kbd> moves by a second. The frame number shows next to the time.
-- **Zoom** with the mouse wheel or a pinch, **pan** by dragging: both videos follow, even if their resolutions differ. Zoomed in, you see the actual pixels; the toolbar shows the coordinates of the one under your mouse. **1:1** shows one video pixel per screen pixel, the percentage button fits the videos again.
-- **Speed and loop**: slow down to 0.1× to look at fast motion, or loop a short clip.
+- **Zoom** with the mouse wheel or a pinch, **pan** by dragging: both videos follow, even if their resolutions differ. Zoomed in, you see the actual pixels, and a minimap shows where you are. **1:1** shows one video pixel per screen pixel, the percentage button fits the videos again.
+- **Speed and loop**: slow down to 0.1× (<kbd>&lt;</kbd> <kbd>&gt;</kbd>) to look at fast motion, or loop a short clip.
+- **Full screen**: the full screen button, or <kbd>f</kbd>.
+- **Display adjustments** (the flash button): brightness, contrast, gamma, one channel, false colors. Only what you see changes.
 - **Frames**: the camera button copies the current frame (new, reference or difference) to paste it in a chat or a slide, or saves it as a PNG.
+
+### Which frames you are looking at
+Videos are compressed, and browsers can skip frames while they play: the viewer says what you look at. Paused, the
+badge at the bottom left of the videos tells which frame each shows:
+
+- **✓ Frame 42 · both**: both videos show their frame 42, as decoded from the files. QA-Board's server read the
+  timestamps of every frame, so frames are numbered like in the file, even with variable frame rates.
+- **Frame 42?**: the frame is estimated from the frame rate, e.g. when the server can't read the videos.
+- **new 42 · reference 21**: the videos show different frames, e.g. they have different frame rates: they're
+  compared at the same time.
+- **Playing**: pause, or step with <kbd>←</kbd> <kbd>→</kbd>, to compare exact frames.
+
+The frame's type (I, P or B) shows next to it once the server compared the videos. The properties button tells what's
+in the files, side by side, with what differs highlighted: codec, pixel format (e.g. `yuv420p10le`), bit depth, chroma
+subsampling, color range and matrix, frame rate, frames, bit rate, keyframes, and how many frames your browser
+dropped. It also says what that means for what you see, e.g. that a lossy codec changed the values your code wrote,
+or that 4:2:0 stores colors at half resolution.
+
+### Pixel values
+Hover a pixel: the line above the videos shows its values in each video, and their difference. As for images, there
+are two kinds of values, always labelled:
+
+- **decoded**: the frame's own values, as the codec stores them, e.g. Y′, Cb and Cr in 10 bits. The server decodes
+  the very frame your browser shows. They show once the videos are paused, if you're signed in: the server reads the
+  videos (decoded values, what's in the files, **Differences**) for signed-in users only.
+- **display**: the 8-bit RGB on your screen, after your browser converted the frame (with the color matrix it
+  guessed, rounded to 8 bits).
+
+Zoom in enough on paused videos and the values are written on the pixels. The values button (123) picks which,
+<kbd>p</kbd> shows or hides them. Click the line above the videos to switch to hexadecimal.
+
+### Where the videos differ
+**Differences** (next to the timeline) asks the server to compare every decoded frame of the two videos, each with the
+reference's frame shown at the same time. Then:
+
+- the timeline shows how much each frame differs: the taller and darker, the more. Hover it for the frame's largest
+  difference, its PSNR, the share of pixels that changed, and the frames' types. Click to go there.
+- <kbd>n</kbd> and <kbd>N</kbd> go to the next and previous frames where the videos differ most.
+- the regions button lists **Differences, whole video**: where and when they differ most, e.g. "#1 · Δ 12% ·
+  frames 40–52". Picking one zooms on it, at the frame where it differs most. <kbd>[</kbd> <kbd>]</kbd> go from one to
+  the next. **Differences, this frame** follows the frame you're on.
+
+The first time, the comparison takes about a second per 150 Full HD frames; then it's kept for everyone. It needs
+videos of the same size. For long videos the server stops after 2 minutes (or 20,000 frames), and the summary says
+how far it went.
 
 The keyboard works on the viewer under your mouse, or the one you clicked. The keyboard button lists all the shortcuts.
 

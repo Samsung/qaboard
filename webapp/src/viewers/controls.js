@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { parse_query, updateSelected } from "../selection";
 
@@ -63,7 +63,8 @@ const save_controls = (controls, qatools_config) => {
 
 
 // Controls of the output viewers (e.g. image diff on/off), which visualizations are shown,
-// and the values of dynamic options: [controls, setControls]
+// and the values of dynamic options: [controls, setControls]. setControls takes the controls, or a function of the
+// latest ones: several changes in the same event, e.g. an image viewer's mode and difference, all apply.
 const useViewerControls = config => {
   const [controls, setControls] = useState(() => controls_defaults(config));
   // When the configuration changes, we keep users' choices
@@ -78,7 +79,13 @@ const useViewerControls = config => {
       dynamic_options_sync: controls.dynamic_options_sync || {},
     });
   }
-  const update = controls => {
+  const latest = useRef(controls);
+  useLayoutEffect(() => {
+    latest.current = controls;
+  });
+  const update = next => {
+    const controls = typeof next === 'function' ? next(latest.current) : next;
+    latest.current = controls;
     setControls(controls);
     save_controls(controls, config);
   };

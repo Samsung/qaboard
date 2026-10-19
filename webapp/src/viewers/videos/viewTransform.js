@@ -87,3 +87,24 @@ export const panBy = (view, dx, dy, pane, media) => {
     cy: (pane.height / 2 - t.y - dy) / (t.height * t.scale),
   }, pane, media);
 };
+
+// The view that shows a region of the video ({ x, y, w, h } in its pixels), with a margin around
+export const fitRegion = (region, pane, media, margin = 0.85) => {
+  if (!media?.width || !region?.w || !region?.h) return FIT;
+  const fit = fitRect(pane, media);
+  const scale = fit.width / media.width;
+  const zoom = margin * Math.min(pane.width / (region.w * scale), pane.height / (region.h * scale));
+  return clampView({
+    zoom,
+    cx: (region.x + region.w / 2) / media.width,
+    cy: (region.y + region.h / 2) / media.height,
+  }, pane, media);
+};
+
+// Where a region of the video ({ x, y, w, h } in its pixels) shows in the pane, in CSS pixels
+export const regionRect = (region, view, pane, media) => {
+  const t = transformOf(view, pane, media);
+  const sx = t.width * t.scale / media.width;
+  const sy = t.height * t.scale / media.height;
+  return { left: t.x + region.x * sx, top: t.y + region.y * sy, width: region.w * sx, height: region.h * sy };
+};

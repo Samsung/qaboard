@@ -1,6 +1,6 @@
 # Image viewer
 
-A React component to compare images: **side by side**, with a **wipe**, **toggling** between them, or as their
+A React component to compare images: **side by side**, with a **wipe**, **one at a time** in place, or as their
 **difference**, with synced deep zoom, the **values of the pixels** (the image's own: raw, 16-bit, float...) written on
 them when zoomed in, full screen, regions of interest, histograms and display adjustments. It is [QA-Board](https://github.com/Samsung/qaboard)'s image viewer, and
 works in any React app.
@@ -182,6 +182,9 @@ const shuffled = !!test && coin(test.seed, id);
 />
 ```
 
+Toggling (<kbd>t</kbd>) one image shown alone moves to the other, then to their difference, by flipping `swapped` and
+setting the mode: control `mode` and `diff` too so that all the viewers stay in step.
+
 ### Synced viewers
 Viewers with the same `syncKey` zoom and pan together, when their images have the same aspect ratio (whatever their
 resolution), and show a cross where the pointer is on the others. Viewers off-screen catch up when they show.
@@ -197,11 +200,12 @@ resolution), and show a cross where the pointer is on the others. Viewers off-sc
 |---|---|---|---|
 | `image` | URL or `{ url \| iiif, label?, href?, ... }` | required | The image |
 | `reference` | same, or `null` | `null` | What it's compared with |
-| `mode`, `defaultMode`, `onModeChange` | `'side-by-side' \| 'wipe' \| 'toggle' \| 'difference'` | `'side-by-side'` | How they're compared |
+| `mode`, `defaultMode`, `onModeChange` | `'side-by-side' \| 'wipe' \| 'single' \| 'difference'` | `'side-by-side'` | How they're compared |
 | `diff`, `defaultDiff`, `onDiffChange` | `{ method, gain?, max?, layout? }` | `{ method: 'perceptual' }` | [The difference](#the-difference), and whether the images show on its sides (`layout: 'between'`, the default) or not (`'alone'`) |
 | `adjustments`, `defaultAdjustments`, `onAdjustmentsChange` | `{ brightness, contrast, gamma, sharpen, channel, falseColor, invert }` | none | How images look. Only the display changes. |
 | `pixelValues`, `defaultPixelValues`, `onPixelValuesChange` | `'image' \| 'display' \| 'off'` | `'image'` | [Values](#pixel-values-the-images-or-the-displayed-ones) written on the pixels when zoomed in. `'image'` needs `getPixels`, else they're the displayed ones. |
 | `getPixels` | `(image, { x, y, w, h }, { signal }) => Promise<{ data, width, height, channels?, mode? } \| { values, mode? }>` | | The image's own values, by tiles of 64×64 |
+| `imageValuesUnavailable` | `string` | | Without `getPixels`, why the image's own values aren't available, e.g. "Sign in to read the images' own values" |
 | `syncKey` | `string` | | Viewers with the same key are synced |
 | `regionSets` | `[{ id, label, regions?, loading?, error?, load?, empty? }]` | `[]` | Regions of interest |
 | `regionSet`, `defaultRegionSet`, `onRegionSetChange` | `string \| null` | | The set shown (`null`: the full image) |
@@ -217,8 +221,10 @@ The types are in `index.d.ts`. The package also exports helpers: `iiifUrl`, `thu
 `DIFF_METHODS`, `normalizeDiff`, `diffAt`, `regionAsYaml`, `scaleRegion`, `clipRegion`, `MODES`.
 
 ### Keyboard
-For the viewer under the mouse, or that has the focus: <kbd>1</kbd>–<kbd>4</kbd> the mode, <kbd>t</kbd> swap the
-images (flip in toggle mode, like a click), <kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd> zoom, <kbd>p</kbd> pixel values,
+Anywhere on the page: for the viewer in full screen, else under the mouse, else that has the focus, else the one used
+last if it's in view, else the first in view. <kbd>1</kbd>–<kbd>4</kbd> the mode, <kbd>t</kbd> toggle: swap the sides
+(around the difference too); when one image shows, or the difference alone, the other image, their difference, and
+again (like a click on the image), <kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd> zoom, <kbd>p</kbd> pixel values,
 <kbd>h</kbd> blind test (then reveal, then end), <kbd>f</kbd> full screen (<kbd>Esc</kbd> leaves), <kbd>[</kbd> <kbd>]</kbd> previous / next region. The wheel or a pinch zooms, a drag pans, a
 double-click zooms in.
 
@@ -278,8 +284,9 @@ The viewer inherits the font of the page.
 | `sources.js` | Images (URLs, IIIF) to OpenSeadragon tile sources. PNG tiles when the server has them: JPEG would change the values. |
 | `metrics.js` | The difference methods (YIQ, CIEDE2000...), used without WebGL, for the values under the pointer, and by the tests |
 | `diffRenderer.js` | The difference on the GPU: one WebGL context shared by all the viewers (browsers keep ~16 per page) |
-| `overlays.jsx` | Drawn over the images: the difference, pixel values, crosshairs, minimap |
+| `overlays.jsx` | Drawn over the images: the difference, the highlighted values, pixel values, crosshairs, minimap |
 | `panels.jsx` | Values under the pointer, histograms, adjustments, regions |
+| `histogram.js`, `highlightRenderer.js` | Histograms, and the range of values highlighted from them, on the GPU (one more WebGL context shared by all the viewers) |
 | `adjustments.js` | Display adjustments, as an SVG filter: they don't touch the pixels we read |
 | `regions.js`, `pixels.js`, `colormaps.js` | Helpers |
 | `ui.jsx`, `icons.js`, `image-viewer.css` | Buttons, menus, icons (from Blueprint): the viewer doesn't need a UI kit |

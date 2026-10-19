@@ -26,7 +26,8 @@ import { CommitAvatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
 import { format, shortId, pretty_label } from "../utils";
 import { commit_url as git_commit_url } from "../git"
-import { has_milestones } from './milestones'
+import { milestones_of, milestone_name } from '../milestones/api'
+import { useMilestones } from '../milestones/hooks'
 import { copyDirectory } from './logs/DirectoryActions'
 import { copyWithToast } from '../utils/clipboard'
 import { hasPathMappings } from '../utils/paths'
@@ -307,7 +308,7 @@ const CommitMenu = ({ commit, project, project_data = {}, style }) => {
 
   const git = project_data.data?.git ?? {};
   const is_subproject = git.path_with_namespace !== project;
-  const commit_has_milestones = has_milestones({commit, project, project_data})
+  const commit_milestones = milestones_of(useMilestones(project), {project, commit: commit.id})
   const short_id = shortId(project, commit.id)
   const deleteRuns = ({ url, all_projects }) => {
     setConfirmDelete(null)
@@ -315,9 +316,10 @@ const CommitMenu = ({ commit, project, project_data = {}, style }) => {
     const what = `all the runs of ${short_id}${all_projects ? ' in all projects' : ''}`
     toaster.show({message: `Deleting ${what}…`, icon: 'time'}, 'delete-commit');
     http.delete(url)
-      .then(() => {
+      .then(({ data }) => {
         setWaiting(false)
-        toaster.show({message: `Deleted ${what}`, intent: Intent.SUCCESS}, 'delete-commit');
+        const kept = data?.kept?.length ? ` (kept the milestone batch${data.kept.length > 1 ? 'es' : ''}: ${data.kept.map(label => pretty_label({label})).join(', ')})` : ''
+        toaster.show({message: `Deleted ${what}${kept}`, intent: Intent.SUCCESS}, 'delete-commit');
         refresh()
       })
       .catch(error => {
@@ -326,7 +328,7 @@ const CommitMenu = ({ commit, project, project_data = {}, style }) => {
         refresh()
       });
   }
-  const milestones_title = commit_has_milestones ? "Commits with milestones can't be deleted: remove the milestones first." : undefined
+  const milestones_title = commit_milestones.length > 0 ? `The batches that are milestones are kept: ${[...new Set(commit_milestones.map(m => pretty_label({label: m.batch || 'default'})))].join(', ')}` : undefined
 
   return <>
     <PopoverNext
@@ -337,10 +339,10 @@ const CommitMenu = ({ commit, project, project_data = {}, style }) => {
         <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
         <MenuDivider title="Manage"/>
         <MenuItem
-          text="Delete all runs…"
+          text={commit_milestones.length > 0 ? "Delete all runs, except milestones…" : "Delete all runs…"}
           icon="trash"
           intent={Intent.DANGER}
-          disabled={waiting || commit_has_milestones}
+          disabled={waiting}
           htmlTitle={milestones_title}
           className={Classes.TEXT_MUTED}
           minimal
@@ -350,7 +352,7 @@ const CommitMenu = ({ commit, project, project_data = {}, style }) => {
           text="Delete all runs, in all the projects with this commit…"
           icon="trash"
           intent={Intent.DANGER}
-          disabled={waiting || commit_has_milestones}
+          disabled={waiting}
           htmlTitle={milestones_title}
           className={Classes.TEXT_MUTED}
           minimal
@@ -379,6 +381,7 @@ const CommitMenu = ({ commit, project, project_data = {}, style }) => {
     >
       <p><strong>Delete all the runs of {short_id}{confirm_delete?.all_projects ? ', in all projects' : ''}?</strong></p>
       <p>Their output files and metrics will be deleted. This can't be undone.</p>
+      {!!milestones_title && <p>{milestones_title}.</p>}
     </Alert>
   </>
 }
@@ -395,8 +398,8 @@ const CopyHashButton = ({ commit, className, style }) => <Tooltip content="Copy 
   />
 </Tooltip>
 
-const MilestoneStar = () => <Tooltip content="This commit is a milestone">
-  <Icon icon="star" style={{color: Colors.GOLD5}} aria-label="This commit is a milestone" />
+const MilestoneStar = ({ milestones }) => <Tooltip content={<span>Milestone{milestones.length > 1 ? 's' : ''}: {milestones.map(milestone_name).join(', ')}</span>}>
+  <Icon icon="star" style={{color: Colors.GOLD5}} aria-label={`Milestone${milestones.length > 1 ? 's' : ''}: ${milestones.map(milestone_name).join(', ')}`} />
 </Tooltip>
 
 
@@ -405,7 +408,7 @@ const ComfortableCommitRow = ({ commit, project, project_data = {}, className, t
   const commit_url = git_commit_url(project_data, commit.id)
   const has_data = !!commit?.authored_datetime
   let maybe_skeletton = has_data ? null : Classes.SKELETON;
-  const commit_has_milestones = has_milestones({commit, project, project_data})
+  const commit_milestones = milestones_of(useMilestones(project), {project, commit: commit.id})
   const [message_title, ...message_body_lines] = (commit.message ?? '').split(/\r?\n/)
   const message_body = message_body_lines.join('\n').trim()
   const short_id = shortId(project, commit.id)
@@ -421,7 +424,7 @@ const ComfortableCommitRow = ({ commit, project, project_data = {}, className, t
       <CommitDetails>
         <CommitContent style={{ maxWidth: "600px" }}>
           {tag}
-          {commit_has_milestones && <MilestoneStar/>}
+          {commit_milestones.length > 0 && <MilestoneStar milestones={commit_milestones}/>}
           <Message className={maybe_skeletton}>{has_data ? message_title : 'xxxxxxxxxx xxxxxx xxxxxxxxx xxxxxxxxxxx'}</Message>
           {has_data && !!message_body && <MessageBody className={Classes.TEXT_MUTED} title={message_body}>{message_body}</MessageBody>}
           <div>
@@ -693,7 +696,7 @@ const skeleton_text = text => <span className={Classes.SKELETON}>{text}</span>
 // One line per commit: status, hash, message, branch, committer, date, results, actions
 const CompactCommitRow = ({ commit, project, project_data = {}, className, tag, default_batch }) => {
   const has_data = !!commit?.authored_datetime
-  const commit_has_milestones = has_data && has_milestones({commit, project, project_data})
+  const commit_milestones = milestones_of(useMilestones(project), {project, commit: has_data ? commit.id : null})
   const message = commit.message ?? ''
   const [message_title] = message.split(/\r?\n/)
   const short_id = shortId(project, commit.id)
@@ -711,7 +714,7 @@ const CompactCommitRow = ({ commit, project, project_data = {}, className, tag, 
       </Tooltip>
       <CompactMessage title={has_data ? message.trim() : undefined}>
         {tag}
-        {commit_has_milestones && <MilestoneStar/>}
+        {commit_milestones.length > 0 && <MilestoneStar milestones={commit_milestones}/>}
         {has_data ? message_title : skeleton_text('xxxxxxxxxx xxxxxx xxxxxxxxx xxxxxxxxxxx')}
       </CompactMessage>
       {has_data

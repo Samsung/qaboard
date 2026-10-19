@@ -562,7 +562,7 @@ def run_gate(gate: GateConfig, project: str, commit: str, fetch: Callable[[str],
 
 
 @click.command()
-@click.option('--reference', help="Compare with this branch, milestone or commit. Default: gate.reference in qaboard.yaml, else project.reference_branch.")
+@click.option('--reference', help="Compare with this branch, milestone (its name, or #<id> from its link) or commit. Default: gate.reference in qaboard.yaml, else project.reference_branch.")
 @click.option('--batch', '-b', 'batches', multiple=True, help="The label of a batch to check (repeat for several). Default: gate.batches, else the CI batch (default).")
 @click.option('--commit', 'commit', help="The commit to check. Default: the current commit.")
 @click.option('--format', 'output_format', type=click.Choice(['text', 'markdown', 'json']), default='text', show_default=True, help="Output format.")

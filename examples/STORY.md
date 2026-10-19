@@ -244,7 +244,8 @@ failures:
 | `label`, `notes` | As shown in the app: `v2.3.0`, "Dynamic batching" |
 | `by` | The persona who creates it; it becomes a shared milestone they own |
 | `batch`, `filter` | Saved with the milestone. Default: `default`, no filter |
-| `kind` | `shared` (default), or `config`: add `branch` to *qaboard.yaml*'s `project.milestones` instead |
+| `kind` | `shared` (default), `personal` (listed only for its owner), or `config`: add `branch` to *qaboard.yaml*'s `project.milestones` instead |
+| `group` | Its group in the milestones menus, e.g. `releases` or `tuning/denoiser` |
 | `branch` | For `kind: config` |
 
 ## Time offsets

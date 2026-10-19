@@ -9,7 +9,7 @@ import {
   findCachedCommit, invalidateCommit,
 } from "./api/queries";
 import { errorMessage } from "./api/http";
-import { usePrefsStore, usePrivateMilestones } from "./stores/prefs";
+import { usePrefsStore } from "./stores/prefs";
 import { useSelected, updateSelected } from "./selection";
 import { available_batch, compute_batches, compute_config } from "./selectors/batches";
 import { default_project } from "./defaults";
@@ -36,7 +36,6 @@ export function useProjectData(project) {
   const { data: from_list } = useQuery({ ...projectsQuery, select: projects => projects?.[project] });
   const { data: from_project } = useQuery(projectQuery(project));
   const is_favorite = usePrefsStore(state => !!state.favorites[project]);
-  const milestones = usePrivateMilestones(project);
   return useMemo(() => {
     // The list of projects has their dates and number of commits, and only qaboard.yaml's `project` from their
     // configuration; /api/v1/project has their whole configuration and metrics.
@@ -46,11 +45,10 @@ export function useProjectData(project) {
       ...from_project,
       data: { ...default_project.data, ...from_list?.data, ...from_project?.data },
       is_favorite,
-      milestones,
       // Until then, its configuration is the defaults (e.g. the reference branch)
       is_loaded: !!(from_list || from_project),
     };
-  }, [from_list, from_project, is_favorite, milestones]);
+  }, [from_list, from_project, is_favorite]);
 }
 
 

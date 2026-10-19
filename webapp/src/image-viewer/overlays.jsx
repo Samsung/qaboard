@@ -1,8 +1,10 @@
-// What the viewer draws over the images: their difference, the pixel values, crosshairs, a minimap.
+// What the viewer draws over the images: their difference, the values highlighted from the histogram, the pixel values,
+// crosshairs, a minimap.
 import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import { pixelDensityRatio } from './comparison';
 import { renderDiff } from './diffRenderer';
+import { drawHighlight } from './highlightRenderer';
 import { cellFont, formatNumber, formatSigned, MIN_CELL, textColorOn, visiblePixels } from './pixels';
 import { imageKey, thumbnailUrl } from './sources';
 
@@ -45,6 +47,24 @@ export const DiffLayer = ({ controller, order = ['a', 'b'], diff, active, width,
     }
   }, [active, diff?.method, diff?.gain, diff?.max, width, height, order.join()]);
   return <canvas ref={canvas} className="qiv-diff" style={{ width, height }} />;
+};
+
+
+// The pixels of a pane within a range of values, picked on the histogram: { lo, hi, channels }, or null
+export const HighlightLayer = ({ controller, pane, highlight, active, width, height }) => {
+  const canvas = useRef(null);
+  const shown = !!highlight && active;
+  useRedraw(controller, () => {
+    const source = controller.canvas(pane);
+    if (!shown || !source || !canvas.current) return;
+    try {
+      drawHighlight(canvas.current, source, highlight, pixelDensityRatio());
+    } catch {
+      // the image server doesn't send CORS headers: the histogram says so
+    }
+  }, [shown, highlight?.lo, highlight?.hi, highlight?.channels.join(), width, height]);
+  if (!shown) return null;
+  return <canvas ref={canvas} className="qiv-highlight" style={{ width, height }} />;
 };
 
 

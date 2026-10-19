@@ -57,7 +57,7 @@ Extensions                                          | Type         | Viewer     
 
 ### Image viewer
   * Supports all common image formats, and raw images with an [IIIF](https://iiif.io) server that reads them.
-  * Compares new and reference side by side, with a wipe, toggling between them, or as their difference: perceptual (YIQ), ΔE 2000, absolute or signed per channel, or any change.
+  * Compares new and reference side by side, with a wipe, one at a time (single), or as their difference: perceptual (YIQ), ΔE 2000, absolute or signed per channel, or any change.
   * Fast and smooth zoom & pan, synced across runs and visualizations. Fast image streaming via IIIF.
   * The values of the hovered pixel in both images, and their difference, with a synced cursor on the other images. For 16-bit or raw images, the image's own values, read by the server.
   * Zoomed in, the values written on the pixels.
@@ -186,11 +186,11 @@ We love Brendan Gregg's [flame charts](http://www.brendangregg.com/flamegraphs.h
 > For a tutorial [read our blog post](https://samsung.github.io/qaboard/blog/2020/06/24/flame-graphs).
 
 ### Video viewer
-  * New and reference play in sync, frame by frame: paused, both show the same frame.
-  * Compare them side by side, with a wipe (drag the divider), by toggling between them (<kbd>t</kbd>), or as their difference (amplified up to ×64).
-  * Zoom with the mouse wheel or a pinch, drag to pan: both videos follow, even when their resolutions differ. Zoomed in, you see the actual pixels and their coordinates.
-  * Step frame by frame, scrub, slow down to 0.1×, loop.
-  * Copy or save the current frame as a PNG.
+  * New and reference play in sync, frame by frame: paused, both show the same frame, and the viewer says which, numbered like in the file.
+  * Compare them like images: side by side, with a wipe, one at a time, or as their difference (perceptual, ΔE 2000, absolute...), with display adjustments, full screen and a blind test.
+  * Zoom with the mouse wheel or a pinch, drag to pan: both videos follow, even when their resolutions differ. Zoomed in, you see the actual pixels and their values: decoded (e.g. 10-bit Y′CbCr) or as displayed.
+  * See what's in the files (codec, pixel format, color range, frame rate...) and find where and when two videos differ, frame by frame.
+  * Step frame by frame, scrub, slow down to 0.1×, loop. Copy or save the current frame as a PNG.
 
 How to use it is described in the user guide: [comparing videos](/docs/user-guide/comparing-results#video-viewer).
 
@@ -207,7 +207,18 @@ ffmpeg -i input.avi -c:v libx264 -pix_fmt yuv420p -movflags +faststart output.mp
 
 `+faststart` lets a video start playing before it's fully downloaded. Animated *.webp* and *.gif* files are compared the same way, but your browser plays them on its own: they are not synced.
 
-QA-Board finds a video's frame rate when it plays, or when you step through its frames. If it guesses wrong, e.g. for variable frame rates, set it, with an optional image shown before the video loads:
+QA-Board's server reads the files with FFmpeg: the timestamp of every frame (frames are numbered like in the file,
+also with variable frame rates), their decoded values, and where two videos differ. It reads any format FFmpeg reads,
+but your browser still has to play the video.
+
+To compare exact values, write lossless videos: lossy codecs change the values your code wrote, and 4:2:0 stores
+colors at half resolution. Browsers play lossless VP9:
+
+```bash
+ffmpeg -i frames/%04d.png -c:v libvpx-vp9 -lossless 1 -pix_fmt yuv444p output.webm
+```
+
+Without the server's timestamps, QA-Board finds a video's frame rate when it plays, or when you step through its frames. If it guesses wrong, set it, with an optional image shown before the video loads:
 
 ```yaml title="qaboard.yaml"
 outputs:

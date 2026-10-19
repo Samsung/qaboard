@@ -49,27 +49,24 @@ project:
 ```
 
 ## Defining Milestones from QA-Board
-Every user can save milestones with the “star” icon in each commit navbar. If needed, you can give them a name and leave notes:
+Logged-in users save milestones with the “star” icon in each commit navbar: a commit's batch, with the filter they selected. They give them a name, and optionally a group (like `tuning/denoiser`) and notes:
 
 <Shot
   id="commit/milestone"
-  caption="A release saved as a shared milestone, with its label and notes."
+  caption="Saving the results of a commit: the dialog says what it saves, then asks for a name, a group and who sees it."
 />
 
 You'll now be able to select them in the **Change** menu, and in the sidebar's **Milestones** menu:
 
 <Shot
   id="commits/milestones-menu"
-  caption="Shared milestones for the releases, and a private one."
+  caption="Your favorites first, then your milestones by group, then the project's."
 />
 
-:::tip
-Milestones can be shared with everybody - or kept private.
-:::
-
-- **Shared** milestones are saved on the server, and you must be logged-in to create, edit or delete them. Whoever saves a shared milestone becomes one of its *owners*: after that, only its owners can edit or delete it.
-- **Private** milestones are saved in your browser.
-- In the milestones menus, you can filter milestones by label, branch, owner or committer.
-- Milestones are kept by the [cleanup of old results](storage/deleting-old-data), and the web application won't delete all the runs of a milestone's batch.
+- Milestones are saved in your account. You choose who sees them in their lists: only you, or everyone on the project. Only their owner can edit or delete them.
+- Each milestone has a link, `/<project>/milestone/<id>-<name>`, that anyone who can see the project can open. Renaming a milestone keeps its link.
+- Add milestones to your favorites (the heart): they are listed first, and in the sidebar.
+- In the milestones menus, the search box matches their name, group, notes, branch, batch, filter or owner.
+- The [cleanup of old results](storage/deleting-old-data) keeps the batches that are milestones, and the web application won't delete all their runs.
 
 See the user guide on [milestones](/docs/user-guide/comparing-results#milestones).

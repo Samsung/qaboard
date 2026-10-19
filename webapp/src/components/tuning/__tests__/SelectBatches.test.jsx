@@ -20,7 +20,7 @@ const make_commit = () => ({
 });
 
 const renderNav = (props = {}) => {
-  const all = {commit: make_commit(), batch: {label: 'batch-05'}, project: 'p', project_data: {}, onChange: () => {}, ...props};
+  const all = {commit: make_commit(), batch: {label: 'batch-05'}, milestone_batches: [], onChange: () => {}, ...props};
   const utils = render(<SelectBatchesNav {...all} />);
   return {...utils, rerenderNav: more => utils.rerender(<SelectBatchesNav {...all} {...more} />)};
 };
@@ -78,7 +78,7 @@ describe('SelectBatchesNav', () => {
     expect(screen.getByTitle('1 of 1 run finished')).toBeInTheDocument();
     const commit = make_commit();
     commit.batches['batch-05'].outputs[2] = {output_type: 'slam', is_failed: true};
-    await act(async () => rerenderNav({commit, project_data: {data: {milestones: {'p/abc123/batch-05': {}}}}}));
+    await act(async () => rerenderNav({commit, milestone_batches: ['batch-05']}));
     expect(within(screen.getByRole('button')).getByTitle('Milestone')).toBeInTheDocument();
     expect(screen.getByRole('button').textContent).toContain('batch-05');
     expect(screen.getByTitle('1 of 2 runs finished')).toHaveTextContent('1/2');

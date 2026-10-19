@@ -162,7 +162,7 @@ class FakeBatch:
   def __init__(self, project_id, label="default"):
     self.label = label
     self.ci_commit = SimpleNamespace(project_id=project_id, hexsha="abc", batches=[self], get_or_create_batch=MagicMock())
-    self.ci_commit.project = SimpleNamespace(milestone_commits=[])
+    self.ci_commit.project = SimpleNamespace(protected_ref_commits=[], milestones_on=lambda hexsha=None: [])
     self.outputs = []
     self.changed = []
 
@@ -288,7 +288,7 @@ def test_commit_batches_delete_checks_the_commit_project(commit_webhooks, restri
     query = query.filter.return_value
   for project, expected_status in [("group/B", 403), ("group/A", 200)]:
     batch = FakeBatch(project)
-    query.yield_per.return_value = [batch.ci_commit]
+    query.all.return_value = [batch.ci_commit]
     url = f"/api/v1/commit/{project}/abc/batches/" if project_in_url else "/api/v1/commit/abc/batches/"
     with dummy_app.test_request_context(f"{url}?project=group/A", method="DELETE"):
       response = handler("abc", project_id=project if project_in_url else None)
@@ -395,14 +395,11 @@ UNAUTHENTICATED_ENDPOINTS = {
   ("outputs.py", "new_output_webhook"), ("batch.py", "update_batch"), ("commit.py", "api_ci_commit"),
   ("integrations.py", "jenkins_build_trigger"),
   # read-only, POST is only used to send parameters
-  ("image.py", "get_pixel"), ("image.py", "get_rois"), ("image.py", "get_report"),
   ("integrations.py", "gitlab_job"), ("integrations.py", "jenkins_build"), ("integrations.py", "github_workflow_run"),
   # checks the login itself when writing
   ("tuning.py", "groups"),
   # authenticated with the git host's webhook secret (QABOARD_WEBHOOK_SECRET by default)
   ("webhooks.py", "gitlab_webhook"), ("webhooks.py", "github_webhook"), ("webhooks.py", "gitea_webhook"), ("webhooks.py", "bitbucket_webhook"),
-  # TODO: require a login, check the web app first
-  ("milestones.py", "crud_milestones"),
 }
 
 def test_endpoints_that_change_things_require_login():
@@ -1046,3 +1043,55 @@ def test_git_proxy_keeps_the_session_cookie_on_its_host(integrations, dummy_app,
     response = integrations.proxy_gitlab()
   assert response.status_code == 200
   assert [c.kwargs["cookies"] for c in get.call_args_list] == [{"_gitlab_session": "session-cookie"}, {}]
+
+
+def test_endpoints_that_read_files_require_login():
+  """The image and video viewers' endpoints read files the client names: they need a logged-in user"""
+  import ast
+  for name in ("image.py", "video.py"):
+    tree = ast.parse((Path(__file__).parent.parent / "backend" / "api" / name).read_text())
+    routes = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
+              and any(isinstance(d, ast.Call) and ast.unparse(d.func) == "app.route" for d in node.decorator_list)]
+    assert routes
+    for node in routes:
+      assert "login_required" in [ast.unparse(d) for d in node.decorator_list], f"{name}:{node.name}"
+      # and they check the path (inside the storage, readable by the user)
+      assert "readable_file" in ast.unparse(node) or "_video_path" in ast.unparse(node), f"{name}:{node.name}"
+
+
+def test_the_diff_report_endpoint_is_gone():
+  source = (Path(__file__).parent.parent / "backend" / "api" / "image.py").read_text()
+  assert "diff/report" not in source
+
+
+def test_readable_file(tmp_path, monkeypatch, dummy_app):
+  import backend.files as files
+  import backend.api.files as api_files
+  storage = tmp_path / "storage"
+  (storage / "run").mkdir(parents=True)
+  (storage / "run" / "out.png").write_bytes(b"")
+  (tmp_path / "secret.png").write_bytes(b"")
+  monkeypatch.setattr(files, "storage_roots", [storage])
+  monkeypatch.setattr(files, "private_dirs", lambda: [storage / "run" / ".qaboard"])
+  with dummy_app.test_request_context("/"):
+    path, denied = api_files.readable_file(f"/s{storage}/run", "out.png")
+    assert denied is None and path == storage / "run" / "out.png"
+    for url, parts in [
+      (f"/s{storage}/run", ("../../secret.png",)),
+      (f"/s{storage}/../secret.png", ()),
+      (f"/s{tmp_path}/secret.png", ()),
+      ("/s/etc/passwd", ()),
+      (f"/s{storage}/run/.qaboard", ("x.png",)),
+    ]:
+      path, denied = api_files.readable_file(url, *parts)
+      assert path is None and denied[1] == 403, (url, parts)
+    # not a file URL, or no file
+    assert api_files.readable_file(f"{storage}/run/out.png")[1][1] == 400
+    assert api_files.readable_file(None)[1][1] == 400
+    assert api_files.readable_file(f"/s{storage}/run", "")[1][1] == 400
+    # symlinks out of the storage are outside
+    (storage / "run" / "link.png").symlink_to(tmp_path / "secret.png")
+    assert api_files.readable_file(f"/s{storage}/run/link.png")[1][1] == 403
+    # restricted files need the right user
+    monkeypatch.setattr(api_files, "check_read_access", lambda path: ("login", 401))
+    assert api_files.readable_file(f"/s{storage}/run/out.png")[1] == ("login", 401)

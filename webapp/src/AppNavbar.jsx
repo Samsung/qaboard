@@ -166,7 +166,7 @@ const CommitsListNavbar = () => {
   const { history } = useRouter();
   const list = useCommitsList();
   const { project, date_range } = list;
-  const { project_data, selected, new_commit, new_batch } = useComparison();
+  const { selected, new_commit, new_batch } = useComparison();
   // We only fetch branches once users start searching
   const [wants_branches, setWantsBranches] = useState(false);
   const [today] = useState(() => new Date());
@@ -225,8 +225,6 @@ const CommitsListNavbar = () => {
         {route.is_history && <SelectBatchesNav
           commit={new_commit}
           batch={new_batch}
-          project={project}
-          project_data={project_data}
           onChange={event => updateSelected({ selected_batch_new: event.target.value, selected_batch_ref: event.target.value })}
           hide_counts
         />}

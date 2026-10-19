@@ -23,11 +23,12 @@ export const Button = ({ icon, text, children, active = false, className = '', t
     {(text || children) && <span>{text}{children}</span>}
   </button>;
 
-// One of a few options, e.g. the comparison mode. Arrow keys move between options, like radio buttons.
+// One of a few options, e.g. the comparison mode. The left and right arrows move between options, like radio buttons
+// (not up and down: users scroll the page with them).
 export const Segmented = ({ options, value, onChange, label, className = '' }) => {
   const refs = useRef([]);
   const onKeyDown = (event, index) => {
-    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+    const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
     if (!step) return;
     event.preventDefault();
     event.stopPropagation();
@@ -114,3 +115,17 @@ export const MenuDivider = ({ title }) => title
 
 export const Spinner = ({ size = 14, label = 'Loading' }) =>
   <span className="qiv-spinner" style={{ width: size, height: size }} role="progressbar" aria-label={label} />;
+
+// A primitive of the display adjustments' SVG filter (adjustments.js filterPrimitives)
+export const FilterPrimitive = ({ primitive }) => {
+  const { type, attributes, functions } = primitive;
+  if (type === 'feComponentTransfer')
+    return <feComponentTransfer>
+      {functions.map(({ channel, ...f }) => {
+        const Func = `feFunc${channel}`;
+        return <Func key={channel} {...f} />;
+      })}
+    </feComponentTransfer>;
+  const Element = type;
+  return <Element {...attributes} />;
+};

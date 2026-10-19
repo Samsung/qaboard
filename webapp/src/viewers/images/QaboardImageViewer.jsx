@@ -8,7 +8,7 @@ import { create } from 'zustand';
 
 import { ImageViewer } from '../../image-viewer';
 import { errorMessage, http, isAbort } from '../../api/http';
-import { useComparison, useSiteConfig } from '../../hooks';
+import { useComparison, useSiteConfig, useUser } from '../../hooks';
 import { usePrefsStore } from '../../stores/prefs';
 import { at_most, is_same_data } from '../../utils';
 import { build_image_name, iiif_url } from './utils';
@@ -103,9 +103,13 @@ const usePageKey = () => {
   return [useLocation().pathname, comparison?.new_batch?.id, comparison?.ref_batch?.id].join(' ');
 };
 
+// The server reads the images' values and compares them for signed-in users only
+const SIGN_IN_VALUES = "Sign in (in the sidebar) to read the images' own values: raw, 16-bit…";
+const SIGN_IN_SEARCH = 'Sign in (in the sidebar) to find where the images differ';
+
 // The regions of interest of the providers. Those found on demand are shared by the page (regionSearch.js): a search
 // for all the runs fills each viewer.
-const useRegionSets = context => {
+const useRegionSets = (context, signed_in) => {
   const queryClient = useQueryClient();
   const providers = regionProviders().filter(provider => !provider.available || provider.available(context));
   const finders = providers.filter(provider => !provider.regions && provider.find);
@@ -127,8 +131,8 @@ const useRegionSets = context => {
       empty: provider.empty,
       regions: data,
       loading: fetchStatus === 'fetching',
-      error: error && !isAbort(error) ? errorMessage(error) : undefined,
-      load: () => queryClient.fetchQuery(regionsQuery(provider, context, 'high')).catch(() => {}),
+      error: !signed_in ? SIGN_IN_SEARCH : error && !isAbort(error) ? errorMessage(error) : undefined,
+      load: signed_in ? () => queryClient.fetchQuery(regionsQuery(provider, context, 'high')).catch(() => {}) : undefined,
     });
   }
   return sets;
@@ -167,7 +171,8 @@ const ImageViewerForRuns = ({
   const identical = is_same_data(path, manifests?.new?.[path], manifests?.reference?.[path_ref]);
   const same_data = identical && output_ref?.id !== output_new.id;
   const reference = identical ? null : referenceImage({ output_ref, path_ref, manifests, image_servers });
-  const region_sets = useRegionSets({ output_new, output_ref: reference ? output_ref : null, path, path_ref });
+  const signed_in = useUser().is_logged;
+  const region_sets = useRegionSets({ output_new, output_ref: reference ? output_ref : null, path, path_ref }, signed_in);
   const page = usePageKey();
   const chosen = useRegionSetStore(state => state.by_path[path]);
   const setChosen = useRegionSetStore(state => state.set);
@@ -190,7 +195,7 @@ const ImageViewerForRuns = ({
   const [triage, setTriage] = useState(null);
   const in_page = !!reference && pairs.some(pair => pair.output_new.id === output_new.id);
   const comparing = differenceProviders()[0];
-  const region_actions = in_page && comparing && pairs.length > 1 ? [{
+  const region_actions = signed_in && in_page && comparing && pairs.length > 1 ? [{
     id: 'all-runs',
     icon: 'search',
     label: `Where they differ, in all ${pairs.length} runs…`,
@@ -230,7 +235,8 @@ const ImageViewerForRuns = ({
     onSwappedChange={swapPage}
     blindTest={blind_test}
     onBlindTestChange={blindTestPage}
-    getPixels={getPixels}
+    getPixels={signed_in ? getPixels : undefined}
+    imageValuesUnavailable={signed_in ? undefined : SIGN_IN_VALUES}
     maxHeight={height => height - (fullscreen ? 120 : 260)}
     notice={<>
       {label && <span className="qaboard-image-viewer-label">{label}</span>}

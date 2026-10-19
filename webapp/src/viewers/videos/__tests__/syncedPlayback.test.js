@@ -1,4 +1,4 @@
-import { SyncedPlayback, snapFps, frameAt, timeOfFrame } from '../syncedPlayback';
+import { SyncedPlayback, snapFps, frameAt, timeOfFrame, frameAtTimes, timeOfFrameTimes, frameOfTimestamp } from '../syncedPlayback';
 import { FakeVideo } from './fakeVideo';
 
 const setup = (options = {}, followerOptions = options) => {
@@ -36,7 +36,57 @@ describe('frame math', () => {
   });
 });
 
+describe('frames from the file\'s timestamps', () => {
+  // a variable frame rate: 25 fps, then 10 fps
+  const times = [0, 0.04, 0.08, 0.12, 0.22, 0.32];
+  test('the frame shown at a time', () => {
+    expect(frameAtTimes(0, times)).toBe(0);
+    expect(frameAtTimes(0.039, times)).toBe(0);
+    expect(frameAtTimes(0.04, times)).toBe(1);
+    expect(frameAtTimes(0.2, times)).toBe(3);
+    expect(frameAtTimes(9, times)).toBe(5);
+  });
+  test('where to seek to show a frame: its middle', () => {
+    expect(timeOfFrameTimes(1, times)).toBeCloseTo(0.06);
+    expect(timeOfFrameTimes(3, times)).toBeCloseTo(0.17);
+    expect(timeOfFrameTimes(5, times)).toBeCloseTo(0.37);
+  });
+  test('which frame a timestamp is, if any', () => {
+    expect(frameOfTimestamp(0.08, times)).toBe(2);
+    expect(frameOfTimestamp(0.0801, times)).toBe(2);
+    expect(frameOfTimestamp(0.22, times)).toBe(4);
+    // between two frames: we don't know
+    expect(frameOfTimestamp(0.17, times)).toBe(null);
+  });
+});
+
 describe('SyncedPlayback', () => {
+  test('steps through the frames of the file, and says which frames show', async () => {
+    const { leader, follower, playback } = setup({ fps: 25 });
+    const times = Array.from({ length: 250 }, (_, i) => i / 25);
+    playback.setFrameTimes(leader, times);
+    playback.setFrameTimes(follower, times);
+    expect(playback.getSnapshot()).toMatchObject({ frames: 250, fpsSource: 'file', frameDuration: 0.04 });
+    await playback.stepFrames(3);
+    expect(leader.currentTime).toBeCloseTo(0.14);
+    leader.finishSeek();
+    follower.finishSeek();
+    expect(playback.getSnapshot().presented).toMatchObject({ index: 3, exact: true });
+    expect(playback.getSnapshot().presentedReference).toMatchObject({ index: 3, exact: true });
+    // while playing, we don't say
+    playback.play();
+    expect(playback.getSnapshot().presented).toBe(null);
+  });
+
+  test('without the file\'s timestamps, the presented frame is estimated', () => {
+    const { leader, follower, playback } = setup({ fps: 25 });
+    playback.setFps(25);
+    playback.seek(1);
+    leader.finishSeek();
+    follower.finishSeek();
+    expect(playback.getSnapshot().presented).toMatchObject({ index: 25, exact: false });
+  });
+
   test('plays and pauses both videos', async () => {
     const { leader, follower, playback } = setup();
     playback.play();
@@ -280,6 +330,21 @@ describe('SyncedPlayback', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(playback.getSnapshot().playing).toBe(true);
+  });
+
+  test('a seek done before its "seeked" event arrives doesn\'t bring back an older target', () => {
+    const { leader, playback } = setup();
+    playback.seek(1);
+    playback.seek(2);
+    // the seek to 1 is done, its event not delivered yet: the next seek is direct
+    leader.seeking = false;
+    playback.seek(3);
+    expect(leader.currentTime).toBe(3);
+    // the late event of the seek to 1
+    leader.emit('seeked');
+    expect(leader.currentTime).toBe(3);
+    leader.finishSeek();
+    expect(playback.time).toBe(3);
   });
 
   test('detaching removes all listeners', () => {

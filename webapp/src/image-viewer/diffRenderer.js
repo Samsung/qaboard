@@ -238,13 +238,32 @@ const renderOnGpu = (target, a, b, diff, width, height) => {
   return true;
 };
 
-const cors_message = "Can't compute the difference: the image server doesn't allow reading the images' pixels (CORS headers).";
+const cors_message = "Can't compute the difference: the server doesn't allow reading the pixels (CORS headers).";
+
+// The size of what a source shows: a canvas, or a <video> (its frame)
+const sizeOf = source => typeof HTMLVideoElement !== 'undefined' && source instanceof HTMLVideoElement
+  ? { width: source.videoWidth, height: source.videoHeight }
+  : { width: source.width, height: source.height };
+
+// The pixels of a source, at width x height: a canvas' are read as they are, others (videos) are drawn at that size
+const pixelsOf = (source, width, height) => {
+  if (typeof source.getContext === 'function') return source.getContext('2d').getImageData(0, 0, width, height).data;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+  context.drawImage(source, 0, 0, width, height);
+  return context.getImageData(0, 0, width, height).data;
+};
 
 // Draws the difference of two canvases of the same size (what two viewers display) into `target`, resized to them.
+// They can be <video> elements too: their current frames, compared at the same relative positions when their sizes differ.
 // Throws an Error users can read, e.g. when the image server doesn't send CORS headers.
 export const renderDiff = (target, a, b, diff) => {
-  const width = Math.min(a.width, b.width);
-  const height = Math.min(a.height, b.height);
+  const size_a = sizeOf(a);
+  const size_b = sizeOf(b);
+  const width = Math.min(size_a.width, size_b.width);
+  const height = Math.min(size_a.height, size_b.height);
   if (!width || !height) return;
   if (target.width !== width || target.height !== height) {
     target.width = width;
@@ -253,10 +272,8 @@ export const renderDiff = (target, a, b, diff) => {
   try {
     if (renderOnGpu(target, a, b, diff, width, height)) return;
     const context = target.getContext('2d');
-    const data_a = a.getContext('2d').getImageData(0, 0, width, height).data;
-    const data_b = b.getContext('2d').getImageData(0, 0, width, height).data;
     const out = context.createImageData(width, height);
-    renderDiffOnCpu(data_a, data_b, out.data, diff);
+    renderDiffOnCpu(pixelsOf(a, width, height), pixelsOf(b, width, height), out.data, diff);
     context.putImageData(out, 0, 0);
   } catch (error) {
     if (error?.name === 'SecurityError') throw new Error(cors_message);

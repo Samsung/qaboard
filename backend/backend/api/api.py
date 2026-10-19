@@ -319,6 +319,7 @@ def get_projects():
         data['latest_output_datetime'] = data_latest_output_datetime
     else:
       data = data[0]
+      data.pop('milestones', None)
       if "qatools_metrics" in data:
         del data['qatools_metrics']
       if "qatools_config" in data:
@@ -347,7 +348,8 @@ def get_project():
   if not is_authorized_user(None, project_id): 
     return f"Forbidden: You don't have permission to access this project", 403
 
-  return jsonify(project.data)
+  # Milestones from older versions, kept for rollbacks: they are in their own table, see /api/v1/milestones
+  return jsonify({k: v for k, v in project.data.items() if k != 'milestones'})
 
 
 

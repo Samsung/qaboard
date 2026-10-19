@@ -10,14 +10,14 @@ The commit page shows the results of one commit (the **new** one) compared with 
 There are two bars, **new** on top and **ref** below. Each one shows:
 
 - The commit message, its author and date.
-- A **star** to save the commit as a [milestone](comparing-results.mdx#milestones).
+- A **star** to save the results you see (the commit's batch and filter) as a [milestone](comparing-results.mdx#milestones). When they are one, the star is filled and the milestone's name shows next to it.
 - The **commit hash** field: type another hash to switch commits, or hover **Change** for more options (switch new and reference, pick a branch or a milestone...). See [Picking a reference](comparing-results.mdx#picking-a-reference).
 - The **branch**: click it to select the latest commit of that branch.
 - A **filter** box and the counters of runs (runs, running, pending, failed). See the [filter syntax](finding-results.mdx#filter-syntax).
 - The **batch selector** (see [Batches](finding-results.mdx#batches)).
 - A **refresh** button, and a **menu** (☰) with:
   - *Commit*: copy the commit's artifacts directory (Windows or Linux path), view it in the browser.
-  - *Batch*: copy the batch's output directory, view it in the browser, move runs to another batch, rename the batch, **redo** failed, deleted or all runs, and delete runs (all, failed only, or several batches at once). The *Delete files, keep metadata* switch deletes only the files, optionally matching patterns like `*.png`. Milestones are protected from deletion.
+  - *Batch*: copy the batch's output directory, view it in the browser, move runs to another batch, rename the batch, **redo** failed, deleted or all runs, and delete runs (all, failed only, or several batches at once). The *Delete files, keep metadata* switch deletes only the files, optionally matching patterns like `*.png`. Batches that are milestones are protected: delete the milestone first, or delete only their files or their failed runs.
 
 :::info
 The reference bar is hidden on the **Logs**, **Available Tests** and **Run Tests / Tuning** views: they only concern the new commit.
@@ -51,7 +51,7 @@ It only lists what changes the views you're on:
   - The value you pick applies to all runs. The panel lists the values of all runs, and a run that doesn't have the selected value shows the closest one, with a note on its card.
   - Turn on **Per run** to choose the value in each run's card instead. **Same for all runs**, in a card, turns it back off.
   - The reset button next to an option goes back to the default. Changing an option keeps the image viewers' zoom and selected region.
-- **Viewers** (on the Visualizations and Output Files views): **Compare images** picks how all the image viewers compare new and reference: side by side, with a wipe, toggling between them, or their difference. You can also pick it above any image. Then come the project's own switches, if its *qaboard.yaml* has `controls`.
+- **Viewers** (on the Visualizations and Output Files views): **Compare images** picks how all the image viewers compare new and reference: side by side, with a wipe, one at a time (single), or their difference. You can also pick it above any image. Then come the project's own switches, if its *qaboard.yaml* has `controls`.
 - **Configuration** (on the views that show runs): the settings all the runs shown share, and **Hide them in each run**, to show in each run only what's specific to it (see [reading configurations](/docs/user-guide/comparing-results#reading-configurations)).
 - **Sort runs**: sort by name, run id, storage, a tuning parameter or a metric. Until you choose, runs are sorted by the project's default metric, marked *(default)*. The order reads like the values: *Highest first*, *A to Z*, *Newest first*... It applies to the tables and the run cards.
 

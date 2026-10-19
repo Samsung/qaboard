@@ -1,4 +1,4 @@
-// Compares an image with a reference: side by side, with a wipe, toggling between them, or as their difference.
+// Compares an image with a reference: side by side, with a wipe, one at a time (single), or as their difference.
 // See README.md for the props.
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 
@@ -9,15 +9,37 @@ import { regionAsYaml } from './regions';
 import { DEFAULT_MODE, MODES } from './modes';
 import { normalizeImage } from './sources';
 import { PixelTiles } from './pixelTiles';
-import { Crosshair, DiffLayer, Minimap, PixelValues } from './overlays';
+import { ALL_CHANNELS } from './histogram';
+import { Crosshair, DiffLayer, HighlightLayer, Minimap, PixelValues } from './overlays';
 import { AdjustmentsPanel, DiffLegend, DiffSettings, Histogram, Readout, RegionsMenu, RegionsStrip, Shortcuts, ValuesBadge, ValuesPanel } from './panels';
-import { Button, Icon, MenuDivider, MenuItem, Popover, Segmented, Spinner } from './ui';
+import { Button, FilterPrimitive, Icon, MenuDivider, MenuItem, Popover, Segmented, Spinner } from './ui';
 import './image-viewer.css';
 
 const GAP = 4;
 const ZOOM_STEP = 1.5;
-// The viewer under the mouse gets the keyboard shortcuts
+// The keyboard shortcuts work all over the page: they go to the viewer in full screen, else the one under the mouse, else
+// the one with the focus, else the one used last if it's in view, else the first in view
+const viewers = new Set();
 let hovered_viewer = null;
+let last_viewer = null;
+const in_view = element => {
+  const rect = element.getBoundingClientRect();
+  return rect.width > 0 && rect.bottom > 0 && rect.top < window.innerHeight;
+};
+const keyboardViewer = () => {
+  if (viewers.has(document.fullscreenElement)) return document.fullscreenElement;
+  if (hovered_viewer) return hovered_viewer;
+  const focused = [...viewers].find(viewer => viewer.contains(document.activeElement));
+  if (focused) return focused;
+  if (viewers.has(last_viewer) && in_view(last_viewer)) return last_viewer;
+  return [...viewers].filter(in_view).sort((a, b) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1)[0] ?? null;
+};
+// each viewer listens to the keys: they agree on the one that handles a key
+const keyboard_viewers = new WeakMap();
+const keyboardViewerOf = event => {
+  if (!keyboard_viewers.has(event)) keyboard_viewers.set(event, keyboardViewer());
+  return keyboard_viewers.get(event);
+};
 
 // A prop users can control, or leave to the viewer
 const useControllable = (value, initial, onChange) => {
@@ -60,19 +82,6 @@ const saveCanvas = async (canvas, filter, filename) => {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
-const FilterPrimitive = ({ primitive }) => {
-  const { type, attributes, functions } = primitive;
-  if (type === 'feComponentTransfer')
-    return <feComponentTransfer>
-      {functions.map(({ channel, ...f }) => {
-        const Func = `feFunc${channel}`;
-        return <Func key={channel} {...f} />;
-      })}
-    </feComponentTransfer>;
-  const Element = type;
-  return <Element {...attributes} />;
-};
-
 
 export const ImageViewer = ({
   image,
@@ -101,6 +110,7 @@ export const ImageViewer = ({
   blindTest: blind_prop,
   onBlindTestChange,
   getPixels,
+  imageValuesUnavailable,
   maxHeight = DEFAULT_MAX_HEIGHT,
   theme,
   notice,
@@ -117,7 +127,7 @@ export const ImageViewer = ({
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
 
   const [stored_mode, setMode] = useControllable(mode_prop, defaultMode, onModeChange);
-  const mode = comparing ? (MODES.some(m => m.value === stored_mode) ? stored_mode : 'side-by-side') : 'single';
+  const mode = comparing ? (MODES.some(m => m.value === stored_mode) ? stored_mode : 'side-by-side') : 'no-reference';
   const [diff_setting, setDiff] = useControllable(diff_prop, defaultDiff, onDiffChange);
   const diff = normalizeDiff(diff_setting);
   // In difference mode, the images show on each side of the difference ('between', new | difference | reference), or not
@@ -133,7 +143,7 @@ export const ImageViewer = ({
   const [tiles] = useState(() => new PixelTiles());
   useLayoutEffect(() => tiles.setGetPixels(getPixels));
   useEffect(() => () => tiles.dispose(), [tiles]);
-  // The reference first (on the left, or shown in toggle mode): controlled with onSwappedChange, e.g. for all the viewers
+  // The reference first (on the left, or shown in single mode): controlled with onSwappedChange, e.g. for all the viewers
   // of a page, or not
   const [swapped, setSwapped] = useControllable(swapped_prop, defaultSwapped, onSwappedChange);
   // A blind test: the images are called A and B ({ a: 'A' | 'B', revealed }), in a random order. Controlled with
@@ -163,6 +173,10 @@ export const ImageViewer = ({
   const [wipe, setWipe] = useState(0.5);
   const [base, setBase] = useState(10);
   const [show_histogram, setShowHistogram] = useState(false);
+  // The channels the histogram shows, and the range of values it highlights on the images (with the channels shown)
+  const [histogram_channels, setHistogramChannels] = useState(ALL_CHANNELS);
+  const [highlight_range, setHighlightRange] = useState(null);
+  const highlight = show_histogram && highlight_range ? { ...highlight_range, channels: histogram_channels } : null;
   const [diff_error, setDiffError] = useState(null);
   const [message, setMessage] = useState(null);
   const diff_canvas = useRef(null);
@@ -250,9 +264,31 @@ export const ImageViewer = ({
   const first = swapped ? 'b' : 'a';
   const second = swapped ? 'a' : 'b';
   const swap = () => setSwapped(!swapped);
-  // Picking the mode shown again: Toggle flips the images, Difference shows or hides the images on its sides
+  // The toggle (t, the swap button, a click on the image shown alone): when both images show, they swap sides (around
+  // their difference). When one shows, or their difference alone: the first image, the other, their difference, and
+  // again. The first is new, or A during a blind test: with swapped shared by the viewers of a page, they all stay in step.
+  const single = mode === 'single' || (mode === 'difference' && diff_layout === 'alone');
+  const lead = blind?.a === 'B' ? 'b' : 'a';
+  const other = lead === 'a' ? 'b' : 'a';
+  const flip = () => {
+    if (!single || (mode === 'single' && first === lead)) return swap();
+    if (mode === 'single') {
+      // their difference: the first image minus the other
+      swap();
+      setDiff({ ...diff, layout: 'alone' });
+      setMode('difference');
+      return;
+    }
+    if (first !== lead) swap();
+    setMode('single');
+  };
+  const flip_title = !single ? `Swap the sides: ${names[second]} | ${names[first]}`
+    : mode === 'single' && first === lead ? `Show the ${names[other]} image`
+    : mode === 'single' ? `Show the difference: ${names[lead]} − ${names[other]}`
+    : `Show the ${names[lead]} image`;
+  // Picking the mode shown again: Single flips the images, Difference shows or hides the images on its sides
   const pickMode = value => {
-    if (value === mode && value === 'toggle') swap();
+    if (value === mode && value === 'single') swap();
     else if (value === mode && value === 'difference') toggleDiffLayout();
     else setMode(value);
   };
@@ -313,12 +349,10 @@ export const ImageViewer = ({
     copied(() => navigator.clipboard.writeText(regionAsYaml(region, size_a)), 'region in view').then(notify);
   };
 
-  // Clicking the image flips it in toggle mode
-  const mode_ref = useRef(mode);
+  // Clicking the image shown alone, or their difference, shows the next one
   useLayoutEffect(() => {
-    mode_ref.current = mode;
     controller.setOnClick(() => {
-      if (mode_ref.current === 'toggle') swap();
+      if (single) flip();
     });
   });
 
@@ -349,7 +383,7 @@ export const ImageViewer = ({
           return true;
         case 't':
           if (!comparing) return false;
-          swap();
+          flip();
           return true;
         case 'h':
           if (!comparing) return false;
@@ -385,15 +419,17 @@ export const ImageViewer = ({
       if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) return;
       const target = event.target;
       if (target instanceof Element && target.closest('input:not([type="range"]):not([type="checkbox"]), textarea, select, [contenteditable="true"]')) return;
-      const active = hovered_viewer ? hovered_viewer === root.current : !!root.current?.contains(document.activeElement);
-      if (!active || !on_key.current(event)) return;
+      if (keyboardViewerOf(event) !== root.current || !on_key.current(event)) return;
       event.preventDefault();
     };
     window.addEventListener('keydown', onKeyDown);
     const element = root.current;
+    viewers.add(element);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
+      viewers.delete(element);
       if (hovered_viewer === element) hovered_viewer = null;
+      if (last_viewer === element) last_viewer = null;
     };
   }, []);
 
@@ -412,7 +448,7 @@ export const ImageViewer = ({
     if (side_by_side) return { ...style, left: name === first ? 0 : pane_width + GAP };
     if (diff_between) return { ...style, left: name === first ? 0 : (stacked ? 1 : 2) * (pane_width + GAP) };
     if (mode === 'wipe') return name === second ? { ...style, zIndex: 2, clipPath: `inset(0 0 0 ${wipe * pane_width}px)` } : { ...style, zIndex: 1 };
-    if (mode === 'toggle') return name === first ? { ...style, zIndex: 2 } : { ...style, visibility: 'hidden' };
+    if (mode === 'single') return name === first ? { ...style, zIndex: 2 } : { ...style, visibility: 'hidden' };
     // difference: the image receives the gestures, under the difference
     if (mode === 'difference') return name === 'a' ? { ...style, zIndex: 1 } : { ...style, visibility: 'hidden' };
     return style;
@@ -423,8 +459,8 @@ export const ImageViewer = ({
     key={`label-${name}-${position}`}
     type="button"
     className={`qiv-label qiv-label-${position} ${hidden ? 'qiv-neutral' : name === 'a' ? 'qiv-primary' : 'qiv-warning'}`}
-    title={hidden ? 'Blind test: which is new? Swap them (t), reveal with h' : 'Swap the images (t). Blind test: h'}
-    onClick={swap}
+    title={`${flip_title} (t). ${hidden ? 'Blind test: which is new? Reveal with h' : 'Blind test: h'}`}
+    onClick={flip}
     onPointerDown={event => event.stopPropagation()}
   >
     {names[name]}{resolution(name)}
@@ -456,6 +492,11 @@ export const ImageViewer = ({
     onDrawn={pane === values_pane ? setValuesDrawn : undefined}
   />;
 
+  // Whether a pane's image shows
+  const shown = name => !comparing ? name === 'a'
+    : mode === 'single' ? name === first
+    : mode === 'difference' ? diff_between
+    : true;
   const pane = name => <div
     key={name}
     className="qiv-pane"
@@ -464,6 +505,7 @@ export const ImageViewer = ({
     onPointerLeave={() => controller.unhover()}
   >
     <div className="qiv-osd" ref={element => { if (element) controller.attach(name, element); }} style={{ filter }} />
+    <HighlightLayer controller={controller} pane={name} highlight={highlight} active={visible && shown(name)} width={pane_width} height={pane_height} />
     {pixelValues(name)}
     <Crosshair controller={controller} pane={name} />
     {apart && label(name, 'left')}
@@ -501,8 +543,9 @@ export const ImageViewer = ({
     className={`qiv ${fullscreen ? 'qiv-fullscreen' : ''} ${className}`}
     data-theme={theme}
     style={style}
-    onPointerEnter={() => { hovered_viewer = root.current; }}
+    onPointerEnter={() => { hovered_viewer = last_viewer = root.current; }}
     onPointerLeave={() => { if (hovered_viewer === root.current) hovered_viewer = null; }}
+    onFocus={() => { last_viewer = root.current; }}
   >
     <svg className="qiv-filters" aria-hidden="true" width="0" height="0">
       <filter id={filter_id} colorInterpolationFilters="sRGB">
@@ -519,7 +562,7 @@ export const ImageViewer = ({
         aria-pressed={diff_between}
         onClick={toggleDiffLayout}
       />}
-      {comparing && (mode !== 'difference' || diff_between) && <Button icon="exchange" title={`Swap ${names[first]} and ${names[second]} (t)`} onClick={swap} active={swapped && !hidden} aria-pressed={swapped && !hidden} />}
+      {comparing && <Button icon="exchange" title={`${flip_title} (t)`} onClick={flip} active={swapped && !hidden} aria-pressed={swapped && !hidden} />}
       {comparing && <Button
         icon={!blind ? 'eye-off' : blind.revealed ? 'tick' : 'eye-open'}
         text={!blind ? 'Blind test' : blind.revealed ? 'Done' : 'Reveal'}
@@ -564,9 +607,9 @@ export const ImageViewer = ({
         title={`Values written on the pixels when zoomed in: ${pixel_source === 'image' ? "the image's own" : pixel_source === 'display' ? 'the displayed ones' : 'off'} (p)`}
         className={pixel_source !== 'off' ? 'qiv-intent' : ''}
       />}>
-        <ValuesPanel source={pixel_source} available={!!getPixels} onChange={setValues} />
+        <ValuesPanel source={pixel_source} available={!!getPixels} unavailable={imageValuesUnavailable} onChange={setValues} />
       </Popover>
-      <Button icon="timeline-area-chart" title="Histogram of the view" active={show_histogram} aria-pressed={show_histogram} onClick={() => setShowHistogram(!show_histogram)} />
+      <Button icon="timeline-area-chart" title="Histogram of the view: drag on it to highlight a range of values" active={show_histogram} aria-pressed={show_histogram} onClick={() => setShowHistogram(!show_histogram)} />
       <span className="qiv-group">
         <Button icon="zoom-out" title="Zoom out (−)" onClick={() => controller.zoomBy(1 / ZOOM_STEP)} />
         <Button className="qiv-zoom" text={zoom ? `${zoom < 0.1 ? (100 * zoom).toFixed(1) : Math.round(100 * zoom)}%` : '–'} title="Fit (0). Scroll or pinch to zoom, drag to pan. 100%: one image pixel per screen pixel" onClick={() => controller.fit()} />
@@ -606,6 +649,7 @@ export const ImageViewer = ({
       base={base}
       onToggleBase={() => setBase(b => b === 10 ? 16 : 10)}
       sizes={{ a: size_a, b: size_b }}
+      unavailable={getPixels ? null : imageValuesUnavailable}
     />
     </div>
     <div
@@ -666,10 +710,18 @@ export const ImageViewer = ({
           <div className="qiv-wipe-handle"><Icon icon="arrows-horizontal" size={14} /></div>
         </div>
       </>}
-      {mode === 'toggle' && label(first, 'left')}
+      {mode === 'single' && label(first, 'left')}
       <Minimap controller={controller} image={hidden ? images[first] : images.a} size={size_a} />
     </div>
-    {show_histogram && <Histogram controller={controller} comparing={comparing} names={names} />}
+    {show_histogram && <Histogram
+      controller={controller}
+      comparing={comparing}
+      names={names}
+      channels={histogram_channels}
+      onChannelsChange={setHistogramChannels}
+      range={highlight_range}
+      onRangeChange={setHighlightRange}
+    />}
   </div>;
 };
 

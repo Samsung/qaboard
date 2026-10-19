@@ -69,6 +69,11 @@ def pytest_configure():
     models_mod.CiCommit = MagicMock()
     models_mod.latest_successful_commit = MagicMock()
     models_mod.Batch = MagicMock()
+    models_mod.Milestone = MagicMock()
+    models_mod.MilestoneFavorite = MagicMock()
+    models_mod.MilestoneGroupFavorite = MagicMock()
+    models_mod.TestInput = MagicMock()
+    models_mod.User = MagicMock()
     models_mod.batches_stats = MagicMock()
     sys.modules['backend.models'] = models_mod
     sys.modules['backend.backend'] = types.ModuleType('backend.backend')
@@ -77,6 +82,8 @@ def pytest_configure():
     sa_mod = sys.modules.setdefault('sqlalchemy', types.ModuleType('sqlalchemy'))
     sa_orm = sys.modules.setdefault('sqlalchemy.orm', types.ModuleType('sqlalchemy.orm'))
     sa_orm.selectinload = MagicMock()
+    if not hasattr(sa_mod, 'or_'):
+        sa_mod.or_ = MagicMock()
 
     sa_attrs = types.ModuleType('sqlalchemy.orm.attributes')
     sa_attrs.flag_modified = MagicMock()
@@ -107,3 +114,16 @@ def dummy_app():
     Assumes only usage with it is: `dummy_app.test_request_context()` and therefore shared per session.
     """
     return Flask(__name__)
+
+
+@pytest.fixture
+def storage_in_tmp(monkeypatch):
+    """
+    The API endpoints that read files only read those in the storage ($QABOARD_STORAGE_ROOTS):
+    for tests whose files are in the temporary folder, it's the storage. Use /s{path} as their URLs.
+    """
+    import tempfile
+    from pathlib import Path
+    import backend.files as files
+    monkeypatch.setattr(files, "storage_roots", [Path(tempfile.gettempdir())])
+    monkeypatch.setattr(files, "private_dirs", lambda: [])
