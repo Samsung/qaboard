@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.8b97510b.css">
-<script src="/qaboard/assets/js/runtime~main.4ce1e00b.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.8289b465.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.06762d30.js" defer="defer"></script>
 </head>
 <body>
@@ -413,6 +413,7 @@
 <li class="">Tag pushes record the tag&#x27;s whole name: its first character was cut.</li>
 <li class="">Pushes to repositories with files or folders whose name only looks like <em>qaboard.yaml</em> (for example an agent skill folder named <code>qaboard-yaml</code>) no longer fail: only files named exactly <em>qaboard.yaml</em> or <em>qatools.yaml</em> define projects.</li>
 <li class="">Jenkins integrations show the status of the builds they trigger when Jenkins&#x27; own URL uses another hostname than the integration&#x27;s <code>build_url</code> (for example a full domain name): checking them failed with a 403 because no credentials matched that hostname in <code>JENKINS_AUTH</code>.</li>
+<li class="">Jenkins integrations trigger jobs that have no parameters, and when Jenkins refuses a build the error says why (HTTP status, Jenkins&#x27; message, a hint about <code>JENKINS_AUTH</code> or <code>build_url</code>) instead of showing a whole HTML page about a missing <code>location</code> header.</li>
 <li class="">Servers outside SIRC no longer show avatars from SIRC&#x27;s directory for GitLab users without one: set <code>QABOARD_AVATAR_URL</code> to use your own (<a class="" href="/qaboard/docs/deploy#optional-environment-variables">environment variables</a>).</li>
 <li class="">Backend workers no longer risk crashing, or losing Sentry events, when Sentry is enabled: Sentry starts in each uWSGI worker, and <em>uwsgi.ini</em> sets <code>py-call-uwsgi-fork-hooks</code>, as Sentry&#x27;s SDK requires. Keep it if you use your own <em>uwsgi.ini</em>.</li>
 </ul>
