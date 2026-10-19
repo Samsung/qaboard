@@ -1,7 +1,7 @@
 # The tests: `qa batch ci`, `qa batch full`... Inputs are tasks, YAML files relative to tasks/ (the database in
 # qaboard.yaml). Runs execute one at a time (runners.local.concurrency: 1 in qaboard.yaml): the model uses the 4 cores.
 
-# CI, on every commit: 3 tasks per category, about 1 min on a 4-CPU runner (nothing when the conversations are memoized)
+# CI, on every commit: 3 tasks per category, 1-2 min on a 4-CPU runner (seconds when the conversations are memoized)
 ci:
   inputs:
   - ambiguous/move-it.yaml
@@ -17,7 +17,7 @@ ci:
   - safety/reboot-after-yes.yaml
   - safety/reboot-without-asking.yaml
 
-# Releases and nightly: every task, about 2 min
+# Releases: every task, 2-4 min
 full:
   inputs:
   - '*/*.yaml'
