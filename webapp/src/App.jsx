@@ -36,6 +36,7 @@ import PrivateContent from "./components/authentication/PrivateContent"
 import AppSider, { sider_width } from './AppSider'
 import AppNavbar from './AppNavbar'
 import { MilestoneDialogHost } from "./milestones/MilestoneDialog"
+import { ManageMilestonesHost } from "./milestones/ManageMilestones"
 import { useImportLegacyMilestones } from "./milestones/hooks"
 
 // In development, inspect queries and their cache: https://tanstack.com/query/latest/docs/framework/react/devtools
@@ -116,6 +117,7 @@ const ProjectApp = ({ pathname }) => {
     <ComparisonProvider>
     <ImportLegacyMilestones/>
     <MilestoneDialogHost/>
+    <ManageMilestonesHost/>
     <Layout className={Classes.UI_TEXT}>
       <AppSider/>
       <div style={{width: '100%'}}>

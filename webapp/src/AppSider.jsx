@@ -447,9 +447,12 @@ const SiderMilestones = ({ project, project_data, docs_root }) => {
   const { history } = useRouter();
   const { selected } = useComparison();
   const index = useMilestones(project);
-  const { list } = index;
+  const { list, favorite_groups } = index;
   const [is_open, setOpen] = useState(false);
+  // the panel can open on a favorite group: it searches for it
+  const [initial_search, setInitialSearch] = useState('');
   const favorites = list.filter(m => m.is_favorite).sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
+  const groups = favorite_groups.filter(({ group }) => list.some(m => m.group === group || m.group?.startsWith(`${group}/`)));
   const shown = { project: selected.new_project ?? project, commit: selected.route.is_commit ? selected.new_commit_id : null, batch: selected.selected_batch_new, filter: selected.filter_batch_new };
   const current = milestones_of(index, shown);
   const select = milestone => {
@@ -459,12 +462,18 @@ const SiderMilestones = ({ project, project_data, docs_root }) => {
       return history.push(`/${path_segment(project)}/commits/${path_segment(milestone.branch)}`);
     history.push(milestone_location(milestone));
   };
+  const openPanel = (search = '') => {
+    setInitialSearch(search);
+    setOpen(true);
+  };
+  const extra = { paddingLeft: 24, minHeight: 26, fontSize: 13 };
+  const hidden = favorites.length + groups.length - max_sider_favorites;
   return <>
     <PopoverNext
       isOpen={is_open}
-      onInteraction={setOpen}
+      onInteraction={open => open ? openPanel() : setOpen(false)}
       placement="right-start"
-      content={<MilestonesPanel project={project} project_data={project_data} docs_root={docs_root} selected={shown} onSelect={select}/>}
+      content={<MilestonesPanel key={initial_search} initialSearch={initial_search} project={project} project_data={project_data} docs_root={docs_root} selected={shown} onSelect={select}/>}
     >
       <SiderHint name="Milestones" content="Results saved to compare with later: yours, the project's, your favorites.">
         <MenuItem
@@ -477,19 +486,27 @@ const SiderMilestones = ({ project, project_data, docs_root }) => {
         />
       </SiderHint>
     </PopoverNext>
-    {!collapsed && favorites.slice(0, max_sider_favorites).map(m => <MenuItemLink
+    {!collapsed && groups.slice(0, max_sider_favorites).map(({ section, group }) => <MenuItem
+      key={`${section}/${group}`}
+      icon={<Icon icon="folder-close" size={12} color={Colors.RED5}/>}
+      text={group.split('/').join(' / ')}
+      title={`Your favorite group of ${section === 'mine' ? 'your milestones' : 'shared milestones'}: ${group}`}
+      style={extra}
+      onClick={() => openPanel(group)}
+    />)}
+    {!collapsed && favorites.slice(0, Math.max(0, max_sider_favorites - groups.length)).map(m => <MenuItemLink
       key={m.id}
       to={milestone_path(m)}
       icon={<Icon icon="heart" size={12} color={Colors.RED5}/>}
       text={milestone_name(m)}
       title={`${milestone_name(m)}: your favorite milestone. ${m.notes ?? ''}`}
       active={current.some(c => c.id === m.id)}
-      style={{ paddingLeft: 24, minHeight: 26, fontSize: 13 }}
+      style={extra}
     />)}
-    {!collapsed && favorites.length > max_sider_favorites && <MenuItem
-      text={`${favorites.length - max_sider_favorites} more favorites…`}
-      style={{ paddingLeft: 24, minHeight: 26, fontSize: 12 }}
-      onClick={() => setOpen(true)}
+    {!collapsed && hidden > 0 && <MenuItem
+      text={`${hidden} more favorite${hidden > 1 ? 's' : ''}…`}
+      style={{ ...extra, fontSize: 12 }}
+      onClick={() => openPanel()}
     />}
   </>;
 };

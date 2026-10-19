@@ -67,3 +67,15 @@ class MilestoneFavorite(Base):
   created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
 
   milestone = relationship("Milestone", back_populates="favorites")
+
+
+class MilestoneGroupFavorite(Base):
+  """A group of milestones in the user's favorites: its milestones, even those saved later, are listed first"""
+  __tablename__ = 'milestone_group_favorites'
+
+  user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
+  project_id = Column(String(), ForeignKey('projects.id', ondelete='CASCADE'), primary_key=True)
+  # the groups of "My milestones" and of the milestones shared with the project are different groups
+  section = Column(String(), primary_key=True)  # mine | shared
+  group = Column(String(), primary_key=True)
+  created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)

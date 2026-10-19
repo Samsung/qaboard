@@ -255,3 +255,15 @@ def test_saving_needs_access_to_the_results_project(api, dummy_app):
   response = call(dummy_app, api.create_milestone, method='POST', json={'project': 'p', 'commit': SHA, 'commit_project': 'secret'})
   assert response.status_code == 403
   api.db.add.assert_not_called()
+
+
+def test_favorite_groups(api, dummy_app):
+  api.Project.query.filter.return_value = MagicMock(**{'one_or_none.return_value': SimpleNamespace(id='p')})
+  api.MilestoneGroupFavorite.query.filter_by.return_value.one_or_none.return_value = None
+  added = []
+  api.db.add.side_effect = added.append
+  api.MilestoneGroupFavorite.side_effect = lambda **kwargs: SimpleNamespace(**kwargs)
+  response = call(dummy_app, api.favorite_group, method='POST', json={'project': 'p', 'section': 'mine', 'group': ' tuning / denoiser ', 'is_favorite': True})
+  assert response.get_json() == {'section': 'mine', 'group': 'tuning/denoiser', 'is_favorite': True}
+  assert [(f.user_id, f.project_id, f.section, f.group) for f in added] == [(2, 'p', 'mine', 'tuning/denoiser')]
+  assert call(dummy_app, api.favorite_group, method='POST', json={'project': 'p', 'section': 'others', 'group': 'x'}).status_code == 400

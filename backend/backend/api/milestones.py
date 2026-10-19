@@ -7,14 +7,15 @@ GET    /api/v1/milestones/<id>         one milestone, e.g. to open its link
 POST   /api/v1/milestones/<id>         edit it (its owner)
 DELETE /api/v1/milestones/<id>         delete it (its owner)
 PUT    /api/v1/milestones/<id>/favorite, DELETE: add to / remove from the user's favorites
+POST   /api/v1/milestones/groups/favorite  the same for a group: {project, section: mine|shared, group, is_favorite}
 POST   /api/v1/milestones/import       move the milestones older versions saved in browsers to the user's account
 """
 from flask import request, jsonify
 from sqlalchemy import or_
 
 from backend import app, db_session
-from backend.models import Project, Milestone, MilestoneFavorite
-from backend.milestones import clean_fields, from_legacy, same_results, can_edit, serialize
+from backend.models import Project, Milestone, MilestoneFavorite, MilestoneGroupFavorite
+from backend.milestones import normalize_group, clean_fields, from_legacy, same_results, can_edit, serialize
 from .auth import get_current_user, require_project_access, is_authorized_user, login_required
 
 
@@ -86,7 +87,11 @@ def list_milestones():
   others = [i for i in favorites if i not in listed]
   if others:
     milestones += Milestone.query.filter(Milestone.project_id == project_id).filter(Milestone.id.in_(others)).all()
-  return jsonify({"milestones": [answer(m, user_info, favorites) for m in milestones]})
+  favorite_groups = [] if not user_id else [
+    {"section": f.section, "group": f.group}
+    for f in MilestoneGroupFavorite.query.filter_by(user_id=user_id, project_id=project_id).order_by(MilestoneGroupFavorite.created_at)
+  ]
+  return jsonify({"milestones": [answer(m, user_info, favorites) for m in milestones], "favorite_groups": favorite_groups})
 
 
 @app.route("/api/v1/milestones", methods=['POST'])
@@ -178,6 +183,34 @@ def favorite_milestone(milestone_id):
     db_session.delete(favorite)
   db_session.commit()
   return jsonify({"id": milestone_id, "is_favorite": request.method == 'PUT'})
+
+
+# POST: some proxies drop the body of DELETE requests
+@app.route("/api/v1/milestones/groups/favorite", methods=['POST'])
+@app.route("/api/v1/milestones/groups/favorite/", methods=['POST'])
+@login_required
+def favorite_group():
+  user_info, user_id = current_user_info()
+  if not user_id:
+    return jsonify({"error": "Log in to add groups of milestones to your favorites."}), 401
+  body = request.get_json(silent=True) or {}
+  project_id, section = body.get('project'), body.get('section')
+  group = normalize_group(body.get('group') or '') if isinstance(body.get('group'), str) else ''
+  if not project_id or section not in ('mine', 'shared') or not group or len(group) > 200:
+    return jsonify({"error": "Expected {project, section: mine|shared, group}"}), 400
+  if not Project.query.filter(Project.id == project_id).one_or_none():
+    return jsonify({"error": "Project not found"}), 404
+  if forbidden := require_project_access(user_info, project_id):
+    return forbidden
+  is_favorite = body.get('is_favorite', True) in (True, 'true')
+  key = dict(user_id=user_id, project_id=project_id, section=section, group=group)
+  favorite = MilestoneGroupFavorite.query.filter_by(**key).one_or_none()
+  if is_favorite and favorite is None:
+    db_session.add(MilestoneGroupFavorite(**key))
+  if not is_favorite and favorite is not None:
+    db_session.delete(favorite)
+  db_session.commit()
+  return jsonify({"section": section, "group": group, "is_favorite": is_favorite})
 
 
 @app.route("/api/v1/milestones/import", methods=['POST'])

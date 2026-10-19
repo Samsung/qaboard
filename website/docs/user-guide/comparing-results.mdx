@@ -93,7 +93,7 @@ You need to be logged in: milestones are saved in your account, so they follow y
 ### Finding milestones
 Pick milestones from the **Change** menu of the commit bars (to compare with them), or from the sidebar's **Milestones** menu (to open them). Both list:
 
-1. Your **favorites**: click the heart of any milestone to add it. The sidebar also lists them, one click away.
+1. Your **favorites**: click the heart of a milestone, or of a group to keep all its milestones first, even those saved later. The sidebar also lists them, one click away.
 2. **My milestones**, by group. Click a group to collapse it: it stays collapsed.
 3. The milestones **shared with the project**, with who saved them.
 4. The references listed in *qaboard.yaml* (see [References & Milestones](../references-and-milestones.mdx#project-references)).
@@ -108,8 +108,17 @@ The search box matches everything a milestone says: name, group, notes, branch, 
 - Milestone commits show a star in the commit list (hover it for their names), and milestone batches a star in the batch selector.
 - A commit can have several milestones, e.g. one per filter.
 
+### Managing milestones
+**Manage milestones…**, at the bottom of the milestones menus, opens all the project's milestones in a table. Sort them by last update (the default), creation date, name or group, search them, and show only yours, the shared ones or your favorites. From each row: **Open** it, use it **As reference** (on a commit page), add it to your favorites, copy its link, or edit it.
+
+Select several milestones to move them to a group, share them, make them personal or delete them at once (only yours: others' milestones are skipped). Select exactly two to **Compare** them: the most recent is the new results, swap them with the arrows, or copy the link to the comparison.
+
 ### Links to milestones
 Each milestone has a link, like `https://qaboard/my/project/milestone/12-best-denoiser`: copy it from the menus or the milestone's dialog. It opens the milestone's results. Only the number matters, so renaming a milestone keeps its links working. Anyone who can see the project can open the link, even for milestones that are only listed for you.
+
+To share a comparison of two milestones, add the reference milestone with `?vs=`: `https://qaboard/my/project/milestone/12-best-denoiser?vs=14-release-1-0`. Copy it from **Manage milestones…** (select the two milestones), or from the link button next to the reference's milestone when the new and reference results are both milestones.
+
+If a link's milestone was deleted, the page says which one it was, and offers to open the other milestone of a comparison. If only the reference milestone of a comparison was deleted, the new milestone opens, compared with the project's default reference, and a message says so.
 
 :::note
 Before October 2026, "private" milestones were saved in your browser. Log in once with that browser: they move to your account, as milestones listed only for you.

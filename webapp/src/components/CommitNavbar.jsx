@@ -509,6 +509,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             batch={batch}
             filter={batch_filter}
             runs={commit?.batches ? (batch_filter ? batch?.filtered?.outputs?.length : nb_runs(batch)) : undefined}
+            new_side={type === 'ref' ? {project: selected.new_project ?? project, commit: selected.new_commit_id, batch: selected.selected_batch_new, filter: selected.filter_batch_new} : undefined}
           />
           <div style={{ flex: '0 1 auto', alignSelf: 'center' }}>
             <InputGroup

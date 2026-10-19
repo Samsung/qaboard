@@ -1,7 +1,7 @@
 // The list of a project's milestones, to pick one: in the commit bars' Change menu and in the sidebar.
 // Your favorites first, then your milestones, the project's shared milestones, and the references from qaboard.yaml.
 // Milestones are listed by group ("tuning/denoiser" nests), and the search box matches everything they say.
-import { Fragment, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import styled from "styled-components";
 import {
   Button,
@@ -27,6 +27,7 @@ import {
 } from "./api";
 import { useMilestones, useMilestoneActions, useLegacyMilestones, count_legacy } from "./hooks";
 import { openMilestoneDialog } from "./MilestoneDialog";
+import { openManageMilestones } from "./ManageMilestones";
 
 
 const Panel = styled(Menu)`
@@ -80,10 +81,13 @@ const Panel = styled(Menu)`
   }
 `;
 
+// Counts help with long lists, they're noise next to 1 or 2 items you can see
+const worth_counting = count => count > 2;
+
 const SectionTitle = ({ title, count, hint }) => <li className={Classes.MENU_HEADER}>
   <h6 className={Classes.HEADING} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
     {title}
-    {count > 0 && <span className={Classes.TEXT_MUTED} style={{ fontWeight: 400 }}>{count}</span>}
+    {worth_counting(count) && <span className={Classes.TEXT_MUTED} style={{ fontWeight: 400 }}>{count}</span>}
     {hint && <Tooltip content={<span style={{ display: 'inline-block', maxWidth: 260 }}>{hint}</span>} placement="top">
       <Icon icon="help" size={12} className={Classes.TEXT_MUTED}/>
     </Tooltip>}
@@ -99,14 +103,17 @@ const search_text = m => [
 
 const by_date = (a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? '');
 
-// {name, path, groups: [...], milestones: [...], latest} from milestones with groups like "tuning/denoiser"
-const build_tree = (milestones, root_path) => {
-  const root = { name: '', path: root_path, groups: {}, milestones: [], count: 0, latest: '' };
+// {name, path, group, groups: [...], milestones: [...], latest} from milestones with groups like "tuning/denoiser".
+// `path` says where the tree is shown (to remember collapsed groups), `group` is the group's full name.
+// `prefix`: the group whose content the tree shows, e.g. a favorite group
+const build_tree = (milestones, root_path, prefix = '') => {
+  const skip = group_parts(prefix).length;
+  const root = { name: '', path: root_path, group: prefix, groups: {}, milestones: [], count: 0, latest: '' };
   for (const m of milestones) {
     let node = root;
     node.count++;
-    for (const part of group_parts(m.group)) {
-      node = node.groups[part] ??= { name: part, path: `${node.path}/${part}`, groups: {}, milestones: [], count: 0, latest: '' };
+    for (const part of group_parts(m.group).slice(skip)) {
+      node = node.groups[part] ??= { name: part, path: `${node.path}/${part}`, group: node.group ? `${node.group}/${part}` : part, groups: {}, milestones: [], count: 0, latest: '' };
       node.count++;
     }
     node.milestones.push(m);
@@ -126,10 +133,10 @@ const build_tree = (milestones, root_path) => {
 // `selected`: {project, commit, batch, filter}, to show which milestone is selected
 // `onSelect`: called with a milestone, or {branch} for references from qaboard.yaml
 // `before`: menu items to show first
-export const MilestonesPanel = ({ project, project_data, selected, onSelect, docs_root = '/', before }) => {
+export const MilestonesPanel = ({ project, project_data, selected, onSelect, docs_root = '/', before, initialSearch = '' }) => {
   const user = useUser();
-  const { list, isPending, error } = useMilestones(project);
-  const [search, setSearch] = useState('');
+  const { list, favorite_groups, isPending, error } = useMilestones(project);
+  const [search, setSearch] = useState(initialSearch);
   const legacy = useLegacyMilestones();
   const legacy_count = count_legacy(legacy);
 
@@ -144,13 +151,20 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
   const favorites = matching.filter(m => m.is_favorite).sort(by_date);
   const mine = matching.filter(m => m.is_mine);
   const team = matching.filter(m => !m.is_mine && m.shared);
+  const sections = { mine, shared: team };
+  // favorite groups list their milestones, even those saved later
+  const in_group = group => m => m.group === group || m.group?.startsWith(`${group}/`);
+  const favorite_trees = favorite_groups
+    .map(({ section, group }) => ({ section, group, milestones: (sections[section] ?? []).filter(in_group(group)) }))
+    .filter(f => f.milestones.length > 0);
   const matching_refs = refs.filter(ref => matcher(`${ref} qaboard.yaml`));
   const nothing = list.length === 0 && refs.length === 0;
   const no_match = !nothing && favorites.length + mine.length + team.length + matching_refs.length === 0;
+  const favorite_group = (section, group) => favorite_groups.some(f => f.section === section && f.group === group);
 
   const is_selected = m => !!selected && results_project(m) === selected.project && !!selected.commit
     && (selected.commit === m.commit || selected.commit.startsWith(m.commit)) && (m.batch || 'default') === (selected.batch || 'default') && (m.filter || '') === (selected.filter || '');
-  const item_props = { onSelect, onEdit: milestone => openMilestoneDialog({ project, milestone }), is_selected, project };
+  const item_props = { onSelect, onEdit: milestone => openMilestoneDialog({ project, milestone }), is_selected, project, favorite_group };
 
   // Enter picks the first result
   const first = favorites[0] ?? mine[0] ?? team[0];
@@ -186,8 +200,16 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
       {!!error && <MenuItem disabled icon="error" text={`Could not load the milestones: ${error.message}`} multiline/>}
       {isPending && !error && <MenuItem disabled text={<span className={Classes.SKELETON}>Loading the milestones</span>}/>}
 
-      {favorites.length > 0 && <>
-        <SectionTitle title="Favorites" count={favorites.length}/>
+      {favorites.length + favorite_trees.length > 0 && <>
+        <SectionTitle title="Favorites" count={favorites.length + favorite_trees.length}/>
+        {favorite_trees.map(({ section, group, milestones }) => <FavoriteGroup
+          key={`fg-${section}-${group}`}
+          section={section}
+          group={group}
+          milestones={milestones}
+          expand={is_searching}
+          {...item_props}
+        />)}
         {favorites.map(m => <MilestoneItem key={`f-${m.id}`} milestone={m} {...item_props} show_owner/>)}
       </>}
 
@@ -197,7 +219,7 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
         hint="Listed only for you, unless you share them. They follow your account."
       />}
       {mine.length > 0
-        ? <Tree node={build_tree(mine, 'mine')} expand={is_searching} {...item_props}/>
+        ? <Tree node={build_tree(mine, 'mine')} section="mine" expand={is_searching} {...item_props}/>
         : !is_searching && !isPending && (user.is_logged
           ? <MenuItem disabled multiline icon="star-empty" text={<>None yet. To save the results you're looking at, click <Icon icon="star-empty" size={12}/> next to the commit's hash.</>}/>
           : <MenuItem disabled multiline icon="log-in" text="Log in to save your own milestones."/>
@@ -205,7 +227,7 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
 
       {team.length > 0 && <>
         <SectionTitle title="Shared with the project" count={team.length} hint="Everyone on the project sees them. Only their owner can edit them."/>
-        <Tree node={build_tree(team, 'team')} expand={is_searching} show_owner {...item_props}/>
+        <Tree node={build_tree(team, 'team')} section="shared" expand={is_searching} show_owner {...item_props}/>
       </>}
 
       {matching_refs.length > 0 && <>
@@ -218,34 +240,71 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
         Milestones are results worth comparing with: a release, a benchmark, your best tuning.
         Save one with <Icon icon="star-empty" size={12}/> next to a commit's hash, or list branches under <code>project.milestones</code> in <em>qaboard.yaml</em>.
       </span>}/>}
+      {list.length > 0 && <MenuItem icon="properties" text="Manage milestones…" title="Sort, edit, delete, move or share several milestones, compare two" onClick={() => openManageMilestones({ project })}/>}
       <MenuItem icon="manual" text="Learn about milestones" href={`${docs_root}docs/user-guide/comparing-results#milestones`} target="_blank" rel="noopener noreferrer"/>
     </Panel>;
 };
 
 
 // A group's subgroups, then its milestones. Collapsed groups are remembered.
-const Tree = ({ node, depth = 0, expand, ...props }) => {
+const Tree = ({ node, depth = 0, expand, section, ...props }) => <>
+  {node.groups.map(group => <GroupItem key={group.path} node={group} depth={depth} expand={expand} section={section} {...props}/>)}
+  {node.milestones.map(m => <MilestoneItem key={m.id} milestone={m} depth={depth} {...props}/>)}
+</>;
+
+const stop = action => event => {
+  event.preventDefault();
+  event.stopPropagation();
+  action();
+};
+
+const GroupItem = ({ node, depth, expand, section, title, ...props }) => {
+  const user = useUser();
   const collapsed = usePrefsStore(state => state.milestoneGroupsCollapsed);
   const toggle = usePrefsStore(state => state.toggleMilestoneGroup);
+  const { toggleGroupFavorite } = useMilestoneActions(props.project);
+  const is_open = expand || !collapsed[node.path];
+  const is_favorite = props.favorite_group?.(section, node.group);
   return <>
-    {node.groups.map(group => {
-      const is_open = expand || !collapsed[group.path];
-      return <Fragment key={group.path}>
-        <MenuItem
-          className="qa-milestones-group"
-          shouldDismissPopover={false}
-          icon={<Icon icon={is_open ? 'folder-open' : 'folder-close'} className={Classes.TEXT_MUTED}/>}
-          text={<span style={{ fontWeight: 500 }}>{group.name}</span>}
-          label={<>{group.count} <Icon icon={is_open ? 'chevron-down' : 'chevron-right'} size={12}/></>}
-          onClick={() => toggle(group.path)}
-          aria-expanded={is_open}
-          style={{ paddingLeft: 7 + 16 * depth }}
-        />
-        {is_open && <Tree node={group} depth={depth + 1} expand={expand} {...props}/>}
-      </Fragment>;
-    })}
-    {node.milestones.map(m => <MilestoneItem key={m.id} milestone={m} depth={depth} {...props}/>)}
+    <MenuItem
+      className="qa-milestones-group"
+      shouldDismissPopover={false}
+      icon={<Icon icon={is_open ? 'folder-open' : 'folder-close'} className={Classes.TEXT_MUTED}/>}
+      text={<span style={{ fontWeight: 500 }}>{title ?? node.name}</span>}
+      labelElement={<span className="qa-milestone-actions">
+        {user.is_logged && <Button
+          variant="minimal"
+          size="small"
+          className={is_favorite ? 'qa-is-favorite' : undefined}
+          icon={<Icon icon="heart" color={is_favorite ? Colors.RED4 : undefined}/>}
+          aria-label={is_favorite ? `Remove the group ${node.group} from favorites` : `Add the group ${node.group} to favorites`}
+          title={is_favorite ? 'Remove the group from favorites' : 'Add the group to favorites: its milestones, even future ones, are listed first'}
+          aria-pressed={!!is_favorite}
+          onClick={stop(() => toggleGroupFavorite(section, node.group).catch(() => {}))}
+        />}
+        {(!is_open || worth_counting(node.count)) && <span className={Classes.TEXT_MUTED} style={{ margin: '0 4px' }}>{node.count}</span>}
+        <Icon icon={is_open ? 'chevron-down' : 'chevron-right'} size={12}/>
+      </span>}
+      onClick={() => toggle(node.path)}
+      aria-expanded={is_open}
+      style={{ paddingLeft: 7 + 16 * depth }}
+    />
+    {is_open && <Tree node={node} depth={depth + 1} expand={expand} section={section} {...props}/>}
   </>;
+};
+
+// A favorite group, with its milestones and subgroups
+const FavoriteGroup = ({ section, group, milestones, expand, ...props }) => {
+  const node = build_tree(milestones, `favorites/${section}/${group}`, group);
+  return <GroupItem
+    node={{ ...node, name: group }}
+    title={<>{group_parts(group).join(' / ')}{section === 'shared' && <span className={Classes.TEXT_MUTED} style={{ fontWeight: 400 }}> · shared</span>}</>}
+    depth={0}
+    expand={expand}
+    section={section}
+    show_owner={section === 'shared'}
+    {...props}
+  />;
 };
 
 
@@ -254,11 +313,6 @@ export const MilestoneItem = ({ milestone: m, onSelect, onEdit, is_selected, pro
   const { toggleFavorite } = useMilestoneActions(project);
   const selected = is_selected?.(m);
   const owner = owner_name(m);
-  const stop = action => event => {
-    event.preventDefault();
-    event.stopPropagation();
-    action();
-  };
   return <MenuItem
     icon={<Icon icon={m.shared ? 'crown' : 'star'} color={Colors.GOLD4} title={m.shared ? 'Shared with the project' : 'Personal'}/>}
     style={{ paddingLeft: 7 + 16 * depth }}

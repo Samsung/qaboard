@@ -2,18 +2,21 @@
 // filled when they are one, with the milestone's name next to it.
 import { Button, Classes, Colors, Icon, Position, Tag, Tooltip } from "@blueprintjs/core";
 
-import { milestone_name, milestones_of } from "./api";
+import { copyWithToast } from "../utils/clipboard";
+import { milestone_name, milestones_of, comparison_url } from "./api";
 import { useMilestones } from "./hooks";
 import { openMilestoneDialog } from "./MilestoneDialog";
 
 
-export const CommitMilestoneButton = ({ project, project_shown, commit, batch, filter, runs }) => {
+// new_side: in the reference bar, what the new bar shows ({project, commit, batch, filter}), to link to the comparison
+export const CommitMilestoneButton = ({ project, project_shown, commit, batch, filter, runs, new_side }) => {
   const index = useMilestones(project);
   const results_project = project_shown ?? project;
   const selection = { project: results_project, commit: commit?.id, batch: batch?.label ?? 'default' };
   const exact = milestones_of(index, { ...selection, filter: filter ?? '' });
   const others = milestones_of(index, selection).filter(m => !exact.includes(m));
   const milestone = exact[0];
+  const new_milestone = new_side?.commit ? milestones_of(index, { ...new_side, batch: new_side.batch ?? 'default', filter: new_side.filter ?? '' })[0] : undefined;
   const disabled = !commit?.id;
 
   const open = () => milestone
@@ -52,5 +55,16 @@ export const CommitMilestoneButton = ({ project, project_shown, commit, batch, f
     >
       {milestone_name(milestone)}{exact.length > 1 && <span className={Classes.TEXT_MUTED}> +{exact.length - 1}</span>}
     </Tag>}
+    {!!milestone && !!new_milestone && new_milestone.id !== milestone.id && <Tooltip content={<span>Copy a link to this comparison: <strong>{milestone_name(new_milestone)}</strong> vs <strong>{milestone_name(milestone)}</strong></span>} position={Position.BOTTOM}>
+      <Button
+        size="small"
+        variant="minimal"
+        icon="link"
+        className="commit-header-optional"
+        style={{ alignSelf: 'center', marginRight: 6 }}
+        aria-label="Copy the link to this comparison of milestones"
+        onClick={() => copyWithToast(comparison_url(new_milestone, milestone), { what: 'the link to the comparison' })}
+      />
+    </Tooltip>}
   </>;
 };

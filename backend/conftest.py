@@ -71,6 +71,7 @@ def pytest_configure():
     models_mod.Batch = MagicMock()
     models_mod.Milestone = MagicMock()
     models_mod.MilestoneFavorite = MagicMock()
+    models_mod.MilestoneGroupFavorite = MagicMock()
     models_mod.User = MagicMock()
     models_mod.batches_stats = MagicMock()
     sys.modules['backend.models'] = models_mod

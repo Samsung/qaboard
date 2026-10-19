@@ -8,7 +8,7 @@ import { usePrefsStore } from "../stores/prefs";
 import { toaster } from "../toaster";
 import {
   milestonesQuery, no_milestones, index_milestones, milestone_name,
-  createMilestone, updateMilestone, deleteMilestone, setFavorite, importMilestones,
+  createMilestone, updateMilestone, deleteMilestone, setFavorite, setGroupFavorite, importMilestones,
 } from "./api";
 
 
@@ -24,7 +24,7 @@ export const useMilestoneActions = project => {
   const queryClient = useQueryClient();
   const queryKey = milestonesQuery(project).queryKey;
   // edit the cached list in place, the server's answer wins when it comes
-  const update = change => queryClient.setQueryData(queryKey, index => index ? index_milestones(change(index.list)) : index);
+  const update = change => queryClient.setQueryData(queryKey, index => index ? index_milestones(change(index.list), index.favorite_groups) : index);
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['milestones'] });
   const fail = (what, error) => {
     toaster.show({ message: `Could not ${what}: ${errorMessage(error)}`, intent: Intent.DANGER, timeout: 6000 });
@@ -59,6 +59,45 @@ export const useMilestoneActions = project => {
     }
   };
 
+  // Several milestones at once, from the Manage dialog: one toast for all of them
+  const updateMany = async (milestones, fields, what) => {
+    const results = await Promise.allSettled(milestones.map(m => updateMilestone(m.id, fields)));
+    const saved = results.filter(r => r.status === 'fulfilled').map(r => r.value);
+    update(list => list.map(m => saved.find(s => s.id === m.id) ?? m));
+    refresh();
+    const failed = results.filter(r => r.status === 'rejected');
+    toaster.show(failed.length
+      ? { message: `${what}: ${saved.length} done, ${failed.length} failed: ${errorMessage(failed[0].reason)}`, intent: Intent.WARNING, timeout: 8000 }
+      : { message: `${what}: ${saved.length} milestone${saved.length > 1 ? 's' : ''}`, intent: Intent.SUCCESS, timeout: 4000 });
+  };
+
+  const removeMany = async milestones => {
+    const results = await Promise.allSettled(milestones.map(m => deleteMilestone(m.id)));
+    const deleted = milestones.filter((_, i) => results[i].status === 'fulfilled').map(m => m.id);
+    update(list => list.filter(m => !deleted.includes(m.id)));
+    refresh();
+    const failed = results.filter(r => r.status === 'rejected');
+    toaster.show(failed.length
+      ? { message: `Deleted ${deleted.length} milestone${deleted.length === 1 ? '' : 's'}, ${failed.length} failed: ${errorMessage(failed[0].reason)}`, intent: Intent.WARNING, timeout: 8000 }
+      : { message: `Deleted ${deleted.length} milestone${deleted.length === 1 ? '' : 's'}`, intent: Intent.SUCCESS, timeout: 4000 });
+  };
+
+  // section: "mine" or "shared"
+  const toggleGroupFavorite = async (section, group) => {
+    const index = queryClient.getQueryData(queryKey);
+    const is_favorite = !(index?.favorite_groups ?? []).some(f => f.section === section && f.group === group);
+    const set = value => queryClient.setQueryData(queryKey, index => index && index_milestones(index.list, value
+      ? [...index.favorite_groups.filter(f => !(f.section === section && f.group === group)), { section, group }]
+      : index.favorite_groups.filter(f => !(f.section === section && f.group === group))));
+    set(is_favorite);
+    try {
+      await setGroupFavorite(project, section, group, is_favorite);
+    } catch (error) {
+      set(!is_favorite);
+      return fail(is_favorite ? 'add the group to your favorites' : 'remove the group from your favorites', error);
+    }
+  };
+
   const toggleFavorite = async milestone => {
     const is_favorite = !milestone.is_favorite;
     const set = value => {
@@ -74,7 +113,7 @@ export const useMilestoneActions = project => {
     }
   };
 
-  return { save, remove, toggleFavorite };
+  return { save, remove, toggleFavorite, toggleGroupFavorite, updateMany, removeMany };
 };
 
 

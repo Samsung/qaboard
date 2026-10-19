@@ -1,7 +1,7 @@
 // Render components with the app's providers, with a fresh query cache for each test.
 //   import { renderWithProviders } from '../../test-utils'
 //   const { queryClient } = renderWithProviders(<MyComponent/>, { siteConfig: { docs_root: '/qa/' } })
-//   milestones: { [project]: [milestone, ...] }, else components that show milestones fetch them
+//   milestones: { [project]: [milestone, ...] or {list, favorite_groups} }, else components that show milestones fetch them
 import { render } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -14,8 +14,8 @@ export const makeQueryClient = () => new QueryClient({
 
 // siteConfig and user are put in the cache, so that tests don't need to mock those API calls
 export function renderWithProviders(ui, { queryClient = makeQueryClient(), siteConfig, user, milestones, ...options } = {}) {
-  for (const [project, list] of Object.entries(milestones ?? {}))
-    queryClient.setQueryData(milestonesQuery(project).queryKey, index_milestones(list));
+  for (const [project, value] of Object.entries(milestones ?? {}))
+    queryClient.setQueryData(milestonesQuery(project).queryKey, Array.isArray(value) ? index_milestones(value) : index_milestones(value.list, value.favorite_groups));
   if (siteConfig) queryClient.setQueryData(siteConfigQuery.queryKey, { ...default_site_config, ...siteConfig });
   if (user) queryClient.setQueryData(userQuery.queryKey, user);
   const Wrapper = ({ children }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;

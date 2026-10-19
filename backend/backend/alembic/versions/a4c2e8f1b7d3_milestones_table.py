@@ -1,4 +1,4 @@
-"""Milestones get their own tables, with owners and favorites
+"""Milestones get their own tables, with owners and favorites (of milestones and of groups)
 
 Until now, shared milestones were saved in projects.data['milestones'] (keyed by "project/commit/batch", so only
 one per batch) and private ones in browsers. We copy the shared ones to the new table, owned by their first
@@ -91,6 +91,15 @@ def upgrade():
       sa.Column('created_at', sa.DateTime, nullable=False, server_default=sa.func.now()),
     )
     op.create_index('ix_milestone_favorites_milestone_id', 'milestone_favorites', ['milestone_id'])
+  if 'milestone_group_favorites' not in tables:
+    op.create_table(
+      'milestone_group_favorites',
+      sa.Column('user_id', sa.Integer, sa.ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
+      sa.Column('project_id', sa.String(), sa.ForeignKey('projects.id', ondelete='CASCADE'), primary_key=True),
+      sa.Column('section', sa.String(), primary_key=True),
+      sa.Column('group', sa.String(), primary_key=True),
+      sa.Column('created_at', sa.DateTime, nullable=False, server_default=sa.func.now()),
+    )
 
   # Copy the shared milestones, once
   users = dict(bind.execute(sa.text("SELECT user_name, id FROM users WHERE user_name IS NOT NULL")).fetchall())
@@ -130,5 +139,6 @@ def upgrade():
 
 def downgrade():
   # projects.data['milestones'] still has the milestones from before the upgrade
+  op.drop_table('milestone_group_favorites')
   op.drop_table('milestone_favorites')
   op.drop_table('milestones')

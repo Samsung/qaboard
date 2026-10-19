@@ -10,12 +10,18 @@ import {
   index_milestones, milestones_of, milestone_name, milestone_path, milestone_id_from_path, milestone_location,
 } from '../api';
 import { MilestonesPanel } from '../MilestonesPanel';
+import { ManageMilestones } from '../ManageMilestones';
+import MilestonePage from '../MilestonePage';
+import { unstable_HistoryRouter as HistoryRouter } from 'react-router';
+import { RouteMatch, history } from '../../router';
+import { comparison_path } from '../api';
 import { MilestoneDialogHost, openMilestoneDialog } from '../MilestoneDialog';
 import { CommitMilestoneButton } from '../CommitMilestone';
 import { useImportLegacyMilestones } from '../hooks';
 import { usePrefsStore } from '../../stores/prefs';
 import { renderWithProviders, makeQueryClient } from '../../test-utils';
 import { userQuery } from '../../api/queries';
+import { toaster } from '../../toaster';
 
 
 const SHA = 'abcdef1234567890abcdef1234567890abcdef12';
@@ -99,7 +105,8 @@ describe('MilestonesPanel', () => {
 
   test('favorites first, then mine by group, then the shared ones, then qaboard.yaml', () => {
     renderPanel();
-    expect(headers()).toEqual(['Favorites1', 'My milestones2', 'Shared with the project2', 'From qaboard.yaml1']);
+    // no counts next to 1 or 2 items
+    expect(headers()).toEqual(['Favorites', 'My milestones', 'Shared with the project', 'From qaboard.yaml']);
     const panel = within(screen.getByRole('menu', { name: 'Milestones' }));
     expect(panel.getAllByText('Best denoiser')).toHaveLength(2);
     // groups nest
@@ -107,6 +114,24 @@ describe('MilestonesPanel', () => {
     expect(panel.getByText('denoiser')).toBeInTheDocument();
     // others' milestones say who saved them
     expect(panel.getByText('Dan D')).toBeInTheDocument();
+  });
+
+  test('counts show for long lists, and for collapsed groups', () => {
+    const many = [1, 2, 3].map(id => make({ id, label: `sweep ${id}`, group: 'tuning' }));
+    renderPanel({ list: many });
+    expect(headers()[0]).toBe('My milestones3');
+    const group = screen.getByText('tuning').closest('a');
+    expect(group.textContent).toContain('3');
+  });
+
+  test('favorite groups list their milestones first, even future ones', async () => {
+    const calls = stubApi({ 'POST /api/v1/milestones/groups/favorite': { section: 'mine', group: 'tuning', is_favorite: true } });
+    renderPanel();
+    fireEvent.click(screen.getByLabelText('Add the group tuning to favorites'));
+    await waitFor(() => expect(screen.getAllByText('Best denoiser')).toHaveLength(3));
+    expect(calls.find(c => c.url === '/api/v1/milestones/groups/favorite').body).toEqual({ project: 'p', section: 'mine', group: 'tuning', is_favorite: true });
+    // the favorite group comes first, with its subgroups
+    expect(document.querySelector('.qa-milestones-group').textContent).toContain('tuning');
   });
 
   test('groups collapse, and stay collapsed', () => {
@@ -149,7 +174,7 @@ describe('MilestonesPanel', () => {
     const calls = stubApi({ 'PUT /api/v1/milestones/3/favorite': { id: 3, is_favorite: true } });
     renderPanel();
     fireEvent.click(within(screen.getByText('Quick check').closest('a')).getByLabelText('Add to favorites'));
-    await waitFor(() => expect(headers()[0]).toBe('Favorites2'));
+    await waitFor(() => expect(screen.getAllByText('Quick check')).toHaveLength(2));
     expect(calls.some(c => c.method === 'PUT' && c.url === '/api/v1/milestones/3/favorite')).toBe(true);
   });
 
@@ -283,5 +308,85 @@ describe('milestones saved in browsers by older versions', () => {
     await new Promise(resolve => setTimeout(resolve, 10));
     expect(calls).toHaveLength(0);
     expect(usePrefsStore.getState().milestones).toEqual({ p: { k: { commit: 'abc' } } });
+  });
+});
+
+
+describe('managing milestones', () => {
+  const renderManage = (list = milestones) => history.replace('/p/commits') || renderWithProviders(
+    <HistoryRouter history={history}><RouteMatch match={{ path: '/:project_id+/commits', params: { project_id: 'p' } }}>
+      <ManageMilestones isOpen project="p" onClose={() => {}}/>
+    </RouteMatch></HistoryRouter>,
+    { user: alice, milestones: { p: list } },
+  );
+  const names = () => [...document.querySelectorAll('tbody .qa-name')].map(n => n.textContent);
+
+  test('sorted by last update, or creation, or name', () => {
+    renderManage();
+    expect(names()[0]).toContain('Quick check');
+    fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'name' } });
+    const labels = ['Best denoiser', 'Bob baseline', 'Quick check', 'Release 1.0'];
+    expect(names().map(n => labels.find(label => n.includes(label)))).toEqual(labels);
+  });
+
+  test('moves several milestones to a group, only those of the user', async () => {
+    const calls = stubApi({ 'POST /api/v1/milestones/': (url, init) => [200, make({ id: Number(url.split('/').pop()), ...JSON.parse(init.body) })] });
+    renderManage();
+    fireEvent.click(screen.getByLabelText('Select Quick check'));
+    fireEvent.click(screen.getByLabelText('Select Bob baseline'));
+    expect(screen.getByText(/1 not yours/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Move to the group'), { target: { value: ' checks / quick ' } });
+    fireEvent.click(screen.getByText('Move'));
+    await waitFor(() => expect(calls.filter(c => c.method === 'POST')).toHaveLength(1));
+    expect(calls[0]).toMatchObject({ url: '/api/v1/milestones/3', body: { group: 'checks/quick' } });
+  });
+
+  test('compares two milestones', () => {
+    renderManage();
+    fireEvent.click(screen.getByLabelText('Select Quick check'));
+    fireEvent.click(screen.getByLabelText('Select Release 1.0'));
+    // the most recent is the new results
+    fireEvent.click(screen.getByText(/^Compare/));
+    expect(window.location.pathname + window.location.search).toBe(comparison_path(milestones[2], milestones[0]));
+  });
+});
+
+
+describe('milestone links', () => {
+  const renderPage = (name, vs) => {
+    history.replace(`/p/milestone/${name}${vs ? `?vs=${vs}` : ''}`);
+    return renderWithProviders(
+      <HistoryRouter history={history}><RouteMatch match={{ path: '/:project_id+/milestone/:name+', params: { project_id: 'p', name } }}><MilestonePage/></RouteMatch></HistoryRouter>,
+      { user: alice },
+    );
+  };
+
+  test('compare two milestones', async () => {
+    stubApi({ 'GET /api/v1/milestones/2': milestones[1], 'GET /api/v1/milestones/4': milestones[3] });
+    renderPage('2-best-denoiser', '4-bob');
+    await waitFor(() => expect(window.location.pathname).toBe(`/p/commit/${SHA}`));
+    expect(window.location.search).toBe(`?batch=sweep-3&filter=gain%3A4&reference=${'f'.repeat(40)}`);
+  });
+
+  test('a deleted reference: the milestone opens, and we say so', async () => {
+    stubApi({ 'GET /api/v1/milestones/2': milestones[1], 'GET /api/v1/milestones/9': () => [404, { error: 'deleted' }] });
+    const toast = vi.spyOn(toaster, 'show');
+    renderPage('2-best-denoiser', '9-old-release');
+    await waitFor(() => expect(window.location.pathname).toBe(`/p/commit/${SHA}`));
+    expect(window.location.search).not.toContain('reference');
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/The milestone “old release” \(#9\) doesn't exist anymore: the results are compared with the default reference/) }));
+    toast.mockRestore();
+  });
+
+  test('a deleted milestone says what it was, and offers the other one', async () => {
+    stubApi({ 'GET /api/v1/milestones/9': () => [404, { error: 'deleted' }], 'GET /api/v1/milestones/4': milestones[3] });
+    renderPage('9-old-release', '4-bob');
+    expect(await screen.findByText(/The milestone “old release” \(#9\) doesn't exist anymore/)).toBeInTheDocument();
+    expect(await screen.findByText(/Open the other milestone/)).toBeInTheDocument();
+  });
+
+  test('not a milestone link', () => {
+    renderPage('best');
+    expect(screen.getByText("This link doesn't point to a milestone")).toBeInTheDocument();
   });
 });
