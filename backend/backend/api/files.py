@@ -14,6 +14,7 @@ And in the folders listed in QABOARD_FILES_UNIX_PERMISSIONS (e.g. /home), users 
 """
 import os
 import time
+from pathlib import Path
 from urllib.parse import quote, urlencode
 
 from flask import request, jsonify
@@ -99,6 +100,26 @@ def check_read_access(path: str):
     if not matches_rules(user_info, perms_data):
       return jsonify({"error": f"Only some users can see {description}.", "reason": "forbidden"}), 403
   return None
+
+
+def readable_file(url, *parts):
+  """
+  For the API endpoints that read files the client names, like the image and video viewers': (path, None) if the
+  current user can read the file `url` (/s/some/folder, then the `parts` under it), else (None, an error response).
+  Like the file browser: only files in the storage ($QABOARD_STORAGE_ROOTS), not the server's own, and with the
+  access rules of QABOARD_LOGIN_RESTRICTED_YAML. Paths are normalized first: ".." can't leave the storage.
+  """
+  if not url or not isinstance(url, str) or not all(isinstance(part, str) and part for part in parts):
+    return None, (jsonify({"error": "Which file? Its URL is missing"}), 400)
+  path = path_from_url("/".join([url.rstrip("/"), *parts]))
+  if path is None:
+    return None, (jsonify({"error": "File URLs start with /s/"}), 400)
+  if not is_listable(path):
+    return None, (jsonify({"error": "QA-Board only reads the files in its storage ($QABOARD_STORAGE_ROOTS).", "reason": "not-listable"}), 403)
+  denied = check_read_access(path)
+  if denied:
+    return None, denied
+  return Path(path), None
 
 
 @app.route('/api/v1/files/authorize')

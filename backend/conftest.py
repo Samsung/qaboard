@@ -114,3 +114,16 @@ def dummy_app():
     Assumes only usage with it is: `dummy_app.test_request_context()` and therefore shared per session.
     """
     return Flask(__name__)
+
+
+@pytest.fixture
+def storage_in_tmp(monkeypatch):
+    """
+    The API endpoints that read files only read those in the storage ($QABOARD_STORAGE_ROOTS):
+    for tests whose files are in the temporary folder, it's the storage. Use /s{path} as their URLs.
+    """
+    import tempfile
+    from pathlib import Path
+    import backend.files as files
+    monkeypatch.setattr(files, "storage_roots", [Path(tempfile.gettempdir())])
+    monkeypatch.setattr(files, "private_dirs", lambda: [])

@@ -10,6 +10,10 @@ from PIL import Image
 
 from backend.api.image_diff import block_reduce, difference_map, find_regions, value_scale, yiq_distance
 
+# their files are in the temporary folder (see conftest.py)
+pytestmark = pytest.mark.usefixtures('storage_in_tmp')
+
+
 
 def gradient(height, width):
   y, x = np.mgrid[0:height, 0:width]
@@ -133,7 +137,7 @@ def runs(tmp_path):
     Image.fromarray(array).save(directory / 'out.png')
   Image.fromarray(gradient(100, 100)).save(ref / 'small.png')
   Image.fromarray(gradient(300, 400)).save(ref / 'other.png')
-  return {'/s/new': new, '/s/ref': ref}
+  return {'/s/new': f'/s{new}', '/s/ref': f'/s{ref}'}
 
 
 @pytest.fixture
@@ -143,10 +147,9 @@ def find(runs, tmp_path, dummy_app):
   (cache / 'regions').mkdir(parents=True)
 
   def _find(**body):
-    data = {'output_dir_url_new': '/s/new', 'output_dir_url_ref': '/s/ref', 'path': 'out.png', 'diff_type': 'yiq', **body}
+    data = {'output_dir_url_new': runs['/s/new'], 'output_dir_url_ref': runs['/s/ref'], 'path': 'out.png', 'diff_type': 'yiq', **body}
     with patch.object(image_api, 'image_cache_dir', cache), \
          patch.object(image_api, 'regions_cache_dir', cache / 'regions'), \
-         patch.object(image_api, 'url_to_dir', side_effect=lambda url: runs[url]), \
          patch.object(image_api, 'read_image', wraps=image_api.read_image) as read_image:
       with dummy_app.test_request_context('/api/v1/output/image/diff', method='POST', json=data):
         response = image_api.get_rois()

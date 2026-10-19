@@ -12,7 +12,7 @@ import { PixelTiles } from './pixelTiles';
 import { ALL_CHANNELS } from './histogram';
 import { Crosshair, DiffLayer, HighlightLayer, Minimap, PixelValues } from './overlays';
 import { AdjustmentsPanel, DiffLegend, DiffSettings, Histogram, Readout, RegionsMenu, RegionsStrip, Shortcuts, ValuesBadge, ValuesPanel } from './panels';
-import { Button, Icon, MenuDivider, MenuItem, Popover, Segmented, Spinner } from './ui';
+import { Button, FilterPrimitive, Icon, MenuDivider, MenuItem, Popover, Segmented, Spinner } from './ui';
 import './image-viewer.css';
 
 const GAP = 4;
@@ -82,19 +82,6 @@ const saveCanvas = async (canvas, filter, filename) => {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
-const FilterPrimitive = ({ primitive }) => {
-  const { type, attributes, functions } = primitive;
-  if (type === 'feComponentTransfer')
-    return <feComponentTransfer>
-      {functions.map(({ channel, ...f }) => {
-        const Func = `feFunc${channel}`;
-        return <Func key={channel} {...f} />;
-      })}
-    </feComponentTransfer>;
-  const Element = type;
-  return <Element {...attributes} />;
-};
-
 
 export const ImageViewer = ({
   image,
@@ -123,6 +110,7 @@ export const ImageViewer = ({
   blindTest: blind_prop,
   onBlindTestChange,
   getPixels,
+  imageValuesUnavailable,
   maxHeight = DEFAULT_MAX_HEIGHT,
   theme,
   notice,
@@ -619,7 +607,7 @@ export const ImageViewer = ({
         title={`Values written on the pixels when zoomed in: ${pixel_source === 'image' ? "the image's own" : pixel_source === 'display' ? 'the displayed ones' : 'off'} (p)`}
         className={pixel_source !== 'off' ? 'qiv-intent' : ''}
       />}>
-        <ValuesPanel source={pixel_source} available={!!getPixels} onChange={setValues} />
+        <ValuesPanel source={pixel_source} available={!!getPixels} unavailable={imageValuesUnavailable} onChange={setValues} />
       </Popover>
       <Button icon="timeline-area-chart" title="Histogram of the view: drag on it to highlight a range of values" active={show_histogram} aria-pressed={show_histogram} onClick={() => setShowHistogram(!show_histogram)} />
       <span className="qiv-group">
@@ -661,6 +649,7 @@ export const ImageViewer = ({
       base={base}
       onToggleBase={() => setBase(b => b === 10 ? 16 : 10)}
       sizes={{ a: size_a, b: size_b }}
+      unavailable={getPixels ? null : imageValuesUnavailable}
     />
     </div>
     <div

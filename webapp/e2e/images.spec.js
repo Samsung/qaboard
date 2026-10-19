@@ -46,10 +46,10 @@ const commit = (hexsha, batch_id, message, metadata, qatools_config, runs = [nul
 
 // differences: by run, the largest difference the server finds, for the regions where they differ (none: identical),
 // after diff_delay ms. eight_bit: the image's own values are 8-bit RGB (else 10-bit)
-const setup = async (page, { metadata = {}, manifests, qatools_config = default_config, runs, differences = {}, diff_delay = 0, eight_bit = false } = {}) => {
+const setup = async (page, { metadata = {}, manifests, qatools_config = default_config, runs, differences = {}, diff_delay = 0, eight_bit = false, signed_in = true } = {}) => {
   const api = {
     '/api/v1/config': {},
-    '/api/v1/user/me/': { is_authenticated: true, user_id: 1, user_name: 'alice', full_name: 'Alice', email: 'alice@example.com', login_type: 'local' },
+    '/api/v1/user/me/': signed_in ? { is_authenticated: true, user_id: 1, user_name: 'alice', full_name: 'Alice', email: 'alice@example.com', login_type: 'local' } : { is_authenticated: false },
     '/api/v1/projects': { [project]: { data: { qatools_config }, latest_commit_datetime: '2026-09-01T10:00:00Z', total_commits: 2 } },
     '/api/v1/project': { qatools_config },
     '/api/v1/project/branches': ['master'],
@@ -424,6 +424,23 @@ test('finds where the images differ in all the runs, and ranks them', async ({ p
   await page.goBack();
   await expect(first.locator('.qiv-region').first()).toContainText('#1 · 30.0%');
   expect(diff_requests).toHaveLength(3);
+});
+
+test('signed out: says to sign in for the images\' own values and to find where they differ', async ({ page }) => {
+  const { pixel_requests, diff_requests } = await setup(page, { runs: ['A', 'B'], differences: { A: 0.3 }, signed_in: false });
+  const first = page.locator('.output-card[data-output-id="100"]');
+  await expect(first.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
+  await expect(first.locator('.qiv-readout')).toContainText("Sign in (in the sidebar) to read the images' own values");
+  await first.getByRole('button', { name: 'Regions of interest' }).click();
+  // no search over all the runs
+  await expect(page.getByRole('menuitem', { name: /in all 2 runs/ })).toHaveCount(0);
+  await page.getByRole('menuitem', { name: 'Where they differ: perceptual' }).click();
+  await expect(first.locator('.qiv-regions')).toContainText('Sign in (in the sidebar) to find where the images differ');
+  // hovering shows the displayed values only, without asking the server
+  await first.locator('.qiv-stage').hover();
+  await expect(first.locator('.qiv-readout')).toContainText('x ');
+  expect(pixel_requests).toHaveLength(0);
+  expect(diff_requests).toHaveLength(0);
 });
 
 test('says which runs it compares, and which wait for their turn', async ({ page }) => {
