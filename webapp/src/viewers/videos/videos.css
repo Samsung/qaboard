@@ -79,6 +79,7 @@
   /* the stage handles the gestures, and we don't want the browser's video menu */
   pointer-events: none;
 }
+.video-highlight,
 .video-pixel-values {
   position: absolute;
   inset: 0;

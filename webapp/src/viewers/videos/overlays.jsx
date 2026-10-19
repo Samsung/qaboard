@@ -2,6 +2,7 @@
 import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from 'react';
 
 import { renderDiff } from '../../image-viewer/diffRenderer';
+import { drawHighlight } from '../../image-viewer/highlightRenderer';
 import { cellFont, formatNumber, formatSigned, MIN_CELL, textColorOn, visiblePixels } from '../../image-viewer/pixels';
 import { displayRegion, frameCanvas, hasFrame } from './frames';
 import { regionRect, transformOf } from './viewTransform';
@@ -59,6 +60,40 @@ export const DiffLayer = ({ first, second, diff, controller, canvasRef, onError 
     }
   }, [first, second, JSON.stringify(diff)]);
   return <canvas ref={canvas} aria-label="Difference" />;
+};
+
+
+// The pixels of the frame shown within a range of values, picked on the histogram: { lo, hi, channels }, or null.
+// Like the image viewer's: from the frame as it shows in the pane, at the screen's resolution.
+const shown_frame = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+export const HighlightLayer = ({ controller, video, highlight, view, pane, media }) => {
+  const canvas = useRef(null);
+  useOnFrames(controller, () => {
+    if (!canvas.current || !highlight || !hasFrame(video)) return;
+    const ratio = window.devicePixelRatio || 1;
+    const w = Math.max(1, Math.round(pane.width * ratio));
+    const h = Math.max(1, Math.round(pane.height * ratio));
+    if (shown_frame.width !== w || shown_frame.height !== h) {
+      shown_frame.width = w;
+      shown_frame.height = h;
+    }
+    const context = shown_frame.getContext('2d', { willReadFrequently: true });
+    if (!context) return;
+    context.setTransform(1, 0, 0, 1, 0, 0);
+    context.clearRect(0, 0, w, h);
+    const t = transformOf(view, pane, media);
+    // zoomed in, the actual pixels, like the videos show
+    context.imageSmoothingEnabled = t.width * t.scale / video.videoWidth < 2;
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    context.drawImage(video, t.x, t.y, t.width * t.scale, t.height * t.scale);
+    try {
+      drawHighlight(canvas.current, shown_frame, highlight, ratio);
+    } catch {
+      // the server doesn't send CORS headers: the histogram says so
+    }
+  }, [video, highlight?.lo, highlight?.hi, highlight?.channels.join(), pane.width, pane.height, view.zoom, view.cx, view.cy, media?.width, media?.height]);
+  if (!highlight) return null;
+  return <canvas ref={canvas} className="video-highlight" aria-hidden="true" style={{ width: pane.width, height: pane.height }} />;
 };
 
 

@@ -20,7 +20,7 @@ import '../../image-viewer/image-viewer.css';
 import { SyncedPlayback } from './syncedPlayback';
 import { FIT, clampView, fitRegion, panBy, transformOf, videoPointAt, zoomAt, zoomLimits, zoomTo } from './viewTransform';
 import { Transport, RATES } from './Transport';
-import { DiffLayer, Minimap, PixelValues, RegionOutline } from './overlays';
+import { DiffLayer, HighlightLayer, Minimap, PixelValues, RegionOutline } from './overlays';
 import { FrameBadge, InfoPanel, Readout, Shortcuts, ValuesBadge, ValuesPanel } from './panels';
 import { frameCanvas } from './frames';
 import { copyFrame, mediaErrorMessage, saveFrame, usePreference } from './utils';
@@ -163,7 +163,10 @@ export const VideoCompare = ({
   const [view, setView] = useState(FIT);
   const [base, setBase] = useState(10);
   const [show_histogram, setShowHistogram] = useState(false);
+  // The channels the histogram shows, and the range of values it highlights on the videos (with the channels shown)
   const [histogram_channels, setHistogramChannels] = useState(ALL_CHANNELS);
+  const [highlight_range, setHighlightRange] = useState(null);
+  const highlight = show_histogram && !animation && highlight_range ? { ...highlight_range, channels: histogram_channels } : null;
   const [diff_error, setDiffError] = useState(null);
   const [message, setMessage] = useState(null);
   // where the pointer is: { x, y, pane } in pane coordinates
@@ -690,6 +693,14 @@ export const VideoCompare = ({
           aria-label={which === 'new' ? 'New video' : 'Reference video'}
         />}
     </div>
+    {visible && (mode === 'wipe' || contents.includes(which)) && <HighlightLayer
+      controller={controller}
+      video={elements[which]}
+      highlight={highlight}
+      view={current_view}
+      pane={pane}
+      media={media}
+    />}
     {contents.includes(which) && !animation && pixelValues(which, contents.indexOf(which))}
     {contents.includes(which) && <RegionOutline region={region_for(which)} view={current_view} pane={pane} media={media} />}
     {(side_by_side || diff_between) && label(which, 'left')}
@@ -912,7 +923,15 @@ export const VideoCompare = ({
       />}
       {differences?.frames && <span className="video-difference-summary qiv-muted" title={differences.summaryTitle}>{differences.summary}</span>}
     </Transport>}
-    {show_histogram && !animation && <Histogram controller={histogram_source} comparing={comparing} names={{ a: names[first], b: names[second] }} channels={histogram_channels} onChannelsChange={setHistogramChannels} />}
+    {show_histogram && !animation && <Histogram
+      controller={histogram_source}
+      comparing={comparing}
+      names={{ a: names[first], b: names[second] }}
+      channels={histogram_channels}
+      onChannelsChange={setHistogramChannels}
+      range={highlight_range}
+      onRangeChange={setHighlightRange}
+    />}
   </div>;
 };
 
