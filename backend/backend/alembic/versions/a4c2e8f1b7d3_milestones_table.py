@@ -107,7 +107,10 @@ def upgrade():
     (project_id, key)
     for project_id, key in bind.execute(sa.text("SELECT project_id, data->>'legacy_key' FROM milestones WHERE data ? 'legacy_key'")).fetchall()
   }
-  projects = bind.execute(sa.text("SELECT id, data->'milestones' FROM projects WHERE jsonb_typeof(data->'milestones') = 'object'")).fetchall()
+  # projects.data is json, not jsonb, in databases where bdacefe1d00c_moving_to_jsonb was stamped instead of applied
+  projects = bind.execute(sa.text(
+    "SELECT id, CAST(data AS jsonb)->'milestones' FROM projects WHERE jsonb_typeof(CAST(data AS jsonb)->'milestones') = 'object'"
+  )).fetchall()
   insert = sa.text("""
     INSERT INTO milestones (project_id, user_id, shared, label, "group", notes, commit_hexsha, commit_project_id, batch, filter, data, created_at, updated_at)
     VALUES (:project_id, :user_id, true, :label, :group, :notes, :commit_hexsha, :commit_project_id, :batch, :filter, CAST(:data AS jsonb),
