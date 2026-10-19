@@ -2,6 +2,7 @@
 *
 !webapp/
 !website/release-notes/
+!qaboard/schemas/
 webapp/node_modules/
 webapp/build/
 webapp/coverage/

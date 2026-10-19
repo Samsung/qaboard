@@ -40,6 +40,8 @@ Homepage = "https://github.com/Samsung/qaboard"
 dev = [
     "flake8",
     "green",
+    # tests/test_schemas.py
+    "jsonschema",
     "mypy",
     "types-PyYAML",
     "types-requests",

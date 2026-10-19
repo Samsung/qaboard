@@ -1,10 +1,14 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from 'vite'
+import { fileURLToPath } from 'node:url'
+import { defineConfig, searchForWorkspaceRoot } from 'vite'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
 import { visualizer } from 'rollup-plugin-visualizer'
 import { sentryVitePlugin } from '@sentry/vite-plugin'
 import { releaseNotes } from './releaseNotes.js'
+
+// The JSON schemas of qaboard.yaml and the batch files, shared with the `qa` package and the docs website
+const schemas = fileURLToPath(new URL('../qaboard/schemas', import.meta.url))
 
 // Where the development server relays API/data requests. The variable names predate Vite, we keep them.
 // By default we assume you run QA-Board on localhost
@@ -81,6 +85,7 @@ export default defineConfig(({ mode }) => ({
     // Last, to upload the final source maps
     sentry(),
   ],
+  resolve: { alias: { 'qaboard-schemas': schemas } },
   define: {
     // Not in the tests: they'd depend on the shell's environment (e.g. QABOARD_VERSION set by an .envrc)
     'import.meta.env.QABOARD_RELEASE': JSON.stringify(mode === 'test' ? '' : release ?? ''),
@@ -93,6 +98,8 @@ export default defineConfig(({ mode }) => ({
     allowedHosts: process.env.DANGEROUSLY_DISABLE_HOST_CHECK === 'true' ? true : undefined,
     watch: { usePolling: process.env.CHOKIDAR_USEPOLLING === 'true' },
     proxy,
+    // the schemas are outside of webapp/
+    fs: { allow: [searchForWorkspaceRoot(process.cwd()), schemas] },
   },
   preview: { port: 3000, proxy },
   build: {

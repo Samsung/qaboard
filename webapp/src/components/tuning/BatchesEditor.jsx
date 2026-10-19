@@ -434,7 +434,7 @@ export function BatchesEditor({ project, commit, config, git, web_url, available
     return () => clearInterval(interval);
   }, []);
 
-  const analysis = useMemo(() => analyzeBatches(doc?.draft ?? ""), [doc?.draft]);
+  const analysis = useMemo(() => analyzeBatches(doc?.draft ?? "", { config }), [doc?.draft, config]);
   const errors = analysis.problems.filter(p => p.severity === "error");
   const warnings = analysis.problems.filter(p => p.severity === "warning");
 

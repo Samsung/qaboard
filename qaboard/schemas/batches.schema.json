@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://samsung.github.io/qaboard/batches.schema.json",
+  "title": "QA-Board batch file (qa/batches.yaml)",
+  "description": "Batches of tests run with `qa batch`, listed in qaboard.yaml under inputs.batches, or edited in the web app's Available Tests. Docs: https://samsung.github.io/qaboard/docs/batches-running-on-multiple-inputs. Unknown keys are allowed by `qa batch` (they become input settings, read by your iter_inputs), so validators should report them as warnings.",
+  "type": ["object", "null"],
+  "properties": {
+    "database": {
+      "$ref": "#/$defs/database",
+      "description": "Default database for the batches of this file, where their inputs are."
+    },
+    "configs": {
+      "$ref": "#/$defs/configurations",
+      "description": "Default configurations for the batches of this file that don't set their own."
+    },
+    "configurations": {"$ref": "#/$defs/configurations", "description": "Same as configs."},
+    "platform": {
+      "$ref": "#/$defs/platform",
+      "description": "Default platform for the batches of this file that don't set their own."
+    },
+    "matrix": {
+      "deprecated": true,
+      "description": "Not applied to the batches: set `matrix` in each batch."
+    },
+    "aliases": {"$ref": "#/$defs/aliases"},
+    "groups": {
+      "$ref": "#/$defs/aliases",
+      "deprecated": true,
+      "description": "Old name of `aliases`."
+    }
+  },
+  "patternProperties": {
+    "^\\.": {"description": "Hidden: not a batch, e.g. to define YAML anchors reused by batches."}
+  },
+  "additionalProperties": {"$ref": "#/$defs/batch"},
+
+  "$defs": {
+    "batch": {
+      "title": "Batch",
+      "description": "A batch of tests: inputs, and the configurations, platform and runner to run them with.",
+      "type": "object",
+      "properties": {
+        "inputs": {"$ref": "#/$defs/inputs"},
+        "tests": {"$ref": "#/$defs/inputs", "deprecated": true, "description": "Old name of `inputs`."},
+        "configs": {"$ref": "#/$defs/configurations"},
+        "configurations": {"$ref": "#/$defs/configurations", "description": "Same as configs."},
+        "configuration": {"$ref": "#/$defs/configurations", "description": "Same as configs."},
+        "database": {"$ref": "#/$defs/database"},
+        "platform": {"$ref": "#/$defs/platform"},
+        "type": {
+          "type": "string",
+          "description": "The type of the inputs, one of inputs.types in qaboard.yaml. Its settings (globs, database, runners...) apply to the batch. `pipeline` runs other batches as steps."
+        },
+        "runner": {"$ref": "#/$defs/runner_name", "description": "Run this batch with this runner, unless `qa batch --runner` says otherwise."},
+        "matrix": {"$ref": "#/$defs/matrix"},
+        "only": {"$ref": "#/$defs/metadata_filter", "description": "Only run on the inputs whose metadata match, e.g. `{iso: '>=800'}`, or a glob on the path."},
+        "exclude": {"$ref": "#/$defs/metadata_filter", "description": "Don't run on the inputs whose metadata match."},
+        "globs": {"$ref": "#/$defs/globs"},
+        "glob": {"$ref": "#/$defs/globs", "description": "Same as globs."},
+        "use_parent_folder": {"$ref": "#/$defs/use_parent_folder"},
+        "local": {"$ref": "#/$defs/local_runner"},
+        "lsf": {"$ref": "#/$defs/lsf_runner"},
+        "celery": {"$ref": "#/$defs/celery_runner"},
+        "dask": {"$ref": "#/$defs/dask_runner"},
+        "windows": {"$ref": "#/$defs/windows_runner"}
+      },
+      "additionalProperties": false
+    },
+
+    "inputs": {
+      "description": "The inputs, relative to the database: paths, folders or globs (`*`, `**`). Each can have its own configurations: `- [input, config...]` or `- input: {settings or configs}`.",
+      "anyOf": [
+        {"type": "string"},
+        {"type": "null"},
+        {"type": "array", "items": {"$ref": "#/$defs/input"}},
+        {"type": "object", "additionalProperties": {"$ref": "#/$defs/input_settings"}}
+      ]
+    },
+    "input": {
+      "anyOf": [
+        {"type": "string", "description": "A path, folder or glob, relative to the database."},
+        {
+          "type": "array",
+          "minItems": 1,
+          "prefixItems": [{"type": "string"}],
+          "description": "[input, extra configurations...]"
+        },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {"$ref": "#/$defs/input_settings"},
+          "description": "{input: extra configurations, or settings like database, type, glob...}"
+        }
+      ]
+    },
+    "input_settings": {
+      "description": "Extra configurations for this input (a list, a config, or a mapping of parameters), or settings: type, database, platform, globs, use_parent_folder, <runner>: {...}.",
+      "anyOf": [
+        {"type": "null"},
+        {"type": "string"},
+        {"type": "array"},
+        {
+          "type": "object",
+          "properties": {
+            "type": {"type": "string"},
+            "database": {"$ref": "#/$defs/database"},
+            "platform": {"$ref": "#/$defs/platform"},
+            "globs": {"$ref": "#/$defs/globs"},
+            "glob": {"$ref": "#/$defs/globs"},
+            "use_parent_folder": {"$ref": "#/$defs/use_parent_folder"},
+            "configs": {"$ref": "#/$defs/configurations"},
+            "configurations": {"$ref": "#/$defs/configurations"},
+            "configuration": {"$ref": "#/$defs/configurations"},
+            "local": {"$ref": "#/$defs/local_runner"},
+            "lsf": {"$ref": "#/$defs/lsf_runner"},
+            "celery": {"$ref": "#/$defs/celery_runner"},
+            "dask": {"$ref": "#/$defs/dask_runner"},
+            "windows": {"$ref": "#/$defs/windows_runner"}
+          },
+          "additionalProperties": true
+        }
+      ]
+    },
+    "configurations": {
+      "description": "The configurations your code runs with, merged in order: names, paths or mappings of parameters (your code decides what they mean). Docs: https://samsung.github.io/qaboard/docs/specifying-configurations"
+    },
+    "database": {
+      "description": "Where the inputs are. Use a mapping when the path differs between Linux and Windows. `{project}` and `{subproject}` are replaced, and environment variables expanded.",
+      "anyOf": [
+        {"type": "string"},
+        {
+          "type": "object",
+          "properties": {
+            "linux": {"type": "string"},
+            "windows": {"type": "string"},
+            "path": {"type": "string", "description": "Used on the OSes not listed."}
+          },
+          "additionalProperties": false,
+          "minProperties": 1
+        }
+      ]
+    },
+    "platform": {
+      "type": "string",
+      "description": "The platform the code runs on, or simulates (e.g. linux, a chip). Default: linux, or `qa --platform`."
+    },
+    "globs": {
+      "description": "Glob patterns identifying inputs inside folders, e.g. `*.jpg`.",
+      "anyOf": [{"type": "string"}, {"type": "array", "items": {"type": "string"}}, {"type": "null"}]
+    },
+    "use_parent_folder": {
+      "type": "boolean",
+      "description": "The inputs are the folders containing the files matching the globs."
+    },
+    "metadata_filter": {
+      "description": "Matches input metadata: a glob on the path, a comparison like `>=800`, a mapping of metadata keys to filters, or a list of filters (any)."
+    },
+    "matrix": {
+      "description": "Runs the batch for each combination of values. Interpolate them with `${matrix.name}` in configs. `configs`/`configurations` and `platform` are special. A list of matrices runs each one.",
+      "anyOf": [
+        {"$ref": "#/$defs/matrix_grid"},
+        {"type": "array", "items": {"$ref": "#/$defs/matrix_grid"}}
+      ]
+    },
+    "matrix_grid": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "description": "The values to run with: a list, e.g. `[1, 2]`."
+      }
+    },
+    "aliases": {
+      "description": "Names for groups of batches, run with `qa batch <alias>`. Aliases can list other aliases and globs like `ci-*`.",
+      "type": ["object", "null"],
+      "additionalProperties": {
+        "anyOf": [
+          {"type": "string"},
+          {"type": "array", "items": {"type": "string"}}
+        ]
+      }
+    },
+
+    "runner_name": {
+      "enum": ["local", "lsf", "celery", "dask", "windows"]
+    },
+    "local_runner": {
+      "type": "object",
+      "description": "Settings of the local runner (runs on this machine, in parallel).",
+      "properties": {
+        "concurrency": {"type": "integer", "description": "joblib's n_jobs: -1 for all CPUs, 1 for one run at a time..."},
+        "timeout": {"type": ["number", "null"], "description": "Timeout per run, in seconds."}
+      },
+      "additionalProperties": false
+    },
+    "lsf_runner": {
+      "type": "object",
+      "description": "Settings of the LSF runner (bsub).",
+      "properties": {
+        "queue": {"type": "string", "description": "bsub -q"},
+        "project": {"type": "string", "description": "bsub -P"},
+        "priority": {"type": "integer", "description": "bsub -sp"},
+        "max_threads": {"type": "integer", "description": "Threads per job (0: LSF's default)."},
+        "threads": {"type": "integer", "deprecated": true, "description": "Ignored by the LSF runner: use max_threads."},
+        "max_memory": {"type": ["integer", "string"], "description": "Memory per job, in MB (0: LSF's default)."},
+        "memory": {"type": ["integer", "string"], "deprecated": true, "description": "Old name of max_memory, only read in qaboard.yaml."},
+        "resources": {"type": "string", "description": "bsub -R"},
+        "options": {"type": "string", "description": "Other bsub options, e.g. `-W 24:00`."},
+        "concurrency": {"type": "integer", "description": "Max number of jobs of a batch running at the same time (0: unlimited)."},
+        "concurrency_strategy": {"enum": ["array", "waves"]},
+        "bridge": {"type": "string", "description": "Format string to send LSF commands through another host, e.g. `ssh my-host {bsub_command}`."},
+        "user": {"type": "string"},
+        "long_queue": {"type": "string", "description": "The queue used to optimize parameters from the web app (qaboard.yaml only)."}
+      },
+      "additionalProperties": false
+    },
+    "celery_runner": {
+      "type": "object",
+      "description": "Settings of the Celery runner. Docs: https://samsung.github.io/qaboard/docs/celery-integration",
+      "additionalProperties": true
+    },
+    "dask_runner": {
+      "type": "object",
+      "description": "Settings of the Dask runner. Docs: https://samsung.github.io/qaboard/docs/dask-integration",
+      "additionalProperties": true
+    },
+    "windows_runner": {
+      "type": "object",
+      "description": "Settings of the runner that sends runs to Windows machines via Jenkins.",
+      "additionalProperties": true
+    }
+  }
+}

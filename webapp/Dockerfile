@@ -1,4 +1,4 @@
-# Built from the repository's root, to include the release notes (website/release-notes/).
+# Built from the repository's root, to include the release notes (website/release-notes/) and the schemas of the batch files (qaboard/schemas/).
 # Dockerfile.dockerignore keeps the rest of the repository out of the build context.
 #   docker build -f webapp/Dockerfile .
 # Stages:
@@ -38,6 +38,8 @@ ENV PATH /app/node_modules/.bin:$PATH
 COPY webapp/package.json webapp/package-lock.json ./
 # vite bundles them in the app (see releaseNotes.js)
 COPY website/release-notes /website/release-notes
+# the Available Tests editor checks the batch files with them (see vite.config.js)
+COPY qaboard/schemas /qaboard/schemas
 
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --no-audit --no-fund || \
