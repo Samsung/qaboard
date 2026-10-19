@@ -138,7 +138,7 @@ export const ImageViewer = ({
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
 
   const [stored_mode, setMode] = useControllable(mode_prop, defaultMode, onModeChange);
-  const mode = comparing ? (MODES.some(m => m.value === stored_mode) ? stored_mode : 'side-by-side') : 'single';
+  const mode = comparing ? (MODES.some(m => m.value === stored_mode) ? stored_mode : 'side-by-side') : 'no-reference';
   const [diff_setting, setDiff] = useControllable(diff_prop, defaultDiff, onDiffChange);
   const diff = normalizeDiff(diff_setting);
   // In difference mode, the images show on each side of the difference ('between', new | difference | reference), or not
@@ -274,12 +274,12 @@ export const ImageViewer = ({
   // The toggle (t, the swap button, a click on the image shown alone): when both images show, they swap sides (around
   // their difference). When one shows, or their difference alone: the first image, the other, their difference, and
   // again. The first is new, or A during a blind test: with swapped shared by the viewers of a page, they all stay in step.
-  const single = mode === 'toggle' || (mode === 'difference' && diff_layout === 'alone');
+  const single = mode === 'single' || (mode === 'difference' && diff_layout === 'alone');
   const lead = blind?.a === 'B' ? 'b' : 'a';
   const other = lead === 'a' ? 'b' : 'a';
   const flip = () => {
-    if (!single || (mode === 'toggle' && first === lead)) return swap();
-    if (mode === 'toggle') {
+    if (!single || (mode === 'single' && first === lead)) return swap();
+    if (mode === 'single') {
       // their difference: the first image minus the other
       swap();
       setDiff({ ...diff, layout: 'alone' });
@@ -287,15 +287,15 @@ export const ImageViewer = ({
       return;
     }
     if (first !== lead) swap();
-    setMode('toggle');
+    setMode('single');
   };
   const flip_title = !single ? `Swap the sides: ${names[second]} | ${names[first]}`
-    : mode === 'toggle' && first === lead ? `Show the ${names[other]} image`
-    : mode === 'toggle' ? `Show the difference: ${names[lead]} − ${names[other]}`
+    : mode === 'single' && first === lead ? `Show the ${names[other]} image`
+    : mode === 'single' ? `Show the difference: ${names[lead]} − ${names[other]}`
     : `Show the ${names[lead]} image`;
   // Picking the mode shown again: Single flips the images, Difference shows or hides the images on its sides
   const pickMode = value => {
-    if (value === mode && value === 'toggle') swap();
+    if (value === mode && value === 'single') swap();
     else if (value === mode && value === 'difference') toggleDiffLayout();
     else setMode(value);
   };
@@ -455,7 +455,7 @@ export const ImageViewer = ({
     if (side_by_side) return { ...style, left: name === first ? 0 : pane_width + GAP };
     if (diff_between) return { ...style, left: name === first ? 0 : (stacked ? 1 : 2) * (pane_width + GAP) };
     if (mode === 'wipe') return name === second ? { ...style, zIndex: 2, clipPath: `inset(0 0 0 ${wipe * pane_width}px)` } : { ...style, zIndex: 1 };
-    if (mode === 'toggle') return name === first ? { ...style, zIndex: 2 } : { ...style, visibility: 'hidden' };
+    if (mode === 'single') return name === first ? { ...style, zIndex: 2 } : { ...style, visibility: 'hidden' };
     // difference: the image receives the gestures, under the difference
     if (mode === 'difference') return name === 'a' ? { ...style, zIndex: 1 } : { ...style, visibility: 'hidden' };
     return style;
@@ -710,7 +710,7 @@ export const ImageViewer = ({
           <div className="qiv-wipe-handle"><Icon icon="arrows-horizontal" size={14} /></div>
         </div>
       </>}
-      {mode === 'toggle' && label(first, 'left')}
+      {mode === 'single' && label(first, 'left')}
       <Minimap controller={controller} image={hidden ? images[first] : images.a} size={size_a} />
     </div>
     {show_histogram && <Histogram controller={controller} comparing={comparing} names={names} />}

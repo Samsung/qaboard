@@ -19,8 +19,7 @@ export interface ImageDescriptor {
   [key: string]: unknown;
 }
 
-/** 'toggle' shows one image at a time, called Single in the toolbar */
-export type Mode = 'side-by-side' | 'wipe' | 'toggle' | 'difference';
+export type Mode = 'side-by-side' | 'wipe' | 'single' | 'difference';
 
 export type DiffMethod = 'absolute' | 'signed' | 'perceptual' | 'deltaE' | 'exact';
 
