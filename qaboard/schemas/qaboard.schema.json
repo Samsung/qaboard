@@ -163,7 +163,7 @@
           "type": {
             "type": "string",
             "description": "The viewer. Default: guessed from the extension.",
-            "examples": ["image/*", "video/*", "plotly/json", "plotly/html", "text/plain", "text/html", "flame/json", "6dof/txt", "pointcloud/txt", "files/bit-accuracy"]
+            "examples": ["image/*", "video/*", "plotly/json", "plotly/html", "text/plain", "text/html", "flame/json", "6dof/txt", "pointcloud/pcd", "pointcloud/txt", "files/bit-accuracy"]
           },
           "default_hidden": {"type": "boolean"},
           "display": {"enum": ["single", "all", "viewer"]},

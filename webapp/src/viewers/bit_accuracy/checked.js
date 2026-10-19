@@ -5,7 +5,7 @@
 // - unless its path starts with one of `bit_accuracy.ignore`, or with one of the files that change at each run.
 
 // files that change from run to run, always ignored
-export const IGNORED_FILES = ['manifest.inputs.json', 'run.json', 'log.txt', 'log.lsf.txt', 'metrics.json', '.nfs000*'];
+export const IGNORED_FILES = ['manifest.inputs.json', 'run.json', 'log.txt', 'log.lsf.txt', 'metrics.json', 'metrics_definitions.json', '.nfs000*'];
 
 const escapeRegExp = s => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 

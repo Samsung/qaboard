@@ -36,7 +36,8 @@ from .config import project, project_root, subproject, config
 from .config import default_batches_files, get_default_database, default_batch_label, default_platform
 from .config import get_default_configuration, default_input_type
 from .config import commit_id, outputs_commit, artifacts_commit, root_qatools, artifacts_commit_root
-from .config import user, is_ci, on_windows
+from .config import user, is_ci, on_windows, available_metrics
+from .metrics import split_metrics, run_definitions
 
 
 
@@ -317,8 +318,15 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
         **previous_metrics,
         **metrics,
       }
+  # Metrics can come with their definition, e.g. Metric(12.3, suffix=" ms"), see qaboard/metrics.py
+  metrics, inline_definitions = split_metrics(metrics)
   with (run_context.output_dir / 'metrics.json').open('w') as f:
       json.dump(metrics, f, sort_keys=True, indent=2, separators=(',', ': '))
+  metrics_definitions = {}
+  try:
+    metrics_definitions = run_definitions(metrics, inline_definitions, run_context.output_dir, available_metrics)
+  except Exception as e:
+    click.secho(f'WARNING: When reading the definitions of the metrics: {e}', fg="yellow", bold=True, err=True)
 
   # To help identify if input files change, we compute and save some metadata.
   manifest_inputs = run_context.obj.get('manifest-inputs', [run_context.input_path])
@@ -368,7 +376,7 @@ def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_dat
       copy(run_context.output_dir / 'manifest.outputs.json', run_context.input_path / 'manifest.outputs.json')
 
   if not run_context.obj.get('offline') and not run_context.obj.get('dryrun'):
-    notify_qa_database(**run_context.obj, metrics=metrics, data=output_data, is_pending=False, is_running=False)
+    notify_qa_database(**run_context.obj, metrics=metrics, metrics_definitions=metrics_definitions, data=output_data, is_pending=False, is_running=False)
 
 
   ###### SIRC-specific ########################################################
@@ -461,7 +469,10 @@ def sync(ctx, input_path, output_path):
   if (run_context.output_dir / 'metrics.json').exists():
     with (run_context.output_dir / 'metrics.json').open('r') as f:
       metrics = json.load(f)
-    notify_qa_database(**ctx.obj, metrics=metrics, is_pending=False, is_running=False)
+    # those of define_metric() run when the entrypoint is imported
+    entrypoint_module(config)
+    metrics_definitions = run_definitions(metrics, {}, run_context.output_dir, available_metrics)
+    notify_qa_database(**ctx.obj, metrics=metrics, metrics_definitions=metrics_definitions, is_pending=False, is_running=False)
     click.secho(str(metrics), fg='green')      
 
 

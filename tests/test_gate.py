@@ -139,12 +139,25 @@ class TestGateRules(unittest.TestCase):
 
   def test_direction_comes_from_the_metrics_definitions(self):
     # if a bigger latency were better, the 4.2% drop of the median would be a regression
-    local_metrics = {'latency_p99': {'smaller_is_better': False}}
-    evaluation = evaluate([{'metric': 'latency_p99', 'max_regression': '4%'}], local_metrics=local_metrics)
+    comparison = fixture_comparison()
+    comparison['metrics']['latency_p99']['smaller_is_better'] = False
+    evaluation = evaluate([{'metric': 'latency_p99', 'max_regression': '4%'}], comparison)
     self.assertEqual(self.checks(evaluation), [('max_regression', 'latency_p99', 'fail')])
     self.assertAlmostEqual(evaluation['checks'][0]['regression'], 0.041666666666666664)
-    # metrics.yaml says nothing: like the web app, smaller is better
-    evaluation = evaluate([{'metric': 'latency_p99', 'max_regression': '4%'}], local_metrics={'latency_p99': None})
+    # what the server knows wins: it has the metrics declared in code, which win over the metrics file
+    comparison = fixture_comparison()
+    comparison['metrics']['latency_p99']['smaller_is_better'] = False
+    evaluation = evaluate([{'metric': 'latency_p99', 'max_regression': '4%'}], comparison, local_metrics={'latency_p99': {'label': 'p99'}})
+    self.assertEqual(evaluation['verdict'], 'fail')
+
+  def test_direction_from_the_local_metrics_file(self):
+    # when the server doesn't know
+    comparison = fixture_comparison()
+    comparison['metrics']['latency_p99'].update(declared=False, smaller_is_better=None)
+    evaluation = evaluate([{'metric': 'latency_p99', 'max_regression': '4%'}], comparison, local_metrics={'latency_p99': {'smaller_is_better': False}})
+    self.assertEqual(evaluation['verdict'], 'fail')
+    # the metrics file says nothing: smaller is better
+    evaluation = evaluate([{'metric': 'latency_p99', 'max_regression': '4%'}], comparison, local_metrics={'latency_p99': None})
     self.assertEqual(evaluation['verdict'], 'pass')
 
   def test_undeclared_metrics(self):
@@ -153,6 +166,13 @@ class TestGateRules(unittest.TestCase):
     comparison['metrics']['psnr']['declared'] = False
     with self.assertRaises(g.GateConfigError):
       evaluate([{'metric': 'psnr', 'max_regression': '1%'}], comparison)
+    # declared without a direction, in the metrics file or in code
+    comparison = fixture_comparison()
+    comparison['metrics']['psnr']['smaller_is_better'] = None
+    with self.assertRaises(g.GateConfigError):
+      evaluate([{'metric': 'psnr', 'max_regression': '1%'}], comparison)
+    with self.assertRaises(g.GateConfigError):
+      evaluate([{'metric': 'psnr', 'max_regression': '1%'}], comparison, local_metrics={'psnr': {'smaller_is_better': None}})
     # absolute bounds don't need to know which way is better
     evaluation = evaluate([{'metric': 'psnr', 'min': 30}, {'metric': 'psnr', 'max': 30.4}], comparison)
     self.assertEqual(self.checks(evaluation), [('min', 'psnr', 'pass'), ('max', 'psnr', 'fail')])
