@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.8b97510b.css">
-<script src="/qaboard/assets/js/runtime~main.2a646c28.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.ee119681.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.86f3bae5.js" defer="defer"></script>
 </head>
 <body>
@@ -183,6 +183,7 @@
 <li class="">Free more storage: the cleanup of old results (<code>qaboard_clean</code>) keeps only the batches that are milestones, not all the batches of their commit (<a class="" href="/qaboard/docs/storage/deleting-old-data">deleting old data</a>).</li>
 <li class="">Delete a commit&#x27;s runs from the web app even when it has milestones: its milestone batches are kept.</li>
 <li class="">Upgrade the database with a migration that moves shared milestones from the projects&#x27; data to their own table; the old data stays for rollbacks.</li>
+<li class="">Get your shared milestones back on servers where the upgrade failed to copy them because the projects&#x27; data was in an older format: the next upgrade converts it and copies them.</li>
 <li class=""><strong>Before you upgrade</strong>: settings to check and data to move first.<!-- -->
 <ul>
 <li class="">Records each existing project&#x27;s git host, with a migration that uses the deploy&#x27;s git host settings. <strong>Before upgrading, keep <code>GITLAB_HOST</code> set</strong>, or list your GitLab in <code>QABOARD_GIT_HOSTS</code> with the hostnames older projects used (<a class="" href="/qaboard/docs/backend-admin/git-hosts#upgrading-from-older-versions">upgrading</a>).</li>
