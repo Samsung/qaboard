@@ -25,7 +25,7 @@ import { usePrefetchCommitPage, useRefreshCommit, useUser } from "../hooks";
 import { LoginMenuItem } from "./authentication/login";
 import { CommitAvatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
-import { format, shortId, pretty_label } from "../utils";
+import { format, shortId, pretty_label, metric_info } from "../utils";
 import { commit_url as git_commit_url } from "../git"
 import { milestones_of, milestone_name } from '../milestones/api'
 import { useMilestones } from '../milestones/hooks'
@@ -175,7 +175,7 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
     let tuning_batches_labels = Object.keys(commit.batches).filter(label => label !== ci_batch_label);
 
     const { available_metrics={}, default_metric } = project_data.data?.qatools_metrics || {};
-    const default_metric_info = available_metrics[default_metric] || {};
+    const default_metric_info = default_metric ? metric_info(available_metrics, default_metric) : {};
     const aggregate_tooltip = aggregate => `${default_metric_info.label ?? default_metric_info.key}: ${aggregate} over the ${ci_batch.valid_outputs} runs of ${pretty_label(ci_batch)}`
     // const default_metric_info = available_metrics['WB_Err_HSV'] || {};
     
@@ -645,7 +645,7 @@ const CompactCommitResults = ({ project, project_data = {}, commit, default_batc
   const waiting_outputs = ci_batch.pending_outputs - ci_batch.running_outputs;
   const other_batches = Object.keys(commit.batches).filter(label => label !== ci_batch_label);
   const { available_metrics={}, default_metric } = project_data.data?.qatools_metrics || {};
-  const metric = available_metrics[default_metric] || {};
+  const metric = default_metric ? metric_info(available_metrics, default_metric) : {};
   const aggregated_metrics = ci_batch.aggregated_metrics ?? {};
   const median = aggregated_metrics[`${metric.key}_median`];
   const average = aggregated_metrics[`${metric.key}_average`];

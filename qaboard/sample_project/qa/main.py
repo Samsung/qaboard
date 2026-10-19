@@ -95,7 +95,10 @@ def run(context):
 
 #   outputs = parse(output_path)
 #   create_plots(outputs, context.output_dir)
+#   # QA-Board shows all metrics. Say which way is better to see improvements in green, regressions in red
+#   from qaboard import Metric
 #   return {
 #     **runtime_metrics,
 #     **my_metrics(outputs),
+#     "error_rate": Metric(my_error_rate(outputs), suffix="%", scale=100, smaller_is_better=True),
 #   }

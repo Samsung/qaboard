@@ -465,15 +465,23 @@ const slug = text => {
 // The value of input events, or the value itself
 const event_value = e => (e?.target && e.target.value !== undefined) ? e.target.value : e;
 
+// Whether smaller values of a metric are better: true or false, null when we don't know.
+// Metrics files leave it out when smaller is better. `null` says neither is (e.g. a count of frames).
+// The backend does the same (smaller_is_better in backend/backend/compare.py).
+const parse_smaller_is_better = m => {
+  const value = m.smaller_is_better;
+  if (value === undefined) return true;
+  if (value === null) return null;
+  if (typeof value === "string") return value.toLowerCase() !== 'false';
+  return !!value;
+};
+
 const metrics_fill_defaults = available_metrics => {
   const filled = {};
   Object.entries(available_metrics || {}).forEach(([key, m]) => {
     if (key.startsWith('.'))
       return;
     m = m ?? {};
-    let smaller_is_better = m.smaller_is_better ?? true;
-    if (typeof smaller_is_better === "string")
-      smaller_is_better = smaller_is_better.toLowerCase() !== 'false';
     filled[key] = {
       ...m,
       key,
@@ -481,11 +489,47 @@ const metrics_fill_defaults = available_metrics => {
       short_label: m.short_label || m.label || key,
       scale: m.scale || 1.0,
       suffix: m.suffix || '',
-      smaller_is_better,
+      smaller_is_better: parse_smaller_is_better(m),
+      declared: true,
     };
   });
   return filled;
 }
+
+// Metrics that were not declared are shown as they are, in neutral colors: we don't know which way is better.
+// The same object for the same key, so that memoized components don't re-render.
+const undeclared_metrics = new Map();
+const undeclared_metric = key => {
+  if (!undeclared_metrics.has(key))
+    undeclared_metrics.set(key, { key, label: key, short_label: key, scale: 1.0, suffix: '', smaller_is_better: null, declared: false });
+  return undeclared_metrics.get(key);
+};
+
+// A metric's definition, declared or not
+const metric_info = (available_metrics, key) => available_metrics?.[key] ?? undeclared_metric(key);
+
+// Run statuses, not metrics
+const not_metrics = new Set(['is_failed']);
+
+// The definitions of all the metrics runs have: the declared ones, then the others in alphabetical order
+const with_undeclared_metrics = (available_metrics = {}, used_metrics) => {
+  const undeclared = [...(used_metrics ?? [])]
+    .filter(key => available_metrics[key] === undefined && !not_metrics.has(key) && !key.startsWith('.'))
+    .sort();
+  if (undeclared.length === 0) return available_metrics;
+  return { ...available_metrics, ...Object.fromEntries(undeclared.map(key => [key, undeclared_metric(key)])) };
+};
+
+// The metrics file's definitions, with those declared in code (`metrics_definitions` in the data of commits and
+// projects), field by field: see backend/backend/metrics_definitions.py
+const merge_metrics_definitions = (qatools_metrics, definitions) => {
+  if (!definitions || Object.keys(definitions).length === 0) return qatools_metrics;
+  const available_metrics = { ...qatools_metrics?.available_metrics };
+  Object.entries(definitions).forEach(([key, definition]) => {
+    available_metrics[key] = { ...available_metrics[key], ...definition };
+  });
+  return { ...qatools_metrics, available_metrics };
+};
 
 
 // A width from qaboard.yaml (e.g. outputs.style.width: 1180px), as a maximum: narrower when the page is, e.g. when
@@ -579,6 +623,9 @@ export {
   are_on_same_filesystem, extract_drive_and_folder,
   make_eval_templates_recursively,
   metrics_fill_defaults,
+  metric_info,
+  with_undeclared_metrics,
+  merge_metrics_definitions,
   event_value,
   project_web_url,
   is_same_data,

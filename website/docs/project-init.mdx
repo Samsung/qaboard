@@ -19,7 +19,7 @@ root-git-repository
 └── qa
    ├── main.py         # sample entrypoint that runs your code
    ├── batches.yaml    # examples of how to run multiple tests
-   └── metrics.yaml    # examples of how to define KPIs
+   └── metrics.yaml    # optional: how to show metrics, and which ones by default
 ```
 
 ## Site defaults
@@ -79,7 +79,7 @@ Like GitHub, with the payload URL `https://<your-qaboard-server>/webhook/gitea` 
 :::
 
 ## Checking qaboard.yaml and batch files in your editor
-QA-Board publishes [JSON schemas](https://json-schema.org/) for [qaboard.yaml](pathname:///qaboard.schema.json), [batch files](pathname:///batches.schema.json) and [metrics files](pathname:///metrics.schema.json). Editors that understand them complete the keys, show their docs on hover, and flag typos and wrong types. The files `qa init` creates already declare their schema, on their first lines. For your other files, with VS Code's [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml), add to your settings:
+QA-Board publishes [JSON schemas](https://json-schema.org/) for [qaboard.yaml](pathname:///qaboard.schema.json), [batch files](pathname:///batches.schema.json), [metrics files](pathname:///metrics.schema.json) and the [metrics_definitions.json](pathname:///metrics_definitions.schema.json) files runs can write (see [Declaring metrics](/docs/computing-quantitative-metrics#declaring-metrics)). Editors that understand them complete the keys, show their docs on hover, and flag typos and wrong types. The files `qa init` creates already declare their schema, on their first lines. For your other files, with VS Code's [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml), add to your settings:
 
 ```json title=".vscode/settings.json"
 {

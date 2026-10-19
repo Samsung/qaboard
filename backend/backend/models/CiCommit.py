@@ -469,8 +469,10 @@ class CiCommit(Base):
     # Without it, QA-Board can't find its batch files.
     if data and data.get('qaboard_config') and not ci_commit.data.get('qatools_config'):
       ci_commit.data['qatools_config'] = data['qaboard_config']
-      if "qaboard_metrics" in data and not ci_commit.data.get('qatools_metrics'):
-        ci_commit.data['qatools_metrics'] = data['qaboard_metrics']
+      flag_modified(ci_commit, "data")
+    # Same for its metrics file: else the metrics declared in code that its runs send would hide the project's
+    if data and "qaboard_metrics" in data and ci_commit.data.get('qatools_metrics') is None:
+      ci_commit.data['qatools_metrics'] = data['qaboard_metrics']
       flag_modified(ci_commit, "data")
     return ci_commit
 

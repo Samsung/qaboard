@@ -87,3 +87,16 @@ def test_clients_cannot_mark_runs_as_replaceable(outputs_api, dummy_app):
   notify(outputs_api, dummy_app, data={"optimization_best": "default|iter1", "storage": "nfs"})
   assert "optimization_best" not in outputs_api.test_output.data
   assert outputs_api.test_output.data["storage"] == "nfs"
+
+
+def test_metrics_definitions_are_saved(outputs_api, dummy_app, monkeypatch):
+  save = MagicMock()
+  monkeypatch.setattr(outputs_api, "save_metrics_definitions", save)
+  notify(outputs_api, dummy_app, is_pending=False, metrics={"psnr": 30})
+  save.assert_not_called()
+  definitions = {"psnr": {"suffix": " dB", "smaller_is_better": False}}
+  notify(outputs_api, dummy_app, is_pending=False, metrics={"psnr": 30}, metrics_definitions=definitions)
+  assert save.call_args.args[2]["metrics_definitions"] == definitions
+  # the run is saved even if its definitions can't be
+  save.side_effect = ValueError("database error")
+  assert notify(outputs_api, dummy_app, is_pending=False, metrics={"psnr": 30}, metrics_definitions=definitions)["is_failed"] is False
