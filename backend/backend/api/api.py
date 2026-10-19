@@ -25,6 +25,7 @@ from ..utils import profiled
 from ..config import git_server
 from ..search import parse_query, commits_search_filter, escape_like
 from .auth import is_authorized_user, get_current_user
+from ..notifications.mail import email_enabled
 
 to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ'))
 timezone = pytz.timezone("utc")
@@ -72,6 +73,8 @@ def get_site_config():
         "login_hint": os.environ.get('QABOARD_LOGIN_HINT'),
         # Where users install WebCDE, which opens runs whose outputs have a cde.sh
         "webcde_installer": os.environ.get('QABOARD_WEBCDE_INSTALLER'),
+        # Users can ask for an email when the batches they start end
+        "email_notifications": email_enabled(),
     })
 
 

@@ -81,6 +81,39 @@ describe('TuningForm', () => {
     });
   });
 
+  it('asks for an email when the batch ends, if the server can send them', async () => {
+    usePrefsStore.getState().updateTuning('proj', { experiment_name: 'exp', selected_group: 'nightly' });
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(url => url.startsWith('/api/v1/tests/group?')
+      ? json({ tests: [{ input_path: 'a.jpg', configurations: ['base'] }] })
+      : url.startsWith('/api/v1/commit/abcdef12/batch?') ? json({ notification: { channel: 'email', recipient: 'alice@example.com' } }) : json({}));
+    const { unmount } = renderWithProviders(
+      <TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>,
+      { user: { is_logged: true, user_name: 'alice' }, siteConfig: {} },
+    );
+    // emails are not configured
+    expect(screen.queryByText('Email me when it ends')).not.toBeInTheDocument();
+    unmount();
+
+    renderWithProviders(
+      <TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>,
+      { user: { is_logged: true, user_name: 'alice' }, siteConfig: { email_notifications: true } },
+    );
+    const email_switch = screen.getByLabelText('Email me when it ends');
+    expect(email_switch).toBeChecked();
+    fireEvent.click(await screen.findByText('Start 1 run'));
+    await waitFor(() => expect(toaster.show).toHaveBeenCalledWith(expect.objectContaining({ message: 'Started exp. QA-Board will email alice@example.com when it ends.' }), 'tuning-exp'));
+    const start = () => fetch.mock.calls.filter(([url]) => url === '/api/v1/commit/abcdef12/batch?project=proj').at(-1);
+    expect(JSON.parse(start()[1].body).notify).toBe('email');
+
+    // users can opt out, we remember it
+    fireEvent.click(email_switch);
+    expect(usePrefsStore.getState().tuning.proj.notify_email).toBe(false);
+    await waitFor(() => expect(screen.getByText('Start 1 run')).not.toBeDisabled());
+    fireEvent.click(screen.getByText('Start 1 run'));
+    await waitFor(() => expect(start()).not.toBeUndefined());
+    await waitFor(() => expect(JSON.parse(start()[1].body).notify).toBeUndefined());
+  });
+
   it('runs as the logged-in user, even when they are known after the form showed', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
     const local_config = { project: { reference_branch: 'main' }, runners: { local: {} }, inputs: {} };

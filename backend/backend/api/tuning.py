@@ -33,6 +33,7 @@ from ..shell_utils import safe_user_name, lsf_bridge_command
 from ..storage import check_storage_path, UnsafePathError
 from ..submissions import record_submission, MAX_SUBMISSIONS, user_batch_dir, submission_dir # noqa: F401
 from ..artifacts import ArtifactsUnavailable
+from ..notifications.batches import request_batch_notification, cancel_batch_notification
 from .auth import login_required
 
 
@@ -443,7 +444,9 @@ def _generate_batch_script(ci_commit, user, working_directory, command_id, batch
         f"export QABOARD_TUNING=true;\n\n",
         f"export QA_OUTPUTS_COMMIT={quote(outputs_dir_prefix)};\n\n",
         f"export QATOOLS_CI_COMMIT_DIR={quote(str(ci_commit.outputs_dir))};\n\n",
-        f"export QA_BATCH_COMMAND_ID={quote(command_id)};\n\n",
+        f"export QA_BATCH_COMMAND_ID={quote(command_id)};\n",
+        # this `qa batch` is the first: the runs of the commands it starts (e.g. pipeline steps) are its runs
+        "unset QA_BATCH_ROOT_COMMAND_ID;\n\n",
         f"{batch_command};\n\n",
     ])
     return script
@@ -830,6 +833,9 @@ def start_tuning(hexsha):
     db_session.add(batch)
     db_session.commit()
 
+    # Before we start: with the local runner, runs can end before the dispatch returns
+    notification = notify_when_done(data, command_id, ci_commit, batch, user, do_optimize)
+
     try:
         if runner == 'lsf':
             submission.update(_dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize))
@@ -853,6 +859,32 @@ def start_tuning(hexsha):
     db_session.commit()
 
     if submission["status"] == "failed":
+        cancel_batch_notification(db_session, command_id, "The batch failed to start")
         error_log = (log_dir / 'log.txt').read_text() if (log_dir / 'log.txt').exists() else submission.get("error", "Failed to start batch")
         return jsonify({"error": error_log, "cmd": runner, "submission": submission}), 500
-    return jsonify({"cmd": runner, "stdout": "OK", "submission": submission, "warning": restored_message})
+    return jsonify({"cmd": runner, "stdout": "OK", "submission": submission, "warning": restored_message, "notification": notification})
+
+
+def notify_when_done(data, command_id, ci_commit, batch, user, do_optimize):
+    """
+    If users asked for it, we email them when the batch's runs end.
+    Returns what the web app tells users: {"channel", "recipient"} or {"error"}, or None if they didn't ask.
+    """
+    if data.get('notify') not in ('email', True):
+        return None
+    if do_optimize:
+        # its iterations are separate batches: between them no runs are pending
+        return {"error": "Emails when automated tuning ends are not supported yet."}
+    notification, error = request_batch_notification(
+        db_session, command_id, ci_commit, batch, user,
+        email=g.user.get('email'),
+        data={
+            "source": "webapp",
+            "label": data['batch_label'],
+            "selected_group": data.get('selected_group'),
+            "platform": data.get('platform'),
+        },
+    )
+    if error:
+        return {"error": error}
+    return {"channel": "email", "recipient": notification.recipient}

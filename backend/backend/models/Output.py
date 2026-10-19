@@ -65,6 +65,8 @@ class Output(Base):
     Index('idx_outputs_filter', "batch_id", "test_input_id", "platform"),
     # The file browser finds the run a folder belongs to
     Index('idx_outputs_output_dir_override', "output_dir_override"),
+    # When a run ends, we check if the `qa batch` command that started it has pending runs (backend/notifications/)
+    Index('idx_outputs_pending_root_command', text("(data->>'root_command_id')"), postgresql_where=text("is_pending")),
     Index('idx_outputs_batch_user_storage', 
           "batch_id", 
           text("(data->>'user')"),

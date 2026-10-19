@@ -1,0 +1,48 @@
+{{ headline }}
+{{ verdict }}{% if duration != '–' %} in {{ duration }}{% endif %}.
+
+View results: {{ links.results }}
+{% if links.failed %}
+Logs of the failed runs: {{ links.failed }}
+{% endif %}
+
+Runs: {{ '{:,}'.format(summary.total) }}   Succeeded: {{ '{:,}'.format(summary.succeeded) }}   Failed: {{ '{:,}'.format(summary.failed) }}   Duration: {{ duration }}
+{% if summary.metrics %}
+
+MAIN METRICS (median of the successful runs)
+{% for metric in summary.metrics %}
+- {{ metric.label }}: {{ metric.value }}{% if metric.meets_target is true %} (meets target {{ metric.target }}){% elif metric.meets_target is false %} (misses target {{ metric.target }}){% endif %}
+
+{% endfor %}
+{% endif %}
+{% if summary.ranking %}
+
+BEST PARAMETERS ({{ summary.ranking.metric }}, {{ summary.ranking.direction }})
+{% for row in summary.ranking.rows %}
+{{ row.rank }}. {{ row.value }}  {{ row.params }}{% if row.failed %} ({{ row.failed }} failed){% endif %}
+
+{% endfor %}
+Compare all the parameters: {{ links.tuning }}
+{% endif %}
+{% if summary.failed_runs %}
+
+FAILED RUNS
+{% for run in summary.failed_runs %}
+- {{ run.input }}{% if run.details %} ({{ run.details }}){% endif %}
+
+  {{ run.url }}
+{% endfor %}
+{% if summary.more_failed %}
+And {{ summary.more_failed }} more.
+{% endif %}
+{% endif %}
+
+DETAILS
+{% for label, value, url in details %}
+{{ label }}: {{ value }}
+{% endfor %}
+
+--
+{{ reason }} QA-Board sends one email per batch, when its last run ends, and never for CI runs.
+{% if docs_url %}About these emails: {{ docs_url }}
+{% endif %}

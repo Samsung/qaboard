@@ -7,6 +7,7 @@ from backend import app, db_session
 from ..models import CiCommit, Batch
 from ..storage import check_storage_path, UnsafePathError
 from ..redo import redo_response
+from ..notifications.batches import request_batch_notification
 from .export_to_folder import filter_outputs
 from .auth import login_required, require_project_access
 
@@ -121,7 +122,39 @@ def update_batch():
 
   db_session.add(batch)
   db_session.commit()
-  return jsonify({"status": "OK", "id": batch.id})
+  response = {"status": "OK", "id": batch.id}
+  notification = cli_notification(data, command, ci_commit, batch)
+  if notification:
+    response["notification"] = notification
+  return jsonify(response)
+
+
+def cli_notification(data, command, ci_commit, batch):
+  """
+  `qa batch` asks for an email when its runs end if users opted in with QA_NOTIFY=email.
+  Returns what the CLI tells users: {"channel", "recipient"} or {"error"}, or None if nothing was asked.
+  """
+  for command_id, command_data in (command or {}).items():
+    notify = command_data.get('notify') if isinstance(command_data, dict) else None
+    if not isinstance(notify, dict) or notify.get('channel') != 'email':
+      continue
+    # `qa batch` doesn't ask in CI, we double-check (runs started from QA-Board are notified by QA-Board itself)
+    if data.get('job_type') == 'ci':
+      return {"error": "QA-Board doesn't send emails for CI runs."}
+    # Like all ingest, unauthenticated: we only ever email the user's own address (their account's, or user@domain)
+    user_name = command_data.get('user') or data.get('user')
+    if not isinstance(user_name, str) or not user_name:
+      return {"error": "qa batch didn't say who you are."}
+    notification, error = request_batch_notification(db_session, str(command_id), ci_commit, batch, user_name, data={
+      "source": "cli",
+      "label": data['batch_label'],
+      "selected_group": ' '.join(str(b) for b in notify.get('batches') or []) or None,
+      "platform": data.get('platform'),
+    })
+    if error:
+      return {"error": error}
+    return {"channel": "email", "recipient": notification.recipient}
+  return None
 
 
 

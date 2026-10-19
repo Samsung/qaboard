@@ -49,6 +49,10 @@ where = ["."]
 include = ["backend*"]
 exclude = ["smoke_tests*"]
 
+[tool.setuptools.package-data]
+# the emails' templates
+"backend.notifications" = ["templates/*"]
+
 [tool.uv]
 package = true
 # see https://github.com/xmlsec/python-xmlsec/issues/320

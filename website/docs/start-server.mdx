@@ -157,6 +157,15 @@ QA-Board can connect to external authentication systems (LDAP, SAML). If needed,
 | `QABOARD_QUOTA_URL_TEMPLATE` | _none_ | Shows a "Quota" link, with `{user_name}` and `{project}` placeholders |
 | `QABOARD_SUPPORT_URL` | GitHub issues | Where users report bugs and send feedback, can be a `mailto:` |
 | `QABOARD_LOGIN_HINT` | _none_ | Advice for users whose username or password is wrong, shown in the login dialog, e.g. `Use your Windows credentials.` |
+| `QABOARD_SMTP_HOST` | _none_ | SMTP server QA-Board sends emails with, e.g. when batches users started end. Without it, users can't ask for emails. See [Emails](#emails) |
+| `QABOARD_SMTP_PORT` | 25, or 587 with `starttls`, 465 with `ssl` | SMTP port |
+| `QABOARD_SMTP_SECURITY` | none | `none`, `starttls` or `ssl` |
+| `QABOARD_SMTP_USER` / `QABOARD_SMTP_PASSWORD` | _none_ | If the SMTP server needs a login. Keep the password in an env file, not in `environment` |
+| `QABOARD_EMAIL_FROM` | `QA-Board <qaboard@$QABOARD_EMAIL_DOMAIN>` | Sender of the emails, e.g. `QA-Board <qaboard-noreply@example.com>` |
+| `QABOARD_EMAIL_REPLY_TO` | _none_ | Where replies go, e.g. the team that supports QA-Board |
+| `QABOARD_EMAIL_DOMAIN` | _none_ | Users whose account has no email address get emails at `<username>@<domain>`, e.g. `example.com` with LDAP usernames |
+| `QABOARD_EMAIL_TIMEZONE` | UTC | Time zone of the times in emails, e.g. `Asia/Jerusalem` |
+| `QABOARD_URL` | `http://qaboard` | The web app's address, for the links in emails, e.g. `https://qaboard.example.com` |
 | `QABOARD_WEBCDE_INSTALLER` | _none_ | Runs whose outputs include a `cde.sh` get a button to open them in WebCDE, a desktop app. When WebCDE isn't running, users are told to install it from this location |
 | `CANTALOUPE_MEM_START` | 1g      | Starting memory for the image server (set in `services.cantaloupe.environment`) |
 | `CANTALOUPE_MEM_MAX`   | 2g      | Max memory for the image server (set in `services.cantaloupe.environment`) |
@@ -169,6 +178,23 @@ QA-Board can connect to external authentication systems (LDAP, SAML). If needed,
 :::note
 In the future we plan to introduce a proper "secret" store, per user and per project.
 :::
+
+### Emails
+QA-Board can email users when the batches they start end: from the web app (**Email me when it ends** in the tuning form) or with `qa batch` and `QA_NOTIFY=email` ([what users get](user-guide/running-from-the-webapp#emails-when-batches-end)). To enable it, give the backend an SMTP server, e.g. in your env file:
+
+```bash title=".env"
+QABOARD_SMTP_HOST=smtp.example.com
+QABOARD_EMAIL_FROM=QA-Board <qaboard-noreply@example.com>
+QABOARD_EMAIL_REPLY_TO=qaboard-support@example.com
+# users without an email address in their account get emails at <username>@example.com
+QABOARD_EMAIL_DOMAIN=example.com
+QABOARD_URL=https://qaboard.example.com
+```
+
+- The emails are designed for Outlook 2016/2019 as well as recent clients, in HTML with a plain text version. They are marked as automated (`Auto-Submitted`), so out-of-office replies aren't sent back, and have `X-QABoard-Project`, `X-QABoard-Batch` and `X-QABoard-Status` headers for mail rules.
+- They're sent by the backend when it saves the last run of a batch. If the SMTP server fails, the error is in the backend's logs and in the `batch_notifications` table, and the run is saved anyway.
+- To check how they look, or test your SMTP settings, run `uv run backend/backend/notifications/preview.py`: it renders examples, and `--send you@example.com` emails them to you.
+- Like results, the requests to email users when their `qa batch` ends come from the CLI without a login: anyone who can reach the server could have QA-Board email a user about a batch. QA-Board only emails the address of the user's account (or `<username>@$QABOARD_EMAIL_DOMAIN`), and at most once per `qa batch`.
 
 > Consult the [Troubleshooting](backend-admin/troubleshooting) page for examples that show how to get logs from the various services composing QA-Board.
 >
