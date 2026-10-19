@@ -18,8 +18,8 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.8b97510b.css">
-<script src="/qaboard/assets/js/runtime~main.8289b465.js" defer="defer"></script>
-<script src="/qaboard/assets/js/main.06762d30.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.2a646c28.js" defer="defer"></script>
+<script src="/qaboard/assets/js/main.86f3bae5.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -30,7 +30,7 @@
 <p>There are two bars, <strong>new</strong> on top and <strong>ref</strong> below. Each one shows:</p>
 <ul>
 <li class="">The commit message, its author and date.</li>
-<li class="">A <strong>star</strong> to save the commit as a <a class="" href="/qaboard/docs/user-guide/comparing-results#milestones">milestone</a>.</li>
+<li class="">A <strong>star</strong> to save the results you see (the commit&#x27;s batch and filter) as a <a class="" href="/qaboard/docs/user-guide/comparing-results#milestones">milestone</a>. When they are one, the star is filled and the milestone&#x27;s name shows next to it.</li>
 <li class="">The <strong>commit hash</strong> field: type another hash to switch commits, or hover <strong>Change</strong> for more options (switch new and reference, pick a branch or a milestone...). See <a class="" href="/qaboard/docs/user-guide/comparing-results#picking-a-reference">Picking a reference</a>.</li>
 <li class="">The <strong>branch</strong>: click it to select the latest commit of that branch.</li>
 <li class="">A <strong>filter</strong> box and the counters of runs (runs, running, pending, failed). See the <a class="" href="/qaboard/docs/user-guide/finding-results#filter-syntax">filter syntax</a>.</li>
@@ -38,7 +38,7 @@
 <li class="">A <strong>refresh</strong> button, and a <strong>menu</strong> (☰) with:<!-- -->
 <ul>
 <li class=""><em>Commit</em>: copy the commit&#x27;s artifacts directory (Windows or Linux path), view it in the browser.</li>
-<li class=""><em>Batch</em>: copy the batch&#x27;s output directory, view it in the browser, move runs to another batch, rename the batch, <strong>redo</strong> failed, deleted or all runs, and delete runs (all, failed only, or several batches at once). The <em>Delete files, keep metadata</em> switch deletes only the files, optionally matching patterns like <code>*.png</code>. Milestones are protected from deletion.</li>
+<li class=""><em>Batch</em>: copy the batch&#x27;s output directory, view it in the browser, move runs to another batch, rename the batch, <strong>redo</strong> failed, deleted or all runs, and delete runs (all, failed only, or several batches at once). The <em>Delete files, keep metadata</em> switch deletes only the files, optionally matching patterns like <code>*.png</code>. Batches that are milestones are protected: delete the milestone first, or delete only their files or their failed runs.</li>
 </ul>
 </li>
 </ul>
@@ -73,7 +73,7 @@
 <li class="">The reset button next to an option goes back to the default. Changing an option keeps the image viewers&#x27; zoom and selected region.</li>
 </ul>
 </li>
-<li class=""><strong>Viewers</strong> (on the Visualizations and Output Files views): <strong>Compare images</strong> picks how all the image viewers compare new and reference: side by side, with a wipe, toggling between them, or their difference. You can also pick it above any image. Then come the project&#x27;s own switches, if its <em>qaboard.yaml</em> has <code>controls</code>.</li>
+<li class=""><strong>Viewers</strong> (on the Visualizations and Output Files views): <strong>Compare images</strong> picks how all the image viewers compare new and reference: side by side, with a wipe, one at a time (single), or their difference. You can also pick it above any image. Then come the project&#x27;s own switches, if its <em>qaboard.yaml</em> has <code>controls</code>.</li>
 <li class=""><strong>Configuration</strong> (on the views that show runs): the settings all the runs shown share, and <strong>Hide them in each run</strong>, to show in each run only what&#x27;s specific to it (see <a class="" href="/qaboard/docs/user-guide/comparing-results#reading-configurations">reading configurations</a>).</li>
 <li class=""><strong>Sort runs</strong>: sort by name, run id, storage, a tuning parameter or a metric. Until you choose, runs are sorted by the project&#x27;s default metric, marked <em>(default)</em>. The order reads like the values: <em>Highest first</em>, <em>A to Z</em>, <em>Newest first</em>... It applies to the tables and the run cards.</li>
 </ul>
