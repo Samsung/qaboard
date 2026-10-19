@@ -1,19 +1,18 @@
 """
 Videos for the video viewer: what's in the file, the decoded values of a frame's pixels, and where two videos differ.
-See backend/videos.py.
+See backend/videos.py. They need a logged-in user who can read the videos (see files.readable_file).
 """
 import os
 import json
 import time
 import hashlib
 import threading
-from pathlib import Path
 
 from flask import request, jsonify, Response
 
-from qaboard.api import url_to_dir
-
 from backend import app
+from .auth import login_required
+from .files import readable_file
 from .image import image_cache_dir, MAX_REGION_PIXELS, _for_javascript
 from .. import videos
 
@@ -56,15 +55,16 @@ def _file_key(path):
 
 
 def _video_path(url):
-  if not url:
-    return None, (jsonify({"error": "video_url is required"}), 400)
-  path = Path(url_to_dir(url))
+  path, denied = readable_file(url)
+  if denied:
+    return None, denied
   if not path.is_file():
     return None, (jsonify({"error": f"Cannot find {path.name}"}), 404)
   return path, None
 
 
 @app.route("/api/v1/output/video/info", methods=['GET'])
+@login_required
 def get_video_info():
   """What's in a video: codec, pixel format, color range... and the timestamps and sizes of its frames"""
   path, error = _video_path(request.args.get('video_url'))
@@ -80,6 +80,7 @@ def get_video_info():
 
 
 @app.route("/api/v1/output/video/pixels", methods=['GET'])
+@login_required
 def get_video_pixels():
   """
   The decoded values of a region of a frame: frame[y:y+h, x:x+w], each pixel with its chroma sample (e.g. Y, Cb, Cr),
@@ -120,17 +121,21 @@ def get_video_pixels():
 
 
 @app.route("/api/v1/output/video/diff", methods=['POST'])
+@login_required
 def get_video_diff():
   """
   Where two videos differ, frame by frame, on their decoded values. JSON body: output_dir_url_new, output_dir_url_ref,
   path, path_ref (default: path), count (regions, default 20). See videos.compare().
   """
   data = request.get_json(silent=True) or {}
-  try:
-    path_new = Path(url_to_dir(data['output_dir_url_new'])) / data['path']
-    path_ref = Path(url_to_dir(data['output_dir_url_ref'])) / (data.get('path_ref') or data['path'])
-  except KeyError as e:
-    return jsonify({"error": f"Missing {e}"}), 400
+  if not data.get('path'):
+    return jsonify({"error": "Missing 'path'"}), 400
+  path_new, denied = readable_file(data.get('output_dir_url_new'), data['path'])
+  if denied:
+    return denied
+  path_ref, denied = readable_file(data.get('output_dir_url_ref'), data.get('path_ref') or data['path'])
+  if denied:
+    return denied
   for label, path in (('new', path_new), ('reference', path_ref)):
     if not path.is_file():
       return jsonify({"error": f"The {label} run has no {path.name}"}), 404

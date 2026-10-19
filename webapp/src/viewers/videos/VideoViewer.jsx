@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { errorMessage, http, isAbort } from '../../api/http';
 import { colorAt } from '../../image-viewer/colormaps';
+import { useUser } from '../../hooks';
 import { at_most, is_same_data } from '../../utils';
 import { presetRegions } from '../images/regionProviders';
 import '../images/image-viewer-theme.css';
@@ -12,6 +13,13 @@ import { VideoCompare } from './VideoCompare';
 import { fileUrl } from './utils';
 
 const is_animated_image = path => /\.(webp|gif)$/i.test(path);
+
+// The server reads and compares the videos for signed-in users only
+const SIGN_IN = {
+  info: "Sign in (in the sidebar) to see what's in the files, and to number the frames like the files do",
+  values: 'Sign in (in the sidebar) to read the decoded values of the frames',
+  compare: 'Sign in (in the sidebar) to compare the decoded frames of the videos',
+};
 
 // The server reads the files from their path: the URL of the run's directory, then the file's
 const filePath = (output, path) => `${output.output_dir_url}/${path}`;
@@ -70,6 +78,7 @@ const VideoViewer = ({
   fullscreen,
 }) => {
   const queryClient = useQueryClient();
+  const signed_in = useUser().is_logged;
   const path_reference = path_ref ?? path;
   const animation = is_animated_image(path);
   const same = !!output_ref && is_same_data(path, manifests?.new?.[path], manifests?.reference?.[path_reference]);
@@ -77,11 +86,12 @@ const VideoViewer = ({
   const file_new = filePath(output_new, path);
   const file_ref = comparing ? filePath(output_ref, path_reference) : null;
 
-  const query_new = useQuery({ ...infoQuery(file_new), enabled: !animation });
-  const query_ref = useQuery({ ...infoQuery(file_ref), enabled: !animation && comparing });
-  const info_error = [query_new, query_ref].map(q => q.error && !isAbort(q.error) ? errorMessage(q.error) : null).find(Boolean);
+  const query_new = useQuery({ ...infoQuery(file_new), enabled: signed_in && !animation });
+  const query_ref = useQuery({ ...infoQuery(file_ref), enabled: signed_in && !animation && comparing });
+  const info_error = !signed_in ? SIGN_IN.info
+    : [query_new, query_ref].map(q => q.error && !isAbort(q.error) ? errorMessage(q.error) : null).find(Boolean);
   // the server can decode them
-  const decodable = !!query_new.data?.times;
+  const decodable = signed_in && !!query_new.data?.times;
 
   const video = {
     url: fileUrl(output_new, path),
@@ -113,8 +123,8 @@ const VideoViewer = ({
     retry: false,
   };
   const diff = useQuery({ ...diff_query, enabled: false });
-  const load = () => queryClient.fetchQuery(diff_query).catch(() => {});
-  const diff_error = diff.error && !isAbort(diff.error) ? errorMessage(diff.error) : undefined;
+  const load = signed_in ? () => queryClient.fetchQuery(diff_query).catch(() => {}) : undefined;
+  const diff_error = !signed_in ? SIGN_IN.compare : diff.error && !isAbort(diff.error) ? errorMessage(diff.error) : undefined;
   const data = diff.data;
   const differences = comparing && !animation ? {
     frames: data?.frames,
@@ -161,6 +171,7 @@ const VideoViewer = ({
     poster={manifests?.new?.[poster] ? fileUrl(output_new, poster) : undefined}
     posterReference={comparing && manifests?.reference?.[poster] ? fileUrl(output_ref, poster) : undefined}
     getPixels={decodable ? getPixels : undefined}
+    decodedUnavailable={signed_in ? undefined : SIGN_IN.values}
     differences={differences}
     regionSets={region_sets}
     infoLoading={query_new.isLoading || (comparing && query_ref.isLoading)}

@@ -195,7 +195,8 @@ Zoom in further and the values show **on the pixels themselves**, in black or wh
 
 The image values arrive by tiles of 64×64 pixels: the first ones can take a moment while the server opens the image,
 the next ones are quick. When the server can't read the file, the line says *unavailable*: hover it to see why, and use
-the displayed values.
+the displayed values. The server reads the image values, and finds where images differ, for signed-in users only:
+signed out, you see the displayed values, and the viewer says to sign in.
 
 <Shot
   id="commit/pixel-tooltip"
@@ -317,7 +318,8 @@ Hover a pixel: the line above the videos shows its values in each video, and the
 are two kinds of values, always labelled:
 
 - **decoded**: the frame's own values, as the codec stores them, e.g. Y′, Cb and Cr in 10 bits. The server decodes
-  the very frame your browser shows. They show once the videos are paused.
+  the very frame your browser shows. They show once the videos are paused, if you're signed in: the server reads the
+  videos (decoded values, what's in the files, **Differences**) for signed-in users only.
 - **display**: the 8-bit RGB on your screen, after your browser converted the frame (with the color matrix it
   guessed, rounded to 8 bits).
 

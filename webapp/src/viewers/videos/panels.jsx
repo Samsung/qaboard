@@ -147,7 +147,7 @@ const PixelOf = ({ label, intent, display, decoded, pixel, base, why, showMode =
 </span>;
 
 // The pixel under the pointer (point: { u, v } in [0, 1] of the frames), for the videos in the order they show
-export const Readout = ({ controller, point, videos, sizes, frames, why, order, comparing, names, neutral, diff, base, onToggleBase, tiles }) => {
+export const Readout = ({ controller, point, videos, sizes, frames, why, unavailable, order, comparing, names, neutral, diff, base, onToggleBase, tiles }) => {
   'use no memo';
   const pixel = which => {
     const size = sizes[which];
@@ -172,7 +172,7 @@ export const Readout = ({ controller, point, videos, sizes, frames, why, order, 
     const size = s => s?.width ? `${s.width}×${s.height}` : '…';
     return <div className="qiv-readout qiv-muted">
       <span>{shown.map(which => comparing ? `${names[which]} ${size(sizes[which])}` : size(sizes[which])).join(' · ')}</span>
-      <span className="qiv-readout-hint">Hover a pixel for its values · scroll to zoom · drag to pan · click to play</span>
+      <span className="qiv-readout-hint">Hover a pixel for its values · scroll to zoom · drag to pan · click to play{unavailable && <> · <span className="qiv-warning-text">{unavailable}</span></>}</span>
     </div>;
   }
   const { method } = normalizeDiff(diff);
@@ -218,7 +218,7 @@ export const Readout = ({ controller, point, videos, sizes, frames, why, order, 
 
 // --- Values written on the pixels ---
 
-export const ValuesPanel = ({ source, available, onChange }) => {
+export const ValuesPanel = ({ source, available, unavailable, onChange }) => {
   const options = [
     { value: 'decoded', label: 'Decoded values', description: `${DECODED_VALUES}. Exact: the server decodes the very frame your browser shows.`, disabled: !available },
     { value: 'display', label: 'Displayed values', description: `${DISPLAY_VALUES}.` },
@@ -231,7 +231,7 @@ export const ValuesPanel = ({ source, available, onChange }) => {
       <span>
         <strong>{option.label}</strong>
         <span className="qiv-option-description">{option.description}</span>
-        {option.disabled && <span className="qiv-option-description">Not available: the server can't read these videos.</span>}
+        {option.disabled && <span className="qiv-option-description">{unavailable ?? "Not available: the server can't read these videos."}</span>}
       </span>
     </label>)}
     <div className="qiv-hint">They show once you zoom in enough, on paused videos. The line above the videos shows both for the pixel under the pointer. <kbd>p</kbd> shows or hides them.</div>

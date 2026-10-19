@@ -86,6 +86,8 @@ export const VideoCompare = ({
   posterReference,
   // the decoded values of a frame: (frame, { x, y, w, h }, { signal }) => Promise, frame: { ...video, frame }
   getPixels,
+  // without getPixels: why the decoded values aren't available
+  decodedUnavailable,
   // how much the videos differ, frame by frame: { frames: [{ time, value, regions, ... }], loading, error, load() }
   differences,
   // regions of interest, like the image viewer's: [{ id, label, regions, loading, error, load, perFrame }]
@@ -792,7 +794,7 @@ export const VideoCompare = ({
             title={`Values written on the pixels when zoomed in, paused: ${values_source === 'decoded' ? 'decoded' : values_source === 'display' ? 'displayed' : 'off'} (p)`}
             className={values_source !== 'off' ? 'qiv-intent' : ''}
           />}>
-            <ValuesPanel source={values_source} available={!!getPixels} onChange={setValues} />
+            <ValuesPanel source={values_source} available={!!getPixels} unavailable={decodedUnavailable} onChange={setValues} />
           </Popover>}
           {!animation && <Button icon="timeline-area-chart" title="Histogram of the frames" active={show_histogram} aria-pressed={show_histogram} onClick={() => setShowHistogram(!show_histogram)} />}
           <span className="qiv-group">
@@ -830,6 +832,7 @@ export const VideoCompare = ({
         sizes={sizes}
         frames={frames}
         why={why_not_decoded}
+        unavailable={getPixels ? null : decodedUnavailable}
         order={order}
         comparing={comparing}
         names={names}
@@ -902,7 +905,7 @@ export const VideoCompare = ({
         text={differences.loading ? 'Comparing…' : 'Differences'}
         title={differences.error ?? 'Compare the decoded frames of the videos on the server: how much they differ, frame by frame, and where'}
         className={differences.error ? 'qiv-warning' : ''}
-        disabled={differences.loading}
+        disabled={differences.loading || !differences.load}
         onClick={() => differences.load?.()}
       />}
       {differences?.frames && <span className="video-difference-summary qiv-muted" title={differences.summaryTitle}>{differences.summary}</span>}

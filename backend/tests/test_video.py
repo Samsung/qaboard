@@ -13,6 +13,10 @@ av = pytest.importorskip('av')
 
 from backend import videos
 
+# their files are in the temporary folder (see conftest.py)
+pytestmark = pytest.mark.usefixtures('storage_in_tmp')
+
+
 
 WIDTH, HEIGHT = 64, 48
 
@@ -188,24 +192,24 @@ def test_ten_bit_values(tmp_path):
 @pytest.fixture
 def api(tmp_path):
   import backend.api.video as video_api
-  with patch.object(video_api, 'videos_cache_dir', tmp_path), patch.object(video_api, 'url_to_dir', side_effect=lambda url: url):
+  with patch.object(video_api, 'videos_cache_dir', tmp_path):
     yield video_api
 
 
 def test_info_endpoint(api, clips, dummy_app):
-  with dummy_app.test_request_context(f'/api/v1/output/video/info?video_url={clips["new"]}'):
+  with dummy_app.test_request_context(f'/api/v1/output/video/info?video_url=/s{clips["new"]}'):
     response = api.get_video_info()
     assert response.headers['X-Video-Cache'] == 'miss'
     assert json.loads(response.get_data())['frame_count'] == 30
-  with dummy_app.test_request_context(f'/api/v1/output/video/info?video_url={clips["new"]}'):
+  with dummy_app.test_request_context(f'/api/v1/output/video/info?video_url=/s{clips["new"]}'):
     assert api.get_video_info().headers['X-Video-Cache'] == 'hit'
-  with dummy_app.test_request_context('/api/v1/output/video/info?video_url=/missing.mp4'):
+  with dummy_app.test_request_context('/api/v1/output/video/info?video_url=/s/tmp/missing.mp4'):
     _, status = api.get_video_info()
     assert status == 404
 
 
 def test_pixels_endpoint(api, clips, dummy_app):
-  url = f'/api/v1/output/video/pixels?video_url={clips["new"]}&frame=5&x=2&y=3&w=4&h=2'
+  url = f'/api/v1/output/video/pixels?video_url=/s{clips["new"]}&frame=5&x=2&y=3&w=4&h=2'
   with dummy_app.test_request_context(f'{url}&format=binary'):
     response = api.get_video_pixels()
     assert response.headers['X-Pixels-Shape'] == '2,4,3'
@@ -220,7 +224,7 @@ def test_pixels_endpoint(api, clips, dummy_app):
 
 
 def test_diff_endpoint(api, clips, dummy_app):
-  body = {'output_dir_url_new': str(clips['new'].parent), 'output_dir_url_ref': str(clips['changed'].parent), 'path': 'new.mkv', 'path_ref': 'changed.mkv'}
+  body = {'output_dir_url_new': f"/s{clips['new'].parent}", 'output_dir_url_ref': f"/s{clips['changed'].parent}", 'path': 'new.mkv', 'path_ref': 'changed.mkv'}
   with dummy_app.test_request_context('/api/v1/output/video/diff', method='POST', json=body):
     response = api.get_video_diff()
     result = json.loads(response.get_data())

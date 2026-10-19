@@ -14,6 +14,10 @@ from unittest.mock import patch
 import pytest
 from PIL import Image
 
+# their files are in the temporary folder (see conftest.py)
+pytestmark = pytest.mark.usefixtures('storage_in_tmp')
+
+
 
 @pytest.fixture(scope='module')
 def test_image():
@@ -46,10 +50,9 @@ def get_pixel(cache_dir, dummy_app):
     import backend.api.image as image_api
     # Use patch.object() to safely mock the attributes on the imported module
     with patch.object(image_api, 'image_cache_dir', cache_dir):
-      with patch.object(image_api, 'url_to_dir', return_value=image_path):
-        url = f'/api/v1/output/image/pixel?x={x}&y={y}&image_url={image_path}'
-        with dummy_app.test_request_context(url, method='GET'):
-          return image_api.get_pixel()
+      url = f'/api/v1/output/image/pixel?x={x}&y={y}&image_url=/s{image_path}'
+      with dummy_app.test_request_context(url, method='GET'):
+        return image_api.get_pixel()
 
   return _pixel_fetcher
 
@@ -69,7 +72,7 @@ def test_get_pixel_returns_correct_value(test_image, get_pixel):
 
 def test_get_pixel_returns_404_for_missing_image(dummy_app):
   """Requesting a non-existent image returns 404."""
-  url = '/api/v1/output/image/pixel?x=1&y=1&image_url=/nonexistent/image.png'  
+  url = '/api/v1/output/image/pixel?x=1&y=1&image_url=/s/tmp/nonexistent/image.png'  
   import backend.api.image as image_api  
   with dummy_app.test_request_context(url, method='GET'):
     response = image_api.get_pixel()
@@ -88,7 +91,7 @@ def test_concurrent_pixel_requests(dummy_app, test_image, cache_dir):
 
   def fetch_pixel(i):
     try:
-      url = f'/api/v1/output/image/pixel?x={100 + i}&y={100 + i}&image_url={test_image}'
+      url = f'/api/v1/output/image/pixel?x={100 + i}&y={100 + i}&image_url=/s{test_image}'
       
       # Flask's request contexts are naturally thread-local. 
       # Opening this here safely isolates this request to this thread.
@@ -100,18 +103,17 @@ def test_concurrent_pixel_requests(dummy_app, test_image, cache_dir):
 
   # Patch outside the thread pool so the mock state never changes
   with patch.object(image_api, 'image_cache_dir', cache_dir):
-      with patch.object(image_api, 'url_to_dir', return_value=test_image):          
-        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
-          # Submit all tasks
-          futures = [executor.submit(fetch_pixel, i) for i in range(100)]
+      with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+        # Submit all tasks
+        futures = [executor.submit(fetch_pixel, i) for i in range(100)]
           
-          # Process results as they complete safely
-          for future in concurrent.futures.as_completed(futures):
-            res = future.result()
-            if isinstance(res, Exception):
-              errors.append(str(res))
-            else:
-              results.append(res)
+        # Process results as they complete safely
+        for future in concurrent.futures.as_completed(futures):
+          res = future.result()
+          if isinstance(res, Exception):
+            errors.append(str(res))
+          else:
+            results.append(res)
 
   assert len(errors) == 0, f"Errors: {errors[:5]}"
   failed = [s for s in results if s != 200]
@@ -126,12 +128,11 @@ def get_pixels(cache_dir, dummy_app):
     import backend.api.image as image_api
     query = '&'.join(f'{k}={v}' for k, v in params.items())
     with patch.object(image_api, 'image_cache_dir', cache_dir):
-      with patch.object(image_api, 'url_to_dir', return_value=image_path):
-        with dummy_app.test_request_context(f'/api/v1/output/image/pixels?image_url={image_path}&{query}', method='GET'):
-          response = image_api.get_pixels()
-          if isinstance(response, tuple):
-            return response[1], json.loads(response[0].data)
-          return response.status_code, json.loads(response.data)
+      with dummy_app.test_request_context(f'/api/v1/output/image/pixels?image_url=/s{image_path}&{query}', method='GET'):
+        response = image_api.get_pixels()
+        if isinstance(response, tuple):
+          return response[1], json.loads(response[0].data)
+        return response.status_code, json.loads(response.data)
   return _fetch
 
 
@@ -177,9 +178,20 @@ def test_get_pixels_rejects_invalid_regions(test_image, get_pixels, params):
   assert 'error' in data
 
 
-def test_get_pixels_404_for_missing_images(get_pixels):
-  status, data = get_pixels(Path('/nonexistent/image.png'), x=0, y=0, w=1, h=1)
+def test_get_pixels_404_for_missing_images(get_pixels, tmp_path):
+  status, data = get_pixels(tmp_path / 'nonexistent.png', x=0, y=0, w=1, h=1)
   assert status == 404
+
+
+def test_get_pixels_only_reads_the_storage(get_pixels, test_image, monkeypatch):
+  # outside the storage, also with ".." or in the server's own folders: refused before reading, or saying if it exists
+  for path in [Path('/etc/passwd'), Path(f'{test_image.parent}/../../etc/hostname'), Path('/nonexistent/image.png')]:
+    status, data = get_pixels(path, x=0, y=0, w=1, h=1)
+    assert status == 403, path
+    assert 'storage' in data['error']
+  import backend.files as files
+  monkeypatch.setattr(files, 'private_dirs', lambda: [test_image.parent])
+  assert get_pixels(test_image, x=0, y=0, w=1, h=1)[0] == 403
 
 
 def test_get_pixels_rejects_regions_outside_the_image(test_image, get_pixels):
@@ -193,9 +205,8 @@ def test_get_pixels_binary(test_image, cache_dir, dummy_app):
   import numpy as np
   import backend.api.image as image_api
   with patch.object(image_api, 'image_cache_dir', cache_dir):
-    with patch.object(image_api, 'url_to_dir', return_value=test_image):
-      with dummy_app.test_request_context(f'/api/v1/output/image/pixels?image_url={test_image}&x=10&y=20&w=3&h=2&format=binary'):
-        response = image_api.get_pixels()
+    with dummy_app.test_request_context(f'/api/v1/output/image/pixels?image_url=/s{test_image}&x=10&y=20&w=3&h=2&format=binary'):
+      response = image_api.get_pixels()
   assert response.status_code == 200
   assert response.headers['X-Pixels-Dtype'] == 'uint8'
   assert response.headers['X-Pixels-Shape'] == '2,3,3'

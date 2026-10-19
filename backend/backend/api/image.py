@@ -1,5 +1,6 @@
 """
-The pixel values of images, the regions where two images differ most, and a PDF report of these regions.
+The pixel values of images, and the regions where two images differ most, for the image viewer.
+They need a logged-in user who can read the images (see files.readable_file).
 """
 import time
 from pathlib import Path
@@ -7,13 +8,11 @@ from pathlib import Path
 import numpy as np
 from flask import request, jsonify, Response
 
-from qaboard.api import url_to_dir 
-
 from backend import app
-from ..models import Output
-from ..config import qaboard_url
 from .image_diff import METHODS, difference_map, find_regions
 from ..images import read_image, ImageType
+from .auth import login_required
+from .files import readable_file
 
 import os
 import json
@@ -183,13 +182,19 @@ def _image_meta(meta):
   return meta
 
 
-@app.route("/api/v1/output/image/pixel", methods=['GET', 'POST'])
+@app.route("/api/v1/output/image/pixel", methods=['GET'])
+@login_required
 def get_pixel():
-  x = int(request.args['x'])
-  y = int(request.args['y'])
-  image_path = Path(url_to_dir(request.args['image_url']))
-  if not image_path.exists():
-    return f"ERROR: Cannot find {image_path}", 404
+  try:
+    x = int(request.args['x'])
+    y = int(request.args['y'])
+  except (KeyError, ValueError):
+    return jsonify({"error": "x and y must be integers"}), 400
+  image_path, denied = readable_file(request.args.get('image_url'))
+  if denied:
+    return denied
+  if not image_path.is_file():
+    return jsonify({"error": f"Cannot find {image_path.name}"}), 404
   # We work with huge images (100-200MP). Loading them each request can be very slow (~seconds).
   # Since the frontend may request 5-10 pixel values per second, we need some form of caching.
   # An in-memory LRU cache would use too much memory: images can be 300MB, and each worker would keep its own copies.
@@ -220,6 +225,7 @@ def _for_javascript(region):
 
 
 @app.route("/api/v1/output/image/pixels", methods=['GET'])
+@login_required
 def get_pixels():
   """
   The values of the pixels of a region of an image: image[y:y+h, x:x+w]. The region is cut at the image's right and
@@ -233,12 +239,11 @@ def get_pixels():
     return jsonify({"error": "x, y, w and h must be integers"}), 400
   if x < 0 or y < 0 or w <= 0 or h <= 0 or w * h > MAX_REGION_PIXELS:
     return jsonify({"error": f"The region must be in the image, with 1 to {MAX_REGION_PIXELS} pixels"}), 400
-  image_url = request.args.get('image_url')
-  if not image_url:
-    return jsonify({"error": "image_url is required"}), 400
-  image_path = Path(url_to_dir(image_url))
-  if not image_path.exists():
-    return jsonify({"error": f"Cannot find {image_path}"}), 404
+  image_path, denied = readable_file(request.args.get('image_url'))
+  if denied:
+    return denied
+  if not image_path.is_file():
+    return jsonify({"error": f"Cannot find {image_path.name}"}), 404
   image, meta, error = maybe_memmapped_read_image(image_path)
   if error:
     return jsonify({"error": str(error)}), 400
@@ -274,7 +279,8 @@ def get_pixels():
 
 REGIONS_VERSION = 2
 
-@app.route("/api/v1/output/image/diff", methods=['GET', 'POST'])
+@app.route("/api/v1/output/image/diff", methods=['POST'])
+@login_required
 def get_rois():
   """
   The regions where two images differ most, the largest difference first: [{x, y, w, h, peak_x, peak_y, value, diff}]
@@ -282,11 +288,14 @@ def get_rois():
   count (default 20). See image_diff.py.
   """
   data = request.get_json(silent=True) or {}
-  try:
-    path_new = Path(url_to_dir(data['output_dir_url_new'])) / data['path']
-    path_ref = Path(url_to_dir(data['output_dir_url_ref'])) / (data.get('path_ref') or data['path'])
-  except KeyError as e:
-    return jsonify({"error": f"Missing {e}"}), 400
+  if not data.get('path'):
+    return jsonify({"error": "Missing 'path'"}), 400
+  path_new, denied = readable_file(data.get('output_dir_url_new'), data['path'])
+  if denied:
+    return denied
+  path_ref, denied = readable_file(data.get('output_dir_url_ref'), data.get('path_ref') or data['path'])
+  if denied:
+    return denied
   method = data.get('diff_type', 'yiq')
   if method not in METHODS:
     return jsonify({"error": f"Unknown diff_type {method}, use one of {', '.join(METHODS)}"}), 400
@@ -322,79 +331,3 @@ def get_rois():
   tmp.rename(cached)
   timing = f"decode;dur={1000 * (decoded - start):.0f}, compare;dur={1000 * (time.time() - decoded):.0f}"
   return Response(body, mimetype='application/json', headers={'X-Regions-Cache': 'miss', 'Server-Timing': timing})
-
-
-
-@app.route("/api/v1/output/diff/report", methods=['GET', 'POST'])
-def get_report():
-  import matplotlib.pyplot as plt
-  from matplotlib.backends.backend_pdf import PdfPages
-
-  data = request.get_json()
-  # Directory URLs begin with /s/
-  report_folder = Path(data['output_dir_url_new'][2:]) / "reports"
-  new_url = Path(data['output_dir_url_new'][2:]) / data["path"]
-  ref_url = Path(data['output_dir_url_ref'][2:]) / data["path"]
-  rois = data['rois']
-
-  time_tuple = time.localtime() # get struct_time
-  time_string = time.strftime("%d%m%Y_%H%M%S", time_tuple)
-  report_path = f"{report_folder}/{time_string}_report.pdf"
-  report_url = f"{qaboard_url}/s/{report_folder}/{time_string}_report.pdf"
-  Path(report_folder).mkdir(parents=True, exist_ok=True)
-
-  image_1, meta_1 = read_image(Path(new_url))
-  image_2, meta_2 = read_image(Path(ref_url))
-
-  with PdfPages(report_path) as pdf:
-    new_ci_output = Output.query.filter(Output.id == data['output_id_new']).one().batch.ci_commit.hexsha
-    ref_ci_output = Output.query.filter(Output.id == data['output_id_ref']).one().batch.ci_commit.hexsha
-
-    firstPage = plt.figure(figsize=(10,5))
-    firstPage.clf()
-    txt = f"Auto Rois Report\n{time.asctime(time_tuple)}\nnew: {new_ci_output}\nref:  {ref_ci_output}"
-
-    firstPage.text(0.05, 0.5, txt, transform=firstPage.transFigure, size=14, ha='left', linespacing=2)
-    pdf.savefig()
-    plt.close()
-
-    for roi in rois:
-      x, y, w, h = roi['x'], roi['y'] ,roi['w'] ,roi['h']
-      crop1 = crop_image(image_1, roi['x'], roi['y'] ,roi['w'] ,roi['h'])
-      crop2 = crop_image(image_2, roi['x'], roi['y'] ,roi['w'] ,roi['h'])
-      figure, axes = plt.subplots(1, 2, figsize=(10, 5), sharex=True, sharey=True)
-
-      ax = axes.ravel()
-      ax[0].imshow(crop1)
-      ax[1].imshow(crop2)
-      ax[0].set_title(f"new (x: {x}, y: {y}, w: {w}, h: {h})")
-      ax[1].set_title("ref")
-
-      figure.canvas.draw()
-      xlabels = [item.get_text() for item in ax[0].get_xticklabels()]
-      ylabels = [item.get_text() for item in ax[0].get_yticklabels()]
-      for i, label in enumerate(xlabels):
-        try:                                  # The minus signs for negative numbers is encoded as a "minus" (Unicode 2212).
-          xlabels[i] = int(label) + roi['x']
-        except:
-          continue
-
-      for i, label in enumerate(ylabels):
-        try:
-          ylabels[i] = int(label) + roi['y']
-        except:
-          continue
-
-      ax[0].set_xticklabels(xlabels)
-      ax[0].set_yticklabels(ylabels)
-
-      plt.subplots_adjust(bottom=0.15, wspace=0.01)
-      pdf.savefig(figure, orientation='portrait')
-      plt.close()
-
-  print("Report done: ", report_url)
-  return jsonify(report_url)
-
-
-def crop_image(img, cropx, cropy, cropw, croph):
-  return img[cropy:cropy+croph, cropx:cropx+cropw]

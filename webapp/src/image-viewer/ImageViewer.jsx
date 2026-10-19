@@ -109,6 +109,7 @@ export const ImageViewer = ({
   blindTest: blind_prop,
   onBlindTestChange,
   getPixels,
+  imageValuesUnavailable,
   maxHeight = DEFAULT_MAX_HEIGHT,
   theme,
   notice,
@@ -595,7 +596,7 @@ export const ImageViewer = ({
         title={`Values written on the pixels when zoomed in: ${pixel_source === 'image' ? "the image's own" : pixel_source === 'display' ? 'the displayed ones' : 'off'} (p)`}
         className={pixel_source !== 'off' ? 'qiv-intent' : ''}
       />}>
-        <ValuesPanel source={pixel_source} available={!!getPixels} onChange={setValues} />
+        <ValuesPanel source={pixel_source} available={!!getPixels} unavailable={imageValuesUnavailable} onChange={setValues} />
       </Popover>
       <Button icon="timeline-area-chart" title="Histogram of the view" active={show_histogram} aria-pressed={show_histogram} onClick={() => setShowHistogram(!show_histogram)} />
       <span className="qiv-group">
@@ -637,6 +638,7 @@ export const ImageViewer = ({
       base={base}
       onToggleBase={() => setBase(b => b === 10 ? 16 : 10)}
       sizes={{ a: size_a, b: size_b }}
+      unavailable={getPixels ? null : imageValuesUnavailable}
     />
     </div>
     <div
