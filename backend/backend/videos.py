@@ -88,8 +88,8 @@ def probe(path):
       packets.append((packet.pts, bool(packet.is_keyframe), packet.size))
     packets.sort()
     time_base = float(stream.time_base) if stream.time_base else 1 / 90000
-    first = packets[0][0] if packets else 0
-    times = [round((pts - first) * time_base, 6) for pts, _, _ in packets]
+    # presentation timestamps, like browsers' currentTime: a stream can start after 0 (e.g. delayed by B-frames)
+    times = [round(pts * time_base, 6) for pts, _, _ in packets]
     deltas = np.diff(times) if len(times) > 1 else np.array([])
     keyframes = [i for i, (_, key, _) in enumerate(packets) if key]
     size = sum(s for _, _, s in packets)
@@ -100,7 +100,9 @@ def probe(path):
     audio = [{'codec': s.codec_context.name, 'channels': s.codec_context.channels, 'sample_rate': s.codec_context.sample_rate} for s in container.streams.audio]
     return {
       'container': container.format.name,
-      'codec': codec.name,
+      # the format's name (av1), not its decoder's (libdav1d)
+      'codec': getattr(codec.codec, 'canonical_name', None) or codec.name,
+      'decoder': codec.name,
       'codec_long_name': codec.codec.long_name,
       'profile': codec.profile,
       'pix_fmt': pix_fmt,
@@ -121,9 +123,9 @@ def probe(path):
       'frame_count': len(packets),
       'bit_rate': (8 * size / duration) if duration else container.bit_rate,
       'keyframes': keyframes,
-      'lossless': True if codec.name in LOSSLESS_CODECS else None,
+      'lossless': True if (getattr(codec.codec, 'canonical_name', None) or codec.name) in LOSSLESS_CODECS else None,
       'audio': audio,
-      # per frame: when it shows (seconds from the first frame), and its size in the file (bytes)
+      # per frame: when it shows (its timestamp, in seconds), and its size in the file (bytes)
       'times': times,
       'sizes': [s for _, _, s in packets],
     }
@@ -293,7 +295,7 @@ REGIONS_PER_FRAME = 3
 
 
 def _decoded(path, stop):
-  """(time, planes, bits, picture type) of the frames of a video, in presentation order, decoded in another thread"""
+  """(time from the first frame, planes, bits, picture type, timestamp) of a video's frames, in presentation order, decoded in another thread"""
   frames = queue.Queue(maxsize=8)
   done = object()
 
@@ -317,7 +319,9 @@ def _decoded(path, stop):
             continue
           first = frame.pts if first is None else first
           planes, _, bits = frame_planes(frame)
-          if not put((float((frame.pts - first) * stream.time_base), planes, bits, PICTURE_TYPES.get(int(frame.pict_type), '?'))):
+          # from the first frame, to compare videos that start at other times
+          since_first = float((frame.pts - first) * stream.time_base)
+          if not put((since_first, planes, bits, PICTURE_TYPES.get(int(frame.pict_type), '?'), float(frame.pts * stream.time_base))):
             return
     except Exception as e:
       put(e)
@@ -394,7 +398,7 @@ def compare(path_new, path_ref, count=20, max_frames=20000, time_budget=120):
   Where two videos differ, by comparing their decoded frames: each frame of the new video with the frame of the
   reference shown at the same time.
   {
-    frames: [{time, ref (its index in the reference), type, ref_type, psnr, mad, max, changed, value, regions}],
+    frames: [{time (its timestamp), ref (the reference's frame, by index), type, ref_type, psnr, mad, max, changed, value, regions}],
     regions: [{x, y, w, h, value, diff, frame, start, end}]: where they differ most, over the whole videos,
     compared: how many frames were compared, complete: all of them (else `reason` says why not),
     width, height, max_value: the largest value (e.g. 255, 1023),
@@ -417,7 +421,7 @@ def compare(path_new, path_ref, count=20, max_frames=20000, time_budget=120):
     ref_index = -1
     ref_frame = None
     upcoming = next(ref, None)
-    for t, planes, bits, picture in new:
+    for t, planes, bits, picture, timestamp in new:
       if shape is None:
         shape = planes[0].shape
         # a multiple of 4: the cells of chroma planes (4:2:0, 4:1:1) cover the same pixels
@@ -438,7 +442,7 @@ def compare(path_new, path_ref, count=20, max_frames=20000, time_budget=120):
         raise ValueError(f"The videos have different sizes: {w1}x{h1} and {w2}x{h2}")
       cells, stats = frame_difference(planes, ref_frame[1], factor, top)
       frames.append({
-        'time': round(t, 6),
+        'time': round(timestamp, 6),
         'ref': ref_index,
         'type': picture,
         'ref_type': ref_frame[3],

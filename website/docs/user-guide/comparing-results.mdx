@@ -2,7 +2,7 @@
 id: comparing-results
 title: Comparing results
 sidebar_label: Comparing results
-description: New vs reference, picking a reference, milestones, comparing images and videos (synced, wipe, difference, pixel values) and metric colors.
+description: New vs reference, picking a reference, milestones, comparing images and videos (synced, wipe, difference, pixel values, exact frames, where they differ) and metric colors.
 ---
 QA-Board always shows the results of a **new** commit next to a **reference** (`ref`). Knowing what you compare to is half the job.
 
@@ -269,16 +269,18 @@ them in a chat or a slide, or saves them as PNG files. It also opens the origina
 shortcuts.
 
 ## Video viewer
-Videos play in sync with the reference's. Pick how to compare them above the videos:
+Videos play in sync with the reference's, and compare like images: the video viewer has the image viewer's modes,
+difference methods, display adjustments and pixel values. Pick how to compare them above the videos:
 
 | Mode | What you see |
 |---|---|
 | **Side by side** | New on the left, reference on the right. A cross shows where your mouse is on the other video. |
 | **Wipe** | One video over the other: drag the divider to see new on one side, reference on the other. |
-| **Single** | One video at a time: press <kbd>t</kbd> (or click its label) to flip to the other, in place. |
-| **Difference** | How much each pixel differs, per color channel, amplified (×1 to ×64). Black means identical. |
+| **Single** | One video at a time, in place: <kbd>t</kbd> shows the other, then their difference, then the first again. |
+| **Difference** | Between the videos (new \| difference \| reference), or alone, larger (click **Difference** again). Computed [like the images'](#the-difference): perceptual, ΔE 2000, absolute, signed, or any change. |
 
-QA-Board remembers your choice for all videos. **Swap** (or <kbd>t</kbd>) exchanges new and reference.
+QA-Board remembers your choice for all videos. **Swap** (or <kbd>t</kbd>) exchanges the sides, and **Blind test**
+(<kbd>h</kbd>) shows the videos in a random order, called A and B, until you reveal them.
 
 <Clip
   id="commit/video-compare"
@@ -287,9 +289,55 @@ QA-Board remembers your choice for all videos. **Swap** (or <kbd>t</kbd>) exchan
 
 - **Play and pause**: click the videos, or press <kbd>Space</kbd>. Paused, both videos show the same frame.
 - **Frame by frame**: <kbd>←</kbd> and <kbd>→</kbd>, or the step buttons. <kbd>Shift</kbd> moves by a second. The frame number shows next to the time.
-- **Zoom** with the mouse wheel or a pinch, **pan** by dragging: both videos follow, even if their resolutions differ. Zoomed in, you see the actual pixels; the toolbar shows the coordinates of the one under your mouse. **1:1** shows one video pixel per screen pixel, the percentage button fits the videos again.
-- **Speed and loop**: slow down to 0.1× to look at fast motion, or loop a short clip.
+- **Zoom** with the mouse wheel or a pinch, **pan** by dragging: both videos follow, even if their resolutions differ. Zoomed in, you see the actual pixels, and a minimap shows where you are. **1:1** shows one video pixel per screen pixel, the percentage button fits the videos again.
+- **Speed and loop**: slow down to 0.1× (<kbd>&lt;</kbd> <kbd>&gt;</kbd>) to look at fast motion, or loop a short clip.
+- **Full screen**: the full screen button, or <kbd>f</kbd>.
+- **Display adjustments** (the flash button): brightness, contrast, gamma, one channel, false colors. Only what you see changes.
 - **Frames**: the camera button copies the current frame (new, reference or difference) to paste it in a chat or a slide, or saves it as a PNG.
+
+### Which frames you are looking at
+Videos are compressed, and browsers can skip frames while they play: the viewer says what you look at. Paused, the
+badge at the bottom left of the videos tells which frame each shows:
+
+- **✓ Frame 42 · both**: both videos show their frame 42, as decoded from the files. QA-Board's server read the
+  timestamps of every frame, so frames are numbered like in the file, even with variable frame rates.
+- **Frame 42?**: the frame is estimated from the frame rate, e.g. when the server can't read the videos.
+- **new 42 · reference 21**: the videos show different frames, e.g. they have different frame rates: they're
+  compared at the same time.
+- **Playing**: pause, or step with <kbd>←</kbd> <kbd>→</kbd>, to compare exact frames.
+
+The frame's type (I, P or B) shows next to it once the server compared the videos. The properties button tells what's
+in the files, side by side, with what differs highlighted: codec, pixel format (e.g. `yuv420p10le`), bit depth, chroma
+subsampling, color range and matrix, frame rate, frames, bit rate, keyframes, and how many frames your browser
+dropped. It also says what that means for what you see, e.g. that a lossy codec changed the values your code wrote,
+or that 4:2:0 stores colors at half resolution.
+
+### Pixel values
+Hover a pixel: the line above the videos shows its values in each video, and their difference. As for images, there
+are two kinds of values, always labelled:
+
+- **decoded**: the frame's own values, as the codec stores them, e.g. Y′, Cb and Cr in 10 bits. The server decodes
+  the very frame your browser shows. They show once the videos are paused.
+- **display**: the 8-bit RGB on your screen, after your browser converted the frame (with the color matrix it
+  guessed, rounded to 8 bits).
+
+Zoom in enough on paused videos and the values are written on the pixels. The values button (123) picks which,
+<kbd>p</kbd> shows or hides them. Click the line above the videos to switch to hexadecimal.
+
+### Where the videos differ
+**Differences** (next to the timeline) asks the server to compare every decoded frame of the two videos, each with the
+reference's frame shown at the same time. Then:
+
+- the timeline shows how much each frame differs: the taller and darker, the more. Hover it for the frame's largest
+  difference, its PSNR, the share of pixels that changed, and the frames' types. Click to go there.
+- <kbd>n</kbd> and <kbd>N</kbd> go to the next and previous frames where the videos differ most.
+- the regions button lists **Differences, whole video**: where and when they differ most, e.g. "#1 · Δ 12% ·
+  frames 40–52". Picking one zooms on it, at the frame where it differs most. <kbd>[</kbd> <kbd>]</kbd> go from one to
+  the next. **Differences, this frame** follows the frame you're on.
+
+The first time, the comparison takes about a second per 150 Full HD frames; then it's kept for everyone. It needs
+videos of the same size. For long videos the server stops after 2 minutes (or 20,000 frames), and the summary says
+how far it went.
 
 The keyboard works on the viewer under your mouse, or the one you clicked. The keyboard button lists all the shortcuts.
 

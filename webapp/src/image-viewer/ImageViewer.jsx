@@ -11,7 +11,7 @@ import { normalizeImage } from './sources';
 import { PixelTiles } from './pixelTiles';
 import { Crosshair, DiffLayer, Minimap, PixelValues } from './overlays';
 import { AdjustmentsPanel, DiffLegend, DiffSettings, Histogram, Readout, RegionsMenu, RegionsStrip, Shortcuts, ValuesBadge, ValuesPanel } from './panels';
-import { Button, Icon, MenuDivider, MenuItem, Popover, Segmented, Spinner } from './ui';
+import { Button, FilterPrimitive, Icon, MenuDivider, MenuItem, Popover, Segmented, Spinner } from './ui';
 import './image-viewer.css';
 
 const GAP = 4;
@@ -79,19 +79,6 @@ const saveCanvas = async (canvas, filter, filename) => {
   link.download = filename;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-};
-
-const FilterPrimitive = ({ primitive }) => {
-  const { type, attributes, functions } = primitive;
-  if (type === 'feComponentTransfer')
-    return <feComponentTransfer>
-      {functions.map(({ channel, ...f }) => {
-        const Func = `feFunc${channel}`;
-        return <Func key={channel} {...f} />;
-      })}
-    </feComponentTransfer>;
-  const Element = type;
-  return <Element {...attributes} />;
 };
 
 

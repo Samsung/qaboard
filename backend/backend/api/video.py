@@ -17,10 +17,22 @@ from backend import app
 from .image import image_cache_dir, MAX_REGION_PIXELS, _for_javascript
 from .. import videos
 
-# Once read, keyed by the files and when they changed
+# Once read, keyed by the files and when they changed. Removed after a month.
 videos_cache_dir = image_cache_dir / 'videos'
 videos_cache_dir.mkdir(exist_ok=True, parents=True)
 VIDEOS_VERSION = 1
+
+
+def _clean():
+  """What interrupted processes left, and the results nobody asked for in a month"""
+  now = time.time()
+  for pattern, age in (('*.tmp', 3600), ('*.json', 30 * 24 * 3600)):
+    for path in videos_cache_dir.glob(pattern):
+      try:
+        if now - path.stat().st_mtime > age:
+          path.unlink(missing_ok=True)
+      except FileNotFoundError:
+        pass
 
 
 def _cached(key, compute):
@@ -34,6 +46,7 @@ def _cached(key, compute):
   tmp = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
   tmp.write_bytes(body)
   tmp.rename(path)
+  _clean()
   return body, False
 
 

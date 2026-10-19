@@ -115,3 +115,17 @@ export const MenuDivider = ({ title }) => title
 
 export const Spinner = ({ size = 14, label = 'Loading' }) =>
   <span className="qiv-spinner" style={{ width: size, height: size }} role="progressbar" aria-label={label} />;
+
+// A primitive of the display adjustments' SVG filter (adjustments.js filterPrimitives)
+export const FilterPrimitive = ({ primitive }) => {
+  const { type, attributes, functions } = primitive;
+  if (type === 'feComponentTransfer')
+    return <feComponentTransfer>
+      {functions.map(({ channel, ...f }) => {
+        const Func = `feFunc${channel}`;
+        return <Func key={channel} {...f} />;
+      })}
+    </feComponentTransfer>;
+  const Element = type;
+  return <Element {...attributes} />;
+};

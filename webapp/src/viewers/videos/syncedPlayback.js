@@ -5,8 +5,10 @@
 // - While playing, the follower's playbackRate is nudged to absorb drift. It jumps when it's far off.
 // - When a video stalls (buffering), the other one waits for it.
 // - Paused, both show the same frame: we seek them to the middle of the leader's frame.
-// - The frame duration comes from qaboard.yaml (`fps`), else is measured on the frames the browser presents:
+// - Frames: from the timestamps of every frame when the server read them from the file (exact, also with variable
+//   frame rates), else qaboard.yaml's `fps`, else measured on the frames the browser presents:
 //   requestVideoFrameCallback gives their exact timestamps.
+// - Which frame each video presents, from requestVideoFrameCallback: users see whether they compare the same frames.
 // Media events are never trusted to come from us: the browser's context menu, media keys or picture-in-picture
 // can play or pause one video, the other follows.
 
@@ -38,6 +40,35 @@ export const frameAt = (time, frameDuration) => Math.max(0, Math.floor(time / fr
 // differently may not start their frames at exactly the same time
 export const timeOfFrame = (frame, frameDuration) => (Math.max(0, frame) + 0.5) * frameDuration;
 
+// With the timestamps of the frames (sorted, in seconds): the frame shown at `time`
+export const frameAtTimes = (time, times) => {
+  let low = 0;
+  let high = times.length - 1;
+  if (high < 0 || time < times[0] - 1e-4) return 0;
+  while (low < high) {
+    const middle = (low + high + 1) >> 1;
+    if (times[middle] <= time + 1e-4) low = middle;
+    else high = middle - 1;
+  }
+  return low;
+};
+// the middle of the frame, the last lasts as long as the one before
+export const timeOfFrameTimes = (frame, times) => {
+  const i = Math.max(0, Math.min(frame, times.length - 1));
+  const next = times[i + 1] ?? times[i] + (times.length > 1 ? times[i] - times[i - 1] : DEFAULT_FRAME_DURATION);
+  return (times[i] + next) / 2;
+};
+// The frame whose timestamp is `mediaTime` (what requestVideoFrameCallback says is presented), or null if none is
+// within a quarter of a frame: then we don't know which frame it is
+export const frameOfTimestamp = (mediaTime, times) => {
+  const i = frameAtTimes(mediaTime, times);
+  const candidates = [i, i + 1].filter(j => j < times.length);
+  const best = candidates.sort((a, b) => Math.abs(times[a] - mediaTime) - Math.abs(times[b] - mediaTime))[0];
+  if (best === undefined) return null;
+  const duration = (times[Math.min(best + 1, times.length - 1)] - times[Math.max(best - 1, 0)]) / 2 || DEFAULT_FRAME_DURATION;
+  return Math.abs(times[best] - mediaTime) <= duration / 4 ? best : null;
+};
+
 const clamp = (x, min, max) => Math.min(max, Math.max(min, x));
 
 const rangesOf = buffered => {
@@ -46,8 +77,11 @@ const rangesOf = buffered => {
   return ranges;
 };
 
+const sameFrame = (a, b) => a === b || (!!a && !!b && a.index === b.index && a.exact === b.exact && a.mediaTime === b.mediaTime);
 const sameSnapshot = (a, b) => Object.keys(a).every(key =>
-  key === 'buffered' ? a.buffered.join() === b.buffered.join() : Object.is(a[key], b[key])
+  key === 'buffered' ? a.buffered.join() === b.buffered.join()
+  : key === 'presented' || key === 'presentedReference' ? sameFrame(a[key], b[key])
+  : Object.is(a[key], b[key])
 );
 
 
@@ -57,6 +91,8 @@ export class SyncedPlayback {
     this.follower = null;
     this.configuredFrameDuration = fps > 0 ? 1 / fps : null;
     this.measuredFrameDuration = null;
+    // element => the timestamps of its frames, from the file
+    this.frameTimes = new Map();
     this.frameDeltas = [];
     // what the user asked for: the videos may be waiting for data
     this.playing = false;
@@ -101,7 +137,52 @@ export class SyncedPlayback {
   }
 
   get frameDuration() {
-    return this.configuredFrameDuration ?? this.measuredFrameDuration;
+    return this.configuredFrameDuration ?? this.fileFrameDuration ?? this.measuredFrameDuration;
+  }
+
+  // the leader's frames, as the file has them
+  get times() {
+    return this.leader ? this.frameTimes.get(this.leader) ?? null : null;
+  }
+
+  get fileFrameDuration() {
+    const times = this.times;
+    if (!times || times.length < 2) return null;
+    return (times[times.length - 1] - times[0]) / (times.length - 1);
+  }
+
+  frameAt(time) {
+    const times = this.times;
+    if (times?.length) return frameAtTimes(time, times);
+    return this.frameDuration ? frameAt(time, this.frameDuration) : null;
+  }
+
+  timeOfFrame(frame) {
+    const times = this.times;
+    if (times?.length) return timeOfFrameTimes(frame, times);
+    return timeOfFrame(frame, this.frameDuration ?? DEFAULT_FRAME_DURATION);
+  }
+
+  // The frame the element presents: { index, exact }, exact when we know it from the file's timestamps
+  presentedFrame(element) {
+    const presented = element && this.presented.get(element);
+    if (!presented) return null;
+    const times = this.frameTimes.get(element);
+    if (times?.length) {
+      const index = frameOfTimestamp(presented.mediaTime, times);
+      if (index !== null) return { index, exact: true, mediaTime: presented.mediaTime };
+    }
+    const duration = this.configuredFrameDuration ?? this.measuredFrameDuration;
+    if (!duration) return null;
+    return { index: frameAt(presented.mediaTime, duration), exact: false, mediaTime: presented.mediaTime };
+  }
+
+  // The timestamps of the frames of a video (the file's, in seconds), or null when we don't know them
+  setFrameTimes(element, times) {
+    if (!element) return;
+    if (times?.length) this.frameTimes.set(element, times);
+    else this.frameTimes.delete(element);
+    this.emit();
   }
 
   get time() {
@@ -184,6 +265,8 @@ export class SyncedPlayback {
     on('ended', () => this.onEnded(element));
     on('error', () => this.onError(element));
     for (const type of ['loadedmetadata', 'loadeddata', 'durationchange', 'progress', 'timeupdate']) on(type, () => this.emit());
+    // the first frame to draw
+    on('loadeddata', () => this.frameListeners.forEach(listener => listener(element)));
     this.watchFrames(element);
   }
 
@@ -224,8 +307,9 @@ export class SyncedPlayback {
       const waiters = this.frameWaiters;
       this.frameWaiters = [];
       waiters.forEach(waiter => waiter.resolve(frame.mediaTime));
-      this.emit();
     }
+    // which frames show changed
+    this.emit();
     this.frameListeners.forEach(listener => listener(element));
   }
 
@@ -340,8 +424,7 @@ export class SyncedPlayback {
     }
     const end = Number.isFinite(leader.duration) ? Math.max(0, leader.duration - EPSILON) : Infinity;
     let t = clamp(time, 0, end);
-    const frame = this.frameDuration;
-    if (frame) t = Math.min(timeOfFrame(frameAt(t, frame), frame), end);
+    if (this.times?.length || this.frameDuration) t = Math.min(this.timeOfFrame(this.frameAt(t)), end);
     this.seeks += 1;
     this.target = t;
     this.seekElement(leader, t);
@@ -355,6 +438,9 @@ export class SyncedPlayback {
       this.pending.set(element, time);
       return;
     }
+    // A seek can be done while its "seeked" event is still on its way: what was pending for it is outdated, else
+    // that event would seek back to it
+    this.pending.delete(element);
     if (Math.abs(element.currentTime - time) < 1e-6) return;
     element.currentTime = time;
   }
@@ -378,9 +464,21 @@ export class SyncedPlayback {
     if (!this.usable(this.leader)) return;
     if (this.playing) this.pause();
     const from = this.time;
+    if (this.times?.length) {
+      this.seekFrame(this.frameAt(from) + count);
+      return;
+    }
     const frame = this.frameDuration ?? await this.learnFrameDuration() ?? DEFAULT_FRAME_DURATION;
     if (!this.usable(this.leader)) return;
     this.seek(timeOfFrame(frameAt(from, frame) + count, frame));
+  }
+
+  // Show a frame, paused
+  seekFrame(index) {
+    if (this.playing) this.pause();
+    const times = this.times;
+    const last = times?.length ? times.length - 1 : Infinity;
+    this.seek(this.timeOfFrame(clamp(index, 0, last)));
   }
 
   // Without qaboard.yaml's `fps` or playback, we don't know the frame rate. We show the previous frame:
@@ -522,6 +620,8 @@ export class SyncedPlayback {
     const time = this.time;
     const duration = Number.isFinite(leader?.duration) ? leader.duration : 0;
     const syncing = !this.usable(follower) || follower.seeking || this.pending.has(follower) || !this.followerCovers(time);
+    const times = this.times;
+    const settled = !this.playing && this.target === null && !leader?.seeking && !this.pending.has(leader);
     return {
       ready: this.usable(leader),
       time,
@@ -534,9 +634,13 @@ export class SyncedPlayback {
       muted: this.muted,
       error: this.error,
       frameDuration,
-      fpsSource: this.configuredFrameDuration ? 'config' : this.measuredFrameDuration ? 'measured' : null,
-      frame: frameDuration ? frameAt(time, frameDuration) : null,
-      frames: frameDuration && duration ? Math.round(duration / frameDuration) : null,
+      fpsSource: this.configuredFrameDuration ? 'config' : times?.length ? 'file' : this.measuredFrameDuration ? 'measured' : null,
+      frame: times?.length || frameDuration ? this.frameAt(time) : null,
+      frames: times?.length ? times.length : frameDuration && duration ? Math.round(duration / frameDuration) : null,
+      // the frames the videos present, once they settled: { index, exact } or null
+      presented: settled ? this.presentedFrame(leader) : null,
+      presentedReference: settled && follower && !syncing ? this.presentedFrame(follower) : null,
+      settled,
       // how far the reference is from the new video, in seconds
       drift: syncing || !leader ? null : follower.currentTime - leader.currentTime,
       buffered: rangesOf(leader?.buffered),
