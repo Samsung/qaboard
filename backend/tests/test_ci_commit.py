@@ -127,6 +127,19 @@ def test_existing_commit_gets_its_config_once(ci_commit_model, stored, kept):
   assert ci_commit.data["qatools_config"] == kept
 
 
+@pytest.mark.parametrize("stored, kept", [
+  # e.g. created by a webhook: the metrics declared in code its runs send would hide the project's metrics file
+  ({"qatools_config": CONFIG}, {"available_metrics": {}}),
+  ({"qatools_config": CONFIG, "qatools_metrics": {"old": True}}, {"old": True}),
+])
+def test_existing_commit_gets_its_metrics_file_once(ci_commit_model, stored, kept):
+  existing = SimpleNamespace(hexsha=HEXSHA, data=dict(stored))
+  session = MagicMock()
+  session.query.return_value.filter.return_value.one.return_value = existing
+  ci_commit = ci_commit_model.CiCommit.get_or_create(session=session, hexsha=HEXSHA, project_id="group/project", data=cli_data())
+  assert ci_commit.data["qatools_metrics"] == kept
+
+
 def test_config_without_project_section(ci_commit_model):
   project = make_project()
   data = cli_data(qaboard_config={"outputs": {}})

@@ -140,16 +140,23 @@ def parse_config(config: Dict[str, Any]) -> GateConfig:
 
 
 def smaller_is_better(metric: str, local_metrics: Dict[str, Any], server_info: Optional[Dict[str, Any]]) -> Optional[bool]:
-  """Whether a smaller value is better, from the metrics' definitions (outputs.metrics in qaboard.yaml). None if unknown."""
+  """
+  Whether a smaller value is better. Like the web app, from what the server knows: the commit's metrics file with the
+  metrics declared in code, which win. Else from the local metrics file (outputs.metrics in qaboard.yaml). None if unknown.
+  """
+  if server_info and server_info.get('declared') and server_info.get('smaller_is_better') is not None:
+    return bool(server_info['smaller_is_better'])
   if metric in local_metrics:
-    value = (local_metrics.get(metric) or {}).get('smaller_is_better')
+    definition = local_metrics.get(metric) or {}
+    # like the web app: metrics files leave it out when smaller is better, null says there is no better direction
+    if 'smaller_is_better' not in definition:
+      return True
+    value = definition['smaller_is_better']
     if value is None:
-      return True  # like the web app
+      return None
     if isinstance(value, str):
       return value.lower() != 'false'
     return bool(value)
-  if server_info and server_info.get('declared'):
-    return bool(server_info.get('smaller_is_better', True))
   return None
 
 
@@ -193,8 +200,8 @@ def check_rule(rule: Rule, data: Dict[str, Any], local_metrics: Dict[str, Any]) 
   is_smaller_better = smaller_is_better(rule.metric, local_metrics, info)
   if is_smaller_better is None:
     raise GateConfigError(
-      f"gate: declare {rule.metric} in your metrics file (outputs.metrics in qaboard.yaml), "
-      f"with `smaller_is_better`, so that the gate knows what a regression is"
+      f"gate: declare whether smaller values of {rule.metric} are better, so that the gate knows what a regression is: "
+      f"qaboard.Metric(value, smaller_is_better=...) where your code computes it, or `smaller_is_better` in your metrics file"
     )
   check['smaller_is_better'] = is_smaller_better
   if rule.kind == 'max_regression':

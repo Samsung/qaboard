@@ -13,6 +13,17 @@ import { usePrefsStore } from "./stores/prefs";
 import { useSelected, updateSelected } from "./selection";
 import { available_batch, compute_batches, compute_config } from "./selectors/batches";
 import { default_project } from "./defaults";
+import { with_undeclared_metrics } from "./utils";
+
+// The keys of a Set of metrics, as a string that only changes when they do
+export const used_metrics_signature = used_metrics => [...(used_metrics ?? [])].sort().join('\n');
+
+// The project's metrics with all those of the runs (`used_metrics_key`, from used_metrics_signature), declared or not.
+// The same object when no metric is missing.
+export const with_used_metrics = (metrics, used_metrics_key) => {
+  const available_metrics = with_undeclared_metrics(metrics?.available_metrics, used_metrics_key ? used_metrics_key.split('\n') : []);
+  return available_metrics === metrics?.available_metrics ? metrics : { ...metrics, available_metrics };
+};
 
 export { useSelected, updateSelected };
 
@@ -112,12 +123,13 @@ export function useRefreshCommit() {
 // The metrics the commits endpoint aggregates per batch (median, average), with their targets:
 // History's (dashboard_metrics), else the default and main metrics, which the commit list and the branch's chart show.
 // Metrics without a target need one: JSON leaves out undefined values, and the server would not aggregate them.
+// They don't need to be declared.
 export const aggregation_metrics = (qatools_metrics, { dashboard = false } = {}) => {
   const { available_metrics = {}, default_metric, main_metrics = [], dashboard_metrics } = qatools_metrics ?? {};
   const keys = dashboard ? (dashboard_metrics ?? main_metrics) : [default_metric, ...main_metrics];
   return Object.fromEntries(keys
-    .filter(m => available_metrics[m] !== undefined)
-    .map(m => [m, available_metrics[m].target ?? 0]));
+    .filter(m => !!m)
+    .map(m => [m, available_metrics[m]?.target ?? 0]));
 };
 
 const has_batches = c => Object.keys(c.batches ?? {}).length > 0;
@@ -283,9 +295,17 @@ function useComparisonState() {
     [selected.selected_views, default_views],
   );
 
+  // All the metrics of the runs, declared or not. The batch's used metrics are a new Set when users filter or sort runs:
+  // the metrics change only with their keys, so that output cards don't re-render.
+  const used_metrics_key = used_metrics_signature(batches.new_batch.used_metrics);
+  const metrics = useMemo(
+    () => with_used_metrics(config.metrics, used_metrics_key),
+    [config.metrics, used_metrics_key],
+  );
+
   return useMemo(
-    () => ({ selected, project, project_data, list: searched_list, unsearched_list: default_list, new_commit, ref_commit, ...batches, ...config, selected_views, default_views }),
-    [selected, project, project_data, searched_list, default_list, new_commit, ref_commit, batches, config, selected_views, default_views],
+    () => ({ selected, project, project_data, list: searched_list, unsearched_list: default_list, new_commit, ref_commit, ...batches, ...config, metrics, selected_views, default_views }),
+    [selected, project, project_data, searched_list, default_list, new_commit, ref_commit, batches, config, metrics, selected_views, default_views],
   );
 }
 

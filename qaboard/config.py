@@ -453,8 +453,9 @@ if metrics_file:
           click.secho(f'ERROR: Unable to parse {metrics_file}', fg='red', err=True, bold=True)
           click.secho(f'{e}', fg='red', err=True)
           ignore_config_errors = False
-      available_metrics = _metrics.get('available_metrics', {})
-      main_metrics = _metrics.get('main_metrics', [])
+      # an empty file, or `available_metrics:` with only comments under it, are null
+      available_metrics = (_metrics or {}).get('available_metrics') or {}
+      main_metrics = (_metrics or {}).get('main_metrics') or []
 
 # reexport for backward compat
 from .site_config import secrets

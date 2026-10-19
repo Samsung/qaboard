@@ -23,6 +23,7 @@ from backend import app, db_session
 from .auth import is_authorized_user
 from ..models import CiCommit, Batch, Milestone
 from ..compare import compare_outputs, run_counts, manifests_mismatch
+from ..metrics_definitions import available_metrics
 from ..storage import is_storage_path
 
 
@@ -232,14 +233,18 @@ def compare_commit(commit_id):
     status = 'complete'
   messages += notes
 
-  # The metrics' definitions, like the web app: the batch's, else the commit's, else the project's
-  metrics_definitions = (
-    ((batch.data or {}).get('qatools_metrics') if batch else None) or
-    (commit.data or {}).get('qatools_metrics') or
-    (commit.project.data or {}).get('qatools_metrics') or
-    {}
-  )
-  comparison = compare_outputs(new_dicts, ref_dicts, metrics_definitions.get('available_metrics'), metrics)
+  # The metrics' definitions, like the web app (compute_config in webapp/src/selectors/batches.js): the batch's
+  # metrics file, else the commit's, else the project's, with the metrics declared in code
+  # An empty metrics file ({}, the CLI's when projects have none) counts, like `??` in JavaScript.
+  batch_metrics = (batch.data or {}).get('qatools_metrics') if batch else None
+  commit_data = commit.data or {}
+  if batch_metrics is not None or commit_data.get('qatools_metrics') is not None or commit_data.get('metrics_definitions'):
+    qatools_metrics = batch_metrics if batch_metrics is not None else commit_data.get('qatools_metrics')
+    definitions = available_metrics(qatools_metrics, commit_data.get('metrics_definitions'))
+  else:
+    project_data = commit.project.data or {}
+    definitions = available_metrics(project_data.get('qatools_metrics'), project_data.get('metrics_definitions'))
+  comparison = compare_outputs(new_dicts, ref_dicts, definitions, metrics)
 
   bit_accuracy = None
   if request.args.get('bit_accuracy', '').lower() in ('1', 'true', 'yes'):

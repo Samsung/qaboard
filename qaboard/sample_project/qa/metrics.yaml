@@ -1,16 +1,19 @@
 # Completion and checks in your editor: https://samsung.github.io/qaboard/docs/project-init#checking-qaboardyaml-and-batch-files-in-your-editor
 # yaml-language-server: $schema=https://samsung.github.io/qaboard/metrics.schema.json
-# you must define metadata about all your objective figures of merits
+# Optional: QA-Board shows all the metrics your runs return.
+# To color improvements and regressions, it needs to know which way is better. Declare it where your code computes
+# the metrics, e.g. `return {"loss": qaboard.Metric(loss, smaller_is_better=True)}`, or here.
+# Docs: https://samsung.github.io/qaboard/docs/computing-quantitative-metrics
 available_metrics:
   # loss:
   #   label: My Loss Function  # defaults to the key
   #   short_label: Loss        # defaults to the label
   #   description: The was computed with.... # optional
-  #   smaller_is_better: true  # default
+  #   smaller_is_better: true  # default in this file. null: neither is better
   #   target: 0.01             # optional
   #   # used for display
   #   scale: 1.0               # default
-  #   suffix: %                # default: ''
+  #   suffix: "%"              # default: ''
 
   is_failed:
     label: Crashed
@@ -23,22 +26,25 @@ available_metrics:
     plot_scale: linear # | default: log
 
 
-# Below we define which metrics the GUI should show
-default_metric: is_failed
+# Optional: which metrics the web app shows by default. They don't have to be declared above.
+# Without them, the Summary shows the metrics that changed the most vs the reference,
+# the tables and run cards show the first ones, and the History page offers all of them.
+# The metric used to sort runs, shown in lists of commits and plotted over time on their page
+# default_metric: loss
 
-# will be shown in the summary histogramms
-summary_metrics:
-  - is_failed
+# Shown in the Summary
+# summary_metrics:
+#   - loss
 
-# will be shown in the results table and in the output cards
-main_metrics:
-  - is_failed
+# Shown in the results tables and on the run cards
+# main_metrics:
+#   - loss
 
-# In the history view, only those metrics will be available in the plot showing results over time
-# [OPTIONAL]: defaults to the summary_metrics
+# In the History page, the metrics available in the plot over time
+# [OPTIONAL]: defaults to the main_metrics
 # dashboard_evolution_metrics:
-#   - is_failed
-# In the history view, only those metrics will be shown in the summary histograms
-# [OPTIONAL]: defaults to the summary_metrics
+#   - loss
+# In the History page, the metrics shown in the summary and tables
+# [OPTIONAL]: defaults to the main_metrics
 # dashboard_metrics:
-#   - is_failed
+#   - loss

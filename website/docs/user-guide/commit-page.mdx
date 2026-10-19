@@ -93,7 +93,7 @@ Some projects open a different view by default. The selected view is part of the
 
 ### Summary
 For each **summary metric** (pick others with the metrics selector):
-- the new **median**, and the reference median with the change in percent, green when it improves, red when it degrades (changes under 1% stay neutral);
+- the new **median**, and the reference median with the change in percent, green when it improves, red when it degrades (changes under 1% stay neutral). Changes are gray when QA-Board doesn't know whether higher or lower is better (see below);
 - when the metric has a target, a bar with the share of runs meeting it;
 - box plots of the new and reference distributions, with the target zone in green or red.
 
@@ -108,10 +108,16 @@ If the batch mixes several values of tuning parameters, a warning reminds you th
 
 The reference values only use reference runs on the same inputs as the new runs.
 
+When the project doesn't choose its summary metrics, the Summary shows up to 8 metrics: those that changed the most vs the reference. Without a choice either, the tables show the project's declared metrics, and others up to 20 columns: pick more with the metrics selector above them.
+
+:::info Metrics in neutral colors
+QA-Board shows all the metrics of the runs. For some, it may not know if higher or lower values are better: a metric that the project didn't declare, or a count where neither is better. Their changes are shown in **gray** in the Summary and in **blue** in the tables, never green or red, and hovering their name says so. Ask the project's maintainers to [declare them](/docs/computing-quantitative-metrics#declaring-metrics).
+:::
+
 ### Metrics Table
 One row per run, with its input, tuning parameters, platform and configuration tags. For each metric, the **New** and **Ref** values side by side. The header shows the metric's target and unit, e.g. `[0.01 cm]`.
 
-When a metric has a **target**, cells are colored from red to green by how far they are from it (or just red/green for pass/fail metrics). A reference cell shows `=` when it's identical to the new value. Rows with a **Failed** tag are failed runs.
+When a metric has a **target**, cells are colored from red to green by how far they are from it (or just red/green for pass/fail metrics). Other metrics are shaded in blue: the darker, the larger the value compared with the other runs. A reference cell shows `=` when it's identical to the new value. Rows with a **Failed** tag are failed runs.
 
 <Shot
   id="commit/metrics-table"
@@ -119,7 +125,7 @@ When a metric has a **target**, cells are colored from red to green by how far t
 />
 
 ### Metrics Diff
-One row per run, with `new − ref` for each metric, and the change in percent. Cells are green when the new run is better, red when it's worse, taking into account whether smaller is better for that metric. Hover a cell to see both values. Only metrics that the reference also has are shown.
+One row per run, with `new − ref` for each metric, and the change in percent. Cells are green when the new run is better, red when it's worse, taking into account whether smaller is better for that metric. For metrics where QA-Board doesn't know which way is better, cells are blue: the darker, the larger the change. Hover a cell to see both values. Only metrics that the reference also has are shown.
 
 <Shot
   id="commit/metrics-diff"
@@ -133,7 +139,7 @@ Use the **Sort runs** section of the view options to sort runs by a metric, and 
 Yellow **Input**, **Config** or **Platform** tags (with a `≠` icon) mean the run was compared with a reference run that is not exactly the same. Hover them for details. See [How runs are matched](comparing-results.mdx#how-runs-are-matched).
 
 ### Visualizations
-One card per run, with its main metrics (and their change vs the reference) and the visualizations configured for the project: images, plots, videos, text, HTML, flame graphs, point clouds... The reference is shown next to the new result.
+One card per run, with its main metrics, else its first metrics (and their change vs the reference) and the visualizations configured for the project: images, plots, videos, text, HTML, flame graphs, point clouds... The reference is shown next to the new result.
 
 <Shot
   id="commit/visualizations"
