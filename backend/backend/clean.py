@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 """
 Remove old outputs and artifacts from storage.
-By default, the default reference branch, active commits and milestone are not deleted
+By default, we keep the results of:
+- the reference branch's latest commit, and the branches, tags and commits listed in qaboard.yaml's `project.milestones`,
+- the batches saved as milestones in the web app: only those batches, not the commit's other batches.
 
 The default configuration is:
 ```yaml
@@ -254,12 +256,15 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
         old_treshold = now - parse_time(before)
         secho(f"deleting data older than {old_treshold}", dim=True)
 
+        protected_commits = project.protected_ref_commits
+        milestone_batches = project.milestone_batches
+        secho(f"keeping {len(protected_commits)} commits protected in qaboard.yaml, and {len(milestone_batches)} milestone batches", dim=True)
         commits = (
             db_session.query(CiCommit)
             .filter(CiCommit.project == project)
             .filter(CiCommit.deleted == False)
             # we could check those rare occurrences from python-land...
-            .filter(CiCommit.hexsha.notin_(project.milestone_commits))
+            .filter(CiCommit.hexsha.notin_(protected_commits))
             .filter(or_(
                 bool(CiCommit.latest_output_datetime) and CiCommit.latest_output_datetime < old_treshold,
                 not CiCommit.latest_output_datetime   and CiCommit.authored_datetime < old_treshold,
@@ -273,6 +278,11 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
         for commit in commits.yield_per(1000):
             secho(f"@{commit.project_id}  {commit.branch}  {commit.hexsha} {commit.authored_datetime}", fg='cyan')
             outputs = (db_session.query(Output).join(Batch).filter(Batch.ci_commit_id == commit.id))
+            # We keep the batches that are milestones, and what they need to be redone or compared: the artifacts
+            kept_batches = milestone_batches.of_commit(project.id, commit.hexsha)
+            if kept_batches:
+                secho(f"  keeping the milestone batches: {', '.join(sorted(kept_batches))}", fg='yellow')
+                outputs = outputs.filter(Batch.label.notin_(kept_batches))
 
             nb_outputs = 0
             nb_outputs_deleted = 0
@@ -297,7 +307,7 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
                     pass
             gc_config_artifacts = gc_config.get('artifacts', {})
             deleted_artifacts = False
-            if gc_config_artifacts.get('delete') == True or can_delete_artifacts:
+            if (gc_config_artifacts.get('delete') == True or can_delete_artifacts) and not kept_batches:
                 undeleted_commits_from_subprojects = (
                     db_session.query(CiCommit)
                     .filter(CiCommit.project_id.startswith(commit.project_id))
@@ -318,7 +328,7 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
             if not dryrun:
               if nb_outputs_deleted or deleted_artifacts:
                 db_session.add(commit)
-              if not nb_outputs and deleted_artifacts and can_delete_outputs:
+              if not nb_outputs and deleted_artifacts and can_delete_outputs and not kept_batches:
                 print(f"DELETE {commit}")
                 db_session.delete(commit)
 

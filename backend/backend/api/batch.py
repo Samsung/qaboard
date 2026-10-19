@@ -216,12 +216,23 @@ def delete_batch(batch_id):
     return f"404 ERROR:\nNot found", 404
   if forbidden := require_project_access(g.user, batch.ci_commit.project_id):
     return forbidden
+  soft = request.args.get('soft') == 'true'
+  only_failed = request.args.get('only_failed') == 'true'
+  # Milestones keep their runs: only their files, or their failed runs, can be deleted
+  if not soft and not only_failed:
+    milestones = [m for m in batch.ci_commit.project.milestones_on(batch.ci_commit.hexsha) if (m.batch or 'default') == batch.label]
+    if milestones:
+      # we don't say what others' personal milestones are called
+      user_id = g.user.get('user_id')
+      names = [f'"{m.label}"' if m.label else f"#{m.id}" for m in milestones if m.shared or m.user_id == user_id]
+      others = len(milestones) - len(names)
+      if others:
+        names.append(f"{others} personal milestone{'s' if others > 1 else ''} of other users")
+      return jsonify({"error": f"This batch is a milestone ({', '.join(names)}): its runs are kept. Delete the milestone first, or delete only the files or the failed runs."}), 403
   stop_status = batch.stop(db_session)
   if "error" in stop_status:
     print(stop_status)
     return jsonify(stop_status), 500
-  soft = request.args.get('soft') == 'true'
-  only_failed = request.args.get('only_failed') == 'true'
   filter = request.args.get('filter')
   batch.delete(session=db_session, soft=soft, only_failed=only_failed, filter=filter)
   return {"status": "OK"}

@@ -16,7 +16,6 @@ import {
 
 
 import { pretty_label } from '../../utils'
-import { has_milestones } from '../milestones'
 
 
 const by_label = ([label1], [label2]) => {
@@ -27,11 +26,11 @@ const by_label = ([label1], [label2]) => {
   return label1.localeCompare(label2);
 }
 
-const prepare_batch = ({ label, batchData, commit_id, project, project_data }) => {
+const prepare_batch = ({ label, batchData, milestone_batches }) => {
   const outputs = Object.values(batchData.outputs || {}).filter(o => o.output_type !== "optim_iteration")
   const data = batchData.data || {}
   const title = pretty_label(batchData)
-  const is_milestone = has_milestones({ commit: { id: commit_id }, project, project_data, batch: { label } });
+  const is_milestone = milestone_batches.includes(label);
 
   const nb_success = outputs.filter(o => !o.is_pending && !o.is_failed).length;
   const nb_failed = outputs.filter(o => o.is_failed).length;
@@ -108,18 +107,19 @@ const Username = ({ item, style }) => item.username
   : null
 
 
-const SelectBatchesNav = ({ commit, onChange, batch, project, project_data }) => {
+// milestone_batches: the labels of the commit's batches that are milestones
+const SelectBatchesNav = ({ commit, onChange, batch, milestone_batches }) => {
   const batches = commit?.batches;
-  const commit_id = commit?.id;
+  const milestones_key = (milestone_batches ?? []).join('\n');
   // Store updates (e.g. project data or commit re-fetched) give us new objects with the same content.
   // Comparing as JSON keeps the same items, to not reset the menu (see `filterBatch`).
   const batchItemsJson = useMemo(
     () => JSON.stringify(
       Object.entries(batches ?? {})
         .sort(by_label)
-        .map(([label, batchData]) => prepare_batch({ label, batchData, commit_id, project, project_data }))
+        .map(([label, batchData]) => prepare_batch({ label, batchData, milestone_batches: milestones_key.split('\n') }))
     ),
-    [batches, commit_id, project, project_data],
+    [batches, milestones_key],
   );
   const batchItems = useMemo(() => JSON.parse(batchItemsJson), [batchItemsJson]);
   const selectedBatch = useMemo(

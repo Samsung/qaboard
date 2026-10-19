@@ -69,6 +69,11 @@ def pytest_configure():
     models_mod.CiCommit = MagicMock()
     models_mod.latest_successful_commit = MagicMock()
     models_mod.Batch = MagicMock()
+    models_mod.Milestone = MagicMock()
+    models_mod.MilestoneFavorite = MagicMock()
+    models_mod.MilestoneGroupFavorite = MagicMock()
+    models_mod.TestInput = MagicMock()
+    models_mod.User = MagicMock()
     models_mod.batches_stats = MagicMock()
     sys.modules['backend.models'] = models_mod
     sys.modules['backend.backend'] = types.ModuleType('backend.backend')
@@ -77,6 +82,8 @@ def pytest_configure():
     sa_mod = sys.modules.setdefault('sqlalchemy', types.ModuleType('sqlalchemy'))
     sa_orm = sys.modules.setdefault('sqlalchemy.orm', types.ModuleType('sqlalchemy.orm'))
     sa_orm.selectinload = MagicMock()
+    if not hasattr(sa_mod, 'or_'):
+        sa_mod.or_ = MagicMock()
 
     sa_attrs = types.ModuleType('sqlalchemy.orm.attributes')
     sa_attrs.flag_modified = MagicMock()

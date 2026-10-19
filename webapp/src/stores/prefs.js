@@ -1,5 +1,5 @@
-// Client state that belongs to the user, not to the server: favorite projects, private milestones,
-// the last tuning experiments. Kept in localStorage.
+// Client state that belongs to the user, not to the server: favorite projects, the last tuning experiments,
+// which groups of milestones are collapsed. Kept in localStorage.
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
@@ -9,8 +9,11 @@ export const usePrefsStore = create()(persist(
   set => ({
     // project => true
     favorites: {},
-    // project => { [milestone key]: milestone }
+    // Milestones older versions saved in this browser: project => { [milestone key]: milestone }.
+    // They move to the user's account when they log in (see useImportLegacyMilestones in src/milestones/hooks.js)
     milestones: {},
+    // "mine/tuning/denoiser" => true: groups of milestones the user collapsed in the milestones menus
+    milestoneGroupsCollapsed: {},
     // project => what's in the tuning form
     tuning: {},
     // "system" (follows the OS), "light" or "dark", see src/theme.js
@@ -27,12 +30,12 @@ export const usePrefsStore = create()(persist(
     toggleFavorite: project => set(state => ({
       favorites: { ...state.favorites, [project]: !state.favorites[project] },
     })),
-    setMilestone: (project, key, milestone) => set(state => ({
-      milestones: { ...state.milestones, [project]: { ...state.milestones[project], [key]: milestone } },
+    forgetLegacyMilestones: projects => set(state => ({
+      milestones: Object.fromEntries(Object.entries(state.milestones).filter(([project]) => !projects.includes(project))),
     })),
-    deleteMilestone: (project, key) => set(state => {
-      const { [key]: _deleted, ...milestones } = state.milestones[project] ?? {};
-      return { milestones: { ...state.milestones, [project]: milestones } };
+    toggleMilestoneGroup: path => set(state => {
+      const { [path]: collapsed, ...others } = state.milestoneGroupsCollapsed;
+      return { milestoneGroupsCollapsed: collapsed ? others : { ...others, [path]: true } };
     }),
     setTheme: theme => set({ theme }),
     setSiderCollapsed: collapsed => set({ siderCollapsed: !!collapsed }),
@@ -48,7 +51,6 @@ export const usePrefsStore = create()(persist(
   { name: 'qaboard-prefs', version: 1 },
 ));
 
-export const usePrivateMilestones = project => usePrefsStore(state => state.milestones[project] ?? empty);
 export const useTuningForm = project => usePrefsStore(state => state.tuning[project] ?? empty);
 // whatever was saved, "comfortable" or "compact"
 export const useCommitListDensity = () => usePrefsStore(state => state.commitListDensity === 'compact' ? 'compact' : 'comfortable');

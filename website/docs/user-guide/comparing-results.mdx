@@ -35,7 +35,7 @@ In the **ref** bar (or the **new** bar, it works the same way):
 | **Also select as reference** / **as new** | Copies this commit, batch and filter to the other bar. Handy to compare two batches of the **same** commit, e.g. a tuning experiment vs CI. |
 | **Remove from comparison** | Clears the commit. |
 | The reference branch | Selects its latest commit. |
-| Milestones | From *qaboard.yaml*, shared, or private. The milestone's batch and filter are selected too. |
+| Milestones | Your favorites, your milestones, the project's, and those from *qaboard.yaml*. The milestone's batch and filter are selected too. |
 
 Each bar also has its own **batch selector** and **filter**: you can compare any batch of any commit with any other.
 
@@ -73,30 +73,57 @@ Matching only uses the reference runs left by the reference's filter box (**Filt
 :::
 
 ## Milestones
-Milestones are bookmarks for references worth keeping: a release, a benchmark, "the best tuning so far". They are kept by the cleanup of old results, and protected from deletion.
+Milestones are bookmarks for results worth comparing with: a release, a benchmark, "the best tuning so far". A milestone is a commit's **batch**, maybe with a **filter**. The cleanup of old results keeps the batches that are milestones (and only them, not the commit's other batches), and they can't be deleted by mistake.
 
-There are three kinds:
+### Saving a milestone
+Click the **star** next to the commit hash in the new or ref bar. A dialog shows what you are about to save (the commit, its batch, the filter and how many runs match) and asks for:
 
-| Kind | Who sees it | How to create it |
-|---|---|---|
-| **From *qaboard.yaml*** (crown icon) | Everyone | The project's *qaboard.yaml* lists branches, tags or commits under `project.milestones`. See [References & Milestones](../references-and-milestones.mdx#project-references). |
-| **Shared** (crown icon) | Everyone | The star in a commit bar, with **Shared** on. |
-| **Private** (star icon) | Only you, in this browser | The star in a commit bar, with **Shared** off. |
-
-To save a milestone, click the **star** next to the commit hash in the new or ref bar. Give it an optional **label** and **notes**, choose whether it's **Shared**, then **Save**:
+- A **name**: one is suggested, type over it to say why it matters.
+- A **group** (optional), like `releases` or `tuning/denoiser`: milestones are listed by group, `/` makes subgroups. The groups you already use are suggested.
+- **Notes** (optional): what changed, what to look at.
+- **Who sees it in their lists**: *Only me*, or *Everyone on the project*.
 
 <Shot
   id="commit/milestone"
-  caption="A shared milestone for a release: its label and notes tell everyone why it's worth comparing with."
+  caption="Saving the results of a commit: the dialog says what it saves, then asks for a name, a group and who sees it."
 />
 
-- A milestone remembers the commit, the selected **batch** and **filter**.
-- Click the star again to edit or **Delete** it. You can only edit or delete shared milestones that you created, and you need to be logged in.
-- Pick milestones from the **Change** menu of the commit bars, or from the **Milestones** menu of the project's sidebar. With many milestones, filter them by label, branch or owner, and sort them by date.
-- Milestone commits show a star in the commit list, and milestone batches a `⭐` in the batch selector.
+You need to be logged in: milestones are saved in your account, so they follow you on every computer. When the results you look at are a milestone, the star is filled (a crown for shared milestones) and the milestone's name shows next to it: click either to edit it, copy its link, add it to your favorites or delete it. Only its owner can edit a milestone; others can **Save my own** copy.
+
+### Finding milestones
+Pick milestones from the **Change** menu of the commit bars (to compare with them), or from the sidebar's **Milestones** menu (to open them). Both list:
+
+1. Your **favorites**: click the heart of a milestone, or of a group to keep all its milestones first, even those saved later. The sidebar also lists them, one click away.
+2. **My milestones**, by group. Click a group to collapse it: it stays collapsed.
+3. The milestones **shared with the project**, with who saved them.
+4. The references listed in *qaboard.yaml* (see [References & Milestones](../references-and-milestones.mdx#project-references)).
+
+The search box matches everything a milestone says: name, group, notes, branch, batch, filter, commit, owner. <kbd>Enter</kbd> picks the first result. Hover a milestone to add it to your favorites, copy its link or edit it.
+
+It also matches what the milestone's runs used, recorded when it was saved: their **datasets** (the databases of their inputs), the **qa batches** they ran in, and their platforms. Type `dataset:indoor`, `qa-batch:nightly` or `platform:arm` to search only those; plain words search them too. When a milestone is listed only because of its runs, it says why, e.g. *dataset: indoor/2024*. The save dialog shows them before you save.
+
+<Shot
+  id="commits/milestones-menu"
+  caption="Your favorites first, then your milestones by group, then the project's."
+/>
+
+- Milestone commits show a star in the commit list (hover it for their names), and milestone batches a star in the batch selector.
+- A commit can have several milestones, e.g. one per filter.
+
+### Managing milestones
+**Manage milestones…**, at the bottom of the milestones menus, opens all the project's milestones in a table, with their notes and what their runs used (how many, their datasets and qa batches). Sort them by last update (the default), creation date, name or group, search them, show only yours, the shared ones or your favorites, and pick a **dataset** or qa batch to see only the milestones whose runs used it. From each row: **Open** it, use it **As reference** (on a commit page), add it to your favorites, copy its link, or edit it.
+
+Select several milestones to move them to a group, share them, make them personal or delete them at once (only yours: others' milestones are skipped). Select exactly two to **Compare** them: the most recent is the new results, swap them with the arrows, or copy the link to the comparison.
+
+### Links to milestones
+Each milestone has a link, like `https://qaboard/my/project/milestone/12-best-denoiser`: copy it from the menus or the milestone's dialog. It opens the milestone's results. Only the number matters, so renaming a milestone keeps its links working. Anyone who can see the project can open the link, even for milestones that are only listed for you.
+
+To share a comparison of two milestones, add the reference milestone with `?vs=`: `https://qaboard/my/project/milestone/12-best-denoiser?vs=14-release-1-0`. Copy it from **Manage milestones…** (select the two milestones), or from the link button next to the reference's milestone when the new and reference results are both milestones.
+
+If a link's milestone was deleted, the page says which one it was, and offers to open the other milestone of a comparison. If only the reference milestone of a comparison was deleted, the new milestone opens, compared with the project's default reference, and a message says so.
 
 :::note
-Private milestones are stored in your browser: they don't follow you to another computer or browser.
+Before October 2026, "private" milestones were saved in your browser. Log in once with that browser: they move to your account, as milestones listed only for you.
 :::
 
 ## Image viewers

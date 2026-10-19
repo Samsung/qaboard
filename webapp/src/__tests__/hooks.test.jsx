@@ -76,13 +76,16 @@ describe('useCommit', () => {
 
 
 test('preferences are updated immutably', () => {
-  const { setMilestone, deleteMilestone, toggleFavorite } = usePrefsStore.getState();
+  const { forgetLegacyMilestones, toggleMilestoneGroup, toggleFavorite } = usePrefsStore.getState();
+  usePrefsStore.setState({ milestones: { p: { k: { label: 'v1' } }, q: { k: { label: 'v2' } } } });
   const before = usePrefsStore.getState().milestones;
-  setMilestone('p', 'k', { label: 'v1' });
-  expect(usePrefsStore.getState().milestones.p.k.label).toBe('v1');
+  forgetLegacyMilestones(['p']);
+  expect(usePrefsStore.getState().milestones).toEqual({ q: { k: { label: 'v2' } } });
   expect(before).not.toBe(usePrefsStore.getState().milestones);
-  deleteMilestone('p', 'k');
-  expect(usePrefsStore.getState().milestones.p).toEqual({});
+  toggleMilestoneGroup('mine/tuning');
+  expect(usePrefsStore.getState().milestoneGroupsCollapsed).toEqual({ 'mine/tuning': true });
+  toggleMilestoneGroup('mine/tuning');
+  expect(usePrefsStore.getState().milestoneGroupsCollapsed).toEqual({});
   toggleFavorite('p');
   expect(usePrefsStore.getState().favorites.p).toBe(true);
 });
@@ -91,10 +94,10 @@ test('preferences are updated immutably', () => {
 test("useProjectData merges /api/v1/project, which answers with the project's data", async () => {
   const queryClient = makeQueryClient();
   queryClient.setQueryData(['projects'], { p: { id: 'p', data: { git: { path_with_namespace: 'p' } } } });
-  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ git: { path_with_namespace: 'p' }, milestones: { k: { label: 'shared' } }, qatools_config: { project: { reference_branch: 'main' } } }))));
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ git: { path_with_namespace: 'p' }, qatools_config: { project: { reference_branch: 'main' } } }))));
   const wrapper = ({ children }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
   const { result } = renderHook(() => useProjectData('p'), { wrapper });
-  await waitFor(() => expect(result.current.data.milestones).toEqual({ k: { label: 'shared' } }));
+  await waitFor(() => expect(result.current.data.qatools_config.project.reference_branch).toBe('main'));
   expect(result.current.data.git.path_with_namespace).toBe('p');
   expect(result.current.data.qatools_config.project.reference_branch).toBe('main');
   vi.unstubAllGlobals();

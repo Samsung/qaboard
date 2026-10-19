@@ -10,5 +10,7 @@ export const route_paths = {
   dashboard: "/:project_id+/dashboard",
   history_branch: "/:project_id+/history/:name+",
   history: "/:project_id+/history",
+  // links to milestones: /<project>/milestone/<id>-<label>
+  milestone: "/:project_id+/milestone/:name+",
   project: "/:project_id+",
 };

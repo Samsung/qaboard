@@ -162,7 +162,7 @@ class FakeBatch:
   def __init__(self, project_id, label="default"):
     self.label = label
     self.ci_commit = SimpleNamespace(project_id=project_id, hexsha="abc", batches=[self], get_or_create_batch=MagicMock())
-    self.ci_commit.project = SimpleNamespace(milestone_commits=[])
+    self.ci_commit.project = SimpleNamespace(protected_ref_commits=[], milestones_on=lambda hexsha=None: [])
     self.outputs = []
     self.changed = []
 
@@ -288,7 +288,7 @@ def test_commit_batches_delete_checks_the_commit_project(commit_webhooks, restri
     query = query.filter.return_value
   for project, expected_status in [("group/B", 403), ("group/A", 200)]:
     batch = FakeBatch(project)
-    query.yield_per.return_value = [batch.ci_commit]
+    query.all.return_value = [batch.ci_commit]
     url = f"/api/v1/commit/{project}/abc/batches/" if project_in_url else "/api/v1/commit/abc/batches/"
     with dummy_app.test_request_context(f"{url}?project=group/A", method="DELETE"):
       response = handler("abc", project_id=project if project_in_url else None)
@@ -401,8 +401,6 @@ UNAUTHENTICATED_ENDPOINTS = {
   ("tuning.py", "groups"),
   # authenticated with the git host's webhook secret (QABOARD_WEBHOOK_SECRET by default)
   ("webhooks.py", "gitlab_webhook"), ("webhooks.py", "github_webhook"), ("webhooks.py", "gitea_webhook"), ("webhooks.py", "bitbucket_webhook"),
-  # TODO: require a login, check the web app first
-  ("milestones.py", "crud_milestones"),
 }
 
 def test_endpoints_that_change_things_require_login():

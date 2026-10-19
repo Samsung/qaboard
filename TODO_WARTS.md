@@ -104,7 +104,6 @@ Found while surveying the code base (October 2026), after the cleanups that chan
   registers its own loaders per connection, so only raw psycopg2 connections would see it. Delete both lines. [S, no change]
 - **`find_rois` ignores `threshold` and `diameter`** (api/image_diff.py:103): the request still sends them. Remove them from the API or implement them. [S, API]
 - **Time zones**: `datetime.now()` (api/tuning.py:406) vs `utcnow()` elsewhere for `latest_output_datetime`; `utcnow()` is deprecated. [S, behaviour]
-- `delete` of a milestone with an unknown key is a `KeyError` (500) (api/milestones.py:50); a body-less `GET` is a 400. [S, API]
 - `clean_big_files.py` deletes every file > 1GB of the last 6 months' outputs **on import** and writes to a hardcoded home directory:
   move it to `scripts/` behind a `__main__` guard, or delete it. Same for `backend/restore_artifacts.py`. [S, no change]
 
@@ -209,7 +208,7 @@ projects list. What's left:
 - Clones made before this change still have the token in their remote URL (`.git/config`): strip it with
   `git remote set-url origin <url without credentials>` once, e.g. in a one-off script over `QABOARD_DATA_GIT_DIR`. [S]
 - Header authentication needs git ≥ 2.31 on the backend image (fine for the current images, check custom ones). [S]
-- `milestone_commits` (models/Project.py:105) runs git commands on every access, and is used in loops (clean.py, webhooks). [M]
+- `protected_ref_commits` (models/Project.py) runs git commands on every access, and is used in loops (clean.py, webhooks). [M]
 - Gitea's avatar URL, the Bitbucket signature header and the Gitea/Bitbucket payload fields were written from their docs and tested on
   sample payloads only: check them against real servers. [S]
 - Project ids and clones are not qualified by host: two hosts with the same `group/repo` share a project. Tokens are shared by all

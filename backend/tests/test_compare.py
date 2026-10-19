@@ -147,6 +147,7 @@ def compare_api(monkeypatch):
   spec = importlib.util.spec_from_file_location("backend.api._compare_under_test", path)
   module = importlib.util.module_from_spec(spec)
   spec.loader.exec_module(module)
+  module.milestones_of = lambda project_id, milestone_id=None: []
   return module
 
 
@@ -233,15 +234,25 @@ def test_missing_batch(compare_api, dummy_app):
 
 
 def test_milestone_reference(compare_api, dummy_app):
-  milestones = {
-    f'p/{REF_HEXSHA}/default': {'label': 'v2.4.0', 'commit': REF_HEXSHA, 'batch': 'default', 'date': '2026-09-01T10:00:00Z'},
-    'p/0000000/default': {'label': 'v2.3.0', 'commit': '0000000', 'batch': 'default', 'date': '2026-08-01T10:00:00Z'},
-  }
-  project = SimpleNamespace(id='p', data={'milestones': milestones})
-  new = make_commit(HEXSHA, {'default': fixture_outputs('new')}, project=project)
+  milestones = [
+    SimpleNamespace(id=12, label='v2.4.0', commit_hexsha=REF_HEXSHA, commit_project_id=None, batch='default', filter='', data={}),
+    SimpleNamespace(id=11, label='v2.3.0', commit_hexsha='0000000', commit_project_id=None, batch='default', filter='', data={}),
+    SimpleNamespace(id=10, label='', commit_hexsha=REF_HEXSHA, commit_project_id=None, batch='nightly', filter='indoor', data={'legacy_key': f'p/{REF_HEXSHA}/nightly'}),
+  ]
+  compare_api.milestones_of = lambda project_id, milestone_id=None: [m for m in milestones if milestone_id in (None, m.id)]
+  new = make_commit(HEXSHA, {'default': fixture_outputs('new')})
   ref = make_commit(REF_HEXSHA, {'default': fixture_outputs('ref')}, id=2)
   data = call(compare_api, dummy_app, {HEXSHA: new, REF_HEXSHA: ref}, 'project=p&reference=v2.4.0').get_json()
   assert (data['reference']['type'], data['reference']['milestone'], data['reference']['id']) == ('milestone', 'v2.4.0', REF_HEXSHA)
+  # from its link: /p/milestone/12-v2-4-0
+  data = call(compare_api, dummy_app, {HEXSHA: new, REF_HEXSHA: ref}, 'project=p&reference=%2312').get_json()
+  assert (data['reference']['type'], data['reference']['id']) == ('milestone', REF_HEXSHA)
+  # keys from before October 2026 still work, and we compare with the milestone's batch
+  ref_nightly = make_commit(REF_HEXSHA, {'nightly': fixture_outputs('ref')}, id=2)
+  data = call(compare_api, dummy_app, {HEXSHA: new, REF_HEXSHA: ref_nightly}, f'project=p&reference=p/{REF_HEXSHA}/nightly').get_json()
+  assert (data['reference']['type'], data['reference']['batch']) == ('milestone', 'nightly')
+  assert any('filter of the milestone' in m for m in data['messages'])
+  assert data['status'] != 'missing'
   data = call(compare_api, dummy_app, {HEXSHA: new, REF_HEXSHA: ref}, 'project=p&reference=v2.3.0').get_json()
   assert (data['status'], data['reference']['id']) == ('missing', None)
   assert data['messages'] == ['The commit of the milestone "v2.3.0" has no results.']
