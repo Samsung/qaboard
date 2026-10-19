@@ -7,6 +7,9 @@ task's `replies`).
 Decoding is greedy (temperature 0) with a fixed seed and thread count, on a pinned llama.cpp build: on the same kind of
 CPU, the same inputs give the same transcript.
 
+The beginning of the conversation is the same for every task of a prompt (system prompt, tools, example
+conversations): its KV cache is computed once and kept on the disk, like a provider's prompt cache (Model.prefill).
+
 A conversation is memoized by everything it depends on (the model file, the llama.cpp build, the prompt, the tools,
 the flags, the task, this code): computing it again would give the same transcript, so a commit that doesn't change
 them reuses it, with its measured times. Cached in ~/.cache/kitefin/fleet-assistant/runs (or $FLEET_ASSISTANT_CACHE).
@@ -93,7 +96,7 @@ def system_prompt(prompt: dict, tool_schemas: list) -> str:
 
 # ------------------------------------------------------------------------------------------------ the chat format
 
-def chatml(messages: list) -> str:
+def chatml(messages: list, generation_prompt=True) -> str:
     """Both models use ChatML. Tool results go in a user turn, in <tool_response> tags, like Qwen2.5's template."""
     parts = []
     for m in messages:
@@ -101,16 +104,53 @@ def chatml(messages: list) -> str:
             parts.append(f"<|im_start|>user\n<tool_response>\n{m['content']}\n</tool_response><|im_end|>\n")
         else:
             parts.append(f"<|im_start|>{m['role']}\n{m['content']}<|im_end|>\n")
-    return ''.join(parts) + '<|im_start|>assistant\n'
+    return ''.join(parts) + ('<|im_start|>assistant\n' if generation_prompt else '')
 
 
 class Model:
-    """A GGUF model in llama.cpp. Loaded once per run; llama-cpp-python keeps the common prefix of prompts in its cache."""
+    """
+    A GGUF model in llama.cpp, loaded once per run. llama-cpp-python keeps the evaluated prompt in its KV cache, and
+    the next turn only evaluates what comes after their common prefix.
+    """
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, sha256: str):
         from llama_cpp import Llama
         self.llm = Llama(model_path=str(path), n_ctx=CONTEXT, n_threads=THREADS, n_threads_batch=THREADS,
                          n_batch=512, seed=SEED, verbose=False)
+        self.sha256 = sha256
+
+    def prefill(self, prefix: str) -> float:
+        """
+        Evaluates the beginning every conversation of a prompt shares (system prompt, tools, examples: about 1,000
+        tokens), or loads its KV cache from the disk, like a provider's prompt cache. Every run does the same:
+        prefix first, then the rest, so a conversation is the same whether the cache was there or not.
+        Returns the seconds it took, which the turns' times don't count.
+        """
+        import ctypes
+        import llama_cpp
+        start = time.perf_counter()
+        tokens = self.llm.tokenize(prefix.encode(), special=True)
+        key = hashlib.sha256(json.dumps([self.sha256, llama_cpp_version(), THREADS, CONTEXT, tokens]).encode()).hexdigest()
+        path = cache_dir() / 'prefixes' / f'{key}.kv'
+        ctx = self.llm._ctx.ctx
+        self.llm.reset()
+        if path.exists():
+            # the KV cache of sequence 0 only (about 12 MB), not llama-cpp-python's whole state (logits included)
+            data = path.read_bytes()
+            if llama_cpp.llama_state_seq_set_data(ctx, (ctypes.c_uint8 * len(data)).from_buffer_copy(data), len(data), 0) != len(data):
+                raise RuntimeError(f'could not load the KV cache {path}')
+            self.llm.input_ids[:len(tokens)] = tokens
+            self.llm.n_tokens = len(tokens)
+        else:
+            self.llm.eval(tokens)
+            size = llama_cpp.llama_state_seq_get_size(ctx, 0)
+            buffer = (ctypes.c_uint8 * size)()
+            llama_cpp.llama_state_seq_get_data(ctx, buffer, size, 0)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_name(f'{path.name}.{os.getpid()}.tmp')
+            tmp.write_bytes(bytes(buffer))
+            tmp.replace(path)
+        return time.perf_counter() - start
 
     def complete(self, prompt: str, grammar: str) -> dict:
         from llama_cpp import LlamaGrammar
@@ -167,6 +207,7 @@ def converse(model_loader, task: dict, fleet: dict, flags: dict, prompt: dict) -
     events = [{'kind': 'operator', 'text': task['request']}]
     replies = list(task.get('replies') or [])
     model = model_loader()
+    prefill_seconds = model.prefill(chatml(messages[:-1], generation_prompt=False))
     turns = 0
     confirmed = False   # the operator's last message said yes to the assistant's question
     while True:
@@ -196,7 +237,7 @@ def converse(model_loader, task: dict, fleet: dict, flags: dict, prompt: dict) -
         confirmed = bool(reply.get('confirms')) and '?' in turn['answer']
         events.append({'kind': 'operator', 'text': reply['text'], 'confirms': bool(reply.get('confirms'))})
         messages.append({'role': 'user', 'content': reply['text']})
-    return {'events': events, 'messages': messages, 'fleet_after': fleet}
+    return {'events': events, 'messages': messages, 'fleet_after': fleet, 'prefill_seconds': prefill_seconds}
 
 
 def memo_key(model: dict, task: dict, fleet: dict, flags: dict, prompt: dict) -> str:
@@ -224,12 +265,13 @@ def run(model: dict, task: dict, fleet: dict, flags: dict, prompt: dict, log=pri
     def loader():
         if 'model' not in loaded:
             start = time.perf_counter()
-            loaded['model'] = Model(model['path'])
+            loaded['model'] = Model(model['path'], model['sha256'])
             loaded['load_seconds'] = time.perf_counter() - start
         return loaded['model']
 
     result = converse(loader, task, fleet, flags, prompt)
-    result = {'key': key, 'events': result['events'], 'load_seconds': loaded.get('load_seconds')}
+    result = {'key': key, 'events': result['events'], 'load_seconds': loaded.get('load_seconds'),
+              'prefill_seconds': result['prefill_seconds']}
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + '.tmp')
     tmp.write_text(json.dumps(result, indent=1))

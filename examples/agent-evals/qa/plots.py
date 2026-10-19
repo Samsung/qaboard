@@ -63,9 +63,9 @@ def tool_calls(path, events, title):
     turns = max((p[0] for p in points), default=1)
     layout = {
         'title': {'text': title, 'x': 0.01, 'xanchor': 'left', 'font': {'size': 14}},
-        'margin': {'l': 150, 'r': 20, 't': 50, 'b': 50}, 'height': 340,
+        'margin': {'l': 150, 'r': 20, 't': 50, 'b': 70}, 'height': 360,
         'xaxis': {'title': {'text': 'Turn'}, 'dtick': 1, 'range': [0.5, max(turns, 3) + 0.5], 'zeroline': False},
         'yaxis': {'type': 'category', 'categoryorder': 'array', 'categoryarray': rows[::-1]},
-        'legend': {'orientation': 'h', 'y': -0.25},
+        'legend': {'orientation': 'h', 'y': -0.3},
     }
     path.write_text(json.dumps({'data': data, 'layout': layout}, separators=(',', ':')))

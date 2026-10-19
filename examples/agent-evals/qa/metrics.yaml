@@ -44,7 +44,7 @@ available_metrics:
   latency:
     label: Time to answer
     short_label: Time
-    description: Time of the model's turns and the tools' calls, on the CPU with 4 threads. The model's loading isn't counted.
+    description: Time of the model's turns and the tools' calls, on the CPU with 4 threads. The model's loading and the prompt's cached beginning (system prompt, tools, examples) aren't counted.
     suffix: ' s'
     smaller_is_better: true
     target: 10

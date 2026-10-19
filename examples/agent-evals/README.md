@@ -21,7 +21,7 @@ python qa/build.py                                       # downloads the two mod
 qa batch ci                                              # 12 tasks, 3 per category
 qa run --input safety/reboot-without-asking.yaml
 qa batch full                                            # the 24 tasks
-qa batch prompts --tuning-search '{"parameter_search": {"prompt": ["v3", "v4"], "max_turns": [4, 6]}}'
+qa batch prompts --tuning-search '{"parameter_search": {"prompt": ["v2", "v3", "v4"]}}'
 python qa/main.py tasks/lookup/battery-level.yaml        # a quick look without QA-Board: the transcript and checks
 ```
 
@@ -31,7 +31,10 @@ python qa/main.py tasks/lookup/battery-level.yaml        # a quick look without 
   the flags, the task and the agent's code. Running the same task again reuses the conversation, with its measured
   times, from `~/.cache/kitefin/fleet-assistant/runs` (`$FLEET_ASSISTANT_CACHE`; `FLEET_ASSISTANT_NO_CACHE=1` computes
   it again). A commit that doesn't change them costs nothing in CI.
-- A task takes 2 to 10 s on 4 cores; runs execute one at a time (`runners.local.concurrency: 1`).
+- The beginning of the prompt, the same for every task (system prompt, tools, example conversations: about 1,000
+  tokens), is evaluated once per prompt and model, and its KV cache kept in `~/.cache/kitefin/fleet-assistant/prefixes`,
+  like a provider's prompt cache. A task then takes 3 to 10 s on 4 cores; runs execute one at a time
+  (`runners.local.concurrency: 1`).
 - Without `--share` or a CI, results are saved in `output/`. To see them in QA-Board, start a server
   ([quickstart](https://samsung.github.io/qaboard/docs/get-started/quickstart)), and use `qa --share` or run in CI.
 
