@@ -150,6 +150,13 @@ class TestGateRules(unittest.TestCase):
     comparison['metrics']['psnr']['declared'] = False
     with self.assertRaises(g.GateConfigError):
       evaluate([{'metric': 'psnr', 'max_regression': '1%'}], comparison)
+    # declared without a direction, in the metrics file or in code
+    with self.assertRaises(g.GateConfigError):
+      evaluate([{'metric': 'psnr', 'max_regression': '1%'}], local_metrics={'psnr': {'smaller_is_better': None}})
+    comparison = fixture_comparison()
+    comparison['metrics']['psnr']['smaller_is_better'] = None
+    with self.assertRaises(g.GateConfigError):
+      evaluate([{'metric': 'psnr', 'max_regression': '1%'}], comparison)
     # absolute bounds don't need to know which way is better
     evaluation = evaluate([{'metric': 'psnr', 'min': 30}, {'metric': 'psnr', 'max': 30.4}], comparison)
     self.assertEqual(self.checks(evaluation), [('min', 'psnr', 'pass'), ('max', 'psnr', 'fail')])

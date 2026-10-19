@@ -10,6 +10,7 @@ from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
 from ..storage import check_storage_path, UnsafePathError
 from ..redo import redo_response
+from ..metrics_definitions import save_metrics_definitions
 from .auth import login_required, is_authorized_user
 
 
@@ -233,6 +234,13 @@ def new_output_webhook():
   db_session.add(ci_commit)
   db_session.add(output)
   db_session.commit()
+  # The metrics the run's code declared, e.g. qaboard.Metric(12.3, suffix="ms")
+  if data.get('metrics_definitions'):
+    try:
+      save_metrics_definitions(db_session, ci_commit, data)
+    except Exception as e:
+      db_session.rollback()
+      print(f"WARNING: could not save the metrics definitions of a run of {hexsha}: {e}")
   return jsonify(output.to_dict())
 
 

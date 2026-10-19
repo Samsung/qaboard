@@ -13,6 +13,7 @@ import { usePrefsStore } from "./stores/prefs";
 import { useSelected, updateSelected } from "./selection";
 import { available_batch, compute_batches, compute_config } from "./selectors/batches";
 import { default_project } from "./defaults";
+import { with_undeclared_metrics } from "./utils";
 
 export { useSelected, updateSelected };
 
@@ -112,12 +113,13 @@ export function useRefreshCommit() {
 // The metrics the commits endpoint aggregates per batch (median, average), with their targets:
 // History's (dashboard_metrics), else the default and main metrics, which the commit list and the branch's chart show.
 // Metrics without a target need one: JSON leaves out undefined values, and the server would not aggregate them.
+// They don't need to be declared.
 export const aggregation_metrics = (qatools_metrics, { dashboard = false } = {}) => {
   const { available_metrics = {}, default_metric, main_metrics = [], dashboard_metrics } = qatools_metrics ?? {};
   const keys = dashboard ? (dashboard_metrics ?? main_metrics) : [default_metric, ...main_metrics];
   return Object.fromEntries(keys
-    .filter(m => available_metrics[m] !== undefined)
-    .map(m => [m, available_metrics[m].target ?? 0]));
+    .filter(m => !!m)
+    .map(m => [m, available_metrics[m]?.target ?? 0]));
 };
 
 const has_batches = c => Object.keys(c.batches ?? {}).length > 0;
@@ -283,9 +285,16 @@ function useComparisonState() {
     [selected.selected_views, default_views],
   );
 
+  // All the metrics of the runs, declared or not
+  const used_metrics = batches.new_batch.used_metrics;
+  const metrics = useMemo(
+    () => ({ ...config.metrics, available_metrics: with_undeclared_metrics(config.metrics.available_metrics, used_metrics) }),
+    [config.metrics, used_metrics],
+  );
+
   return useMemo(
-    () => ({ selected, project, project_data, list: searched_list, unsearched_list: default_list, new_commit, ref_commit, ...batches, ...config, selected_views, default_views }),
-    [selected, project, project_data, searched_list, default_list, new_commit, ref_commit, batches, config, selected_views, default_views],
+    () => ({ selected, project, project_data, list: searched_list, unsearched_list: default_list, new_commit, ref_commit, ...batches, ...config, metrics, selected_views, default_views }),
+    [selected, project, project_data, searched_list, default_list, new_commit, ref_commit, batches, config, metrics, selected_views, default_views],
   );
 }
 

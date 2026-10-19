@@ -49,9 +49,11 @@ const has_key = (params, key) => {
   return true;
 };
 
-// The share of runs that meet the metric's target, null without a target
+// The share of runs that meet the metric's target, null without a target, or when we don't know which way is better
 export const pass_rate = (values, metric) => {
   if (metric.target === undefined || metric.target === null || values.length === 0)
+    return null;
+  if (metric.smaller_is_better === null || metric.smaller_is_better === undefined)
     return null;
   const passed = metric.smaller_is_better ? values.filter(x => x <= metric.target) : values.filter(x => x >= metric.target);
   return passed.length / values.length;
@@ -82,4 +84,30 @@ export const diff_cell = (metric_new, metric_ref) => {
     delta,
     delta_relative: delta / (Math.abs(metric_ref) + 0.00001),
   };
+};
+
+
+// Not worth summarizing by default: it changes a lot between runs and says little about the results
+const not_summarized_by_default = new Set(['compute_time']);
+
+// The metrics the Summary shows when projects don't choose: those that changed the most vs the reference
+// (the relative change of their median), else the first ones. `keys` are in the order to show them by default.
+// Only for the web app.
+export const changed_metrics = (outputs_new, outputs_ref, keys, max = 8) => {
+  const change = key => {
+    const new_values = metric_values(outputs_new, key);
+    if (new_values.length === 0) return null;
+    const ref_values = metric_values(outputs_ref, key);
+    if (ref_values.length === 0) return -1;
+    const { delta, delta_relative } = summary_stats(new_values, ref_values, {});
+    if (delta === 0) return 0;
+    return Number.isFinite(delta_relative) ? Math.abs(delta_relative) : Infinity;
+  };
+  return keys
+    .filter(key => !not_summarized_by_default.has(key))
+    .map((key, index) => ({ key, index, change: change(key) }))
+    .filter(({ change }) => change !== null)
+    .sort((a, b) => b.change - a.change || a.index - b.index)
+    .slice(0, max)
+    .map(({ key }) => key);
 };

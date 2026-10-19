@@ -5,10 +5,10 @@
  */
 import { render, screen, within } from '@testing-library/react';
 
-import { metrics_fill_defaults } from '../../utils';
+import { metrics_fill_defaults, metric_info, with_undeclared_metrics } from '../../utils';
 import { normalize_commit } from '../../api/normalize';
 import { compute_batches } from '../../selectors/batches';
-import { summary_outputs, metric_values, summary_stats, diff_cell, mixed_parameters } from '../compare';
+import { summary_outputs, metric_values, summary_stats, diff_cell, mixed_parameters, pass_rate, changed_metrics } from '../compare';
 import { TableCompare } from '../../components/tables';
 import fixture from '../../../../tests/fixtures/metrics-compare.json';
 
@@ -120,5 +120,41 @@ describe('mixed_parameters', () => {
       { params: { model: 'int8', nms: { iou: 0.7 }, seed: 1, extra: true } },
     ];
     expect(mixed_parameters(runs).sort()).toEqual(['extra', 'model', 'nms.iou']);
+  });
+});
+
+
+describe('metrics that were not declared', () => {
+  it('have neutral definitions', () => {
+    const available_metrics = metrics_fill_defaults({ psnr: { smaller_is_better: false }, frames: { smaller_is_better: null } });
+    expect(metric_info(available_metrics, 'psnr')).toBe(available_metrics.psnr);
+    expect(available_metrics.frames.smaller_is_better).toBeNull();
+    const latency = metric_info(available_metrics, 'latency');
+    expect(latency).toMatchObject({ key: 'latency', label: 'latency', scale: 1, suffix: '', smaller_is_better: null, declared: false });
+    // the same object: memoized components don't re-render
+    expect(metric_info({}, 'latency')).toBe(latency);
+  });
+
+  it('come after the declared metrics', () => {
+    const available_metrics = metrics_fill_defaults({ psnr: {} });
+    const all = with_undeclared_metrics(available_metrics, new Set(['zoom', 'psnr', 'is_failed', 'alpha']));
+    expect(Object.keys(all)).toEqual(['psnr', 'alpha', 'zoom']);
+    expect(with_undeclared_metrics(available_metrics, new Set(['psnr']))).toBe(available_metrics);
+  });
+
+  it('have no pass rate: we don\'t know which way is better', () => {
+    expect(pass_rate([1, 2], { target: 1.5, smaller_is_better: null })).toBeNull();
+    expect(pass_rate([1, 2], { target: 1.5, smaller_is_better: true })).toBe(0.5);
+  });
+
+  it('are summarized by how much they changed vs the reference', () => {
+    const outputs = values => values.map(metrics => ({ metrics }));
+    const outputs_new = outputs([{ a: 1, b: 10, c: 5, d: 'x', compute_time: 9 }, { a: 1, b: 12, c: 5 }]);
+    const outputs_ref = outputs([{ a: 2, b: 10, c: 5, compute_time: 1 }]);
+    // a: -50%, b: +10%, c: 0%, d is not a number, e has no reference, compute_time changes too much to be informative
+    expect(changed_metrics(outputs_new, outputs_ref, ['c', 'e', 'b', 'a', 'd', 'compute_time'])).toEqual(['a', 'b', 'c']);
+    expect(changed_metrics(outputs([{ e: 1 }]), outputs_ref, ['c', 'e', 'b', 'a'])).toEqual(['e']);
+    // without reference, in the order we're given
+    expect(changed_metrics(outputs_new, [], ['c', 'b', 'a'], 2)).toEqual(['c', 'b']);
   });
 });

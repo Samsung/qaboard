@@ -22,6 +22,7 @@ import { TableCompare, TableKpi } from "./components/tables";
 import { useCommitsList, useComparison, updateSelected } from "./hooks";
 import { empty_batch } from "./defaults";
 import { errorMessage } from "./api/http";
+import { metric_info, with_undeclared_metrics } from "./utils";
 
 
 // Like the views of the commit pages: the title on a row above the card
@@ -57,21 +58,25 @@ const Dashboard = () => {
     document.title = `History - ${name}`;
   }, [project]);
 
-  // On branches, the metrics configuration comes from the latest commit
-  const metrics = qatools_metrics ?? {};
-  const { available_metrics = {}, main_metrics, dashboard_metrics, dashboard_evolution_metrics, dashboard_breakdown_by_tag } = metrics;
-  const evolution_metrics = dashboard_evolution_metrics || main_metrics || [];
-
-  // null: the project's default metrics
-  const [user_selected_metrics, setSelectedMetrics] = useState(null);
-  const selected_metrics_keys = user_selected_metrics ?? (dashboard_metrics || main_metrics || []).filter(k => !!available_metrics[k]);
-  const selected_metrics = selected_metrics_keys.map(k => available_metrics[k]).filter(Boolean);
-  const [selected_tab, setSelectedTab] = useState(undefined);
-
-  const used_metrics = useMemo(
-    () => Object.values(available_metrics).filter(m => new_batch.used_metrics.has(m.key)),
-    [available_metrics, new_batch.used_metrics],
+  // On branches, the metrics configuration comes from the latest commit. All the metrics of the runs are shown, declared or not.
+  const used_metrics = new_batch.used_metrics;
+  const metrics = useMemo(
+    () => ({ ...qatools_metrics, available_metrics: with_undeclared_metrics(qatools_metrics?.available_metrics, used_metrics) }),
+    [qatools_metrics, used_metrics],
   );
+  const { available_metrics, main_metrics, dashboard_metrics, dashboard_evolution_metrics, dashboard_breakdown_by_tag } = metrics;
+  // without configuration, those of the runs
+  const evolution_metrics = useMemo(
+    () => dashboard_evolution_metrics || (main_metrics?.length ? main_metrics : Object.keys(available_metrics).filter(k => used_metrics.has(k))),
+    [dashboard_evolution_metrics, main_metrics, available_metrics, used_metrics],
+  );
+
+  // null: the project's default metrics, else the summary chooses
+  const [user_selected_metrics, setSelectedMetrics] = useState(null);
+  const configured_metrics = dashboard_metrics || main_metrics || [];
+  const selected_metrics_keys = user_selected_metrics ?? configured_metrics;
+  const selected_metrics = (user_selected_metrics || configured_metrics.length > 0) ? selected_metrics_keys.map(k => metric_info(available_metrics, k)) : undefined;
+  const [selected_tab, setSelectedTab] = useState(undefined);
 
   if (!!error && commits.length === 0) return <Container style={{paddingTop: '50px'}}>
     <NonIdealState
@@ -221,7 +226,7 @@ const Dashboard = () => {
             >
               <option value="test_input_path">Sort by Name</option>
               <option value="id">Sort by ID</option>
-              {used_metrics.map(m => (
+              {Object.values(available_metrics).filter(m => used_metrics.has(m.key)).map(m => (
                 <option key={m.key} value={m.key}>
                   Sort by {m.label}
                 </option>

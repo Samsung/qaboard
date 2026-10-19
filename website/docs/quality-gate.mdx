@@ -61,9 +61,10 @@ Each rule names a metric, and one or more limits:
 | `min: 0.42` | The median is under 0.42. |
 | `max: 12` | The median is over 12. |
 
-- **Worse** comes from your metrics' definitions (`outputs.metrics` in *qaboard.yaml*, see
-  [Metrics](/docs/computing-quantitative-metrics)): with `smaller_is_better: false`, a smaller value is worse. Like in
-  the web app, metrics are "smaller is better" by default. Regression rules need the metric to be declared there.
+- **Worse** comes from your metrics' definitions, in your code or your metrics file (see
+  [Declaring metrics](/docs/computing-quantitative-metrics#declaring-metrics)): with `smaller_is_better: false`, a
+  smaller value is worse. Regression rules need to know which way is better: they fail with an error for metrics that
+  were not declared, or that don't say. `min` and `max` work with any metric.
 - Give regressions as percentages (`5%`) or fractions (`0.05`), relative to the magnitude of the reference's value.
 - Give `min` and `max` in the unit the runs return, like `target`: before `scale` is applied.
 - Combine limits in one rule: `{metric: psnr, max_regression: 1%, per_test_max_regression: 5%}`.

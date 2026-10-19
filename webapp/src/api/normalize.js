@@ -1,20 +1,26 @@
 // Turn API responses into what the app works with. Applied once, when the data is fetched:
 // components and hooks never modify server data afterwards.
-import { metrics_fill_defaults } from "../utils";
+import { metrics_fill_defaults, merge_metrics_definitions } from "../utils";
 import { default_project } from "../defaults";
 
 
-export const normalize_metrics = qatools_metrics => {
-  if (!qatools_metrics) return qatools_metrics;
-  const available_metrics = metrics_fill_defaults(qatools_metrics.available_metrics);
+// The metrics file's definitions, with those declared in code (`definitions`). main_metrics can list metrics
+// that were not declared: components show them with neutral definitions (metric_info in utils.js).
+export const normalize_metrics = (qatools_metrics, definitions) => {
+  const merged = merge_metrics_definitions(qatools_metrics, definitions);
+  if (!merged) return merged;
   return {
-    ...qatools_metrics,
-    available_metrics,
-    main_metrics: (qatools_metrics.main_metrics ?? []).filter(m => !!available_metrics[m]),
+    ...merged,
+    available_metrics: metrics_fill_defaults(merged.available_metrics),
+    // dotted keys hide definitions, e.g. YAML anchors
+    main_metrics: (merged.main_metrics ?? []).filter(m => !m.startsWith('.')),
   };
 };
 
-const normalize_data = data => data?.qatools_metrics ? { ...data, qatools_metrics: normalize_metrics(data.qatools_metrics) } : data;
+// Commits and projects keep the metrics declared in code next to the metrics file's, see backend/backend/metrics_definitions.py
+const normalize_data = data => (data?.qatools_metrics || data?.metrics_definitions)
+  ? { ...data, qatools_metrics: normalize_metrics(data.qatools_metrics, data.metrics_definitions) }
+  : data;
 
 
 // Projects without a qaboard.yaml come with data: null
@@ -51,14 +57,15 @@ export const normalize_output = output => {
   };
 };
 
-const normalize_batch = batch => ({
+// Batches can have their own metrics file (e.g. changed locally, with `qa --share`): we add the commit's metrics declared in code
+const normalize_batch = (batch, definitions) => ({
   ...batch,
-  data: normalize_data(batch.data),
+  data: batch.data?.qatools_metrics ? { ...batch.data, qatools_metrics: normalize_metrics(batch.data.qatools_metrics, definitions) } : batch.data,
   outputs: Object.fromEntries(Object.entries(batch.outputs ?? {}).map(([id, o]) => [id, normalize_output(o)])),
 });
 
 export const normalize_commit = commit => ({
   ...commit,
   data: normalize_data(commit.data),
-  batches: Object.fromEntries(Object.entries(commit.batches ?? {}).map(([label, b]) => [label, normalize_batch(b)])),
+  batches: Object.fromEntries(Object.entries(commit.batches ?? {}).map(([label, b]) => [label, normalize_batch(b, commit.data?.metrics_definitions)])),
 });

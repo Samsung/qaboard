@@ -97,9 +97,36 @@ test('matching with an index gives the same results', () => {
 test('compute_config prefers the batch, then the commit, then the project', () => {
   const project_data = { data: { qatools_config: { a: 'project' }, qatools_metrics: normalize_metrics({ available_metrics: { psnr: {} }, main_metrics: ['psnr', 'missing'] }) } };
   expect(compute_config({ project_data }).config).toEqual({ a: 'project' });
-  expect(compute_config({ project_data }).selected_metrics).toEqual(['psnr']);
+  // main metrics don't need to be declared
+  expect(compute_config({ project_data }).selected_metrics).toEqual(['psnr', 'missing']);
   expect(compute_config({ project_data, new_commit: { data: { qatools_config: { a: 'commit' } } } }).config).toEqual({ a: 'commit' });
   expect(compute_config({ project_data, new_batch: { data: { config: { a: 'batch' } } } }).config).toEqual({ a: 'batch' });
+});
+
+test('normalize_metrics merges the metrics declared in code', () => {
+  const metrics_file = { available_metrics: { psnr: { label: 'PSNR', smaller_is_better: false, target: 30 }, loss: {} }, main_metrics: ['psnr'] };
+  const metrics = normalize_metrics(metrics_file, { psnr: { suffix: ' dB' }, frames: { label: 'Frames', smaller_is_better: null } });
+  expect(metrics.available_metrics.psnr).toMatchObject({ label: 'PSNR', suffix: ' dB', smaller_is_better: false, target: 30, declared: true });
+  // metrics files leave out smaller_is_better when smaller is better, null says we don't know
+  expect(metrics.available_metrics.loss.smaller_is_better).toBe(true);
+  expect(metrics.available_metrics.frames).toMatchObject({ label: 'Frames', short_label: 'Frames', smaller_is_better: null });
+  // projects without a metrics file
+  expect(normalize_metrics(undefined, { frames: {} }).available_metrics.frames.label).toBe('frames');
+  expect(normalize_metrics(undefined, undefined)).toBeUndefined();
+});
+
+test('normalize_commit gives the metrics declared in code to the commit and the batches with their own metrics file', () => {
+  const commit = normalize_commit({
+    data: { qatools_metrics: { available_metrics: { psnr: {} } }, metrics_definitions: { frames: { smaller_is_better: null } } },
+    batches: {
+      default: { data: {}, outputs: {} },
+      local: { data: { qatools_metrics: { available_metrics: { loss: {} } } }, outputs: {} },
+    },
+  });
+  expect(Object.keys(commit.data.qatools_metrics.available_metrics)).toEqual(['psnr', 'frames']);
+  // without their own metrics file, batches use their commit's
+  expect(commit.batches.default.data.qatools_metrics).toBeUndefined();
+  expect(Object.keys(commit.batches.local.data.qatools_metrics.available_metrics)).toEqual(['loss', 'frames']);
 });
 
 test('normalize_metrics fills defaults and hides dotted metrics', () => {

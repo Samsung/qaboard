@@ -1,12 +1,15 @@
 # Completion and checks in your editor: https://samsung.github.io/qaboard/docs/project-init#checking-qaboardyaml-and-batch-files-in-your-editor
 # yaml-language-server: $schema=https://samsung.github.io/qaboard/metrics.schema.json
-# you must define metadata about all your objective figures of merits
+# Optional: QA-Board shows all the metrics your runs return.
+# To color improvements and regressions, it needs to know which way is better. Declare it where your code computes
+# the metrics, e.g. `return {"loss": qaboard.Metric(loss, smaller_is_better=True)}`, or here.
+# Docs: https://samsung.github.io/qaboard/docs/computing-quantitative-metrics
 available_metrics:
   # loss:
   #   label: My Loss Function  # defaults to the key
   #   short_label: Loss        # defaults to the label
   #   description: The was computed with.... # optional
-  #   smaller_is_better: true  # default
+  #   smaller_is_better: true  # default in this file. null: neither is better
   #   target: 0.01             # optional
   #   # used for display
   #   scale: 1.0               # default

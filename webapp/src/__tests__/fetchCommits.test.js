@@ -24,9 +24,10 @@ const commit = { id: 'c2534437', branch: 'main', authored_datetime: '2026-10-01T
 
 describe('aggregation_metrics', () => {
   it("gives the default and main metrics' targets", () => {
-    expect(aggregation_metrics(qatools_metrics)).toEqual({ latency_p99: 12, throughput: 0 });
+    // metrics that were not declared too
+    expect(aggregation_metrics(qatools_metrics)).toEqual({ latency_p99: 12, throughput: 0, unknown: 0 });
     expect(aggregation_metrics(undefined)).toEqual({});
-    expect(aggregation_metrics({ main_metrics: ['psnr'] })).toEqual({});
+    expect(aggregation_metrics({ main_metrics: ['psnr'] })).toEqual({ psnr: 0 });
     // the default metric, even if it's not a main metric
     expect(aggregation_metrics({ default_metric: 'slo_miss', available_metrics: qatools_metrics.available_metrics })).toEqual({ slo_miss: 0.01 });
   });
@@ -34,7 +35,7 @@ describe('aggregation_metrics', () => {
   it("gives History's metrics", () => {
     const metrics = { ...qatools_metrics, dashboard_metrics: ['slo_miss', 'throughput'] };
     expect(aggregation_metrics(metrics, { dashboard: true })).toEqual({ slo_miss: 0.01, throughput: 0 });
-    expect(aggregation_metrics(qatools_metrics, { dashboard: true })).toEqual({ latency_p99: 12, throughput: 0 });
+    expect(aggregation_metrics(qatools_metrics, { dashboard: true })).toEqual({ latency_p99: 12, throughput: 0, unknown: 0 });
   });
 });
 
@@ -78,13 +79,13 @@ afterEach(() => vi.unstubAllGlobals());
 describe("the list of commits", () => {
   it("asks once more with the branch's metrics when they weren't known", async () => {
     const requests = await run('/kitefin/inference-gateway/commits/main', { answers: [[commit]] });
-    expect(requests.map(r => r.metrics)).toEqual([{}, { latency_p99: 12, throughput: 0 }]);
+    expect(requests.map(r => r.metrics)).toEqual([{}, { latency_p99: 12, throughput: 0, unknown: 0 }]);
     expect(requests[0].pathname).toBe('/api/v1/commits/main');
   });
 
   it('asks once when we already asked for them', async () => {
     const requests = await run('/kitefin/inference-gateway/commits/main', { project_metrics: qatools_metrics, answers: [[commit]] });
-    expect(requests.map(r => r.metrics)).toEqual([{ latency_p99: 12, throughput: 0 }]);
+    expect(requests.map(r => r.metrics)).toEqual([{ latency_p99: 12, throughput: 0, unknown: 0 }]);
   });
 
   it('asks once more only, even if the metrics keep changing', async () => {
@@ -93,7 +94,7 @@ describe("the list of commits", () => {
       project_metrics: slo_miss_only,
       answers: [[commit], [{ ...commit, data: { qatools_metrics: slo_miss_only } }]],
     });
-    expect(requests.map(r => r.metrics)).toEqual([{ slo_miss: 0.01 }, { latency_p99: 12, throughput: 0 }]);
+    expect(requests.map(r => r.metrics)).toEqual([{ slo_miss: 0.01 }, { latency_p99: 12, throughput: 0, unknown: 0 }]);
   });
 
   it("doesn't ask again for a committer's commits", async () => {

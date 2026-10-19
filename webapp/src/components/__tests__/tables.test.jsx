@@ -6,7 +6,7 @@ import { screen, fireEvent } from '@testing-library/react';
 import { Classes } from '@blueprintjs/core';
 
 import { TableCompare, TableKpi } from '../tables';
-import { MetricsSummary } from '../metrics';
+import { MetricsSummary, MetricsTags } from '../metrics';
 import { metrics_fill_defaults } from '../../utils';
 import { renderWithProviders } from '../../test-utils';
 
@@ -78,6 +78,21 @@ describe('TableCompare', () => {
     expect(g - r).toBeGreaterThan(40);
   });
 
+  it("shows metrics that were not declared, colored by how much they change", () => {
+    const { new_batch, ref_batch } = photos();
+    // runtime is not in the definitions: we don't know which way is better
+    const { runtime: _runtime, ...without_runtime } = kpi_metrics;
+    const ref = { outputs: { 2: { ...ref_batch.outputs[2], metrics: { runtime: 1.2 } } } };
+    renderWithProviders(<TableCompare new_batch={new_batch} ref_batch={ref} metrics={['runtime']} available_metrics={without_runtime}/>);
+    expect(screen.getByRole('columnheader', { name: 'runtime' })).toBeInTheDocument();
+    const cell = screen.getAllByRole('row')[2].querySelector('td');
+    expect(cell).toHaveTextContent('0.24 (20%)');
+    // a neutral blue, neither green nor red
+    const [r, g, b] = cell.style.getPropertyValue('--heat').match(/\d+/g).map(Number);
+    expect(b).toBeGreaterThan(r);
+    expect(b).toBeGreaterThan(g);
+  });
+
   it('says when no run matches the filter', () => {
     renderWithProviders(<TableCompare new_batch={{ ...new_batch, filtered: { outputs: [] } }} ref_batch={ref_batch} metrics={[]} available_metrics={available_metrics}/>);
     expect(screen.getByText('No finished run matches the filter.')).toBeInTheDocument();
@@ -111,6 +126,28 @@ describe('TableKpi', () => {
     expect(labels.children[0].textContent).toBe('1 run');
   });
 
+  it('shades metrics without a target by how they rank among the runs', () => {
+    const runs = {
+      outputs: {
+        a: output('a', { runtime: 1, psnr: 35 }),
+        b: output('b', { runtime: 2, psnr: 20 }),
+        c: output('c', { runtime: 3 }),
+      },
+      filtered: { outputs: ['a', 'b', 'c'] },
+      used_metrics: new Set(['runtime', 'psnr']),
+      metrics_with_refs: new Set(),
+    };
+    const { container } = renderWithProviders(<TableKpi new_batch={runs} ref_batch={{ outputs: {} }} metrics={['runtime', 'psnr']} available_metrics={kpi_metrics}/>);
+    const cells = [...container.querySelectorAll('tbody tr')].map(row => row.querySelectorAll('td'));
+    const strength = td => Number(td.style.getPropertyValue('--heat-strength'));
+    expect(cells.map(([runtime]) => strength(runtime))).toEqual([0, 0.5, 1]);
+    expect(screen.getByRole('columnheader', { name: /Runtime/ })).toHaveAttribute('title', expect.stringContaining('compared with the other runs'));
+    // PSNR has a target: green when it's met, red when it's not
+    const [, psnr_a] = cells[0];
+    const [r, g] = psnr_a.style.getPropertyValue('--heat').match(/\d+/g).map(Number);
+    expect(g).toBeGreaterThan(r);
+  });
+
   it('shows the unit of metrics without a target, without a stray space', () => {
     const { container } = renderWithProviders(<TableKpi {...photos()} metrics={['psnr', 'overshoot', 'runtime']} available_metrics={kpi_metrics} />);
     const [headers] = container.querySelectorAll('thead tr');
@@ -121,13 +158,34 @@ describe('TableKpi', () => {
 
 
 describe('MetricsSummary', () => {
-  it('says when there are no summary metrics, or no finished runs', () => {
-    const { unmount } = renderWithProviders(<MetricsSummary metrics={{ available_metrics, summary_metrics: [] }} new_batch={new_batch} ref_batch={ref_batch}/>, { siteConfig: {} });
-    expect(screen.getByText('No summary metrics configured')).toBeInTheDocument();
+  // a reference run on the same input as the new run "a"
+  const ref_a = Object.freeze({ outputs: { r1: output('r1', { loss: 2, status: 'ok' }, { test_input_path: 'a.jpg' }) }, filtered: { outputs: ['r1'] } });
+
+  it('says when there are no metrics to summarize, or no finished runs', () => {
+    const strings = { ...new_batch, used_metrics: new Set(['status']) };
+    const { unmount } = renderWithProviders(<MetricsSummary metrics={{ available_metrics, summary_metrics: [] }} new_batch={strings} ref_batch={ref_batch}/>, { siteConfig: {} });
+    expect(screen.getByText('No metrics to summarize')).toBeInTheDocument();
     unmount();
     const pending = { ...new_batch, filtered: { outputs: ['c'] } };
     renderWithProviders(<MetricsSummary metrics={{ available_metrics, summary_metrics: ['loss'] }} new_batch={pending} ref_batch={ref_batch}/>, { siteConfig: {} });
     expect(screen.getByText('No finished run to summarize yet')).toBeInTheDocument();
+  });
+
+  it("shows the metrics that changed the most when projects don't choose", () => {
+    // loss changed, time has no reference, status is not a number
+    renderWithProviders(<MetricsSummary metrics={{ available_metrics, summary_metrics: [] }} new_batch={new_batch} ref_batch={ref_a}/>, { siteConfig: {} });
+    expect(screen.getAllByRole('heading', { level: 5, name: /^(loss|time)$/ }).map(h => h.textContent)).toEqual(['loss', 'time']);
+    expect(screen.getByText(/The 2 metrics that changed the most vs the reference/)).toBeInTheDocument();
+  });
+
+  it("helps declare the metrics that don't say which way is better", () => {
+    const metrics = { available_metrics: { ...available_metrics, loss: metric('loss', { smaller_is_better: null }) }, summary_metrics: ['loss'] };
+    renderWithProviders(<MetricsSummary metrics={metrics} new_batch={new_batch} ref_batch={ref_a}/>, { siteConfig: {} });
+    expect(screen.getByText(/Higher or lower is better\? QA-Board doesn't know for loss/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Declare them' })).toHaveAttribute('href', expect.stringContaining('#declaring-metrics'));
+    // the change is neutral: neither green nor red
+    expect(screen.getByText('-25%').closest(`.${Classes.TAG}`)).not.toHaveClass(Classes.INTENT_SUCCESS);
+    expect(screen.getByText('-25%').closest(`.${Classes.TAG}`)).not.toHaveClass(Classes.INTENT_DANGER);
   });
 
   it('shows the summary metrics, until users choose others', () => {
@@ -144,5 +202,19 @@ describe('MetricsSummary', () => {
     // new defaults replace it
     rerender(<MetricsSummary metrics={{ available_metrics, summary_metrics: ['time'] }} new_batch={new_batch} ref_batch={ref_batch}/>);
     expect(screen.getByRole('heading', { name: 'time' })).toBeInTheDocument();
+  });
+});
+
+
+describe('MetricsTags', () => {
+  it("shows the run's first metrics, declared or not, when projects don't choose", () => {
+    const metrics_new = { is_failed: false, zoom: 2, loss: 1, alpha: 3, compute_time: 4 };
+    const { container, unmount } = renderWithProviders(<MetricsTags metrics_new={metrics_new} available_metrics={available_metrics}/>);
+    const labels = () => [...container.querySelectorAll(`.${Classes.COMPOUND_TAG_LEFT}`)].map(tag => tag.textContent);
+    expect(labels()).toEqual(['loss', 'alpha', 'compute_time', 'zoom']);
+    unmount();
+    renderWithProviders(<MetricsTags metrics_new={metrics_new} available_metrics={available_metrics} selected_metrics={['zoom', 'missing']}/>);
+    expect(screen.getByText('zoom')).toBeInTheDocument();
+    expect(screen.queryByText('loss')).not.toBeInTheDocument();
   });
 });

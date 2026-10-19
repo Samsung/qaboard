@@ -81,10 +81,25 @@ def test_metrics_definitions():
   assert set(comparison['metrics']) == {'psnr', 'unknown'}
   psnr = comparison['metrics']['psnr']
   assert (psnr['smaller_is_better'], psnr['target'], psnr['suffix'], psnr['label'], psnr['declared']) == (False, 30, ' dB', 'PSNR', True)
-  # like the web app, metrics are "smaller is better" unless they say otherwise
+  # like the web app, metrics that were not declared don't say which way is better
   unknown = comparison['metrics']['unknown']
-  assert (unknown['smaller_is_better'], unknown['declared'], unknown['new']['median'], unknown['delta']) == (True, False, None, None)
+  assert (unknown['smaller_is_better'], unknown['declared'], unknown['new']['median'], unknown['delta']) == (None, False, None, None)
   assert metrics_info({'m': {'smaller_is_better': 'False'}}, ['m'])['m']['smaller_is_better'] is False
+  # metrics files leave it out when smaller is better, null says neither is
+  assert metrics_info({'m': {'label': 'M'}, 'n': None}, ['m', 'n'])['m']['smaller_is_better'] is True
+  assert metrics_info({'m': {'label': 'M'}, 'n': None}, ['m', 'n'])['n']['smaller_is_better'] is True
+  assert metrics_info({'m': {'smaller_is_better': None}}, ['m'])['m']['smaller_is_better'] is None
+
+
+def test_undeclared_metrics_are_compared():
+  # all the metrics with numbers, declared or not; without a direction there is no pass rate
+  comparison = compare_outputs(fixture_outputs('new'), fixture_outputs('ref'), {'psnr': {'smaller_is_better': None, 'target': 30}})
+  assert {'psnr', 'latency_p99', 'runtime'} <= set(comparison['metrics'])
+  latency = comparison['metrics']['latency_p99']
+  assert (latency['declared'], latency['smaller_is_better']) == (False, None)
+  assert latency['delta'] == approx(FIXTURE['expected']['summary']['latency_p99']['delta'])
+  psnr = comparison['metrics']['psnr']
+  assert (psnr['declared'], psnr['smaller_is_better'], psnr['new']['pass_rate']) == (True, None, None)
 
 
 def test_relative_change_uses_the_magnitude_of_the_reference():
@@ -163,6 +178,24 @@ def call(compare_api, dummy_app, commits, query, branch_commit=None):
       response, status_code = response
       response.status_code = status_code
     return response
+
+
+def test_compare_endpoint_metrics_declared_in_code(compare_api, dummy_app):
+  # the definitions from code are merged in the metrics file's, field by field
+  data = {
+    'qatools_metrics': {'available_metrics': FIXTURE['available_metrics']},
+    'metrics_definitions': {'psnr': {'label': 'Peak SNR'}, 'frames': {'smaller_is_better': None}},
+  }
+  new = make_commit(HEXSHA, {'default': fixture_outputs('new')}, branch='feature', data=data)
+  ref = make_commit(REF_HEXSHA, {'default': fixture_outputs('ref')}, id=2)
+  metrics = call(compare_api, dummy_app, {HEXSHA: new}, 'project=kitefin/camera-isp&reference=main', branch_commit=ref).get_json()['metrics']
+  assert (metrics['psnr']['label'], metrics['psnr']['suffix'], metrics['psnr']['smaller_is_better']) == ('Peak SNR', ' dB', False)
+  # the project's, when the commit has none
+  project = SimpleNamespace(id='kitefin/camera-isp', data={'metrics_definitions': {'runtime': {'smaller_is_better': None}}})
+  new = make_commit(HEXSHA, {'default': fixture_outputs('new')}, branch='feature', data={}, project=project)
+  metrics = call(compare_api, dummy_app, {HEXSHA: new}, 'project=kitefin/camera-isp&reference=main', branch_commit=ref).get_json()['metrics']
+  assert (metrics['runtime']['declared'], metrics['runtime']['smaller_is_better']) == (True, None)
+  assert (metrics['psnr']['declared'], metrics['psnr']['smaller_is_better']) == (False, None)
 
 
 def test_compare_endpoint(compare_api, dummy_app):

@@ -18,7 +18,7 @@ import { useSelected, useSiteConfig, useUrlText, updateSelected } from "./hooks"
 import { OutputCard } from "./viewers/OutputCard";
 import { useViewerControls } from "./viewers/controls";
 import { BitAccuracyForm, bit_accuracy_url_defaults } from "./viewers/bit_accuracy/utils";
-import { hash_color, match_query, average, median, matching_output } from "./utils";
+import { hash_color, match_query, average, median, matching_output, metric_info } from "./utils";
 import { yAxisSuffix, hasAllMetrics } from "./evolutionAxis";
 import CommitRow from "./components/CommitRow";
 
@@ -91,9 +91,7 @@ const traces_per_batch = ({ commits, metrics, aggregation, available_metrics, pe
   let traces_metadata = [];
   const output_filter_ = per_output_granularity ? make_output_filter(output_filter) : null;
   metrics.forEach(key => {
-    let metric = available_metrics[key];
-    if (metric === undefined)
-      return
+    const metric = metric_info(available_metrics, key);
     shown_batches.forEach(label => {
       const commits_with_batch = per_output_granularity
         ? commits.filter(c => !!c.batches[label])
@@ -132,9 +130,7 @@ const traces_per_test = ({ commits, metrics, available_metrics, output_filter, r
   let traces = [];
   let traces_metadata = [];
   metrics.forEach(key => {
-    let metric = available_metrics[key];
-    if (metric === undefined)
-      return
+    const metric = metric_info(available_metrics, key);
     shown_batches.forEach(label => {
       const commits_with_batch = commits.filter(c => !!c.batches[label]);
       // test => commit => first matching output, computed in one pass
@@ -260,7 +256,7 @@ const CommitsEvolutionPerTest = props => {
   const shown_commit = hovered_commit ?? new_commit;
   const shown_commit_ref = hovered_commit_ref ?? ref_commit;
   const layout = useMemo(
-    () => make_layout({ metric: available_metrics[metrics[0]], aggregation, relative, hovered_commit: shown_commit, hovered_commit_ref: shown_commit_ref }),
+    () => make_layout({ metric: metrics[0] ? metric_info(available_metrics, metrics[0]) : undefined, aggregation, relative, hovered_commit: shown_commit, hovered_commit_ref: shown_commit_ref }),
     [available_metrics, metrics, aggregation, relative, shown_commit, shown_commit_ref],
   );
 
@@ -423,7 +419,9 @@ const CommitsEvolutionPerTest = props => {
 const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref_commit, style, default_breakdown_per_test, output_filter, per_output_granularity, shown_batches, select_metrics, onSelect }) => {
   const { query } = useSelected();
   const { docs_root } = useSiteConfig();
-  const { available_metrics = {}, main_metrics = [], default_metric } = project_data?.data?.qatools_metrics || {};
+  const { available_metrics = {}, main_metrics = [], default_metric: configured_default_metric } = project_data?.data?.qatools_metrics || {};
+  // Projects that don't choose: the first metric we can plot
+  const default_metric = configured_default_metric || (select_metrics || main_metrics)[0];
   const flag = (name, default_value) => query[name] !== undefined ? query[name] === 'true' : default_value;
 
   const selected_metric = query.selected_metric || default_metric;
@@ -456,7 +454,8 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
 
   if (!default_metric)
     return <Callout icon="timeline-line-chart" title="No metrics to plot">
-      To see metrics over time, <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/computing-quantitative-metrics`}>define your project's metrics</a>.
+      To see metrics over time, return metrics from your <code>run()</code> function, and choose those to plot with <code>main_metrics</code> in your metrics file.{" "}
+      <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/computing-quantitative-metrics#choosing-the-metrics-shown-by-default`}>Learn more</a>
     </Callout>;
 
   const offer_breakdown_per_test = default_breakdown_per_test !== undefined && default_breakdown_per_test !== null;

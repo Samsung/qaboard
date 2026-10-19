@@ -1,6 +1,6 @@
 import { Fragment, memo, useMemo } from "react";
 import styled from "styled-components";
-import { interpolateRdYlGn } from "d3-scale-chromatic";
+import { interpolateRdYlGn, interpolateBlues } from "d3-scale-chromatic";
 import {
   Callout,
   Classes,
@@ -13,7 +13,8 @@ import {
 import { VirtualTbody } from "./VirtualTbody";
 import { PlatformTag, ConfigurationsTags, RunBadges, RunBadge, MismatchTags } from './tags'
 import { metric_formatter, percent_formatter, MetricHeader } from "./metrics"
-import { diff_cell } from "../utils/compare"
+import { diff_cell, is_number } from "../utils/compare"
+import { metric_info } from "../utils"
 
 // Inside the view's card: the metrics picker above the table
 const TableArea = styled.div`
@@ -40,6 +41,36 @@ const Row = styled.tr`
 const colored_cell = (background, quality) => background
   ? { className: 'heat-cell', style: { '--heat': background, '--heat-strength': Math.abs(2 * quality - 1).toFixed(2) } }
   : {};
+
+// For metrics that don't say which way is better: a neutral hue, from 0 (light) to 1 (strong)
+const neutral_cell = strength => ({
+  className: 'heat-cell',
+  style: { '--heat': interpolateBlues(0.06 + 0.44 * strength), '--heat-strength': strength.toFixed(2) },
+});
+const is_direction_unknown = metric => metric.smaller_is_better === null;
+const has_target = metric => metric.target !== undefined && metric.target !== null;
+
+// How much a metric changed, from 0 to 1. Like the colors of improvements, it saturates around ±20%
+const change_strength = delta_relative => Math.min(Math.abs(Math.tanh(delta_relative / 0.1)), 1);
+
+// How values rank among those of a column: 0 for the smallest, 1 for the largest. null if they're all the same.
+const lower_bound = (sorted, value, strict) => {
+  let low = 0, high = sorted.length;
+  while (low < high) {
+    const mid = (low + high) >> 1;
+    if (strict ? sorted[mid] < value : sorted[mid] <= value) low = mid + 1;
+    else high = mid;
+  }
+  return low;
+};
+const ranker = values => {
+  const sorted = values.filter(is_number).sort((a, b) => a - b);
+  if (sorted.length < 2 || sorted[0] === sorted[sorted.length - 1]) return null;
+  return value => {
+    const rank = (lower_bound(sorted, value, true) + lower_bound(sorted, value, false) - 1) / 2 / (sorted.length - 1);
+    return Math.max(0, Math.min(rank, 1));
+  };
+};
 
 const RowHeaderCell = ({ output }) => {
   if (output === undefined || output === null)
@@ -80,9 +111,12 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
     // The same numbers as GET /api/v1/commit/<sha>/compare, see utils/compare.js
     const { delta, delta_relative } = diff_cell(metric_new, metric_ref);
     const quality = improvement_quality(delta_relative, metric.smaller_is_better);
+    const colors = is_direction_unknown(metric)
+      ? (Number.isFinite(delta_relative) ? neutral_cell(change_strength(delta_relative)) : {})
+      : colored_cell(metric_ref && interpolateRdYlGn(quality), quality);
     // native tooltips: tables can have thousands of cells
     return <td
-      {...colored_cell(metric_ref && interpolateRdYlGn(quality), quality)}
+      {...colors}
       title={`New: ${metric_new * metric.scale}${metric.suffix}\nReference: ${metric_ref * metric.scale}${metric.suffix}`}
     >
       {delta === 0 ? "=" : <span>{metric_formatter(delta * (metric.scale ?? 1), metric)} ({format_percent(100 * delta_relative)}%)</span>}
@@ -97,7 +131,8 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
   }
 };
 
-const QualityCell = ({ metric_info, metric, metric_ref }) => {
+// Colored by how far the value is from the metric's target, else in a neutral hue by how it ranks in the column (`rank`)
+const QualityCell = ({ metric_info, metric, metric_ref, rank }) => {
   if (
     metric_info === undefined ||
     metric === undefined || metric === null
@@ -111,9 +146,14 @@ const QualityCell = ({ metric_info, metric, metric_ref }) => {
   const color = interpolateRdYlGn(quality)
   const is_numeric = !isNaN(metric)
   const metric_for_display = is_numeric ? metric * metric_info.scale : metric
+  let colors = {};
+  if (is_numeric && has_target(metric_info) && !is_direction_unknown(metric_info))
+    colors = colored_cell(color, quality);
+  else if (is_number(metric) && rank)
+    colors = neutral_cell(rank(metric));
   return (
     <td
-      {...colored_cell(metric_info.target !== undefined && is_numeric && color, quality)}
+      {...colors}
       title={is_numeric ? `${metric_for_display}${metric_info.suffix}` : undefined}
     >
       {is_numeric
@@ -136,8 +176,8 @@ const useTableData = ({ new_batch, metrics, available_metrics, with_refs_only })
   const metrics_ = useMemo(() => {
     const keys = metrics_key ? metrics_key.split('\n') : Object.keys(available_metrics);
     return keys
-      .map(m => available_metrics[m])
-      .filter(m => !!m && used_metrics?.has(m.key) && (!with_refs_only || metrics_with_refs?.has(m.key)));
+      .filter(m => used_metrics?.has(m) && (!with_refs_only || metrics_with_refs?.has(m)))
+      .map(m => metric_info(available_metrics, m));
   }, [metrics_key, available_metrics, used_metrics, metrics_with_refs, with_refs_only]);
   return { outputs, metrics_ };
 };
@@ -214,7 +254,9 @@ const TableCompare = ({
             </th>
             {metrics_.map(m => (
               <th scope="col" key={m.key} aria-label={`${label_new} − ${label_ref}`}>
-                <Tooltip content="Difference with the matching reference run (relative change). Green is better, red is worse.">
+                <Tooltip content={is_direction_unknown(m)
+                  ? "Difference with the matching reference run (relative change). The darker, the larger the change: QA-Board doesn't know which way is better."
+                  : "Difference with the matching reference run (relative change). Green is better, red is worse."}>
                   <span>{label_new} − {label_ref}</span>
                 </Tooltip>
               </th>
@@ -230,13 +272,13 @@ const TableCompare = ({
 };
 
 
-const KpiRow = memo(({ output, output_ref, metrics, metrics_with_refs, index, measure }) =>
+const KpiRow = memo(({ output, output_ref, metrics, metrics_with_refs, rankers, index, measure }) =>
   <Row data-index={index} ref={measure}>
     <RowHeaderCell output={output} />
     {metrics.map(m => (
       <Fragment key={m.key}>
-        <QualityCell metric_info={m} metric={output.metrics[m.key]} />
-        {metrics_with_refs.has(m.key) && <QualityCell metric_info={m} metric={output_ref?.metrics?.[m.key]} metric_ref={output.metrics[m.key]}/>}
+        <QualityCell metric_info={m} metric={output.metrics[m.key]} rank={rankers[m.key]}/>
+        {metrics_with_refs.has(m.key) && <QualityCell metric_info={m} metric={output_ref?.metrics?.[m.key]} metric_ref={output.metrics[m.key]} rank={rankers[m.key]}/>}
       </Fragment>
     ))}
   </Row>
@@ -251,6 +293,11 @@ const TableKpi = ({
   labels
 }) => {
   const { outputs, metrics_ } = useTableData({ new_batch, metrics, available_metrics, with_refs_only: false });
+  // Metrics we can't color by their target are shaded by how values rank among the new runs'
+  const rankers = useMemo(() => Object.fromEntries(metrics_
+    .filter(m => !has_target(m) || is_direction_unknown(m))
+    .map(m => [m.key, ranker(outputs.map(([, o]) => o.metrics?.[m.key]))])),
+  [metrics_, outputs]);
   if (new_batch?.outputs === undefined || new_batch?.outputs === null) return <span />;
   const [label_new, label_ref] = labels || ["New", "Ref"];
   if (outputs.length === 0)
@@ -263,9 +310,15 @@ const TableKpi = ({
           <tr>
             <th />
             {metrics_.map(m => (
-              <th colSpan={new_batch.metrics_with_refs.has(m.key) ? 2 : 1} key={m.key}>
+              <th
+                colSpan={new_batch.metrics_with_refs.has(m.key) ? 2 : 1}
+                key={m.key}
+                title={rankers[m.key] ? "The darker, the larger the value, compared with the other runs." : undefined}
+              >
                 <MetricHeader condensed {...without_key(m)}/>
-                {!!m.target && <Tooltip content="Target: cells are green when runs meet it, red when they don't.">
+                {!!m.target && <Tooltip content={is_direction_unknown(m)
+                  ? "Target. QA-Board doesn't know if higher or lower values are better: declare it to color cells by the target."
+                  : "Target: cells are green when runs meet it, red when they don't."}>
                   <span className={Classes.TEXT_MUTED}>[{metric_formatter(m.target * m.scale, m)}{m.suffix}]</span>
                 </Tooltip>}
                 {!m.target && !!m.suffix && <span className={Classes.TEXT_MUTED}>[{m.suffix.trim()}]</span>}
@@ -290,7 +343,7 @@ const TableKpi = ({
           </tr>
         </thead>
         <VirtualTbody items={outputs} renderRow={([id, output], index, measure) =>
-          <KpiRow key={id} index={index} measure={measure} output={output} output_ref={ref_batch?.outputs?.[output.reference_id]} metrics={metrics_} metrics_with_refs={new_batch.metrics_with_refs}/>
+          <KpiRow key={id} index={index} measure={measure} output={output} output_ref={ref_batch?.outputs?.[output.reference_id]} metrics={metrics_} metrics_with_refs={new_batch.metrics_with_refs} rankers={rankers}/>
         }/>
       </HTMLTable>
     </TableArea>

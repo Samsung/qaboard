@@ -116,7 +116,7 @@ def median(values: List[float]) -> Optional[float]:
 def pass_rate(values: List[float], metric: Dict) -> Optional[float]:
   """The share of runs that meet the metric's target, like the Summary's success bar"""
   target = metric.get('target')
-  if target is None or not values:
+  if target is None or not values or metric['smaller_is_better'] is None:
     return None
   if metric['smaller_is_better']:
     return sum(1 for v in values if v <= target) / len(values)
@@ -147,25 +147,40 @@ def diff_cell(new, ref) -> Optional[Dict]:
   }
 
 
+def smaller_is_better(definition: Optional[Dict]) -> Optional[bool]:
+  """
+  Whether smaller values of a metric are better, from its definition (`metrics_fill_defaults` in `webapp/src/utils.js`).
+  Definitions without `smaller_is_better` mean True, as metrics files always did. `null` means QA-Board doesn't know:
+  code that declares metrics (`qaboard.Metric`, metrics_definitions.json) says null when it doesn't tell.
+  """
+  definition = definition or {}
+  if 'smaller_is_better' not in definition:
+    return True
+  value = definition['smaller_is_better']
+  if value is None:
+    return None
+  if isinstance(value, str):
+    return value.lower() != 'false'
+  return bool(value)
+
+
 def metrics_info(available_metrics: Optional[Dict], keys) -> Dict[str, Dict]:
-  """The metrics' definitions, with the web app's defaults (`metrics_fill_defaults` in `webapp/src/utils.js`)"""
+  """
+  The metrics' definitions, with the web app's defaults (`metrics_fill_defaults` in `webapp/src/utils.js`).
+  Metrics that were not declared are shown too: `smaller_is_better` is None, QA-Board doesn't know which way is better.
+  """
   available_metrics = available_metrics or {}
   info = {}
   for key in keys:
     declared = key in available_metrics
     m = available_metrics.get(key) or {}
-    smaller_is_better = m.get('smaller_is_better')
-    if smaller_is_better is None:
-      smaller_is_better = True
-    elif isinstance(smaller_is_better, str):
-      smaller_is_better = smaller_is_better.lower() != 'false'
     label = m.get('label') or key
     info[key] = {
       'label': label,
       'short_label': m.get('short_label') or label,
       'suffix': m.get('suffix') or '',
       'scale': m.get('scale') or 1.0,
-      'smaller_is_better': bool(smaller_is_better),
+      'smaller_is_better': smaller_is_better(m) if declared else None,
       'target': m.get('target'),
       'declared': declared,
     }
