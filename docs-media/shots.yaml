@@ -295,7 +295,7 @@ shots:
     pages: [user-guide/comparing-results]
     features: [auto-roi]
     phase: 1
-    status: planned
+    status: published
   - id: commit/image-filters
     kind: still
     project: image-quality

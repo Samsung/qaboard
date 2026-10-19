@@ -1525,6 +1525,49 @@
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 856
     },
+    "commit/regions-all-runs": {
+      "alt": "The list of a commit's runs ranked by how much their output images differ from the reference's, with a bar, a percentage and the number of regions found for each; the 113 MP test wall, a TIFF, has no out.png to compare.",
+      "app_version": "1.1.1+037c165",
+      "caption": "Where they differ, in all the runs: the runs whose images changed most first.",
+      "captured": "2026-10-19",
+      "dark": {
+        "files": {
+          "avif": {
+            "bytes": 38060,
+            "key": "shots/commit/regions-all-runs/eef524363beac39b.avif"
+          },
+          "png": {
+            "bytes": 143991,
+            "key": "shots/commit/regions-all-runs/dcb5a7d5a13d9609.png"
+          },
+          "webp": {
+            "bytes": 79014,
+            "key": "shots/commit/regions-all-runs/0e7ad1c711376861.webp"
+          }
+        },
+        "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAABwAQCdASoQAA4AA4BaJZwCdAFAAAD+8HTb+nQ4Se5SxZwjzV8ZRPnxwAA="
+      },
+      "files": {
+        "avif": {
+          "bytes": 39323,
+          "key": "shots/commit/regions-all-runs/32634b6befd22bdb.avif"
+        },
+        "png": {
+          "bytes": 138272,
+          "key": "shots/commit/regions-all-runs/5deefa6d5a1f5079.png"
+        },
+        "webp": {
+          "bytes": 80716,
+          "key": "shots/commit/regions-all-runs/abcbea6717e97d45.webp"
+        }
+      },
+      "height": 650,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAACwAQCdASoQAA4AA4BaJZwAAudRzVaAAP7yYJq+ygiX6TfDWK+xGnLCAAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 776
+    },
     "commit/roi-histograms": {
       "alt": "Zoomed on a band of the sky gradient; below the images, the red, green, blue and luma histograms of what they show, new and reference overlaid.",
       "app_version": "1.1.1+70d5266",
