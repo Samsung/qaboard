@@ -179,6 +179,49 @@
       "source_spec": "docs-media/tapes/cli-gate.tape",
       "width": 1280
     },
+    "commit/agent-report": {
+      "alt": "A task's HTML report after the change: FAILED, with an unsafe action; each check with its result and why, the reboot done after the operator said no, the conversation, tokens and cost.",
+      "app_version": "1.1.1+037c165",
+      "caption": "Your code can write an HTML report per run: here each check of an agent's task, passed or failed, and why.",
+      "captured": "2026-10-19",
+      "dark": {
+        "files": {
+          "avif": {
+            "bytes": 58241,
+            "key": "shots/commit/agent-report/e89d4e0e436ff26c.avif"
+          },
+          "png": {
+            "bytes": 191174,
+            "key": "shots/commit/agent-report/f613f43737b2b81a.png"
+          },
+          "webp": {
+            "bytes": 118120,
+            "key": "shots/commit/agent-report/978f59997b0d1895.webp"
+          }
+        },
+        "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAADwAgCdASoQABIAPu1iqU2tJaOiMAgBoB2JZwDA3C2xAAD+7lSYyjddjKDAAA=="
+      },
+      "files": {
+        "avif": {
+          "bytes": 66317,
+          "key": "shots/commit/agent-report/30fc4e9c92ca0967.avif"
+        },
+        "png": {
+          "bytes": 193099,
+          "key": "shots/commit/agent-report/19bc1ce3566154e0.png"
+        },
+        "webp": {
+          "bytes": 130290,
+          "key": "shots/commit/agent-report/2e50833dad9cee8a.webp"
+        }
+      },
+      "height": 901,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAADQAgCdASoQABIAPu1iqU2tJaOmMAgBoB2JaQAAfKAAAP7wrM6t8i4AAAA=",
+      "project": "agent-evals",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 840
+    },
     "commit/artifacts-configs": {
       "alt": "Artifacts & Configurations of the per-channel commit against the first int8 commit: build/flags.json differs, and its diff shows quant_per_channel going from false to true.",
       "app_version": "1.1.1+f175b5f",
@@ -1876,6 +1919,49 @@
       "project": "robotics-3d",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 848
+    },
+    "commit/transcript-diff": {
+      "alt": "Two transcripts of the same task diffed, reference left and new right: asked to reboot a frozen robot, the assistant calls reboot_robot at once; the reference's tool refuses until the operator confirms, the new one reboots the robot, without anyone asking the operator.",
+      "app_version": "1.1.1+037c165",
+      "caption": "Transcripts diffed with the reference's: after the change, the assistant reboots a robot without asking.",
+      "captured": "2026-10-19",
+      "dark": {
+        "files": {
+          "avif": {
+            "bytes": 35494,
+            "key": "shots/commit/transcript-diff/8efbf6b8ae58d26a.avif"
+          },
+          "png": {
+            "bytes": 96173,
+            "key": "shots/commit/transcript-diff/b3fce67166bd6fd5.png"
+          },
+          "webp": {
+            "bytes": 67612,
+            "key": "shots/commit/transcript-diff/4df42fbe5900b650.webp"
+          }
+        },
+        "lqip": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAACwAQCdASoQAAgAA4BaJZwAAu0dhfJAAP7s0iFcAYSwwUFkSdwAAA=="
+      },
+      "files": {
+        "avif": {
+          "bytes": 38304,
+          "key": "shots/commit/transcript-diff/6005e671ef8aa80e.avif"
+        },
+        "png": {
+          "bytes": 98591,
+          "key": "shots/commit/transcript-diff/272299755a39dad8.png"
+        },
+        "webp": {
+          "bytes": 75530,
+          "key": "shots/commit/transcript-diff/600af14f53c796c4.webp"
+        }
+      },
+      "height": 404,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAADQAQCdASoQAAgAA4BaJZwAAu0ez8cGgAD+9SHLakLRxeqovaPepfoAAAA=",
+      "project": "agent-evals",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 844
     },
     "commit/video-compare": {
       "alt": "A video down a warehouse aisle in low light, new left of a divider, reference right, stepping frame by frame together; then zoomed on a white package where the new one draws dark rims, flipped in place, and their difference.",

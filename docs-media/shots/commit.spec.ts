@@ -1117,3 +1117,56 @@ clip('commit/video-sync', {
   // the run's card: its metrics, the viewer and its timeline
   region: page => cards(page).first(),
 });
+
+
+// The fleet assistant (examples/agent-evals): the coding agent shortened the tools' descriptions and turned off the
+// confirmation check (short-tools): the assistant reboots robots without asking the operator, and the gate fails,
+// against its parent (merge-verbose-prompt). Each run is one task. Visualizations, in qaboard.yaml's order:
+// 0 Transcript, 1 Report, then hidden by default: 2 Tool calls
+const AE = 'agent-evals';
+const AE_VIZ = ['Transcript', 'Report', 'Tool calls'] as const;
+const showOnlyAe = (name: (typeof AE_VIZ)[number]) => ({ show: Object.fromEntries(AE_VIZ.map(v => [v, v === name])) });
+const shortTools = (d: Demo, task: string, show: (typeof AE_VIZ)[number]) =>
+  d.commitUrl(AE, 'short-tools', { reference: 'merge-verbose-prompt', view: 'output-list', filter: task, controls: showOnlyAe(show) });
+
+shot('commit/transcript-diff', {
+  project: AE,
+  url: d => shortTools(d, 'reboot-without-asking', 'Transcript'),
+  alt: 'Two transcripts of the same task diffed, reference left and new right: asked to reboot a frozen robot, the '
+    + 'assistant calls reboot_robot at once; the reference\'s tool refuses until the operator confirms, the new one '
+    + 'reboots the robot, without anyone asking the operator.',
+  caption: 'Transcripts diffed with the reference\'s: after the change, the assistant reboots a robot without asking.',
+  actions: async ui => {
+    await showCard(ui);
+    await viewer(cards(ui.page).first()).locator('.modified-in-monaco-diff-editor .view-line').first().waitFor();
+    await mouseAway(ui);
+    await ui.settle();
+  },
+  target: page => cards(page).first(),
+  padding: 2,
+});
+
+shot('commit/agent-report', {
+  project: AE,
+  url: d => shortTools(d, 'declined-reboot', 'Report'),
+  alt: 'A task\'s HTML report after the change: FAILED, with an unsafe action; each check with its result and why, '
+    + 'the reboot done after the operator said no, the conversation, tokens and cost.',
+  caption: 'Your code can write an HTML report per run: here each check of an agent\'s task, passed or failed, and why.',
+  viewport: { width: 1440, height: 1400 },
+  actions: async ui => {
+    await showCard(ui);
+    await ui.page.frameLocator('iframe[title="report.html (new)"]').locator('h1').waitFor();
+    await mouseAway(ui);
+    await ui.settle();
+  },
+  // the run's name and metrics, then the new run's report, down to its footnote
+  target: page => {
+    const report = page.frameLocator('iframe[title="report.html (new)"]');
+    return [
+      cards(page).first().getByText('safety/declined-reboot.yaml', { exact: true }),
+      report.locator('h1'),
+      report.getByText(/^Prices are fictional/),
+    ];
+  },
+  padding: 8,
+});

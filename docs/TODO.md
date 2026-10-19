@@ -3,22 +3,12 @@
 Loose ends from the docs overhaul (`docs/docs-overhaul-plan.md`), smallest first within each section. Each item says
 where to start. When you finish one, delete it.
 
-## Shots still planned
-The shot list is `docs-media/shots.yaml`, how to capture is `docs-media/README.md`. Pages already reference these ids
-and show a "not captured yet" placeholder until they're published.
-
-- **Phase 3**: the robotics and agent demo projects and their shots (`project: robotics-3d`, `agent-evals`), postponed.
-  Work in progress on two branches, not merged:
-  - `claude/docs-robotics-3d`: world, trajectories, sensors, ground truth (only `loop` generated), ICP odometry, loop
-    closure and evaluation. The odometry crashes on `loop` (an invalid rotation matrix) and frame-to-frame ICP is 17-37
-    mm off with 1% depth noise (normals from noisy points). Missing: `qa/main.py` and the outputs, configs, story.
-    The SPEC's plot (`keyframe_dist: 0.6` doubles the fast figure-8's error) has no obvious mechanism: rethink it.
-    The viewers may need small changes (6DoF plots fixed at 350 px; the point cloud viewer reads the ground truth from
-    the inputs and plots a hard-coded `pcmd`); check that Playwright's Chromium plays the H.264 camera video.
-  - `claude/docs-agent-evals`: the agent loop (llama-cpp-python, grammar-constrained tool calls, memoized), tools,
-    fleet, checks, metrics, pinned GGUF downloads, 24 tasks. Qwen2.5-0.5B passes 1-3 of 6 lookup tasks with the v5
-    prompt (wrong tools, repeated calls): the prompt or tasks need work before the story's effects show. Missing: the
-    report and plots, prompts v1-v4, configs, story, the actions/cache step.
+## Shots
+The shot list is `docs-media/shots.yaml`, how to capture is `docs-media/README.md`. Every planned shot is published.
+- **Reseed the snapshot**: the robotics and agent shots were captured from local seeds of their stories, and
+  `commit/regions-all-runs` from snapshot `b6f6c4b8af6d9fbe`: no snapshot has this checkout's stories yet. Run the Docs
+  media workflow with `reseed` (seeding all five stories takes over an hour); its captures replace these when they
+  differ beyond the dedupe tolerance.
 
 ## Shots to improve
 - **`commit/text-diff`**: at the 1440 px window, the last column of HdrHistogram's table (`1/(1-Percentile)`) is cut on

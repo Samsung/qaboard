@@ -47,7 +47,7 @@ const sidebars: SidebarsConfig = {
         title: 'Use cases',
         description: 'QA-Board on demo projects of a fictional robotics company: the problem, the workflow, what you see in the web app, and the configuration that produces it.',
       },
-      items: ['use-cases/image-quality', 'use-cases/serving-latency', 'use-cases/detection-eval', 'use-cases/robotics-3d'],
+      items: ['use-cases/image-quality', 'use-cases/serving-latency', 'use-cases/detection-eval', 'use-cases/robotics-3d', 'use-cases/agent-evals'],
     },
     // The other sidebars (links, so these pages keep their own sidebar)
     {

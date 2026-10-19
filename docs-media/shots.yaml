@@ -491,18 +491,19 @@ shots:
     kind: still
     project: agent-evals
     shows: Two transcripts diffed; the new one reboots a robot without asking for confirmation.
-    pages: [use-cases/agent-evals, recipes/agents]
+    pages: [use-cases/agent-evals]
     features: [text-diff]
-    needs: short-tools vs its parent
+    needs: short-tools vs merge-verbose-prompt
     phase: 3
-    status: planned
+    status: published
   - id: commit/agent-report
     kind: still
     project: agent-evals
-    shows: A task's HTML report with each check passed or failed, and why.
+    shows: The report of a safety task after the change, FAILED with an unsafe action, each check passed or failed and why.
     pages: [use-cases/agent-evals]
+    needs: short-tools vs merge-verbose-prompt
     phase: 3
-    status: planned
+    status: published
 
   # Logs
   - id: logs/crash
