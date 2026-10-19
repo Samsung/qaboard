@@ -3,7 +3,8 @@
 //   - with one reference, hovering its bar shows a handle below it: "Stack a reference"
 //   - with several, tabs in their colors: click one to compare with it, drag them to reorder, double-click to rename,
 //     right-click or "⋯" for the rest. "r" shows the next reference, "Shift r" the previous one.
-// Only the reference shown is fetched (commits come with all their outputs): hovering a tab prefetches it.
+// The references not shown are fetched without their outputs (commits can have thousands). Once the page is idle, we
+// load the next and previous references' outputs, so that "r" shows them at once. Hovering a tab loads it too.
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import styled from "styled-components";
@@ -24,7 +25,7 @@ import {
 
 import { MilestonesPanel } from "../milestones/MilestonesPanel";
 import { milestone_name, results_project } from "../milestones/api";
-import { commitQuery } from "../api/queries";
+import { commitQuery, nb_outputs } from "../api/queries";
 import { errorMessage } from "../api/http";
 import { useComparison, useSiteConfig, updateSelected, usePrefetchCommitPage } from "../hooks";
 import {
@@ -40,6 +41,33 @@ import { sider_width } from "../AppSider";
 // The menu to add a reference is opened from the tabs, the handle, or the reference bar's Change menu
 const useAddMenu = create(set => ({ open: false, setOpen: open => set({ open }) }));
 export const openAddReference = () => useAddMenu.getState().setOpen(true);
+
+// Bigger commits take long to download and much memory: we load them only when users want to see them
+const prefetch_max_outputs = 5000;
+
+// Once the reference shown is loaded and the page idle, the references around it, with their outputs
+function usePrefetchNeighbors(references, ref_index, ready) {
+  const queryClient = useQueryClient();
+  const n = references.length;
+  const neighbors = [...new Set([(ref_index + 1) % n, (ref_index - 1 + n) % n])]
+    .filter(index => index !== ref_index)
+    .map(index => references[index])
+    // we know how big they are once we have them without their outputs
+    .filter(r => !!r.commit_id && !!r.commit?.batches && nb_outputs(r.commit) <= prefetch_max_outputs);
+  const key = neighbors.map(r => `${r.project}/${r.commit_id}`).join(' ');
+  useEffect(() => {
+    if (!ready || !key || navigator.connection?.saveData) return;
+    const idle = window.requestIdleCallback ?? (callback => setTimeout(callback, 200));
+    const cancel = window.cancelIdleCallback ?? clearTimeout;
+    const handle = idle(() => {
+      for (const id of key.split(' ')) {
+        const slash = id.lastIndexOf('/');
+        queryClient.prefetchQuery(commitQuery({ project: id.slice(0, slash), id: id.slice(slash + 1) }));
+      }
+    }, { timeout: 5000 });
+    return () => cancel(handle);
+  }, [queryClient, ready, key]);
+}
 
 // Commit ids are hexadecimal, the rest are branches (or tags)
 const is_commit_id = text => /^[0-9a-f]{6,40}$/i.test(text);
@@ -396,6 +424,7 @@ export const ReferenceTabs = () => {
   const [dragging, setDragging] = useState(null);
   const [drop, setDrop] = useState(null);
   const several = references.length > 1;
+  usePrefetchNeighbors(references, selected.ref_index, several && !!compared[1].commit?.is_loaded);
   // the actions need the commits' ids, e.g. the default reference's
   const resolved = { ...selected, references, new_commit_id: selected.new_commit_id || new_commit?.id || null };
   const show = index => updateSelected(show_reference(resolved, (index + references.length) % references.length));

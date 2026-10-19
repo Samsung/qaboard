@@ -6,7 +6,7 @@ import { useInfiniteQuery, useQueries, useQuery, useQueryClient } from "@tanstac
 import {
   siteConfigQuery, default_site_config, userQuery, logged_out_user,
   projectsQuery, projectQuery, branchesQuery, commitsQuery, commitsPagesQuery, commits_of, commits_page_size, commitQuery,
-  findCachedCommit, invalidateCommit,
+  commitSummaryQuery, findCachedCommit, invalidateCommit,
 } from "./api/queries";
 import { errorMessage } from "./api/http";
 import { usePrefsStore } from "./stores/prefs";
@@ -232,23 +232,24 @@ function useCommitIdsInUrl(selected, new_commit, ref_commit) {
 const side_label = (milestone, label, fallback) => milestone ? milestone_name(milestone) : label || fallback;
 
 // The references users selected (see `references` in src/selection.js), with what we know about them:
-// their commit if it's in the cache (we don't fetch them all: commits come with all their outputs), their name, color...
-// The one shown is the reference commit we compare with, fetched as before.
+// their commit (without its outputs, unless we have them already), their name, color...
+// The one shown is the reference commit we compare with, fetched as before with its outputs.
 // TanStack Query keeps the same array while the commits are the same: the comparison changes only when they do
 const commits_data = results => results.map(result => result.data);
 
-function useReferences(selected, ref_commit, milestones) {
+function useReferences(selected, ref_commit, milestones, enabled) {
   const queryClient = useQueryClient();
   const { references, ref_index } = selected;
-  // only observe the cache: hovering a reference's tab prefetches it, showing it fetches it.
   // Not the one shown: it's ref_commit, that refreshes while its runs are running.
+  // While they load, their commit with its outputs if we have it, e.g. after we compared with them.
   const others = references.filter((_, index) => index !== ref_index);
   const cached_others = useQueries({
     combine: commits_data,
     queries: others.map(side => ({
-      ...commitQuery({ project: side.project, id: side.commit_id ?? undefined }),
-      enabled: false,
-      placeholderData: () => findCachedCommit(queryClient, side.project, side.commit_id),
+      ...commitSummaryQuery({ project: side.project, id: side.commit_id ?? undefined }),
+      enabled: enabled && !!side.commit_id,
+      placeholderData: () => queryClient.getQueryData(commitQuery({ project: side.project, id: side.commit_id }).queryKey)
+        ?? findCachedCommit(queryClient, side.project, side.commit_id),
     })),
   });
   const several = references.length > 1;
@@ -311,7 +312,7 @@ function useComparisonState() {
   useCommitIdsInUrl(selected, new_commit, ref_commit);
   // to name what we compare
   const { data: milestones = no_milestones } = useQuery({ ...milestonesQuery(project), enabled: !!project && on_commit_page });
-  const references = useReferences(selected, ref_commit, milestones);
+  const references = useReferences(selected, ref_commit, milestones, on_commit_page);
 
   // The configuration comes from the batch shown (not filtered), else its commit, else the project:
   // it changes only with the data, not when users filter or sort outputs

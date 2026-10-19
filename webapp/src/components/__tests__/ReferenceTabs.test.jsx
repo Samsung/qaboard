@@ -39,7 +39,8 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async url => {
     const { pathname, searchParams } = new URL(url, 'http://localhost');
     const id = pathname.match(/^\/api\/v1\/commit\/(.+)$/)?.[1];
-    if (id) return new Response(JSON.stringify(commit(id)));
+    // f…: a big commit
+    if (id) return new Response(JSON.stringify(id.startsWith('f') ? { ...commit(id), batches: { default: { label: 'default', valid_outputs: 8000 } } } : commit(id)));
     // the latest commit of a branch
     if (pathname === '/api/v1/commit/' && searchParams.get('branch')) return new Response(JSON.stringify(commit('e'.repeat(40))));
     return new Response(JSON.stringify({}));
@@ -47,7 +48,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-const a = 'a'.repeat(40), b = 'b'.repeat(40), c = 'c'.repeat(40), d = 'd'.repeat(40), e = 'e'.repeat(40);
+const a = 'a'.repeat(40), b = 'b'.repeat(40), c = 'c'.repeat(40), d = 'd'.repeat(40), e = 'e'.repeat(40), f = 'f'.repeat(40);
 
 test('with one reference, users stack more: commits or branches', async () => {
   show(`/p/commit/${a}?reference=${b}`);
@@ -111,4 +112,26 @@ test('users reorder, rename and remove references from their tabs', async () => 
   await waitFor(() => expect(reference()).toBe(d));
   expect(window.location.search).not.toContain('compare');
   expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+});
+
+test('references not shown are loaded without their outputs, then the next ones with them once idle', async () => {
+  show(`/p/commit/${a}?reference=${b}&compare=${c}&compare=${d}`);
+  const requests = () => fetch.mock.calls.map(([url]) => new URL(url, 'http://localhost')).filter(u => u.pathname.startsWith('/api/v1/commit/'));
+  // tabs say their branch
+  await waitFor(() => expect(tab(3)).toHaveTextContent('branch-ddd'));
+  const light = requests().filter(u => u.searchParams.get('with_outputs') === 'false').map(u => u.pathname.split('/').pop());
+  expect(light.sort()).toEqual([c, d]);
+  // the next and previous references (2 and 3), with their outputs
+  await waitFor(() => {
+    const full = requests().filter(u => !u.searchParams.has('with_outputs')).map(u => u.pathname.split('/').pop());
+    expect(full).toEqual(expect.arrayContaining([b, c, d]));
+  });
+});
+
+test('big references are loaded only when users compare with them', async () => {
+  show(`/p/commit/${a}?reference=${b}&compare=${f}`);
+  await waitFor(() => expect(tab(2)).toHaveTextContent('branch-fff'));
+  await new Promise(resolve => setTimeout(resolve, 500));
+  const full = fetch.mock.calls.map(([url]) => new URL(url, 'http://localhost')).filter(u => u.pathname === `/api/v1/commit/${f}` && !u.searchParams.has('with_outputs'));
+  expect(full).toHaveLength(0);
 });

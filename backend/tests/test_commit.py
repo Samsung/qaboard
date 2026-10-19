@@ -9,6 +9,9 @@ Regression test for the KeyError bug: when get_or_create fails and the request
 body has no 'git_commit_sha', the except block used to crash with
 KeyError: 'git_commit_sha', turning a clean 404 into a 500.
 """
+import json
+from unittest.mock import MagicMock
+
 import pytest
 
 # ==========================================
@@ -78,3 +81,34 @@ class TestCommitErrorHandler:
             response = api_ci_commit()
             assert response.get_json() == {"status": "OK"}
         assert mock_ci_commit.get_or_create.call_args.kwargs['hexsha'] == HEXSHA
+
+class TestCommitWithoutOutputs:
+    """GET ?with_outputs=false: the web app's references that are not shown only need the commit and its batches."""
+
+    def get(self, dummy_app, mock_ci_commit, query, monkeypatch):
+        import backend.api.commit as commit_api
+        import backend.api.auth as auth
+        auth.is_authorized_user.return_value = True
+        ci_commit = MagicMock()
+        ci_commit.to_dict.return_value = {'id': HEXSHA, 'batches': {}}
+        session = MagicMock()
+        session.query.return_value.options.return_value.filter.return_value.first.return_value = ci_commit
+        monkeypatch.setattr(commit_api, 'db_session', session)
+        artifacts = MagicMock(return_value={'ok': True})
+        monkeypatch.setattr(commit_api, 'commit_artifacts_info', artifacts)
+        with dummy_app.test_request_context(f'/api/v1/commit/{HEXSHA}?project={PROJECT}{query}', method='GET'):
+            response = commit_api.api_ci_commit(commit_id=HEXSHA)
+        return ci_commit, artifacts, json.loads(response.get_data())
+
+    def test_without_outputs(self, dummy_app, mock_ci_commit, monkeypatch):
+        ci_commit, artifacts, data = self.get(dummy_app, mock_ci_commit, '&with_outputs=false', monkeypatch)
+        assert ci_commit.to_dict.call_args.kwargs['with_outputs'] is False
+        # checking the artifacts reads the storage: not for this
+        artifacts.assert_not_called()
+        assert 'artifacts' not in data
+
+    def test_with_outputs_by_default(self, dummy_app, mock_ci_commit, monkeypatch):
+        ci_commit, artifacts, data = self.get(dummy_app, mock_ci_commit, '', monkeypatch)
+        assert ci_commit.to_dict.call_args.kwargs['with_outputs'] is True
+        artifacts.assert_called_once()
+        assert data['artifacts'] == {'ok': True}

@@ -71,6 +71,13 @@ def api_ci_commit(commit_id=None):
   if not is_authorized_user(None, project_id):
     return f"Forbidden: You don't have permission to access this project", 403
 
+  # ?with_outputs=false: only the commit and its batches' counts and metrics, e.g. for the references users
+  # stacked but don't look at (a commit can have thousands of outputs)
+  with_outputs = request.args.get('with_outputs', 'true') != 'false'
+  batches_loader = selectinload(CiCommit.batches)
+  if with_outputs:
+    batches_loader = batches_loader.selectinload(Batch.outputs)
+
   if not commit_id:
     commit_id = request.args.get('commit', None)
     try:
@@ -86,10 +93,7 @@ def api_ci_commit(commit_id=None):
     try:
       ci_commit = (db_session
                    .query(CiCommit)
-                   .options(
-                     selectinload(CiCommit.batches).
-                     selectinload(Batch.outputs)
-                    )
+                   .options(batches_loader)
                    .filter(
                      CiCommit.project_id==project_id,
                      CiCommit.hexsha.startswith(commit_id),
@@ -103,10 +107,7 @@ def api_ci_commit(commit_id=None):
       # Check if the user provided a branch name instead of a commit ID
         ci_commit = (db_session
                     .query(CiCommit)
-                    .options(
-                      selectinload(CiCommit.batches).
-                      selectinload(Batch.outputs)
-                      )
+                    .options(batches_loader)
                     .filter(
                       CiCommit.project_id==project_id,
                       CiCommit.branch==commit_id,
@@ -146,8 +147,10 @@ def api_ci_commit(commit_id=None):
   batch = request.args.get('batch', None)
   with_batches = [batch] if batch else None # by default we show all batches
   with_aggregation = json.loads(request.args.get('metrics', '{}'))
-  commit_dict = ci_commit.to_dict(db_session, with_aggregation, with_batches=with_batches, with_outputs=True)
-  commit_dict['artifacts'] = commit_artifacts_info(ci_commit)
+  commit_dict = ci_commit.to_dict(db_session, with_aggregation, with_batches=with_batches, with_outputs=with_outputs)
+  # checking the artifacts reads the storage, often a slow network filesystem
+  if with_outputs:
+    commit_dict['artifacts'] = commit_artifacts_info(ci_commit)
   response = make_response(ujson.dumps(commit_dict))
   response.headers['Content-Type'] = 'application/json'
   return response
