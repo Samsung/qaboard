@@ -952,8 +952,8 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
     config['artifacts']['__qaboard.yaml'] = {"glob": ['qaboard.yaml', 'qatools.yaml']}
     config['artifacts']['__qatools'] = {"glob": ['qatools/*', 'qa/*']}
     # Handle sub-projects
-    config['artifacts']['__sub-qaboard.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qaboard.yaml') for p in qatools_config_paths]}
-    config['artifacts']['__sub-qaboard.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / 'qatools.yaml') for p in qatools_config_paths]}
+    # Without its qaboard.yaml, runs started from a subproject's artifacts would use the parent project's config
+    config['artifacts']['__sub-qaboard.yaml'] = {"glob": [str(p.relative_to(root_qatools).parent / name) for p in qatools_config_paths for name in ('qaboard.yaml', 'qatools.yaml')]}
     config['artifacts']['__metrics.yaml'] = {"glob": config.get('outputs', {}).get('metrics')}
     config['artifacts']['__batches.yaml'] = {"glob": [str(p) for p in default_batches_files]}
     config['artifacts']['__envrc'] = {"glob": ['.envrc', '*/.envrc']} # we don't use ** since it's so slow...
@@ -1018,6 +1018,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
         if not ctx.obj['dryrun']:
           copy(path, destination)
           manifest[path.as_posix()] = file_info(path, config=config)
+        nb_files += 1
 
     if not ctx.obj['dryrun']:
       with manifest_path.open('w') as f:

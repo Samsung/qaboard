@@ -1,9 +1,11 @@
 """
 A version of the code on which we ran SLAM performance test.
 """
+import os
 import re
 import json
 import fnmatch
+import datetime
 import subprocess
 from pathlib import Path
 
@@ -24,6 +26,8 @@ from ..git_hosts import committer_avatar_url, committers
 from ..fs_utils import rm_empty_parents, rmtree
 from ..storage import check_storage_path, check_inside, UnsafePathError
 from ..git_utils import find_branch
+from ..artifacts import MAX_CHECKED_FILES, artifacts_status, protected_by_siblings, is_kept, read_manifest, rmtree_except, ArtifactsUnavailable
+from .. import recreate_artifacts
 
 
 
@@ -165,10 +169,11 @@ class CiCommit(Base):
 
 
   def save_artifacts(self):
-    # Restores the artifacts that are defined in the source code 
-    # It won't restore binaries, users are expected to redo their CI on their own
+    """
+    Restores the artifacts that are defined in the source code: `git checkout && qa save-artifacts`.
+    It won't restore build outputs (binaries...), for those see recreate_artifacts / restore_artifacts().
+    """
     import tempfile
-    import git
     from ..git_utils import git_pull
     # workaround for SIRC, trying to save artifacts will crash because the storage assumes a product name
     if self.project.id_relative.endswith("tests/products"):
@@ -177,82 +182,192 @@ class CiCommit(Base):
     if not re.match(r'^[0-9a-fA-F]{4,64}$', self.hexsha):
       raise ValueError(f"Invalid commit id: {self.hexsha!r}")
     check_storage_path(self.repo_artifacts_dir)
+    if not self.project.repo:
+      raise ValueError(f"The server can't read the git repository of {self.project.id}, so it can't restore the artifacts from the source code.")
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-      tmp_dir_path = Path(tmp_dir)
+      tmp_dir_path = Path(tmp_dir) / 'worktree'
       # if it fails in dev, chmod -R 777 /var/qaboard/git/CDE-Users/HW_ALG/.git
       git_pull(self.project.repo)
-      self.project.repo.git.worktree("add", tmp_dir_path, self.hexsha)
-      # tmp_repo = git.Repo(tmp_dir_path)
-      command = ['qa', 'save-artifacts', '--out', str(self.repo_artifacts_dir)]
-      print(command)
-      print(tmp_dir_path / self.project.id_relative)
-      subprocess.run(command, cwd=tmp_dir_path / self.project.id_relative, check=True)
+      self.project.repo.git.worktree("add", "--detach", tmp_dir_path, self.hexsha)
+      try:
+        command = ['qa', 'save-artifacts', '--out', str(self.repo_artifacts_dir)]
+        print(command, tmp_dir_path / self.project.id_relative)
+        subprocess.run(command, cwd=tmp_dir_path / self.project.id_relative, check=True)
+      finally:
+        try:
+          self.project.repo.git.worktree("remove", "--force", tmp_dir_path)
+        except Exception as e: # the artifacts were saved, git will prune the worktree later
+          print(f"WARNING: could not remove the git worktree {tmp_dir_path}: {e}")
 
-  def delete(self, ignore=None, keep=None, dryrun=False):
+
+  def artifacts_status(self, max_checked_files=MAX_CHECKED_FILES):
+    """Can we run from this commit's artifacts? See artifacts.artifacts_status."""
+    status = artifacts_status(self.artifacts_dir, self.repo_artifacts_dir, is_subproject=bool(self.project.id_relative), max_checked_files=max_checked_files)
+    if self.deleted:
+      # When only some artifacts were kept (storage.garbage.artifacts.keep), the files that are left look fine
+      status["ok"] = False
+      status["problems"].insert(0, "The artifacts were deleted.")
+    return status
+
+  @property
+  def recreate_artifacts_settings(self):
+    # The project's settings come from the latest commit on the reference branch: they are likely more up-to-date
+    return recreate_artifacts.recreate_settings(
+      self.project.data.get('qatools_config'),
+      self.data.get('qatools_config'),
+    )
+
+  def restore_artifacts(self, user=None, force=False):
     """
-    Delete the commit's artifacts, and mark it as delete.
+    Brings the artifacts back: asks the CI to recreate them if `recreate_artifacts` is configured,
+    otherwise restores the files from the source code.
+    Returns {status: restored|recreating|failed, message, ...}
+    """
+    settings = self.recreate_artifacts_settings
+    if settings:
+      recreation = self.data.get('artifacts_recreation')
+      if not force and recreate_artifacts.in_progress(recreation):
+        return {"status": "recreating", "message": f"The artifacts are being recreated by {recreation.get('via')}, since {recreation['at']}.", "recreation": recreation}
+      recreation = recreate_artifacts.trigger(settings, self, user=user)
+      self.data = {**self.data, 'artifacts_recreation': recreation}
+      flag_modified(self, "data")
+      if recreation['status'] == 'failed':
+        return {"status": "failed", "message": f"Could not recreate the artifacts with {recreation['via']}: {recreation.get('error')}", "recreation": recreation}
+      return {"status": "recreating", "message": f"Asked {recreation['via']} to recreate the artifacts. Try again once it is done.", "recreation": recreation}
+    try:
+      self.save_artifacts()
+    except Exception as e:
+      return {"status": "failed", "message": f"Could not restore the artifacts from the source code: {e}"}
+    self.deleted = False
+    status = self.artifacts_status()
+    if not status["ok"]:
+      self.deleted = True
+      return {"status": "failed", "message": "Restored the artifacts from the source code, but some are still missing: " + " ".join(status["problems"]), "artifacts": status}
+    return {
+      "status": "restored",
+      "message": "Restored the artifacts from the source code. Build outputs (e.g. binaries) can't be restored this way: to rebuild them automatically, configure `recreate_artifacts` in qaboard.yaml.",
+    }
+
+  def ensure_artifacts(self, user=None):
+    """
+    Call before running from the artifacts (redo, tuning).
+    If they are missing, we try to bring them back. Raises ArtifactsUnavailable if we can't run now.
+    We never run with missing artifacts: e.g. without its qaboard.yaml, a subproject's runs would be saved in the parent project.
+    """
+    status = self.artifacts_status()
+    if status["ok"]:
+      # e.g. some files in the manifests are missing: users may not need them, we tell them
+      return {"status": "incomplete", "message": " ".join(status["warnings"])} if status.get("warnings") else None
+    # QA-Board may not have been told that the artifacts were deleted
+    self.deleted = True
+    restored = self.restore_artifacts(user=user)
+    if restored["status"] == "restored":
+      warnings = self.artifacts_status().get("warnings", [])
+      return {**restored, "message": " ".join([restored["message"], *warnings])}
+    raise ArtifactsUnavailable(
+      f"This commit's artifacts are not usable: {' '.join(status['problems'])} {restored['message']}",
+      {**status, **restored},
+    )
+
+
+  def sibling_commits(self, session):
+    """The same commit in the other (sub)projects of the repository, whose artifacts were not deleted"""
+    id_git = self.project.id_git
+    siblings = (session.query(CiCommit)
+                .filter(CiCommit.hexsha == self.hexsha)
+                .filter(CiCommit.deleted == False)
+                .filter(or_(CiCommit.project_id == id_git, CiCommit.project_id.startswith(f"{id_git}/"))))
+    return [c for c in siblings if c is not self and c.project_id != self.project_id]
+
+  def delete(self, ignore=None, keep=None, dryrun=False, session=None, by=None):
+    """
+    Delete the commit's artifacts, and mark it as deleted.
+    Files that other (sub)projects of the same commit still use are kept (it needs `session` to find them).
     NOTE: We don't touch batches/outputs, you have to deal with them yourself.
           See hard_delete() in api/webhooks.py and clean.py
+    Returns {nb_deleted, errors, kept}
     """
+    summary = {"nb_deleted": 0, "errors": [], "kept": 0}
     try:
       check_storage_path(self.repo_artifacts_dir)
       check_storage_path(self.artifacts_dir)
     except UnsafePathError as e:
       print(f"WARNING: not deleting the artifacts: {e}")
-      return
-    manifest_dir = self.artifacts_dir / 'manifests'
-    delete_errors = False
-    nb_manifests = 0
-    nb_deleted = 0
-    if manifest_dir.exists():
-      for manifest in manifest_dir.iterdir():
-        nb_manifests += 1
-        if keep and manifest in keep:
-          continue
-        print(f'  ...deleting artifacts: {manifest.name}')
-        has_error = False 
-        try:
-          with manifest.open() as f:
-            files = json.load(f)
-        except:
-          delete_errors = True
-          continue
-        for file in files.keys():
-          if keep and file in keep:
-            continue
-          if ignore:
-            if any([fnmatch.fnmatch(file, i) for i in ignore]):
-              continue
-          file_to_delete = self.repo_artifacts_dir / file
-          print(str(file_to_delete))
-          # raise ValueError
-          if not dryrun:
-            try:
-              # manifests are written by users
-              check_inside(file_to_delete, self.repo_artifacts_dir)
-              if file_to_delete.exists():
-                rmtree(file_to_delete)
-                rm_empty_parents(file_to_delete)
-                nb_deleted += 1
-            except:
-              has_error = True
-              print(f"WARNING: Could not remove: {file_to_delete}")
-              # raise ValueError
-        if not has_error:
-          try: # FIXME: umask 0 when writing the manifest file!
-            rmtree(manifest)
-            rm_empty_parents(manifest)
-          except:
-            pass
-        delete_errors = delete_errors or has_error
-    if not nb_manifests:
-      print(f"[{self.authored_datetime}] No artifact manifests found. Deleting everything in {self.artifacts_dir}")
-      nb_deleted = rmtree(self.artifacts_dir)
-      rm_empty_parents(self.artifacts_dir)
+      summary["errors"].append(str(e))
+      return summary
+    siblings = self.sibling_commits(session) if session is not None else []
+    is_protected = protected_by_siblings(self.repo_artifacts_dir, [(c.repo_artifacts_dir, c.artifacts_dir) for c in siblings], own_dir=self.artifacts_dir)
+    if siblings:
+      print(f"  keeping the files used by: {', '.join(c.project_id for c in siblings)}")
 
-    if not delete_errors and nb_deleted:
+    manifest_dir = self.artifacts_dir / 'manifests'
+    manifests = sorted(manifest_dir.iterdir()) if manifest_dir.is_dir() else []
+    for manifest in manifests:
+      group = manifest.stem
+      if keep and group in keep:
+        continue
+      print(f'  ...deleting artifacts: {manifest.name}')
+      has_error = False
+      try:
+        files = read_manifest(manifest)
+      except Exception as e:
+        summary["errors"].append(f"{manifest}: {e}")
+        continue
+      for file in files.keys():
+        if keep and is_kept(group, file, keep):
+          summary["kept"] += 1
+          continue
+        if ignore and any(fnmatch.fnmatch(file, i) for i in ignore):
+          continue
+        if is_protected(file):
+          summary["kept"] += 1
+          continue
+        file_to_delete = self.repo_artifacts_dir / file
+        try:
+          # manifests are written by users
+          check_inside(file_to_delete, self.repo_artifacts_dir)
+          if os.path.lexists(file_to_delete):
+            print(str(file_to_delete))
+            if not dryrun:
+              rmtree(file_to_delete)
+              rm_empty_parents(file_to_delete)
+            summary["nb_deleted"] += 1
+        except Exception as e:
+          has_error = True
+          summary["errors"].append(f"Could not remove {file_to_delete}: {e}")
+      if not has_error and not dryrun:
+        try: # FIXME: umask 0 when writing the manifest file!
+          rmtree(manifest)
+          rm_empty_parents(manifest)
+        except Exception as e:
+          summary["errors"].append(f"Could not remove {manifest}: {e}")
+    if not manifests and self.artifacts_dir.exists():
+      print(f"[{self.authored_datetime}] No artifact manifests found. Deleting everything in {self.artifacts_dir}")
+      try:
+        if is_protected:
+          summary["nb_deleted"] += rmtree_except(self.artifacts_dir, self.repo_artifacts_dir, is_protected, rmtree, dryrun=dryrun)
+        else:
+          summary["nb_deleted"] += 1 if dryrun else rmtree(self.artifacts_dir)
+          if not dryrun:
+            rm_empty_parents(self.artifacts_dir)
+      except Exception as e:
+        summary["errors"].append(str(e))
+
+    if summary["errors"]:
+      print("\n".join(f"  WARNING: {e}" for e in summary["errors"]))
+    if not dryrun:
+      # Even after a partial deletion, we can't run from the artifacts anymore
       self.deleted = True
+      self.data = {**(self.data or {}), 'artifacts_deleted': {
+        "at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "by": by,
+        "nb_deleted": summary["nb_deleted"],
+        "errors": summary["errors"][:10],
+        "kept_for": [c.project_id for c in siblings],
+      }}
+      flag_modified(self, "data")
+    return summary
 
   @staticmethod
   def get_or_create(session, hexsha, project_id, data=None):

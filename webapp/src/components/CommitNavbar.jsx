@@ -30,9 +30,10 @@ import { milestones_of, results_project } from "../milestones/api"
 import { useMilestones } from "../milestones/hooks"
 
 import { shortId, pretty_label } from "../utils";
-import { http, errorMessage } from "../api/http";
+import { http, errorMessage, isArtifactsError } from "../api/http";
 import { commitQuery } from "../api/queries";
-import { useRefreshCommit, useUrlText, updateSelected, useSiteConfig } from "../hooks";
+import { useRefreshCommit, useUrlText, updateSelected, useSiteConfig, useUser } from "../hooks";
+import { LoginMenuItem } from "./authentication/login";
 import { toaster } from "../toaster"
 import { copyDirectory } from "./logs/DirectoryActions"
 import { hasPathMappings } from "../utils/paths"
@@ -179,6 +180,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
   const queryClient = useQueryClient();
   const refreshCommit = useRefreshCommit();
   const [waiting, setWaiting] = useState(false);
+  const is_logged = useUser().is_logged;
   const [soft_delete, setSoftDelete] = useState(false);
   const { docs_root } = useSiteConfig();
   const milestones = useMilestones(project);
@@ -254,13 +256,16 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
         setWaiting(false)
         const runs = data?.submission?.runs
         toaster.show({message: `Redoing ${runs ?? 'the'} run${runs === 1 ? '' : 's'} of ${pretty_label(batch)}`, intent: Intent.SUCCESS, action: show_logs}, key);
+        // e.g. only the source files of the artifacts could be restored
+        if (data?.warning) toaster.show({message: data.warning, intent: Intent.WARNING, timeout: 15000});
         refresh()
         setTimeout(refresh,  5*1000)
         setTimeout(refresh, 10*1000)
       })
       .catch(error => {
         setWaiting(false)
-        toaster.show({message: errorMessage(error), intent: Intent.DANGER, action: error.response?.data?.submission ? show_logs : undefined}, key);
+        // 409: the artifacts are missing, maybe being recreated by the CI
+        toaster.show({message: errorMessage(error), intent: isArtifactsError(error) ? Intent.WARNING : Intent.DANGER, timeout: isArtifactsError(error) ? 15000 : undefined, action: error.response?.data?.submission ? show_logs : undefined}, key);
         refresh()
       });
   }
@@ -613,6 +618,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
           <MenuItem text="Copy output directory" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(batch.batch_dir_url)} />
           <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={batch.batch_dir_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
           <MenuDivider/>
+          {!is_logged && <LoginMenuItem/>}
           <Dialog
             isOpen={show_rename_dialog}
             onOpening={() => setDstBatchLabel(batch.label)}
@@ -663,7 +669,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             icon="send-to-graph"
             text={batch_filter.length > 0 ? "Move runs to another batch" : "Move selection to another batch"}
             minimal
-            disabled={waiting}
+            disabled={waiting || !is_logged}
             shouldDismissPopover={false}
             onClick={() => setShowMoveDialog(true)}
           >
@@ -672,7 +678,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             icon="edit"
             text={batch_filter.length > 0 ? "Rename whole batch" : "Rename batch"}
             minimal
-            disabled={waiting}
+            disabled={waiting || !is_logged}
             shouldDismissPopover={false}
             onClick={() => setShowRenameDialog(true)}
           />
@@ -681,7 +687,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             text={batch_filter ? "Redo filtered deleted runs" : "Redo deleted runs"}
             intent={Intent.WARNING}
             minimal
-            disabled={waiting || commit?.deleted}
+            disabled={waiting || !is_logged}
             onClick={() => redo({only_deleted: true})}
           />}
           {redo_counts.failed_outputs > 0 && <MenuItem
@@ -689,7 +695,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             text={batch_filter ? "Redo filtered failed runs" : "Redo failed runs"}
             intent={Intent.WARNING}
             minimal
-            disabled={waiting || commit?.deleted}
+            disabled={waiting || !is_logged}
             onClick={() => redo({only_failed: true})}
           />}
           <MenuItem
@@ -697,7 +703,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             text={batch_filter ? `Redo the ${runs(batch.filtered?.outputs?.length ?? 0)} that match the filter…` : "Redo all runs…"}
             intent={Intent.WARNING}
             minimal
-            disabled={waiting || commit?.deleted || (!!batch_filter && !batch.filtered?.outputs?.length)}
+            disabled={waiting || !is_logged || (!!batch_filter && !batch.filtered?.outputs?.length)}
             onClick={() => setConfirming('redo-all')}
           />
           <MenuDivider/>
@@ -706,7 +712,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             text={`Delete failed runs${soft_delete ? "' files" : ''}…`}
             intent={Intent.DANGER}
             minimal
-            disabled={waiting || !batch.failed_outputs}
+            disabled={waiting || !is_logged || !batch.failed_outputs}
             onClick={() => setConfirming('delete-failed')}
           />
           <MenuItem
@@ -714,7 +720,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             text={`Delete all runs${soft_delete ? "' files" : ''}…`}
             intent={Intent.DANGER}
             minimal
-            disabled={waiting || (is_milestone && !soft_delete)}
+            disabled={waiting || !is_logged || (is_milestone && !soft_delete)}
             htmlTitle={(is_milestone && !soft_delete) ? "This batch is a milestone: delete the milestone first, or delete only its files (switch on “Delete files, keep metadata”)." : undefined}
             onClick={() => setConfirming('delete-all')}
           />
@@ -729,7 +735,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             text={"Delete multiple batches"}
             intent={Intent.DANGER}
             minimal
-            disabled={waiting}
+            disabled={waiting || !is_logged}
             shouldDismissPopover={false}
             onClick={() => setShowDeleteBatchesDialog(true)}
           />

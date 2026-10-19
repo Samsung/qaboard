@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 
-import { http, errorMessage } from "../../api/http";
+import { http, errorMessage, isArtifactsError } from "../../api/http";
+import { requestLogin } from "../authentication/login";
 import { useUser, useRefreshCommit, updateSelected, useSiteConfig } from "../../hooks";
 import { usePrefsStore, useTuningForm } from "../../stores/prefs";
 
@@ -299,14 +300,16 @@ const default_search_options = { n_iter: 50 };
 const no_tests = { tests: [] };
 
 // What tests a batch (a "group") would run
-const useGroupInfo = ({ project, selected_group, commit_id, available_tests_files }) => {
+const useGroupInfo = ({ project, selected_group, commit_id, available_tests_files, is_logged }) => {
   const query = useQuery({
     queryKey: ['tests-group', project, selected_group, commit_id ?? null, available_tests_files],
     queryFn: async ({ signal }) => {
       const params = { project, name: selected_group, commit: commit_id };
-      return (await http.post('/api/v1/tests/group', { groups: Object.values(available_tests_files ?? {}) }, { params, signal })).data;
+      // background: no "Log in" toast, the form already says to log in
+      return (await http.post('/api/v1/tests/group', { groups: Object.values(available_tests_files ?? {}) }, { params, signal, background: true })).data;
     },
-    enabled: !!selected_group,
+    // the server needs to know who asks
+    enabled: !!selected_group && is_logged,
     placeholderData: keepPreviousData,
     staleTime: 60 * 1000,
   });
@@ -317,6 +320,32 @@ const useGroupInfo = ({ project, selected_group, commit_id, available_tests_file
     loading: query.isFetching,
     error: query.error ? errorMessage(query.error) : (query.data?.error ?? null),
   };
+};
+
+
+// Waits for users to stop typing
+const useDebounced = (value, delay) => {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timeout);
+  }, [value, delay]);
+  return debounced;
+};
+
+// Asks the server what would go wrong if we started now (unknown batch, missing artifacts...)
+const no_check = { errors: [], warnings: [] };
+const useTuningCheck = ({ project, commit_id, request, is_logged }) => {
+  const debounced_request = useDebounced(request, 500);
+  const query = useQuery({
+    queryKey: ['tuning-check', project, commit_id, debounced_request],
+    queryFn: async ({ signal }) => (await http.post(`/api/v1/commit/${commit_id}/batch/check`, debounced_request, { params: { project }, signal, background: true })).data,
+    enabled: !!commit_id && is_logged,
+    placeholderData: keepPreviousData,
+  });
+  // we don't block users if the check itself fails: the server checks again when they start
+  if (query.error) return { errors: [], warnings: [`Could not check the batch settings: ${errorMessage(query.error)}`] };
+  return query.data ? { errors: query.data.errors ?? [], warnings: query.data.warnings ?? [] } : no_check;
 };
 
 
@@ -353,9 +382,42 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
     () => combinations_info(parameter_search, search_options, search_type),
     [parameter_search, search_options, search_type],
   );
+  const is_logged = logged_user.is_logged;
   const { group_info: selected_group_info, loading: selected_group_info_loading, error } = useGroupInfo({
-    project, selected_group, commit_id: commit?.id, available_tests_files,
+    project, selected_group, commit_id: commit?.id, available_tests_files, is_logged,
   });
+
+  // The batch's settings, as sent to the server
+  const request = useMemo(() => {
+    let combinations;
+    try {
+      combinations = search_type === 'optimize' ? parameter_search_auto : eval_combinations(parameter_search).combinations;
+    } catch {
+      combinations = undefined; // the editor already says it's invalid
+    }
+    return {
+      project,
+      batch_label: experiment_name,
+      platform,
+      configuration: 'xxxxxxxxx',
+      tuning_search: {
+        search_type,
+        search_options: search_type !== 'grid' ? search_options : {},
+        parameter_search: combinations,
+      },
+      selected_group,
+      groups: Object.values(available_tests_files ?? {}),
+      user,
+      overwrite,
+    };
+  }, [project, experiment_name, platform, search_type, search_options, parameter_search, parameter_search_auto, selected_group, available_tests_files, user, overwrite]);
+  const check = useTuningCheck({ project, commit_id: commit?.id, request, is_logged });
+  // the answer to the last start, until users change something
+  const [submit_check, setSubmitCheck] = useState(null);
+  const current_check = submit_check?.request === request ? submit_check : check;
+  // the inputs already say when the name or the batch are missing
+  const check_errors = (experiment_name && selected_group) ? current_check.errors : [];
+  const check_warnings = current_check.warnings;
 
   const update = name => e => updateTuning(project, { [name]: e?.target ? e.target.value : e });
   // for some reason, trailing spaces are removed when making the request.
@@ -394,23 +456,11 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
     // the same toast says when the experiment started, or why it didn't
     const toast_key = `tuning-${experiment_name}`
     toaster.show({ message: `Starting ${experiment_name}…`, icon: 'time' }, toast_key);
-    http.post(`/api/v1/commit/${commit.id}/batch`, {
-      project,
-      batch_label: experiment_name,
-      platform,
-      configuration: 'xxxxxxxxx',
-      tuning_search: {
-        search_type,
-        search_options: search_type!=='grid' ? search_options : {},
-        parameter_search: search_type==='optimize' ? parameter_search_auto : eval_combinations(parameter_search).combinations,
-      },
-      selected_group,
-      groups: Object.values(available_tests_files),
-      user,
-      overwrite,
-    }, { params: { project } })
-      .then(() => {
+    http.post(`/api/v1/commit/${commit.id}/batch`, request, { params: { project } })
+      .then(({ data }) => {
         setSubmitted(false);
+        // e.g. only the source files of the artifacts could be restored
+        if (data?.warning) toaster.show({message: data.warning, intent: Intent.WARNING, timeout: 15000});
         toaster.show({
           message: `Started ${experiment_name}`,
           intent: Intent.SUCCESS,
@@ -424,11 +474,14 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
         setSubmitted(false);
         // The batch's page tells users why, and shows the logs
         const submission = error.response?.data?.submission
+        const data = error.response?.data
+        if (Array.isArray(data?.errors)) setSubmitCheck({ request, errors: data.errors, warnings: data.warnings ?? [] });
         toaster.show({
           message: submission
             ? `${experiment_name} failed to start. Its logs say why.`
-            : `Could not start ${experiment_name}: ${errorMessage(error)}`,
-          intent: Intent.DANGER,
+            // 409: the artifacts are missing, maybe being recreated by the CI
+            : isArtifactsError(error) ? errorMessage(error) : `Could not start ${experiment_name}: ${errorMessage(error)}`,
+          intent: isArtifactsError(error) ? Intent.WARNING : Intent.DANGER,
           timeout: 10000,
           action: submission ? { text: 'Show its logs', onClick: () => updateSelected({ selected_batch_new: experiment_name, selected_views: 'logs' }) } : undefined,
         }, toast_key);
@@ -556,6 +609,9 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
       <p>The simplest way to <a href={`${docs_root}docs/celery-integration`}>get started with async runners is to use Celery</a>.</p>
       <p>Otherwise, your runs may be killed if they take too long.</p>
     </Callout>}
+    {check_warnings.length > 0 && <Callout intent={Intent.WARNING} title="Before you start" icon="warning-sign" style={{marginBottom: '15px'}} data-testid="tuning-check-warnings">
+      <ul className={Classes.LIST}>{check_warnings.map(w => <li key={w}>{w}</li>)}</ul>
+    </Callout>}
     {cannot_tune_on_branch &&  <Callout intent={Intent.WARNING} title="Tuning may not work" icon="warning-sign" style={{marginBottom: '15px'}}>
       <p>Tuning needs the commit's artifacts, and the CI only saves them on some branches: {tuning_branches.map((pattern, idx) => <span key={idx}>{idx > 0 && ', '}<code>{expand_subproject(pattern, subproject)}</code></span>)}. Your branch, <code>{commit.branch}</code>, doesn't match.</p>
       <p>A workaround is saving them yourself, from your clone of the repository:</p>
@@ -669,10 +725,20 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
                         : undefined}
       intent={(combinations === "invalid" || total_runs > MAX_RUNS) && search_type !== "optimize" ? Intent.DANGER : undefined}
     >
+    {!is_logged && <Callout intent={Intent.PRIMARY} icon="log-in" title="Log in to start runs" style={{marginBottom: '10px'}} data-testid="tuning-login">
+      <p>Runs started from QA-Board run as you. Once you are logged in, QA-Board also lists the batch's tests and checks your settings.</p>
+      <Button icon="log-in" intent={Intent.PRIMARY} text="Log in" onClick={requestLogin}/>
+    </Callout>}
+    {check_errors.length > 0 && <Callout intent={Intent.DANGER} title="Fix this to start" icon="error" style={{marginBottom: '10px'}} data-testid="tuning-check-errors">
+      <ul className={Classes.LIST}>{check_errors.map(e => <li key={e}>{e}</li>)}</ul>
+    </Callout>}
     <Button
       onClick={onSubmit}
+      data-testid="tuning-start"
       disabled={
         submitted ||
+        !is_logged ||
+        check_errors.length > 0 ||
         !user ||
         experiment_name.length === 0 ||
         (!total_runs && search_type !== "optimize") ||
@@ -717,7 +783,7 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
       />
     </FormGroup>} */}
 
-    {lsf_runner &&<Tooltip content="Runs start on the cluster as this user, with their shell environment">
+    {lsf_runner && is_logged && <Tooltip content="Runs start on the cluster as this user, with their shell environment">
       <Tag icon="user" large minimal style={{marginRight: '5px', marginBottom: '5px'}}>Will run as <strong>{user}</strong></Tag>
     </Tooltip>}
 

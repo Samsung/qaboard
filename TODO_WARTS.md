@@ -9,19 +9,17 @@ Found while surveying the code base (October 2026), after the cleanups that chan
 - Not repeated here: [docs/known-issues.md](docs/known-issues.md) (site-specific code, ops, EOL images, migrations)
   and [webapp/TODO.md](webapp/TODO.md) (viewers to check, dependencies, class components).
 
-## Top 10
+## Top 8
 
-1. **`qaboard_clean` applies the first project's settings to all projects** (clean.py:252-253). [S, behaviour]
-2. **LDAP login: an empty password may log in as anyone, the login is injected in the LDAP filter** (api/auth.py:379-391). [S, behaviour]
-3. **Logged-in users can make the server send any HTTP request** (`/api/v1/webhook/proxy`, `/api/v1/git/proxy`),
+1. **LDAP login: an empty password may log in as anyone, the login is injected in the LDAP filter** (api/auth.py:379-391). [S, behaviour]
+2. **Logged-in users can make the server send any HTTP request** (`/api/v1/webhook/proxy`, `/api/v1/git/proxy`),
    and anyone can trigger Jenkins builds with the server's credentials (api/integrations.py). See "Left after the git-hosts and performance changes". [S, API]
-4. **Anonymous requests can block uwsgi workers forever** (api/tasks.py:20-24). [S, API]
-5. **Anonymous requests write PDF reports anywhere and read any image** (api/image.py:123-126,167-182). [S, API]
-6. **Every `POST /api/v1/batch` overwrites the commit's qaboard.yaml with the client's** (api/batch.py:50-58, and models/CiCommit.py:272 for projects). [S, behaviour]
-7. **`qaboard_clean` never deletes artifacts, nor commits that never had outputs** (clean.py:264, 307). [S, behaviour]
-8. **`qa get` is broken on Python ≥ 3.13, and CI only tests 3.11 while the backend image runs 3.13** (qaboard/qa.py:170-179, .github/workflows/ci.yaml). [S, behaviour]
-9. **The server process runs with `umask 0` after the first manifest refresh** (models/Output.py:370), and other `os.umask(000)` windows race between threads. [S, behaviour]
-10. **docker-compose.yml publishes RabbitMQ (guest/guest), Flower and pgadmin on all host interfaces** (docker-compose.yml:131-132,147,226). [S, behaviour]
+3. **Anonymous requests can block uwsgi workers forever** (api/tasks.py:20-24). [S, API]
+4. **Anonymous requests write PDF reports anywhere and read any image** (api/image.py:123-126,167-182). [S, API]
+5. **Every `POST /api/v1/batch` overwrites the commit's qaboard.yaml with the client's** (api/batch.py:50-58, and models/CiCommit.py:272 for projects). [S, behaviour]
+6. **`qa get` is broken on Python ≥ 3.13, and CI only tests 3.11 while the backend image runs 3.13** (qaboard/qa.py:170-179, .github/workflows/ci.yaml). [S, behaviour]
+7. **The server process runs with `umask 0` after the first manifest refresh** (models/Output.py:370), and other `os.umask(000)` windows race between threads. [S, behaviour]
+8. **docker-compose.yml publishes RabbitMQ (guest/guest), Flower and pgadmin on all host interfaces** (docker-compose.yml:131-132,147,226). [S, behaviour]
 
 ## Security
 
@@ -65,15 +63,6 @@ Found while surveying the code base (October 2026), after the cleanups that chan
 
 ## Backend: bugs
 
-- **`qaboard_clean` settings leak between projects** (clean.py:252-253): `before` and `can_delete_reference_branch` are the CLI
-  arguments *and* the loop variables, so after the first project, every project uses the first one's `storage.garbage.after`
-  (or `1month`), and once a project allows deleting its reference branch, all the following ones do. Data can be deleted earlier
-  than configured. Use per-project local variables. [S, behaviour]
-- **`qaboard_clean` filters** (clean.py:263-266, 305-310): `bool(CiCommit.latest_output_datetime) and ...` is evaluated by Python, so the
-  filter is only `latest_output_datetime < threshold`: commits that never got outputs are never cleaned. Use
-  `func.coalesce(CiCommit.latest_output_datetime, CiCommit.authored_datetime) < threshold`.
-  `if undeleted_commits_from_subprojects:` tests a `Query` object, always true: artifacts are never deleted, and the commit is skipped.
-  The query also matches the commit itself; use `.filter(CiCommit.id != commit.id).first()`. [S, behaviour]
 - **Batch POSTs overwrite the commit's config** (api/batch.py:50-58): `if attr not in ci_commit.data` checks `qaboard_config` but
   stores `qatools_config`, so it's always true: each `POST /api/v1/batch` (e.g. `qa --share` runs with a locally edited qaboard.yaml)
   replaces the commit's config and metrics, and per-batch overrides (58) are never saved. Check `attr_backward_compat`. [S, behaviour]
@@ -119,7 +108,6 @@ Found while surveying the code base (October 2026), after the cleanups that chan
   `GET .../manifest` writes manifests (api/outputs.py:103), `/api/v1/tests/group` creates projects (api/tuning.py:118). [M, API]
 - `json.loads(request.args['metrics'])` returns 500 on bad input (api/commit.py:129). [S, API]
 - `assert` used for control flow (api/commit.py:80,98, api/batch.py:157): it is skipped with `python -O`. [S, no change]
-- `save-artifacts` matches projects with `startswith` (api/commit.py:150): `foo` also matches `foobar`. Compare path segments. [S, behaviour]
 
 ## CLI
 
@@ -178,8 +166,6 @@ Found while surveying the code base (October 2026), after the cleanups that chan
 
 ## Docs
 
-- website/docs/storage/deleting-old-data.mdx describes per-project `storage.garbage.after`, which `qaboard_clean` doesn't honour
-  (see Backend), and says artifacts can be deleted (they never are). Update after fixing. [S, no change]
 - website/docs/backend-admin/managing-users.mdx:59 overstates `QABOARD_LOGIN_REQUIRED` (see Security). [S, no change]
 - backend/README.md:7, MIGRATION.md:9, drafts/ use internal git hosts; the public README should point to GitHub. [S, no change]
 

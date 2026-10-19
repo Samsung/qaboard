@@ -18,6 +18,7 @@ from pathlib import Path
 from backend import db_session
 from .shell_utils import quote, is_shell_safe, safe_user_name, lsf_bridge_command
 from .storage import check_storage_path
+from .artifacts import ArtifactsUnavailable
 from .submissions import record_submission, user_batch_dir, submission_dir
 
 
@@ -117,10 +118,9 @@ def redo_outputs(batch, outputs, user) -> dict:
   ci_commit = batch.ci_commit
   # We run code from there
   check_storage_path(ci_commit.artifacts_dir)
-  # in case it was deleted without QA-Board being made aware
-  if not ci_commit.artifacts_dir.exists():
-    print("Restoring artifacts")
-    ci_commit.save_artifacts()
+  # We never run from missing artifacts: e.g. without its qaboard.yaml, a subproject's runs would be saved in the parent project.
+  # Raises ArtifactsUnavailable if they are missing and can't be restored right now.
+  restored = ci_commit.ensure_artifacts(user=user)
 
   command_id = str(uuid.uuid4())
   created_at = datetime.datetime.utcnow()
@@ -164,6 +164,9 @@ def redo_outputs(batch, outputs, user) -> dict:
     "log_dir": str(log_dir),
     "status": "submitting",
   }
+  if restored:
+    # e.g. only the source files could be restored, or some files are missing
+    submission["warning"] = restored["message"]
   record_submission(batch, submission)
   db_session.add(batch)
   db_session.commit()
@@ -199,6 +202,11 @@ def redo_response(batch, outputs, user):
     return jsonify({"error": "There are no runs to redo."}), 400
   try:
     submission = redo_outputs(batch, outputs, user)
+  except ArtifactsUnavailable as e:
+    # we remember that the artifacts are missing, and that we asked to recreate them
+    db_session.add(batch.ci_commit)
+    db_session.commit()
+    return jsonify(e.to_dict()), 409
   except ValueError as e: # e.g. the user name or folders are not safe to use
     return jsonify({"error": f"{e}"}), 400
   except Exception as e:
@@ -210,4 +218,4 @@ def redo_response(batch, outputs, user):
       "logs": log_tail(submission),
       "submission": submission,
     }), 500
-  return jsonify({"status": "OK", "submission": submission})
+  return jsonify({"status": "OK", "submission": submission, "warning": submission.get("warning")})

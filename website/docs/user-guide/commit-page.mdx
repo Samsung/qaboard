@@ -28,7 +28,7 @@ Above the views, messages tell you about the selected batch:
 - **N failed**: the list of failed runs. Read their [logs](#logs).
 - **N of the runs below were deleted**: **Redo deleted runs** runs them again.
 - **Be careful, those are local runs**: the runs were started from someone's workspace, and may not match the committed code.
-- **This commit's artifacts have been deleted**: **Restore artifacts** brings them back (you'll likely need to rebuild to redo runs).
+- **This commit's artifacts were deleted** (or **are incomplete**, when files went missing without QA-Board knowing): it says when and by whom, and what's missing. **Recreate the artifacts** asks your CI to rebuild them, if the project [configured it](../storage/deleting-old-data.mdx#recreating-artifacts). Otherwise, **Restore the artifacts** restores the files from the source code, but not build outputs like binaries.
 
 While runs are pending, the page refreshes by itself every 15 seconds.
 

@@ -183,7 +183,8 @@ export function useIntegrationStatuses(context) {
         }
         // Only mark as loading once we know we'll actually fire a request
         setStatus(key, { loading: true }, { merge: true });
-        http.post(url, params)
+        // polling: users didn't ask for it, so no "Log in" toast if they are logged out
+        http.post(url, params, { background: true })
           .then(response => setStatus(key, { is_loaded: true, loading: false, error: null, statusText: null, data: response.data }, { merge: true }))
           .catch(error => {
             const statusText = error.response ? error.response.statusText : "Network Error";

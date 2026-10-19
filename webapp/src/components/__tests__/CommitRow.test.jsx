@@ -27,7 +27,7 @@ const project_data = Object.freeze({
 
 const renderRow = (props = {}) => renderWithProviders(
   <MemoryRouter><CommitRow commit={commit} project="group/proj" project_data={project_data} {...props} /></MemoryRouter>,
-  { siteConfig: {}, milestones: { 'group/proj': [] } },
+  { siteConfig: {}, milestones: { 'group/proj': [] }, user: { is_logged: true, user_name: 'alice' } },
 );
 
 
@@ -78,7 +78,7 @@ describe('CommitRow, compact', () => {
     <MemoryRouter><CompactCommitList>
       <CommitRow density="compact" commit={commit} project="group/proj" project_data={project_data} {...props} />
     </CompactCommitList></MemoryRouter>,
-    { siteConfig: {}, milestones: { 'group/proj': [] } },
+    { siteConfig: {}, milestones: { 'group/proj': [] }, user: { is_logged: true, user_name: 'alice' } },
   );
 
   it('shows the same links on one line', () => {

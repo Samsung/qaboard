@@ -11,6 +11,8 @@ import isPropValid from "@emotion/is-prop-valid";
 import { history, matchRoutes, RouteMatch } from "./router";
 import { queryClient, persistOptions, onCacheRestored } from "./api/queryClient";
 import { siteConfigQuery } from "./api/queries";
+import { installLoginHandler } from "./components/authentication/login";
+import { toaster } from "./toaster";
 import { ComparisonProvider, useSiteConfig } from "./hooks";
 import { initSentry, initPostHog } from "./analytics";
 import { Layout } from "./components/layout";
@@ -47,6 +49,9 @@ const ReactQueryDevtools = import.meta.env.DEV
 // Like styled-components@5: don't forward unknown props to DOM elements
 // https://styled-components.com/docs/faqs#shouldforwardprop-is-no-longer-provided-by-default
 const shouldForwardProp = (prop, target) => typeof target !== "string" || isPropValid(prop);
+
+// Asks users to log in when the server answers 401, once for all actions
+installLoginHandler(queryClient, toaster);
 
 const route_name = pathname => matchRoutes(routes, pathname)?.route.path ?? pathname;
 

@@ -15,8 +15,9 @@ import {
   Button,
 } from "@blueprintjs/core";
 
-import { http, errorMessage, isAbort } from "../api/http";
-import { useRefreshCommit, useSiteConfig } from "../hooks";
+import { http, errorMessage, isAbort, isArtifactsError } from "../api/http";
+import { useRefreshCommit, useSiteConfig, useUser } from "../hooks";
+import { LoginMenuItem } from "./authentication/login";
 import { linux_to_windows } from '../utils'
 import { folder_url, hasPathMappings } from '../utils/paths'
 import { toaster } from "../toaster"
@@ -118,6 +119,7 @@ const RunBadge = ({badge}) => {
 
 // What users can do with a run: redo it, mark it as failed, delete it...
 const RunActionsMenu = ({ output, project, commit }) => {
+  const is_logged = useUser().is_logged
   const [waiting, setWaiting] = useState(false)
   // deletes need confirming: 'delete' or 'delete-files'
   const [confirming, setConfirming] = useState(null)
@@ -130,8 +132,13 @@ const RunActionsMenu = ({ output, project, commit }) => {
     setWaiting(true)
     toaster.show({message: requested, icon: 'time'}, key);
     request()
-      .then(() => toaster.show({message: done, intent: Intent.SUCCESS}, key))
-      .catch(error => toaster.show({message: errorMessage(error), intent: Intent.DANGER}, key))
+      .then(response => {
+        toaster.show({message: done, intent: Intent.SUCCESS}, key)
+        // e.g. only the source files of the artifacts could be restored
+        if (response?.data?.warning) toaster.show({message: response.data.warning, intent: Intent.WARNING, timeout: 15000})
+      })
+      // 409: the artifacts are missing, maybe being recreated by the CI
+      .catch(error => toaster.show({message: errorMessage(error), intent: isArtifactsError(error) ? Intent.WARNING : Intent.DANGER, timeout: 15000}, key))
       .finally(() => {
         setWaiting(false)
         refresh()
@@ -139,13 +146,14 @@ const RunActionsMenu = ({ output, project, commit }) => {
   }
   return (
     <Menu>
+      {!is_logged && <LoginMenuItem text="Log in to redo or delete"/>}
       {id && is_pending && <MenuItem
         icon="stop"
         text="Mark as failed"
         htmlTitle="For runs stuck as pending or running: their job is gone and will never report"
         intent={Intent.WARNING}
         minimal
-        disabled={waiting}
+        disabled={waiting || !is_logged}
         onClick={() => act(
           () => http.put(`/api/v1/output/${id}/`, {is_pending: false, is_running: false, is_failed: true}),
           `Marking ${name} as failed…`,
@@ -157,7 +165,7 @@ const RunActionsMenu = ({ output, project, commit }) => {
         text="Redo"
         intent={Intent.WARNING}
         minimal
-        disabled={waiting}
+        disabled={waiting || !is_logged}
         onClick={() => act(
           () => http.post(`/api/v1/output/redo/${id}/`, {is_pending: false, is_running: false}),
           `Starting ${name} again…`,
@@ -170,7 +178,7 @@ const RunActionsMenu = ({ output, project, commit }) => {
         htmlTitle="Delete the run, its metrics and its files"
         intent={Intent.DANGER}
         minimal
-        disabled={waiting}
+        disabled={waiting || !is_logged}
         shouldDismissPopover={false}
         onClick={() => setConfirming('delete')}
       />}
@@ -180,7 +188,7 @@ const RunActionsMenu = ({ output, project, commit }) => {
         htmlTitle="Delete the run's files, keep its metrics"
         intent={Intent.DANGER}
         minimal
-        disabled={waiting}
+        disabled={waiting || !is_logged}
         shouldDismissPopover={false}
         onClick={() => setConfirming('delete-files')}
       />}

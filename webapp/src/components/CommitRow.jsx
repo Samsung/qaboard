@@ -21,7 +21,8 @@ import {
 } from "@blueprintjs/core";
 
 import { http, errorMessage } from "../api/http";
-import { usePrefetchCommitPage, useRefreshCommit } from "../hooks";
+import { usePrefetchCommitPage, useRefreshCommit, useUser } from "../hooks";
+import { LoginMenuItem } from "./authentication/login";
 import { CommitAvatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
 import { format, shortId, pretty_label } from "../utils";
@@ -301,6 +302,7 @@ const CommitShortId = styled.a`
 // The ☰ menu of a commit: copy its directory, browse its files, delete its runs
 const CommitMenu = ({ commit, project, project_data = {}, style }) => {
   const [waiting, setWaiting] = useState(false);
+  const is_logged = useUser().is_logged;
   // the runs users asked to delete, until they confirm: {url, all_projects}
   const [confirm_delete, setConfirmDelete] = useState(null);
   const refreshCommit = useRefreshCommit();
@@ -338,11 +340,12 @@ const CommitMenu = ({ commit, project, project_data = {}, style }) => {
         <MenuItem text="Copy directory" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url)} />
         <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
         <MenuDivider title="Manage"/>
+        {!is_logged && <LoginMenuItem text="Log in to delete runs"/>}
         <MenuItem
           text={commit_milestones.length > 0 ? "Delete all runs, except milestones…" : "Delete all runs…"}
           icon="trash"
           intent={Intent.DANGER}
-          disabled={waiting}
+          disabled={waiting || !is_logged}
           htmlTitle={milestones_title}
           className={Classes.TEXT_MUTED}
           minimal
@@ -352,7 +355,7 @@ const CommitMenu = ({ commit, project, project_data = {}, style }) => {
           text="Delete all runs, in all the projects with this commit…"
           icon="trash"
           intent={Intent.DANGER}
-          disabled={waiting}
+          disabled={waiting || !is_logged}
           htmlTitle={milestones_title}
           className={Classes.TEXT_MUTED}
           minimal

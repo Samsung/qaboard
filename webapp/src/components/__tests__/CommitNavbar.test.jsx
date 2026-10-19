@@ -37,7 +37,7 @@ const renderNavbar = (props = {}, search = '') => {
       update={() => () => {}}
       {...props}
     />
-  </MemoryRouter>, { siteConfig: {}, milestones: { p: [] } });
+  </MemoryRouter>, { siteConfig: {}, milestones: { p: [] }, user: { is_logged: true, user_name: 'alice' } });
 };
 
 

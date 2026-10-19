@@ -13,6 +13,7 @@ import subprocess
 from glob import glob
 from copy import deepcopy
 from shlex import quote
+from html import escape
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Dict, Any
@@ -31,6 +32,7 @@ from ..config import qaboard_data_shared_dir
 from ..shell_utils import safe_user_name, lsf_bridge_command
 from ..storage import check_storage_path, UnsafePathError
 from ..submissions import record_submission, MAX_SUBMISSIONS, user_batch_dir, submission_dir # noqa: F401
+from ..artifacts import ArtifactsUnavailable
 from .auth import login_required
 
 
@@ -277,7 +279,7 @@ def get_group():
     try:
         groups = list(data["groups"])
     except Exception as e:
-        return jsonify(str(e)), 400
+        return jsonify({"error": f"Invalid groups: {e}"}), 400
 
     # the files shared with the project, and the user's
     try:
@@ -527,6 +529,174 @@ def _dispatch_lsf(qa_batch_path, log_dir, user, ci_commit, do_optimize):
     return {"lsf_job_id": parse_bsub_job_id(out.stdout), "queue": queue}
 
 
+def find_commit(project_id, hexsha):
+    return (CiCommit.query
+            .filter(CiCommit.project_id == project_id, CiCommit.hexsha.startswith(hexsha))
+            .order_by(CiCommit.id)
+            .first())
+
+
+def load_batches(ci_commit, project_id, groups):
+    """Merges the batches defined in the commit's batches files and in the custom groups. Returns (merged_batches, errors)."""
+    errors = []
+    batches_paths = get_commit_batches_paths(ci_commit)
+    for group in groups:
+        try:
+            batches_paths.append(get_groups_path(project_id, name=group))
+        except ValueError as e:
+            errors.append(str(e))
+    merged_batches: Dict[str, Any] = {}
+    for path in batches_paths:
+        try:
+            with path.open() as f:
+                c_dict = yaml.load(f, Loader=yaml.SafeLoader) or {}
+            if not isinstance(c_dict, dict):
+                raise ValueError("it should define a mapping of batches")
+        except Exception as e:
+            errors.append(f"Could not read the batches in {path.name}: {e}")
+            continue
+        merged_batches = merge(c_dict, merged_batches)
+    merged_batches['aliases'] = merged_batches.get('aliases', merged_batches.get('groups', {})) or {} # backward-compat
+    return merged_batches, errors
+
+
+def pipeline_batches(batches, merged_batches):
+    # FIXME:  handle pipelines. replace with a generic solution.
+    for b in list(batches):
+        batch_context = merged_batches.get(b, {}) or {}
+        if not isinstance(batch_context, dict) or batch_context.get('type', " ") != 'pipeline':
+            continue
+        for key in batch_context.keys():
+            if key.lower() in ['configuration', 'configurations', 'configs']:
+                for step in batch_context.get(key, []) or []:
+                    if isinstance(step, dict) and 'batch' in step.keys():
+                        step_config = step.get('batch')
+                        if isinstance(step_config, str): batches.append(step_config)
+                        elif isinstance(step_config, list): batches = batches + [b for b in step_config if isinstance(b, str)]
+                        batches = list(resolve_aliases(batches, merged_batches['aliases']))
+    return batches
+
+
+def check_tuning_search(tuning_search) -> list:
+    if not isinstance(tuning_search, dict):
+        return ["The tuning parameters are missing."]
+    search_type = tuning_search.get('search_type', 'grid')
+    parameter_search = tuning_search.get('parameter_search')
+    if search_type == 'optimize':
+        try:
+            optim_config = yaml.load(parameter_search or '', Loader=yaml.SafeLoader)
+        except Exception as e:
+            return [f"The automated tuning configuration is not valid YAML: {e}"]
+        if not isinstance(optim_config, dict):
+            return ["The automated tuning configuration should be a YAML mapping, with an `objective`, an `evaluations` budget and a `search_space`."]
+        errors = [f"The automated tuning configuration needs a `{key}`." for key in ('objective', 'evaluations', 'search_space') if key not in optim_config]
+        if 'evaluations' in optim_config and (not isinstance(optim_config['evaluations'], int) or optim_config['evaluations'] < 1):
+            errors.append("`evaluations` should be a positive integer.")
+        if 'search_space' in optim_config and not optim_config['search_space']:
+            errors.append("`search_space` is empty: there is nothing to optimize.")
+        return errors
+    if search_type not in ('grid', 'sampler'):
+        return [f"Unknown search type: {search_type}"]
+    if parameter_search is None:
+        return []
+    params = parameter_search if isinstance(parameter_search, list) else [parameter_search]
+    if not all(isinstance(p, dict) for p in params):
+        return ["The tuning parameters should be a mapping of parameters to the values to try, or a list of them."]
+    return []
+
+
+def check_tuning_request(ci_commit, data):
+    """
+    Checks a request to run a batch from QA-Board, before we start anything.
+    Returns {errors, warnings, artifacts, nb_batches, merged_batches, batches}: with errors we don't start.
+    """
+    from .commit import commit_artifacts_info
+    errors, warnings = [], []
+    data = data or {}
+    project_config = ci_commit.project.data.get("qatools_config")
+    config = ci_commit.data.get("qatools_config") or project_config
+    if not config:
+        errors.append("QA-Board doesn't know this project's configuration: run `qa save-artifacts` or `qa batch` on this commit, with qaboard.yaml.")
+        config = {}
+
+    label = str(data.get('batch_label') or '').strip()
+    if not label:
+        errors.append("Give a name to the batch.")
+    elif label in ('default',) and data.get('tuning_search', {}).get('search_type') == 'optimize':
+        warnings.append("Automated tuning creates one batch per iteration: give it a more specific name than \"default\".")
+
+    platforms = config.get('inputs', {}).get('platforms') if isinstance(config.get('inputs'), dict) else None
+    if isinstance(platforms, list):
+        # the web app shows them as {name, label}
+        platforms = [str(p.get('name')) if isinstance(p, dict) else str(p) for p in platforms]
+        if data.get('platform') and platforms and str(data['platform']) not in platforms:
+            errors.append(f"Unknown platform {data['platform']!r}. Available in qaboard.yaml: {', '.join(platforms)}")
+
+    errors.extend(check_tuning_search(data.get('tuning_search')))
+
+    artifacts = commit_artifacts_info(ci_commit)
+    if not artifacts["ok"]:
+        problems = " ".join(artifacts.get("problems", []))
+        if artifacts.get("recreate") and not artifacts.get("recreate_errors"):
+            warnings.append(f"The artifacts are missing: {problems} When you start, QA-Board will first ask {artifacts['recreate']} to recreate them.")
+        else:
+            warnings.append(f"The artifacts are missing: {problems} When you start, QA-Board will try to restore them from the source code, but not build outputs (e.g. binaries).")
+    # e.g. files listed in the manifests are missing: the runs may not need them
+    warnings.extend(f"{w} Runs that need them will fail." for w in artifacts.get("warnings", []))
+    for error in artifacts.get("recreate_errors", []):
+        warnings.append(f"qaboard.yaml: {error}")
+
+    entrypoint = config.get('project', {}).get('entrypoint') if isinstance(config.get('project'), dict) else None
+    if entrypoint and artifacts["ok"] and not (ci_commit.repo_artifacts_dir / entrypoint).exists():
+        warnings.append(f"The project's entrypoint ({entrypoint}) is not in the artifacts: runs will likely fail. Check `artifacts` in qaboard.yaml.")
+
+    merged_batches, batches = {}, []
+    selected_group = str(data.get('selected_group') or '').strip()
+    groups = data.get('groups') or []
+    if not isinstance(groups, list):
+        errors.append("`groups` should be a list.")
+        groups = []
+    if not selected_group:
+        errors.append("Select the batch of inputs to run on.")
+    else:
+        merged_batches, batches_errors = load_batches(ci_commit, ci_commit.project_id, groups)
+        warnings.extend(batches_errors)
+        batches = list(resolve_aliases(selected_group, merged_batches['aliases']))
+        batches = pipeline_batches(batches, merged_batches)
+        defined = sorted(k for k in merged_batches if k not in ('aliases', 'groups', 'database'))
+        # `qa batch` also accepts wildcards (batch-*), and input paths (semi-deprecated)
+        unknown = [b for b in batches if b not in merged_batches and not fnmatch.filter(defined, b)]
+        as_inputs = [b for b in unknown if '/' in b or '.' in b]
+        unknown = [b for b in unknown if b not in as_inputs]
+        if as_inputs:
+            warnings.append(f"Not defined as batches, so they will be used as input paths: {', '.join(as_inputs)}")
+        if unknown and not artifacts["ok"]:
+            # the batches files are in the artifacts: starting restores them first, then checks again
+            warnings.append(f"Can't check the batch {', '.join(unknown)} until the artifacts are back.")
+        elif unknown:
+            hint = f" Defined: {', '.join(defined[:20])}{'...' if len(defined) > 20 else ''}" if defined else " No batches are defined: check `inputs.batches` in qaboard.yaml, and that the batches files are in the artifacts."
+            errors.append(f"Unknown batch{'es' if len(unknown) > 1 else ''}: {', '.join(unknown)}.{hint}")
+    return {
+        "errors": errors,
+        "warnings": warnings,
+        "artifacts": artifacts,
+        "merged_batches": merged_batches,
+        "batches": batches,
+    }
+
+
+@app.route("/api/v1/commit/<hexsha>/batch/check", methods=["POST"], strict_slashes=False)
+@login_required
+def check_tuning(hexsha):
+    """Validates a request to start a batch, without starting it. Returns {errors, warnings, artifacts}."""
+    project_id = request.args["project"]
+    ci_commit = find_commit(project_id, hexsha)
+    if not ci_commit:
+        return jsonify({"error": f"Commit {hexsha} was not found in {project_id}", "errors": [f"Commit {hexsha} was not found in {project_id}"], "warnings": []}), 404
+    check = check_tuning_request(ci_commit, request.get_json())
+    return jsonify({k: v for k, v in check.items() if k in ("errors", "warnings", "artifacts", "batches")})
+
+
 @app.route("/api/v1/commit/<hexsha>/batch", methods=["POST"], strict_slashes=False)
 @login_required
 def start_tuning(hexsha):
@@ -542,60 +712,35 @@ def start_tuning(hexsha):
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
-    try:
-        ci_commit = CiCommit.query.filter(
-            CiCommit.project_id == project_id,
-            CiCommit.hexsha.startswith(hexsha)
-        ).one()
-    except NoResultFound:
-        return jsonify("Sorry, the commit id was not found"), 404
+    ci_commit = find_commit(project_id, hexsha)
+    if not ci_commit:
+        return jsonify({"error": f"Commit {hexsha} was not found in {project_id}"}), 404
 
-    if "qatools_config" not in ci_commit.project.data:
-        return jsonify("Please create `qaboard.yaml`"), 404
+    check = check_tuning_request(ci_commit, data)
+    restored_message = None
+    if not check["artifacts"]["ok"]:
+        # We never run from missing artifacts: e.g. without its qaboard.yaml, a subproject's runs would be saved in the parent project
+        try:
+            restored = ci_commit.ensure_artifacts(user=user)
+        except ArtifactsUnavailable as e:
+            db_session.add(ci_commit)
+            db_session.commit()
+            return jsonify(e.to_dict()), 409
+        db_session.add(ci_commit)
+        db_session.commit()
+        # the batches files come from the artifacts
+        restored_message = restored["message"] if restored else None
+        check = check_tuning_request(ci_commit, data)
+    if check["errors"]:
+        return jsonify({"error": " ".join(check["errors"]), "errors": check["errors"], "warnings": check["warnings"]}), 400
 
+    # Now that we updated the last_output_datetime, the artifacts won't be deleted again until a little while
     ci_commit.latest_output_datetime = datetime.datetime.now()
     batch = ci_commit.get_or_create_batch(data['batch_label'])
     db_session.add(ci_commit)
     db_session.commit()
 
-    if ci_commit.deleted:
-        # Now that we updated the last_output_datetime, it won't be deleted again until a little while
-        return jsonify("Artifacts for this commit were deleted! Re-run your CI pipeline, or `git checkout / build / qa --ci save-artifacts`"), 404
-    try:
-        groups = list(data["groups"])
-    except Exception as e:
-        return jsonify(str(e)), 400
-
-    commit_batches_paths = get_commit_batches_paths(ci_commit)
-    try:
-        batches_paths = [get_groups_path(project_id, name=group) for group in groups]
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
-    batches_paths = [*commit_batches_paths, *batches_paths]
-    merged_batches : Dict[str, Any] = {}
-    for c in batches_paths:
-        with c.open() as f:
-            c_dict = yaml.load(f, Loader=yaml.SafeLoader)
-        merged_batches = merge(c_dict, merged_batches)
-    merged_batches['aliases'] = merged_batches.get('aliases', merged_batches.get('groups', {})) # backward-compat
-
-    batches = str(data['selected_group'])
-    batches = list(resolve_aliases(batches, merged_batches['aliases']))
-
-    # FIXME:  handle pipelines. replace with a generic solution.
-    for b in batches:
-        batch_context = merged_batches.get(b,{})
-        if batch_context.get('type', " ") == 'pipeline':
-            for key in batch_context.keys():
-                if key.lower() in ['configuration', 'configurations', 'configs']:
-                    configs = batch_context.get(key, [])
-                    for step in configs:
-                        if 'batch' in step.keys():
-                            step_config = step.get('batch')
-                            if isinstance(step_config, str): batches.append(step_config)
-                            elif isinstance(step_config, list): batches = batches + [b for b in step_config if isinstance(b, str)]
-                            batches = list(resolve_aliases(batches, merged_batches['aliases']))
-
+    merged_batches, batches = check["merged_batches"], check["batches"]
     merged_batches = { key:value for key, value in merged_batches.items() if key in ['aliases', 'database', *batches]}
     # TODO: filter the aliases, but it requires care in case of multiple levels of aliases...
 
@@ -710,4 +855,4 @@ def start_tuning(hexsha):
     if submission["status"] == "failed":
         error_log = (log_dir / 'log.txt').read_text() if (log_dir / 'log.txt').exists() else submission.get("error", "Failed to start batch")
         return jsonify({"error": error_log, "cmd": runner, "submission": submission}), 500
-    return jsonify({"cmd": runner, "stdout": "OK", "submission": submission})
+    return jsonify({"cmd": runner, "stdout": "OK", "submission": submission, "warning": restored_message})

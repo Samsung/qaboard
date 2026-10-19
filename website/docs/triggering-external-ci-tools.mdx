@@ -167,7 +167,7 @@ integrations:
       build_url: $JENKINS_URL/job/my-project-linux
       # You can include the token from the job's configuration page
       # token: qaboard   # default value # FIXME: make it empty in the OSS version
-      parameters:
+      params:     # `parameters` works too
         commit: "${commit.id}"
 ```
 

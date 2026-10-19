@@ -181,3 +181,38 @@ describe('TuningForm', () => {
     expect(usePrefsStore.getState().tuning.proj.parameter_search_auto).not.toBe('my: edits');
   });
 });
+
+
+describe('TuningForm checks', () => {
+  beforeEach(() => usePrefsStore.setState({ tuning: {} }));
+  afterEach(() => vi.restoreAllMocks());
+
+  it('asks logged-out users to log in, without requests that need a login', async () => {
+    usePrefsStore.getState().updateTuning('proj', { experiment_name: 'exp', selected_group: 'nightly' });
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({}));
+    renderWithProviders(
+      <TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>,
+      { user: { is_logged: false }, siteConfig: {} },
+    );
+    expect(screen.getByTestId('tuning-login')).toBeInTheDocument();
+    expect(screen.getByTestId('tuning-start')).toBeDisabled();
+    await new Promise(resolve => setTimeout(resolve, 700));
+    expect(fetch.mock.calls.filter(([url]) => url.includes('/tests/group') || url.includes('/batch/check'))).toEqual([]);
+  });
+
+  it('shows what the server says would fail, and blocks Send', async () => {
+    usePrefsStore.getState().updateTuning('proj', { experiment_name: 'exp', selected_group: 'nightly', parameter_search: '{"a": [1, 2]}' });
+    vi.spyOn(globalThis, 'fetch').mockImplementation(url => {
+      if (url.startsWith('/api/v1/tests/group?')) return json({ tests: [{ input_path: 'a.jpg', configurations: [] }] });
+      if (url.startsWith('/api/v1/commit/abcdef12/batch/check')) return json({ errors: ['Unknown batch: nightly.'], warnings: ['The artifacts are missing.'] });
+      return json({});
+    });
+    renderWithProviders(
+      <TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>,
+      { user: { is_logged: true, user_name: 'alice' }, siteConfig: {} },
+    );
+    expect(await screen.findByText('Unknown batch: nightly.', {}, { timeout: 2000 })).toBeInTheDocument();
+    expect(screen.getByText('The artifacts are missing.')).toBeInTheDocument();
+    expect(screen.getByTestId('tuning-start')).toBeDisabled();
+  });
+});

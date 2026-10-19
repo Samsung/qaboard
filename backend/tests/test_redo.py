@@ -83,7 +83,7 @@ def setup(tmp_path, monkeypatch):
   artifacts_dir.mkdir()
   (artifacts_dir / ".envrc").write_text(f'export PATH="{bin_dir}:$PATH"\n')
   outputs_dir = tmp_path / "outputs" / "ci" / "project" / "abcdef"
-  ci_commit = SimpleNamespace(hexsha="abcdef", outputs_dir=outputs_dir, artifacts_dir=artifacts_dir, save_artifacts=MagicMock())
+  ci_commit = SimpleNamespace(hexsha="abcdef", outputs_dir=outputs_dir, artifacts_dir=artifacts_dir, ensure_artifacts=MagicMock(return_value=None))
   batch = SimpleNamespace(label="my label", batch_dir=outputs_dir / "output" / "my-label", data={"commands": {"x": {}}}, ci_commit=ci_commit)
   calls = tmp_path / "calls.txt"
 
@@ -142,3 +142,24 @@ def test_redo_response(setup, dummy_app):
     assert status == 500
     assert "qa batch exited with code 1" in response.get_json()["error"]
     assert "[qaboard] qa batch exited with code 1" in response.get_json()["logs"]
+
+
+def test_redo_refuses_unusable_artifacts(setup, dummy_app):
+  # e.g. without its qaboard.yaml, a subproject's runs would be saved in the parent project
+  from backend.artifacts import ArtifactsUnavailable
+  batch, calls = setup()
+  batch.ci_commit.ensure_artifacts = MagicMock(side_effect=ArtifactsUnavailable("The subproject's qaboard.yaml is missing.", {"ok": False}))
+  with dummy_app.test_request_context():
+    response, status = redo.redo_response(batch, [make_output()], "arthurf")
+  assert status == 409
+  assert response.get_json() == {"error": "The subproject's qaboard.yaml is missing.", "artifacts": {"ok": False}}
+  # nothing was started
+  assert not calls.exists()
+
+
+def test_redo_tells_what_could_not_be_restored(setup, dummy_app):
+  batch, calls = setup()
+  batch.ci_commit.ensure_artifacts = MagicMock(return_value={"status": "restored", "message": "Build outputs (e.g. binaries) can't be restored this way."})
+  with dummy_app.test_request_context():
+    response = redo.redo_response(batch, [make_output()], "arthurf")
+  assert response.get_json()["warning"] == "Build outputs (e.g. binaries) can't be restored this way."

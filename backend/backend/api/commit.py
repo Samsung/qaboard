@@ -1,5 +1,6 @@
 import re
 import json
+import datetime
 
 from gitdb.exc import BadName
 import ujson
@@ -13,6 +14,7 @@ from backend import app, db_session
 from .auth import is_authorized_user, login_required, require_project_access
 from ..models import Project, CiCommit, latest_successful_commit, Batch
 from ..storage import UnsafePathError
+from .. import recreate_artifacts
 
 
 
@@ -39,10 +41,26 @@ def api_ci_commit(commit_id=None):
     # We've been using it to store code quality metrics per subproject in our monorepo,
     # Then we use other tools (e.g. metabase) to create dashboards.
     commit_data = request.json.get('data', {})
+    if not isinstance(commit_data, dict):
+      commit_data = {}
+    # QA-Board's own bookkeeping, clients can't change it
+    commit_data = {k: v for k, v in commit_data.items() if k not in ('artifacts_recreation', 'artifacts_deleted')}
     commit.data = {**commit.data, **commit_data}
     flag_modified(commit, "data")
-    if commit.deleted:
-      commit.deleted = False
+    # `qa save-artifacts` calls us when it's done. It may have saved only some artifacts,
+    # so we check they are really usable before saying they are back.
+    recreation = commit.data.get('artifacts_recreation')
+    recreation = recreation if isinstance(recreation, dict) else {}
+    if commit.deleted or recreation.get('status') == 'triggered':
+      try:
+        commit.deleted = False
+        artifacts_ok = commit.artifacts_status()["ok"]
+      except Exception as e:
+        print(f"WARNING: could not check the artifacts of {commit}: {e}")
+        artifacts_ok = False
+      commit.deleted = not artifacts_ok
+      if artifacts_ok and recreation:
+        commit.data['artifacts_recreation'] = {**recreation, 'status': 'done', 'done_at': datetime.datetime.now(datetime.timezone.utc).isoformat()}
     db_session.add(commit)
     db_session.commit()
     return jsonify({"status": "OK"})
@@ -128,41 +146,69 @@ def api_ci_commit(commit_id=None):
   batch = request.args.get('batch', None)
   with_batches = [batch] if batch else None # by default we show all batches
   with_aggregation = json.loads(request.args.get('metrics', '{}'))
-  response = make_response(ujson.dumps(ci_commit.to_dict(db_session, with_aggregation, with_batches=with_batches, with_outputs=True)))
+  commit_dict = ci_commit.to_dict(db_session, with_aggregation, with_batches=with_batches, with_outputs=True)
+  commit_dict['artifacts'] = commit_artifacts_info(ci_commit)
+  response = make_response(ujson.dumps(commit_dict))
   response.headers['Content-Type'] = 'application/json'
   return response
+
+
+def commit_artifacts_info(ci_commit):
+  """What the web app needs to warn users about missing artifacts, before they try to run anything."""
+  try:
+    # the page is loaded often, and the storage is often a slow network filesystem: we check fewer files than before running
+    status = ci_commit.artifacts_status(max_checked_files=50)
+  except Exception as e:
+    status = {"ok": False, "problems": [f"Could not check the artifacts: {e}"]}
+  dict_or_none = lambda value: value if isinstance(value, dict) else None
+  info = {
+    **status,
+    "recreate": None,
+    "recreate_errors": [],
+    "recreation": dict_or_none(ci_commit.data.get('artifacts_recreation')),
+    # after a while, redo/tuning ask the CI again
+    "recreating": recreate_artifacts.in_progress(ci_commit.data.get('artifacts_recreation')),
+    "deletion": dict_or_none(ci_commit.data.get('artifacts_deleted')),
+  }
+  # the configuration comes from unauthenticated API calls: it must never break the commit page
+  try:
+    settings = ci_commit.recreate_artifacts_settings
+    if settings:
+      info["recreate_errors"] = recreate_artifacts.validate(settings, recreate_artifacts.template_variables(ci_commit))
+      info["recreate"] = recreate_artifacts.describe(settings)
+  except Exception as e:
+    info["recreate_errors"] = [f"Could not read `recreate_artifacts`: {e}"]
+  return info
 
 
 @app.route("/api/v1/commit/save-artifacts/", methods=['POST'])
 @app.route("/api/v1/commit/save-artifacts", methods=['POST'])
 @login_required
 def commit_save_artifacts():
-  hexsha = request.json.get('hexsha')
+  """
+  Brings back a commit's artifacts: with `recreate_artifacts` from qaboard.yaml if defined,
+  otherwise from the source code. Returns {status: restored|recreating|failed, message}
+  """
+  data = request.get_json()
+  hexsha = data.get('hexsha')
+  project_id = data.get('project')
+  if not hexsha or not project_id:
+    return jsonify({"error": "Missing hexsha or project"}), 400
+  ci_commit = (db_session
+               .query(CiCommit)
+               .filter(CiCommit.project_id == project_id, CiCommit.hexsha.startswith(hexsha))
+               .first())
+  if not ci_commit:
+    return jsonify({"error": f"Cannot find commit {hexsha} in {project_id}"}), 404
+  if forbidden := require_project_access(g.user, ci_commit.project_id):
+    return forbidden
+  print(f"[save-artifacts] {ci_commit}")
   try:
-      ci_commits = (db_session
-                   .query(CiCommit)
-                   .filter(
-                     CiCommit.hexsha == hexsha,
-                   )
-                  )
-  except:
-    return f"404 ERROR:\n ({request.json['project']}): There is an issue with your commit id ({hexsha})", 404
-  for ci_commit in ci_commits.yield_per(1000):
-    if not request.json['project'].startswith(ci_commit.project_id):
-      print(f'skip {ci_commit.project_id}')
-      continue
-    if forbidden := require_project_access(g.user, ci_commit.project_id):
-      return forbidden
-    print(f"[save-artifacts] {ci_commit}")
-    # FIXME: in the clean crontab we remove commits without runs
-    # if we rely on artifacts from a subproject without runs, it will cause issues... 
-    # we should use the git info to find the qatools.yaml
-    try:
-      ci_commit.save_artifacts()
-    except UnsafePathError as e:
-      return jsonify({"error": f"{e}"}), 400
-    if ci_commit.deleted:
-      ci_commit.deleted = False
-      db_session.add(ci_commit)
-      db_session.commit()
-  return 'OK'
+    result = ci_commit.restore_artifacts(user=g.user['user_name'], force=True)
+  except UnsafePathError as e:
+    return jsonify({"error": f"{e}"}), 400
+  db_session.add(ci_commit)
+  db_session.commit()
+  if result["status"] == "failed":
+    return jsonify({"error": result["message"], **result}), 500
+  return jsonify(result)

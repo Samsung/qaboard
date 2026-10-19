@@ -7,8 +7,8 @@ description: Redo runs, start tests and tuning experiments, and trigger CI jobs 
 You don't need a terminal to start runs: the web app can redo runs, run a commit's code on new tests, start tuning experiments and trigger CI jobs.
 
 :::info Before you start
-- Most actions need you to be **logged in** (top of the sidebar).
-- Running code needs the commit's **artifacts** (its build and configuration files). If they were deleted, the commit page offers to restore them, but you'll likely need to rebuild.
+- Most actions need you to be **logged in** (top of the sidebar). When you are not, they are greyed out, next to a **Log in** button. If your session expires, QA-Board tells you to log in again.
+- Running code needs the commit's **artifacts** (its build and configuration files). When they are missing, the commit page says why, and redoing runs or starting tuning first brings them back: your project may have QA-Board [rebuild them with your CI](../storage/deleting-old-data.mdx#recreating-artifacts), otherwise only the files from the source code are restored. While the CI rebuilds them, QA-Board doesn't start anything: try again when the build is done.
 - Your project needs a **task runner** (a cluster, Celery workers...) for runs to start. If none is set up, the tuning form warns you: ask whoever integrated QA-Board in your project.
 :::
 
@@ -62,6 +62,8 @@ To run a commit's code on other inputs, or with other parameters, open the commi
   id="tuning/auto-form"
   caption="Automated tuning: the search space and the objective in YAML, the optimizer picks the parameters to try."
 />
+
+While you fill the form, QA-Board checks it: **Fix this to start** lists what would make it fail (e.g. an unknown batch, an invalid automated tuning configuration, a platform the project doesn't have), and **Before you start** warns about the rest (e.g. missing artifacts that will be restored first).
 
 Then select the new batch in the batch selector to follow it. When it's done:
 - compare it with the CI batch (see the [tip in Comparing results](comparing-results.mdx#picking-a-reference)),

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import styled from "styled-components";
 import {
@@ -15,6 +15,7 @@ import {
 import { http, errorMessage } from "../../api/http";
 import { userQuery, logged_out_user, setUser } from "../../api/queries";
 import { useSiteConfig } from "../../hooks";
+import { registerLoginHandler } from "./login";
 import { toaster } from "./../../toaster"
 import { Avatar } from '../avatars';
 import { colors, spacing, typography, borders, shadows, transitions } from '../../design/tokens';
@@ -292,6 +293,10 @@ const LoginButton = ({ user, logout, appSider, login_type }) => {
       });
   };
 
+  // actions that need a login open this dialog (see login.jsx)
+  const handleLoginRef = useRef(null);
+  useEffect(() => registerLoginHandler(() => handleLoginRef.current?.()), []);
+
   const handleLogin = () => {
     if (login_type === "SAML") {
       setLoading(true);
@@ -302,6 +307,7 @@ const LoginButton = ({ user, logout, appSider, login_type }) => {
       setLoading(false);
     }
   };
+  useEffect(() => { handleLoginRef.current = handleLogin; });
 
   const login_button = appSider ?
     <MenuItem icon="log-in" text="Log in" intent={Intent.PRIMARY} onClick={handleLogin}/> :

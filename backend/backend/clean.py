@@ -40,13 +40,32 @@ from pathlib import Path
 
 import click
 from click import secho
-from sqlalchemy import or_, not_
+from sqlalchemy import func, or_, not_
 
 from .database import db_session
 from .models import Project, CiCommit, Batch, Output
 
 
 now = datetime.datetime.utcnow()
+
+
+def mark_artifacts_deleted(hexsha, project_prefix, deleted_dir, by):
+    """Marks as deleted the artifacts of a commit in the projects of a repository whose artifacts were in a folder we deleted."""
+    db_session.expunge_all() # don't save the helper CiCommit objects
+    commits = (db_session.query(CiCommit)
+               .filter(CiCommit.hexsha.startswith(hexsha))
+               .filter(or_(CiCommit.project_id == project_prefix, CiCommit.project_id.startswith(f"{project_prefix}/"))))
+    for commit in commits:
+        try:
+            if not Path(commit.artifacts_dir).resolve().is_relative_to(Path(deleted_dir).resolve()):
+                continue # stored in another artifacts root
+        except Exception as e:
+            print(f"WARNING: {commit}: {e}")
+            continue
+        commit.deleted = True
+        commit.data = {**(commit.data or {}), 'artifacts_deleted': {"at": datetime.datetime.now(datetime.timezone.utc).isoformat(), "by": by}}
+        db_session.add(commit)
+    db_session.commit()
 
 
 # TODO: remove __all__ the output folders for deleted results +3months
@@ -132,6 +151,8 @@ def clean_untracked_hwalg_artifacts(clean_untracked_artifacts, artifacts_roots, 
                 except Exception as e: # empty parent folders will be deleted, including the folder we iterate in...
                     # __pycache__ can be owned by a different user that the one that created the folder...
                     print(e)
+                # ci_commit is only a helper, not the commits QA-Board knows: tell them their artifacts are gone
+                mark_artifacts_deleted(hexsha, 'CDE-Users/HW_ALG', artifact_dir, by="clean_untracked_hwalg_artifacts")
                 # return
 
 
@@ -227,15 +248,18 @@ def clean_untracked_hwalg_outputs(outputs_roots, user, use_cache):
 @click.option('--before', help="Overwrites what's defined in the project config. 1month, 3days..")
 @click.option('--can-delete-reference-branch', is_flag=True, help="Allows deleting results on the reference branch (e.g. master/develop). The latest commit will be kept.")
 @click.option('--can-delete-outputs/--cannot-delete-outputs', is_flag=True, default=True, help="Allows deleting outputs.")
-@click.option('--can-delete-artifacts', is_flag=True, help="Allows deleting artifacts.")
-@click.option('--dryrun', is_flag=True)
+@click.option('--can-delete-artifacts', is_flag=True, help="Allows deleting artifacts, even if the project's qaboard.yaml doesn't ask for it.")
+@click.option('--dryrun', is_flag=True, help="Only print what would be deleted: nothing is deleted or changed in the database.")
 @click.option('--verbose', is_flag=True)
 def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, can_delete_artifacts, dryrun, verbose):
     if before and not project_ids:
         secho('[ERROR] when using --before you need to use --project', fg='red')
         exit(1)
+    if dryrun:
+        secho('DRYRUN: nothing will be deleted', fg='yellow', bold=True)
 
-    projects = db_session.query(Project)
+    totals = {"commits": 0, "outputs": 0, "artifacts": 0, "artifacts_files": 0, "errors": 0}
+    projects = db_session.query(Project).all()
     for project in projects:
         if project.data.get("legacy"):
             continue
@@ -243,18 +267,29 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
             continue
         secho(project.id, fg='blue', bold=True)
         if not project.repo:
-            secho(f'[WARNING] Could not clone/read the git repo for {project.id}', fg='yellow')
-            # return
+            # we need git to know which commits are milestones
+            secho(f'[WARNING] Could not clone/read the git repo for {project.id}, skipping it', fg='yellow')
             continue
 
         try:
-            gc_config = project.data.get("qatools_config", {}).get("storage", {}).get('garbage', {})
+            gc_config = project.data.get("qatools_config", {}).get("storage", {}).get('garbage', {}) or {}
         except: # e.g. storage is defined as a single string
             gc_config = {}
-        can_delete_reference_branch = can_delete_reference_branch or gc_config.get('can_delete_reference_branch')
-        before = gc_config.get('after', '1month') if not before else before
-        old_treshold = now - parse_time(before)
-        secho(f"deleting data older than {old_treshold}", dim=True)
+        # each project has its own settings: don't reuse the previous project's
+        project_can_delete_reference_branch = can_delete_reference_branch or gc_config.get('can_delete_reference_branch')
+        project_before = before if before else gc_config.get('after', '1month')
+        try:
+            # an empty value would mean "delete everything"
+            if not isinstance(project_before, str) or not project_before.strip():
+                raise ValueError(f"expected a duration like 1month or 2weeks, got {project_before!r}")
+            old_treshold = now - parse_time(project_before.strip())
+        except Exception as e:
+            secho(f'[ERROR] storage.garbage.after: {e}', fg='red')
+            totals["errors"] += 1
+            continue
+        gc_config_artifacts = gc_config.get('artifacts', {}) or {}
+        project_can_delete_artifacts = gc_config_artifacts.get('delete') == True or can_delete_artifacts
+        secho(f"deleting data older than {old_treshold}{', with artifacts' if project_can_delete_artifacts else ''}", dim=True)
 
         protected_commits = project.protected_ref_commits
         milestone_batches = project.milestone_batches
@@ -263,19 +298,17 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
             db_session.query(CiCommit)
             .filter(CiCommit.project == project)
             .filter(CiCommit.deleted == False)
-            # we could check those rare occurrences from python-land...
-            .filter(CiCommit.hexsha.notin_(protected_commits))
-            .filter(or_(
-                bool(CiCommit.latest_output_datetime) and CiCommit.latest_output_datetime < old_treshold,
-                not CiCommit.latest_output_datetime   and CiCommit.authored_datetime < old_treshold,
-            ))
+            # commits without outputs are judged by their date
+            .filter(func.coalesce(CiCommit.latest_output_datetime, CiCommit.authored_datetime) < old_treshold)
             .order_by(CiCommit.authored_datetime.desc())
-
         )
-        if not can_delete_reference_branch:
-            commits = commits.filter(CiCommit.branch.notin_(project.protected_refs))
+        if protected_commits:
+            commits = commits.filter(CiCommit.hexsha.notin_(protected_commits))
+        if not project_can_delete_reference_branch:
+            protected_refs = project.protected_refs
+            commits = commits.filter(CiCommit.branch.notin_([*protected_refs, *[f'origin/{r}' for r in protected_refs]]))
 
-        for commit in commits.yield_per(1000):
+        for commit in commits.all():
             secho(f"@{commit.project_id}  {commit.branch}  {commit.hexsha} {commit.authored_datetime}", fg='cyan')
             outputs = (db_session.query(Output).join(Batch).filter(Batch.ci_commit_id == commit.id))
             # We keep the batches that are milestones, and what they need to be redone or compared: the artifacts
@@ -286,53 +319,62 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
 
             nb_outputs = 0
             nb_outputs_deleted = 0
-            for o in outputs:
-              if not can_delete_outputs:
-                  continue
-              nb_outputs += 1
-              if o.deleted:
-                  continue
-              nb_outputs_deleted += 1
-              print(" ", o)
-              try:
-                o.delete(dryrun=dryrun)  # ignore=['*.json', '*.txt'],
-                if not dryrun:
-                    db_session.add(o)
-              except Exception as e:
-                print(e)
-                # raise e
-                try:
-                    o.update_manifest()
-                except:
-                    pass
-            gc_config_artifacts = gc_config.get('artifacts', {})
+            if can_delete_outputs:
+                for o in outputs:
+                    nb_outputs += 1
+                    if o.deleted:
+                        continue
+                    if verbose:
+                        print(" ", o)
+                    try:
+                        o.delete(dryrun=dryrun)
+                        nb_outputs_deleted += 1
+                    except Exception as e:
+                        print(f"  ERROR: {o}: {e}")
+                        totals["errors"] += 1
+                        if not dryrun:
+                            try:
+                                o.update_manifest()
+                            except:
+                                pass
+            totals["outputs"] += nb_outputs_deleted
+
             deleted_artifacts = False
-            if (gc_config_artifacts.get('delete') == True or can_delete_artifacts) and not kept_batches:
-                undeleted_commits_from_subprojects = (
-                    db_session.query(CiCommit)
-                    .filter(CiCommit.project_id.startswith(commit.project_id))
-                    .filter(CiCommit.deleted == False)
-                    .filter(CiCommit.hexsha == commit.hexsha)
-                )
-                if undeleted_commits_from_subprojects:
-                    print(f"> skipping {commit}: undeleted_commits_from_subprojects")
-                    continue
-
+            summary = {"nb_deleted": 0, "errors": []}
+            if project_can_delete_artifacts and not kept_batches:
                 secho(f"  Deleting artifacts", fg='cyan', dim=True)
+                # Files that the other subprojects still use are kept
+                keep = gc_config_artifacts.get('keep', []) or []
                 try:
-                    commit.delete(keep=gc_config_artifacts.get('keep', []), dryrun=dryrun)
-                    deleted_artifacts = True
+                    summary = commit.delete(keep=[keep] if isinstance(keep, str) else keep, dryrun=dryrun, session=db_session, by="garbage collection")
                 except Exception as e:
-                    print(e)
-                    continue
+                    # e.g. an unreadable folder: don't stop the cleanup of the other commits
+                    secho(f"  ERROR: could not delete the artifacts: {e}", fg='red')
+                    summary = {"nb_deleted": 0, "errors": [str(e)]}
+                # we keep the commit if something went wrong, so that we try again next time
+                deleted_artifacts = not summary["errors"]
+                totals["artifacts"] += 1
+                totals["artifacts_files"] += summary["nb_deleted"]
+                totals["errors"] += len(summary["errors"])
+            if nb_outputs_deleted or summary["nb_deleted"]:
+                totals["commits"] += 1
             if not dryrun:
-              if nb_outputs_deleted or deleted_artifacts:
                 db_session.add(commit)
-              if not nb_outputs and deleted_artifacts and can_delete_outputs and not kept_batches:
-                print(f"DELETE {commit}")
-                db_session.delete(commit)
+                if not nb_outputs and deleted_artifacts and can_delete_outputs and not kept_batches:
+                    print(f"DELETE {commit}")
+                    db_session.delete(commit)
+                # the artifacts' state must be saved as soon as possible: if we crash later, we must not lose that they were deleted
+                db_session.commit()
 
-        db_session.commit()
+        if dryrun:
+            db_session.rollback()
+        else:
+            db_session.commit()
+
+    secho(
+        f"{'[DRYRUN] would have deleted' if dryrun else 'Deleted'}: {totals['outputs']} outputs and the artifacts of {totals['artifacts']} commits ({totals['artifacts_files']} files), in {totals['commits']} commits. {totals['errors']} errors.",
+        fg='green' if not totals['errors'] else 'yellow', bold=True,
+    )
 
 
 

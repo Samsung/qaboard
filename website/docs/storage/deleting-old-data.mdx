@@ -26,16 +26,16 @@ storage:
     after: 1month
 ```
 
-`after:` supports human-readable values like *2weeks*, *1year*, *3months*...
+`after:` supports human-readable values like *2weeks*, *1year*, *3months*... A commit is old when it got no new outputs for that long, or, if it never had any, when it was authored that long ago.
 
 :::caution
-Data is deleted when the server runs `qaboard_clean` (see the [server's cron jobs](../deploy#optional-cleanup)). It applies to all projects: without `storage.garbage.after`, outputs are deleted after **1month**. Use `qaboard_clean --help` for the options (e.g. `--dryrun`, `--project`).
+Data is deleted when the server runs `qaboard_clean` (see the [server's cron jobs](../deploy#optional-cleanup)). It applies to all projects: without `storage.garbage.after`, outputs are deleted after **1month**. Use `qaboard_clean --help` for the options (e.g. `--project`). `qaboard_clean --dryrun` lists what would be deleted, without deleting or changing anything.
 :::
 
 To also allow deleting results on the reference branch (the latest commit is kept), set `storage.garbage.can_delete_reference_branch: true`.
 
 :::note
-**TODO** Right now we only clean data for repositories [that send their push events to QA-Board](/docs/project-init#optional-connect-your-git-host).
+The server needs to read the project's git repository to know which commits are milestones: projects it can't clone are skipped, with a warning (see [connecting your git host](/docs/project-init#optional-connect-your-git-host)).
 :::
 
 ## Deleting results from the web application
@@ -80,11 +80,56 @@ storage:
       delete: true
       keep:
       - coverage_report
-      # also supports relative artifacts paths, e.g.
+      # also supports relative artifacts paths, folders and globs, e.g.
       - build/my_binary
+      - reports/*.html
 ```
 
 Notes:
-- The settings that are used are those in the latest commit of the `reference_branch` defined in *qaboard.yaml* 
+- The settings that are used are those in the latest commit of the `reference_branch` defined in *qaboard.yaml*
 - If you change those settings, artifacts for already deleted commits don't get deleted.
-- When a `qa run` uses a commit that was deleted, or if you upload manifests for a deleted commit, it is marked as undeleted.
+- **Subprojects** of a repository share each commit's artifacts folder. Deleting a subproject's artifacts keeps the files that the other subprojects of the same commit still use (e.g. the root *qaboard.yaml*, shared binaries): they are deleted with the last subproject.
+- QA-Board remembers when, and by whom, artifacts were deleted. The commit page shows it.
+
+### When artifacts disappear without QA-Board knowing
+Artifacts can also be deleted outside of QA-Board: cleanup scripts, quotas, users... Before redoing runs or starting tuning, QA-Board checks that the commit's artifacts are usable:
+- the artifacts folder exists,
+- it has the root *qaboard.yaml*, and the subproject's *qaboard.yaml* too. Without it, `qa` would find the parent project's *qaboard.yaml*, and the runs would be saved **in the parent project**,
+- the files listed in the artifacts' manifests exist (QA-Board checks up to 500 of them).
+
+Without the folder or a *qaboard.yaml*, QA-Board never runs from the broken folder: it first brings the artifacts back (see below), and the commit page explains what's missing. Missing files from the manifests only give a warning: your runs may not need them.
+
+When `qa save-artifacts` saves a commit's artifacts again, QA-Board checks them, and the commit is usable again.
+
+:::note
+Until October 2026, `qa save-artifacts` didn't save the subprojects' *qaboard.yaml* (only *qatools.yaml*). Commits saved by older versions are fixed the first time QA-Board restores their artifacts.
+:::
+
+## Recreating artifacts
+By default, QA-Board can only restore the artifacts that are in the source code: it checks out the commit and calls `qa save-artifacts`. Build outputs, like binaries, are not restored.
+
+To rebuild everything, tell QA-Board how to ask your CI to recreate a commit's artifacts. It does it when users redo runs or start tuning on a commit whose artifacts are missing, or click **Recreate the artifacts** on the commit page:
+
+```yaml title="qaboard.yaml"
+recreate_artifacts:
+  # use one of:
+  gitlabCI:
+    job_name: build   # retried in the commit's latest pipeline (or started, if it's a manual job)
+  jenkins:
+    build_url: http://jenkins/job/my-project
+    params:
+      commit: ${commit.id}
+  webhook:
+    url: https://ci.example.com/hooks/build
+    method: POST      # default
+    json:             # or data/params/headers
+      commit: ${commit.id}
+      branch: ${commit.branch}
+```
+
+- The CI job must build, then call `qa save-artifacts`: that's how QA-Board knows the artifacts are back. Until then, redos and tuning are refused with a message, and the commit page links to the build. Requests are not sent again for 2 hours, unless users click **Ask again to recreate the artifacts** on the commit page.
+- GitlabCI jobs are always those of the project's own repository. Webhooks don't follow redirects.
+- Values can use `${commit.id}`, `${commit.branch}`, `${commit.branch_slug}`, `${commit.artifacts_dir}`, `${commit.repo_artifacts_dir}`, `${project}`, `${subproject}`, `${git}` (the repository) and `${user}` (who asked). In `url` and `build_url`, they are URL-encoded.
+- The server sends the requests: GitlabCI needs `GITLAB_ACCESS_TOKEN`, and Jenkins needs credentials for its host in `JENKINS_AUTH` (see the [server's environment variables](../deploy#optional-environment-variables)). Webhooks are sent as configured.
+- The settings used are those in the latest *qaboard.yaml* of the `reference_branch`, or else the commit's own.
+- The commit page and the tuning form warn about errors in `recreate_artifacts`, like unknown `${variables}`.

@@ -11,7 +11,7 @@ import { renderWithProviders } from '../../test-utils';
 
 
 const output = { id: 7, test_input_path: 'scenes/indoor.mp4', test_input_metadata: {}, is_pending: false, deleted: false };
-const renderMenu = () => renderWithProviders(<RunActionsMenu output={output} project="p" commit={{ id: 'abc' }} />, { siteConfig: {} });
+const renderMenu = (user = { is_logged: true, user_name: 'alice' }) => renderWithProviders(<RunActionsMenu output={output} project="p" commit={{ id: 'abc' }} />, { siteConfig: {}, user });
 
 
 describe('RunActionsMenu', () => {
@@ -40,13 +40,19 @@ describe('RunActionsMenu', () => {
   it('confirms from the popover menu of the logs', async () => {
     renderWithProviders(<PopoverNext content={<RunActionsMenu output={output} project="p" commit={{ id: 'abc' }} />}>
       <Button aria-label="Run actions" />
-    </PopoverNext>, { siteConfig: {} });
+    </PopoverNext>, { siteConfig: {}, user: { is_logged: true, user_name: 'alice' } });
     fireEvent.click(screen.getByLabelText('Run actions'));
     fireEvent.click(await screen.findByText('Delete…'));
     const confirm = within(await screen.findByRole('alertdialog')).getByText('Delete run');
     fireEvent.mouseDown(confirm);
     fireEvent.click(confirm);
     await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/v1/output/7/', expect.objectContaining({ method: 'DELETE' })));
+  });
+
+  it('is disabled for logged-out users, who are asked to log in', () => {
+    renderMenu({ is_logged: false });
+    expect(screen.getByTestId('login-menu-item')).toBeInTheDocument();
+    expect(screen.getByText('Delete…').closest('[role="menuitem"]')).toHaveAttribute('aria-disabled', 'true');
   });
 
   it('cancels', async () => {
