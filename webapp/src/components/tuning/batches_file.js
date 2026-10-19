@@ -1,6 +1,6 @@
 // Understands the YAML files that define batches of tests, to give feedback while they are edited.
 // It mirrors how `qa batch` reads them (qaboard/iterators.py:iter_inputs), with PyYAML's YAML 1.1.
-import { parseDocument, LineCounter, isMap, isSeq, isScalar, isAlias } from "yaml";
+import { parseDocument, LineCounter, isMap, isSeq, isScalar, isAlias, visit } from "yaml";
 import batchesSchema from "qaboard-schemas/batches.schema.json";
 import { makeValidator, formatPath, didYouMean } from "../../utils/jsonSchema";
 
@@ -10,6 +10,22 @@ const ALIASES_KEYS = ["aliases", "groups"]; // "groups" is the legacy name
 
 
 const key_name = key => isScalar(key) ? (key.source ?? String(key.value)) : String(key);
+
+// The keys only batches have: a top-level mapping without any is not meant to be a batch.
+// Not `windows` (the runner): databases have it too, like `{linux: /mnt/data, windows: //data}`
+const BATCH_KEYS = new Set(Object.keys(batchesSchema.$defs.batch.properties).filter(k => k !== "windows"));
+
+// The anchors (`&name`) that aliases (`*name`) use
+const usedAnchors = doc => {
+  const used = new Set();
+  visit(doc, { Alias: (_, alias) => { used.add(alias.source); } });
+  return used;
+};
+
+// People define values at the top level to reuse them in batches, e.g. `lab-db: &lab-db {linux: ..., windows: ...}`
+// then `database: *lab-db`. `qa batch` sees a batch, but nobody runs it: we don't check it like one.
+const isReusedValue = (node, used) => !!node?.anchor && used.has(node.anchor)
+  && !(isMap(node) && node.items.some(p => p.key && BATCH_KEYS.has(key_name(p.key))));
 
 const resolve = (node, doc) => isAlias(node) ? node.resolve(doc) : node;
 
@@ -127,6 +143,7 @@ function schemaProblems(doc, lineCounter, config, reported) {
       problems.push({ path: [name, "type"], message: `Unknown input type "${type}": ${defined}.${didYouMean(type, settings.types)} \`qa batch\` will fail` });
     }
 
+  const seen = new Set();
   return problems.map(({ path, key: onKey, message }) => {
     // the closest path we know, e.g. for keys merged with `<<`
     let known = path;
@@ -134,7 +151,14 @@ function schemaProblems(doc, lineCounter, config, reported) {
     const { node, key } = locations[formatPath(known)] ?? {};
     const target = (onKey || !node?.range) && key?.range ? key : node?.range ? node : key ?? doc.contents;
     return { severity: "warning", message, ...position(target?.range ?? [0, 0], lineCounter) };
-  });
+  })
+    // e.g. a mistake in a template merged with `<<` in several batches: we show it once, where it is
+    .filter(p => {
+      const where = `${p.line}:${p.column}`;
+      if (seen.has(where)) return false;
+      seen.add(where);
+      return true;
+    });
 }
 
 
@@ -143,7 +167,7 @@ function schemaProblems(doc, lineCounter, config, reported) {
  * `config` is the project's qaboard.yaml, to check the batches use its input types and settings.
  * @returns {{
  *   problems: {severity: 'error'|'warning', message: string, line: number, column: number, endLine: number, endColumn: number}[],
- *   items: {name: string, kind: 'batch'|'pipeline'|'alias'|'setting', line: number, inputs?: number, targets?: string[], overridden_by?: number}[],
+ *   items: {name: string, kind: 'batch'|'pipeline'|'alias'|'setting'|'reused', line: number, inputs?: number, targets?: string[], anchor?: string, overridden_by?: number}[],
  * }}
  */
 export function analyzeBatches(text, { config } = {}) {
@@ -188,6 +212,7 @@ export function analyzeBatches(text, { config } = {}) {
     items.push({ ...item, line: where.line });
   };
 
+  const used = usedAnchors(doc);
   for (const pair of contents.items) {
     if (!pair.key) continue;
     const name = key_name(pair.key);
@@ -216,6 +241,11 @@ export function analyzeBatches(text, { config } = {}) {
           ...position(pair.key.range, lineCounter),
         });
       }
+      continue;
+    }
+    if (isReusedValue(pair.value, used)) {
+      reported.push(name);
+      add({ name, kind: "reused", anchor: pair.value.anchor }, pair.key);
       continue;
     }
     const inputs = isMap(value) ? resolve(value.get("inputs", true), doc) : value;

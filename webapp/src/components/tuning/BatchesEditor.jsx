@@ -225,6 +225,7 @@ const item_meta = item => {
   if (item.overridden_by) return `replaced, line ${item.overridden_by}`;
   if (item.kind === "alias") return `alias → ${item.targets.join(", ") || "nothing"}`;
   if (item.kind === "setting") return "file setting";
+  if (item.kind === "reused") return `reused with *${item.anchor}, not a batch`;
   if (item.kind === "pipeline") return "pipeline";
   if (item.inputs === undefined) return "";
   return `${item.inputs} input${item.inputs === 1 ? "" : "s"}`;
@@ -578,7 +579,7 @@ export function BatchesEditor({ project, commit, config, git, web_url, available
 
   const outline_filter = outlineFilter.trim().toLowerCase();
   const outline = analysis.items.filter(i => !outline_filter || i.name.toLowerCase().includes(outline_filter));
-  const nb_batches = analysis.items.filter(i => i.kind !== "setting").length;
+  const nb_batches = analysis.items.filter(i => i.kind !== "setting" && i.kind !== "reused").length;
   const ready = doc?.status === "ready";
 
   let status;
@@ -719,14 +720,14 @@ export function BatchesEditor({ project, commit, config, git, web_url, available
                     title={`${item.name}: ${item_meta(item) || item.kind}. Go to line ${item.line}`}
                   >
                     <Icon
-                      icon={item.kind === "alias" ? "link" : item.kind === "setting" ? "cog" : item.kind === "pipeline" ? "flow-linear" : "th-list"}
+                      icon={item.kind === "alias" ? "link" : item.kind === "setting" ? "cog" : item.kind === "reused" ? "duplicate" : item.kind === "pipeline" ? "flow-linear" : "th-list"}
                       size={12}
                       className={Classes.TEXT_MUTED}
                     />
-                    <span className={`name ${item.kind === "setting" ? Classes.TEXT_MUTED : ""}`}>{item.name}</span>
+                    <span className={`name ${item.kind === "setting" || item.kind === "reused" ? Classes.TEXT_MUTED : ""}`}>{item.name}</span>
                     <span className={`meta ${Classes.TEXT_MUTED}`}>{item_meta(item)}</span>
                   </button>
-                  {item.kind !== "setting" && <span className="actions">
+                  {item.kind !== "setting" && item.kind !== "reused" && <span className="actions">
                     <Tooltip content="List its tests" placement="top">
                       <Button size="small" variant="minimal" icon="eye-open" aria-label={`List the tests in ${item.name}`} onClick={() => openPreview(item.name)} />
                     </Tooltip>

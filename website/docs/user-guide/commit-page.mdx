@@ -248,7 +248,7 @@ The commit's own batch files (`inputs.batches` in *qaboard.yaml*) are linked in 
 
 - **Save** (or <kbd>Ctrl</kbd>+<kbd>S</kbd>, <kbd>⌘</kbd>+<kbd>S</kbd> on a Mac). The status next to the button tells you if there are *Unsaved changes*, when it was *Saved*, or why it was *Not saved*. A dot on a file's tab means it has unsaved changes.
 - YAML mistakes are underlined while you type, and listed below the editor: click one to go to its line. A batch defined twice is flagged too, since only its last definition is used.
-- Warnings flag what `qa batch` would ignore or misread, checked against [the batch files' schema](/docs/project-init#checking-qaboardyaml-and-batch-files-in-your-editor): unknown keys like `inpts` (with a suggestion: *Did you mean "inputs"?*), values of the wrong type like `matrix: {size: 320}` instead of a list, unknown runners or runner options, and input types (`type:`) the commit's *qaboard.yaml* doesn't define. Keys that are input settings in *qaboard.yaml* are allowed.
+- Warnings flag what `qa batch` would ignore or misread, checked against [the batch files' schema](/docs/project-init#checking-qaboardyaml-and-batch-files-in-your-editor): unknown keys like `inpts` (with a suggestion: *Did you mean "inputs"?*), values of the wrong type like `matrix: {size: 320}` instead of a list, unknown runners or runner options, and input types (`type:`) the commit's *qaboard.yaml* doesn't define. Keys that are input settings in *qaboard.yaml* are allowed. Top-level values you reuse in batches with YAML anchors, like `lab-db: &lab-db {linux: /mnt/data, windows: //data}` then `database: *lab-db`, aren't checked as batches: the **Batches** panel shows them as *reused*.
 
 <Shot
   id="tuning/available-tests"

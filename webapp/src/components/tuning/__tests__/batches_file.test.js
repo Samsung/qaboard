@@ -135,6 +135,40 @@ describe('checks against the schema', () => {
     expect(problems.map(p => p.line)).toEqual([3, 4, 5, 7]);
   });
 
+  it("doesn't check top-level values reused in batches as batches", () => {
+    const { problems, items } = analyzeBatches([
+      'db-lab: &lab',                 // 1
+      '  linux: /mnt/lab',            // 2
+      '  windows: //lab/data',        // 3
+      'db-path: &db-path /mnt/other', // 4
+      'common-inputs: &common [a.jpg, b.jpg]', // 5
+      'unused: &unused',              // 6: an anchor nobody uses: maybe a batch with typos
+      '  linux: /mnt/x',              // 7
+      'base: &base',                  // 8: a batch reused as a template is still a batch
+      '  inputs: [x.jpg]',            // 9
+      '  confgs: [c]',                // 10
+      'a:',                           // 11
+      '  database: *lab',             // 12
+      '  inputs: *common',            // 13
+      'b:',                           // 14
+      '  <<: *base',                  // 15
+      '  database: *db-path',         // 16
+    ].join('\n'));
+    expect(problems.map(p => [p.line, p.message])).toEqual([
+      [7, 'Unknown key "linux" in "unused"'],
+      [10, 'Unknown key "confgs" in "base". Did you mean "configs"?'],
+    ]);
+    expect(items.map(i => [i.name, i.kind, i.anchor])).toEqual([
+      ['db-lab', 'reused', 'lab'],
+      ['db-path', 'reused', 'db-path'],
+      ['common-inputs', 'reused', 'common'],
+      ['unused', 'batch', undefined],
+      ['base', 'batch', undefined],
+      ['a', 'batch', undefined],
+      ['b', 'batch', undefined],
+    ]);
+  });
+
   it("checks the YAML's syntax first", () => {
     const { problems } = analyzeBatches('a:\n  inpts: [x\n');
     expect(problems.every(p => p.severity === 'error')).toBe(true);
