@@ -78,6 +78,16 @@ describe('TableCompare', () => {
     expect(g - r).toBeGreaterThan(40);
   });
 
+  it('names the columns and tooltips after what we compare', () => {
+    const { unmount } = renderWithProviders(<TableCompare new_batch={new_batch} ref_batch={ref_batch} metrics={['loss']} available_metrics={available_metrics}/>);
+    expect(screen.getByText('new − ref')).toBeInTheDocument();
+    expect(screen.getAllByRole('row')[2].querySelector('td')).toHaveAttribute('title', 'New: 1\nReference: 2');
+    unmount();
+    renderWithProviders(<TableCompare new_batch={new_batch} ref_batch={ref_batch} metrics={['loss']} available_metrics={available_metrics} labels={['ISP v2', 'v1.4']}/>);
+    expect(screen.getByText('ISP v2 − v1.4')).toBeInTheDocument();
+    expect(screen.getAllByRole('row')[2].querySelector('td')).toHaveAttribute('title', 'ISP v2: 1\nv1.4: 2');
+  });
+
   it('says when no run matches the filter', () => {
     renderWithProviders(<TableCompare new_batch={{ ...new_batch, filtered: { outputs: [] } }} ref_batch={ref_batch} metrics={[]} available_metrics={available_metrics}/>);
     expect(screen.getByText('No finished run matches the filter.')).toBeInTheDocument();
@@ -111,6 +121,16 @@ describe('TableKpi', () => {
     expect(labels.children[0].textContent).toBe('1 run');
   });
 
+  it('names the columns after what we compare', () => {
+    const same = photos();
+    same.ref_batch.outputs[2].metrics.runtime = 1.44;
+    const { container } = renderWithProviders(<TableKpi {...same} metrics={['psnr', 'runtime']} available_metrics={kpi_metrics} labels={['ISP v2', 'v1.4']}/>);
+    const [, labels] = container.querySelectorAll('thead tr');
+    expect([...labels.children].slice(1).map(th => th.textContent)).toEqual(['ISP v2', 'v1.4', 'ISP v2', 'v1.4']);
+    // the reference's runtime is the new one's
+    expect(screen.getByTitle('Same as ISP v2')).toHaveTextContent('=');
+  });
+
   it('shows the unit of metrics without a target, without a stray space', () => {
     const { container } = renderWithProviders(<TableKpi {...photos()} metrics={['psnr', 'overshoot', 'runtime']} available_metrics={kpi_metrics} />);
     const [headers] = container.querySelectorAll('thead tr');
@@ -128,6 +148,19 @@ describe('MetricsSummary', () => {
     const pending = { ...new_batch, filtered: { outputs: ['c'] } };
     renderWithProviders(<MetricsSummary metrics={{ available_metrics, summary_metrics: ['loss'] }} new_batch={pending} ref_batch={ref_batch}/>, { siteConfig: {} });
     expect(screen.getByText('No finished run to summarize yet')).toBeInTheDocument();
+  });
+
+  it('names the reference after what we compare, in its color', () => {
+    const metrics = { available_metrics, summary_metrics: ['loss'] };
+    // the summary compares runs on the same inputs
+    const ref_batch = { outputs: { r1: output('a', { loss: 2 }) }, filtered: { outputs: ['r1'] } };
+    const { unmount } = renderWithProviders(<MetricsSummary metrics={metrics} new_batch={new_batch} ref_batch={ref_batch}/>);
+    expect(screen.getByRole('heading', { name: /^2\s*reference$/ })).toBeInTheDocument();
+    unmount();
+    const labels = { new: 'ISP v2', reference: 'v1.4', colors: { new: { css: 'var(--qa-side-0)', hex: '#2d72d2' }, reference: { css: 'var(--qa-side-2)', hex: '#cf0494' } } };
+    renderWithProviders(<MetricsSummary metrics={metrics} new_batch={new_batch} ref_batch={ref_batch} labels={labels}/>);
+    const heading = screen.getByRole('heading', { name: /^2\s*v1.4$/ });
+    expect(heading.querySelector('[aria-hidden]')).toHaveStyle({ background: 'var(--qa-side-2)' });
   });
 
   it('shows the summary metrics, until users choose others', () => {

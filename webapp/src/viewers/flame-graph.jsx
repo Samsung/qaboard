@@ -16,6 +16,7 @@ import { forEachInTree, selfDelta } from './flameDeltas';
 
 import { fileQuery } from "../api/queries";
 import { ViewerError } from "./ViewerStates";
+import { with_default_labels } from "../sideColors";
 
 // Integrates 
 // We love Brendan Gregg's flame charts
@@ -135,7 +136,7 @@ const with_deltas = (tree, map_other, invert, id) => {
 }
 
 
-const FlameGraphViewer = ({ output_new, output_ref, path }) => {
+const FlameGraphViewer = ({ output_new, output_ref, path, labels }) => {
   const [comparaison, setComparaison] = useState('diff-what-did-happen'); // 'diff-what-will-happen' | 'new' | 'ref' | 'both'
   const url_new = output_new?.output_dir_url && path ? `${output_new.output_dir_url}/${path}` : undefined;
   const url_ref = url_new && output_ref?.output_dir_url ? `${output_ref.output_dir_url}/${path}` : undefined;
@@ -157,14 +158,16 @@ const FlameGraphViewer = ({ output_new, output_ref, path }) => {
 
   const is_loaded = !!url_new && !query_new.isPending && (!url_ref || !query_ref.isPending);
   const both = is_loaded && !!data_new && !!data_ref;
+  // what the commit page calls them
+  const { new: label_new, reference: label_ref } = with_default_labels(labels);
   return <>
       <div>
       {query_new.isError && <ViewerError path={path} error={query_new.error}/>}
       {is_loaded && !!data_new && !data_ref && <FlameGraphComponent key="new" data={data_new}/>}
       {both && comparaison==='diff-what-did-happen' && <FlameGraphComponent differential title="Widths show the after profile, colored by what DID happen" key="new1" data={deltas.new}/>}
       {both && comparaison==='diff-what-will-happen' && <FlameGraphComponent differential title="Widths show the before profile, colored by what WILL happen" key="new2" data={deltas.ref}/>}
-      {both && (comparaison==='new' || comparaison==='both') && <FlameGraphComponent key="new3" data={deltas.new}/>}
-      {both && (comparaison==='ref' || comparaison==='both') && <FlameGraphComponent key="ref" data={deltas.ref}/>}
+      {both && (comparaison==='new' || comparaison==='both') && <FlameGraphComponent key="new3" title={comparaison==='both' ? label_new : undefined} data={deltas.new}/>}
+      {both && (comparaison==='ref' || comparaison==='both') && <FlameGraphComponent key="ref" title={comparaison==='both' ? label_ref : undefined} data={deltas.ref}/>}
       </div>
       <div>
       <HTMLSelect
@@ -172,10 +175,10 @@ const FlameGraphViewer = ({ output_new, output_ref, path }) => {
         value={data_ref ? comparaison : 'new'}
         style={{ marginBottom: '8px' }}
         options={[
-          {value: 'diff-what-did-happen',  label: 'What did happen (runtimes from new, colored by the improvement vs reference)'},
-          {value: 'diff-what-will-happen',  label: 'What will happen (runtimes from reference, colored by the improvement vs reference)'},
-          {value: 'new',  label: 'After (new)'},
-          {value: 'ref',  label: 'Before (reference)'},
+          {value: 'diff-what-did-happen',  label: `What did happen (runtimes from ${label_new}, colored by the improvement vs ${label_ref})`},
+          {value: 'diff-what-will-happen',  label: `What will happen (runtimes from ${label_ref}, colored by the improvement vs ${label_ref})`},
+          {value: 'new',  label: `After (${label_new})`},
+          {value: 'ref',  label: `Before (${label_ref})`},
           {value: 'both', label: 'After & Before'},
         ]}
       />

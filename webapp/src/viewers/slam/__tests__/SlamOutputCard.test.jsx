@@ -29,6 +29,18 @@ describe("SlamOutputCard", () => {
     expect(fetch.mock.calls.map(([url]) => url).sort()).toEqual(["/s/new/GT_final.txt", "/s/new/camera_poses_debug.csv", "/s/ref/camera_poses_debug.csv"]);
   });
 
+  it("names the traces after what the commit page compares", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(poses, { status: 200 })));
+    const labels = { new: "ISP v2", reference: "v1.4", colors: { new: { hex: "#2d72d2" }, reference: { hex: "#9752fe" } } };
+    renderWithProviders(<SlamOutputCard
+      output_new={{ output_dir_url: "/s/new", test_input_path: "a", metrics: { translation_aape: null } }}
+      output_ref={{ output_dir_url: "/s/ref", test_input_path: "a", metrics: {} }}
+      labels={labels}
+    />);
+    await waitFor(() => expect(screen.getAllByTestId("plot")).toHaveLength(2));
+    expect(screen.getAllByTestId("plot")[1].dataset.traces).toBe("v1.4,ISP v2");
+  });
+
   it("still shows the new poses when the other files are missing", async () => {
     vi.stubGlobal("fetch", vi.fn(async url => url.startsWith("/s/new/camera") ? new Response(poses) : new Response("", { status: 404 })));
     renderWithProviders(<SlamOutputCard

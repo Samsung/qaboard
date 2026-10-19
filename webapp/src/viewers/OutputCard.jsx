@@ -564,6 +564,7 @@ const OutputCard = memo(function OutputCard(props) {
       expand_all={expand_all}
       color_blind_friendly={color_blind_friendly}
       files_filter={files_filter}
+      labels={labels}
     />
   } else {
     const { main_metrics, available_metrics } = metrics ?? {};

@@ -23,6 +23,27 @@ describe("plots overlaid on their reference (side_by_side: false)", () => {
     expect(new_slo.line.dash).toBe("dot");
   });
 
+  it("names and colors the traces like the sides compared, keeping the traces' own colors", () => {
+    const plain = () => [{ type: "scatter", name: "p99", x: [1], y: [2] }];
+    const [ref, new_] = overlay({ new: plain(), ref: plain() }, true, {
+      names: { new: "ISP v2", ref: "v1.4" },
+      colors: { new: "#2d72d2dd", ref: "#9752fedd" },
+    });
+    expect([ref.name, new_.name]).toEqual(["v1.4 | p99", "ISP v2 | p99"]);
+    expect(new_.line.color).toBe("#2d72d2dd");
+    expect(ref.marker.color).toBe("#9752fedd");
+    const [, , own] = overlay({ new: figure(), ref: figure() }, true, { names: { new: "ISP v2", ref: "v1.4" } });
+    expect(own).toMatchObject({ name: "ISP v2 | p99", line: { color: "#c87619" } });
+  });
+
+  it("colors the traces blue for new, purple for the reference, by default", () => {
+    const plain = () => [{ type: "scatter", x: [1], y: [2] }];
+    const [ref, new_] = overlay({ new: plain(), ref: plain() }, true);
+    expect([ref.name, new_.name]).toEqual(["ref", "new"]);
+    expect(new_.line.color).toBe("#2d72d2dd");
+    expect(ref.line.color).toBe("#9752fedd");
+  });
+
   it("leaves the traces alone without a reference", () => {
     const data = { new: figure() };
     expect(overlay(data, false)).toEqual(figure());
