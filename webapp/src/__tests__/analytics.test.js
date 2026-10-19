@@ -7,9 +7,12 @@ const sentry = vi.hoisted(() => ({
   replayIntegration: vi.fn(() => ({ name: 'Replay' })),
   captureException: vi.fn(),
 }));
-vi.mock('@sentry/react', () => sentry);
-// Imported up front: a dynamic import in a test counts in its timeout, and the first one can be slow on busy machines
-import { sentryOptions, tracePropagationTargets } from '../analytics';
+// initSentry imports them dynamically: mocked with factories, they need no transform when the test runs
+vi.mock('../sentry', () => sentry);
+vi.mock('../sentryReplay', () => sentry);
+// Imported up front, and never re-imported (no vi.resetModules): a dynamic import in a test counts in its timeout,
+// and cold ones can take seconds on busy machines
+import { sentryOptions, tracePropagationTargets, initSentry } from '../analytics';
 
 const config = {
   sentry_dsn: 'https://key@sentry.example.com/1',
@@ -53,12 +56,11 @@ describe('sentryOptions', () => {
 
 describe('initSentry', () => {
   beforeEach(() => {
-    vi.resetModules();
     Object.values(sentry).forEach(fn => fn.mockClear());
   });
 
+  // initSentry remembers that it ran: this test must be the only one that initializes
   it('does nothing in development', async () => {
-    const { initSentry } = await import('../analytics');
     await initSentry(config, routeName);
     expect(sentry.init).not.toHaveBeenCalled();
   });
@@ -66,7 +68,6 @@ describe('initSentry', () => {
   it('initializes once in production, with replays', async () => {
     vi.stubEnv('PROD', true);
     try {
-      const { initSentry } = await import('../analytics');
       await initSentry({ ...config, sentry_dsn: null }, routeName);
       expect(sentry.init).not.toHaveBeenCalled();
       await initSentry(config, routeName);
