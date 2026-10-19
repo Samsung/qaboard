@@ -51,7 +51,7 @@ To run a commit's code on other inputs, or with other parameters, open the commi
    - **Manual tuning**: write the parameters to try, as JSON. Click the examples (*simple-combinations*, *list-of-combinations*, *1x2 matrix*...) to get started. Choose **All combinations** (a grid) or **Sampling** a number of them. The total number of runs is shown before you send.
    - **Automated tuning**: describe the search space and the objective in YAML, and let the optimizer ([scikit-optimize](https://scikit-optimize.github.io/)) choose the parameters. It needs the project to compute metrics.
    - To just run the tests, without tuning, use the *no tuning* example.
-5. **Send**. The runs start as you (the "Will run as" tag), and a message confirms the request.
+5. **Send**. The runs start as you (the "Will run as" tag), and a message confirms the request. QA-Board emails you when the last run ends (see [below](#emails-when-batches-end)).
 
 <Shot
   id="tuning/manual-form"
@@ -79,6 +79,21 @@ Batches started from QA-Board are listed in the [Logs](commit-page.mdx#logs) vie
 :::tip
 Turn on **Overwrite previous identical runs** to redo runs that already exist with the same input, configuration and parameters. Otherwise they are kept and not run again.
 :::
+
+### Emails when batches end
+Runs can take hours, or wait for a busy cluster: QA-Board emails you once, when the last run of the batch you started ends. The email says:
+- whether all runs succeeded, how many failed, and how long the batch took,
+- the median of the project's main metrics over the successful runs, and whether they meet their targets,
+- when you tuned parameters, the best combinations on the first main metric,
+- which runs failed, with links to their logs,
+- the commit, the batch and the inputs, with links to them in QA-Board.
+
+Good to know:
+- You get **one email per batch**, when no run is left pending: not when the first run fails. If you stop the batch from QA-Board, there is no email.
+- For **pipelines**, whose steps start other batches, you get one email when the whole pipeline is done, not one per step.
+- QA-Board emails the address of your account, or the one your administrators configured for your username. The confirmation message after you start says where.
+- Your QA-Board server must be configured to send emails: the tuning form says when it will email you. There is no email for automated tuning yet.
+- Batches you start from a terminal with `qa --share batch` email you too: see [`QA_NOTIFY`](../using-the-qa-cli.mdx#email-when-the-runs-end) to turn it off.
 
 For a video walkthrough and how a project enables it, see [Tuning from QA-Board](../tuning-from-the-webapp.mdx). For the batch syntax, see [Batches of inputs](../batches-running-on-multiple-inputs.mdx).
 

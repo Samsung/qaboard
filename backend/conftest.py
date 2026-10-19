@@ -75,6 +75,7 @@ def pytest_configure():
     models_mod.TestInput = MagicMock()
     models_mod.User = MagicMock()
     models_mod.batches_stats = MagicMock()
+    models_mod.BatchNotification = MagicMock()
     sys.modules['backend.models'] = models_mod
     sys.modules['backend.backend'] = types.ModuleType('backend.backend')
 
@@ -102,6 +103,17 @@ def pytest_configure():
     sa_exc = types.ModuleType('sqlalchemy.orm.exc')
     sa_exc.NoResultFound = MockNoResultFound
     sys.modules['sqlalchemy.orm.exc'] = sa_exc
+
+    # used by backend/notifications/batches.py
+    if not hasattr(sa_mod, 'text'):
+        sa_mod.text = lambda sql: sql
+
+    class MockIntegrityError(Exception):
+        pass
+
+    sa_sql_exc = sys.modules.setdefault('sqlalchemy.exc', types.ModuleType('sqlalchemy.exc'))
+    if not hasattr(sa_sql_exc, 'IntegrityError'):
+        sa_sql_exc.IntegrityError = MockIntegrityError
 
 # ==========================================
 # Fixtures

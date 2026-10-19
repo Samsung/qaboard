@@ -591,6 +591,12 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
   existing_outputs = get_outputs(ctx.obj, ignore_errors=True)
   log = batch_log(ctx)
   command_id = os.environ.get('QA_BATCH_COMMAND_ID', log['command_id'] if log else str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
+  from .notify import is_nested, inherit_root_command, notify_channel, print_notification
+  nested, started_by_qaboard = is_nested(), 'QA_BATCH_COMMAND_ID' in os.environ
+  # The runs of `qa batch` commands started by this one (e.g. pipeline steps) count as its runs:
+  # QA-Board knows the batch ended when none of them are pending.
+  root_command_id = os.environ.get('QA_BATCH_ROOT_COMMAND_ID') or command_id
+  inherit_root_command(ctx, root_command_id)
   if 'QA_BATCH_COMMAND_ID' in os.environ:
     # some projects have run() trigger further "qa batch" commands, notably in "pipelines"
     # so if we keep it defined we'll end up with deadlocks as those batch wait for the current batch to end...
@@ -600,6 +606,11 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
   os.environ['QA_BATCHES_FILES'] = json.dumps([str(b) for b in batches_files])
   dryrun = ctx.obj['dryrun'] or list_output_dirs or list_inputs or list_contexts
   should_notify_qa_database = (is_ci or ctx.obj['share']) and not (dryrun or ctx.obj['offline'])
+  # An email when the runs end, unless QA_NOTIFY=none
+  notify = notify_channel(is_ci, nested, started_by_qaboard) if not dryrun else None
+  if notify and not should_notify_qa_database and os.environ.get('QA_NOTIFY'):
+    click.secho("QA_NOTIFY: QA-Board can only email you about runs it knows: use `qa --share batch`.", fg='yellow', err=True)
+  notification = None
   if should_notify_qa_database:
     command_data = {
       "command_created_at_datetime":  datetime.datetime.utcnow().isoformat(),
@@ -616,8 +627,11 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
     job_url = getenvs(('BUILD_URL', 'CI_JOB_URL', 'CIRCLE_BUILD_URL', 'TRAVIS_BUILD_WEB_URL')) # jenkins, gitlabCI, circleCI, travisCI
     if job_url:
       command_data['job_url'] = job_url
+    if notify:
+      command_data['notify'] = {"channel": notify, "batches": list(batches)}
     if not os.environ.get('QA_BATCH_COMMAND_HIDE_LOGS'):
-      notify_qa_database(object_type='batch', command={command_id: command_data}, **ctx.obj)
+      response = notify_qa_database(object_type='batch', command={command_id: command_data}, **ctx.obj)
+      notification = response.get('notification') if isinstance(response, dict) else None
 
 
   tuning_search, filetype = load_tuning_search(tuning_search_dict, tuning_search_file)
@@ -869,6 +883,7 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
           "is_pending": True,
           "data": {
             "job_options": run_context.job_options,
+            "root_command_id": root_command_id,
           }
         })
         if db_output: # Note: the ID is already in the matching job above
@@ -891,6 +906,8 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
     return
 
   if not dryrun:
+    if total_runs:
+      print_notification(notification)
     is_failed = jobs.start(
       blocking=not no_wait,
       qa_context=ctx.obj,

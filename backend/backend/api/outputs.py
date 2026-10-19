@@ -10,6 +10,7 @@ from backend import app, db_session
 from ..models import TestInput, CiCommit, Output
 from ..storage import check_storage_path, UnsafePathError
 from ..redo import redo_response
+from ..notifications.batches import on_run_ended
 from .auth import login_required, is_authorized_user
 
 
@@ -200,6 +201,12 @@ def new_output_webhook():
   if "data" in data: # e.g. storage, job_options, batch name
     # optimization_best is set by the server only: it allows `qa optimize` to replace this run (see api/batch.py)
     output.data.update({k: v for k, v in data['data'].items() if k != 'optimization_best'})
+    # The `qa batch` command that started the run: the first one when they are nested, e.g. in pipelines.
+    # Older clients only send the command of their own `qa batch`. Used to know when batches end (backend/notifications/)
+    job_options = data['data'].get('job_options') if isinstance(data['data'].get('job_options'), dict) else {}
+    root_command_id = data['data'].get('root_command_id') or job_options.get('command_id')
+    if root_command_id:
+      output.data['root_command_id'] = str(root_command_id)
     flag_modified(output, "data")
   output.data["user"] = data['user']
   # we can only trust CI outputs to run on the exact code from the commit
@@ -233,6 +240,9 @@ def new_output_webhook():
   db_session.add(ci_commit)
   db_session.add(output)
   db_session.commit()
+  if not output.is_pending:
+    # maybe the batch's last run: users may want to know
+    on_run_ended(db_session, output.data.get('root_command_id'))
   return jsonify(output.to_dict())
 
 
