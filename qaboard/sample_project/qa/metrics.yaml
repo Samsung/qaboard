@@ -1,3 +1,5 @@
+# Completion and checks in your editor: https://samsung.github.io/qaboard/docs/project-init#checking-qaboardyaml-and-batch-files-in-your-editor
+# yaml-language-server: $schema=https://samsung.github.io/qaboard/metrics.schema.json
 # you must define metadata about all your objective figures of merits
 available_metrics:
   # loss:

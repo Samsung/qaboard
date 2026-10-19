@@ -79,13 +79,14 @@ Like GitHub, with the payload URL `https://<your-qaboard-server>/webhook/gitea` 
 :::
 
 ## Checking qaboard.yaml and batch files in your editor
-QA-Board publishes [JSON schemas](https://json-schema.org/) for [qaboard.yaml](pathname:///qaboard.schema.json) and for [batch files](pathname:///batches.schema.json). Editors that understand them complete the keys, show their docs on hover, and flag typos and wrong types. With VS Code's [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml), add to your settings:
+QA-Board publishes [JSON schemas](https://json-schema.org/) for [qaboard.yaml](pathname:///qaboard.schema.json), [batch files](pathname:///batches.schema.json) and [metrics files](pathname:///metrics.schema.json). Editors that understand them complete the keys, show their docs on hover, and flag typos and wrong types. The files `qa init` creates already declare their schema, on their first lines. For your other files, with VS Code's [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml), add to your settings:
 
 ```json title=".vscode/settings.json"
 {
   "yaml.schemas": {
     "https://samsung.github.io/qaboard/qaboard.schema.json": ["qaboard.yaml", "**/qaboard.yaml"],
-    "https://samsung.github.io/qaboard/batches.schema.json": ["qa/batches.yaml", "**/*batches*.yaml"]
+    "https://samsung.github.io/qaboard/batches.schema.json": ["qa/batches.yaml", "**/*batches*.yaml"],
+    "https://samsung.github.io/qaboard/metrics.schema.json": ["qa/metrics.yaml"]
   }
 }
 ```

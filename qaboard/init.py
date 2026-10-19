@@ -72,11 +72,15 @@ def use_site_defaults(sample_config: str, site: Dict[str, Any]) -> str:
     replacements.append((key_node.start_mark.line, last_line(node), comment))
   for start, end, comment in sorted(replacements, reverse=True):
     lines[start:end+1] = comment
+  # The comments about the schema stay at the top
+  schema_lines = []
+  while lines and lines[0].startswith(('# yaml-language-server:', '# Completion and checks in your editor')):
+    schema_lines.append(lines.pop(0))
   header = [
     "# This configuration is merged on top of the site defaults (QABOARD_SITE_CONFIG, installed by your site package).",
     "# Settings defined here take precedence.",
   ]
-  return "\n".join([*header, *lines]) + "\n"
+  return "\n".join([*schema_lines, *header, *lines]) + "\n"
 
 
 

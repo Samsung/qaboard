@@ -1,7 +1,8 @@
 """
-The JSON schemas of qaboard.yaml and the batch files (qaboard/schemas/) are valid, and accept the repository's files.
+The JSON schemas of qaboard.yaml, the batch and metrics files (qaboard/schemas/) are valid, and accept the repository's files.
 The web app checks the batch files with them too (webapp/src/components/tuning/batches_file.js).
 """
+import re
 import json
 import unittest
 from pathlib import Path
@@ -35,7 +36,7 @@ class TestSchemas(unittest.TestCase):
 
   def test_schemas_are_valid(self):
     from jsonschema import Draft202012Validator
-    self.assertEqual(set(self.schemas), {'batches.schema.json', 'qaboard.schema.json'})
+    self.assertEqual(set(self.schemas), {'batches.schema.json', 'qaboard.schema.json', 'metrics.schema.json'})
     for name, schema in self.schemas.items():
       with self.subTest(name):
         Draft202012Validator.check_schema(schema)
@@ -45,12 +46,35 @@ class TestSchemas(unittest.TestCase):
     files = {
       'qaboard.schema.json': [*root_dir.glob('examples/*/qaboard.yaml'), *root_dir.glob('qaboard/sample_project/**/qaboard.yaml'), root_dir / 'docs-media/tests/fixture/qaboard.yaml', root_dir / 'deployments/sirc/cli/qaboard_site_sirc/qaboard.yaml'],
       'batches.schema.json': [*root_dir.glob('examples/*/qa/batches.yaml'), root_dir / 'qaboard/sample_project/qa/batches.yaml', root_dir / 'docs-media/tests/fixture/qa/batches.yaml'],
+      'metrics.schema.json': [*root_dir.glob('examples/*/qa/metrics.yaml'), root_dir / 'qaboard/sample_project/qa/metrics.yaml', root_dir / 'docs-media/tests/fixture/qa/metrics.yaml'],
     }
     for schema_name, paths in files.items():
       self.assertTrue(paths)
       for path in paths:
         with self.subTest(str(path.relative_to(root_dir))):
           self.assertEqual(self.errors(schema_name, yaml.safe_load(path.read_text())), [])
+
+  def test_qa_init_files_declare_their_schema(self):
+    # `qa init` copies them: editors using the YAML language server then check them
+    sample = root_dir / 'qaboard/sample_project'
+    for path, schema_name in [(sample / 'qaboard.yaml', 'qaboard.schema.json'), (sample / 'qa/batches.yaml', 'batches.schema.json'), (sample / 'qa/metrics.yaml', 'metrics.schema.json')]:
+      with self.subTest(path.name):
+        text = path.read_text()
+        declared = re.search(r'^# yaml-language-server: \$schema=(\S+)$', text, re.MULTILINE)
+        self.assertIsNotNone(declared)
+        self.assertEqual(declared.group(1), self.schemas[schema_name]['$id'])
+        self.assertEqual(self.errors(schema_name, yaml.safe_load(text)), [])
+    # every file in qa/ is covered
+    self.assertEqual({p.name for p in (sample / 'qa').glob('*.yaml')}, {'batches.yaml', 'metrics.yaml'})
+
+  def test_metrics(self):
+    self.assertEqual(self.errors('metrics.schema.json', {
+      'available_metrics': {'loss': {'label': 'Loss', 'smaller_is_better': True, 'target': 0.1, 'plot_scale': 'linear'}, '.anchors': {}},
+      'default_metric': 'loss', 'main_metrics': ['loss'], 'summary_metrics': None,
+    }), [])
+    for value in [{'available_metric': {}}, {'available_metrics': {'loss': {'lable': 'Loss'}}}, {'main_metrics': 'loss'}]:
+      with self.subTest(value):
+        self.assertNotEqual(self.errors('metrics.schema.json', value), [])
 
   def test_batches(self):
     valid = {

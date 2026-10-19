@@ -1,3 +1,5 @@
+# Completion and checks in your editor: https://samsung.github.io/qaboard/docs/project-init#checking-qaboardyaml-and-batch-files-in-your-editor
+# yaml-language-server: $schema=https://samsung.github.io/qaboard/qaboard.schema.json
 project:
   name: user/sample_project
   url: git@github.com/user/sample_project
