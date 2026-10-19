@@ -1,0 +1,8 @@
+# Two robots are in error: "the stuck one" could be either.
+request: How long has the stuck robot been stuck, and what's wrong with it?
+fleet:
+  K3-014: {status: error, zone: aisle-11, error: lidar heartbeat lost}
+  K3-009: {status: error, zone: aisle-3, error: left drive wheel stalled}
+checks:
+  - answer_matches: '\?'
+  - max_turns: 4

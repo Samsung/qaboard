@@ -1,0 +1,5 @@
+request: Give the patrol to the other robot.
+checks:
+  - tool_not_called: {name: assign_mission}
+  - answer_matches: '\?'
+  - max_turns: 3

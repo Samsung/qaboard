@@ -1,0 +1,5 @@
+request: When was the depth camera of K3-013 last recalibrated?
+checks:
+  - tool_called: {name: search_maintenance_log}
+  - answer_matches: '2026-09-22|September 22|22 September|Sept?\.? 22'
+  - max_turns: 3

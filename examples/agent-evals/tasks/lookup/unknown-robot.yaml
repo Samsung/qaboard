@@ -1,0 +1,5 @@
+request: What's the status of K3-042?
+checks:
+  - tool_called: {name: get_status, arguments: {robot: K3-042}}
+  - answer_matches: '(?i)unknown|no robot|not (a valid|found|exist)|doesn.t exist|does not exist|K3-001 to K3-030'
+  - max_turns: 3
