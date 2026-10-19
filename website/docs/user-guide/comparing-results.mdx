@@ -238,7 +238,16 @@ that differs most; the other viewers show their own regions too. Closing the lis
 
 ### Histograms
 The histogram button shows the red, green, blue and luminance histograms of what the images show, new (solid) and
-reference (dashed): zoom on a region to see its histograms.
+reference (dashed): zoom on a region to see its histograms. Where the channels overlap, their colors blend. Hover the
+histogram to read the share of the pixels at a value, in each channel.
+
+- **Pick the channels**: click R, G, B or Y (luminance) above the histogram to show that channel alone, click it again
+  to show them all. Shift+click shows or hides one channel.
+- **Highlight a range of values**: drag on the histogram. Stripes show the pixels in the range on the images, and the
+  rest is dimmed. Below the histogram, you see which share of each image is highlighted. A pixel is highlighted when
+  all the channels shown are in the range, so show one channel alone to pick its values, e.g. the clipped reds. Drag the
+  range's edges to resize it, or its middle to move it (the arrow keys move it too). Click the histogram, or press
+  Escape, to clear it.
 
 <Shot
   id="commit/roi-histograms"

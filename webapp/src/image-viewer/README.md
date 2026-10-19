@@ -283,8 +283,9 @@ The viewer inherits the font of the page.
 | `sources.js` | Images (URLs, IIIF) to OpenSeadragon tile sources. PNG tiles when the server has them: JPEG would change the values. |
 | `metrics.js` | The difference methods (YIQ, CIEDE2000...), used without WebGL, for the values under the pointer, and by the tests |
 | `diffRenderer.js` | The difference on the GPU: one WebGL context shared by all the viewers (browsers keep ~16 per page) |
-| `overlays.jsx` | Drawn over the images: the difference, pixel values, crosshairs, minimap |
+| `overlays.jsx` | Drawn over the images: the difference, the highlighted values, pixel values, crosshairs, minimap |
 | `panels.jsx` | Values under the pointer, histograms, adjustments, regions |
+| `histogram.js`, `highlightRenderer.js` | Histograms, and the range of values highlighted from them, on the GPU (one more WebGL context shared by all the viewers) |
 | `adjustments.js` | Display adjustments, as an SVG filter: they don't touch the pixels we read |
 | `regions.js`, `pixels.js`, `colormaps.js` | Helpers |
 | `ui.jsx`, `icons.js`, `image-viewer.css` | Buttons, menus, icons (from Blueprint): the viewer doesn't need a UI kit |
