@@ -63,6 +63,33 @@ describe('TableCompare', () => {
     expect(row_a).toHaveTextContent('=');
     expect(row_b).toHaveTextContent('failed');
   });
+
+  it('shows small changes with enough precision, and colors them', () => {
+    const { new_batch, ref_batch } = photos();
+    renderWithProviders(<TableCompare new_batch={new_batch} ref_batch={{ outputs: { 2: { ...ref_batch.outputs[2], metrics: { psnr: 26.8 } } } }} metrics={['psnr']} available_metrics={kpi_metrics}/>);
+    const cell = screen.getAllByRole('row')[2].querySelector('td');
+    // not "-0%"
+    expect(cell).toHaveTextContent('-0.1 (-0.37%)');
+    renderWithProviders(<TableCompare new_batch={new_batch} ref_batch={{ outputs: { 2: { ...ref_batch.outputs[2], metrics: { psnr: 25.4 } } } }} metrics={['psnr']} available_metrics={kpi_metrics}/>);
+    // +5% PSNR is clearly better: green, not yellow
+    const better = screen.getAllByRole('row').at(-1).querySelector('td');
+    expect(better).toHaveTextContent('1.3 (5%)');
+    const [r, g] = better.style.getPropertyValue('--heat').match(/\d+/g).map(Number);
+    expect(g - r).toBeGreaterThan(40);
+  });
+
+  it('says when no run matches the filter', () => {
+    renderWithProviders(<TableCompare new_batch={{ ...new_batch, filtered: { outputs: [] } }} ref_batch={ref_batch} metrics={[]} available_metrics={available_metrics}/>);
+    expect(screen.getByText('No finished run matches the filter.')).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('says when the reference has no matching runs', () => {
+    const without_refs = { ...new_batch, metrics_with_refs: new Set() };
+    renderWithProviders(<TableCompare new_batch={without_refs} ref_batch={ref_batch} metrics={[]} available_metrics={available_metrics}/>);
+    expect(screen.getByText('No metric to compare')).toBeInTheDocument();
+    expect(screen.getByText(/Pick another reference/)).toBeInTheDocument();
+  });
 });
 
 
@@ -94,6 +121,15 @@ describe('TableKpi', () => {
 
 
 describe('MetricsSummary', () => {
+  it('says when there are no summary metrics, or no finished runs', () => {
+    const { unmount } = renderWithProviders(<MetricsSummary metrics={{ available_metrics, summary_metrics: [] }} new_batch={new_batch} ref_batch={ref_batch}/>, { siteConfig: {} });
+    expect(screen.getByText('No summary metrics configured')).toBeInTheDocument();
+    unmount();
+    const pending = { ...new_batch, filtered: { outputs: ['c'] } };
+    renderWithProviders(<MetricsSummary metrics={{ available_metrics, summary_metrics: ['loss'] }} new_batch={pending} ref_batch={ref_batch}/>, { siteConfig: {} });
+    expect(screen.getByText('No finished run to summarize yet')).toBeInTheDocument();
+  });
+
   it('shows the summary metrics, until users choose others', () => {
     const metrics = { available_metrics, summary_metrics: ['loss'] };
     const { rerender } = renderWithProviders(<MetricsSummary metrics={metrics} new_batch={new_batch} ref_batch={ref_batch}/>);

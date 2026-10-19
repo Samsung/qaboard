@@ -849,6 +849,7 @@ class Seeder:
       DELETE FROM outputs WHERE batch_id IN (SELECT b.id FROM batches b JOIN ci_commits c ON b.ci_commit_id = c.id WHERE c.project_id = {pid});
       DELETE FROM batches WHERE ci_commit_id IN (SELECT id FROM ci_commits WHERE project_id = {pid});
       DELETE FROM ci_commits WHERE project_id = {pid};
+      DELETE FROM milestones WHERE project_id = {pid};
       DELETE FROM projects WHERE id = {pid};
     """)
     for commit in self.story.commits.values():
@@ -1235,15 +1236,14 @@ class Seeder:
       batch = m.get('batch', 'default')
       date = max(r.start for r in commit.runs) + datetime.timedelta(hours=1) if commit.runs else commit.at + datetime.timedelta(hours=2)
       date = min(date, self.story.t0 - datetime.timedelta(hours=1))
-      milestone = {
-        'label': m['label'], 'notes': m.get('notes', ''), 'commit': commit.sha, 'branch': commit.branch, 'batch': batch,
-        'filter': m.get('filter', ''), 'date': iso(date).replace('+00:00', 'Z'),
-        'committer_name': self.story.people[commit.author]['name'],
-      }
       session = self.server.login(m['by'])
-      self.server.post('/api/v1/project/milestones/', {
-        'project': self.story.id, 'key': f"{self.story.id}/{commit.sha}/{batch}", 'milestone': milestone, 'delete': 'false',
-      }, session=session)
+      saved = self.server.post('/api/v1/milestones', {
+        'project': self.story.id, 'label': m['label'], 'notes': m.get('notes', ''), 'group': m.get('group', ''),
+        'shared': m.get('kind', 'shared') == 'shared', 'commit': commit.sha, 'batch': batch, 'filter': m.get('filter', ''),
+        'branch': commit.branch, 'committer_name': self.story.people[commit.author]['name'], 'message': commit.message.splitlines()[0],
+      }, session=session).json()
+      # the API saves it now: it was saved in the story's past
+      stack.psql(f"UPDATE milestones SET created_at = {sql_str(date.astimezone(UTC).replace(tzinfo=None).isoformat())}::timestamp, updated_at = created_at WHERE id = {int(saved['id'])};")
       log(f"  milestone {m['label']} on {commit.id}, by {m['by']}", 'cyan')
 
   @property

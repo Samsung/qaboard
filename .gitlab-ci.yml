@@ -92,8 +92,8 @@ webapp-tests:
   needs: []
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-    # the web app bundles the release notes, its tests check them
-    - changes: [webapp/**/*, website/release-notes/**/*]
+    # the web app bundles the release notes and the batch files' schema, its tests check them
+    - changes: [webapp/**/*, website/release-notes/**/*, qaboard/schemas/**/*]
   script:
     - cd webapp
     # node_modules is kept between jobs (GIT_CLEAN_FLAGS), so this is fast when package-lock.json didn't change
@@ -149,6 +149,8 @@ build:images:
       cd "$CI_PROJECT_DIR"
       source deployments/sirc/.envrc
       export QABOARD_VERSION="$QABOARD_VERSION"
+      # With a (masked) CI/CD variable SENTRY_AUTH_TOKEN, the frontend's build uploads its source maps to Sentry
+      export SENTRY_AUTH_TOKEN="${SENTRY_AUTH_TOKEN:-}"
       # compose checks they exist, the images don't use them
       touch .env deployments/sirc/.env
       # Don't leave the job token in the shared ~/.docker

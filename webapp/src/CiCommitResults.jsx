@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import styled from "styled-components";
 
 import {
+  Button,
   Classes,
   Card,
   NonIdealState,
+  Spinner,
 } from "@blueprintjs/core";
 
 import { Container, Section } from "./components/layout";
@@ -14,23 +17,75 @@ import { TableCompare, TableKpi } from "./components/tables";
 import { BatchLogs } from "./components/BatchLogs";
 import { CommitParameters } from "./components/Parameters";
 import { OutputCardsList } from "./viewers/OutputCardsList";
-import { useComparison, useSiteConfig, useUser, updateSelected } from "./hooks";
+import { useComparison, useRefreshCommit, useSiteConfig, useUser, updateSelected } from "./hooks";
 import { useDynamicOptions } from "./useDynamicOptions";
 
 
 import { TuningForm } from "./components/tuning/forms";
 import { BatchesEditor } from "./components/tuning/BatchesEditor";
 import TuningExploration from "./components/tuning/TuningExploration";
-import { useViewerControls } from "./viewers/controls";
+import { useViewerControls, controls_changes, controls_defaults } from "./viewers/controls";
 import { ExportPlugin } from "./plugins/ExportPlugin";
 import { humanFileSize } from "./viewers/bit_accuracy/utils";
 import { project_web_url } from "./utils";
 
 import PrivateContent from "./components/authentication/PrivateContent"
-import FloatingControlsPanel from "./components/FloatingControlsPanel";
+import ViewOptionsPanel from "./components/ViewOptionsPanel";
+import { useSidePanelExpanded } from "./components/SidePanel";
+import { SharedConfigurationContext } from "./configurations/ConfigurationsTags";
+import { ConfigurationOverview } from "./configurations/ConfigurationOverview";
+import { shared_configuration, reference_pairs, changes_in_all_runs } from "./configurations/tokens";
 
 
+// Every view of the commit: its title (and maybe a few muted details) on one row above its content
+const ViewSection = styled(Section)`
+  margin-top: 0;
+  margin-bottom: 32px;
+`;
+const ViewHeader = styled.div`
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-bottom: 12px;
+  h2 {
+    font-size: 20px;
+    line-height: 28px;
+    margin: 0;
+  }
+  p {
+    margin: 0;
+  }
+`;
+// Actions on the view, e.g. Export, go to the right of its title
+const ViewActions = styled.div`
+  margin-left: auto;
+  align-self: center;
+  display: flex;
+  gap: 8px;
+`;
+const ViewTitle = ({ title, actions, children }) => <ViewHeader>
+  <h2 className={Classes.HEADING}>{title}</h2>
+  {children}
+  {actions && <ViewActions>{actions}</ViewActions>}
+</ViewHeader>;
 
+// The warnings and the batch's status: they take room only when they have something to say
+const Messages = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* e.g. the <span/> of messages that have nothing to say: they would add gaps */
+  & > :empty {
+    display: none;
+  }
+  &:has(> :not(:empty)) {
+    margin-bottom: 24px;
+  }
+`;
+
+// Below the commit's header
+const header_gap = 16;
 
 
 const CiCommitResults = () => {
@@ -43,6 +98,7 @@ const CiCommitResults = () => {
   const { available_metrics } = metrics;
   const { docs_root } = useSiteConfig();
   const user = useUser();
+  const refreshCommit = useRefreshCommit();
 
   useEffect(() => {
     const name = project.split('/').slice(-1)[0];
@@ -59,15 +115,14 @@ const CiCommitResults = () => {
     reset_key: `${new_commit?.id}|${selected_batch_new}|${visualizations_key}`,
     files_key: filter_batch_new,
   });
-  const [expand_floating_panel, setExpandFloatingPanel] = useState(false);
-  useEffect(() => {
-    if (!expand_floating_panel) return;
-    // a short pulse: the panel expands, then can be collapsed
-    const timer = setTimeout(() => setExpandFloatingPanel(false), 100);
-    return () => clearTimeout(timer);
-  }, [expand_floating_panel]);
+  // The view options, docked on the right: open or collapsed
+  const [view_options_expanded, setViewOptionsExpanded] = useSidePanelExpanded();
+  // incremented to bring their Files to show into view
+  const [reveal_files, setRevealFiles] = useState(0);
 
   const toggle = name => () => setControls({ ...controls, [name]: !controls[name] });
+  // e.g. how image viewers compare images, set from any of them
+  const updateControls = changes => setControls(controls => ({ ...controls, ...changes }));
   // Visualizations are shown unless hidden by default
   const is_shown = name => controls.show?.[name] ?? !visualizations.find(v => v.name === name)?.default_hidden;
   const toggle_show = name => () => setControls({ ...controls, show: { ...controls.show, [name]: !is_shown(name) } });
@@ -75,12 +130,22 @@ const CiCommitResults = () => {
     ...controls,
     dynamic_options: { ...controls.dynamic_options, [name]: [value] },
   });
+  const resetDynamicOption = name => setControls({
+    ...controls,
+    dynamic_options: { ...controls.dynamic_options, [name]: undefined },
+  });
+  // What users changed, e.g. visualizations shown or dynamic options, can be reset to the project's defaults
+  const has_controls_changes = Object.keys(controls_changes(controls, controls_defaults(config, ''))).length > 0;
+  const resetControls = () => setControls(controls_defaults(config, ''));
   // Dynamic options are synced across output cards unless users unlink them
   const toggleDynamicOptionSync = name => {
     const sync = controls.dynamic_options_sync?.[name] === false;
     setControls({ ...controls, dynamic_options_sync: { ...controls.dynamic_options_sync, [name]: sync ? undefined : false } });
-    // the option is now changed from the panel
-    if (sync) setExpandFloatingPanel(true);
+    // the option is now changed from the view options
+    if (sync) {
+      setViewOptionsExpanded(true);
+      setRevealFiles(count => count + 1);
+    }
   };
 
   const update = attribute => e => {
@@ -89,10 +154,6 @@ const CiCommitResults = () => {
   }
 
   // The metrics shown in tables
-  const selected_metrics = useMemo(
-    () => selected_metrics_keys.map(m => available_metrics[m]).filter(Boolean),
-    [selected_metrics_keys, available_metrics],
-  );
   const metricTableSelect = <MetricSelect
     available_metrics={available_metrics}
     used_metrics={new_batch.used_metrics}
@@ -130,28 +191,97 @@ const CiCommitResults = () => {
     new_batch,
     ref_batch,
     controls,
+    onControlsChange: updateControls,
     onRegisterOutputOptions: dynamic.register,
     onToggleDynamicOptionSync: toggleDynamicOptionSync,
   };
+  // What the runs shown share is hidden in each run: it updates as users filter runs.
+  // shared_configuration and changes_in_all_runs return the same objects when they don't change, so cards don't re-render
+  const shared_settings = shared_configuration(new_batch.filtered.outputs.map(id => new_batch.outputs[id]));
+  const all_runs_changes = changes_in_all_runs(reference_pairs(new_batch));
+  const shared = useMemo(
+    () => shared_settings && { ...shared_settings, changes_in_all_runs: all_runs_changes },
+    [shared_settings, all_runs_changes],
+  );
   const docs_link = <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/visualizations`}>Read the docs</a>;
-  return (
-    <Container style={{paddingTop: show_ref_navbar ? '150px' : '75px'}}>
 
-      {(!new_commit || !ref_commit) && show_ref_navbar && <Section>
+  // Until the commit loads, if it doesn't exist, or if it has no results yet, views of its results would look empty
+  const has_batches = Object.keys(new_commit?.batches ?? {}).length > 0;
+  const results_views = ['summary', 'table-compare', 'table-kpi', 'logs', 'output-list', 'bit-accuracy', 'optimization'];
+  let commit_state = null;
+  let hidden_views = [];
+  const ci_docs_link = <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/ci-integration`} style={{ whiteSpace: 'nowrap' }}>Set up your CI</a>;
+  if (!!new_commit && !has_batches) {
+    // Without a commit id, we show the latest commit with results on the reference branch: there may be none yet
+    const no_commit_with_results = !new_commit_id && !!new_commit.error?.startsWith('404');
+    const reference_branch = project_data?.data?.qatools_config?.project?.reference_branch;
+    if (no_commit_with_results) {
+      hidden_views = [...results_views, 'parameters'];
+      commit_state = <NonIdealState
+        icon="inbox"
+        title={reference_branch ? <>No commit with results on <code>{reference_branch}</code> yet</> : "No commit with results yet"}
+        description={<p>Results appear once <code>qa batch</code> runs in your CI. {ci_docs_link}</p>}
+      />;
+    } else if (new_commit.error) {
+      hidden_views = [...results_views, 'parameters'];
+      commit_state = <NonIdealState
+        icon="error"
+        title="Could not load this commit"
+        description={<p>
+          <code>{new_commit.error}</code>
+          {new_commit.error.startsWith('4') && <><br/>Check the commit id, or whether its runs belong to another project.</>}
+        </p>}
+        action={<Button icon="refresh" text="Retry" onClick={() => refreshCommit(new_project, new_commit.id ?? null)}/>}
+      />;
+    } else if (!new_commit.is_loaded) {
+      hidden_views = [...results_views, 'parameters'];
+      commit_state = <NonIdealState icon={<Spinner/>} title="Loading the commit's results…"/>;
+    } else {
+      hidden_views = results_views;
+      commit_state = <NonIdealState
+        icon="inbox"
+        title="No results for this commit yet"
+        description={<p>
+          Results appear once <code>qa batch</code> runs on this commit, usually in your CI.{" "}
+          {ci_docs_link}
+        </p>}
+        action={<Button icon="play" text="Run tests on this commit" onClick={() => updateSelected({ selected_views: 'tuning' })}/>}
+      />;
+    }
+  }
+  // the views shown on the page
+  const views = selected_views.filter(view => !hidden_views.includes(view));
+  const shows_runs = ['output-list', 'bit-accuracy', 'table-compare', 'table-kpi'].some(view => views.includes(view));
+  const shows_state = selected_views.some(view => hidden_views.includes(view));
+  const storage = new_batch.filtered.outputs
+    .map(id => new_batch.outputs[id]?.data?.storage ?? 0)
+    .reduce((running_total, storage) => running_total + storage, 0);
+  const nb_runs = new_batch.filtered.outputs.length;
+  // the commits' fixed headers
+  const header_height = show_ref_navbar ? 150 : 75;
+
+  return (
+    <SharedConfigurationContext value={shared}>
+    <Container style={{ marginTop: 0, paddingTop: header_height + header_gap }}>
+
+      {(!new_commit || !ref_commit) && show_ref_navbar && <Messages>
         {warning_messages}
-      </Section>}
+      </Messages>}
 
       {(!!new_commit) && (
           <>
-            <Section key="filters">
+            <Messages key="filters">
               {warning_messages}
               {/* the selected batch's runs are unrelated to editing batch definitions, and would push the editor down */}
               {!selected_views.includes('groups') && <BatchStatusMessages project={new_project} commit={new_commit} batch={new_batch} />}
-            </Section>
+              {shows_runs && <ConfigurationOverview new_batch={new_batch} />}
+            </Messages>
 
-            {selected_views.includes('summary') && <Section>
-              <Card elevation={2}>
-                <h2 className={Classes.HEADING}>Summary</h2>
+            {shows_state && <ViewSection>{commit_state}</ViewSection>}
+
+            {views.includes('summary') && <ViewSection>
+              <ViewTitle title="Summary"/>
+              <Card>
                 <MetricsSummary
                   project={new_project}
                   project_data={project_data}
@@ -161,11 +291,11 @@ const CiCommitResults = () => {
                   ref_batch={ref_batch}
                 />
               </Card>
-             </Section>}
+             </ViewSection>}
 
-            {selected_views.includes('parameters') && <Section>
+            {views.includes('parameters') && <ViewSection>
+              <ViewTitle title="Artifacts & Configs"/>
               <Card>
-                <h2 className={Classes.HEADING}>Artifacts & Configurations</h2>
                 <CommitParameters
                   project={new_project}
                   config={config}
@@ -173,10 +303,10 @@ const CiCommitResults = () => {
                   ref_commit={ref_commit}
                 />
               </Card>
-             </Section>}
+             </ViewSection>}
 
-            {selected_views.includes('groups') && <Section style={{ width: 'auto', minWidth: 0, marginTop: '10px' }}>
-              <h2 className={Classes.HEADING}>Available Tests</h2>
+            {views.includes('groups') && <ViewSection style={{ width: 'auto', minWidth: 0 }}>
+              <ViewTitle title="Available Tests"/>
               <PrivateContent enabled={true}>
                 <BatchesEditor
                   project={project}
@@ -188,32 +318,36 @@ const CiCommitResults = () => {
                   docs_root={docs_root}
                 />
               </PrivateContent>
-            </Section>}
+            </ViewSection>}
 
-            {selected_views.includes('tuning') && (Object.keys(config.artifacts || {}).length === 0
-              ? <NonIdealState
-                  icon="heatmap"
-                  title={<p>Tuning requires you to define build <strong>artifacts.</strong></p>}
-                  description={<p>{docs_link} to learn how to declare visualizations.</p>}
-                />
-              : <Section>
-                <h2 className={Classes.HEADING}>Tuning Experiments</h2>
-                <Card>
+            {views.includes('tuning') && <ViewSection>
+              <ViewTitle title="Run Tests / Tuning"/>
+              {Object.keys(config.artifacts || {}).length === 0
+                ? <NonIdealState
+                    icon="heatmap"
+                    title="Running tests from the web app needs build artifacts"
+                    description={<p>
+                      QA-Board re-runs your code from the commit's saved build: declare which files to save as <code>artifacts</code> in <em>qaboard.yaml</em>.<br/>
+                      <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/storage/artifacts`}>Learn how to declare artifacts</a> and <a target="_blank" rel="noopener noreferrer" href={`${docs_root}docs/tuning-from-the-webapp`}>run tests from the web app</a>.
+                    </p>}
+                  />
+                : <Card>
                   <PrivateContent enabled={true}>
                     <TuningForm
                     project={project}
+                    git={git}
                     config={config}
                     metrics={metrics}
                     commit={new_commit}
                     available_tests_files={available_tests_files}
                     />
                   </PrivateContent>
-                </Card>
-            </Section>)}
+                </Card>}
+            </ViewSection>}
 
-            {selected_views.includes('table-compare') && <Section>
+            {views.includes('table-compare') && <ViewSection>
+              <ViewTitle title="Metrics Diff"/>
               <Card>
-                  <h2 className={Classes.HEADING}>Improvement report</h2>
                   <TableCompare
                     new_batch={new_batch}
                     ref_batch={ref_batch}
@@ -222,11 +356,11 @@ const CiCommitResults = () => {
                     input={metricTableSelect}
                   />
               </Card>
-             </Section>}
+             </ViewSection>}
 
-            {selected_views.includes('table-kpi') && <Section>
+            {views.includes('table-kpi') && <ViewSection>
+              <ViewTitle title="Metrics Table"/>
               <Card>
-                  <h2 className={Classes.HEADING}>Quality report</h2>
                   <TableKpi
                     new_batch={new_batch}
                     ref_batch={ref_batch}
@@ -235,46 +369,41 @@ const CiCommitResults = () => {
                     input={metricTableSelect}
                   />
               </Card>
-             </Section>}
+             </ViewSection>}
 
-            {/* as wide as the page, not as its widest log line or run configuration.
-                On the right, room for the floating panel's button: it would cover the runs' buttons */}
-            {selected_views.includes('logs') && <Section style={{ width: 'auto', minWidth: 0, paddingRight: 30 }}>
-                <h2 className={Classes.HEADING}>Logs</h2>
+            {/* as wide as the page, not as its widest log line or run configuration */}
+            {views.includes('logs') && <ViewSection style={{ width: 'auto', minWidth: 0 }}>
+                <ViewTitle title="Logs"/>
                 <BatchLogs
                   project={new_project}
                   commit={new_commit}
                   batch={new_batch}
                   batch_label={new_batch.label}
                 />
-             </Section>}
+             </ViewSection>}
 
-            {selected_views.includes('output-list') && (visualizations.length === 0
-               ? <NonIdealState
-                   icon="heatmap"
-                   title="Visualizations are not configured yet."
-                   description={<p>{docs_link} to learn how to declare visualizations.</p>}
-                 />
-               : <Section>
-                <h2 className={Classes.HEADING}>Visualizations</h2>
-                {export_plugin}
-                <OutputCardsList {...output_cards_props}/>
-            </Section>)}
+            {views.includes('output-list') && <ViewSection>
+              <ViewTitle title="Visualizations" actions={visualizations.length > 0 && export_plugin}/>
+              {visualizations.length === 0
+                ? <NonIdealState
+                    icon="heatmap"
+                    title="Visualizations are not configured yet."
+                    description={<p>{docs_link} to learn how to declare visualizations. Meanwhile, you can browse the files each run created.</p>}
+                    action={<Button icon="folder-open" text="Show output files" onClick={() => updateSelected({ selected_views: 'bit-accuracy' })}/>}
+                  />
+                : <OutputCardsList {...output_cards_props}/>}
+            </ViewSection>}
 
-            {selected_views.includes('bit-accuracy') && <Section>
-                <h2 className={Classes.HEADING}>Output Files</h2>
-                <p className={Classes.TEXT_MUTED}>Total Storage: {humanFileSize(
-                  new_batch.filtered.outputs
-                  .map(id => new_batch.outputs[id]?.data?.storage ?? 0)
-                  .reduce((running_total, storage) => running_total + storage, 0)
-                , true)}</p>
-                {export_plugin}
+            {views.includes('bit-accuracy') && <ViewSection>
+                <ViewTitle title="Output Files" actions={export_plugin}>
+                  <p className={Classes.TEXT_MUTED}>Storage used by the {nb_runs} run{nb_runs === 1 ? '' : 's'} shown: {humanFileSize(storage, true)}</p>
+                </ViewTitle>
                 <OutputCardsList type='bit_accuracy' {...output_cards_props}/>
-             </Section>}
+             </ViewSection>}
 
-            {selected_views.includes('optimization') && <Section>
+            {views.includes('optimization') && <ViewSection>
+              <ViewTitle title="Tuning Analysis"/>
               <Card>
-                <h2 className={Classes.HEADING}>Auto-Tuning Analysis</h2>
                 <TuningExploration
                   project={new_project}
                   metrics={metrics}
@@ -284,37 +413,46 @@ const CiCommitResults = () => {
                   input={metricTableSelect}
                   />
               </Card>
-             </Section>}
+             </ViewSection>}
 
           </>
         )}
 
-      {/* Editing batches has no use for the controls panel, it would cover the editor's side panel */}
-      {(!!new_commit) && selected_views.join(',') !== 'groups' && (
-        <FloatingControlsPanel
+      {/* Only the views of the runs' results have view options: elsewhere (editing batches, the tuning form...) they would
+          only take room. Without results, there is nothing to change either. */}
+      {(!!new_commit) && has_batches && views.some(view => results_views.includes(view)) && (
+        <ViewOptionsPanel
+          top={header_height}
           controls={controls}
           visualizations={visualizations}
           controls_extra={controls_extra}
           selected_views={selected_views}
-          selected_metrics={selected_metrics}
           new_batch={new_batch}
           available_metrics={available_metrics}
-          metricTableSelect={metricTableSelect}
           sort_by={selected.sort_by}
+          default_sort_by={metrics.default_metric}
           sort_order={selected.sort_order}
           onToggle={toggle}
+          onUpdateControls={updateControls}
           onToggleShow={toggle_show}
           onUpdate={update}
           has_tuning={has_tuning}
           tuned_params={tuned_params}
           dynamic_options={dynamic.dynamic_options}
           onUpdateDynamicOption={updateDynamicOption}
+          onResetDynamicOption={resetDynamicOption}
+          has_changes={has_controls_changes}
+          onResetControls={resetControls}
+          docs_root={docs_root}
           onToggleDynamicOptionSync={toggleDynamicOptionSync}
           visualizations_with_files={dynamic.visualizations_with_files}
-          expandPanel={expand_floating_panel}
+          expanded={view_options_expanded}
+          setExpanded={setViewOptionsExpanded}
+          revealFiles={reveal_files}
         />
       )}
     </Container>
+    </SharedConfigurationContext>
   );
 }
 

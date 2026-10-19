@@ -90,6 +90,71 @@ describe('analyzeBatches', () => {
 });
 
 
+describe('checks against the schema', () => {
+  it('warns about unknown keys and wrong types, where they are', () => {
+    const { problems } = analyzeBatches([
+      'a:',                      // 1
+      '  inpts: [x.jpg]',        // 2
+      '  matrix:',               // 3
+      '    size: 320',           // 4
+      '  runner: lfs',           // 5
+      'b:',                      // 6
+      '  inputs: [y]',           // 7: text for PyYAML
+      '  lsf:',                  // 8
+      '    queue: long',         // 9
+      '    max_memmory: 3000',   // 10
+    ].join('\n'));
+    expect(problems).toEqual([
+      { severity: 'warning', line: 2, column: 3, endLine: 2, endColumn: 8, message: 'Unknown key "inpts" in "a". Did you mean "inputs"?' },
+      expect.objectContaining({ severity: 'warning', line: 4, column: 11, message: '"a.matrix.size" should be a list, not an integer' }),
+      expect.objectContaining({ severity: 'warning', line: 5, column: 11, message: expect.stringContaining('Did you mean "lsf"?') }),
+      expect.objectContaining({ severity: 'warning', line: 10, column: 5, message: 'Unknown key "max_memmory" in "b.lsf". Did you mean "max_memory"?' }),
+    ]);
+  });
+
+  it('reads the YAML like PyYAML: the last duplicate key wins, anchors and merges work', () => {
+    const { problems } = analyzeBatches([
+      '.base: &base',            // 1
+      '  configs: [base]',       // 2
+      '  inputs: [a]',           // 3
+      'a:',                      // 4
+      '  <<: *base',             // 5
+      '  platform: x',           // 6
+      'a:',                      // 7
+      '  inputs: [b]',           // 8
+      '  confgs: [c]',           // 9
+    ].join('\n'));
+    expect(problems.map(p => [p.line, p.message])).toEqual([
+      [7, expect.stringContaining('defined twice')],
+      [9, 'Unknown key "confgs" in "a". Did you mean "configs"?'],
+    ]);
+  });
+
+  it("doesn't repeat the problems it explains better", () => {
+    const { problems } = analyzeBatches('a:\n  inputs:\n  - yes\n  -\nlisted: [a, b]\nlisted2:\n  inpts: [x]\n');
+    expect(problems.map(p => p.line)).toEqual([3, 4, 5, 7]);
+  });
+
+  it("checks the YAML's syntax first", () => {
+    const { problems } = analyzeBatches('a:\n  inpts: [x\n');
+    expect(problems.every(p => p.severity === 'error')).toBe(true);
+  });
+
+  it("uses qaboard.yaml's input types and settings", () => {
+    const config = { inputs: { globs: '*.jpg', my_setting: 1, types: { default: 'image', image: {}, movie: { frames: 10 } } } };
+    const text = 'a:\n  type: movi\n  my_setting: 2\n  frames: 3\nb:\n  type: movie\nc:\n  type: pipeline\n';
+    expect(analyzeBatches(text, { config }).problems).toEqual([
+      expect.objectContaining({ line: 2, column: 9, message: 'Unknown input type "movi": qaboard.yaml defines "image", "movie". Did you mean "movie"? `qa batch` will fail' }),
+    ]);
+    // without qaboard.yaml we can't know
+    expect(analyzeBatches(text).problems.map(p => p.message)).toEqual([
+      'Unknown key "my_setting" in "a"',
+      'Unknown key "frames" in "a"',
+    ]);
+  });
+});
+
+
 describe('new batches', () => {
   it('appends a valid batch', () => {
     for (const text of ['', 'a: {}', 'a: {}\n', 'a: {}\n\n']) {

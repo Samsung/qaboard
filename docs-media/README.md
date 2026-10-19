@@ -177,6 +177,17 @@ uv run docs-media/publish.py --only 'commit/*,cli/*' --dry-run   # encode, check
 3. It writes `out/<id>/still.png` and `out/<id>/meta.json` (`kind`, `width`/`height` in CSS pixels, `alt`, `caption`,
    `project`, `app_version`, `source_spec`, `anchors`).
 
+### Light and dark
+Every still and clip is captured twice: in the web app's light theme (`out/<id>/`) and in its dark theme
+(`out/<id>/dark/`, same files, `"theme": "dark"` in `meta.json`). The web app follows `prefers-color-scheme` unless a
+user picked a theme, so the Playwright projects `stills-dark` and `clips-dark` only differ by `colorScheme: 'dark'`.
+`npm run capture` runs the four projects, `capture:light` and `capture:dark` one theme; the workflow's `themes` input
+does the same. A shot that has no dark version (e.g. `landing/social-card`, the Open Graph image) sets
+`themes: ['light']`. Tapes are recorded once: they are already a dark terminal.
+
+The docs show the dark capture in their dark mode (see [Publishing](#publishing-publishpy) and `<Shot>` below). A dark
+capture must have the size of the light one, so actions must not depend on the theme.
+
 Captures stay clean: no arrows, boxes or text burned in. Call-outs are HTML overlays added by `<Shot callouts>`,
 positioned from the `anchors` a spec records with `ui.anchor(name, locator)`, so they survive a re-capture.
 The one exception is `landing/social-card`: `landing.spec.ts` crops the commit page, then renders
@@ -326,6 +337,7 @@ export interface ShotOptions {
   login?: string | null;                               // persona logged in (password kitefin-demo); default: the project's main author
   revision?: number;                                   // bump to publish a capture the dedupe would keep as unchanged
   dedupeTolerance?: number;                            // share of differing pixels still "unchanged", default 0.0005 (clips 0.002)
+  themes?: Theme[];                                    // default both; e.g. ['light'] for a page that has no dark theme
 }
 
 export interface ClipOptions extends Omit<ShotOptions, 'target'> {  // actions: set the scene before recording, not drawn
@@ -379,7 +391,7 @@ shot('commit/pixel-tooltip', {
   Stories keep the newest data at least 10 minutes before T0, so relative times ("12 minutes ago") don't flip while
   recording. While a clip records, the page's clock follows the clip's instead ([Clips](#clips)).
 - **Rendering:** Chromium from the pinned Playwright image; viewport 1440x900 at scale 2; `locale: 'en-US'`,
-  `timezoneId: 'UTC'`, `colorScheme: 'light'`; `reducedMotion: 'reduce'` for stills.
+  `timezoneId: 'UTC'`, `colorScheme: 'light'` (`'dark'` for the dark projects); `reducedMotion: 'reduce'` for stills.
   Fonts are pinned: Chromium and VHS only see [`fonts.conf`](fonts.conf) (`FONTCONFIG_FILE`): Roboto, DejaVu Sans
   (fallback) and Sans Mono, Noto Color Emoji, JetBrains Mono, with aliases so that the app's font stack resolves to
   Roboto whatever the host has. Before capturing, the `setup` project checks with `fc-match`, then asks Chromium which
@@ -393,7 +405,8 @@ shot('commit/pixel-tooltip', {
   1. `document.fonts.ready`;
   2. no request in flight for 500 ms, ignoring long-polling (a request in flight for over 10 s); the page's load
      events count as activity;
-  3. no `.bp6-spinner`, `.bp6-skeleton` or `.bp6-progress-bar` visible;
+  3. no `.bp6-spinner`, `.bp6-skeleton` or animated `.bp6-progress-bar` visible, except the spinners that say a run is running
+     (its status, `aria-label="Running"`, and in tags): they stay while it runs;
   4. `ui.tiles()`: no `/iiif/` request in flight for 750 ms and every `.openseadragon-canvas` has drawn. The viewer
      tracks OpenSeadragon's `fully-loaded-change` internally but doesn't expose it: until it does (a `data-shot`
      attribute is the proposed fix), the network rule decides;
@@ -471,7 +484,7 @@ shot('commit/pixel-tooltip', {
 `publish.py gc [--dry-run] [--days 90] [--no-prs]`. Encoders: `install-tools.sh` (oxipng 10.2.0, libavif 1.4.2,
 libwebp 1.6.0) and the distribution's ffmpeg (Ubuntu 24.04: 6.1.1). Budgets count 1 KB = 1000 bytes.
 
-1. **Encode** each `out/<id>/`:
+1. **Encode** each `out/<id>/`, and each `out/<id>/dark/` (see [Light and dark](#light-and-dark)):
    - stills: PNG (oxipng), AVIF (`avifenc -q 60 --yuv 444 -s 4`), WebP (`cwebp -q 82 -m 6 -sharp_yuv`),
      LQIP (16 px wide WebP, base64);
    - clips and tapes: MP4, WebM, poster, and `captions.vtt` when there are captions.
@@ -503,6 +516,12 @@ libwebp 1.6.0) and the distribution's ffmpeg (Ubuntu 24.04: 6.1.1). Budgets coun
 6. **Gallery:** `out/gallery.md` (before/after from `base_url`, for the PR comment), `out/gallery/index.html` (local
    files, a workflow artifact) and `out/publish-report.json`.
 7. A shot fails if `shots.yaml` lists `anchors` its capture didn't record.
+8. **Dark variants:** a dark capture becomes the entry's `dark` (`files`, `lqip`; the anchors are the light one's). It
+   must have the light capture's kind and size, and a light capture, in the same run or published. It's deduped like
+   the light one, against the published `dark`; and if it looks like the light capture within the shot's tolerance
+   (a template page with no dark theme), the entry gets no `dark` and readers see the light one. When only the light
+   capture is published, the entry keeps its `dark` while the size doesn't change. `gc` and the served-bytes budget
+   count the dark files.
 
 ## Serving: the docs build fetches media
 
@@ -576,6 +595,9 @@ type ShotProps = {
 
 - Renders `<figure>` → `<picture>` (AVIF source, WebP source, WebP `<img>`) with `width`/`height` from the manifest, so
   there's no layout shift, `loading="lazy"`, `decoding="async"`, and the LQIP as background until it loads.
+- With a `dark` variant, both `<picture>`s are in the page and CSS shows the one of the docs' color mode
+  (`html[data-theme]`): no flash on hydration, and browsers don't fetch the hidden lazy image. `<Compare>` and the zoom
+  dialog do the same; `<Clip>` loads the dark variant's sources in dark mode.
 - Call-outs are numbered markers (`aria-hidden`) drawn over the image, scaled with it. Their labels are an ordered list in
   the `<figcaption>`, after the caption, so screen readers get them.
 - A planned id (in `shots.yaml`, not yet in `media.json`): a placeholder box with the planned aspect ratio (16:10 when
@@ -655,16 +677,25 @@ Canonical values (`stack.ts`, the only place they're defined; the first one is t
 | Monthly (`17 6 2 * *`, with the release notes) | Full refresh from the snapshot; opens a PR only if something changed beyond the tolerance; runs `publish.py gc` |
 
 - Never on push. One run per ref at a time (`concurrency`), PR runs cancel the previous one.
+- A capture that fails (a spec waiting for an element the web app no longer has fails after 20 s,
+  `SHOTS_ACTION_TIMEOUT`) doesn't stop the others from being published, except in strict runs: the failed shots keep
+  their published version, and the job fails.
 - The stack runs this checkout's images (built like CI's, from its layer cache), so web app changes show.
   `affected.py` computes the affected shots of a pull request.
-- **Affected shots** on a PR: all of them if `webapp/**` or `docs-media/shots/lib/**` changed; an area if its
+- **Affected shots** on a PR: every still and clip (the specs' areas, not the tapes) if `webapp/**` or
+  `docs-media/shots/lib/**` changed, all of them if `docs-media/fonts.conf` did; an area if its
   `shots/<area>.spec.ts` changed; a shot if its template (`shots/templates/<subject>.html`) changed; a project's shots, with a reseed, if `examples/<project>/**` changed; a tape if its
   `.tape` changed.
-- **Reseed** when `reseed` is set, or when the snapshot key changes: a hash of `examples/**`, `docs-media/seed.py`,
-  `backend/backend/models/**` and `qaboard/**`. Snapshots are `snapshots/<key>.tar.zst` in `qaboard-ci`.
+- **Reseed** when `reseed` is set, or when no snapshot fits (`snapshot.py pick`): the snapshot of this checkout's key
+  (a hash of `examples/**`, `docs-media/seed.py`, `backend/backend/models/**` and `qaboard/**`), else the newest one
+  taken from a commit with the same stories (`examples/**` and `docs-media/seed.py`). Changes to the CLI or the
+  backend don't reseed: they don't change what the stories seed, and the backend migrates the restored database when
+  it starts. Snapshots are `snapshots/<key>.tar.zst` in `qaboard-ci`.
 - **Gallery:** the PR comment shows before/after thumbnails from `qaboard-media` (new files are uploaded anyway, under
   new keys); the full HTML gallery is a workflow artifact.
-- **Runtime:** 15-30 min from a snapshot on a 4-CPU runner. A reseed adds the stories' seeding time (budgets in each
+- **Runtime** on a 4-CPU runner, measured on a light-only run (2026-10): setup and images 5 min, captures 15 min (the
+  14 clips most of it), tapes 12 min (the quickstarts' start a kind cluster), publishing 13 min. The dark captures
+  about double the captures and what publishing encodes. A reseed adds the stories' seeding time (budgets in each
   `examples/<project>/SPEC.md`): about 70 min for the three phase-2 projects, since `serving-latency` measures
   performance and must run alone. Seeding each project in its own job and merging the results would bring it down.
 - **Secrets:** `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, scoped to `qaboard-media` and

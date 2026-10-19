@@ -28,9 +28,9 @@ const hostname_of = url => {
 // The web root of the host in qaboard.yaml's project.url, if any
 const git_hostname = qaboard_config => {
   const project_url = qaboard_config?.project?.url
-  // const project_url = "git@gitlab-srv:svt/te-testing.git"      //=> gitlab-srv
-  // const project_url = "git@gitlab-srv:8080:svt/te-testing.git" //=> gitlab-srv:8080
-  // const project_url = "https://gitlab-srv/svt/te-testing.git"  //=> gitlab-srv
+  // const project_url = "git@gitlab.example.com:group/repo.git"       //=> gitlab.example.com
+  // const project_url = "git@gitlab.example.com:8080:group/repo.git"  //=> gitlab.example.com:8080
+  // const project_url = "https://gitlab.example.com/group/repo.git"   //=> gitlab.example.com
   let hostname = null
   if (project_url) {
     let match = project_url.match(/@([^/:]+(:[0-9]+)?)[:/]/)

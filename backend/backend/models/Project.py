@@ -14,7 +14,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy import Column, ForeignKey
 from sqlalchemy import String, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy import cast, type_coerce
+from sqlalchemy import cast, type_coerce, or_, and_, literal, func
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -108,8 +108,13 @@ class Project(Base):
     ]
 
   @property
-  def milestone_commits(self):
-    # users can write commits as milestones...
+  def protected_ref_commits(self):
+    """
+    Commits qaboard.yaml protects: the latest on the reference branch, and its `project.milestones`
+    (branches, tags or commits). The cleanup keeps all their results.
+    """
+    if not self.repo:
+      return []
     def get_git_commit(repo, commit):
         try:
             return repo.commit(commit)
@@ -118,23 +123,43 @@ class Project(Base):
     # we will save the latest commit on the protected branches
     # FIXME: it requires git access for now, but we should query CiCommits.filter(CiCommits.branch==r)
     protected_commit_milestones = [self.repo.commit(r).hexsha for r in self.protected_refs if get_git_commit(self.repo, r)]
-    # secho(f"  protected commit milestones: {protected_commit_milestones}", dim=True)
 
     protected_refs = self.protected_refs
     protected_refs = [*protected_refs, *[f'origin/{r}' for r in protected_refs]]
-    # secho(f"  protected branches: {protected_refs}", dim=True)
 
     # commits store as "branch" the first branch they were seen with. So they are never listed with tags.
     # we need to ask git for info on the milestones refs: what commit does it correspond to?
     # FIXME: we should store tags too somehow!
-    repo_tags = {t.tag.tag for t in self.repo.tags if t.tag} if self.repo else set()
+    repo_tags = {t.tag.tag for t in self.repo.tags if t.tag}
     protected_tags_commits = [self.repo.tags[m].commit.hexsha for m in protected_refs if m in repo_tags]
-    # secho(f"  protected commits from tags: {protected_tags_commits}", dim=True)       
+    return [*protected_commit_milestones, *protected_tags_commits]
 
-    # protect milestones defined via the web application
-    project_webapp_milestone_commits = [m['commit'] for m in self.data.get("milestones", {}).values()]
-    # secho(f"  protected milestones: {project_webapp_milestone_commits}", dim=True)
-    return [*protected_commit_milestones, *protected_tags_commits, *project_webapp_milestone_commits]
+  def milestones_on(self, hexsha=None):
+    """The milestones of results from this project (they can be listed in another project), maybe only on a commit"""
+    from .Milestone import Milestone
+    query = Milestone.query.filter(or_(
+      Milestone.commit_project_id == self.id,
+      and_(Milestone.commit_project_id == None, Milestone.project_id == self.id),
+    ))
+    if hexsha:
+      # milestones may use a short commit id
+      # (not LIKE: "_" and "%" in a milestone's commit would be wildcards)
+      query = query.filter(or_(
+        Milestone.commit_hexsha == hexsha,
+        and_(func.length(Milestone.commit_hexsha) >= 7, func.substr(literal(hexsha), 1, func.length(Milestone.commit_hexsha)) == Milestone.commit_hexsha),
+      ))
+    return query.all()
+
+  @property
+  def milestone_batches(self):
+    """The batches that are milestones (a MilestoneBatches). Only their results are kept."""
+    from ..milestones import MilestoneBatches
+    return MilestoneBatches(self.milestones_on())
+
+  @property
+  def milestone_commits(self):
+    """Commits with milestones or protected by qaboard.yaml. For cleanups that only know commits, not batches."""
+    return [*self.protected_ref_commits, *self.milestone_batches.commits()]
 
 
   @staticmethod
@@ -233,9 +258,9 @@ def update_project(data, db_session):
       return None
 
 
-  # List all the files named "qaboard.yaml" in this commit
+  # List all the files named "qaboard.yaml" (or the legacy "qatools.yaml") in this commit
   repo_files = repo.git.ls_tree('--name-only', '-r', commit_id).splitlines()
-  projects_config_paths = [Path(f) for f in repo_files if re.search(r'(/|^)qa(board|tools).yaml', f)]
+  projects_config_paths = [Path(f) for f in repo_files if re.search(r'(/|^)qa(board|tools)\.yaml$', f)]
   for subproject_config_path in projects_config_paths:
     project_id = str(root_project_id / subproject_config_path.parent)
     # Make sure the it exists in the database, with up-to-date metadata
@@ -265,6 +290,9 @@ def update_project(data, db_session):
     qatools_config = {}
     for config_path in config_paths:
       config = parsed_content(commit_id, config_path)
+      if config is not None and not isinstance(config, dict):
+        print(f"Ignoring {config_path} in {root_project_id}@{commit_id}: not a YAML mapping", file=sys.stderr)
+        continue
       qatools_config = qaboard.merge(config, qatools_config)
     if "project" not in  qatools_config:
       qatools_config["project"] = {}

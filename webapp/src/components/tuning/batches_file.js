@@ -1,6 +1,8 @@
 // Understands the YAML files that define batches of tests, to give feedback while they are edited.
 // It mirrors how `qa batch` reads them (qaboard/iterators.py:iter_inputs), with PyYAML's YAML 1.1.
 import { parseDocument, LineCounter, isMap, isSeq, isScalar, isAlias } from "yaml";
+import batchesSchema from "qaboard-schemas/batches.schema.json";
+import { makeValidator, formatPath, didYouMean } from "../../utils/jsonSchema";
 
 // Top-level keys that are settings for the whole file, not batches
 export const SETTINGS_KEYS = ["database", "configs", "configurations", "platform", "matrix"];
@@ -35,14 +37,116 @@ const pyyamlScalar = scalar => scalar.type === "PLAIN" ? PYYAML_SCALARS.find(([,
 const short_message = message => message.split("\n")[0].replace(/ at line \d+, column \d+:?$/, "").replace(/:$/, "");
 
 
+const validate = makeValidator([batchesSchema]);
+
+// The value PyYAML (`qa batch`) reads, and where each path is: {value, locations: {"a.inputs[0]": {key, node}}}.
+// Like PyYAML, the last duplicate key wins, and `<<` merges mappings.
+const toPython = doc => {
+  const locations = {};
+  let aliases = 0;
+  const convert = (node, path, key) => {
+    locations[formatPath(path)] = { key, node };
+    if (isAlias(node)) {
+      if (++aliases > 10000) throw new Error("Too many aliases");
+      node = node.resolve(doc);
+    }
+    if (!node) return null;
+    if (isMap(node)) {
+      const value = {};
+      for (const pair of node.items) {
+        if (!pair.key) continue;
+        const name = key_name(pair.key);
+        if (name === "<<") {
+          const sources = resolve(pair.value, doc);
+          for (const source of isSeq(sources) ? sources.items : [sources]) {
+            const merged = convert(source, path, key);
+            if (merged && typeof merged === "object" && !Array.isArray(merged))
+              for (const [k, v] of Object.entries(merged)) if (!Object.hasOwn(value, k)) value[k] = v;
+          }
+          locations[formatPath(path)] = { key, node };
+          continue;
+        }
+        value[name] = convert(pair.value, [...path, name], pair.key);
+      }
+      return value;
+    }
+    if (isSeq(node)) return node.items.map((item, idx) => convert(item, [...path, idx], key));
+    if (isScalar(node)) {
+      const read_as = pyyamlScalar(node);
+      if (read_as === "empty") return null;
+      if (read_as === "true or false") return /^(?:yes|true|on)$/i.test(node.source);
+      if (read_as === "a number") return typeof node.value === "number" ? node.value : Number(String(node.source).replaceAll("_", "")) || 0;
+      if (read_as === "a date") return new Date(node.source);
+      return typeof node.value === "string" ? node.value : (node.source ?? String(node.value));
+    }
+    return null;
+  };
+  return { value: convert(doc.contents, [], null), locations };
+};
+
+// "a.inputs[0].x" is within "a.inputs[0]" and "a", not "a.input"
+const isWithin = (path, parent) => path === parent || path.startsWith(`${parent}.`) || path.startsWith(`${parent}[`);
+
+// The keys `qa batch` reads from a batch because they are input settings in qaboard.yaml (it merges them),
+// and the input types it defines
+const inputSettings = config => {
+  const inputs = config?.inputs;
+  if (!inputs || typeof inputs !== "object") return null;
+  const types = inputs.types && typeof inputs.types === "object" ? inputs.types : {};
+  const keys = new Set(Object.keys(inputs));
+  for (const settings of Object.values(types))
+    if (settings && typeof settings === "object") Object.keys(settings).forEach(k => keys.add(k));
+  return { keys, types: Object.keys(types).filter(t => t !== "default") };
+};
+
+/**
+ * Checks the batches against qaboard/schemas/batches.schema.json, and the project's qaboard.yaml if we have it.
+ * Everything is a warning: `qa batch` ignores what it doesn't know.
+ * `reported` lists the paths we already have problems for.
+ */
+function schemaProblems(doc, lineCounter, config, reported) {
+  let value, locations;
+  try {
+    ({ value, locations } = toPython(doc));
+  } catch {
+    return [];
+  }
+  const settings = inputSettings(config);
+  const problems = validate(value, batchesSchema)
+    .filter(p => !reported.some(r => isWithin(formatPath(p.path), r)))
+    // a batch can override the input settings from qaboard.yaml
+    .filter(p => !(p.kind === "unknown-key" && p.path.length === 2 && settings?.keys.has(p.path[1])))
+    .map(p => ({ path: p.path, key: p.key, message: p.message }));
+
+  if (settings && value && typeof value === "object")
+    for (const [name, batch] of Object.entries(value)) {
+      const type = batch?.type;
+      if (name.startsWith(".") || SETTINGS_KEYS.includes(name) || ALIASES_KEYS.includes(name)) continue;
+      if (typeof type !== "string" || type === "pipeline" || type === "default" || settings.types.includes(type)) continue;
+      const defined = settings.types.length ? `qaboard.yaml defines ${settings.types.map(t => `"${t}"`).join(", ")}` : "qaboard.yaml defines no inputs.types";
+      problems.push({ path: [name, "type"], message: `Unknown input type "${type}": ${defined}.${didYouMean(type, settings.types)} \`qa batch\` will fail` });
+    }
+
+  return problems.map(({ path, key: onKey, message }) => {
+    // the closest path we know, e.g. for keys merged with `<<`
+    let known = path;
+    while (known.length > 0 && !locations[formatPath(known)]) known = known.slice(0, -1);
+    const { node, key } = locations[formatPath(known)] ?? {};
+    const target = (onKey || !node?.range) && key?.range ? key : node?.range ? node : key ?? doc.contents;
+    return { severity: "warning", message, ...position(target?.range ?? [0, 0], lineCounter) };
+  });
+}
+
+
 /**
  * Analyzes the content of a batches file.
+ * `config` is the project's qaboard.yaml, to check the batches use its input types and settings.
  * @returns {{
  *   problems: {severity: 'error'|'warning', message: string, line: number, column: number, endLine: number, endColumn: number}[],
  *   items: {name: string, kind: 'batch'|'pipeline'|'alias'|'setting', line: number, inputs?: number, targets?: string[], overridden_by?: number}[],
  * }}
  */
-export function analyzeBatches(text) {
+export function analyzeBatches(text, { config } = {}) {
   const lineCounter = new LineCounter();
   // Duplicate keys are allowed by PyYAML (the last one wins): we only warn about them
   const doc = parseDocument(text ?? "", { version: "1.1", uniqueKeys: false, lineCounter });
@@ -68,6 +172,7 @@ export function analyzeBatches(text) {
   }
 
   const seen = {};
+  const reported = []; // paths we explain better than the schema
   const add = (item, key) => {
     const where = position(key.range ?? [0, 0], lineCounter);
     const id = `${item.kind === 'alias' ? 'alias' : 'key'}:${item.name}`;
@@ -104,6 +209,7 @@ export function analyzeBatches(text) {
           }, alias.key);
         }
       } else if (value !== null && value !== undefined && !(isScalar(value) && value.value === null)) {
+        reported.push(name);
         problems.push({
           severity: "error",
           message: `"${name}" must be a mapping of alias names to lists of batches`,
@@ -114,29 +220,36 @@ export function analyzeBatches(text) {
     }
     const inputs = isMap(value) ? resolve(value.get("inputs", true), doc) : value;
     const kind = isMap(value) && value.get("type") === "pipeline" ? "pipeline" : "batch";
-    if (isSeq(value))
+    if (isSeq(value)) {
+      reported.push(name);
       problems.push({
         severity: "warning",
         message: `"${name}" is a list, not a batch: running it fails. Write its inputs under "inputs:", or group batches under "aliases:"`,
         ...position(pair.key.range, lineCounter),
       });
+    }
     // `qa batch` only understands inputs that are text, lists or mappings
     else if (isSeq(inputs))
-      for (const node of inputs.items) {
+      inputs.items.forEach((node, index) => {
         const item = resolve(node, doc);
         const read_as = isScalar(item) && pyyamlScalar(item);
-        if (!read_as) continue;
+        if (!read_as) return;
+        reported.push(formatPath([name, value.has?.("inputs") ? "inputs" : "tests", index]));
         const [start] = item.range ?? [0];
         problems.push(read_as === "empty"
           ? { severity: "error", message: `Empty input in "${name}": remove this "-", or write the input after it`, ...position(item.source ? item.range : [Math.max(0, start - 1), start], lineCounter) }
           : { severity: "error", message: `YAML reads ${item.source} as ${read_as}, not a path: write it in quotes`, ...position(item.range, lineCounter) });
-      }
+      });
     add({
       name,
       kind,
       inputs: isSeq(inputs) ? inputs.items.length : isMap(inputs) ? inputs.items.length : undefined,
     }, pair.key);
   }
+  // Only once the YAML is valid: we'd otherwise check what the parser guessed
+  if (doc.errors.length === 0)
+    problems.push(...schemaProblems(doc, lineCounter, config, reported));
+  problems.sort((a, b) => a.line - b.line || a.column - b.column);
   return { problems, items };
 }
 

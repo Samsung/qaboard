@@ -12,7 +12,7 @@ const at = (d: Demo, days: number, time: string) => `${day(d, days)}T${time}:00Z
 
 // The commits' cards, one per day
 const days = (page: Page) => page.locator('.bp6-card', { has: page.getByText(/ — \d+ commits?$/) });
-const filterBox = (page: Page) => page.locator('.bp6-navbar input[placeholder="Search..."]').first();
+const filterBox = (page: Page) => page.locator('.bp6-navbar input[placeholder^="Search commits"]').first();
 
 // Hovers the point of the first line of a Plotly chart at that date (CommitsEvolution draws a point per commit)
 async function hoverPoint(ui: Ui, plot: Locator, date: string) {
@@ -75,7 +75,7 @@ shot('commits/filter', {
     await ui.click(filterBox(ui.page));
     await ui.settle();
     await ui.type(filterBox(ui.page), 'cache', { delayMs: 80 });
-    await ui.page.waitForFunction(() => (document.querySelector('.bp6-navbar input[placeholder="Search..."]') as HTMLInputElement | null)?.value === 'cache',
+    await ui.page.waitForFunction(() => (document.querySelector('.bp6-navbar input[placeholder^="Search commits"]') as HTMLInputElement | null)?.value === 'cache',
       undefined, { timeout: 5000 });
     await ui.page.locator('.bp6-popover .bp6-menu', { hasText: 'Go to commit' }).waitFor();
     // the caret at the end, nothing selected
@@ -95,40 +95,36 @@ const DE = 'detection-eval';
 
 shot('commits/milestones-menu', {
   project: DE,
-  // the abandoned entropy calibration branch, saved as a private milestone first
-  url: d => d.commitUrl(DE, 'entropy-calib', { view: 'table-kpi' }),
-  alt: 'The sidebar\'s Milestones menu on the detector\'s commits: the shared milestones kd-1.3 and kd-1.2, each with '
-    + 'its branch, commit and author, then a private milestone, entropy-try, on the quant/entropy branch.',
-  caption: 'The Milestones menu lists the shared milestones, then your private ones: pick one to compare with.',
+  url: d => d.url(DE, 'commits'),
+  alt: 'The sidebar\'s Milestones menu on the detector\'s commits: a search box, the favorite kd-1.3, then "My '
+    + 'milestones" with the releases kd-1.3 and kd-1.2 and, in the group quant / calibration, entropy-try. Each shows its '
+    + 'batch, branch, commit and date.',
+  caption: 'Your favorites first, then your milestones by group, then the project\'s: pick one to open it.',
   actions: async ui => {
     const { page } = ui;
-    // A private milestone stays in the browser: the server must not get one. New milestones start shared
-    await page.route('**/api/v1/project/milestones/**', route => route.abort());
-    await ui.click(page.locator('button:has(.bp6-icon-star-empty)').first());
-    const dialog = page.locator('.bp6-popover', { hasText: 'Milestone Info' });
-    await dialog.waitFor();
-    const shared = dialog.getByRole('switch', { name: 'Shared' }).or(dialog.locator('input[type="checkbox"]')).first();
-    if (await shared.isChecked()) await ui.click(dialog.locator('label', { hasText: 'Shared' }));
-    if (await shared.isChecked()) throw new Error('[commits.spec] the milestone would be shared');
-    await ui.type(dialog.locator('#text-input'), 'entropy-try');
-    await ui.type(dialog.locator('textarea'), 'entropy calibration: a little worse everywhere');
-    await ui.click(dialog.getByRole('button', { name: 'Save' }));
-    await dialog.waitFor({ state: 'hidden' });
-    // the project's commits, without reloading the page (the milestone is in the app's state)
-    await ui.click(page.locator('.bp6-menu-item, a', { hasText: /^detector$/ }).or(page.getByText('detector', { exact: true })).first());
-    await page.waitForURL(/\/kitefin\/detector\/?(commits)?(\?.*)?$/);
+    // A personal milestone in a group, and a favorite, without changing the demo's database
+    await page.route('**/api/v1/milestones?*', async route => {
+      const response = await route.fetch();
+      const { milestones } = await response.json() as { milestones: any[] };
+      const release = milestones.find((m: any) => m.label === 'kd-1.3') ?? milestones[0];
+      const entropy = {
+        ...release, id: 900, label: 'entropy-try', group: 'quant/calibration', shared: false, is_favorite: false, slug: 'entropy-try',
+        notes: 'Entropy calibration: a little worse everywhere', branch: 'quant/entropy',
+      };
+      const marked = milestones.map((m: any) => m.id === release?.id ? { ...m, is_favorite: true } : m);
+      await route.fulfill({ response, json: { milestones: [...marked, entropy] } });
+    });
+    await page.reload();
     await ui.settle();
-    // "set 1 hour ago": the private milestone was just saved, and "N seconds ago" would change from one capture to the next
-    await page.clock.fastForward('01:00:00');
-    await ui.hover(page.getByText('Milestones', { exact: true }).first());
-    const menu = page.locator('.bp6-popover .bp6-menu', { hasText: 'Select a private milestone' });
+    await ui.click(page.getByRole('menuitem', { name: /^Milestones/ }).first());
+    const menu = page.getByRole('menu', { name: 'Milestones' });
     await menu.getByText('entropy-try').waitFor();
     await ui.settle();
   },
   // the sidebar's menu item and the menu
   target: page => [
-    page.getByText('Milestones', { exact: true }).first().locator('xpath=ancestor::a[1]'),
-    page.locator('.bp6-popover .bp6-menu', { hasText: 'Select a private milestone' }),
+    page.getByRole('menuitem', { name: /^Milestones/ }).first(),
+    page.getByRole('menu', { name: 'Milestones' }),
   ],
   padding: 8,
 });

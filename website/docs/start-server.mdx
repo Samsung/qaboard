@@ -122,11 +122,12 @@ QA-Board can connect to external authentication systems (LDAP, SAML). If needed,
 | `QABOARD_PORT_HTTP`    | 5151    | Port mapped to the app on the host                   |
 | `QABOARD_DB_HOST`      | db      | Connect the backend to a non-default database host (e.g. instead of dev'ing with prod dumps, connect directly to it) |
 | `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port               |
+| `QABOARD_DB_POOL_SIZE` / `QABOARD_DB_MAX_OVERFLOW` | 4 / 2 | Database connections kept open by each uwsgi process (it runs 4 threads), and extra ones it may open. PostgreSQL's `max_connections` must cover them, see [Database settings](backend-admin/deployment#database-settings) |
 | `JENKINS_AUTH`         | _none_  | Credentials used to [trigger jenkins jobs](triggering-third-party-tools) on 1 or many jenkins servers. The format is a JSON string looking like `{"hostname_1": {"user": "jenkinsuser", "token": "xxxxx", "crumb": "yyy"}}` ([how-to-get-the-token-crumb?](triggering-third-party-tools))               |
 | `QABOARD_LOGIN_TYPE`   | _LOCAL_  | Set to `LOCAL/LDAP/SAML`                   |
 | `QABOARD_LOGIN_REQUIRED`   | _empty_  | Any non-empty value (e.g. `true`) blocks anonymous users. Leave it unset/empty to allow them: even `false` enables it |
 | `QABOARD_DISABLE_SIGNUP`   | _empty_  | Set to `True` (exactly) to disallow local users from signing up                   |
-| `QABOARD_LOGIN_RESTRICTED`   | _empty_  | Any non-empty value (e.g. `true`) uses a configuration file to allow only specific users (requires backend restart)                   |
+| `QABOARD_LOGIN_RESTRICTED`   | _empty_  | `true` uses a configuration file to allow only specific users (empty, `false` or `0` turn it off) (requires backend restart)                   |
 | `QABOARD_LOGIN_RESTRICTED_YAML`   | _none_  | The path to the users configuration file                     |
 | `QABOARD_LDAP_HOST`   | _none_  | Server hostname (including port)                   |
 | `QABOARD_LDAP_PORT`   | _389_  | Server port, usually 389 (or 636 if SSL is used / **not supported yet!**). |
@@ -145,6 +146,8 @@ QA-Board can connect to external authentication systems (LDAP, SAML). If needed,
 | `QA_RUNNERS_LSF_BRIDGE` | _none_ | With `lsf`: the command used to submit LSF jobs, e.g. `ssh user@lsf-host 'bsub_su {user} -I {bsub_command}'` |
 | `QABOARD_DASK_SCHEDULERS` | _none_ | Comma-separated dask scheduler addresses the backend trusts (to stop dask jobs from the webapp) |
 | `QABOARD_IMAGE_SERVERS` | `{"default": "/iiif/2/"}` | JSON map of file extensions to IIIF image servers, e.g. `{"default": "/iiif/2/", "raw,dng": "https://iip.example.com/fcgi-bin/iipsrv.fcgi?IIIF=/"}`. Each URL is followed directly by the image's path |
+| `QABOARD_IMAGE_CACHE_DIR` | `$QABOARD_DATA_DIR/cache/images` | Where the images whose pixel values users read in the image viewer, or that they compare with "Where they differ", are kept, decoded (16-bit, float, raw...), so that reading them again is fast, and in `regions/` the regions found (removed after a month unused). In `videos/`: what's in the videos, and where two videos differ (removed after a month). Shared by the backend's workers: use local disk |
+| `QABOARD_IMAGE_CACHE_GB` | `20` | The disk space they can use: the least recently used are removed. Decoded images are large (a 12 MP 16-bit RGB image takes 72 MB) |
 | `QABOARD_PATH_MAPPINGS` | `[]` | JSON list of `["windows_prefix", "linux_prefix"]` pairs, used to show Windows paths to results (`qa` reads it too, from the environment or a site package, to convert Windows paths), e.g. `[["\\\\server\\share", "/mnt/share"]]` |
 | `QABOARD_DEFAULT_USER` | qaboard | The user CI runs are saved under (with `{user}` in `storage`). Runs started from the webapp replace it with the logged-in user in output paths |
 | `QABOARD_DOCS_ROOT`    | */* | Where the webapp's links to the docs point. By default, the docs served by this server at `/docs/`, which match its version |
@@ -152,13 +155,15 @@ QA-Board can connect to external authentication systems (LDAP, SAML). If needed,
 | `POSTHOG_API_KEY` / `POSTHOG_HOST` | _none_ | Enables [PostHog](https://posthog.com/) product analytics in the webapp |
 | `REDIS_HOST` / `REDIS_PORT` | redis / 6379 (set in *docker-compose.yml*) | Redis cache shared by the backend replicas. The backend still works if it's unreachable |
 | `QABOARD_QUOTA_URL_TEMPLATE` | _none_ | Shows a "Quota" link, with `{user_name}` and `{project}` placeholders |
-| `QABOARD_SUPPORT_URL` | GitHub issues | Where users report bugs, can be a `mailto:` |
+| `QABOARD_SUPPORT_URL` | GitHub issues | Where users report bugs and send feedback, can be a `mailto:` |
+| `QABOARD_LOGIN_HINT` | _none_ | Advice for users whose username or password is wrong, shown in the login dialog, e.g. `Use your Windows credentials.` |
+| `QABOARD_WEBCDE_INSTALLER` | _none_ | Runs whose outputs include a `cde.sh` get a button to open them in WebCDE, a desktop app. When WebCDE isn't running, users are told to install it from this location |
 | `CANTALOUPE_MEM_START` | 1g      | Starting memory for the image server (set in `services.cantaloupe.environment`) |
 | `CANTALOUPE_MEM_MAX`   | 2g      | Max memory for the image server (set in `services.cantaloupe.environment`) |
 | `QABOARD_BACKEND_REPLICAS` | 1 (2 in `deployments/production.env`) | Backend replicas, see [Deployments](backend-admin/deployment#settings) |
 | `QABOARD_UWSGI_PROCESSES`  | 16  | uwsgi processes per backend replica, in production   |
-| `SENTRY_DSN`           | _none_  | monitor crashes in the backend with sentry.io. Example: https://xxxxxxxxxxx@sentry.io/000 |
-| `SENTRY_SAMPLE_RATE`           | 0.2  | sample for perf monitoring |
+| `SENTRY_DSN`           | _none_  | Report errors and performance data to Sentry, e.g. `https://xxxxxxxxxxx@sentry.io/000`. See [Monitoring with Sentry](backend-admin/monitoring) for the other settings |
+| `SENTRY_TRACES_SAMPLE_RATE` | 0.2  | Share of the requests that are traced (formerly `SENTRY_SAMPLE_RATE`) |
 
 
 :::note
@@ -172,7 +177,7 @@ In the future we plan to introduce a proper "secret" store, per user and per pro
 
 ## (Optional) For "production"
 ### Backups
-The `cron-backup-db` service in *production.yml* makes daily backups of the database. Mount a host directory at `/backups` in your site overlay, and copy the backups off the host. To restore one: `deployments/deploy.py <env file> restore-db <file>.dump`. See [Backups](backend-admin/deployment#backups).
+The `cron-backup-db` service in *production.yml* makes daily backups of the database, and keeps those of the last 14 days (`QABOARD_BACKUP_RETENTION_DAYS`). Mount a host directory at `/backups` in your site overlay, and copy the backups off the host. To restore one: `deployments/deploy.py <env file> restore-db <file>.dump`. See [Backups](backend-admin/deployment#backups).
 
 ### Using SSL / hosting behind a reverse proxy
 What we do is use our own copy of *services/nginx/conf.d/qaboard.conf* in the site overlay (keep its `include snippets/...` lines: they serve the files and the file browser). Files mounted under `/tmp/deployment/nginx/conf.d/` in the `proxy` container are added to (or replace) *services/nginx/conf.d/*:

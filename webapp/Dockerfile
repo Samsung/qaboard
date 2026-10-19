@@ -1,4 +1,4 @@
-# Built from the repository's root, to include the release notes (website/release-notes/).
+# Built from the repository's root, to include the release notes (website/release-notes/) and the schemas of the batch files (qaboard/schemas/).
 # Dockerfile.dockerignore keeps the rest of the repository out of the build context.
 #   docker build -f webapp/Dockerfile .
 # Stages:
@@ -38,6 +38,8 @@ ENV PATH /app/node_modules/.bin:$PATH
 COPY webapp/package.json webapp/package-lock.json ./
 # vite bundles them in the app (see releaseNotes.js)
 COPY website/release-notes /website/release-notes
+# the Available Tests editor checks the batch files with them (see vite.config.js)
+COPY qaboard/schemas /qaboard/schemas
 
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --no-audit --no-fund || \
@@ -53,18 +55,21 @@ CMD ["npm", "start"]
 FROM deps AS build
 COPY webapp/ ./
 
-ARG SENTRY_ORG
-ENV SENTRY_ORG=$SENTRY_ORG
-ARG SENTRY_PROJECT
-ENV SENTRY_PROJECT=$SENTRY_PROJECT
-ARG SENTRY_AUTH_TOKEN
-ENV SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
+# Sentry's release, e.g. the commit the image is built from (docker-compose.yml passes $QABOARD_VERSION)
+ARG QABOARD_VERSION=""
+# With a token, the build uploads the source maps to Sentry, then deletes them (see vite.config.js).
+# ARGs are only visible during the build, and this stage isn't part of the final image.
+ARG SENTRY_AUTH_TOKEN=""
+ARG SENTRY_ORG=""
+ARG SENTRY_PROJECT=""
+ARG SENTRY_URL=""
+# The upload trusts the CAs installed with CA_CERT_URL
+ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
 RUN npm run build
-RUN if [ -n "$SENTRY_AUTH_TOKEN" ]; then \
-      sentry-cli sourcemaps inject build && \
-      sentry-cli sourcemaps upload build; \
-    fi
+# nginx serves the compressed files as they are (gzip_static), instead of compressing them on each request
+RUN find build/assets -type f \( -name '*.js' -o -name '*.css' -o -name '*.svg' -o -name '*.ttf' -o -name '*.json' \) -size +1k \
+      -exec gzip -9 --keep {} +
 
 
 FROM debian:bookworm-slim AS production

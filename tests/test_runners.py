@@ -196,6 +196,51 @@ class TestLsfConcurrency(unittest.TestCase):
     self.assertIn('rusage[mem=1000]', bsub.commands[1])
 
 
+class TestBuildPowershellEnv(unittest.TestCase):
+  def env_lines(self, **context_env):
+    from qaboard.runners.jenkins_windows import build_powershell_env
+    return build_powershell_env(context_env)
+
+  def test_plain_env_vars(self):
+    self.assertEqual(self.env_lines(FOO='bar'), ["$Env:FOO = 'bar'"])
+
+  def test_single_quotes_are_escaped(self):
+    # PowerShell escapes single quotes by doubling them
+    self.assertEqual(self.env_lines(MSG="it's here"), ["$Env:MSG = 'it''s here'"])
+
+  def test_prepend_path_string(self):
+    # a plain string is a single directory prepended to the inherited PATH
+    self.assertEqual(self.env_lines(prepend_path='C:\\tools\\bin'), ["$Env:PATH = 'C:\\tools\\bin;' + $env:PATH"])
+
+  def test_prepend_path_list(self):
+    lines = self.env_lines(prepend_path=['C:\\a', 'C:\\b'])
+    self.assertEqual(lines, ["$Env:PATH = 'C:\\a;C:\\b;' + $env:PATH"])
+
+  def test_prepend_path_tuple(self):
+    lines = self.env_lines(prepend_path=('C:\\a', 'C:\\b'))
+    self.assertEqual(lines, ["$Env:PATH = 'C:\\a;C:\\b;' + $env:PATH"])
+
+  def test_prepend_path_with_other_vars(self):
+    lines = self.env_lines(prepend_path='C:\\tools', FOO='bar')
+    self.assertEqual(lines, ["$Env:PATH = 'C:\\tools;' + $env:PATH", "$Env:FOO = 'bar'"])
+
+  def test_prepend_path_escaped(self):
+    self.assertEqual(self.env_lines(prepend_path="C:\\it's"), ["$Env:PATH = 'C:\\it''s;' + $env:PATH"])
+
+  def test_prepend_path_ignores_custom_path(self):
+    # a regular PATH key would overwrite the prepended value since it's rendered after
+    from qaboard.runners.jenkins_windows import secho
+    with mock.patch('qaboard.runners.jenkins_windows.secho') as secho:
+      lines = self.env_lines(prepend_path='C:\\tools', PATH='C:\\evil')
+    self.assertEqual(lines, ["$Env:PATH = 'C:\\tools;' + $env:PATH"])
+    self.assertTrue(any('PATH' in str(call) for call in secho.call_args_list))
+
+  def test_prepend_path_falsy_is_ignored(self):
+    self.assertEqual(self.env_lines(prepend_path=None), [])
+    self.assertEqual(self.env_lines(prepend_path=''), [])
+    self.assertEqual(self.env_lines(prepend_path=[]), [])
+
+
 class TestJenkinsWindowsRunner(unittest.TestCase):
   def setUp(self):
     self.tmp = tempfile.TemporaryDirectory()
@@ -213,6 +258,44 @@ class TestJenkinsWindowsRunner(unittest.TestCase):
     with mock.patch('qaboard.runners.jenkins_windows.trigger_run', return_value={}):
       JenkinsWindowsRunner(job.run_context).start(blocking=False)
     return (job.run_context.output_dir / 'run.ps1').read_text()
+
+  def test_context_with_custom_env_vars(self):
+    # external callers (e.g. the delivery flow) pass custom node env vars via the
+    # run context's `env` mapping; start() must write them as $Env:KEY = 'value' lines
+    from qaboard.runners.jenkins_windows import JenkinsWindowsRunner
+
+    class EnvRunContext:
+      def __init__(self, output_dir):
+        self.output_dir = output_dir
+        self.command = 'echo hi'
+        self.env = {'CI': 'true'}
+
+    output_dir = self.output_root / 'custom-env'
+    with mock.patch('qaboard.runners.jenkins_windows.trigger_run', return_value={}):
+      JenkinsWindowsRunner(EnvRunContext(output_dir)).start(blocking=False)
+    content = (output_dir / 'run.ps1').read_text()
+    self.assertIn("$Env:CI = 'true'", content)
+
+  def test_context_with_prepend_path(self):
+    # the delivery flow can pass `prepend_path` in the run context's env mapping:
+    # start() must prepend the directories to the inherited PATH, before the command
+    from qaboard.runners.jenkins_windows import JenkinsWindowsRunner
+
+    class EnvRunContext:
+      def __init__(self, output_dir):
+        self.output_dir = output_dir
+        self.command = 'echo hi'
+        self.env = {'prepend_path': 'C:\\tools\\bin', 'CI': 'true'}
+
+    output_dir = self.output_root / 'prepend-path'
+    with mock.patch('qaboard.runners.jenkins_windows.trigger_run', return_value={}):
+      JenkinsWindowsRunner(EnvRunContext(output_dir)).start(blocking=False)
+    content = (output_dir / 'run.ps1').read_text()
+    self.assertIn("$Env:PATH = 'C:\\tools\\bin;' + $env:PATH", content)
+    self.assertIn("$Env:CI = 'true'", content)
+    # the PATH must be prepended before the command runs, and never set to the literal text
+    self.assertLess(content.index("$Env:PATH ="), content.index('echo hi'))
+    self.assertNotIn("$env:PATH'", content)
 
   def test_default_error_action(self):
     self.assertIn('$ErrorActionPreference = "Stop"', self.run_ps1())

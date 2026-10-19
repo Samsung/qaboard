@@ -38,6 +38,10 @@ If you define `metadata.label` it will be used in the UI instead of the input pa
 :::
 
 :::tip
+If you define `metadata.tags` as a list, e.g. `[low-light, motion]`, the History page can summarize metrics per tag: set `dashboard_breakdown_by_tag: true` in your [metrics file](computing-quantitative-metrics).
+:::
+
+:::tip
 QA-Board will compares runs with different input if they have the same `metadata.id`. A common use-case is comparing images from different sensors taken in the same conditions.
 :::
 

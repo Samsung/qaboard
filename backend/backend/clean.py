@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 """
 Remove old outputs and artifacts from storage.
-By default, the default reference branch, active commits and milestone are not deleted
+By default, we keep the results of:
+- the reference branch's latest commit, and the branches, tags and commits listed in qaboard.yaml's `project.milestones`,
+- the batches saved as milestones in the web app: only those batches, not the commit's other batches.
 
 The default configuration is:
 ```yaml
@@ -289,7 +291,9 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
         project_can_delete_artifacts = gc_config_artifacts.get('delete') == True or can_delete_artifacts
         secho(f"deleting data older than {old_treshold}{', with artifacts' if project_can_delete_artifacts else ''}", dim=True)
 
-        milestone_commits = project.milestone_commits
+        protected_commits = project.protected_ref_commits
+        milestone_batches = project.milestone_batches
+        secho(f"keeping {len(protected_commits)} commits protected in qaboard.yaml, and {len(milestone_batches)} milestone batches", dim=True)
         commits = (
             db_session.query(CiCommit)
             .filter(CiCommit.project == project)
@@ -298,8 +302,8 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
             .filter(func.coalesce(CiCommit.latest_output_datetime, CiCommit.authored_datetime) < old_treshold)
             .order_by(CiCommit.authored_datetime.desc())
         )
-        if milestone_commits:
-            commits = commits.filter(CiCommit.hexsha.notin_(milestone_commits))
+        if protected_commits:
+            commits = commits.filter(CiCommit.hexsha.notin_(protected_commits))
         if not project_can_delete_reference_branch:
             protected_refs = project.protected_refs
             commits = commits.filter(CiCommit.branch.notin_([*protected_refs, *[f'origin/{r}' for r in protected_refs]]))
@@ -307,6 +311,11 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
         for commit in commits.all():
             secho(f"@{commit.project_id}  {commit.branch}  {commit.hexsha} {commit.authored_datetime}", fg='cyan')
             outputs = (db_session.query(Output).join(Batch).filter(Batch.ci_commit_id == commit.id))
+            # We keep the batches that are milestones, and what they need to be redone or compared: the artifacts
+            kept_batches = milestone_batches.of_commit(project.id, commit.hexsha)
+            if kept_batches:
+                secho(f"  keeping the milestone batches: {', '.join(sorted(kept_batches))}", fg='yellow')
+                outputs = outputs.filter(Batch.label.notin_(kept_batches))
 
             nb_outputs = 0
             nb_outputs_deleted = 0
@@ -331,7 +340,8 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
             totals["outputs"] += nb_outputs_deleted
 
             deleted_artifacts = False
-            if project_can_delete_artifacts:
+            summary = {"nb_deleted": 0, "errors": []}
+            if project_can_delete_artifacts and not kept_batches:
                 secho(f"  Deleting artifacts", fg='cyan', dim=True)
                 # Files that the other subprojects still use are kept
                 keep = gc_config_artifacts.get('keep', []) or []
@@ -346,11 +356,11 @@ def clean(project_ids, before, can_delete_reference_branch, can_delete_outputs, 
                 totals["artifacts"] += 1
                 totals["artifacts_files"] += summary["nb_deleted"]
                 totals["errors"] += len(summary["errors"])
-            if nb_outputs_deleted or (project_can_delete_artifacts and summary["nb_deleted"]):
+            if nb_outputs_deleted or summary["nb_deleted"]:
                 totals["commits"] += 1
             if not dryrun:
                 db_session.add(commit)
-                if not nb_outputs and deleted_artifacts and can_delete_outputs:
+                if not nb_outputs and deleted_artifacts and can_delete_outputs and not kept_batches:
                     print(f"DELETE {commit}")
                     db_session.delete(commit)
                 # the artifacts' state must be saved as soon as possible: if we crash later, we must not lose that they were deleted

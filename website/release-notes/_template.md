@@ -7,7 +7,7 @@ draft: true                # drafts are hidden in the app and on the website. Re
 version: 1.1.0             # optional: the `qaboard` package version released in the period
 description: >-
   One or two sentences for busy readers: what changed for them. Shown first, in the app and on the website.
-highlights:                # 0 to 4, the changes worth a card. Most important first.
+highlights:                # 0 to 4 (up to 8 for a big release), the changes worth a card. Most important first.
   - title: Release notes in the web app
     audience: users        # users (use the web app/CLI) | project-integration (integrate a project: qaboard.yaml, runners, CI) | admins (run the server)
     icon: notifications    # a Blueprint icon name: https://blueprintjs.com/docs/#icons/icons-list
@@ -19,7 +19,8 @@ highlights:                # 0 to 4, the changes worth a card. Most important fi
 
 <!-- The body has the details, as bullets, under these sections in this order. Skip the empty ones.
      Write for the reader, not the committer: what they can now do, what changed for them.
-     One bullet per change, starting with a verb. Link to the docs as [text](/docs/page-id). -->
+     One bullet per change, starting with a verb. Link to the docs as [text](/docs/page-id).
+     With many changes in a section, group them by theme under ### headings (e.g. ### Comparing images, ### Logs). -->
 
 ## Web app
 - Added ... You can now ...

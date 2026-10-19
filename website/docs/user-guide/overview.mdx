@@ -25,7 +25,7 @@ You don't need to know how the project was set up to use it.
 | **Configuration** | The settings a run used (e.g. `base`, `low-light`), plus optional **tuning parameters** shown as `key: value` tags. |
 | **Metrics** | Numbers computed by each run (error, speed, quality...). The project's configuration decides which ones matter, their target and whether smaller is better. |
 | **New vs reference** | Results are always shown for a **new** commit compared with a **reference** (`ref`). By default the reference is the latest commit with results on the project's reference branch. |
-| **Milestone** | A commit (and batch) bookmarked as a reference: a release, a benchmark, "the version before my refactor". Some are shared with everyone, some are private to you. |
+| **Milestone** | A commit's batch (maybe filtered) bookmarked as a reference: a release, a benchmark, "the version before my refactor". Saved in your account, listed for you or for everyone on the project, with a link to share. |
 | **Artifacts** | Files saved per commit, like the build output and the configuration files, so runs can be redone and configs compared. |
 
 ## A map of the web app
@@ -52,11 +52,12 @@ Projects list  ─►  Commit list  ─►  Commit page  ─►  views (Summary,
 
 ### Anatomy of a page
 - **Left sidebar**:
-  - The **QA-Board** title goes back to the projects list. Next to it, the **What's new** button opens the [release notes](whats-new.mdx), and the **i** icon opens this guide.
-  - Your login, then the project's avatar: click it to go back to the project's commit list.
-  - Menus that depend on the page: branch, code, history, integrations and milestones on the commit list; the [views of the commit page](commit-page.mdx#views) on a commit page.
+  - The **QA-Board** title goes back to the projects list. Next to it, the **What's new** button opens the [release notes](whats-new.mdx), the theme button switches between light, dark and your system's theme, and the **?** button opens a cheat sheet (also with the <kbd>?</kbd> key) with the shortcuts, QA-Board's words and a link to this guide.
+  - The project's avatar: click it to go back to the project's commit list.
+  - Menus that depend on the page: branch, code, history, integrations and milestones on the commit list; the [views of the commit page](commit-page.mdx#views) on a commit page. Hover a view to see what it shows.
+  - Your login, at the bottom, and **Collapse**, which shrinks the sidebar to a rail of icons (hover one for its name) and gives the page more room. <kbd>Ctrl</kbd> + <kbd>{'\\'}</kbd> (<kbd>⌘</kbd> + <kbd>{'\\'}</kbd> on macOS) collapses or expands it too; it remembers your choice.
 - **Top bar**: on the commit list, the date range and a filter box. On a commit page, two bars: the **new** commit on top, the **reference** below.
-- **Controls panel**: on the commit page, a panel on the right edge to toggle visualizations, sync options between runs, and sort runs. Click the dark tab on the right edge to show or hide it.
+- **View options**: on the commit page, a panel on the right to show or hide visualizations, pick which of their files to show, turn on viewers' options and sort runs. Press <kbd>o</kbd> to show or hide it, or click its icons when it's collapsed to a rail. It starts open when the window has room for it, then remembers your choice. It only shows on the views of the runs' results.
 
 <Shot
   id="commit/visualizations"

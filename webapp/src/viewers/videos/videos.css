@@ -1,37 +1,14 @@
-.video-viewer {
-  position: relative;
-  margin: 5px 0;
-}
+/* The video viewer. It uses the image viewer's styles and variables (src/image-viewer/image-viewer.css): only what's
+   about videos is here. */
 
-.video-toolbar,
-.video-transport {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
+.video-viewer .video-toolbar {
+  margin-bottom: 2px;
 }
-.video-toolbar {
-  margin-bottom: 4px;
-}
-.video-transport {
-  margin-top: 2px;
-}
-.video-toolbar-spacer {
-  flex: 1 1 auto;
-}
-.video-pixel,
 .video-time,
 .video-zoom {
   font-variant-numeric: tabular-nums;
   font-size: 12px;
   white-space: nowrap;
-}
-.video-pixel {
-  color: #5f6b7c;
-  margin-right: 4px;
-}
-.video-zoom {
-  min-width: 52px;
 }
 .video-time {
   display: inline-block;
@@ -40,8 +17,8 @@
 .video-drift {
   position: absolute;
   right: 6px;
-  bottom: 6px;
-  z-index: 3;
+  top: 34px;
+  z-index: 5;
   padding: 1px 6px;
   border-radius: 3px;
   font-size: 11px;
@@ -52,7 +29,7 @@
 }
 .video-error-text {
   font-size: 12px;
-  color: #cd4246;
+  color: var(--qiv-danger);
   max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -61,18 +38,13 @@
 
 /* The videos */
 .video-stage {
-  position: relative;
-  margin: 0 auto;
-  overflow: hidden;
-  background: #1c2127;
   cursor: pointer;
-  touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   outline: none;
 }
 .video-stage:focus-visible {
-  box-shadow: 0 0 0 2px #4c90f0;
+  box-shadow: 0 0 0 2px var(--qiv-accent);
 }
 .video-stage.can-pan {
   cursor: grab;
@@ -87,7 +59,10 @@
   position: absolute;
   top: 0;
   overflow: hidden;
-  background: #111418;
+  background: var(--qiv-pane);
+}
+.video-diff-slot {
+  background: var(--qiv-pane);
 }
 .video-content {
   position: absolute;
@@ -104,24 +79,31 @@
   /* the stage handles the gestures, and we don't want the browser's video menu */
   pointer-events: none;
 }
-
-.video-label.bp6-tag {
+.video-highlight,
+.video-pixel-values {
   position: absolute;
-  top: 6px;
-  z-index: 3;
-  max-width: calc(50% - 12px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
 }
-.video-label.left {
-  left: 6px;
+
+.video-region-outline {
+  position: absolute;
+  z-index: 2;
+  border: 2px solid #ffc940;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
 }
-.video-label.right {
-  right: 6px;
-}
-.video-label-detail {
-  margin-left: 6px;
-  opacity: 0.8;
-  font-variant-numeric: tabular-nums;
+.video-region-outline span {
+  position: absolute;
+  left: -2px;
+  bottom: 100%;
+  padding: 0 4px;
+  border-radius: 2px 2px 0 0;
+  background: rgba(17, 20, 24, 0.75);
+  color: #fff;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .video-wipe {
@@ -132,8 +114,7 @@
   margin-left: -1px;
   background: #fff;
   box-shadow: 0 0 3px rgba(0, 0, 0, 0.7);
-  z-index: 2;
-  cursor: col-resize;
+  z-index: 3;
   pointer-events: none;
 }
 .video-wipe-handle {
@@ -152,34 +133,6 @@
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
 }
 
-.video-crosshair {
-  position: absolute;
-  width: 21px;
-  height: 21px;
-  margin: -10px 0 0 -10px;
-  pointer-events: none;
-  z-index: 2;
-}
-.video-crosshair::before,
-.video-crosshair::after {
-  content: "";
-  position: absolute;
-  background: #fff;
-  box-shadow: 0 0 2px rgba(0, 0, 0, 0.9);
-}
-.video-crosshair::before {
-  left: 10px;
-  top: 0;
-  width: 1px;
-  height: 21px;
-}
-.video-crosshair::after {
-  top: 10px;
-  left: 0;
-  height: 1px;
-  width: 21px;
-}
-
 .video-overlay-center {
   position: absolute;
   inset: 0;
@@ -187,9 +140,9 @@
   align-items: center;
   justify-content: center;
   pointer-events: none;
-  z-index: 2;
+  z-index: 4;
 }
-.video-play-hint .bp6-icon {
+.video-play-hint .qiv-icon {
   color: #fff;
   background: rgba(17, 20, 24, 0.55);
   border-radius: 50%;
@@ -198,22 +151,11 @@
 }
 
 .video-message {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 16px;
   text-align: center;
-  color: #f6f7f9;
-  background: rgba(17, 20, 24, 0.9);
-  z-index: 2;
   cursor: default;
-}
-.video-message a {
-  color: #8abbff;
 }
 .video-message-hint {
   font-size: 12px;
@@ -225,17 +167,142 @@
   -webkit-user-select: all;
 }
 
-/* The timeline */
+.video-minimap canvas {
+  display: block;
+}
+
+/* Which frames show: exact, estimated, different frames, playing */
+.video-frame-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border-radius: 3px;
+  background: rgba(17, 20, 24, 0.75);
+  color: #fff;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: auto;
+  cursor: help;
+}
+.video-frame-badge .qiv-icon {
+  fill: currentColor;
+}
+.video-frame-exact {
+  color: #72ca9b;
+}
+.video-frame-exact,
+.video-frame-estimated,
+.video-frame-unknown,
+.video-frame-mismatch {
+  outline: 1px solid transparent;
+}
+.video-frame-estimated,
+.video-frame-unknown {
+  color: #e5e8eb;
+}
+.video-frame-mismatch {
+  color: #fbd065;
+}
+.video-frame-playing,
+.video-frame-seeking {
+  color: #c5cbd3;
+}
+.video-frame-type {
+  padding: 0 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* What's in the files */
+.qiv-popover:has(> .video-info-panel) {
+  max-width: min(600px, 94vw);
+}
+.qiv-panel.video-info-panel {
+  width: min(580px, 92vw);
+  max-height: min(70vh, 640px);
+  overflow: auto;
+}
+.video-info {
+  width: 100%;
+  margin: 2px 0 4px;
+}
+.video-info th {
+  text-align: left;
+  font-weight: 600;
+  padding: 2px 8px 2px 0;
+}
+.video-info td {
+  padding: 2px 8px 2px 0;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.video-info td:first-child {
+  color: var(--qiv-text-muted);
+  white-space: nowrap;
+}
+.video-info-differs td {
+  color: var(--qiv-warning);
+  font-weight: 600;
+}
+.video-info-notes {
+  margin: 4px 0 0;
+  padding-left: 16px;
+}
+.video-info-notes li + li {
+  margin-top: 3px;
+}
+
+/* regions say when too: wider */
+.video-viewer .qiv-region,
+.video-viewer .qiv-region span {
+  max-width: 180px;
+}
+
+/* The transport and the timeline */
+.video-transport {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  margin-top: 2px;
+}
+.video-difference-summary {
+  flex: 0 1 auto;
+  min-width: 80px;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .video-scrubber {
   position: relative;
-  flex: 1 1 160px;
-  min-width: 120px;
+  flex: 3 1 240px;
+  min-width: 160px;
   height: 24px;
   margin: 0 8px;
   display: flex;
   align-items: center;
   cursor: pointer;
   touch-action: none;
+}
+/* the difference, frame by frame, above the track */
+.video-scrubber.video-scrubber-strip {
+  height: 40px;
+  align-items: flex-end;
+  padding-bottom: 6px;
+}
+.video-difference-strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  width: 100%;
+  height: 26px;
+  pointer-events: none;
 }
 .video-scrubber-track {
   position: relative;
@@ -260,7 +327,7 @@
   top: 0;
   bottom: 0;
   left: 0;
-  background: #2d72d2;
+  background: var(--qiv-primary);
 }
 .video-scrubber-thumb {
   position: absolute;
@@ -269,9 +336,14 @@
   height: 12px;
   margin: -6px 0 0 -6px;
   border-radius: 50%;
-  background: #2d72d2;
+  background: var(--qiv-primary);
   box-shadow: 0 0 0 2px #fff, 0 1px 3px rgba(0, 0, 0, 0.4);
   pointer-events: none;
+}
+.video-scrubber-strip .video-scrubber-thumb {
+  top: auto;
+  bottom: 2px;
+  margin-top: 0;
 }
 .video-scrubber-input {
   position: absolute;
@@ -283,7 +355,7 @@
   pointer-events: none;
 }
 .video-scrubber:focus-within .video-scrubber-thumb {
-  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #4c90f0;
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--qiv-accent);
 }
 .video-scrubber-hover {
   position: absolute;
@@ -297,13 +369,8 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   pointer-events: none;
-  z-index: 3;
+  z-index: 7;
 }
-
-.video-shortcuts {
-  margin: 4px;
-  font-size: 12px;
-}
-.video-shortcuts td:first-child {
-  white-space: nowrap;
+.video-scrubber-detail {
+  color: #c5cbd3;
 }

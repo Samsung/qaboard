@@ -258,3 +258,16 @@ export const resolveOptionValue = (option, wanted) => {
   }
   return { value: option.defaultValue, exact: false };
 };
+
+// How users see an option's name, from the visualizations' paths: "debug_maps" -> "Debug maps"
+export const optionLabel = name => {
+  const text = String(name).replace(/[_-]+/g, ' ').trim();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
+
+// Until users pick a value, each run shows its own default (see configureOption):
+// its last value when they are numbers (e.g. the last frame), else its first.
+export const defaultRule = option => {
+  const values = option.values ?? [];
+  return values.length > 1 && option.defaultValue === values[values.length - 1] ? 'last' : 'first';
+};

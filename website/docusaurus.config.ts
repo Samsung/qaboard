@@ -70,7 +70,8 @@ let config: Config = {
   baseUrl: '/qaboard/',
   deploymentBranch: 'gh-pages',
   // In local mode (builds), the media downloaded from website/media.json, served at <baseUrl>media/
-  staticDirectories: ['static', ...mediaStaticDirectories()],
+  // The JSON schemas of qaboard.yaml and the batch files, for editors: <baseUrl>qaboard.schema.json, <baseUrl>batches.schema.json
+  staticDirectories: ['static', '../qaboard/schemas', ...mediaStaticDirectories()],
 
   presets: [
     [

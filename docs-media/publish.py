@@ -16,7 +16,8 @@ See docs-media/README.md#publishing-publishpy.
   uv run docs-media/publish.py [--only GLOB] [--dry-run]
   uv run docs-media/publish.py gc [--dry-run]
 
-1. Encode each out/<area>/<subject>/ (meta.json + still.png, frames + frames.ffconcat, or tape.mp4/tape.webm)
+1. Encode each out/<area>/<subject>/ (meta.json + still.png, frames + frames.ffconcat, or tape.mp4/tape.webm),
+   and its dark/ folder: the same shot in the web app's dark theme, the entry's `dark` variant
 2. Check the budgets: nothing is uploaded if a file is over budget
 3. Dedupe against the current manifest entry (pixelmatch on the PNG masters, posters and one frame per second)
 4. Upload what changed, at shots/<id>/<first 16 hex of SHA-256>.<ext>, never overwriting
@@ -310,9 +311,14 @@ class Encoded:
     duration: float | None = None
     master: Path | None = None                   # what dedupe compares: the PNG master (stills)
     errors: list[str] = field(default_factory=list)
-    status: str = ""                             # new, updated, unchanged
+    status: str = ""                             # new, updated, unchanged (dark: also "same as light")
     diff: float | None = None
-    entry: dict | None = None
+    entry: dict | None = None                    # dark: the entry's `dark` variant
+    theme: str = "light"
+
+    @property
+    def label(self) -> str:
+        return self.id if self.theme == "light" else f"{self.id} (dark)"
 
 
 def sha16(path: Path) -> str:
@@ -458,7 +464,13 @@ def encode_tape(id_: str, meta: dict, src: Path, work: Path) -> Encoded:
                    duration=round(duration, 2))
 
 
-def encode(id_: str, src: Path) -> Encoded:
+def encode(id_: str, src: Path, theme: str = "light") -> Encoded:
+    e = _encode(id_, src)
+    e.theme = theme
+    return e
+
+
+def _encode(id_: str, src: Path) -> Encoded:
     meta = json.loads((src / "meta.json").read_text())
     if meta.get("id", id_) != id_:
         raise PublishError(f"{src}/meta.json is for {meta.get('id')}, not {id_}")
@@ -655,12 +667,41 @@ def build_entry(e: Encoded) -> dict:
     return entry
 
 
+def build_dark(e: Encoded) -> dict:
+    """The `dark` variant of an entry: the same shot in the dark theme, same kind and size (anchors: the light one's)"""
+    return {
+        "files": {role: {"key": key_for(e.id, path), "bytes": path.stat().st_size} for role, path in sorted(e.files.items())},
+        "lqip": e.lqip,
+    }
+
+
+def entry_files(entry: dict) -> list[dict]:
+    """The files of an entry and of its dark variant"""
+    return [*entry.get("files", {}).values(), *entry.get("dark", {}).get("files", {}).values()]
+
+
+def preview_file(e: Encoded) -> Path:
+    """What dedupe compares a still or a video by: the PNG master, or the poster"""
+    return e.master if e.kind == "still" else e.files["poster"]
+
+
+def same_as_light(dark: Encoded, light_entry: dict, light: Encoded | None, storage: Storage) -> tuple[bool, float]:
+    """Whether the dark capture looks like the light one (the page has no dark theme): then there's no dark variant"""
+    if light is not None:
+        reference = preview_file(light)
+    else:
+        reference = storage.fetch(light_entry["files"]["png" if light_entry["kind"] == "still" else "poster"]["key"])
+    tolerance = float(dark.meta.get("dedupe_tolerance", DEFAULT_TOLERANCE))
+    return same_image(load_rgba(preview_file(dark)), load_rgba(reference), tolerance, dark.meta.get("dedupe_mask"))
+
+
 def served_bytes(manifest: dict) -> int:
     total = 0
     for id_, entry in manifest["shots"].items():
-        for role, f in entry["files"].items():
-            if role != "png" or id_ in SERVED_PNG:
-                total += f["bytes"]
+        for variant in (entry, entry.get("dark", {})):
+            for role, f in variant.get("files", {}).items():
+                if role != "png" or id_ in SERVED_PNG:
+                    total += f["bytes"]
     return total
 
 
@@ -691,10 +732,12 @@ def selected(id_: str, only: str | None) -> bool:
     return any(fnmatch.fnmatchcase(id_, g.strip()) for g in only.split(",") if g.strip())
 
 
-def find_captures(out: Path, only: str | None) -> dict[str, Path]:
+def find_captures(out: Path, only: str | None, theme: str = "light") -> dict[str, Path]:
+    """out/<area>/<subject>/ (light), or their dark/ folders"""
     captures = {}
-    for meta in sorted(out.glob("*/*/meta.json")):
-        id_ = f"{meta.parent.parent.name}/{meta.parent.name}"
+    for meta in sorted(out.glob("*/*/dark/meta.json" if theme == "dark" else "*/*/meta.json")):
+        shot = meta.parent.parent if theme == "dark" else meta.parent
+        id_ = f"{shot.parent.name}/{shot.name}"
         if ID_RE.match(id_) and selected(id_, only):
             captures[id_] = meta.parent
     return captures
@@ -714,28 +757,31 @@ def write_gallery(results: list[Encoded], old_manifest: dict, storage: Storage, 
     rows_html, rows_md = [], []
     for e in results:
         old = old_manifest["shots"].get(e.id)
+        if old and e.theme == "dark":
+            old = {"kind": old["kind"], **old["dark"]} if old.get("dark") else None
+        name = e.id.replace('/', '--') + ("--dark" if e.theme == "dark" else "")
         new_file = e.files.get("webp") or e.files.get("poster")
-        after = f"{e.id.replace('/', '--')}--after{new_file.suffix}"
+        after = f"{name}--after{new_file.suffix}"
         shutil.copyfile(new_file, gallery / after)
         before = ""
         if old:
             try:
                 old_file = storage.fetch(old["files"][preview_role(old)]["key"])
-                before = f"{e.id.replace('/', '--')}--before{old_file.suffix}"
+                before = f"{name}--before{old_file.suffix}"
                 shutil.copyfile(old_file, gallery / before)
             except Exception as error:  # the gallery is best effort
-                log(f"  gallery: no before image for {e.id}: {error}")
+                log(f"  gallery: no before image for {e.label}: {error}")
         diff = "" if e.diff is None else f"{e.diff:.3%}"
         status = e.status + (f" ({'; '.join(e.errors)})" if e.errors else "")
         before_html = f'<img src="{before}">' if before else "—"
         rows_html.append(
-            f"<tr><td><code>{html.escape(e.id)}</code><br>{html.escape(status)}<br>{diff}</td>"
+            f"<tr><td><code>{html.escape(e.label)}</code><br>{html.escape(status)}<br>{diff}</td>"
             f'<td>{before_html}</td><td><img src="{after}"></td></tr>')
         if e.status in ("new", "updated") and e.entry:
-            new_url = f"{storage.base_url}/{e.entry['files'][preview_role(e.entry)]['key']}"
+            new_url = f"{storage.base_url}/{e.entry['files'][preview_role({'kind': e.kind})]['key']}"
             old_url = f"{storage.base_url}/{old['files'][preview_role(old)]['key']}" if old else None
             img = lambda url: f'<img src="{url}" width="360">'  # noqa: E731
-            rows_md.append(f"| `{e.id}` {e.status} {diff} | {img(old_url) if old_url else '—'} | {img(new_url)} |")
+            rows_md.append(f"| `{e.label}` {e.status} {diff} | {img(old_url) if old_url else '—'} | {img(new_url)} |")
     (gallery / "index.html").write_text(
         "<!doctype html><meta charset=utf-8><title>docs-media gallery</title>"
         "<style>body{font-family:system-ui,sans-serif;margin:24px}td{vertical-align:top;padding:8px;border-bottom:1px solid #ddd}"
@@ -746,7 +792,7 @@ def write_gallery(results: list[Encoded], old_manifest: dict, storage: Storage, 
         md += ["| Shot | Before | After |", "|---|---|---|", *rows_md]
     else:
         md.append("No shot changed beyond the dedupe tolerance.")
-    unchanged_ids = [e.id for e in results if e.status == "unchanged"]
+    unchanged_ids = [e.label for e in results if e.status in ("unchanged", "same as light")]
     if unchanged_ids:
         md += ["", f"Unchanged: {', '.join(f'`{i}`' for i in unchanged_ids)}"]
     (out / "gallery.md").write_text("\n".join(md) + "\n")
@@ -754,6 +800,29 @@ def write_gallery(results: list[Encoded], old_manifest: dict, storage: Storage, 
 
 # ---------------------------------------------------------------------------------------------------------------------
 # publish
+
+def merge_dark(e: Encoded, entry: dict | None, old: dict | None, light: Encoded | None, storage: Storage) -> None:
+    """Sets the `dark` variant of `entry` (the shot's new entry) from the dark capture `e`"""
+    if entry is None:
+        raise PublishError(f"{e.label}: the shot has no light capture, in this run or published")
+    if (entry["kind"], entry["width"], entry["height"]) != (e.kind, e.width, e.height):
+        raise PublishError(f"{e.label} is a {e.width}x{e.height} {e.kind}, its light capture a {entry['width']}x{entry['height']} "
+                           f"{entry['kind']}: they must match")
+    same, share = same_as_light(e, entry, light, storage)
+    if same:
+        # e.g. a page of a template with no dark theme: readers get the light one
+        e.status, e.diff = "same as light", share
+        entry.pop("dark", None)
+        return
+    old_dark = old.get("dark") if old else None
+    same, share, why = unchanged(e, {**old, **old_dark} if old_dark else None, storage)
+    e.diff = share
+    if same:
+        e.status, e.entry = "unchanged", old_dark
+    else:
+        e.status, e.entry = ("updated" if old_dark else "new"), build_dark(e)
+    entry["dark"] = e.entry
+
 
 def publish(args: argparse.Namespace) -> int:
     manifest_path = Path(args.manifest)
@@ -764,7 +833,9 @@ def publish(args: argparse.Namespace) -> int:
         raise PublishError(f"--base-url {base_url} differs from the manifest's {old_manifest['base_url']}, which has entries")
     storage = Storage(base_url, need_credentials=not args.dry_run)
     out = Path(args.out)
-    captures = find_captures(out, args.only)
+    # the light captures first: a dark one is a variant of the entry they make
+    captures = [(id_, "light", src) for id_, src in find_captures(out, args.only).items()]
+    captures += [(id_, "dark", src) for id_, src in find_captures(out, args.only, "dark").items()]
     if not captures:
         log(f"No capture in {out} matches {args.only or '*'}")
         return 0
@@ -772,22 +843,25 @@ def publish(args: argparse.Namespace) -> int:
     log(f"Encoders: {json.dumps(tool_versions())}")
 
     results: list[Encoded] = []
-    for id_, src in captures.items():
-        log(f"{id_}: encoding")
+    for id_, theme, src in captures:
+        label = id_ if theme == "light" else f"{id_} (dark)"
+        log(f"{label}: encoding")
         if planned and id_ not in planned:
             log(f"  warning: {id_} isn't in docs-media/shots.yaml")
         if planned.get(id_, {}).get("status") == "retired":
             raise PublishError(f"{id_} is retired in shots.yaml: pick a new id")
         try:
-            e = encode(id_, src)
+            e = encode(id_, src, theme)
         except PublishError as error:
-            e = Encoded(id_, "?", {}, {}, 0, 0, "", errors=[str(error)])
+            e = Encoded(id_, "?", {}, {}, 0, 0, "", errors=[str(error)], theme=theme)
             results.append(e)
             continue
         check_budgets(e)
         missing = set(planned.get(id_, {}).get("anchors") or []) - set(e.meta.get("anchors") or {})
-        if missing:
+        if missing and theme == "light":
             e.errors.append(f"shots.yaml lists anchors the capture didn't record: {', '.join(sorted(missing))} (ui.anchor())")
+        if theme == "dark" and e.kind == "tape":
+            e.errors.append("tapes have no dark variant")
         sizes = ", ".join(f"{role} {p.stat().st_size / KB:.0f} KB" for role, p in e.files.items())
         log(f"  {sizes}, lqip {len(e.lqip)} B" + (f", {e.duration} s" if e.duration else ""))
         results.append(e)
@@ -795,14 +869,26 @@ def publish(args: argparse.Namespace) -> int:
     failed = [e for e in results if e.errors]
     if failed:
         for e in failed:
-            log(f"ERROR {e.id}: " + "; ".join(e.errors))
+            log(f"ERROR {e.label}: " + "; ".join(e.errors))
         log("Nothing was uploaded.")
         return 1
 
     new_manifest = json.loads(json.dumps(old_manifest))
     new_manifest["base_url"] = base_url
+    lights = {e.id: e for e in results if e.theme == "light"}
+    darks = {e.id for e in results if e.theme == "dark"}
     for e in results:
         old = old_manifest["shots"].get(e.id)
+        if e.theme == "dark":
+            entry = new_manifest["shots"].get(e.id)
+            # its light capture failed this time, and the published one has another size: it waits for the next run
+            if e.id not in lights and entry and (entry["kind"], entry["width"], entry["height"]) != (e.kind, e.width, e.height):
+                e.status = "skipped"
+                log(f"{e.label}: skipped, it has another size than the published light capture, and no light capture is in this run")
+                continue
+            merge_dark(e, entry, old, lights.get(e.id), storage)
+            log(f"{e.label}: {e.status}")
+            continue
         same, share, why = unchanged(e, old, storage)
         e.diff = share
         if same:
@@ -813,6 +899,13 @@ def publish(args: argparse.Namespace) -> int:
         else:
             e.status = "updated" if old else "new"
             e.entry = build_entry(e)
+            # not captured in the dark theme this time: keep the published dark variant while it has the same size
+            if old and old.get("dark") and e.id not in darks:
+                if (old["kind"], old["width"], old["height"]) == (e.kind, e.width, e.height):
+                    e.entry["dark"] = old["dark"]
+                    why += "; its dark variant is from an earlier capture"
+                else:
+                    why += "; its dark variant is dropped, it has another size"
             new_manifest["shots"][e.id] = e.entry
         log(f"{e.id}: {e.status} ({why})")
 
@@ -828,7 +921,7 @@ def publish(args: argparse.Namespace) -> int:
     else:
         for e in changed:
             for role, path in e.files.items():
-                key = e.entry["files"][role]["key"]
+                key = e.entry["files"][role]["key"]  # a dark result's entry is its variant
                 log(f"  {storage.upload(key, path)}: {key}")
         if dump_manifest(new_manifest) != dump_manifest(old_manifest) or not manifest_path.exists():
             manifest_path.write_text(dump_manifest(new_manifest))
@@ -836,11 +929,11 @@ def publish(args: argparse.Namespace) -> int:
 
     write_gallery(results, old_manifest, storage, out)
     report = {
-        "changed": [e.id for e in changed],
-        "unchanged": [e.id for e in results if e.status == "unchanged"],
+        "changed": [e.label for e in changed],
+        "unchanged": [e.label for e in results if e.status in ("unchanged", "same as light")],
         "dry_run": args.dry_run,
         "served_bytes": total,
-        "shots": {e.id: {"status": e.status, "diff": e.diff, "files": {r: p.stat().st_size for r, p in e.files.items()}}
+        "shots": {e.label: {"status": e.status, "diff": e.diff, "files": {r: p.stat().st_size for r, p in e.files.items()}}
                   for e in results},
     }
     (out / "publish-report.json").write_text(json.dumps(report, indent=2) + "\n")
@@ -868,7 +961,7 @@ def referenced_keys(working_tree: Path, days: int, include_prs: bool) -> tuple[s
             log(f"  warning: {name}: website/media.json isn't valid JSON")
             return
         for entry in manifest.get("shots", {}).values():
-            keys.update(f["key"] for f in entry.get("files", {}).values())
+            keys.update(f["key"] for f in entry_files(entry))
         sources.append(name)
 
     add(str(working_tree.relative_to(REPO) if working_tree.is_relative_to(REPO) else working_tree),

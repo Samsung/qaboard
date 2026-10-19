@@ -15,8 +15,11 @@ The examples' qaboard.yaml say `inputs.database: inputs`, a folder of the projec
 folder, where the server lists a batch's tests and where the batches started from the web app run (`qa save-artifacts`
 doesn't save the inputs). The snapshot's artifacts folders don't have them, so the tuning forms showed "0 total runs".
 
-- link: copies the example to <results>/.qaboard-demo-runs/<repo> (its inputs, as committed: enough to list tests),
-  and links inputs/ and inputs.lock.yaml there from the artifacts folder of each of the story's commits.
+- link: copies the example to <results>/.qaboard-demo-runs/<repo>, gets its inputs (qa/fetch_inputs.py, when it has
+  one), and links inputs/ and inputs.lock.yaml there from the artifacts folder of each of the story's commits.
+  To list a batch's tests, the server imports the commit's entrypoint, as root in the backend's container: the
+  detector's qa/main.py downloads its inputs when imported. With the inputs already there, it doesn't: the listing is
+  quick, and leaves no files the runs started here can't write.
 - build: also what the runs need, in the backend's container (QABOARD_TUNING_RUNNER=local, compose.demo.yml): the
   example's qa/build.py (inputs fetched, models built), its requirements.txt installed for the backend's Python, and
   <results>/<project id>/.envrc, which the backend's `qa batch` sources: that Python path, the example's environment,
@@ -65,12 +68,24 @@ def commit_dirs(info: dict):
       yield path
 
 
+def writable(cache: Path):
+  """Files the backend's container wrote in the cache (as root) are given back to us"""
+  if cache.exists() and any(not os.access(p, os.W_OK) for p in [cache, *cache.rglob('*')] if not p.is_symlink()):
+    log(f"{cache}: some files belong to another user, the backend's container gives them back", 'yellow')
+    stack.compose('exec', '-T', 'backend', 'chown', '-R', f"{os.getuid()}:{os.getgid()}", str(cache))
+
+
 def link(project: str) -> Path:
   info = demo_project(project)
   cache = cache_dir(info['id'].split('/')[-1])
   log(f"{project}: the example's inputs in {cache}, linked from its commits' artifacts", 'blue')
+  writable(cache)
   shutil.copytree(REPO / 'examples' / project, cache, dirs_exist_ok=True,
                   ignore=shutil.ignore_patterns('.venv', 'output', 'models', 'target', '__pycache__', '*.pyc', '.git'))
+  # before the server lists tests: see the docstring (does nothing once the inputs are there)
+  if (cache / 'qa' / 'fetch_inputs.py').exists():
+    subprocess.run(['uv', 'run', '-q', 'qa/fetch_inputs.py'], cwd=cache, check=True,
+                   env={k: v for k, v in os.environ.items() if k != 'VIRTUAL_ENV'})
   for path in commit_dirs(info):
     for name in LINKS:
       target, source = path / name, cache / name

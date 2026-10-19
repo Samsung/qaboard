@@ -1,9 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 
-import { useUrlText, useCommit, useProjectData } from '../hooks';
+import { useUrlText, useCommit, useProjectData, usePrefetchCommitPage } from '../hooks';
 import { usePrefsStore } from '../stores/prefs';
-import { commitsQuery, commitsPagesQuery } from '../api/queries';
+import { commitQuery, commitsQuery, commitsPagesQuery } from '../api/queries';
 import { makeQueryClient } from '../test-utils';
 
 
@@ -76,13 +76,16 @@ describe('useCommit', () => {
 
 
 test('preferences are updated immutably', () => {
-  const { setMilestone, deleteMilestone, toggleFavorite } = usePrefsStore.getState();
+  const { forgetLegacyMilestones, toggleMilestoneGroup, toggleFavorite } = usePrefsStore.getState();
+  usePrefsStore.setState({ milestones: { p: { k: { label: 'v1' } }, q: { k: { label: 'v2' } } } });
   const before = usePrefsStore.getState().milestones;
-  setMilestone('p', 'k', { label: 'v1' });
-  expect(usePrefsStore.getState().milestones.p.k.label).toBe('v1');
+  forgetLegacyMilestones(['p']);
+  expect(usePrefsStore.getState().milestones).toEqual({ q: { k: { label: 'v2' } } });
   expect(before).not.toBe(usePrefsStore.getState().milestones);
-  deleteMilestone('p', 'k');
-  expect(usePrefsStore.getState().milestones.p).toEqual({});
+  toggleMilestoneGroup('mine/tuning');
+  expect(usePrefsStore.getState().milestoneGroupsCollapsed).toEqual({ 'mine/tuning': true });
+  toggleMilestoneGroup('mine/tuning');
+  expect(usePrefsStore.getState().milestoneGroupsCollapsed).toEqual({});
   toggleFavorite('p');
   expect(usePrefsStore.getState().favorites.p).toBe(true);
 });
@@ -91,11 +94,41 @@ test('preferences are updated immutably', () => {
 test("useProjectData merges /api/v1/project, which answers with the project's data", async () => {
   const queryClient = makeQueryClient();
   queryClient.setQueryData(['projects'], { p: { id: 'p', data: { git: { path_with_namespace: 'p' } } } });
-  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ git: { path_with_namespace: 'p' }, milestones: { k: { label: 'shared' } }, qatools_config: { project: { reference_branch: 'main' } } }))));
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ git: { path_with_namespace: 'p' }, qatools_config: { project: { reference_branch: 'main' } } }))));
   const wrapper = ({ children }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
   const { result } = renderHook(() => useProjectData('p'), { wrapper });
-  await waitFor(() => expect(result.current.data.milestones).toEqual({ k: { label: 'shared' } }));
+  await waitFor(() => expect(result.current.data.qatools_config.project.reference_branch).toBe('main'));
   expect(result.current.data.git.path_with_namespace).toBe('p');
   expect(result.current.data.qatools_config.project.reference_branch).toBe('main');
   vi.unstubAllGlobals();
+});
+
+
+describe('usePrefetchCommitPage', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() });
+
+  const render = queryClient => renderHook(() => usePrefetchCommitPage('p', 'abc'), {
+    wrapper: ({ children }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
+  });
+
+  test('loads the commit and its default reference when users linger', () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    const queryClient = makeQueryClient();
+    const { result } = render(queryClient);
+    act(() => result.current.onMouseEnter());
+    act(() => vi.advanceTimersByTime(200));
+    expect(queryClient.getQueryState(commitQuery({ project: 'p', id: 'abc' }).queryKey)?.fetchStatus).toBe('fetching');
+    expect(queryClient.getQueryState(commitQuery({ project: 'p' }).queryKey)?.fetchStatus).toBe('fetching');
+  });
+
+  test('does nothing when users only pass by', () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    const queryClient = makeQueryClient();
+    const { result } = render(queryClient);
+    act(() => result.current.onMouseEnter());
+    act(() => result.current.onMouseLeave());
+    act(() => vi.advanceTimersByTime(200));
+    expect(fetch).not.toHaveBeenCalled();
+  });
 });

@@ -11,7 +11,8 @@ export const PLOTS_QUIET_MS = 300;
 // A request still in flight after that long is long-polling (or stuck): it doesn't keep the page busy
 export const LONG_POLL_MS = 10_000;
 
-const SPINNERS = '.bp6-spinner, .bp6-skeleton, .bp6-progress-bar';
+// progress bars that stopped animating are done, e.g. "Where they differ, in all runs" once every run is compared
+const SPINNERS = '.bp6-spinner, .bp6-skeleton, .bp6-progress-bar:not(.bp6-no-animation), .qiv-spinner';
 const IIIF = /\/iiif\//;
 // Requests that never count: dev servers' sockets and pings
 const IGNORED_URLS = [/^data:/, /^blob:/, /\/@vite\/client/, /\/__vite_ping/, /\/sockjs-node/];
@@ -102,11 +103,13 @@ export async function networkIdle(page: Page, tracker: NetworkTracker, opts: Wai
   );
 }
 
-// Visible spinners, skeletons and progress bars, except in masked elements
+// Visible spinners, skeletons and progress bars, except in masked elements, and the spinners that say a run is running
+// (its status, "Running" tags): they stay as long as the run runs, a page with one is loaded
 export async function spinners(page: Page): Promise<number> {
   return page.evaluate(selector => {
     const visible = (el: Element) => {
       if (el.closest('[data-shot-mask]')) return false;
+      if (el.closest('[aria-label="Running"], .bp6-tag')) return false;
       const rect = el.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) return false;
       const style = getComputedStyle(el);

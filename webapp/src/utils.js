@@ -1,20 +1,10 @@
 import { interpolateRainbow } from "d3-scale-chromatic";
 import md5 from "js-md5";
 
-// https://mathjs.org/docs/custom_bundling.html
-import {
-  create,
-  medianDependencies,
-  formatDependencies
-} from 'mathjs/number'
-const { median: mathjs_median, format } = create({
-  medianDependencies,
-  formatDependencies,
-})
-
-import { memoized_levenshtein } from "./levenshtein";
+import { config_distance } from "./configurations/tokens";
 import { setPathMappings, linux_to_windows } from "./utils/paths";
 import { repo_url } from "./git";
+import { toaster } from "./toaster";
 
 
 const calendarStrings = {
@@ -30,8 +20,42 @@ const average = array => {
   return array.filter(x => x !== undefined).reduce((a, b) => a + b, 0) / array.length;
 };
 const median = array => {
-  let array_filtered = array.filter(x => x !== undefined && x !== null)
-  return array_filtered.length > 0 ? mathjs_median(array_filtered) : null;
+  const sorted = array.filter(x => x !== undefined && x !== null).sort((a, b) => a - b);
+  if (sorted.length === 0) return null;
+  const middle = sorted.length >> 1;
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+};
+
+// Formats numbers like mathjs' format(value, {precision}), that we no longer bundle (65kB):
+// `precision` significant digits rounded half up from the shortest representation (1.005 => "1.01"), no trailing zeros,
+// exponential notation below 1e-3 and from 1e5. format(1234.5, {precision: 3}) => "1230", format(123456, {precision: 3}) => "1.23e+5"
+const format = (value, { precision } = {}) => {
+  if (!Number.isFinite(value)) return String(value);
+  // 1234.5 => digits "12345", exponent 3
+  const [, sign, mantissa, exp = '0'] = /^(-?)([\d.]+)(?:e([+-]\d+))?$/.exec(String(value));
+  const dot = mantissa.indexOf('.');
+  let digits = mantissa.replace('.', '');
+  let exponent = Number(exp) + (dot === -1 ? mantissa.length : dot) - 1;
+  const leading_zeros = /^0*/.exec(digits)[0].length;
+  exponent -= leading_zeros;
+  digits = digits.slice(leading_zeros).replace(/0+$/, '');
+  if (!digits) { digits = '0'; exponent = 0; }
+  if (precision && digits.length > precision) {
+    const round_up = digits[precision] >= '5';
+    digits = digits.slice(0, precision);
+    if (round_up) {
+      // 999 => 1000
+      const rounded = String(BigInt(digits) + 1n);
+      if (rounded.length > digits.length) exponent++;
+      digits = rounded.slice(0, precision);
+    }
+    digits = digits.replace(/0+$/, '') || '0';
+  }
+  if (exponent < -3 || exponent >= 5)
+    return `${sign}${digits[0]}${digits.length > 1 ? `.${digits.slice(1)}` : ''}e${exponent >= 0 ? '+' : ''}${exponent}`;
+  if (exponent < 0) return `${sign}0.${'0'.repeat(-exponent - 1)}${digits}`;
+  if (digits.length <= exponent + 1) return sign + digits.padEnd(exponent + 1, '0');
+  return `${sign}${digits.slice(0, exponent + 1)}.${digits.slice(exponent + 1)}`;
 };
 
 
@@ -96,8 +120,8 @@ const matching_output = ({ output, batch, index }) => {
     return {
       o,
       dist_input_path: 1 - Number(o.input_path === output.input_path || o.test_input_path === output.test_input_path),
-      dist_configurations: memoized_levenshtein(o.configurations_str ?? '', output.configurations_str ?? ''),
-      dist_extra_parameters: memoized_levenshtein(o.extra_parameters_str ?? '', output.extra_parameters_str ?? ''),
+      dist_configurations: config_distance(o.configurations, output.configurations),
+      dist_extra_parameters: config_distance(o.extra_parameters, output.extra_parameters),
     };
   });
   // We prefer to compare an ouput versus a similar one
@@ -118,7 +142,25 @@ const matching_output = ({ output, batch, index }) => {
     platform: ref_match_score & 2 ? output_ref.platform : null,
     extra_parameters: ref_match_score & 1 ? output_ref.extra_parameters : null,
   } : null;
+  // only when there are some: the mismatch is compared with the backend's in tests/fixtures/metrics-compare.json
+  const alternatives = imperfect_match ? count_alternatives(candidates) : 0;
+  if (alternatives > 0) mismatch.alternatives = alternatives;
   return { output_ref, mismatch };
+};
+
+// How many reference runs, with other settings, have as many different settings as the one we picked:
+// only how similar their values are (the distances' fractional part) made us choose.
+const count_alternatives = candidates => {
+  const [best] = candidates;
+  const same = (a, b) => Math.floor(a) === Math.floor(b);
+  const settings = new Set();
+  for (const c of candidates.slice(1)) {
+    if (c.dist_input_path !== best.dist_input_path) continue;
+    if (!same(c.dist_configurations, best.dist_configurations) || !same(c.dist_extra_parameters, best.dist_extra_parameters)) continue;
+    if (c.o.configurations_str === best.o.configurations_str && c.o.extra_parameters_str === best.o.extra_parameters_str) continue;
+    settings.add(`${c.o.configurations_str}\u0000${c.o.extra_parameters_str}`);
+  }
+  return settings.size;
 };
 
 const run_key = o => `${o.input_path}\u0000${o.configurations_str}\u0000${o.extra_parameters_str}\u0000${o.platform}`;
@@ -446,6 +488,12 @@ const metrics_fill_defaults = available_metrics => {
 }
 
 
+// A width from qaboard.yaml (e.g. outputs.style.width: 1180px), as a maximum: narrower when the page is, e.g. when
+// the View options take room on the right
+const at_most = width => width === undefined || width === null || width === ''
+  ? undefined
+  : `min(${typeof width === 'number' ? `${width}px` : width}, 100%)`;
+
 const checked_cde_attrs = ["width", "height", "format", "imageType", "md5_data"]
 const is_same_data = (path, meta_1, meta_2) => {
   if (meta_1 === undefined || meta_1 === null || meta_2 === undefined || meta_2 === null)
@@ -462,20 +510,25 @@ const is_same_data = (path, meta_1, meta_2) => {
 }
 
 
+// message_renderer shows the success messages, errors are shown as danger toasts
 const copyElementToClipboard = async (element, name, message_renderer) => {
   if (!element) return;
+  const failed = error => toaster.show({ message: `Could not copy the ${name}: ${error?.message ?? error}`, intent: "danger" }, 'copy');
+  // browsers only let focused pages write to the clipboard
   if (!document.hasFocus()) {
-    alert("Please click on the page and try again.");
+    toaster.show({ message: `Could not copy the ${name}: click on the page, then try again.`, intent: "warning" }, 'copy');
     return;
   }
   try {
     const { default: html2canvas } = await import("html2canvas");
     const canvas = await html2canvas(element, { useCORS: true });
 
-    // Convert to Blob
+    // Convert to Blob. Errors in the callback would escape the try/catch.
     canvas.toBlob(async (blob) => {
-      if (blob) {
-        if (navigator.clipboard && window.ClipboardItem) {
+      try {
+        if (!blob) {
+          failed("the image is empty");
+        } else if (navigator.clipboard && window.ClipboardItem) {
           // Clipboard API is available
           const item = new ClipboardItem({ "image/png": blob });
           await navigator.clipboard.write([item]);
@@ -490,10 +543,12 @@ const copyElementToClipboard = async (element, name, message_renderer) => {
           document.body.removeChild(link);
           message_renderer(`Your browser does not support clipboard copy. Downloading instead.`);
         }
+      } catch (error) {
+        failed(error);
       }
     }, "image/png");
   } catch (error) {
-    message_renderer(`Failed to copy: ${error}`);
+    failed(error);
   }
 };
 
@@ -527,5 +582,6 @@ export {
   event_value,
   project_web_url,
   is_same_data,
+  at_most,
   copyElementToClipboard,
 };

@@ -6,9 +6,9 @@ on:
   push:
     branches: [master]
     # with the files the docs show (<RepoFile>) or check
-    paths: [website/**, charts/qaboard/**, deployments/quickstart/**, examples/**, docs-media/shots.yaml, .github/workflows/website.yml]
+    paths: [website/**, charts/qaboard/**, deployments/quickstart/**, examples/**, docs-media/shots.yaml, qaboard/schemas/**, .github/workflows/website.yml]
   pull_request:
-    paths: [website/**, charts/qaboard/**, deployments/quickstart/**, examples/**, docs-media/shots.yaml, .github/workflows/website.yml]
+    paths: [website/**, charts/qaboard/**, deployments/quickstart/**, examples/**, docs-media/shots.yaml, qaboard/schemas/**, .github/workflows/website.yml]
   workflow_dispatch:
 
 concurrency:

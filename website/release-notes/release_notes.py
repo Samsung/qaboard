@@ -281,8 +281,8 @@ def validate(note: Note, docs: set[str]) -> tuple[list[str], list[str]]:
             errors.append(f"{where}: link must start with /docs/, /release-notes/ or http(s)://")
         elif link and link.startswith("/docs/") and link.split("#")[0].rstrip("/") not in docs:
             errors.append(f"{where}: no docs page at {link}")
-    if len(highlights) > 5:
-        warnings.append(f"{len(highlights)} highlights: keep the 2-4 most important ones")
+    if len(highlights) > 8:
+        warnings.append(f"{len(highlights)} highlights: keep the 2-4 most important ones (up to 8 for a big release)")
     for link in re.findall(r"\]\((/docs/[^)\s#]*)", note.body):
         if link.rstrip("/") not in docs:
             errors.append(f"broken docs link {link}")

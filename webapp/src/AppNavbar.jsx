@@ -1,27 +1,29 @@
 import styled from "styled-components";
 
 import { Suggest } from "@blueprintjs/select";
-import { DateRangeInput } from "@blueprintjs/datetime";
-import enUS from "date-fns/locale/en-US";
 import {
   Classes,
   Intent,
+  ControlGroup,
   Navbar,
   NavbarGroup,
   InputGroup,
   MenuItem,
   Button,
   Spinner,
+  Tooltip,
 } from "@blueprintjs/core";
 
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { useRouter } from "./router";
 import { path_segment } from "./selection";
-import { CommitNavbar } from "./components/CommitNavbar";
+import { CommitNavbar, commit_header_styles } from "./components/CommitNavbar";
 import { SelectBatchesNav } from "./components/tuning/SelectBatches";
 import { useBranches, useCommitsList, useComparison, useUrlText, updateSelected } from "./hooks";
 
 import { sider_width } from './AppSider'
+
+const DateRangeInput = lazy(() => import("./components/DateRangeInput"));
 
 
 
@@ -29,7 +31,7 @@ import { sider_width } from './AppSider'
 const renderBranch = (item, { handleClick, modifiers }) => {
   return (
     <MenuItem
-      className={!modifiers.active ? Classes.ACTIVE : Classes.INTENT_PRIMARY}
+      active={modifiers.active}
       icon="git-branch"
       key={item}
       onClick={handleClick}
@@ -66,27 +68,49 @@ export function filterBranch(query, branch) {
 }
 
 
+// One row that never wraps: the search boxes get narrower with the content area (cqi: % of the navbar's width)
 const StyledNavbar = styled(Navbar)`
    position: fixed !important;
    top: 0;
    padding-left: ${sider_width} !important;
-   /*overflow-y: auto !important;*/
+   display: flex;
+   align-items: center;
+   gap: 12px;
+   container-type: inline-size;
+   > .${Classes.NAVBAR_GROUP} {
+     float: none;
+   }
+   > .${Classes.NAVBAR_GROUP}:last-child {
+     margin-left: auto;
+     min-width: 0;
+     gap: 8px;
+     --batch-select-max-width: clamp(150px, 26cqi, 360px);
+   }
 `
 
 const navbar_height = 75;
-const StyledNavbarNew = styled(Navbar)`
+// The commits' headers: one row that never wraps (the page below expects their fixed height). What doesn't fit
+// in the content area gets smaller or hides (see CommitNavbar), using container queries on the header's width.
+const commit_header = `
    position: fixed !important;
    padding-left: ${sider_width} !important;
    height: ${navbar_height}px !important;
+   display: flex;
+   align-items: center;
+   gap: 12px;
+   container: commit-header / inline-size;
+   > .${Classes.NAVBAR_GROUP} {
+     float: none;
+   }
+   ${commit_header_styles}
+`
+const StyledNavbarNew = styled(Navbar)`
+   ${commit_header}
    top: 0 !important;
-   align-content: center;
 `
 const StyledNavbarRef = styled(Navbar)`
-   position: fixed !important;
-   padding-left: ${sider_width} !important;
-   height: ${navbar_height}px !important;
+   ${commit_header}
    top: ${navbar_height}px !important;
-   align-content: center;
 `
 
 
@@ -100,6 +124,11 @@ const CommitsNavbars = () => {
     updateSelected({ [attribute]: value }, { replace: attribute.startsWith('filter') })
   }
   const show_ref_navbar = !(selected_views.includes('logs') || selected_views.includes('tuning') || selected_views.includes('groups'))
+  // e.g. the latest commit of the reference branch, compared to itself
+  const same_as_new = !!new_commit?.id && new_commit.id === ref_commit?.id
+    && (selected.new_project ?? project) === (selected.ref_project ?? project)
+    && new_batch?.label === ref_batch?.label
+    && (selected.filter_batch_new ?? '') === (selected.filter_batch_ref ?? '')
   return <>
     <StyledNavbarNew>
       <CommitNavbar
@@ -125,6 +154,7 @@ const CommitsNavbars = () => {
         project_data={project_data}
         selected={selected}
         type="ref"
+        same_as_new={same_as_new}
       />
     </StyledNavbarRef>}
   </>
@@ -136,7 +166,7 @@ const CommitsListNavbar = () => {
   const { history } = useRouter();
   const list = useCommitsList();
   const { project, date_range } = list;
-  const { project_data, selected, new_commit, new_batch } = useComparison();
+  const { selected, new_commit, new_batch } = useComparison();
   // We only fetch branches once users start searching
   const [wants_branches, setWantsBranches] = useState(false);
   const [today] = useState(() => new Date());
@@ -160,13 +190,20 @@ const CommitsListNavbar = () => {
 
   const { route } = selected;
   const date_input_props = {style: {width:'100px'}}
+  // searches look at all the commits (see useCommitsList)
+  const is_searching = route.is_commits && !!selected.search?.trim()
   return (
     <StyledNavbar>
       <NavbarGroup style={{marginLeft: '20px'}}>
+        {/* Until the picker loads, the same inputs, so that the navbar doesn't move */}
+        <Suspense fallback={<ControlGroup>
+          {date_range.map((date, index) => <InputGroup key={index} {...date_input_props} value={date?.toLocaleDateString() ?? ""} disabled readOnly/>)}
+        </ControlGroup>}>
+        <Tooltip content="Searches look at all the commits, whatever the dates." disabled={!is_searching}>
         <DateRangeInput
-          locale={enUS}
-          endInputProps={date_input_props}
-          startInputProps={date_input_props}
+          endInputProps={{...date_input_props, 'aria-label': 'End date'}}
+          startInputProps={{...date_input_props, 'aria-label': 'Start date'}}
+          disabled={is_searching}
           value={date_range}
           maxDate={today}
           allowSingleDayRange
@@ -175,8 +212,12 @@ const CommitsListNavbar = () => {
           onChange={changeDates}
           shortcuts
         />
+        </Tooltip>
+        </Suspense>
         <div style={{marginLeft: '5px'}}>
-          <Button icon="refresh" aria-label="Refresh" disabled={list.isFetching} minimal onClick={() => list.refetch()}/>
+          <Tooltip content="Check for new commits">
+            <Button icon="refresh" aria-label="Check for new commits" disabled={list.isFetching} minimal onClick={() => list.refetch()}/>
+          </Tooltip>
         </div>
         {list.isFetching && <div style={{marginLeft: '15px'}}><Spinner size={16} /></div>}
       </NavbarGroup>
@@ -184,8 +225,6 @@ const CommitsListNavbar = () => {
         {route.is_history && <SelectBatchesNav
           commit={new_commit}
           batch={new_batch}
-          project={project}
-          project_data={project_data}
           onChange={event => updateSelected({ selected_batch_new: event.target.value, selected_batch_ref: event.target.value })}
           hide_counts
         />}
@@ -197,15 +236,16 @@ const CommitsListNavbar = () => {
               createNewItemRenderer={renderNewItem}
               items={branches}
               itemRenderer={renderBranch}
-              inputValueRenderer={branch => branch}
+              inputValueRenderer={item => typeof item === 'string' ? item : item.commit}
               noResults={<MenuItem disabled={true} text="No results." />}
               onItemSelect={handleBranchChange}
               inputProps={{
                 leftIcon: 'filter',
                 intent: !!search ? Intent.PRIMARY : null,
+                // Suggest only reads the placeholder from inputProps
+                placeholder: "Search commits, or go to a branch or commit…",
+                style: {width: 'clamp(180px, 40cqi, 350px)'},
               }}
-              intent={!!search ? 'primary' : 'default'}
-              placeholder="Filter..."
               onQueryChange={query => {
                 setWantsBranches(true);
                 onSearchChange(query);
@@ -215,11 +255,15 @@ const CommitsListNavbar = () => {
         {route.is_history &&
           <InputGroup
             value={filter}
-            placeholder="Path, configuration, platform, tag, tuning parameters (key:value)..."
+            placeholder="Filter runs: path, tag, key:value…"
+            title="Filter runs by path, configuration, platform, tag or tuning parameters (key:value)"
+            aria-label="Filter runs"
+            intent={filter ? Intent.PRIMARY : undefined}
             onChange={onFilterChange}
-            type="search"
+            type="text"
             leftIcon="filter"
-            style={{width: '450px'}}
+            rightElement={filter ? <Button size="small" variant="minimal" icon="cross" aria-label="Clear the filter" onClick={() => onFilterChange('')}/> : undefined}
+            style={{width: 'clamp(150px, 30cqi, 320px)'}}
           />}
       </NavbarGroup>
     </StyledNavbar>

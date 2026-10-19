@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 
-import { Tree, Classes, Colors, Tag, Icon, Popover, Menu, MenuItem, Tooltip } from "@blueprintjs/core";
+import { Tree, Classes, Intent, Spinner, Tag, Icon, PopoverNext, Menu, MenuItem, Tooltip } from "@blueprintjs/core";
 import { OutputViewer } from "../OutputViewer"
 import { preloadMonaco } from "../../components/MonacoEditor"
-import { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, updateMissingFrom, humanFileSize } from "./utils"
+import { useIsDark } from "../../theme"
+import { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, updateMissingFrom, humanFileSize, state_colors } from "./utils"
 import { bitAccuracyChecker, markChecked, bitAccuracySummary } from "./checked"
 import { match_query, is_same_data } from "../../utils"
 
@@ -76,29 +77,29 @@ const icon_style = {
   marginRight: '10px',
 }
 
-const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref) => node => {
+const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref, colors) => node => {
     const { match, missing_from_reference, missing_from_new, checked } = node.nodeData;
     const is_folder = node.childNodes !== undefined;
     // files that bit_accuracy.patterns don't check (and folders with only those) are greyed
     if (!checked)
       node.className = Classes.TEXT_MUTED;
 
-    let color = Colors.GREY1;
+    let color = colors.same;
     if (is_folder) {
       // console.log(node.id, node, !match, missing_from_new, missing_from_reference)
       if (has_reference && checked) {
         if (!match && missing_from_new && missing_from_reference) {
-          color = Colors.SEPIA1;
+          color = colors.mixed;
         } else if (!match && missing_from_new) {
-          color = Colors.ROSE1;
+          color = colors.removed_and_different;
         } else if (!match && missing_from_reference) {
-          color = Colors.TURQUOISE1;
+          color = colors.added_and_different;
         } else if (!match) {
-          color = Colors.ORANGE1;
+          color = colors.different;
         } else if (missing_from_new) {
-          color = Colors.RED1;
+          color = colors.removed;
         } else if (missing_from_reference) {
-          color = Colors.GREEN1;
+          color = colors.added;
         }
       }
       node.icon = <Icon icon='folder-close' style={{color, ...icon_style}}/>;
@@ -134,14 +135,14 @@ const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref)
     }
 
     if (!checked) {
-      color = Colors.GRAY4;
+      color = colors.not_checked;
     } else if (has_reference) {
       if (missing_from_reference) {
-        color = Colors.GREEN1;
+        color = colors.added;
       } else if (missing_from_new) {
-        color = Colors.RED1;
+        color = colors.removed;
       } else if (!match) {
-        color = Colors.ORANGE1;
+        color = colors.different;
       }
     }
 
@@ -208,14 +209,14 @@ const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref)
     );
 
     const size = hasDownloadOptions ? (
-      <Popover
+      <PopoverNext
         content={downloadMenu}
         placement="right"
         interactionKind="hover"
         hoverCloseDelay={200}
       >
         {sizeLabel}
-      </Popover>
+      </PopoverNext>
     ) : sizeLabel;
     node.secondaryLabel = checked ? size : <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
       <Tooltip content="Not checked for bit-accuracy: see bit_accuracy.patterns in qaboard.yaml">
@@ -229,7 +230,7 @@ const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref)
 
 // Compares the files of the new and reference outputs.
 // NOTE: it modifies the trees, callers give us trees they just built from the manifests
-const mergeTrees = (tree_new, tree_ref, { files_filter, show_all_files, output_new, output_ref, color_blind_friendly, bit_accuracy }) => {
+const mergeTrees = (tree_new, tree_ref, { files_filter, show_all_files, output_new, output_ref, color_blind_friendly, bit_accuracy, colors }) => {
   if (tree_new === null || tree_new === undefined)
     return { mixed: [] }
 
@@ -267,7 +268,7 @@ const mergeTrees = (tree_new, tree_ref, { files_filter, show_all_files, output_n
   tree_compared = tree_compared.sort( (a, b) => a.label.localeCompare(b.label) )
 
   const has_ref = tree_ref !== null && tree_ref !== undefined
-  forEachNode(tree_compared, applyStyle(has_ref, has_ref && color_blind_friendly, output_new, output_ref))
+  forEachNode(tree_compared, applyStyle(has_ref, has_ref && color_blind_friendly, output_new, output_ref, colors))
   return { mixed: tree_compared, summary };
 }
 
@@ -287,21 +288,22 @@ const decorate = (nodes, { is_expanded, selected }) => nodes?.map(node => {
 
 
 const BitAccuracyViewer = props_ => {
-  const { type: _type, ...props } = props_;
+  const { type: _type, files_loading, ...props } = props_;
   const { manifests, files_filter, show_all_files, hide_runs_without_files, expand_all, color_blind_friendly, output_new, output_ref, config } = props_;
   const bit_accuracy = config?.bit_accuracy;
   const [selected, setSelected] = useState([]);
   // folders users expanded (true) or collapsed (false)
   const [expanded, setExpanded] = useState({});
+  const is_dark = useIsDark();
 
   const { mixed: tree, summary } = useMemo(() => {
     if (!manifests) return { mixed: [] };
     return mergeTrees(
       manifests.new ? to_tree(manifests.new) : undefined,
       manifests.reference ? to_tree(manifests.reference) : undefined,
-      { files_filter, show_all_files, output_new, output_ref, color_blind_friendly, bit_accuracy },
+      { files_filter, show_all_files, output_new, output_ref, color_blind_friendly, bit_accuracy, colors: state_colors(is_dark) },
     );
-  }, [manifests, files_filter, show_all_files, output_new, output_ref, color_blind_friendly, bit_accuracy]);
+  }, [manifests, files_filter, show_all_files, output_new, output_ref, color_blind_friendly, bit_accuracy, is_dark]);
   const { bit_accurate } = summary ?? {};
 
   const has_filter = !!files_filter && files_filter.length > 0;
@@ -320,10 +322,19 @@ const BitAccuracyViewer = props_ => {
   const handleNodeCollapse = node => setExpanded(expanded => ({ ...expanded, [node.id]: false }));
   const handleNodeExpand = node => setExpanded(expanded => ({ ...expanded, [node.id]: true }));
 
+  // the list of the run's files is still loading
+  if (files_loading)
+    return <Spinner size={16} aria-label="Loading the files" style={{ justifyContent: 'flex-start', margin: '5px 0' }}/>
+
   const has_files = tree.length !== 0
+  const empty_message = has_filter ? 'No file matches the filter'
+    : show_all_files ? 'No files'
+    : 'No differences with the reference. Switch on “Show all files” to see them.'
   return <div className={(!has_files && hide_runs_without_files) ? "viewer-no-files" : undefined}>
-    {bit_accurate && <Tag style={{marginBottom: '5px'}}>Bit-accurate</Tag>}
-    {!has_files && !bit_accurate && <em className={Classes.TEXT_MUTED}>all files filtered</em>}
+    {bit_accurate && <div><Tooltip content="All the checked files are identical to the reference">
+      <Tag minimal intent={Intent.SUCCESS} icon="tick" style={{marginBottom: '5px'}}>Bit-accurate</Tag>
+    </Tooltip></div>}
+    {!has_files && <em className={Classes.TEXT_MUTED}>{empty_message}</em>}
     <Tree
      contents={contents}
      onNodeClick={handleNodeClick}
@@ -373,7 +384,9 @@ const BitAccuracyViewer = props_ => {
       }
 
       return <div key={filename}>
-        {has_same_data && <Tag style={{marginTop: "5px"}} key={`same-${filename}`} minimal icon="duplicate">same-data</Tag>}
+        {has_same_data && <Tooltip key={`same-${filename}`} content="The new and reference files have the same hash">
+          <Tag style={{marginTop: "5px"}} minimal icon="duplicate">Identical to the reference</Tag>
+        </Tooltip>}
         <OutputViewer
             key={filename}
             path={filename_new}

@@ -30,7 +30,7 @@ The 50 latest commits show up first, more come as you scroll down (or click **Mo
 
 <Shot
   id="commits/feed"
-  caption="Each row says how its CI batch went: the main metric's median when it finished, a crashed batch in red, how many other batches it ran."
+  caption="Each row says how its CI batch went: the main metric's median when it finished, a failed batch in red, how many other batches it ran."
 />
 
 Each commit row shows:
@@ -39,17 +39,28 @@ Each commit row shows:
 |---|---|---|
 | Avatar | The committer | see all their commits |
 | Message, short hash | The commit | open the commit diff on your git server (hash), or copy the full hash (copy icon) |
-| Star icon | The commit is a [milestone](comparing-results.mdx#milestones) | |
+| Star icon | The commit has [milestones](comparing-results.mdx#milestones): hover it for their names | |
 | Menu icon (☰) | Copy the commit's directory (Windows or Linux path), view its files in the browser, delete its runs | |
 | Branch name | The commit's branch | see the branch's commits |
 | "2 hours ago by ..." | Commit date and committer | see the committer's commits |
-| Right side | The CI batch status: pending, running, crashed runs, the main metric (median and average), `...` for all aggregated metrics | |
+| Right side | The CI batch status: pending, running, failed runs, the main metric (median and average), `...` for all aggregated metrics | |
 | **N other batches** | Hover to list the commit's other batches (tuning, local runs...) and jump to one | |
 | Green **N CI results** button | | open the commit page |
 
 :::note
 **No results** or **Check the pipeline status...** means the commit has no finished runs yet in its CI batch: check your CI pipeline.
 :::
+
+### Compact list
+To see more commits at once, pick **Compact** above the list (**Comfortable** brings back the rows above). Each commit then takes one line, in columns that line up like a table: an icon for the CI batch's status (finished, failed, running, waiting), the short hash, the message, the branch, the committer, the date, then the batch's results and the ☰ menu. The web app remembers your choice in this browser.
+
+Hover to see what doesn't fit:
+- the **message** shows the whole commit message, the **date** the exact time;
+- the **status icon** counts the finished, failed and running runs;
+- the main metric's average shows its median and all the aggregated metrics;
+- **+N batches** lists the commit's other batches, like **N other batches** above.
+
+The copy icon for the full hash shows up when you hover a row, or reach it with the keyboard.
 
 ### Branches and committers
 - The sidebar shows the project's **reference branch**: click it to see only its commits.
@@ -98,11 +109,11 @@ By default, the list shows the **last 3 days**. Change the range with the date p
 - On a commit page, you can also type a hash in the commit field of the new or reference bar (see [Comparing results](comparing-results.mdx#picking-a-reference)).
 
 ### Milestones
-The sidebar's **Milestones** menu lists the project's milestones: those from *qaboard.yaml*, the shared ones, and your private ones. Pick one to open it. See [Milestones](comparing-results.mdx#milestones).
+The sidebar's **Milestones** menu lists your favorite milestones, yours, the project's shared ones and those from *qaboard.yaml*, with a search box. Pick one to open it. Your favorites are also listed in the sidebar, under **Milestones**. See [Milestones](comparing-results.mdx#milestones).
 
 <Shot
   id="commits/milestones-menu"
-  caption="The releases are shared milestones, for everyone; the private one is only in your browser."
+  caption="Your favorites first, then your milestones by group, then the project's."
 />
 
 ## Batches
@@ -116,14 +127,14 @@ A commit can have many batches. On the commit page, the batch selector next to t
 - **CI** is the batch from your continuous integration (label `default`).
 - **user 🏠 label** are local runs started by *user* from their workspace. A warning reminds you they may not use the code under version control.
 - Other labels are tuning experiments or runs started with `qa --label`.
-- Each entry shows `successful/total ✅`, crashed `❌`, running `🏃`, optimization iterations `🔁`, a `⭐` for milestones, and who started it.
+- Each entry shows `successful/total ✅`, failed `❌`, running `🏃`, optimization iterations `🔁`, a `⭐` for milestones, and who started it.
 - The list is searchable: type a label, a user name, or words like `failed`, `running`, `local`, `ci`, `tuning`.
 - The list opens on the selected batch, which has a check mark. Use ↑ ↓ and <kbd>Enter</kbd> to pick another one.
 
 The new and reference bars each have their own batch selector, so you can compare a tuning batch with the CI batch of another commit.
 
 ## Filter syntax
-The **filter new outputs** and **filter ref outputs** boxes on the commit page keep only matching runs. The counters below them (`8 outputs`, `4 crashed`...) count what's left.
+The filter boxes of the commit page's bars (**Filter runs…** for the new commit, **Filter the reference's runs…** for the reference) keep only matching runs. The counters below them (`8 runs`, `4 failed`...) count what's left.
 
 | You type | You keep runs... |
 |---|---|
@@ -132,7 +143,7 @@ The **filter new outputs** and **filter ref outputs** boxes on the commit page k
 | `-night` | **not** matching "night" |
 | `2X5\|GW1` | matching a regular expression |
 | `threshold:0.5` | with tuning parameter `threshold` equal to 0.5 (also `threshold=0.5`) |
-| `fail` or `crash` | that crashed |
+| `fail` or `crash` | that failed |
 | `pending` or `running` | that are not finished |
 | `id:1234` | with this run id |
 

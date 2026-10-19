@@ -5,7 +5,6 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 
 import { Classes } from "@blueprintjs/core";
 
-import * as Sentry from "@sentry/react";
 import { StyleSheetManager } from "styled-components";
 import isPropValid from "@emotion/is-prop-valid";
 
@@ -19,22 +18,28 @@ import { initSentry, initPostHog } from "./analytics";
 import { Layout } from "./components/layout";
 import ProjectsList from "./ProjectsList";
 import ErrorPage from "./components/ErrorPage";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import EmptyLoading from "./components/EmptyLoading";
+import Footer from "./components/Footer";
+import { ThemeSync } from "./theme";
 
 import "normalize.css";
 import "@blueprintjs/core/lib/css/blueprint.css";
 // include blueprint-icons.css for icon font support
 import "@blueprintjs/icons/lib/css/blueprint-icons.css";
 import "@blueprintjs/select/lib/css/blueprint-select.css";
-import "@blueprintjs/datetime/lib/css/blueprint-datetime.css";
 
 import "./App.css";
 
 import { routes } from './routes'
-import { ReleaseNotesProvider, WhatsNewLink } from "./releaseNotes/ReleaseNotes"
+import { ReleaseNotesProvider } from "./releaseNotes/ReleaseNotes"
+import { HelpSheetProvider } from "./components/HelpSheet"
 import PrivateContent from "./components/authentication/PrivateContent"
 import AppSider, { sider_width } from './AppSider'
 import AppNavbar from './AppNavbar'
+import { MilestoneDialogHost } from "./milestones/MilestoneDialog"
+import { ManageMilestonesHost } from "./milestones/ManageMilestones"
+import { useImportLegacyMilestones } from "./milestones/hooks"
 
 // In development, inspect queries and their cache: https://tanstack.com/query/latest/docs/framework/react/devtools
 const ReactQueryDevtools = import.meta.env.DEV
@@ -50,11 +55,6 @@ installLoginHandler(queryClient, toaster);
 
 const route_name = pathname => matchRoutes(routes, pathname)?.route.path ?? pathname;
 
-const Footer = () => {
-  return <div style={{margin: "10px", textAlign: "right"}}>
-     <span className={Classes.TEXT_MUTED}><WhatsNewLink via="footer"/> · Made with <span role="img" aria-label="<3">❤️</span> at Samsung, under <a href="https://github.com/Samsung/qaboard">Apache License 2.0</a></span>
-  </div>
-}
 
 
 // Monitoring and analytics, once we know the site's configuration
@@ -79,16 +79,19 @@ const App = ({ persist = true }) => {
   const Provider = persist ? PersistQueryClientProvider : QueryClientProvider;
   const providerProps = persist ? { client: queryClient, persistOptions, onSuccess: onCacheRestored } : { client: queryClient };
   return <Provider {...providerProps}>
-    <Sentry.ErrorBoundary fallback={props => <Fallback {...props}/>}>
+    <ThemeSync/>
+    <ErrorBoundary fallback={props => <Fallback {...props}/>}>
       <Analytics/>
       <StyleSheetManager shouldForwardProp={shouldForwardProp}>
         <ReleaseNotesProvider>
-          <HistoryRouter history={history}>
-            <Routes/>
-          </HistoryRouter>
+          <HelpSheetProvider>
+            <HistoryRouter history={history}>
+              <Routes/>
+            </HistoryRouter>
+          </HelpSheetProvider>
         </ReleaseNotesProvider>
       </StyleSheetManager>
-    </Sentry.ErrorBoundary>
+    </ErrorBoundary>
     <Suspense><ReactQueryDevtools buttonPosition="bottom-left"/></Suspense>
   </Provider>
 }
@@ -104,17 +107,28 @@ const Routes = () => {
 }
 
 
+// Milestones older versions saved in browsers move to the user's account
+const ImportLegacyMilestones = () => {
+  useImportLegacyMilestones();
+  return null;
+}
+
+
 const ProjectApp = ({ pathname }) => {
   const matched = matchRoutes(routes, pathname);
   if (!matched) return null;
   const { route: { main: Main }, match } = matched;
   return <RouteMatch match={match}>
     <ComparisonProvider>
+    <ImportLegacyMilestones/>
+    <MilestoneDialogHost/>
+    <ManageMilestonesHost/>
     <Layout className={Classes.UI_TEXT}>
       <AppSider/>
       <div style={{width: '100%'}}>
         <AppNavbar/>
-        <div style={{paddingLeft: sider_width}}>
+        {/* the content area: on its left the sidebar (collapsible), on its right room for a docked side panel (see App.css) */}
+        <div className="qa-content-area" style={{paddingLeft: sider_width, minHeight: '100vh', display: 'flex', flexDirection: 'column'}}>
           <Suspense fallback={<EmptyLoading/>}>
             <Main/>
           </Suspense>
@@ -127,4 +141,4 @@ const ProjectApp = ({ pathname }) => {
 }
 
 
-export default Sentry.withProfiler(App);
+export default App;

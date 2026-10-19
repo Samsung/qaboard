@@ -1,5 +1,5 @@
 // Dynamic options: values found in each output's files (e.g. :frame/out.png), merged for the controls panel
-import { calculateOptionValues, configureOption, mergeOptions, parseVisualizationOptions, resolveOptionValue } from '../utils/dynamicOptions';
+import { calculateOptionValues, configureOption, defaultRule, mergeOptions, optionLabel, parseVisualizationOptions, resolveOptionValue } from '../utils/dynamicOptions';
 
 const options_for = (path, files) => {
   const { options } = parseVisualizationOptions([{ name: 'Out', path }]);
@@ -61,4 +61,18 @@ describe('resolveOptionValue', () => {
   test('options without values', () => {
     expect(resolveOptionValue(configureOption({ name: 'x' }, []), '1')).toEqual({ value: undefined, exact: false });
   });
+});
+
+test('until users pick a value, runs show their last number, or their first value', () => {
+  const option = { name: 'x', views: ['Out'], paths: [':x/out.png'] };
+  expect(defaultRule(configureOption(option, ['1', '2', '10']))).toBe('last');
+  expect(defaultRule(configureOption(option, ['1', '2', '3']))).toBe('last');
+  expect(defaultRule(configureOption(option, ['left', 'right']))).toBe('first');
+  expect(defaultRule(configureOption(option, ['7']))).toBe('first');
+});
+
+test('option names are shown like labels', () => {
+  expect(optionLabel('frame')).toBe('Frame');
+  expect(optionLabel('Debug_maps')).toBe('Debug maps');
+  expect(optionLabel('noise-level')).toBe('Noise level');
 });

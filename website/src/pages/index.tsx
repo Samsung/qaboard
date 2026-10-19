@@ -150,7 +150,7 @@ const STEPS: Step[] = [
   {
     name: 'Look',
     title: 'Look at the outputs themselves',
-    text: 'Images side by side with synced zoom, a perceptual diff and pixel values. Plots overlaid, flame graphs diffed, logs, text and videos.',
+    text: 'Images side by side, wiped or diffed, with synced zoom and pixel values. Plots overlaid, flame graphs diffed, logs, text and videos.',
     link: '/docs/user-guide/comparing-results',
     linkLabel: 'Comparing results',
     media: <Clip id="commit/image-diff" caption="" />,
@@ -166,7 +166,7 @@ const STEPS: Step[] = [
   {
     name: 'Tune',
     title: 'Tune parameters from the browser',
-    text: 'Start parameter sweeps or automated tuning from the web app, then see each parameter’s effect and the trade-offs in the Analysis view.',
+    text: 'Start parameter sweeps or automated tuning from the web app, then see each parameter’s effect and the trade-offs in the Tuning Analysis view.',
     link: '/docs/tuning-from-the-webapp',
     linkLabel: 'Tuning from the web app',
     media: <Clip id="tuning/launch-to-analysis" caption="" />,
@@ -258,7 +258,7 @@ const USE_CASES = [
   {
     audience: 'Camera, ISP, imaging',
     title: 'Image quality',
-    text: 'A denoiser wins PSNR but adds halos: synced zoom, Image Diff, deep zoom on 113 MP images, every pipeline stage.',
+    text: 'A denoiser wins PSNR but adds halos: synced zoom, image differences, deep zoom on 113 MP images, every pipeline stage.',
     to: '/docs/use-cases/image-quality',
   },
   {
@@ -321,7 +321,7 @@ type Polish = {title: string; text: string; media: ReactNode};
 
 const POLISH: Polish[] = [
   {title: 'Deep zoom', text: 'Images over 100 MP load tile by tile, from the whole image down to single pixels.', media: <Clip id="landing/deep-zoom" caption="" />},
-  {title: 'Image Diff', text: 'A perceptual diff with a threshold: only what really changed stands out.', media: <Shot id="commit/image-perceptual-diff" caption="" />},
+  {title: 'Image difference', text: 'Perceptual, ΔE 2000 or per channel, with the values on the pixels: only what really changed stands out.', media: <Shot id="commit/image-perceptual-diff" caption="" />},
   {title: 'Pixel values', text: 'Hover a pixel to read its values in both images, with a crosshair on the other.', media: <Shot id="landing/pixel-values" caption="" />},
   {title: 'Histograms', text: 'Select a region to compare its histograms, new against reference.', media: <Shot id="commit/roi-histograms" caption="" />},
   {title: 'Regions of interest', text: 'Jump to preset regions, or to where the images differ most.', media: <Shot id="commit/auto-roi" caption="" />},

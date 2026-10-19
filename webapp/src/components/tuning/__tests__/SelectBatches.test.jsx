@@ -20,7 +20,7 @@ const make_commit = () => ({
 });
 
 const renderNav = (props = {}) => {
-  const all = {commit: make_commit(), batch: {label: 'batch-05'}, project: 'p', project_data: {}, onChange: () => {}, ...props};
+  const all = {commit: make_commit(), batch: {label: 'batch-05'}, milestone_batches: [], onChange: () => {}, ...props};
   const utils = render(<SelectBatchesNav {...all} />);
   return {...utils, rerenderNav: more => utils.rerender(<SelectBatchesNav {...all} {...more} />)};
 };
@@ -74,12 +74,15 @@ describe('SelectBatchesNav', () => {
 
   it('shows updates to the batches', async () => {
     const { rerenderNav } = renderNav();
-    expect(screen.getByRole('button').textContent).toContain('1/1 ✅');
+    expect(screen.getByRole('button').textContent).toContain('1/1');
+    expect(screen.getByTitle('1 of 1 run finished')).toBeInTheDocument();
     const commit = make_commit();
     commit.batches['batch-05'].outputs[2] = {output_type: 'slam', is_failed: true};
-    await act(async () => rerenderNav({commit, project_data: {data: {milestones: {'p/abc123/batch-05': {}}}}}));
-    expect(screen.getByRole('button').textContent).toContain('⭐ batch-05');
-    expect(screen.getByRole('button').textContent).toContain('1/2 ✅ 1❌');
+    await act(async () => rerenderNav({commit, milestone_batches: ['batch-05']}));
+    expect(within(screen.getByRole('button')).getByTitle('Milestone')).toBeInTheDocument();
+    expect(screen.getByRole('button').textContent).toContain('batch-05');
+    expect(screen.getByTitle('1 of 2 runs finished')).toHaveTextContent('1/2');
+    expect(screen.getByTitle('1 failed')).toHaveTextContent('1');
   });
 
   it('re-opens on the selected batch', async () => {
@@ -106,5 +109,23 @@ describe('SelectBatchesNav', () => {
     open();
     fireEvent.change(screen.getByRole('combobox'), {target: {value: 'batch-2'}});
     expect(within(listbox()).getAllByRole('option')).toHaveLength(10);
+  });
+
+  it("doesn't say a batch has no results while the commit loads", () => {
+    const { rerenderNav } = renderNav({commit: {id: 'abc123', batches: {}, is_loaded: false}});
+    expect(screen.queryByText(/no results/)).not.toBeInTheDocument();
+    rerenderNav({commit: {id: 'abc123', batches: {}, is_loaded: true}});
+    expect(screen.getByText('batch-05 (no results)')).toBeInTheDocument();
+  });
+
+  it("doesn't show a select for a commit that failed to load", () => {
+    renderNav({commit: {id: 'abc123', batches: {}, is_loaded: true, error: '500 Internal Server Error'}});
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it("doesn't check batches without runs", () => {
+    renderNav({commit: {id: 'abc123', batches: {empty: {label: 'empty', outputs: {}}}}, batch: {label: 'empty'}});
+    expect(screen.getByText('no runs')).toBeInTheDocument();
+    expect(screen.queryByTitle(/runs? finished/)).not.toBeInTheDocument();
   });
 });

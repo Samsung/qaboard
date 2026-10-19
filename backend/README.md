@@ -100,18 +100,18 @@ and times the endpoints behind the projects list, the lists of commits and the b
 Run it with `--backend` pointing to another checkout to compare versions. See the script's docstring.
 
 ### Custom database config
-Get a sample config:
-
-```bash
-docker run -i --rm postgres:12-alpine cat  /usr/local/share/postgresql/postgresql.conf.sample > services/db/postgres.conf
-```
-
-And add it to your `db` container:
+`services/db/qaboard.conf` holds the PostgreSQL settings that differ from the defaults (sized for SIRC's production host).
+`services/db/init.sh` loads it: use it as the `db` service's entrypoint (the folder is mounted at `/opt` by *docker-compose.yml*),
+and point `QABOARD_DB_CONFIG` to your own file to size it for your host:
 ```yaml
   db:
-    volumes:
-    - ./services/db/postgres.conf:/var/lib/postgresql/data/postgresql.conf
+    entrypoint: /opt/init.sh
+    # environment:
+    # - QABOARD_DB_CONFIG=/opt/mysite.conf  # default: qaboard.conf next to init.sh
 ```
+It copies the file into `$PGDATA` and includes it at the end of `postgresql.conf`, at every start (and after `initdb` for a new
+database, where it also creates the `pg_stat_statements` extension). Changes need a restart: `docker compose restart db`.
+`ALTER SYSTEM` values (`postgresql.auto.conf`) win over the file. See `deployments/sirc/runbooks/database.md`.
 
 ### Tuning
 Queries:

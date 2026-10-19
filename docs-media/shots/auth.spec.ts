@@ -8,7 +8,7 @@ shot('auth/login', {
   alt: 'The Login dialog over the projects list: a user name field with "ines", a password field, and a Log In button.',
   caption: 'Click Login at the top right, then sign in with your user name and password.',
   actions: async ui => {
-    await ui.click(ui.page.getByRole('button', { name: 'Login' }).first());
+    await ui.click(ui.page.getByRole('button', { name: 'Log in' }).first());
     await ui.settle();
     const dialog = ui.page.locator('.bp6-dialog');
     await ui.type(dialog.locator('#username'), 'ines');

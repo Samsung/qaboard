@@ -49,6 +49,7 @@ COPY charts/ /charts/
 COPY deployments/quickstart/compose.yml /deployments/quickstart/compose.yml
 COPY examples/ /examples/
 COPY docs-media/shots.yaml /docs-media/shots.yaml
+COPY qaboard/schemas/ /qaboard/schemas/
 COPY website/ ./
 
 # On the website we have algolia for the search, but the baseURL (/qaboard) is different than

@@ -78,3 +78,23 @@ Like GitHub, with the payload URL `https://<your-qaboard-server>/webhook/gitea` 
 `project.url` in your `qaboard.yaml` (e.g. `git@github.com:org/repo.git`) tells `qa` and QA-Board where your repository is hosted, even before the first push event.
 :::
 
+## Checking qaboard.yaml and batch files in your editor
+QA-Board publishes [JSON schemas](https://json-schema.org/) for [qaboard.yaml](pathname:///qaboard.schema.json) and for [batch files](pathname:///batches.schema.json). Editors that understand them complete the keys, show their docs on hover, and flag typos and wrong types. With VS Code's [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml), add to your settings:
+
+```json title=".vscode/settings.json"
+{
+  "yaml.schemas": {
+    "https://samsung.github.io/qaboard/qaboard.schema.json": ["qaboard.yaml", "**/qaboard.yaml"],
+    "https://samsung.github.io/qaboard/batches.schema.json": ["qa/batches.yaml", "**/*batches*.yaml"]
+  }
+}
+```
+
+Or add a comment at the top of the file, which works in any editor using the YAML language server:
+```yaml title="qa/batches.yaml"
+# yaml-language-server: $schema=https://samsung.github.io/qaboard/batches.schema.json
+```
+
+Without internet access, use your QA-Board server's copy, e.g. `https://qaboard.example.com/docs/batches.schema.json`, or the files installed with `qa`: `python -c "import qaboard, pathlib; print(pathlib.Path(qaboard.__file__).parent / 'schemas')"`.
+
+`qa` accepts keys the schemas don't know: they become input settings your entrypoint's `iter_inputs` can read, or viewer options for visualizations. So treat what the schemas flag as warnings. The web app's [Available Tests](/docs/user-guide/commit-page#available-tests) view checks batches with the same schema.

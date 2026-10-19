@@ -10,7 +10,16 @@ Check items off or delete them when done, add new ones with enough context for s
 - [ ] Viewers not covered by automated tests with real data: images (OpenSeadragon/IIIF), ToF point clouds (three.js), SLAM, flame graphs, videos. Check them manually on staging after deploys that touch them.
 
 ## UX
-- [ ] Blueprint warns that `<Popover>` positions content incorrectly with React 19: migrate to `<PopoverNext>` (milestones, CommitRow, CommitNavbar...) and check the layouts.
+- [ ] **Menus that open on hover**: all popovers use `<PopoverNext>` (Blueprint's `<Popover>` mis-positions content with React 19), and the commit, batch and run action menus open on click. Other menus still open on hover, so not on touch screens and sometimes by accident: the sidebar's Integrations and Milestones submenus, "Change" next to the commit id (`CommitNavbar.jsx`), the configuration tags' copy menus (`ConfigurationsTags` in `tags.jsx`), the image viewer's "Copy" menu and "View ROIs". Move them to click one at a time, checking that their contents still work (e.g. the integrations' search box).
+
+## Performance
+Found in an audit (October 2026), not done yet. Measure with `npm run bench` before and after.
+- [ ] **ToF viewer** (`src/viewers/tof/TofOutputCard.jsx`): three.js renders every frame even when idle, and `renderer.dispose()` is commented out, so WebGL contexts leak (browsers drop the oldest after ~16). Render on demand and dispose on unmount, when someone can check point clouds visually. Image viewers got the same fix.
+- [ ] **Branch pages** render up to 1000 commit rows, each with ~10 tooltips/popovers and an always-mounted `<Alert>` (`CommitMenu`): mount the alert only when it's open, or virtualize the rows.
+- [ ] **Resizing the side panel** sets `--qa-side-panel-space` on `<html>` on every pointermove, restyling the whole document; the sidebar animates the content's `padding-left`. Set the variable on `.qa-content-area`, or apply the width on pointerup.
+- [ ] **Commit page polling** re-downloads every output every 15s while some are pending, forever if they're stuck. Back off with the batch size, or add a light status endpoint.
+- [ ] **Page load**: the IndexedDB restore delays every request. Prefetch the route's main queries in `src/index.jsx` before rendering, or persist only some queries with `experimental_createQueryPersister`.
+- [ ] `qs` (with its dependencies, ~45kB) is only used to parse and write the URL (`src/selection.js`): `URLSearchParams` would do if no shared link relies on nested `a[b]=c` keys.
 
 ## Testing / CI
 - [ ] Run the Playwright smoke tests (`npm run e2e`) in GitLab CI too. They run in GitHub Actions; the LSF runners need Chromium (`npx playwright install chromium` through the proxy, or use `PLAYWRIGHT_CHROMIUM_EXECUTABLE`).

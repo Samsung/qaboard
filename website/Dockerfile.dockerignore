@@ -7,6 +7,7 @@
 !examples/*/qaboard.yaml
 !examples/*/qa/*.yaml
 !docs-media/shots.yaml
+!qaboard/schemas/
 website/node_modules/
 website/build/
 website/.docusaurus/

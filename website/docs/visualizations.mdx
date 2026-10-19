@@ -35,7 +35,7 @@ Users will get switches to toggle debug visualizations:
 
 <Shot
   id="commit/controls-panel"
-  caption="The Controls panel lists every visualization, with switches for the ones hidden by default, like Color errors and Noise vs signal."
+  caption="The view options list every visualization, with switches for the ones hidden by default, like Color errors and Noise vs signal."
 />
 
 
@@ -56,20 +56,21 @@ Extensions                                          | Type         | Viewer     
 
 
 ### Image viewer
-  * Supports all common image formats.
-  * Fast and smooth zoom & pan, synced. Fast image streaming via [IIIF](https://iiif.io).
-  * Color tooltip, with a synced cursor on the other images.
-  * Perceptual color difference.
-  * Automatic regions of interest, found where images differ most according to a YIQ, SSIM or CIE (1976, 1994, 2000) color difference.
-  * Image filters (brightness, contrast, gamma, sharpen).
-  * Histograms per channel.
-  * Copy the new, reference or diff image to the clipboard. Press <kbd>t</kbd> to swap new and reference.
+  * Supports all common image formats, and raw images with an [IIIF](https://iiif.io) server that reads them.
+  * Compares new and reference side by side, with a wipe, one at a time (single), or as their difference: perceptual (YIQ), ΔE 2000, absolute or signed per channel, or any change.
+  * Fast and smooth zoom & pan, synced across runs and visualizations. Fast image streaming via IIIF.
+  * The values of the hovered pixel in both images, and their difference, with a synced cursor on the other images. For 16-bit or raw images, the image's own values, read by the server.
+  * Zoomed in, the values written on the pixels.
+  * Regions of interest: the input's presets, or found where the images differ most, by a perceptual, SSIM or ΔE 2000 difference.
+  * Display adjustments (brightness, contrast, gamma, sharpen, one channel, false colors).
+  * Histograms per channel, of the region in view.
+  * Copy or save the new, reference or difference image.
 
 How to use it is described in the user guide: [comparing images](/docs/user-guide/comparing-results).
 
 <Clip
   id="commit/image-diff"
-  caption="Zoom in one image and the reference follows. Image Diff and its threshold show what changed."
+  caption="Zoom in one image and the reference follows. A wipe, then their difference, show what changed."
 />
 
 Images are served by an [IIIF](https://iiif.io) image server, tile by tile: the viewers only load what they show, even for images over 100 MP.
@@ -80,6 +81,9 @@ Images are served by an [IIIF](https://iiif.io) image server, tile by tile: the 
 />
 
 Draw your own debug information in the images you save, like detection boxes: the viewer compares them like any other image.
+
+The image viewer is also a React component you can use in your own apps, with images from any server: see its
+[README](https://github.com/Samsung/qaboard/tree/master/webapp/src/image-viewer).
 
 <Shot
   id="commit/detections"
@@ -92,7 +96,7 @@ If a run saved both *image.png* and *image.tiff*, a visualization of *image.png*
 
 
 ### Regions of interest
-The image viewer can thumbnails to navigate between Regions of Interest. To enable this, you must provide as [input metadata](metadata-integration-external-databases) some info. With YAML syntax:
+The image viewer shows thumbnails to navigate between regions of interest. Give them in the [input's metadata](metadata-integration-external-databases), or in a configuration (`{"roi": [...]}`). With YAML syntax:
 
 ```yaml
 width: 800   # optional, useful if your results are showed with downscaled resolution
@@ -106,12 +110,11 @@ roi:
 
 <Shot
   id="commit/auto-roi"
-  caption="The input's preset regions, next to the Auto ROIs that QA-Board finds where the images differ most."
+  caption="The input's preset regions, next to the regions where QA-Board finds that the images differ most."
 />
 
-If you click on the histogram button, you'll be able to select a region of interest and easily copy the format above:
-
-<img alt="Image viewer" src={useBaseUrl('img/image-viewer-selection.png')} />
+To write new ones, zoom on a region, then pick **Copy the view as a region** in the regions menu: you get its coordinates
+in the format above.
 
 
 ### Plot.ly viewer
@@ -183,11 +186,11 @@ We love Brendan Gregg's [flame charts](http://www.brendangregg.com/flamegraphs.h
 > For a tutorial [read our blog post](https://samsung.github.io/qaboard/blog/2020/06/24/flame-graphs).
 
 ### Video viewer
-  * New and reference play in sync, frame by frame: paused, both show the same frame.
-  * Compare them side by side, with a wipe (drag the divider), by toggling between them (<kbd>t</kbd>), or as their difference (amplified up to ×64).
-  * Zoom with the mouse wheel or a pinch, drag to pan: both videos follow, even when their resolutions differ. Zoomed in, you see the actual pixels and their coordinates.
-  * Step frame by frame, scrub, slow down to 0.1×, loop.
-  * Copy or save the current frame as a PNG.
+  * New and reference play in sync, frame by frame: paused, both show the same frame, and the viewer says which, numbered like in the file.
+  * Compare them like images: side by side, with a wipe, one at a time, or as their difference (perceptual, ΔE 2000, absolute...), with display adjustments, full screen and a blind test.
+  * Zoom with the mouse wheel or a pinch, drag to pan: both videos follow, even when their resolutions differ. Zoomed in, you see the actual pixels and their values: decoded (e.g. 10-bit Y′CbCr) or as displayed.
+  * See what's in the files (codec, pixel format, color range, frame rate...) and find where and when two videos differ, frame by frame.
+  * Step frame by frame, scrub, slow down to 0.1×, loop. Copy or save the current frame as a PNG.
 
 How to use it is described in the user guide: [comparing videos](/docs/user-guide/comparing-results#video-viewer).
 
@@ -204,7 +207,18 @@ ffmpeg -i input.avi -c:v libx264 -pix_fmt yuv420p -movflags +faststart output.mp
 
 `+faststart` lets a video start playing before it's fully downloaded. Animated *.webp* and *.gif* files are compared the same way, but your browser plays them on its own: they are not synced.
 
-QA-Board finds a video's frame rate when it plays, or when you step through its frames. If it guesses wrong, e.g. for variable frame rates, set it, with an optional image shown before the video loads:
+QA-Board's server reads the files with FFmpeg: the timestamp of every frame (frames are numbered like in the file,
+also with variable frame rates), their decoded values, and where two videos differ. It reads any format FFmpeg reads,
+but your browser still has to play the video.
+
+To compare exact values, write lossless videos: lossy codecs change the values your code wrote, and 4:2:0 stores
+colors at half resolution. Browsers play lossless VP9:
+
+```bash
+ffmpeg -i frames/%04d.png -c:v libvpx-vp9 -lossless 1 -pix_fmt yuv444p output.webm
+```
+
+Without the server's timestamps, QA-Board finds a video's frame rate when it plays, or when you step through its frames. If it guesses wrong, set it, with an optional image shown before the video loads:
 
 ```yaml title="qaboard.yaml"
 outputs:
@@ -215,17 +229,10 @@ outputs:
 ```
 
 ### Point clouds and trajectories
-Point clouds open in a 3D viewer, and 6DoF trajectories are drawn against the ground truth when the run has one.
-
-<Shot
-  id="commit/pointcloud"
-  caption="A keyframe's point cloud against the ground truth's."
-/>
-
-<Shot
-  id="commit/trajectory-6dof"
-  caption="A trajectory against ground truth, in 3D and per axis: the drift starts after a keyframe change."
-/>
+Point clouds open in a 3D viewer, and 6DoF trajectories are drawn against the ground truth when the run has one. Both
+viewers were written for one team's file layouts (`Frame<N>/pointcloud.pcd`, tab-separated poses in
+`camera_poses_debug.csv` with the ground truth in `GT_final.txt`), and they'll be shown here with the robotics example.
+For other layouts, save a [Plot.ly](#plotly-viewer) figure with `scatter3d` traces, like the 3D plot above.
 
 ### More Viewers?
 Tell us what you need! The next we'll implement is likely [**vega**](https://vega.github.io/vega/) specs. It would notably allow us to display `altair` visualizations. We could also have a minimal integration with notebooks, [visdom](https://github.com/facebookresearch/visdom), [webiz](https://webviz.io/)...
@@ -277,9 +284,11 @@ outputs:
       #   you will get two select inputs for the frame.
 ```
 
-By default, only one viewer/path is shown at a time, and you get sliders/select to decide what to show. They are in the **Controls** panel and linked across all runs, but users can make an option *per-output*, to choose its value in each run's card (see the [user guide](/docs/user-guide/commit-page#the-controls-panel)).
+By default, only one viewer/path is shown at a time, and you get sliders/select to decide what to show. They are in the **Files to show** section of the **View options**, and apply to all runs, but users can turn on **Per run** to choose the value in each run's card (see the [user guide](/docs/user-guide/commit-page#view-options)).
 
-Runs don't need to have the same values: the **Controls** panel offers the values of all runs, numbers are sorted as numbers (`2` before `10`), and the default is the last number (e.g. the last frame) or the first value. When a run doesn't have the selected value, its card shows the closest number (or the default) and says so.
+Each option is named after its part of the path, as a label: `:frame` shows as *Frame*, `:noise_level` as *Noise level*. Name the parts of your paths for your users: prefer `frames/:frame.png` to `frames/(.*)\.png`, whose option gets a name made up from the visualization's.
+
+Runs don't need to have the same values: the **View options** offer the values of all runs, and numbers are sorted as numbers (`2` before `10`). Until users pick a value, each run shows its own default: its last value when the values are numbers (e.g. its last frame), else its first. When a run doesn't have the selected value, its card shows the closest number (or the default) and says so.
 
 <Shot
   id="commit/dynamic-options"

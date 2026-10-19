@@ -3,6 +3,7 @@ Backend API for the integrations features.
 """
 import os
 import re
+import html
 import time
 import json
 import datetime
@@ -142,6 +143,46 @@ def jenkins_hostname_credentials(build_url):
       "Jenkins-Crumb": credentials['crumb'],
     },
   }
+
+def jenkins_same_host(url, build_url):
+  """
+  Jenkins gives the URLs of builds with its configured root URL, whose hostname can be another name than
+  the one in build_url (e.g. a FQDN vs a short name). We'd have no credentials for it to check the build status,
+  so we use build_url's scheme and host.
+  """
+  if urlparse(url).hostname in jenkins_credentials:
+    return url
+  base = urlparse(build_url)
+  return urlparse(url)._replace(scheme=base.scheme, netloc=base.netloc).geturl()
+
+def jenkins_job_is_parameterized(build_url, jenkins_credentials):
+  """True unless Jenkins says the job has no parameters"""
+  try:
+    r = requests.get(f"{build_url}/api/json", params={"tree": "property[parameterDefinitions[name]]"}, timeout=30, **jenkins_credentials)
+    r.raise_for_status()
+    return any(p.get('parameterDefinitions') for p in r.json().get('property', []))
+  except Exception as e:
+    print(f"WARNING: could not check if {build_url} has parameters: {e}")
+    return True
+
+def jenkins_error(r, url):
+  """Explains a Jenkins error response, whose body is usually a whole HTML page"""
+  hints = {
+    401: "check the user and token in JENKINS_AUTH",
+    403: "check the user and token in JENKINS_AUTH, and that the user can build the job",
+    404: "check build_url, jobs in folders look like http://jenkins/job/folder/job/name",
+    409: "is the job disabled?",
+  }
+  text = re.sub(r"<(script|style)\b.*?</\1>", " ", r.text or '', flags=re.S | re.I)
+  text = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", text))).strip()
+  message = f"HTTP {r.status_code} from POST {url}"
+  if r.status_code in hints:
+    message += f" ({hints[r.status_code]})"
+  if 300 <= r.status_code < 400:
+    message += f", redirected to {r.headers.get('location')}"
+  if text:
+    message += f": {text[:1000]}"
+  return message
 
 def git_hosts_proxied_hostnames():
   """The configured git hosts, their API and where their users' avatars are"""
@@ -528,12 +569,12 @@ def jenkins_build():
     else:
       url = data['web_url']
     if not url.endswith("/api/json"):
-      url += "/api/json"
+      url = f"{url.rstrip('/')}/api/json"
   else:
     url = data['url']
   jenkins_credentials = jenkins_hostname_credentials(url)
   if not jenkins_credentials:
-    return f"ERROR: No credentials for {url}", "403"
+    return jsonify({"error": f"ERROR: No credentials for {urlparse(url).hostname} in JENKINS_AUTH, to check {url}"}), 403
   try:
     # TODO: add something proper to do retriess
     # https://urllib3.readthedocs.io/en/latest/reference/urllib3.util.html#urllib3.util.Retry
@@ -625,32 +666,37 @@ def trigger_jenkins_build(data):
       return jsonify({"error": f"ERROR: the integration is missing `build_url` (in your qaboard.yaml)"}), 400
   jenkins_credentials = jenkins_hostname_credentials(data['build_url'])
   if not jenkins_credentials:
-    return jsonify({"error": f"No Jenkins credentials for {urlparse(data['build_url']).hostname}. Add them to JENKINS_AUTH on the server."}), 403
+    return jsonify({"error": f"ERROR: No credentials for {urlparse(data['build_url']).hostname} in JENKINS_AUTH, to trigger {data['build_url']}"}), 403
   build_url = re.sub("/$", "", data['build_url'])
+  params = {
+    "cause": data.get('cause', "Triggered via QA-Board"),
+    # the docs used to say `parameters`
+    **(data.get('params') or data.get('parameters') or {}),
+  }
+  if "token" in data:
+    params["token"] = data["token"]
+  else:
+    params["token"] = "qaboard" # FIXME: default to not setting it in the OSS version
+
+  def post(build_trigger_url):
+    # Jenkins answers "201 Created" with the queue item in `location`. We don't follow redirects:
+    # they lead to HTML pages (login, job page...) and would hide what went wrong.
+    return requests.post(build_trigger_url, params=params, allow_redirects=False, timeout=60, **jenkins_credentials)
   build_trigger_url = f"{build_url}/buildWithParameters"
   try:
-    params = {
-      "cause": data.get('cause', "Triggered via QA-Board"),
-      # the docs used to say `parameters`
-      **(data.get('params') or data.get('parameters') or {}),
-    }
-    if "token" in data:
-      params["token"] = data["token"]
-    else:
-      params["token"] = "qaboard" # FIXME: default to not setting it in the OSS version
-    r_build = requests.post(
-      build_trigger_url,
-      params=params,
-      timeout=60,
-      **jenkins_credentials,
-    )
+    r_build = post(build_trigger_url)
+    # Jenkins refuses buildWithParameters for jobs without parameters, but only tells admins why:
+    # others get "A problem occurred while processing the request"
+    if not r_build.ok and not jenkins_job_is_parameterized(build_url, jenkins_credentials):
+      build_trigger_url = f"{build_url}/build"
+      r_build = post(build_trigger_url)
   except Exception as e:
       print(build_trigger_url)
       print(e)
       return jsonify({"error": f"ERROR: When triggering job: {e}"}), 500
 
-  if 'location' not in r_build.headers:
-      return jsonify({"error": f"ERROR: the jenkins response is missing a `location` header. {r_build.text}"}), 500
+  if not 200 <= r_build.status_code < 300 or 'location' not in r_build.headers:
+      return jsonify({"error": f"ERROR: Jenkins did not queue the build: {jenkins_error(r_build, build_trigger_url)}"}), 500
   build_queue_location = f"{r_build.headers['location']}/api/json".replace("//api/json", "/api/json")
 
   def ensure_absolute(url):
@@ -660,7 +706,7 @@ def trigger_jenkins_build(data):
       if not url.startswith('/'):
         url = f"/{url}" 
       url = f"{url_info.scheme}://{url_info.netloc}{url}"
-    return url
+    return jenkins_same_host(url, build_url)
 
   build_queue_location = ensure_absolute(build_queue_location)
   time.sleep(5) # jenkins' "quiet period"

@@ -97,15 +97,20 @@ const relative = date => Date.now() - date.getTime() < 10 * 1000
   : DateTime.fromJSDate(date).toRelative({ style: "short" }) ?? "just now";
 
 
-const Layout = styled.div`
+// The editor and its side panel, stacked when the content area is narrow
+const LayoutContainer = styled.div`
+  container-type: inline-size;
+`;
+const LayoutGrid = styled.div`
   display: grid;
   grid-template-columns: minmax(0, 1fr) 320px;
   gap: 16px;
   align-items: start;
-  @media (max-width: 1100px) {
+  @container (max-width: 860px) {
     grid-template-columns: minmax(0, 1fr);
   }
 `;
+const Layout = ({ children }) => <LayoutContainer><LayoutGrid>{children}</LayoutGrid></LayoutContainer>;
 
 const Toolbar = styled.div`
   display: flex;
@@ -113,7 +118,7 @@ const Toolbar = styled.div`
   flex-wrap: wrap;
   gap: 8px 12px;
   padding: 6px 0 8px;
-  border-bottom: 1px solid rgba(17, 20, 24, 0.15);
+  border-bottom: 1px solid var(--qa-border);
   margin-bottom: 8px;
   .bp6-tab-list { align-items: center; }
 `;
@@ -139,7 +144,7 @@ const DirtyDot = styled.span`
 `;
 
 const EditorFrame = styled.div`
-  border: 1px solid rgba(17, 20, 24, 0.15);
+  border: 1px solid var(--qa-border);
   border-radius: 2px;
   overflow: hidden;
 `;
@@ -148,7 +153,7 @@ const Problems = styled.ul`
   list-style: none;
   margin: 0;
   padding: 4px 0;
-  border-top: 1px solid rgba(17, 20, 24, 0.15);
+  border-top: 1px solid var(--qa-border);
   max-height: 120px;
   overflow: auto;
   font-size: 12px;
@@ -429,7 +434,7 @@ export function BatchesEditor({ project, commit, config, git, web_url, available
     return () => clearInterval(interval);
   }, []);
 
-  const analysis = useMemo(() => analyzeBatches(doc?.draft ?? ""), [doc?.draft]);
+  const analysis = useMemo(() => analyzeBatches(doc?.draft ?? "", { config }), [doc?.draft, config]);
   const errors = analysis.problems.filter(p => p.severity === "error");
   const warnings = analysis.problems.filter(p => p.severity === "warning");
 

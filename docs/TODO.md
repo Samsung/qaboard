@@ -33,7 +33,7 @@ and show a "not captured yet" placeholder until they're published.
 
 ## Docs
 - **Old screenshots still used** where no shot covers them; check them for internal names and replace or drop them:
-  `first-outputs.png`, `image-viewer-selection.png`, `plotly-3d-example.png`, `rich-metrics-in-card.png`,
+  `first-outputs.png`, `plotly-3d-example.png`, `rich-metrics-in-card.png`,
   `copy-windows-output-dir.png`, `winows-explorer-output-dir.jpg`, `export-commit-folder.png`, `gitlab-jenkins.gif`,
   `configure-jenkins-build-triggers.png`, `login-block-unsigned-user.jpg`, the FAQ's `export-files-viz/-output/-commit.jpg`,
   `slides/flame-graphs.jpg` (blog).

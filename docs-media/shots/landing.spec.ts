@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { clip, shot, type Box, type Demo, type Locator, type Page, type Ui } from './lib';
+import { diffMax, imagePoint, newImage, preset, stableBox } from './imageViewer';
 
 const IQ = 'image-quality';
 
@@ -10,27 +11,8 @@ const IQ = 'image-quality';
 const sidebar = (page: Page, view: string) => page.getByRole('menuitem', { name: view, exact: true }).first();
 const cards = (page: Page) => page.locator('.output-card.bp6-card');
 const viewer = (scope: Page | Locator, index = 0) => scope.locator(`[id="${index}-0"]`).first();
-const newImage = (scope: Page | Locator) => scope.locator('[id^="image-viewer-"]').first();
-const controlsPanel = (page: Page) => page.locator('.bp6-card', { has: page.getByText('Controls', { exact: true }) }).last();
-
-// An element's box once it stopped moving: hovering an image shows the pixel values above it, which push it down
-async function stableBox(target: Locator) {
-  let previous = await target.boundingBox();
-  for (let i = 0; i < 20; i++) {
-    await target.page().waitForTimeout(150);
-    const box = await target.boundingBox();
-    if (box && JSON.stringify(box) === JSON.stringify(previous)) return box;
-    previous = box;
-  }
-  if (!previous) throw new Error(`[landing.spec] ${target} has no box`);
-  return previous;
-}
-
-// A point of the new image, in % of its box, once it stopped moving
-async function imagePoint(scope: Page | Locator, at: { x: number; y: number }) {
-  const box = await stableBox(newImage(scope));
-  return { x: (box.width * at.x) / 100, y: (box.height * at.y) / 100 };
-}
+// The View options, docked on the right of the commit page (the user's choice is remembered: controls-panel-expanded)
+const controlsPanel = (page: Page) => page.locator('aside[aria-label="View options"]');
 
 clip('landing/hero', {
   project: IQ,
@@ -39,7 +21,8 @@ clip('landing/hero', {
     reference: 'isp-4-1', view: 'table-compare', filter: 'facade.png|slanted base linux', query: { sort_by: 'input_test_path' },
   }),
   alt: 'The Metrics Diff of a new denoiser: PSNR up, edge overshoot up 163%. In the facade\'s images, zooming into one '
-    + 'zooms the other, Image Diff turns on, and a higher threshold leaves only the halos; then back to the Metrics Diff.',
+    + 'zooms the other, their difference shows between them, and a higher maximum leaves only the halos; then back to '
+    + 'the Metrics Diff.',
   caption: 'Metrics and images side by side: the new denoiser wins PSNR, and the images show the halos it adds.',
   loop: true,
   poster: 8000,
@@ -55,7 +38,7 @@ clip('landing/hero', {
     // first hover, which shows the pixel values above the images and pushes them down
     await cards(ui.page).first().evaluate(card => window.scrollBy(0, card.getBoundingClientRect().top - 160));
     await ui.settle();
-    await scope.locator('a.bp6-button', { hasText: /^Window frame \(halos\)$/ }).first().click();
+    await scope.locator('.qiv-region', { hasText: /^Window frame \(halos\)$/ }).first().click();
     await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     // the zoom to the region is animated: done before the hover, the same pixel is under the mouse every time
     await ui.tiles();
@@ -68,27 +51,13 @@ clip('landing/hero', {
     await ui.tiles();
     await ui.hold(1300);
 
-    await ui.caption('Image Diff shows what changed');
-    // The Controls panel slides in and out, for longer than the wait after a click (it runs the page's clock in real
-    // time): another wait, and it's always done
-    const togglePanel = async () => {
-      await ui.click(ui.page.locator('[title="Toggle Controls Panel"]'));
-      await ui.settle();
-    };
-    await togglePanel();
-    await ui.hold(300);
-    await ui.click(controlsPanel(ui.page).locator('label', { hasText: 'Image Diff' }));
+    await ui.caption('Their difference shows what changed');
+    await ui.click(scope.getByRole('radio', { name: 'Difference' }));
     await ui.settle();
-    await togglePanel();
     await ui.hold(1300);
 
-    await ui.caption('A higher threshold leaves the halos');
-    // from 5% to 15%: the slider spans 0-30% over the width of an image
-    const handle = scope.locator('.bp6-slider-handle').first();
-    const track = (await scope.locator('.bp6-slider').first().boundingBox())!;
-    const from = (await handle.boundingBox())!;
-    await ui.drag(handle, { x: from.x + from.width / 2 + track.width / 3, y: from.y + from.height / 2 });
-    await ui.settle();
+    await ui.caption('A higher maximum leaves the halos');
+    await diffMax(ui, scope, 0.2);
     await ui.hold(2200);
 
     await ui.caption('PSNR is up, and so is the edge overshoot');
@@ -116,14 +85,6 @@ const compare = (d: Demo, commit: string, reference: string, filter: string, opt
 // Scrolls a run card right below the commit bars
 async function showCard(ui: Ui, index = 0) {
   await cards(ui.page).nth(index).evaluate(card => window.scrollBy(0, card.getBoundingClientRect().top - 160));
-  await ui.settle();
-}
-
-// Clicks a region of interest preset under the viewer, by its label: the same zoom every time
-async function preset(ui: Ui, scope: Page | Locator, label: string) {
-  const exact = new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
-  await ui.click(scope.locator('a.bp6-button', { hasText: exact }).first());
-  await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await ui.settle();
 }
 
@@ -165,7 +126,7 @@ clip('landing/deep-zoom', {
     await ui.tiles();
     await ui.hold(1100);
     await ui.caption('Down to single pixels');
-    await ui.click(scope.locator('a.bp6-button', { hasText: /^Siemens star 64 px$/ }).first());
+    await ui.click(scope.locator('.qiv-region', { hasText: /^Siemens star 64 px$/ }).first());
     await ui.tiles();
     await ui.cursor.moveTo({ x: box.x + box.width / 2, y: box.y + box.height * 0.6 });
     await ui.hold(2600);
@@ -173,7 +134,7 @@ clip('landing/deep-zoom', {
 });
 
 // Dynamic outputs: `stages/:stage.jpg` in qaboard.yaml gives a slider over the ISP's stages, synced across runs
-const dynamicOptions = (page: Page) => controlsPanel(page).getByText('Dynamic Options', { exact: true }).locator('xpath=../..');
+const dynamicOptions = (page: Page) => controlsPanel(page).locator('section', { has: page.getByRole('button', { name: 'Files to show', exact: true }) });
 
 clip('landing/every-stage', {
   project: IQ,
@@ -264,7 +225,7 @@ shot('landing/pixel-values', {
   url: d => compare(d, 'merge-bilateral', 'isp-4-1', 'photos/facade base linux'),
   alt: 'The facade\'s window frame, new and reference images: above them, the hovered pixel\'s coordinates and its RGB '
     + 'values in both images, with their colors; crosshairs mark the pixel in both.',
-  caption: 'Hover a pixel: its values in both images, and a crosshair on the other.',
+  caption: 'Hover a pixel: its values in both images, and a crosshair on both.',
   actions: async ui => {
     await showCard(ui);
     await preset(ui, viewer(ui.page), 'Window frame (halos)');
@@ -284,29 +245,30 @@ shot('landing/pixel-values', {
 });
 
 // The social card (Open Graph image of the docs: website/docusaurus.config.ts), 1200x630 at scale 1: the logo and the
-// tagline (templates/social-card.html), and a crop of the commit page like the hero's, the facade's run with Image Diff
+// tagline (templates/social-card.html), and a crop of the commit page like the hero's, the facade's run and the difference
 const SOCIAL_CARD = { width: 1200, height: 630 };
 const TEMPLATES = path.join(import.meta.dirname, 'templates');
 const LOGO = path.join(import.meta.dirname, '..', '..', 'website', 'static', 'img', 'twemoji_poodle.svg');
 
 shot('landing/social-card', {
   project: IQ,
-  url: d => compare(d, 'merge-bilateral', 'isp-4-1', 'photos/facade base linux', { controls: { diff: true } }),
+  url: d => compare(d, 'merge-bilateral', 'isp-4-1', 'photos/facade base linux', { controls: { image_mode: 'difference' } }),
   scale: 1,
+  // og:image has no dark variant
+  themes: ['light'],
   alt: 'QA-Board, "Tests tell you it runs. QA-Board shows you it\'s better." Next to it, a run on the commit page: PSNR '
-    + 'and SSIM up, the new image of a window and its Image Diff, where the frame\'s halos stand out.',
+    + 'and SSIM up, the new image of a window and the difference next to it, where the frame\'s halos stand out.',
   caption: 'The social card of the docs.',
   actions: async ui => {
     const scope = viewer(ui.page);
     await showCard(ui);
     await preset(ui, scope, 'Window frame (halos)');
-    // a higher diff threshold leaves the halos (like commit/image-perceptual-diff)
-    await ui.click(scope.locator('.bp6-slider-handle').first());
-    for (let i = 0; i < 10; i++) await ui.press('ArrowRight');
+    // a higher maximum of the difference leaves the halos (like commit/image-perceptual-diff)
+    await diffMax(ui, scope, 0.2);
     await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
     await ui.page.mouse.move(1000, 140);
     await ui.settle();
-    // the card's metrics, presets and its first two images, down to their bottom, at 1:1 in the template
+    // the card's metrics, regions, its new image and the difference next to it, down to their bottom, at 1:1 in the template
     const card = (await cards(ui.page).first().boundingBox())!;
     const image = await stableBox(newImage(scope));
     const clip = { x: card.x, y: card.y, width: 640, height: Math.round(image.y + image.height - card.y) };

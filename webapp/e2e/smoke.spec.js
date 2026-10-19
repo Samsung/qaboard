@@ -97,13 +97,59 @@ test('history page navigation', async ({ page }) => {
   await page.getByRole('menuitem', { name: 'History', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/${project}/history/master`));
   await expect(page.getByText('Performance over time')).toBeVisible();
-  await expect(page.getByRole('menuitem', { name: 'Code' })).toHaveAttribute('target', '_blank');
+  // a link to the git host, with a submenu of other links
+  await expect(page.getByRole('menuitem', { name: 'Code' }).locator('a').first()).toHaveAttribute('target', '_blank');
   await expect(page.getByRole('menuitem', { name: 'Milestones' })).toBeVisible();
   // back to the branch's commits
   await page.getByRole('menuitem', { name: 'master', exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/${project}/commits/master`));
   await expect(page.getByText('Hello world').first()).toBeVisible();
   expect(await page.evaluate(() => window.not_reloaded)).toBe(true);
+  await page.waitForLoadState('networkidle');
+});
+
+// The sidebar's submenus open next to it, in view: not off-screen on its left, nor cut off by it
+test('sidebar submenus open in view', async ({ page }) => {
+  // the "What's new" dialog would cover the page
+  await page.addInitScript(() => localStorage.setItem('qaboard.release-notes.last-seen', '9999-12-31'));
+  // a small laptop's window: the sidebar scrolls
+  await page.setViewportSize({ width: 1024, height: 640 });
+  await page.goto(`/${project}/commit/abc123`);
+  const nav = page.getByRole('navigation', { name: 'Navigation' });
+  const viewport = page.viewportSize();
+  const expect_submenu_in_view = async (item, link_name) => {
+    await item.hover();
+    const submenu = page.getByRole('menu').filter({ has: page.getByRole('menuitem', { name: link_name }) });
+    await expect(submenu).toBeVisible();
+    const item_box = await item.boundingBox();
+    const box = await submenu.boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(item_box.x + item_box.width - 1);
+    expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+    // toBeVisible ignores what the sidebar clips: each link must be what's under the mouse
+    for (const link of await submenu.getByRole('menuitem').all()) {
+      await expect(link).toBeVisible();
+      const hit = await link.evaluate(el => {
+        const { x, y, width, height } = el.getBoundingClientRect();
+        return el.contains(document.elementFromPoint(x + width / 2, y + height / 2));
+      });
+      expect(hit, `"${await link.textContent()}" can be seen and clicked`).toBe(true);
+    }
+    // and closes soon once the mouse leaves
+    await page.mouse.move(viewport.width - 10, viewport.height / 2);
+    await expect(submenu).toBeHidden({ timeout: 1000 });
+  };
+  // links to the commit on the git host
+  await expect_submenu_in_view(nav.getByRole('menuitem', { name: 'Code' }), 'Repository');
+  await expect_submenu_in_view(nav.getByRole('menuitem', { name: 'Integrations' }), /learn how to link/);
+  // collapsed to icons, the items keep their names
+  await nav.getByRole('menuitem', { name: 'Collapse the sidebar' }).click();
+  await expect(nav.getByRole('menuitem', { name: 'Expand the sidebar' })).toBeVisible();
+  for (const name of ['Summary', 'Visualizations', 'Artifacts & Configs', 'Integrations', 'Tuning Analysis'])
+    await expect(nav.getByRole('menuitem', { name, exact: true })).toBeVisible();
+  expect(await nav.ariaSnapshot()).not.toMatch(/- menuitem:?\s*$/m);
+  await expect_submenu_in_view(nav.getByRole('menuitem', { name: 'Code', exact: true }), 'Repository');
   await page.waitForLoadState('networkidle');
 });
 
@@ -114,5 +160,27 @@ test('avatars that fail to load show initials', async ({ page }) => {
   const avatar = page.getByRole('link', { name: 'Alice', exact: true }).getByRole('img');
   await expect(avatar).toHaveAttribute('src', /^data:image\/svg\+xml,/);
   await expect(avatar).toHaveAttribute('title', 'Alice');
+  await page.waitForLoadState('networkidle');
+});
+
+// Users can list commits one line each: the choice is remembered
+test('compact commit list', async ({ page }) => {
+  await page.goto(`/${project}/commits`);
+  const row = page.getByRole('listitem').filter({ hasText: 'Hello world' });
+  await expect(row).toBeVisible();
+  const comfortable_height = (await row.boundingBox()).height;
+  await page.getByRole('radio', { name: 'Compact' }).click();
+  await expect(page.getByRole('radio', { name: 'Compact' })).toHaveAttribute('aria-checked', 'true');
+  await expect(row.getByRole('link', { name: 'Alice', exact: true })).toHaveAttribute('href', `/${project}/committer/Alice`);
+  // one line, the whole message on hover
+  expect((await row.boundingBox()).height).toBeLessThan(Math.min(comfortable_height, 45));
+  await expect(row.getByText('Hello world')).toHaveAttribute('title', 'Hello world');
+  await page.reload();
+  await expect(page.getByRole('radio', { name: 'Compact' })).toHaveAttribute('aria-checked', 'true');
+  await expect(row).toBeVisible();
+  // the commit's branch, from its row
+  await row.getByRole('link', { name: 'master' }).click();
+  await expect(page).toHaveURL(new RegExp(`/${project}/commits/master`));
+  await expect(page.getByText('Hello world').first()).toBeVisible();
   await page.waitForLoadState('networkidle');
 });

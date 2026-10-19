@@ -100,14 +100,20 @@ export const http = {
 };
 
 // A readable message for toasts and error states
+// Servers and proxies answer errors with HTML pages: we only keep their status, and keep other texts short
+const is_html = text => /<\/?[a-z][^>]*>/i.test(text);
+const max_length = 300;
+const shorten = text => text.length > max_length ? `${text.slice(0, max_length)}…` : text;
+
 export const errorMessage = error => {
   if (!error) return '';
   const data = error.response?.data;
   if (data?.error) return String(data.error);
   if (Array.isArray(data?.errors) && data.errors.length > 0) return data.errors.join(' ');
-  // not error pages (e.g. a proxy's HTML), nor whole logs
-  const text = typeof data === 'string' && data && data.length < 500 && !data.trimStart().startsWith('<') ? `: ${data}` : '';
-  if (error.response) return `${error.response.status} ${error.response.statusText}${text}`;
+  if (error.response) {
+    const status = `${error.response.status} ${error.response.statusText || 'Server error'}`;
+    return typeof data === 'string' && data && !is_html(data) ? shorten(`${status}: ${data}`) : status;
+  }
   return error.message ?? String(error);
 };
 

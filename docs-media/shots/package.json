@@ -6,7 +6,9 @@
     "node": ">=22.12"
   },
   "scripts": {
-    "capture": "playwright test --project stills --project clips",
+    "capture": "playwright test --project stills --project clips --project stills-dark --project clips-dark",
+    "capture:light": "playwright test --project stills --project clips",
+    "capture:dark": "playwright test --project stills-dark --project clips-dark",
     "test": "playwright test --project lib",
     "typecheck": "tsc"
   },
@@ -15,7 +17,7 @@
     "@types/node": "22.20.5",
     "github-markdown-css": "5.9.0",
     "marked": "15.0.12",
-    "openseadragon": "3.1.0",
+    "openseadragon": "6.1.1",
     "plotly.js-dist-min": "3.7.0",
     "typescript": "7.0.2"
   }

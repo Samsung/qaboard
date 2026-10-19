@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useInView } from "react-intersection-observer";
-import { Button, Callout, Intent } from "@blueprintjs/core";
+import { Button, Callout, Intent, NonIdealState } from "@blueprintjs/core";
 
 import { useSelected, useUrlText, updateSelected } from "../hooks";
 import { BitAccuracyForm, bit_accuracy_url_defaults } from "./bit_accuracy/utils";
@@ -13,9 +13,9 @@ import { OutputCard } from "./OutputCard";
 const all_at_once = 300;
 const page_size = 100;
 
-function OutputCardsList({ type, project, config, metrics, new_commit, new_batch, ref_batch, controls, onRegisterOutputOptions, onToggleDynamicOptionSync }) {
+function OutputCardsList({ type, project, config, metrics, new_commit, new_batch, ref_batch, controls, onControlsChange, onRegisterOutputOptions, onToggleDynamicOptionSync }) {
   // bit-accuracy controls, saved in the URL. They don't add browser history entries.
-  const { query } = useSelected();
+  const { query, filter_batch_new } = useSelected();
   const flag = name => query[name] === 'true';
   const [show_all_files, hide_runs_without_files, expand_all, color_blind_friendly] = ['show_all_files', 'hide_runs_without_files', 'expand_all', 'color_blind_friendly'].map(flag);
   const save = (name, value) => updateSelected({ [name]: value }, { replace: true, defaults: bit_accuracy_url_defaults });
@@ -36,6 +36,16 @@ function OutputCardsList({ type, project, config, metrics, new_commit, new_batch
   }, [want_more, nb_shown, outputs.length]);
 
   const incomplete = nb_shown < outputs.length;
+  if (outputs.length === 0) {
+    const is_filtered = !!filter_batch_new && Object.keys(new_batch?.outputs ?? {}).length > 0;
+    return is_filtered
+      ? <NonIdealState
+          icon="filter"
+          title={`No run matches “${filter_batch_new}”`}
+          action={<Button icon="cross" text="Clear the filter" onClick={() => updateSelected({ filter_batch_new: '' }, { replace: true })}/>}
+        />
+      : <NonIdealState icon="inbox" title="No runs in this batch yet" description="Runs appear here once they are uploaded."/>;
+  }
   return (
     <>
       {incomplete && <Callout intent={Intent.PRIMARY} icon="info-sign" style={{ marginBottom: '10px' }}>
@@ -58,7 +68,8 @@ function OutputCardsList({ type, project, config, metrics, new_commit, new_batch
       <div
         style={{
           display: "flex",
-          justifyContent: "space-between",
+          justifyContent: "flex-start",
+          columnGap: "15px",
           flexFlow: "row wrap",
         }}
       >
@@ -72,6 +83,7 @@ function OutputCardsList({ type, project, config, metrics, new_commit, new_batch
           metrics={metrics}
           commit={new_commit}
           controls={controls}
+          onControlsChange={onControlsChange}
           type={type}
           show_all_files={show_all_files}
           hide_runs_without_files={hide_runs_without_files}

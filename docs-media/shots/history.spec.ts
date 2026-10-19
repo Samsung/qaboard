@@ -1,6 +1,7 @@
 // The History page (docs-media/shots.yaml: history/*): metrics over a branch's commits, one line per test, and what
 // changed in the hovered commit's outputs.
 import { clip, shot, type Demo, type Locator, type Page, type Ui } from './lib';
+import { newImage, preset, stableBox } from './imageViewer';
 
 const IQ = 'image-quality';
 const DAY = 24 * 3600 * 1000;
@@ -12,28 +13,6 @@ const at = (d: Demo, days: number, time: string) => `${day(d, days)}T${time}:00Z
 
 // In the card of the hovered run, the viewer of its first visualization, and the images in it (new, reference)
 const viewer = (scope: Locator) => scope.locator('.output-card [id="0-0"]').first();
-const newImage = (scope: Locator) => scope.locator('[id^="image-viewer-"]').first();
-
-// An element's box once it stopped moving: hovering an image shows the pixel values above it, which push it down
-async function stableBox(target: Locator) {
-  let previous = await target.boundingBox();
-  for (let i = 0; i < 20; i++) {
-    await target.page().waitForTimeout(150);
-    const box = await target.boundingBox();
-    if (box && JSON.stringify(box) === JSON.stringify(previous)) return box;
-    previous = box;
-  }
-  if (!previous) throw new Error(`[history.spec] ${target} has no box`);
-  return previous;
-}
-
-// Clicks a region of interest preset under the viewer, by its label
-async function preset(ui: Ui, scope: Locator, label: string) {
-  await ui.click(scope.locator('a.bp6-button').filter({ hasText: new RegExp(`^${label}$`) }).first());
-  // no focus ring left around the thumbnail
-  await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-  await ui.settle();
-}
 
 // Zooms the synced viewers with the mouse wheel, at a point of the new image given in % of its box
 async function zoom(ui: Ui, scope: Locator, point: { x: number; y: number }, steps: number) {
@@ -104,7 +83,8 @@ shot('history/image-diff', {
 const SL = 'serving-latency';
 const lastTwoWeeks = (d: Demo, filter?: string) => d.historyUrl(SL, 'main', { from: day(d, -15), to: day(d, 0), ...(filter ? { filter } : {}) });
 // The chart, its title and options
-const performanceOverTime = (page: Page) => page.locator('.bp6-card', { has: page.getByText('Performance over time', { exact: true }) }).first();
+// The History view's title and its card (the title is above the card, like the commit page's views)
+const performanceOverTime = (page: Page) => page.locator('h2', { hasText: /^Performance over time/ }).first().locator('xpath=../..');
 
 shot('history/performance-over-time', {
   project: SL,

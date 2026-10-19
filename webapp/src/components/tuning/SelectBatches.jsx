@@ -1,9 +1,14 @@
 import React, { useState, useMemo, useCallback } from "react";
+import styled from "styled-components";
 import {
+  Classes,
   Colors,
+  Icon,
+  Intent,
   MenuItem,
   Button,
-  NonIdealState
+  NonIdealState,
+  Tooltip,
 } from "@blueprintjs/core";
 import {
   Select,
@@ -11,7 +16,6 @@ import {
 
 
 import { pretty_label } from '../../utils'
-import { has_milestones } from '../milestones'
 
 
 const by_label = ([label1], [label2]) => {
@@ -22,11 +26,11 @@ const by_label = ([label1], [label2]) => {
   return label1.localeCompare(label2);
 }
 
-const prepare_batch = ({ label, batchData, commit_id, project, project_data }) => {
+const prepare_batch = ({ label, batchData, milestone_batches }) => {
   const outputs = Object.values(batchData.outputs || {}).filter(o => o.output_type !== "optim_iteration")
   const data = batchData.data || {}
   const title = pretty_label(batchData)
-  const is_milestone = has_milestones({ commit: { id: commit_id }, project, project_data, batch: { label } });
+  const is_milestone = milestone_batches.includes(label);
 
   const nb_success = outputs.filter(o => !o.is_pending && !o.is_failed).length;
   const nb_failed = outputs.filter(o => o.is_failed).length;
@@ -37,13 +41,16 @@ const prepare_batch = ({ label, batchData, commit_id, project, project_data }) =
 
   return {
     label,
-    title: (is_milestone ? "⭐ " : "") + title,
-    status: [
-      `${nb_success}/${outputs.length} ✅`,
-      nb_failed > 0 ? ` ${nb_failed}❌` : "",
-      nb_running > 0 ? ` ${nb_running}🏃` : "",
-      data.optimization ? ` ${data.iteration} 🔁` : "",
-    ].join(''),
+    title,
+    is_milestone,
+    // plain data: the items are compared as JSON
+    status: {
+      total: outputs.length,
+      success: nb_success,
+      failed: nb_failed,
+      running: nb_running,
+      iteration: data.optimization ? data.iteration : null,
+    },
     username,
     // what the filter input matches
     searchText: [
@@ -66,28 +73,53 @@ const filterBatch = (query, batchItem) => batchItem.searchText.includes(query.tr
 
 const popoverProps = { minimal: true };
 
+const StatusIcon = props => <Icon size={12} style={{ marginLeft: '3px', verticalAlign: '-1px' }} {...props}/>
+const Count = styled.span`
+  white-space: nowrap;
+  & + & {
+    margin-left: 8px;
+  }
+`
+
+const BatchStatus = ({ status }) => {
+  const { total, success, failed, running, iteration } = status
+  const tuning = iteration !== null && <Count title="Auto-tuning iteration">{iteration}<StatusIcon icon="repeat"/></Count>
+  if (total === 0)
+    return tuning || 'no runs'
+  return <>
+    <Count title={`${success} of ${total} run${total === 1 ? '' : 's'} finished`}>{success}/{total}<StatusIcon icon="tick-circle" intent={Intent.SUCCESS}/></Count>
+    {failed > 0 && <Count title={`${failed} failed`}>{failed}<StatusIcon icon="error" intent={Intent.DANGER}/></Count>}
+    {running > 0 && <Count title={`${running} running`}>{running}<StatusIcon icon="walk" intent={Intent.PRIMARY}/></Count>}
+    {tuning}
+  </>
+}
+
 const BatchLabel = ({ item }) => <>
-  <div style={{ fontWeight: 500 }}>{item.title}</div>
-  <div style={{ fontSize: '12px', color: Colors.GRAY1, marginTop: '2px' }}>{item.status}</div>
+  <div style={{ fontWeight: 500 }}>
+    {item.is_milestone && <Icon icon="star" size={12} color={Colors.GOLD5} title="Milestone" style={{ marginRight: '4px', verticalAlign: '-1px' }}/>}
+    {item.title}
+  </div>
+  <div className={Classes.TEXT_MUTED} style={{ fontSize: '12px', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><BatchStatus status={item.status}/></div>
 </>
 
 const Username = ({ item, style }) => item.username
-  ? <div style={{ fontSize: '11px', color: Colors.GRAY3, fontStyle: 'italic', ...style }}>{item.username}</div>
+  ? <div className={Classes.TEXT_MUTED} style={{ fontSize: '12px', whiteSpace: 'nowrap', ...style }}>{item.username}</div>
   : null
 
 
-const SelectBatchesNav = ({ commit, onChange, batch, project, project_data }) => {
+// milestone_batches: the labels of the commit's batches that are milestones
+const SelectBatchesNav = ({ commit, onChange, batch, milestone_batches }) => {
   const batches = commit?.batches;
-  const commit_id = commit?.id;
+  const milestones_key = (milestone_batches ?? []).join('\n');
   // Store updates (e.g. project data or commit re-fetched) give us new objects with the same content.
   // Comparing as JSON keeps the same items, to not reset the menu (see `filterBatch`).
   const batchItemsJson = useMemo(
     () => JSON.stringify(
       Object.entries(batches ?? {})
         .sort(by_label)
-        .map(([label, batchData]) => prepare_batch({ label, batchData, commit_id, project, project_data }))
+        .map(([label, batchData]) => prepare_batch({ label, batchData, milestone_batches: milestones_key.split('\n') }))
     ),
-    [batches, commit_id, project, project_data],
+    [batches, milestones_key],
   );
   const batchItems = useMemo(() => JSON.parse(batchItemsJson), [batchItemsJson]);
   const selectedBatch = useMemo(
@@ -115,7 +147,7 @@ const SelectBatchesNav = ({ commit, onChange, batch, project, project_data }) =>
       selected={batchItem.label === selectedBatch?.label}
       intent={batchItem.label === selectedBatch?.label ? "primary" : undefined}
       text={
-        <div style={{ lineHeight: '1.3', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+        <div style={{ lineHeight: '1.3', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px' }}>
           <div><BatchLabel item={batchItem} /></div>
           <Username item={batchItem} />
         </div>
@@ -123,11 +155,15 @@ const SelectBatchesNav = ({ commit, onChange, batch, project, project_data }) =>
     />
   );
 
-  if (!batches)
+  const has_batches = batchItems.length > 0;
+  // nothing to pick from a commit we could not load
+  if (!batches || (commit?.error && !has_batches))
     return <span/>
 
-  const has_batches = batchItems.length > 0;
+  // useCommit gives an empty commit while it loads
+  const loading = commit?.is_loaded === false && !has_batches;
   return (
+    <Tooltip content="This commit has no batches yet" disabled={has_batches || loading}>
     <Select
       items={batchItems}
       itemsEqual="label"
@@ -148,20 +184,24 @@ const SelectBatchesNav = ({ commit, onChange, batch, project, project_data }) =>
     >
       <Button
         endIcon="double-caret-vertical"
+        aria-label={`Batch: ${selectedBatch?.title ?? pretty_label(batch)}`}
         disabled={!has_batches}
-        style={{ maxWidth: '360px', marginLeft: '5px' }}
+        style={{ maxWidth: 'var(--batch-select-max-width, 360px)', marginLeft: '5px' }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', lineHeight: '1.3', width: '100%' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px', lineHeight: '1.3', width: '100%' }}>
           <div style={{ flex: 1, textAlign: 'left' }}>
             {selectedBatch
               ? <BatchLabel item={selectedBatch} />
-              : <div style={{ color: Colors.RED2 }}>{pretty_label(batch)} (no results)</div>
+              : loading
+                ? <div className={Classes.SKELETON}>{pretty_label(batch)}</div>
+                : <div className={Classes.TEXT_MUTED}>{pretty_label(batch)} (no results)</div>
             }
           </div>
           {selectedBatch && <Username item={selectedBatch} style={{ marginRight: '8px' }} />}
         </div>
       </Button>
     </Select>
+    </Tooltip>
   );
 };
 

@@ -539,3 +539,73 @@ def test_gitlab_jobs(integrations, dummy_app, monkeypatch):
   with dummy_app.test_request_context("/api/v1/gitlab/job/play", method="POST", json={**params, "gitlab_host": "https://github.com"}):
     integrations.gitlab_play_manual_job()
   github.api.assert_not_called()
+
+
+def test_jenkins_build_urls_use_the_configured_host(integrations, dummy_app, monkeypatch):
+  # Jenkins answers with its configured root URL, here a FQDN, while JENKINS_AUTH and build_url use a short name
+  monkeypatch.setattr(integrations, "jenkins_credentials", {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
+  queue = response(json_data={"url": "queue/item/7/", "executable": {"url": "http://jenkins.example.com:8080/job/x/12/"}})
+  trigger = response(status_code=201)
+  trigger.headers = {"location": "http://jenkins.example.com:8080/queue/item/7/"}
+  requests = MagicMock()
+  requests.post.return_value = trigger
+  requests.get.return_value = queue
+  monkeypatch.setattr(integrations, "requests", requests)
+  data, status = call(integrations, dummy_app, "jenkins_build_trigger", {"build_url": "http://jenkins:8080/job/x", "params": {}})
+  data = data.get_json()
+  assert status == 200
+  assert requests.get.call_args.args[0] == "http://jenkins:8080/queue/item/7/api/json"
+  assert data["web_url"] == "http://jenkins:8080/job/x/12/"
+  assert data["url"] == "http://jenkins:8080/queue/item/7/"
+
+  # The web app then checks the build status with the URLs we gave
+  requests.get.return_value = response(json_data={"building": False, "result": "SUCCESS"})
+  result = call(integrations, dummy_app, "jenkins_build", data)
+  assert result[0].get_json()["status"] == "success"
+  assert requests.get.call_args.args[0] == "http://jenkins:8080/job/x/12/api/json"
+  assert requests.get.call_args.kwargs["auth"].username == "u"
+  # Credentials only go to the hosts in JENKINS_AUTH
+  requests.get.reset_mock()
+  assert call(integrations, dummy_app, "jenkins_build", {"web_url": "http://elsewhere/job/x/1/"})[1] == 403
+  requests.get.assert_not_called()
+
+
+def test_jenkins_build_trigger_errors(integrations, dummy_app, monkeypatch):
+  monkeypatch.setattr(integrations, "jenkins_credentials", {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
+  requests = MagicMock()
+  monkeypatch.setattr(integrations, "requests", requests)
+  job = {"property": [{"_class": "jenkins.model.BuildDiscarderProperty"}]}
+  queue = response(json_data={"url": "queue/item/7/", "executable": {"url": "http://jenkins/job/x/12/"}})
+  requests.get.side_effect = lambda url, **kwargs: response(json_data=job) if url == "http://jenkins/job/x/api/json" else queue
+  def jenkins(status_code, text="", location=None):
+    r = response(status_code=status_code)
+    r.text = text
+    if location:
+      r.headers = {"location": location}
+    return r
+
+  # Jobs without parameters don't accept buildWithParameters, and Jenkins only tells admins why
+  oops = "<html><h2>Oops!</h2><p>A problem occurred while processing the request.</p></html>"
+  requests.post.side_effect = [jenkins(500, oops), jenkins(201, location="http://jenkins/queue/item/7/")]
+  data, status = call(integrations, dummy_app, "jenkins_build_trigger", {"build_url": "http://jenkins/job/x/", "params": None})
+  assert status == 200
+  assert [c.args[0] for c in requests.post.call_args_list] == ["http://jenkins/job/x/buildWithParameters", "http://jenkins/job/x/build"]
+  assert all(c.kwargs["allow_redirects"] is False for c in requests.post.call_args_list)
+  # Jobs with parameters only get one try
+  job = {"property": [{"parameterDefinitions": [{"name": "commit"}]}]}
+  requests.post.reset_mock()
+  requests.post.side_effect = [jenkins(500, oops)]
+  data, status = call(integrations, dummy_app, "jenkins_build_trigger", {"build_url": "http://jenkins/job/x", "params": {}})
+  assert status == 500
+  assert "HTTP 500 from POST http://jenkins/job/x/buildWithParameters: Oops! A problem occurred" in data.get_json()["error"]
+  assert requests.post.call_count == 1
+
+  # Errors say what Jenkins said, not its whole HTML page
+  for answer, expected in [
+    (jenkins(403, "<html><head><style>body {}</style><title>Error 403</title></head><body>Access Denied: u is missing the Job/Build permission</body></html>"), "HTTP 403 from POST http://jenkins/job/x/buildWithParameters (check the user and token in JENKINS_AUTH, and that the user can build the job): Error 403 Access Denied: u is missing the Job/Build permission"),
+    (jenkins(302, location="http://jenkins/login"), "redirected to http://jenkins/login"),
+  ]:
+    requests.post.side_effect = [answer]
+    data, status = call(integrations, dummy_app, "jenkins_build_trigger", {"build_url": "http://jenkins/job/x", "params": {}})
+    assert status == 500
+    assert expected in data.get_json()["error"]

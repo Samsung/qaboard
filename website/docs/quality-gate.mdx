@@ -45,7 +45,7 @@ gate:
 
 | Key | Default | Meaning |
 |---|---|---|
-| `reference` | `project.reference_branch` | What to compare with: the label of a shared [milestone](/docs/references-and-milestones), a commit's sha, or a branch. A branch means its latest commit with runs in the batch, other than the commit you check. If that commit is on the same branch, the latest one before it. |
+| `reference` | `project.reference_branch` | What to compare with: the name of a shared [milestone](/docs/references-and-milestones) (or `#12` for the milestone whose link is `/<project>/milestone/12-...`), a commit's sha, or a branch. A branch means its latest commit with runs in the batch, other than the commit you check. If that commit is on the same branch, the latest one before it. |
 | `batches` | `[default]` | The labels of the batches to check, as `qa --label` sets them. The CI batch's label is `default`, and the web app shows it as **CI**: `ci` names it too. Each batch is compared with the reference's batch that has the same label. |
 | `rules` | none | Limits on metrics, see below. |
 | `max_failed_runs` | `0` | How many runs may fail in each batch. `null` doesn't check. |
@@ -211,7 +211,7 @@ curl "http://localhost:5151/api/v1/commit/<sha>/compare?project=<project>&refere
 |---|---|---|
 | `project` | required | The project's name, as in *qaboard.yaml*. |
 | `batch` | `default` | The batch's label. |
-| `reference` | the commit's `gate.reference`, else `project.reference_branch` | A shared milestone's label, a commit or a branch. |
+| `reference` | the commit's `gate.reference`, else `project.reference_branch` | A shared milestone's name (or `#<id>`), a commit or a branch. |
 | `reference_batch` | `batch` | The reference's batch label, to compare two different batches. |
 | `metrics` | all | Metrics to compare, separated by commas. |
 | `bit_accuracy` | `false` | `true` compares the runs' output files. |
@@ -230,5 +230,5 @@ an API token, see [APIs](/docs/apis).
 - Tags can't be references yet: use the tagged commit's sha.
 - A branch's commits are those QA-Board first saw on that branch. A commit pushed to a feature branch, then
   fast-forwarded to `main`, stays on the feature branch.
-- Milestones must be shared, and the gate compares the batches with the same label, whatever batch the milestone was
-  saved on.
+- Milestones must be shared to be found by name (`#<id>` finds any). The gate compares with the milestone's batch
+  (unless you set `reference_batch`), but not with its filter: all the runs of the batch are compared.

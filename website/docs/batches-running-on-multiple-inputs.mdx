@@ -42,10 +42,14 @@ qa batch my-batch -- --my-flag value
 Use `qa batch my-batch --list-inputs` to only print the inputs, and see the [API page](apis) for `--list` and `--list-output-dirs`.
 
 :::tip
+To get completion and warnings in your editor, use [the batch files' schema](/docs/project-init#checking-qaboardyaml-and-batch-files-in-your-editor).
+:::
+
+:::tip
 Inputs are paths. Put in quotes those YAML would read as something else, like numbers (`"20260223"`), dates (`"2026-02-23"`) or `yes`/`no`. A `-` with nothing after it is an empty input: `qa batch` stops and says on which line it is.
 :::
 
-In the web app, the [Available Tests](/docs/user-guide/commit-page#available-tests) view edits private and shared batches, flags YAML mistakes as you type, and lists the tests each batch resolves to on a commit:
+In the web app, the [Available Tests](/docs/user-guide/commit-page#available-tests) view edits private and shared batches, flags YAML mistakes and unknown keys as you type, and lists the tests each batch resolves to on a commit:
 
 <Shot
   id="tuning/available-tests"

@@ -7,6 +7,7 @@ import types
 import subprocess
 import importlib.util
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -141,6 +142,160 @@ def test_login_required_checks_project_permissions(auth, dummy_app, monkeypatch)
     assert auth.login_required(handler)() == "OK"
 
 
+@pytest.mark.parametrize("value, expected", [
+  (None, False), ("", False), ("false", False), ("False", False), ("0", False), ("no", False), ("off", False),
+  ("true", True), ("True", True), ("1", True), ("yes", True),
+])
+def test_env_flag(auth, monkeypatch, value, expected):
+  if value is None:
+    monkeypatch.delenv("QABOARD_TEST_FLAG", raising=False)
+  else:
+    monkeypatch.setenv("QABOARD_TEST_FLAG", value)
+  assert auth.env_flag("QABOARD_TEST_FLAG") is expected
+
+
+# ==========================================
+# Changing a batch or commit checks its own project, not `?project=`
+# ==========================================
+
+class FakeBatch:
+  def __init__(self, project_id, label="default"):
+    self.label = label
+    self.ci_commit = SimpleNamespace(project_id=project_id, hexsha="abc", batches=[self], get_or_create_batch=MagicMock())
+    self.ci_commit.project = SimpleNamespace(protected_ref_commits=[], milestones_on=lambda hexsha=None: [])
+    self.outputs = []
+    self.changed = []
+
+  def stop(self, db_session):
+    self.changed.append("stop")
+    return {}
+
+  def rename(self, label, db_session):
+    self.changed.append("rename")
+
+  def delete(self, session, **kwargs):
+    self.changed.append("delete")
+
+
+@pytest.fixture
+def restricted(auth, monkeypatch):
+  """QABOARD_LOGIN_RESTRICTED, where alice is logged in and may only access group/A"""
+  monkeypatch.setattr(auth, "is_login_restricted", True)
+  monkeypatch.setattr(auth, "users_restrict_config", {"projects": {
+    "group/A": {"user_name": ["alice"]},
+    "group/B": {"user_name": ["bob"]},
+  }})
+  monkeypatch.setattr(auth, "get_current_user", lambda to_jsonify: {"is_authenticated": True, "user_name": "alice"})
+  return auth
+
+
+@pytest.fixture
+def batch_api(restricted, monkeypatch):
+  """Loads the real backend/api/batch.py, with the real auth checks"""
+  export_to_folder = types.ModuleType('backend.api.export_to_folder')
+  export_to_folder.filter_outputs = lambda filter, outputs: outputs
+  monkeypatch.setitem(sys.modules, 'backend.api.export_to_folder', export_to_folder)
+  path = Path(__file__).parent.parent / "backend" / "api" / "batch.py"
+  spec = importlib.util.spec_from_file_location("backend.api._batch_auth_under_test", path)
+  module = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(module)
+  module.require_project_access = restricted.require_project_access
+  module.Batch = MagicMock()
+  module.db_session = MagicMock()
+  return module
+
+
+def status_of(response):
+  return response[1] if isinstance(response, tuple) else 200
+
+
+BATCH_ACTIONS = [
+  ("stop_batch", "POST", "/api/v1/batch/stop/", {"id": 1}, "stop"),
+  ("rename_batch", "POST", "/api/v1/batch/rename/", {"id": 1, "label": "new-label"}, "rename"),
+  ("delete_batch", "DELETE", "/api/v1/batch/1/", None, "delete"),
+]
+
+@pytest.mark.parametrize("endpoint, method, url, body, action", BATCH_ACTIONS)
+def test_batch_changes_check_the_batch_project(batch_api, restricted, dummy_app, endpoint, method, url, body, action):
+  handler = restricted.login_required(getattr(batch_api, endpoint))
+  args = {"batch_id": 1} if endpoint == "delete_batch" else {}
+  for project, expected_status in [("group/B", 403), ("group/A", 200)]:
+    batch = FakeBatch(project)
+    batch_api.Batch.query.filter.return_value.one.return_value = batch
+    # `?project=group/A` is allowed, but the batch belongs to group/B
+    with dummy_app.test_request_context(f"{url}?project=group/A", method=method, json=body):
+      response = handler(**args)
+    assert status_of(response) == expected_status, project
+    if expected_status == 403:
+      assert response[0].get_json() == {"error": "Forbidden: You don't have permission to access this project"}
+      assert batch.changed == []
+    else:
+      assert action in batch.changed
+
+
+def test_batch_move_checks_the_batch_project(batch_api, restricted, dummy_app):
+  handler = restricted.login_required(batch_api.move_batch)
+  run = SimpleNamespace(batch=None)
+  batch = FakeBatch("group/B")
+  batch.outputs = [run]
+  batch_api.Batch.query.filter.return_value.one.return_value = batch
+  with dummy_app.test_request_context("/api/v1/batch/move/?project=group/A", method="POST", json={"id": 1, "label": "other"}):
+    response = handler()
+  assert status_of(response) == 403
+  assert run.batch is None
+  batch.ci_commit.get_or_create_batch.assert_not_called()
+
+  # The runs move to a batch of the same commit: the destination is in the batch's project
+  batch = FakeBatch("group/A")
+  batch.outputs = [run]
+  batch_api.Batch.query.filter.return_value.one.return_value = batch
+  with dummy_app.test_request_context("/api/v1/batch/move/?project=group/A", method="POST", json={"id": 1, "label": "other"}):
+    response = handler()
+  assert status_of(response) == 200
+  assert run.batch is batch.ci_commit.get_or_create_batch.return_value
+
+
+def test_batch_changes_without_login_restrictions(batch_api, restricted, dummy_app, monkeypatch):
+  monkeypatch.setattr(restricted, "is_login_restricted", False)
+  monkeypatch.setattr(restricted, "users_restrict_config", {})
+  batch = FakeBatch("group/B")
+  batch_api.Batch.query.filter.return_value.one.return_value = batch
+  with dummy_app.test_request_context("/api/v1/batch/stop/", method="POST", json={"id": 1}):
+    response = restricted.login_required(batch_api.stop_batch)()
+  assert status_of(response) == 200
+  assert batch.changed == ["stop"]
+
+
+@pytest.fixture
+def commit_webhooks(restricted, monkeypatch):
+  """Loads the real backend/api/webhooks.py, with the real auth checks"""
+  monkeypatch.setitem(sys.modules, "backend.models.Project", types.SimpleNamespace(update_project=MagicMock()))
+  path = Path(__file__).parent.parent / "backend" / "api" / "webhooks.py"
+  spec = importlib.util.spec_from_file_location("backend.api._webhooks_auth_under_test", path)
+  module = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(module)
+  module.require_project_access = restricted.require_project_access
+  module.CiCommit = MagicMock()
+  module.db_session = MagicMock()
+  return module
+
+
+@pytest.mark.parametrize("project_in_url", [True, False])
+def test_commit_batches_delete_checks_the_commit_project(commit_webhooks, restricted, dummy_app, project_in_url):
+  handler = restricted.login_required(commit_webhooks.delete_commit)
+  query = commit_webhooks.CiCommit.query.filter.return_value
+  if project_in_url:
+    query = query.filter.return_value
+  for project, expected_status in [("group/B", 403), ("group/A", 200)]:
+    batch = FakeBatch(project)
+    query.all.return_value = [batch.ci_commit]
+    url = f"/api/v1/commit/{project}/abc/batches/" if project_in_url else "/api/v1/commit/abc/batches/"
+    with dummy_app.test_request_context(f"{url}?project=group/A", method="DELETE"):
+      response = handler("abc", project_id=project if project_in_url else None)
+    assert status_of(response) == expected_status, project
+    assert batch.changed == ([] if expected_status == 403 else ["stop", "delete"])
+
+
 # ==========================================
 # Signup and login errors don't leak secrets
 # ==========================================
@@ -240,14 +395,11 @@ UNAUTHENTICATED_ENDPOINTS = {
   ("outputs.py", "new_output_webhook"), ("batch.py", "update_batch"), ("commit.py", "api_ci_commit"),
   ("integrations.py", "jenkins_build_trigger"),
   # read-only, POST is only used to send parameters
-  ("image.py", "get_pixel"), ("image.py", "get_rois"), ("image.py", "get_report"),
   ("integrations.py", "gitlab_job"), ("integrations.py", "jenkins_build"), ("integrations.py", "github_workflow_run"),
   # checks the login itself when writing
   ("tuning.py", "groups"),
   # authenticated with the git host's webhook secret (QABOARD_WEBHOOK_SECRET by default)
   ("webhooks.py", "gitlab_webhook"), ("webhooks.py", "github_webhook"), ("webhooks.py", "gitea_webhook"), ("webhooks.py", "bitbucket_webhook"),
-  # TODO: require a login, check the web app first
-  ("milestones.py", "crud_milestones"),
 }
 
 def test_endpoints_that_change_things_require_login():
@@ -495,7 +647,11 @@ class Servers:
 
 
 @pytest.fixture
-def servers():
+def servers(monkeypatch):
+  # The servers are local: don't go through a proxy (images built with PROXY_URL keep it in their env)
+  for var in ("http_proxy", "https_proxy", "all_proxy"):
+    monkeypatch.delenv(var, raising=False)
+    monkeypatch.delenv(var.upper(), raising=False)
   servers = Servers()
   yield servers
   servers.close()
@@ -887,3 +1043,55 @@ def test_git_proxy_keeps_the_session_cookie_on_its_host(integrations, dummy_app,
     response = integrations.proxy_gitlab()
   assert response.status_code == 200
   assert [c.kwargs["cookies"] for c in get.call_args_list] == [{"_gitlab_session": "session-cookie"}, {}]
+
+
+def test_endpoints_that_read_files_require_login():
+  """The image and video viewers' endpoints read files the client names: they need a logged-in user"""
+  import ast
+  for name in ("image.py", "video.py"):
+    tree = ast.parse((Path(__file__).parent.parent / "backend" / "api" / name).read_text())
+    routes = [node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
+              and any(isinstance(d, ast.Call) and ast.unparse(d.func) == "app.route" for d in node.decorator_list)]
+    assert routes
+    for node in routes:
+      assert "login_required" in [ast.unparse(d) for d in node.decorator_list], f"{name}:{node.name}"
+      # and they check the path (inside the storage, readable by the user)
+      assert "readable_file" in ast.unparse(node) or "_video_path" in ast.unparse(node), f"{name}:{node.name}"
+
+
+def test_the_diff_report_endpoint_is_gone():
+  source = (Path(__file__).parent.parent / "backend" / "api" / "image.py").read_text()
+  assert "diff/report" not in source
+
+
+def test_readable_file(tmp_path, monkeypatch, dummy_app):
+  import backend.files as files
+  import backend.api.files as api_files
+  storage = tmp_path / "storage"
+  (storage / "run").mkdir(parents=True)
+  (storage / "run" / "out.png").write_bytes(b"")
+  (tmp_path / "secret.png").write_bytes(b"")
+  monkeypatch.setattr(files, "storage_roots", [storage])
+  monkeypatch.setattr(files, "private_dirs", lambda: [storage / "run" / ".qaboard"])
+  with dummy_app.test_request_context("/"):
+    path, denied = api_files.readable_file(f"/s{storage}/run", "out.png")
+    assert denied is None and path == storage / "run" / "out.png"
+    for url, parts in [
+      (f"/s{storage}/run", ("../../secret.png",)),
+      (f"/s{storage}/../secret.png", ()),
+      (f"/s{tmp_path}/secret.png", ()),
+      ("/s/etc/passwd", ()),
+      (f"/s{storage}/run/.qaboard", ("x.png",)),
+    ]:
+      path, denied = api_files.readable_file(url, *parts)
+      assert path is None and denied[1] == 403, (url, parts)
+    # not a file URL, or no file
+    assert api_files.readable_file(f"{storage}/run/out.png")[1][1] == 400
+    assert api_files.readable_file(None)[1][1] == 400
+    assert api_files.readable_file(f"/s{storage}/run", "")[1][1] == 400
+    # symlinks out of the storage are outside
+    (storage / "run" / "link.png").symlink_to(tmp_path / "secret.png")
+    assert api_files.readable_file(f"/s{storage}/run/link.png")[1][1] == 403
+    # restricted files need the right user
+    monkeypatch.setattr(api_files, "check_read_access", lambda path: ("login", 401))
+    assert api_files.readable_file(f"/s{storage}/run/out.png")[1] == ("login", 401)

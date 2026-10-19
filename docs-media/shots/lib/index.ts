@@ -5,7 +5,7 @@ import path from 'node:path';
 import { test } from '@playwright/test';
 import type { Browser, BrowserContext, BrowserContextOptions, Locator, Page, TestInfo } from '@playwright/test';
 import { DEMO_PASSWORD, demo as loadDemo, PROJECT_PERSONAS, type Demo, type ProjectKey } from './demo';
-import { callerFile, checkId, isSelected, outDir, sourceSpec, type ShotId } from './ids';
+import { callerFile, checkId, isSelected, outDir, outRoot, sourceSpec, type ShotId } from './ids';
 import { anchorsInPercent, cursorInitScript, UiImpl, type Box, type Ui } from './overlay';
 import { Recorder } from './record';
 import { NetworkTracker, settle } from './waits';
@@ -17,6 +17,10 @@ export type { Locator, Page } from '@playwright/test';
 
 /** What a shot shows: elements (several: their union), or a box in viewport coordinates (CSS px) */
 export type Region = Locator | Locator[] | Box;
+
+/** The web app's theme in a capture: it follows prefers-color-scheme, set by the Playwright project (stills-dark...) */
+export type Theme = 'light' | 'dark';
+export const THEMES: Theme[] = ['light', 'dark'];
 
 export interface ShotOptions {
   project: ProjectKey | null;                          // null: not tied to a demo project (login, What's new)
@@ -33,6 +37,7 @@ export interface ShotOptions {
   login?: string | null;                               // persona logged in; default: the project's main author, none without a project
   revision?: number;                                   // bump to publish a capture the dedupe would keep as unchanged
   dedupeTolerance?: number;                            // share of differing pixels still "unchanged", default 0.0005 (clips 0.002)
+  themes?: Theme[];                                    // default both; e.g. ['light'] for a page that has no dark theme
 }
 
 export interface ClipOptions extends Omit<ShotOptions, 'target'> {   // actions: before the recording starts, not drawn
@@ -43,6 +48,11 @@ export interface ClipOptions extends Omit<ShotOptions, 'target'> {   // actions:
 }
 
 export const VIEWPORT = { width: 1440, height: 900 };
+// A click or a wait for an element that never comes fails after this, naming the locator, instead of using up the
+// test's whole timeout (2 min, then the retry): when the web app changes, the broken specs fail in seconds.
+// Longer waits (a launch, the page settling) pass their own timeout. SHOTS_ACTION_TIMEOUT overrides it (ms).
+export const ACTION_TIMEOUT = Number(process.env.SHOTS_ACTION_TIMEOUT) || 20_000;
+const NAVIGATION_TIMEOUT = 60_000;
 export const DEFAULT_PADDING = 16;
 export const DEFAULT_DEDUPE_TOLERANCE = 0.0005;
 // Clips: in a cursor move, a frame can show what the page drew for the previous point of the path (the hovered pixel's
@@ -70,6 +80,17 @@ export interface CaptureEnv {
   settleTimeout?: number;                              // default: waits.ts's DEFAULT_TIMEOUT
 }
 
+/** The theme a capture is in: the color scheme of its browser context */
+export function themeOf(env: CaptureEnv): Theme {
+  return env.contextOptions?.colorScheme === 'dark' ? 'dark' : 'light';
+}
+
+// A shot that only has some themes skips the projects of the others
+function skipOtherThemes(testInfo: TestInfo, options: ShotOptions) {
+  const theme: Theme = (testInfo.project.use as BrowserContextOptions).colorScheme === 'dark' ? 'dark' : 'light';
+  test.skip(!(options.themes ?? THEMES).includes(theme), `not captured in the ${theme} theme`);
+}
+
 const registered = new Set<string>();
 
 function checkOptions(id: string, options: ShotOptions) {
@@ -88,6 +109,7 @@ export function shot(id: ShotId, options: ShotOptions): void {
   if (!isSelected(id)) return;
   const specFile = callerFile();
   test(id, { tag: '@still' }, async ({ browser }, testInfo) => {
+    skipOtherThemes(testInfo, options);
     await captureStill(browser, id, options, envFor(testInfo, specFile));
   });
 }
@@ -100,6 +122,7 @@ export function clip(id: ShotId, options: ClipOptions): void {
   if (!isSelected(id)) return;
   const specFile = callerFile();
   test(id, { tag: '@clip' }, async ({ browser }, testInfo) => {
+    skipOtherThemes(testInfo, options);
     // recording a clip takes 3-6 times its length: each point of a cursor move waits for the page to draw it
     test.setTimeout(Math.max(testInfo.timeout, 300_000));
     await captureClip(browser, id, options, envFor(testInfo, specFile));
@@ -126,7 +149,7 @@ function contextOptions(kind: Kind, base: BrowserContextOptions = {}, viewport?:
 /**
  * Every page starts with this localStorage (docs-media/README.md#determinism), plus the shot's `storage`:
  * - What's new was seen up to T0's date, so it doesn't pop up (webapp/src/releaseNotes/logic.js accepts a date);
- * - the Controls panel is collapsed.
+ * - the View options (the controls panel) are collapsed.
  */
 export function defaultStorage(demo: Demo): Record<string, string> {
   return {
@@ -163,6 +186,8 @@ async function setupContext(context: BrowserContext, demo: Demo, kind: Kind, sto
 
 async function openPage(browser: Browser, kind: Kind, id: string, options: ShotOptions, env: CaptureEnv) {
   const context = await browser.newContext(contextOptions(kind, env.contextOptions, options.viewport, options.scale));
+  context.setDefaultTimeout(ACTION_TIMEOUT);
+  context.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT);
   await setupContext(context, env.demo, kind, { ...defaultStorage(env.demo), ...options.storage });
   const login = options.login === undefined ? (options.project ? PROJECT_PERSONAS[options.project] : null) : options.login;
   if (login) {
@@ -192,9 +217,12 @@ export async function applyMasks(page: Page, options: ShotOptions) {
 }
 
 function prepareDir(id: ShotId, env: CaptureEnv) {
-  const dir = env.dir ?? outDir(id);
-  fs.rmSync(dir, { recursive: true, force: true });
+  const theme = themeOf(env);
+  const dir = env.dir ?? outDir(id, theme);
   fs.mkdirSync(dir, { recursive: true });
+  // a light capture keeps the dark one, in its dark/ folder
+  for (const name of fs.readdirSync(dir))
+    if (env.dir || theme === 'dark' || name !== 'dark') fs.rmSync(path.join(dir, name), { recursive: true, force: true });
   return dir;
 }
 
@@ -208,6 +236,7 @@ function baseMeta(id: ShotId, kind: Kind | 'tape', options: ShotOptions, env: Ca
     app_version: env.demo.appVersion,
     source_spec: sourceSpec(env.specFile),
     captured: new Date().toISOString(),
+    theme: themeOf(env),
     t0: env.demo.t0.toISOString(),
     dedupe_tolerance: options.dedupeTolerance ?? (kind === 'clip' ? DEFAULT_CLIP_DEDUPE_TOLERANCE : DEFAULT_DEDUPE_TOLERANCE),
     ...(options.revision ? { revision: options.revision } : {}),
@@ -313,6 +342,19 @@ export async function shotRegion(page: Page, target: Region | undefined, padding
   return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
 }
 
+// What the page showed when a capture failed: the lib closes its context, so Playwright's own snapshot is empty.
+// In out/test-results/failures/, which the workflow uploads with the gallery
+async function failureScreenshot(page: Page, id: ShotId, env: CaptureEnv) {
+  const file = path.join(outRoot(), 'test-results', 'failures', `${id.replace('/', '--')}${themeOf(env) === 'dark' ? '--dark' : ''}.png`);
+  try {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    await page.screenshot({ path: file, timeout: 5000 });
+    console.warn(`[shots] ${id}: what the page showed, in ${path.relative(process.cwd(), file)}`);
+  } catch {
+    // the page may be gone
+  }
+}
+
 /** Captures out/<id>/still.png and meta.json */
 export async function captureStill(browser: Browser, id: ShotId, options: ShotOptions, env: CaptureEnv) {
   checkOptions(id, options);
@@ -341,6 +383,9 @@ export async function captureStill(browser: Browser, id: ShotId, options: ShotOp
     };
     fs.writeFileSync(path.join(dir, 'meta.json'), JSON.stringify(meta, null, 2) + '\n');
     return { dir, meta };
+  } catch (error) {
+    await failureScreenshot(page, id, env);
+    throw error;
   } finally {
     await context.close();
   }
@@ -393,6 +438,9 @@ export async function captureClip(browser: Browser, id: ShotId, options: ClipOpt
     };
     fs.writeFileSync(path.join(dir, 'meta.json'), JSON.stringify(meta, null, 2) + '\n');
     return { dir, meta };
+  } catch (error) {
+    await failureScreenshot(page, id, env);
+    throw error;
   } finally {
     await context.close();
   }

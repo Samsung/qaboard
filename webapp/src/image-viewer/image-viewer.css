@@ -1,0 +1,999 @@
+/* The image viewer. Apps theme it with the variables below, e.g. .qiv { --qiv-accent: hotpink; }
+   The defaults follow the system's light/dark preference, or the viewer's data-theme="light|dark". */
+:where(.qiv) {
+  --qiv-text: #1c2127;
+  --qiv-text-muted: #5f6b7c;
+  --qiv-surface: #ffffff;
+  --qiv-surface-alt: #f6f7f9;
+  --qiv-border: rgba(17, 20, 24, 0.15);
+  --qiv-hover: rgba(143, 153, 168, 0.18);
+  --qiv-pressed: rgba(45, 114, 210, 0.16);
+  --qiv-accent: #2d72d2;
+  --qiv-primary: #2d72d2;
+  --qiv-warning: #c87619;
+  --qiv-danger: #cd4246;
+  --qiv-stage: #1c2127;
+  --qiv-pane: #111418;
+  --qiv-shadow: 0 2px 10px rgba(17, 20, 24, 0.2);
+  --qiv-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+:where(.qiv[data-theme="dark"]) {
+  --qiv-text: #f6f7f9;
+  --qiv-text-muted: #abb3bf;
+  --qiv-surface: #2f343c;
+  --qiv-surface-alt: #252a31;
+  --qiv-border: rgba(255, 255, 255, 0.15);
+  --qiv-hover: rgba(171, 179, 191, 0.15);
+  --qiv-pressed: rgba(76, 144, 240, 0.25);
+  --qiv-accent: #8abbff;
+  --qiv-primary: #4c90f0;
+  --qiv-warning: #ec9a3c;
+  --qiv-stage: #111418;
+  --qiv-pane: #0b0d10;
+  --qiv-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+}
+@media (prefers-color-scheme: dark) {
+  :where(.qiv:not([data-theme="light"])) {
+    --qiv-text: #f6f7f9;
+    --qiv-text-muted: #abb3bf;
+    --qiv-surface: #2f343c;
+    --qiv-surface-alt: #252a31;
+    --qiv-border: rgba(255, 255, 255, 0.15);
+    --qiv-hover: rgba(171, 179, 191, 0.15);
+    --qiv-pressed: rgba(76, 144, 240, 0.25);
+    --qiv-accent: #8abbff;
+    --qiv-primary: #4c90f0;
+    --qiv-warning: #ec9a3c;
+    --qiv-stage: #111418;
+    --qiv-pane: #0b0d10;
+    --qiv-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+  }
+}
+
+.qiv {
+  position: relative;
+  container-type: inline-size;
+  margin: 4px 0;
+  color: var(--qiv-text);
+  font-size: 13px;
+  line-height: 1.3;
+}
+.qiv *,
+.qiv *::before,
+.qiv *::after {
+  box-sizing: border-box;
+}
+.qiv-filters {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+.qiv-muted {
+  color: var(--qiv-text-muted);
+}
+.qiv-hidden {
+  visibility: hidden;
+}
+.qiv-icon {
+  flex: 0 0 auto;
+  fill: currentColor;
+}
+
+/* Toolbar */
+.qiv-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 4px;
+  min-height: 30px;
+}
+.qiv-spacer {
+  flex: 1 1 auto;
+}
+/* they wrap together, on the right */
+.qiv-tools {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px 4px;
+  margin-left: auto;
+}
+.qiv-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.qiv-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 26px;
+  min-width: 26px;
+  padding: 0 7px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.qiv-button.qiv-icon-only {
+  padding: 0 5px;
+}
+.qiv-button:hover:not(:disabled) {
+  background: var(--qiv-hover);
+}
+.qiv-button.qiv-active,
+.qiv-button[aria-expanded="true"] {
+  background: var(--qiv-pressed);
+  color: var(--qiv-accent);
+}
+.qiv-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.qiv-button:focus-visible,
+.qiv-select select:focus-visible,
+.qiv-region:focus-visible,
+.qiv-wipe:focus-visible,
+.qiv-label:focus-visible {
+  outline: 2px solid var(--qiv-accent);
+  outline-offset: 1px;
+}
+.qiv-intent {
+  color: var(--qiv-accent);
+}
+.qiv-dot {
+  position: relative;
+}
+.qiv-dot::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--qiv-warning);
+}
+.qiv-zoom {
+  min-width: 52px;
+  font-variant-numeric: tabular-nums;
+}
+.qiv-segmented {
+  display: inline-flex;
+  padding: 1px;
+  gap: 1px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 4px;
+  background: var(--qiv-surface-alt);
+}
+.qiv-segmented .qiv-button {
+  height: 24px;
+}
+.qiv-segmented .qiv-button.qiv-active {
+  background: var(--qiv-surface);
+  color: var(--qiv-accent);
+  box-shadow: 0 0 0 1px var(--qiv-border);
+}
+@container (max-width: 760px) {
+  .qiv-toolbar .qiv-segmented-label {
+    display: none;
+  }
+}
+.qiv-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.qiv-select select {
+  appearance: none;
+  height: 26px;
+  padding: 0 22px 0 8px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 3px;
+  background: var(--qiv-surface);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.qiv-select .qiv-icon {
+  position: absolute;
+  right: 6px;
+  pointer-events: none;
+  color: var(--qiv-text-muted);
+}
+.qiv-toast {
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: var(--qiv-pressed);
+  color: var(--qiv-text);
+  font-size: 12px;
+}
+.qiv-warning-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--qiv-warning);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.qiv-warning {
+  fill: var(--qiv-warning);
+}
+.qiv-error {
+  color: var(--qiv-danger);
+}
+
+/* Popovers and menus */
+.qiv-popover-root {
+  position: relative;
+  display: inline-flex;
+}
+.qiv-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  z-index: 30;
+  min-width: 220px;
+  max-width: min(360px, 90vw);
+  padding: 4px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 4px;
+  background: var(--qiv-surface);
+  color: var(--qiv-text);
+  box-shadow: var(--qiv-shadow);
+}
+.qiv-popover-start {
+  left: 0;
+}
+.qiv-popover-end {
+  right: 0;
+}
+.qiv-menu {
+  display: flex;
+  flex-direction: column;
+}
+.qiv-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+.qiv-menu-item:hover:not(:disabled) {
+  background: var(--qiv-hover);
+  color: inherit;
+  text-decoration: none;
+}
+.qiv-menu-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.qiv-menu-item.qiv-active {
+  color: var(--qiv-accent);
+}
+.qiv-menu-text {
+  flex: 1 1 auto;
+}
+.qiv-menu-label {
+  color: var(--qiv-text-muted);
+  font-size: 12px;
+}
+.qiv-menu-title {
+  padding: 8px 8px 2px;
+  color: var(--qiv-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.qiv-menu-divider {
+  margin: 4px 0;
+  border: none;
+  border-top: 1px solid var(--qiv-border);
+}
+.qiv-hint {
+  padding: 6px 8px 2px;
+  color: var(--qiv-text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.qiv-shortcuts {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.qiv-shortcuts td {
+  padding: 3px 6px;
+  vertical-align: top;
+}
+.qiv-shortcuts kbd {
+  padding: 1px 4px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 3px;
+  background: var(--qiv-surface-alt);
+  font-family: var(--qiv-mono);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* Adjustments */
+.qiv-panel {
+  width: 300px;
+  padding: 4px 6px 6px;
+}
+.qiv-panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.qiv-slider,
+.qiv-field {
+  display: grid;
+  grid-template-columns: 82px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+}
+.qiv-field {
+  grid-template-columns: 82px auto 1fr;
+}
+.qiv-slider input {
+  width: 100%;
+  accent-color: var(--qiv-accent);
+}
+.qiv-slider-label {
+  color: var(--qiv-text-muted);
+  font-size: 12px;
+}
+.qiv-slider-value {
+  min-width: 44px;
+  font-family: var(--qiv-mono);
+  font-size: 12px;
+  text-align: right;
+}
+.qiv-changed .qiv-slider-label,
+.qiv-changed .qiv-slider-value {
+  color: var(--qiv-warning);
+}
+.qiv-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* Values under the pointer */
+.qiv-readout {
+  display: flex;
+  align-items: center;
+  gap: 4px 12px;
+  width: 100%;
+  height: 22px;
+  padding: 0;
+  overflow: hidden;
+  border: none;
+  background: none;
+  color: inherit;
+  text-align: left;
+  font-family: var(--qiv-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: default;
+}
+.qiv-readout.qiv-stale {
+  opacity: 0.6;
+}
+.qiv-readout:focus-visible {
+  outline: 2px solid var(--qiv-accent);
+  outline-offset: -2px;
+}
+.qiv-readout-hint {
+  font-family: inherit;
+  margin-left: auto;
+}
+.qiv-readout-image {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.qiv-readout-label {
+  font-weight: 600;
+}
+.qiv-readout-label.qiv-primary {
+  color: var(--qiv-primary);
+}
+.qiv-readout-label.qiv-neutral {
+  color: var(--qiv-text);
+}
+.qiv-readout-label.qiv-warning {
+  color: var(--qiv-warning);
+}
+.qiv-swatch {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 2px;
+  vertical-align: -1px;
+}
+.qiv-diff-value {
+  color: var(--qiv-accent);
+}
+
+/* The images */
+.qiv-stage {
+  position: relative;
+  max-width: 100%;
+  margin: 0 auto;
+  overflow: hidden;
+  background: var(--qiv-stage);
+  touch-action: none;
+}
+.qiv-pane {
+  position: absolute;
+  top: 0;
+  overflow: hidden;
+  background: var(--qiv-pane);
+}
+.qiv-osd {
+  position: absolute;
+  inset: 0;
+}
+.qiv-pixel-values,
+.qiv-highlight,
+.qiv-diff {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.qiv-diff-pane {
+  pointer-events: none;
+  background: transparent;
+}
+/* between the images, it moves them like they do */
+.qiv-diff-pane.qiv-diff-between {
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+  background: var(--qiv-pane);
+}
+.qiv-diff-pane .qiv-legend,
+.qiv-diff-pane .qiv-message {
+  pointer-events: auto;
+}
+.qiv-label {
+  position: absolute;
+  top: 6px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  max-width: calc(50% - 12px);
+  padding: 2px 7px;
+  overflow: hidden;
+  border: none;
+  border-radius: 3px;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+}
+.qiv-label.qiv-primary {
+  background: #2d72d2;
+}
+.qiv-label.qiv-warning {
+  background: #c87619;
+}
+/* during a blind test: nothing tells new from reference */
+.qiv-label.qiv-neutral {
+  background: #5f6b7c;
+}
+.qiv-label-left {
+  left: 6px;
+}
+.qiv-label-right {
+  right: 6px;
+}
+.qiv-label-detail {
+  margin-left: 6px;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+.qiv-crosshair {
+  position: absolute;
+  z-index: 3;
+  margin: -12.5px 0 0 -12.5px;
+  pointer-events: none;
+}
+.qiv-wipe {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 5;
+  width: 16px;
+  margin-left: -8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.qiv-wipe::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 7px;
+  width: 2px;
+  background: #fff;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.7);
+}
+.qiv-wipe-handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #fff;
+  color: #1c2127;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  transform: translate(-50%, -50%);
+}
+.qiv-minimap {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  z-index: 6;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 2px;
+  background: #000;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+  opacity: 0.85;
+  cursor: crosshair;
+  touch-action: none;
+}
+.qiv-minimap:hover {
+  opacity: 1;
+}
+.qiv-minimap img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  user-select: none;
+}
+.qiv-minimap-view {
+  position: absolute;
+  min-width: 3px;
+  min-height: 3px;
+  border: 1.5px solid #ffc940;
+  background: rgba(255, 201, 64, 0.12);
+  pointer-events: none;
+}
+/* bottom left of the images: the difference's legend, what the values on the pixels are */
+.qiv-stage-notes {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  max-width: calc(100% - 150px);
+}
+.qiv-legend,
+.qiv-values-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 12px);
+  padding: 3px 7px;
+  border-radius: 3px;
+  background: rgba(17, 20, 24, 0.75);
+  color: #fff;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.qiv-values-badge {
+  gap: 6px;
+}
+.qiv-legend .qiv-muted {
+  color: #c5cbd3;
+}
+.qiv-legend-bar {
+  display: inline-block;
+  width: 90px;
+  height: 8px;
+  border-radius: 2px;
+}
+.qiv-message {
+  padding: 8px 12px;
+  font-size: 12px;
+}
+.qiv-pane-message {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(28, 33, 39, 0.88);
+  color: #f6f7f9;
+  text-align: center;
+}
+.qiv-pane-message a {
+  color: #8abbff;
+}
+
+/* Regions of interest */
+.qiv-regions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 2px 0;
+  font-size: 12px;
+}
+.qiv-regions-title {
+  flex: 0 0 auto;
+  font-weight: 600;
+}
+.qiv-regions-list {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.qiv-region {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  max-width: 120px;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.qiv-region:hover:not(:disabled) {
+  background: var(--qiv-hover);
+}
+.qiv-region.qiv-active {
+  border-color: var(--qiv-accent);
+  background: var(--qiv-pressed);
+}
+.qiv-region:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.qiv-region img {
+  display: block;
+  max-width: 110px;
+  height: 40px;
+  object-fit: contain;
+  background: var(--qiv-pane);
+}
+.qiv-region span {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Histogram */
+.qiv-histogram {
+  margin-top: 6px;
+  font-size: 12px;
+}
+.qiv-histogram-header,
+.qiv-histogram-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+.qiv-histogram-header {
+  margin-bottom: 4px;
+}
+.qiv-histogram-legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+.qiv-histogram-legend svg {
+  vertical-align: middle;
+}
+.qiv-histogram-channels {
+  display: inline-flex;
+  gap: 2px;
+}
+.qiv-histogram-channel {
+  --qiv-channel: currentColor;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  padding: 0 6px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-family: var(--qiv-mono);
+  cursor: pointer;
+  transition: opacity 0.15s, background-color 0.15s;
+}
+.qiv-histogram-channel:hover {
+  background: var(--qiv-hover);
+}
+.qiv-histogram-channel.qiv-off {
+  opacity: 0.45;
+  border-style: dashed;
+}
+.qiv-histogram-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--qiv-channel);
+}
+.qiv-histogram-channel.qiv-off .qiv-histogram-swatch {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--qiv-channel);
+}
+.qiv-histogram-plot {
+  position: relative;
+  height: 120px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--qiv-border);
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+.qiv-histogram-plot:focus-visible {
+  outline: 2px solid var(--qiv-accent);
+  outline-offset: 2px;
+}
+.qiv-histogram canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: var(--qiv-text);
+}
+/* the range highlighted on the images: the rest is dimmed */
+.qiv-histogram-range {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-inline: 1.5px solid var(--qiv-accent);
+  background: color-mix(in srgb, var(--qiv-accent) 10%, transparent);
+  box-shadow: 0 0 0 100vw color-mix(in srgb, var(--qiv-surface) 55%, transparent);
+  pointer-events: none;
+}
+.qiv-histogram-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--qiv-text);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.qiv-histogram-message {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.qiv-histogram-axis {
+  position: relative;
+  height: 18px;
+  font-size: 11px;
+  font-family: var(--qiv-mono);
+  font-variant-numeric: tabular-nums;
+}
+.qiv-histogram-tick {
+  position: absolute;
+  top: 0;
+  padding-top: 5px;
+  line-height: 13px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.qiv-histogram-tick::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  height: 3px;
+  border-left: 1px solid var(--qiv-border);
+}
+.qiv-histogram-tick.qiv-labelled::before {
+  height: 4px;
+  border-color: var(--qiv-text-muted);
+}
+.qiv-histogram-tick.qiv-first {
+  transform: none;
+}
+.qiv-histogram-tick.qiv-first::before {
+  left: 0;
+}
+.qiv-histogram-tick.qiv-last {
+  transform: translateX(-100%);
+}
+.qiv-histogram-tick.qiv-last::before {
+  left: auto;
+  right: 0;
+}
+/* the range's values, over the ticks they hide */
+.qiv-histogram-range-tick {
+  color: var(--qiv-accent);
+  font-weight: 600;
+}
+.qiv-histogram-range-tick::before {
+  height: 5px;
+  border-color: var(--qiv-accent);
+}
+.qiv-histogram-tick.qiv-hidden {
+  visibility: hidden;
+}
+.qiv-histogram-range-tick.qiv-lo {
+  transform: translateX(calc(-100% + 0.5px));
+}
+.qiv-histogram-range-tick.qiv-lo::before {
+  left: auto;
+  right: 0;
+}
+.qiv-histogram-range-tick.qiv-hi {
+  transform: translateX(-0.5px);
+}
+.qiv-histogram-range-tick.qiv-hi::before {
+  left: 0;
+}
+.qiv-histogram-footer {
+  min-height: 22px;
+}
+.qiv-mono {
+  font-family: var(--qiv-mono);
+  font-variant-numeric: tabular-nums;
+}
+.qiv-histogram-summary {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 10px;
+}
+.qiv-histogram-summary .qiv-button {
+  height: 20px;
+  min-width: 20px;
+}
+.qiv-histogram-channel-name {
+  font-family: var(--qiv-mono);
+  font-weight: 600;
+  margin-right: 3px;
+}
+.qiv-histogram-readout {
+  display: inline-flex;
+  gap: 10px;
+  margin-left: auto;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.qiv-spinner {
+  display: inline-block;
+  flex: 0 0 auto;
+  border: 2px solid var(--qiv-border);
+  border-top-color: var(--qiv-accent);
+  border-radius: 50%;
+  animation: qiv-spin 0.8s linear infinite;
+}
+@keyframes qiv-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* The header: toolbar, regions, the values under the pointer */
+.qiv-header {
+  width: 100%;
+}
+
+/* Full screen: the images take the room left by the header */
+.qiv.qiv-fullscreen {
+  margin: 0;
+  padding: 8px 12px;
+  overflow: auto;
+  background: var(--qiv-surface);
+}
+
+/* "image" or "display": users mix up the image's values and the displayed ones */
+.qiv-chip {
+  display: inline-block;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--qiv-surface-alt);
+  box-shadow: inset 0 0 0 1px var(--qiv-border);
+  color: var(--qiv-text-muted);
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 15px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+.qiv-values-panel {
+  width: 340px;
+}
+.qiv-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.qiv-option:hover {
+  background: var(--qiv-hover);
+}
+.qiv-option input {
+  margin-top: 3px;
+  accent-color: var(--qiv-accent);
+}
+.qiv-option.qiv-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.qiv-option-description {
+  display: block;
+  margin-top: 2px;
+  color: var(--qiv-text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.qiv-hint kbd {
+  padding: 0 3px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 3px;
+  font-family: var(--qiv-mono);
+  font-size: 11px;
+}
+
+/* the difference's label, between the images */
+.qiv-label.qiv-label-diff {
+  cursor: default;
+  background: var(--qiv-surface);
+  color: var(--qiv-text);
+}

@@ -24,14 +24,16 @@ On a commit page, `/<project>/commit/<hash>?...`:
 | `new_project`, `ref_project` | Only when results come from [another project](comparing-results.mdx#picking-a-reference) |
 | `selected_views` | The view: `summary`, `table-kpi` (Metrics Table), `table-compare` (Metrics Diff), `output-list` (Visualizations), `bit_accuracy` (Output Files), `logs`, `parameters` (Artifacts & Configs), `groups` (Available Tests), `tuning`, `optimization` (Analysis) |
 | `sort_by`, `sort_order` | How runs are sorted |
-| `controls` | Visualizations shown or hidden, Image Diff, dynamic options (as JSON, only what you changed) |
+| `controls` | Visualizations shown or hidden, how images are compared, dynamic options (as JSON, only what you changed) |
 | `show_all_files`, `expand_all`, `files_filter`... | Options of the Output Files view (`params_...` for Artifacts & Configs) |
 
 On the commit list, the **Filter...** box is saved as `search`, and the date range as `from` and `to` (e.g. `?from=2026-09-01&to=2026-09-30`). On the History page, the filter, batch and chart options (`selected_metric`, `breakdown_per_test`, `relative`...) are saved too.
 
 Options that have their default value are left out, to keep links short: e.g. the `default` batch, an empty filter, the project's default metrics and view, or visualizations shown by default. Links follow the project's defaults.
 
-Some things stay in your browser and are not shared: your favorite projects, your private milestones, whether the controls panel is open, and the statuses of the CI jobs you started.
+Some things stay in your browser and are not shared: your favorite projects, the groups of milestones you collapsed, whether the view options are open and how wide, and the statuses of the CI jobs you started.
+
+To share a [milestone](comparing-results.mdx#milestones), copy its link (`/<project>/milestone/<id>-<name>`) from the milestones menus or its dialog: it keeps working when the milestone is renamed.
 
 ## Copying paths, hashes and images
 Results live on a shared storage, so you often want a path rather than a link:
@@ -44,16 +46,17 @@ Results live on a shared storage, so you often want a path rather than a link:
 - **Images**: the **Copy** button above an image viewer copies the new, reference or diff image to your clipboard, ready to paste in a chat or a slide.
 
 ## Exporting files
-Above the cards of the **Visualizations** and **Output Files** views, **Export** gathers the files matching a pattern from all the (filtered) runs, new and reference, into one directory:
+In the **Visualizations** and **Output Files** views, the **Export** button at the right of the view's title gathers the files matching a pattern from all the (filtered) runs, new and reference, into one directory:
 
 <Shot
   id="commit/export"
   caption="Export gathers the PNG files of the 4 filtered runs into one folder, and shows its Windows and Linux paths."
 />
 
-1. Type a pattern, like `*.png`, `*.txt` or `**/*.jpg` (`**/` matches any number of folders).
-2. Click **Export**. The export directory's Windows path is copied to your clipboard, and both the Windows and Linux paths are shown.
-3. Open it to share or post-process the files, e.g. in a slide deck.
+1. Click **Export** next to the view's title.
+2. Type a pattern, like `*.png`, `*.txt` or `**/*.jpg` (`**/` matches any number of folders).
+3. Click **Export** in the box, or press Enter. The export directory's Windows path is copied to your clipboard, and both the Windows and Linux paths are shown. They stay there if you close the box and open it again.
+4. Open it to share or post-process the files, e.g. in a slide deck.
 
 By default, files are exported as **links** to the original files in a shared directory (no copy, it's fast). Use **Edit where** to choose your own directory: files are then copied (or linked, if it's on the same filesystem).
 
