@@ -12,6 +12,37 @@ The docs have one sidebar per audience (`website/sidebars.ts`):
 Know which one you're writing for, and link to the others instead of mixing them. When a change affects how people
 use the web app, update the user guide in the same PR.
 
+Readers of the user guide are often not software engineers: an image-quality technician, a test or integration
+engineer, a team lead. Explain QA-Board's words in plain language the first time, and keep developer details (URL
+parameters, JSON, regular expressions) in tips or collapsed details. Do use the precise terms of their field in
+examples (PSNR, ΔE 2000, chroma subsampling, p99, mAP, loop closure): they show the tool is used for real work.
+
+## Page structure
+A guide, not a data sheet: readers should get their task done from the first screen, and find every detail when they
+need it.
+
+- **Task first.** The first paragraph says what the page helps the reader do; the first section is the most common
+  task, with a picture. Headings are tasks or questions where it helps ("Find where two images differ").
+- **Essentials first, details later.** Exhaustive menu lists, every option and edge cases go at the end of the page,
+  or collapsed, so the page reads well without them:
+
+  ```mdx
+  <details>
+  <summary>Every item of the Change menu</summary>
+
+  | Menu item | What it does |
+  ...
+
+  </details>
+  ```
+  Leave blank lines inside, so the Markdown renders. Never collapse what most readers need, never nest them.
+- **One page per task or tool.** A rich tool gets its own page (the image viewer, the video viewer, milestones), and
+  other pages link to it instead of repeating it. When a page needs more than a few minutes to skim, split it.
+- **A real case.** Rich pages walk through one review of a demo project (numbered steps, each linking to its
+  section), before the reference of each tool.
+- **Where next.** `<Cards>` of `<Card title="..." to="/docs/...">` (no import needed) link to the next pages, at the
+  start of overview pages and at the end of guides. Use them sparingly.
+
 ## Voice
 - **Confident and concrete.** Say what the reader can do and what they'll see: "Hover a point to see its commit", not
   "QA-Board offers powerful hover capabilities".
@@ -157,5 +188,6 @@ At most one per section, never two in a row. A title only when it adds informati
 ## Page checklist
 - Frontmatter: `id`, `title`, `sidebar_label`, and a one-sentence `description`.
 - The first paragraph says what the page helps the reader do.
+- The first screen gets the most common task done; details are lower or collapsed.
 - Task pages use numbered steps, one action each, with the expected result.
 - `yarn build` passes: no broken links, no unknown shot ids.
