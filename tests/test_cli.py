@@ -1,6 +1,7 @@
 import os
 import shutil
 import json
+from importlib import import_module, reload
 from pathlib import Path
 
 import yaml
@@ -20,9 +21,8 @@ class TestQaCli(unittest.TestCase):
   def setUpClass(self):
     self.previous_cwd = os.getcwd()
     root_repo = Path(__file__).resolve().parent.parent
-    os.chdir(root_repo / 'qaboard/sample_project')
-    # we create some files...
-    os.system("mkdir -p cli_tests/dir; touch cli_tests/a.jpg; touch cli_tests/b.jpg; touch cli_tests/dir/c.jpg")
+    self.project_dir = root_repo / 'qaboard/sample_project'
+    os.chdir(self.project_dir)
     database = str(Path())
     images = {'images': {
       "globs": ['*.jpg'],
@@ -42,8 +42,12 @@ class TestQaCli(unittest.TestCase):
     os.chdir(self.previous_cwd)
 
   def setUp(self):
-    from importlib import reload
+    # the qa CLI chdirs without restoring the cwd
+    os.chdir(self.project_dir)
     def qa_(*argv):
+      # qaboard.config resolves the project from the cwd, and qa.py binds it at import time
+      reload(import_module('qaboard.config'))
+      reload(import_module('qaboard.qa'))
       import qaboard
       qaboard = reload(qaboard)
       runner = CliRunner()
