@@ -57,6 +57,8 @@ services:
     # Sentry: SENTRY_DSN (backend) and SENTRY_FRONTEND_DSN (web app) are secrets, in .env. The image trusts the SIRC CA (CA_CERT_URL)
     - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-production}
     - QABOARD_TUNING_RUNNER=lsf
+    # The token of "Trigger builds remotely" sent to the Jenkins jobs of integrations without `token` (was hard-coded)
+    - JENKINS_BUILD_TOKEN=qaboard
     - QABOARD_DEFAULT_USER=ispq
     - QA_LSF_SSH_TARGET=ispq@ispq-vdi
     - 'QABOARD_IMAGE_SERVERS={"default": "https://cantaloupe-svc.transchip.com/iiif/2/", "raw,hex,cde": "https://iipsrv.transchip.com/fcgi-bin/iipsrv.fcgi?IIIF=/"}'

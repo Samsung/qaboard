@@ -8,6 +8,9 @@
 #   Restore it before the backend starts the first time: the backend creates empty tables when it starts.
 #   It connects like the backend: QABOARD_DB_HOST, QABOARD_DB_PORT, QABOARD_DB_NAME, QABOARD_DB_USER, QABOARD_DB_PASSWORD.
 # - Concurrent restores (e.g. several backend replicas) wait for each other, then skip.
+# - Dates move with the restore: the snapshot's T0 (the demo's "now", in metadata.json) becomes the time of the restore,
+#   so that the demo commits look recent. On their first restore only: the database's dates (shift-dates.sql), and the
+#   modification times of the demo's files and folders (mtimes.txt), which the file browser shows.
 # Used by deployments/quickstart/compose.yml and the Helm chart's demoData (charts/qaboard/values.yaml).
 # The image is built by docs-media/snapshot.py image, see docs-media/README.md.
 set -eu
@@ -20,7 +23,26 @@ mode="${1:-all}"
 
 log() { echo "[demo-data] $*"; }
 
-# Called by psql below, while it holds the lock
+# Gives the demo's files and folders their modification times, moved by $1 seconds. /demo/mtimes.txt has a
+# "<mtime> <path>" line for each folder (busybox's tar gives them the time of the restore) and file, sorted by time,
+# except hard links (copies of a file are links to it) and symbolic links. One touch for the paths of the same time.
+set_mtimes() {
+  seconds=$1
+  previous=
+  set --
+  while IFS= read -r line; do
+    mtime=$((${line%% *} + seconds))
+    if [ "$mtime" != "$previous" ] || [ $# -ge 100 ]; then
+      if [ $# -gt 0 ]; then touch -c -d "@$previous" "$@" || true; fi
+      set --
+      previous=$mtime
+    fi
+    set -- "$@" "$results/${line#* }"
+  done < /demo/mtimes.txt
+  if [ $# -gt 0 ]; then touch -c -d "@$previous" "$@" || true; fi
+}
+
+# Called by psql below, while it holds the lock, with QABOARD_DEMO_SHIFT: how much to move the dates
 if [ "$mode" = results ]; then
   if [ -f "$results/.qaboard-demo/restored" ]; then
     log "The results are already in $results"
@@ -29,6 +51,8 @@ if [ "$mode" = results ]; then
     mkdir -p "$results"
     # Files with the same content are hard links in the archive: they stay hard links
     tar -x -o -f /demo/results.tar -C "$results"
+    log "Moving their modification times by ${QABOARD_DEMO_SHIFT:-0}s, like the database's dates..."
+    set_mtimes "${QABOARD_DEMO_SHIFT:-0}"
     mkdir -p "$results/.qaboard-demo"
     cp /demo/demo-data.txt "$results/.qaboard-demo/restored"
     log "Restored $(du -sh "$results" | cut -f1) of results"
@@ -52,6 +76,10 @@ with_results=1
 if [ "$mode" = database ]; then with_results=0; fi
 psql -X -q -v ON_ERROR_STOP=1 -v with_results="$with_results" -o /dev/null <<'EOF'
 SELECT pg_advisory_lock(5151);
+-- The dates move by the time since T0: seconds only, so that they don't depend on time zones
+\set metadata `cat /demo/metadata.json`
+SELECT coalesce(floor(extract(epoch FROM now() - (:'metadata'::jsonb ->> 't0')::timestamptz)), 0)::bigint AS shift \gset demo_
+\setenv QABOARD_DEMO_SHIFT :demo_shift
 \if :with_results
   \! /demo/restore.sh results
   \if :SHELL_ERROR
@@ -60,9 +88,10 @@ SELECT pg_advisory_lock(5151);
 \endif
 SELECT to_regclass('public.projects') IS NULL AS empty \gset
 \if :empty
-  \echo [demo-data] Restoring the database...
+  \echo [demo-data] Restoring the database, its dates moved by :demo_shift s...
   BEGIN;
   \i /demo/db.sql
+  \i /demo/shift-dates.sql
   COMMIT;
   \echo [demo-data] Restored the database
 \else

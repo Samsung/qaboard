@@ -124,6 +124,7 @@ QA-Board can connect to external authentication systems (LDAP, SAML). If needed,
 | `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port               |
 | `QABOARD_DB_POOL_SIZE` / `QABOARD_DB_MAX_OVERFLOW` | 4 / 2 | Database connections kept open by each uwsgi process (it runs 4 threads), and extra ones it may open. PostgreSQL's `max_connections` must cover them, see [Database settings](backend-admin/deployment#database-settings) |
 | `JENKINS_AUTH`         | _none_  | Credentials used to [trigger jenkins jobs](triggering-third-party-tools) on 1 or many jenkins servers. The format is a JSON string looking like `{"hostname_1": {"user": "jenkinsuser", "token": "xxxxx", "crumb": "yyy"}}` (see [Jenkins builds](/docs/triggering-third-party-tools#trigger-jenkins-builds) for the token and crumb)               |
+| `JENKINS_BUILD_TOKEN`  | _none_  | The authentication token of **Trigger builds remotely** sent to the Jenkins jobs whose integration has no `token`. Without it, they get none. Older versions sent `qaboard`: if your jobs expect it, set `JENKINS_BUILD_TOKEN=qaboard` |
 | `QABOARD_LOGIN_TYPE`   | _LOCAL_  | Set to `LOCAL/LDAP/SAML`                   |
 | `QABOARD_LOGIN_REQUIRED`   | _empty_  | Any non-empty value (e.g. `true`) blocks anonymous users. Leave it unset/empty to allow them: even `false` enables it |
 | `QABOARD_DISABLE_SIGNUP`   | _empty_  | Set to `True` (exactly) to disallow local users from signing up                   |
@@ -150,6 +151,7 @@ QA-Board can connect to external authentication systems (LDAP, SAML). If needed,
 | `QABOARD_IMAGE_CACHE_GB` | `20` | The disk space they can use: the least recently used are removed. Decoded images are large (a 12 MP 16-bit RGB image takes 72 MB) |
 | `QABOARD_PATH_MAPPINGS` | `[]` | JSON list of `["windows_prefix", "linux_prefix"]` pairs, used to show Windows paths to results (`qa` reads it too, from the environment or a site package, to convert Windows paths), e.g. `[["\\\\server\\share", "/mnt/share"]]` |
 | `QABOARD_DEFAULT_USER` | qaboard | The user CI runs are saved under (with `{user}` in `storage`). Runs started from the webapp replace it with the logged-in user in output paths |
+| `QABOARD_SKIP_METRICS_AGGREGATION` | _none_ | Comma-separated project ids, or their start (e.g. `group/` for all the projects of a group), whose commit lists don't show the batches' aggregated metrics (their median and average): for projects with so many runs per batch that computing them slows the lists down. Commit pages still show them |
 | `QABOARD_DOCS_ROOT`    | */* | Where the webapp's links to the docs point. By default, the docs served by this server at `/docs/`, which match its version |
 | `QABOARD_AVATAR_URL`   | _none_  | Avatar URL template with a `{user_name}` placeholder, e.g. from a company directory: for the logged-in user's menu, and for GitLab committers who didn't upload an avatar. For the user's menu it's only read from the environment, not from a site package |
 | `POSTHOG_API_KEY` / `POSTHOG_HOST` | _none_ | Enables [PostHog](https://posthog.com/) product analytics in the webapp |
