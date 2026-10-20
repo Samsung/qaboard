@@ -31,6 +31,11 @@ const NotSet = () => <span className={Classes.TEXT_MUTED}>Not set</span>;
 export const SettingValue = ({ value }) => {
   if (value === null || value === undefined || (Array.isArray(value) && value.length === 0)) return <NotSet/>;
   if (typeof value === 'boolean') return <span>{value ? 'On' : 'Off'}</span>;
+  // e.g. email domains, origins
+  if (Array.isArray(value) && value.every(item => typeof item === 'string'))
+    return <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4, minWidth: 0 }}>
+      {value.map(item => <Tag key={item} minimal style={{ maxWidth: '100%' }} title={item}>{item}</Tag>)}
+    </span>;
   return <code className={Classes.CODE} style={{ overflowWrap: 'anywhere' }}>{formatSettingValue(value)}</code>;
 };
 
@@ -186,6 +191,26 @@ const SettingRow = ({ setting }) => {
 };
 
 
+// Also in Admin → Sign-in, for the settings about signing in
+export const SettingsTable = ({ settings, label = "Settings" }) => <div style={{ overflowX: 'auto' }}>
+  <HTMLTable compact style={{ width: '100%', minWidth: 940, tableLayout: 'fixed' }} aria-label={label}>
+    <colgroup>
+      <col style={{ width: 270 }}/>
+      <col style={{ width: 210 }}/>
+      <col style={{ width: 200 }}/>
+      <col/>
+      <col style={{ width: 130 }}/>
+    </colgroup>
+    <thead>
+      <tr><th>Setting</th><th>Value</th><th>From</th><th>Description</th><th><span className={Classes.TEXT_MUTED} style={{ fontWeight: 'normal' }}>Actions</span></th></tr>
+    </thead>
+    <tbody>
+      {settings.map(setting => <SettingRow key={setting.key} setting={setting}/>)}
+    </tbody>
+  </HTMLTable>
+</div>;
+
+
 export const Settings = () => {
   const { data: settings, isPending, error, refetch } = useQuery(settingsQuery);
   if (isPending) return <Loading label="Loading the settings"/>;
@@ -196,23 +221,7 @@ export const Settings = () => {
       Settings from the server's environment win, and can only be changed there. The others can be changed here,
       for every replica of the server within a few seconds.
     </p>
-    <div style={{ overflowX: 'auto' }}>
-      <HTMLTable compact style={{ width: '100%', minWidth: 940, tableLayout: 'fixed' }} aria-label="Settings">
-        <colgroup>
-          <col style={{ width: 270 }}/>
-          <col style={{ width: 210 }}/>
-          <col style={{ width: 200 }}/>
-          <col/>
-          <col style={{ width: 130 }}/>
-        </colgroup>
-        <thead>
-          <tr><th>Setting</th><th>Value</th><th>From</th><th>Description</th><th><span className={Classes.TEXT_MUTED} style={{ fontWeight: 'normal' }}>Actions</span></th></tr>
-        </thead>
-        <tbody>
-          {settings.map(setting => <SettingRow key={setting.key} setting={setting}/>)}
-        </tbody>
-      </HTMLTable>
-    </div>
+    <SettingsTable settings={settings}/>
   </section>;
 };
 

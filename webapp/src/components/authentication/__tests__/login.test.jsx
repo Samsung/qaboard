@@ -2,10 +2,11 @@
  * Signed-out users: actions are disabled with a "Sign in" suggestion, and 401 answers show one clear toast.
  * Run with: cd webapp && npm test -- login
  */
-import { render, screen, fireEvent } from '@testing-library/react';
+import { act, render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient } from '@tanstack/react-query';
 
-import { LoginHint, LoginMenuItem, handleUnauthorized, registerLoginHandler } from '../login';
+import { LoginHint, LoginMenuItem, handleUnauthorized } from '../login';
+import { history } from '../../../router';
 import { userQuery, logged_out_user } from '../../../api/queries';
 import { request, onUnauthorized } from '../../../api/http';
 
@@ -17,14 +18,16 @@ const makeClient = is_logged => {
 
 
 describe('login suggestions', () => {
-  it('open the login dialog', () => {
-    const handler = vi.fn();
-    const unregister = registerLoginHandler(handler);
+  it('go to the sign-in page, which comes back here', () => {
+    act(() => history.replace('/group/project/commit/abc?batch=default'));
     render(<><LoginHint/><LoginMenuItem/></>);
     fireEvent.click(screen.getByText('Sign in'));
+    expect(history.location.pathname).toBe('/login');
+    expect(new URLSearchParams(history.location.search).get('next')).toBe('/group/project/commit/abc?batch=default');
+    // not again from the sign-in page
     fireEvent.click(screen.getByText('Sign in to redo, rename or delete'));
-    expect(handler).toHaveBeenCalledTimes(2);
-    unregister();
+    expect(history.location.pathname).toBe('/login');
+    expect(new URLSearchParams(history.location.search).get('next')).toBe('/group/project/commit/abc?batch=default');
   });
 });
 

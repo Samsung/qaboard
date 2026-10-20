@@ -1,16 +1,18 @@
 // The app's own pages (settings, admin, device approval): a bar like the projects list's, a title, the content.
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alignment, Button, Callout, Classes, Icon, Intent, Navbar, NavbarDivider, NavbarGroup, NavbarHeading, NonIdealState,
 } from "@blueprintjs/core";
 import styled from "styled-components";
 
-import { Link } from "../router";
+import { history, Link } from "../router";
 import { userQuery, logged_out_user } from "../api/queries";
 import { errorMessage } from "../api/http";
 import AuthButton from "./authentication/Auth";
 import { AccountCallout } from "./authentication/PrivateContent";
 import { requestLogin } from "./authentication/login";
+import { loginUrl } from "../login/api";
 import { ThemeButton } from "./ThemeButton";
 import Footer from "./Footer";
 import EmptyLoading from "./EmptyLoading";
@@ -67,7 +69,8 @@ const Content = styled.main`
 
 const nav_link_style = { color: '#fff' };
 
-export const PageShell = ({ title, description, wide = false, children }) => <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--qa-background)', minWidth: 0 }}>
+// `account`: the account menu, or the "Sign in" button (not on the sign-in page itself)
+export const PageShell = ({ title, description, wide = false, account = true, children }) => <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--qa-background)', minWidth: 0 }}>
   <WrappingNavbar className={Classes.DARK}>
     <NavbarGroup align={Alignment.LEFT}>
       <NavbarHeading><Link to="/" style={{ ...nav_link_style, fontWeight: 'bold' }}>QA-Board</Link></NavbarHeading>
@@ -77,8 +80,8 @@ export const PageShell = ({ title, description, wide = false, children }) => <di
       </Link>
     </NavbarGroup>
     <NavbarGroup align={Alignment.RIGHT}>
-      <ThemeButton style={{ marginRight: '10px' }}/>
-      <AuthButton/>
+      <ThemeButton style={account ? { marginRight: '10px' } : undefined}/>
+      {account && <AuthButton/>}
     </NavbarGroup>
   </WrappingNavbar>
   <Content $wide={wide}>
@@ -93,10 +96,12 @@ export const PageShell = ({ title, description, wide = false, children }) => <di
 // Signed-out users are checked again each time, like in PrivateContent
 const refetchOnMount = query => query.state.data?.is_logged ? true : 'always';
 
-// Pages about the user need one: else we ask them to sign in, and they stay on the page once they have.
+// Pages about the user need one: else they go to /login, and come back to the page once signed in.
 // `children` is a function of the user.
 export const RequireLogin = ({ what = "see this page", children }) => {
   const { data: user = logged_out_user, isPending, error, refetch } = useQuery({ ...userQuery, refetchOnMount });
+  const to_login = !isPending && !error && !user.is_logged && !user.reason;
+  useEffect(() => { if (to_login) history.replace(loginUrl()); }, [to_login]);
   if (isPending)
     return <EmptyLoading/>;
   if (error && !user.is_logged)
@@ -107,6 +112,7 @@ export const RequireLogin = ({ what = "see this page", children }) => {
   if (user.reason)
     return <AccountCallout user={user}/>;
   if (!user.is_logged)
+    // while we go to the sign-in page
     return <NonIdealState
       icon="log-in"
       title="Sign in to continue"

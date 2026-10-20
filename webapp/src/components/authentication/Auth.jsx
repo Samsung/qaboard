@@ -1,24 +1,23 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import styled from "styled-components";
 import {
+  AnchorButton,
   Classes,
   Intent,
   MenuItem,
   Icon,
-  IconSize,
-  InputGroup,
   Button,
-  Dialog,
-  FormGroup,
-  Callout,
   Menu,
   Popover,
+  Tag,
 } from "@blueprintjs/core";
 import { http, errorMessage, reason_messages } from "../../api/http";
 import { userQuery, logged_out_user, setUser } from "../../api/queries";
 import { useSiteConfig } from "../../hooks";
-import { registerLoginHandler } from "./login";
+import { loginUrl } from "../../login/api";
+import { requestLogin } from "./login";
+import { accessRequestsQuery } from "../../admin/api";
 import { history } from "../../router";
 import { toaster } from "./../../toaster"
 import { Avatar } from '../avatars';
@@ -201,7 +200,7 @@ const AuthButton = ({ appSider }) => {
       : <Button icon="log-in" text="Sign in" className={Classes.SKELETON} disabled/>;
   return user.is_logged
     ? <UserMenu user={user} logout={logout} avatar_url_template={avatar_url_template} appSider={appSider}/>
-    : <LoginButton user={user} logout={logout} appSider={appSider} login_type={login_type}/>;
+    : <LoginButton user={user} appSider={appSider}/>;
 };
 
 
@@ -217,14 +216,25 @@ const navigate = path => event => {
 const UserMenu = ({ user, logout, avatar_url_template, appSider = false }) => {
   const display_name = user.full_name || user.user_name;
   const avatarUrl = avatar_url_template ? avatar_url_template.replace('{user_name}', user.user_name) : null;
+  // admins see how many users wait for them
+  const { data: requests } = useQuery({ ...accessRequestsQuery('pending', { background: true }), enabled: !!user.is_admin });
+  const nb_pending = user.is_admin ? requests?.length ?? 0 : 0;
+  const pending_tag = nb_pending > 0 && <Tag round intent={Intent.WARNING} title={`${nb_pending} access request${nb_pending === 1 ? '' : 's'} to review`}>{nb_pending}</Tag>;
   const trigger = <UserMenuTrigger>
     <Avatar src={avatarUrl} name={display_name} size="28px"/>
     <span className="user-display">{display_name}</span>
+    {pending_tag}
     <Icon icon="chevron-down" className="chevron-icon" size={10} />
   </UserMenuTrigger>;
   const items = <>
     <MenuItem text="Settings" icon="cog" href="/settings" onClick={navigate("/settings")}/>
-    {user.is_admin && <MenuItem text="Admin" icon="shield" href="/admin" onClick={navigate("/admin")}/>}
+    {user.is_admin && <MenuItem
+      text="Admin"
+      icon="shield"
+      href={nb_pending > 0 ? "/admin/requests" : "/admin"}
+      onClick={navigate(nb_pending > 0 ? "/admin/requests" : "/admin")}
+      labelElement={pending_tag || undefined}
+    />}
     <MenuItem text="Sign out" icon="log-out" onClick={logout}/>
   </>;
   const header = <UserProfileHeader>
@@ -275,138 +285,25 @@ const UserMenu = ({ user, logout, avatar_url_template, appSider = false }) => {
 };
 
 
-const warning = {
-  rightElement: <Icon icon="warning-sign" intent={Intent.DANGER} size={IconSize.LARGE} style={{transform: "translate(-50%, 50%)"}}/>,
-  intent: Intent.DANGER,
-};
-
-// What older servers answer when signing in fails, shown next to the fields
-const field_errors = ["invalid-username", "invalid-password"];
-// Accounts that can't use the server, from the server's answer when signing in, or from /me
+// Accounts that can't use the server, from /me
 const account_reasons = ["user_disabled", "user_pending"];
 
-const LoginButton = ({ user, logout, appSider, login_type }) => {
-  const queryClient = useQueryClient();
-  // the site's advice to users who can't sign in (QABOARD_LOGIN_HINT), e.g. which credentials to use
-  const { login_hint } = useSiteConfig();
-  const [is_open, setOpen] = useState(false);
-  const [error, setError] = useState(null);
-  const [is_loading, setLoading] = useState(false);
-
-  const handleSubmit = event => {
+// Signing in happens on /login, which comes back here. Disabled and pending users see why they were signed out:
+// the sign-in page explains it, and shows pending users their access request.
+const LoginButton = ({ user, appSider }) => {
+  // the current page when clicked: also outside of the router (tests)
+  const href = loginUrl();
+  const onClick = event => {
+    if (event.button !== 0 || event.metaKey || event.altKey || event.ctrlKey || event.shiftKey) return;
     event.preventDefault();
-    const data = new FormData(event.target);
-    setLoading(true);
-    http.post("/api/v1/user/auth/", data)
-      .then(response => {
-        const { user_id, user_name, full_name, email, login_type, is_admin } = response.data;
-        toaster.show({ message: `Welcome, ${full_name ?? user_name}`, intent: Intent.SUCCESS, timeout: 3000 });
-        setUser(queryClient, { ...logged_out_user, is_logged: true, user_name, email, login_type, full_name, user_id, is_admin: !!is_admin });
-        // the server knows more about us: whether we are an admin...
-        queryClient.invalidateQueries({ queryKey: userQuery.queryKey });
-        setError(null);
-        setLoading(false);
-        setOpen(false);
-      })
-      .catch(error => {
-        setLoading(false);
-        const data = error.response?.data;
-        // Older servers answer with codes, shown next to their field
-        if (field_errors.includes(data?.error)) {
-          setError({ code: data.error });
-          return;
-        }
-        // Newer ones with a sentence for people, and its code: {error: "Wrong user name or password.", reason: "invalid_credentials"}
-        if (typeof data?.error === 'string' && data.error) {
-          setError({ code: data.reason ?? null, message: data.error });
-          return;
-        }
-        const message = errorMessage(error);
-        setError({ message });
-        toaster.show({ message: `Could not sign in: ${message}`, intent: Intent.DANGER, timeout: 10000 });
-      });
+    requestLogin();
   };
-
-  // actions that need to sign in open this dialog (see login.jsx)
-  const handleLoginRef = useRef(null);
-  useEffect(() => registerLoginHandler(() => handleLoginRef.current?.()), []);
-
-  const handleLogin = () => {
-    if (login_type === "SAML") {
-      setLoading(true);
-      window.location.href = '/api/auth/saml20/login/?sso';
-    } else {
-      setOpen(true);
-      setError(null);
-      setLoading(false);
-    }
-  };
-  useEffect(() => { handleLoginRef.current = handleLogin; });
-
-  const code = error?.code;
-  const password_error = code === "invalid-password" || code === "invalid_credentials";
-  // Why the account can't be used: from this dialog, else from the session that was closed
-  const account = account_reasons.includes(code)
-    ? { reason: code, message: error.message }
-    : !error && account_reasons.includes(user.reason) ? { reason: user.reason, message: user.error || reason_messages[user.reason] } : null;
-  const pending = account?.reason === "user_pending";
-  const other_error = !!error?.message && !account && code !== "invalid_credentials";
-
-  // Disabled and pending users see why they were signed out
   const button_props = account_reasons.includes(user.reason)
     ? { icon: user.reason === "user_pending" ? "time" : "blocked-person", intent: user.reason === "user_pending" ? Intent.WARNING : Intent.DANGER, text: user.reason === "user_pending" ? "Account pending" : "Account disabled", title: user.error || reason_messages[user.reason] }
     : { icon: "log-in", intent: Intent.PRIMARY, text: "Sign in" };
-  const login_button = appSider ?
-    <MenuItem {...button_props} onClick={handleLogin}/> :
-    <Button {...button_props} onClick={handleLogin} loading={is_loading}/>;
-  const logout_button = appSider ?
-    <MenuItem icon="log-out" text="Sign out" onClick={logout}/> :
-    <Button icon="log-out" onClick={logout} text="Sign out"/>;
-  return <>
-    {!user.is_logged ? login_button : logout_button}
-    <Dialog
-      icon="log-in"
-      title="Sign in"
-      onClose={() => setOpen(false)}
-      style={{ width: "396px", maxWidth: "calc(100vw - 32px)", paddingBottom: 0 }}
-      isOpen={is_open}
-      canEscapeKeyClose
-      canOutsideClickClose
-      enforceFocus
-      usePortal
-    >
-      <form onSubmit={handleSubmit}>
-        <div className={Classes.DIALOG_BODY} style={{ margin: "14px 18px 18px" }}>
-          {account && <Callout intent={pending ? Intent.WARNING : Intent.DANGER} icon={pending ? "time" : "blocked-person"} style={{ marginBottom: 12 }} role="alert"
-            title={pending ? "Your account is pending approval" : "Your account is disabled"}>
-            {account.message}
-          </Callout>}
-          {other_error && <Callout intent={Intent.DANGER} icon={null} style={{ marginBottom: 12 }} role="alert">
-            {error.message}
-          </Callout>}
-          <FormGroup
-            label="User name"
-            labelFor="username"
-            intent={code === "invalid-username" ? Intent.DANGER : undefined}
-            helperText={code === "invalid-username" ? <>This user name does not match any account.{login_hint && <> {login_hint}</>}</> : undefined}
-          >
-            <InputGroup id="username" name="username" type="text" autoComplete="username" autoFocus large {...(code === "invalid-username" && warning)}/>
-          </FormGroup>
-          <FormGroup
-            label="Password"
-            labelFor="password"
-            intent={password_error ? Intent.DANGER : undefined}
-            helperText={password_error ? <>{code === "invalid-password" ? "The password is incorrect." : error.message}{login_hint && <> {login_hint}</>}</> : undefined}
-          >
-            <InputGroup id="password" name="password" type="password" autoComplete="current-password" large {...(password_error && warning)}/>
-          </FormGroup>
-          <Button type="submit" large intent={Intent.PRIMARY} fill loading={is_loading}>
-            <b>Sign in</b>
-          </Button>
-        </div>
-      </form>
-    </Dialog>
-  </>;
+  return appSider
+    ? <MenuItem {...button_props} href={href} onClick={onClick}/>
+    : <AnchorButton {...button_props} href={href} onClick={onClick}/>;
 };
 
 export default AuthButton;

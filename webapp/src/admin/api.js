@@ -117,3 +117,55 @@ export const saveSetting = async (queryClient, key, value) => {
   queryClient.invalidateQueries({ queryKey: ['config'] });
   return data?.settings;
 };
+
+
+// => {revoked: n}. Users are signed out of every browser: they sign in again.
+export const revokeUserSessions = async (queryClient, id) => {
+  const { data } = await http.post(`/api/v1/admin/users/${id}/revoke-sessions`);
+  invalidateUsers(queryClient);
+  return data;
+};
+
+
+// Users waiting for an admin, with their message (design/user-management.md, Appendix C.4).
+// `status`: "pending" or "all". Approving and denying are status changes of the user (updateUser).
+export const accessRequestsQuery = (status = 'pending', { background = false } = {}) => queryOptions({
+  queryKey: ['admin', 'access-requests', status],
+  queryFn: async ({ signal }) => (await http.get('/api/v1/admin/access-requests', { params: { status }, signal, background })).data?.requests ?? [],
+  staleTime: 60 * 1000,
+});
+
+
+// Admin → Sign-in: {providers, can_encrypt: whether secrets can be stored here (QABOARD_ENCRYPTION_KEY), public_url}
+export const signInAdminQuery = queryOptions({
+  queryKey: ['admin', 'sign-in'],
+  queryFn: async ({ signal }) => {
+    const { data } = await http.get('/api/v1/admin/sign-in', { signal });
+    return { providers: data?.providers ?? [], can_encrypt: !!data?.can_encrypt, public_url: data?.public_url ?? '' };
+  },
+  staleTime: 30 * 1000,
+});
+
+const invalidateProviders = queryClient => Promise.all([
+  queryClient.invalidateQueries({ queryKey: ['admin', 'sign-in'] }),
+  queryClient.invalidateQueries({ queryKey: ['auth', 'providers'] }),
+]);
+
+// OIDC providers. `id` only when creating. => the provider
+export const saveProvider = async (queryClient, { id, ...fields }, { create = false } = {}) => {
+  const { data } = create
+    ? await http.post('/api/v1/admin/sign-in/providers', { id, ...fields })
+    : await http.post(`/api/v1/admin/sign-in/providers/${encodeURIComponent(id)}`, fields);
+  invalidateProviders(queryClient);
+  return data;
+};
+
+export const deleteProvider = async (queryClient, id) => {
+  const { data } = await http.delete(`/api/v1/admin/sign-in/providers/${encodeURIComponent(id)}`);
+  invalidateProviders(queryClient);
+  return data;
+};
+
+// The checks of `qaboard-admin check-sign-in`: {checks: [{check, ok, detail}], ok}. `user_name`: for LDAP, a user to look up.
+export const testProvider = async (id, { user_name } = {}) =>
+  (await http.post(`/api/v1/admin/sign-in/providers/${encodeURIComponent(id)}/test`, user_name ? { user_name } : {})).data;

@@ -1,7 +1,7 @@
 // Admin → Users → a user: who they are, their tokens, what they did, and what admins can do about it
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Classes, HTMLTable, Intent, NonIdealState, Tooltip } from "@blueprintjs/core";
+import { Alert, Button, Callout, Classes, HTMLTable, Intent, NonIdealState, Tooltip } from "@blueprintjs/core";
 
 import { Link } from "../router";
 import { errorMessage } from "../api/http";
@@ -12,7 +12,8 @@ import { TokensTable } from "../settings/tokens";
 import { AuditEvents } from "../settings/AuditEvents";
 import { AdminError } from "./states";
 import { UserTags } from "./Users";
-import { adminUserQuery, updateUser, revokeUserTokens, adminRevokeToken } from "./api";
+import { RequestMessage } from "./AccessRequests";
+import { adminUserQuery, accessRequestsQuery, updateUser, revokeUserTokens, revokeUserSessions, adminRevokeToken } from "./api";
 
 
 // The actions that need a confirmation
@@ -24,6 +25,11 @@ const confirmations = {
   deny: {
     text: user => <p>Deny <strong>{user.user_name}</strong>'s account? It is disabled: they can't sign in. You can enable it later.</p>,
     button: 'Deny',
+  },
+  revoke_sessions: {
+    text: user => <p>Sign <strong>{user.user_name}</strong> out of every browser? They need to sign in again. Their tokens and CLI sign-ins keep working.</p>,
+    button: 'Sign out everywhere',
+    icon: 'log-out',
   },
   revoke_tokens: {
     text: user => <p>Revoke all the tokens of <strong>{user.user_name}</strong>, CLI sign-ins included? Their scripts and CI jobs will stop working. This can't be undone.</p>,
@@ -65,6 +71,10 @@ const Actions = ({ user, me }) => {
     deny: () => run('deny', () => updateUser(queryClient, user.id, { status: 'disabled' }), () => `Denied ${user.user_name}'s account`),
     make_admin: () => run('make_admin', () => updateUser(queryClient, user.id, { is_admin: true }), () => `${user.user_name} is now an admin`),
     remove_admin: () => run('remove_admin', () => updateUser(queryClient, user.id, { is_admin: false }), () => `${user.user_name} isn't an admin anymore`),
+    revoke_sessions: () => run('revoke_sessions', () => revokeUserSessions(queryClient, user.id), result => {
+      const n = result?.revoked ?? 0;
+      return n === 0 ? `${user.user_name} wasn't signed in anywhere` : `Signed ${user.user_name} out of ${n} session${n === 1 ? '' : 's'}`;
+    }),
     revoke_tokens: () => run('revoke_tokens', () => revokeUserTokens(queryClient, user.id), result => {
       const n = result?.revoked ?? 0;
       return n === 0 ? `${user.user_name} had no active tokens` : `Revoked ${n} token${n === 1 ? '' : 's'} of ${user.user_name}`;
@@ -95,6 +105,9 @@ const Actions = ({ user, me }) => {
         <Button icon="disable" intent={Intent.DANGER} variant="outlined" text="Disable" disabled={is_me} loading={busy === 'disable'} onClick={() => setConfirming('disable')}/>
       </Tooltip>}
     {admin_tooltip ? <Tooltip content={admin_tooltip}>{admin_button}</Tooltip> : admin_button}
+    <Tooltip content="Except this browser: sign out from your menu." disabled={!is_me}>
+      <Button icon="log-out" text="Sign out everywhere" intent={Intent.DANGER} variant="outlined" loading={busy === 'revoke_sessions'} onClick={() => setConfirming('revoke_sessions')}/>
+    </Tooltip>
     <Button icon="key" text="Revoke all tokens" intent={Intent.DANGER} variant="outlined" disabled={!user.active_tokens} loading={busy === 'revoke_tokens'} onClick={() => setConfirming('revoke_tokens')}/>
     <Alert
       isOpen={!!confirming}
@@ -110,6 +123,18 @@ const Actions = ({ user, me }) => {
       {confirming && confirmations[confirming].text(user)}
     </Alert>
   </div>;
+};
+
+
+// Why a pending user needs access
+const PendingRequest = ({ user }) => {
+  const { data: requests } = useQuery(accessRequestsQuery('pending'));
+  const request = (requests ?? []).find(request => String(request.user?.id) === String(user.id));
+  if (!request) return null;
+  return <Callout intent={Intent.WARNING} icon="time" title="Waiting for an admin" style={{ marginBottom: 16, maxWidth: 720 }}>
+    <span className={Classes.TEXT_MUTED}>Asked <Time iso={request.created_at}/></span>
+    <RequestMessage message={request.message}/>
+  </Callout>;
 };
 
 
@@ -130,6 +155,7 @@ export const UserDetail = ({ id, me }) => {
       </div>
       <Actions user={user} me={me}/>
     </div>
+    {user.status === 'pending' && <PendingRequest user={user}/>}
     <HTMLTable compact style={{ marginBottom: 24 }}>
       <tbody>
         <tr><th scope="row">User name</th><td><code>{user.user_name}</code></td></tr>

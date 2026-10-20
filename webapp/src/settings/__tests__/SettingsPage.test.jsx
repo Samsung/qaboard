@@ -73,10 +73,11 @@ test('activity loads older events on demand', async () => {
   expect(fetch.mock.calls.map(([url]) => url)).toContain('/api/v1/user/audit?before_id=10&limit=50');
 });
 
-test('signed-out users are asked to sign in', async () => {
+test('signed-out users go to the sign-in page, then come back', async () => {
   vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ is_authenticated: false }));
   renderAt('/settings/tokens', null);
-  expect(await screen.findByText('Sign in to see your settings.')).toBeInTheDocument();
+  await waitFor(() => expect(history.location.pathname).toBe('/login'));
+  expect(history.location.search).toBe('?next=%2Fsettings%2Ftokens');
 });
 
 test('failed sign-ins say which user name was tried, and why it failed', async () => {

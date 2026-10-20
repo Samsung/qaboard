@@ -10,6 +10,7 @@ const MilestonePage = lazy(() => import("./milestones/MilestonePage"));
 const SettingsPage = lazy(() => import("./settings/SettingsPage"));
 const AdminPage = lazy(() => import("./admin/AdminPage"));
 const DevicePage = lazy(() => import("./device/DevicePage"));
+const LoginPage = lazy(() => import("./login/LoginPage"));
 
 const pages = {
   committer: CiCommitList,
@@ -33,6 +34,7 @@ const app_pages = {
   admin_user: AdminPage,
   admin: AdminPage,
   device: DevicePage,
+  login: LoginPage,
 };
 export const app_routes = Object.entries(app_paths).map(([name, path]) => ({ name, path, exact: true, main: app_pages[name] }));
 

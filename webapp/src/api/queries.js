@@ -67,10 +67,11 @@ export const logged_out_user = {
 // Who we are. With a disabled or pending account we are signed out, and say why with `reason` ("user_disabled",
 // "user_pending") and `error` (the server's sentence). Servers answer it once, with 200 {is_authenticated: false, reason,
 // error} (older ones: 401), then close the session: the next answers are plain anonymous, so we keep the reason until
-// users sign in again.
+// users sign in again. Pending users keep their session: `pending` is what their page shows
+// ({user_name, full_name, email, request: {message, status, created_at...} or null, reviewers: [names]}).
 const account_reasons = ['user_disabled', 'user_pending'];
-const signedOut = (previous, reason, error) => {
-  if (account_reasons.includes(reason)) return { ...logged_out_user, reason, error: error || null };
+const signedOut = (previous, reason, error, pending = null) => {
+  if (account_reasons.includes(reason)) return { ...logged_out_user, reason, error: error || null, ...(pending ? { pending } : {}) };
   if ((!reason || reason === 'sign_in_required') && !previous?.is_logged && account_reasons.includes(previous?.reason)) return previous;
   return logged_out_user;
 };
@@ -88,7 +89,7 @@ export const userQuery = queryOptions({
       return signedOut(previous, reason, reason ? errorMessage(error) : null);
     }
     const { is_authenticated, user_id, user_name, full_name, email, login_type, is_admin, status, kind, token } = data ?? {};
-    if (!is_authenticated) return signedOut(previous, data?.reason ?? null, typeof data?.error === 'string' ? data.error : null);
+    if (!is_authenticated) return signedOut(previous, data?.reason ?? null, typeof data?.error === 'string' ? data.error : null, data?.pending ?? null);
     return { is_logged: true, user_id, user_name, full_name, email, login_type, is_admin: !!is_admin, status: status ?? 'active', kind: kind ?? 'human', token: token ?? null };
   },
   staleTime: 5 * 60 * 1000,

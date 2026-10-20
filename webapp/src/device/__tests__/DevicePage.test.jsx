@@ -99,13 +99,11 @@ describe('DevicePage', () => {
     expect(command.every(element => element.tagName === 'CODE')).toBe(true);
   });
 
-  it('asks signed-out users to sign in first, and keeps the code', async () => {
+  it('sends signed-out users to the sign-in page, which comes back with the code', async () => {
     const fetch = mockApi();
     renderAt('/device?code=WDJB-MJHT', undefined);
-    expect(await screen.findByText('Sign in to continue')).toBeInTheDocument();
-    expect(screen.getByText('Sign in to approve this sign-in.')).toBeInTheDocument();
+    await waitFor(() => expect(history.location.pathname).toBe('/login'));
+    expect(new URLSearchParams(history.location.search).get('next')).toBe('/device?code=WDJB-MJHT');
     expect(fetch.mock.calls.some(([url]) => url.startsWith('/api/v1/auth/device'))).toBe(false);
-    expect(history.location.search).toBe('?code=WDJB-MJHT');
-    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Sign in' }).length).toBeGreaterThan(0));
   });
 });

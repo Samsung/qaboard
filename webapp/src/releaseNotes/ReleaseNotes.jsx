@@ -74,6 +74,8 @@ export const ReleaseNotesProvider = ({ children, load = loadNotes, popupDelay = 
         timer = setTimeout(() => {
           // another tab may have shown the notes in the meantime
           if (popupNotes(notes, getLastSeen()).length === 0) return;
+          // not over the sign-in form: after a single sign-on, the app loads again
+          if (window.location.pathname === '/login') return;
           setDialogOpen(true);
           track("release_notes_popup", { slug: to_popup[0].slug });
         }, popupDelay);

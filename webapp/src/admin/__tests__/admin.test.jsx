@@ -57,10 +57,11 @@ describe('AdminPage', () => {
     expect(await screen.findByText('Admins only')).toBeInTheDocument();
   });
 
-  it('asks signed-out users to sign in', async () => {
+  it('sends signed-out users to the sign-in page', async () => {
     mockApi({ 'GET /api/v1/user/me/': { is_authenticated: false } });
     renderPage('/admin/users', undefined);
-    expect(await screen.findByText('Sign in to continue')).toBeInTheDocument();
+    await waitFor(() => expect(history.location.pathname).toBe('/login'));
+    expect(history.location.search).toBe('?next=%2Fadmin%2Fusers');
   });
 
   it('shows the overview to admins', async () => {

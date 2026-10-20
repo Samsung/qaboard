@@ -1,22 +1,20 @@
 // Actions that change things (redo, delete, tuning...) need a signed-in user.
 // When signed out, the web app disables them and suggests to sign in,
 // and if the server still answers 401 (e.g. the session expired), it says so once, with a "Sign in" button.
+// Signing in happens on /login?next=<this page> (login/LoginPage.jsx): single sign-on leaves the app anyway,
+// so every way to sign in starts there, and comes back.
 import { Button, Intent, MenuItem, MenuDivider, Tooltip } from "@blueprintjs/core";
 
 import { onUnauthorized, reason_messages, is_account_reason, is_token_reason } from "../../api/http";
 import { userQuery, logged_out_user, setUser } from "../../api/queries";
+import { history } from "../../router";
+import { loginUrl } from "../../login/api";
 
 
-// The sign-in button (Auth.jsx) registers how to open its dialog, or the SAML redirect
-let loginHandler = null;
-export const registerLoginHandler = handler => {
-  loginHandler = handler;
-  return () => { if (loginHandler === handler) loginHandler = null; };
-};
-
+// To /login, then back to this page
 export const requestLogin = () => {
-  if (loginHandler) loginHandler();
-  else window.scrollTo({top: 0}); // the sign-in button is at the top of the sidebar
+  if (window.location.pathname === '/login') return;
+  history.push(loginUrl());
 };
 
 // First entry of the menus whose actions need to sign in
@@ -47,6 +45,8 @@ export const handleUnauthorized = (queryClient, toaster) => ({ url = '', backgro
   // A disabled or pending account: signing in again won't help
   if (is_account_reason(reason)) {
     setUser(queryClient, { ...logged_out_user, reason, error: sentence });
+    // pending users keep their session: /me says what their page shows, their access request
+    if (reason === 'user_pending') queryClient.invalidateQueries({ queryKey: userQuery.queryKey });
     if (background) return false;
     toaster.show({ message: sentence, intent: Intent.DANGER, icon: "blocked-person", timeout: 10000 }, "login-required");
     return true;
