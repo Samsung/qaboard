@@ -847,3 +847,22 @@ the sign-in audit event, never used for access (M3 decides with group rules).
     state mismatch, missing claims, linking rules.
   - Sessions: idle, max, revocation, the conversion of flask-login sessions.
   - The access policy and requests, notifications (mocked), the doctor.
+
+### C.8 As built (2026-10-20)
+- **Code layout**: the new code is in `backend/sign_in/` (`providers.py`, `oidc.py`, `accounts.py`, `identities.py`,
+  `sessions.py`, `access.py`, `doctor.py`, `crypto.py`), with the routes in `api/sign_in.py` and `api/admin_sign_in.py`.
+  LDAP and SAML stayed in `api/auth.py`: moving them was churn without a user-visible gain.
+- **Not done, moved to the start of M3**: the single `check_access(actor, scope, project)`. M3's project roles are what
+  it's for, and they'll shape its signature.
+- **OIDC**: authlib's dependency joserfc checks the ID token (signature from the JWKS, `alg` from an asymmetric
+  allow-list, `iss`, `aud`/`azp`, `exp` with 60 s of leeway, `nonce`); the HTTP calls are plain `requests`. Discovery
+  and JWKS are cached for an hour, the JWKS refetched once on an unknown key (rotation). Userinfo fills missing claims,
+  only when its `sub` is the ID token's.
+- **Errors** are codes (`SignInError(code, detail)`): users see the code's message and the audit event id, admins the
+  detail in the audit log and the server's log.
+- **Proxies**: QA-Board's nginx talks uwsgi and passes `X-Forwarded-For` as the client sent it, so
+  `QABOARD_TRUSTED_PROXY_HOPS` defaults to 0 (the address nginx sees). Set 1 behind an ingress.
+- **TLS to the IdP**: the backend image sets `REQUESTS_CA_BUNDLE` to the system bundle, which has the CA of
+  `CA_CERT_URL`: certifi's doesn't.
+- **Docs**: [Sign-in and single sign-on](/docs/backend-admin/sign-in) on the website, `deployments/sirc/runbooks/sso.md`
+  for SIRC's Keycloak.

@@ -195,6 +195,7 @@ const sidebars: SidebarsConfig = {
         "backend-admin/deployment",
         "backend-admin/kubernetes",
         "backend-admin/user-management",
+        "backend-admin/sign-in",
         "backend-admin/monitoring",
         "backend-admin/troubleshooting",
     ]

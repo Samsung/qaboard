@@ -1,0 +1,157 @@
+---
+id: sign-in
+sidebar_label: Sign-in and SSO
+title: Sign-in and single sign-on
+---
+
+Let users sign in with your company's single sign-on (OpenID Connect: Keycloak, Entra ID, Okta, Google...), next to
+LDAP or local accounts, and decide who gets an account. Accounts, admins and tokens are in
+[User Management](/docs/backend-admin/user-management).
+
+## Set up single sign-on
+QA-Board is an OpenID Connect **confidential client**, using the **Authorization Code** flow with **PKCE**: the
+backend talks to your identity provider (IdP), and browsers never see its tokens.
+
+1. **Ask your IdP's admins for a client**, with:
+
+   | Field | Value |
+   |---|---|
+   | Protocol | OpenID Connect |
+   | Client type | Confidential (the server keeps a secret) |
+   | Grant types | Authorization Code only, with PKCE (S256) |
+   | Redirect URI | `https://qaboard.example.com/api/v1/auth/oidc/callback`: your `QABOARD_URL`, exactly, then `/api/v1/auth/oidc/callback` |
+   | Scopes / claims | `openid profile email`: `sub`, `preferred_username`, `email`, `name`, and `groups` if you can |
+
+   They give you back the **issuer** (e.g. `https://keycloak.example.com/realms/company`), a **client id** and a
+   **client secret**.
+
+2. **Set them on the server**, and restart it:
+
+   ```bash title=".env, next to docker-compose.yml"
+   QABOARD_URL=https://qaboard.example.com
+   QABOARD_OIDC_ISSUER=https://keycloak.example.com/realms/company
+   QABOARD_OIDC_CLIENT_ID=qaboard
+   QABOARD_OIDC_CLIENT_SECRET=...
+   ```
+
+3. **Check it** from the server. It tells you what's wrong, in the order setups break:
+
+   ```bash
+   docker compose exec backend qaboard-admin check-sign-in
+   ```
+
+   ```
+   Single sign-on (sso)
+     OK   discovery: The server reaches https://keycloak.example.com/realms/company/.well-known/openid-configuration
+     OK   issuer: The discovery document's issuer is https://keycloak.example.com/realms/company
+     OK   signing keys: 2 signing keys
+     OK   client id: set
+     OK   client secret: set
+     FAIL redirect URI: The IdP refuses https://qaboard.example.com/api/v1/auth/oidc/callback. It accepts
+          http://qaboard.example.com/api/v1/auth/oidc/callback: register https://qaboard.example.com/api/v1/auth/oidc/callback, or set the provider's redirect URI.
+   ```
+
+   **Admin → Sign-in → Test** runs the same checks.
+
+4. **Sign in**: the sign-in page now shows a **Single sign-on** button first, and the password form below it.
+
+Users who already have an account (LDAP, local) don't get a new one by default: see
+[Existing accounts](#existing-accounts).
+
+<details>
+<summary>Every OIDC environment variable</summary>
+
+| Variable | Default | What it does |
+|---|---|---|
+| `QABOARD_OIDC_ISSUER` | _empty_ | The IdP's issuer. Empty: no single sign-on (removing it is the rollback) |
+| `QABOARD_OIDC_CLIENT_ID` | | The client id |
+| `QABOARD_OIDC_CLIENT_SECRET` | | The client secret |
+| `QABOARD_OIDC_SCOPES` | `openid profile email` | Add `groups` if your IdP needs it to send the groups |
+| `QABOARD_OIDC_BUTTON_LABEL` | `Single sign-on` | The button's label, e.g. `Sign in with Okta` |
+| `QABOARD_OIDC_MATCH_USERS` | `none` | How the first SSO sign-in finds existing accounts: `none`, `username`, `email` (see [Existing accounts](#existing-accounts)) |
+| `QABOARD_OIDC_USERNAME_CLAIM` | `preferred_username` | The claim with the user name, e.g. `samaccountname` with Active Directory |
+| `QABOARD_OIDC_EMAIL_CLAIM` | `email` | |
+| `QABOARD_OIDC_NAME_CLAIM` | `name` | |
+| `QABOARD_OIDC_GROUPS_CLAIM` | `groups` | Recorded in the audit log at each sign-in, never used for access |
+| `QABOARD_OIDC_REDIRECT_URI` | `$QABOARD_URL/api/v1/auth/oidc/callback` | Only if the IdP has another URI registered for QA-Board |
+
+</details>
+
+### Several providers
+Admins add more OpenID Connect providers in **Admin → Sign-in**: say, a partner's IdP next to yours. Each has its own
+redirect URI, `$QABOARD_URL/api/v1/auth/oidc/<id>/callback`, shown in the panel. Its secret is either:
+- the name of an environment variable that holds it (nothing secret in the database), or
+- stored encrypted in the database: set `QABOARD_ENCRYPTION_KEY` on the server first, to any long random text
+  (`openssl rand -base64 32`). Keep it: without it, the stored secrets can't be read.
+
+Providers from the environment are read-only in the panel. Users link more sign-in methods to their account in
+**Settings → Sign-in methods**.
+
+### Existing accounts
+At their first SSO sign-in, users are recognized by the provider's id for them (`sub`). For users who already have an
+account, the provider's `match_users` decides:
+- `none` (the default): a new account, unless they link the provider from their existing account in **Settings →
+  Sign-in methods**.
+- `username`: the account with the same user name. Use it when the IdP is federated to the same directory as LDAP:
+  the user names are the same people. Set the claim with the directory's user names, e.g.
+  `QABOARD_OIDC_USERNAME_CLAIM=samaccountname`.
+- `email`: the account with the same email, if the IdP says it's verified (`email_verified`).
+
+With LDAP and its service account (`QABOARD_LDAP_BIND_DN`), SSO sign-ins matched by user name also refresh the user's
+directory attributes, which the rules of `QABOARD_LOGIN_RESTRICTED_YAML` can use.
+
+## Decide who gets an account
+`auth.access_policy`, in **Admin → Settings**:
+- `open` (the default): anyone a sign-in method accepts gets an account.
+- `domains`: users whose email is in `auth.allowed_email_domains` (e.g. `example.com`) get one. The others wait for an admin.
+- `approval`: everyone waits for an admin.
+
+Users who wait can sign in, and see a page saying so, where they write why they need access. Admins get an email
+(when [QA-Board sends emails](/docs/deploy#emails)), and a message on `auth.access_request_webhook` if you set it: a
+Slack, Teams or Mattermost incoming webhook (QA-Board posts `{"text": "..."}`). Admins approve or deny them in
+**Admin → Users**; users get an email either way.
+
+The policy applies to new accounts. To stop someone who already has one, disable them in **Admin → Users**.
+
+## Sessions
+Browser sessions are stored on the server:
+- They end after `sessions.idle_days` (30) without activity, and after `sessions.max_days` (180) in any case.
+- Users see theirs in **Settings → Sessions** and can end any of them. Signing out ends the session.
+- Admins end all of a user's sessions from the user's page. Disabling a user ends them too.
+
+Users signed in before the upgrade stay signed in.
+
+## Only single sign-on
+The sign-in page shows the password form for LDAP and local accounts. To send users straight to your IdP, require
+signing in (`auth.require_sign_in`), and turn on `auth.sso_auto_redirect`: with a single SSO provider, the sign-in
+page redirects to it. `/login?local=1` still shows the password form, for admins with a local account
+(`qaboard-admin create-admin admin --password`), in case the IdP is down.
+
+## LDAP over TLS
+Use `ldaps://ldap.example.com:636` in `QABOARD_LDAP_HOST`, or set `QABOARD_LDAP_START_TLS=true` to upgrade a plain
+connection. `qaboard-admin check-sign-in --provider ldap --user alice` checks the service account, and looks a user
+up.
+
+## Rate limits and proxies
+QA-Board's nginx allows 30 sign-in attempts per minute per client, with bursts: sign-in, sign-up, `qa auth login`
+codes and SSO redirects. Beyond, it answers 429.
+
+The audit log records users' IPs. If there are proxies in front of QA-Board's nginx (a Kubernetes ingress, a load
+balancer), set `QABOARD_TRUSTED_PROXY_HOPS` to how many: `1` for one ingress. With `0` (the default), the IP is the
+address nginx sees. Don't set it without proxies: clients could then choose the IP that gets recorded.
+
+## Troubleshooting
+When an SSO sign-in fails, users see a short message and a **reference**: the audit event in **Admin → Audit**
+(search for it) has the details, and so does the backend's log (`[sign-in] ...`).
+
+| Users see | What happened | What to do |
+|---|---|---|
+| We couldn't reach the sign-in service | The backend can't reach the IdP | Run `qaboard-admin check-sign-in`. Check the proxy (`NO_PROXY` for an internal IdP) and the CA certificates of the backend's image (`CA_CERT_URL`) |
+| The sign-in took too long or started elsewhere | The handshake is lost: another tab, more than 10 minutes, or a different hostname | Users must come back to the hostname they left from: `QABOARD_URL` must be the one users use, and the redirect URI must be on it |
+| The sign-in service refused it | The IdP sent an error (e.g. `access_denied`) | The audit event has the IdP's message |
+| Single sign-on isn't set up right | Wrong issuer, audience, signature, a missing claim... | The audit event says which. A missing `sub` or user name claim: ask for the claim mapper |
+| Not allowed | `QABOARD_LOGIN_RESTRICTED_YAML`'s rules refuse the user | |
+| Your account is disabled | An admin disabled it | |
+
+Keycloak's "Invalid parameter: redirect_uri" means the redirect URI isn't registered: `check-sign-in` says which
+near-misses (http/https, a trailing slash) the IdP accepts. In Keycloak, scheme, host, port and path must all match.

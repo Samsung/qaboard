@@ -6,13 +6,16 @@ title: User Management
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
 QA-Board has users, admins, API tokens and an audit log. You can require signing in, and restrict who can use the
-server or read some projects. Users sign in with local accounts, LDAP or SAML, and the `qa` CLI with `qa auth login`.
+server or read some projects. Users sign in with single sign-on (OpenID Connect), LDAP, SAML or local accounts (see
+[Sign-in and single sign-on](/docs/backend-admin/sign-in)), and the `qa` CLI with `qa auth login`.
 
 ## Admins and the admin panel
 Admins see **Admin** in the user menu, at `/admin`:
 - **Overview**: how many users and tokens, and a **security checklist** of what to look at next.
-- **Users**: search them, see when they last signed in and their tokens, disable accounts, make admins.
+- **Users**: search them, see when they last signed in and their tokens, disable accounts, make admins, approve
+  the users who [wait for an admin](/docs/backend-admin/sign-in#decide-who-gets-an-account).
   A disabled user's sessions and tokens stop working at their next request.
+- **Sign-in**: the sign-in providers, add OpenID Connect providers, and test them.
 - **Tokens**: every API token, with when and from where it was last used. Revoke any of them.
 - **Audit**: sign-ins (and failed ones), tokens created and revoked, `qa auth login` approvals, admin changes and
   setting changes, with who did it and from which IP.
@@ -45,15 +48,26 @@ the panel then shows the setting as "set by the environment", and you change it 
 | `tokens.max_lifetime_days` | | none | The longest lifetime users may choose. Empty: tokens may never expire |
 | `tokens.cli_idle_expiry_days` | | `180` | Tokens created by `qa auth login` expire after this many days without use |
 | `audit.retention_days` | | `730` | `qaboard-admin purge-audit` deletes older audit events |
+| `auth.access_policy` | `QABOARD_ACCESS_POLICY` | `open` | Who gets an account: `open`, `domains`, `approval` (see [Decide who gets an account](/docs/backend-admin/sign-in#decide-who-gets-an-account)) |
+| `auth.allowed_email_domains` | `QABOARD_ALLOWED_EMAIL_DOMAINS` | none | With `domains`: the email domains whose users get an account right away |
+| `auth.access_request_webhook` | `QABOARD_ACCESS_REQUEST_WEBHOOK` | none | A Slack, Teams or Mattermost incoming webhook told when users wait for an admin |
+| `auth.sso_auto_redirect` | `QABOARD_SSO_AUTO_REDIRECT` | `false` | The sign-in page goes straight to the only single sign-on, when signing in is required |
+| `sessions.idle_days` | | `30` | Browser sessions end after this many days without activity |
+| `sessions.max_days` | | `180` | Browser sessions end after this many days in any case (365 at most) |
 
 Empty environment variables count as unset.
 
 ## Authentication Providers
+`QABOARD_LOGIN_TYPE` chooses the password accounts, or SAML:
 - `LOCAL`: an internal users list, created by qaboard admins.<br />
 - `LDAP`
 - `SAML`: SSO via SAML
 
-Users sign in from the **Sign in** button at the top right of the web app. With `LOCAL` and `LDAP`, it opens a form; with `SAML`, it redirects them to your identity provider.
+Single sign-on with OpenID Connect comes on top of any of them: see [Sign-in and single sign-on](/docs/backend-admin/sign-in).
+Local accounts always work, for admins created with `qaboard-admin create-admin --password`.
+
+Users sign in from the **Sign in** button at the top right of the web app: it shows the single sign-on buttons, then a
+user name and password form for `LOCAL` and `LDAP`.
 
 <Shot
   id="auth/login"
@@ -93,8 +107,9 @@ The sign-in policy is set via environment variables such as `QABOARD_LOGIN_*`, `
 | `QABOARD_TRUSTED_PROXY_HOPS`   | _0_  | How many proxies in front of QA-Board's nginx add the client to `X-Forwarded-For`, e.g. `1` behind a Kubernetes ingress or a load balancer. The audit log uses it to find users' IPs: with `0`, it's the address nginx sees. |
 | `QABOARD_LOGIN_RESTRICTED`   | _empty_  | `true` uses a configuration file to allow only specific users (empty, `false` or `0` turn it off) |
 | `QABOARD_LOGIN_RESTRICTED_YAML`   | _none_  | The path to the users configuration file                     |
-| `QABOARD_LDAP_HOST`   | _none_  | Server hostname (including port)                   |
-| `QABOARD_LDAP_PORT`   | _389_  | Server port, usually 389 (or 636 if SSL is used / **not supported yet!**). |
+| `QABOARD_LDAP_HOST`   | _none_  | Server hostname (including port), or a URL: `ldaps://ldap.example.com:636` for LDAP over TLS |
+| `QABOARD_LDAP_PORT`   | _389_  | Server port, usually 389 (636 with `ldaps://`) |
+| `QABOARD_LDAP_START_TLS`   | _false_  | `true` upgrades the connection to TLS (StartTLS) |
 | `QABOARD_LDAP_USER_BASE`   | _none_  | Search base for users. |
 | `QABOARD_LDAP_BIND_DN`     | _none_  | The Distinguished Name to bind as, this user will be used to lookup information about other users. |
 | `QABOARD_LDAP_PASSWORD`    | _none_  | The password to bind with for the lookup user. |

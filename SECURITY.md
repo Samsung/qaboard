@@ -42,6 +42,8 @@ Fixed on the default branch, after the `qaboard` 1.0.3 release:
 - Logins with an empty password were sent to LDAP, where they can succeed as anonymous binds, and the user name was put unescaped in the LDAP search filter.
 - The image viewer's API (`/api/v1/output/image/pixel`, `/pixels` and `/diff`) didn't require a login, and read any image on the server's filesystem, also outside the storage (with `..` or absolute paths), whatever the files' restrictions. It now requires a login, only reads files in `QABOARD_STORAGE_ROOTS` (not the server's own folders), and checks the user can read them, like the file browser. The video viewer's API (`/api/v1/output/video/...`) does the same.
 - `POST /api/v1/output/diff/report` wrote a PDF in a folder chosen by the client, anywhere the server could write, without a login. It was unused and is removed.
+- Sessions couldn't be revoked: signing out only deleted the browser's cookie, and a copied session cookie stayed valid until `SECRET_KEY` changed. Sessions are now stored on the server, end after `sessions.idle_days` without activity and `sessions.max_days` in any case, and end when users sign out, when they or admins revoke them, and when the account is disabled.
+- There were no rate limits on signing in. The shipped nginx configuration now limits signing in, sign-up and `qa auth login` codes.
 - The GitLab proxy (`GET /api/v1/gitlab/proxy`), used for avatars and badges, fetched any URL for logged-in users, including internal services (SSRF), and passed back all the response's headers. It now only fetches from the GitLab hosts, gravatar and the hosts listed in `QABOARD_PROXY_HOSTS`, also after redirects, and its responses can't run scripts.
 
 
@@ -78,8 +80,7 @@ Without `QABOARD_WEBHOOK_SECRET`, anyone who can reach the server can send fake 
 - With `QABOARD_LOGIN_TYPE=LOCAL`, anyone can sign up unless you turn off `auth.local_signup`, or use LDAP or SAML (local sign-up is then off by default).
 - The default setup uses plain HTTP, so session cookies and API tokens can be sniffed on the network. Serve QA-Board over HTTPS, with `QABOARD_URL=https://…`: cookies then get the `Secure` flag.
 - Tokens created before October 2026 ("legacy" tokens) can read, send results and act as their user (not use the admin API), and don't expire. Admins see them in **Admin → Tokens**; ask their owners to replace them.
-- There are no rate limits on signing in, sign-up and `qa auth login` codes yet. Before exposing a server to the internet, add nginx `limit_req` rules on `/api/v1/user/auth/`, `/api/v1/user/signup/` and `/api/v1/auth/device/code`.
-- Sessions can't be listed or revoked yet, except by disabling the account.
+- The rate limits on signing in, sign-up, `qa auth login` codes and SSO redirects are in the nginx configuration QA-Board ships (`services/nginx/conf.d/qaboard.conf`, and the chart's). If you use your own reverse proxy in front of the backend, add `limit_req` rules on `/api/v1/user/auth/`, `/api/v1/user/signup/`, `/api/v1/auth/device/code` and `/api/v1/auth/oidc/`.
 
 ### Other
 - `POST /api/v1/webhook/proxy` lets logged-in users send any HTTP request to any URL from the server (SSRF), e.g. to internal services. It is used for the webhook integrations configured in `qaboard.yaml`.
