@@ -84,7 +84,7 @@ Name things the way the web app does, and the same way every time.
 
 - Commit page sections and views: **Metrics** (**Summary**, **Metrics Table**, **Metrics Diff**), **Outputs**
   (**Visualizations**, **Output Files**, **Logs**), **Source** (**Artifacts & Configs**, **Code**), **Tuning**
-  (**Available Tests**, **Run Tests / Tuning**, **Analysis**).
+  (**Available Tests**, **Run Tests / Tuning**, **Tuning Analysis**).
 - Elsewhere: **History**, **Milestones**, **Integrations** (formerly "Actions & Links"), the **View options** panel
   (formerly "Controls") with **Compare images** (formerly "Image Diff") and **Files to show** (formerly "Dynamic
   Options"), **What's new**, the file browser.
