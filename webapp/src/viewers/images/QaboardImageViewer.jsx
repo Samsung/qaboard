@@ -45,7 +45,7 @@ const referenceImage = ({ output_ref, path_ref, manifests, image_servers, label 
 // Later: the images of the reference run, of other runs...
 const otherImages = ({ output_new, path, manifests, image_servers }) => {
   if (output_new.deleted || !output_new.output_dir_url) return [];
-  return compareCandidates(path, manifests?.new).map(({ path: other, suggested, reason }) => ({
+  return compareCandidates(path, manifests?.new, image_servers).map(({ path: other, suggested, reason }) => ({
     id: other,
     image: runImage(output_new, other, manifests.new, image_servers, other),
     group: suggested ? 'Suggested' : 'This run',

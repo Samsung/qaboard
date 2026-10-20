@@ -25,11 +25,17 @@ export const closeness = (path, other) => {
 
 const SUGGESTED = 6;
 
+// Images are the usual formats, and those the site's image servers open, e.g. { 'raw,hex,dng': '/iiif/cde/' }
+const extension = path => path.slice(path.lastIndexOf('.') + 1).toLowerCase();
+export const isImageFile = (path, image_servers) => is_image({ path }) || Object.keys(image_servers ?? {})
+  .filter(extensions => extensions !== 'default')
+  .some(extensions => extensions.toLowerCase().split(',').map(e => e.trim()).includes(extension(path)));
+
 // The run's images but `path`: [{ path, suggested, reason? }], the suggested first
-export const compareCandidates = (path, manifest) => {
+export const compareCandidates = (path, manifest, image_servers) => {
   if (!manifest) return [];
   const paths = Object.keys(manifest)
-    .filter(other => other !== path && is_image({ path: other }))
+    .filter(other => other !== path && isImageFile(other, image_servers))
     // the TIFF the viewer shows for a PNG (build_image_name) isn't listed twice
     .filter(other => !(/\.tiff$/i.test(other) && manifest[other.replace(/\.tiff$/i, '.png')] !== undefined))
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));

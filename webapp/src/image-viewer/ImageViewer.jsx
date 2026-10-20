@@ -134,6 +134,8 @@ export const ImageViewer = ({
   // e.g. a file the other viewers' runs have, but not this one's: we show the reference and say it
   const missing = compared_id != null && !alternative ? compared_id : null;
   const reference_name = normalizeImage(reference)?.label ?? 'reference';
+  // "the reference", or its own name, e.g. "ISP v1": as everywhere else
+  const the_reference = reference_name === 'reference' ? 'the reference' : reference_name;
   const images = {
     a: normalizeImage(image),
     b: alternative ? { ...normalizeImage(alternative.image), label: candidateLabel(alternative) } : normalizeImage(reference),
@@ -377,7 +379,7 @@ export const ImageViewer = ({
     if (id !== null) last_other.current = id;
     setCompared(id);
     const candidate = id !== null ? compareWith.find(c => c.id === id) : null;
-    const what = candidate ? `Comparing with ${candidateLabel(candidate)}` : reference ? `Comparing with the ${reference_name} again` : 'The image alone again';
+    const what = candidate ? `Comparing with ${candidateLabel(candidate)}` : reference ? `Comparing with ${the_reference} again` : 'The image alone again';
     notify(scope_phrase ? `${what} ${scope_phrase}` : what);
   };
   const toggleCompared = () => {
@@ -606,11 +608,11 @@ export const ImageViewer = ({
       {compareWith.length > 0 && <span className="qiv-group qiv-compare-with">
         <Popover open={picker_open} onOpenChange={setPickerOpen} button={props => <Button
           {...props}
-          icon={alternative ? 'document' : 'git-branch'}
+          icon={alternative ? 'document' : 'comparison'}
           className={`qiv-compare-button ${alternative ? 'qiv-intent' : ''}`}
           disabled={hidden}
           title={hidden ? 'Pick what to compare with after the blind test'
-            : `Compare with ${alternative ? candidateLabel(alternative) : reference ? `the ${reference_name}` : 'another image'}. Click to compare with another image (c: ${alternative ? 'back to the reference' : 'the image picked last'})`}
+            : `Compare with ${alternative ? candidateLabel(alternative) : reference ? the_reference : 'another image'}. Click to compare with another image (c: ${alternative ? `back to ${the_reference}` : 'the image picked last'})`}
         >
           {comparing ? <><span className="qiv-compare-vs">vs</span> <span className="qiv-compare-current">{alternative ? candidateLabel(alternative) : reference_name}</span>{comparedNote && <span className="qiv-compare-note">{comparedNote}</span>}</> : 'Compare with…'}
           <Icon icon="chevron-down" size={12} />
@@ -618,6 +620,7 @@ export const ImageViewer = ({
           {({ close }) => <CompareWithMenu
             reference={reference}
             referenceName={reference_name}
+            theReference={the_reference}
             candidates={compareWith}
             selected={alternative?.id ?? null}
             onSelect={pickCompared}
@@ -629,8 +632,8 @@ export const ImageViewer = ({
         </Popover>
         {alternative && !hidden && <Button
           icon="undo"
-          title={reference ? `Back to the ${reference_name} (c)` : 'Show the image alone (c)'}
-          label={reference ? `Back to the ${reference_name}` : 'Show the image alone'}
+          title={reference ? `Back to ${the_reference} (c)` : 'Show the image alone (c)'}
+          label={reference ? `Back to ${the_reference}` : 'Show the image alone'}
           onClick={() => pickCompared(null)}
         />}
       </span>}
@@ -641,7 +644,7 @@ export const ImageViewer = ({
         aria-pressed={diff_between}
         onClick={toggleDiffLayout}
       />}
-      {comparing && <Button icon="exchange" title={`${flip_title} (t)`} onClick={flip} active={swapped && !hidden} aria-pressed={swapped && !hidden} />}
+      {comparing && <Button icon="exchange" text="Swap" title={`${flip_title} (t)`} onClick={flip} active={swapped && !hidden} aria-pressed={swapped && !hidden} />}
       {comparing && <Button
         icon={!blind ? 'eye-off' : blind.revealed ? 'tick' : 'eye-open'}
         text={!blind ? 'Blind test' : blind.revealed ? 'Done' : 'Reveal'}
@@ -662,7 +665,7 @@ export const ImageViewer = ({
       {tile_errors > 0 && <span className="qiv-warning-text" title={controller.images.a?.tileError ?? controller.images.b?.tileError}>
         <Icon icon="warning-sign" size={12} /> {tile_errors} tile{tile_errors > 1 ? 's' : ''} failed
       </span>}
-      {missing && <span className="qiv-warning-text" title={`${missing} isn't available here: ${reference ? `comparing with the ${reference_name}` : 'the image shows alone'}`}>
+      {missing && <span className="qiv-warning-text" title={`${missing} isn't available here: ${reference ? `comparing with ${the_reference}` : 'the image shows alone'}`}>
         <Icon icon="warning-sign" size={12} /> no {missing.split('/').pop()} here
       </span>}
       {different_aspect && <span className="qiv-warning-text" title="The images are compared at the same width: their bottoms don't match.">

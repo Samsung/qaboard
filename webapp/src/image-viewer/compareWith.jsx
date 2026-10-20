@@ -61,7 +61,7 @@ const Thumbnail = ({ image }) => {
 };
 
 // The menu: a search box, the reference, then the app's images by group. Arrows and Enter pick one.
-export const CompareWithMenu = ({ reference, referenceName, candidates, selected, onSelect, close, scopes = [], scope, onScopeChange }) => {
+export const CompareWithMenu = ({ reference, referenceName, theReference = 'the reference', candidates, selected, onSelect, close, scopes = [], scope, onScopeChange }) => {
   const [query, setQuery] = useState('');
   const matches = matchCandidates(candidates, query);
   const shown = matches.slice(0, LIMIT);
@@ -120,12 +120,12 @@ export const CompareWithMenu = ({ reference, referenceName, candidates, selected
     </label>
     <div className="qiv-compare-list" role="listbox" aria-label="Compare with" ref={list}>
       {show_reference && item(null, <>
-        <span className="qiv-compare-thumbnail qiv-compare-reference"><Icon icon="git-branch" size={14} /></span>
+        <span className="qiv-compare-thumbnail qiv-compare-reference"><Icon icon="comparison" size={14} /></span>
         <span className="qiv-compare-text">
           <span className="qiv-compare-name">{referenceName}</span>
           <span className="qiv-compare-detail">{normalizeImage(reference)?.detail ?? 'The reference'}</span>
         </span>
-      </>, { title: 'Compare with the reference' })}
+      </>, { title: `Compare with ${theReference}` })}
       {groups.map(({ group, items }) => <div key={group ?? ''} role="group" aria-label={group ?? undefined}>
         {group && <div className="qiv-menu-title">{group}</div>}
         {items.map(candidate => item(candidate.id, <>
@@ -147,7 +147,7 @@ export const CompareWithMenu = ({ reference, referenceName, candidates, selected
       <span className="qiv-compare-scope-hint">{scopes.find(option => option.value === scope)?.title}</span>
     </div>}
     <div className="qiv-hint qiv-compare-footer">
-      <kbd>↑</kbd> <kbd>↓</kbd> <kbd>Enter</kbd> to pick · <kbd>c</kbd> switches between the reference and the image picked last
+      <kbd>↑</kbd> <kbd>↓</kbd> <kbd>Enter</kbd> to pick · <kbd>c</kbd> switches between {theReference} and the image picked last
     </div>
   </div>;
 };

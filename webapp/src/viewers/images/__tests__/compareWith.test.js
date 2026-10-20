@@ -23,6 +23,13 @@ describe('the images to compare with', () => {
     expect(paths).toEqual(['b.png', 'c.tiff']);
   });
 
+  it("lists the formats the site's image servers open", () => {
+    const files = manifest(['a.png', 'frame.yuv', 'frame.RAW12', 'notes.txt']);
+    expect(compareCandidates('a.png', files).map(({ path }) => path)).toEqual([]);
+    const servers = { default: '/iiif/2/', 'yuv, raw12': '/iiif/cde/' };
+    expect(compareCandidates('a.png', files, servers).map(({ path }) => path)).toEqual(['frame.RAW12', 'frame.yuv']);
+  });
+
   it('sorts the others like people do', () => {
     const paths = compareCandidates('x/a.png', manifest(['x/a.png', 'y/frame10.png', 'y/frame2.png'])).map(({ path }) => path);
     expect(paths).toEqual(['y/frame2.png', 'y/frame10.png']);
