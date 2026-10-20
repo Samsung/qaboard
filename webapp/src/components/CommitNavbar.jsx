@@ -425,7 +425,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
     })
   }
 
-  // names users gave follow their results, "new" and "ref" stay where they are
+  // names users gave follow their results, "new" and "ref" stay in their bars
   const switchSelection = () => updateSelected(switch_new_and_reference(selected))
 
 
@@ -457,8 +457,8 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
         <Button icon="arrow-right" aria-label="Show this commit in the project" onClick={() => selectCommit(commit?.id)}></Button>
       </ControlGroup>
       <MenuDivider title="Quick actions"/>
-      <MenuItem text="Switch new/reference" icon="exchange" onClick={switchSelection} />
-      <MenuItem text={`Also select as ${type === 'ref' ? 'new' : 'reference'}`} icon={type === 'ref' ? "chevron-up" : "chevron-down"} onClick={copyToOtherType} />
+      <MenuItem text="Swap the bars" icon="swap-vertical" label="top and bottom" onClick={switchSelection} />
+      <MenuItem text={`Also show in the ${type === 'ref' ? 'top' : 'bottom'} bar`} label="replaces what it shows" icon={type === 'ref' ? "chevron-up" : "chevron-down"} onClick={copyToOtherType} />
       {type === 'ref' && <MenuItem text="Stack another reference…" icon="layers" label="compare with several" onClick={openAddReference} />}
       <MenuItem text="Remove from comparison" icon="cross" onClick={removeSelection} />
       <MenuItem text={reference_branch} label="reference branch" icon="git-branch" onClick={() => selectBranch(reference_branch)} />
@@ -549,8 +549,8 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
           <CommitBranchButton commit={commit} error={error_text} onClick={selectBranch} style={{ flex: '0 1 auto', alignSelf: 'center' }} />
 
           {(!error_text || !!commit?.authored_datetime) && <DoneAtTag project={project} commit={commit} style={{ flex: '0 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }} />}{" "}
-          {same_as_new && <Tooltip content={references?.length > 1 ? "The same results as new: switch to another reference (r), or pick another one" : "The same results as new: pick another reference to compare"} targetProps={{style: {alignSelf: "center"}}}>
-            <Tag minimal intent={Intent.WARNING} icon="duplicate" style={{ marginLeft: '5px' }}>Same as new</Tag>
+          {same_as_new && <Tooltip content={references?.length > 1 ? "Both bars show the same runs: nothing to compare. Switch to another reference (r), or pick another one" : "Both bars show the same runs: nothing to compare. Pick another reference"} targetProps={{style: {alignSelf: "center"}}}>
+            <Tag minimal intent={Intent.WARNING} icon="duplicate" style={{ marginLeft: '5px' }}>Same runs</Tag>
           </Tooltip>}
           {!!error_text && <Tooltip content={
             <span>

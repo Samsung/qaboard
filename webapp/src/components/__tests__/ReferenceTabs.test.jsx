@@ -1,5 +1,5 @@
 // Users stack several references, and compare the new commit with one at a time: tabs below the commit bars
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { unstable_HistoryRouter as HistoryRouter, useLocation } from 'react-router';
 
@@ -191,9 +191,9 @@ test('hovering a tab says what the reference is', async () => {
     expect(tooltip).toHaveTextContent('Batch CI');
     expect(tooltip).toHaveTextContent('3 runs');
     expect(tooltip).toHaveTextContent('1 failed');
-    // the same commit and batch as new
-    expect(tooltip).toHaveTextContent('Same as new');
-    expect(tab(2)).toHaveTextContent('= new');
+    // what is the same as the top results is left unsaid
+    expect(tooltip).not.toHaveTextContent(/same/i);
+    expect(tab(2)).not.toHaveTextContent('new');
   } finally {
     vi.useRealTimers();
   }
@@ -222,4 +222,25 @@ describe('tabs say only what tells references apart', () => {
     expect(texts([ref(a, 'master', { milestone: { label: 'v1' } }), ref(b, 'develop')])).toEqual([[], ['branch:develop']]);
     expect(texts([ref(a, 'master'), ref(a, 'master', { project: 'q' })])).toEqual([['project:p'], ['project:q']]);
   });
+});
+
+test('the first tab is the top results: only the two bars swap', async () => {
+  show(`/p/commit/${a}?label=ISP%20v2&reference=${b}&compare=${d}`);
+  const top = await screen.findByLabelText(/^Top: ISP v2/);
+  // hidden references don't swap: the top results would replace something users don't see
+  fireEvent.click(screen.getByRole('button', { name: 'Reference 2: more' }));
+  expect(await screen.findByRole('menuitem', { name: /Compare with it/ })).toBeInTheDocument();
+  expect(screen.queryByRole('menuitem', { name: /Swap the bars/ })).not.toBeInTheDocument();
+  fireEvent.keyDown(document.activeElement, { key: 'Escape' });
+
+  // the top tab's menu swaps it with the reference shown
+  fireEvent.click(within(top.closest('.qa-tabs-top')).getByRole('button', { name: 'Top: more' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: /Swap the bars/ }));
+  await waitFor(() => expect(location.pathname).toBe(`/p/commit/${b}`));
+  // the same comparison, reversed: nothing removed, the names follow their results
+  expect(reference()).toBe(a);
+  expect(query().get('label_ref')).toBe('ISP v2');
+  expect(screen.getByTestId('labels')).toHaveTextContent('new vs ISP v2 (');
+  expect(screen.getAllByRole('tab')).toHaveLength(2);
+  expect(await screen.findByLabelText(/^Top: new/)).toBeInTheDocument();
 });
