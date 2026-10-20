@@ -254,7 +254,8 @@ const CommitResults = ({ project, project_data = {}, commit, className, default_
                 </strong>{" "}
                 avg {default_metric_info.short_label}
               </Tag></Tooltip>}
-              {Object.keys(ci_batch.aggregated_metrics).length > 2 && <Tooltip content={<>
+              {/* more than the main metric's median, average and sum */}
+              {Object.keys(ci_batch.aggregated_metrics).length > 3 && <Tooltip content={<>
                 <strong>All aggregated metrics</strong>
                 <ul className={Classes.LIST}>
                   {Object.entries(ci_batch.aggregated_metrics || {}).map(([k, v]) => (

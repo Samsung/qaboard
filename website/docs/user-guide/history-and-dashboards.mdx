@@ -57,8 +57,10 @@ project's configuration chooses which ones are offered, else all the metrics of 
   caption="p99 per test over the last two weeks of main, with its 12 ms target dashed: hover the jump to see which test it is, and the commit below."
 />
 
-- **Breakdown per test**: one line per test (input and configuration). Turn it off for a single line, the **median**
-  or **average** over all runs, but beware: commits may not have been evaluated on the same tests.
+- **Breakdown per test**: one line per test (input and configuration). Turn it off for a single line, the **median**,
+  **average** or **sum** over all runs, but beware: commits may not have been evaluated on the same tests. Use the
+  **sum** for counts that add up, like the tests of each test suite: filter on one configuration first, else a test
+  run in two configurations counts twice. See [tracking tests](/docs/use-cases/software-quality).
 - **Relative to start (@100)**: rescales each line so that its first value is 100, to compare tests with very
   different values.
 - **Show output files**: below the chart, show the files a run created instead of its visualizations.

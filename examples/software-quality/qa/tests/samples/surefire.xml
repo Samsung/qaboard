@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Maven Surefire, rerunning failed tests once (surefire.rerunFailingTestsCount=1): a test that failed, then passed -->
+<testsuite name="com.kitefin.fleet.ClientTest" time="0.61" tests="2" errors="0" skipped="0" failures="0">
+  <testcase name="retriesUntilItWorks" classname="com.kitefin.fleet.ClientTest" time="0.11"/>
+  <testcase name="deadline" classname="com.kitefin.fleet.ClientTest" time="0.5">
+    <flakyFailure message="expected: &lt;3.5&gt; but was: &lt;3.7&gt;" type="org.opentest4j.AssertionFailedError">
+      <stackTrace>org.opentest4j.AssertionFailedError: expected: &lt;3.5&gt; but was: &lt;3.7&gt;</stackTrace>
+    </flakyFailure>
+  </testcase>
+</testsuite>

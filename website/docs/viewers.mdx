@@ -152,6 +152,44 @@ profiles, see the [flame graphs blog post](/blog/2020/06/24/flame-graphs).
   caption="Rendering responses under the shared cache's lock is new (orange); the model's forward pass runs less (blue): cache hits skip it."
 />
 
+## Test reports {#test-reports}
+**Files:** *junit.xml*, *\*.junit.xml*, *\*-junit.xml*, *TEST-\*.xml* (Maven Surefire and Gradle), or any file with
+`type: junit/xml`, in the JUnit XML format that most test runners write:
+
+| Test runner | Writes a JUnit XML report with |
+|---|---|
+| pytest | `pytest --junitxml=junit.xml` |
+| GoogleTest | `./my_tests --gtest_output=xml:junit.xml` |
+| CTest | `ctest --output-junit junit.xml` (one test case per test executable) |
+| Maven Surefire, Gradle | `target/surefire-reports/TEST-*.xml`, `build/test-results/test/TEST-*.xml` |
+| Jest, Go, cargo nextest | `jest-junit`, `go-junit-report`, nextest's `junit` profile |
+
+The viewer shows the run's tests as a tree, compared with the reference run's: new failures, fixed, added, removed,
+newly flaky and skipped tests, with each failure's message, trace and output. How people use it:
+[Test reports](/docs/user-guide/other-viewers#test-reports).
+
+```yaml title="qaboard.yaml"
+outputs:
+  visualizations:
+    - name: Tests
+      path: junit.xml
+      height: 440     # the list's height, in pixels
+```
+
+<Shot id="commit/junit-viewer" />
+
+- **Make each run a test suite**, not a test case, and return the counts as metrics: see
+  [Tests and coverage over time](/docs/use-cases/software-quality#map-tests-to-runs). The viewer reads the cases from
+  the report.
+- **The tree** comes from each test's `classname`, split on dots: `tests.codec.test_varint` for pytest, the test
+  suite for GoogleTest. Groups with a single child are merged, like `tests.codec`.
+- **Tests are matched by id**, `classname::name`: keep test names stable, without addresses or random parts.
+- **Flaky tests** are those with a `<flakyFailure>` or `<flakyError>`, as Maven Surefire writes them when it reruns
+  failures. If your runner reruns failures another way, rewrite the report: the
+  [software quality example](https://github.com/Samsung/qaboard/blob/master/examples/software-quality/qa/main.py)
+  does it for pytest.
+- **Skipped tests** are those with `<skipped>`, and GoogleTest's `DISABLED_` tests.
+
 ## Text {#text}
 **Files:** any file no other viewer opens, like *.txt*, *.json*, *.yaml* or *.log*, or `type: text/plain`.
 

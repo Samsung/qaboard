@@ -14,6 +14,14 @@ export const hasAllMetrics = (commit, batch_label, metrics, aggregation) => {
   });
 };
 
+// The sum of a metric over a batch's runs, e.g. the number of tests of a commit when each run is a suite of tests.
+// Like the backend's `{metric}_sum` (backend/models/Batch.py): values that aren't numbers are left out, and without
+// any number there is no sum.
+export const sum = values => {
+  const numbers = values.filter(x => typeof x === 'number' && !isNaN(x));
+  return numbers.length === 0 ? null : numbers.reduce((a, b) => a + b, 0);
+};
+
 // A true/false option of the charts from the URL's query (?relative=false), or its default when the URL doesn't say
 export const queryFlag = (params, name, fallback) => {
   const value = params.get(name);

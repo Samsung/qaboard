@@ -199,9 +199,9 @@ max_aggregated_metrics = 20
 
 def batches_stats(session, batch_ids, metrics_to_aggregate=None):
   """
-  In one query for many batches: their number of outputs per status, and the median
-  and average of some metrics over their valid outputs (`metrics_to_aggregate`: {name: target}).
-  Returns {batch_id: {'valid_outputs': 10, ..., 'aggregated_metrics': {'loss_median': 0.1, 'loss_average': 0.2}}}
+  In one query for many batches: their number of outputs per status, and the median, average
+  and sum of some metrics over their valid outputs (`metrics_to_aggregate`: {name: target}).
+  Returns {batch_id: {'valid_outputs': 10, ..., 'aggregated_metrics': {'loss_median': 0.1, 'loss_average': 0.2, 'loss_sum': 2}}}
   Batches without outputs are missing.
   """
   if not batch_ids:
@@ -249,6 +249,7 @@ def batches_stats(session, batch_ids, metrics_to_aggregate=None):
     value = values.c[f'value_{index}']
     columns.append(func.percentile_cont(0.5).within_group(value))
     columns.append(func.avg(value))
+    columns.append(func.sum(value))
   query = session.query(*columns).group_by(values.c.batch_id)
   if metrics:
     try:
@@ -265,11 +266,13 @@ def batches_stats(session, batch_ids, metrics_to_aggregate=None):
   for batch_id, valid, pending, running, failed, deleted, *aggregates in rows:
     aggregated = {}
     for index, metric in enumerate(metrics):
-      median, average = aggregates[2 * index], aggregates[2 * index + 1]
+      median, average, total = aggregates[3 * index:3 * index + 3]
       if median is not None:
         aggregated[f'{metric}_median'] = median
       if average is not None:
         aggregated[f'{metric}_average'] = average
+      if total is not None:
+        aggregated[f'{metric}_sum'] = total
     stats[batch_id] = {
       'aggregated_metrics': aggregated,
       'valid_outputs': valid or 0,

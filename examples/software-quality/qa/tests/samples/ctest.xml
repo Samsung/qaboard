@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- What CTest (CMake 3.28) writes with its output-junit option: one test case per test executable -->
+<testsuite name="Linux-c++" tests="3" failures="1" disabled="0" skipped="1" hostname="" time="1" timestamp="2026-10-14T09:12:05">
+	<testcase name="codec_tests" classname="codec_tests" time="0.21" status="run">
+		<system-out>[==========] 6 tests from 2 test suites ran.</system-out>
+	</testcase>
+	<testcase name="planning_tests" classname="planning_tests" time="0.43" status="fail">
+		<failure message="Failed"/>
+		<system-out>[  FAILED  ] AStar.BigWarehouse</system-out>
+	</testcase>
+	<testcase name="gpu_tests" classname="gpu_tests" time="0" status="notrun">
+		<skipped message="Disabled"/>
+		<system-out>Disabled</system-out>
+	</testcase>
+</testsuite>

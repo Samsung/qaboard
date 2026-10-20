@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- What GoogleTest 1.14 writes with the gtest_output=xml:junit.xml flag, shortened -->
+<testsuites tests="6" failures="1" disabled="1" errors="0" time="0.012" timestamp="2026-10-14T09:12:03.120" name="AllTests">
+  <testsuite name="Crc16Test" tests="2" failures="1" disabled="0" skipped="0" errors="0" time="0.003" timestamp="2026-10-14T09:12:03.121">
+    <testcase name="KnownVectors" file="tests/crc_test.cc" line="12" status="run" result="completed" time="0.001" timestamp="2026-10-14T09:12:03.121" classname="Crc16Test" />
+    <testcase name="Chunks" file="tests/crc_test.cc" line="20" status="run" result="completed" time="0.002" timestamp="2026-10-14T09:12:03.122" classname="Crc16Test">
+      <failure message="tests/crc_test.cc:24&#x0A;Expected equality of these values:&#x0A;  crc16(data)&#x0A;    Which is: 10673&#x0A;  0x29B1" type=""><![CDATA[tests/crc_test.cc:24
+Expected equality of these values:
+  crc16(data)
+    Which is: 10673
+  0x29B1]]></failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="Bits/VarintRoundTrip" tests="4" failures="0" disabled="1" skipped="1" errors="0" time="0.009" timestamp="2026-10-14T09:12:03.124">
+    <testcase name="Encodes/7" value_param="7" file="tests/varint_test.cc" line="40" status="run" result="completed" time="0.004" timestamp="2026-10-14T09:12:03.124" classname="Bits/VarintRoundTrip" />
+    <testcase name="Encodes/35" value_param="35" file="tests/varint_test.cc" line="40" status="run" result="completed" time="0.005" timestamp="2026-10-14T09:12:03.128" classname="Bits/VarintRoundTrip" />
+    <testcase name="DISABLED_Encodes128" file="tests/varint_test.cc" line="52" status="notrun" result="suppressed" time="0" timestamp="2026-10-14T09:12:03.133" classname="Bits/VarintRoundTrip" />
+    <testcase name="NeedsBigEndian" file="tests/varint_test.cc" line="60" status="run" result="skipped" time="0" timestamp="2026-10-14T09:12:03.133" classname="Bits/VarintRoundTrip">
+      <skipped message="tests/varint_test.cc:61&#x0A;little-endian host"><![CDATA[tests/varint_test.cc:61
+little-endian host]]></skipped>
+    </testcase>
+  </testsuite>
+</testsuites>

@@ -287,7 +287,8 @@ Specs import only `./lib`. Signatures (`docs-media/shots/lib/index.ts`):
 import type { Page, Locator } from '@playwright/test';
 
 export type ShotId = `${string}/${string}`;            // checked against the id regex at registration
-export type ProjectKey = 'image-quality' | 'serving-latency' | 'detection-eval' | 'robotics-3d' | 'agent-evals';
+export type ProjectKey = 'image-quality' | 'serving-latency' | 'detection-eval' | 'robotics-3d' | 'agent-evals'
+  | 'software-quality';
 export type View = 'summary' | 'table-kpi' | 'table-compare' | 'output-list' | 'bit_accuracy' | 'logs'
                  | 'parameters' | 'groups' | 'tuning' | 'optimization';   // the app's `selected_views` values
 

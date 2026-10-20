@@ -31,6 +31,7 @@ features:
   plotly-overlay: Plotly plots with the reference overlaid
   flame-diff: Differential flame graphs
   text-diff: Monaco text diff with Next Diff
+  junit-viewer: JUnit XML test reports as a tree against the reference's, with filters, search and the failures
   video-sync: Videos played in sync with the reference
   video-compare: Videos compared frame by frame, side by side, with a wipe, one at a time (Single) or as their difference, synced zoom
   video-differences: The server's comparison of decoded video frames, over the timeline and as regions
@@ -545,6 +546,32 @@ shots:
     needs: short-tools vs merge-verbose-prompt
     phase: 3
     status: published
+  - id: commit/junit-viewer
+    kind: still
+    project: software-quality
+    shows: "The test viewer on the missions suite of the coding agent's change against main, filtered on the removed tests: 0 failed, none fixed, 12 removed, 2 newly skipped."
+    pages: [use-cases/software-quality, viewers, user-guide/other-viewers]
+    features: [junit-viewer]
+    needs: green-ci vs closest-robot
+    phase: 3
+    status: planned
+  - id: commit/tests-diff
+    kind: still
+    project: software-quality
+    shows: "The codec suite's tests.txt diffed with the commit before the varint fast path: PASS lines that turned FAIL."
+    pages: [use-cases/software-quality]
+    features: [text-diff]
+    needs: varint-fast-path vs grid-docs
+    phase: 3
+    status: planned
+  - id: commit/deleted-tests
+    kind: still
+    project: software-quality
+    shows: "The Metrics Diff of the coding agent's change against main: missions has 0 failed tests, but 12 tests instead of 24 and 2 skipped; the coverage doesn't move."
+    pages: [use-cases/software-quality]
+    needs: green-ci vs closest-robot
+    phase: 3
+    status: planned
   - id: commit/agent-report
     kind: still
     project: agent-evals
@@ -614,6 +641,14 @@ shots:
     pages: [user-guide/history-and-dashboards]
     phase: 2
     status: captured
+  - id: history/test-volume
+    kind: still
+    project: software-quality
+    shows: "The fleet SDK's number of tests over six weeks of main: the sum over its five suites, default mode. Steps where tests are written, a jump to 609 with 200 fuzz cases."
+    pages: [use-cases/software-quality]
+    needs: sdk-tests to cold-batteries
+    phase: 3
+    status: planned
   - id: history/image-diff
     kind: still
     project: image-quality

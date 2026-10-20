@@ -54,6 +54,7 @@ PROJECT_IDS = {
     "detection-eval": "kitefin/detector",
     "robotics-3d": "kitefin/slam",
     "agent-evals": "kitefin/fleet-assistant",
+    "software-quality": "kitefin/fleet-sdk",
 }
 PEOPLE = {
     "ines": "Ines Marchetti", "tobias": "Tobias Wendt", "arjun": "Arjun Sethuraman", "mira": "Mira Kowalczyk",

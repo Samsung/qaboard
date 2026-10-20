@@ -110,7 +110,7 @@
         "caption": {"description": "Default caption: what to notice.", "type": "string", "minLength": 1, "maxLength": 400},
         "project": {
           "description": "The demo project shown (examples/<project>), or null.",
-          "enum": ["image-quality", "serving-latency", "detection-eval", "robotics-3d", "agent-evals", null]
+          "enum": ["image-quality", "serving-latency", "detection-eval", "robotics-3d", "agent-evals", "software-quality", null]
         },
         "captured": {"description": "Date of the capture.", "type": "string", "format": "date", "pattern": "^\\d{4}-\\d{2}-\\d{2}$"},
         "app_version": {"description": "qaboard version of the captured stack, plus its short git sha.", "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+([-+][0-9A-Za-z.-]+)?$"},
