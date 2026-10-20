@@ -11,7 +11,6 @@ from functools import lru_cache
 
 from requests.utils import quote
 from flask import request, jsonify, g
-from flask_login import current_user
 from sqlalchemy.orm import joinedload
 from polyleven import levenshtein as polyleven_levenshtein
 
@@ -326,12 +325,12 @@ def export_to_folder():
       try:
         output_path_rel = output_path.relative_to(output.output_dir)
         copied_to_rel = copy_path_rel(output, output_path, label=label_new)
-        export_to(export_dir / copied_to_rel, output_path, type=export_type, user=current_user)
+        export_to(export_dir / copied_to_rel, output_path, type=export_type, user=g.actor.user)
         if output_ref and output_ref.id != output.id:
           output_path_ref = output_ref.output_dir / output_path_rel
           if output_path_ref.exists():
             copied_to_rel = copy_path_rel(output_ref, output_path_ref, label=label_ref)
-            export_to(export_dir / copied_to_rel, output_path_ref, type=export_type, user=current_user)
+            export_to(export_dir / copied_to_rel, output_path_ref, type=export_type, user=g.actor.user)
             nb_files_exported += 1
         nb_files_exported += 1
       except Exception as e:
@@ -403,7 +402,7 @@ def export_to(path_from, path_to, type, user=None):
     except:
       os.symlink(str(path_to), str(path_from))
   elif type == "copy":
-    if not current_user.is_authenticated:
+    if user is None:
       raise Exception("Need Login")
     as_user(user.user_name, shutil.copyfile, str(path_to), str(path_from))
   else:
