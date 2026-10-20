@@ -244,13 +244,33 @@ class TestJobGroups(unittest.TestCase):
     self.assertEqual(in_flight('serial'), [1, 1, 1])
     self.assertTrue(all(1 <= n <= 3 for n in in_flight('parallel')))
 
-    # joblib gets each group's options
+    # joblib gets each group's concurrency, the runs their group's timeout
     from unittest import mock
     with mock.patch('joblib.Parallel') as Parallel:
       slow = make_jobs('local', ['sleep 1'], self.root, concurrency=3, timeout=10, cwd=str(self.root))
       group = JobGroup(jobs=[*serial, *parallel, *slow], job_options={"type": "local", "command_id": "abcdefgh-1234", "concurrency": 3, "cwd": str(self.root)})
       LocalRunner.start_groups(group.groups())
-    self.assertEqual([(call.kwargs['n_jobs'], call.kwargs['timeout']) for call in Parallel.call_args_list], [(1, None), (3, None), (3, 10)])
+    self.assertEqual([call.kwargs['n_jobs'] for call in Parallel.call_args_list], [1, 3, 3])
+    self.assertTrue(all('timeout' not in call.kwargs for call in Parallel.call_args_list))
+
+  @unittest.skipIf(os.name == 'nt', "the shell's children are killed with its process group")
+  def test_local_timeout(self):
+    """A run over its timeout is killed, with what it started, and the other runs go on"""
+    import time
+    from qaboard.runners import JobGroup
+    from qaboard.runners.local import LocalRunner
+    # the shell starts a child that would write its file after the timeout
+    late = self.root / 'late'
+    done = self.root / 'done'
+    slow = make_jobs('local', [f'(sleep 3 && touch "{late}") & wait'], self.root, concurrency=2, timeout=1, cwd=str(self.root))
+    fast = make_jobs('local', [f'touch "{done}"'], self.root, concurrency=2, timeout=1, cwd=str(self.root))
+    group = JobGroup(jobs=[*slow, *fast], job_options={"type": "local", "command_id": "abcdefgh-1234", "concurrency": 2, "cwd": str(self.root)})
+    start = time.time()
+    LocalRunner.start_groups(group.groups())
+    self.assertLess(time.time() - start, 2.5)
+    self.assertTrue(done.exists())
+    time.sleep(2.5)
+    self.assertFalse(late.exists())
 
   def test_lsf_groups(self):
     """LSF jobs of all groups are sent, each group with its own concurrency, then we wait for all of them"""

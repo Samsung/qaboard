@@ -46,8 +46,8 @@ The command line wins, then the batch's setting, then *qaboard.yaml*. The `QA_BA
 replaces the value from *qaboard.yaml*.
 
 You can also set a `timeout`, in seconds, for each run (0 means no timeout): `runners.local.timeout`, `timeout` under
-a batch's `local:`, `qa batch --local-timeout` or `QA_BATCH_TIMEOUT`. When a run takes longer, `qa batch` fails with
-a `TimeoutError`.
+a batch's `local:`, `qa batch --local-timeout` or `QA_BATCH_TIMEOUT`. When a run takes longer, `qa batch` kills it
+(and what it started), marks it as failed, and goes on with the other runs.
 
 When batches have their own concurrency or timeout, `qa batch` runs them one after the other, each with its own.
 

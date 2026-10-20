@@ -193,6 +193,14 @@ class TestQaCli(unittest.TestCase):
 
   def test_check_bit_accuracy_reference_platform(self):
     """--reference-platform compares with the reference's runs on another platform"""
+    from unittest import mock
+    from qaboard.config import ci_env_variables
+    # outside CI, so that runs are where the reference's are looked for: in CI, qa writes them in the commit's storage
+    not_ci = {k: v for k, v in os.environ.items() if k not in ci_env_variables}
+    with mock.patch.dict(os.environ, not_ci, clear=True):
+      self._check_bit_accuracy_reference_platform()
+
+  def _check_bit_accuracy_reference_platform(self):
     import sys
     import shutil
     import tempfile
