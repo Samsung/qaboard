@@ -143,6 +143,25 @@ describe('BatchLogs', () => {
     expect(screen.getByText('Live')).toBeInTheDocument()
   })
 
+  it('filters the runs by status', () => {
+    const run = (id, status = {}) => ({ id, output_type: 'slam', platform: 'linux', configurations: [], extra_parameters: {}, data: {}, output_dir_url: `/s/out/${id}`, test_input_path: `${id}.mp4`, test_input_metadata: { label: `Run ${id}` }, ...status })
+    const runs = [run(1), run(2, { is_failed: true }), run(3, { is_pending: true }), run(4, { is_running: true }), run(5, { is_failed: true, is_pending: true })]
+    const outputs = Object.fromEntries(runs.map(output => [output.id, output]))
+    renderLogs({ ...makeBatch(), outputs, filtered: { outputs: [1, 2, 3, 4, 5] } })
+    fireEvent.click(screen.getByRole('radio', { name: 'Successful · 1' }))
+    expect(screen.getByText('Run 1')).toBeInTheDocument()
+    ;[2, 3, 4, 5].forEach(id => expect(screen.queryByText(`Run ${id}`)).toBeNull())
+    fireEvent.click(screen.getByRole('radio', { name: 'Failed · 2' }))
+    expect(screen.getByText('Run 2')).toBeInTheDocument()
+    expect(screen.getByText('Run 5')).toBeInTheDocument()
+    expect(screen.queryByText('Run 1')).toBeNull()
+  })
+
+  it('can only show successful runs when there are some', () => {
+    renderLogs({ ...makeBatch(), outputs: { 1: { id: 1, is_failed: true, test_input_path: '1.mp4', configurations: [], extra_parameters: {} } }, filtered: { outputs: [1] } })
+    expect(screen.getByRole('radio', { name: 'Successful · 0' })).toBeDisabled()
+  })
+
   it('says when no command was saved', async () => {
     renderLogs(makeBatch({ commands: {} }))
     expect(await screen.findByText(/command was saved for this batch/)).toBeInTheDocument()

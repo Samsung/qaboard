@@ -51,6 +51,23 @@ describe('compute_batches', () => {
     expect(ref_batch.filtered.outputs).toEqual(['12', '13']);
   });
 
+  test('filters by status', () => {
+    const statuses = commit('s', [
+      output(1, 'ok.raw'),
+      output(2, 'failed.raw', { is_failed: true }),
+      output(3, 'pending.raw', { is_pending: true }),
+      output(4, 'running.raw', { is_pending: true, is_running: true }),
+      output(5, 'running-only.raw', { is_running: true }),
+    ]);
+    const filtered = filter => compute_batches({ new_commit: statuses, ref_commit: null, selected: { ...selected, filter_batch_new: filter }, metrics: {} }).new_batch.filtered;
+    const ids = filter => [...filtered(filter).outputs].sort();
+    expect(ids('status:success')).toEqual(['1']);
+    expect(filtered('status:success').valid_outputs).toBe(1);
+    // a run can be running without being pending: it didn't succeed yet
+    expect(ids('-fail -pending')).toEqual(['1', '5']);
+    expect(ids('-status:success')).toEqual(['2', '3', '4', '5']);
+  });
+
   test('matches outputs with the most similar reference output', () => {
     const { new_batch } = compute_batches({ new_commit, ref_commit, selected, metrics: {} });
     // same input and platform
