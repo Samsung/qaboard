@@ -216,7 +216,7 @@ shots:
     features: [reference-tabs]
     needs: merge-bilateral vs isp-4-1 and chroma-low-light
     phase: 3
-    status: planned
+    status: captured
   - id: commit/batch-picker
     kind: still
     project: image-quality
@@ -334,7 +334,7 @@ shots:
     features: [blind-test]
     needs: merge-bilateral vs isp-4-1
     phase: 3
-    status: planned
+    status: captured
   - id: commit/deep-zoom
     kind: clip
     project: image-quality
@@ -361,7 +361,7 @@ shots:
     features: [video-differences]
     needs: merge-bilateral vs isp-4-1 (video batch)
     phase: 3
-    status: planned
+    status: captured
   - id: commit/video-properties
     kind: still
     project: image-quality
@@ -370,7 +370,7 @@ shots:
     features: [video-properties]
     needs: merge-bilateral vs isp-4-1 (video batch)
     phase: 3
-    status: planned
+    status: captured
   - id: commit/dynamic-outputs
     kind: clip
     project: image-quality

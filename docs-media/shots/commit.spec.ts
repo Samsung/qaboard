@@ -582,8 +582,8 @@ shot('commit/reference-tabs', {
     reference: 'isp-4-1', view: 'table-kpi', query: { compare: d.sha(IQ, 'chroma-low-light') },
   }),
   alt: 'The commit bars of the bilateral denoiser\'s merge with two references stacked: under the bars, the tabs show '
-    + 'the top results, then, after vs, the isp-4.1 milestone, the one shown, and main, hovered: its tooltip gives '
-    + 'main\'s latest commit, its message and hash.',
+    + 'the top results, then, after vs, the isp-4.1 milestone, the one shown, and ref 2, hovered: its tooltip gives '
+    + 'its commit on main, who made it and when, its message, its batch and its runs, still running.',
   caption: 'Stack several references: their tabs hang below the bars, click one, or press r, to compare with it.',
   actions: async ui => {
     await referenceTabs(ui.page).waitFor();
@@ -592,13 +592,13 @@ shot('commit/reference-tabs', {
     await tabTooltip(ui.page).waitFor();
     await ui.settle();
   },
-  // a box: the bars and the tabs are fixed at the top, from the sidebar's edge (the tabs start 14 px after it), down
-  // to the tooltip under the tabs
+  // a box: the bars and the tabs are fixed at the top, from the sidebar's edge (the top results' tab, before "vs" and
+  // the references, starts 14 px after it), down to the tooltip under the tabs
   target: async page => {
-    const tabs = await stableBox(referenceTabs(page));
+    const top = await stableBox(page.locator('.qa-tabs-top'));
     const strip = await stableBox(referenceTabs(page).locator('xpath=..'));
     const tooltip = await stableBox(tabTooltip(page));
-    const x = Math.max(0, Math.floor(tabs.x - 14));
+    const x = Math.max(0, Math.floor(top.x - 14));
     const bottom = Math.max(strip.y + strip.height, tooltip.y + tooltip.height) + 8;
     return { x, y: 0, width: strip.x + strip.width - x, height: bottom };
   },
