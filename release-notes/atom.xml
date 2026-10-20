@@ -67,6 +67,9 @@
 <li class="">Pages use the width next to the sidebar instead of jumping between fixed widths, and the commit page fits laptop screens: its header cuts long commit messages and branches with "…".</li>
 <li class="">The Tuning Analysis view of a <code>qa optimize</code> experiment plots its convergence itself: each iteration's objective and the best one so far, even when matplotlib isn't installed where <code>qa optimize</code> ran.</li>
 <li class="">The commit page tells you when a commit's artifacts were deleted (when, and by whom) or are incomplete, what's missing, and lets you recreate them with your CI.</li>
+<li class="">Compare with several references, one at a time: hover the reference's bar and <strong>Stack a reference</strong> (a commit, a branch, a milestone, or the same one with another batch or filter), then switch with their tabs or <code>r</code> / <code>Shift r</code>. Drag tabs to reorder them, right-click them to duplicate, rename or remove them. They are in the URL. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/comparing-results#several-references">several references</a>.</li>
+<li class="">Name what you compare: click <strong>new</strong> or <strong>ref</strong> to call them <code>ISP v2</code> and <code>ISP v1</code>. The names are in the URL, and the page uses them: the images and videos' labels, the legends of plots, text diffs, flame graphs, HTML outputs, the Summary and the columns of Metrics Table and Metrics Diff. Milestones are called by their name.</li>
+<li class="">See which is which by color: new is blue, references purple, magenta, teal and violet, in their bars, tabs, the viewers' labels, and the plots (the Summary's box plots, overlaid Plotly plots), in the light and dark themes. The reference is no longer orange, a color that says "warning".</li>
 <li class="">Errors from redo, delete and tuning actions show a readable message instead of the raw server response.</li>
 <li class="">When you are logged out, actions that need a login (redo, delete, rename, tuning, restoring artifacts...) are greyed out next to a <strong>Log in</strong> button, instead of failing with an error. If your session expires, one message asks you to log in again.</li>
 </ul>
@@ -308,12 +311,17 @@
 <li class="">The docs show a placeholder that describes a screenshot or clip when your browser can't load it, instead of a broken image.</li>
 </ul>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="performance">Performance<a href="https://samsung.github.io/qaboard/release-notes/2026-10#performance" class="hash-link" aria-label="Direct link to Performance" title="Direct link to Performance" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="several-references">Several references<a href="https://samsung.github.io/qaboard/release-notes/2026-10#several-references" class="hash-link" aria-label="Direct link to Several references" title="Direct link to Several references" translate="no">​</a></h3>
+<ul>
+<li class="">Switch between stacked references without waiting: once the page is idle, the next and previous references load in the background (except very big ones), and the others load without their runs, enough for their tabs to show their branch and message.</li>
+</ul>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="commit-pages-with-1000-runs">Commit pages with 1000 runs<a href="https://samsung.github.io/qaboard/release-notes/2026-10#commit-pages-with-1000-runs" class="hash-link" aria-label="Direct link to Commit pages with 1000 runs" title="Direct link to Commit pages with 1000 runs" translate="no">​</a></h3>
 <ul>
 <li class="">Type in the filter box of a commit page without the page freezing: the results update in half a second, instead of after 7 seconds of a frozen page. Sorting runs, and matching them with their reference, no longer freeze the page either.</li>
 <li class="">Open the Metrics Table in a third of a second instead of 7 seconds, with a fraction of the memory (40 MB instead of 640 MB): big tables only render the rows on screen.</li>
 <li class="">Open the Visualizations twice as fast: cards download their files as they scroll into view, and files shared by several cards or viewers are downloaded once. Batches with more than 300 runs show more cards as you scroll, or all of them with "show all".</li>
 <li class="">Commit pages load in 0.6 s instead of 1 s.</li>
+<li class="">Switch between references twice as fast, without the page freezing: the Summary shows the new reference's numbers at once, then updates its plots one after the other. Pages with many plots no longer freeze while they draw.</li>
 <li class="">Open tuning batches faster: runs that have an exact match in the reference no longer go through a name-similarity search.</li>
 </ul>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="everywhere-in-the-web-app">Everywhere in the web app<a href="https://samsung.github.io/qaboard/release-notes/2026-10#everywhere-in-the-web-app" class="hash-link" aria-label="Direct link to Everywhere in the web app" title="Direct link to Everywhere in the web app" translate="no">​</a></h3>
