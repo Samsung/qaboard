@@ -224,6 +224,7 @@ export const BatchLogs = ({ batch, project, commit }) => {
   [batch])
   const failed = useMemo(() => outputs.filter(output => output.is_failed), [outputs])
   const pending = useMemo(() => outputs.filter(output => output.is_pending), [outputs])
+  const successful = useMemo(() => outputs.filter(o => !o.is_failed && !o.is_pending && !o.is_running), [outputs])
   const toggle = useCallback(id => setExpanded(expanded => {
     const next = new Set(expanded)
     if (next.has(id)) next.delete(id)
@@ -234,7 +235,7 @@ export const BatchLogs = ({ batch, project, commit }) => {
   if (batch === null || batch === undefined || batch.batch_dir_url === undefined)
     return null
 
-  const shown = filter === 'failed' ? failed : (filter === 'pending' ? pending : outputs)
+  const shown = { failed, pending, successful }[filter] ?? outputs
 
   const submission_ids = new Set(batchSubmissions(batch).map(submission => submission.id))
   const has_submissions = submission_ids.size > 0
@@ -273,6 +274,7 @@ export const BatchLogs = ({ batch, project, commit }) => {
           { value: 'all', label: `All · ${outputs.length}` },
           { value: 'failed', label: `Failed · ${failed.length}`, disabled: !failed.length && filter !== 'failed' },
           { value: 'pending', label: `Running · ${pending.length}`, disabled: !pending.length && filter !== 'pending' },
+          { value: 'successful', label: `Successful · ${successful.length}`, disabled: !successful.length && filter !== 'successful' },
         ]}
       />
       <span className="spacer" />
@@ -302,8 +304,8 @@ export const BatchLogs = ({ batch, project, commit }) => {
           />)}
         </RunList>
       : <NonIdealState
-          icon={filter === 'failed' ? "tick-circle" : "search"}
-          title={filter === 'failed' ? "No failed runs" : (filter === 'pending' ? "No running runs" : ((batch.filtered?.outputs?.length ?? 0) < Object.keys(batch.outputs ?? {}).length ? "No run matches the filter" : "No runs yet"))}
+          icon={filter === 'failed' ? "tick-circle" : (filter === 'successful' ? "endorsed" : "search")}
+          title={filter === 'failed' ? "No failed runs" : (filter === 'pending' ? "No running runs" : (filter === 'successful' ? "No successful runs" : ((batch.filtered?.outputs?.length ?? 0) < Object.keys(batch.outputs ?? {}).length ? "No run matches the filter" : "No runs yet")))}
           layout="horizontal"
         />
     }
