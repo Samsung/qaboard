@@ -113,7 +113,9 @@ website shows them at `/release-notes` (with RSS/Atom feeds).
 **Docs** (`website/docs/`) have one sidebar per audience (`website/sidebars.ts`): the **User guide**
 (`user-guide/`, for people looking at results in the web app), **Project integration** (wrapping code with `qa`,
 qaboard.yaml, runners, integrations), and **Admin** (`backend-admin/`, running the server). When a change
-affects how people use the web app, update the user guide page too.
+affects how people use the web app, update the user guide page too: one page per task, and the viewers have their own
+(`user-guide/image-viewer`, `video-viewer`, `other-viewers`; their formats for integrators in `viewers`). Pages start
+with the task and keep details collapsed: see "Page structure" in `website/STYLE.md`.
 
 The website is public: keep internal hostnames, paths, emails and people out of `website/docs/`. Pages for one site's users go in
 `website/site-docs/<site>/`, built only into that site's web app (`QABOARD_SITE`); runbooks go in `deployments/<site>/runbooks/`.
