@@ -92,20 +92,30 @@ const Strip = styled.div`
   transition: padding-left 150ms ease;
   container-type: inline-size;
 
-  /* the tabs' wrappers (context menu, tooltip) */
+  /* the tabs' wrappers (context menu, tooltip): they shrink down to the tabs' names, then the tabs scroll */
   .qa-tab-wrap {
     display: flex;
     flex: 0 1 auto;
-    min-width: 0;
   }
 
+  /* many tabs scroll sideways: with the mouse wheel, a trackpad, or the keyboard ("r") */
   .qa-tabs {
     display: flex;
     align-items: flex-start;
     gap: 2px;
     min-width: 0;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
     scrollbar-width: none;
+  }
+  .qa-tabs[data-overflow~="start"] {
+    mask-image: linear-gradient(to right, transparent, black 24px);
+  }
+  .qa-tabs[data-overflow~="end"] {
+    mask-image: linear-gradient(to left, transparent, black 24px);
+  }
+  .qa-tabs[data-overflow~="start"][data-overflow~="end"] {
+    mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent);
   }
   .qa-tabs-actions {
     flex: none;
@@ -130,8 +140,14 @@ const Strip = styled.div`
     line-height: 16px;
     text-align: center;
   }
-  @container (max-width: 700px) {
+  @container (max-width: 1000px) {
     .qa-tabs-hint {
+      display: none;
+    }
+  }
+  /* narrow pages: names only, the rest is on hover */
+  @container (max-width: 560px) {
+    .qa-tabs .qa-tab-details {
       display: none;
     }
   }
@@ -144,8 +160,7 @@ const Tab = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-  min-width: 96px;
-  max-width: 240px;
+  max-width: 360px;
   height: ${reference_tabs_height - 4}px;
   padding: 0 4px 0 10px;
   border-radius: 0 0 6px 6px;
@@ -206,22 +221,43 @@ const Tab = styled.div`
     border-radius: 50%;
     background: var(--side-color);
   }
+  /* names stay whole, unless very long */
   .qa-tab-name {
-    flex: 0 1 auto;
-    min-width: 3ch;
+    flex: none;
+    max-width: 16em;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     font-weight: 500;
   }
-  /* its branch or commit, and batch: what tells apart references with the same name, e.g. copies */
+  /* what tells it apart from the other references. It gives way first when there isn't room, one detail at a time:
+     those that don't fit wrap to a second line, that is hidden. */
   .qa-tab-details {
-    flex: 0 100 auto;
+    flex: 0 1 auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    column-gap: 8px;
     min-width: 0;
+    height: 16px;
+    line-height: 16px;
+    overflow: hidden;
+    color: var(--qa-text-muted);
+  }
+  .qa-tab-detail {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    max-width: 100%;
+    height: 16px;
+  }
+  .qa-tab-detail > span {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    color: var(--qa-text-muted);
+  }
+  .qa-tab-detail .bp6-icon {
+    flex: none;
   }
   .qa-tab-meta {
     flex: none;
@@ -280,12 +316,32 @@ const relation_to_new = (reference, new_side) => {
   return 'same-commit';
 };
 
-// What the tab says next to its name: its branch (else its commit), and its batch if not the default
-const tab_details = (reference, project) => [
-  reference.commit?.branch || (reference.commit_id ? shortId(project, reference.commit_id) : null),
-  reference_batch(reference) !== 'default' ? pretty_label({ label: reference_batch(reference) }) : null,
-  reference.filter ? `“${reference.filter}”` : null,
-].filter(Boolean).join(' · ');
+// What tells the references apart, next to their names: only what differs between them.
+// All on the same branch: no branch. Different commits on the same branch: their commits. Batches and filters when
+// they differ, except the default batch and no filter: "night" and "indoor" say what the copies of a reference changed.
+// Milestones are told apart by their names: they don't show their branch or commit.
+// Returns, for each reference, a list of {key, icon, text}
+export const tabs_details = (references, project) => {
+  const values = key => references.map(r => key(r));
+  const varies = list => new Set(list).size > 1;
+  const branches = values(r => r.commit?.branch ?? null);
+  const commits = values(r => r.commit_id ?? null);
+  const batches = values(r => reference_batch(r));
+  const filters = values(r => r.filter ?? '');
+  const projects = values(r => r.project);
+  const show_branch = varies(branches.filter(Boolean));
+  // references on the same branch (or whose branch we don't know yet) with different commits
+  const show_commit = index => !!commits[index] && references.some((_, other) => other !== index
+    && branches[other] === branches[index] && !!commits[other] && commits[other] !== commits[index]);
+  // the most telling first: those that don't fit hide from the end
+  return references.map((r, index) => [
+    varies(batches) && batches[index] !== 'default' && { key: 'batch', icon: 'layers', text: pretty_label({ label: batches[index] }) },
+    varies(filters) && !!filters[index] && { key: 'filter', icon: 'filter', text: filters[index] },
+    !r.milestone && show_commit(index) && { key: 'commit', icon: 'git-commit', text: shortId(project, commits[index]) },
+    !r.milestone && show_branch && branches[index] && { key: 'branch', icon: 'git-branch', text: branches[index] },
+    varies(projects) && { key: 'project', icon: 'git-repo', text: r.project },
+  ].filter(Boolean));
+};
 
 const Card = styled.div`
   width: 340px;
@@ -408,7 +464,7 @@ const TabCard = ({ reference, project, relation, batch_counts }) => {
 };
 
 
-const ReferenceTab = ({ reference, project, actions, relation, batch_counts, dragging, drop, drag }) => {
+const ReferenceTab = ({ reference, project, details, actions, relation, batch_counts, dragging, drop, drag }) => {
   const prefetch = usePrefetchCommitPage(reference.project, reference.commit_id);
   const [renaming, setRenaming] = useState(null);
   const [menu_open, setMenuOpen] = useState(false);
@@ -439,7 +495,6 @@ const ReferenceTab = ({ reference, project, actions, relation, batch_counts, dra
     const label = value === reference.default_label ? '' : value;
     if (label !== (reference.label ?? '')) actions.rename(label);
   };
-  const details = tab_details(reference, project);
   // clicks in the menu (in a portal) bubble to the tab through React: only those on the tab itself compare
   const on_tab = event => event.currentTarget.contains(event.target) && !event.target.closest?.('.qa-tab-menu');
   const tab = <Tab
@@ -447,7 +502,7 @@ const ReferenceTab = ({ reference, project, actions, relation, batch_counts, dra
     role="tab"
     tabIndex={0}
     aria-selected={reference.is_shown}
-    aria-label={`Reference ${reference.number}: ${reference.display_label}${details ? `, ${details}` : ''}`}
+    aria-label={`Reference ${reference.number}: ${[reference.display_label, ...details.map(d => d.text)].join(', ')}`}
     $color={reference.color.css}
     draggable={renaming === null}
     data-dragging={dragging || undefined}
@@ -485,9 +540,11 @@ const ReferenceTab = ({ reference, project, actions, relation, batch_counts, dra
         />
       : <>
         <span className="qa-tab-name">{reference.display_label}</span>
-        {!!details && <span className="qa-tab-details">{details}</span>}
+        {reference.milestone && <Icon className="qa-tab-meta" icon="star" size={11} title="A milestone"/>}
+        {details.length > 0 && <span className="qa-tab-details">
+          {details.map(d => <span key={d.key} className="qa-tab-detail" title={`${d.key}: ${d.text}`}><Icon icon={d.icon} size={11}/><span>{d.text}</span></span>)}
+        </span>}
       </>}
-    {!!reference.milestone && <Icon className="qa-tab-meta" icon="star" size={11} title="A milestone"/>}
     {relation === 'same' && <span className="qa-tab-meta" title="The same results as new">= new</span>}
     <PopoverNext content={menu} placement="bottom-end" isOpen={menu_open} onInteraction={setMenuOpen}>
       <Button
@@ -560,6 +617,40 @@ const AddReferencePanel = ({ actions, can_duplicate }) => {
 };
 
 
+// Tabs that don't fit scroll sideways: the mouse wheel scrolls them, the edges fade where there are more
+function useSideScroll() {
+  const element = useRef(null);
+  useEffect(() => {
+    const tabs = element.current;
+    if (!tabs) return;
+    const update = () => {
+      const start = tabs.scrollLeft > 1;
+      const end = tabs.scrollLeft + tabs.clientWidth < tabs.scrollWidth - 1;
+      const value = [start && 'start', end && 'end'].filter(Boolean).join(' ');
+      if (value) tabs.setAttribute('data-overflow', value);
+      else tabs.removeAttribute('data-overflow');
+    };
+    const onWheel = event => {
+      if (tabs.scrollWidth <= tabs.clientWidth || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+      event.preventDefault();
+      tabs.scrollLeft += event.deltaY;
+    };
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(update);
+    observer?.observe(tabs);
+    for (const child of tabs.children) observer?.observe(child);
+    tabs.addEventListener('scroll', update, { passive: true });
+    tabs.addEventListener('wheel', onWheel, { passive: false });
+    update();
+    return () => {
+      observer?.disconnect();
+      tabs.removeEventListener('scroll', update);
+      tabs.removeEventListener('wheel', onWheel);
+    };
+  });
+  return element;
+}
+
+
 export const ReferenceTabs = () => {
   const queryClient = useQueryClient();
   const { project, selected, references, new_commit, compared } = useComparison();
@@ -569,6 +660,7 @@ export const ReferenceTabs = () => {
   const [dragging, setDragging] = useState(null);
   const [drop, setDrop] = useState(null);
   const several = references.length > 1;
+  const tabs_element = useSideScroll();
   usePrefetchNeighbors(references, selected.ref_index, several && !!compared[1].commit?.is_loaded);
   // the actions need the commits' ids, e.g. the default reference's
   const resolved = { ...selected, references, new_commit_id: selected.new_commit_id || new_commit?.id || null };
@@ -628,6 +720,7 @@ export const ReferenceTabs = () => {
   const new_side = { project: compared[0].project, commit_id: new_commit?.id ?? selected.new_commit_id, batch: compared[0].batch?.label ?? selected.selected_batch_new, filter: selected.filter_batch_new };
   // the reference shown is loaded with its runs: we know how many match its filter
   const shown_counts = selected.filter_batch_ref ? compared[1].batch?.filtered : undefined;
+  const details = tabs_details(references, project);
   const drag_props = index => ({
     onDragStart: event => {
       event.dataTransfer.effectAllowed = 'move';
@@ -657,11 +750,12 @@ export const ReferenceTabs = () => {
   });
 
   return <Strip style={{ top }}>
-    <div className="qa-tabs" role="tablist" aria-label="References">
+    <div className="qa-tabs" role="tablist" aria-label="References" ref={tabs_element}>
       {references.map(reference => <ReferenceTab
         key={reference.index}
         reference={reference}
         project={project}
+        details={details[reference.index]}
         relation={relation_to_new(reference, new_side)}
         batch_counts={reference.is_shown && shown_counts?.valid_outputs !== undefined ? shown_counts : undefined}
         dragging={dragging === reference.index}

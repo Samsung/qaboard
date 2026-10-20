@@ -9,8 +9,10 @@ const commit = (id, message, branch = 'master') => ({
   latest_output_datetime: '2026-09-01T10:00:00Z',
   batches: {}, data: {}, parents: [],
 });
-const a = 'a'.repeat(40), b = 'b'.repeat(40), c = 'c'.repeat(40), d = 'd'.repeat(40);
+const a = 'a'.repeat(40), b = 'b'.repeat(40), c = 'c'.repeat(40), d = 'd'.repeat(40), e = 'e'.repeat(40), f = 'f'.repeat(40);
 const commits = {
+  [e]: commit(e, 'Faster tone mapping'),
+  [f]: commit(f, 'Night mode', 'feature/night'),
   [a]: commit(a, 'Faster denoiser', 'feature/denoiser'),
   [b]: commit(b, 'Release 1.0'),
   [c]: { ...commit(c, 'Tuning the sharpening', 'tuning/sharpen'), batches: { default: { id: 1, label: 'default', valid_outputs: 12, failed_outputs: 2, running_outputs: 0, pending_outputs: 0, outputs: {}, data: {} } } },
@@ -124,5 +126,36 @@ test('a reference has one name, in its tab, the reference bar and the viewers', 
   await expect(card).toContainText('Batch CI');
   await expect(card).toContainText('12 runs · 2 failed');
   await page.screenshot({ path: test.info().outputPath('hover.png'), clip: { x: 0, y: 0, width: 900, height: 420 } });
+  await page.waitForLoadState('networkidle');
+});
+
+test('tabs say what tells references apart, and scroll when there are many', async ({ page }) => {
+  // a milestone, two commits of master, a branch, copies with another batch and a filter
+  const refs = [[d], [e], [f], [f, 'night'], [f, '', 'indoor'], [c]];
+  const compare = refs.map(([id, batch, filter], i) => `compare[${i}][commit]=${id}${batch ? `&compare[${i}][batch]=${batch}` : ''}${filter ? `&compare[${i}][filter]=${filter}` : ''}`).join('&');
+  await page.setViewportSize({ width: 1600, height: 600 });
+  await page.goto(`/${project}/commit/${a}?reference=${b}&${compare}`);
+  await expect(page.getByRole('tab')).toHaveCount(7);
+  // the milestone, by its name only
+  await expect(page.getByRole('tab', { name: /^Reference 1: release 1.0$/ })).toBeVisible();
+  // master's commits: their branch and commit
+  await expect(page.getByRole('tab', { name: /^Reference 2: ref 2, dddddddd, master$/ })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /^Reference 5: ref 5, night, feature\/night$/ })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /^Reference 6: ref 6, indoor, feature\/night$/ })).toBeVisible();
+  await page.locator('.qa-tabs').screenshot({ path: test.info().outputPath('wide.png') });
+
+  await page.setViewportSize({ width: 900, height: 600 });
+  const tabs = page.locator('.qa-tabs');
+  await expect.poll(() => tabs.evaluate(t => t.scrollWidth > t.clientWidth)).toBe(true);
+  await expect(tabs).toHaveAttribute('data-overflow', 'end');
+  await page.locator('.qa-tabs').screenshot({ path: test.info().outputPath('narrow.png') });
+  await tabs.hover();
+  await page.mouse.wheel(0, 400);
+  await expect.poll(() => tabs.evaluate(t => t.scrollLeft)).toBeGreaterThan(0);
+  await page.locator('.qa-tabs').screenshot({ path: test.info().outputPath('narrow-scrolled.png') });
+
+  await page.setViewportSize({ width: 600, height: 600 });
+  await expect(page.locator('.qa-tab-details').first()).toBeHidden();
+  await page.screenshot({ path: test.info().outputPath('phone.png'), clip: { x: 0, y: 0, width: 600, height: 200 } });
   await page.waitForLoadState('networkidle');
 });

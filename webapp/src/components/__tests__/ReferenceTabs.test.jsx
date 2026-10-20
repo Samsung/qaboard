@@ -8,7 +8,7 @@ import { history, matchRoutes, RouteMatch } from '../../router';
 import { routes } from '../../routes';
 import { makeQueryClient } from '../../test-utils';
 import { milestonesQuery, index_milestones } from '../../milestones/api';
-import { ReferenceTabs } from '../ReferenceTabs';
+import { ReferenceTabs, tabs_details } from '../ReferenceTabs';
 
 const commit = id => ({ id, branch: `branch-${id.slice(0, 3)}`, message: `Commit ${id}`, committer_name: 'Ada', authored_datetime: '2026-09-01T10:00:00Z', batches: { default: { label: 'default', valid_outputs: 3, failed_outputs: 1 } } });
 
@@ -197,4 +197,29 @@ test('hovering a tab says what the reference is', async () => {
   } finally {
     vi.useRealTimers();
   }
+});
+
+describe('tabs say only what tells references apart', () => {
+  const ref = (commit_id, branch, more = {}) => ({ project: 'p', commit_id, batch: 'default', filter: '', commit: { id: commit_id, branch, batches: {} }, ...more });
+  const texts = refs => tabs_details(refs, 'p').map(details => details.map(d => `${d.key}:${d.text}`));
+
+  test('branches only when they differ, commits when they share one', () => {
+    expect(texts([ref(a, 'master'), ref(b, 'develop')])).toEqual([['branch:master'], ['branch:develop']]);
+    // all on master: their commits
+    expect(texts([ref(a, 'master'), ref(b, 'master')])).toEqual([['commit:aaaaaaaa'], ['commit:bbbbbbbb']]);
+    // two on master, one on develop
+    expect(texts([ref(a, 'master'), ref(b, 'master'), ref(c, 'develop')]))
+      .toEqual([['commit:aaaaaaaa', 'branch:master'], ['commit:bbbbbbbb', 'branch:master'], ['branch:develop']]);
+  });
+
+  test('copies: their batch or filter when they differ', () => {
+    expect(texts([ref(a, 'master'), ref(a, 'master')])).toEqual([[], []]);
+    expect(texts([ref(a, 'master'), ref(a, 'master', { batch: 'night' })])).toEqual([[], ['batch:night']]);
+    expect(texts([ref(a, 'master'), ref(a, 'master', { filter: 'indoor' })])).toEqual([[], ['filter:indoor']]);
+  });
+
+  test("milestones are told apart by their names, other projects by their project", () => {
+    expect(texts([ref(a, 'master', { milestone: { label: 'v1' } }), ref(b, 'develop')])).toEqual([[], ['branch:develop']]);
+    expect(texts([ref(a, 'master'), ref(a, 'master', { project: 'q' })])).toEqual([['project:p'], ['project:q']]);
+  });
 });
