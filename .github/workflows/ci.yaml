@@ -154,6 +154,13 @@ jobs:
           ./deployments/deploy.py deployments/production.env compose exec -T
           -e QABOARD_TEST_DATABASE_URL=postgresql://qaboard:password@db:5432/qaboard
           backend python -m pytest -q -p no:cacheprovider tests
+      - name: Backend integration tests
+        # The real app, without mocks, in a database the tests create and drop (see backend/integration_tests/conftest.py)
+        run: >-
+          ./deployments/deploy.py deployments/production.env compose exec -T
+          -e BACKEND_TEST_MODE=no-mock
+          -e QABOARD_TEST_DATABASE_URL=postgresql://qaboard:password@db:5432/qaboard
+          backend python -m pytest -q -p no:cacheprovider integration_tests
       - name: Zero-downtime rolling deploy
         run: |
           # A "new version" with the same images: the backend replicas are replaced

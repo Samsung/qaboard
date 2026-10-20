@@ -8,3 +8,5 @@ from .Project import *
 from .User import *
 from .Milestone import *
 from .BatchNotification import *
+from .AuditEvent import *
+from .Setting import *

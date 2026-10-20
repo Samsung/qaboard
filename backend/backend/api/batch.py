@@ -9,7 +9,7 @@ from ..storage import check_storage_path, UnsafePathError
 from ..redo import redo_response
 from ..notifications.batches import request_batch_notification
 from .export_to_folder import filter_outputs
-from .auth import login_required, require_project_access
+from .auth import login_required, require_project_access, ingest_access
 
 
 
@@ -27,6 +27,13 @@ def update_batch():
     except UnsafePathError as e:
       return jsonify({"error": f"{e}"}), 400
   batch_data = data.get('data') or {}
+  if not isinstance(batch_data, dict):
+    return jsonify({"error": "`data` must be an object"}), 400
+  # only the server says who really sent results
+  batch_data = {k: v for k, v in batch_data.items() if k != 'submitted_by'}
+  submitted_by, error = ingest_access(data.get('project'))
+  if error:
+    return error
   if batch_data.get('optimization'):
     iteration = batch_data.get('iteration')
     if not isinstance(iteration, int):
@@ -75,6 +82,9 @@ def update_batch():
         flag_modified(batch, "data")
 
   batch.data = {**batch.data, **batch_data}
+  # the last verified sender, a batch can have runs from many people
+  if submitted_by:
+    batch.data["submitted_by"] = submitted_by
 
   # Save info on each "qa batch" command in the batch, mainly to list them in logs
   command = request.json.get('command')

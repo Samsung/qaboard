@@ -51,6 +51,10 @@ def pytest_configure():
     auth_mod.matches_rules = MagicMock()
     # Pass-through: the decorator itself is tested in tests/test_security.py
     auth_mod.login_required = lambda f: f
+    auth_mod.session_required = lambda f: f
+    auth_mod.admin_required = lambda f: f
+    # Unverified results, accepted (tests/test_security.py tests the real one)
+    auth_mod.ingest_access = MagicMock(return_value=(None, None))
     # Like the real one, follows is_authorized_user (tests/test_security.py tests the real one)
     def require_project_access(user_info, project_id):
         if auth_mod.is_authorized_user(user_info, project_id):
@@ -74,6 +78,10 @@ def pytest_configure():
     models_mod.MilestoneGroupFavorite = MagicMock()
     models_mod.TestInput = MagicMock()
     models_mod.User = MagicMock()
+    models_mod.Token = MagicMock()
+    models_mod.DeviceAuthorization = MagicMock()
+    models_mod.AuditEvent = MagicMock()
+    models_mod.Setting = MagicMock()
     models_mod.batches_stats = MagicMock()
     models_mod.BatchNotification = MagicMock()
     sys.modules['backend.models'] = models_mod

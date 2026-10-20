@@ -26,6 +26,7 @@ from ..config import git_server
 from ..search import parse_query, commits_search_filter, escape_like
 from .auth import is_authorized_user, get_current_user
 from ..notifications.mail import email_enabled
+from ..settings import setting
 
 to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ'))
 timezone = pytz.timezone("utc")
@@ -48,7 +49,12 @@ def get_site_config():
     return jsonify({
         "image_servers": _image_servers,
         "login_type": os.environ.get('QABOARD_LOGIN_TYPE', 'LOCAL'),
-        "login_required": bool(os.environ.get('QABOARD_LOGIN_REQUIRED', '')),
+        # login_required: the name before settings were also stored in the database
+        "login_required": setting('auth.require_sign_in'),
+        "require_sign_in": setting('auth.require_sign_in'),
+        "local_signup": setting('auth.local_signup'),
+        # how `qa` authenticates the results it sends: off, warn or token
+        "ingest_auth": setting('ingest.auth'),
         # The web app can report to its own Sentry project (where its source maps are uploaded)
         "sentry_dsn": os.environ.get('SENTRY_FRONTEND_DSN') or os.environ.get('SENTRY_DSN'),
         "sentry_environment": os.environ.get('SENTRY_ENVIRONMENT') or 'production',

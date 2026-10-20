@@ -51,11 +51,14 @@ def sentry_user(user_info):
 def flask_sentry_user(g):
   """
   The user that the request authenticated, without querying the database:
-  login_required sets g.user, flask_login caches the user it loaded in g._login_user.
+  login_required sets g.user, backend/actor.py sets g.actor, flask_login caches the user it loaded in g._login_user.
   """
   user = sentry_user(g.get('user'))
   if user:
     return user
+  actor = g.get('actor')
+  if actor is not None and getattr(actor, 'user', None) is not None and getattr(actor.user, 'user_name', None):
+    return {"username": actor.user.user_name}
   login_user = g.get('_login_user')
   if login_user is not None and getattr(login_user, 'is_authenticated', False):
     user_name = getattr(login_user, 'user_name', None)
