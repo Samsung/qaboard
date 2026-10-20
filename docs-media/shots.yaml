@@ -50,14 +50,14 @@ shots:
     kind: tape
     project: null
     shows: '`docker compose up -d --wait` in a folder with the quickstart''s compose.yml: the services start and turn healthy (the demo data restores first), then on localhost:5151 the health check answers and the projects API lists the demo projects.'
-    pages: [get-started/quickstart, deploy, tutorials/self-host]
+    pages: [deploy, get-started/quickstart, tutorials/self-host]
     phase: 2
     status: captured
   - id: quickstart/kind
     kind: tape
     project: null
     shows: '`kind create cluster` with kind.yaml, `helm install` with the quickstart values and the notes it prints, a port-forward, then on localhost:5151 the health check answers and the projects API lists the demo projects.'
-    pages: [get-started/quickstart, backend-admin/kubernetes, tutorials/self-host]
+    pages: [backend-admin/kubernetes, get-started/quickstart, tutorials/self-host]
     phase: 2
     status: captured
   - id: cli/first-run
@@ -71,14 +71,14 @@ shots:
     kind: tape
     project: image-quality
     shows: "`qa --share batch ci` on the camera ISP: the link to the results, then the runs start one after the other, each printing its image, the ISP stages and their times."
-    pages: [batches-running-on-multiple-inputs, get-started/tutorial, landing, tour]
+    pages: [batches-running-on-multiple-inputs, get-started/tutorial, introduction, landing]
     phase: 2
     status: captured
   - id: cli/bit-accuracy
     kind: tape
     project: image-quality
     shows: "`qa check-bit-accuracy` on the hw-model platform fails and lists the files that changed; on a commit that didn't touch the fixed-point code, it passes."
-    pages: [bit-accuracy, recipes/bit-accuracy-handoff, use-cases/image-quality]
+    pages: [bit-accuracy, use-cases/image-quality, recipes/bit-accuracy-handoff]
     needs: fxp-round-half-even (fails), a filler commit (passes)
     phase: 2
     status: captured
@@ -86,7 +86,7 @@ shots:
     kind: tape
     project: serving-latency
     shows: '`qa gate` in CI on the shared-cache commit against its parent: the rules table, p99 4109.7% worse where 10% is allowed, exit code 1; then the sharded cache, p99 52.7% better, exit code 0.'
-    pages: [quality-gate, use-cases/serving-latency, landing, tour]
+    pages: [quality-gate, use-cases/serving-latency, landing]
     needs: cache-shared, cache-sharded vs batch-overflow-fix
     phase: 2
     status: captured
@@ -95,7 +95,7 @@ shots:
     kind: still
     project: serving-latency
     shows: The gate's Markdown summary as a CI job summary shows it (rendered locally with GitHub's markdown CSS, no GitHub page around it).
-    pages: [quality-gate, ci-integration]
+    pages: [ci-integration, quality-gate]
     needs: cache-shared
     phase: 2
     status: captured
@@ -106,14 +106,14 @@ shots:
     kind: still
     project: null
     shows: The projects list with the Kitefin projects, their avatars and descriptions, one pinned as a favorite, the filter box.
-    pages: [user-guide/finding-results, user-guide/overview, get-started/quickstart, ci-integration]
+    pages: [get-started/quickstart, user-guide/finding-results, user-guide/first-review]
     phase: 2
     status: captured
   - id: commits/feed
     kind: still
     project: serving-latency
     shows: 'Commits of every branch grouped by day, with their branch, their CI batch''s median and p99, and a crashed CI batch in red. (A running batch only shows as running when it''s the CI batch: the running nightly is one of "1 other batch".)'
-    pages: [user-guide/finding-results, ci-integration]
+    pages: [ci-integration, user-guide/finding-results]
     needs: batch-overflow (crashed)
     phase: 2
     status: captured
@@ -135,7 +135,7 @@ shots:
     kind: still
     project: detection-eval
     shows: 'The sidebar''s Milestones menu: the favorite kd-1.3, then my milestones with the kd-1.3 and kd-1.2 releases and, in a group, entropy-try (added by the spec in the API''s answer only).'
-    pages: [user-guide/finding-results, references-and-milestones]
+    pages: [references-and-milestones, user-guide/milestones, landing]
     features: [milestones]
     phase: 2
     status: captured
@@ -143,7 +143,7 @@ shots:
     kind: still
     project: image-quality
     shows: The Integrations menu with links and a webhook, and the webhook's status tag after a click.
-    pages: [user-guide/running-from-the-webapp, triggering-third-party-tools]
+    pages: [triggering-third-party-tools, user-guide/running-from-the-webapp]
     phase: 2
     status: captured
 
@@ -152,7 +152,7 @@ shots:
     kind: still
     project: detection-eval
     shows: 'Summary of the first int8 model (int8 runs) against the fp32 release kd-1.2, with Model size added to the metrics: model size -72% in green; AP small -21% and recall of small objects -4% in red while the median mAP barely moves (-5%); pass-rate bars, box plots.'
-    pages: [user-guide/commit-page, computing-quantitative-metrics]
+    pages: [computing-quantitative-metrics, user-guide/metrics]
     needs: int8-minmax vs kd-1-2
     phase: 2
     status: captured
@@ -160,14 +160,14 @@ shots:
     kind: still
     project: detection-eval
     shows: One row per slice and variant, cells colored by their distance to the targets, units in the headers.
-    pages: [user-guide/commit-page, computing-quantitative-metrics, recipes/metric-targets]
+    pages: [computing-quantitative-metrics, user-guide/metrics, recipes/metric-targets]
     phase: 2
     status: captured
   - id: commit/metrics-diff
     kind: still
     project: detection-eval
     shows: 'The int8 runs against the fp32 release, per slice, with Model size added: model size -72% green everywhere, mAP -35% and AP small -34% orange on indoor, AP small -7% on small-objects and -15% outdoor; warehouse gets better.'
-    pages: [user-guide/commit-page, user-guide/comparing-results, use-cases/detection-eval, get-started/tutorial]
+    pages: [get-started/tutorial, use-cases/detection-eval, user-guide/metrics]
     needs: int8-minmax
     phase: 2
     status: captured
@@ -175,7 +175,7 @@ shots:
     kind: clip
     project: detection-eval
     shows: 'From the Summary (int8 runs against the fp32 release) to the Metrics Diff, then sorting by mAP, ascending, in the Controls panel brings the worst slice, indoor (-35%), to the top.'
-    pages: [tour, landing]
+    pages: [user-guide/metrics, landing]
     needs: int8-minmax
     phase: 2
     status: captured
@@ -183,7 +183,7 @@ shots:
     kind: still
     project: detection-eval
     shows: The star's "Save as a milestone" dialog on entropy-calib, with a name, a group and notes.
-    pages: [user-guide/comparing-results, references-and-milestones, recipes/compare-milestone, use-cases/detection-eval]
+    pages: [use-cases/detection-eval, user-guide/milestones, recipes/compare-milestone]
     features: [milestones]
     phase: 2
     status: captured
@@ -191,7 +191,7 @@ shots:
     kind: still
     project: detection-eval
     shows: The reference bar's Change menu, with switch new/reference, the reference branch and the milestones.
-    pages: [user-guide/comparing-results, references-and-milestones]
+    pages: [references-and-milestones, user-guide/comparing-results, user-guide/milestones]
     features: [milestones]
     phase: 2
     status: captured
@@ -215,7 +215,7 @@ shots:
     kind: still
     project: detection-eval
     shows: 'A run card''s header with its model badge ("Model card kd-1.3", a link to the model card) next to its configuration tags and metrics.'
-    pages: [computing-quantitative-metrics]
+    pages: [computing-quantitative-metrics, deep-learning, user-guide/comparing-results]
     phase: 2
     status: captured
 
@@ -224,7 +224,7 @@ shots:
     kind: still
     project: image-quality
     shows: Run cards with their main metrics and changes, the output images new and reference side by side.
-    pages: [user-guide/commit-page, computing-quantitative-metrics, user-guide/overview, user-guide/comparing-results, references-and-milestones, use-cases/image-quality]
+    pages: [running-your-code, use-cases/image-quality, user-guide/commit-page, user-guide/first-review, visualizations]
     needs: merge-bilateral vs isp-4-1
     phase: 1
     status: published
@@ -232,7 +232,7 @@ shots:
     kind: still
     project: image-quality
     shows: The Controls panel open, with the visualization switches (hidden ones included), how images are compared, and Sorting.
-    pages: [user-guide/commit-page, visualizations]
+    pages: [user-guide/commit-page, user-guide/overview, visualizations]
     anchors: [visualizations, image-diff, sorting]
     phase: 1
     status: published
@@ -240,7 +240,7 @@ shots:
     kind: still
     project: image-quality
     shows: New and reference zoomed on the facade's windows; the new image has halos along the edges.
-    pages: [user-guide/comparing-results, use-cases/image-quality]
+    pages: [use-cases/image-quality, user-guide/image-viewer]
     features: [image-synced-zoom]
     needs: merge-bilateral vs isp-4-1
     phase: 1
@@ -249,7 +249,7 @@ shots:
     kind: clip
     project: image-quality
     shows: Zooming in one image moves the other; a wipe across them; their difference between them, whose maximum goes up until only the halos stand out.
-    pages: [user-guide/comparing-results, visualizations, tour, use-cases/image-quality, landing]
+    pages: [use-cases/image-quality, user-guide/image-viewer, landing]
     features: [image-synced-zoom, image-diff]
     needs: merge-bilateral vs isp-4-1
     phase: 1
@@ -258,7 +258,7 @@ shots:
     kind: still
     project: image-quality
     shows: "New and reference on each side of their difference, its maximum raised: halos stand out around edges, the flat wall fades to gray."
-    pages: [user-guide/comparing-results, landing]
+    pages: [user-guide/first-review, user-guide/image-viewer]
     features: [image-diff]
     needs: merge-bilateral vs isp-4-1
     phase: 1
@@ -267,7 +267,7 @@ shots:
     kind: still
     project: image-quality
     shows: Hovering a Siemens star shows the pixel's values in both images and their difference, with a crosshair at the same spot on both images.
-    pages: [user-guide/comparing-results]
+    pages: [user-guide/image-viewer]
     features: [pixel-tooltip, image-synced-zoom]
     needs: bilateral-denoise vs isp-4-1
     phase: 1
@@ -276,7 +276,7 @@ shots:
     kind: still
     project: image-quality
     shows: Zoomed on a band of the sky gradient, with the RGB and luma histograms of the view, new against reference.
-    pages: [user-guide/comparing-results, landing]
+    pages: [user-guide/image-viewer]
     features: [roi-histograms]
     phase: 1
     status: published
@@ -284,7 +284,7 @@ shots:
     kind: still
     project: image-quality
     shows: The regions of interest menu with the input's presets and the regions where the images differ most, found by the server.
-    pages: [user-guide/comparing-results, visualizations, landing]
+    pages: [user-guide/image-viewer, visualizations]
     features: [auto-roi]
     phase: 1
     status: published
@@ -292,7 +292,7 @@ shots:
     kind: still
     project: image-quality
     shows: The runs of the merge-bilateral commit ranked by how much their images differ from the release's, from the photos with halos to the identical ones.
-    pages: [user-guide/comparing-results]
+    pages: [user-guide/first-review, user-guide/image-viewer, landing]
     features: [auto-roi]
     phase: 1
     status: published
@@ -300,7 +300,7 @@ shots:
     kind: still
     project: image-quality
     shows: Brightness and gamma adjusted on both images of the night street, revealing noise in the shadows.
-    pages: [user-guide/comparing-results, landing]
+    pages: [user-guide/image-viewer]
     features: [image-filters]
     phase: 1
     status: published
@@ -308,7 +308,7 @@ shots:
     kind: clip
     project: image-quality
     shows: The 113 MP test wall from the full view down to single pixels of a Siemens star, both images in sync.
-    pages: [user-guide/comparing-results, visualizations, use-cases/image-quality]
+    pages: [use-cases/image-quality, user-guide/image-viewer, landing]
     features: [deep-zoom, image-synced-zoom]
     needs: merge-bilateral vs isp-4-1 (deep-zoom batch)
     phase: 1
@@ -317,7 +317,7 @@ shots:
     kind: clip
     project: image-quality
     shows: 'The camera''s video driving down the warehouse aisle in low light, new and reference on either side of a wipe, stepped frame by frame in sync; the divider moves, a zoom on a white package where the new denoiser draws dark rims, the toggle flips them in place, then their difference.'
-    pages: [user-guide/comparing-results, visualizations, use-cases/image-quality]
+    pages: [use-cases/image-quality, user-guide/video-viewer, landing]
     features: [video-compare]
     needs: merge-bilateral vs isp-4-1 (video batch)
     phase: 2
@@ -326,7 +326,7 @@ shots:
     kind: clip
     project: image-quality
     shows: The ISP stage slider of the Controls panel steps from the raw mosaic to the tone-mapped image of the facade's window (its "Window frame (halos)" region); scrolling down, the next run's card follows the slider too.
-    pages: [visualizations, recipes/dynamic-outputs, use-cases/image-quality]
+    pages: [use-cases/image-quality, user-guide/other-viewers, visualizations, recipes/dynamic-outputs]
     features: [dynamic-outputs]
     phase: 2
     status: captured
@@ -334,7 +334,7 @@ shots:
     kind: still
     project: image-quality
     shows: "Dynamic Options in the Controls panel: the stage option, synced across runs, on stage 3; the card shows `stages/3.jpg`, new and reference."
-    pages: [visualizations, user-guide/commit-page, recipes/dynamic-outputs]
+    pages: [visualizations, recipes/dynamic-outputs]
     features: [dynamic-outputs]
     phase: 2
     status: captured
@@ -342,7 +342,7 @@ shots:
     kind: still
     project: image-quality
     shows: "Leaves in front of the facade after the bilateral denoiser: dark halos outline them. Same geometry as commit/halo-after, for <Compare>."
-    pages: [use-cases/image-quality]
+    pages: [use-cases/image-quality, user-guide/first-review, user-guide/image-viewer]
     needs: merge-bilateral
     phase: 2
     status: captured
@@ -350,7 +350,7 @@ shots:
     kind: still
     project: image-quality
     shows: "The same leaves once the clamp is merged: the halos fade, the edges stay crisp. Same geometry as commit/halo-before."
-    pages: [use-cases/image-quality]
+    pages: [use-cases/image-quality, user-guide/first-review, user-guide/image-viewer]
     needs: merge-halo-clamp
     phase: 2
     status: captured
@@ -358,7 +358,7 @@ shots:
     kind: still
     project: detection-eval
     shows: 'Precision-recall curves per class on the indoor slice, int8 over the fp32 reference drawn dashed: person AP50 from 0.19 to 0.06.'
-    pages: [visualizations, use-cases/detection-eval, landing]
+    pages: [use-cases/detection-eval, user-guide/other-viewers, viewers]
     features: [plotly-overlay]
     needs: int8-minmax
     phase: 2
@@ -367,7 +367,7 @@ shots:
     kind: still
     project: serving-latency
     shows: "Latency percentiles on a log tail at 6,000 requests/s: with the shared cache, every percentile is a hundred times slower or more (requests queue for its lock)."
-    pages: [use-cases/serving-latency, tutorials/perf-regression, visualizations]
+    pages: [use-cases/serving-latency, user-guide/other-viewers, tutorials/perf-regression]
     features: [plotly-overlay]
     needs: cache-shared vs batch-overflow-fix
     phase: 2
@@ -384,7 +384,7 @@ shots:
     kind: still
     project: serving-latency
     shows: A differential flame graph where the response rendering under the shared cache's lock is new (orange), the skipped model work blue.
-    pages: [visualizations, recipes/flame-graphs, tutorials/perf-regression, use-cases/serving-latency, landing]
+    pages: [use-cases/serving-latency, user-guide/other-viewers, viewers, landing, recipes/flame-graphs, tutorials/perf-regression]
     features: [flame-diff]
     needs: cache-shared vs batch-overflow-fix
     phase: 2
@@ -393,14 +393,14 @@ shots:
     kind: still
     project: serving-latency
     shows: 'Per-core CPU heatmaps side by side, and the batch sizes overlaid: with the shared cache the worker cores idle while requests queue, and every batch is full.'
-    pages: [use-cases/serving-latency]
+    pages: [use-cases/serving-latency, user-guide/other-viewers]
     phase: 2
     status: captured
   - id: commit/text-diff
     kind: still
     project: serving-latency
     shows: 'The percentile distribution files diffed in Monaco (every line changed: from milliseconds to around a second), with Next Diff.'
-    pages: [visualizations]
+    pages: [viewers]
     features: [text-diff]
     needs: cache-shared vs batch-overflow-fix
     phase: 2
@@ -409,7 +409,7 @@ shots:
     kind: still
     project: detection-eval
     shows: 'The first small-objects image (images/1.jpg, the one story_checks.py names), the run card in full screen: int8 finds one person where fp32 finds three; the objects each missed are drawn in red (the cars on both).'
-    pages: [use-cases/detection-eval, visualizations]
+    pages: [use-cases/detection-eval, user-guide/other-viewers, viewers]
     needs: int8-minmax
     phase: 2
     status: captured
@@ -417,14 +417,14 @@ shots:
     kind: still
     project: detection-eval
     shows: 'The int8 run''s HTML report on small-objects (shown in a frame): its metrics, per-class AP, AP by object size, latency, and the first of the images with the most missed objects.'
-    pages: [visualizations, use-cases/detection-eval]
+    pages: [use-cases/detection-eval, user-guide/other-viewers, viewers]
     phase: 2
     status: captured
   - id: commit/output-files
     kind: still
     project: image-quality
     shows: Output Files of a hw-model run, the tree with the changed stage files highlighted, the help for the icons.
-    pages: [user-guide/commit-page, bit-accuracy, creating-and-viewing-outputs-files]
+    pages: [bit-accuracy, user-guide/commit-page]
     features: [bit-accuracy-tree]
     needs: fxp-round-half-even vs its parent, hw-model platform
     phase: 1
@@ -433,7 +433,7 @@ shots:
     kind: clip
     project: image-quality
     shows: Click regs.txt in the tree to diff it in place, Next Diff jumps to the rounding register; Ctrl-click metrics.json to add its diff. Then the same run of a docs-only commit (docs-tuning-guide), tagged Bit-accurate.
-    pages: [bit-accuracy, user-guide/commit-page, recipes/bit-accuracy-handoff, use-cases/image-quality]
+    pages: [bit-accuracy, use-cases/image-quality, user-guide/commit-page, recipes/bit-accuracy-handoff]
     features: [bit-accuracy-tree]
     needs: fxp-round-half-even and docs-tuning-guide vs isp-4-1, hw-model platform
     phase: 2
@@ -449,14 +449,14 @@ shots:
     kind: still
     project: serving-latency
     shows: 'A finished run card''s menu with Redo, Delete and Delete Output Files (runs stuck pending or running get Mark as Failed instead of Redo).'
-    pages: [user-guide/running-from-the-webapp, user-guide/commit-page]
+    pages: [user-guide/running-from-the-webapp]
     phase: 2
     status: captured
   - id: commit/artifacts-configs
     kind: still
     project: detection-eval
     shows: 'Artifacts & Configs: the build/flags.json diff between two quantization commits (quant_per_channel false to true).'
-    pages: [user-guide/commit-page, storage/artifacts]
+    pages: [storage/artifacts, user-guide/commit-page]
     needs: int8-per-channel vs int8-minmax
     phase: 2
     status: captured
@@ -464,7 +464,7 @@ shots:
     kind: clip
     project: robotics-3d
     shows: The depth camera and the path so far on figure8-fast, new and reference playing in sync, until a false loop closure pulls the new path away.
-    pages: [visualizations, use-cases/robotics-3d]
+    pages: [use-cases/robotics-3d, user-guide/other-viewers, user-guide/video-viewer, viewers]
     features: [video-sync]
     needs: merge-loop-closure vs fw-26-08
     phase: 3
@@ -473,7 +473,7 @@ shots:
     kind: still
     project: robotics-3d
     shows: The map figure8-fast built, in 3D, against where its points really are; false loop closures put shelves meters away.
-    pages: [visualizations, use-cases/robotics-3d]
+    pages: [use-cases/robotics-3d, user-guide/other-viewers, viewers, landing]
     features: [pointcloud]
     needs: merge-loop-closure vs fw-26-08
     phase: 3
@@ -482,7 +482,7 @@ shots:
     kind: still
     project: robotics-3d
     shows: The figure8-fast trajectory against the ground truth and the reference's, per axis and in 3D; a false loop closure pulls it away.
-    pages: [visualizations, use-cases/robotics-3d]
+    pages: [use-cases/robotics-3d, user-guide/other-viewers, viewers]
     features: [trajectory-6dof]
     needs: merge-loop-closure vs fw-26-08
     phase: 3
@@ -491,7 +491,7 @@ shots:
     kind: still
     project: agent-evals
     shows: Two transcripts diffed; the new one reboots a robot without asking for confirmation.
-    pages: [use-cases/agent-evals]
+    pages: [use-cases/agent-evals, user-guide/other-viewers, landing]
     features: [text-diff]
     needs: short-tools vs merge-verbose-prompt
     phase: 3
@@ -500,7 +500,7 @@ shots:
     kind: still
     project: agent-evals
     shows: The report of a safety task after the change, FAILED with an unsafe action, each check passed or failed and why.
-    pages: [use-cases/agent-evals]
+    pages: [use-cases/agent-evals, user-guide/other-viewers]
     needs: short-tools vs merge-verbose-prompt
     phase: 3
     status: published
@@ -510,7 +510,7 @@ shots:
     kind: still
     project: serving-latency
     shows: 'The crashed run open in the Logs view (Open failed runs), its log searched for "panicked": the panic highlighted with its source line, then the backtrace.'
-    pages: [user-guide/commit-page]
+    pages: [user-guide/logs]
     needs: batch-overflow
     phase: 2
     status: captured
@@ -518,7 +518,7 @@ shots:
     kind: clip
     project: serving-latency
     shows: A running run's log follows the end, the error count grows, Next error jumps to a missed deadline (a bursty-high run of tuned-batching started during the recording).
-    pages: [user-guide/commit-page, tour, landing]
+    pages: [user-guide/logs, landing]
     features: [live-log-tail]
     needs: a bursty-high run started during the recording
     phase: 2
@@ -527,7 +527,7 @@ shots:
     kind: still
     project: image-quality
     shows: "The 113 MP run killed by LSF: TERM_MEMLIMIT, memory used against requested, and the hint on what to change."
-    pages: [user-guide/commit-page, lsf-integration]
+    pages: [lsf-integration, user-guide/logs, landing]
     features: [lsf-hints]
     needs: one-tile (lsf-memlimit)
     phase: 2
@@ -536,7 +536,7 @@ shots:
     kind: still
     project: serving-latency
     shows: 'The Logs view of the tune-batching sweep, started from QA-Board: its `qa batch` command and log, its runs (filtered on one configuration), and the Batch section with the command. (The CI batch''s command and job link show in the CI batch''s Logs view, one batch at a time.)'
-    pages: [user-guide/commit-page, user-guide/running-from-the-webapp]
+    pages: [user-guide/logs]
     needs: cache-sharded (tune-batching)
     phase: 2
     status: captured
@@ -554,7 +554,7 @@ shots:
     kind: clip
     project: serving-latency
     shows: 'Filtered on heavy-tail-high, the last two weeks of main: hovering along the line until the commits change at payload-copy (p99 3 to 12 ms), a click freezes it as the reference, then payload-borrow is 76% faster.'
-    pages: [user-guide/history-and-dashboards, recipes/find-regression, tutorials/perf-regression, tour, landing, use-cases/serving-latency]
+    pages: [use-cases/serving-latency, user-guide/history-and-dashboards, landing, recipes/find-regression, tutorials/perf-regression]
     needs: payload-copy
     phase: 2
     status: captured
@@ -569,7 +569,7 @@ shots:
     kind: still
     project: image-quality
     shows: "The facade's PSNR over six weeks of main; hovering merge-bilateral compares its output with the commit before: the leaves get halos."
-    pages: [user-guide/history-and-dashboards, use-cases/image-quality]
+    pages: [use-cases/image-quality, user-guide/first-review, user-guide/history-and-dashboards]
     needs: merge-bilateral
     phase: 2
     status: captured
@@ -579,7 +579,7 @@ shots:
     kind: still
     project: detection-eval
     shows: 'The batches editor with a YAML mistake (an indentation) underlined and listed under the editor, "1 error" and "Unsaved changes" above it, the Batches panel on the side.'
-    pages: [user-guide/commit-page, batches-running-on-multiple-inputs]
+    pages: [batches-running-on-multiple-inputs, user-guide/available-tests]
     features: [batch-editor]
     phase: 2
     status: captured
@@ -588,7 +588,7 @@ shots:
     kind: still
     project: detection-eval
     shows: 'Available Tests'' "Which tests run?" on int8-percentile: the ci batch resolves to 8 tests, the 4 slices with the fp32 and the int8 model at size 320.'
-    pages: [user-guide/commit-page, batches-running-on-multiple-inputs]
+    pages: [batches-running-on-multiple-inputs, user-guide/available-tests]
     features: [batch-editor]
     needs: int8-percentile
     phase: 2
@@ -597,7 +597,7 @@ shots:
     kind: still
     project: detection-eval
     shows: Run Tests / Tuning on int8-percentile, experiment int8-nms on quant-search (2 tests), with a grid over score_threshold and nms_iou, 4 combinations, "8 total runs", and the Start 8 runs button.
-    pages: [user-guide/running-from-the-webapp, tuning-from-the-webapp]
+    pages: [user-guide/running-from-the-webapp]
     needs: int8-percentile
     phase: 2
     status: captured
@@ -605,7 +605,7 @@ shots:
     kind: still
     project: detection-eval
     shows: 'Automated tuning with the search space and objective in YAML (the top of qa/tune-int8.yaml: evaluations, solver, objective).'
-    pages: [user-guide/running-from-the-webapp, auto-optimization, tutorials/tuning]
+    pages: [auto-optimization, user-guide/running-from-the-webapp, tutorials/tuning]
     phase: 2
     status: captured
   # A real launch: its 8 runs run in the backend's container (docs-media/demo/webapp_runs.py build), then it's deleted
@@ -613,7 +613,7 @@ shots:
     kind: clip
     project: detection-eval
     shows: The manual-form grid (8 runs) is sent, its int8-nms batch picked in the batch selector once its runs are done, and its Analysis opened, with the runs in parallel coordinates.
-    pages: [tutorials/tuning, tour, landing]
+    pages: [tuning-from-the-webapp, user-guide/running-from-the-webapp, landing, tutorials/tuning]
     features: [tuning-analysis]
     needs: int8-percentile
     phase: 2
@@ -622,7 +622,7 @@ shots:
     kind: still
     project: detection-eval
     shows: 'The tune-int8 Analysis: the best parameters (found at iteration 10 of 20: percentile 99.999, nothing kept in fp32, score 0.2, NMS 0.4, which is not what int8-tuned picked), parallel coordinates of the iterations, the convergence of the objective.'
-    pages: [user-guide/commit-page, auto-optimization, tutorials/tuning, use-cases/detection-eval]
+    pages: [auto-optimization, use-cases/detection-eval, user-guide/running-from-the-webapp, tutorials/tuning]
     features: [tuning-analysis]
     needs: int8-percentile (tune-int8)
     phase: 2
@@ -631,7 +631,7 @@ shots:
     kind: still
     project: serving-latency
     shows: 'The tune-batching sweep''s efficient frontier of CPU per request (added to the Analysis view''s metrics) against p99, 12 configurations colored by max delay, the chosen one (16, 250 µs) hovered on it, next to (64, 250 µs): within the noise between identical configurations.'
-    pages: [use-cases/serving-latency, tutorials/tuning, tutorials/perf-regression]
+    pages: [tuning-from-the-webapp, use-cases/serving-latency, user-guide/running-from-the-webapp, landing, tutorials/tuning, tutorials/perf-regression]
     features: [tuning-analysis]
     needs: cache-sharded (tune-batching)
     phase: 2
@@ -699,7 +699,7 @@ shots:
     kind: clip
     project: image-quality
     shows: "A 16 s loop: the Metrics Diff (PSNR and edge overshoot up), then synced zoom on the facade, the difference between the images and its maximum, and back to the Metrics Diff."
-    pages: [landing]
+    pages: [introduction, user-guide/first-review, user-guide/overview, landing]
     features: [image-synced-zoom, image-diff]
     needs: merge-bilateral vs isp-4-1
     phase: 2
@@ -717,7 +717,7 @@ shots:
     kind: clip
     project: image-quality
     shows: The new image of the 113 MP test wall, from the full view down to single pixels of a Siemens star.
-    pages: [landing]
+    pages: [viewers]
     features: [deep-zoom]
     needs: merge-bilateral vs isp-4-1 (deep-zoom batch)
     phase: 2

@@ -56,3 +56,10 @@
 .text > :last-child {
   margin-bottom: 0;
 }
+
+/* Four cards: two rows of two, rather than three and one alone */
+@media (min-width: 997px) {
+  .cards:has(> .card:nth-child(4):last-child) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
