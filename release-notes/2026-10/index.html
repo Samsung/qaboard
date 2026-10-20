@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.8b97510b.css">
-<script src="/qaboard/assets/js/runtime~main.4be7c465.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.7d8be743.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.257d2292.js" defer="defer"></script>
 </head>
 <body>
@@ -79,7 +79,9 @@
 <li class="">Pages use the width next to the sidebar instead of jumping between fixed widths, and the commit page fits laptop screens: its header cuts long commit messages and branches with &quot;…&quot;.</li>
 <li class="">The Tuning Analysis view of a <code>qa optimize</code> experiment plots its convergence itself: each iteration&#x27;s objective and the best one so far, even when matplotlib isn&#x27;t installed where <code>qa optimize</code> ran.</li>
 <li class="">The commit page tells you when a commit&#x27;s artifacts were deleted (when, and by whom) or are incomplete, what&#x27;s missing, and lets you recreate them with your CI.</li>
-<li class="">Compare with several references, one at a time: hover the reference&#x27;s bar and <strong>Stack a reference</strong> (a commit, a branch, a milestone, or the same one with another batch or filter), then switch with their tabs or <code>r</code> / <code>Shift r</code>. Drag tabs to reorder them, right-click them to duplicate, rename or remove them. They are in the URL. See <a class="" href="/qaboard/docs/user-guide/comparing-results#several-references">several references</a>.</li>
+<li class="">Compare with several references, one at a time: hover the reference&#x27;s bar and <strong>Stack a reference</strong> (a commit, a branch, a milestone, or the same one with another batch or filter), then switch with their tabs or <code>r</code> / <code>Shift r</code>. Drag tabs to reorder them, right-click them or click their <strong>⋯</strong> to duplicate, rename or remove them. They are in the URL. See <a class="" href="/qaboard/docs/user-guide/comparing-results#several-references">several references</a>.</li>
+<li class="">See each stacked reference under one name, in its tab, the reference&#x27;s bar and the viewers: the first is &quot;ref&quot;, the ones you add &quot;ref 2&quot;, &quot;ref 3&quot;..., copies are <code>&lt;name&gt; copy</code>, and they keep their names when you reorder or remove references. Tabs say only what tells them apart: their batch or filter, their commit or branch, when the others&#x27; differ. Many tabs scroll sideways, with the mouse wheel too. See <a class="" href="/qaboard/docs/user-guide/comparing-results#several-references">several references</a>.</li>
+<li class="">Hover a reference&#x27;s tab to see its commit, message, author, branch, batch, filter, how many runs it has and how many failed, and whether it&#x27;s the same commit as the new results.</li>
 <li class="">Name what you compare: click <strong>new</strong> or <strong>ref</strong> to call them <code>ISP v2</code> and <code>ISP v1</code>. The names are in the URL, and the page uses them: the images and videos&#x27; labels, the legends of plots, text diffs, flame graphs, HTML outputs, the Summary and the columns of Metrics Table and Metrics Diff. Milestones are called by their name.</li>
 <li class="">See which is which by color: new is blue, references purple, magenta, teal and violet, in their bars, tabs, the viewers&#x27; labels, and the plots (the Summary&#x27;s box plots, overlaid Plotly plots), in the light and dark themes. The reference is no longer orange, a color that says &quot;warning&quot;.</li>
 <li class="">Errors from redo, delete and tuning actions show a readable message instead of the raw server response.</li>
@@ -88,6 +90,7 @@
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="logs-batches-and-redoing-runs">Logs, batches and redoing runs<a href="#logs-batches-and-redoing-runs" class="hash-link" aria-label="Direct link to Logs, batches and redoing runs" title="Direct link to Logs, batches and redoing runs" translate="no">​</a></h3>
 <ul>
 <li class="">The Logs view filters runs (all, failed, running) and tags failed runs with the reason (e.g. &quot;LSF: out of memory&quot;). The sidebar&#x27;s Logs entry shows how many runs failed, or are still running.</li>
+<li class="">Show only the runs that succeeded: with <strong>Successful</strong> in the Logs view, or with <code>status:success</code> in the commit page&#x27;s filter boxes. See the <a class="" href="/qaboard/docs/user-guide/finding-results#filter-syntax">filter syntax</a>.</li>
 <li class="">In the Logs view, each run fits on one line, with buttons to open its output directory, copy its Linux or Windows path, redo it, mark it as failed or delete it. Its full configuration shows when you open its logs.</li>
 <li class="">Switch between a run&#x27;s <code>log.txt</code>, <code>log.lsf.txt</code> and <code>log.dask.txt</code>. For LSF runs, a summary shows the exit reason, host, run time and memory used vs requested, with hints that point to the batch&#x27;s <code>lsf:</code> options.</li>
 <li class="">Batches started from QA-Board (tuning, &quot;Run Tests&quot;) show whether <code>qa batch</code> is waiting for LSF, running, failed (with the error) or didn&#x27;t start any run, with a link to its logs.</li>
@@ -453,6 +456,8 @@
 <ul>
 <li class="">With LSF job arrays and the Dask runner, <code>qa run</code> no longer deletes the log file its output goes to: errors are no longer lost.</li>
 <li class="">Runs started from a <code>git worktree</code> checkout are saved under their commit, instead of their branch name. Submodules with a relative <code>.git</code> pointer also work.</li>
+<li class="">On Windows, <code>qa</code> works in a <code>git worktree</code> whose <code>.git</code> pointer holds an absolute Linux path: it is translated with the site&#x27;s path mappings (<code>QABOARD_PATH_MAPPINGS</code>).</li>
+<li class=""><code>qa</code> starts even when the git HEAD cannot be read, e.g. an unresolvable worktree pointer: it warns and continues with <code>&lt;local:user&gt;</code> commit placeholders instead of crashing at startup.</li>
 <li class="">On Windows, <code>qa batch</code> finds existing results for projects whose name contains a &quot;/&quot;, instead of failing with &quot;could not find any data on commit ID&quot;: <code>--action-on-existing</code> works there.</li>
 <li class=""><code>qa optimize</code> works with recent versions of scikit-optimize, instead of failing with &quot;cannot import name &#x27;Integer&#x27;&quot;.</li>
 <li class=""><code>qa optimize</code> no longer fails at the end when matplotlib isn&#x27;t installed: it only skips its convergence plot.</li>
