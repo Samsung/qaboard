@@ -35,6 +35,11 @@ const messages = {
     title: "Your account is waiting for approval",
     text: "An admin needs to approve your account before you can use QA-Board.",
   }),
+  // linking a sign-in method from Settings
+  identity_taken: provider => ({
+    title: "It's another account's",
+    text: `This ${provider ?? 'sign-in'} account is already linked to another QA-Board account. Sign in with it to unlink it there, or ask an admin.`,
+  }),
   sign_in_required: () => ({
     title: "Sign in first",
     text: "Sign in, then try again.",

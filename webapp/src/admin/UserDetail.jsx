@@ -13,7 +13,7 @@ import { AuditEvents } from "../settings/AuditEvents";
 import { AdminError } from "./states";
 import { UserTags } from "./Users";
 import { RequestMessage } from "./AccessRequests";
-import { adminUserQuery, accessRequestsQuery, updateUser, revokeUserTokens, revokeUserSessions, adminRevokeToken } from "./api";
+import { adminUserQuery, updateUser, revokeUserTokens, revokeUserSessions, adminRevokeToken } from "./api";
 
 
 // The actions that need a confirmation
@@ -127,10 +127,8 @@ const Actions = ({ user, me }) => {
 
 
 // Why a pending user needs access
-const PendingRequest = ({ user }) => {
-  const { data: requests } = useQuery(accessRequestsQuery('pending'));
-  const request = (requests ?? []).find(request => String(request.user?.id) === String(user.id));
-  if (!request) return null;
+const PendingRequest = ({ request }) => {
+  if (request?.status !== 'pending') return null;
   return <Callout intent={Intent.WARNING} icon="time" title="Waiting for an admin" style={{ marginBottom: 16, maxWidth: 720 }}>
     <span className={Classes.TEXT_MUTED}>Asked <Time iso={request.created_at}/></span>
     <RequestMessage message={request.message}/>
@@ -145,7 +143,7 @@ export const UserDetail = ({ id, me }) => {
   if (error?.response?.status === 404)
     return <NonIdealState icon="person" title="No such user" description="It may have been deleted." action={<Link to="/admin/users">All users</Link>}/>;
   if (error) return <AdminError error={error} refetch={refetch} what="the user"/>;
-  const { user, tokens, audit } = data;
+  const { user, tokens, audit, access_request } = data;
   return <section aria-label={`User ${user.user_name}`}>
     <p style={{ marginTop: 0 }}><Link to="/admin/users">← All users</Link></p>
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 16 }}>
@@ -155,7 +153,7 @@ export const UserDetail = ({ id, me }) => {
       </div>
       <Actions user={user} me={me}/>
     </div>
-    {user.status === 'pending' && <PendingRequest user={user}/>}
+    {user.status === 'pending' && <PendingRequest request={access_request}/>}
     <HTMLTable compact style={{ marginBottom: 24 }}>
       <tbody>
         <tr><th scope="row">User name</th><td><code>{user.user_name}</code></td></tr>

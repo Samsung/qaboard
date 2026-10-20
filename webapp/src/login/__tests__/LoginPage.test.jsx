@@ -200,6 +200,12 @@ describe('LoginPage', () => {
     expect(screen.getByRole('link', { name: 'Admins: sign in with a local account' })).toHaveAttribute('href', '/login?local=1');
   });
 
+  it('names the provider the server says failed, among several', async () => {
+    mockApi({ 'GET /api/v1/auth/providers': options(), 'GET /api/v1/user/me/': anonymous_me });
+    renderAt('/login?error=sso_unavailable&ref=9&provider=github');
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("We couldn't reach GitHub"));
+  });
+
   it.each([
     ['sso_expired', 'Your sign-in took too long or started in another tab. Try again.'],
     ['not_allowed', "You signed in, but this QA-Board server doesn't accept your account."],

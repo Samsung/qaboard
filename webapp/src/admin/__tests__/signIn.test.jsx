@@ -260,8 +260,7 @@ describe('UserDetail', () => {
 
   it("shows pending users' message", async () => {
     mockApi({
-      'GET /api/v1/admin/users/7': { user: user({ status: 'pending' }), tokens: [], audit: [] },
-      'GET /api/v1/admin/access-requests': { requests: [request()] },
+      'GET /api/v1/admin/users/7': { user: user({ status: 'pending' }), tokens: [], audit: [], access_request: request() },
     });
     renderAt('/admin/users/7', <UserDetail id="7" me={admin}/>);
     expect(await screen.findByText('I join the camera team next week')).toBeInTheDocument();

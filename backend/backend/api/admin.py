@@ -194,10 +194,15 @@ def admin_user(user_id):
             .filter(or_(AuditEvent.actor_user_id == user.id, (AuditEvent.target_type == 'user') & (AuditEvent.target_id == str(user.id))))
             .order_by(AuditEvent.id.desc()).limit(50).all())
   counts = active_token_counts([user.id])
+  from ..models import AccessRequest
+  from ..sign_in.access import serialize as serialize_request
+  access_request = AccessRequest.query.filter(AccessRequest.user_id == user.id).order_by(AccessRequest.id.desc()).first()
   return jsonify({
     "user": serialize_user(user, counts.get(user.id, 0)),
     "tokens": [tokens_lib.serialize(t) for t in tokens],
     "audit": [serialize_event(e) for e in events],
+    # the latest, pending or decided
+    "access_request": serialize_request(access_request) if access_request else None,
   })
 
 
@@ -346,6 +351,8 @@ def admin_update_settings():
     if settings_lib.source(key) == 'env':
       env = settings_lib.DEFINITIONS[key].env
       return jsonify({"error": f"{key} is set by ${env}: change it in the server's environment."}), 400
+    if value is not None and value == settings_lib.masked(key, settings_lib.setting(key)) and settings_lib.DEFINITIONS[key].secret:
+      return jsonify({"error": f"Type the whole new value of {key}: the current one is hidden."}), 400
     try:
       values[key] = None if value is None else settings_lib.validate(key, value)
     except ValueError as e:
@@ -354,7 +361,7 @@ def admin_update_settings():
     before = settings_lib.setting(key)
     after = settings_lib.save(key, value, by=g.actor.user)
     if before != after:
-      audit('setting.update', 'setting', key, key, changes={"value": {"from": before, "to": after}})
+      audit('setting.update', 'setting', key, key, changes={"value": {"from": settings_lib.masked(key, before), "to": settings_lib.masked(key, after)}})
   db_session.commit()
   settings_lib.invalidate_cache()
   return jsonify({"settings": settings_lib.describe_all()})

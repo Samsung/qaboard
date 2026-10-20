@@ -108,7 +108,8 @@ directory attributes, which the rules of `QABOARD_LOGIN_RESTRICTED_YAML` can use
 
 Users who wait can sign in, and see a page saying so, where they write why they need access. Admins get an email
 (when [QA-Board sends emails](/docs/deploy#emails)), and a message on `auth.access_request_webhook` if you set it: a
-Slack, Teams or Mattermost incoming webhook (QA-Board posts `{"text": "..."}`). Admins approve or deny them in
+Slack, Teams or Mattermost incoming webhook (QA-Board posts `{"text": "..."}`; the panel and the audit log only show
+its host, since its URL is a credential). Admins approve or deny them in
 **Admin → Users**; users get an email either way.
 
 The policy applies to new accounts. To stop someone who already has one, disable them in **Admin → Users**.
@@ -147,11 +148,12 @@ When an SSO sign-in fails, users see a short message and a **reference**: the au
 | Users see | What happened | What to do |
 |---|---|---|
 | We couldn't reach the sign-in service | The backend can't reach the IdP | Run `qaboard-admin check-sign-in`. Check the proxy (`NO_PROXY` for an internal IdP) and the CA certificates of the backend's image (`CA_CERT_URL`) |
-| The sign-in took too long or started elsewhere | The handshake is lost: another tab, more than 10 minutes, or a different hostname | Users must come back to the hostname they left from: `QABOARD_URL` must be the one users use, and the redirect URI must be on it |
-| The sign-in service refused it | The IdP sent an error (e.g. `access_denied`) | The audit event has the IdP's message |
-| Single sign-on isn't set up right | Wrong issuer, audience, signature, a missing claim... | The audit event says which. A missing `sub` or user name claim: ask for the claim mapper |
-| Not allowed | `QABOARD_LOGIN_RESTRICTED_YAML`'s rules refuse the user | |
+| Your sign-in expired | The handshake is lost: another tab, more than 10 minutes, or a different hostname | Users must come back to the hostname they left from: `QABOARD_URL` must be the one users use, and the redirect URI must be on it |
+| The sign-in service didn't sign you in | The IdP sent an error (e.g. `access_denied`) | The audit event has the IdP's message |
+| Signing in isn't set up correctly | Wrong issuer, audience, signature, a missing claim... | The audit event says which. A missing `sub` or user name claim: ask for the claim mapper |
+| Your account can't use QA-Board | `QABOARD_LOGIN_RESTRICTED_YAML`'s rules refuse the user | |
 | Your account is disabled | An admin disabled it | |
+| It's another account's | Linking a provider whose account is already linked to another user | Sign in as that user and unlink it, or check the users' identities |
 
 Keycloak's "Invalid parameter: redirect_uri" means the redirect URI isn't registered: `check-sign-in` says which
 near-misses (http/https, a trailing slash) the IdP accepts. In Keycloak, scheme, host, port and path must all match.

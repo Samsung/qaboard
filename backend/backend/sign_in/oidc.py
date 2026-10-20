@@ -15,7 +15,7 @@ from urllib.parse import urlencode
 import requests
 from flask import session
 
-from .providers import Provider
+from .providers import Provider, ENV_OIDC_ID
 
 
 TIMEOUT = 10 # seconds, for requests to the IdP
@@ -89,6 +89,9 @@ def pkce_challenge(verifier: str) -> str:
 def redirect_uri(provider: Provider, public_url: str) -> str:
   if provider.config.get('redirect_uri'):
     return provider.config['redirect_uri']
+  # the environment's provider has the short one, the URI admins register with their IdP (website/docs/backend-admin/sign-in.mdx)
+  if provider.id == ENV_OIDC_ID:
+    return f"{public_url}/api/v1/auth/oidc/callback"
   return f"{public_url}/api/v1/auth/oidc/{provider.id}/callback"
 
 

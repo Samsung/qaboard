@@ -29,7 +29,7 @@ export const adminUserQuery = id => queryOptions({
   queryKey: ['admin', 'user', String(id)],
   queryFn: async ({ signal }) => {
     const { data } = await http.get(`/api/v1/admin/users/${id}`, { signal });
-    return { user: data?.user, tokens: data?.tokens ?? [], audit: data?.audit ?? [] };
+    return { user: data?.user, tokens: data?.tokens ?? [], audit: data?.audit ?? [], access_request: data?.access_request ?? null };
   },
   enabled: !!id,
   staleTime: 30 * 1000,

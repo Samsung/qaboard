@@ -43,8 +43,8 @@ def oidc_provider(provider_id):
   return provider
 
 
-def to_login_page(code: str, ref=None):
-  return redirect(f"/login?{urlencode({'error': code, **({'ref': ref} if ref else {})})}")
+def to_login_page(code: str, ref=None, provider_id=None):
+  return redirect(f"/login?{urlencode({'error': code, **({'ref': ref} if ref else {}), **({'provider': provider_id} if provider_id else {})})}")
 
 
 @app.route('/api/v1/auth/oidc/<provider_id>/start', methods=['GET'])
@@ -61,7 +61,7 @@ def oidc_start(provider_id):
     event = audit('auth.login_failed', 'provider', provider_id, provider_id, meta={"provider": provider_id, "reason": e.code, "detail": e.detail})
     db_session.commit()
     print(f"[sign-in] {provider_id}: {e.code}: {e.detail}")
-    return to_login_page(e.code, event.id)
+    return to_login_page(e.code, event.id, provider_id)
 
 
 @app.route('/api/v1/auth/oidc/callback', methods=['GET'])
@@ -100,6 +100,10 @@ def oidc_callback(provider_id=None):
       raise SignInError('not_allowed', f"{user.user_name} isn't allowed by the login rules of QABOARD_LOGIN_RESTRICTED_YAML")
     finish_sign_in(user, provider.id, subject=claims['sub'], email=email, claims=claims,
                    **({"idp_groups": groups} if isinstance(groups, list) else {}))
+    if user.status == 'pending':
+      # the sign-in page shows them their request
+      next_url = safe_redirect_url(saved.get('next'))
+      return redirect(f"/login?{urlencode({'next': next_url})}" if next_url != '/' else '/login')
     return redirect(safe_redirect_url(saved.get('next')))
   except SignInError as e:
     db_session.rollback()
@@ -107,8 +111,8 @@ def oidc_callback(provider_id=None):
     db_session.commit()
     print(f"[sign-in] {provider_id}: {e.code}: {e.detail}")
     if saved and saved.get('link'):
-      return redirect(f"/settings/sign-in?{urlencode({'error': e.code, 'ref': event.id})}")
-    return to_login_page(e.code, event.id)
+      return redirect(f"/settings/sign-in?{urlencode({'error': e.code, 'ref': event.id, 'provider': provider_id})}")
+    return to_login_page(e.code, event.id, provider_id)
 
 
 @app.route('/api/v1/user/access-request', methods=['POST'])
@@ -138,6 +142,18 @@ def my_sessions():
   rows = UserSession.query.filter(UserSession.user_id == g.actor.user.id).order_by(UserSession.last_seen_at.desc()).limit(100).all()
   current = g.get('session_row')
   return jsonify({"sessions": [sessions.serialize(r, current.id if current else None) for r in rows if sessions.status(r) == 'active']})
+
+
+@app.route('/api/v1/user/sessions', methods=['DELETE'])
+@app.route('/api/v1/user/sessions/', methods=['DELETE'])
+@session_required
+def revoke_my_other_sessions():
+  """Signs out everywhere else"""
+  current = g.get('session_row')
+  count = sessions.revoke_all(g.actor.user.id, except_id=current.id if current is not None else None)
+  audit('session.revoke_all', 'user', g.actor.user.id, g.actor.user.user_name, meta={"revoked": count, "kept_current": current is not None})
+  db_session.commit()
+  return jsonify({"revoked": count})
 
 
 @app.route('/api/v1/user/sessions/<int:session_id>', methods=['DELETE'])

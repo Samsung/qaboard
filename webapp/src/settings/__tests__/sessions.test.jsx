@@ -68,6 +68,24 @@ describe('Sessions', () => {
     expect(history.location.pathname).toBe('/settings/sessions');
   });
 
+  it('signs out everywhere else', async () => {
+    let revoked = false;
+    const fetch = mockApi({
+      'GET /api/v1/user/sessions': () => [{ sessions: revoked ? [session({ id: 3, current: true })] : [session({ id: 1 }), session({ id: 2 }), session({ id: 3, current: true })] }, 200],
+      'DELETE /api/v1/user/sessions': () => { revoked = true; return [{ revoked: 2 }, 200]; },
+    });
+    renderAt('/settings/sessions', <SessionsTab/>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Sign out everywhere else' }));
+    const dialog = within(await screen.findByRole('alertdialog'));
+    expect(dialog.getByText(/every browser but this one/)).toBeInTheDocument();
+    fireEvent.click(dialog.getByRole('button', { name: 'Sign out everywhere else' }));
+    await waitFor(() => expect(screen.queryByTestId('session-1')).not.toBeInTheDocument());
+    expect(calls(fetch, 'DELETE', '/api/v1/user/sessions').filter(([url]) => url === '/api/v1/user/sessions')).toHaveLength(1);
+    expect(screen.getByTestId('session-3')).toBeInTheDocument();
+    // nothing else to sign out of
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Sign out everywhere else' })).not.toBeInTheDocument());
+  });
+
   it('signs out when revoking this browser', async () => {
     const fetch = mockApi({
       'GET /api/v1/user/sessions': { sessions: [session({ id: 2, current: true })] },
@@ -121,5 +139,12 @@ describe('Sign-in methods', () => {
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('Your sign-in took too long or started in another tab. Try again.');
     expect(alert).toHaveTextContent('Reference: 77');
+  });
+
+  it('names the provider that failed', async () => {
+    mockApi({ 'GET /api/v1/user/identities': { identities: [identity()], linkable: [keycloak] } });
+    renderAt('/settings/sign-in?error=sso_unavailable&ref=78&provider=keycloak', <SignInTab/>);
+    // named once the sign-in methods are loaded
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent("We couldn't reach Keycloak"));
   });
 });

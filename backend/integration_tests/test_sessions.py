@@ -16,6 +16,19 @@ def test_sessions_are_listed_and_revoked(logged_in, make_client):
   assert alice.get('/api/v1/user/tokens').status_code == 200
 
 
+def test_signing_out_everywhere_else(logged_in, make_client):
+  alice = logged_in('alice')
+  others = [login(make_client(), 'alice') for _ in range(2)]
+  bob = logged_in('bob')
+  assert alice.delete('/api/v1/user/sessions').get_json() == {"revoked": 2}
+  assert all(other.get('/api/v1/user/tokens').status_code == 401 for other in others)
+  assert alice.get('/api/v1/user/tokens').status_code == 200
+  assert bob.get('/api/v1/user/tokens').status_code == 200
+  # a token can't sign its user out of their browsers
+  token = new_token(alice, scopes=["read", "act"])
+  assert make_client().delete('/api/v1/user/sessions', headers=bearer(token["token"])).status_code == 403
+
+
 def test_sign_out_revokes_the_session(logged_in):
   from backend.models import UserSession
   alice = logged_in('alice')

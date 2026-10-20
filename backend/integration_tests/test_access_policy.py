@@ -37,8 +37,11 @@ def test_admins_decide(logged_in, make_client, monkeypatch):
   requests = root.get('/api/v1/admin/access-requests').get_json()["requests"]
   assert [(r["user"]["user_name"], r["message"], r["status"]) for r in requests] == [("alice", "camera team", "pending")]
   alice_id = requests[0]["user"]["id"]
+  # on the user's page too
+  assert root.get(f'/api/v1/admin/users/{alice_id}').get_json()["access_request"]["message"] == "camera team"
   assert root.post(f'/api/v1/admin/users/{alice_id}', json={"status": "active"}).status_code == 200
   assert AccessRequest.query.one().status == "approved"
+  assert root.get(f'/api/v1/admin/users/{alice_id}').get_json()["access_request"]["status"] == "approved"
   # the same session now works
   assert alice.get('/api/v1/user/me/').get_json()["user_name"] == "alice"
   assert alice.get('/api/v1/user/tokens').status_code == 200

@@ -541,6 +541,25 @@ def test_settings_validation(admin, body, message):
   assert settings_by_key(admin)["tokens.default_lifetime_days"]["value"] == 90
 
 
+def test_secret_settings_are_never_shown(admin):
+  """Webhook URLs are credentials: admins see the host, the audit log too"""
+  from backend.models import AuditEvent
+  from backend.settings import setting
+  url = 'https://hooks.slack.com/services/T000/B000/XXXX'
+  response = admin.post('/api/v1/admin/settings', json={"auth.access_request_webhook": url})
+  assert response.status_code == 200
+  described = {s["key"]: s for s in response.get_json()["settings"]}["auth.access_request_webhook"]
+  assert described["value"] == 'https://hooks.slack.com/…' and described["secret"] is True
+  assert setting('auth.access_request_webhook') == url
+  event = AuditEvent.query.filter(AuditEvent.action == 'setting.update').one()
+  assert 'XXXX' not in str(event.changes) and event.changes["value"]["to"] == 'https://hooks.slack.com/…'
+  # saving what's shown would lose the real URL
+  response = admin.post('/api/v1/admin/settings', json={"auth.access_request_webhook": 'https://hooks.slack.com/…'})
+  assert response.status_code == 400 and "hidden" in response.get_json()["error"]
+  assert setting('auth.access_request_webhook') == url
+  assert 'XXXX' not in admin.get('/api/v1/admin/settings').get_data(as_text=True)
+
+
 def test_settings_update_reset_and_audit(admin):
   response = admin.post('/api/v1/admin/settings', json={"tokens.max_lifetime_days": 30, "ingest.auth": "warn"})
   assert response.status_code == 200, response.get_json()

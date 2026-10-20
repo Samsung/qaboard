@@ -77,7 +77,8 @@ const SettingRow = ({ setting }) => {
   const instant = type === 'bool' || !!setting.choices?.length;
 
   const edit = () => {
-    setText(formatSettingValue(setting.value));
+    // secret settings come masked: admins type a new value
+    setText(setting.secret ? '' : formatSettingValue(setting.value));
     setError(null);
     setEditing(true);
   };
@@ -144,7 +145,7 @@ const SettingRow = ({ setting }) => {
             value={text}
             onChange={e => setText(e.target.value)}
             aria-label={label}
-            placeholder={setting.nullable ? 'Not set' : placeholders[type] ?? 'A value'}
+            placeholder={setting.secret ? 'The new value (the current one is hidden)' : setting.nullable ? 'Not set' : placeholders[type] ?? 'A value'}
             intent={error ? Intent.DANGER : undefined}
             autoFocus
             size="small"

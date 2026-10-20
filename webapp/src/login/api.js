@@ -117,6 +117,15 @@ export const revokeSession = async (queryClient, session) => {
 };
 
 
+// Signs out every other browser
+export const revokeOtherSessions = async queryClient => {
+  const { data } = await http.delete('/api/v1/user/sessions');
+  queryClient.invalidateQueries({ queryKey: ['sessions'] });
+  queryClient.invalidateQueries({ queryKey: ['audit'] });
+  return data;
+};
+
+
 // Settings → Sign-in methods: {identities, linkable: providers users can add}
 export const identitiesQuery = queryOptions({
   queryKey: ['identities', 'mine'],

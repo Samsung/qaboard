@@ -233,9 +233,9 @@ export const LoginPage = () => {
   const reference = params.get('ref');
   const { data: user = logged_out_user, isPending } = useQuery({ ...userQuery, refetchOnMount });
   const { data: providers } = useQuery(providersQuery({ next, local }));
-  // the error is about the single sign-on: we name it when there is only one
+  // the error is about a single sign-on: the server says which, else we name it when there is only one
   const buttons = redirectProviders(providers?.providers ?? []);
-  const provider_name = buttons.length === 1 ? buttons[0].name : null;
+  const provider_name = buttons.find(provider => provider.id === params.get('provider'))?.name ?? (buttons.length === 1 ? buttons[0].name : null);
 
   // already signed in, e.g. a bookmark of /login, or the back button
   const signed_in = user.is_logged && !error && location.pathname === '/login';

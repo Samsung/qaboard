@@ -37,6 +37,8 @@ class Definition(NamedTuple):
   nullable: bool = False
   minimum: Optional[int] = None
   maximum: Optional[int] = None
+  # never shown in full, e.g. webhook URLs: their path is the credential
+  secret: bool = False
 
 
 DEFINITIONS = {
@@ -78,7 +80,7 @@ DEFINITIONS = {
   ),
   'auth.access_request_webhook': Definition(
     "An incoming webhook (Slack, Teams, Mattermost...) told when users wait for an admin. QA-Board sends {\"text\": \"...\"}.",
-    None, str, env='QABOARD_ACCESS_REQUEST_WEBHOOK', nullable=True,
+    None, str, env='QABOARD_ACCESS_REQUEST_WEBHOOK', nullable=True, secret=True,
   ),
   'auth.sso_auto_redirect': Definition(
     "When signing in is required and there is a single single sign-on method, the sign-in page goes straight to it. /login?local=1 still shows the password form.",
@@ -253,13 +255,23 @@ def _normalize(definition: Definition, value):
   return value
 
 
+def masked(key: str, value):
+  """What admins see of a secret setting: https://hooks.slack.com/…"""
+  if not DEFINITIONS[key].secret or value in (None, ''):
+    return value
+  from urllib.parse import urlparse
+  url = urlparse(str(value))
+  return f"{url.scheme}://{url.netloc}/…" if url.scheme and url.netloc else "…"
+
+
 def describe(key: str) -> dict:
   definition = DEFINITIONS[key]
   current_source = source(key)
   return {
     "key": key,
-    "value": setting(key),
-    "default": default(key),
+    "value": masked(key, setting(key)),
+    "default": masked(key, default(key)),
+    "secret": definition.secret,
     "source": current_source,
     "env": definition.env,
     "description": definition.description,

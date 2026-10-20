@@ -50,6 +50,7 @@ export const SignInTab = () => {
     {link_error && <SignInError
       code={link_error}
       reference={params.get('ref')}
+      provider={data?.linkable?.find(provider => provider.id === params.get('provider'))?.name}
       style={{ marginBottom: 16, maxWidth: 640 }}
     />}
     {unlink_error && <Callout intent={Intent.DANGER} style={{ marginBottom: 16, maxWidth: 640 }} role="alert" title="Could not unlink it">

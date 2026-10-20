@@ -68,13 +68,15 @@ class FakeIdP:
     assert location.geturl().startswith(f'{ISSUER}/protocol/openid-connect/auth')
     assert params['code_challenge_method'] == 'S256' and params['client_id'] == CLIENT_ID
     self.nonce, self.challenge = params['nonce'], params['code_challenge']
+    self.last_start = params
     return params
 
   def sign_in(self, client, state=None, **extra):
     params = self.start(client)
     query = {"code": "the-code", "state": state or params['state'], **extra}
     from urllib.parse import urlencode
-    return client.get(f'/api/v1/auth/oidc/sso/callback?{urlencode(query)}')
+    # where the IdP sends users back
+    return client.get(f'{urlparse(params["redirect_uri"]).path}?{urlencode(query)}')
 
 
 @pytest.fixture
@@ -102,6 +104,8 @@ def test_sign_in_creates_the_account(idp, make_client):
   client = make_client()
   response = idp.sign_in(client)
   assert response.status_code == 302 and response.headers['Location'] == '/group/repo/commits'
+  # the environment's provider uses the redirect URI the docs say to register
+  assert idp.last_start["redirect_uri"] == "http://localhost/api/v1/auth/oidc/callback"
   me = client.get('/api/v1/user/me/').get_json()
   assert me["user_name"] == "alice" and me["full_name"] == "Alice Doe" and me["email"] == "alice@example.com"
   user = User.query.one()
@@ -215,8 +219,9 @@ def test_the_idp_refuses(idp, make_client):
   from backend.models import AuditEvent
   event = AuditEvent.query.filter_by(action='auth.login_failed').one()
   assert event.meta["reason"] == "sso_failed" and "access_denied" in event.meta["detail"]
-  # users get the event's id, to give admins
-  assert parse_qs(urlparse(response.headers['Location']).query)['ref'] == [str(event.id)]
+  # users get the event's id, to give admins, and which provider failed
+  query = parse_qs(urlparse(response.headers['Location']).query)
+  assert query['ref'] == [str(event.id)] and query['provider'] == ['sso']
 
 
 def test_the_idp_is_down(monkeypatch, client):
@@ -242,7 +247,8 @@ def test_new_users_wait_for_an_admin(idp, make_client, monkeypatch):
   monkeypatch.setenv('QABOARD_ACCESS_POLICY', 'domains')
   monkeypatch.setenv('QABOARD_ALLOWED_EMAIL_DOMAINS', 'corp.example')
   client = make_client()
-  idp.sign_in(client)
+  # the sign-in page shows them their request
+  assert idp.sign_in(client).headers['Location'] == '/login?next=%2Fgroup%2Frepo%2Fcommits'
   me = client.get('/api/v1/user/me/').get_json()
   assert me["reason"] == "user_pending" and me["pending"]["user_name"] == "alice"
 
@@ -312,4 +318,4 @@ def test_the_doctor(idp, logged_in, monkeypatch):
   idp.mocked.add(responses.GET, f'{ISSUER}/protocol/openid-connect/auth', status=400, body="We are sorry... Invalid parameter: redirect_uri")
   checks = {c["check"]: c for c in root.post('/api/v1/admin/sign-in/providers/sso/test').get_json()["checks"]}
   assert checks["discovery"]["ok"] and checks["issuer"]["ok"] and checks["signing keys"]["ok"] and checks["client secret"]["ok"]
-  assert not checks["redirect URI"]["ok"] and "http://localhost/api/v1/auth/oidc/sso/callback" in checks["redirect URI"]["detail"]
+  assert not checks["redirect URI"]["ok"] and "http://localhost/api/v1/auth/oidc/callback" in checks["redirect URI"]["detail"]

@@ -7,7 +7,7 @@ import { Alert, Button, Classes, HTMLTable, Intent, NonIdealState, Tag } from "@
 import { history } from "../router";
 import { errorMessage } from "../api/http";
 import { toaster } from "../toaster";
-import { sessionsQuery, revokeSession, loginUrl } from "../login/api";
+import { sessionsQuery, revokeSession, revokeOtherSessions, loginUrl } from "../login/api";
 import { QueryError, Loading } from "./states";
 import { Time } from "./format";
 
@@ -50,6 +50,16 @@ export const SessionsTab = () => {
   const confirm = () => {
     const session = revoking;
     setBusy(true);
+    if (session.others) {
+      revokeOtherSessions(queryClient)
+        .then(({ revoked }) => toaster.show({ message: `Signed out ${revoked} other ${revoked === 1 ? 'browser' : 'browsers'}`, intent: Intent.SUCCESS, icon: 'tick', timeout: 3000 }))
+        .catch(error => toaster.show({ message: `Could not sign out the other browsers: ${errorMessage(error)}`, intent: Intent.DANGER }))
+        .finally(() => {
+          setBusy(false);
+          setRevoking(null);
+        });
+      return;
+    }
     revokeSession(queryClient, session)
       .then(() => {
         if (session.current) {
@@ -72,6 +82,14 @@ export const SessionsTab = () => {
       The browsers where you're signed in. If you don't recognize one, revoke it: it's signed out right away.
       Sessions also end after a while without use. Computers where you use <code>qa</code> are in CLI sign-ins.
     </p>
+    {sorted.filter(session => !session.current).length > 1 && <Button
+      variant="outlined"
+      intent={Intent.DANGER}
+      icon="log-out"
+      text="Sign out everywhere else"
+      onClick={() => setRevoking({ others: true })}
+      style={{ marginBottom: 12 }}
+    />}
     {isPending && <Loading label="Loading your sessions"/>}
     {error && <QueryError error={error} refetch={refetch} what="your sessions"/>}
     {!isPending && !error && (sorted.length === 0
@@ -112,16 +130,18 @@ export const SessionsTab = () => {
       </div>)}
     <Alert
       isOpen={!!revoking}
-      icon={revoking?.current ? "log-out" : "trash"}
+      icon={revoking?.current || revoking?.others ? "log-out" : "trash"}
       intent={Intent.DANGER}
       cancelButtonText="Cancel"
-      confirmButtonText={revoking?.current ? "Sign out" : "Revoke"}
+      confirmButtonText={revoking?.others ? "Sign out everywhere else" : revoking?.current ? "Sign out" : "Revoke"}
       loading={busy}
       onCancel={() => setRevoking(null)}
       onConfirm={confirm}
       canEscapeKeyCancel
     >
-      {revoking && (revoking.current
+      {revoking && (revoking.others
+        ? <p>Sign out every browser but this one? Whoever uses them will need to sign in again.</p>
+        : revoking.current
         ? <p>This is the browser you're using: you'll be signed out here.</p>
         : <p>Sign out <strong>{describeUserAgent(revoking.user_agent)}</strong>{revoking.ip ? <> from <code>{revoking.ip}</code></> : null}? Whoever uses it will need to sign in again.</p>)}
     </Alert>
