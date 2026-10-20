@@ -211,7 +211,7 @@ def test_saving_needs_a_login(api, dummy_app):
   api.get_current_user.return_value = {'is_authenticated': False}
   response = call(dummy_app, api.create_milestone, method='POST', json={'project': 'p', 'commit': SHA})
   assert response.status_code == 401
-  assert 'Log in' in response.get_json()['error']
+  assert 'Sign in' in response.get_json()['error']
 
 
 def test_create(api, dummy_app):

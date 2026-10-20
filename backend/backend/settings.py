@@ -68,7 +68,7 @@ DEFINITIONS = {
     180, int, minimum=1,
   ),
   'audit.retention_days': Definition(
-    "Audit events older than this are deleted by the cleanup.",
+    "Audit events older than this are deleted by `qaboard-admin purge-audit` (run it from a scheduled job).",
     730, int, minimum=30,
   ),
 }
@@ -117,8 +117,9 @@ def from_env(key: str):
   if definition.parse_env:
     return True, definition.parse_env(raw)
   try:
-    return True, validate(key, raw if definition.type is str else _parse_text(definition, raw))
+    return True, validate(key, _normalize(definition, raw if definition.type is str else _parse_text(definition, raw)))
   except ValueError as e:
+    # the admin panel's checklist shows it (invalid_env)
     print(f"[settings] WARNING: ignoring ${definition.env}: {e}")
     return False, None
 
@@ -185,6 +186,46 @@ def validate(key: str, value):
   return value
 
 
+def save(key: str, value, by=None):
+  """Stores a valid value (None resets the default), in the current database session: the caller commits. Returns the new value."""
+  from backend import db_session
+  from .models import Setting
+  from .tokens import utcnow
+  row = Setting.query.filter(Setting.key == key).one_or_none()
+  if value is None:
+    if row is not None:
+      db_session.delete(row)
+    return default(key)
+  if row is None:
+    row = Setting(key=key)
+    db_session.add(row)
+  row.value = {"value": value}
+  row.updated_by_id = by.id if by is not None else None
+  row.updated_at = utcnow()
+  return value
+
+
+def invalid_env() -> dict:
+  """{key: problem} for the settings whose environment variable is set but invalid (they're ignored)"""
+  problems = {}
+  for key, definition in DEFINITIONS.items():
+    raw = os.environ.get(definition.env, '').strip() if definition.env else ''
+    if not raw or definition.parse_env:
+      continue
+    try:
+      validate(key, _normalize(definition, raw if definition.type is str else _parse_text(definition, raw)))
+    except ValueError as e:
+      problems[key] = f"${definition.env}={raw!r}: {e}"
+  return problems
+
+
+def _normalize(definition: Definition, value):
+  # QABOARD_INGEST_AUTH=Token means "token"
+  if definition.choices and isinstance(value, str):
+    return value.strip().lower()
+  return value
+
+
 def describe(key: str) -> dict:
   definition = DEFINITIONS[key]
   current_source = source(key)
@@ -200,6 +241,7 @@ def describe(key: str) -> dict:
     "nullable": definition.nullable,
     # the environment wins: changing the database value would have no effect
     "editable": current_source != 'env',
+    "error": invalid_env().get(key),
   }
 
 

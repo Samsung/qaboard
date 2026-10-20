@@ -37,7 +37,7 @@ PUBLIC_ENDPOINTS = {
 }
 # The `qa` CLI sends results there: open unless ingest.auth is "token"
 INGEST_ENDPOINTS = {
-  ('new_output_webhook', 'POST'), ('update_batch', 'POST'), ('api_ci_commit', 'POST'), ('jenkins_build_trigger', 'POST'),
+  ('new_output_webhook', 'POST'), ('update_batch', 'POST'), ('api_ci_commit', 'POST'),
 }
 SAFE_METHODS = {'GET', 'HEAD', 'OPTIONS'}
 
@@ -46,6 +46,8 @@ SAFE_METHODS = {'GET', 'HEAD', 'OPTIONS'}
 class Actor:
   user: Optional[object] = None
   token: Optional[object] = None
+  # who acts without a user, in the audit log, e.g. "qaboard-admin"
+  label: Optional[str] = None
 
   @property
   def via(self) -> str:
@@ -90,15 +92,26 @@ def error(status: int, reason: str, message: str, **extra):
   return jsonify({"error": message, "reason": reason, **extra}), status
 
 
-TOKEN_ERRORS = {
-  'revoked': ('token_revoked', "This token was revoked. Create a new one, or run `qa auth login`."),
-  'expired': ('token_expired', "This token expired. Create a new one, or run `qa auth login`."),
-  'idle_expired': ('token_idle_expired', "This token expired because it wasn't used for a long time. Create a new one, or run `qa auth login`."),
-}
+# Sentences say what's wrong: the CLI and the web app add what to do, where they know the context (CI, a browser...)
+SIGN_IN_REQUIRED = ('sign_in_required', "Sign in to do this.")
 USER_ERRORS = {
   'disabled': ('user_disabled', "This account is disabled. Ask a QA-Board admin if you need it back."),
   'pending': ('user_pending', "This account is waiting for an admin's approval."),
 }
+
+
+def token_error(token, token_status: str):
+  if token_status == 'revoked':
+    return 'token_revoked', "This token was revoked."
+  if token_status == 'expired':
+    return 'token_expired', f"This token expired on {token.expires_at:%Y-%m-%d}."
+  return 'token_idle_expired', f"This token expired after {token.idle_expiry_days} days without use."
+
+
+def unauthenticated():
+  """The 401 of requests without a usable user: why, if we know (e.g. a disabled account)"""
+  reason, message = g.get('auth_error') or SIGN_IN_REQUIRED
+  return error(401, reason, message)
 
 
 def bearer_token() -> Optional[str]:
@@ -112,13 +125,13 @@ def resolve_token(token_str: str):
   """(token, None) or (None, error response)"""
   from .models import Token
   if not tokens_lib.is_well_formed(token_str):
-    return None, error(401, 'token_invalid', "This token is not valid: check you copied all of it, or run `qa auth login`.")
+    return None, error(401, 'token_invalid', "This token is not valid.")
   token = Token.query.filter(Token.token_hash == tokens_lib.hash_token(token_str)).one_or_none()
   if token is None:
-    return None, error(401, 'token_invalid', "This token is unknown. It may have been deleted: create a new one, or run `qa auth login`.")
+    return None, error(401, 'token_invalid', "This token is unknown: it was deleted, or it's mistyped.")
   token_status = tokens_lib.status(token)
   if token_status != 'active':
-    return None, error(401, *TOKEN_ERRORS[token_status])
+    return None, error(401, *token_error(token, token_status))
   user = token.user
   if user is None or user.status in USER_ERRORS:
     return None, error(401, *USER_ERRORS[user.status if user else 'disabled'])
@@ -131,7 +144,8 @@ def touch(token):
   from .audit import audit, client_ip
   now = datetime.datetime.utcnow()
   ip = client_ip()
-  if token.last_used_at and now - token.last_used_at < LAST_USED_EVERY and token.last_used_ip == ip:
+  # not on every IP change either: tokens shared by many CI runners change IPs all the time
+  if token.last_used_at and now - token.last_used_at < LAST_USED_EVERY:
     return
   if token.last_used_ip and ip and token.last_used_ip != ip:
     audit('token.new_ip', 'token', token.id, token.name, meta={"previous_ip": token.last_used_ip}, actor=Actor(token.user, token))
@@ -193,7 +207,7 @@ def resolve_actor():
   if token_str is None and request.method in SAFE_METHODS:
     token_str = request.args.get('token') or None
   elif token_str is None and request.args.get('token') and is_api:
-    return error(401, 'token_invalid', "Send tokens in the Authorization header: tokens in URLs are only accepted to read.")
+    return error(401, 'token_in_url', "Tokens in URLs are only accepted to read: send it in the Authorization header.")
   if token_str is not None:
     token, response = resolve_token(token_str)
     if response is not None:
@@ -216,8 +230,7 @@ def resolve_actor():
   if g.actor.via == 'session' and request.method not in SAFE_METHODS and is_cross_site():
     return error(403, 'cross_site_write', "This change was sent from another website: QA-Board refused it. If it's expected, ask an admin to add it to auth.allowed_origins.")
   if g.actor.user is None and setting('auth.require_sign_in') and not is_public_endpoint():
-    reason, message = g.get('auth_error') or ('sign_in_required', "You need to be logged-in to do this.")
-    return error(401, reason, message)
+    return unauthenticated()
   if g.actor.token is not None and request.method in SAFE_METHODS and not g.actor.has_scope('read') and request.endpoint != 'get_current_user':
     return error(403, 'missing_scope', "This token can't read: it needs the \"read\" scope.", required='read')
   return None

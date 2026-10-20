@@ -52,16 +52,21 @@ def pytest_configure():
     # Pass-through: the decorator itself is tested in tests/test_security.py
     auth_mod.login_required = lambda f: f
     auth_mod.session_required = lambda f: f
+    auth_mod.authenticated = lambda f: f
     auth_mod.admin_required = lambda f: f
     # Unverified results, accepted (tests/test_security.py tests the real one)
     auth_mod.ingest_access = MagicMock(return_value=(None, None))
     # Like the real one, follows is_authorized_user (tests/test_security.py tests the real one)
+    def jsonify_forbidden():
+        from flask import jsonify
+        return jsonify({"error": "Forbidden: You don't have permission to access this project", "reason": "forbidden_project"}), 403
     def require_project_access(user_info, project_id):
         if auth_mod.is_authorized_user(user_info, project_id):
             return None
         from flask import jsonify
         return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
     auth_mod.require_project_access = require_project_access
+    auth_mod.forbidden_project = lambda project_id=None: (jsonify_forbidden())
     sys.modules['backend.api.auth'] = auth_mod
     api_mod.auth = auth_mod
 

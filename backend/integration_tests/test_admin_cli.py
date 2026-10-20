@@ -116,11 +116,11 @@ def test_remove_admin_from_env(make_user, monkeypatch):
   monkeypatch.setenv('QABOARD_ADMINS', 'bob')
   make_user('bob', is_admin=True)
   result = run('remove-admin', 'bob')
-  assert result.exit_code == 0 and "still in $QABOARD_ADMINS" in result.output
+  assert result.exit_code == 0 and "stay an admin through $QABOARD_ADMINS" in result.output
 
 
 def test_list_admins(make_user, monkeypatch):
-  monkeypatch.setenv('QABOARD_ADMINS', 'carol@example.com')
+  monkeypatch.setenv('QABOARD_ADMINS', 'carol')
   make_user('alice', is_admin=True)
   make_user('bob')
   make_user('carol')

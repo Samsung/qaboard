@@ -93,7 +93,7 @@ def test_anonymous_ingest_token(client, monkeypatch, kind):
   response = send(client, kind)
   assert response.status_code == 403
   body = response.get_json()
-  assert body["reason"] == "ingest_token_required" and "QABOARD_TOKEN" in body["error"]
+  assert body == {"error": "This server only accepts results sent with a token.", "reason": "ingest_token_required"}
   assert CiCommit.query.count() == 0 and Batch.query.count() == 0 and Output.query.count() == 0
 
 
@@ -267,3 +267,23 @@ def test_output_directory_outside_storage(client):
   assert 'QABOARD_STORAGE_ROOTS' in response.get_json()["error"]
   from backend.models import Output
   assert Output.query.count() == 0
+
+
+@pytest.mark.parametrize('kind', ['commit', 'batch'])
+def test_anonymous_updates_clear_the_verified_sender(logged_in, make_client, kind):
+  """A batch or commit updated anonymously after a verified update doesn't stay "verified" (like runs)"""
+  token = new_token(logged_in('alice'), scopes=["ingest"])
+  assert send(make_client(), kind, headers=bearer(token["token"])).status_code == 200
+  assert saved_data(kind)["submitted_by"]["user_name"] == "alice"
+  assert send(make_client(), kind, user="mallory").status_code == 200
+  assert 'submitted_by' not in saved_data(kind)
+
+
+def test_batch_deletions_are_audited(logged_in, make_client):
+  from backend.models import AuditEvent, Batch
+  alice = logged_in('alice')
+  assert send(make_client(), 'batch').status_code == 200
+  batch_id = Batch.query.one().id
+  assert alice.delete(f'/api/v1/batch/{batch_id}/').status_code == 200
+  event = AuditEvent.query.filter_by(action='batch.delete').one()
+  assert (event.actor_label, event.target_id, event.project_id, event.meta["commit"]) == ("alice", str(batch_id), PROJECT, SHA)

@@ -27,9 +27,10 @@ SCOPES = {
   'read': "Read projects, runs and files",
   'ingest': "Send runs, batches and commits (qa run, qa batch)",
   'act': "Redo runs, start or delete batches, save milestones",
-  'manage': "Change project settings and access",
   'admin': "Use the admin API (admins only)",
 }
+# What tokens created before scopes can do: everything but the admin API, which came later
+LEGACY_SCOPES = ['read', 'ingest', 'act']
 # tokens created by `qa auth login`
 CLI_SCOPES = ['read', 'ingest', 'act']
 
@@ -89,9 +90,9 @@ def status(token, now: Optional[datetime.datetime] = None) -> str:
 
 
 def scopes_of(token) -> List[str]:
-  """Legacy tokens predate scopes: they can do everything their user can"""
+  """Legacy tokens predate scopes"""
   if token.kind == 'legacy':
-    return list(SCOPES)
+    return list(LEGACY_SCOPES)
   return list(token.scopes or [])
 
 
@@ -199,7 +200,7 @@ def mint(user, name: str, scopes: List[str], kind: str = 'personal', projects: O
   return token, secret
 
 
-def revoke(token, by=None, reason: Optional[str] = None):
+def revoke(token, by=None, reason: Optional[str] = None, actor=None):
   """Revokes a token (added to the session, the caller commits) and audits it"""
   from .audit import audit
   if status(token) == 'revoked':
@@ -207,5 +208,5 @@ def revoke(token, by=None, reason: Optional[str] = None):
   token.revoked = True
   token.revoked_at = utcnow()
   token.revoked_by_id = by.id if by is not None else None
-  audit('token.revoke', 'token', token.id, token.name, meta={"user": token.user.user_name if token.user else None, **({"reason": reason} if reason else {})})
+  audit('token.revoke', 'token', token.id, token.name, meta={"user": token.user.user_name if token.user else None, **({"reason": reason} if reason else {})}, actor=actor)
   return True

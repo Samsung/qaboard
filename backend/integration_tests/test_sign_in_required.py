@@ -394,7 +394,7 @@ def test_token_in_url_refused_for_writes(logged_in, make_client):
     response = client.open(f'{url}?token={token["token"]}', method=method, json={"preferences": {"theme": "dark"}})
     assert response.status_code == 401, url
     body = response.get_json()
-    assert body["reason"] == "token_invalid" and "Authorization header" in body["error"]
+    assert body["reason"] == "token_in_url" and "Authorization header" in body["error"]
   # the token wasn't revoked
   assert client.get('/api/v1/user/me/', headers=bearer(token["token"])).get_json()["user_name"] == "alice"
   assert client.get('/api/v1/user/preferences', headers=bearer(token["token"])).get_json()["preferences"] == {}
@@ -447,3 +447,21 @@ def test_token_wins_over_the_session(logged_in):
   response = alice.get('/api/v1/user/me/', headers=bearer(bob_token["token"]))
   assert response.get_json()["user_name"] == "bob" and 'Set-Cookie' not in response.headers
   assert alice.get('/api/v1/user/me/').get_json()["user_name"] == "alice"
+
+
+def test_the_jenkins_trigger_needs_a_sign_in_when_required(client, monkeypatch):
+  """It uses the server's Jenkins credentials: it's not ingest, even when ingest is open"""
+  monkeypatch.setenv('QABOARD_LOGIN_REQUIRED', 'true')
+  response = client.post('/api/v1/jenkins/build/trigger', json={})
+  assert response.status_code == 401 and response.get_json()["reason"] == "sign_in_required"
+
+
+def test_reads_say_why_a_token_cant_access_a_project(logged_in, make_client):
+  """Restricted tokens get a reason (JSON), not a plain-text 403"""
+  from .conftest import make_projects
+  make_projects('group/repo', 'other/repo')
+  token = new_token(logged_in('alice'), scopes=["read"], projects=["group/*"])
+  for url in ['/api/v1/commits?project=other/repo', '/api/v1/project?project=other/repo', '/api/v1/project/branches?project=other/repo']:
+    response = make_client().get(url, headers=bearer(token["token"]))
+    assert response.status_code == 403, url
+    assert response.get_json() == {"error": "This token can't access other/repo.", "reason": "token_project"}, url

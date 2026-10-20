@@ -53,6 +53,13 @@ deployments/deploy.py deployments/sirc/production.env rollback   # back to the p
 # rollback --no-pull if the registry is down
 ```
 
+> **User management (October 2026)**: the migration `c3d5e7f9a1b2` hashes the API tokens. Versions before it can't use
+> any token afterwards, even after a plain `rollback` (during the deploy too, while old backends still run), and they
+> ignore what was set in the admin panel (e.g. requiring sign-in) and disabled accounts. If you roll back past it, users
+> create new tokens after upgrading again, and CI jobs need new `QABOARD_TOKEN`s. `arthurf` is the first admin
+> (`QABOARD_ADMINS` in `sirc.yml` and `values.yaml`); without access to the web app,
+> `deployments/deploy.py deployments/sirc/production.env compose exec backend qaboard-admin create-admin <user>`.
+
 > **Database migrations**: rolling back the code does not roll back database migrations. Write migrations that the previous version can live with (add columns, don't drop/rename them in the same release), since the old and the new backends also run side by side during a deploy.
 
 ## Deploying by hand

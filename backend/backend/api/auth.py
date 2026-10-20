@@ -23,6 +23,7 @@ from ..models import User, Token
 from ..settings import setting
 from ..audit import audit
 from ..admins import is_admin, is_env_admin
+from ..actor import unauthenticated
 from .. import tokens as tokens_lib
 
 
@@ -81,26 +82,6 @@ not_authorized_error = "The user is not authorized, please contact QA-Board admi
 #        Needs to be namespaced under "ldap". 
 
 
-@app.route('/api/v1/user/token/', methods=['POST'])
-def create_token():
-  """Legacy: a token with every scope, valid a year. Use POST /api/v1/user/tokens instead (api/tokens.py)."""
-  actor = g.get('actor')
-  if actor is None or actor.user is None:
-    return jsonify({"error": "You need to be logged-in to do this.", "reason": "sign_in_required"}), 401
-  if actor.token is not None:
-    return jsonify({"error": "Tokens can't create tokens: create it from the web app, or run `qa auth login`.", "reason": "session_required"}), 403
-  token, secret = tokens_lib.mint(
-    actor.user, name="API token", scopes=list(tokens_lib.SCOPES), kind='personal',
-    expires_at=tokens_lib.utcnow() + timedelta(days=365), created_by=actor.user,
-  )
-  db_session.commit()
-  return jsonify({
-    "token": secret,
-    "created_at": tokens_lib.iso(token.created_at),
-    "expires_at": tokens_lib.iso(token.expires_at),
-  })
-
-
 @app.route('/api/v1/user/signup/', methods=['POST'])
 def signup():
   if not setting('auth.local_signup'):
@@ -108,7 +89,9 @@ def signup():
   user_name = request.form.get('user_name')
   if not user_name or not request.form.get('password'):
     return jsonify({"error": "Both user_name and password are required"}), 400
-  if User.query.filter_by(user_name=user_name).one_or_none():
+  # "ALICE" next to "alice" would be confusing, and look like an admin from $QABOARD_ADMINS
+  from ..search import escape_like
+  if User.query.filter(User.user_name.ilike(escape_like(user_name), escape='\\')).first():
     return jsonify({"error": "This user name is already taken"}), 409
   # Never log or return the form or the exception: they contain the password, its hash, or the SQL query
   try:
@@ -231,6 +214,8 @@ def get_current_user(to_jsonify=True):
         "scopes": tokens_lib.scopes_of(token),
         "projects": token.projects or [],
         "expires_at": tokens_lib.iso(token.expires_at),
+        "idle_expiry_days": token.idle_expiry_days,
+        "last_used_at": tokens_lib.iso(token.last_used_at),
       }
   if to_jsonify:
     return jsonify(info)
@@ -260,8 +245,7 @@ def login_required(f):
   def wrapper(*args, **kwargs):
     user_info = get_current_user(to_jsonify=False)
     if not user_info.get('is_authenticated') or not user_info.get('user_name'):
-      reason, message = g.get('auth_error') or ("sign_in_required", "You need to be logged-in to do this.")
-      return jsonify({"error": message, "reason": reason}), 401
+      return unauthenticated()
     project = request.args.get('project')
     actor = g.get('actor')
     if actor is not None and actor.token is not None:
@@ -271,8 +255,20 @@ def login_required(f):
       if project and not actor.allows_project(project):
         return jsonify({"error": f"This token can't access {project}.", "reason": "token_project"}), 403
     if is_login_restricted and not is_authorized_user(user_info, project):
-      return jsonify({"error": "Forbidden: You don't have permission to access this project", "reason": "forbidden_project"}), 403
+      return forbidden_project(project)
     g.user = user_info
+    return f(*args, **kwargs)
+  return wrapper
+
+
+def authenticated(f):
+  """Endpoints that need a user, whatever the credential and its scopes: they check what they allow themselves"""
+  @wraps(f)
+  def wrapper(*args, **kwargs):
+    actor = g.get('actor')
+    if actor is None or actor.user is None:
+      return unauthenticated()
+    g.user = get_current_user(to_jsonify=False)
     return f(*args, **kwargs)
   return wrapper
 
@@ -286,8 +282,7 @@ def session_required(f):
   def wrapper(*args, **kwargs):
     actor = g.get('actor')
     if actor is None or actor.user is None:
-      reason, message = g.get('auth_error') or ("sign_in_required", "You need to be logged-in to do this.")
-      return jsonify({"error": message, "reason": reason}), 401
+      return unauthenticated()
     if actor.token is not None:
       return jsonify({"error": "Do this from the web app: tokens can't create tokens.", "reason": "session_required"}), 403
     g.user = get_current_user(to_jsonify=False)
@@ -301,8 +296,7 @@ def admin_required(f):
   def wrapper(*args, **kwargs):
     actor = g.get('actor')
     if actor is None or actor.user is None:
-      reason, message = g.get('auth_error') or ("sign_in_required", "You need to be logged-in to do this.")
-      return jsonify({"error": message, "reason": reason}), 401
+      return unauthenticated()
     if not actor.is_admin:
       return jsonify({"error": "Only QA-Board admins can do this.", "reason": "not_admin"}), 403
     if not actor.has_scope('admin'):
@@ -321,7 +315,15 @@ def require_project_access(user_info: dict, project_id: str):
   """
   if is_authorized_user(user_info, project_id):
     return None
-  return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
+  return forbidden_project(project_id)
+
+
+def forbidden_project(project_id=None):
+  """The 403 of projects users can't access. With a token, it may be the token's restriction."""
+  actor = g.get('actor') if has_request_context() else None
+  if project_id and actor is not None and actor.token is not None and not actor.allows_project(project_id):
+    return jsonify({"error": f"This token can't access {project_id}.", "reason": "token_project"}), 403
+  return jsonify({"error": "Forbidden: You don't have permission to access this project", "reason": "forbidden_project"}), 403
 
 
 def ingest_access(project_id: str):
@@ -335,11 +337,11 @@ def ingest_access(project_id: str):
   if actor is None or actor.user is None:
     if mode == 'token':
       return None, (jsonify({
-        "error": "This server only accepts results sent with a token: run `qa auth login`, or set QABOARD_TOKEN in CI.",
+        "error": "This server only accepts results sent with a token.",
         "reason": "ingest_token_required",
       }), 403)
     if mode == 'warn':
-      g.qaboard_warning = "Your results were saved as unverified: run `qa auth login` (or set QABOARD_TOKEN in CI) to sign them. This server will soon require it."
+      g.qaboard_warning = "Your results were saved as unverified, without a token. This server will soon require one: run `qa auth login`, or set QABOARD_TOKEN in CI."
     return None, None
   problem = None
   if not actor.has_scope('ingest'):
@@ -392,7 +394,7 @@ def create_user(info):
   )
   db_session.add(user)
   db_session.commit()
-  print(f"Created {user}")
+  print(f"[auth] Created the user @{user.user_name}")
   return user
 
 
@@ -669,11 +671,11 @@ def saml_auth():
               user = update_user(user, user_info)
             else:
               user = create_user(user_info)
-            if user.status == 'disabled':
+            if user.status in ('disabled', 'pending'):
               session.clear()
-              audit('auth.login_failed', 'user', user.id, user.user_name, meta={"reason": "disabled", "login_type": "SAML"})
+              audit('auth.login_failed', 'user', user.id, user.user_name, meta={"reason": user.status, "login_type": "SAML"})
               db_session.commit()
-              return LOGIN_ERRORS["disabled"], 403
+              return LOGIN_ERRORS[user.status], 403
             login_user(user, remember=True, duration=timedelta(days=180))
             signed_in(user, "SAML")
             return redirect(safe_redirect_url(request.form.get('RelayState')))

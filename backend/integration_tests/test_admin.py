@@ -50,16 +50,50 @@ def test_admin_from_the_database(admin):
   assert admin.get('/api/v1/user/me/').get_json()["is_admin"] is True
 
 
-@pytest.mark.parametrize('admins', ['carol', 'Carol@Example.com', 'someone, carol@example.com ,other'])
-def test_admins_from_env(logged_in, monkeypatch, admins):
-  """QABOARD_ADMINS lists user names or emails (case doesn't matter)"""
+def directory_account(user_name):
+  """Like users who signed in with LDAP or SAML: their emails come from the directory"""
+  from backend.database import db_session
+  from backend.models import User
+  User.query.filter(User.user_name == user_name).update({"login_type": "LDAP"})
+  db_session.commit()
+
+
+@pytest.mark.parametrize('admins, directory', [
+  ('carol', False),
+  ('Carol@Example.com', True),
+  ('someone, carol@example.com ,other', True),
+])
+def test_admins_from_env(logged_in, monkeypatch, admins, directory):
+  """QABOARD_ADMINS lists user names, or the emails of directory accounts (in any case)"""
   carol = logged_in('carol')
+  if directory:
+    directory_account('carol')
   assert carol.get('/api/v1/admin/overview').status_code == 403
   monkeypatch.setenv('QABOARD_ADMINS', admins)
   assert carol.get('/api/v1/admin/overview').status_code == 200
   assert carol.get('/api/v1/user/me/').get_json()["is_admin"] is True
   user = carol.get(f'/api/v1/admin/users/{user_id("carol")}').get_json()["user"]
   assert user["is_admin"] is True and user["is_admin_from_env"] is True
+
+
+@pytest.mark.parametrize('user_name, email, admins', [
+  # local sign-up could create "ALICE" next to the admin "alice"
+  ('ALICE', 'a@example.com', 'alice'),
+  # local sign-up doesn't verify emails
+  ('mallory', 'boss@example.com', 'boss@example.com'),
+])
+def test_local_accounts_cant_pass_for_env_admins(client, monkeypatch, user_name, email, admins):
+  monkeypatch.setenv('QABOARD_ADMINS', admins)
+  assert client.post('/api/v1/user/signup/', data={"user_name": user_name, "password": "pw", "email": email}).status_code == 200
+  login(client, user_name, 'pw')
+  assert client.get('/api/v1/user/me/').get_json()["is_admin"] is False
+  assert client.get('/api/v1/admin/overview').status_code == 403
+
+
+def test_user_names_are_unique_whatever_their_case(client, make_user):
+  make_user('alice')
+  response = client.post('/api/v1/user/signup/', data={"user_name": "Alice", "password": "pw"})
+  assert response.status_code == 409
 
 
 def test_disabled_admins_arent_admins(logged_in, make_client, monkeypatch):
@@ -91,7 +125,7 @@ def test_admin_scope_token(admin, make_client):
 
 def test_admin_token_without_admin_scope(admin, make_client):
   """403 missing_scope, even for an admin"""
-  token = new_token(admin, scopes=["read", "act", "ingest", "manage"])
+  token = new_token(admin, scopes=["read", "act", "ingest"])
   response = make_client().get('/api/v1/admin/users', headers=bearer(token["token"]))
   assert response.status_code == 403
   body = response.get_json()
@@ -120,7 +154,7 @@ def test_non_admins_cant_create_admin_tokens(logged_in):
 
 def test_tokens_cant_change_admin_settings_without_admin_scope(admin, logged_in, make_client):
   """A non-admin's token with every scope it may have still can't use the admin API"""
-  token = new_token(logged_in('bob'), scopes=["read", "act", "ingest", "manage"])
+  token = new_token(logged_in('bob'), scopes=["read", "act", "ingest"])
   response = make_client().post('/api/v1/admin/settings', json={"ingest.auth": "off"}, headers=bearer(token["token"]))
   assert response.status_code == 403 and response.get_json()["reason"] == "not_admin"
 
@@ -136,7 +170,7 @@ def people(admin, make_user, logged_in, monkeypatch):
   logged_in('bob')
   make_user('carol', status='disabled')
   make_user('dave', full_name='Dave Smith', email='dsmith@corp.example', status='pending')
-  make_user('erin')
+  make_user('erin', login_type='LDAP')
   monkeypatch.setenv('QABOARD_ADMINS', 'erin@example.com')
   return admin
 
@@ -273,10 +307,10 @@ def test_env_admins_cant_be_demoted(people):
   response = people.post(f'/api/v1/admin/users/{erin_id}', json={"is_admin": False})
   assert response.status_code == 400
   assert "QABOARD_ADMINS" in response.get_json()["error"] and "erin" in response.get_json()["error"]
-  # they can still be disabled (and then aren't admins)
+  # nor disabled: they're the break-glass access
   response = people.post(f'/api/v1/admin/users/{erin_id}', json={"status": "disabled"})
-  assert response.status_code == 200 and response.get_json()["is_admin"] is False
-  assert User.query.filter(User.id == erin_id).one().status == "disabled"
+  assert response.status_code == 400 and "QABOARD_ADMINS" in response.get_json()["error"]
+  assert User.query.filter(User.id == erin_id).one().status == "active"
 
 
 @pytest.mark.parametrize('body', [{"status": "banned"}, {"is_admin": "yes"}, {"status": "disabled", "is_admin": "yes"}])
@@ -615,10 +649,36 @@ def test_overview(people, make_client):
 def test_overview_checklist_follows_settings(admin, monkeypatch):
   monkeypatch.setenv('QABOARD_LOGIN_REQUIRED', '1')
   monkeypatch.setenv('QABOARD_INGEST_AUTH', 'token')
-  monkeypatch.setenv('QABOARD_URL', 'https://qaboard.example.com')
+  # set when the server starts, from QABOARD_URL=https://... or QABOARD_COOKIE_SECURE
+  from backend import app
+  monkeypatch.setitem(app.config, 'SESSION_COOKIE_SECURE', True)
   checklist = {item["id"]: item for item in admin.get('/api/v1/admin/overview').get_json()["checklist"]}
   for id in ["require_sign_in", "ingest_auth", "https"]:
     assert checklist[id]["ok"] is True and checklist[id]["severity"] == "info", id
+  # sign-in required, but anyone can create a local account
+  assert checklist["local_signup"]["ok"] is False and "qaboard-admin create-admin" in checklist["local_signup"]["detail"]
+
+
+def test_overview_checklist_says_what_to_do_next(admin, monkeypatch):
+  monkeypatch.setenv('QABOARD_INGEST_AUTH', 'warn')
+  checklist = {item["id"]: item for item in admin.get('/api/v1/admin/overview').get_json()["checklist"]}
+  assert '"token"' in checklist["ingest_auth"]["detail"] and '"warn"' not in checklist["ingest_auth"]["detail"]
+
+
+@pytest.mark.parametrize('value', ['Token', ' warn '])
+def test_env_settings_ignore_case_and_spaces(admin, monkeypatch, value):
+  monkeypatch.setenv('QABOARD_INGEST_AUTH', value)
+  settings = {s["key"]: s for s in admin.get('/api/v1/admin/settings').get_json()["settings"]}
+  assert settings["ingest.auth"]["value"] == value.strip().lower() and settings["ingest.auth"]["source"] == "env"
+
+
+def test_invalid_env_settings_are_reported(admin, monkeypatch):
+  monkeypatch.setenv('QABOARD_INGEST_AUTH', 'tokens')
+  overview = admin.get('/api/v1/admin/overview').get_json()
+  item = next(i for i in overview["checklist"] if i["id"] == "invalid_env:ingest.auth")
+  assert item["severity"] == "danger" and "QABOARD_INGEST_AUTH" in item["title"] and "'tokens'" in item["detail"]
+  settings = {s["key"]: s for s in admin.get('/api/v1/admin/settings').get_json()["settings"]}
+  assert settings["ingest.auth"]["error"] and settings["ingest.auth"]["source"] == "default"
 
 
 def test_overview_legacy_tokens(admin):

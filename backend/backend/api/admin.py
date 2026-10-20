@@ -10,7 +10,7 @@ from sqlalchemy import or_, func
 
 from backend import app, db_session
 from ..models import User, Token, AuditEvent
-from ..admins import is_admin, is_env_admin
+from ..admins import is_admin, is_env_admin, env_admins
 from ..audit import audit, diff, serialize as serialize_event
 from .. import settings as settings_lib
 from .. import tokens as tokens_lib
@@ -104,11 +104,13 @@ def checklist() -> list:
   item('ingest_auth', ingest == 'token', 'warning' if ingest == 'off' else 'info',
        {"off": "Anyone who can reach the server can send results", "warn": "Results without a token are accepted, with a warning",
         "token": "Sending results requires a token"}[ingest],
-       "Results sent without a token are marked unverified. Move ingest.auth to \"warn\", then \"token\", once CI jobs use tokens (QABOARD_TOKEN).",
+       {"off": "Results sent without a token are marked unverified. Move ingest.auth to \"warn\", then \"token\", once CI jobs use tokens (QABOARD_TOKEN).",
+        "warn": "qa asks users to sign in. Move ingest.auth to \"token\" once all CI jobs use tokens (QABOARD_TOKEN).",
+        "token": None}[ingest],
        "CI jobs need a token with the ingest scope, in QABOARD_TOKEN.")
 
-  qaboard_url = os.environ.get('QABOARD_URL', '')
-  secure = qaboard_url.startswith('https://') or os.environ.get('QABOARD_COOKIE_SECURE', '').lower() in ('1', 'true', 'yes')
+  from backend import app
+  secure = bool(app.config.get('SESSION_COOKIE_SECURE'))
   item('https', secure, 'warning', "Cookies are only sent over HTTPS" if secure else "Cookies can be sent over plain HTTP",
        "Serve QA-Board over HTTPS and set QABOARD_URL=https://…: session cookies then get the Secure flag.")
 
@@ -118,16 +120,22 @@ def checklist() -> list:
 
   legacy = active_tokens_query().filter(Token.kind == 'legacy').count()
   item('legacy_tokens', legacy == 0, 'warning',
-       "No legacy tokens" if not legacy else f"{legacy} legacy token{'s' if legacy > 1 else ''} with every scope and no expiry date",
-       "Tokens created before scopes can do everything their user can, forever. Ask their owners to replace them (Admin → Tokens).")
+       "No legacy tokens" if not legacy else f"{legacy} legacy token{'s' if legacy > 1 else ''} without an expiry date",
+       "Tokens created before scopes can read, send results and act as their user, forever. Ask their owners to replace them (Admin → Tokens).")
 
   local_signup = settings_lib.setting('auth.local_signup')
   login_type = settings_lib.login_type()
-  risky_signup = local_signup and login_type != 'LOCAL'
-  item('local_signup', not risky_signup, 'danger',
-       "Local sign-up is off" if not local_signup else ("Anyone can create a local account" if risky_signup else "Anyone can create an account"),
-       "With LDAP or SAML, local accounts could take the names of directory users who never signed in. Turn auth.local_signup off.",
+  risky_signup = local_signup and (login_type != 'LOCAL' or require_sign_in)
+  item('local_signup', not risky_signup, 'danger' if login_type != 'LOCAL' else 'warning',
+       "Local sign-up is off" if not local_signup else ("Anyone can create a local account" if login_type != 'LOCAL' else "Anyone can create an account"),
+       "With LDAP or SAML, local accounts could take the names of directory users who never signed in. Turn auth.local_signup off."
+       if login_type != 'LOCAL' else "Sign-in is required, but anyone can create an account: turn auth.local_signup off, and create accounts with qaboard-admin create-admin --password.",
        "Turn auth.local_signup off if only admins should create accounts (qaboard-admin create-admin --password)." if local_signup else None)
+
+  for key, problem in settings_lib.invalid_env().items():
+    definition = settings_lib.DEFINITIONS[key]
+    item(f'invalid_env:{key}', False, 'danger', f"${definition.env} is invalid: it's ignored",
+         f"{problem}. QA-Board uses {key} = {settings_lib.setting(key)!r} instead: fix the server's environment.")
 
   if is_login_restricted:
     item('restrictions_yaml', True, 'info', "Project restrictions come from QABOARD_LOGIN_RESTRICTED_YAML",
@@ -153,10 +161,16 @@ def admin_users():
       return jsonify({"error": f"status must be one of {', '.join(USER_STATUSES)}"}), 400
     query = query.filter(User.status == status)
   if request.args.get('admin') in ('true', '1'):
-    env_admins = settings_lib.env_list(os.environ.get('QABOARD_ADMINS', '').lower())
-    query = query.filter(or_(User.is_admin.is_(True), func.lower(User.user_name).in_(env_admins), func.lower(User.email).in_(env_admins)))
-  total = query.count()
-  users = query.order_by(User.last_login_at.desc().nullslast(), User.id.desc()).offset(offset).limit(limit).all()
+    # few admins: we check $QABOARD_ADMINS's rules in Python
+    candidates = env_admins()
+    emails = [a.lower() for a in candidates if '@' in a]
+    query = query.filter(or_(User.is_admin.is_(True), User.user_name.in_(candidates), func.lower(User.email).in_(emails)))
+    users = [u for u in query.order_by(User.last_login_at.desc().nullslast(), User.id.desc()).all() if is_admin(u) or u.is_admin]
+    total = len(users)
+    users = users[offset:offset + limit]
+  else:
+    total = query.count()
+    users = query.order_by(User.last_login_at.desc().nullslast(), User.id.desc()).offset(offset).limit(limit).all()
   counts = active_token_counts([u.id for u in users])
   return jsonify({"users": [serialize_user(u, counts.get(u.id, 0)) for u in users], "total": total})
 
@@ -203,6 +217,8 @@ def admin_update_user(user_id):
       return jsonify({"error": f"status must be one of {', '.join(USER_STATUSES)}"}), 400
     if user.id == me.id and status != 'active':
       return jsonify({"error": "You can't disable your own account: ask another admin."}), 400
+    if status != 'active' and is_env_admin(user):
+      return jsonify({"error": f"{user.user_name} is an admin because of $QABOARD_ADMINS: remove them from it first."}), 400
     user.status = status
   if 'is_admin' in body:
     if not isinstance(body['is_admin'], bool):
@@ -312,38 +328,26 @@ def admin_settings():
 @app.route('/api/v1/admin/settings/', methods=['POST'])
 @admin_required
 def admin_update_settings():
-  from ..models import Setting
   body = request.get_json(silent=True)
   if not isinstance(body, dict) or not body:
     return jsonify({"error": "Send {\"setting.key\": value}, null resets a setting to its default."}), 400
-  changes = {}
+  # all valid, or nothing changes
+  values = {}
   for key, value in body.items():
     if key not in settings_lib.DEFINITIONS:
       return jsonify({"error": f"Unknown setting: {key}"}), 400
     if settings_lib.source(key) == 'env':
       env = settings_lib.DEFINITIONS[key].env
       return jsonify({"error": f"{key} is set by ${env}: change it in the server's environment."}), 400
-    row = Setting.query.filter(Setting.key == key).one_or_none()
+    try:
+      values[key] = None if value is None else settings_lib.validate(key, value)
+    except ValueError as e:
+      return jsonify({"error": str(e)}), 400
+  for key, value in values.items():
     before = settings_lib.setting(key)
-    if value is None:
-      if row is not None:
-        db_session.delete(row)
-      after = settings_lib.default(key)
-    else:
-      try:
-        after = settings_lib.validate(key, value)
-      except ValueError as e:
-        return jsonify({"error": str(e)}), 400
-      if row is None:
-        row = Setting(key=key)
-        db_session.add(row)
-      row.value = {"value": after}
-      row.updated_by_id = g.actor.user.id
-      row.updated_at = tokens_lib.utcnow()
+    after = settings_lib.save(key, value, by=g.actor.user)
     if before != after:
-      changes[key] = {"from": before, "to": after}
-  for key, change in changes.items():
-    audit('setting.update', 'setting', key, key, changes={"value": change})
+      audit('setting.update', 'setting', key, key, changes={"value": {"from": before, "to": after}})
   db_session.commit()
   settings_lib.invalidate_cache()
   return jsonify({"settings": settings_lib.describe_all()})

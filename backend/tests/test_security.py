@@ -161,6 +161,7 @@ def test_env_flag(auth, monkeypatch, value, expected):
 
 class FakeBatch:
   def __init__(self, project_id, label="default"):
+    self.id = 1
     self.label = label
     self.ci_commit = SimpleNamespace(project_id=project_id, hexsha="abc", batches=[self], get_or_create_batch=MagicMock())
     self.ci_commit.project = SimpleNamespace(protected_ref_commits=[], milestones_on=lambda hexsha=None: [])
@@ -228,7 +229,7 @@ def test_batch_changes_check_the_batch_project(batch_api, restricted, dummy_app,
       response = handler(**args)
     assert status_of(response) == expected_status, project
     if expected_status == 403:
-      assert response[0].get_json() == {"error": "Forbidden: You don't have permission to access this project"}
+      assert response[0].get_json() == {"error": "Forbidden: You don't have permission to access this project", "reason": "forbidden_project"}
       assert batch.changed == []
     else:
       assert action in batch.changed
@@ -312,7 +313,7 @@ def signup(auth, dummy_app, monkeypatch):
   monkeypatch.delenv("QABOARD_DISABLE_SIGNUP", raising=False)
   monkeypatch.setattr(auth, "User", MagicMock())
   monkeypatch.setattr(auth, "db_session", MagicMock())
-  auth.User.query.filter_by.return_value.one_or_none.return_value = None
+  auth.User.query.filter.return_value.first.return_value = None
   def post(form=SIGNUP_FORM):
     with dummy_app.test_request_context("/api/v1/user/signup/", method="POST", data=form):
       return auth.signup()
@@ -325,7 +326,8 @@ def assert_no_secrets(text):
 
 
 def test_signup_existing_user_name(auth, signup, monkeypatch, capsys):
-  auth.User.query.filter_by.return_value.one_or_none.return_value = MagicMock()
+  # even with another case: "ALICE" next to "alice"
+  auth.User.query.filter.return_value.first.return_value = MagicMock()
   monkeypatch.setattr(auth, "create_user", MagicMock())
   response, status = signup()
   assert status == 409
@@ -391,13 +393,12 @@ def test_unauthorized_login_error_has_no_user_info(auth, dummy_app, monkeypatch)
 # Endpoints that change things without login_required, and why
 UNAUTHENTICATED_ENDPOINTS = {
   # login, signup... or checks the login itself
-  ("auth.py", "create_token"), ("auth.py", "signup"), ("auth.py", "auth_post"), ("auth.py", "logout"), ("auth.py", "saml_auth"),
+  ("auth.py", "signup"), ("auth.py", "auth_post"), ("auth.py", "logout"), ("auth.py", "saml_auth"),
   # the device flow of `qa auth login`: the CLI isn't logged-in yet, approving it needs a session (session_required)
   ("tokens.py", "device_code"), ("tokens.py", "device_token"),
-  # checks the login itself: a token can only revoke itself
-  ("tokens.py", "revoke_token"),
   # the CLI sends results, checked by ingest_access: anonymous unless ingest.auth is "token" (see "Known issues" in SECURITY.md)
   ("outputs.py", "new_output_webhook"), ("batch.py", "update_batch"), ("commit.py", "api_ci_commit"),
+  # the CLI's Jenkins runner triggers builds (anonymous unless sign-in is required)
   ("integrations.py", "jenkins_build_trigger"),
   # read-only, POST is only used to send parameters
   ("integrations.py", "gitlab_job"), ("integrations.py", "jenkins_build"), ("integrations.py", "github_workflow_run"),
@@ -409,7 +410,7 @@ UNAUTHENTICATED_ENDPOINTS = {
   ("webhooks.py", "gitlab_webhook"), ("webhooks.py", "github_webhook"), ("webhooks.py", "gitea_webhook"), ("webhooks.py", "bitbucket_webhook"),
 }
 # Decorators that check who is calling
-AUTH_DECORATORS = {"login_required", "session_required", "admin_required"}
+AUTH_DECORATORS = {"login_required", "session_required", "admin_required", "authenticated"}
 ROUTE_DECORATORS = {"app.route": None, "app.get": {"GET"}, "app.post": {"POST"}, "app.put": {"PUT"}, "app.delete": {"DELETE"}, "app.patch": {"PATCH"}}
 
 
@@ -475,7 +476,7 @@ def test_admin_endpoints_require_admins():
 def test_credentials_are_only_created_from_sessions():
   # else a leaked token could keep creating tokens after it's revoked
   functions = {(path.name, node.name): node for path, node in api_functions()}
-  for key in [("tokens.py", "new_token"), ("tokens.py", "approve_device")]:
+  for key in [("tokens.py", "new_token"), ("tokens.py", "approve_device"), ("tokens.py", "create_token")]:
     assert "session_required" in {ast.unparse(d) for d in functions[key].decorator_list}, key
 
 
@@ -1185,3 +1186,10 @@ def test_user_info_has_the_directory_attributes_only_with_saml(auth, dummy_app, 
     g.actor = Actor(user)
     assert ("data" in auth.get_current_user(to_jsonify=False)) is has_data
     assert "data" not in auth.get_current_user().get_json()
+
+
+def test_auth_module_defines_each_name_once():
+  # a decorator named like a helper silently replaced it once (signed_in): sign-ins weren't audited anymore
+  tree = ast.parse((Path(__file__).parent.parent / "backend" / "api" / "auth.py").read_text())
+  names = [node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.ClassDef))]
+  assert sorted({n for n in names if names.count(n) > 1}) == []

@@ -56,6 +56,8 @@ def audit(action: str, target_type: Optional[str] = None, target_id=None, target
     kind = 'token' if actor.token is not None else 'user'
     user_id, label = actor.user.id, actor.user.user_name
     token_id = actor.token.id if actor.token is not None else None
+  elif actor is not None and actor.label:
+    kind, label = 'system', actor.label
   elif not has_request_context():
     kind, label = 'system', 'system'
   event = AuditEvent(
@@ -77,13 +79,10 @@ def audit(action: str, target_type: Optional[str] = None, target_id=None, target
   return event
 
 
-def system_audit(action: str, **kwargs):
+def system_audit(action: str, label='qaboard-admin', **kwargs):
   """Events from scripts, e.g. the qaboard-admin CLI"""
   from .actor import Actor
-  label = kwargs.pop('label', None) or 'qaboard-admin'
-  event = audit(action, actor=Actor(), **kwargs)
-  event.actor_kind, event.actor_label = 'system', label
-  return event
+  return audit(action, actor=Actor(label=label), **kwargs)
 
 
 def serialize(event) -> dict:

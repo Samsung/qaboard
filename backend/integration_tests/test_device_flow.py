@@ -106,3 +106,32 @@ def test_the_device_flow_works_when_sign_in_is_required(logged_in, make_client, 
   cli = make_client()
   code = start(cli)
   assert poll(cli, code["device_code"]).get_json()["error"] == "authorization_pending"
+
+
+def test_used_codes_show_as_approved(logged_in, make_client):
+  """For people, that the CLI received its token is a detail"""
+  cli = make_client()
+  code = start(cli)
+  browser = logged_in('alice')
+  browser.post('/api/v1/auth/device', json={"code": code["user_code"], "approve": True})
+  allow_polling_now(code["device_code"])
+  assert poll(cli, code["device_code"]).status_code == 200
+  assert browser.get(f'/api/v1/auth/device?code={code["user_code"]}').get_json()["status"] == "approved"
+
+
+def test_no_token_if_the_approver_was_disabled_before_the_poll(logged_in, make_client):
+  from backend.database import db_session
+  from backend.models import User, Token
+  cli = make_client()
+  code = start(cli)
+  logged_in('alice').post('/api/v1/auth/device', json={"code": code["user_code"], "approve": True})
+  User.query.filter(User.user_name == 'alice').update({"status": "disabled"})
+  db_session.commit()
+  allow_polling_now(code["device_code"])
+  assert poll(cli, code["device_code"]).get_json()["error"] == "access_denied"
+  assert Token.query.count() == 0
+
+
+def test_the_device_link_uses_qaboard_url(make_client, monkeypatch):
+  monkeypatch.setenv('QABOARD_URL', 'https://qa.example.com/')
+  assert start(make_client())["verification_uri"] == "https://qa.example.com/device"

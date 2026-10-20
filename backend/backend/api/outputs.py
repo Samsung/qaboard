@@ -12,7 +12,7 @@ from ..storage import check_storage_path, UnsafePathError
 from ..redo import redo_response
 from ..metrics_definitions import save_metrics_definitions
 from ..notifications.batches import on_run_ended
-from .auth import login_required, is_authorized_user, ingest_access
+from .auth import login_required, is_authorized_user, ingest_access, forbidden_project
 
 # Keys of a run's data that only the server sets
 # - optimization_best allows `qa optimize` to replace this run (see api/batch.py)
@@ -43,7 +43,7 @@ def update_output(output_id):
       return {"status": "OK"}
     return jsonify({"error": f"Cannot find output {output_id}"}), 400
   if not is_authorized_user(g.user, output.batch.ci_commit.project_id):
-    return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
+    return forbidden_project(output.batch.ci_commit.project_id)
 
   if request.method == 'PUT':
     data = request.get_json()
@@ -91,7 +91,7 @@ def output_redo(output_id):
   except NoResultFound:
     return jsonify({"error": f"Cannot find output {output_id}"}), 400
   if not is_authorized_user(g.user, output.batch.ci_commit.project_id):
-    return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
+    return forbidden_project(output.batch.ci_commit.project_id)
   return redo_response(output.batch, [output], g.user['user_name'])
 
 

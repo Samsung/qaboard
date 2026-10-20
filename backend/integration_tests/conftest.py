@@ -58,6 +58,10 @@ else:
 @pytest.fixture(scope='session')
 def app():
   import backend
+  # Hashing passwords is slow on purpose: not in tests, where we create many users
+  import backend.api.auth
+  from werkzeug.security import generate_password_hash
+  backend.api.auth.generate_password_hash = lambda password: generate_password_hash(password, method='pbkdf2:sha256:1')
   yield backend.app
   from backend.database import db_session, engine
   db_session.remove()

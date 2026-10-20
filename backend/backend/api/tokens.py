@@ -13,7 +13,7 @@ from ..models import Token, DeviceAuthorization
 from ..settings import setting
 from ..audit import audit
 from .. import tokens as tokens_lib
-from .auth import login_required, session_required
+from .auth import login_required, session_required, authenticated
 
 
 MAX_NAME_LENGTH = 100
@@ -89,14 +89,25 @@ def new_token():
   return jsonify({**tokens_lib.serialize(token), "token": secret}), 201
 
 
+@app.route('/api/v1/user/token/', methods=['POST'])
+@session_required
+def create_token():
+  """Legacy: a token valid a year, with the scopes tokens had before scopes. Use POST /api/v1/user/tokens instead."""
+  user = g.actor.user
+  token, secret = tokens_lib.mint(
+    user, name="API token", scopes=list(tokens_lib.LEGACY_SCOPES), kind='personal',
+    expires_at=tokens_lib.utcnow() + datetime.timedelta(days=365), created_by=user,
+  )
+  db_session.commit()
+  return jsonify({"token": secret, "created_at": tokens_lib.iso(token.created_at), "expires_at": tokens_lib.iso(token.expires_at)})
+
+
 @app.route('/api/v1/user/tokens/<int:token_id>', methods=['DELETE'])
 @app.route('/api/v1/user/tokens/<int:token_id>/', methods=['DELETE'])
+@authenticated
 def revoke_token(token_id):
-  """Users revoke their tokens. With a token, only itself (`qa auth logout`)."""
-  actor = g.get('actor')
-  if actor is None or actor.user is None:
-    reason, message = g.get('auth_error') or ("sign_in_required", "You need to be logged-in to do this.")
-    return jsonify({"error": message, "reason": reason}), 401
+  """Users revoke their tokens, whatever the token's scopes. With a token, only itself (`qa auth logout`)."""
+  actor = g.actor
   token = Token.query.filter(Token.id == token_id, Token.user_id == actor.user.id).one_or_none()
   if token is None:
     return jsonify({"error": "This token doesn't exist, or isn't yours."}), 404
@@ -129,13 +140,14 @@ def format_user_code(code: str) -> str:
 
 def public_url() -> str:
   """The web app's URL, as users reach it"""
-  if os.environ.get('QABOARD_PUBLIC_URL'):
-    return os.environ['QABOARD_PUBLIC_URL'].rstrip('/')
+  if os.environ.get('QABOARD_URL'):
+    return os.environ['QABOARD_URL'].rstrip('/')
   scheme = request.headers.get('X-Forwarded-Proto', request.scheme).split(',')[0].strip()
   return f"{scheme}://{request.host}"
 
 
 def device_status(device, now=None) -> str:
+  """pending, approved, denied, expired, or consumed (approved, and the CLI got its token)"""
   now = now or tokens_lib.utcnow()
   if device.status in ('pending', 'approved') and now >= device.expires_at:
     return 'expired'
@@ -260,7 +272,8 @@ def serialize_device(device) -> dict:
     "scopes": device.scopes or [],
     "created_at": tokens_lib.iso(device.created_at),
     "expires_at": tokens_lib.iso(device.expires_at),
-    "status": device_status(device),
+    # for people, the CLI having received its token is a detail
+    "status": 'approved' if device_status(device) == 'consumed' else device_status(device),
   }
 
 

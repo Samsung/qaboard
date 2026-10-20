@@ -46,4 +46,5 @@ def test_legacy_token_endpoint(logged_in, make_client):
   assert answer["token"].startswith("qab_pat_") and answer["expires_at"]
   me = make_client().get('/api/v1/user/me/', headers=bearer(answer["token"])).get_json()
   assert me["user_name"] == "carol"
-  assert set(me["token"]["scopes"]) == {"read", "ingest", "act", "manage", "admin"}
+  # the scopes tokens had before scopes: not the admin API
+  assert set(me["token"]["scopes"]) == {"read", "ingest", "act"}

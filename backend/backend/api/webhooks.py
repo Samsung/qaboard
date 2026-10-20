@@ -14,6 +14,7 @@ from ..models import CiCommit, Output, Project
 from ..models.Project import update_project
 from ..git_hosts import git_hosts, committers, HOST_TYPES, UntrustedHost
 from .auth import login_required, require_project_access
+from ..audit import audit
 
 
 @app.route('/api/v1/commit/<path:project_id>/<commit_id>/batches', methods=['DELETE'])
@@ -49,7 +50,9 @@ def delete_commit(commit_id, project_id=None):
         stop_status = batch.stop(db_session)
         if "error" in stop_status:
           return jsonify(stop_status), 500
+        audit('batch.delete', 'batch', batch.id, batch.label, project_id=ci_commit.project_id, meta={"commit": ci_commit.hexsha})
         batch.delete(session=db_session)
+    db_session.commit()
     return {"status": "OK", "kept": sorted(kept)}
   except Exception as e:
     return f"404 ERROR {e}: {commit_id} in {project_id}", 404

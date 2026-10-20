@@ -50,8 +50,9 @@ def test_token_status():
   assert tokens.status(token(idle_expiry_days=1, last_used_at=now - datetime.timedelta(hours=1)), now) == 'active'
 
 
-def test_legacy_tokens_have_every_scope():
-  assert tokens.scopes_of(token(kind='legacy', scopes=[])) == list(tokens.SCOPES)
+def test_legacy_tokens_have_the_scopes_of_before():
+  # not the admin API, which came after them
+  assert tokens.scopes_of(token(kind='legacy', scopes=[])) == ['read', 'ingest', 'act']
   assert tokens.scopes_of(token(scopes=['read', 'ingest'])) == ['read', 'ingest']
 
 

@@ -99,6 +99,13 @@ def test_tokens_remember_when_they_were_used(logged_in, make_client):
   make_client().get('/api/v1/projects', headers={**bearer(secret), "X-Forwarded-For": "10.0.0.1"})
   token = Token.query.one()
   assert token.last_used_at is not None and token.last_used_ip == "10.0.0.1"
+  # at most every few minutes, even from other IPs: tokens shared by CI runners change IPs all the time
+  make_client().get('/api/v1/projects', headers={**bearer(secret), "X-Forwarded-For": "10.0.0.2"})
+  assert Token.query.one().last_used_ip == "10.0.0.1"
+  assert AuditEvent.query.filter_by(action='token.new_ip').count() == 0
+  from backend.database import db_session
+  Token.query.update({"last_used_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=6)})
+  db_session.commit()
   make_client().get('/api/v1/projects', headers={**bearer(secret), "X-Forwarded-For": "10.0.0.2"})
   assert Token.query.one().last_used_ip == "10.0.0.2"
   assert AuditEvent.query.filter_by(action='token.new_ip').one().meta == {"previous_ip": "10.0.0.1"}
@@ -176,3 +183,35 @@ def test_max_lifetime(logged_in, monkeypatch):
   # the default (90 days) is capped
   expires_at = datetime.datetime.fromisoformat(new_token(client)["expires_at"])
   assert (expires_at - datetime.datetime.now(datetime.timezone.utc)).days <= 30
+
+
+def test_the_manage_scope_isnt_offered_until_it_does_something(logged_in):
+  response = logged_in('alice').post('/api/v1/user/tokens', json={"name": "x", "scopes": ["read", "manage"]})
+  assert response.status_code == 400 and "manage" in response.get_json()["error"]
+
+
+def test_me_says_when_the_token_expires(logged_in, make_client):
+  token = new_token(logged_in('alice'), expires_in_days=None, idle_expiry_days=30)
+  me = make_client().get('/api/v1/user/me/', headers=bearer(token["token"])).get_json()["token"]
+  assert me["expires_at"] is None and me["idle_expiry_days"] == 30 and me["last_used_at"]
+
+
+def test_the_config_says_how_long_tokens_last(client):
+  from backend.database import db_session
+  from backend.models import Setting
+  from backend import settings
+  assert client.get('/api/v1/config').get_json()["tokens"] == {"default_lifetime_days": 90, "max_lifetime_days": None}
+  db_session.add(Setting(key='tokens.max_lifetime_days', value={"value": 30}))
+  db_session.commit()
+  settings.invalidate_cache()
+  assert client.get('/api/v1/config').get_json()["tokens"] == {"default_lifetime_days": 90, "max_lifetime_days": 30}
+
+
+def test_errors_say_when_tokens_expired(logged_in, make_client):
+  from backend.database import db_session
+  from backend.models import Token
+  token = new_token(logged_in('alice'))
+  Token.query.update({"expires_at": datetime.datetime(2026, 9, 1)})
+  db_session.commit()
+  response = make_client().get('/api/v1/projects', headers=bearer(token["token"]))
+  assert response.get_json() == {"error": "This token expired on 2026-09-01.", "reason": "token_expired"}

@@ -10,6 +10,7 @@ from ..redo import redo_response
 from ..notifications.batches import request_batch_notification
 from .export_to_folder import filter_outputs
 from .auth import login_required, require_project_access, ingest_access
+from ..audit import audit
 
 
 
@@ -86,9 +87,11 @@ def update_batch():
         flag_modified(batch, "data")
 
   batch.data = {**batch.data, **batch_data}
-  # the last verified sender, a batch can have runs from many people
+  # the latest sender, if verified: a batch can have runs from many people
   if submitted_by:
     batch.data["submitted_by"] = submitted_by
+  else:
+    batch.data.pop("submitted_by", None)
 
   # Save info on each "qa batch" command in the batch, mainly to list them in logs
   command = request.json.get('command')
@@ -281,7 +284,12 @@ def delete_batch(batch_id):
     print(stop_status)
     return jsonify(stop_status), 500
   filter = request.args.get('filter')
+  ci_commit = batch.ci_commit
+  audit('batch.delete', 'batch', batch.id, batch.label, project_id=ci_commit.project_id, meta={
+    "commit": ci_commit.hexsha, "soft": soft, "only_failed": only_failed, **({"filter": filter} if filter else {}),
+  })
   batch.delete(session=db_session, soft=soft, only_failed=only_failed, filter=filter)
+  db_session.commit()
   return {"status": "OK"}
 
 

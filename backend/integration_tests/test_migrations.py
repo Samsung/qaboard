@@ -57,7 +57,7 @@ def test_tokens_in_clear_are_hashed_and_keep_working(alembic, make_user, make_cl
   sql("INSERT INTO tokens (user_id, created_at) VALUES (1, now())")  # `expires_at` can be empty now
 
   me = make_client().get('/api/v1/user/me/', headers=bearer(legacy)).get_json()
-  assert me["user_name"] == "alice" and me["token"]["kind"] == "legacy" and "admin" in me["token"]["scopes"]
+  assert me["user_name"] == "alice" and me["token"]["kind"] == "legacy" and me["token"]["scopes"] == ["read", "ingest", "act"]
   assert make_client().get('/api/v1/user/me/', headers=bearer('cd' * 32)).status_code == 401
 
 

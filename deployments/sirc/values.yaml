@@ -20,6 +20,8 @@ config:
   QABOARD_PROXY_HOSTS: gitlab-srv,gitlab-srv.transchip.com,dag.sirc.co.il
   QABOARD_URL: https://qa
   QABOARD_LOGIN_TYPE: LDAP
+  # Admins whatever the database says (the break-glass access): they make other admins in the web app
+  QABOARD_ADMINS: arthurf
   QABOARD_DISABLE_SIGNUP: "True"
   QABOARD_LOGIN_RESTRICTED: "True"
   QABOARD_LOGIN_RESTRICTED_YAML: /etc/ldap/users_restrict.yml
