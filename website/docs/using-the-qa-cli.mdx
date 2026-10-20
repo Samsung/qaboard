@@ -114,7 +114,7 @@ succeeded:
 - `postprocess`: only call your `postprocess()` function, like `qa postprocess`.
 - `sync`: send their *metrics.json* to QA-Board again, like `qa sync`.
 - `skip`: do nothing.
-- `assert-exists`: fail if some runs have no results.
+- `assert-exists`: fail if some runs have no results. Like `skip`, it does nothing with those that succeeded.
 
 Runs that failed, or never ran, always run. The default can be set in *qaboard.yaml*, with
 `outputs.action_on_existing`.

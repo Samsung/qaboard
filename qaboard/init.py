@@ -85,7 +85,7 @@ def use_site_defaults(sample_config: str, site: Dict[str, Any]) -> str:
 
 
 def qa_init(ctx):
-  """Initialize a qatools repository"""
+  """Initialize a QA-Board project: a qaboard.yaml configuration and a qa/ folder"""
   config_paths = [p for  _, p in find_configs(Path('.'))]
   if config_paths:
     click.secho(f'You already have a qaboard.yaml configuration:', fg='green', bold=True, err=True)
@@ -96,7 +96,7 @@ def qa_init(ctx):
   # Locate the sample project's configuration
   qatools_dir = Path(__file__).resolve().parent
 
-  click.secho('Creating a `qatools` configuration based on the sample project 🎉', fg='green')
+  click.secho('Creating a `qaboard.yaml` configuration based on the sample project 🎉', fg='green')
   sample_config = (qatools_dir / 'sample_project/qaboard.yaml').read_text()
   site = site_qaboard_config()
   if site:
@@ -111,7 +111,7 @@ def qa_init(ctx):
 
   click.secho('...added qa/', fg='green', dim=True)
   click.secho(
-    'If you need help configuring qatools. please read the tutorial at https://samsung.github.io/qaboard\n',
+    'If you need help configuring QA-Board, read the tutorial at https://samsung.github.io/qaboard\n',
     fg='blue'
   )
 

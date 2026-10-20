@@ -11,6 +11,8 @@ from ..run import RunContext
 
 class LocalRunner(BaseRunner):
   type = "local"
+  # Batches with their own run one after the other (BaseRunner.start_groups)
+  group_options = ('concurrency', 'timeout')
 
   def __init__(self, run_context : RunContext):
     self.run_context = run_context

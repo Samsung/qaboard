@@ -153,10 +153,19 @@ Runner settings are merged in this order, the last one wins:
 3. `<runner>:` in the batch, as above,
 4. command line options, like `qa batch --lsf-queue`.
 
+A batch can also limit how many of its runs run at the same time, with `concurrency` under `local:`, `lsf:` or
+`dask:`, and set the local runner's `timeout`. How batches with their own limit share the resources depends on the
+runner:
+- [local](/docs/local-multiprocessing): they run one after the other.
+- [LSF](/docs/lsf-integration#limiting-concurrency): each gets its own job arrays (or waves), sent at the same time,
+  so their limits add up.
+- [Dask](/docs/dask-integration): their runs share the workers, and `qa batch` never has more runs in flight than the
+  largest concurrency.
+
 :::caution
-Settings of the whole `qa batch` command don't change per batch: how many runs run at the same time (`concurrency`)
-and the local runner's `timeout` come from *qaboard.yaml*, environment variables and command line options only. The
-runner itself too: `qa batch --runner`, or `runners.default` in *qaboard.yaml*. A batch's `runner:` doesn't change it.
+A batch can't choose its runner yet: `qa batch --runner`, or `runners.default` in *qaboard.yaml*, does, for all
+batches. A batch's `runner:` doesn't change it. With Celery, a batch's `celery:` settings are ignored too: the
+Celery configuration comes from *qaboard.yaml*.
 :::
 
 ## Groups of batches {#aliases-for-groups-of-batches}

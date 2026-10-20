@@ -78,23 +78,23 @@ runners:
     qaboard_task_name: qaboard
 ```
 
-It's often useful to give **batches** their own settings. For instance you may want to use different queues if you manage different types of resources (GPUs, Windows/Linux/Android...):
+To send the runs to specific workers, e.g. if you manage different types of resources (GPUs, Windows/Linux/Android...),
+start the workers with their queues, and route the runs there:
 
 ```bash
 # On a server with a GPU:
 celery -A qaboard.runners.celery_app worker --concurrency=1 --queues gpu,large-gpu
 ```
 
-```yaml {7-9} title="qa/batches.yaml"
-my-batch-that-needs-a-gpu:
-  inputs:
-  - my/training/images
-  configuration:
-  - hyperparams.yaml
+```yaml {3-5} title="qaboard.yaml"
+runners:
   celery:
     task_routes:
       qaboard: gpu
 ```
+
+Batches can't have their own Celery settings yet: `qa batch` ignores a batch's `celery:` settings, and uses
+`runners.celery` from *qaboard.yaml* for all its runs.
 
 :::tip
 Read [Celery's tutorial](http://docs.celeryproject.org/en/latest/getting-started/first-steps-with-celery.html)

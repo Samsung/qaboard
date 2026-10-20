@@ -117,6 +117,8 @@ build failure left the reference without results.
   only one of the runs are errors too.
 - `--reference-label`: compare with the reference's runs that used another [label](/docs/using-the-qa-cli#qa---label-my-label),
   e.g. `qa --label new check-bit-accuracy --batch all --reference-label old`.
+- `--reference-platform`: compare with the reference's runs on another platform, e.g.
+  `qa --platform hw-model check-bit-accuracy --batch <batch> --reference-platform linux`.
 - `--batch` can be repeated, and `--batches-file` names the batches files, like for `qa batch`.
 
 ## Input and output manifests {#input-and-output-manifests}
