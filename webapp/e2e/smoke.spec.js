@@ -248,14 +248,21 @@ test.describe('user management pages', () => {
     await page.waitForLoadState('networkidle');
   });
 
-  test('signed out: "Sign in" opens the sign-in dialog', async ({ page }) => {
+  test('signed out: pages that need a user go to the sign-in page, single sign-on first', async ({ page }) => {
     await page.route('**/api/v1/user/me/', route => route.fulfill({ json: { is_authenticated: false } }));
+    await page.route('**/api/v1/auth/providers**', route => route.fulfill({ json: {
+      providers: [
+        { id: 'sso', type: 'oidc', kind: 'redirect', name: 'Company SSO', recommended: true, start_url: '/api/v1/auth/oidc/sso/start?next=%2Fsettings' },
+        { id: 'local', type: 'local', kind: 'password', name: 'QA-Board account', recommended: false, start_url: null },
+      ],
+      password_form: true, local_signup: false, auto_redirect: false,
+    } }));
     await page.goto('/settings');
-    await expect(page.getByText('Sign in to continue')).toBeVisible();
-    await page.getByRole('button', { name: 'Sign in' }).first().click();
-    const dialog = page.getByRole('dialog');
-    await expect(dialog.getByLabel('User name')).toBeVisible();
-    await expect(dialog.getByLabel('Password')).toBeVisible();
-    await expect(dialog.getByRole('button', { name: 'Sign in' })).toBeVisible();
+    await expect(page).toHaveURL(/\/login\?next=%2Fsettings$/);
+    await expect(page.getByRole('button', { name: 'Company SSO' })).toHaveAttribute('href', '/api/v1/auth/oidc/sso/start?next=%2Fsettings');
+    const form = page.getByRole('form', { name: 'Sign in with a user name and password' });
+    await expect(form.getByRole('textbox', { name: 'User name' })).toBeVisible();
+    await expect(form.getByLabel('Password', { exact: true })).toBeVisible();
+    await expect(form.getByRole('button', { name: 'Sign in' })).toBeVisible();
   });
 });
