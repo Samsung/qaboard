@@ -162,3 +162,26 @@ clip('history/find-regression', {
     await point(MAIN_COMMITS[6], 2600);
   },
 });
+
+// The fleet SDK's tests (examples/software-quality): each run is one test suite in one mode (default, strict)
+const SQ = 'software-quality';
+
+shot('history/test-volume', {
+  project: SQ,
+  // six weeks of main, one line: the sum of the suites' tests over the default-mode runs (strict runs the same tests)
+  url: d => d.historyUrl(SQ, 'main', {
+    from: day(d, -43), to: day(d, 0), filter: 'default',
+    selected_metric: 'tests', breakdown_per_test: 'false', selected_aggregation: 'sum',
+  }),
+  alt: 'Performance over time on main for six weeks: the sum of Tests over the five suites, default mode. It climbs '
+    + 'from 131 as frame, A*, range, registry and reserve tests are written, dips where a branch deleted tests, then '
+    + 'jumps to 609 when the codec runs 200 fuzz cases per round trip.',
+  caption: 'The number of tests of every suite added up, commit by commit: written tests make steps, fuzz cases a jump.',
+  actions: async ui => {
+    await ui.plots();
+    await ui.cursor.moveTo({ x: 1300, y: 880 });
+    await ui.settle();
+  },
+  target: page => [performanceOverTime(page).getByText('Performance over time', { exact: true }), performanceOverTime(page).locator('.js-plotly-plot').first()],
+  padding: 8,
+});

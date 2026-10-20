@@ -1,0 +1,4 @@
+# One QA-Board input: this suite's tests, and the package whose coverage they measure
+covers: fleet_sdk/codec
+label: Codec
+tags: [unit, wire-format]

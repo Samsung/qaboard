@@ -1315,3 +1315,43 @@ shot('commit/agent-report', {
   },
   padding: 8,
 });
+
+
+// The fleet SDK's tests (examples/software-quality): each run is one test suite in one mode (default, strict).
+// Visualizations, in qaboard.yaml's order: 0 Tests, 1 Report, 2 Lines without tests, then hidden by default:
+// 3 Slowest tests, 4 JUnit XML
+const SQ = 'software-quality';
+const SQ_VIZ = ['Tests', 'Report', 'Lines without tests', 'Slowest tests', 'JUnit XML'] as const;
+const showOnlySq = (name: (typeof SQ_VIZ)[number]) => ({ show: Object.fromEntries(SQ_VIZ.map(v => [v, v === name])) });
+
+shot('commit/tests-diff', {
+  project: SQ,
+  // the varint fast path against its parent, the codec suite in default mode
+  url: d => d.commitUrl(SQ, 'varint-fast-path', { reference: 'grid-docs', view: 'output-list', filter: 'codec default', controls: showOnlySq('Tests') }),
+  alt: 'The codec suite\'s list of tests diffed with the commit before: lines that were PASS are now FAIL, for '
+    + 'varint round trips and frames with sequence numbers over 2^32; the run\'s metrics above say 17 failed.',
+  caption: 'One line per test, diffed with the reference\'s: the tests the varint fast path broke show as changed lines.',
+  actions: async ui => {
+    await showCard(ui);
+    await viewer(cards(ui.page).first()).locator('.modified-in-monaco-diff-editor .view-line').first().waitFor();
+    await mouseAway(ui);
+    await ui.settle();
+  },
+  target: page => cards(page).first(),
+  padding: 2,
+});
+
+shot('commit/deleted-tests', {
+  project: SQ,
+  // the coding agent's change against main at the time, which had the missions bug
+  url: d => d.commitUrl(SQ, 'green-ci', { reference: 'closest-robot', view: 'table-compare', filter: 'default' }),
+  alt: 'The Metrics Diff of the coding agent\'s change against main, suite by suite: missions goes from 10 failed '
+    + 'tests to 0, from 24 tests to 12, from 0 skipped to 2, and its coverage doesn\'t change.',
+  caption: 'No test fails any more, because half of them are gone: the Metrics Diff shows the missions suite lost 12 tests and skips 2.',
+  actions: async ui => {
+    await ui.cursor.moveTo({ x: 1420, y: 880 });
+    await ui.settle();
+  },
+  target: page => viewCard(page, 'Metrics Diff'),
+  padding: 0,
+});

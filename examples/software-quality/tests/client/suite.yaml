@@ -1,0 +1,3 @@
+covers: fleet_sdk/client
+label: Client
+tags: [unit]

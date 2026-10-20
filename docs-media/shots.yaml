@@ -545,6 +545,23 @@ shots:
     needs: short-tools vs merge-verbose-prompt
     phase: 3
     status: published
+  - id: commit/tests-diff
+    kind: still
+    project: software-quality
+    shows: "The codec suite's tests.txt diffed with the commit before the varint fast path: PASS lines that turned FAIL."
+    pages: [use-cases/software-quality]
+    features: [text-diff]
+    needs: varint-fast-path vs grid-docs
+    phase: 3
+    status: planned
+  - id: commit/deleted-tests
+    kind: still
+    project: software-quality
+    shows: "The Metrics Diff of the coding agent's change against main: missions has 0 failed tests, but 12 tests instead of 24 and 2 skipped; the coverage doesn't move."
+    pages: [use-cases/software-quality]
+    needs: green-ci vs closest-robot
+    phase: 3
+    status: planned
   - id: commit/agent-report
     kind: still
     project: agent-evals
@@ -614,6 +631,14 @@ shots:
     pages: [user-guide/history-and-dashboards]
     phase: 2
     status: captured
+  - id: history/test-volume
+    kind: still
+    project: software-quality
+    shows: "The fleet SDK's number of tests over six weeks of main: the sum over its five suites, default mode. Steps where tests are written, a jump to 609 with 200 fuzz cases."
+    pages: [use-cases/software-quality]
+    needs: sdk-tests to cold-batteries
+    phase: 3
+    status: planned
   - id: history/image-diff
     kind: still
     project: image-quality

@@ -8,10 +8,10 @@
   "additionalProperties": false,
   "properties": {
     "version": {"const": 1},
-    "project": {"enum": ["image-quality", "serving-latency", "detection-eval", "robotics-3d", "agent-evals"]},
+    "project": {"enum": ["image-quality", "serving-latency", "detection-eval", "robotics-3d", "agent-evals", "software-quality"]},
     "id": {
       "description": "QA-Board project id, equal to project.name in qaboard.yaml.",
-      "enum": ["kitefin/camera-isp", "kitefin/inference-gateway", "kitefin/detector", "kitefin/slam", "kitefin/fleet-assistant"]
+      "enum": ["kitefin/camera-isp", "kitefin/inference-gateway", "kitefin/detector", "kitefin/slam", "kitefin/fleet-assistant", "kitefin/fleet-sdk"]
     },
     "seed": {"type": "integer", "minimum": 0, "maximum": 4294967295},
     "defaults": {

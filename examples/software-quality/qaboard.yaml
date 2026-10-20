@@ -1,0 +1,62 @@
+# The fleet SDK's test suites: a QA-Board demo project, see README.md.
+project:
+  name: kitefin/fleet-sdk
+  url: https://git.kitefin.example/kitefin/fleet-sdk
+  description: "The SDK robots and fleet tools use to talk to the fleet backend: its test suites, their coverage and their flaky tests."
+  entrypoint: qa/main.py
+  reference_branch: main
+
+inputs:
+  # relative to this folder: each suite is a folder of tests, tests/<suite>/, recognized by its suite.yaml
+  database:
+    linux: tests
+  globs: suite.yaml
+  use_parent_folder: true
+  batches: qa/batches.yaml
+
+outputs:
+  metrics: qa/metrics.yaml
+  style:
+    width: 840px
+  visualizations:
+    - name: Tests
+      path: tests.txt              # one line per test, its status then its id: failing, new, deleted and skipped tests are diffed
+      max_lines: 30
+    - name: Report
+      path: report.html            # the tests as a tree, with counts per folder, file and class, and the failures
+    - name: Lines without tests
+      path: coverage.txt           # coverage.py's report: per file, the lines and branches no test runs
+    - name: Slowest tests
+      path: slowest.plotly.json
+      side_by_side: false
+      default_hidden: true
+    - name: JUnit XML
+      path: junit.xml
+      default_hidden: true
+
+# `qa save-artifacts` saves what each commit changed in the code
+artifacts:
+  build:
+    glob: build/flags.json
+
+integrations:
+  - text: SDK docs
+    icon: manual
+    href: https://docs.kitefin.example/fleet-sdk
+
+# Experimental: may change without notice
+# Each run is one suite in one mode. A failed test doesn't fail the run: the run measured it. Runs fail when the
+# suite couldn't run at all (max_failed_runs).
+gate:
+  reference: main
+  batches: [ci]
+  rules:
+    - {metric: failed, max: 0, aggregate: max}          # no suite has a failing test (flaky ones are reported, not gated)
+    - {metric: errors, max: 0, aggregate: max}          # nor errors in fixtures or collection
+    - {metric: tests, per_test_max_regression: 0%}      # no suite loses tests
+    - {metric: skipped, per_test_max_regression: 0%}    # nor skips more of them
+    - {metric: coverage, per_test_max_regression: 2%}   # nor loses more than 2% of its coverage
+  max_failed_runs: 0
+
+storage:
+  linux: /mnt/qaboard

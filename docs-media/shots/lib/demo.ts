@@ -6,7 +6,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { REPO_ROOT } from './ids';
 
-export type ProjectKey = 'image-quality' | 'serving-latency' | 'detection-eval' | 'robotics-3d' | 'agent-evals';
+export type ProjectKey = 'image-quality' | 'serving-latency' | 'detection-eval' | 'robotics-3d' | 'agent-evals'
+  | 'software-quality';
 // The app's `selected_views` values (webapp/src/AppSider.jsx)
 export type View = 'summary' | 'table-kpi' | 'table-compare' | 'output-list' | 'bit_accuracy' | 'logs'
   | 'parameters' | 'groups' | 'tuning' | 'optimization';
@@ -40,6 +41,7 @@ export const PROJECT_IDS: Record<ProjectKey, string> = {
   'detection-eval': 'kitefin/detector',
   'robotics-3d': 'kitefin/slam',
   'agent-evals': 'kitefin/fleet-assistant',
+  'software-quality': 'kitefin/fleet-sdk',
 };
 
 // Who is logged in by default when a shot shows a project: its main author (examples/README.md#people)
@@ -49,6 +51,7 @@ export const PROJECT_PERSONAS: Record<ProjectKey, string> = {
   'detection-eval': 'arjun',
   'robotics-3d': 'mira',
   'agent-evals': 'kaito',
+  'software-quality': 'adaeze',
 };
 
 // Every persona's password in the demo stack (docs-media/seed.py)
