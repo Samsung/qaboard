@@ -31,8 +31,8 @@ In the **ref** bar (or the **new** bar, it works the same way):
 | Menu item | What it does |
 |---|---|
 | **Change Project** | Pick results from another project, e.g. another sub-project of a monorepo, or a fork. |
-| **Switch new/reference** | Swaps the two commits, with their batches and filters. |
-| **Also select as reference** / **as new** | Copies this commit, batch and filter to the other bar. Handy to compare two batches of the **same** commit, e.g. a tuning experiment vs CI. |
+| **Swap the bars** | Swaps the top and bottom bars' results, with their batches, filters and names. |
+| **Also show in the bottom bar** / **top bar** | Copies this commit, batch and filter to the other bar, instead of what it shows. Handy to compare two batches of the **same** commit, e.g. a tuning experiment vs CI. |
 | **Stack another reference…** | In the ref bar: compare with [several references](#several-references), one at a time. |
 | **Remove from comparison** | Clears the commit. With [several references](#several-references), removes the one shown. |
 | The reference branch | Selects its latest commit. |
@@ -41,7 +41,7 @@ In the **ref** bar (or the **new** bar, it works the same way):
 Each bar also has its own **batch selector** and **filter**: you can compare any batch of any commit with any other.
 
 :::tip
-To see what a tuning experiment changed, select its batch in the new bar, then use **Also select as reference** and pick the **CI** batch in the reference bar.
+To see what a tuning experiment changed, select its batch in the new bar, then use **Also show in the bottom bar** and pick the **CI** batch in the reference bar.
 :::
 
 ## Naming what you compare
@@ -56,17 +56,18 @@ To compare with several references, for example the last release, a tuning exper
 
 Hover the **ref** bar: **Stack a reference** shows below it. Add a commit, a branch (its latest commit), a milestone, or the same reference again to change its batch or filter. It's shown right away, and the reference you were looking at stays.
 
-The references then show as tabs below the bars, each with its name, in its color (purple, magenta, teal, violet, then gray), with a star for milestones. Next to the name, a tab says only what tells it apart from the other references: its batch or filter when they differ (and aren't the default), its commit when others are on the same branch, its branch when they're on different ones, its project. When there isn't room, these details give way, then the tabs scroll sideways (with the mouse wheel too).
+The tabs below the bars then show everything you compare: first the results of the top bar, then, after "vs", the references, each with its name, in its color (purple, magenta, teal, violet, then gray), with a star for milestones. The two tabs in the bars are lit. Next to the name, a tab says only what tells it apart from the others: its batch or filter when they differ (and aren't the default), its commit when others are on the same branch, its branch when they're on different ones, its project. When there isn't room, these details give way, then the tabs scroll sideways (with the mouse wheel too).
 The first reference is **ref**, the ones you add **ref 2**, **ref 3**..., and a copy of a reference you named "night" is **night copy**. A reference keeps its name when you reorder or remove the others, and its tab, the **ref** bar and the viewers all use it: rename it in any of them. Its color follows its place in the tabs.
 
 - Click a tab, or press <kbd>r</kbd> and <kbd>Shift</kbd> <kbd>r</kbd>, to compare with the next or previous reference. Each keeps its batch, filter and name.
 - Drag tabs to reorder them (or <kbd>Alt</kbd> <kbd>←</kbd> <kbd>→</kbd>), double-click one to rename it, press <kbd>Delete</kbd> to remove it.
-- Right-click a tab, or click its **⋯**, to compare with it, rename, duplicate it, show it as the new results (the new commit takes its place), move or remove it.
-- Hover a tab for what its bar would show: its commit and message, who made it and when, its branch, batch and filter, and how many runs it has and how many failed. It also says when it's the same commit as the new results, or the same results ("= new" in the tab).
+- Right-click a tab, or click its **⋯**, to compare with it, rename, duplicate it, move or remove it.
+- **Swap the bars**, in the menus of the two lit tabs, or drag the first tab on a reference (or a reference on the first tab): the two swap, the top results go in the bottom bar. It's the same comparison, reversed, and nothing is replaced. To stop comparing with what was on top, swap, then remove it.
+- Hover a tab for what its bar would show: its commit and message, who made it and when, its branch, batch and filter, and how many runs it has and how many failed.
 
 The references are in the page's URL: share it, and others can switch between the same references. Only the reference shown is loaded with all its runs; once the page is idle, the next and previous ones load in the background (unless they have thousands of runs), and hovering a tab loads it too.
 
-When you swap the new results with a reference (**Switch new/reference**, or **Show as the new results**), names you gave follow their results, while "new", "ref" and "ref 2" stay where they are.
+When you swap the bars, names you gave follow their results, while "new", "ref" and "ref 2" stay in their bars.
 
 ## How runs are matched
 For each new run, QA-Board finds the most similar reference run: first the same input, then the closest configuration, the closest tuning parameters, and the same platform. The closest is the one with the fewest different settings; between as many, the one whose values are the most similar: for `base-v1`, `base-v2` rather than `other`, for `gain: 3`, `gain: 4` rather than `gain: 100`.

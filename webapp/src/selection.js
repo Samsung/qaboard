@@ -226,16 +226,17 @@ export const remove_reference = (selected, index) => {
   return references_changes(remaining, shown);
 };
 
-// ...see a reference as the new results: the new commit takes its place in the references
-export const show_as_new = (selected, index) => {
-  const { references, ref_index } = selected;
+// ...swap a reference with the top results: it goes in the top bar, and the top results take its place in the
+// references, shown in the bottom bar. Both bars change, nothing else: the same comparison, reversed.
+export const swap_with_top = (selected, index) => {
+  const { references } = selected;
   const side = references[index];
   if (!side?.commit_id || !selected.new_commit_id) return {};
   const named = with_names(references);
   const labels = swapped_labels(selected.label_new, named, index);
   const swapped = named.map((r, i) => i === index ? { ...new_side(selected), label: labels.label_ref } : r);
   return {
-    ...references_changes(swapped, ref_index),
+    ...references_changes(swapped, index),
     new_project: side.project,
     new_commit_id: side.commit_id,
     selected_batch_new: side.batch || 'default',

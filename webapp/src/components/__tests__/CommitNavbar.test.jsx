@@ -87,6 +87,6 @@ describe('CommitNavbar', () => {
 
   it('says when the reference is the same as the new commit', () => {
     renderNavbar({ type: 'ref', same_as_new: true });
-    expect(screen.getByText('Same as new')).toBeInTheDocument();
+    expect(screen.getByText('Same runs')).toBeInTheDocument();
   });
 });
