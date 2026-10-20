@@ -46,7 +46,12 @@ const try_parse = (text, parse, label) => {
 };
 
 
-const SlamOutputCard = ({ output_new, output_ref, show_debug, select_debug = "", path = 'camera_poses_debug.csv', show_3d = true, layout, labels }) => {
+const px = (value, fallback) => parseFloat(String(value ?? fallback).replace(/px$/, ''));
+
+const SlamOutputCard = ({ output_new, output_ref, show_debug, select_debug = "", path = 'camera_poses_debug.csv', show_3d = true, layout, style, labels }) => {
+  // the card's width, shared by the plots of each axis and the 3D view
+  const width = px(style?.width, 700);
+  const plot_width = show_3d ? Math.max(300, Math.floor((width - 16) / 2)) : width;
   const has_groundtruth = output_new.metrics.translation_aape !== null;
   const has_reference = output_ref !== undefined && output_ref !== null && output_ref.output_dir_url !== undefined;
 
@@ -111,11 +116,12 @@ const SlamOutputCard = ({ output_new, output_ref, show_debug, select_debug = "",
     .map(label => traces_3d[label])
     .filter(trace => !!trace);
 
-  return <>
+  return <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
     <Plot
       data={traces}
       layout={{
         ...make_layout(show_debug, traces_debug.new, data_set),
+        width: plot_width,
         ...layout
       }}
       config={config}
@@ -123,11 +129,11 @@ const SlamOutputCard = ({ output_new, output_ref, show_debug, select_debug = "",
     {show_3d &&
       <Plot
         data={data_3d}
-        layout={layout3d}
+        layout={{ ...layout3d, scene: scene3d(data_3d), width: plot_width, height: Math.min(plot_width, 500) }}
         config={config}
       />
     }
-  </>
+  </div>
 }
 
 const parse_debug = text_string => {
@@ -410,16 +416,26 @@ const make_layout = (show_debug, debug_data, data_set) => {
   return layout;
 };
 
+// The same scale on x and y: a trajectory isn't stretched. z keeps some height: robots mostly drive on a floor.
+const scene3d = traces => {
+  const range = axis => {
+    const values = traces.flatMap(t => t[axis]).filter(Number.isFinite);
+    return values.length ? Math.max(...values) - Math.min(...values) : 0;
+  };
+  const [x, y, z] = ['x', 'y', 'z'].map(range);
+  const largest = Math.max(x, y, z) || 1;
+  return {
+    aspectmode: 'manual',
+    aspectratio: { x: Math.max(x / largest, 0.1), y: Math.max(y / largest, 0.1), z: Math.max(z / largest, 0.25) },
+    camera: { eye: { x: -0.35, y: -1.15, z: 0.85 } },
+  };
+};
+
 const layout3d = {
   width: 350,
   height: 350,
-  margin: { l: 60, r: 0, b: 50, t: 50, pad: 10 },
-  legend: {
-    x: 0,
-    y: 1,
-    traceorder: "grouped",
-    tracegroupgap: 0
-  }
+  margin: { l: 0, r: 0, b: 0, t: 30, pad: 0 },
+  legend: { x: 0, y: 1, traceorder: "grouped", tracegroupgap: 0, orientation: 'h' },
 };
 
 export default SlamOutputCard;

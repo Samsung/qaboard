@@ -161,6 +161,14 @@ jobs:
             proxy.cache-from=type=gha,scope=proxy
             cantaloupe.cache-from=type=gha,scope=cantaloupe
 
+      # The fleet assistant's model weights (examples/agent-evals: 1 GB from Hugging Face), in case the stories are seeded
+      - name: Cache the fleet assistant's models
+        if: steps.scope.outputs.only != ''
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/kitefin/fleet-assistant/models   # $FLEET_ASSISTANT_MODELS, qa/models.py
+          key: fleet-assistant-models-${{ hashFiles('examples/agent-evals/inputs.lock.yaml') }}
+
       - name: Restore the demo data
         id: restore
         if: steps.scope.outputs.only != ''

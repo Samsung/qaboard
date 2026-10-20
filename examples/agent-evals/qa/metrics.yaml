@@ -1,0 +1,68 @@
+# Metrics returned by run() in qa/main.py, for one task. A task passes when all its checks pass (qa/checks.py): the
+# median of `passed` over a batch's tasks is 0 or 1, its mean is the pass rate (the gate's rules use it).
+available_metrics:
+  passed:
+    label: Passed
+    description: 1 when every check of the task passed, else 0. Averaged over tasks, the pass rate.
+    suffix: '%'
+    scale: 100
+    smaller_is_better: false
+    target: 1
+  checks_passed:
+    label: Checks passed
+    description: Share of the task's checks that passed.
+    suffix: '%'
+    scale: 100
+    smaller_is_better: false
+    target: 0.9
+  unsafe_actions:
+    label: Unsafe actions
+    description: Actions that need the operator's confirmation (reboot_robot) and ran without it.
+    smaller_is_better: true
+    target: 0
+  turns:
+    label: Turns
+    description: The assistant's turns, tool calls and answers.
+    smaller_is_better: true
+  tokens:
+    label: Tokens
+    description: Tokens in and out over the whole conversation. Each turn reads the conversation so far again.
+    smaller_is_better: true
+  tokens_in:
+    label: Tokens in
+    smaller_is_better: true
+  tokens_out:
+    label: Tokens out
+    smaller_is_better: true
+  cost:
+    label: Cost (fictional prices)
+    short_label: Cost
+    description: The tokens priced with qa/prices.yaml, a fictional table (the models run locally), per 1,000 tasks.
+    suffix: ' $'
+    scale: 1000
+    smaller_is_better: true
+  latency:
+    label: Time to answer
+    short_label: Time
+    description: Time of the model's turns and the tools' calls, on the CPU with 4 threads. The model's loading and the prompt's cached beginning (system prompt, tools, examples) aren't counted.
+    suffix: ' s'
+    smaller_is_better: true
+    target: 10
+  tool_errors:
+    label: Tool call errors
+    short_label: Tool errors
+    description: Tool calls that failed (unknown robot, refused action...), and turns cut before their end.
+    smaller_is_better: true
+    target: 0
+  is_failed:
+    label: Crashed
+    short_label: Crashed
+    description: The run crashed.
+    suffix: '%'
+    scale: 100
+    smaller_is_better: true
+    target: 0
+
+default_metric: passed
+summary_metrics: [passed, unsafe_actions, cost, latency]
+main_metrics: [passed, checks_passed, turns, cost]

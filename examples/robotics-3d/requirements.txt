@@ -1,0 +1,5 @@
+# qa/main.py's dependencies, besides the qaboard CLI. Videos also need ffmpeg (with libvpx-vp9), on the PATH.
+numpy>=1.26
+scipy>=1.11
+pillow>=10.1
+pyyaml

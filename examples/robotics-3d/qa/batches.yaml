@@ -1,0 +1,19 @@
+# The tests: `qa batch ci`, `qa batch sweep-keyframes --tuning-search ...`. Inputs are sequences, folders relative to
+# inputs/ (the database in qaboard.yaml). The ground truth is generated the first time (qa/make_sequences.py).
+
+# CI, on every commit: every sequence
+ci:
+  inputs:
+  - sequences/aisle-sweep
+  - sequences/loop
+  - sequences/figure8
+  - sequences/figure8-fast
+  - sequences/docking
+  - sequences/long-corridor
+
+# For tuning the keyframes: the sequences they matter most on.
+#   qa batch sweep-keyframes --tuning-search '{"search_type": "grid", "parameter_search": {"keyframe_dist": [0.2, 0.3, 0.45, 0.6], "icp_iterations": [10, 20, 30]}}'
+sweep-keyframes:
+  inputs:
+  - sequences/figure8-fast
+  - sequences/long-corridor

@@ -1,0 +1,268 @@
+# Six weeks of the K3's odometry: ICP and IMU odometry ships in firmware 26.08; loop closure lands with a threshold
+# that lets matches slide along the shelves, and the figure-8s jump by meters until the threshold goes up; firmware
+# 26.09 ships with loop closures; a change that trusts ICP over the IMU makes the figure-8s drift, which History and
+# the gate show, and is reverted; keyframes every 0.6 m make it faster and better, with a tuning sweep to back it.
+# Format: ../STORY.md. What the flags do: SPEC.md.
+version: 1
+project: robotics-3d
+id: kitefin/slam
+seed: 3030
+
+defaults:
+  # the odometry before the story; qa/main.py's defaults are the head of main at T0
+  flags:
+    icp_iterations: 20
+    keyframe_dist: 0.3
+    loop_closure: false
+  runs:
+    - batch: ci
+
+commits:
+  - id: depth-video
+    branch: main
+    at: -42d 09:30
+    author: mira
+    message: |
+      outputs: depth camera video with the path so far
+
+      The depth images next to a top-down view of the estimated and true paths, so that we see where it slips.
+
+  - id: rpe-1m
+    branch: main
+    at: -41d 11:15
+    author: mira
+    message: "evaluate: rpe over 1 m segments of the true path"
+
+  - id: fw-26-08
+    branch: main
+    at: -38d 10:05
+    author: mira
+    message: |
+      odometry for firmware 26.08: icp to the last keyframe, imu prior
+
+      Along aisles and corridors, the directions ICP can't see follow the IMU.
+
+  # loop closure, on its branch
+  - id: lc-candidates
+    branch: slam/loop-closure
+    parents: [fw-26-08]
+    at: -31d 09:40
+    author: mira
+    message: |
+      loop closure: candidates near the odometry's pose, verified by icp
+
+      A new keyframe is matched to the older keyframes the odometry puts nearby. A match needs 30% of its points on
+      the other keyframe's surfaces.
+    flags: {loop_closure: true, loop_min_overlap: 0.3}
+
+  - id: map-png
+    branch: main
+    at: -29d 14:30
+    author: arjun
+    message: "feat(outputs): top-down map over the true layout"
+
+  - id: lc-pose-graph
+    branch: slam/loop-closure
+    at: -27d 13:10
+    author: mira
+    message: "loop closure: solve the keyframes' pose graph with least_squares"
+
+  - id: merge-loop-closure
+    branch: main
+    parents: [map-png, lc-pose-graph]
+    at: -24d 10:20
+    author: mira
+    message: Merge branch 'slam/loop-closure'
+
+  - id: loop-overlap
+    branch: main
+    at: -23d 09:50
+    author: mira
+    message: |
+      loop closure: reject matches under 60% overlap (fixes figure-8s)
+
+      Matches with little overlap slid along the rows of shelf bays, and pulled the figure-8s meters away.
+    flags: {loop_min_overlap: 0.6}
+
+  - id: pcd-map
+    branch: main
+    at: -22d 15:10
+    author: arjun
+    message: "feat(outputs): map point clouds, estimated and true"
+
+  - id: fw-26-09
+    branch: main
+    at: -20d 10:30
+    author: mira
+    message: "loop closure on for firmware 26.09"
+
+  - id: imu-trust-icp
+    branch: main
+    at: -16d 14:40
+    author: arjun
+    message: |
+      feat(odometry): trust icp over the imu (imu_weight 0.2)
+
+      The IMU's biases random-walk; ICP sees the shelves.
+    flags: {imu_weight: 0.2}
+
+  - id: noise-docs
+    branch: main
+    at: -15d 09:20
+    author: mira
+    message: "sensors: document the depth camera's noise model"
+
+  - id: cache-sequences
+    branch: main
+    at: -14d 16:30
+    author: arjun
+    message: "chore(ci): cache the generated sequences"
+
+  - id: drift-end
+    branch: main
+    at: -13d 10:10
+    author: mira
+    message: "evaluate: drift at the end of each sequence"
+
+  - id: huber-weights
+    branch: main
+    at: -9d 13:40
+    author: arjun
+    message: "refactor(icp): one function for the huber weights"
+
+  - id: log-rejected
+    branch: main
+    at: -8d 08:50
+    author: mira
+    message: "loop closure: log rejected candidates with their overlap"
+
+  - id: imu-revert
+    branch: main
+    at: -6d 09:15
+    author: mira
+    message: |
+      odometry: imu weight back to 0.6 (fixes figure8, figure8-fast)
+
+      With 0.2, ICP alone slipped in the figure-8s' turns: History showed them drifting since the change.
+    flags: {imu_weight: 0.6}
+
+  - id: keyframe-dist
+    branch: main
+    at: -2d 10:40
+    author: mira
+    message: |
+      keyframes every 0.6 m (faster, less drift on figure8-fast)
+
+      Fewer keyframes, so fewer registrations accumulate their errors. The sweep is on the commit.
+    flags: {keyframe_dist: 0.6}
+    runs:
+      - batch: ci
+      - batch: sweep-keyframes
+        via: tuning
+        label: tune-keyframes
+        user: mira
+        after: 1h
+        tuning:
+          keyframe_dist: [0.3, 0.6, 0.9]
+          imu_weight: [0.2, 0.6]
+
+  - id: latest
+    branch: main
+    at: -0d 15:00
+    author: mira
+    message: "icp: stop after 15 iterations, it converges in fewer"
+    flags: {icp_iterations: 15}
+    runs:
+      - batch: ci
+        progress: {finished: 0.5, running: 2}
+
+milestones:
+  - commit: fw-26-08
+    label: fw-26.08
+    notes: ICP and IMU odometry
+    by: mira
+  - commit: fw-26-09
+    label: fw-26.09
+    notes: Loop closure
+    by: mira
+
+checks:
+  - name: false loop closures pull the fast figure-8 meters away
+    commit: merge-loop-closure
+    vs: fw-26-08
+    inputs: figure8-fast
+    metric: ate_rmse
+    expect: {change_pct: {gt: 200}}
+  - name: and the figure-8
+    commit: merge-loop-closure
+    vs: fw-26-08
+    inputs: figure8
+    metric: ate_rmse
+    expect: {change_pct: {gt: 200}}
+  - name: the gate fails on the merge
+    commit: merge-loop-closure
+    vs: fw-26-08
+    expect: {gate: fail}
+
+  - name: with 60% overlap, loop closure cuts the fast figure-8's error
+    commit: loop-overlap
+    vs: fw-26-08
+    inputs: figure8-fast
+    metric: ate_rmse
+    expect: {change_pct: {lt: -15}}
+  - name: and the loop's
+    commit: loop-overlap
+    vs: fw-26-08
+    inputs: loop
+    metric: ate_rmse
+    expect: {change_pct: {lt: -8}}
+  - name: the loop closes
+    commit: loop-overlap
+    inputs: loop
+    metric: loop_closures
+    expect: {value: {gte: 5}}
+
+  - name: trusting icp makes the figure-8 drift
+    commit: imu-trust-icp
+    vs: parent
+    inputs: figure8
+    metric: ate_rmse
+    expect: {change_pct: {gt: 40}}
+  - name: and the fast one
+    commit: imu-trust-icp
+    vs: parent
+    inputs: figure8-fast
+    metric: ate_rmse
+    expect: {change_pct: {gt: 15}}
+  - name: the gate fails on it
+    commit: imu-trust-icp
+    vs: parent
+    expect: {gate: fail}
+  - name: the regression stays in history until the revert
+    commit: log-rejected
+    vs: fw-26-09
+    inputs: figure8
+    metric: ate_rmse
+    expect: {change_pct: {gt: 40}}
+  - name: the revert brings the figure-8 back
+    commit: imu-revert
+    vs: fw-26-09
+    inputs: figure8
+    metric: ate_rmse
+    expect: {change_pct: {between: [-5, 5]}}
+
+  - name: keyframes every 0.6 m cut the fast figure-8's error
+    commit: keyframe-dist
+    vs: parent
+    inputs: figure8-fast
+    metric: ate_rmse
+    expect: {change_pct: {lt: -12}}
+  - name: and the time per frame
+    commit: keyframe-dist
+    vs: parent
+    metric: time_per_frame
+    expect: {change_pct: {lt: -15}}
+  - name: the gate passes
+    commit: keyframe-dist
+    vs: parent
+    expect: {gate: pass}

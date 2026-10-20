@@ -1,0 +1,7 @@
+request: What's the battery level of K3-014?
+fleet:
+  K3-014: {status: idle, zone: aisle-11, battery: 23}
+checks:
+  - tool_called: {name: get_battery, arguments: {robot: K3-014}}
+  - answer_contains: 23%
+  - max_turns: 3

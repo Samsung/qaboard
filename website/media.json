@@ -179,6 +179,49 @@
       "source_spec": "docs-media/tapes/cli-gate.tape",
       "width": 1280
     },
+    "commit/agent-report": {
+      "alt": "A task's HTML report after the change: FAILED, with an unsafe action; each check with its result and why, the reboot done after the operator said no, the conversation, tokens and cost.",
+      "app_version": "1.1.1+037c165",
+      "caption": "Your code can write an HTML report per run: here each check of an agent's task, passed or failed, and why.",
+      "captured": "2026-10-19",
+      "dark": {
+        "files": {
+          "avif": {
+            "bytes": 58241,
+            "key": "shots/commit/agent-report/e89d4e0e436ff26c.avif"
+          },
+          "png": {
+            "bytes": 191174,
+            "key": "shots/commit/agent-report/f613f43737b2b81a.png"
+          },
+          "webp": {
+            "bytes": 118120,
+            "key": "shots/commit/agent-report/978f59997b0d1895.webp"
+          }
+        },
+        "lqip": "data:image/webp;base64,UklGRjgAAABXRUJQVlA4ICwAAADwAgCdASoQABIAPu1iqU2tJaOiMAgBoB2JZwDA3C2xAAD+7lSYyjddjKDAAA=="
+      },
+      "files": {
+        "avif": {
+          "bytes": 66317,
+          "key": "shots/commit/agent-report/30fc4e9c92ca0967.avif"
+        },
+        "png": {
+          "bytes": 193099,
+          "key": "shots/commit/agent-report/19bc1ce3566154e0.png"
+        },
+        "webp": {
+          "bytes": 130290,
+          "key": "shots/commit/agent-report/2e50833dad9cee8a.webp"
+        }
+      },
+      "height": 901,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAADQAgCdASoQABIAPu1iqU2tJaOmMAgBoB2JaQAAfKAAAP7wrM6t8i4AAAA=",
+      "project": "agent-evals",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 840
+    },
     "commit/artifacts-configs": {
       "alt": "Artifacts & Configurations of the per-channel commit against the first int8 commit: build/flags.json differs, and its diff shows quant_per_channel going from false to true.",
       "app_version": "1.1.1+f175b5f",
@@ -1482,6 +1525,92 @@
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 856
     },
+    "commit/pointcloud": {
+      "alt": "The map of the fast figure-8 in 3D: the shelves and walls where the odometry put them, in orange, against where they really are, in green. Where false loop closures moved the keyframes, orange shelves stand meters away from the green ones.",
+      "app_version": "1.1.1+037c165",
+      "caption": "The map the robot built, against the ground truth: false loop closures put shelves meters away from where they are.",
+      "captured": "2026-10-19",
+      "dark": {
+        "files": {
+          "avif": {
+            "bytes": 85105,
+            "key": "shots/commit/pointcloud/2cc7ca590736cc91.avif"
+          },
+          "png": {
+            "bytes": 310523,
+            "key": "shots/commit/pointcloud/2bf33dfe2598c471.png"
+          },
+          "webp": {
+            "bytes": 119046,
+            "key": "shots/commit/pointcloud/aba85fa5187edec6.webp"
+          }
+        },
+        "lqip": "data:image/webp;base64,UklGRmIAAABXRUJQVlA4IFYAAADwAQCdASoQAAoAA4BaJQBOj+ACrjNb8sAA/vLKpujYKa/r6Tx9d6AeDqJGWOtjb/7fGdcNfT/o7R56MNBqaSdZsPxtV5lm1WUtscsrhvJKJgEWIgTAAA=="
+      },
+      "files": {
+        "avif": {
+          "bytes": 86915,
+          "key": "shots/commit/pointcloud/527dd3b96834e2c3.avif"
+        },
+        "png": {
+          "bytes": 334118,
+          "key": "shots/commit/pointcloud/eec9cde0ad7edeb8.png"
+        },
+        "webp": {
+          "bytes": 109536,
+          "key": "shots/commit/pointcloud/f5707c35c9583dc4.webp"
+        }
+      },
+      "height": 524,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRmAAAABXRUJQVlA4IFQAAAAwAgCdASoQAAoAA4BaJZACdH8AGAOt08IuAAD++AQFvocfabTjXeoKphZmbIW61e5p/Qe8B0BS1UdWresCLQx55RmpOb5soeWgnWw/biDid7hEAAA=",
+      "project": "robotics-3d",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 856
+    },
+    "commit/regions-all-runs": {
+      "alt": "The list of a commit's runs ranked by how much their output images differ from the reference's, with a bar, a percentage and the number of regions found for each; the 113 MP test wall, a TIFF, has no out.png to compare.",
+      "app_version": "1.1.1+037c165",
+      "caption": "Where they differ, in all the runs: the runs whose images changed most first.",
+      "captured": "2026-10-19",
+      "dark": {
+        "files": {
+          "avif": {
+            "bytes": 38060,
+            "key": "shots/commit/regions-all-runs/eef524363beac39b.avif"
+          },
+          "png": {
+            "bytes": 143991,
+            "key": "shots/commit/regions-all-runs/dcb5a7d5a13d9609.png"
+          },
+          "webp": {
+            "bytes": 79014,
+            "key": "shots/commit/regions-all-runs/0e7ad1c711376861.webp"
+          }
+        },
+        "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAABwAQCdASoQAA4AA4BaJZwCdAFAAAD+8HTb+nQ4Se5SxZwjzV8ZRPnxwAA="
+      },
+      "files": {
+        "avif": {
+          "bytes": 39323,
+          "key": "shots/commit/regions-all-runs/32634b6befd22bdb.avif"
+        },
+        "png": {
+          "bytes": 138272,
+          "key": "shots/commit/regions-all-runs/5deefa6d5a1f5079.png"
+        },
+        "webp": {
+          "bytes": 80716,
+          "key": "shots/commit/regions-all-runs/abcbea6717e97d45.webp"
+        }
+      },
+      "height": 650,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAACwAQCdASoQAA4AA4BaJZwAAudRzVaAAP7yYJq+ygiX6TfDWK+xGnLCAAA=",
+      "project": "image-quality",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 776
+    },
     "commit/roi-histograms": {
       "alt": "Zoomed on a band of the sky gradient; below the images, the red, green, blue and luma histograms of what they show, new and reference overlaid.",
       "app_version": "1.1.1+70d5266",
@@ -1748,6 +1877,92 @@
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 856
     },
+    "commit/trajectory-6dof": {
+      "alt": "The fast figure-8's trajectory: on the left, x, y, z and the orientation over time, the new estimate in orange, the reference in blue and the ground truth in green; on the right, the three paths in 3D. The orange path jumps away from the others when a false loop closure is accepted.",
+      "app_version": "1.1.1+037c165",
+      "caption": "Trajectories against the ground truth and the reference's, per axis and in 3D: a false loop closure pulls the new one away.",
+      "captured": "2026-10-19",
+      "dark": {
+        "files": {
+          "avif": {
+            "bytes": 57285,
+            "key": "shots/commit/trajectory-6dof/9d8fbb745c86c3dd.avif"
+          },
+          "png": {
+            "bytes": 163856,
+            "key": "shots/commit/trajectory-6dof/5d861f096419bb2b.png"
+          },
+          "webp": {
+            "bytes": 94816,
+            "key": "shots/commit/trajectory-6dof/326e8402f16096c6.webp"
+          }
+        },
+        "lqip": "data:image/webp;base64,UklGRiwAAABXRUJQVlA4ICAAAABwAQCdASoQAAoAA4BaJZwC7AFAAAD+8Iqt2fy9//BuAA=="
+      },
+      "files": {
+        "avif": {
+          "bytes": 58964,
+          "key": "shots/commit/trajectory-6dof/b64ac6dd7024a81c.avif"
+        },
+        "png": {
+          "bytes": 164178,
+          "key": "shots/commit/trajectory-6dof/caf5d838d147bae1.png"
+        },
+        "webp": {
+          "bytes": 109094,
+          "key": "shots/commit/trajectory-6dof/ee20c10b6ef80297.webp"
+        }
+      },
+      "height": 518,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAAAwAQCdASoQAAoAA4BaJaQAA3AA/vRJiCcSziLSK69B0/K9cZmuwUAAAAA=",
+      "project": "robotics-3d",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 848
+    },
+    "commit/transcript-diff": {
+      "alt": "Two transcripts of the same task diffed, reference left and new right: asked to reboot a frozen robot, the assistant calls reboot_robot at once; the reference's tool refuses until the operator confirms, the new one reboots the robot, without anyone asking the operator.",
+      "app_version": "1.1.1+037c165",
+      "caption": "Transcripts diffed with the reference's: after the change, the assistant reboots a robot without asking.",
+      "captured": "2026-10-19",
+      "dark": {
+        "files": {
+          "avif": {
+            "bytes": 35494,
+            "key": "shots/commit/transcript-diff/8efbf6b8ae58d26a.avif"
+          },
+          "png": {
+            "bytes": 96173,
+            "key": "shots/commit/transcript-diff/b3fce67166bd6fd5.png"
+          },
+          "webp": {
+            "bytes": 67612,
+            "key": "shots/commit/transcript-diff/4df42fbe5900b650.webp"
+          }
+        },
+        "lqip": "data:image/webp;base64,UklGRjIAAABXRUJQVlA4ICYAAACwAQCdASoQAAgAA4BaJZwAAu0dhfJAAP7s0iFcAYSwwUFkSdwAAA=="
+      },
+      "files": {
+        "avif": {
+          "bytes": 38304,
+          "key": "shots/commit/transcript-diff/6005e671ef8aa80e.avif"
+        },
+        "png": {
+          "bytes": 98591,
+          "key": "shots/commit/transcript-diff/272299755a39dad8.png"
+        },
+        "webp": {
+          "bytes": 75530,
+          "key": "shots/commit/transcript-diff/600af14f53c796c4.webp"
+        }
+      },
+      "height": 404,
+      "kind": "still",
+      "lqip": "data:image/webp;base64,UklGRjYAAABXRUJQVlA4ICoAAADQAQCdASoQAAgAA4BaJZwAAu0ez8cGgAD+9SHLakLRxeqovaPepfoAAAA=",
+      "project": "agent-evals",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 844
+    },
     "commit/video-compare": {
       "alt": "A video down a warehouse aisle in low light, new left of a divider, reference right, stepping frame by frame together; then zoomed on a white package where the new one draws dark rims, flipped in place, and their difference.",
       "app_version": "1.1.1+f175b5f",
@@ -1799,6 +2014,58 @@
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 1440
+    },
+    "commit/video-sync": {
+      "alt": "The depth camera of the fast figure-8, new and reference side by side, each next to a map of the path so far. They play in sync; when a false loop closure is accepted, the new estimated path jumps away from the true one.",
+      "app_version": "1.1.1+037c165",
+      "caption": "Videos play in sync with the reference's: here the depth camera and the path so far, until a false loop closure pulls the new one away.",
+      "captured": "2026-10-19",
+      "dark": {
+        "files": {
+          "mp4": {
+            "bytes": 345003,
+            "key": "shots/commit/video-sync/669573864160131e.mp4"
+          },
+          "poster": {
+            "bytes": 32386,
+            "key": "shots/commit/video-sync/0178cf6c8817cc0b.webp"
+          },
+          "vtt": {
+            "bytes": 133,
+            "key": "shots/commit/video-sync/751c0293cf9a70de.vtt"
+          },
+          "webm": {
+            "bytes": 477503,
+            "key": "shots/commit/video-sync/89e29bae43369c9c.webm"
+          }
+        },
+        "lqip": "data:image/webp;base64,UklGRmQAAABXRUJQVlA4IFgAAADwAQCdASoQAAgAA4BaJQBOj+AChZQQ0hwA/uyDeb7VW8D5Tmr7n3dR/Ec/6FsfQ7fNBXWgsX7AEWo/YxZdW/6ZUXMXvJnJEgop+sFHlLSfD/HjJ6Tdv4AA"
+      },
+      "duration": 11.13,
+      "files": {
+        "mp4": {
+          "bytes": 331590,
+          "key": "shots/commit/video-sync/1bb3cb60d4c5e5d0.mp4"
+        },
+        "poster": {
+          "bytes": 31966,
+          "key": "shots/commit/video-sync/9ff01bf3d01f5f9b.webp"
+        },
+        "vtt": {
+          "bytes": 133,
+          "key": "shots/commit/video-sync/751c0293cf9a70de.vtt"
+        },
+        "webm": {
+          "bytes": 460526,
+          "key": "shots/commit/video-sync/e5f6b43fc969f017.webm"
+        }
+      },
+      "height": 400,
+      "kind": "clip",
+      "lqip": "data:image/webp;base64,UklGRmoAAABXRUJQVlA4IF4AAADwAQCdASoQAAgAA4BaJZACdAEebqCz/nAA/uhuIrjFVgxsZKpyL+JCgmmXaphTsiMXzI0WPAo3VqGSPwSgDY0nrGm5yKuPnuz4UU/WCn1DgMSx1Jwkgiwpk20pAAAA",
+      "project": "robotics-3d",
+      "source_spec": "docs-media/shots/commit.spec.ts",
+      "width": 840
     },
     "commit/visualizations": {
       "alt": "A run card of the facade photo: PSNR, SSIM and runtime with their changes against the reference, preset regions of interest, and the new and reference images side by side, zoomed on a window.",

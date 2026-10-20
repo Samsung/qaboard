@@ -15,6 +15,7 @@ const LoadableHtmlViewer = lazy(() => import('./html' /* webpackChunkName: "html
 const LoadableBitAccuracyViewer = lazy(() => import('./bit_accuracy/bitAccuracyViewer' /* webpackChunkName: "bit-accuracy-viewer" */));
 const LoadablePlotlyViewer = lazy(() => import('./plotly' /* webpackChunkName: "plotly-viewer" */));
 const LoadableTofViewer = lazy(() => import('./tof/TofOutputCard' /* webpackChunkName: "tof-viewer" */));
+const LoadablePointCloudViewer = lazy(() => import('./pointcloud/PointCloudViewer' /* webpackChunkName: "pointcloud-viewer" */));
 const LoadableSlamViewer = lazy(() => import('./slam/SlamOutputCard' /* webpackChunkName: "slam-viewer" */));
 const LoadableFlameGraphViewer = lazy(() => import('./flame-graph' /* webpackChunkName: "flame-graph-viewer" */));
 
@@ -45,6 +46,8 @@ const OutputViewer = props_ => {
         viewer =  <LoadableSlamViewer {...props} output_ref={maybe_output_ref}/>
       else if (type === "pointcloud/txt")
         viewer = <LoadableTofViewer {...props} output_ref={maybe_output_ref}/>
+      else if (type === "pointcloud/pcd")
+        viewer = <LoadablePointCloudViewer {...props} output_ref={maybe_output_ref}/>
       else if (type === "plotly/json" || type === "plotly/html")
         viewer = <LoadablePlotlyViewer {...props} output_ref={maybe_output_ref}/>
       else if (type.startsWith('video'))
@@ -66,6 +69,8 @@ const OutputViewer = props_ => {
       const { path='' } = props_;
       if (path.endsWith('plotly.json') || path.endsWith('plotly.html')) {
         viewer = <LoadablePlotlyViewer {...props} type={type} output_ref={maybe_output_ref}/>
+      } else if (path.endsWith('.pcd')) {
+        viewer = <LoadablePointCloudViewer {...props} output_ref={maybe_output_ref}/>
       } else if (path.endsWith('flame.json')) {
         viewer = <LoadableFlameGraphViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (path.endsWith('html')) {

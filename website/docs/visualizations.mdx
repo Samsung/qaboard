@@ -51,8 +51,9 @@ Extensions                                          | Type         | Viewer     
 `*.html`                                            | `text/html` | **HTML** (in a frame, scripts don't run)     |
 `*.mp4`, `*.webm`, `*.mov`, `*.webp`, `*.gif`       | `video/*`    | **Video**: synced, side by side, wipe or difference |
 `*.txt`, unidentified                               | `text/plain*`| **Text** (diffs, with VSCode's [Monaco Editor](https://microsoft.github.io/monaco-editor/))|
-`</>`                                               | `pointcloud/txt` | ToF's **pointcloud** viewer (needs to be split) |
-`</>`                                               | `6dof/txt`       | SLAM's **6DoF** viewer (needs to be split)      |
+`*.pcd`                                             | `pointcloud/pcd` | **Point clouds** in 3D, against the reference's and a ground truth |
+`</>`                                               | `6dof/txt`       | **6DoF trajectories**, against the reference's and the ground truth |
+`</>`                                               | `pointcloud/txt` | A ToF camera's frames: point clouds and depth maps (legacy layout) |
 
 
 ### Image viewer
@@ -229,10 +230,45 @@ outputs:
 ```
 
 ### Point clouds and trajectories
-Point clouds open in a 3D viewer, and 6DoF trajectories are drawn against the ground truth when the run has one. Both
-viewers were written for one team's file layouts (`Frame<N>/pointcloud.pcd`, tab-separated poses in
-`camera_poses_debug.csv` with the ground truth in `GT_final.txt`), and they'll be shown here with the robotics example.
-For other layouts, save a [Plot.ly](#plotly-viewer) figure with `scatter3d` traces, like the 3D plot above.
+**Point clouds** (`*.pcd` files, ascii or binary, with `x y z` fields) open in a 3D viewer: the new run's points,
+the reference's, and a ground truth if you have one, on the same axes, in orange, blue and green. Drag to orbit,
+right-drag to pan, scroll to zoom, and show or hide each cloud.
+
+```yaml title="qaboard.yaml"
+outputs:
+  visualizations:
+  - name: Map
+    path: map.pcd                     # or a pattern, like keyframes/:id/cloud.pcd: a select picks the file
+    path_groundtruth: map.truth.pcd   # optional, in the new run's folder
+    point_size: 2                     # pixels
+```
+
+<Shot
+  id="commit/pointcloud"
+  caption="The map the odometry built from the depth camera, in orange, against where the points really are, in green: the walls drift apart where the trajectory did."
+/>
+
+**6DoF trajectories** are tab-separated values with a header row: a `t` column (seconds), then one column per pose
+value, for instance `x y z yaw pitch roll` or `x y z q_w q_x q_y q_z`. The viewer plots each column over time, and the path in 3D, at the same
+scale on every axis. It draws the reference's trajectory, and the ground truth from `GT_final.txt` in the run's
+folder, in the same format:
+
+```yaml title="qaboard.yaml"
+outputs:
+  visualizations:
+  - name: Trajectory
+    path: poses.tsv
+    type: 6dof/txt
+    show_3d: true     # default
+```
+
+<Shot
+  id="commit/trajectory-6dof"
+  caption="A trajectory against the ground truth and the reference's, per axis and in 3D: the new estimate drifts after the first turns."
+/>
+
+The `pointcloud/txt` viewer was written for a time-of-flight camera's runs: `Frame<N>/pointcloud.pcd` and depth maps
+for each frame listed in the run's metrics. Use `pointcloud/pcd` for anything else.
 
 ### More Viewers?
 Tell us what you need! The next we'll implement is likely [**vega**](https://vega.github.io/vega/) specs. It would notably allow us to display `altair` visualizations. We could also have a minimal integration with notebooks, [visdom](https://github.com/facebookresearch/visdom), [webiz](https://webviz.io/)...

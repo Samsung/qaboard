@@ -90,10 +90,10 @@ class TestGateConfig(unittest.TestCase):
     self.assertEqual(config.reference, 'v2.4.0')
     self.assertEqual(config.batches, ['ci'])
     self.assertEqual([r.to_dict() for r in config.rules], [
-      {'metric': 'psnr', 'kind': 'max_regression', 'limit': 0.01},
+      {'metric': 'psnr', 'kind': 'max_regression', 'limit': 0.01, 'aggregate': 'median'},
       {'metric': 'psnr', 'kind': 'per_test_max_regression', 'limit': 0.05},
-      {'metric': 'map', 'kind': 'min', 'limit': 0.42},
-      {'metric': 'latency_p99', 'kind': 'max', 'limit': 12.0},
+      {'metric': 'map', 'kind': 'min', 'limit': 0.42, 'aggregate': 'median'},
+      {'metric': 'latency_p99', 'kind': 'max', 'limit': 12.0, 'aggregate': 'median'},
     ])
     self.assertEqual(config.metrics, ['psnr', 'map', 'latency_p99'])
     self.assertEqual((config.max_failed_runs, config.require_bit_accuracy), (2, True))
@@ -110,6 +110,9 @@ class TestGateConfig(unittest.TestCase):
       {'rules': [{'metric': 'psnr', 'max_regression': 'a lot'}]},
       {'rules': [{'metric': 'psnr', 'max_regression': '-1%'}]},
       {'rules': [{'metric': 'psnr', 'min': 'high'}]},
+      {'rules': [{'metric': 'psnr', 'min': 30, 'aggregate': 'average'}]},
+      {'rules': [{'metric': 'psnr', 'per_test_max_regression': '5%', 'aggregate': 'mean'}]},
+      {'rules': [{'metric': 'psnr', 'max_regression': '1%', 'per_test_max_regression': '5%', 'aggregate': 'median'}]},
       {'max_failed_runs': -1},
       {'max_failed_runs': True},
       {'require_bit_accuracy': 'yes'},
@@ -238,6 +241,105 @@ class TestGateRules(unittest.TestCase):
     evaluation = evaluate([], comparison, require_bit_accuracy=True)
     self.assertEqual(evaluation['verdict'], 'fail')
     self.assertEqual(evaluation['checks'][0]['differing_tests'], [{'test': 'charts/edge.png', 'files': ['out.png']}])
+
+
+def comparison_with(metric, values, smaller_is_better=True):
+  """The fixture's tests, with a metric whose values are (new, ref) per test. ref None: no reference run has it."""
+  import statistics
+  comparison = fixture_comparison()
+  comparison['tests'] = comparison['tests'][:len(values)]
+  for test, (new, ref) in zip(comparison['tests'], values):
+    delta = None if ref is None else new - ref
+    test['metrics'][metric] = {'new': new, 'ref': ref, 'delta': delta, 'delta_relative': None if ref is None else delta / (abs(ref) + 0.00001)}
+  # what the server computes: medians over the runs
+  new_values = [n for n, _ in values]
+  ref_values = [r for _, r in values if r is not None]
+  new_median, ref_median = statistics.median(new_values), statistics.median(ref_values) if ref_values else None
+  comparison['metrics'][metric] = {
+    'label': metric, 'short_label': metric, 'suffix': '', 'scale': 1.0, 'smaller_is_better': smaller_is_better, 'target': None, 'declared': True,
+    'new': {'median': new_median, 'count': len(new_values), 'pass_rate': None},
+    'ref': {'median': ref_median, 'count': len(ref_values), 'pass_rate': None},
+    'delta': None if ref_median is None else new_median - ref_median,
+    'delta_relative': None if not ref_median else (new_median - ref_median) / abs(ref_median),
+  }
+  return comparison
+
+
+class TestGateAggregates(unittest.TestCase):
+  """`aggregate:` on pass/fail (0/1) metrics, whose median says little"""
+
+  def test_absolute_bounds(self):
+    # 2 of 6 tests do something unsafe: the median is 0
+    comparison = comparison_with('unsafe_actions', [(0, 0), (1, 0), (0, 0), (0, 0), (1, 0), (0, 0)])
+    evaluation = evaluate([
+      {'metric': 'unsafe_actions', 'max': 0},
+      {'metric': 'unsafe_actions', 'max': 0, 'aggregate': 'max'},
+      {'metric': 'unsafe_actions', 'max': 0.25, 'aggregate': 'mean'},
+      {'metric': 'unsafe_actions', 'min': 0, 'aggregate': 'min'},
+    ], comparison)
+    self.assertEqual([(c['aggregate'], c['status']) for c in evaluation['checks']], [('median', 'pass'), ('max', 'fail'), ('mean', 'fail'), ('min', 'pass')])
+    self.assertEqual([c['new'] for c in evaluation['checks']], [0, 1, 1 / 3, 0])
+    # the same numbers as the server for medians
+    self.assertEqual(evaluate([{'metric': 'psnr', 'min': 0, 'aggregate': 'median'}])['checks'][0]['new'], 30.5)
+
+  def test_max_regression(self):
+    # 5 of 6 tests passed, 4 now: the pass rate drops 20%
+    comparison = comparison_with('passed', [(1, 1), (1, 1), (0, 1), (1, 1), (1, 1), (0, 0)], smaller_is_better=False)
+    local_metrics = {'passed': {'smaller_is_better': False}}
+    evaluation = evaluate([
+      {'metric': 'passed', 'max_regression': '5%'},
+      {'metric': 'passed', 'max_regression': '5%', 'aggregate': 'mean'},
+      {'metric': 'passed', 'max_regression': '20%', 'aggregate': 'mean'},
+    ], comparison, local_metrics)
+    median, mean, mean_20 = evaluation['checks']
+    self.assertEqual((median['status'], median['regression']), ('pass', 0))
+    self.assertEqual((mean['new'], mean['ref']), (4 / 6, 5 / 6))
+    self.assertAlmostEqual(mean['change'], -0.2)
+    self.assertAlmostEqual(mean['regression'], 0.2)
+    self.assertEqual((mean['status'], mean_20['status']), ('fail', 'pass'))
+
+  def test_reference_of_zero(self):
+    # no test was unsafe in the reference: any unsafe one is an infinite regression, none is no change
+    comparison = comparison_with('unsafe_actions', [(0, 0), (0, 0), (1, 0)])
+    check = evaluate([{'metric': 'unsafe_actions', 'max_regression': '50%', 'aggregate': 'mean'}], comparison)['checks'][0]
+    self.assertEqual((check['change'], check['regression'], check['status']), (None, float('inf'), 'fail'))
+    comparison = comparison_with('unsafe_actions', [(0, 0), (0, 0)])
+    check = evaluate([{'metric': 'unsafe_actions', 'max_regression': '0%', 'aggregate': 'max'}], comparison)['checks'][0]
+    self.assertEqual((check['change'], check['regression'], check['status']), (0, 0, 'pass'))
+
+  def test_tests_on_one_side(self):
+    g = gate_module()
+    # the last test has no reference run, the first two the same one
+    comparison = comparison_with('score', [(1, 4), (2, 4), (3, 2), (10, None)])
+    comparison['tests'][1]['reference_id'] = comparison['tests'][0]['reference_id']
+    self.assertEqual(g.tests_values(comparison['tests'], 'score'), ([1, 2, 3, 10], [4, 2]))
+    check = evaluate([{'metric': 'score', 'max': 4, 'aggregate': 'mean'}], comparison)['checks'][0]
+    self.assertEqual((check['new'], check['ref'], check['status']), (4, 3, 'pass'))
+    # no reference run has values: regressions are skipped
+    comparison = comparison_with('score', [(1, None), (2, None)])
+    comparison['metrics']['score']['ref']['count'] = 1   # e.g. on a reference run that matches none of the new runs
+    self.assertEqual(evaluate([{'metric': 'score', 'max_regression': '1%', 'aggregate': 'mean'}], comparison)['checks'][0]['status'], 'skip')
+
+  def test_outputs(self):
+    g = gate_module()
+    comparison = comparison_with('unsafe_actions', [(0, 0), (1, 0), (0, 0)])
+    rules = [{'metric': 'unsafe_actions', 'max': 0, 'aggregate': 'max'}, {'metric': 'unsafe_actions', 'max_regression': '10%', 'aggregate': 'mean'}]
+    config = g.parse_config({'project': {'reference_branch': 'main'}, 'gate': {'rules': rules, 'max_failed_runs': None}})
+    result = g.run_gate(config, 'kitefin/camera-isp', SHA, lambda label: (comparison, None), {}, 'http://localhost:5151')
+    text = g.render(result, 'text')
+    self.assertRegex(text, r'unsafe_actions, max +1 +at most 0 +FAIL')
+    self.assertRegex(text, r'unsafe_actions, mean +0\.3333 +0 +worse \(reference: 0\) +10% worse +FAIL')
+    self.assertIn('| unsafe_actions, max | 1 |  |  | at most 0 | FAIL |', g.render(result, 'markdown'))
+    data = json.loads(g.render(result, 'json'))
+    self.assertEqual([c['aggregate'] for c in data['batches'][0]['checks']], ['max', 'mean'])
+    self.assertEqual(g.status_description(result), 'fail: unsafe_actions, max: 1 vs 0 (limit: at most 0)')
+
+  def test_configuration_errors(self):
+    g = gate_module()
+    with self.assertRaisesRegex(g.GateConfigError, r'gate\.rules\[0\]\.aggregate: per_test_max_regression checks each test'):
+      g.parse_config({'gate': {'rules': [{'metric': 'psnr', 'per_test_max_regression': '5%', 'aggregate': 'max'}]}})
+    with self.assertRaisesRegex(g.GateConfigError, r'expected one of median, mean, min, max'):
+      g.parse_config({'gate': {'rules': [{'metric': 'psnr', 'min': 1, 'aggregate': 'p90'}]}})
 
 
 class TestGateRun(unittest.TestCase):

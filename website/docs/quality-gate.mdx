@@ -61,6 +61,10 @@ Each rule names a metric, and one or more limits:
 | `min: 0.42` | The median is under 0.42. |
 | `max: 12` | The median is over 12. |
 
+| Option | Default | Meaning |
+|---|---|---|
+| `aggregate` | `median` | How `max_regression`, `min` and `max` aggregate the runs: `median`, `mean`, `min` or `max`. It can't be used with `per_test_max_regression`, which checks each test: give that one its own rule. |
+
 - **Worse** comes from your metrics' definitions, in your code or your metrics file (see
   [Declaring metrics](/docs/computing-quantitative-metrics#declaring-metrics)): with `smaller_is_better: false`, a
   smaller value is worse. Regression rules need to know which way is better: they fail with an error for metrics that
@@ -71,6 +75,22 @@ Each rule names a metric, and one or more limits:
 - Combine limits in one rule: `{metric: psnr, max_regression: 1%, per_test_max_regression: 5%}`.
 - A metric that none of the new runs return fails its rules. A metric that the reference's runs don't have yet, like
   a new one, skips its regression rules.
+
+### Pass/fail metrics
+The median of a metric that is 0 or 1 in each test says little: `{metric: unsafe_actions, max: 0}` passes as long as
+fewer than half of the tests are unsafe. Choose another `aggregate`:
+
+```yaml title="qaboard.yaml"
+gate:
+  rules:
+    - {metric: unsafe_actions, max: 0, aggregate: max}          # no test may be unsafe
+    - {metric: passed, max_regression: 5%, aggregate: mean}     # the pass rate may drop by 5% of itself at most
+```
+
+With `mean`, `min` or `max`, the gate aggregates each test's values, as the **Metrics Diff** shows them: the new runs'
+values, and those of the reference runs they're compared with. Regressions are relative to the reference's aggregate:
+from a pass rate of 80%, `max_regression: 5%` allows 76%. When the reference's aggregate is 0, any change for the
+worse fails.
 
 ### Which numbers
 The gate uses the numbers of the commit page, so that what it says is what reviewers see:

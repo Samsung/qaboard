@@ -1,0 +1,20 @@
+# The models' weights, downloaded by qa/models.py at the first run (or by qa/build.py) from Hugging Face, at a pinned
+# revision, and checked by SHA-256. Both are instruct models released under Apache-2.0 (checked on their model cards,
+# 2026-10-13). They are not committed, nor mirrored.
+models:
+  qwen2.5-0.5b:
+    file: qwen2.5-0.5b-instruct-q8_0.gguf
+    url: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/9217f5db79a29953eb74d5343926648285ec7e67/qwen2.5-0.5b-instruct-q8_0.gguf
+    sha256: ca59ca7f13d0e15a8cfa77bd17e65d24f6844b554a7b6c12e07a5f89ff76844e
+    bytes: 675710816
+    license: Apache-2.0
+    card: https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF
+    quantization: Q8_0
+  smollm2-360m:
+    file: smollm2-360m-instruct-q8_0.gguf
+    url: https://huggingface.co/HuggingFaceTB/SmolLM2-360M-Instruct-GGUF/resolve/593b5a2e04c8f3e4ee880263f93e0bd2901ad47f/smollm2-360m-instruct-q8_0.gguf
+    sha256: 48ab3034d0dd401fbc721eb1df3217902fee7dab9078992d66431f09b7750201
+    bytes: 386404992
+    license: Apache-2.0
+    card: https://huggingface.co/HuggingFaceTB/SmolLM2-360M-Instruct-GGUF
+    quantization: Q8_0
