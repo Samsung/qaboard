@@ -628,3 +628,103 @@ Each comes with my recommendation; the plan above assumes it.
 8. **No git-host permission sync**: CI OIDC trust and an optional member import instead. *Recommended.*
 9. **What does Samsung's IdP speak?** Entra ID (OIDC) or ADFS (OIDC and SAML), and which claim carries the AD groups?
    This decides the M2 presets and how group rules match. *I need this from you, or from IT.*
+
+## Appendix A: the M1 API
+The contract the backend, the web app and the CLI implement. JSON everywhere. Edits use `POST` (some proxies drop the
+body of other methods), `DELETE` only for bodiless revocations.
+
+### A.1 Errors
+401 and 403 bodies are `{"error": "<a sentence for people>", "reason": "<code>", ...}`.
+| Status | `reason` | When |
+|---|---|---|
+| 401 | `sign_in_required` | no credentials, the server requires sign-in or the endpoint needs a user |
+| 401 | `token_invalid`, `token_expired`, `token_idle_expired`, `token_revoked` | a bearer token was sent and can't be used (never ignored, in every mode) |
+| 401 | `user_disabled`, `user_pending` | the session's or token's user can't use the server |
+| 403 | `missing_scope` (+ `required`) | the token lacks a scope |
+| 403 | `token_project` | the token is restricted to other projects |
+| 403 | `forbidden_project` | the user can't access the project (today: `QABOARD_LOGIN_RESTRICTED_YAML`) |
+| 403 | `session_required` | the action needs a browser session (minting tokens, approving devices) |
+| 403 | `not_admin` | admin endpoints |
+| 403 | `cross_site_write` | a cookie-authenticated write from another origin |
+| 403 | `ingest_token_required` | `ingest.auth` is `token` and the run was sent without one |
+
+### A.2 Who is calling
+- `GET /api/v1/user/me/`: today's fields, plus `is_admin`, `status` (`active`/`pending`/`disabled`), `kind`
+  (`human`/`service`), and when called with a token `token: {id, name, prefix, kind, scopes, projects, expires_at}`.
+- Scopes: `read`, `ingest`, `act`, `manage`, `admin`. Sessions have every scope their user has. With a token,
+  `GET` requests need `read`, `login_required` writes need `act`, ingest needs `ingest`, admin endpoints need `admin`.
+
+### A.3 Tokens
+`Token` objects: `{id, name, kind: personal|cli|legacy, prefix, scopes, projects, created_at, expires_at,
+idle_expiry_days, last_used_at, last_used_ip, revoked_at, status: active|expired|idle_expired|revoked, data}`.
+`data` holds e.g. `{"client": "qa CLI", "hostname": "host-12"}`.
+- `GET /api/v1/user/tokens` → `{"tokens": [Token]}`, newest first, revoked ones included.
+- `POST /api/v1/user/tokens` `{name, scopes, projects?: ["group/repo", "group/*"], expires_in_days?: int|null,
+  idle_expiry_days?: int|null}` → `201 {...Token, "token": "qab_pat_…"}` (the only time the secret is returned).
+  Needs a session. `expires_in_days` defaults to `tokens.default_lifetime_days` (90); `null` means no expiry,
+  refused (400) when `tokens.max_lifetime_days` is set.
+- `DELETE /api/v1/user/tokens/<id>` → `Token` (revoked). Works with the token itself (`qa auth logout`).
+- `POST /api/v1/user/token/` (legacy) → `{token, created_at, expires_at}`, every scope, 365 days.
+- Format: `qab_pat_` (personal, cli), then 40 base62 characters and a 6-character base62 checksum (crc32 of the
+  random part). `prefix` is the first 12 characters. Legacy tokens (64 hex characters) still work.
+
+### A.4 Device flow (RFC 8628), for `qa auth login`
+- `POST /api/v1/auth/device/code` `{client_name: "qa CLI on host-12", hostname?}` → `{device_code, user_code:
+  "WDJB-MJHT", verification_uri: "<QABOARD_URL>/device", verification_uri_complete: "<…>/device?code=WDJB-MJHT",
+  expires_in: 900, interval: 5}`. No authentication.
+- `POST /api/v1/auth/device/token` `{device_code}` → `200 {access_token, token_type: "Bearer", token_id, user_name,
+  scopes, expires_at, idle_expiry_days}`, else `400 {error: authorization_pending|slow_down|access_denied|expired_token,
+  error_description}` (RFC error codes here, the CLI maps them to sentences).
+- `GET /api/v1/auth/device?code=WDJB-MJHT` (session) → `{client_name, hostname, scopes, created_at, expires_at, status:
+  pending|approved|denied|expired}`; 404 if unknown.
+- `POST /api/v1/auth/device` `{code, approve: true|false}` (session) → `{status}`. Approving creates a `cli` token for
+  the user: scopes `read ingest act`, no expiry date, idle expiry `tokens.cli_idle_expiry_days` (180).
+
+### A.5 Preferences
+- `GET /api/v1/user/preferences` → `{preferences: {...}, updated_at}`.
+- `POST /api/v1/user/preferences` `{preferences: {key: value|null}}`: merges top-level keys, `null` removes one,
+  64 KiB max → same as `GET`.
+
+### A.6 Admin (session of an admin, or a token with `admin` whose user is an admin)
+`User` objects: `{id, user_name, full_name, email, kind, status, is_admin, is_admin_from_env, login_type,
+created_date, last_login_at, active_tokens}`.
+- `GET /api/v1/admin/overview` → `{counts: {users, active_30d, admins, pending, disabled, active_tokens},
+  checklist: [{id, ok, severity: info|warning|danger, title, detail}]}`.
+- `GET /api/v1/admin/users?search=&status=&admin=true&limit=50&offset=0` → `{users: [User], total}`.
+- `GET /api/v1/admin/users/<id>` → `{user: User, tokens: [Token], audit: [AuditEvent]}` (the latest 50 events by or
+  about them).
+- `POST /api/v1/admin/users/<id>` `{status?: active|disabled, is_admin?: bool}` → `User`. You can't disable yourself
+  or remove your own admin role, and admins from `QABOARD_ADMINS` can't be demoted (400 with a sentence).
+- `POST /api/v1/admin/users/<id>/revoke-tokens` → `{revoked: n}`.
+- `GET /api/v1/admin/tokens?user=<id>&status=active&limit=&offset=` → `{tokens: [Token + user: {id, user_name}], total}`.
+- `DELETE /api/v1/admin/tokens/<id>` → `Token`.
+- `GET /api/v1/admin/audit?action=&actor=<user_name>&target_type=&target_id=&before_id=&limit=100` →
+  `{events: [AuditEvent], next_before_id}`. `GET /api/v1/admin/audit/actions` → `{actions: [...]}`.
+- `GET /api/v1/admin/settings` → `{settings: [{key, value, default, source: env|database|default, env, description,
+  editable}]}`. `POST /api/v1/admin/settings` `{key: value|null}` (`null` resets to the default) → same as `GET`.
+
+`AuditEvent` objects: `{id, created_at, actor_kind: user|token|system|anonymous, actor_user_id, actor_label,
+actor_token_id, ip, user_agent, action, target_type, target_id, target_label, project_id, changes, meta}`.
+- `GET /api/v1/user/audit?before_id=&limit=` → the signed-in user's own events (sign-ins, tokens, devices).
+
+### A.7 Settings in M1
+| Key | Env | Default |
+|---|---|---|
+| `auth.require_sign_in` | `QABOARD_LOGIN_REQUIRED` | `false` |
+| `auth.local_signup` | `QABOARD_DISABLE_SIGNUP` (inverted) | `true` only when the login type is `LOCAL` |
+| `auth.allowed_origins` | `QABOARD_ALLOWED_ORIGINS` (comma-separated) | `[]` (the server's own origin is always allowed) |
+| `ingest.auth` | `QABOARD_INGEST_AUTH` | `off` (`off`, `warn`, `token`) |
+| `tokens.default_lifetime_days` | | `90` |
+| `tokens.max_lifetime_days` | | `null` (no maximum) |
+| `tokens.cli_idle_expiry_days` | | `180` |
+| `audit.retention_days` | | `730` |
+
+`QABOARD_ADMINS` (comma-separated user names or emails) are admins whatever the database says.
+`/api/v1/config` adds `require_sign_in`, `ingest_auth`, `local_signup` (and keeps `login_required`).
+
+### A.8 Ingest
+`POST /api/v1/output/`, `/batch/`, `/commit/` record `data.submitted_by = {user_id, user_name, token_id, token_name,
+via: token|session}` when the caller is authenticated (outputs: `Output.data`, batches: `Batch.data`, commits:
+`CiCommit.data`). With `ingest.auth=warn` and no credentials, the answer has the header
+`X-QABoard-Warning: <sentence>`, which the CLI prints. A valid token without access to the project: 403 in `token`
+mode, else accepted as unverified, with the warning header.
