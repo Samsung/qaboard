@@ -11,17 +11,17 @@ From a commit's page, you can run its code again without a terminal:
 - [Start a tuning experiment](#running-tests-and-tuning) and [see which values win](#tuning-analysis): try a grid of parameters, or let an optimizer search them.
 
 :::info What you need
-- **Log in**, at the bottom of the sidebar. Logged out, the buttons that start runs are greyed out.
+- **Log in**, at the bottom of the sidebar. Logged out, the buttons that start runs are grayed out.
 - The commit's **artifacts**: the build and configuration files your CI saved. If they were deleted, QA-Board can bring them back first (see [If runs don't start](#if-runs-dont-start)).
-- A **task runner** for your project, like a cluster or Celery workers. If there is none, the form says so: ask whoever integrated QA-Board in your project.
+- A **task runner** for your project, like a compute cluster. If there is none, the form says so: ask whoever integrated QA-Board in your project.
 :::
 
 ## Run tests or a tuning experiment {#running-tests-and-tuning}
-On the detector's `quant/int8` branch, the commit that calibrates int8 with percentiles still loses 7% of the AP on small objects. Can the post-processing win it back? Here is how to try 2 score thresholds and 2 NMS IoUs on `quant-search`, the 2 slices where quantization hurts most:
+On the detector's `quant/int8` branch, the commit that calibrates int8 with percentiles still loses 7% of the AP on small objects. Can the post-processing win it back? Here is how to try 2 score thresholds and 2 NMS IoUs on `quant-search`, its outdoor and small-objects slices:
 
 1. On the commit page, select **Run Tests / Tuning** in the sidebar, under **Tuning**.
 2. In **Batch label**, name the new batch, e.g. `int8-nms`. Its runs stay apart from the CI's.
-3. In **Batch of inputs+configurations**, type the batch of tests to run: `quant-search`. The form shows **2 tests** below it: hover it to see the inputs and their configurations. To find a batch, or write your own, see [Choose which tests to run](#available-tests).
+3. In **Batch of inputs+configurations**, type the batch of tests to run: `quant-search`. The form shows **2 tests** below it: hover it to see the inputs and their configurations. To find a batch, or write your own, see [Choosing the tests to run](/docs/user-guide/available-tests).
 4. If the form lists **platforms** (like Linux and Android), pick the one to run on.
 5. Under **Manual tuning**, write each parameter with the values to try:
    ```json
@@ -63,6 +63,10 @@ Hover a run's configuration tags and choose **Copy as a tuning search space**. P
 
 </details>
 
+<Anchor id="available-tests" />
+To see which tests a batch runs before you start it, or to write your own batch, open the **Available Tests** view:
+see [Choosing the tests to run](/docs/user-guide/available-tests).
+
 ### Let the optimizer search the parameters {#automated-tuning}
 
 :::caution Experimental
@@ -77,77 +81,6 @@ For the detector, `tune-int8` searched the calibration percentile, the layers to
   id="tuning/auto-form"
   caption="The detector's tune-int8 experiment in YAML: 20 evaluations, the solver's settings, then the objective, starting with AP on small objects and mAP."
 />
-
-## Choose which tests to run {#available-tests}
-A **batch** of tests is a named list of inputs, each with its configurations: `quant-search` is the outdoor and small-objects slices, with the int8 model at 320 px. Batches are defined in YAML files: the commit's own, from its repository, and two files you edit in the web app. The **Available Tests** view, in the sidebar under **Tuning**, shows which tests each batch runs, and lets you write your own.
-
-### Check which tests a batch runs {#which-tests-run}
-1. Open **Available Tests**. The **Batches** panel, on the right, lists the batches of the file you're looking at.
-2. Hover a batch and click its eye icon (**List its tests**). For another batch, like the commit's `ci`, or a pattern like `nightly-*`, click **Check any batch or pattern…** and type its name.
-3. **Which tests run?** opens: the tests the batch resolves to on this commit, with all the batch files, and the file that defines it.
-4. Click **Run…** to open **Run Tests / Tuning** with this batch filled in.
-
-<Shot
-  id="tuning/which-tests-run"
-  caption="Before you run it: on this commit, the ci batch is 8 tests, the 4 slices with the fp32 and the int8 model at 320 px."
-/>
-
-### Write your own batch {#write-your-own-batch}
-1. Pick the file: **Private** (only you can see and edit it) or **Shared** (every QA-Board user can).
-2. Click **New** in the **Batches** panel. It adds an example batch at the end of the file, with its name selected.
-3. Edit its name, its `inputs` and their `configs`. Mistakes are underlined as you type, and listed below the editor: click one to go to its line. For the syntax, see [Batches of inputs](/docs/batches-running-on-multiple-inputs).
-4. Click **Save**, or press <kbd>Ctrl</kbd>+<kbd>S</kbd> (<kbd>⌘</kbd>+<kbd>S</kbd> on a Mac). The status next to it says **Saved**.
-5. Hover your batch in the **Batches** panel and click its play icon (**Run it on this commit…**): the form opens with it.
-
-<Shot
-  id="tuning/available-tests"
-  caption="One space too many before configs: the editor underlines it and lists the error below, before anything is saved."
-/>
-
-<details>
-<summary>Where batches come from, and which definition wins</summary>
-
-The **Where batches come from** panel lists the three places, in order:
-1. **Private**: a file named after you.
-2. **Shared**: a file of the project, for everyone.
-3. **This commit**: the files listed in `inputs.batches` of the commit's *qaboard.yaml*, with links to your git server. QA-Board reads them from the commit's artifacts, where `qa save-artifacts` saves them.
-
-When a batch is defined in several places, the first one in this list wins: Private, then Shared, then the commit's files. Among the commit's files, the last one wins, like for `qa batch`. Below, **Relative input paths start from** gives the folder that input paths are relative to, with a button to copy it.
-
-In the **Batches** panel, each entry says what it is: a batch with its number of inputs, an alias (with the batches it stands for), a pipeline, a file setting, a value *reused* with a YAML anchor (like `lab-db: &lab-db {linux: /mnt/data, windows: //data}`, then `database: *lab-db`), or a batch *replaced* by a later definition, struck through. With many entries, a box filters them.
-
-</details>
-
-<details>
-<summary>Every problem the editor and Which tests run? flag</summary>
-
-While you type, the editor flags, with **N errors** and **N warnings** buttons above it that go to the first one:
-- YAML mistakes, like a wrong indentation;
-- a batch defined twice: only its last definition is used;
-- what `qa batch` would ignore or misread, checked against [the batch files' schema](/docs/project-init#checking-qaboardyaml-and-batch-files-in-your-editor): unknown keys like `inpts` (with a suggestion: *Did you mean "inputs"?*), values of the wrong type like `matrix: {size: 320}` instead of a list, unknown runners or runner options, and input types (`type:`) the commit's *qaboard.yaml* doesn't define. Keys that are input settings in *qaboard.yaml* are allowed;
-- inputs `qa batch` can't use: an empty `-`, or a value YAML reads as a number, a date, or true or false, which must be written in quotes;
-- a list where a batch should be: write its inputs under `inputs:`, or group batches under `aliases:`.
-
-When a batch has no tests, **Which tests run?** and the form say why:
-- a file listed in `inputs.batches` is not in the commit's artifacts: the list shows where QA-Board looked for it. Check its name, and run `qa save-artifacts` on the commit (the CI usually does it);
-- a file is not valid YAML;
-- no file defines the batch (**No batch matches … on this commit**);
-- the batch has an input `qa batch` can't use: the error gives the file and line;
-- the batch's inputs were not found under the database, as the QA-Board server sees it: for instance when the database is not mounted on the server.
-
-</details>
-
-<details>
-<summary>Unsaved changes, and when someone else saved the file</summary>
-
-- The status next to **Save** says **Unsaved changes**, **Saved** with when, or **Not saved**: hover it for why. A dot on a file's tab means it has unsaved changes.
-- **Review changes** shows what you changed since the last save, side by side. **Discard** drops your changes, with an **Undo**.
-- Your unsaved changes are kept in your browser. Switch views, reload or close the tab: they come back the next time you open the view (**Restored the changes you didn't save**). Your browser asks before you leave the page with unsaved changes.
-- If someone saved the same file while you were editing, **Save** shows both versions side by side: **Keep editing**, **Use the saved file**, or **Overwrite with mine**.
-- **Which tests run?** uses the saved files: it warns you when you have unsaved changes.
-- Logged out, the view says **Log in to edit batches**.
-
-</details>
 
 ## Look at the results {#tuning-analysis}
 1. In the **new** bar's batch selector, pick the new batch, `int8-nms`. Its runs show up as they start, and the page refreshes by itself while some are pending.
@@ -164,7 +97,7 @@ Tuning Analysis shows how the metrics picked at its top, like in the tables, dep
 - **Breakdown by test**: one line per input, to check that every input agrees.
 - **Efficient frontier & tradeoffs**: two metrics against each other, one point per combination. The best trade-offs are on the edge of the cloud.
 
-For the inference server, a sweep tried the batching settings of the sharded cache: max batch 1, 16 and 64, by max delay 0, 250, 1000 and 4000 µs, on the steady-high and heavy-tail-high load profiles. With **CPU per request** added to the metrics, the frontier shows which settings are worth it:
+For the inference gateway, a sweep tried the batching settings of the sharded cache: max batch 1, 16 and 64, by max delay 0, 250, 1000 and 4000 µs, on the steady-high and heavy-tail-high load profiles. With **CPU per request** added to the metrics, the frontier shows which settings are worth it:
 
 <Shot
   id="tuning/frontier"
@@ -200,12 +133,11 @@ For an automated tuning, the view starts with the **Best parameters**, their met
 </details>
 
 ### Compare with the CI batch {#compare-with-the-ci-batch}
-To see what the experiment changed against the commit's CI runs:
-1. In the **new** bar, select the experiment's batch, `int8-nms`.
-2. Click **Change** in the new bar and choose **Also select as reference**: the reference bar gets the same commit and batch.
-3. In the reference bar's batch selector, pick **CI**.
-
-Every view now compares the experiment with the CI runs on the same inputs: the [Summary](/docs/user-guide/metrics#summary), the [Metrics Diff](/docs/user-guide/metrics#metrics-diff), the images. To look at one combination, filter the new bar's runs, e.g. `nms_iou:0.7 score_threshold:0.3`: the Summary otherwise aggregates all of them. See [compare two batches of the same commit](/docs/user-guide/comparing-results#compare-two-batches-of-the-same-commit).
+To see what the experiment changed against the commit's CI runs, show `int8-nms` in the new bar and the same commit's
+**CI** batch in the reference bar: see
+[compare two batches of the same commit](/docs/user-guide/comparing-results#compare-two-batches-of-the-same-commit).
+To look at one combination, filter the new bar's runs, e.g. `nms_iou:0.7 score_threshold:0.3`: the Summary otherwise
+aggregates all of them.
 
 ## Redo, stop and clean up runs {#redo-stop-and-clean-up-runs}
 
@@ -231,13 +163,12 @@ Deleting runs can't be undone: their output files and metrics are gone. QA-Board
 :::
 
 <details>
-<summary>Filters, stuck runs, milestones: the details</summary>
+<summary>Filters, stuck runs and other details</summary>
 
 - When you filter the batch's runs, the commit bar menu only redoes the runs that match: **Redo the N runs that match the filter…**, **Redo filtered failed runs**, **Redo filtered deleted runs**. Moving runs follows the filter too: **Move the filtered runs to another batch**. Deleting doesn't: it applies to the whole batch, and the confirmation says so.
 - **Redo all runs…** asks you to confirm: the runs' current results are replaced when they start.
 - **Mark as failed** is for runs stuck as pending or running whose job is gone, e.g. killed by the cluster: they would never report.
 - **Delete files, keep metadata**, in the commit bar menu, makes its delete actions free storage only: the runs and their metrics stay. A box then limits it to files matching patterns like `*.png`.
-- A batch saved as a milestone is protected: delete the milestone first, or delete only its files or its failed runs.
 - A batch with pending runs can't be renamed.
 
 </details>
@@ -302,18 +233,8 @@ Runs start from the commit's artifacts. When some are missing, a message above t
 
 </details>
 
-<details>
-<summary>The batch you started has no runs</summary>
-
-QA-Board starts your batch with `qa batch`: on a cluster, with Celery, or on the server. Until its runs show up, a message at the top of the page says how it's going, with **Show the logs**:
-- **Your batch is waiting for LSF**: the job is queued, the cluster may be busy.
-- **Starting your batch…**: `qa batch` is running, its runs will show up.
-- **The batch you started from QA-Board failed**: why, e.g. `qa batch` exited with an error, or the cluster killed it, with the last error of its log.
-- **qa batch didn't start any run**: there were no inputs, or all the runs already existed. Turn on **Overwrite previous identical runs** to run them again.
-
-The [Logs](/docs/user-guide/logs#batch-commands) view keeps the command QA-Board ran, and its log.
-
-</details>
+Until the runs of a batch you started show up, a message at the top of the page says how it's going, e.g. **Your batch
+is waiting for LSF**: see [Batches started from QA-Board](/docs/user-guide/logs#started-from-qa-board).
 
 <details>
 <summary>Every message of the Run Tests / Tuning form</summary>
@@ -325,7 +246,7 @@ The [Logs](/docs/user-guide/logs#batch-commands) view keeps the command QA-Board
 | **Before you start** | What to know first, e.g. missing artifacts QA-Board will restore. |
 | **Tuning may not work** | The project's CI only saves artifacts on some branches, and not on this commit's: the message gives the commands to save them yourself, with `qa save-artifacts`. |
 | **Please configure async runners** | The project has no task runner: runs may be killed if they take too long. |
-| **Why the batch has no tests**, **Check the batch files** | Under the batch: see [every problem flagged](#available-tests). |
+| **Why the batch has no tests**, **Check the batch files** | Under the batch: see [every problem flagged](/docs/user-guide/available-tests#problems). |
 | Under the **Start** button | What's missing (a batch label, a batch with tests), parameters that are not valid JSON or a function that fails, or too many runs. |
 | **Started …**, after you click | It started, and where QA-Board will email you. **Show its logs** opens the Logs view. |
 | **… failed to start. Its logs say why.** | **Show its logs** opens them. |

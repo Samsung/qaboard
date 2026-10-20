@@ -9,13 +9,13 @@ On the way, you meet the parts of the web app you'll use every day.
 
 The camera team of Kitefin Robotics, a fictional company, works on `kitefin/camera-isp`: the image pipeline of their
 robot's camera, from the raw sensor data to the displayed image. Ines replaced its denoiser with a bilateral filter.
-Her commit said "+1.6 dB PSNR in low light", and she merged it into `main`. Let's check.
+Her commit said "+1.6 dB PSNR in low light", and she merged it into `main`. Check it yourself.
 
 :::info Before you start
 You need a QA-Board server with the demo projects: [run one on your computer](/docs/get-started/quickstart), then
-open [http://localhost:5151](http://localhost:5151). Two steps need you to log in: click **Log in** (top right of the
-projects list, or at the bottom of the sidebar) and sign in as `ines`, password `kitefin-demo`. Every person of the
-demo world has an account.
+open [http://localhost:5151](http://localhost:5151). Steps [7](#step-7-see-which-runs-changed-most) and
+[9](#step-9-save-a-milestone) need you to log in: click **Log in** (top right of the projects list, or at the bottom of
+the sidebar) and log in as `ines`, password `kitefin-demo`. Every person of the demo world has an account.
 :::
 
 ## 1. Open the project {#step-1-open-the-project}
@@ -24,25 +24,20 @@ grouped by day.
 
 <Shot
   id="projects/home"
-  caption="Click a project's name to see its commits. The star pins a project on top of the list, only for you."
+  maxWidth={700}
+  caption="Click a project's name to see its commits. The star pins a project on top of the list, in your browser."
 />
 
-More in [Finding results](/docs/user-guide/finding-results#projects-list).
+The list shows the last 3 days at first, so it may be empty: the demo commits keep the dates of the day the demo data
+was made. The search in step 2 looks at every date. More in
+[Finding results](/docs/user-guide/finding-results#projects-list).
 
 ## 2. Find the commit {#step-2-find-the-commit}
 1. Type `bilateral` in the **Search commits** box at the top right. After a moment, the list shows every commit that
    mentions it, on any branch and at any date.
 2. Find **Merge branch 'isp/bilateral-denoise'**, on `main`, and click **26 runs** on the right of its row.
 
-The commit page opens.
-
-<Shot
-  id="commits/filter"
-  caption="The same search on another demo project: the list keeps the commits that mention the word, and the box suggests matching branches."
-/>
-
-The list shows the last 3 days at first, so it may be empty: the demo commits keep the dates of the day the demo data
-was made. Searches look at every date. More in [Searching commits](/docs/user-guide/finding-results#searching-commits).
+The commit page opens. More in [Searching commits](/docs/user-guide/finding-results#searching-commits).
 
 ## 3. Compare it with the release {#step-3-compare-with-the-release}
 The page has two bars at the top: the commit you opened, tagged **new**, and below it the reference it's compared
@@ -72,7 +67,7 @@ look like in numbers.
 
 <Clip
   id="landing/hero"
-  caption="Filtered on the facade and the slanted edge: PSNR is up, and so is the edge overshoot. The images show why, as the next steps do."
+  caption="Narrowed down further to the facade and the slanted edge: PSNR is up, and so is the edge overshoot. Then the facade's images show why, as the next steps do."
 />
 
 More in [Reading metrics](/docs/user-guide/metrics#metrics-diff).
@@ -126,8 +121,8 @@ More in [Which runs changed most](/docs/user-guide/image-viewer#which-runs-chang
 ## 8. Find when it started {#step-8-find-when-it-started}
 1. On the card of **photos/facade.png**, click its name. History opens: the facade's metrics over the commits of
    `main`.
-2. History shows the last 3 days at first. Click the start date at the top, and pick a day before the merge (its bar
-   said how long ago it was).
+2. History shows the last 3 days at first. Click the start date at the top, and pick a start date before the merge:
+   the commit page's new bar gave its age, e.g. *20 days ago*.
 3. Hover the points of the PSNR chart, from right to left.
 
 Below the chart, the hovered commit shows as **New** and the commit before it as **Reference**, with their images.
@@ -153,8 +148,10 @@ The star turns gold, and the name shows next to it. The milestone is saved in yo
 [Milestones](/docs/user-guide/milestones#saving-a-milestone).
 
 ## 10. Share what you found {#step-10-share}
-Copy the page's address from your browser, and paste it in your bug report or chat. It holds the commits, the
-reference, the filter and the view: whoever opens it sees what you see, even after `main` moves on.
+Copy the page's link from your browser, and paste it in your bug report or chat. The link keeps the commits, the
+reference, the filter, the view and how images are compared, but not the zoom: whoever opens it gets the same
+comparison, even after `main` moves on. To point at a spot, paste a copy of the image too (the copy button above the
+images), or name the region, e.g. *Window frame (halos)*.
 
 To share the milestone, click its star again, then **Copy link**. More in [Sharing](/docs/user-guide/sharing).
 
@@ -168,7 +165,13 @@ pixels. Compare it with your milestone:
 
 The edge overshoot is back to about 5%, and on the facade, the dark rims around the leaves fade.
 
-<Compare before="commit/halo-before" after="commit/halo-after" beforeLabel="Bilateral denoiser" afterLabel="With the clamp" />
+<Compare
+  before="commit/halo-before"
+  after="commit/halo-after"
+  beforeLabel="Bilateral denoiser"
+  afterLabel="With the clamp"
+  caption="Drag the divider over the leaves: the dark rims fade."
+/>
 
 ## Try the other demo projects {#other-demo-projects}
 Each demo project has a story of its own. Its use case page says what to look for.

@@ -83,14 +83,22 @@ Each branch's commit list starts with the same chart, aggregated over the runs (
 Below the chart, for the hovered (or clicked) commit compared with its reference:
 - **Metrics distribution**: the same summary as the commit page's [Summary](/docs/user-guide/metrics#summary), with
   medians, changes and box plots.
-- **Metrics per input tag**, if the project turns it on (`dashboard_breakdown_by_tag` in its
-  [metrics file](/docs/computing-quantitative-metrics)): the summary for each tag of the inputs, to see which kinds
-  of inputs drive a metric.
+- **Metrics per input tag**, if the project
+  [turns it on](/docs/computing-quantitative-metrics#choosing-the-metrics-shown-by-default): the summary for each tag
+  of the inputs, to see which kinds of inputs drive a metric.
 - **Metrics per test**: the [Metrics Table](/docs/user-guide/metrics#metrics-table) and
   [Metrics Diff](/docs/user-guide/metrics#metrics-diff) tabs, with options to sort runs by name, id or metric.
 
 Pick which metrics to show with the metrics selector in the tables.
 
 ## Share a history {#sharing-a-history}
-The chart options (metric, aggregation, breakdown, relative scale, output files) and the filter are saved in the URL:
-copy it to share the exact view. See [Sharing](/docs/user-guide/sharing).
+The chart options (metric, aggregation, breakdown, relative scale, output files) and the filter are saved in the page's
+link: copy it to share the same view.
+
+## Where to go next
+
+<Cards>
+  <Card title="Reading metrics" to="/docs/user-guide/metrics">The commit's Summary, Metrics Diff and Metrics Table, against its reference.</Card>
+  <Card title="The image viewer" to="/docs/user-guide/image-viewer">Find where the images of two commits differ, down to the pixel.</Card>
+  <Card title="What's in a link" to="/docs/user-guide/sharing#whats-in-the-url">What the link you share keeps, and what stays in your browser.</Card>
+</Cards>

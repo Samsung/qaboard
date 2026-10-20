@@ -2,16 +2,20 @@
 id: sharing
 title: Sharing results
 sidebar_label: Sharing
-description: Share exactly what you see with a link, copy paths and images, export files, and report bugs.
+description: Share what you see with a link, copy paths and images, export files, and report bugs.
 ---
-Show a colleague exactly what you see, give them the path to the files, or gather the images for a report.
+Show a colleague what you see, give them the path to the files, or gather the images for a report.
 
-## Copy the URL {#links-are-shareable}
-Almost everything you select is saved in the page's URL. **Copy the URL from your browser's address bar** and send
-it: whoever opens it sees the same commits, batches, filters and view as you. The browser's back and forward buttons
-work too.
+## Copy the page's link {#links-are-shareable}
+Most of what you select is saved in the page's link. **Copy it from your browser's address bar** and send it: whoever
+opens it sees the same commits, reference, batches, filters and view as you, with the images compared the same way.
+The browser's back and forward buttons work too.
 
-The reference commit is written in the URL as soon as it's known. A link shared today still shows the same comparison
+The link doesn't keep the viewers' zoom. To point at a spot, paste a copy of the image too (the copy button above the
+images, see [Copy and save](/docs/user-guide/image-viewer#copy-and-save)), or name the region, e.g. *Window frame
+(halos)*.
+
+The reference commit is written in the link as soon as it's known. A link shared today still shows the same comparison
 next month, even after the reference branch moved on.
 
 :::tip
@@ -19,15 +23,17 @@ To share a [milestone](/docs/user-guide/milestones), copy its link from the mile
 working when the milestone is renamed. See [Links to milestones](/docs/user-guide/milestones#links-to-milestones).
 :::
 
-### What's in the URL {#whats-in-the-url}
-On a commit page, the URL holds the new commit, the reference, their batches and filters, and the view. On the commit
-list, it holds the search and the dates; on the History page, the filter, the batch and the chart options.
+### What's in the link {#whats-in-the-url}
+On a commit page, the link holds the new commit, the reference, their batches, filters and names, the view, how runs
+are sorted, and the view options: the visualizations shown, the files to show, and how images are compared. On the
+commit list, it holds the search and the dates; on the History page, the filter, the batch and the chart options.
 
 Options left at their default are left out, to keep links short: e.g. the `default` batch, an empty filter, the
 project's default metrics and view, or visualizations shown by default. Links follow the project's defaults.
 
 Some things stay in your browser and are not shared: your favorite projects, the groups of milestones you collapsed,
-whether the view options are open and how wide, and the statuses of the CI jobs you started.
+whether the view options are open and how wide, the pixel values you show, and the statuses of the CI jobs you
+started. The viewers' zoom, the regions you picked and the display adjustments are not saved at all.
 
 <details>
 <summary>Every parameter of the URL</summary>
@@ -43,7 +49,7 @@ On a commit page, `/<project>/commit/<hash>?...`:
 | `label`, `label_ref` | The [names you gave](/docs/user-guide/comparing-results#naming-what-you-compare) the new and the reference results |
 | `compare`, `ref_index` | The [other references](/docs/user-guide/comparing-results#several-references) you stacked, and which one is shown |
 | `new_project`, `ref_project` | Only when results come from [another project](/docs/user-guide/comparing-results#picking-a-reference) |
-| `selected_views` | The view: `summary`, `table-kpi` (Metrics Table), `table-compare` (Metrics Diff), `output-list` (Visualizations), `bit_accuracy` (Output Files), `logs`, `parameters` (Artifacts & Configs), `groups` (Available Tests), `tuning`, `optimization` (Analysis) |
+| `selected_views` | The view: `summary`, `table-kpi` (Metrics Table), `table-compare` (Metrics Diff), `output-list` (Visualizations), `bit_accuracy` (Output Files), `logs`, `parameters` (Artifacts & Configs), `groups` (Available Tests), `tuning` (Run Tests / Tuning), `optimization` (Tuning Analysis) |
 | `sort_by`, `sort_order` | How runs are sorted |
 | `controls` | Visualizations shown or hidden, how images are compared, dynamic options (as JSON, only what you changed) |
 | `show_all_files`, `expand_all`, `files_filter`... | Options of the Output Files view (`params_...` for Artifacts & Configs) |
@@ -91,11 +97,17 @@ By default, the exported files are **links** to the original files, in a shared 
 fast. Use **Edit where** to choose your own folder: files are then copied (or linked, if it's on the same filesystem).
 
 ## Report a bug or ask for help {#bug-reports-and-support}
-- If the web app crashes, you'll see **Sorry, something went wrong!** with a **Report the bug** button. Depending on
-  your server, it opens an email with the page's URL and the error filled in, or your team's issue tracker.
-- For anything else, send the URL of the page you're looking at to your QA-Board admins: with the URL, they see
-  exactly what you see.
+- If the web app crashes, you'll see **Sorry, something went wrong!** with a **Report the bug** button. It opens an
+  email with the page's link and the error filled in, or your team's issue tracker: your admins choose where bug
+  reports go.
+- For anything else, send the link of the page you're looking at to your QA-Board admins: with it, they see what you
+  see.
 - Questions on how a project's results are produced (metrics, visualizations, inputs) go to that project's lead.
 
-Admins choose where bug reports go with `QABOARD_SUPPORT_URL`, see the server's
-[environment variables](/docs/deploy#optional-environment-variables).
+## Where to go next
+
+<Cards>
+  <Card title="Browsing files" to="/docs/user-guide/files">Open a run's folder in your browser, and copy Linux and Windows paths.</Card>
+  <Card title="Links to milestones" to="/docs/user-guide/milestones#links-to-milestones">Links that keep working when a milestone is renamed, and links to compare two.</Card>
+  <Card title="Tips & FAQ" to="/docs/user-guide/tips-and-faq">Keyboard shortcuts, and answers to the questions of your first weeks.</Card>
+</Cards>

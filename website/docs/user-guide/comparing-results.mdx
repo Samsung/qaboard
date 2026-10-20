@@ -8,22 +8,14 @@ QA-Board shows your results next to a **reference**: the results you compare the
 that reference, and read what each run is compared with.
 
 A number alone says little: is a PSNR of 29.6 dB good? Next to the reference's, it says what your change did: +5%.
-That's why every commit page compares two sets of results. The **new** bar at the top says which results you look
-at, the **ref** bar below it what they're compared with: a commit, one of its batches, maybe with a filter. Each run
-is shown against the reference's run of the same input.
-
-<Shot
-  id="commit/visualizations"
-  caption="The bilateral denoiser's merge (new, on top) against the 4.1 release (the reference, below). Each run shows how its metrics changed, then both images side by side."
-/>
+The **new** bar at the top of a commit page says which results you look at, the **ref** bar below it what they're
+compared with: a commit, one of its batches, maybe with a filter. Each run is shown against the reference's run of the
+same input.
 
 ## The default reference {#the-default-reference}
 When you open a commit, the reference is the **latest commit with results on the project's reference branch**, often
-`main` or `master` (the project sets it in *qaboard.yaml*). Most of the time, that's what you want: what your change
-does to the code everyone uses.
-
-As soon as the reference is known, its commit is saved in the page's link. A link you share today still compares with
-the same commit next week, after new commits land on the reference branch.
+`main` (the project sets it in *qaboard.yaml*): what your change does to the code everyone uses. The page's link saves
+that commit, so a link you share today compares with the same commit next week.
 
 ## Choose another reference {#picking-a-reference}
 To compare with a release, another branch or a colleague's commit, change the **ref** bar. The **new** bar works the
@@ -31,7 +23,7 @@ same way.
 
 - **Type a commit hash** in the commit field. Short hashes work.
 - **Click the branch name** next to it to select that branch's latest commit.
-- **Click** **Change** next to the commit field: swap new and reference, pick the reference branch's latest commit, or a
+- Click **Change** next to the commit field: swap new and reference, pick the reference branch's latest commit, or a
   [milestone](#milestones).
 
 <Shot
@@ -85,8 +77,8 @@ back to "new" or "reference".
 Results that are a milestone are named after it: rename the milestone instead.
 
 <Anchor id="metric-diffs-and-colors" />
-Each side also has its color, in its bar, in the viewers' labels and in plots: **new** is blue, the reference purple.
-Red, green and orange never stand for a side: they say what got better, worse, or needs a look (see
+Each side also has its color, in its bar, in the viewers' labels and in plots: **new** is blue, and each reference has
+its own color. Green and red never stand for a side: they say what got better or worse (see
 [what the colors mean](/docs/user-guide/metrics#colors)).
 
 ## Compare with several references {#several-references}
@@ -156,18 +148,8 @@ Take the detector's int8 release, kd-1.3, against the fp32 release, kd-1.2. Its 
 
 With many runs on the page, most settings are the same for all of them. To show you what matters, each run only shows
 its **own** settings: what all the runs share hides behind a dashed tag like **··· 9 shared**. Hover it to see those
-settings, click it to show them in this run. The top of the page lists them once, next to **All 12 runs**.
-
-| Tag | Means |
-|---|---|
-| gray | The same as the reference run. |
-| green, with **+** | Added: the reference run doesn't have it. |
-| red, struck through, with **−** | Removed: only the reference run has it. |
-| orange, `gain: 3 → 4` | Changed: the reference's value, then this run's. For strings, only the part that changed: `conf/[day → night].yaml`. |
-| with a wrench | A tuning parameter (`qa --tuning`), shown after the configuration. |
-| dashed, **··· 9 shared** | Settings all the runs shown share, hidden in each run. |
-
-Hover any tag to see what it means and copy it.
+settings, click it to show them in this run. The top of the page lists them once, next to **All 12 runs**. Hover any
+tag to see what it means and copy it.
 
 - **What all the runs share** follows the filter: filter runs, and what the remaining ones share hides too. The
   **··· shared** tags sit where the settings they hide are when those come first or last
@@ -182,7 +164,16 @@ Hover any tag to see what it means and copy it.
   settings, the shared ones outlined.
 
 <details>
-<summary>What counts as a setting, copying settings, and other details</summary>
+<summary>Every kind of tag, what counts as a setting, and copying settings</summary>
+
+| Tag | Means |
+|---|---|
+| gray | The same as the reference run. |
+| green, with **+** | Added: the reference run doesn't have it. |
+| red, struck through, with **−** | Removed: only the reference run has it. |
+| orange, `gain: 3 → 4` | Changed: the reference's value, then this run's. For strings, only the part that changed: `conf/[day → night].yaml`. |
+| with a wrench | A tuning parameter (`qa --tuning`), shown after the configuration. |
+| dashed, **··· 9 shared** | Settings all the runs shown share, hidden in each run. |
 
 - Each string of a configuration (`base`, `conf/night.yaml`) is a setting, and so is each value of its JSON objects
   (`isp.nr.strength: 2`).

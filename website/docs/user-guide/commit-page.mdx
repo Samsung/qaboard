@@ -8,13 +8,13 @@ A commit page shows the results of one commit, the **new** one, next to a **refe
 of your project's reference branch. It's where you answer "what did this commit change?". This page shows you around.
 
 <Shot
-  id="commit/visualizations"
-  caption="The new commit's bar on top, the reference's below; the views in the sidebar; each run's card with its metrics and its outputs, new next to reference."
+  id="commit/controls-panel"
+  caption="The two bars say what you compare: here, a merge into main against the release before it. The sidebar picks the view; the View options, on the right, what every run's card shows."
   callouts={[
-    {x: 37.5, y: 2.2, label: 'The new commit'},
-    {x: 45, y: 10.4, label: 'The reference'},
-    {x: 11.5, y: 33, label: 'The views'},
-    {x: 98.6, y: 48, label: 'View options'},
+    {x: 15, y: 0.5, w: 84.6, h: 7.6, kind: 'box', label: 'The new commit'},
+    {x: 15, y: 8.6, w: 84.6, h: 7.8, kind: 'box', label: 'The reference'},
+    {x: 0.6, y: 14, w: 12.8, h: 58, kind: 'box', label: 'The views'},
+    {x: 79.4, y: 17.2, w: 20.4, h: 66, kind: 'box', label: 'View options'},
   ]}
 />
 
@@ -55,7 +55,7 @@ reference bar. While runs are pending, the page refreshes by itself every 15 sec
 | Redo | **Redo deleted runs**, **Redo failed runs**, **Redo all runs…**. With a filter, they redo only the runs that match it. See [Running from the web app](/docs/user-guide/running-from-the-webapp#redo-stop-and-clean-up-runs). |
 | Delete | **Delete failed runs…**, **Delete all runs…**, **Delete multiple batches**. With **Delete files, keep metadata**, only the files are deleted, optionally only those matching patterns like `*.png`. |
 
-Batches that are milestones are protected: delete the milestone first, or delete only their files or their failed runs.
+Batches that are milestones are protected: see [What a milestone keeps](/docs/user-guide/milestones#what-a-milestone-keeps).
 
 </details>
 
@@ -69,9 +69,7 @@ Batches that are milestones are protected: delete the milestone first, or delete
 - **Be careful, those are local runs**: they were started from someone's workspace, and may not match the committed
   code.
 - **This commit's artifacts were deleted**, **are incomplete**, or **are being recreated**: when and by whom, and what's
-  missing. **Recreate the artifacts** asks your CI to rebuild them, if the project
-  [configured it](/docs/storage/deleting-old-data#recreating-artifacts). Otherwise, **Restore the artifacts** restores
-  the files from the source code, but not build outputs like binaries.
+  missing, with buttons to bring them back. See [If runs don't start](/docs/user-guide/running-from-the-webapp#if-runs-dont-start).
 - For batches started from the web app: **Your batch is waiting for LSF**, **The batch you started from QA-Board
   failed**... See [Batches started from QA-Board](/docs/user-guide/logs#started-from-qa-board).
 - On the views that show runs, what all the runs share: see
@@ -82,8 +80,8 @@ Batches that are milestones are protected: delete the milestone first, or delete
 <Anchor id="the-controls-panel" />
 
 ## View options {#view-options}
-The **View options** panel, on the right, changes what the views show, and in which order. Press <kbd>o</kbd> to show
-or hide it. It lists only what applies to the view you're on:
+The **View options** panel, on the right (4 in the picture above), changes what the views show, and in which order.
+Press <kbd>o</kbd> to show or hide it. It lists only what applies to the view you're on:
 
 - **Visualizations**: a switch per visualization, including the ones hidden by default.
 - **Files to show**: when runs have several files for a visualization, like the stages of a pipeline or the frames of
@@ -96,16 +94,6 @@ or hide it. It lists only what applies to the view you're on:
   choose, runs are sorted by the project's default metric, marked *(default)*.
 
 **Reset** goes back to the project's defaults, except for the sorting.
-
-<Shot
-  id="commit/controls-panel"
-  caption="The switches include the visualizations hidden by default. How images are compared and the sorting apply to every card."
-  callouts={[
-    {anchor: 'visualizations', label: 'Visualizations'},
-    {anchor: 'image-diff', label: 'Compare images'},
-    {anchor: 'sorting', label: 'Sort runs'},
-  ]}
-/>
 
 <details>
 <summary>More about the panel</summary>
@@ -141,7 +129,7 @@ The sidebar lists the views, grouped by what they're about. Each one answers a d
 | <Anchor id="logs" />**Logs** | Find out why a run failed, follow running runs | [Logs and failed runs](/docs/user-guide/logs) |
 | **Artifacts & Configs** | Diff the build and configuration files with the reference commit | [Artifacts & Configs](#artifacts-and-configs) |
 | **Code** | Open the commit on your git server | [Code](#code) |
-| <Anchor id="available-tests" />**Available Tests** | See, check and edit the batches of tests you can run | [Running from the web app](/docs/user-guide/running-from-the-webapp#available-tests) |
+| <Anchor id="available-tests" />**Available Tests** | See, check and edit the batches of tests you can run | [Choosing the tests to run](/docs/user-guide/available-tests) |
 | <Anchor id="run-tests--tuning" />**Run Tests / Tuning** | Run this commit's code on more tests, or with other parameters | [Running from the web app](/docs/user-guide/running-from-the-webapp#running-tests-and-tuning) |
 | <Anchor id="tuning-analysis" />**Tuning Analysis** | See how the metrics depend on tuning parameters, and the best ones | [Running from the web app](/docs/user-guide/running-from-the-webapp#tuning-analysis) |
 
@@ -160,7 +148,7 @@ The **Visualizations** view has one card per run. A card starts with:
   compute time, date and storage. Click it to see this input's results over time, in
   [History](/docs/user-guide/history-and-dashboards).
 - **tags** for its platform and configuration, and how they differ from the reference run's: see
-  [Reading configurations](/docs/user-guide/comparing-results#reading-configurations). Yellow **Input**, **Config** or
+  [Reading configurations](/docs/user-guide/comparing-results#reading-configurations). Orange **Input**, **Config** or
   **Platform** tags (with a `≠`) mean the reference run is not exactly the same: see
   [How runs are matched](/docs/user-guide/comparing-results#how-runs-are-matched).
 - **its main metrics**, each with its change against the reference run, colored when it gets better or worse: see
@@ -169,12 +157,13 @@ The **Visualizations** view has one card per run. A card starts with:
 Then come the visualizations the project configured, new next to reference. A file identical to the reference's is
 tagged **Identical to the reference**. Cards load their files as you scroll to them.
 
-Next to the run's name, the menu (☰) acts on the run. You need to be logged in.
-
 <Shot
-  id="commit/run-menu"
-  caption="Each run card's menu redoes the run, or deletes it, or only its output files. While a run is pending or running, Mark as failed replaces Redo."
+  id="commit/visualizations"
+  caption="The facade's card: its PSNR, in red, still misses its 30 dB target, but its change, +5%, is green: better than the release. Then the regions saved for this photo, and both images, zoomed in together."
 />
+
+Next to the run's name, the menu (☰) redoes the run, or deletes it or only its output files, once you're logged in:
+see [Redo, stop and clean up runs](/docs/user-guide/running-from-the-webapp#redo-stop-and-clean-up-runs).
 
 The folder icon opens the run's output directory (or the reference's) in the [file browser](/docs/user-guide/files);
 the copy icon copies its path, as a Linux or a Windows path. The button at the card's top right shows the card in full
@@ -204,8 +193,7 @@ the runs shown use.
 />
 
 When all the files your project checks are identical to the reference's, the run is tagged **Bit-accurate**. Files the
-project doesn't check (`bit_accuracy.patterns` in *qaboard.yaml*) are grayed and tagged **not checked**, like
-*metrics.json*, which has the run time. This is the view for [bit-accuracy tests](/docs/bit-accuracy).
+project doesn't check are grayed and tagged **not checked**, like *metrics.json*, which has the run time. This is the view for [bit-accuracy tests](/docs/bit-accuracy).
 
 <Anchor id="artifacts--configs" />
 
@@ -231,7 +219,6 @@ project's folder), the branch's files and commits, and the repository.
 
 <Cards>
   <Card title="Reading metrics" to="/docs/user-guide/metrics">Did the commit make things better, and where? The Summary, the tables and their colors.</Card>
-  <Card title="Comparing results" to="/docs/user-guide/comparing-results">Pick what you compare with, and how runs are matched.</Card>
+  <Card title="New and reference" to="/docs/user-guide/comparing-results">Pick what you compare with, and how runs are matched.</Card>
   <Card title="The image viewer" to="/docs/user-guide/image-viewer">Find where two images differ, down to the pixel.</Card>
-  <Card title="Logs and failed runs" to="/docs/user-guide/logs">Why a run failed, and how to follow the ones still running.</Card>
 </Cards>

@@ -71,8 +71,8 @@ identical. Hover a cell for both values.
 
 - It only shows the metrics the reference runs have too. If the reference has no matching runs, it says so: pick
   another reference.
-- Yellow **Input**, **Config** or **Platform** tags (with a `≠` icon) mean the run was compared with a reference run
-  that is not exactly the same. Hover them for what differs. See
+- Orange **Input**, **Config** or **Platform** tags (with a `≠`) mean the run was compared with a reference run that
+  is not exactly the same. Hover them for what differs. See
   [How runs are matched](/docs/user-guide/comparing-results#how-runs-are-matched).
 - To bring the worst runs to the top, **Sort runs** by a metric in the
   [View options](/docs/user-guide/commit-page#view-options). It sorts by the new runs' values, not by their change.
@@ -112,7 +112,7 @@ Green is better, red is worse, everywhere. What "better" means depends on the vi
 The Metrics Diff's colors are made for changes of a few percent: past about 10%, cells have their strongest color.
 Hover a metric's name for its full label and description, and a value for its exact number.
 
-:::info Metrics in neutral colors
+:::note Metrics in neutral colors
 For some metrics, QA-Board doesn't know whether higher or lower values are better: a metric the project didn't
 declare, or a count where neither is better. Their changes are **gray** in the Summary and on run cards, and shaded in
 **blue** in the tables (the darker, the larger the change or the value), never green or red. Hovering their name says

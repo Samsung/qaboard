@@ -20,9 +20,9 @@ trajectories. Each viewer puts the reference's result next to the new one, or ov
 They all show in the **Visualizations** view of the [commit page](/docs/user-guide/commit-page#views), in each run's
 card. Your project chooses what each card shows; what it hides by default has a switch in the
 [View options](/docs/user-guide/commit-page#view-options), under **Visualizations**. The full-screen button at the top
-right of a card gives its viewers the whole screen: handy for 3D views and deep flame graphs.
+right of a card gives its viewers the whole screen, e.g. for 3D views and deep flame graphs.
 
-:::tip
+:::note
 When the reference run's file is the same as the new one, the card says **Identical to the reference**: there is
 nothing to look at in that viewer.
 :::
@@ -32,7 +32,7 @@ Your project's code draws the plots: curves, bars, heatmaps, 3D plots... Each pl
 reference's**, on the same axes, or **next to it**: the project picks, plot by plot.
 
 Overlaid, the change is where the curves part. With a shared result cache, every latency percentile of the inference
-server is a hundred times the reference's or more:
+gateway is a hundred times the reference's or more:
 
 <Shot
   id="commit/latency-cdf"
@@ -42,8 +42,8 @@ server is a hundred times the reference's or more:
 - **The legend says which curve is which**: `new | Latency` and `ref | Latency`, or the
   [names you gave](/docs/user-guide/comparing-results#naming-what-you-compare) what you compare.
 - **When a plot picks its colors, the reference's curve is dashed and faded**, in the same color: with one curve per
-  class, each class keeps its color. Otherwise, the curves take the colors of what you compare: blue for new, purple
-  for the first reference.
+  class, each class keeps its color. Otherwise, the curves take the colors of what you compare: blue for new, and each
+  reference its own color.
 - **The reference's lines are a bit wider**: where nothing changed, the new line runs right on top of it.
 - **Hover** a curve for its values. **Drag** to zoom on a region, **double-click** to zoom back out. **Click a legend
   entry** to hide or show its curve, double-click it to show only that one. The toolbar that shows at the top right
@@ -81,7 +81,7 @@ profile, colored by what changed.
 
 <Shot
   id="commit/flame-diff"
-  caption="The inference server's workers now render responses under the shared cache's lock (orange, new), and the model's forward pass runs less (blue): cache hits skip it."
+  caption="The inference gateway's workers now render responses under the shared cache's lock (orange, new), and the model's forward pass runs less (blue): cache hits skip it."
 />
 
 - **Red** functions take more time than in the reference, **blue** ones less: the darker, the bigger the change.
@@ -107,7 +107,7 @@ profile, colored by what changed.
   is another bar.
 - **Highlight frames** is case-sensitive, and reads regular expressions: `lock|wait` highlights both.
 - Without a reference profile, the flame graph shows alone, by function.
-- In the inference server example, widths are microseconds of CPU per 1,000 requests: the profile's unit is what your
+- In the inference gateway example, widths are microseconds of CPU per 1,000 requests: the profile's unit is what your
   project records.
 - To record flame graphs with your code, read
   [Creating and viewing flame graphs](/blog/2020/06/24/flame-graphs), and Brendan Gregg's
@@ -259,7 +259,7 @@ once.
 
 </details>
 
-## Read next
+## Where to go next
 <Cards>
   <Card title="The image viewer" to="/docs/user-guide/image-viewer">
     Side by side, wipe, difference, pixel values, and the regions where images differ.

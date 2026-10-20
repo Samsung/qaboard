@@ -95,7 +95,13 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Run and share',
       collapsed: false,
-      items: ['user-guide/running-from-the-webapp', 'user-guide/logs', 'user-guide/sharing', 'user-guide/files'],
+      items: [
+        'user-guide/running-from-the-webapp',
+        'user-guide/available-tests',
+        'user-guide/logs',
+        'user-guide/sharing',
+        'user-guide/files',
+      ],
     },
     {
       type: 'category',

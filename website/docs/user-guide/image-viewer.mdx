@@ -31,7 +31,7 @@ comparison. It's also in the **View options**, under **Viewers** › **Compare i
 page, not only over an image.
 
 ### Tell new from reference {#new-and-reference}
-A label on each image names it: **new** in blue, the reference in purple, the colors of the bars at the top of the page.
+A label on each image names it: **new** in blue, the reference in its own color, like their bars at the top of the page.
 When you [named what you compare](/docs/user-guide/comparing-results#naming-what-you-compare), e.g. with a milestone's
 name, the labels use those names. They also give each image's size, e.g. *1224×816*.
 
@@ -135,7 +135,7 @@ Pick how the server compares them:
 - The set you pick applies to every viewer of the same file on the page, in all the runs' cards. **Where they differ**
   is for the page where you pick it: on another page, the viewers don't compare their images until you ask, since that
   compares all its runs again.
-- The server compares images for signed-in users only: signed out, the viewer says to sign in.
+- The server compares images for logged-in users only: logged out, the viewer asks you to log in.
 - **Copy the view as a region**, at the bottom of the menu, copies the coordinates of what you see, in the format of
   presets: send them to whoever maintains the project's presets.
 
@@ -161,7 +161,7 @@ a run's card, zoomed on its region that differs most; every viewer of that file 
   for their turn. The first comparisons of large images take a few seconds each, and those running together end at
   about the same time.
 - Closing the list doesn't stop the comparisons: **Stop** does, and **Compare the others** picks up where it stopped.
-- The menu item shows when you're signed in and the page has more than one run with a reference to compare.
+- The menu item shows when you're logged in and the page has more than one run with a reference to compare.
 
 </details>
 
@@ -190,7 +190,7 @@ and for bit-exact outputs, use the [bit accuracy checks](/docs/bit-accuracy).
 
 <Shot
   id="commit/image-perceptual-diff"
-  caption="The perceptual difference with its maximum raised to 20%: the flat wall fades to gray and only the window frame's edges stay marked, yellow where the images differ a little, orange to dark red where they differ more."
+  caption="The perceptual difference with its maximum raised to 20%: the flat wall fades to white, and only the window frame's edges stay, yellow where the images differ a little, darker where they differ more."
 />
 
 <details>
@@ -239,8 +239,8 @@ values**, **Displayed values** or **Off**); <kbd>p</kbd> hides or shows them. Yo
 - The image values arrive by tiles of 64×64 pixels: the first ones can take a moment while the server opens the image,
   the next ones are quick.
 - When the server can't read the file, the line says *unavailable*: hover it to see why, and use the displayed values.
-- The server reads the image values for signed-in users only: signed out, you see the displayed values, and the viewer
-  says to sign in.
+- The server reads the image values for logged-in users only: logged out, you see the displayed values, and the
+  viewer asks you to log in.
 - When the images have different sizes, the line also gives the pixel's coordinates in the reference.
 - The line keeps the last pixel you hovered when you leave the image, so that you can click it.
 - Raw formats need a reader on the server: see [the image viewer's setup](/docs/viewers#images).
@@ -322,8 +322,8 @@ see them, with the adjustments: paste them in a chat, a slide or a bug report. I
 opens the original files.
 
 - Copying images needs the web app on `https`: else, save them.
-- To share the comparison itself, copy the page's link: it keeps the commits, the mode and the difference's settings.
-  See [sharing](/docs/user-guide/sharing#whats-in-the-url).
+- To share the comparison itself, copy the page's link: it keeps the commits, the mode and the difference's settings,
+  but not the zoom. See [sharing](/docs/user-guide/sharing#whats-in-the-url).
 - To make the region you're looking at a preset, use **Copy the view as a region** in the
   [regions menu](#find-where-images-differ).
 
@@ -350,9 +350,6 @@ text box. The keyboard button in the viewer's toolbar lists them.
 ## Where to go next {#where-to-go-next}
 <Cards>
   <Card title="The video viewer" to="/docs/user-guide/video-viewer">Step through two videos in sync, frame by frame, with the same tools.</Card>
-  <Card title="Plots, flame graphs, 3D and more" to="/docs/user-guide/other-viewers">How the other viewers compare new and reference.</Card>
-  <Card title="Choose the reference" to="/docs/user-guide/comparing-results#picking-a-reference">Compare with another commit, batch or milestone.</Card>
   <Card title="Share what you found" to="/docs/user-guide/sharing">Links that open on the same comparison, paths, exports.</Card>
   <Card title="Set up image visualizations" to="/docs/viewers#images" eyebrow="Project integration">Which images show, raw formats, the image server.</Card>
-  <Card title="Preset regions of interest" to="/docs/visualizations#regions-of-interest" eyebrow="Project integration">The regions the viewer opens on, per input or configuration.</Card>
 </Cards>

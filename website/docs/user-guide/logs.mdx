@@ -129,13 +129,17 @@ When a job exits with an error by itself, there is no summary: its log says more
 </details>
 
 ## Batches started from QA-Board {#started-from-qa-board}
-When you redo runs or start tests and tuning from the web app, QA-Board runs `qa batch` for you. Until its runs show
-up, a message on every view of the commit page says how it's doing, with **Show the logs**:
+When you redo runs or start tests and tuning from the web app, QA-Board runs `qa batch` for you: on a cluster, with
+Celery, or on the server. Until its runs show up, a message on every view of the commit page says how it's doing, with
+**Show the logs**:
 
-- **Your batch is waiting for LSF**: the cluster may be busy.
+- **Your batch is waiting for LSF**: the job is queued, the cluster may be busy.
 - **Starting your batch…**: `qa batch` is running, its runs will show up.
-- **The batch you started from QA-Board failed**: why, and the last error.
-- **qa batch didn't start any run**: maybe there were no inputs, or all the runs already existed.
+- **The batch you started from QA-Board failed**: why, e.g. `qa batch` exited with an error, or the cluster killed it,
+  with the last error of its log.
+- **qa batch didn't start any run**: maybe there were no inputs, or all the runs already existed. To run them again,
+  turn on **Overwrite previous identical runs** in the
+  [form](/docs/user-guide/running-from-the-webapp#running-tests-and-tuning).
 
 In the Logs view, **Started from QA-Board** lists these `qa batch` commands, most recent first (**Show N older** for
 more than three): their status (**Queued**, **Running**, **Failed**, **Done**), who started them and when. Open one

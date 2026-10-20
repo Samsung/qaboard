@@ -28,15 +28,15 @@ The keys work on the viewer you clicked, else the one under your mouse. The keyb
 toolbar lists them all, and so does the [table below](#keyboard-shortcuts).
 
 :::info
-What the server reads from the files needs you to be signed in: exact frame numbers, decoded values, **What's in the
-files** and **Differences**. Signed out, the videos play and compare, frames are estimated from the frame rate, and
+What the server reads from the files needs you to be logged in: exact frame numbers, decoded values, **What's in the
+files** and **Differences**. Logged out, the videos play and compare, frames are estimated from the frame rate, and
 the values are those on your screen.
 :::
 
 ## A typical review: a new denoiser in low light {#a-typical-review}
 The camera team merged a bilateral denoiser. On the video of the robot driving down a warehouse aisle at ISO 3200, the
 PSNR went from 20.5 to 20.7 dB. Was it better, frame by frame? Open the commit's **Visualizations**, pick the `video`
-batch, and look at the *clips/aisle-drive.yaml* card:
+batch in both bars, the new one and the reference's, and look at the *clips/aisle-drive.yaml* card:
 
 1. Click **Differences**, at the right of the timeline. In about a second, the server compares all 72 decoded frames:
    *Differ in 72 of 72 frames · most at frame 12 (Δ 99, PSNR 31.0 dB)*. Bars over the timeline show how much each
@@ -111,7 +111,7 @@ badge at the bottom left of the videos tells which frame each one shows:
 | Badge | What it means |
 |---|---|
 | *✓ Frame 42 · both* | Both videos show their frame 42, as decoded from the files. The server read the timestamp of every frame, so frames are numbered from 0 like in the file, also with variable frame rates. |
-| *Frame 42?* | The frame is estimated from the frame rate, e.g. when you're signed out or the server can't read the videos. |
+| *Frame 42?* | The frame is estimated from the frame rate, e.g. when you're logged out or the server can't read the videos. |
 | *new 42 · reference 21* | The videos show different frames, e.g. they have different frame rates: they're compared at the same time. |
 | *Playing* | Pause, or step with <kbd>←</kbd> <kbd>→</kbd>, to compare exact frames. |
 
@@ -145,7 +145,7 @@ differ only because of the encoder. Browsers play lossless VP9: see [video forma
 
 ## Pixel values: decoded or displayed {#pixel-values}
 Hover a pixel: the line above the videos shows its coordinates, its values in each video, and their difference
-(**Δ**). There are two kinds of values, always labelled:
+(**Δ**). There are two kinds of values, always labeled:
 
 - **decoded**: the frame's own values, as the codec stores them, e.g. Y′, Cb and Cr in 10 bits, with the format next
   to them (*Y Cb Cr, 10-bit*). The server decodes the very frame your browser shows. They show once the videos are

@@ -4,9 +4,15 @@ title: The QA-Board user guide
 sidebar_label: Start here
 description: What QA-Board does for you, the few words it uses, a map of the commit page, and the page to read for each task.
 ---
-QA-Board shows what each commit changed. Your team's CI runs every commit on the same test inputs. QA-Board puts the
-results next to a reference's, like the last release: the metrics, and the outputs behind them, from images and videos
-to plots and logs. You see whether the commit is better and where it differs, and you share a link to what you found.
+QA-Board shows what each commit changed. Your team's CI, the tests that run by themselves on every commit, runs the
+code on the same test inputs each time. QA-Board puts the results next to a reference's, like the last release: the
+metrics, and the outputs behind them, from images and videos to plots and logs. You see whether the commit is better
+and where it differs, and you share a link to what you found.
+
+<Clip
+  id="landing/hero"
+  caption="A new denoiser against the last release: PSNR is up, and so is the edge overshoot. Zoom in one image and the reference follows; their difference, with its maximum raised, leaves only the halos."
+/>
 
 This guide is for everyone who looks at results in the web app: image-quality and test engineers, integrators,
 algorithm developers, team leads. You don't need to know how the project was set up.
@@ -16,6 +22,9 @@ algorithm developers, team leads. You don't need to know how the project was set
     Follow one commit of a demo camera pipeline, step by step: its metrics, its images in sync, and the halos its new
     denoiser adds.
   </Card>
+  <Card title="Which commit broke it?" to="/docs/user-guide/history-and-dashboards#find-a-regression" eyebrow="Team leads">
+    Follow p99, or any metric, test by test, to the commit where it jumped.
+  </Card>
   <Card title="Run QA-Board on your computer" to="/docs/get-started/quickstart" eyebrow="No server yet?">
     Start a server with the demo projects, to follow the walkthrough or try things out.
   </Card>
@@ -24,11 +33,12 @@ algorithm developers, team leads. You don't need to know how the project was set
 ## The words you need {#words}
 | Word | What it means |
 |---|---|
-| **Commit** | A version of the code. QA-Board shows results commit by commit. |
+| **Commit** | A version of the code, named by its **commit hash**, like `d820bd5d`. QA-Board shows results commit by commit. |
+| **Branch** | A line of commits, like `main` or `isp/bilateral-denoise`. The project's reference branch, often `main`, is the code everyone uses. |
 | **Run** | The code of one commit, on one input (an image, a video, a recording...), with one configuration, like `low-light`. A run has output files, metrics and a log. |
 | **Batch** | The runs of a commit that belong together. The one CI runs is shown as **CI**; tuning experiments and your own runs get their own batches. |
 | **Metric** | A number each run reports: PSNR, mAP, p99 latency... Changes are green when they're better, red when they're worse. |
-| **New and reference** | What you look at, and what it's compared with. By default, the reference is the latest results of the project's reference branch, often `main`. |
+| **New and reference** | What you look at, and what it's compared with. By default, the reference is the latest results of the project's reference branch. |
 | **Milestone** | Results saved to compare with later: a release, a benchmark, your best tuning. Yours, or shared with the project. |
 
 The other words, and how the `qa` command line and the server work together: [Key concepts](/docs/get-started/concepts).
@@ -57,26 +67,18 @@ Around it, the web app has three more pages: the **projects list**, its home pag
 <details>
 <summary>Every part of the page</summary>
 
-- **Left sidebar**:
-  - The **QA-Board** title goes back to the projects list. Next to it, the **What's new** button opens the
-    [release notes](/docs/user-guide/whats-new), the theme button switches between light, dark and your system's theme,
-    and the **?** button opens the cheat sheet: shortcuts, QA-Board's words, and a link to this guide.
-  - The project's avatar goes back to the project's commit list.
-  - Menus that depend on the page: branch, code, History, integrations and milestones on the commit list; the
-    [views of the commit page](/docs/user-guide/commit-page#views) on a commit page.
-  - Your login, at the bottom, and **Collapse**, which shrinks the sidebar to a rail of icons (hover one for its name).
-    <kbd>Ctrl</kbd> + <kbd>{'\\'}</kbd> (<kbd>⌘</kbd> + <kbd>{'\\'}</kbd> on macOS) collapses or expands it too; it
-    remembers your choice.
-- **Top bar**: on the commit list and History, the date range and a search or filter box. On a commit page, two bars:
-  the **new** commit on top, the **reference** below. See [The top bars](/docs/user-guide/commit-page#the-top-bars).
-- **View options**: on the commit page, a panel on the right to show or hide visualizations, pick which of their files
-  to show, turn on viewers' options and sort runs. Click its icons when it's collapsed to a rail. It starts open when
-  the window has room for it, then remembers your choice. It only shows on the views of the runs' results. See
+- **Left sidebar**: the **QA-Board** title goes back to the projects list. Next to it, **What's new** opens the
+  [release notes](/docs/user-guide/whats-new), then the theme button and the **?** cheat sheet. Below: the project's
+  avatar (its commit list), the page's menus, your login, and **Collapse** (<kbd>Ctrl</kbd> + <kbd>{'\\'}</kbd>, or
+  <kbd>⌘</kbd> + <kbd>{'\\'}</kbd> on macOS).
+- **Top bar**: on the commit list and History, the dates and a search or filter box. On a commit page,
+  [the two bars](/docs/user-guide/commit-page#the-top-bars).
+- **View options**: on a commit page, what the cards show and how runs are sorted. See
   [View options](/docs/user-guide/commit-page#view-options).
 
-The addresses of the pages, to type or share:
+Each page's link, after your server's address:
 
-| Page | Address |
+| Page | Link |
 |---|---|
 | Projects list | `/` |
 | Commit list | `/<project>`, `/<project>/commits/<branch>`, `/<project>/committer/<name>` |
@@ -85,25 +87,24 @@ The addresses of the pages, to type or share:
 
 </details>
 
+More in [The commit page](/docs/user-guide/commit-page).
+
 ## What do you want to do? {#what-do-you-want-to-do}
 
-### Find and compare results
+### Find and compare
 <Cards>
-  <Card title="Find a commit" to="/docs/user-guide/finding-results">
-    Projects, the commit list, branches, searching commits, batches, filtering runs.
-  </Card>
   <Card title="Was this commit better?" to="/docs/user-guide/metrics">
     The Summary, the Metrics Table and the Metrics Diff, targets, and what the colors mean.
   </Card>
   <Card title="Compare with something else" to="/docs/user-guide/comparing-results">
     A release, another branch, another project, or several references at once.
   </Card>
-  <Card title="When did it break?" to="/docs/user-guide/history-and-dashboards">
-    A metric over a branch's commits, input by input, to find the commit that changed it.
+  <Card title="Keep results to compare later" to="/docs/user-guide/milestones">
+    Save a release or your best tuning as a milestone, for you or for the project.
   </Card>
 </Cards>
 
-### Look at the outputs
+### Look at outputs
 <Cards>
   <Card title="Compare images" to="/docs/user-guide/image-viewer">
     Synced zoom, wipe, difference, pixel values, histograms, and where the images differ.
@@ -116,7 +117,7 @@ The addresses of the pages, to type or share:
   </Card>
 </Cards>
 
-### Run, debug and share
+### Run and share
 <Cards>
   <Card title="Run more tests, or tune" to="/docs/user-guide/running-from-the-webapp">
     Redo runs, start a batch or a tuning experiment on any commit, from the web app.
@@ -124,15 +125,14 @@ The addresses of the pages, to type or share:
   <Card title="Why did it fail?" to="/docs/user-guide/logs">
     Read a run's log, live, jump from error to error, and see why a cluster job stopped.
   </Card>
-  <Card title="Keep results to compare later" to="/docs/user-guide/milestones">
-    Save a release or your best tuning as a milestone, for you or for the project.
-  </Card>
   <Card title="Share what I found" to="/docs/user-guide/sharing">
-    Links to exactly what you see, paths, exports, bug reports.
+    Links to what you see, paths, exports, bug reports.
   </Card>
 </Cards>
 
-Shortcuts and answers to common questions: [Tips & FAQ](/docs/user-guide/tips-and-faq).
+Also: [find a commit](/docs/user-guide/finding-results), [choose the tests to run](/docs/user-guide/available-tests),
+[browse files](/docs/user-guide/files), and [Tips & FAQ](/docs/user-guide/tips-and-faq) for shortcuts and answers to
+common questions.
 
 Setting up a project for QA-Board? See [Project integration](/docs/introduction). Running the server? See
 [Admin](/docs/deploy).

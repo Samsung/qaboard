@@ -143,30 +143,26 @@ When your search could be a branch name (a single word, or a `branch:` term), th
 active branches whose name contains it: pick one to open it.
 
 <details>
-<summary>The full search syntax</summary>
+<summary>More search syntax</summary>
 
 | You type | You find commits... |
 |---|---|
-| `cache` | whose message, committer, branch or batch labels contain "cache" |
-| `3fa2c1` | the same, or whose hash starts with it, for words of 4 or more hexadecimal characters |
 | `cache shard` | matching **both** words |
-| `-wip` | **not** matching "wip" |
 | `"result cache"` | containing these words together |
-| `branch:perf` | whose branch contains "perf" |
-| `committer:kaito` or `author:kaito` | by a committer whose name contains "kaito" |
+| `author:kaito` | like `committer:kaito` |
 | `batch:tune` or `label:tune` | with a batch whose label contains "tune" |
 | `message:p99` or `msg:p99` | whose message contains "p99" |
 | `id:3fa2`, `commit:3fa2` or `sha:3fa2` | whose hash starts with "3fa2" |
 
-Searches are case-insensitive, and qualifiers can be excluded too (`-branch:release`). Unlike the
-[filters of the commit page](#filter-syntax), they don't use regular expressions. The search is saved in the URL
-(`search=`), so a shared link shows the same results.
+A word matches the start of hashes when it has 4 or more hexadecimal characters. Searches are case-insensitive, and
+qualifiers can be excluded too (`-branch:release`). Unlike the [filters of the commit page](#filter-syntax), they
+don't use regular expressions. The search is saved in the page's link, so a shared link shows the same results.
 
 </details>
 
 ### Go to a commit by its hash {#going-to-a-commit-by-its-hash}
 - Type or paste a commit hash in the search box, then choose **Go to commit: ...**.
-- Or edit the URL: `/<project>/commit/<hash>`. Short hashes work.
+- Or edit the page's link: `/<project>/commit/<hash>`. Short hashes work.
 - On a commit page, you can also type a hash in the commit field of the new or reference bar (see
   [choose another reference](/docs/user-guide/comparing-results#picking-a-reference)).
 
@@ -212,7 +208,7 @@ and the **?** icon in the box recalls the syntax.
 | `low-light` | whose input path, configuration, platform, metadata, tuning parameters or batch contain "low-light" |
 | `low-light facade` | matching **both** words |
 | `-gradient` | **not** matching "gradient" |
-| `facade\|foliage` | matching either word (the filter is a regular expression) |
+| `facade\|foliage` | matching either word |
 | `denoise_strength:1.6` | with the tuning parameter `denoise_strength` equal to 1.6 (also `denoise_strength=1.6`) |
 | `fail` or `crash` | that failed |
 | `pending` or `running` | that are not finished |
@@ -223,5 +219,17 @@ and the **?** icon in the box recalls the syntax.
   caption="The filter “low-light -gradient” keeps the low-light runs except the sky gradient's: the counter under the box and the Metrics Table only count what's left."
 />
 
-Filters are case-insensitive and are saved in the URL (`filter=` and `filter_ref=`), so a shared link shows the same
-runs. [History](/docs/user-guide/history-and-dashboards) has the same filter box.
+Filters are case-insensitive and are saved in the page's link, so a shared link shows the same runs.
+[History](/docs/user-guide/history-and-dashboards) has the same filter box.
+
+:::tip
+Each word of the filter is a regular expression: `photos/(facade|foliage)` keeps the runs of those two photos.
+:::
+
+## Where to go next
+
+<Cards>
+  <Card title="The commit page" to="/docs/user-guide/commit-page">The two bars, the views, the view options and the run cards.</Card>
+  <Card title="Reading metrics" to="/docs/user-guide/metrics">Was the commit better? The Summary, the tables and their colors.</Card>
+  <Card title="New and reference" to="/docs/user-guide/comparing-results">Choose what you compare with, and how runs are matched.</Card>
+</Cards>
