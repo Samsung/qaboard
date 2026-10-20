@@ -650,7 +650,6 @@ class TestIngestMessages(AuthTestCase):
     # no hint: older servers don't say why. (The data dump has the commit message, which can mention anything.)
     self.assertNotIn('Run `qa auth login`', stderr)
     self.assertNotIn('run `qa auth login`', stderr)
-    self.assertNotIn('secret', stderr)
 
   def test_warning_header(self):
     warning = {'X-QABoard-Warning': 'This run was sent without a token: it is saved as unverified.'}

@@ -96,17 +96,17 @@ def test_broken_tokens_are_refused_with_a_reason(logged_in, make_client):
 def test_tokens_remember_when_they_were_used(logged_in, make_client):
   from backend.models import Token, AuditEvent
   secret = new_token(logged_in('alice'))["token"]
-  make_client().get('/api/v1/projects', headers={**bearer(secret), "X-Forwarded-For": "10.0.0.1"})
+  make_client().get('/api/v1/projects', headers=bearer(secret), environ_base={"REMOTE_ADDR": "10.0.0.1"})
   token = Token.query.one()
   assert token.last_used_at is not None and token.last_used_ip == "10.0.0.1"
   # at most every few minutes, even from other IPs: tokens shared by CI runners change IPs all the time
-  make_client().get('/api/v1/projects', headers={**bearer(secret), "X-Forwarded-For": "10.0.0.2"})
+  make_client().get('/api/v1/projects', headers=bearer(secret), environ_base={"REMOTE_ADDR": "10.0.0.2"})
   assert Token.query.one().last_used_ip == "10.0.0.1"
   assert AuditEvent.query.filter_by(action='token.new_ip').count() == 0
   from backend.database import db_session
   Token.query.update({"last_used_at": datetime.datetime.utcnow() - datetime.timedelta(minutes=6)})
   db_session.commit()
-  make_client().get('/api/v1/projects', headers={**bearer(secret), "X-Forwarded-For": "10.0.0.2"})
+  make_client().get('/api/v1/projects', headers=bearer(secret), environ_base={"REMOTE_ADDR": "10.0.0.2"})
   assert Token.query.one().last_used_ip == "10.0.0.2"
   assert AuditEvent.query.filter_by(action='token.new_ip').one().meta == {"previous_ip": "10.0.0.1"}
 

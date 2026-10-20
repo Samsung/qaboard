@@ -152,8 +152,14 @@ def test_diff():
 
 
 def test_client_ip_behind_nginx(dummy_app):
-  with dummy_app.test_request_context('/', headers={"X-Forwarded-For": "1.2.3.4, 10.0.0.1"}, environ_base={"REMOTE_ADDR": "172.17.0.1"}):
-    # nginx appends the address it sees: with one proxy, it's the last one (the first can be forged)
-    assert client_ip() == "10.0.0.1"
-  with dummy_app.test_request_context('/', environ_base={"REMOTE_ADDR": "172.17.0.1"}):
+  # QA-Board's nginx talks uwsgi: REMOTE_ADDR is the client, X-Forwarded-For is what the client sent (forgeable)
+  with dummy_app.test_request_context('/', headers={"X-Forwarded-For": "6.6.6.6"}, environ_base={"REMOTE_ADDR": "172.17.0.1"}):
     assert client_ip() == "172.17.0.1"
+
+
+def test_client_ip_behind_another_proxy(dummy_app, monkeypatch):
+  # e.g. a Kubernetes ingress, that appends the address it sees: the last one (the first can be forged)
+  import backend.audit
+  monkeypatch.setattr(backend.audit, "trusted_proxy_hops", 1)
+  with dummy_app.test_request_context('/', headers={"X-Forwarded-For": "1.2.3.4, 10.0.0.1"}, environ_base={"REMOTE_ADDR": "172.17.0.1"}):
+    assert client_ip() == "10.0.0.1"
