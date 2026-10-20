@@ -24,6 +24,8 @@ import { MultiSelect } from "@blueprintjs/select";
 import { CommitAvatar } from "./avatars";
 import { DoneAtTag } from "./DoneAtTag";
 import { SelectBatchesNav } from "./tuning/SelectBatches";
+import { openAddReference } from "./ReferenceTabs";
+import { SideLabel, milestone_label_hint } from "./SideLabel";
 import { MilestonesPanel } from "../milestones/MilestonesPanel"
 import { CommitMilestoneButton } from "../milestones/CommitMilestone"
 import { milestones_of, results_project } from "../milestones/api"
@@ -33,6 +35,7 @@ import { shortId, pretty_label } from "../utils";
 import { http, errorMessage, isArtifactsError } from "../api/http";
 import { commitQuery } from "../api/queries";
 import { useRefreshCommit, useUrlText, updateSelected, useSiteConfig, useUser } from "../hooks";
+import { remove_reference } from "../selection";
 import { LoginMenuItem } from "./authentication/login";
 import { toaster } from "../toaster"
 import { copyDirectory } from "./logs/DirectoryActions"
@@ -176,7 +179,9 @@ const confirmations = {
 
 // The "new" or "reference" commit we compare: which commit, batch and filter.
 // same_as_new: the reference shows the same results as the new commit, there is nothing to compare
-const CommitNavbar = ({ update, loading, commit, batch, filter, project, project_data, selected, type, same_as_new = false }) => {
+// references: for the reference, all those users selected (see useComparison), we show one at a time
+// side: what we compare, from useComparison().compared: its label, color, milestone...
+const CommitNavbar = ({ update, loading, commit, batch, filter, project, project_data, selected, type, same_as_new = false, references, side }) => {
   const queryClient = useQueryClient();
   const refreshCommit = useRefreshCommit();
   const [waiting, setWaiting] = useState(false);
@@ -379,7 +384,10 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
     typing_timer.current = setTimeout(() => selectCommit(id), 300)
   }
 
-  const removeSelection = () => updateSelected({ [commit_attr]: '' })
+  // with several references, the next one is shown
+  const removeSelection = () => references?.length > 1
+    ? updateSelected(remove_reference({ ...selected, references }, selected.ref_index))
+    : updateSelected({ [commit_attr]: '' })
 
   const selectBranch = async branch => {
     const commit_project = selected[project_attr]
@@ -427,6 +435,8 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
       selected_batch_ref: selected.selected_batch_new,
       filter_batch_new: selected.filter_batch_ref,
       filter_batch_ref: selected.filter_batch_new,
+      label_new: selected.label_ref,
+      label_ref: selected.label_new,
     })
   }
 
@@ -461,6 +471,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
       <MenuDivider title="Quick actions"/>
       <MenuItem text="Switch new/reference" icon="exchange" onClick={switchSelection} />
       <MenuItem text={`Also select as ${type === 'ref' ? 'new' : 'reference'}`} icon={type === 'ref' ? "chevron-up" : "chevron-down"} onClick={copyToOtherType} />
+      {type === 'ref' && <MenuItem text="Stack another reference…" icon="layers" label="compare with several" onClick={openAddReference} />}
       <MenuItem text="Remove from comparison" icon="cross" onClick={removeSelection} />
       <MenuItem text={reference_branch} label="reference branch" icon="git-branch" onClick={() => selectBranch(reference_branch)} />
       <MenuDivider/>
@@ -491,12 +502,18 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
       <FormGroup style={{ marginBottom: '0px', minWidth: 0, flex: '1 1 auto' }}>
         <div style={{ position: 'relative', maxWidth: '640px', marginBottom: '6px' }}>
           <span style={{ display: 'flex', minWidth: 0 }}>
-            <Tooltip
-              content={type === 'new' ? "New: the results you're looking at" : "Reference: what the new results are compared to. Change it with “Change” or pick a milestone."}
-              targetProps={{style: {flex: '0 1 auto', alignSelf: 'center', marginRight: '5px'}}}
-            >
-              <Tag minimal>{type}</Tag>
-            </Tooltip>
+            <SideLabel
+              className="commit-header-side"
+              color={side?.color.css}
+              label={side?.milestone ? '' : selected[`label_${type}`]}
+              fallback={type}
+              editable={!side?.milestone}
+              onRename={label => updateSelected({ [`label_${type}`]: label })}
+              tooltip={side?.milestone ? milestone_label_hint(side.label) : <span>
+                {type === 'new' ? "New: the results you're looking at." : "Reference: what the new results are compared to. Change it with “Change” or pick a milestone."}
+                {' '}Click to rename it{type === 'new' ? ', e.g. “ISP v2”' : ''}: viewers use its name.
+              </span>}
+            />
             {(!error_text || !!commit?.committer_name) && <CommitAvatar size='20px' commit={commit} project={selected[project_attr] ?? project} style={{ marginRight: '5px' }} />}
             <CommitMessage
               commit={commit}
@@ -544,7 +561,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
           <CommitBranchButton commit={commit} error={error_text} onClick={selectBranch} style={{ flex: '0 1 auto', alignSelf: 'center' }} />
 
           {(!error_text || !!commit?.authored_datetime) && <DoneAtTag project={project} commit={commit} style={{ flex: '0 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }} />}{" "}
-          {same_as_new && <Tooltip content="Same commit as new: pick another reference to compare" targetProps={{style: {alignSelf: "center"}}}>
+          {same_as_new && <Tooltip content={references?.length > 1 ? "The same results as new: switch to another reference (r), or pick another one" : "The same results as new: pick another reference to compare"} targetProps={{style: {alignSelf: "center"}}}>
             <Tag minimal intent={Intent.WARNING} icon="duplicate" style={{ marginLeft: '5px' }}>Same as new</Tag>
           </Tooltip>}
           {!!error_text && <Tooltip content={

@@ -35,3 +35,14 @@ const Layout = styled.div`
 `
 
 export { Container, Section, Layout };
+
+
+// The commit page's fixed header: a bar for the new commit, one for the reference (except in views about the new
+// commit only), then the references' tabs when there are several (components/ReferenceTabs.jsx)
+export const commit_bar_height = 75;
+export const reference_tabs_height = 34;
+export const shows_reference_bar = selected_views => !['logs', 'tuning', 'groups'].some(view => selected_views.includes(view));
+export const commit_header_height = ({ selected_views, references }) => {
+  if (!shows_reference_bar(selected_views)) return commit_bar_height;
+  return 2 * commit_bar_height + (references.length > 1 ? reference_tabs_height : 0);
+};

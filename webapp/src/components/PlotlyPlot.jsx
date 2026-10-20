@@ -3,7 +3,35 @@ import Plotly from "plotly.js/dist/plotly.min.js";
 import createPlotlyComponent from "react-plotly.js/factory";
 import { useIsDark } from "../theme";
 
-const BasePlot = createPlotlyComponent(Plotly);
+// Plotly draws synchronously. When many plots change at once (e.g. switching the reference on the commit page),
+// react-plotly.js would draw them all in one long task, and the page would freeze until they're done. We draw them
+// one per task instead: the page shows the rest of the change first, and stays responsive.
+const queue = [];
+let scheduled = false;
+const schedule = () => {
+  if (scheduled || queue.length === 0) return;
+  scheduled = true;
+  setTimeout(drawNext);
+};
+const drawNext = () => {
+  scheduled = false;
+  queue.shift()();
+  schedule();
+};
+const react = (gd, figure) => new Promise((resolve, reject) => {
+  queue.push(() => {
+    // unmounted while waiting
+    if (!gd.isConnected) return resolve(gd);
+    try {
+      resolve(Plotly.react(gd, figure));
+    } catch (error) {
+      reject(error);
+    }
+  });
+  schedule();
+});
+
+const BasePlot = createPlotlyComponent({ ...Plotly, react });
 
 // Since plotly.js@3, titles must be objects ({text, font...}).
 // Users' output files and older code may still use strings or `titlefont`, so we upgrade them in-place.

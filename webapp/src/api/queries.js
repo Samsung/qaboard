@@ -171,6 +171,22 @@ export const commitQuery = ({ project, id, branch, batch }) => queryOptions({
   },
 });
 
+// A commit without its outputs: its message, branch, and batches with their counts. Commits can have thousands of
+// outputs: we use it for the references users stacked but don't look at.
+export const commitSummaryQuery = ({ project, id }) => queryOptions({
+  queryKey: ['commit-summary', project, id ?? null],
+  queryFn: async ({ signal }) => {
+    const { data } = await http.get(`/api/v1/commit/${id}`, { params: { project, with_outputs: false }, signal });
+    return normalize_commit(data);
+  },
+  enabled: !!project && !!id,
+  staleTime: 60 * 1000,
+});
+
+// How many outputs the commit has, in all its batches: what fetching it with its outputs costs
+export const nb_outputs = commit => Object.values(commit?.batches ?? {})
+  .reduce((n, b) => n + (b.valid_outputs ?? 0) + (b.running_outputs ?? 0) + (b.pending_outputs ?? 0) + (b.failed_outputs ?? 0), 0);
+
 // Where to look for a commit in the cache: its own query, or else any list of commits that includes it
 export const findCachedCommit = (queryClient, project, id) => {
   if (!id) return undefined;

@@ -4,6 +4,8 @@ import { tsvParse } from "d3-dsv";
 
 import Plot from "../../components/Plot";
 import { fileQuery } from "../../api/queries";
+import { plot_color, with_default_labels } from "../../sideColors";
+import { useIsDark } from "../../theme";
 
 // No "Send to Cloud" or "Edit chart" links: they would upload the data to Plotly's public Chart Studio
 const config = {
@@ -12,11 +14,8 @@ const config = {
   showLink: false,
 };
 
-const colors = {
-  groundtruth: "#4daf4a",
-  new: "rgba(255, 131, 0, .9)",
-  reference: "rgb(25,34,231)"
-};
+// the new and reference traces have the names and colors of what we compare (src/sideColors.js)
+const groundtruth = { name: "groundtruth", color: "#4daf4a" };
 
 
 // The files are tab-separated values
@@ -49,7 +48,7 @@ const try_parse = (text, parse, label) => {
 
 const px = (value, fallback) => parseFloat(String(value ?? fallback).replace(/px$/, ''));
 
-const SlamOutputCard = ({ output_new, output_ref, show_debug, select_debug = "", path = 'camera_poses_debug.csv', show_3d = true, layout, style }) => {
+const SlamOutputCard = ({ output_new, output_ref, show_debug, select_debug = "", path = 'camera_poses_debug.csv', show_3d = true, layout, style, labels }) => {
   // the card's width, shared by the plots of each axis and the 3D view
   const width = px(style?.width, 700);
   const plot_width = show_3d ? Math.max(300, Math.floor((width - 16) / 2)) : width;
@@ -69,22 +68,28 @@ const SlamOutputCard = ({ output_new, output_ref, show_debug, select_debug = "",
   const data_debug_new = useMemo(() => try_parse(file_debug_new.data, parse_debug, "get_new_debug"), [file_debug_new.data]);
   const data_debug_ref = useMemo(() => try_parse(file_debug_ref.data, parse_debug, "get_ref_debug"), [file_debug_ref.data]);
 
+  // the traces' names and colors: what the commit page calls the runs
+  const is_dark = useIsDark();
+  const sides = with_default_labels(labels);
+  const style_new = useMemo(() => ({ name: sides.new, color: plot_color(sides.colors.new, is_dark) }), [sides.new, sides.colors.new, is_dark]);
+  const style_ref = useMemo(() => ({ name: sides.reference, color: plot_color(sides.colors.reference, is_dark) }), [sides.reference, sides.colors.reference, is_dark]);
+
   // other traces are made with regards to the columns of the new data
   const data_set = poses_new?.data_set;
   const traces_6dof = useMemo(() => ({
-    groundtruth: poses_gt && make_traces(poses_gt, "groundtruth", data_set),
-    reference: poses_ref && make_traces(poses_ref, "reference", data_set),
-    new: poses_new && make_traces(poses_new, "new", data_set),
-  }), [poses_gt, poses_ref, poses_new, data_set]);
+    groundtruth: poses_gt && make_traces(poses_gt, "groundtruth", data_set, groundtruth),
+    reference: poses_ref && make_traces(poses_ref, "reference", data_set, style_ref),
+    new: poses_new && make_traces(poses_new, "new", data_set, style_new),
+  }), [poses_gt, poses_ref, poses_new, data_set, style_new, style_ref]);
   const traces_3d = useMemo(() => ({
-    groundtruth: poses_gt && make_traces3d(poses_gt, "groundtruth"),
-    reference: poses_ref && make_traces3d(poses_ref, "reference"),
-    new: poses_new && make_traces3d(poses_new, "new"),
-  }), [poses_gt, poses_ref, poses_new]);
+    groundtruth: poses_gt && make_traces3d(poses_gt, "groundtruth", groundtruth),
+    reference: poses_ref && make_traces3d(poses_ref, "reference", style_ref),
+    new: poses_new && make_traces3d(poses_new, "new", style_new),
+  }), [poses_gt, poses_ref, poses_new, style_new, style_ref]);
   const traces_debug = useMemo(() => ({
-    new: data_debug_new && make_traces_debug(data_debug_new, "new", select_debug),
-    reference: data_debug_ref && make_traces_debug(data_debug_ref, "reference", select_debug),
-  }), [data_debug_new, data_debug_ref, select_debug]);
+    new: data_debug_new && make_traces_debug(data_debug_new, "new", select_debug, style_new),
+    reference: data_debug_ref && make_traces_debug(data_debug_ref, "reference", select_debug, style_ref),
+  }), [data_debug_new, data_debug_ref, select_debug, style_new, style_ref]);
 
   const is_loaded = file_new.is_settled && file_gt.is_settled && file_ref.is_settled;
   if (!is_loaded) {
@@ -267,7 +272,8 @@ const parse_poses = (text_string, test_input_path) => {
   return {data_set, t};
 };
 
-const make_traces = function(poses, label, data_set) {
+// style: the traces' { name, color }
+const make_traces = function(poses, label, data_set, style) {
   try{
     var columns = ['q_w', 'q_x', 'q_y', 'q_z', 'x', 'y', 'z']
     if (data_set !== undefined) {
@@ -284,15 +290,15 @@ const make_traces = function(poses, label, data_set) {
         x: poses.t,
         y: poses.data_set[c].values,
         line: {
-          color: colors[label],
+          color: style.color,
           width: label === "reference" ? 3 : 2 // ref wider to highlight bit accuracy
         },
         marker: {
-          color: colors[label],
+          color: style.color,
           size: 5
         },
         mode: "lines",
-        name: label,
+        name: style.name,
         legendgroup: label,
         yaxis: `y${(index + 1)}`,
         showlegend: index === 4 ? true : false
@@ -301,7 +307,7 @@ const make_traces = function(poses, label, data_set) {
   }catch{console.log("error at make traces for ".concat(label))}  
 };
 
-const make_traces3d = function(poses, label) {
+const make_traces3d = function(poses, label, style) {
   const sample = (x, i) => i % 5 === 0;
   const include_reducer = (accum, curr) => accum && poses.data_set.columns.includes(curr);
   
@@ -314,10 +320,10 @@ const make_traces3d = function(poses, label) {
       mode: "lines",
       line: {
         width: label === "reference" ? 3 : 2,
-        color: colors[label],
+        color: style.color,
         opacity: 0.8
       },
-      name: label,
+      name: style.name,
       legendgroup: label,
       showlegend: true
     };
@@ -328,7 +334,7 @@ const make_traces3d = function(poses, label) {
   
 };
 
-const make_traces_debug = (data, label, select_string) => {
+const make_traces_debug = (data, label, select_string, style) => {
   if (!data) return [];
   var select = c => {
     if (select_string.length === 0) return false;
@@ -349,11 +355,11 @@ const make_traces_debug = (data, label, select_string) => {
         x: data.t,
         y: data[c],
         line: {
-          color: colors[label],
+          color: style.color,
           width: label === "reference" ? 3 : 2 // reference wider to highlight bit accuracy
         },
         marker: {
-          color: colors[label],
+          color: style.color,
           size: 5
         },
         mode: "lines",

@@ -1,18 +1,20 @@
 // Hooks that components use to read the app's state: server data from TanStack Query,
 // the selection from the URL, preferences from the zustand store.
 import { createContext, createElement, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   siteConfigQuery, default_site_config, userQuery, logged_out_user,
   projectsQuery, projectQuery, branchesQuery, commitsQuery, commitsPagesQuery, commits_of, commits_page_size, commitQuery,
-  findCachedCommit, invalidateCommit,
+  commitSummaryQuery, findCachedCommit, invalidateCommit,
 } from "./api/queries";
 import { errorMessage } from "./api/http";
 import { usePrefsStore } from "./stores/prefs";
 import { useSelected, updateSelected } from "./selection";
 import { available_batch, compute_batches, compute_config } from "./selectors/batches";
 import { default_project } from "./defaults";
+import { milestonesQuery, milestones_of, milestone_name, no_milestones } from "./milestones/api";
+import { side_color, side_slot } from "./sideColors";
 import { with_undeclared_metrics } from "./utils";
 
 // The keys of a Set of metrics, as a string that only changes when they do
@@ -238,6 +240,55 @@ function useCommitIdsInUrl(selected, new_commit, ref_commit) {
 }
 
 
+// Milestones have their own name: users can't rename them
+const side_label = (milestone, label, fallback) => milestone ? milestone_name(milestone) : label || fallback;
+
+// The references users selected (see `references` in src/selection.js), with what we know about them:
+// their commit (without its outputs, unless we have them already), their name, color...
+// The one shown is the reference commit we compare with, fetched as before with its outputs.
+// TanStack Query keeps the same array while the commits are the same: the comparison changes only when they do
+const commits_data = results => results.map(result => result.data);
+
+function useReferences(selected, ref_commit, milestones, enabled) {
+  const queryClient = useQueryClient();
+  const { references, ref_index } = selected;
+  // Not the one shown: it's ref_commit, that refreshes while its runs are running.
+  // While they load, their commit with its outputs if we have it, e.g. after we compared with them.
+  const others = references.filter((_, index) => index !== ref_index);
+  const cached_others = useQueries({
+    combine: commits_data,
+    queries: others.map(side => ({
+      ...commitSummaryQuery({ project: side.project, id: side.commit_id ?? undefined }),
+      enabled: enabled && !!side.commit_id,
+      placeholderData: () => queryClient.getQueryData(commitQuery({ project: side.project, id: side.commit_id }).queryKey)
+        ?? findCachedCommit(queryClient, side.project, side.commit_id),
+    })),
+  });
+  const several = references.length > 1;
+  return useMemo(() => references.map((side, index) => {
+    const is_shown = index === ref_index;
+    const commit = is_shown ? ref_commit : cached_others[index < ref_index ? index : index - 1];
+    // e.g. the default reference: the latest commit on the reference branch
+    const commit_id = side.commit_id ?? (is_shown ? ref_commit?.id ?? null : null);
+    const [milestone] = milestones_of(milestones, { project: side.project, commit: commit_id ?? undefined, batch: side.batch, filter: side.filter });
+    const number = index + 1;
+    return {
+      ...side,
+      commit_id,
+      index,
+      number,
+      is_shown,
+      commit: commit ?? undefined,
+      milestone,
+      // what viewers call it: its milestone's name, else what users called it, else its number.
+      // Numbers, not letters: blind tests call images A and B.
+      display_label: side_label(milestone, side.label, several ? `reference ${number}` : 'reference'),
+      color: side_color(side_slot('reference', number)),
+    };
+  }), [references, ref_index, ref_commit, cached_others, milestones, several]);
+}
+
+
 // What the project pages show, computed once for the sidebar, the navbar and the page:
 // the commits listed, the new and reference commits we compare, their batches, configuration and metrics.
 function useComparisonState() {
@@ -271,6 +322,9 @@ function useComparisonState() {
   const new_commit = useCommit({ project: new_project, id: new_id, enabled: on_commit_page, placeholder: from_list(new_id) });
   const ref_commit = useCommit({ project: selected.ref_project, id: ref_id, enabled: on_commit_page, placeholder: from_list(ref_id) });
   useCommitIdsInUrl(selected, new_commit, ref_commit);
+  // to name what we compare
+  const { data: milestones = no_milestones } = useQuery({ ...milestonesQuery(project), enabled: !!project && on_commit_page });
+  const references = useReferences(selected, ref_commit, milestones, on_commit_page);
 
   // The configuration comes from the batch shown (not filtered), else its commit, else the project:
   // it changes only with the data, not when users filter or sort outputs
@@ -295,6 +349,30 @@ function useComparisonState() {
     [selected.selected_views, default_views],
   );
 
+  // What the page compares, in order: the new results, then the reference. Viewers can use it instead of
+  // new_* and ref_*, it's how we'll compare more than two. Their labels: their milestone's name, else new/reference...
+  const new_milestone = milestones_of(milestones, {
+    project: new_project, commit: new_commit?.id ?? selected.new_commit_id ?? undefined, batch: selected_batch_new, filter: filter_batch_new,
+  })[0];
+  const shown_reference = references[selected.ref_index];
+  const new_label = side_label(new_milestone, selected.label_new, 'new');
+  const compared = useMemo(() => [
+    {
+      key: 'new', label: new_label, color: side_color(side_slot('new')), project: new_project, commit: new_commit,
+      batch: batches.new_batch, filter: filter_batch_new, milestone: new_milestone,
+    },
+    {
+      key: 'reference', label: shown_reference.display_label, color: shown_reference.color, number: shown_reference.number,
+      project: selected.ref_project, commit: ref_commit, batch: batches.ref_batch, filter: filter_batch_ref, milestone: shown_reference.milestone,
+    },
+  ], [new_label, new_project, new_commit, batches, filter_batch_new, new_milestone, shown_reference, selected.ref_project, ref_commit, filter_batch_ref]);
+  // what viewers call the new and reference results, and their colors: labels.new, labels.colors.reference...
+  const labels = useMemo(() => ({
+    new: compared[0].label,
+    reference: compared[1].label,
+    colors: { new: compared[0].color, reference: compared[1].color },
+  }), [compared]);
+
   // All the metrics of the runs, declared or not. The batch's used metrics are a new Set when users filter or sort runs:
   // the metrics change only with their keys, so that output cards don't re-render.
   const used_metrics_key = used_metrics_signature(batches.new_batch.used_metrics);
@@ -304,8 +382,8 @@ function useComparisonState() {
   );
 
   return useMemo(
-    () => ({ selected, project, project_data, list: searched_list, unsearched_list: default_list, new_commit, ref_commit, ...batches, ...config, metrics, selected_views, default_views }),
-    [selected, project, project_data, searched_list, default_list, new_commit, ref_commit, batches, config, metrics, selected_views, default_views],
+    () => ({ selected, project, project_data, list: searched_list, unsearched_list: default_list, new_commit, ref_commit, ...batches, ...config, metrics, selected_views, default_views, references, compared, labels }),
+    [selected, project, project_data, searched_list, default_list, new_commit, ref_commit, batches, config, metrics, selected_views, default_views, references, compared, labels],
   );
 }
 

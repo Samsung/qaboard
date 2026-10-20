@@ -19,12 +19,14 @@ import './image-viewer-theme.css';
 
 
 // An image of a run, served by the site's IIIF image server
-const runImage = (output, path, manifest, image_servers, label) => {
+const runImage = (output, path, manifest, image_servers, label, color) => {
   const name = build_image_name(path, manifest);
   const file = `${output.output_dir_url}/${name}`;
   return {
     iiif: iiif_url(output.output_dir_url, path, manifest, true, image_servers),
     label,
+    color: color?.hex,
+    textColor: color?.text,
     href: `${output.output_dir_url}/${name.split('/').map(encodeURIComponent).join('/')}`,
     // for the server's pixel values
     file,
@@ -35,9 +37,9 @@ const runImage = (output, path, manifest, image_servers, label) => {
 // To compare with another file of the same run instead (e.g. the input, or a previous stage), this is where to
 // return { ...runImage(output_new, other_path, manifests.new, image_servers, other_path) }: the viewer compares
 // any two images, and the labels say which.
-const referenceImage = ({ output_ref, path_ref, manifests, image_servers }) => {
+const referenceImage = ({ output_ref, path_ref, manifests, image_servers, label = 'reference', color }) => {
   const available = !!output_ref && !output_ref.deleted && !!output_ref.output_dir_url && manifests?.reference?.[path_ref] !== undefined;
-  return available ? runImage(output_ref, path_ref, manifests.reference, image_servers, 'reference') : null;
+  return available ? runImage(output_ref, path_ref, manifests.reference, image_servers, label, color) : null;
 };
 
 // The image's own values (e.g. 16-bit, raw...), read by the server, as binary: the viewer asks for tiles of 64x64
@@ -145,6 +147,8 @@ const ImageViewerForRuns = ({
   path_ref = path,
   manifests,
   label,
+  // what to call the new and reference images, e.g. their milestones' names
+  labels,
   style,
   fullscreen,
   // the visual controls, see ../controls.js
@@ -166,11 +170,11 @@ const ImageViewerForRuns = ({
   const mode = (onControlsChange ? image_mode : local_mode) ?? (diff ? 'difference' : 'side-by-side');
   const diff_settings = onControlsChange ? image_diff : local_diff;
 
-  const image = runImage(output_new, path, manifests?.new, image_servers, 'new');
+  const image = runImage(output_new, path, manifests?.new, image_servers, labels?.new ?? 'new', labels?.colors?.new);
   // Identical files: we show one. When a run is compared with itself it's obvious, else we say it.
   const identical = is_same_data(path, manifests?.new?.[path], manifests?.reference?.[path_ref]);
   const same_data = identical && output_ref?.id !== output_new.id;
-  const reference = identical ? null : referenceImage({ output_ref, path_ref, manifests, image_servers });
+  const reference = identical ? null : referenceImage({ output_ref, path_ref, manifests, image_servers, label: labels?.reference, color: labels?.colors?.reference });
   const signed_in = useUser().is_logged;
   const region_sets = useRegionSets({ output_new, output_ref: reference ? output_ref : null, path, path_ref }, signed_in);
   const page = usePageKey();

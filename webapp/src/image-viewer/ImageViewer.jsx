@@ -7,7 +7,7 @@ import { describeAdjustments, filterPrimitives, normalizeAdjustments, changedAdj
 import { DEFAULT_DIFF, normalizeDiff } from './metrics';
 import { regionAsYaml } from './regions';
 import { DEFAULT_MODE, MODES } from './modes';
-import { normalizeImage } from './sources';
+import { imageColors, normalizeImage } from './sources';
 import { PixelTiles } from './pixelTiles';
 import { ALL_CHANNELS } from './histogram';
 import { Crosshair, DiffLayer, HighlightLayer, Minimap, PixelValues } from './overlays';
@@ -542,7 +542,7 @@ export const ImageViewer = ({
     ref={root}
     className={`qiv ${fullscreen ? 'qiv-fullscreen' : ''} ${className}`}
     data-theme={theme}
-    style={style}
+    style={{ ...imageColors(images.a, images.b), ...style }}
     onPointerEnter={() => { hovered_viewer = last_viewer = root.current; }}
     onPointerLeave={() => { if (hovered_viewer === root.current) hovered_viewer = null; }}
     onFocus={() => { last_viewer = root.current; }}

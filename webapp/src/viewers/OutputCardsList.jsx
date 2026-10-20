@@ -13,7 +13,7 @@ import { OutputCard } from "./OutputCard";
 const all_at_once = 300;
 const page_size = 100;
 
-function OutputCardsList({ type, project, config, metrics, new_commit, new_batch, ref_batch, controls, onControlsChange, onRegisterOutputOptions, onToggleDynamicOptionSync }) {
+function OutputCardsList({ type, project, config, metrics, new_commit, new_batch, ref_batch, controls, onControlsChange, onRegisterOutputOptions, onToggleDynamicOptionSync, labels }) {
   // bit-accuracy controls, saved in the URL. They don't add browser history entries.
   const { query, filter_batch_new } = useSelected();
   const flag = name => query[name] === 'true';
@@ -92,6 +92,7 @@ function OutputCardsList({ type, project, config, metrics, new_commit, new_batch
           color_blind_friendly={color_blind_friendly}
           onRegisterOutputOptions={onRegisterOutputOptions}
           onToggleDynamicOptionSync={onToggleDynamicOptionSync}
+          labels={labels}
         />)}
       </div>
       {incomplete && <div ref={more_ref} style={{ height: '1px' }} />}

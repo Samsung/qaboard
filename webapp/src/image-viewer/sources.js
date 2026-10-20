@@ -11,6 +11,12 @@
 // Images served from another origin need CORS headers (Access-Control-Allow-Origin): the viewer reads the pixels
 // it displays for the difference, the values under the pointer and the histograms.
 
+// The images' colors, for their labels: CSS variables on the viewer
+export const imageColors = (a, b) => ({
+  '--qiv-a': a?.color, '--qiv-a-text': a?.textColor,
+  '--qiv-b': b?.color, '--qiv-b-text': b?.textColor,
+});
+
 export const normalizeImage = image => {
   if (!image) return null;
   if (typeof image === 'string') return { url: image };

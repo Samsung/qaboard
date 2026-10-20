@@ -35,6 +35,17 @@ describe('GenericTextViewer', () => {
     expect(await screen.findByTestId('diff')).toHaveTextContent('reference log ➡️ new log');
   });
 
+  it('says what it diffs: new and reference, or their names on the commit page', async () => {
+    const { unmount } = render(<GenericTextViewer filename="log.txt" text_url_new="/new/log.txt" text_url_ref="/ref/log.txt"/>);
+    expect(await screen.findByText(/reference ➡️/)).toHaveTextContent('● reference ➡️ ● new');
+    unmount();
+    const labels = { new: 'ISP v2', reference: 'v1.4', colors: { new: { css: 'var(--qa-side-0)' }, reference: { css: 'var(--qa-side-1)' } } };
+    render(<GenericTextViewer filename="log.txt" text_url_new="/new/log.txt" text_url_ref="/ref/log.txt" labels={labels}/>);
+    const header = await screen.findByText(/v1.4 ➡️/);
+    expect(header).toHaveTextContent('● v1.4 ➡️ ● ISP v2');
+    expect(header.querySelector('[aria-hidden]')).toHaveStyle({ color: 'var(--qa-side-1)' });
+  });
+
   it('shows the file when the reference is missing', async () => {
     render(<GenericTextViewer filename="log.txt" text_url_new="/new/log.txt" text_url_ref="/missing/log.txt"/>);
     expect(await screen.findByTestId('editor')).toHaveTextContent('new log');

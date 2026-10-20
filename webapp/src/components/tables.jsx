@@ -98,7 +98,8 @@ const improvement_quality = (delta_relative, smaller_is_better) => {
 const small_percent_formatter = new Intl.NumberFormat("en-US", { maximumSignificantDigits: 2 });
 const format_percent = percent => Math.abs(percent) >= 1 || percent === 0 ? percent_formatter.format(percent) : small_percent_formatter.format(percent);
 
-const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
+// labels: what the cells' tooltips call the new and reference runs
+const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric, labels }) => {
   const metric_new = metrics_new?.[metric.key]
   const metric_ref = metrics_ref?.[metric.key]
   if (!metrics_new || metric_new === undefined || metric_new === null)
@@ -117,7 +118,7 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
     // native tooltips: tables can have thousands of cells
     return <td
       {...colors}
-      title={`New: ${metric_new * metric.scale}${metric.suffix}\nReference: ${metric_ref * metric.scale}${metric.suffix}`}
+      title={`${labels[0]}: ${metric_new * metric.scale}${metric.suffix}\n${labels[1]}: ${metric_ref * metric.scale}${metric.suffix}`}
     >
       {delta === 0 ? "=" : <span>{metric_formatter(delta * (metric.scale ?? 1), metric)} ({format_percent(100 * delta_relative)}%)</span>}
     </td>
@@ -132,7 +133,8 @@ const ColumnsMetricImprovement = ({ metrics_new, metrics_ref, metric }) => {
 };
 
 // Colored by how far the value is from the metric's target, else in a neutral hue by how it ranks in the column (`rank`)
-const QualityCell = ({ metric_info, metric, metric_ref, rank }) => {
+// label_new: what the "=" of the reference's cells says it's the same as
+const QualityCell = ({ metric_info, metric, metric_ref, rank, label_new }) => {
   if (
     metric_info === undefined ||
     metric === undefined || metric === null
@@ -157,7 +159,7 @@ const QualityCell = ({ metric_info, metric, metric_ref, rank }) => {
       title={is_numeric ? `${metric_for_display}${metric_info.suffix}` : undefined}
     >
       {is_numeric
-        ? (metric_ref === metric ? <span title="Same as new">=</span> : <span>{metric_formatter(metric_for_display, metric_info)}</span>)
+        ? (metric_ref === metric ? <span title={`Same as ${label_new}`}>=</span> : <span>{metric_formatter(metric_for_display, metric_info)}</span>)
         : <span><RunBadge badge={metric}/></span>}
     </td>
   );
@@ -205,7 +207,7 @@ const NoRuns = ({ new_batch }) => {
 };
 
 
-const CompareRow = memo(({ output, output_ref, metrics, index, measure }) =>
+const CompareRow = memo(({ output, output_ref, metrics, index, measure, labels }) =>
   <Row data-index={index} ref={measure}>
     <RowHeaderCell output={output} />
     {metrics.map(m => (
@@ -214,6 +216,7 @@ const CompareRow = memo(({ output, output_ref, metrics, index, measure }) =>
         metric={m}
         metrics_new={output.metrics}
         metrics_ref={output_ref?.metrics}
+        labels={labels}
       />
     ))}
   </Row>
@@ -221,6 +224,7 @@ const CompareRow = memo(({ output, output_ref, metrics, index, measure }) =>
 
 const no_metrics = [];
 const no_metrics_object = {};
+const cell_default_labels = ["New", "Reference"];
 
 const TableCompare = ({
   new_batch,
@@ -233,6 +237,8 @@ const TableCompare = ({
   const { outputs, metrics_, hidden_count } = useTableData({ new_batch, metrics, available_metrics, with_refs_only: true });
   if (new_batch === undefined || new_batch === null || new_batch.outputs === undefined || new_batch.outputs === null) return <span />;
   const [label_new, label_ref] = labels || ["new", "ref"];
+  // the cells' tooltips
+  const cell_labels = labels || cell_default_labels;
 
   if (outputs.length === 0)
     return <TableArea>{input}<NoRuns new_batch={new_batch}/></TableArea>;
@@ -279,7 +285,7 @@ const TableCompare = ({
           </tr>
         </thead>
         <VirtualTbody items={outputs} renderRow={([id, output], index, measure) =>
-          <CompareRow key={id} index={index} measure={measure} output={output} output_ref={ref_batch?.outputs?.[output.reference_id]} metrics={metrics_}/>
+          <CompareRow key={id} index={index} measure={measure} output={output} output_ref={ref_batch?.outputs?.[output.reference_id]} metrics={metrics_} labels={cell_labels}/>
         }/>
       </HTMLTable>
     </TableArea>
@@ -287,13 +293,13 @@ const TableCompare = ({
 };
 
 
-const KpiRow = memo(({ output, output_ref, metrics, metrics_with_refs, rankers, index, measure }) =>
+const KpiRow = memo(({ output, output_ref, metrics, metrics_with_refs, rankers, index, measure, label_new }) =>
   <Row data-index={index} ref={measure}>
     <RowHeaderCell output={output} />
     {metrics.map(m => (
       <Fragment key={m.key}>
         <QualityCell metric_info={m} metric={output.metrics[m.key]} rank={rankers[m.key]}/>
-        {metrics_with_refs.has(m.key) && <QualityCell metric_info={m} metric={output_ref?.metrics?.[m.key]} metric_ref={output.metrics[m.key]} rank={rankers[m.key]}/>}
+        {metrics_with_refs.has(m.key) && <QualityCell metric_info={m} metric={output_ref?.metrics?.[m.key]} metric_ref={output.metrics[m.key]} rank={rankers[m.key]} label_new={label_new}/>}
       </Fragment>
     ))}
   </Row>
@@ -355,7 +361,7 @@ const TableKpi = ({
           </tr>
         </thead>
         <VirtualTbody items={outputs} renderRow={([id, output], index, measure) =>
-          <KpiRow key={id} index={index} measure={measure} output={output} output_ref={ref_batch?.outputs?.[output.reference_id]} metrics={metrics_} metrics_with_refs={new_batch.metrics_with_refs} rankers={rankers}/>
+          <KpiRow key={id} index={index} measure={measure} output={output} output_ref={ref_batch?.outputs?.[output.reference_id]} metrics={metrics_} metrics_with_refs={new_batch.metrics_with_refs} rankers={rankers} label_new={labels?.[0] ?? "new"}/>
         }/>
       </HTMLTable>
     </TableArea>
