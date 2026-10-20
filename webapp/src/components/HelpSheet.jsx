@@ -97,6 +97,7 @@ const shortcuts = [
     [<><Kbd>+</Kbd> <Kbd>−</Kbd> <Kbd>0</Kbd></>, "Zoom in, zoom out, fit"],
     [<><Kbd>[</Kbd> <Kbd>]</Kbd></>, "Previous or next region of interest"],
     [<><Kbd>p</Kbd> <Kbd>f</Kbd></>, "Pixel values, full screen"],
+    [<Kbd key="c">c</Kbd>, "Images: compare with the reference, or the file picked last in the vs menu"],
     [<Kbd key="h">h</Kbd>, "Blind test: the images in a random order, h again reveals them, then ends it"],
   ]},
   { title: "Videos (hover or click a player)", keys: [

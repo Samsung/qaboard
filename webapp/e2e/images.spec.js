@@ -523,6 +523,39 @@ test('takes the keys anywhere on the page, also while scrolling', async ({ page 
   await expect(second.getByRole('radio', { name: 'Side by side' })).toHaveAttribute('aria-checked', 'true');
 });
 
+test('compares with another file of the runs, in every run or one', async ({ page }) => {
+  const files = { 'image.png': { st_size: 1000, md5: 'a' }, 'stages/denoise.png': { st_size: 1000, md5: 'b' }, 'notes.txt': { st_size: 10, md5: 'c' } };
+  await setup(page, { runs: ['A', 'B'], manifests: { new: files, ref: { ...files, 'image.png': { st_size: 1000, md5: 'd' } } } });
+  const [first, second] = [100, 101].map(id => page.locator(`.output-card[data-output-id="${id}"]`));
+  await expect.poll(() => labelsOf(second)).toEqual(['new', 'ref']);
+  // the run's other images, found by name
+  await first.getByRole('button', { name: /vs ref/ }).click();
+  await expect(first.getByRole('option')).toHaveText([/ref/, /stages\/denoise\.png/]);
+  await page.keyboard.type('denoise');
+  await page.keyboard.press('Enter');
+  // every run compares with its own file
+  await expect.poll(() => labelsOf(first)).toEqual(['new', 'stages/denoise.png']);
+  await expect.poll(() => labelsOf(second)).toEqual(['new', 'stages/denoise.png']);
+  await expect(first.locator('.qiv-toast')).toHaveText('Comparing with stages/denoise.png in every run');
+  // or only one, to spot-check it
+  await second.getByRole('button', { name: /vs stages\/denoise\.png/ }).click();
+  await second.getByRole('radio', { name: 'This run' }).click();
+  await second.getByRole('option', { name: /ref/ }).click();
+  await expect.poll(() => labelsOf(second)).toEqual(['new', 'ref']);
+  await expect.poll(() => labelsOf(first)).toEqual(['new', 'stages/denoise.png']);
+  await expect(second.getByRole('button', { name: /vs ref.*this run/ })).toBeVisible();
+  // c goes back to the file, in that run only
+  await second.locator('.qiv-pane').first().hover({ position: { x: 50, y: 50 } });
+  await page.keyboard.press('c');
+  await expect.poll(() => labelsOf(second)).toEqual(['new', 'stages/denoise.png']);
+  // all the runs again, back to their reference
+  await first.getByRole('button', { name: /vs stages\/denoise\.png/ }).click();
+  await first.getByRole('radio', { name: 'All runs' }).click();
+  await first.getByRole('option', { name: /ref/ }).click();
+  await expect.poll(() => labelsOf(first)).toEqual(['new', 'ref']);
+  await expect.poll(() => labelsOf(second)).toEqual(['new', 'ref']);
+});
+
 test('runs a blind test: shuffled, called A and B, then revealed', async ({ page }) => {
   // the test's seed: the first and third viewers show the reference first, the second doesn't
   await page.addInitScript(() => { Math.random = () => 0.25; });

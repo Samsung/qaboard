@@ -205,6 +205,23 @@ and for bit-exact outputs, use the [bit accuracy checks](/docs/bit-accuracy).
 
 </details>
 
+## Compare with another file {#compare-with-another-file-of-the-run}
+To compare an image with its ground truth, the input or another stage, instead of the reference, click
+**vs reference ▾** next to the modes (or **vs** the name you gave the reference). The menu lists the run's other
+images, the likeliest first: the same name in another folder (`gt/0001.png` for `out/0001.png`), then names that start
+alike in the same folder. Type to find one, then click it or press <kbd>Enter</kbd>. It takes the reference's place in
+every mode, with its file name on a teal label.
+
+Every run's viewer of that visualization then compares with its own file of that name, so you can go through all the
+runs of the page. A run without the file compares with its reference, with a warning: *no 0001.png here*.
+
+- To check a single run, pick **This run** under **Apply to**, at the bottom of the menu: the other runs keep what they
+  compare with. **All runs** puts them in step again.
+- The undo button next to the menu, or <kbd>c</kbd>, goes back to the reference. <kbd>c</kbd> again goes back to the
+  file.
+- Runs without a reference can compare with their files too: the menu then reads **Compare with…**. Runs without
+  other images don't show the menu.
+
 ## Pixel values {#pixel-values}
 Hover a pixel: the line above the images gives its coordinates, its values in the new and reference images, and their
 difference, **Δ**, with the measure of the difference you picked. A crosshair marks the same pixel on both images.
@@ -341,6 +358,7 @@ text box. The keyboard button in the viewer's toolbar lists them.
 | Drag | Pan. Drag the divider to wipe. |
 | Double-click | Zoom in. |
 | <kbd>p</kbd> | Show or hide the values written on the pixels. |
+| <kbd>c</kbd> | Compare with the reference, or with the file you picked last in the **vs** menu. |
 | <kbd>h</kbd> | Start a blind test, then reveal which image is which, then end it. |
 | <kbd>[</kbd> <kbd>]</kbd> | Previous or next region of interest. |
 | <kbd>f</kbd>, <kbd>Esc</kbd> | Full screen, and leave it. |
