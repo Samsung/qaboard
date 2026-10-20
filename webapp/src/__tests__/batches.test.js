@@ -101,7 +101,10 @@ test('compute_config prefers the batch, then the commit, then the project', () =
   // main metrics don't need to be declared
   expect(compute_config({ project_data }).selected_metrics).toEqual(['psnr', 'missing']);
   expect(compute_config({ project_data, new_commit: { data: { qatools_config: { a: 'commit' } } } }).config).toEqual({ a: 'commit' });
-  expect(compute_config({ project_data, new_batch: { data: { config: { a: 'batch' } } } }).config).toEqual({ a: 'batch' });
+  // what the server saves when a batch's qaboard.yaml differs from its commit's (backend/backend/api/batch.py)
+  const new_commit = { data: { qatools_config: { a: 'commit' } } };
+  expect(compute_config({ project_data, new_commit, new_batch: { data: { qatools_config: { a: 'batch' } } } }).config).toEqual({ a: 'batch' });
+  expect(compute_config({ project_data, new_commit, new_batch: { data: { config: { a: 'batch' } } } }).config).toEqual({ a: 'batch' });
 });
 
 test('normalize_metrics merges the metrics declared in code', () => {

@@ -10,7 +10,7 @@ import { unstable_HistoryRouter as HistoryRouter, useLocation } from 'react-rout
 
 import { useProjectData, useSelected } from '../hooks';
 import { projectsQuery, projectQuery } from '../api/queries';
-import { normalize_projects } from '../api/normalize';
+import { normalize_project, normalize_projects } from '../api/normalize';
 import { history, matchRoutes, RouteMatch } from '../router';
 import { routes } from '../routes';
 import { makeQueryClient } from '../test-utils';
@@ -62,6 +62,14 @@ describe('useProjectData', () => {
   it('takes the whole configuration when it answers last', () => {
     const data = projectData(makeQueryClient(), [[projectsQuery, listed], [projectQuery('kitefin/camera-isp'), full]]);
     expect(data.data.qatools_config.outputs.visualizations).toHaveLength(1);
+  });
+
+  it('uses the reference branch master until the project loads, or without a qaboard.yaml, like the backend and qa', () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    const { result } = renderHook(() => useProjectData('kitefin/camera-isp'), { wrapper: wrapper(makeQueryClient()) });
+    expect(result.current.is_loaded).toBe(false);
+    expect(result.current.data.qatools_config.project.reference_branch).toBe('master');
+    expect(normalize_project({ data: null }).data.qatools_config.project.reference_branch).toBe('master');
   });
 });
 

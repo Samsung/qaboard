@@ -171,9 +171,10 @@ the reference's frame shown at the same time. Then:
 - The timeline shows how much each frame differs: the taller and darker the bar, the more. Hover it for the frame's
   largest difference, its PSNR, the share of pixels that changed, and the frames' types, e.g. *max Δ 99 · PSNR 31.0 dB
   · 93.0% of pixels · P-frames*. Click to go there.
-- <kbd>n</kbd> and <kbd>N</kbd> go to the next and previous peaks: the first frame of each stretch where the videos
-  differ at least half as much as where they differ most. When the whole video differs that much, as with a new
-  denoiser, it's one stretch: the regions take you to where and when it peaks.
+- <kbd>n</kbd> and <kbd>N</kbd> go to the next and previous peaks: frames that differ more than the frames just
+  before and after them, and at least halfway from the typical frame to the worst one. Where the videos differ in a
+  few places, that's the worst frame of each. When every frame differs, as with a new denoiser, they're the frames
+  that stand out.
 - The regions button lists **Differences, whole video**: where and when the videos differ most, up to 20 regions,
   e.g. *#1 · Δ 39% · frames 0–71*. Picking it runs the comparison if you haven't yet. Picking a region zooms on it,
   at the frame where it differs most. <kbd>[</kbd> <kbd>]</kbd> go from one to the next.

@@ -976,17 +976,25 @@ const StageOverlay = memo(({ controller }) => {
   </>;
 });
 
-// The frames where the videos differ most: where the difference peaks above half of the largest
+// The frames where the videos differ most: the local peaks of the difference, frames that differ more than the frames
+// before and after them, halfway or more from the typical difference (the median) to the largest. When the videos
+// differ in a few places, it's the worst frame of each; when every frame differs, e.g. with a new denoiser, the frames
+// that stand out.
 export const differencePeaks = frames => {
   if (!frames?.length) return [];
-  const top = Math.max(...frames.map(f => f.value ?? 0));
+  const values = frames.map(f => f.value ?? 0);
+  const top = Math.max(...values);
   if (!(top > 0)) return [];
+  const sorted = [...values].sort((a, b) => a - b);
+  const median = sorted[Math.floor(sorted.length / 2)];
+  const threshold = median + (top - median) / 2;
   const peaks = [];
-  for (let i = 0; i < frames.length; i++) {
-    const value = frames[i].value ?? 0;
-    if (value < top / 2) continue;
-    // the first of a run of frames above it
-    if (i > 0 && (frames[i - 1].value ?? 0) >= top / 2) continue;
+  for (let i = 0; i < values.length; i++) {
+    const value = values[i];
+    if (value < threshold) continue;
+    // more than the frame before, at least as much as the next: the first frame of a flat peak
+    if (i > 0 && values[i - 1] >= value) continue;
+    if (i < values.length - 1 && values[i + 1] > value) continue;
     peaks.push(i);
   }
   return peaks;

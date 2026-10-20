@@ -29,9 +29,10 @@ zooms the other.
 />
 
 :::note When the web app sees your changes
-The web app reads `outputs` from the *qaboard.yaml* that `qa` sent with the commit's first results: later runs of the
-same commit don't change it. To try new visualizations, run on a commit that has no results yet: commit your
-*qaboard.yaml* (you don't have to push it), then run `qa --share run` or `qa --share batch`.
+A commit keeps the *qaboard.yaml* that `qa` sent with its first results. To try new visualizations, edit
+*qaboard.yaml* and run `qa --share batch <batch>` again: the batch keeps your edited *qaboard.yaml*, and the web app
+shows its new visualizations for that batch. The commit's other batches, like the CI's, keep the commit's.
+`qa --share run` doesn't change which *qaboard.yaml* a batch uses.
 :::
 
 ## Which viewer opens a file {#available-file-viewers}

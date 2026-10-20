@@ -17,7 +17,8 @@ export const available_batch = (commit, label) => {
 
 
 export const compute_config = ({ new_batch, new_commit, project_data, selected }) => {
-  const batch_config = new_batch?.data?.config;
+  // batches keep their own qaboard.yaml when it differs from their commit's, e.g. with `qa --share batch`
+  const batch_config = new_batch?.data?.qatools_config ?? new_batch?.data?.config;
   const commit_config = new_commit?.data?.qatools_config;
   const project_config = project_data?.data?.qatools_config ?? {};
 

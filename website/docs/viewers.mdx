@@ -184,7 +184,7 @@ file work, its styles don't change the page, and scripts don't run. The frame gr
 ## Point clouds and trajectories {#point-clouds-and-trajectories}
 **Point clouds** are *.pcd* files, ascii or binary (not `binary_compressed`), with `x y z` fields: other fields are
 ignored. The 3D viewer draws the new run's points, the reference's, and a ground truth if you have one, on the same
-axes, in orange, blue and green.
+axes: in the colors of what people compare (blue for new, purple for the first reference), and green.
 
 ```yaml title="qaboard.yaml"
 outputs:

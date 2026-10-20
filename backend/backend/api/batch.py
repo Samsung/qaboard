@@ -62,7 +62,7 @@ def update_batch():
       # we used to do it when receiving hooks from source control,
       # but it led to huge growth of the ci_commits table in a monorepo
       # with 100s of subprojects each full of config data
-      if attr not in ci_commit.data:
+      if attr_backward_compat not in ci_commit.data:
         ci_commit.data[attr_backward_compat] = data[attr]
         flag_modified(ci_commit, "data")
         db_session.add(ci_commit)
@@ -72,6 +72,10 @@ def update_batch():
       # seeing updated visualizations and metrics.
       if ci_commit.data[attr_backward_compat] != data[attr]:
         batch.data[attr_backward_compat] = data[attr]
+        flag_modified(batch, "data")
+      elif attr_backward_compat in batch.data:
+        # back to the commit's
+        del batch.data[attr_backward_compat]
         flag_modified(batch, "data")
 
   batch.data = {**batch.data, **batch_data}

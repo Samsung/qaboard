@@ -1213,8 +1213,8 @@ shot('commit/trajectory-6dof', {
 shot('commit/pointcloud', {
   project: R3D,
   url: d => falseClosures(d, 'Map in 3D'),
-  alt: 'The map of the fast figure-8 in 3D: the shelves and walls where the odometry put them, in orange, against where '
-    + 'they really are, in green. Where false loop closures moved the keyframes, orange shelves stand meters away from '
+  alt: 'The map of the fast figure-8 in 3D: the shelves and walls where the odometry put them, in blue, against where '
+    + 'they really are, in green. Where false loop closures moved the keyframes, blue shelves stand meters away from '
     + 'the green ones.',
   caption: 'The map the robot built, against the ground truth: false loop closures put shelves meters away from where '
     + 'they are.',
@@ -1223,7 +1223,7 @@ shot('commit/pointcloud', {
     const cloud = ui.page.locator('.pointcloud-viewer[data-state="ready"]').first();
     await cloud.waitFor({ timeout: 60_000 });
     // the new map against the ground truth: the reference's map would hide them
-    await ui.click(cloud.locator('label.bp6-checkbox', { hasText: 'Reference' }));
+    await ui.click(cloud.locator('label.pointcloud-layer-reference'));
     await mouseAway(ui);
     await ui.settle();
   },

@@ -191,8 +191,13 @@ describe('TuningForm', () => {
   it("asks for feedback where the site's users report issues", () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ tests: [] }));
     usePrefsStore.getState().updateTuning('proj', { search_type: 'optimize' });
-    renderWithProviders(<TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>, { siteConfig: { support_url: 'mailto:qa-support@example.com' } });
+    const { unmount } = renderWithProviders(<TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>, { siteConfig: { support_url: 'mailto:qa-support@example.com' } });
     expect(screen.getByText('feedback').closest('a')).toHaveAttribute('href', 'mailto:qa-support@example.com');
+    unmount();
+    // sites without a support page (QABOARD_SUPPORT_URL=""): no feedback link
+    renderWithProviders(<TuningForm project="proj" config={config} metrics={metrics} commit={commit} available_tests_files={{}}/>, { siteConfig: { support_url: '' } });
+    expect(screen.getByText('About auto-tuning')).toBeInTheDocument();
+    expect(screen.queryByText('feedback')).not.toBeInTheDocument();
   });
 
   it('asks before resetting the auto-tuning configuration', async () => {

@@ -181,7 +181,7 @@ export interface ImageViewerProps {
    * Without it, the viewer shows the displayed 8-bit RGB values.
    */
   getPixels?: (image: ImageDescriptor, region: PixelRegion, options: { signal: AbortSignal }) => Promise<Pixels>;
-  /** Without getPixels: why the images' own values aren't available, e.g. "Sign in to read the images' own values" */
+  /** Without getPixels: why the images' own values aren't available, e.g. "Log in to read the images' own values" */
   imageValuesUnavailable?: string;
 
   /** The highest the images can be, in CSS pixels, or a function of the window's height. Default: h => h - 160 */
