@@ -18,8 +18,9 @@ Admins see **Admin** in the user menu, at `/admin`:
   setting changes, with who did it and from which IP.
 - **Settings**: change the settings below without restarting the server.
 
-**The first admins** come from the environment: `QABOARD_ADMINS` lists user names or emails, comma-separated. They're
-admins whatever the database says, so you can't lock yourself out. Admins then make other admins from the panel. From
+**The first admins** come from the environment: `QABOARD_ADMINS` lists user names (exactly, case included), or the
+emails of LDAP/SAML accounts (local accounts' emails aren't verified), comma-separated. They're admins whatever the
+database says, and can't be disabled from the web app, so you can't lock yourself out. Admins then make other admins from the panel. From
 the server, `qaboard-admin` does the same:
 
 ```bash
@@ -52,7 +53,7 @@ Empty environment variables count as unset.
 - `LDAP`
 - `SAML`: SSO via SAML
 
-Users log in from the **Log in** button at the top right of the web app. With `LOCAL` and `LDAP`, it opens a form; with `SAML`, it redirects them to your identity provider.
+Users sign in from the **Sign in** button at the top right of the web app. With `LOCAL` and `LDAP`, it opens a form; with `SAML`, it redirects them to your identity provider.
 
 <Shot
   id="auth/login"
@@ -85,7 +86,7 @@ The sign-in policy is set via environment variables such as `QABOARD_LOGIN_*`, `
 | ENV Variable           | Default | Usage                                                |
 -------------------------|-------- |------------------------------------------------------|
 | `QABOARD_LOGIN_TYPE`   | _LOCAL_  | Set to `LOCAL/LDAP/SAML`                   |
-| `QABOARD_ADMINS`   | _empty_  | User names or emails of admins, comma-separated |
+| `QABOARD_ADMINS`   | _empty_  | User names of admins, or emails of LDAP/SAML accounts, comma-separated |
 | `QABOARD_LOGIN_REQUIRED`   | _empty_  | `true` blocks anonymous users, `false` allows them. Empty: as set in the admin panel (`auth.require_sign_in`) |
 | `QABOARD_DISABLE_SIGNUP`   | _empty_  | `true` disables the signup of `LOCAL` users, `false` enables it. Empty: as set in the admin panel (`auth.local_signup`) |
 | `QABOARD_COOKIE_SECURE`   | _empty_  | `true` sends session cookies only over HTTPS. It's automatic when `QABOARD_URL` starts with `https://` |
@@ -107,7 +108,7 @@ The sign-in policy is set via environment variables such as `QABOARD_LOGIN_*`, `
 | `QABOARD_SAML_ATTRIBUTE_ID`   | _none_    |                                            |
 
 ## Blocking anonymous users
-To block anonymous users, who are not logged-in, from accessing any content on QA-Board, turn on `auth.require_sign_in`
+To block anonymous users, who are not signed in, from accessing any content on QA-Board, turn on `auth.require_sign_in`
 in **Admin → Settings** (or set `QABOARD_LOGIN_REQUIRED=true`). The API then answers 401 to anonymous requests, except
 to sign in and for the results sent by `qa` (unless `ingest.auth` is `token`). Files under `/s/` too, when nginx checks
 who can read them (see [Restricting who can read files](#restricting-who-can-read-files)).
@@ -119,13 +120,13 @@ Users create tokens in **Settings → Access tokens**, or with `qa auth login` (
 - Tokens look like `qab_pat_…`: secret scanners can recognize them, and a checksum rejects typos. The server only
   stores a hash, and shows a token once.
 - **Scopes** limit what a token can do: `read`, `ingest` (send results), `act` (redo runs, start or delete batches,
-  save milestones), `manage` (project settings and access, coming next), `admin` (the admin API, for admins).
+  save milestones), `admin` (the admin API, for admins).
   A token can also be restricted to some projects (`group/repo`, `group/*`). It never has more rights than its user has.
 - Tokens expire after `tokens.default_lifetime_days` unless users choose otherwise, and `tokens.max_lifetime_days`
   caps it. Tokens of `qa auth login` expire after `tokens.cli_idle_expiry_days` without use.
 - Requests with a token that can't be used get a 401 saying why (unknown, revoked, expired...). Tokens in `?token=`
   URLs are only accepted to read: URLs end up in access logs.
-- Tokens created before October 2026 keep working, as **legacy** tokens: every scope, no expiry. The security
+- Tokens created before October 2026 keep working, as **legacy** tokens: `read`, `ingest` and `act`, no expiry. The security
   checklist counts them: ask their owners to replace them.
 
 ## Results sent by qa
@@ -137,7 +138,8 @@ Until now, anyone who could reach the server could send results. `ingest.auth` (
 
 With a valid token, runs, batches and commits record who really sent them, and the web app shows it. Move from `off`
 to `warn` to `token` once your CI jobs have tokens (`QABOARD_TOKEN`, see [CI integration](/docs/ci-integration)).
-In every mode, a token that can't be used is refused: `qa` says why and what to do.
+In every mode, a token that can't be used (unknown, expired, revoked, for other projects) is refused, and the results
+aren't saved: `qa` says why and what to do, and in CI, `qa run` and `qa batch` fail.
 
 ## Security
 - Session cookies are `HttpOnly` and `SameSite=Lax`, and `Secure` when `QABOARD_URL` is `https://…`.
@@ -277,7 +279,7 @@ nginx serves the output and artifacts files under `/s/`, and by default anyone w
 
 In both cases, nginx must ask the backend before sending files: add `include snippets/qaboard-files-auth.conf;` to **all** the `/s/` locations of your nginx configuration (with the helm chart, set `proxy.restrictFiles: true`). Files can be reached from several locations through symlinks: the backend checks where links lead, but only for the locations that ask it.
 
-In the [file browser](../user-guide/files.mdx), users who are not logged in see **Log in to see these files**, others **You don't have access**. Scripts can authenticate with an API token: `curl -H "Authorization: Bearer <token>" https://qaboard/s/...`
+In the [file browser](../user-guide/files.mdx), users who are not signed in see **Sign in to see these files**, others **You don't have access**. Scripts can authenticate with an API token: `curl -H "Authorization: Bearer <token>" https://qaboard/s/...`
 
 ### Restricted projects
 The `projects` restricted in `users_restrict.yml` also restrict their files: the outputs and artifacts folders from the projects' `storage` in *qaboard.yaml*. If needed, you can also restrict other folders under `paths`, with the same rules as projects:

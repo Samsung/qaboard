@@ -89,7 +89,7 @@ export QABOARD_API_VERIFY=false
 
 ## Sign in {#signing-in}
 Sign in once per server, so that the results you send are signed with your name, and so that `qa` can do what needs
-a logged-in user (e.g. start tuning or redo runs from scripts):
+a signed-in user (e.g. start tuning or redo runs from scripts):
 
 ```bash
 qa auth login
@@ -97,7 +97,7 @@ qa auth login
 # To sign in, open https://<your-qaboard>/device and enter the code
 ```
 
-Open the link in any browser, even on another computer: it works when `qa` runs over SSH. Log in to QA-Board as
+Open the link in any browser, even on another computer: it works when `qa` runs over SSH. Sign in to QA-Board as
 usual, check the code and approve. `qa` saves a token for this server in *~/.config/qaboard/hosts.yaml*, readable
 only by you (*%APPDATA%\\qaboard* on Windows). It serves all your checkouts and worktrees: it's never saved in your
 projects.

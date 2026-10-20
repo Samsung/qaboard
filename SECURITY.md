@@ -77,7 +77,8 @@ Without `QABOARD_WEBHOOK_SECRET`, anyone who can reach the server can send fake 
 ### Accounts and sessions
 - With `QABOARD_LOGIN_TYPE=LOCAL`, anyone can sign up unless you turn off `auth.local_signup`, or use LDAP or SAML (local sign-up is then off by default).
 - The default setup uses plain HTTP, so session cookies and API tokens can be sniffed on the network. Serve QA-Board over HTTPS, with `QABOARD_URL=https://…`: cookies then get the `Secure` flag.
-- Tokens created before October 2026 ("legacy" tokens) can do everything their user can, and don't expire. Admins see them in **Admin → Tokens**; ask their owners to replace them.
+- Tokens created before October 2026 ("legacy" tokens) can read, send results and act as their user (not use the admin API), and don't expire. Admins see them in **Admin → Tokens**; ask their owners to replace them.
+- There are no rate limits on signing in, sign-up and `qa auth login` codes yet. Before exposing a server to the internet, add nginx `limit_req` rules on `/api/v1/user/auth/`, `/api/v1/user/signup/` and `/api/v1/auth/device/code`.
 - Sessions can't be listed or revoked yet, except by disabling the account.
 
 ### Other
@@ -95,7 +96,7 @@ Without `QABOARD_WEBHOOK_SECRET`, anyone who can reach the server can send fake 
 
 ## Using the API from scripts
 
-Actions like redo, tuning or deleting results need a logged-in user. To use them from scripts:
+Actions like redo, tuning or deleting results need a signed-in user. To use them from scripts:
 
 1. Run `qa auth login`, and approve the code in your browser: `qa` then sends its token. `qa auth token` prints it, e.g. for `curl -H "Authorization: Bearer $(qa auth token)"`.
 2. Or create a token in the web app, in **Settings → Access tokens**, with only the scopes and projects it needs, and set it as `$QABOARD_TOKEN` (in CI, as a protected secret).

@@ -156,7 +156,7 @@ its `label`, `group`, `notes`, `commit`, `batch` and `filter`. See
 There is no OpenAPI description of the API yet: see the [roadmap](/docs/roadmap).
 
 ## Authentication {#authentication}
-Reading data doesn't need a login (unless the server
+Reading data doesn't need to be signed in (unless the server
 [blocks anonymous users](/docs/backend-admin/user-management#blocking-anonymous-users)). Some actions do, like
 starting tuning runs. From scripts, use an API token: create one in the web app, in **Settings → Access tokens** (or
 use the one of `qa auth token`), then send it with an `Authorization: Bearer` header:
