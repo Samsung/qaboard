@@ -256,7 +256,8 @@ const filter_batch = (batch, filter_values) => {
     let metadata = Object.keys(output.test_input_metadata ?? {}).length > 0 ? JSON.stringify(output.test_input_metadata ?? {}) : "";
     let failed = output.is_failed ? 'fail crash' : '';
     let pending = output.is_pending ? 'pending running' : ''
-    let searched = `${output.test_input_path} ${output.configurations_str} ${metadata} ${JSON.stringify(output.params)} ${output.data?.batch} ${failed} ${pending} ${output.platform} id:${id}`;
+    let status = !output.is_failed && !output.is_pending && !output.is_running ? 'status:success' : '';
+    let searched = `${output.test_input_path} ${output.configurations_str} ${metadata} ${JSON.stringify(output.params)} ${output.data?.batch} ${failed} ${pending} ${status} ${output.platform} id:${id}`;
     // console.log(searched)
     if (matcher(searched)) {
       filtered.outputs.push(id);
