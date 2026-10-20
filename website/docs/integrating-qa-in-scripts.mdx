@@ -47,14 +47,16 @@ To compare a commit's results with a reference, with the numbers of the **Summar
 `/commit/<sha>/compare` (experimental, see [Quality gate](/docs/quality-gate#from-scripts-and-agents)).
 
 ### Authentication
-Reading data doesn't need to be logged-in (unless the server [blocks anonymous users](backend-admin/user-management#blocking-anonymous-users)). Some actions do, e.g. starting tuning runs. From scripts, use an API token: create one with a `POST` to `/api/v1/user/token/` while logged-in, then send it with an `Authorization: Bearer` header, or as a `?token=` URL parameter:
+Reading data doesn't need to be logged-in (unless the server [blocks anonymous users](backend-admin/user-management#blocking-anonymous-users)). Some actions do, e.g. starting tuning runs. From scripts, use an API token: create one in the web app, in **Settings → Access tokens** (or use the one of `qa auth token`), then send it with an `Authorization: Bearer` header:
 
 ```bash
-curl -H "Authorization: Bearer $QA_TOKEN" "$base_url/user/me/"
-curl "$base_url/user/me/?token=$QA_TOKEN"
+curl -H "Authorization: Bearer $QABOARD_TOKEN" "$base_url/user/me/"
 ```
 
-The `qa` CLI sends `QA_TOKEN` automatically, from the environment or from *~/.qaboard/secrets.yaml* (see [Client Installation](installation#api-token)). Tokens don't expire, so keep them private.
+- Give tokens only the **scopes** they need: `read`, `ingest` (send results), `act` (redo runs, start or delete batches, save milestones). You can also restrict them to some projects, e.g. `group/repo` or `group/*`.
+- When a token can't be used, the answer says why, e.g. `{"error": "This token expired...", "reason": "token_expired"}`. `/user/me/` says which token you use and its scopes.
+- Tokens in URLs (`?token=`) are only accepted to read: URLs end up in logs.
+- The `qa` CLI sends its token automatically (see [Signing in](installation#signing-in)).
 
 ```js
 [

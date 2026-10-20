@@ -49,8 +49,8 @@ Fixed on the default branch, after the `qaboard` 1.0.3 release:
 
 We know about the issues below. In the deployments maintained by the authors, they are mitigated by network isolation and site configuration. **If you run QA-Board yourself, please apply the mitigations listed below.** We plan to fix them in the code.
 
-### Results are sent to the server without authentication
-The `qa` CLI sends runs, batches and commits to `POST /api/v1/output`, `/api/v1/batch` and `/api/v1/commit` without authentication, so that it works from any CI or workstation. As a result:
+### Results are sent to the server without authentication (by default)
+By default (`ingest.auth` is `off`), the `qa` CLI can send runs, batches and commits to `POST /api/v1/output`, `/api/v1/batch` and `/api/v1/commit` without authentication, so that it works from any CI or workstation. Results sent with a token record who really sent them; the others are shown as unverified. As a result, until you require tokens:
 - anyone who can reach the server can create or change results, and delete results (`qa optimize` deletes the previous best iteration's runs through `POST /api/v1/batch`);
 - the output and artifacts folders stored with results can be any folder in the storage (`QABOARD_STORAGE_ROOTS`). Deleting results, and the cleanup scripts, delete files there, as the owner of the files when the server can switch users;
 - the reference branch's `qaboard.yaml` sent with a commit becomes the project's configuration. Its `recreate_artifacts` settings tell the server where to send a request (a webhook URL, a Jenkins job, a job of the project's own GitLab repository) when a logged-in user redoes runs on a commit whose artifacts are missing. GitLab and Jenkins credentials are only sent to the hosts configured on the server, but webhooks can target any address the server can reach (without following redirects);
@@ -58,8 +58,8 @@ The `qa` CLI sends runs, batches and commits to `POST /api/v1/output`, `/api/v1/
 
 Code that runs as the server's user can read its credentials (database, GitLab token, the ssh key of the LSF bridge...). If users can write in the storage, they can also change the `.envrc` files and the code that the server, CI and other users run from it.
 
-*Mitigations*: only expose the server to trusted networks; set `QABOARD_STORAGE_ROOTS` as narrowly as you can; make sure users can't write to the artifacts folders.
-*Planned*: an option to require API tokens on these endpoints, and running the tests listing without access to the server's credentials.
+*Mitigations*: require tokens to send results (`ingest.auth` set to `token` in the admin panel, or `QABOARD_INGEST_AUTH=token`, after a period in `warn`); only expose the server to trusted networks; set `QABOARD_STORAGE_ROOTS` as narrowly as you can; make sure users can't write to the artifacts folders.
+*Planned*: project roles (who may send results to which project), and running the tests listing without access to the server's credentials.
 
 ### Insecure defaults in `docker-compose.yml`
 - RabbitMQ is published on ports 5672/15672 with the `guest:guest` account. Celery workers run the shell commands given in the tasks they receive, so **anyone who can reach RabbitMQ can run commands on the workers**.
@@ -75,20 +75,20 @@ Without `QABOARD_WEBHOOK_SECRET`, anyone who can reach the server can send fake 
 *Mitigation*: set `QABOARD_WEBHOOK_SECRET`, and the same secret in the GitLab and GitHub webhooks.
 
 ### Accounts and sessions
-- With `QABOARD_LOGIN_TYPE=LOCAL`, anyone can sign up. Set `QABOARD_DISABLE_SIGNUP=True`, or use LDAP or SAML.
-- The default setup uses plain HTTP, so session cookies and API tokens can be sniffed on the network. Serve QA-Board over HTTPS.
-- API tokens don't expire by default, and can't be revoked from the web application.
-- The SAML login redirects to the `RelayState` URL without checking it (open redirect).
+- With `QABOARD_LOGIN_TYPE=LOCAL`, anyone can sign up unless you turn off `auth.local_signup`, or use LDAP or SAML (local sign-up is then off by default).
+- The default setup uses plain HTTP, so session cookies and API tokens can be sniffed on the network. Serve QA-Board over HTTPS, with `QABOARD_URL=https://…`: cookies then get the `Secure` flag.
+- Tokens created before October 2026 ("legacy" tokens) can do everything their user can, and don't expire. Admins see them in **Admin → Tokens**; ask their owners to replace them.
+- Sessions can't be listed or revoked yet, except by disabling the account.
 
 ### Other
 - `POST /api/v1/webhook/proxy` lets logged-in users send any HTTP request to any URL from the server (SSRF), e.g. to internal services. It is used for the webhook integrations configured in `qaboard.yaml`.
+- `POST /api/v1/task/celery/<id>`, used by WebCDE, doesn't require a login, and waits without a deadline for a Celery worker.
 - Anyone who can reach the server can read the files it serves under `/s/`, unless you restrict them (see [user management](https://samsung.github.io/qaboard/docs/backend-admin/user-management#restricting-who-can-read-files)). Even then, the image server (IIIF, `/iiif/`) doesn't check permissions, and `docker-compose.yml` mounts the whole host filesystem in it (`/:/repository`): anyone who can reach it can read the images it can decode, anywhere on the host.
   *Mitigations*: mount only the storage folders in the image server's container, and don't expose `/iiif/` to untrusted networks.
 - The example WebDAV configuration (`services/nginx/webdav.conf`) lets anyone who can reach the server read, write and delete files, without QA-Board's checks. It is only enabled where a deployment includes it.
 - `GET /api/v1/export` lets logged-in users create links or copies of output files in most folders the server can write to.
 - `POST /api/v1/jenkins/build/trigger` doesn't require authentication, because the CLI's Jenkins runner calls it. Jenkins credentials are only sent to the hosts configured in `JENKINS_AUTH`.
 - `POST /api/v1/gitlab/job` doesn't require authentication: anyone can read the details of GitLab CI jobs that `GITLAB_ACCESS_TOKEN` can see.
-- Milestones can be created and deleted without a login.
 - `GET /api/v1/output/<id>/manifest` doesn't require a login: it writes `manifest.outputs.json` in the output's folder, and returns the list of files in it.
 - Inside the backend container, `fs_utils.as_user` passes results between processes using a world-writable temporary file read with `pickle`.
 
@@ -97,16 +97,7 @@ Without `QABOARD_WEBHOOK_SECRET`, anyone who can reach the server can send fake 
 
 Actions like redo, tuning or deleting results need a logged-in user. To use them from scripts:
 
-1. While logged in to QA-Board in your browser, open the developer console and run:
-   ```js
-   fetch('/api/v1/user/token/', {method: 'POST'}).then(r => r.json()).then(console.log)
-   ```
-2. Save the token in `~/.qaboard/secrets.yaml` (or set `$QA_TOKEN`), and make sure only you can read the file:
-   ```bash
-   mkdir -p ~/.qaboard
-   echo "QA_TOKEN: <your-token>" > ~/.qaboard/secrets.yaml
-   chmod 600 ~/.qaboard/secrets.yaml
-   ```
-3. The `qa` CLI and `qaboard.api` then send it as `Authorization: Bearer <token>`. With `curl`, use `-H "Authorization: Bearer $QA_TOKEN"`.
+1. Run `qa auth login`, and approve the code in your browser: `qa` then sends its token. `qa auth token` prints it, e.g. for `curl -H "Authorization: Bearer $(qa auth token)"`.
+2. Or create a token in the web app, in **Settings → Access tokens**, with only the scopes and projects it needs, and set it as `$QABOARD_TOKEN` (in CI, as a protected secret).
 
-The token is only read from `$QA_TOKEN` or your personal file (`$QA_USER_SECRETS`, default `~/.qaboard/secrets.yaml`), never from the shared `$QA_SECRETS` file. Treat it like a password: anyone holding it can act as you.
+Tokens are stored hashed on the server and shown once. `qa auth login` saves its token in `~/.config/qaboard/hosts.yaml`, readable only by you. Tokens are never read from the shared `$QA_SECRETS` file (the older `QA_TOKEN` in `~/.qaboard/secrets.yaml` still works). Treat tokens like passwords: anyone holding one can act as you, within its scopes. Revoke them in **Settings → Access tokens**, or with `qa auth logout`.

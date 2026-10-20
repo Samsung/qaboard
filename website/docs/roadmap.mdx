@@ -132,9 +132,9 @@ runners, laptops off the VPN and pods without a shared volume can save results, 
 other.
 </RoadmapItem>
 
-<RoadmapItem status="next" title="Token-authenticated ingest">
-The API that saves results is unauthenticated today, so the server must stay on a trusted network. Tokens scoped to
-a project will make it safe to reach from outside.
+<RoadmapItem status="shipped" title="Token-authenticated ingest">
+Results sent with a token say who really sent them, and admins can require tokens to send results, after a period
+where `qa` only warns. See [Results sent by qa](/docs/backend-admin/user-management#results-sent-by-qa).
 </RoadmapItem>
 
 <RoadmapItem status="exploring" title="Object storage for results">
@@ -167,16 +167,17 @@ web app, its docs and the image server all run on your network. See
 [Kubernetes](/docs/backend-admin/kubernetes#on-a-real-cluster).
 </RoadmapItem>
 
-<RoadmapItem status="next" title="API tokens page">
-Create, list and revoke your API tokens in the web app, with scopes and expiry dates. It comes with
-token-authenticated ingest. Today you create tokens with the HTTP API (see [APIs](/docs/apis#authentication)).
+<RoadmapItem status="shipped" title="API tokens, qa auth login and an admin panel">
+Create tokens with scopes, projects and expiry dates in the web app, and sign in from the CLI with `qa auth login`,
+even over SSH. Admins see users, tokens and an audit log, and change settings without restarting the server. See
+[User management](/docs/backend-admin/user-management).
 </RoadmapItem>
 
-<RoadmapItem status="exploring" title="OIDC single sign-on">
+<RoadmapItem status="next" title="OIDC single sign-on">
 Sign in with any OpenID Connect provider, next to LDAP and SAML.
 </RoadmapItem>
 
-<RoadmapItem status="exploring" title="Users, groups and project roles">
+<RoadmapItem status="next" title="Users, groups and project roles">
 An admin page for users and groups, and roles per project (who can read, run or administer it), instead of a YAML
 file on the server.
 </RoadmapItem>

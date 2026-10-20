@@ -21,6 +21,18 @@ This said, you can still view your results in the web application by using `qa -
   caption="Projects show up on the home page once they have results."
 />
 
+## Tokens
+Give your CI jobs a token, so that the results they send are verified, and so that it keeps working once your server
+requires tokens to send results (see [Results sent by qa](backend-admin/user-management#results-sent-by-qa)):
+1. In the web app, open **Settings → Access tokens** and create a token with the `read` and `ingest` scopes, restricted
+   to your project (e.g. `group/repo`). Choose how long it lasts: long-lived tokens are fine for CI, if you store them
+   as protected secrets.
+2. Store it in your CI's secrets as `QABOARD_TOKEN`: `qa` sends it. For example in GitHub Actions:
+   `env: {QABOARD_TOKEN: "${{ secrets.QABOARD_TOKEN }}"}`, and in GitLab CI a masked, protected CI/CD variable.
+
+The results then show they were sent with this token. Tokens tied to the CI itself (no stored secret) and tokens
+owned by an organization rather than a person are coming next.
+
 ## Running QA-Board in your CI
 1. **Have your CI launch QA-Board**, e.g. `qa batch ci`, assuming you defined a batch named `ci` (examples below).
 
