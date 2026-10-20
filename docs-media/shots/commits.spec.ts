@@ -1,6 +1,7 @@
 // A project's commits (docs-media/shots.yaml: commits/*), on the inference gateway (examples/serving-latency): the
 // commits of every branch grouped by day, main's with the chart of its metrics above them, and the filter box.
 import { shot, type Demo, type Locator, type Page, type Ui } from './lib';
+import { stableBox } from './imageViewer';
 
 const SL = 'serving-latency';
 const DAY = 24 * 3600 * 1000;
@@ -49,8 +50,9 @@ shot('commits/branch-evolution', {
   url: d => d.url(SL, 'commits/main', { from: day(d, -42), to: day(d, 0) }),
   alt: 'Above main\'s commits, a chart of the median p99 of each commit\'s CI batch over six weeks, falling from over '
     + '10 ms to a few. The point of the int8 commit is hovered: below the chart, it shows as New, the commit before it as Reference.',
+  // a click keeps the point's commit as the reference (CommitsEvolution.jsx: onClick), for the points hovered next
   caption: 'A branch\'s page charts a metric over its commits. Hover a point: its commit and the one before show below '
-    + 'the chart, a click opens their comparison.',
+    + 'the chart; click one to keep it as the reference while you hover others.',
   actions: async ui => {
     const plot = ui.page.locator('.js-plotly-plot').first();
     // int8 (story.yaml: -38d 02:40), a one-line message: the hover label shows the whole message, over the chart
@@ -93,6 +95,36 @@ shot('commits/filter', {
 
 const DE = 'detection-eval';
 
+// A personal milestone in a group, and a favorite, without changing the demo's database: in the API's answer only, the
+// page loaded again. entropy-try is the entropy calibration commit's CI batch, as commit/milestone saves it (its runs
+// are the release's: the same CI batch), kd-1.3 a favorite
+async function withEntropyTry(ui: Ui) {
+  const { page, demo: d } = ui;
+  await page.route('**/api/v1/milestones?*', async route => {
+    const response = await route.fetch();
+    const { milestones } = await response.json() as { milestones: any[] };
+    const release = milestones.find((m: any) => m.label === 'kd-1.3') ?? milestones[0];
+    // story.yaml: entropy-calib, -10d 15:00, saved after its CI batch
+    const saved = at(d, -10, '17:00');
+    const entropy = {
+      ...release, id: 900, label: 'entropy-try', group: 'quant/calibration', shared: false, is_favorite: false, slug: 'entropy-try',
+      notes: 'Entropy calibration: a little worse everywhere', commit: d.sha(DE, 'entropy-calib'), branch: 'quant/entropy',
+      message: 'feat(quant): try entropy calibration', created_at: saved, updated_at: saved,
+    };
+    const marked = milestones.map((m: any) => m.id === release?.id ? { ...m, is_favorite: true } : m);
+    await route.fulfill({ response, json: { milestones: [...marked, entropy] } });
+  });
+  await page.reload();
+  await ui.settle();
+}
+
+// The sidebar's Milestones menu
+const milestonesMenu = (page: Page) => page.getByRole('menu', { name: 'Milestones' });
+async function openMilestonesMenu(ui: Ui) {
+  await ui.click(ui.page.getByRole('menuitem', { name: /^Milestones/ }).first());
+  await milestonesMenu(ui.page).getByText('entropy-try').waitFor();
+}
+
 shot('commits/milestones-menu', {
   project: DE,
   url: d => d.url(DE, 'commits'),
@@ -101,24 +133,8 @@ shot('commits/milestones-menu', {
     + 'batch, branch, commit and date.',
   caption: 'Your favorites first, then your milestones by group, then the project\'s: pick one to open it.',
   actions: async ui => {
-    const { page } = ui;
-    // A personal milestone in a group, and a favorite, without changing the demo's database
-    await page.route('**/api/v1/milestones?*', async route => {
-      const response = await route.fetch();
-      const { milestones } = await response.json() as { milestones: any[] };
-      const release = milestones.find((m: any) => m.label === 'kd-1.3') ?? milestones[0];
-      const entropy = {
-        ...release, id: 900, label: 'entropy-try', group: 'quant/calibration', shared: false, is_favorite: false, slug: 'entropy-try',
-        notes: 'Entropy calibration: a little worse everywhere', branch: 'quant/entropy',
-      };
-      const marked = milestones.map((m: any) => m.id === release?.id ? { ...m, is_favorite: true } : m);
-      await route.fulfill({ response, json: { milestones: [...marked, entropy] } });
-    });
-    await page.reload();
-    await ui.settle();
-    await ui.click(page.getByRole('menuitem', { name: /^Milestones/ }).first());
-    const menu = page.getByRole('menu', { name: 'Milestones' });
-    await menu.getByText('entropy-try').waitFor();
+    await withEntropyTry(ui);
+    await openMilestonesMenu(ui);
     await ui.settle();
   },
   // the sidebar's menu item and the menu
@@ -127,4 +143,36 @@ shot('commits/milestones-menu', {
     page.getByRole('menu', { name: 'Milestones' }),
   ],
   padding: 8,
+});
+
+shot('commits/manage-milestones', {
+  project: DE,
+  // on a commit page, each milestone can also be the reference
+  url: d => d.commitUrl(DE, 'kd-1-3', { reference: 'kd-1-2', view: 'table-kpi' }),
+  alt: 'The Milestones table, from Manage milestones…: entropy-try in its group, kd-1.3, a favorite, and kd-1.2, each '
+    + 'with notes, batch, runs and datasets, commit and branch, owner and date, and Open and As reference; the releases '
+    + 'selected, the footer offers to compare them.',
+  caption: 'Manage milestones… lists all the project\'s milestones: sort and search them, open one, use it as the '
+    + 'reference, or select two to compare them.',
+  actions: async ui => {
+    const { page } = ui;
+    await withEntropyTry(ui);
+    await openMilestonesMenu(ui);
+    await ui.click(milestonesMenu(page).getByRole('menuitem', { name: /^Manage milestones/ }));
+    const dialog = page.getByRole('dialog', { name: 'Milestones', exact: true });
+    await dialog.getByText('entropy-try').waitFor();
+    // the two releases: the footer compares them, the most recently updated as new. Blueprint's checkboxes are under
+    // their labels
+    for (const name of ['kd-1.3', 'kd-1.2'])
+      await ui.click(dialog.locator('label.bp6-checkbox', { has: page.getByRole('checkbox', { name: `Select ${name}`, exact: true }) }));
+    await dialog.getByText('2 selected').waitFor();
+    // no row under the mouse
+    await ui.cursor.moveTo({ x: 1430, y: 890 });
+    await ui.settle();
+  },
+  // a box: the dialog is centered over the commit bars, that crops to elements leave out (commit/regions-all-runs)
+  target: async page => {
+    const dialog = await stableBox(page.getByRole('dialog', { name: 'Milestones', exact: true }));
+    return { x: dialog.x - 8, y: dialog.y - 8, width: dialog.width + 16, height: dialog.height + 16 };
+  },
 });

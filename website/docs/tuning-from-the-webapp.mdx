@@ -1,82 +1,124 @@
 ---
 id: tuning-from-the-webapp
-sidebar_label: Tuning from QA-Board
-title: Starting tuning experiments from QA-Board
+sidebar_label: Tuning from the web app
+title: Let people tune from the web app
+description: Let everyone on your project run a commit's code on more tests, or with other parameters, from the web app.
 ---
 
+With a few settings, anyone on your project can run a commit's code on other tests, or with other parameters, from
+the commit page's **Run Tests / Tuning** form, without a terminal. This page is how a project enables it.
 
-## How to do tuning or trigger extra runs from QA-Board
-When doing QA or during development, you often want to run the code/configs from a given commit on new tests. QA-Board lets you define and runs batches of tests with extra tuning parameters:
-
-<iframe style={{maxWidth: "560px"}} height="315" src="https://www.youtube.com/embed/XN71PBr0Rvg" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-
-<Shot
-  id="tuning/manual-form"
-  caption="Every combination of 2 score thresholds and 2 NMS IoUs on a batch of 2 tests: the form says it will start 8 runs, before you send."
-/>
-
-## When the batch doesn't start
-QA-Board starts your batch by running `qa batch` (as an LSF job, with Celery, or locally on the server). If it fails or takes a while, there are no runs to look at, so the batch's page tells you what's going on:
-- *Waiting for LSF*: the job is queued, the cluster may be busy.
-- *Starting your batch…*: `qa batch` is running.
-- *Failed*: why, e.g. `qa batch exited with code 1` with the error from its logs (`ModuleNotFoundError: ...`), or why LSF killed it (out of memory...).
-- *Didn't start any run*: e.g. there were no inputs, or all the runs already existed.
-
-In the *Logs* view, *Started from QA-Board* lists the last batches you started, each with the `qa batch` command, its logs and LSF's report. They are saved in the batch directory, under `qaboard-batches/`.
-
-## Enabling tuning from QA-Board
-
-:::note
-Tuning parameters that will be merged into `context.params` and appended to `context.configs`: in most cases you don't have to do anything special
+:::tip Looking for how to start runs?
+See [Running from the web app](/docs/user-guide/running-from-the-webapp#running-tests-and-tuning) in the user guide.
 :::
 
-### 1. Build artifacts
-You must have defined and be using [artifacts](storage/artifacts)
+<Clip
+  id="tuning/launch-to-analysis"
+  caption="A grid of 2 score thresholds by 2 NMS IoUs on 2 tests: Start 8 runs, then compare the runs in the Tuning Analysis."
+/>
 
-### 2. Distributed task queue
-You need to configure a task runner, that will execute tuning runs asynchronously. QA-Board ships with a `celery` integration so you'll just have to register a "worker" to get started. [Read more here](celery-integration)!
+On the inference gateway, a performance engineer swept the batching settings this way: 3 maximum batch sizes by 4
+maximum delays. The **Tuning Analysis** view plotted each configuration's CPU per request against its p99 latency,
+and the settings on that frontier became the new defaults.
 
-The QA-Board server starts tuning runs with the runner chosen by its `QABOARD_TUNING_RUNNER` environment variable: `local` (default, on the server itself), `celery` or `lsf` (via `QA_RUNNERS_LSF_BRIDGE`). See the [server's environment variables](deploy#optional-environment-variables).
+<Shot id="tuning/frontier" />
 
-### 3. Logged-in users
-Starting tuning experiments requires a logged-in user, and runs are started as that user. See [user management](backend-admin/user-management).
+## Enable it {#enabling-tuning-from-qa-board}
+1. **Save the build in the CI.** Runs started from the web app use the commit's
+   [artifacts](/docs/storage/artifacts): the files your code needs to run, like a build, saved by
+   `qa save-artifacts` (see [CI integration](/docs/ci-integration#saving-artifacts)). *qaboard.yaml*, *qa/* and the
+   batches files are always saved.
+2. **Choose where the runs execute.** The server starts each batch with the runner set by its
+   `QABOARD_TUNING_RUNNER` environment variable: `local` (the default, on the server itself), `celery` or `lsf` (via
+   `QA_RUNNERS_LSF_BRIDGE`). See [Celery](/docs/celery-integration), [LSF](/docs/lsf-integration) and the
+   [server's environment variables](/docs/deploy#optional-environment-variables).
+3. **Log in.** Starting runs needs a logged-in user, and runs are started as that user. See
+   [user management](/docs/backend-admin/user-management).
+4. *(Optional)* **Emails.** If the server can send emails, people get one when the batches they start end: see
+   [Emails](/docs/deploy#emails).
 
-### 4. Emails (optional)
-Users get an email when the batches they start end, if the server can send emails: see [Emails](deploy#emails).
+To check: open a commit of your CI on its commit page, then **Run Tests / Tuning**. Pick your CI batch and the *no
+tuning* example, and send. The batch's runs start, and the **Logs** view lists the batch under "Started from
+QA-Board", with the `qa batch` command QA-Board ran and its log.
 
-### Optional settings in *qaboard.yaml*
+## How the batch starts {#how-the-batch-starts}
+For each request, the server writes a script in the batch's directory and runs it with the chosen runner. The script:
+- goes to the commit's artifacts folder, and sources the *.envrc* files of that folder and of its parents: activate
+  your environment there (a virtualenv, modules...), it's saved with the artifacts;
+- sets `CI=true`, `GIT_COMMIT` to the commit, `QA_USER` to the user who started it, and `QABOARD_TUNING=true`;
+- runs `qa --label <label> batch --batches-file <the batches> --batch <the batch> --tuning-search ...`, or
+  `qa optimize` for [automated tuning](/docs/auto-optimization).
+
+When the batch doesn't start, the **Logs** view says why, with the end of that script's log: a
+`ModuleNotFoundError` points to the environment, an LSF report to the cluster. See
+[Logs and failed runs](/docs/user-guide/logs#batch-commands).
+
+## How parameters reach your code {#how-tuning-parameters-reach-your-code}
+Tuning parameters are merged into `context.params`, and appended to `context.configs` as a dict: in most cases you
+have nothing to do. The detector's `run()` lets them override its defaults and the flags each commit builds with:
+
+<RepoFile path="examples/detection-eval/qa/main.py" title="qa/main.py" lines="50-56" />
+
+The same parameters work from a terminal, with `--tuning` for one set of values:
+
+```bash
+qa --label int8-nms --tuning '{"score_threshold": 0.3, "nms_iou": 0.5}' batch quant-search
+```
+
+## Settings in *qaboard.yaml* {#settings}
 ```yaml title="qaboard.yaml"
 inputs:
   # Let users choose a platform, passed to `qa --platform`. By default runs use "linux".
   platforms:
     - name: linux
       label: Linux
-    - name: android
-      label: Android
+    - name: hw-model
+      label: Fixed-point model
 
 tuning:
   # If your CI only saves artifacts on some branches, list them (globs, "*" matches "/" too):
   # on the commits of other branches, the tuning form warns that tuning may not work, and how to save the artifacts.
   # In monorepos, {subproject} is the project's folder in the repository and {subproject.name} its last part.
   branches:
-    - develop
+    - main
     - '*/*{subproject.name}*'  # e.g. alice/denoise-v2 for the project in isp/denoise
 ```
 
-## Tips for users
-How to start runs is described in the [user guide](/docs/user-guide/running-from-the-webapp). A few shortcuts:
-- To start from an existing run's parameters, hover its configuration tags and choose **Copy full config in tuning format**, then paste it in the manual tuning editor.
-- Pasting lines of `key=value` in the manual tuning editor converts them to the tuning format: `block.threshold=10` becomes `"block.threshold": [10]`, and space-separated matrices like `[1 2 3]` become JSON arrays.
-- In the **Available Tests** view, where you can define your own batches, <kbd>Ctrl</kbd>+<kbd>S</kbd> (or <kbd>Cmd</kbd>+<kbd>S</kbd>) saves the batches file you are editing.
-- Once runs are done, the **Tuning Analysis** view (`selected_views=optimization`) shows the tuning exploration plots: sensitivity to each parameter and to pairs of parameters (box plots, contours), a parallel coordinates plot, the trade-off between two metrics, and for `qa optimize` experiments the best parameters and the convergence. See the [user guide](/docs/user-guide/commit-page#tuning-analysis).
+People choose the tests from the batches files of the commit, and can add their own in the **Available Tests** view
+(see the [user guide](/docs/user-guide/available-tests)). For the batches' syntax, see
+[Batches of inputs](/docs/batches-running-on-multiple-inputs).
 
-## Other tuning workflows
-Tuning from QA-Board runs the code of a commit. Depending on where you are in your work, other workflows fit better:
-- **Locally, with your own tools**: if you already have great development and debugging tools (an IDE, `tensorboard` for neural networks, one-off scripts...), keep using them. It's still worth having them call your code through `qa`, so that runs behave the same everywhere: see [debugging with IDEs](debugging-runs-with-an-IDE).
-- **Your local code, results in QA-Board**: tweak, compile and run your code, then compare the results across runs in the web app. Runs started with `--share` appear in a batch named after you, with a warning that they may not match the committed code:
+<details>
+<summary>Shortcuts for people who tune</summary>
+
+- To start from an existing run's parameters, hover its configuration tags and choose **Copy as a tuning search
+  space**, then paste it in the **Manual tuning** editor.
+- Pasting lines of `key=value` in the **Manual tuning** editor converts them to the tuning format:
+  `block.threshold=10` becomes `"block.threshold": [10]`, and space-separated matrices like `[1 2 3]` become JSON
+  arrays.
+- In the **Available Tests** view, <kbd>Ctrl</kbd>+<kbd>S</kbd> (or <kbd>Cmd</kbd>+<kbd>S</kbd>) saves the batches
+  file you are editing.
+- Once runs are done, the **Tuning Analysis** view shows how the metrics depend on the parameters: the sensitivity to
+  each parameter and to pairs of parameters, a parallel coordinates plot, the trade-off between two metrics, and for
+  automated tuning the best parameters and the convergence. See the
+  [user guide](/docs/user-guide/running-from-the-webapp#tuning-analysis).
+
+</details>
+
+## Other tuning workflows {#other-tuning-workflows}
+Tuning from the web app runs the code of a commit. Depending on where you are in your work, other workflows fit
+better:
+- **Locally, with your own tools**: if you already have good development and debugging tools (an IDE,
+  `tensorboard` for neural networks, one-off scripts...), keep using them. It's still worth having them call your
+  code through `qa`, so that runs behave the same everywhere: see [debugging with IDEs](/docs/debugging-runs-with-an-IDE).
+- **Your local code, results in QA-Board**: tweak, compile and run your code, then compare the results across runs
+  in the web app. Runs started with `--share` appear in a batch named after you, with a warning that they may not
+  match the committed code:
   ```bash
-  qa --share run [...]
-  qa --share --label testing-some-logic-tweaks batch [...]
+  qa --share run --input slices/small-objects
+  qa --share --label testing-some-logic-tweaks batch quant-search
   ```
-- **Commit, CI, QA-Board**: to change configuration files that live in your repository, commit and push the changes, and look at the results of the CI runs.
-- **Automatic optimization**: let `qa optimize` search the parameters for you, see [auto-optimization](auto-optimization).
+- **Commit, CI, QA-Board**: to change configuration files that live in your repository, commit and push the changes,
+  and look at the results of the CI runs.
+- **Automated tuning**: let `qa optimize` search the parameters for you, see
+  [automated tuning](/docs/auto-optimization).

@@ -1,8 +1,10 @@
 // The landing page (docs/docs-overhaul-plan.md §6). Every claim here is shipped, or labeled: see website/STYLE.md.
 // Media ids are literals, so the docs build checks them (plugins/media); unpublished ones show as placeholders.
 // Budgets: the hero poster is the LCP element, media have their size before they load (no layout shift), clips only
-// load and play when in view.
-import React, {useId, useRef, useState, type KeyboardEvent, type ReactNode} from 'react';
+// load and play when in view, and in the loop and the viewers' tabs, only the selected tab's media is in the page.
+// Order: who it's for and what they see (hero), proof, the problem, the loop, the viewers, the details, use cases,
+// then the stack, the roadmap and how to start.
+import React, {type ReactNode} from 'react';
 import clsx from 'clsx';
 import Layout from '@theme/Layout';
 import Link from '@docusaurus/Link';
@@ -11,6 +13,8 @@ import Shot from '@site/src/components/Shot';
 import Clip from '@site/src/components/Clip';
 import StatusBadge from '@site/src/components/StatusBadge';
 import ReleaseNoteHighlights from '@site/src/components/ReleaseNoteHighlights';
+import Viewers from '@site/src/components/landing/Viewers';
+import {useTabs} from '@site/src/components/landing/useTabs';
 import styles from './index.module.css';
 
 const GITHUB = 'https://github.com/Samsung/qaboard';
@@ -36,6 +40,15 @@ function SectionHeader({eyebrow, title, children}: {eyebrow?: string; title: str
   );
 }
 
+// Who it's for: each links to its use case
+const AUDIENCES = [
+  {label: 'Camera and ISP', to: '/docs/use-cases/image-quality'},
+  {label: 'Computer vision and ML', to: '/docs/use-cases/detection-eval'},
+  {label: 'Robotics', to: '/docs/use-cases/robotics-3d'},
+  {label: 'Embedded', to: '/docs/bit-accuracy'},
+  {label: 'Performance', to: '/docs/use-cases/serving-latency'},
+];
+
 function Hero() {
   return (
     <header className={styles.hero}>
@@ -46,9 +59,22 @@ function Hero() {
             Tests tell you it runs. <span className={styles.heroAccent}>QA-Board shows you it&apos;s better.</span>
           </h1>
           <p className={styles.heroLead}>
-            Every commit runs on your test set. QA-Board puts its outputs next to the reference&apos;s (images, plots,
-            flame graphs, logs and metrics) so your team sees what changed, agrees it&apos;s better, and ships it.
+            Every commit runs on your test set. QA-Board puts its outputs next to the reference&apos;s (images, videos,
+            point clouds, plots, flame graphs, logs and metrics) so your team sees what changed, agrees it&apos;s
+            better, and ships it.
           </p>
+          <div className={styles.audience}>
+            <span className={styles.audienceLabel} id="hero-audience">
+              For
+            </span>
+            <ul aria-labelledby="hero-audience">
+              {AUDIENCES.map(({label, to}) => (
+                <li key={label}>
+                  <Link to={to}>{label}</Link>
+                </li>
+              ))}
+            </ul>
+          </div>
           <p className={styles.heroTags}>Self-hosted · git-native · built for heavy data</p>
           <div className={styles.ctas}>
             <Link className="button button--primary button--lg" to="/docs/get-started/quickstart">
@@ -150,9 +176,9 @@ const STEPS: Step[] = [
   {
     name: 'Look',
     title: 'Look at the outputs themselves',
-    text: 'Images side by side, wiped or diffed, with synced zoom and pixel values. Plots overlaid, flame graphs diffed, logs, text and videos.',
-    link: '/docs/user-guide/comparing-results',
-    linkLabel: 'Comparing results',
+    text: 'Images and videos side by side, wiped or diffed, zoomed in sync down to the pixel. Point clouds and trajectories, plots overlaid, flame graphs diffed, reports, logs and text.',
+    link: '#viewers',
+    linkLabel: 'Every viewer, below',
     media: <Clip id="commit/image-diff" caption="" />,
   },
   {
@@ -166,7 +192,7 @@ const STEPS: Step[] = [
   {
     name: 'Tune',
     title: 'Tune parameters from the browser',
-    text: 'Start parameter sweeps or automated tuning from the web app, then see each parameter’s effect and the trade-offs in the Tuning Analysis view.',
+    text: 'Start parameter sweeps from the web app, or an automated tuning (experimental), then see each parameter’s effect and the trade-offs in the Tuning Analysis view.',
     link: '/docs/tuning-from-the-webapp',
     linkLabel: 'Tuning from the web app',
     media: <Clip id="tuning/launch-to-analysis" caption="" />,
@@ -187,23 +213,13 @@ const STEPS: Step[] = [
   },
 ];
 
-// Tabs with the keyboard: arrows move between them, Home/End to the ends (WAI-ARIA tabs pattern, automatic activation)
+// In-page links (#viewers) are plain anchors: the docs' link checker only knows the docs' headings
+function StepLink({to, children}: {to: string; children: ReactNode}) {
+  return to.startsWith('#') ? <a href={to}>{children}</a> : <Link to={to}>{children}</Link>;
+}
+
 function Loop() {
-  const [selected, setSelected] = useState(0);
-  const tabs = useRef<(HTMLButtonElement | null)[]>([]);
-  const id = useId();
-  const select = (index: number) => {
-    const next = (index + STEPS.length) % STEPS.length;
-    setSelected(next);
-    tabs.current[next]?.focus();
-  };
-  const onKeyDown = (event: KeyboardEvent) => {
-    const moves: Record<string, number> = {ArrowRight: selected + 1, ArrowDown: selected + 1, ArrowLeft: selected - 1, ArrowUp: selected - 1, Home: 0, End: STEPS.length - 1};
-    if (event.key in moves) {
-      event.preventDefault();
-      select(moves[event.key]);
-    }
-  };
+  const {selected, tabListProps, tabProps, panelProps} = useTabs(STEPS.length, 'The review loop');
   const step = STEPS[selected];
   return (
     <section className={clsx(styles.section, styles.sectionAlt)}>
@@ -212,21 +228,9 @@ function Loop() {
           The same review loop for every algorithm: camera pipelines, models, servers, embedded code.
         </SectionHeader>
         <div className={styles.loop}>
-          <div className={styles.loopTabs} role="tablist" aria-label="The review loop" onKeyDown={onKeyDown}>
+          <div className={styles.loopTabs} {...tabListProps}>
             {STEPS.map((s, index) => (
-              <button
-                key={s.name}
-                ref={el => {
-                  tabs.current[index] = el;
-                }}
-                type="button"
-                role="tab"
-                id={`${id}-tab-${index}`}
-                aria-selected={index === selected}
-                aria-controls={`${id}-panel`}
-                tabIndex={index === selected ? 0 : -1}
-                className={clsx(styles.loopTab, index === selected && styles.loopTabSelected)}
-                onClick={() => setSelected(index)}>
+              <button key={s.name} {...tabProps(index)} className={clsx(styles.loopTab, index === selected && styles.loopTabSelected)}>
                 <span className={styles.loopNumber} aria-hidden="true">
                   {index + 1}
                 </span>
@@ -235,13 +239,13 @@ function Loop() {
               </button>
             ))}
           </div>
-          <div className={styles.loopPanel} role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-tab-${selected}`}>
+          <div className={styles.loopPanel} {...panelProps}>
             <div className={styles.loopText}>
               <h3 className={styles.loopTitle}>
                 {step.title} {step.experimental && <StatusBadge status="experimental" />}
               </h3>
               <p>{step.text}</p>
-              <Link to={step.link}>{step.linkLabel} →</Link>
+              <StepLink to={step.link}>{step.linkLabel} →</StepLink>
             </div>
             {/* Only the selected step's clip is in the page: the others load when picked */}
             <div className={styles.loopMedia} key={step.name}>
@@ -258,44 +262,50 @@ const USE_CASES = [
   {
     audience: 'Camera, ISP, imaging',
     title: 'Image quality',
-    text: 'A denoiser wins PSNR but adds halos: synced zoom, image differences, deep zoom on 113 MP images, every pipeline stage.',
+    text: 'A denoiser wins PSNR but adds halos: synced zoom, image differences, a 113 MP test wall, every stage of the pipeline.',
     to: '/docs/use-cases/image-quality',
-  },
-  {
-    audience: 'Performance engineering',
-    title: 'Serving latency',
-    text: 'A cache saves CPU and takes p99 from milliseconds to seconds: latency distributions, flame graph diffs, History, a tuning frontier.',
-    to: '/docs/use-cases/serving-latency',
   },
   {
     audience: 'Computer vision, ML',
     title: 'Model evaluation',
-    text: 'An int8 detector loses small objects: metrics per class and slice, PR curves over the reference, automated tuning.',
+    text: 'An int8 detector is 72% smaller and misses small objects: metrics per class and object size, PR curves over the reference.',
     to: '/docs/use-cases/detection-eval',
+  },
+  {
+    audience: 'Robotics, perception',
+    title: 'Odometry and mapping',
+    text: 'A false loop closure pulls the trajectory meters away: 6DoF trajectories against the ground truth, point clouds, depth video in sync.',
+    to: '/docs/use-cases/robotics-3d',
   },
   {
     audience: 'Embedded, HW/SW co-design',
     title: 'Bit accuracy',
-    text: 'Check that a change left every output file identical, before you hand a model over to a hardware team.',
+    text: 'Check in CI that a change left every output file identical, before you hand a fixed-point model over to a hardware team.',
     to: '/docs/bit-accuracy',
   },
   {
-    audience: 'Robotics, perception',
-    title: 'Trajectories and 3D',
-    text: '6DoF trajectories against ground truth, point clouds and videos played in sync with the reference.',
-    to: '/docs/visualizations#available-file-viewers',
+    audience: 'Performance engineering',
+    title: 'Serving latency',
+    text: 'A shared cache saves CPU and takes p99 from milliseconds to seconds: latency tails, flame graph diffs, History, a tuning frontier.',
+    to: '/docs/use-cases/serving-latency',
+  },
+  {
+    audience: 'LLM agents',
+    title: 'Agent evals',
+    text: 'Shorter tool descriptions, and an assistant reboots robots without asking: transcripts diffed, a report per task, pass rate and cost.',
+    to: '/docs/use-cases/agent-evals',
   },
 ];
 
 function UseCases() {
   return (
-    <section className={styles.section}>
+    <section className={clsx(styles.section, styles.sectionAlt)}>
       <div className="container">
         <SectionHeader eyebrow="Use cases" title="For outputs that pass/fail tests can't judge">
           Each use case follows a demo project: the problem, the workflow, and the configuration that produces what you
           see.
         </SectionHeader>
-        <ul className={styles.cards}>
+        <ul className={clsx(styles.cards, styles.cardsThree)}>
           {USE_CASES.map(({audience, title, text, to}) => (
             <li key={title} className={styles.card}>
               <span className={styles.cardAudience}>{audience}</span>
@@ -316,40 +326,99 @@ function UseCases() {
   );
 }
 
-// Tiles about 370 px wide: the landing/* shots are 16:10 crops made for them (docs-media/shots/landing.spec.ts)
-type Polish = {title: string; text: string; media: ReactNode};
+// Tiles about 370 px wide: the landing/* shots are 16:10 crops made for them (docs-media/shots/landing.spec.ts). Other
+// shots fit in the same 16:10 box; `top` shows the top of a tall one, `left` fills the box with the left of a wide one.
+// Nothing here repeats the viewers above: the most differentiating first.
+type Detail = {title: string; text: ReactNode; media: ReactNode; fit?: 'top' | 'left'};
 
-const POLISH: Polish[] = [
-  {title: 'Deep zoom', text: 'Images over 100 MP load tile by tile, from the whole image down to single pixels.', media: <Clip id="landing/deep-zoom" caption="" />},
-  {title: 'Image difference', text: 'Perceptual, ΔE 2000 or per channel, with the values on the pixels: only what really changed stands out.', media: <Shot id="commit/image-perceptual-diff" caption="" />},
-  {title: 'Pixel values', text: 'Hover a pixel to read its values in both images, with a crosshair on the other.', media: <Shot id="landing/pixel-values" caption="" />},
-  {title: 'Histograms', text: 'Select a region to compare its histograms, new against reference.', media: <Shot id="commit/roi-histograms" caption="" />},
-  {title: 'Regions of interest', text: 'Jump to preset regions, or to where the images differ most.', media: <Shot id="commit/auto-roi" caption="" />},
-  {title: 'Filters', text: 'Brightness, contrast and gamma on every image at once, to see into the shadows.', media: <Shot id="commit/image-filters" caption="" />},
-  {title: 'Every stage', text: 'Sliders over a pipeline’s stages or a video’s frames, synced across runs.', media: <Clip id="landing/every-stage" caption="" />},
-  {title: 'Flame graph diffs', text: 'The functions that got slower in red, the faster ones in blue, the new ones in orange.', media: <Shot id="commit/flame-diff" caption="" />},
-  {title: 'Plot overlays', text: 'Your Plotly figures, with the reference drawn dashed on the same axes.', media: <Shot id="commit/plotly-overlay" caption="" />},
-  {title: 'Bit accuracy', text: 'Only the output files that changed: click one to diff it with the reference.', media: <Clip id="landing/bit-accuracy" caption="" />},
-  {title: 'Live logs', text: 'Follow a running log, count its errors, jump to the next one.', media: <Clip id="logs/live-tail" caption="" />},
-  {title: 'File browser', text: 'Every run’s folder in the browser, driven from the keyboard.', media: <Clip id="files/keyboard" caption="" />},
+const DETAILS: Detail[] = [
+  {
+    title: 'Which runs changed most',
+    text: 'The server compares the images of every run on the page with the reference’s, and ranks the runs by their largest difference: start your review where it matters.',
+    media: <Shot id="commit/regions-all-runs" caption="" />,
+    fit: 'top',
+  },
+  {
+    title: 'Every stage, synced',
+    text: 'One slider over a camera pipeline’s stages, from the raw mosaic to the output, drives every run’s card at once.',
+    media: <Clip id="landing/every-stage" caption="" />,
+  },
+  {
+    title: 'Bit accuracy before a hardware handoff',
+    text: 'Only the output files that changed, each diffed with the reference’s. A commit that changes none is bit-accurate.',
+    media: <Clip id="landing/bit-accuracy" caption="" />,
+  },
+  {
+    title: 'Why a run failed',
+    text: 'When LSF kills a run, its log says why, compares the memory it used with what it asked for, and says what to change.',
+    media: <Shot id="logs/lsf-hints" caption="" />,
+    fit: 'left',
+  },
+  {
+    title: 'Tuning frontiers',
+    text: 'Every configuration of a sweep, one metric against another: see which ones sit on the efficient frontier.',
+    media: <Shot id="tuning/frontier" caption="" />,
+    fit: 'left',
+  },
+  {
+    title: 'The file’s own values',
+    text: 'Hover a pixel: its values in both images as your code saved them, 16-bit or float included, not only the colors on screen.',
+    media: <Shot id="landing/pixel-values" caption="" />,
+  },
+  {
+    title: 'Milestones',
+    text: 'Save a release as a shared milestone, an experiment as a private one, and compare any commit with them.',
+    media: <Shot id="commits/milestones-menu" caption="" />,
+    fit: 'left',
+  },
+  {
+    title: 'Live logs',
+    text: 'Follow a running log, count its errors, and jump from one to the next.',
+    media: <Clip id="logs/live-tail" caption="" />,
+  },
+  {
+    title: 'File browser',
+    text: (
+      <>
+        Every run’s folder in the browser, from the keyboard: <kbd>j</kbd> <kbd>k</kbd> to move, <kbd>/</kbd> to filter,{' '}
+        <kbd>c</kbd> to copy a path.
+      </>
+    ),
+    media: <Clip id="files/keyboard" caption="" />,
+    fit: 'left',
+  },
 ];
 
-function PolishGrid() {
+function Details() {
   return (
-    <section className={clsx(styles.section, styles.sectionAlt)}>
+    <section className={styles.section}>
       <div className="container">
         <SectionHeader eyebrow="The details" title="Polish you'd never build in-house">
           Years of daily use on dozens of projects, in the web app you get on day one.
         </SectionHeader>
         <ul className={styles.polishGrid}>
-          {POLISH.map(({title, text, media}) => (
+          {DETAILS.map(({title, text, media, fit}) => (
             <li key={title} className={styles.polishItem}>
-              <div className={styles.polishMedia}>{media}</div>
+              <div className={clsx(styles.polishMedia, fit === 'top' && styles.fitTop, fit === 'left' && styles.fitLeft)}>{media}</div>
               <h3 className={styles.polishTitle}>{title}</h3>
               <p className={styles.polishText}>{text}</p>
             </li>
           ))}
         </ul>
+      </div>
+    </section>
+  );
+}
+
+function ViewersSection() {
+  return (
+    <section id="viewers" className={clsx(styles.section, styles.stage)}>
+      <div className="container">
+        <SectionHeader eyebrow="Viewers" title="Built for heavy data">
+          Each kind of output gets a viewer that puts the new run next to the reference, in sync, and shows where they
+          differ: images and videos down to the pixel, 3D maps, flame graphs, plots and reports.
+        </SectionHeader>
+        <Viewers />
       </div>
     </section>
   );
@@ -473,8 +542,8 @@ function FinalCta() {
             <Link className="button button--primary button--lg" to="/docs/get-started/quickstart">
               Run it locally
             </Link>
-            <Link className="button button--secondary button--lg" to="/docs/tour">
-              Take the tour
+            <Link className="button button--secondary button--lg" to="/docs/user-guide/first-review">
+              Take a first look
             </Link>
           </div>
         </div>
@@ -488,14 +557,15 @@ export default function Home() {
   return (
     <Layout
       title="Results review for algorithm teams"
-      description="Tests tell you it runs. QA-Board shows you it's better: every commit's outputs and metrics next to the reference's. Open source and self-hosted.">
+      description="Tests tell you it runs. QA-Board shows you it's better: every commit's outputs (images, videos, plots, flame graphs) and metrics next to the reference's. Open source and self-hosted.">
       <Hero />
       <main>
         <ProofStrip />
         <InHouse />
         <Loop />
+        <ViewersSection />
+        <Details />
         <UseCases />
-        <PolishGrid />
         <FitsYourStack />
         <Roadmap />
         <FinalCta />

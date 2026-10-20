@@ -242,7 +242,7 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
         Save one with <Icon icon="star-empty" size={12}/> next to a commit's hash, or list branches under <code>project.milestones</code> in <em>qaboard.yaml</em>.
       </span>}/>}
       {list.length > 0 && <MenuItem icon="properties" text="Manage milestones…" title="Sort, edit, delete, move or share several milestones, compare two" onClick={() => openManageMilestones({ project })}/>}
-      <MenuItem icon="manual" text="Learn about milestones" href={`${docs_root}docs/user-guide/comparing-results#milestones`} target="_blank" rel="noopener noreferrer"/>
+      <MenuItem icon="manual" text="Learn about milestones" href={`${docs_root}docs/user-guide/milestones`} target="_blank" rel="noopener noreferrer"/>
     </Panel>;
 };
 

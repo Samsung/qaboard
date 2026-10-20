@@ -1,0 +1,28 @@
+# Runs your test set on every push, then fails the pipeline when the results regress against the
+# reference (qa gate is experimental). The runner must mount the results storage at the same path as
+# the server (e.g. /mnt/qaboard): with the docker executor, add it to the runner's volumes.
+stages: [test, gate]
+
+variables:
+  QABOARD_URL: http://<your-qaboard>
+
+default:
+  image: python:3.12
+  before_script:
+    - pip install qaboard -r requirements.txt
+
+qaboard:
+  stage: test
+  script:
+    - qa batch ci
+
+quality-gate:
+  stage: gate
+  # also when runs failed, so that the gate reports them
+  when: always
+  script:
+    # posts a commit status with GITLAB_ACCESS_TOKEN (a masked CI/CD variable, scope api)
+    - qa gate --post-status gitlab
+  # optional: when the gate can't decide (exit code 2), warn instead of failing the pipeline
+  allow_failure:
+    exit_codes: 2

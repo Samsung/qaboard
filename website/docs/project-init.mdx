@@ -1,85 +1,91 @@
 ---
 id: project-init
-sidebar_label: Project Setup
-title: Adding QA-Board to your project
+title: Add QA-Board to your project
+sidebar_label: Project setup
+description: Create qaboard.yaml and the qa/ folder with qa init, fill in what qa needs to know about your project, connect your git host, and check your files in your editor.
 ---
 
-Go at the root of your project's git repository and run:
+`qa init` adds QA-Board to a project: a *qaboard.yaml* file that describes your project to `qa`, and a `qa/` folder
+with the Python code that runs yours. This page creates them, says what to fill in first, and connects your git host.
+
+## Create the files {#create-the-files}
+1. At the root of your git repository, run:
+
+   ```bash
+   qa init
+   ```
+
+   It creates these files, next to yours:
+
+   ```text
+   your-repository/
+   ├── qaboard.yaml       # your project: its name, where the inputs are, what to show, where results go
+   └── qa/
+       ├── main.py        # runs your code: its run() function is what you edit
+       ├── batches.yaml   # batches: lists of inputs and configurations to run together
+       └── metrics.yaml   # optional: how to show your metrics
+   ```
+
+   In a git repository, `qa init` fills in the project's name, URL and reference branch from your git remote.
+2. Check that it works. Until you edit it, `qa/main.py` prints what it gets, then runs the command you give after the
+   input:
+
+   ```bash
+   qa run --input /etc/hostname 'echo "{input_path} => {output_dir}"'
+   ```
+
+   ```text
+   Outputs: <your-repository>/output/linux/etc-hostname
+   Edit qa/main.py to run *your* code using the context
+     .output_dir:  <your-repository>/output/linux/etc-hostname
+     .input_path:  /etc/hostname
+   [...]
+   /etc/hostname => <your-repository>/output/linux/etc-hostname
+   {'is_failed': False, 'compute_time': 0.017203330993652344}
+   ```
+
+   `<your-repository>` is where you ran `qa init`. The last line is what the run returned: its metrics.
+3. Commit *qaboard.yaml* and `qa/` with your code: every commit runs with its own.
+
+Next, make `run()` run your code: see [Running your code](/docs/running-your-code).
+
+## What to fill in *qaboard.yaml* {#qaboard-yaml}
+`qa init` writes a *qaboard.yaml* full of comments. Here are the settings of the camera ISP example, a complete
+project in the repository:
+
+<RepoFile path="examples/image-quality/qaboard.yaml" title="qaboard.yaml" section="project,inputs,storage" />
+
+| Setting | What it is | Read more |
+|---|---|---|
+| `project.name` | The project's id in QA-Board, often the git repository's path. | |
+| `project.url` | Where your git repository is hosted. | [Connect your git host](#optional-connect-your-git-host) |
+| `project.entrypoint` | The Python file with your `run()` function. | [Running your code](/docs/running-your-code) |
+| `project.reference_branch` | The branch whose latest results every commit is compared with. | [References](/docs/references-and-milestones) |
+| `inputs` | Where your inputs are, how to recognize them, and the files that list your batches. | [Inputs](/docs/inputs), [Batches](/docs/batches-running-on-multiple-inputs) |
+| `outputs` | Your metrics file, and which output files the web app shows, and how. | [Metrics](/docs/computing-quantitative-metrics), [Visualizations](/docs/visualizations) |
+| `storage` | Where shared results are saved: a folder that the QA-Board server mounts too. | [Where is the data?](/docs/storage/where-is-the-data) |
+| `runners` | Where `qa batch` runs: on this machine, or on a cluster. | [Runners](/docs/using-the-qa-cli#batch-runners) |
+
+To see the configuration `qa` ends up with, including [site defaults](#site-defaults), run:
 
 ```bash
-qa init
-#=> 🎉🎉🎉
+qa get config
 ```
-
-Along with previously existing files and directories, your root directory will now contain a structure similar to:
-
-```
-root-git-repository
-├── qaboard.yaml       # configuration
-└── qa
-   ├── main.py         # sample entrypoint that runs your code
-   ├── batches.yaml    # examples of how to run multiple tests
-   └── metrics.yaml    # optional: how to show metrics, and which ones by default
-```
-
-## Site defaults
-Organizations can provide defaults for all projects (where results are stored, which task runner to use...) with a base `qaboard.yaml`:
-
-- Each project's `qaboard.yaml` is merged on top of it, and can override any setting. Mappings are merged key by key, lists are replaced unless they contain `super` (e.g. `batches: [super, qa/batches.yaml]`), and locations (`storage`, `inputs.database`) are replaced as a whole.
-- `qa init` doesn't copy the sample project's values for settings the site defines, it shows the site's values as comments instead.
-- To check the configuration a project ends up with, run `qa get config`.
-
-The base configuration is found via the `QABOARD_SITE_CONFIG` environment variable, which site packages set (e.g. a `qaboard-site-mysite` package points to its own `qaboard_site_mysite/qaboard.yaml`). Read [the installation docs](installation) to install your site package. Set `QABOARD_SITE_CONFIG=""` to ignore it.
-
-If you set `QABOARD_SITE_CONFIG` yourself, e.g. as a CI variable shared by Linux and Windows runners, it can depend on the platform like other locations:
-```bash
-QABOARD_SITE_CONFIG='{"linux": "/mnt/qaboard/site.yaml", "windows": "//server/qaboard/site.yaml"}'
-```
-
-:::tip Creating a site package
-Add a `qaboard.yaml` next to your site package's `__init__.py`, and add to its `defaults`:
-```python
-"QABOARD_SITE_CONFIG": str(Path(__file__).with_name("qaboard.yaml")),
-```
-:::
-
-## *(Optional)* Connect your git host
-QA-Board works with **GitHub** (and GitHub Enterprise), **GitLab**, **Gitea/Forgejo** and **Bitbucket Cloud**. When your repository sends its push events to QA-Board, you can:
-- See your commits in QA-Board with their message, author and avatar, find them by branch or tag
-- Get direct links to your code
-- Have `qa batch` set a commit status that links to the results (GitHub and GitLab)
-- Start and follow CI jobs from the web application: [GitHub Actions workflows and GitLab CI manual jobs](triggering-third-party-tools)
-- Wait for CI pipelines to end when checking if results changed vs the last version
-- Delete old results
-
-Your QA-Board server must know your git host, and have a token if the repository is private: ask its admins, or see [Git hosts](backend-admin/git-hosts). If a delivery fails, its HTTP status tells why (see [webhooks](backend-admin/git-hosts#webhooks)).
-
-### GitHub
-In the repository's *Settings > Webhooks*, add a webhook with:
-* __Payload URL:__ `https://<your-qaboard-server>/webhook/github`
-* __Content type:__ `application/json`
-* __Secret:__ the server's webhook secret, if it has one (recommended)
-* __Events:__ *Just the push event*
-
-> GitHub sends a "ping" right away: in *Recent Deliveries* you should get a `200` response 🎉.
-
-### GitLab
-As one of the project's Maintainers, go to *Settings > Webhooks* (`https://<gitlab>/<group>/<project>/-/hooks`) and add a webhook with:
-* __URL:__ `https://<your-qaboard-server>/webhook/gitlab`
-* __Secret token:__ the server's webhook secret, if it has one (recommended)
-* __Trigger:__ *Push events* and *Tag push events*
-
-> To test everything went well, GitLab lets you "Test" your new hook. You should get a blue happy `200 OK` message  🔵🎉.
-
-### Gitea, Forgejo and Bitbucket
-Like GitHub, with the payload URL `https://<your-qaboard-server>/webhook/gitea` (or `/webhook/forgejo`) and the *Push* event, or for Bitbucket Cloud `https://<your-qaboard-server>/webhook/bitbucket` with the *Repository push* trigger.
 
 :::tip
-`project.url` in your `qaboard.yaml` (e.g. `git@github.com:org/repo.git`) tells `qa` and QA-Board where your repository is hosted, even before the first push event.
+Several projects in one repository each get their own *qaboard.yaml*, in their folder. See
+[Monorepos](/docs/monorepo-subprojects).
 :::
 
-## Checking qaboard.yaml and batch files in your editor
-QA-Board publishes [JSON schemas](https://json-schema.org/) for [qaboard.yaml](pathname:///qaboard.schema.json), [batch files](pathname:///batches.schema.json), [metrics files](pathname:///metrics.schema.json) and the [metrics_definitions.json](pathname:///metrics_definitions.schema.json) files runs can write (see [Declaring metrics](/docs/computing-quantitative-metrics#declaring-metrics)). Editors that understand them complete the keys, show their docs on hover, and flag typos and wrong types. The files `qa init` creates already declare their schema, on their first lines. For your other files, with VS Code's [YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml), add to your settings:
+## Check *qaboard.yaml* and batch files in your editor {#checking-qaboardyaml-and-batch-files-in-your-editor}
+QA-Board publishes [JSON schemas](https://json-schema.org/) for [*qaboard.yaml*](pathname:///qaboard.schema.json),
+[batch files](pathname:///batches.schema.json), [metrics files](pathname:///metrics.schema.json) and the
+[*metrics_definitions.json*](pathname:///metrics_definitions.schema.json) files runs can write (see
+[Declaring metrics](/docs/computing-quantitative-metrics#declaring-metrics)). Editors that understand them complete
+the keys, show their docs on hover, and flag typos and wrong types.
+
+The files `qa init` creates already declare their schema, on their first lines. For your other files, with VS Code's
+[YAML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-yaml), add to your settings:
 
 ```json title=".vscode/settings.json"
 {
@@ -91,11 +97,93 @@ QA-Board publishes [JSON schemas](https://json-schema.org/) for [qaboard.yaml](p
 }
 ```
 
-Or add a comment at the top of the file, which works in any editor using the YAML language server:
+Or add a comment at the top of the file, which works in any editor that uses the YAML language server:
+
 ```yaml title="qa/batches.yaml"
 # yaml-language-server: $schema=https://samsung.github.io/qaboard/batches.schema.json
 ```
 
-Without internet access, use your QA-Board server's copy, e.g. `https://qaboard.example.com/docs/batches.schema.json`, or the files installed with `qa`: `python -c "import qaboard, pathlib; print(pathlib.Path(qaboard.__file__).parent / 'schemas')"`.
+Without internet access, use your QA-Board server's copy, e.g. `https://<your-qaboard>/docs/batches.schema.json`, or
+the files installed with `qa`, in the folder this prints:
 
-`qa` accepts keys the schemas don't know: they become input settings your entrypoint's `iter_inputs` can read, or viewer options for visualizations. So treat what the schemas flag as warnings. The web app's [Available Tests](/docs/user-guide/commit-page#available-tests) view checks batches with the same schema.
+```bash
+python -c "import qaboard, pathlib; print(pathlib.Path(qaboard.__file__).parent / 'schemas')"
+```
+
+`qa` accepts keys the schemas don't know: they become input settings your entrypoint's `iter_inputs` can read, or
+options for viewers. So treat what the schemas flag as warnings. The web app's
+[Available Tests](/docs/user-guide/available-tests) view checks batches with the same schema.
+
+## Connect your git host {#optional-connect-your-git-host}
+QA-Board shows the commits that `qa` sends results for, with the message and author it reads from git. When it also
+knows your git host, you can:
+- see your commits with their author's avatar, and find them by branch or tag,
+- get links to your code,
+- start and follow CI jobs from the web app: [GitHub Actions workflows and GitLab CI manual jobs](/docs/triggering-third-party-tools),
+- wait for the reference commit's CI to end before comparing with it, e.g. in [bit-accuracy checks](/docs/bit-accuracy),
+- [delete old results](/docs/storage/deleting-old-data).
+
+QA-Board works with **GitHub** (and GitHub Enterprise), **GitLab**, **Gitea/Forgejo** and **Bitbucket Cloud**:
+1. Your QA-Board server must know your git host, and have a token if the repository is private: ask its admins, or
+   see [Git hosts](/docs/backend-admin/git-hosts).
+2. Your repository sends its push events to QA-Board, with a webhook: see below.
+3. In CI, give `qa` a token for your git host too: `qa batch` then sets a commit status that links to the results, on
+   GitHub and GitLab, and `qa` can ask whether a commit's CI ended. See [the CLI's tokens](/docs/backend-admin/git-hosts#the-cli).
+
+:::tip
+`project.url` in *qaboard.yaml* (e.g. `git@github.com:org/repo.git`) tells `qa` and QA-Board where your repository is
+hosted, even before the first push event.
+:::
+
+### GitHub {#github}
+1. In the repository's **Settings > Webhooks**, add a webhook:
+   - **Payload URL:** `https://<your-qaboard>/webhook/github`
+   - **Content type:** `application/json`
+   - **Secret:** the server's webhook secret, if it has one (recommended)
+   - **Events:** *Just the push event*, as GitHub calls it
+2. GitHub sends a "ping" right away: in the webhook's **Recent Deliveries**, it got a `200` response.
+
+### GitLab {#gitlab}
+1. As a maintainer of the project, add a webhook in **Settings > Webhooks**:
+   - **URL:** `https://<your-qaboard>/webhook/gitlab`
+   - **Secret token:** the server's webhook secret, if it has one (recommended)
+   - **Trigger:** push events and tag push events
+2. Click **Test > Push events**: GitLab shows that the hook answered `200 OK`.
+
+### Gitea, Forgejo and Bitbucket {#gitea-forgejo-and-bitbucket}
+Like GitHub, with the payload URL `https://<your-qaboard>/webhook/gitea` (or `/webhook/forgejo`) and the push event.
+For Bitbucket Cloud, use `https://<your-qaboard>/webhook/bitbucket` with the **Repository push** trigger.
+
+If a delivery fails, its HTTP status says why: see [webhooks](/docs/backend-admin/git-hosts#webhooks).
+
+## Site defaults for every project {#site-defaults}
+Organizations can give all their projects default settings, like where results are stored or which runner to use,
+with a base *qaboard.yaml*. Each project's *qaboard.yaml* is merged on top of it:
+- Mappings are merged key by key, and a project can override any setting.
+- Lists are replaced, unless they contain `super`, which stands for the site's list: `batches: [super, qa/batches.yaml]`.
+- Locations (`storage`, `inputs.database`) are replaced as a whole.
+- `qa init` doesn't copy the sample project's values for settings the site defines: it shows the site's values as
+  comments instead.
+- `qa get config` prints the configuration a project ends up with.
+
+`qa` finds the base configuration with the `QABOARD_SITE_CONFIG` environment variable, which
+[site packages](/docs/installation#with-your-organizations-site-package) set (e.g. a `qaboard-site-mysite` package
+points to its own `qaboard_site_mysite/qaboard.yaml`). Set `QABOARD_SITE_CONFIG=""` to ignore it.
+
+If you set `QABOARD_SITE_CONFIG` yourself, e.g. as a CI variable shared by Linux and Windows runners, it can depend on
+the platform like other locations:
+
+```bash
+QABOARD_SITE_CONFIG='{"linux": "/mnt/qaboard/site.yaml", "windows": "//server/qaboard/site.yaml"}'
+```
+
+<details>
+<summary>Add a base configuration to your site package</summary>
+
+Add a *qaboard.yaml* next to your site package's `__init__.py`, and add to its `defaults`:
+
+```python
+"QABOARD_SITE_CONFIG": str(Path(__file__).with_name("qaboard.yaml")),
+```
+
+</details>

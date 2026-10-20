@@ -42,6 +42,34 @@ def test_update_batch_commit(batch_api, dummy_app, commit):
   assert batch_api.CiCommit.get_or_create.call_args.kwargs["hexsha"] == HEXSHA
 
 
+def test_batches_keep_their_own_qaboard_yaml(batch_api, dummy_app):
+  # The commit keeps the qaboard.yaml of its first results. A batch keeps its own when it differs,
+  # e.g. sent by `qa --share batch` with new visualizations: the web app shows them for that batch.
+  ci_commit = batch_api.CiCommit.get_or_create.return_value
+  batch = ci_commit.get_or_create_batch.return_value
+  first = {"outputs": {"visualizations": []}}
+  edited = {"outputs": {"visualizations": [{"name": "Output", "path": "out.png"}]}}
+  metrics = {"main_metrics": ["psnr"]}
+  def post(config):
+    body = {"project": "group/project", "commit_sha": HEXSHA, "batch_label": "@alice| default", "qaboard_config": config, "qaboard_metrics": metrics}
+    with dummy_app.test_request_context("/api/v1/batch/", method="POST", json=body):
+      assert batch_api.update_batch().get_json()["status"] == "OK"
+
+  post(first)
+  assert ci_commit.data == {"qatools_config": first, "qatools_metrics": metrics}
+  assert "qatools_config" not in batch.data
+
+  post(edited)
+  assert ci_commit.data["qatools_config"] == first
+  assert batch.data["qatools_config"] == edited
+  assert "qatools_metrics" not in batch.data
+
+  # back to the commit's
+  post(first)
+  assert ci_commit.data["qatools_config"] == first
+  assert "qatools_config" not in batch.data
+
+
 class FakeOutput:
   def __init__(self, name, output_type='', data=None):
     self.name, self.output_type, self.data = name, output_type, data or {}

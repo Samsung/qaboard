@@ -802,7 +802,7 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
         <li>The solver is <a href="https://github.com/scikit-optimize/scikit-optimize">scikit-optimize</a>. There are lots of choices for black-box optimization (nevergrad, RoBo, MOE, Ray, hyperopt, SMAC, BayesOpt, spearmint, dlib...), all with varying features, maturity, algorithms and popularity.</li>
         <li>You need to use <a href={`${docs_root}docs/computing-quantitative-metrics`}>QA-Board metrics</a>.</li>
         </ul>
-        <p><strong>Do send <a href={support_url || "mailto:arthur.flam@samsung.com"}>feedback</a>!</strong></p>
+        {support_url && <p><strong>Do send <a href={support_url}>feedback</a>!</strong></p>}
       </Callout>
     </>}
   </>;

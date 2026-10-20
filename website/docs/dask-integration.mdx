@@ -51,6 +51,10 @@ You can also choose the runner and concurrency on the CLI:
 qa batch --runner dask --dask-concurrency 8 my-batch
 ```
 
+A batch can have its own `concurrency` under `dask:`, e.g. for runs that need a lot of memory: at most that many of
+its runs are in flight. Its runs share the workers with the other batches' runs, and `qa batch` keeps at most the
+largest concurrency in flight, and starts workers for that many. The command line option wins.
+
 ## How it works
 1. `qa batch` starts a Dask scheduler in its own process.
 2. It bsubs `ceil(min(#runs, concurrency) / cores)` worker jobs, named `{batch-prefix}_dask`.
@@ -85,7 +89,8 @@ runners:
     concurrency: 20
 ```
 
-- `qa batch` doesn't start or stop workers: the cluster size is the global limit, `concurrency` the per-batch limit.
+- `qa batch` doesn't start or stop workers: the cluster size is the global limit, `concurrency` the limit of each
+  `qa batch`.
 - With `--no-wait`, the driver LSF job connects to the cluster and keeps at most `concurrency` runs in flight. If LSF isn't available (no `bsub`, no `QA_RUNNERS_LSF_BRIDGE`), all runs are sent at once and `concurrency` is not enforced.
 - To stop batches from QA-Board, the QA-Board server needs `distributed` installed and access to the scheduler.
 

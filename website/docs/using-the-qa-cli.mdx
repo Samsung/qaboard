@@ -1,58 +1,67 @@
 ---
 id: using-the-qa-cli
-sidebar_label: QA CLI Tips
-title: Tips for CLI usage
+title: The qa command line
+sidebar_label: qa command line
+description: The qa options you use every day, to share results, name experiments, preview a batch, choose where it runs, skip what already ran, and get an email when it ends.
 ---
 
-## CLI flags worth knowing
-## `qa --help`
-All commands have some help:
+`qa` runs your code: on one input with `qa run`, on a batch with `qa batch`. This page covers the options you use
+every day: sharing results, naming experiments, previewing a batch, choosing where it runs.
+
+`qa`'s own options, like `--share`, `--label`, `--config`, `--platform`, `--dryrun` and `--offline`, go **before**
+the command. The command's options, like `--input` or `--runner`, go after it:
 
 ```bash
-qa --help
-qa batch --help
+qa --share --label ines-halo batch ci --runner local
 ```
 
-## `qa --share`
-When you run `qa batch` or `qa run` on your terminal, results are saved locally under **output/**, and *they are not visible in QA-Board*. To make them visible, add `--share`: `qa --share run ...`.
+Every command has its help: `qa --help`, `qa batch --help`...
 
-:::tip
-If you don't like this default, make `--share` the default via  
+## The commands {#commands}
+| Command | What it does | Read more |
+|---|---|---|
+| `qa init` | Adds *qaboard.yaml* and `qa/` to your project. | [Project setup](/docs/project-init) |
+| `qa run --input <input>` | Runs your code on one input. | [Running your code](/docs/running-your-code) |
+| `qa batch <batch>` | Runs the inputs and configurations of a batch. | [Batches](/docs/batches-running-on-multiple-inputs) |
+| `qa postprocess --input <input>` | Redoes only your `postprocess()` function, on a run's files. | [Postprocessing](/docs/running-your-code#postprocess) |
+| `qa sync --input <input>` | Sends a run's *metrics.json* to QA-Board again, with `--share` or in CI. | |
+| `qa get <setting>` | Prints a setting, e.g. `qa get config`, `qa get --input A.jpg output_dir`. | [API](/docs/apis) |
+| `qa save-artifacts` | Saves what your runs need to be redone from the web app, e.g. your build. | [Artifacts](/docs/storage/artifacts) |
+| `qa check-bit-accuracy` | Compares a commit's output files with a reference's, byte for byte. | [Bit accuracy](/docs/bit-accuracy) |
+| `qa gate` | Experimental: fails the CI when metrics regress. | [Quality gate](/docs/quality-gate) |
+| `qa optimize` | Experimental: searches for the best parameters. | [Automated tuning](/docs/auto-optimization) |
+
+## See results in the web app: `--share` {#qa---share}
+From your computer, `qa run` and `qa batch` save results in `output/`, in your project: the web app doesn't see them.
+Add `--share` to save them in the shared storage and send them to QA-Board. `qa` then prints the link to them:
 
 ```bash
-# .bashrc or other shell config
-alias qa="qa --share"
+qa --share batch ci
+```
 
-# you can also use an environment variable (all options can be set as QA_<OPTION>)
+In CI, `qa` always shares results. To share them by default from your computer too:
+
+```bash
+# in your shell's profile
 export QA_SHARE=true
 ```
-:::
 
-With `--share`, `qa batch` and `qa optimize` also save what they print, errors included, in the batch directory, under `qa-batch-logs/`. QA-Board shows these logs with the batch, in the *Logs* view. They are not saved in the CI, which keeps the logs. `qa optimize` saves the output of its iterations in its own log.
+With `--share`, `qa batch` and `qa optimize` also save what they print, errors included, in the batch's folder, under
+`qa-batch-logs/`. The web app shows these logs with the batch, in the **Logs** view (see
+[batch commands](/docs/user-guide/logs#batch-commands)). In CI, they aren't saved: the CI keeps the logs. `qa optimize`
+saves the output of its iterations in its own log.
 
-
-## `qa --dryrun`
-`qa` commands support a `--dryrun` mode, where they print actions they would take, but don't actually do anything. In particular it helps see quickly what inputs you defined in a batch:
+## Name experiments: `--label` {#qa---label-my-label}
+Each `qa run` replaces the previous results of the same input and configuration. To keep several versions, e.g.
+before and after a change, give each one a label:
 
 ```bash
-qa --dryrun batch my-batch
-# qa run --input image/A.jpg
-# qa run --input image/B.jpg
+qa --share --label ines-before batch ci
+qa --share --label ines-halo batch ci
 ```
 
-:::note
-For `qa --dryrun run`, you are expected to handle `if context.dryrun: ...` yourself in `run()`. The use-case is usually printing how you would call an executable, for debugging.
-:::
-
-## `qa --label my-label`
-Every time you `qa run`, it erases previous results. So if you want compare different versions by tweaking doing `qa run`, it won't work. Fortunately, `qa` lets you give a "label", or "experiment name" to runs. Results with different labels are stored separately:
-
-```
-qa --label without-optimizations batch validation-images
-qa --label    with-optimizations batch validation-images
-```
-
-Each label is a batch of its own: pick it in the web app's batch selector.
+Each label is a batch of its own: pick it in the web app's batch selector. Shared from your computer, a batch shows
+your name and 🏠.
 
 <Shot
   id="commit/batch-picker"
@@ -60,79 +69,96 @@ Each label is a batch of its own: pick it in the web app's batch selector.
 />
 
 :::tip
-To keep previous output files, use `qa run --keep-previous` (or `export QABOARD_RUN_KEEP=true`). It can be useful if you are debugging long runs and implemented a caching mechanism. *(Experimental)*
+To keep the previous output files of a run, e.g. when your code caches intermediate results while you debug a long
+run, use `qa run --keep-previous` (or `export QABOARD_RUN_KEEP=true`).
 :::
 
-## `qa batch`
-### Batch Runners
-While `qa run` uses the local environment, `qa batch` will offload computation to a "runner" backend.
+## Preview: `--dryrun` {#qa---dryrun}
+With `--dryrun`, `qa` prints what it would do, without doing it. For `qa batch`, it prints the `qa run` command of
+each run, e.g. to check what a batch runs. In the detector example:
 
-Available runners:
-- `local`: [local multiprocessing](local-multiprocessing) with [`joblib`](http://joblib.readthedocs.io/). Default if no other runner is configured, and on Windows instead of `lsf`. Set the concurrency with `--local-concurrency`, `QA_BATCH_CONCURRENCY` or `runners.local.concurrency` in *qaboard.yaml*.
-- `lsf`: 1 [LSF](lsf-integration) job per run. Limit how many run at the same time with `--lsf-concurrency` or `runners.lsf.concurrency`.
-- `dask`: a pool of long-lived [Dask workers](dask-integration), started as LSF jobs. Best for many short runs. Set the concurrency with `--dask-concurrency` or `runners.dask.concurrency`.
-- `celery`: [Celery](celery-integration) workers.
-- `windows`: runs sent to Windows hosts via [Jenkins](jenkins-integration).
+```bash
+qa --dryrun batch ci
+```
 
-Choose the runner with `--runner=local`, and set a default with `runners.default: local` in *qaboard.yaml*. Without `runners.default`, `qa batch` uses the first runner configured under `runners` (other than `local`), else `local`.
+```text
+qa --configuration fp32:size-320 run --input "slices/indoor"
+   /home/arjun/kitefin/detector/output/7622c337-20/slices-indoor
+[...]
+```
 
-### Dealing with existing results
-When you try to re-run already existing results, The behaviour of `qa batch` can be changed with the `--action-on-existing` flag:
-- `--action-on-existing=run`: overwrite the old results (default).
-- `postprocess`: only call the `postprocess()` function, not `run()+postprocess()` as usual. (Note: it's also provided by `qa postprocess`)
-- `sync`: update the output file manifest and read metrics from *$output_dir/metrics.json*. (Note: it's also provided by `qa sync`)
-- `skip`: do nothing
-- `assert-exists`: fail if there are no results
+For `qa --dryrun run`, `run()` is called with `context.dryrun` set to `True`: it's up to your code not to do
+anything, e.g. print the command it would run.
 
-The default can be set in *qaboard.yaml* with `outputs.action_on_existing`.
+## Choose where batches run: runners {#batch-runners}
+`qa run` runs on your machine. `qa batch` hands its runs to a *runner*:
+- `local`: [runs on this machine](/docs/local-multiprocessing), one at a time unless you set a concurrency:
+  `--local-concurrency`, `QA_BATCH_CONCURRENCY` or `runners.local.concurrency` in *qaboard.yaml* (`-1`: one run per
+  CPU). It's the default when no other runner is configured, and on Windows instead of `lsf`.
+- `lsf`: one [LSF](/docs/lsf-integration) job per run. Limit how many run at the same time with `--lsf-concurrency`
+  or `runners.lsf.concurrency`.
+- `dask`: a pool of long-lived [Dask workers](/docs/dask-integration), started as LSF jobs or on an existing Dask
+  cluster. Best for many short runs. Set the concurrency with `--dask-concurrency` or `runners.dask.concurrency`.
+- `celery`: [Celery](/docs/celery-integration) workers.
+- `windows`: runs sent to Windows hosts via [Jenkins](/docs/jenkins-integration).
 
-Similarly, `--action-on-pending` (or `outputs.action_on_pending`) decides what to do when the same runs are already pending: `wait` (default, then run), `sync` (use those runs' results), `skip` or `run` (run as usual, can cause races).
+Choose the runner with `--runner`, e.g. `qa batch --runner local ci`, and set a default with `runners.default` in
+*qaboard.yaml*. Without `runners.default`, `qa batch` uses the first runner configured under `runners` other than
+`local`, else `local`. Batches can change their runs' settings, like LSF's memory: see
+[runner settings per batch](/docs/batches-running-on-multiple-inputs#runner-settings-per-batch).
 
-### Email when the runs end
+## Runs that already ran {#dealing-with-existing-results}
+By default, `qa batch` runs everything again. `--action-on-existing` changes what it does with runs that already
+succeeded:
+- `run`: run them again (the default).
+- `postprocess`: only call your `postprocess()` function, like `qa postprocess`.
+- `sync`: send their *metrics.json* to QA-Board again, like `qa sync`.
+- `skip`: do nothing.
+- `assert-exists`: fail if some runs have no results. Like `skip`, it does nothing with those that succeeded.
+
+Runs that failed, or never ran, always run. The default can be set in *qaboard.yaml*, with
+`outputs.action_on_existing`.
+
+When the same runs are already pending, e.g. started by an earlier command, `--action-on-pending` (or
+`outputs.action_on_pending`) decides: `wait` for them, then run (the default), `sync` (use their results), `skip`, or
+`run` as usual, which can cause races.
+
+To redo a list of runs, give them in a file: see [`--runs-file`](/docs/batches-advanced#running-a-list-of-runs).
+
+## Email when the runs end {#email-when-the-runs-end}
 QA-Board emails you when the runs of `qa --share batch` end:
 
 ```bash
-qa --share batch my-batch
-#=> QA-Board will email jdoe@example.com when the runs end (`export QA_NOTIFY=none` to stop).
+qa --share batch ci
 ```
 
-It's the same email users get when they start a batch from the web app ([what it says](user-guide/running-from-the-webapp#emails-when-batches-end)): one per `qa batch`, when its last run ends.
+```text
+QA-Board will email ines@kitefin.example when the runs end (`export QA_NOTIFY=none` to stop).
+```
+
+It's the same email users get when they start a batch from the web app
+([what it says](/docs/user-guide/running-from-the-webapp#emails-when-batches-end)): one per `qa batch`, when its last
+run ends.
 - To stop them, `export QA_NOTIFY=none`.
 - It needs `--share`: QA-Board only knows about the runs it saves.
-- It's never sent in CI, nor for `qa batch` commands started by other ones, like the steps of a pipeline or the iterations of `qa optimize`: their runs count as the first command's runs, and its email comes when they are all done. Nested `qa batch` know the first one from the `QA_BATCH_ROOT_COMMAND_ID` environment variable, that all runners forward to the runs (local, LSF, Dask and Celery).
+- It's never sent in CI, nor for `qa batch` commands started by other ones, like the steps of a pipeline or the
+  iterations of `qa optimize`: their runs count as the first command's runs, and its email comes when they are all
+  done. Nested `qa batch` commands know the first one from the `QA_BATCH_ROOT_COMMAND_ID` environment variable, which
+  all runners forward to the runs (local, LSF, Dask and Celery).
 
-### Running a list of runs
-Instead of batches, `qa batch --runs-file runs.json` does the runs listed in a JSON file. QA-Board uses it to redo runs: they are started together, so the batch's runner settings (e.g. its concurrency) apply to all of them.
+## Work without a server: `--offline` {#qa---offline}
+With `qa --offline`, `qa` never contacts QA-Board: results are only saved on disk. To use another server, see
+[Connect to your server](/docs/installation#connecting-to-a-custom-qa-board-server).
 
-```json title="runs.json"
-{
-  "runs": [
-    {
-      "input_path": "images/A.jpg",
-      "database": "/datasets",
-      "type": "image",
-      "platform": "linux",
-      "configurations": ["base", {"threshold": 0.5}],
-      "extra_parameters": {"iterations": 3},
-      "job_options": {"type": "dask", "concurrency": 20}
-    }
-  ]
-}
-```
-
-Only `input_path` (relative to `database`) and `database` are required. Runs are done with the runner and options in `job_options`, completed by the defaults from *qaboard.yaml*. Options you give on the command line, like `--runner` or `--lsf-queue`, win.
-
----
-
-## Connecting to a custom QA-Board instance
-Use `qa --offline` to ensure you don't connect to a QA-Board instance. It's useful if... you don't have one (?).
-The default connection settings can be overridden by environment variables. For example:
+## Options as environment variables {#options-as-environment-variables}
+Every option can be set in the environment: `QA_<OPTION>` for `qa`'s own options, `QA_<COMMAND>_<OPTION>` for a
+command's, in capitals and with `_` for `-`:
 
 ```bash
-export QABOARD_PROTOCOL=http
-export QABOARD_HOST=my-server:5151
-# or: export QABOARD_URL=http://my-server:5151
+export QA_SHARE=true                  # qa --share
+export QA_BATCH_RUNNER=lsf            # qa batch --runner lsf
+export QA_BATCH_LSF_CONCURRENCY=20    # qa batch --lsf-concurrency 20
 ```
 
-See [Client Installation](installation#connecting-to-a-custom-qa-board-server).
-
+Options given on the command line win. More variables that change what `qa batch` does are in
+[Advanced batches](/docs/batches-advanced#environment-variables).

@@ -1,75 +1,138 @@
 ---
 id: overview
-title: QA-Board for users
-sidebar_label: Overview
-description: Who the user guide is for, QA-Board's key concepts in plain words, and a map of the web app.
+title: The QA-Board user guide
+sidebar_label: Start here
+description: What QA-Board does for you, the few words it uses, a map of the commit page, and the page to read for each task.
 ---
-This guide is for the engineers who **use the QA-Board web app every day** to look at results: check what a commit changed, compare it to a reference, dig into images and logs, start a few extra runs, and share what they found.
+QA-Board shows what each commit changed. Your team's CI, the tests that run by themselves on every commit, runs the
+code on the same test inputs each time. QA-Board puts the results next to a reference's, like the last release: the
+metrics, and the outputs behind them, from images and videos to plots and logs. You see whether the commit is better
+and where it differs, and you share a link to what you found.
 
-You don't need to know how the project was set up to use it.
+<Clip
+  id="landing/hero"
+  caption="A new denoiser against the last release: PSNR is up, and so is the edge overshoot. Zoom in one image and the reference follows; their difference, with its maximum raised, leaves only the halos."
+/>
 
-:::note Other audiences
-- **Project integration**: to add QA-Board to a project (*qaboard.yaml*, inputs, metrics, visualizations, runners), start at [Project Setup](../project-init.mdx).
-- **Admins** who run the QA-Board server: see [Server Bringup](../start-server.mdx) and the [deployment runbook](../backend-admin/deployment.mdx).
-:::
+This guide is for everyone who looks at results in the web app: image-quality and test engineers, integrators,
+algorithm developers, team leads. You don't need to know how the project was set up.
 
-## Key concepts in plain words
+<Cards>
+  <Card title="Your first review" to="/docs/user-guide/first-review" eyebrow="Start here">
+    Follow one commit of a demo camera pipeline, step by step: its metrics, its images in sync, and the halos its new
+    denoiser adds.
+  </Card>
+  <Card title="Which commit broke it?" to="/docs/user-guide/history-and-dashboards#find-a-regression" eyebrow="Team leads">
+    Follow p99, or any metric, test by test, to the commit where it jumped.
+  </Card>
+  <Card title="Run QA-Board on your computer" to="/docs/get-started/quickstart" eyebrow="No server yet?">
+    Start a server with the demo projects, to follow the walkthrough or try things out.
+  </Card>
+</Cards>
 
-| Concept | What it means for you |
+## The words you need {#words}
+| Word | What it means |
 |---|---|
-| **Project** | Usually a git repository, sometimes a sub-folder of one (e.g. `group/repo/sub-project`). The [projects list](finding-results.mdx#projects-list) is the home page. |
-| **Commit** | A version of the code. QA-Board shows results *per commit*: the commit page is where you spend most of your time. |
-| **Batch** | A group of runs for a commit, with a label. The CI batch (label `default`) is shown as **CI**. Tuning experiments and your own local runs get their own batches. |
-| **Run** (or **output**) | The code from a commit, executed on one input, with one configuration, on one platform. Each run has its output files, metrics and logs. |
-| **Input** | What a run works on: an image, a movie, a recording, a test case... Inputs are identified by their path. |
-| **Configuration** | The settings a run used (e.g. `base`, `low-light`), plus optional **tuning parameters** shown as `key: value` tags. |
-| **Metrics** | Numbers computed by each run (error, speed, quality...). The project's configuration decides which ones matter, their target and whether smaller is better. |
-| **New vs reference** | Results are always shown for a **new** commit compared with a **reference** (`ref`). By default the reference is the latest commit with results on the project's reference branch. |
-| **Milestone** | A commit's batch (maybe filtered) bookmarked as a reference: a release, a benchmark, "the version before my refactor". Saved in your account, listed for you or for everyone on the project, with a link to share. |
-| **Artifacts** | Files saved per commit, like the build output and the configuration files, so runs can be redone and configs compared. |
+| **Commit** | A version of the code, named by its **commit hash**, like `d820bd5d`. QA-Board shows results commit by commit. |
+| **Branch** | A line of commits, like `main` or `isp/bilateral-denoise`. The project's reference branch, often `main`, is the code everyone uses. |
+| **Run** | The code of one commit, on one input (an image, a video, a recording...), with one configuration, like `low-light`. A run has output files, metrics and a log. |
+| **Batch** | The runs of a commit that belong together. The one CI runs is shown as **CI**; tuning experiments and your own runs get their own batches. |
+| **Metric** | A number each run reports: PSNR, mAP, p99 latency... Changes are green when they're better, red when they're worse. |
+| **New and reference** | What you look at, and what it's compared with. By default, the reference is the latest results of the project's reference branch. |
+| **Milestone** | Results saved to compare with later: a release, a benchmark, your best tuning. Yours, or shared with the project. |
 
-## A map of the web app
+The other words, and how the `qa` command line and the server work together: [Key concepts](/docs/get-started/concepts).
 
-```text
-Projects list  ─►  Commit list  ─►  Commit page  ─►  views (Summary, Metrics, Visualizations, Logs...)
-     /              /<project>      /<project>/commit/<hash>
-                    /<project>/commits/<branch>
-                    /<project>/committer/<name>
-                                    History  /<project>/history/<branch>
-```
-
-| Page | What it's for | Read more |
-|---|---|---|
-| **Projects list** | Find your project, pin your favorites. | [Finding results](finding-results.mdx#projects-list) |
-| **Commit list** | The latest commits with results, per day. Filter by branch, committer, date. | [Finding results](finding-results.mdx#commit-list) |
-| **Commit page** | Everything about one commit's results, compared to a reference. | [The commit page](commit-page.mdx) |
-| **History** | Metrics over time for a branch, run by run. Find which commit caused a regression. | [History](history-and-dashboards.mdx) |
+## The commit page {#the-commit-page}
+You spend most of your time on a commit's page: its results, next to the reference's.
 
 <Shot
-  id="projects/home"
-  caption="The projects list is the home page: pin the projects you follow with their star, and open one to see its commits."
+  id="commit/controls-panel"
+  caption="A new denoiser merged into main, against the release before it. Each card is one run: its metrics against the reference, then its images, side by side."
+  callouts={[
+    {x: 15, y: 0.5, w: 84.6, h: 7.6, kind: 'box', label: 'The new commit, its batch, and a filter for its runs'},
+    {x: 15, y: 8.6, w: 84.6, h: 7.8, kind: 'box', label: 'The reference: Change picks another one'},
+    {x: 0.6, y: 14, w: 12.8, h: 58, kind: 'box', label: 'The views: metrics, outputs, logs, configurations, tuning'},
+    {x: 79.4, y: 17.2, w: 20.4, h: 66, kind: 'box', label: 'View options: what the cards show, and in which order'},
+  ]}
 />
 
-### Anatomy of a page
-- **Left sidebar**:
-  - The **QA-Board** title goes back to the projects list. Next to it, the **What's new** button opens the [release notes](whats-new.mdx), the theme button switches between light, dark and your system's theme, and the **?** button opens a cheat sheet (also with the <kbd>?</kbd> key) with the shortcuts, QA-Board's words and a link to this guide.
-  - The project's avatar: click it to go back to the project's commit list.
-  - Menus that depend on the page: branch, code, history, integrations and milestones on the commit list; the [views of the commit page](commit-page.mdx#views) on a commit page. Hover a view to see what it shows.
-  - Your login, at the bottom, and **Collapse**, which shrinks the sidebar to a rail of icons (hover one for its name) and gives the page more room. <kbd>Ctrl</kbd> + <kbd>{'\\'}</kbd> (<kbd>⌘</kbd> + <kbd>{'\\'}</kbd> on macOS) collapses or expands it too; it remembers your choice.
-- **Top bar**: on the commit list, the date range and a filter box. On a commit page, two bars: the **new** commit on top, the **reference** below.
-- **View options**: on the commit page, a panel on the right to show or hide visualizations, pick which of their files to show, turn on viewers' options and sort runs. Press <kbd>o</kbd> to show or hide it, or click its icons when it's collapsed to a rail. It starts open when the window has room for it, then remembers your choice. It only shows on the views of the runs' results.
+Around it, the web app has three more pages: the **projects list**, its home page; a project's **commit list**; and
+**History**, a metric over the commits of a branch. On every page:
+- the **sidebar** has the project's pages, or the commit's views. Hover a view to see what it shows. The **?** button
+  at the top, or the <kbd>?</kbd> key, opens a cheat sheet;
+- the **top bar** has the commit list's dates and search box, or, on a commit page, the new and reference bars;
+- on a commit page, the **View options** sit on the right. Press <kbd>o</kbd> to show or hide them.
 
-<Shot
-  id="commit/visualizations"
-  caption="A commit page: the new commit's bar on top, the reference's below, the views in the sidebar, and a card per run with its metrics and outputs next to the reference's."
-/>
+<details>
+<summary>Every part of the page</summary>
 
-## Where to go next
-1. [Finding results](finding-results.mdx): projects, commits, branches, batches and filters.
-2. [The commit page](commit-page.mdx): what each view is for.
-3. [Comparing results](comparing-results.mdx): picking a reference, milestones, synced image viewers, colors in metric tables.
-4. [History](history-and-dashboards.mdx): metrics over time.
-5. [Running from the web app](running-from-the-webapp.mdx): redo runs, start tests and tuning, trigger CI jobs.
-6. [Sharing](sharing.mdx): links, exports and bug reports.
-7. [Tips & FAQ](tips-and-faq.mdx): keyboard shortcuts and tricks.
-8. [What's new](whats-new.mdx): how release notes reach you.
+- **Left sidebar**: the **QA-Board** title goes back to the projects list. Next to it, **What's new** opens the
+  [release notes](/docs/user-guide/whats-new), then the theme button and the **?** cheat sheet. Below: the project's
+  avatar (its commit list), the page's menus, your login, and **Collapse** (<kbd>Ctrl</kbd> + <kbd>{'\\'}</kbd>, or
+  <kbd>⌘</kbd> + <kbd>{'\\'}</kbd> on macOS).
+- **Top bar**: on the commit list and History, the dates and a search or filter box. On a commit page,
+  [the two bars](/docs/user-guide/commit-page#the-top-bars).
+- **View options**: on a commit page, what the cards show and how runs are sorted. See
+  [View options](/docs/user-guide/commit-page#view-options).
+
+Each page's link, after your server's address:
+
+| Page | Link |
+|---|---|
+| Projects list | `/` |
+| Commit list | `/<project>`, `/<project>/commits/<branch>`, `/<project>/committer/<name>` |
+| Commit page | `/<project>/commit/<hash>` |
+| History | `/<project>/history/<branch>` |
+
+</details>
+
+More in [The commit page](/docs/user-guide/commit-page).
+
+## What do you want to do? {#what-do-you-want-to-do}
+
+### Find and compare
+<Cards>
+  <Card title="Was this commit better?" to="/docs/user-guide/metrics">
+    The Summary, the Metrics Table and the Metrics Diff, targets, and what the colors mean.
+  </Card>
+  <Card title="Compare with something else" to="/docs/user-guide/comparing-results">
+    A release, another branch, another project, or several references at once.
+  </Card>
+  <Card title="Keep results to compare later" to="/docs/user-guide/milestones">
+    Save a release or your best tuning as a milestone, for you or for the project.
+  </Card>
+</Cards>
+
+### Look at outputs
+<Cards>
+  <Card title="Compare images" to="/docs/user-guide/image-viewer">
+    Synced zoom, wipe, difference, pixel values, histograms, and where the images differ.
+  </Card>
+  <Card title="Compare videos" to="/docs/user-guide/video-viewer">
+    Play in sync, step frame by frame, and find which frame broke.
+  </Card>
+  <Card title="Plots, flame graphs, 3D and more" to="/docs/user-guide/other-viewers">
+    Curves over the reference's, differential flame graphs, text diffs, point clouds, trajectories.
+  </Card>
+</Cards>
+
+### Run and share
+<Cards>
+  <Card title="Run more tests, or tune" to="/docs/user-guide/running-from-the-webapp">
+    Redo runs, start a batch or a tuning experiment on any commit, from the web app.
+  </Card>
+  <Card title="Why did it fail?" to="/docs/user-guide/logs">
+    Read a run's log, live, jump from error to error, and see why a cluster job stopped.
+  </Card>
+  <Card title="Share what I found" to="/docs/user-guide/sharing">
+    Links to what you see, paths, exports, bug reports.
+  </Card>
+</Cards>
+
+Also: [find a commit](/docs/user-guide/finding-results), [choose the tests to run](/docs/user-guide/available-tests),
+[browse files](/docs/user-guide/files), and [Tips & FAQ](/docs/user-guide/tips-and-faq) for shortcuts and answers to
+common questions.
+
+Setting up a project for QA-Board? See [Project integration](/docs/introduction). Running the server? See
+[Admin](/docs/deploy).

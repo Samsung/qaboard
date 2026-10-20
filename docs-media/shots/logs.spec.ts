@@ -11,8 +11,10 @@ shot('logs/lsf-hints', {
   project: IQ,
   login: 'tobias',
   url: d => d.commitUrl(IQ, 'one-tile', { view: 'logs' }),
+  // the memory it used is measured when seeding (seed.py: the run's peak, a little over its limit): no number here
   alt: 'The Logs view with the 113 MP test wall\'s run open: tagged "LSF: out of memory", a red summary says the job '
-    + 'was killed at its memory limit (TERM_MEMLIMIT), 3113 MB used for 3072 MB requested, and how to ask for more.',
+    + 'was killed at its memory limit (TERM_MEMLIMIT), compares the memory it used with the 3072 MB it requested, and '
+    + 'says how to ask for more.',
   caption: 'When LSF stops a run, its logs say why, compare what it used with what it asked for, and say what to change.',
   actions: async ui => {
     await ui.click(ui.page.getByRole('button', { name: 'Open failed runs' }));

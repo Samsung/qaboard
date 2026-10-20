@@ -663,6 +663,7 @@ export const SHORTCUTS = [
   ['c', 'Compare with the reference, or with the image picked last (from the vs menu)'],
   ['h', 'Blind test: the images in a random order, called A and B. h again reveals them, then ends it'],
   ['[ ]', 'Previous / next region of interest'],
+  ['f', 'Full screen, Esc or f again to leave'],
 ];
 
 export const Shortcuts = () => <table className="qiv-shortcuts">

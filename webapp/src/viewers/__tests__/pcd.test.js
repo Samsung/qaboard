@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { parsePcd } from '../pointcloud/pcd';
+import { pointCloudLayers } from '../pointcloud/PointCloudViewer';
+import { side_color } from '../../sideColors';
 
 const header = (fields, data, points, extra = {}) => [
   '# .PCD v0.7 - Point Cloud Data file format',
@@ -48,5 +50,20 @@ describe('parsePcd', () => {
     expect(() => parsePcd(header(xyz, 'binary_compressed', 1))).toThrow(/ascii or binary/);
     expect(() => parsePcd(header([{ name: 'range', size: 4, type: 'F' }], 'ascii', 1))).toThrow(/no x, y and z/);
     expect(() => parsePcd('VERSION 0.7\n')).toThrow(/Not a PCD file/);
+  });
+});
+
+
+describe('pointCloudLayers', () => {
+  it('names and colors the new and reference clouds like the other viewers', () => {
+    const [groundtruth, reference, new_] = pointCloudLayers(undefined, false);
+    expect([new_.label, reference.label, groundtruth.label]).toEqual(['new', 'reference', 'ground truth']);
+    expect([new_.color, new_.css]).toEqual([side_color(0).hex, side_color(0).css]);
+    expect([reference.color, reference.css]).toEqual([side_color(1).hex, side_color(1).css]);
+    // what the commit page calls them, e.g. a milestone, with its color, in the theme
+    const labels = { new: 'new', reference: 'fw-26-08', colors: { new: side_color(0), reference: side_color(2) } };
+    const layers = pointCloudLayers(labels, true);
+    expect(layers.map(layer => layer.label)).toEqual(['ground truth', 'fw-26-08', 'new']);
+    expect(layers[1].color).toBe(side_color(2).hex_dark);
   });
 });

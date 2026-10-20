@@ -132,13 +132,13 @@ up, but every number and image comes from running the projects in
 
 <Shot id="projects/home" />
 
-1. Open **kitefin/camera-isp**, the camera team's image pipeline: its latest commits, on every branch.
-2. Open a commit: the **Summary** compares its metrics with the latest results of the reference branch.
-3. Open **Visualizations**: the outputs of each input, next to the reference's. Zoom into an image: the others
-   follow.
-4. Open **History**: a metric across commits, input by input.
-
-[QA-Board in 5 minutes](/docs/tour) tells the demo projects' stories.
+- **Follow a review step by step**: [Your first review](/docs/user-guide/first-review) checks one commit of
+  **kitefin/camera-isp**, the camera team's image pipeline, from its metrics down to the halos its new denoiser adds.
+- **Log in** as any person of the demo world, e.g. `ines`, with the password `kitefin-demo`: some tools, like
+  finding where images differ or saving a milestone, need it.
+- **No commit in the list?** The commit list starts with the last 3 days. The demo history ends when QA-Board first
+  started, with commits from a few hours before: if that was days ago, search for a word, like `bilateral`, or widen
+  the date range at the top.
 
 ## Save results from your computer
 The `qa` command line runs your code where you start it. It saves the outputs in a folder that the server reads at
@@ -182,6 +182,6 @@ Kubernetes: `kind delete cluster --name qaboard` deletes the cluster. Your resul
 ## Next steps
 - [Your project on QA-Board](/docs/get-started/tutorial): wrap your own code, run it in CI, compare every commit.
 - [Key concepts](/docs/get-started/concepts): projects, commits, batches, runs and references, in one page.
-- [QA-Board in 5 minutes](/docs/tour): what the web app shows, on a team's demo projects.
-- [Comparing results](/docs/user-guide/comparing-results): the image viewers, metric diffs and milestones.
+- [Your first review](/docs/user-guide/first-review): the web app, step by step, on a demo project.
+- [The image viewer](/docs/user-guide/image-viewer) and [the video viewer](/docs/user-guide/video-viewer): every tool to compare outputs, down to the pixel and the frame.
 - [Running QA-Board on Kubernetes](/docs/backend-admin/kubernetes): from this quickstart to a cluster for your team.

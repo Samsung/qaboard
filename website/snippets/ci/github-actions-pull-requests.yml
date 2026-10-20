@@ -1,0 +1,25 @@
+# Runs your test set on pushes and on pull requests. For pull requests, qa records the pull request's
+# last commit, not the temporary merge commit GitHub runs on: check that commit out, so that qa can read
+# its message, author and parents from git.
+# Pull requests from the repository's own branches then run twice: `on: push` is usually enough.
+name: QA-Board
+on: [push, pull_request]
+permissions:
+  contents: read
+  statuses: write  # for qa batch's commit status
+
+jobs:
+  qaboard:
+    runs-on: self-hosted
+    env:
+      QABOARD_URL: http://<your-qaboard>
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install qaboard -r requirements.txt
+      - run: qa batch ci

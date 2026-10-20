@@ -396,7 +396,7 @@ def iter_inputs(
       continue
     
     # 2. Batches can be specified using wildcards
-    matching_batches = [b for b in available_batches if fnmatch.fnmatch(b, batch)]
+    matching_batches = [b for b in available_batches if b != 'aliases' and fnmatch.fnmatch(b, batch)]
     if matching_batches:
       for b in matching_batches:
         batch_run_context = deepcopy(run_context)
@@ -606,12 +606,13 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
       if location_configurations:
         if isinstance(location_configurations, dict):
           if location_configurations.get(runner):
-            location_run_context.job_options = {**location_run_context.job_options, **location_configurations[runner]}
+            # the command line options still win
+            location_run_context.job_options = {**location_run_context.job_options, **location_configurations[runner], **(cli_runner_overrides or {})}
           if 'database' in location_configurations:
             location_database = location_from_spec(location_configurations['database'])
             if location_database:
               location_run_context.database = location_database
-          if 'platform' in batch:
+          if 'platform' in location_configurations:
             location_run_context.platform = location_configurations['platform']
           location_inputs_settings = deepcopy(inputs_settings)
           if 'type' in location_configurations:

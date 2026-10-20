@@ -26,7 +26,7 @@ How it works, per commit, in story order:
   `qa batch` it starts (CI=true GIT_COMMIT QABOARD_TUNING...), and the batch records the submission like the backend.
 - Failures: `bug` is checked; `oom`, `timeout` and `lsf-memlimit` are enforced by a watchdog that kills the run when
   it goes over its batch's `lsf: {max_memory: <MB>}` (default 2048) or `local: {timeout: <s>}` (default 60), like LSF
-  does. `lsf-memlimit` then writes log.lsf.txt from a template, with the run's measured peak memory.
+  does. `qa batch` enforces `local: {timeout}` too, and may kill the run first. `lsf-memlimit` then writes log.lsf.txt from a template, with the run's measured peak memory.
 - Times: the backend stamps batches and outputs with now(). After each batch, `simulate_times()` moves them (SQL on
   the stack's database: batches.created_date, outputs.created_date, the commands' dates in batches.data, the commits'
   and project's latest_output_datetime) and the files' mtimes to the batch's simulated start, keeping real durations.
@@ -1043,7 +1043,9 @@ class Seeder:
       elif failure:
         if failure['kind'] in ('oom', 'timeout', 'lsf-memlimit'):
           killed = [i for i in (watchdog.runs.values() if watchdog else []) if i['input'] == rel_input and i['killed']]
-          if not killed:
+          # `qa batch` also enforces the batch's local timeout (qaboard/runners/local.py): it may kill the run first
+          timed_out = failure['kind'] == 'timeout' and f"{rel_input}: killed after its timeout" in output
+          if not killed and not timed_out:
             errors.append(f"{rel_input}: the story says it dies ({failure['kind']}), but it failed on its own:\n{tail(logs, 15)}")
           elif failure['kind'] == 'lsf-memlimit':
             self.write_lsf_report(commit, run, r, killed[0])

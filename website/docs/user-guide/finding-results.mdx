@@ -4,13 +4,35 @@ title: Finding results
 sidebar_label: Finding results
 description: Find a project, a commit, a branch or a batch of runs, and filter what you see.
 ---
-## Projects list
-The home page lists all projects that have results.
+Find the results you came for: your commit, the right batch of runs, then only the runs that matter.
 
-- **Search** with the *filter projects...* box. It looks at all projects, even those not shown yet.
-- **Pin** a project at the top of the list with its star. Favorites are remembered by your browser only.
-- Projects are sorted by favorites first, then by their latest run. Each card shows when the last run (or commit) happened and how many commits have results.
-- The first 50 projects show up first, more come as you scroll down (or click **Show more**).
+## Find your commit {#find-your-commit}
+Open your project from the home page: you land on its **commit list**, the latest commits with results on all branches, newest first.
+From there, find a commit in one of three ways:
+
+- **Scroll the list.** Commits are grouped by day. On the right of each row, the **N runs** button (e.g. **5 runs**)
+  opens the commit page.
+- **Search for it.** Type a word of its message, a committer's name or the start of its hash in the search box at the
+  top right (*Search commits, or go to a branch or commit…*). It searches all the project's commits, not only the
+  latest. See [Search commits](#searching-commits).
+- **Open its branch.** Click the branch name in any row, or the reference branch at the top of the sidebar, to see
+  only that branch's commits.
+
+<Shot
+  id="commits/feed"
+  caption="Each row says how its CI batch went: the median p99 and its average over the runs, and 1 failed in red on the batcher change that crashed a run."
+/>
+
+:::tip
+The list shows the last 3 days. If your commit isn't there, search for it, or pick earlier dates at the top left.
+:::
+
+## Pick a project {#projects-list}
+The home page lists every project with results: those you pinned first, then the ones that ran most recently.
+
+- **Find one** with the *Filter projects...* box. It looks at all projects, even those not shown yet: the list shows
+  50 at first, more as you scroll down (or click **Show more**).
+- **Pin one** on top of the list with its star. Pins are remembered by your browser only.
 - **Source** opens the project's git repository.
 
 Click a project to open its commit list.
@@ -20,39 +42,49 @@ Click a project to open its commit list.
   caption="Each card says when the project last ran and how many commits have results. Starred projects stay on top."
 />
 
-:::tip
-Project names are git paths, like `group/repo`. In monorepos, each sub-project has its own entry, like `group/repo/sub-project`.
-:::
+Project names are git paths, like `group/repo`. In a monorepo, each sub-project has its own entry, like
+`group/repo/sub-project`: if you can't find your results, check you're in the right one.
 
-## Commit list
-The project's home page lists the **latest commits with results**, grouped by day ("Today — 3 commits"). It refreshes every minute.
-The 50 latest commits show up first, more come as you scroll down (or click **More commits**). On a branch page, all the branch's commits in the date range come at once (up to 1000), for the metrics chart. At the end of the [date range](#date-range), **Older commits** looks 7 more days back.
+## Read the commit list {#commit-list}
+Each row is a commit: its message, short hash, branch, and when and by whom it was committed. On the right, how its
+CI batch went:
 
-<Shot
-  id="commits/feed"
-  caption="Each row says how its CI batch went: the main metric's median when it finished, a failed batch in red, how many other batches it ran."
-/>
+- the project's main metric over the batch's runs, median and average. Hover `…` for all the aggregated metrics;
+- **N failed** in red, or **N running** and **N pending** while the CI batch runs;
+- **N other batches**: hover it to list the commit's tuning experiments and local runs, and open one;
+- **N runs**, which opens the commit page.
 
-Each commit row shows:
+**Waiting for results** means the CI may still be running. **No results** means no run was uploaded for the commit's
+CI batch: check its CI pipeline, or open one of its other batches.
+
+The list refreshes every minute. The 50 latest commits show up first, more come as you scroll down (or click
+**More commits**).
+
+<details>
+<summary>Everything you can click in a commit row</summary>
 
 | Where | What | Click it to... |
 |---|---|---|
 | Avatar | The committer | see all their commits |
-| Message, short hash | The commit | open the commit diff on your git server (hash), or copy the full hash (copy icon) |
-| Star icon | The commit has [milestones](comparing-results.mdx#milestones): hover it for their names | |
-| Menu icon (☰) | Copy the commit's directory (Windows or Linux path), view its files in the browser, delete its runs | |
+| Short hash | The commit | open the commit's diff on your git server |
+| Copy icon, next to the hash | | copy the full hash |
+| Star icon | The commit has [milestones](/docs/user-guide/milestones): hover it for their names | |
+| Menu icon (☰) | | copy the commit's directory (Windows or Linux path), view its files in the browser, delete its runs |
 | Branch name | The commit's branch | see the branch's commits |
 | "2 hours ago by ..." | Commit date and committer | see the committer's commits |
-| Right side | The CI batch status: pending, running, failed runs, the main metric (median and average), `...` for all aggregated metrics | |
-| **N other batches** | Hover to list the commit's other batches (tuning, local runs...) and jump to one | |
-| Green **N CI results** button | | open the commit page |
+| **N failed** | Runs of the CI batch that failed | open the commit page |
+| **N other batches** | The commit's other batches (tuning, local runs...) | hover it, then pick one to open it |
+| **N runs** | The CI batch's finished runs | open the commit page |
 
-:::note
-**No results** or **Check the pipeline status...** means the commit has no finished runs yet in its CI batch: check your CI pipeline.
-:::
+</details>
 
-### Compact list
-To see more commits at once, pick **Compact** above the list (**Comfortable** brings back the rows above). Each commit then takes one line, in columns that line up like a table: an icon for the CI batch's status (finished, failed, running, waiting), the short hash, the message, the branch, the committer, the date, then the batch's results and the ☰ menu. The web app remembers your choice in this browser.
+<details>
+<summary>The compact list: one line per commit</summary>
+
+To see more commits at once, pick **Compact** above the list (**Comfortable** brings back the rows above). Each
+commit then takes one line, in columns that line up like a table: an icon for the CI batch's status (finished, failed,
+running, waiting), the short hash, the message, the branch, the committer, the date, then the batch's results and the
+☰ menu. The web app remembers your choice in this browser.
 
 Hover to see what doesn't fit:
 - the **message** shows the whole commit message, the **date** the exact time;
@@ -62,62 +94,85 @@ Hover to see what doesn't fit:
 
 The copy icon for the full hash shows up when you hover a row, or reach it with the keyboard.
 
-### Branches and committers
-- The sidebar shows the project's **reference branch**: click it to see only its commits.
-- Click any branch name in a commit row to see that branch. The URL is `/<project>/commits/<branch>`.
-- On a branch page, a chart of a main metric over time comes first: for each commit, the median (or average) over its runs, one line per batch (CI, nightly...). Pick the metric and the aggregation above the chart. Hover a point to see the commit and its reference, click to freeze the reference. For more, use [History](history-and-dashboards.mdx).
-- Click an avatar or a committer name to see their commits, on all branches: `/<project>/committer/<name>`.
+</details>
+
+### Change the dates {#date-range}
+By default, the list shows the **last 3 days**. Pick other dates at the top left (the picker has shortcuts like
+"Past week"), and click the refresh button next to them to check for new commits.
+
+- At the end of the list, **Older commits** looks 7 more days back.
+- When no commit has results in the range, **Search 7 more days** does the same.
+- Searches ignore the dates: they look at all the commits.
+
+## Follow a branch or a committer {#branches-and-committers}
+- **A branch**: click its name in a commit row, or the reference branch at the top of the sidebar. The page is
+  `/<project>/commits/<branch>`.
+- **A committer**: click an avatar or a committer's name to see their commits on all branches:
+  `/<project>/committer/<name>`.
+
+A branch's page starts with a chart of the main metric over its commits: for each commit, the median (or average)
+over its runs, one line per batch (CI, nightly...). Pick the metric and the aggregation above the chart. Hover a point
+to see its commit and the commit before it, click a point to keep it as the reference. To follow each test on its
+own, use [History](/docs/user-guide/history-and-dashboards).
 
 <Shot
   id="commits/branch-evolution"
-  caption="Above main's commits, each point is a commit's median latency over its runs. Hover a point to see its commit and the reference it's compared with."
+  caption="Above main's commits, each point is a commit's median p99 over its runs. Hover a point: its commit and the one before show below the chart."
 />
 
-### Searching commits
-The **Filter...** box at the top right searches **all the project's commits**, not only those in the date range (on a branch page, all the branch's commits). Results come as you pause typing, newest first, with a "Searching all commits" banner that counts the matches. When your search could be a branch name (a single word, or a `branch:` term), it also suggests the most recently active branches whose name contains it: pick one to open it.
+On a branch page, all the branch's commits in the date range come at once (up to 1000), for the chart.
+
+## Search commits {#searching-commits}
+The search box at the top right of the commit list (*Search commits, or go to a branch or commit…*) searches **all
+the project's commits**, not only those in the date range. On a branch page, it searches the branch's commits.
+Results come as you pause typing, newest first, under a "Searching all commits" banner that counts the matches.
 
 | You type | You find commits... |
 |---|---|
-| `denoise` | whose message, committer, branch or batch labels contain "denoise" |
-| `3fa2c1` | the same, or whose hash starts with it, for words of 4 or more hexadecimal characters |
-| `denoise crash` | matching **both** words |
-| `-wip` | **not** matching "wip" |
-| `"fix the crash"` | containing these words together |
-| `branch:feature` | whose branch contains "feature" |
-| `committer:alice` or `author:alice` | by a committer whose name contains "alice" |
-| `batch:tuning` or `label:tuning` | with a batch whose label contains "tuning" |
-| `message:speed` or `msg:speed` | whose message contains "speed" |
-| `id:3fa2`, `commit:3fa2` or `sha:3fa2` | whose hash starts with "3fa2" |
-
-Searches are case-insensitive, and qualifiers can be excluded too (`-branch:release`). Unlike the [filters of the commit page](#filter-syntax), they don't use regular expressions. The search is saved in the URL (`search=`), so a shared link shows the same results.
+| `cache` | whose message, committer, branch or batch labels contain "cache" |
+| `3fa2c1` | the same, or whose hash starts with it |
+| `cache -agent` | that contain "cache" but **not** "agent" |
+| `branch:perf`, `committer:kaito` | whose branch contains "perf", by a committer whose name contains "kaito" |
 
 <Shot
   id="commits/filter"
   caption="Typing suggests the branches that match, and offers to go straight to the commit with that hash."
 />
 
-### Date range
-By default, the list shows the **last 3 days**. Change the range with the date picker at the top left (it has shortcuts like "past week"), and use the refresh button to reload.
+When your search could be a branch name (a single word, or a `branch:` term), the box also suggests the most recently
+active branches whose name contains it: pick one to open it.
 
-:::tip
-"Could not find a commit with results" usually means you should widen the date range.
-:::
+<details>
+<summary>More search syntax</summary>
 
-### Going to a commit by its hash
-- Type or paste a commit hash in the **Filter...** box, then choose **Go to commit: ...**.
-- Or edit the URL: `/<project>/commit/<hash>`. Short hashes work.
-- On a commit page, you can also type a hash in the commit field of the new or reference bar (see [Comparing results](comparing-results.mdx#picking-a-reference)).
+| You type | You find commits... |
+|---|---|
+| `cache shard` | matching **both** words |
+| `"result cache"` | containing these words together |
+| `author:kaito` | like `committer:kaito` |
+| `batch:tune` or `label:tune` | with a batch whose label contains "tune" |
+| `message:p99` or `msg:p99` | whose message contains "p99" |
+| `id:3fa2`, `commit:3fa2` or `sha:3fa2` | whose hash starts with "3fa2" |
 
-### Milestones
-The sidebar's **Milestones** menu lists your favorite milestones, yours, the project's shared ones and those from *qaboard.yaml*, with a search box. Pick one to open it. Your favorites are also listed in the sidebar, under **Milestones**. See [Milestones](comparing-results.mdx#milestones).
+A word matches the start of hashes when it has 4 or more hexadecimal characters. Searches are case-insensitive, and
+qualifiers can be excluded too (`-branch:release`). Unlike the [filters of the commit page](#filter-syntax), they
+don't use regular expressions. The search is saved in the page's link, so a shared link shows the same results.
 
-<Shot
-  id="commits/milestones-menu"
-  caption="Your favorites first, then your milestones by group, then the project's."
-/>
+</details>
 
-## Batches
-A commit can have many batches. On the commit page, the batch selector next to the filter box shows the selected batch and lets you switch:
+### Go to a commit by its hash {#going-to-a-commit-by-its-hash}
+- Type or paste a commit hash in the search box, then choose **Go to commit: ...**.
+- Or edit the page's link: `/<project>/commit/<hash>`. Short hashes work.
+- On a commit page, you can also type a hash in the commit field of the new or reference bar (see
+  [choose another reference](/docs/user-guide/comparing-results#picking-a-reference)).
+
+## Open a milestone {#milestones}
+Releases and other results saved to compare with are in the sidebar's **Milestones** menu: see
+[Finding milestones](/docs/user-guide/milestones#finding-milestones).
+
+## Pick a batch {#batches}
+A commit can have several batches of runs: the CI's, your local runs, tuning experiments. On the commit page, the
+batch selector next to the filter box shows the selected batch: click it to pick another one.
 
 <Shot
   id="commit/batch-picker"
@@ -125,24 +180,36 @@ A commit can have many batches. On the commit page, the batch selector next to t
 />
 
 - **CI** is the batch from your continuous integration (label `default`).
-- **user 🏠 label** are local runs started by *user* from their workspace. A warning reminds you they may not use the code under version control.
-- Other labels are tuning experiments or runs started with `qa --label`.
-- Each entry shows `successful/total ✅`, failed `❌`, running `🏃`, optimization iterations `🔁`, a `⭐` for milestones, and who started it.
+- **user 🏠 label** are local runs started by *user* from their workspace. A warning reminds you they may not use the
+  code under version control.
+- Other labels are tuning experiments, or runs started with `qa --label`.
+
+The new and reference bars each have their own batch selector, so you can compare a tuning batch with the CI batch of
+another commit.
+
+<details>
+<summary>Reading and searching the batch selector</summary>
+
+- Each entry shows how many of its runs finished out of the total (`18/18` and a check mark), then those that failed
+  (red cross) and are running (walking figure), the iteration of an automated tuning, a star for milestones, and who
+  started it.
 - The list is searchable: type a label, a user name, or words like `failed`, `running`, `local`, `ci`, `tuning`.
 - The list opens on the selected batch, which has a check mark. Use ↑ ↓ and <kbd>Enter</kbd> to pick another one.
 
-The new and reference bars each have their own batch selector, so you can compare a tuning batch with the CI batch of another commit.
+</details>
 
-## Filter syntax
-The filter boxes of the commit page's bars (**Filter runs…** for the new commit, **Filter the reference's runs…** for the reference) keep only matching runs. The counters below them (`8 runs`, `4 failed`...) count what's left.
+## Filter the runs {#filter-syntax}
+The filter boxes of the commit page's bars (**Filter runs…** for the new commit, **Filter the reference's runs…** for
+the reference) keep only the runs that match. The counters under them (`8 runs`, `4 failed`...) count what's left,
+and the **?** icon in the box recalls the syntax.
 
 | You type | You keep runs... |
 |---|---|
-| `night` | whose input path, configuration, platform, metadata, tuning parameters or batch contain "night" |
-| `night indoor` | matching **both** words |
-| `-night` | **not** matching "night" |
-| `2X5\|GW1` | matching a regular expression |
-| `threshold:0.5` | with tuning parameter `threshold` equal to 0.5 (also `threshold=0.5`) |
+| `low-light` | whose input path, configuration, platform, metadata, tuning parameters or batch contain "low-light" |
+| `low-light facade` | matching **both** words |
+| `-gradient` | **not** matching "gradient" |
+| `facade\|foliage` | matching either word |
+| `denoise_strength:1.6` | with the tuning parameter `denoise_strength` equal to 1.6 (also `denoise_strength=1.6`) |
 | `fail` or `crash` | that failed |
 | `pending` or `running` | that are not finished |
 | `status:success` | that succeeded (not failed, pending or running). `-status:success` keeps the others |
@@ -153,4 +220,17 @@ The filter boxes of the commit page's bars (**Filter runs…** for the new commi
   caption="The filter “low-light -gradient” keeps the low-light runs except the sky gradient's: the counter under the box and the Metrics Table only count what's left."
 />
 
-Filters are case-insensitive and are saved in the URL (`filter=` and `filter_ref=`), so a shared link shows the same runs.
+Filters are case-insensitive and are saved in the page's link, so a shared link shows the same runs.
+[History](/docs/user-guide/history-and-dashboards) has the same filter box.
+
+:::tip
+Each word of the filter is a regular expression: `photos/(facade|foliage)` keeps the runs of those two photos.
+:::
+
+## Where to go next
+
+<Cards>
+  <Card title="The commit page" to="/docs/user-guide/commit-page">The two bars, the views, the view options and the run cards.</Card>
+  <Card title="Reading metrics" to="/docs/user-guide/metrics">Was the commit better? The Summary, the tables and their colors.</Card>
+  <Card title="New and reference" to="/docs/user-guide/comparing-results">Choose what you compare with, and how runs are matched.</Card>
+</Cards>

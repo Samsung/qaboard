@@ -4,71 +4,101 @@ title: History
 sidebar_label: History
 description: Follow metrics over time on a branch, find the commit that caused a regression, and see the history of a single input.
 ---
+The **History** page shows how a metric evolved over a branch's commits, test by test. Use it to answer "which commit
+made this worse?" or "is this input getting better?".
 
-The **History** page shows how metrics evolved over the commits of a branch, run by run. Use it to answer "when did this get worse?" or "is this input getting better?".
+## Find the commit that caused a regression {#find-a-regression}
+Say the inference gateway's p99 latency got worse on one load profile, heavy-tail-high, while the median over all
+profiles barely moved. To find the commit that did it:
 
-## Opening it
-- From the commit list, click **History** in the sidebar. It opens the history of the branch you're looking at, or of the reference branch.
-- From a commit page, click the **name of a run** on its card: you get the history of that input on the commit's branch, already filtered on it.
-- Or go to `/<project>/history/<branch>`.
+1. Open **History** from the sidebar of the commit list. It shows the branch you're looking at, or the reference
+   branch. Or, on the commit page where you saw the regression, click the name of the run that regressed: History
+   opens already filtered on that input, from 3 days before that commit, and you can skip step 3.
+2. Pick the metric at the top left of the chart, e.g. **Latency p99**.
+3. Type the test's name in the filter box at the top right, e.g. `heavy-tail-high`. Only its line is left.
+4. If the regression may be older than 3 days, pick earlier dates at the top left, e.g. the last two weeks.
+5. Hover along the line. Below the chart, the hovered commit shows as **New** and the commit before it as
+   **Reference**, with the run's outputs compared. Where the line jumps, you found the commit: here
+   "batcher: copy payloads into fixed slots", where p99 more than triples.
+6. Click that point to keep it as the reference, then hover the later commits to compare them with it: the commit that
+   borrows payloads again brings p99 back near 3 ms. Double-click the chart to let go of the reference.
 
-From the History page, the sidebar has the project's navigation: the branch's commits, Code, Integrations and Milestones.
+<Clip
+  id="history/find-regression"
+  caption="Filtered on one test, hovering along its p99 line until the commits below change at the one that copies payloads; a click keeps it as the reference for the later commits."
+/>
 
-## The top bar
-- The **date range** and refresh button, like on the commit list. By default, the last 3 days.
-- The **batch selector**: which batch to follow. **CI** by default.
-- A **filter** box, with the [usual syntax](finding-results.mdx#filter-syntax): path, configuration, platform, tag, tuning parameters (`key:value`)...
+Below the chart, **Metrics distribution** and **Metrics per test** compare all the metrics of the two commits (see
+[below](#metrics-distribution-and-per-test-tables)). To look at everything the commit changed, open its page with the
+**N runs** button of its row.
 
 :::tip
-The history is most useful on the CI batch, filtered on a few inputs. Filtering on a single input (by clicking a run's name) gives you its full story.
+Keep **Breakdown per test** on: a regression on one test can hide in the median over all tests.
 :::
 
-## Performance over time
-A chart with one point per commit, for the selected **metric** (pick another at the top left; the project's configuration chooses which ones are offered, else all the metrics of the runs).
-
-<Shot
-  id="history/performance-over-time"
-  caption="p99 per test over the last two weeks of main, with its target line: the heavy-tail test jumps at the commit that copied payloads."
-/>
-
-- **Breakdown per test**: one line per run (input and configuration) instead of a single aggregated line. Turn it off to see the **median** or **average** over all runs, but beware: commits may not have been evaluated on the same tests.
-- **Relative to start (@100)**: rescales each line so that its first value is 100, to compare inputs with very different values.
-- **Show output files**: show the files a run created instead of its visualizations, in the panel below the chart.
-
-<Shot
-  id="history/relative"
-  caption="Relative to start, every line begins at 100: tests with very different latencies share one scale."
-/>
-
-Below the chart, hover any point:
-- the hovered commit becomes the **New** commit, and the commit before it on the line the **Reference**; both are shown as commit rows, with links to their commit pages.
-- With **Breakdown per test**, a card shows the run's visualizations (or files), compared with the previous commit. Scroll the line to find where the output changed.
+## Follow one input over time {#follow-one-input}
+On a commit page, click the **name of a run** on its card: History opens on that input, on the commit's branch,
+already filtered on it, from 3 days before the commit to today. Hover its points to compare each commit's outputs with the commit before.
 
 <Shot
   id="history/image-diff"
   caption="Hover a point to compare its outputs with the commit before: the PSNR jumps when the bilateral denoiser is merged, and the leaves get halos."
 />
 
-**Click** a point to freeze it as the reference, then hover other points to compare them with it. **Double-click** to unfreeze.
+You can also go to `/<project>/history/<branch>`. From the History page, the sidebar has the project's navigation:
+the branch's commits, **Code**, **Integrations** and **Milestones**.
 
-:::tip
-To find a regression, filter on the input that regressed, keep **Breakdown per test** on, and hover the line from right to left until the visualization changes.
-:::
+## Choose what the chart shows {#performance-over-time}
+**Performance over time** has one point per commit, for the selected **metric** (pick another at the top left; the
+project's configuration chooses which ones are offered, else all the metrics of the runs).
 
-<Clip
-  id="history/find-regression"
-  caption="Filtered on one test, hovering along its p99 line until the card changes at the commit that copied payloads; a click freezes it as the reference."
+<Shot
+  id="history/performance-over-time"
+  caption="p99 per test over the last two weeks of main, with its 12 ms target dashed: hover the jump to see which test it is, and the commit below."
 />
 
-The same chart, aggregated over runs, is shown at the top of each branch's commit list.
+- **Breakdown per test**: one line per test (input and configuration). Turn it off for a single line, the **median**
+  or **average** over all runs, but beware: commits may not have been evaluated on the same tests.
+- **Relative to start (@100)**: rescales each line so that its first value is 100, to compare tests with very
+  different values.
+- **Show output files**: below the chart, show the files a run created instead of its visualizations.
 
-## Metrics distribution and per-test tables
-Below the chart, for the hovered (or selected) commit compared with its reference:
-- **Metrics distribution**: the same summary as the commit page's [Summary](commit-page.mdx#summary) view, with medians, changes and box plots.
-- **Metrics per input tag**, if the project enables it (`dashboard_breakdown_by_tag` in its [metrics file](../computing-quantitative-metrics.mdx)): the summary for each tag of the inputs, to see which kinds of inputs drive a metric.
-- **Metrics per-test**: the [Metrics Table](commit-page.mdx#metrics-table) and [Metrics Diff](commit-page.mdx#metrics-diff) tabs, with options to sort runs by name, id or metric.
+The last two show when **Breakdown per test** is on.
+
+<Shot
+  id="history/relative"
+  caption="Relative to start, every line begins at 100: tests with very different latencies share one scale."
+/>
+
+The bar at the top of the page picks which runs the chart follows:
+- the **date range** and the refresh button, like on the commit list. By default, the last 3 days;
+- the **batch selector**: which batch to follow, **CI** by default;
+- the **filter** box, with the [same syntax](/docs/user-guide/finding-results#filter-syntax) as on the commit page:
+  input path, configuration, platform, tag, tuning parameters (`key:value`)...
+
+Each branch's commit list starts with the same chart, aggregated over the runs (see
+[Follow a branch](/docs/user-guide/finding-results#branches-and-committers)).
+
+## Compare all the metrics of two commits {#metrics-distribution-and-per-test-tables}
+Below the chart, for the hovered (or clicked) commit compared with its reference:
+- **Metrics distribution**: the same summary as the commit page's [Summary](/docs/user-guide/metrics#summary), with
+  medians, changes and box plots.
+- **Metrics per input tag**, if the project
+  [turns it on](/docs/computing-quantitative-metrics#choosing-the-metrics-shown-by-default): the summary for each tag
+  of the inputs, to see which kinds of inputs drive a metric.
+- **Metrics per test**: the [Metrics Table](/docs/user-guide/metrics#metrics-table) and
+  [Metrics Diff](/docs/user-guide/metrics#metrics-diff) tabs, with options to sort runs by name, id or metric.
 
 Pick which metrics to show with the metrics selector in the tables.
 
-## Sharing a history
-The chart options (selected metric, aggregation, breakdown, relative scale, output files) and the filter are saved in the URL, so you can share the exact view. See [Sharing](sharing.mdx).
+## Share a history {#sharing-a-history}
+The chart options (metric, aggregation, breakdown, relative scale, output files) and the filter are saved in the page's
+link: copy it to share the same view.
+
+## Where to go next
+
+<Cards>
+  <Card title="Reading metrics" to="/docs/user-guide/metrics">The commit's Summary, Metrics Diff and Metrics Table, against its reference.</Card>
+  <Card title="The image viewer" to="/docs/user-guide/image-viewer">Find where the images of two commits differ, down to the pixel.</Card>
+  <Card title="What's in a link" to="/docs/user-guide/sharing#whats-in-the-url">What the link you share keeps, and what stays in your browser.</Card>
+</Cards>

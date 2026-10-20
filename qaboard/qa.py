@@ -487,16 +487,15 @@ def wait(ctx, output_id):
   first = True
   while True:
     output = get_output(output_id)
+    if not output["is_pending"]:
+      break
     if first:
       click.secho("...waiting for previously started pending run. To run directly, use qa batch --action-on-pending=run")
-    else:
       first = False
+    else:
       click.secho("...waiting")
-    if output["is_pending"]:
-        time.sleep(5)
-        continue
-    break
-    exit(0 if not output["is_failed"] else 1)
+    time.sleep(5)
+  exit(0 if not output["is_failed"] else 1)
 
 
 lsf_config = config['lsf'] if 'lsf' in config else config.get('runners', {}).get('lsf', {})
@@ -542,7 +541,7 @@ default_action_on_pending = config.get('outputs', {}).get('action_on_pending', "
 @click.option('--list-output-dirs', is_flag=True, help="Only print the prefixes for the results of each batch we run on.")
 @click.option('--list-inputs', is_flag=True, help="Print to stdout a JSON with a list of the inputs we would call qa run on.")
 @click.option('--runner', default=default_runner, help="Run runs locally or using a task queue like Celery, LSF...")
-@click.option('--local-concurrency', default=default_local_concurrency, type=int, help="joblib's n_jobs: 0=unlimited, 2=2 at a time, -1=#cpu-1")
+@click.option('--local-concurrency', default=default_local_concurrency, type=int, help="How many runs run at the same time (joblib's n_jobs): 1=one at a time (if not set), 2=2 at a time, -1=one per CPU, -2=all CPUs but one")
 @click.option('--local-timeout', default=default_local_timeout, type=int, help="Timeout for local runs")
 @click.option('--lsf-max-threads', default=default_lsf_max_threads, type=int, help="restrict number of lsf threads to use. 0=no restriction")
 @click.option('--lsf-max-memory', default=default_lsf_max_memory, help="restrict memory (MB) to use. 0=no restriction")
@@ -657,35 +656,41 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
   }
   
   # Collect CLI overrides (only non-None values that were explicitly provided)
+  def given(name, value, default):
+    """Whether an option was given, on the command line or as QA_BATCH_<OPTION>, even with its default value."""
+    if hasattr(ctx, 'get_parameter_source'): # click>=8
+      from click.core import ParameterSource
+      return ctx.get_parameter_source(name) not in (ParameterSource.DEFAULT, ParameterSource.DEFAULT_MAP)
+    return value != default
   # Each runner should add what it cares about...
   # TODO: Having --runner-X prefixes makes it all a mess, but still the help text is useful
   # TODO: It would be nice to generate the CLI help depending on the runner that's chosen, then we could use
   if runner == 'lsf':
-    if lsf_queue != default_lsf_queue:
+    if given('lsf_queue', lsf_queue, default_lsf_queue):
       cli_runner_overrides["queue"] = lsf_queue
     else:
       base_runner_options["queue"] = lsf_queue
-    if lsf_priority != default_lsf_priority:
+    if given('lsf_priority', lsf_priority, default_lsf_priority):
       cli_runner_overrides['priority'] = lsf_priority
     else:
       base_runner_options['priority'] = lsf_priority
-    if lsf_max_threads != default_lsf_max_threads:
+    if given('lsf_max_threads', lsf_max_threads, default_lsf_max_threads):
       cli_runner_overrides["max_threads"] = lsf_max_threads
     else:
       base_runner_options["max_threads"] = lsf_max_threads
-    if lsf_max_memory != default_lsf_max_memory:
+    if given('lsf_max_memory', lsf_max_memory, default_lsf_max_memory):
       cli_runner_overrides["max_memory"] = lsf_max_memory
     else:
       base_runner_options["max_memory"] = lsf_max_memory
-    if lsf_resources != default_lsf_resources:
+    if given('lsf_resources', lsf_resources, default_lsf_resources):
       cli_runner_overrides['resources'] = lsf_resources
     else:
       base_runner_options['resources'] = lsf_resources
-    if lsf_options != default_lsf_options:
+    if given('lsf_options', lsf_options, default_lsf_options):
       cli_runner_overrides['options'] = lsf_options
     else:
       base_runner_options['options'] = lsf_options
-    if lsf_concurrency != default_lsf_concurrency:
+    if given('lsf_concurrency', lsf_concurrency, default_lsf_concurrency):
       cli_runner_overrides['concurrency'] = lsf_concurrency
     else:
       base_runner_options['concurrency'] = lsf_concurrency
@@ -701,11 +706,11 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
     })
     
   if runner == "local":
-    if local_concurrency != default_local_concurrency:
+    if given('local_concurrency', local_concurrency, default_local_concurrency):
       cli_runner_overrides["concurrency"] = local_concurrency
     else:
       base_runner_options['concurrency'] = local_concurrency
-    if local_timeout != default_local_timeout:
+    if given('local_timeout', local_timeout, default_local_timeout):
       cli_runner_overrides["timeout"] = local_timeout
     else:
       base_runner_options['timeout'] = local_timeout
@@ -720,7 +725,7 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
     }
     # We save logs there
     base_runner_options['batch_dir'] = str(ctx.obj['batch_dir'])
-    if dask_concurrency != default_dask_concurrency:
+    if given('dask_concurrency', dask_concurrency, default_dask_concurrency):
       cli_runner_overrides["concurrency"] = dask_concurrency
 
   if runner == 'local' or runner == 'celery':
@@ -738,7 +743,8 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
     if not keeps_runs_runner:
       explicit_runner_overrides['type'] = runner
     inputs_iter = iter_runs(runs, default_input_type, ctx.obj['platform'], default_runner_options, explicit_runner_overrides)
-    jobs = JobGroup(job_options=rerun_job_options(runs_job_options, default_runner_options, explicit_runner_overrides))
+    # They start together, with the options of the first run, e.g. its concurrency
+    jobs = JobGroup(job_options=rerun_job_options(runs_job_options, default_runner_options, explicit_runner_overrides), split_by_job_options=False)
 
   total_runs = 0
   for run_context in inputs_iter:
@@ -808,7 +814,8 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
       is_failed = matching_existing_output['is_failed'] if matching_existing_output else run_context.is_failed()
       ran_before = True if matching_existing_output else run_context.ran()
       should_run = not is_pending and (action_on_existing=='run' or is_failed or not ran_before)
-      if not should_run and action_on_existing=='skip' and not is_pending:
+      # With assert-exists, like skip, we don't do anything with the runs that succeeded
+      if not should_run and action_on_existing in ('skip', 'assert-exists') and not is_pending:
         continue
       if is_pending and action_on_pending == 'skip':
           continue
@@ -861,7 +868,8 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
           f'--database "{run_context.database.as_posix()}"' if run_context.database != get_default_database(ctx.obj['inputs_settings']) else None,
           configuration_cli,
           tuning_cli,
-          'run' if should_run else action_on_existing,
+          # there is no `qa skip` or `qa assert-exists`: here those runs are pending (see --action-on-pending)
+          'run' if should_run or action_on_existing in ('skip', 'assert-exists') else action_on_existing,
           f'--input "{run_context.rel_input_path}"',
           f'--output "{run_context.output_dir}"' if prefix_outputs_path else None,
           # we can't use "--" here directly since we want to allow "qa batch mybatch --some-flag-for-qa-run-like --save-manifests-in-database"
@@ -906,7 +914,7 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
           job.run_context.command = wait_command
         elif action_on_pending=="wait":
           job.run_context.command = f"{wait_command} || {job.run_context.command}"
-          if action_on_existing=="skip":
+          if action_on_existing in ("skip", "assert-exists"):
             job.run_context.command = wait_command
         else:
           assert action_on_pending=="run"

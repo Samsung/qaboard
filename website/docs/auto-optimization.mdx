@@ -1,43 +1,110 @@
 ---
 id: auto-optimization
-sidebar_label: Auto-Opt
-title: Auto-Optimization
+sidebar_label: Automated tuning
+title: Automated tuning with qa optimize
+description: Let qa optimize search the parameters that give the best metrics on a batch, from the CLI or the web app.
 ---
+import StatusBadge from '@site/src/components/StatusBadge';
 
+<StatusBadge status="experimental" />
 
-### `qa optimize`
-> **EXPERIMENTAL**: This feature is experimental and the API is subject to change at any time.
-> 
-> Specifically, we may change the solver backend to `nevergrad`, offer multiple choices, etc.
+:::caution Experimental
+`qa optimize` and its configuration file may change without notice: the keys of the file, the objective's options,
+and the solver, which may move from scikit-optimize to another library or offer several.
+:::
 
-It uses [`scikit-optimize`](https://scikit-optimize.github.io/), which is installed with `qaboard`.
+`qa optimize` searches the parameters that optimize your metrics: it runs a batch with parameters chosen by an
+optimizer ([scikit-optimize](https://scikit-optimize.github.io/), installed with `qaboard`), reads the metrics,
+picks the next parameters, and so on, for the number of evaluations you give it.
 
-```bash
-qa optimize --help
-qa --label my-optim --share optimize --batch my-batch --config-file optim.yaml --checkpoint optim.pkl
-```
-
-The configuration file sets the `objective`, the number of `evaluations`, the `search_space`, and optional `solver` settings or fixed `preset_params`. The web application's tuning page shows a commented template for it (*"optimize"* search type), and runs `qa optimize` for you.
-
-<Shot
-  id="tuning/auto-form"
-  caption="Automated tuning from the web app: the search space and the objective in YAML."
-/>
-
-Useful options:
-- `--checkpoint`: the optimizer's state is saved there after each iteration, and loaded if it exists, to restart interrupted optimizations. *(At the moment you need to give it.)*
-- `parallel_sampling` in the configuration file, or `--parallel-param-sampling`: how many parameter sets are evaluated at the same time (default 1).
-- `keep_all_best_iters: true`: by default the results of the previous "best iteration" are deleted when a better one is found. Use it to keep them.
-- `QA_SEED`: the random seed (default 101), for reproducible optimizations.
-
-Each iteration runs `qa batch` with the label `my-optim|iterN`. During the optimization, `qa` sets `QA_OPTIM_DIR` to the experiment's batch directory, where convergence plots are saved.
-
-Select the experiment's batch on the commit page, then the **Tuning Analysis** view:
+On the detector, the int8 model still lost 7% of its AP on small objects against fp32, after a better calibration.
+An automated tuning searched the quantization and post-processing settings, 20 evaluations on the two slices where
+quantization hurts most, and the **Tuning Analysis** view showed which settings mattered:
 
 <Shot
   id="tuning/analysis"
   caption="The Tuning Analysis of an automated tuning: the best parameters, every iteration in parallel coordinates, and the convergence."
 />
 
-> **WIP**: We're working on section about "auto-optimization". *Stay tuned!*
+## Run an automated tuning {#qa-optimize}
+1. **Describe the search in a YAML file**: how many evaluations, the parameters and their ranges, and the
+   objective, built from your metrics. The detector's:
 
+   <RepoFile path="examples/detection-eval/qa/tune-int8.yaml" title="qa/tune-int8.yaml" />
+
+2. **Start it**, on a batch of tests:
+
+   ```bash
+   qa --share --label tune-int8 optimize --batch quant-search --config-file qa/tune-int8.yaml --checkpoint tune-int8.pkl
+   ```
+
+   Each evaluation runs `qa batch` with the label `tune-int8|iterN` and the chosen parameters as tuning parameters,
+   which your code reads like any other (see
+   [how parameters reach your code](/docs/tuning-from-the-webapp#how-tuning-parameters-reach-your-code)).
+   `qa optimize` reads each evaluation's metrics from QA-Board: from your computer, `--share` saves the runs there,
+   as the CI does.
+
+3. **Look at the results.** On the commit page, select the experiment's batch, `tune-int8`, then the
+   **Tuning Analysis** view: the best parameters found, every iteration, and the convergence of the objective. The
+   batch holds the runs of the best iteration so far.
+
+From the web app, the **Automated tuning** tab of **Run Tests / Tuning** starts the same thing on a commit's code. It
+shows a commented template of the configuration file:
+
+<Shot
+  id="tuning/auto-form"
+  caption="Automated tuning from the web app: the search space and the objective in YAML."
+/>
+
+## The objective {#objective}
+`qa optimize` minimizes the objective. For each metric under `objective`, it computes a loss on each run, reduces
+the losses over the batch's runs, divides by the number of runs, and adds the results, each multiplied by its
+`weight`. Failed runs are left out.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `weight` | `1` | How much the metric counts. |
+| `loss` | `identity` | The loss of one run: `identity` (the metric's value), `shift` (minus its target), `relative` (minus its target, divided by its target). Prefix `relu_` to only count values worse than the target (`relu_shift`, with an optional `margin`), or `square_` to square it. |
+| `reduce` | `sum` | How runs' losses combine: `sum` (their mean, once divided by the number of runs), `relu` (the sum, if it's positive), or `l1`, `l2` (norms). |
+
+Which way is better comes from each metric's `smaller_is_better` in your
+[metrics file](/docs/computing-quantitative-metrics#declaring-metrics-in-a-metrics-file): metrics where bigger is
+better count negatively, and metrics without `smaller_is_better` are "smaller is better". Metrics that aren't in the
+metrics file, or have `smaller_is_better: null`, stop the optimization with an error. With `shift` or
+`relative` losses, the target is the metric's `target` in your metrics file, or, with an `objective.target` section,
+the value of the matching run of a reference:
+
+```yaml title="qa/tune.yaml"
+objective:
+  ap_small:
+    loss: shift
+  target:
+    branch: main     # or `id:` a commit
+    batch: default   # the reference's batch
+```
+
+## The search space {#search-space}
+`search_space` lists the parameters, in
+[scikit-optimize's syntax](https://scikit-optimize.github.io/stable/modules/classes.html#module-skopt.space.space):
+`Integer` and `Real` with `low` and `high` (and `prior: log-uniform` for scales like a learning rate), `Categorical`
+with `categories`. `preset_params` gives parameters a fixed value for every evaluation.
+
+## Options {#options}
+- `evaluations`: how many times to run the batch.
+- `solver`: the optimizer's settings, passed to
+  [scikit-optimize's `Optimizer`](https://scikit-optimize.github.io/stable/modules/generated/skopt.optimizer.Optimizer.html),
+  like `n_initial_points` (random evaluations before it models the objective) or `random_state`.
+- `--checkpoint`: the optimizer's state is saved there after each evaluation, and loaded if it exists, to restart an
+  interrupted optimization.
+- `parallel_sampling` in the configuration file, or `--parallel-param-sampling`: how many parameter sets are
+  evaluated at the same time (default 1).
+- `keep_all_best_iters: true`: by default, the runs of the previous best iteration are deleted when a better one is
+  found. Use it to keep them.
+- `QA_SEED`: the random seed (default 101), for reproducible optimizations.
+
+Iterations that aren't the best so far have their output files deleted: their parameters and objective stay, for
+the plots. During the optimization, `qa` sets `QA_OPTIM_DIR` to the experiment's batch directory, where it saves a
+convergence plot (*plot_convergence.png*) if `matplotlib` is installed.
+
+To try parameters you choose yourself, a grid or a sample, see
+[tuning from the web app](/docs/tuning-from-the-webapp) or `qa batch --tuning-search`.

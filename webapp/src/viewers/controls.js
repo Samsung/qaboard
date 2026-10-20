@@ -13,6 +13,10 @@ const parse_query_controls = search => {
   }
 }
 
+// The visualizations of qaboard.yaml's outputs. `detailed_views` is their old name: we allow both, for some leeway
+// with half updated projects. The view options list them, and run cards draw them.
+const config_visualizations = outputs => [...(outputs?.visualizations ?? []), ...(outputs?.detailed_views ?? [])];
+
 // The visual controls of the outputs: defaults from the project's configuration, overridden by ?controls= in the URL
 const controls_defaults = (qatools_config, search = window.location.search) => {
   const outputs = qatools_config?.outputs;
@@ -20,7 +24,7 @@ const controls_defaults = (qatools_config, search = window.location.search) => {
   const from_config = {};
   for (const control of outputs?.controls ?? [])
     from_config[control.name] = control.default;
-  for (const view of outputs?.visualizations ?? outputs?.detailed_views ?? []) {
+  for (const view of config_visualizations(outputs)) {
     if (view.default_hidden)
       show[view.name] = false;
   }
@@ -92,4 +96,4 @@ const useViewerControls = config => {
   return [controls, update];
 }
 
-export { controls_changes, controls_defaults, save_controls, useViewerControls }
+export { config_visualizations, controls_changes, controls_defaults, save_controls, useViewerControls }

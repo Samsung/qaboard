@@ -185,7 +185,7 @@ projects list. What's left:
   with `verify=False`, and copies back all response headers (incl. `Set-Cookie`); `GET /api/v1/git/proxy` (and its old name
   `/api/v1/gitlab/proxy`) fetches any URL. Allow-list hosts (configured git hosts, the project's integrations), drop hop-by-hop and
   cookie headers. [M, behaviour]
-- `jenkins_build_trigger` (api/integrations.py:470) has no `@login_required`, and defaults the build token to `"qaboard"`. [S, API]
+- `jenkins_build_trigger` (api/integrations.py:655) has no `@login_required` (the Windows runner calls it from `qa`, without a login). [S, API]
 - `POST /api/v1/github/workflow` and `/api/v1/gitlab/job` (status) are unauthenticated and use the server's token: anyone who can reach
   the server can read CI job details of any repository the token sees. Require a login, or check the repo is a known project. [S, API]
 - GitLab session cookies are fetched at import time (api/integrations.py, `GITLAB_AUTH`): a slow GitLab delays every worker start. [S]

@@ -1,0 +1,200 @@
+---
+id: batches-advanced
+title: Advanced batches
+sidebar_label: Advanced batches
+description: Matrices of parameters, definitions reused with YAML anchors, inputs selected by their metadata, several batch files, lists of runs, and the environment variables of qa batch.
+---
+
+Batch files can describe large test plans in a few lines. This page is the reference for what goes beyond
+[Batches of inputs](/docs/batches-running-on-multiple-inputs): matrices, reused definitions, metadata filters, several
+batch files, and lists of runs.
+
+## Matrices {#matrix-batches}
+A `matrix` runs the batch once for each combination of its values. `${matrix.<name>}` puts a value in the batch's
+configurations:
+
+```yaml title="qa/batches.yaml"
+sweep:
+  inputs:
+  - image.raw
+  matrix:
+    threshold: [1, 2, 3, 4]
+    mode: [a, b]
+  configs:
+  - base
+  - block.threshold: ${matrix.threshold}
+  - block.mode: ${matrix.mode}
+#=> 8 runs: [base, {block.threshold: 1}, {block.mode: a}], [base, {block.threshold: 1}, {block.mode: b}]...
+```
+
+A value that is a whole `${matrix.<name>}` keeps its type: `threshold` is the number `1`, not the string `"1"`.
+Inputs' own configurations still apply, for each combination.
+
+### `configs` and `platform` in a matrix {#interpolation}
+Two names are special:
+- `configs`: each value is added after the batch's configurations, or replaces the default ones when the batch has
+  none:
+
+  ```yaml title="qa/batches.yaml"
+  with-base:
+    configs: [base]
+    inputs: [image.raw]
+    matrix:
+      configs: [fp32, int8]
+  #=> [base, fp32], [base, int8]
+
+  without:
+    inputs: [image.raw]
+    matrix:
+      configs: [[fp32, size-320], [int8]]
+  #=> [fp32, size-320], [int8]
+  ```
+- `platform`: runs the batch on each platform, e.g. the float pipeline and the fixed-point model of a chip:
+
+  ```yaml title="qa/batches.yaml"
+  both-platforms:
+    configs: [base]
+    inputs: [image.raw]
+    matrix:
+      platform: [linux, hw-model]
+  ```
+
+### Values with fields {#matrix-values-with-fields}
+When the values are mappings or lists, pick their fields with `${matrix.<name>[<field>]}`, as in Python's
+[format strings](https://docs.python.org/3/library/string.html#formatspec):
+
+```yaml title="qa/batches.yaml"
+points:
+  inputs:
+  - image.raw
+  matrix:
+    point: [{x: 10, y: 40}, {x: 20, y: 50}]
+  configs:
+  - base
+  - flags: "-x=${matrix.point[x]} -y=${matrix.point[y]}"
+#=> [base, {flags: "-x=10 -y=40"}], [base, {flags: "-x=20 -y=50"}]
+```
+
+### Several matrices {#several-matrices}
+A list of matrices runs each one, to skip combinations that make no sense. Here, every input size for the fp32 model,
+but only 320 px for int8:
+
+```yaml title="qa/batches.yaml"
+sizes:
+  inputs: [slices/indoor]
+  configs: ['${matrix.model}', 'size-${matrix.size}']
+  matrix:
+  - {model: [fp32], size: [320, 416, 512]}
+  - {model: [int8], size: [320]}
+#=> [fp32, size-320], [fp32, size-416], [fp32, size-512], [int8, size-320]
+```
+
+The syntax comes from CI tools' matrices, like
+[GitHub Actions'](https://docs.github.com/en/actions/using-jobs/using-a-matrix-for-your-jobs).
+
+## Reuse definitions with YAML anchors {#yaml-anchors-and-aliases}
+YAML anchors and aliases ([YAML spec](https://yaml.org/spec/1.2.2/)) avoid repeating lists of inputs or
+configurations: `&name` names a value, `*name` reuses it. Keys that start with a dot are not batches, which makes
+them a good place for shared values:
+
+```yaml title="qa/batches.yaml"
+.hdr: &hdr
+  - base
+  - hdr
+
+.night-scenes: &night-scenes
+  - night/street.raw
+  - night/parking.raw
+
+hdr:
+  configs: [*hdr, motion]       #=> [base, hdr, motion]: nested lists are flattened
+  inputs: *night-scenes
+```
+
+`<<:` merges whole mappings, e.g. to run the same configurations on a short and a long list of inputs:
+
+```yaml title="qa/batches.yaml"
+.hdr-on: &hdr-on
+  configs: [base, hdr]
+.few-inputs: &few-inputs
+  inputs: [A.raw, B.raw]
+.many-inputs: &many-inputs
+  inputs: [A.raw, B.raw, C.raw, D.raw, E.raw, F.raw]
+
+hdr:
+  <<: [*hdr-on, *few-inputs]
+hdr-nightly:
+  <<: [*hdr-on, *many-inputs]
+```
+
+## Select inputs by their metadata {#filter-by-metadata}
+When your entrypoint gives inputs [metadata](/docs/metadata-integration-external-databases), `only` and `exclude`
+select the inputs whose metadata match. Every input's metadata has its paths: `input_path` (absolute) and
+`rel_input_path` (relative to the database):
+
+```yaml title="qa/batches.yaml"
+night-not-outdoor:
+  inputs:
+  - scenes
+  only:                     # inputs that match all of these
+    iso: '>=800'            # comparisons: >, >=, <, <=, ==
+    sensor: [imx-a, imx-b]  # any of these
+    rel_input_path: 'scenes/*night*'   # wildcards
+  exclude:                  # minus the inputs that match all of these
+    location: outdoor
+```
+
+Filters apply to the inputs that [`inputs.globs`](/docs/inputs#identifying-inputs) finds in the batch's folders.
+
+## Several batch files {#several-batch-files}
+`inputs.batches` in *qaboard.yaml* can list several files, or a glob pattern:
+
+```yaml title="qaboard.yaml"
+inputs:
+  batches:
+  - qa/batches.yaml
+  - qa/batches/*.yaml
+```
+
+- When files define a batch with the same name, the last one wins. With `inputs.allow_duplicate_batches: true`,
+  `qa batch <name>` runs all of them, e.g. the same `ci` batch of many subprojects, from the root project.
+- `qa batch --batches-file <file> <batch>` reads another file instead.
+- At the top of a file, `database`, `configs` and `platform` are defaults for its batches. A `matrix` there is not
+  applied: set it in each batch.
+
+## Run a list of runs {#running-a-list-of-runs}
+Instead of batches, `qa batch --runs-file runs.json` does the runs listed in a JSON file. QA-Board uses it to redo
+runs. They start together: the settings that apply to all of them, like the concurrency, are the first run's, even
+if the runs come from batches with their own.
+
+```json title="runs.json"
+{
+  "runs": [
+    {
+      "input_path": "images/A.jpg",
+      "database": "/datasets",
+      "type": "image",
+      "platform": "linux",
+      "configurations": ["base", {"threshold": 0.5}],
+      "extra_parameters": {"iterations": 3},
+      "job_options": {"type": "dask", "concurrency": 20}
+    }
+  ]
+}
+```
+
+Only `input_path` (relative to `database`) and `database` are required. Runs are done with the runner and options in
+`job_options`, completed by the defaults from *qaboard.yaml*. Options you give on the command line, like `--runner`
+or `--lsf-queue`, win.
+
+## Environment variables {#environment-variables}
+| Variable | What it does |
+|---|---|
+| `QA_BATCH_ALLOW_MANY_RUNS` | `qa batch` refuses to send more than 1000 runs to QA-Board at once. Set it to allow it, or use `qa --offline`. |
+| `QA_BATCH_FILTER_INPUT_REGEX` | Only keep the inputs whose path matches this regular expression, among those `inputs.globs` finds. |
+| `QA_BATCH_FAIL_IF_EMPTY` | Fail instead of warning when a batch has no inputs. |
+| `QA_BATCH_QUIET` | Don't print the `qa run` command of each run. |
+| `QA_BATCH_CONCURRENCY`, `QA_BATCH_TIMEOUT` | Defaults for the [local runner](/docs/local-multiprocessing). |
+
+Every option of `qa batch` can also be set as `QA_BATCH_<OPTION>`, e.g. `QA_BATCH_RUNNER=lsf`: see
+[the qa command line](/docs/using-the-qa-cli#options-as-environment-variables).

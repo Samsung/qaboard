@@ -196,6 +196,105 @@ class TestLsfConcurrency(unittest.TestCase):
     self.assertIn('rusage[mem=1000]', bsub.commands[1])
 
 
+class TestJobGroups(unittest.TestCase):
+  """Batches can have their own concurrency or timeout: their jobs start with them"""
+  def setUp(self):
+    self.tmp = tempfile.TemporaryDirectory()
+    self.addCleanup(self.tmp.cleanup)
+    self.root = Path(self.tmp.name)
+
+  def test_groups(self):
+    from qaboard.runners import JobGroup
+    command_options = {"type": "local", "command_id": "abcdefgh-1234", "concurrency": 4, "timeout": 0, "cwd": "/here"}
+    serial = make_jobs('local', ['a', 'b'], self.root / 'serial', concurrency=1, timeout=0, cwd="/here")
+    default = make_jobs('local', ['c'], self.root / 'default', concurrency=4, timeout=0, cwd="/here")
+    slow = make_jobs('local', ['d'], self.root / 'slow', concurrency=4, timeout=10, cwd="/here", param='other options are per job')
+    group = JobGroup(jobs=[serial[0], default[0], serial[1], *slow], job_options=command_options)
+    groups = group.groups()
+    self.assertEqual([[job.run_context.command for job in jobs] for _, jobs in groups], [['a', 'b'], ['c'], ['d']])
+    self.assertEqual([options for options, _ in groups], [
+      {**command_options, "concurrency": 1},
+      command_options,
+      {**command_options, "timeout": 10},
+    ])
+    # Runs that QA-Board redoes start together
+    group = JobGroup(jobs=[serial[0], default[0]], job_options=command_options, split_by_job_options=False)
+    self.assertEqual(group.groups(), [(command_options, [serial[0], default[0]])])
+    # Runners that don't have options for groups of jobs start them together
+    celery_jobs = make_jobs('celery', ['a', 'b'], self.root / 'celery', concurrency=1)
+    celery_jobs += make_jobs('celery', ['c'], self.root / 'celery', concurrency=2)
+    group = JobGroup(jobs=celery_jobs, job_options={"type": "celery", "command_id": "abcdefgh-1234"})
+    self.assertEqual(len(group.groups()), 1)
+
+  def test_local_concurrency(self):
+    """Batches with their own concurrency or timeout run one after the other"""
+    from qaboard.runners import JobGroup
+    from qaboard.runners.local import LocalRunner
+    # Each run records how many runs are in-flight when it starts
+    counter = self.root / 'counter'
+    def commands(name, nb):
+      # runs start where `qa batch` runs
+      return [f'mkdir -p "{self.root}/{name}{i}" && cd "{self.root}/{name}{i}" && echo start >> "{counter}"; grep -c start "{counter}" > started; grep -c end "{counter}" > ended; sleep 0.3; echo end >> "{counter}"' for i in range(nb)]
+    serial = make_jobs('local', commands('serial', 3), self.root, concurrency=1, cwd=str(self.root))
+    parallel = make_jobs('local', commands('parallel', 3), self.root, concurrency=3, cwd=str(self.root))
+    group = JobGroup(jobs=[*serial, *parallel], job_options={"type": "local", "command_id": "abcdefgh-1234", "concurrency": 3, "cwd": str(self.root)})
+    LocalRunner.start_groups(group.groups())
+    def in_flight(name):
+      return [int((self.root / f'{name}{i}' / 'started').read_text()) - int((self.root / f'{name}{i}' / 'ended').read_text()) for i in range(3)]
+    self.assertEqual(in_flight('serial'), [1, 1, 1])
+    self.assertTrue(all(1 <= n <= 3 for n in in_flight('parallel')))
+
+    # joblib gets each group's concurrency, the runs their group's timeout
+    from unittest import mock
+    with mock.patch('joblib.Parallel') as Parallel:
+      slow = make_jobs('local', ['sleep 1'], self.root, concurrency=3, timeout=10, cwd=str(self.root))
+      group = JobGroup(jobs=[*serial, *parallel, *slow], job_options={"type": "local", "command_id": "abcdefgh-1234", "concurrency": 3, "cwd": str(self.root)})
+      LocalRunner.start_groups(group.groups())
+    self.assertEqual([call.kwargs['n_jobs'] for call in Parallel.call_args_list], [1, 3, 3])
+    self.assertTrue(all('timeout' not in call.kwargs for call in Parallel.call_args_list))
+
+  @unittest.skipIf(os.name == 'nt', "the shell's children are killed with its process group")
+  def test_local_timeout(self):
+    """A run over its timeout is killed, with what it started, and the other runs go on"""
+    import time
+    from qaboard.runners import JobGroup
+    from qaboard.runners.local import LocalRunner
+    # the shell starts a child that would write its file after the timeout
+    late = self.root / 'late'
+    done = self.root / 'done'
+    slow = make_jobs('local', [f'(sleep 3 && touch "{late}") & wait'], self.root, concurrency=2, timeout=1, cwd=str(self.root))
+    fast = make_jobs('local', [f'touch "{done}"'], self.root, concurrency=2, timeout=1, cwd=str(self.root))
+    group = JobGroup(jobs=[*slow, *fast], job_options={"type": "local", "command_id": "abcdefgh-1234", "concurrency": 2, "cwd": str(self.root)})
+    start = time.time()
+    LocalRunner.start_groups(group.groups())
+    self.assertLess(time.time() - start, 2.5)
+    self.assertTrue(done.exists())
+    time.sleep(2.5)
+    self.assertFalse(late.exists())
+
+  def test_lsf_groups(self):
+    """LSF jobs of all groups are sent, each group with its own concurrency, then we wait for all of them"""
+    from qaboard.runners import JobGroup
+    from qaboard.runners.lsf import LsfRunner
+    serial = make_jobs('lsf', ['a', 'b', 'c'], self.root / 'serial', queue='q', concurrency=1)
+    unlimited = make_jobs('lsf', ['d', 'e'], self.root / 'unlimited', queue='q', concurrency=0)
+    waves = make_jobs('lsf', ['f', 'g', 'h'], self.root / 'waves', queue='q', concurrency=2, concurrency_strategy='waves')
+    group = JobGroup(jobs=[*serial, *unlimited, *waves], job_options={"type": "lsf", "command_id": "abcdefgh-1234", "queue": "q", "concurrency": 0})
+    bsub = FakeBsub()
+    with mock.patch('qaboard.runners.lsf.subprocess.run', bsub), has_bsub(), mock.patch('signal.signal'):
+      LsfRunner.start_groups(group.groups(), blocking=True)
+    names = bsub.names()
+    self.assertRegex(names[0], r'^abcdefgh_[a-z]{12}\[1-3\]%1$')
+    self.assertRegex(names[1], r'^abcdefgh_[a-z]{12}$')
+    self.assertRegex(names[2], r'^abcdefgh_[a-z]{12}$')
+    # each group has its own waves
+    self.assertEqual([n.rsplit('_', 1)[0] for n in names[3:6]], ['abcdefgh_2_W0', 'abcdefgh_2_W0', 'abcdefgh_2_W1'])
+    self.assertIn('-w "ended(abcdefgh_2_W0_*)"', bsub.commands[5])
+    # a single job waits for all the others
+    self.assertEqual(names[6:], ['abcdefgh_WAIT'])
+    self.assertIn('-w "ended(abcdefgh_*)"', bsub.commands[6])
+
+
 class TestBuildPowershellEnv(unittest.TestCase):
   def env_lines(self, **context_env):
     from qaboard.runners.jenkins_windows import build_powershell_env
@@ -495,7 +594,8 @@ class TestCleanOutputDir(unittest.TestCase):
       (output_dir / 'a' / 'b.txt').write_text('b')
       (output_dir / 'log.lsf.txt').write_text('old')
       code = f"from pathlib import Path; from qaboard.utils import clean_output_dir; clean_output_dir(Path('{output_dir}'))"
-      subprocess.run([sys.executable, '-c', code], check=True, stdout=subprocess.DEVNULL)
+      # not redirected: neither stdout nor stderr is a file (they are when the tests' output is)
+      subprocess.run([sys.executable, '-c', code], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
       self.assertFalse(output_dir.exists())
 
   def test_keeps_nested_redirected_logs(self):
@@ -544,6 +644,30 @@ class TestDaskRunner(unittest.TestCase):
       self.assertEqual((output_dir / 'log.dask.txt').read_text(), f'run-{index}\n')
       in_flight = int((output_dir / 'started').read_text()) - int((output_dir / 'ended').read_text())
       self.assertLessEqual(in_flight, 2)
+
+  def test_groups_concurrency(self):
+    """Batches can have their own concurrency. The workers are shared, with at most the largest concurrency in flight."""
+    from qaboard.runners import JobGroup
+    from qaboard.runners.dask_runner import DaskRunner
+    total = self.root / 'total'
+    def commands(name):
+      counter = self.root / f'counter-{name}'
+      return [
+        f'mkdir -p {name}{i} && cd {name}{i} && echo start >> "{counter}" && echo start >> "{total}"; '
+        f'grep -c start "{counter}" > started; grep -c end "{counter}" > ended; grep -c start "{total}" > total_started; grep -c end "{total}" > total_ended; '
+        f'sleep 0.5; echo end >> "{counter}"; echo end >> "{total}"'
+        for i in range(4)
+      ]
+    serial = make_jobs('dask', commands('serial'), self.root, scheduler_address=self.cluster.scheduler_address, concurrency=1)
+    parallel = make_jobs('dask', commands('parallel'), self.root, scheduler_address=self.cluster.scheduler_address, concurrency=3)
+    group = JobGroup(jobs=[*serial, *parallel], job_options=parallel[0].run_context.job_options)
+    with mock.patch('qaboard.runners.dask_runner.poll_interval', 0.1):
+      DaskRunner.start_groups(group.groups(), blocking=True)
+    def in_flight(name, prefix=''):
+      return [int((self.root / f'{name}{i}' / f'{prefix}started').read_text()) - int((self.root / f'{name}{i}' / f'{prefix}ended').read_text()) for i in range(4)]
+    self.assertEqual(in_flight('serial'), [1, 1, 1, 1])
+    self.assertTrue(all(n <= 3 for n in in_flight('parallel')))
+    self.assertTrue(all(n <= 3 for n in in_flight('serial', 'total_') + in_flight('parallel', 'total_')))
 
   def test_subproject(self):
     """`qa` changes directory to the project root, and commands start with "cd {subproject}".

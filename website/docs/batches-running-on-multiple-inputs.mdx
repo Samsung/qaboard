@@ -1,55 +1,184 @@
 ---
 id: batches-running-on-multiple-inputs
 title: Batches of inputs
-sidebar_label: Batches of Inputs
+sidebar_label: Batches
+description: List inputs and configurations in a batch file, run them all with qa batch, and see their runs together in the web app.
 ---
-:::important Reminder
-Make sure you read [the section on input files](inputs)
-:::
 
-As we discussed, you can define batches of inputs in file(s) whose paths are given by `inputs.batches` in your [qaboard.yaml](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml#L45) configuration.
+A batch is a named list of inputs and configurations, in a YAML file. `qa batch ci` runs them all, in parallel or on
+a cluster, and the web app shows their runs together. Your CI runs a batch on every commit; others run nightly, before
+a release, or to try parameters.
 
-```yaml title="qa/batches.yaml (default)" 
-my-batch:
- inputs:
-   - A.jpg
-   - B.jpg
-```
+## Write a batch {#write-a-batch}
+The inference gateway example measures its latency on 5 load profiles in CI:
+
+<RepoFile path="examples/serving-latency/qa/batches.yaml" title="qa/batches.yaml" section="ci" />
+
+Inputs are paths relative to your [database](/docs/inputs#the-database), `inputs/` here. A batch can also list
+folders and wildcards like `profiles/*.yaml`: `qa` finds the inputs in them with
+[`inputs.globs`](/docs/inputs#identifying-inputs).
+
+Batches are in `qa/batches.yaml`, or in the files that `inputs.batches` lists in *qaboard.yaml*.
+
+## Run a batch {#run-a-batch}
+To see what a batch would run, without running anything, use `--dryrun`. It prints the `qa run` command of each run,
+and where its outputs go:
 
 ```bash
-qa batch my-batch
-#=> qa run --input A.jpg
-#=> qa run --input B.jpg
-
-qa batch first-batch second-batch
+qa --dryrun batch ci
 ```
 
-Runs started by `qa batch` remember the name of their batch: the web application shows it, and you can use it in the filter.
+```text
+qa run --input "profiles/steady-low.yaml"
+   /home/kaito/kitefin/inference-gateway/output/linux/profiles-steady-low
+qa run --input "profiles/steady-mid.yaml"
+   /home/kaito/kitefin/inference-gateway/output/linux/profiles-steady-mid
+[...]
+qa run --input "profiles/heavy-tail-high.yaml"
+   /home/kaito/kitefin/inference-gateway/output/linux/profiles-heavy-tail-high
+```
+
+Then run it, with `--share` to see the results in the web app. `qa` prints the link to the commit's results first:
+
+```bash
+qa --share batch ci
+```
 
 <Clip
   id="cli/batch"
   caption="qa --share batch ci on the camera pipeline: qa prints the link to the results, then runs each input and configuration of the batch."
 />
 
-Arguments after `--` are forwarded to each `qa run`, and to your code as `context.forwarded_args` (it works the same with `qa run` and `qa postprocess`):
+- Run several batches at once: `qa batch ci capacity`, or with a wildcard: `qa batch 'sweep-*'`.
+- Arguments after `--` are given to each run, and to your code as `context.forwarded_args`:
+  `qa batch ci -- --verbose` runs `qa run --input "profiles/steady-low.yaml" --verbose`...
+- Runs remember the name of their batch: the web app shows it, and you can filter runs by it.
+- By default, `qa batch` runs on this machine. To run several runs at the same time, or on a cluster, see
+  [runners](/docs/using-the-qa-cli#batch-runners).
+
+## Configurations in a batch {#specifying-test-configurations}
+`configs` gives the [configurations](/docs/specifying-configurations) the batch's inputs run with. The camera ISP
+example checks the fixed-point model of its camera chip, the `hw-model` platform, at ISO 100 (`base`):
+
+<RepoFile path="examples/image-quality/qa/batches.yaml" title="qa/batches.yaml" section="bitexact" />
+
+To run each input with several configurations, give them in a `matrix`. Its CI runs 9 images at ISO 100 and 3200:
+18 runs.
+
+<RepoFile path="examples/image-quality/qa/batches.yaml" title="qa/batches.yaml" section="ci" />
+
+A matrix can also combine values, which `${matrix.<name>}` puts in the configurations. The detector example runs 4
+slices of its test set with the fp32 model and the int8 model:
+
+<RepoFile path="examples/detection-eval/qa/batches.yaml" title="qa/batches.yaml" section="ci" />
 
 ```bash
-qa batch my-batch -- --my-flag value
-#=> qa run --input A.jpg --my-flag value
-#=> qa run --input B.jpg --my-flag value
+qa --dryrun batch ci
 ```
 
-Use `qa batch my-batch --list-inputs` to only print the inputs, and see the [API page](apis) for `--list` and `--list-output-dirs`.
+```text
+qa --configuration fp32:size-320 run --input "slices/indoor"
+   /home/arjun/kitefin/detector/output/7622c337-20/slices-indoor
+[...]
+qa --configuration int8:size-320 run --input "slices/small-objects"
+   /home/arjun/kitefin/detector/output/6d41e2b9-20/slices-small-objects
+```
 
-:::tip
-To get completion and warnings in your editor, use [the batch files' schema](/docs/project-init#checking-qaboardyaml-and-batch-files-in-your-editor).
+Its `sizes` batch adds `size: [320, 416, 512]` to the matrix: 4 slices × 2 models × 3 sizes, 24 runs. See
+[matrices](/docs/batches-advanced#matrix-batches) for more.
+
+An input can add its own configurations to the batch's:
+
+```yaml title="qa/batches.yaml"
+my-batch:
+  configs: [int8]
+  inputs:
+  - slices/indoor                                      #=> [int8]
+  - slices/outdoor: [size-416, {score_threshold: 0.2}] #=> [int8, size-416, {score_threshold: 0.2}]
+  - slices/small-objects: {nms_iou: 0.7}               #=> [int8, {nms_iou: 0.7}]
+```
+
+<details>
+<summary>The same input twice, with other configurations</summary>
+
+An input can appear several times, each time with its own configurations. These forms are the same:
+
+```yaml title="qa/batches.yaml"
+crops:
+  configs: [base]
+  inputs:
+  - image.raw: {crop: A}       #=> [base, {crop: A}]
+  - image.raw: {crop: B}       #=> [base, {crop: B}]
+  - [image.raw, {crop: C}]     #=> [base, {crop: C}]
+```
+
+</details>
+
+## Database and platform {#setting-a-custom-database}
+A batch can set its own `database`, where its inputs are, and its `platform`, like the camera ISP's `bitexact` batch
+above. Runs are compared with the reference's runs on the same platform. At the top of a batch file, `database`,
+`configs` and `platform` are defaults for the file's batches that don't set their own:
+
+```yaml title="qa/batches.yaml"
+database: /mnt/datasets          # for all the batches of this file
+
+my-batch:
+  inputs:
+  - images/A.jpg                 #=> /mnt/datasets/images/A.jpg
+
+archive:
+  database:                      # this batch's inputs are elsewhere
+    linux: /mnt/archive
+    windows: '\\storage\archive'
+  inputs:
+  - images/A.jpg
+```
+
+## Runner settings per batch {#runner-settings-per-batch}
+Under the name of a runner, a batch changes the settings of its runs, e.g. how much memory LSF gives them. The camera
+ISP's 113 MP test wall needs more memory than the other images:
+
+```yaml title="qa/batches.yaml"
+deep-zoom:
+  configs: [base]
+  inputs:
+  - charts/test-wall-113mp.tiff
+  lsf:
+    max_memory: 3072   # MB
+```
+
+Runner settings are merged in this order, the last one wins:
+1. `runners.<runner>` in *qaboard.yaml* (e.g. `runners.lsf.queue`),
+2. `runners.<runner>` in the [input type](/docs/inputs#advanced-handling-multiple-input-types),
+3. `<runner>:` in the batch, as above,
+4. command line options, like `qa batch --lsf-queue`.
+
+A batch can also limit how many of its runs run at the same time, with `concurrency` under `local:`, `lsf:` or
+`dask:`, and set the local runner's `timeout`. How batches with their own limit share the resources depends on the
+runner:
+- [local](/docs/local-multiprocessing): they run one after the other.
+- [LSF](/docs/lsf-integration#limiting-concurrency): each gets its own job arrays (or waves), sent at the same time,
+  so their limits add up.
+- [Dask](/docs/dask-integration): their runs share the workers, and `qa batch` never has more runs in flight than the
+  largest concurrency.
+
+:::caution
+A batch can't choose its runner yet: `qa batch --runner`, or `runners.default` in *qaboard.yaml*, does, for all
+batches. A batch's `runner:` doesn't change it. With Celery, a batch's `celery:` settings are ignored too: the
+Celery configuration comes from *qaboard.yaml*.
 :::
 
-:::tip
-Inputs are paths. Put in quotes those YAML would read as something else, like numbers (`"20260223"`), dates (`"2026-02-23"`) or `yes`/`no`. A `-` with nothing after it is an empty input: `qa batch` stops and says on which line it is.
-:::
+## Groups of batches {#aliases-for-groups-of-batches}
+Name batches you often run together with `aliases`. In the camera ISP example, `qa batch nightly` runs every input at
+every ISO, and the fixed-point model:
 
-In the web app, the [Available Tests](/docs/user-guide/commit-page#available-tests) view edits private and shared batches, flags YAML mistakes and unknown keys as you type, and lists the tests each batch resolves to on a commit:
+<RepoFile path="examples/image-quality/qa/batches.yaml" title="qa/batches.yaml" section="aliases" />
+
+Aliases can list other aliases, and wildcards like `sweep-*`.
+
+## Edit and check batches in the web app {#in-the-web-app}
+The [Available Tests](/docs/user-guide/available-tests) view edits private and shared
+batches, flags YAML mistakes and unknown keys as you type, and lists the tests each batch resolves to on a commit:
 
 <Shot
   id="tuning/available-tests"
@@ -61,310 +190,19 @@ In the web app, the [Available Tests](/docs/user-guide/commit-page#available-tes
   caption="The ci batch resolves to 8 tests on this commit: 4 inputs, each with the fp32 and the int8 model."
 />
 
-## Setting a custom database
-In QA-Board relative input paths are considered relative to a "database" folder (defaults to `/` unless changed with `inputs.database` in _qaboard.yaml_).
+## Avoid mistakes {#avoid-mistakes}
+- Inputs are paths. Put in quotes those YAML would read as something else, like numbers (`"20260223"`), dates
+  (`"2026-02-23"`) or `yes`/`no`. A `-` with nothing after it is an empty input: `qa batch` stops and says on which
+  line it is.
+- Check which inputs a batch finds with `qa batch <batch> --list-inputs`: it prints each input once per
+  configuration. `--list` and `--list-output-dirs` print more, see the [API page](/docs/apis).
+- Get completion and warnings in your editor with [the batch files' schema](/docs/project-init#checking-qaboardyaml-and-batch-files-in-your-editor).
 
-You can set a default database for all the batches in define in each YAML file:
-
-```yaml
-database: /some/path
-
-my-batch:
-  inputs: # will be relative to the database
-  - Images/Demo3/A.jpg
-  - Images/Demo2
-```
-## Setting a custom database per batch
-```yaml {2-4}
-you-can-override-the-default-database:
-  database:
-    linux: /mnt/database
-    windows: '\\\\storage\\database'
-  inputs:
-  - Images/Demo3/A.jpg
-  - Images/Demo2
-```
-
-## Specifying test configurations
-:::important Reminder
-Make sure you read [the section on configurations](specifying-configurations)
-:::
-
-Let's look at examples from an image processing project to illustrate how configurations can be given:
-
-```yaml {2-3}
-using-a-custom-configuration:
-  configs:
-  - base
-  inputs:
-  - Bayer/A.dng
-  - Bayer/B.dng
-# => configs == ["base"]
-# => the code would load base/config.yaml
-```
-
-```yaml {2-4}
-multiple-configs:
-  configs:
-    - base
-    - low-light
-  inputs:
-  - Bayer/A.dng
-  - Bayer/B.dng
-#=> configs == ["base", "low-light"]
-#=> the code merges 2 configs
-```
-
-```yaml {2-8}
-configs-can-be-complex-objects:
-  configs:
-    - base
-    - low-light
-    - simulator:
-      - "-w 9920"
-      - "-h 2448"
-      - "-it BAYER10"
-  inputs:
-  - Bayer/A.dng
-  - Bayer/B.dng
-# configs == ["base", "low-light", {"simulator": ["-w 9920", "-h 2448", "-it BAYER10"]}]
-# => Here we use the "simulator" config parameter to pass CLI arguments to a hardware simulator.
-```
-
-```yaml {5,7-10}
-each-input-can-have-its-own-configuration:
-  configs:
-    - base
-  inputs:
-  - Bayer/A.dng:
-    #=> configs == ["base"]
-  - Bayer/B.dng:
-      - low-light
-      - simulator:
-        - "-DD"
-    #=> configs == ["base", "low-light", {"simulator": ["-DD"]}]
-
-
-each-input-can-have-its-own-configuration-and-appear-twice:
-  configurations:
-    - base
-  inputs:
-  - a.txt: {crop: A}
-    #=> configurations == ["base", {"crop": ["A"]}]
-  - a.txt: {crop: B}
-    #=> configurations == ["base", {"crop": ["B"]}]
-  - [a.txt, {crop: C}]
-    #=> configurations == ["base", {"crop": ["C"]}]
-```
-
-You can also set top-level default `configs` (and `platform`) in your YAML files. Batches can also set their own `platform`.
-
-## Runner settings per batch
-Under a key named after the runner, batches can change the [runner's settings](using-the-qa-cli#batch-runners). They are used when the batch runs with this runner:
-
-```yaml {4-7}
-my-batch:
-  inputs:
-  - A.jpg
-  lsf:
-    queue: my_long_queue
-  local:
-    concurrency: 2
-```
-
-See [in what order runner settings are merged](inputs#advanced-handling-multiple-input-types).
-
-## Matrix batches
-You can use "matrix" batches to run on combinations of configurations (and platfornms):
-
-```yaml {4-10}
-multiple-configs:
-  inputs:
-  - a.raw
-  matrix:
-    configs:
-      -
-          - base
-          - tuning
-      -
-          - base
-
-#=> `qa batch multiple-configs` will run
-#   with [base, tuning] and [base]
-```
-
-> Per-input extra configurations still work.
->
-> The syntax was inspired from [DroneCI](https://0-8-0.docs.drone.io/matrix-builds/), [GithubActions](https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions#jobsjob_idstrategy), [AzurePipelines](https://docs.microsoft.com/en-us/azure/devops/pipelines/yaml-schema?view=azure-devops&tabs=example%2Cparameter-schema#matrix).
-
-### Interpolation
-Matrix variables are interpolated using the `${matrix.variable}` syntax:
-
-```yaml
-my-batch-multiple-configs:
-  inputs:
-  - image.raw
-  matrix:
-    version: [1, 2]
-  configs:
-    - base-v${matrix.version}
-
-# => will run with [base-v1] and [base-v2]
-```
-
-And elaborate complex testing strategies:
-
-```yaml
-my-batch-multiple-values:
-  inputs:
-  - image.raw
-  matrix:
-    threshold: [1, 2, 3, 4]
-    mode: ["a", "b"]
-  configs:
-    - base
-    - block.threshold: ${matrix.threshold}
-    - block.mode: ${matrix.mode}
-
-# => will start 8 runs run with
-#     [base, block.threshold: 1, block.mode: a
-#     [base, block.threshold: 1, block.mode: b
-#     [base, block.threshold: 2, block.mode: a
-#     etc
-```
-
-Advanced users can use indexing: `${matrix.param[0]}` or `${matrix.param[key]}` according to the python [formatting miniformat](https://docs.python.org/3/library/string.html#formatspec), if they use "complex" matrix parameters with objects/arrays/strings:
-
-```yaml
-my-batch-matrix-object:
-  inputs:
-  - image.raw
-  matrix:
-    point: [
-      {x: 10, y: 40},
-      {x: 20, y: 50},
-    ]
-  configs:
-    - base
-    - flags: "-x=${matrix.point[x]} -y=${matrix.point[y]}"
-```
-
-## Aliases for groups of batches
-For convenience you can define aliases for batches you often run together. For instance you can do:
-
-```yaml title="qa/batches.yaml"
-aliases:
-  two-batches:
-  - first-batch
-  - second-batch
-```
-```bash
-qa batch two-batches
-```
-
-## Dynamic groups of batches
-You can use [wildcards](https://docs.python.org/3/library/fnmatch.html):
-
-```yaml title="qa/batches.yaml"
-batch-1:
-   # ...
-
-batch-2:
-   # ...
-```
-
-```bash
-qa batch 'batch-*'
-#=> runs both batch-1 and batch-2
-```
-
-Aliases also understand wildcards:
-
-```
-aliases:
-  all:
-  - batch-*
-```
-
-```bash
-qa batch all
-#=> runs both batch-1 and batch-2
-```
-
-## YAML anchors and aliases
-For convenience you can define YAML anchors for common configurations
-
-```yaml {1-3,7}
-.base: &base
-  - base
-  - partial
-
-hdr:
-  configs:
-    - *base
-    - hdr
-  inputs:
-    - A
-    - B
-    - C
-#=> configs == ["base", "partial", "hdr"]
-```
-
-:::note
-YAML "aliases" and "anchors" are standard YAML feature. [Read more here](https://confluence.atlassian.com/bitbucket/yaml-anchors-960154027.html).
-:::
-
-### Reusable configurations/inputs
-Sometimes you want to mix and match reusabe definitions of configs and inputs. YAML anchors let you do it:
-
-```yaml
-.inputs_hdr: &inputs_hdr
-  inputs:
-    - A
-    - B
-
-.lots_of_inputs_hdr: &lots_inputs_hdr
-  inputs:
-    - A
-    - B
-    - C
-    - D
-    - E
-    - F
-
-.HDR: &HDR
-  configs:
-    - *base
-    - hdr_base
-    - hdr_motion
-
-.HDR-disabled: &HDR-disabled
-  configs:
-    - *base
-
-hdr:
-  <<: *HDR
-  <<: *inputs_hdr
-no-hdr:
-  <<: *HDR-disabled
-  <<: *inputs_hdr
-# qa --label hdr    batch hdr
-# qa --label no-hdr batch no-hdr
-
-# Maybe on nightly runs you want to run lots of inputs
-lots-of-hdr-inputs:
-  <<: *HDR
-  <<: *lots_inputs_hdr
-lots-of-no-hdr-inputs:
-  <<: *HDR-disabled
-  <<: *lots_inputs_hdr
-```
-
-## Environment variables
-| Variable | Usage |
-|----------|-------|
-| `QA_BATCH_ALLOW_MANY_RUNS` | `qa batch` refuses to send more than 1000 runs to QA-Board at once. Set it to allow it (or use `qa --offline`) |
-| `QA_BATCH_FILTER_INPUT_REGEX` | Only keep the inputs whose path matches this regular expression (when using `inputs.globs`) |
-| `QA_BATCH_FAIL_IF_EMPTY` | Fail instead of warning when a batch has no inputs |
-| `QA_BATCH_QUIET` | Don't print the `qa run` command of each run |
-| `QA_BATCH_CONCURRENCY`, `QA_BATCH_TIMEOUT` | Defaults for the [local runner](local-multiprocessing) |
+<Cards>
+  <Card title="Advanced batches" to="/docs/batches-advanced">
+    Matrices, YAML anchors, inputs selected by their metadata, several batch files, lists of runs.
+  </Card>
+  <Card title="The qa command line" to="/docs/using-the-qa-cli">
+    Share results, name experiments, choose a runner, skip what already ran.
+  </Card>
+</Cards>

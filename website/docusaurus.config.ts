@@ -42,6 +42,10 @@ const redirects = [
   {from: 'tuning-workflows', to: 'tuning-from-the-webapp#other-tuning-workflows'},
   // the page's file name, linked by the web app's LSF hints (the anchor is kept)
   {from: 'lsf-cluster-integration', to: 'lsf-integration'},
+  // The product tour became the user guide's walkthrough
+  {from: 'tour', to: 'user-guide/first-review'},
+  // Merged into visualizations
+  {from: 'creating-and-viewing-outputs-files', to: 'visualizations#output-files'},
 ].map(({from, to}) => ({from: docsPath(from), to: docsPath(to)}))
 
 const logo = {
@@ -156,7 +160,6 @@ let config: Config = {
             position: 'left',
             items: [
               {type: 'docSidebar', sidebarId: 'start', label: 'Get started'},
-              {type: 'doc', docId: 'tour', label: 'Product tour'},
               {type: 'docSidebar', sidebarId: 'userGuide', label: 'User guide'},
               {type: 'docSidebar', sidebarId: 'docs', label: 'Project integration'},
               {type: 'docSidebar', sidebarId: 'admin', label: 'Admin'},
@@ -189,7 +192,7 @@ let config: Config = {
             items: [
               {label: 'Quickstart', to: '/docs/get-started/quickstart'},
               {label: 'Your project on QA-Board', to: '/docs/get-started/tutorial'},
-              {label: 'Product tour', to: '/docs/tour'},
+              {label: 'Your first review', to: '/docs/user-guide/first-review'},
               {label: 'Use cases', to: '/docs/use-cases'},
             ],
           },

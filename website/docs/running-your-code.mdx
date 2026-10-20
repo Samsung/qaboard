@@ -1,111 +1,140 @@
 ---
 id: running-your-code
-sidebar_label: Running your code
 title: Running your code
+sidebar_label: Running your code
+description: Write the run() function that runs your code on one input, saves its output files and returns its metrics, for Python code or an executable.
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
 
-QA-Board works as a CLI wrapper for your code. As a default to get started, it runs commands you provide as extra arguments: 
+`qa` runs your code through one Python function that you write: `run(context)`, in `qa/main.py`. The `context` says
+which input to work on, with which configuration, and where to save the output files. `run()` returns the metrics.
 
-```bash
-qa run --input path/to/your/input.file 'echo "{input_path} => {output_dir}"'
-#=> prints "/database/path/to/your/input.file  => output/dir"
+## Write run() {#write-run}
+If your code is in Python, import it and call it:
 
-qa --share run --input path/to/your/input.file 'echo "{input_path} => {output_dir}"'
-#=> prints an URL to view logs in the web interface
+```python title="qa/main.py"
+from my_project import process  # your code
+
+
+def run(context):
+    result = process(context.input_path, params=context.params)
+    result.image.save(context.output_dir / "out.png")
+    return {"psnr": result.psnr, "is_failed": False}
 ```
 
-<Clip
-  id="cli/first-run"
-  caption="In a project that wraps its code, qa run on one input prints where the outputs go, then your code's log, then the metrics it computed."
+Then run it on one input, with its path relative to your inputs' folder (see [Inputs](/docs/inputs)):
+
+```bash
+qa run --input charts/slanted-edge.png
+```
+
+In the camera ISP example, `qa` prints where the outputs go, then what the code prints, then the metrics `run()`
+returned:
+
+```text
+Outputs: /home/ines/kitefin/camera-isp/output/linux/charts-slanted-edge
+K3 camera: charts/slanted-edge.png, 1224x816, ISO 100 (gain 1x)
+ISP (linux): hamilton-adams demosaic, bilateral denoise x1.6, sharpen x1.5 (clamp: local-contrast), filmic tone curve
+  1 black level, white balance        21 ms
+  2 demosaic                          55 ms
+  3 denoise                          217 ms
+  4 sharpen                           73 ms
+  5 tone map                          13 ms
+psnr 41.29 | ssim 0.9964 | mtf50 0.293 | overshoot 0.04729 | runtime 0.8864
+{'psnr': 41.290915250993336, 'ssim': 0.9963992583219179, 'mtf50': 0.2930029684772476, [...], 'is_failed': False}
+```
+
+<Clip id="cli/first-run" />
+
+The example's [`qa/main.py`](https://github.com/Samsung/qaboard/blob/master/examples/image-quality/qa/main.py) is a
+complete `run()` to copy from: it simulates the camera, runs the pipeline, saves the output image and each stage, then
+measures PSNR, sharpness and halos.
+
+Results stay on your computer, in `output/`. To see them in the web app, add
+[`--share`](/docs/using-the-qa-cli#qa---share): `qa --share run --input charts/slanted-edge.png`. In CI, `qa` always
+sends them.
+
+## What `qa` does around `run()` {#wrapping-your-code}
+1. It reads *qaboard.yaml* and imports the file named by `project.entrypoint`. That file's folder is on Python's
+   import path, so `qa/main.py` can import the modules next to it.
+2. It creates `context.output_dir`, empties it, and calls `run(context)`.
+3. It saves the metrics `run()` returns in *metrics.json*, everything printed in *log.txt*, and the lists of input and
+   output files in *manifest.inputs.json* and *manifest.outputs.json*.
+4. With `--share` or in CI, it sends the metrics to QA-Board, which shows the output files from where they are.
+
+What `run()` returns is a dict of metrics: the web app shows the numbers, compared with the reference's. See
+[Metrics](/docs/computing-quantitative-metrics) for strings, units, and which way is better. A run fails when `run()`
+returns `"is_failed": True`, raises an exception (`qa` prints its traceback in the log), or returns something else
+than a dict. `qa run` then exits with 1.
+
+<Shot
+  id="commit/visualizations"
+  caption="What run() returns and writes is what the web app shows: the metrics against the reference, then the output files, new and reference side by side."
 />
 
-<img alt="First results" src={useBaseUrl('img/first-outputs.png')} />
-
 :::tip
-`--share` should really be the default behaviour, we plan to fix it! To change it user-side:  
-
-```bash
-# .bashrc or other shell config
-alias qa="qa --share"
-
-# you can also use an environment variable
-export QA_SHARE=true
-```
+To see the outputs in the web app, list them in *qaboard.yaml*: see [Visualizations](/docs/visualizations).
 :::
 
-`--share`'d results are available in the web UI and their data is stored under */mnt/qaboard*. To change the location, edit `storage` in `qaboard.yaml`. If you don't use `--share`, results are saved under *output/*.
-
-## Wrapping your code
-How does it work? When you `pip install` QA-Board with `pip`, you get the `qa` executable. `qa` opens *qaboard.yaml* and imports the python file specified by `project.entrypoint`. Then it runs your entrypoint's `run()` function with information about the current run: input, configuration, where outputs should be saved etc.
-
-Take a look at the default `run()` in [*qa/main.py*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qa/main.py). You should change it to run your code. In most cases that means finding and executing an executable file, or importing+running python code...
-
-:::tip
-Many users want to separate algorithm runs and postprocessing. To make this flow easier, you can optionally implement `postprocess()`. Then you will get `qa run` and `qa postprocess`.
-:::
-
-## What should your wrapper do?
-The main assumption is that your code
-- Write *"qualitative"* files in the `output_dir`
-- Returns *"quantitative"* metrics/KPIs ([More info here - what you return can also be used to consider the run as "failed", or display badges...](computing-quantitative-metrics)).
-
-The `run()` function receives as argument a [`context` object whose properties](#useful-context-properties-reference) tell us **how** you should run **what**, and **where** outputs are expected to be saved.
-
-:::important
-Below are the most common ways users wrap their code. Identify what works for you and continue to the next page!
-:::
-
----
-
-### Use-case #1: Running Python code
-```python title="qa/main.py"
-from pathlib import  Path
-
-def run(context):
-  metrics = your_code(
-      input=context.input_path,
-      output=context.output_dir,
-      # The next page will show you to supply configurations via context.params
-      params={"hard-coded": "values"}, 
-  )
-  # you can return a dict with "metrics"
-  metrics['is_failed'] = False
-  return metrics
-```
-
-### Use-case #2: Running an executable
-`QA-Board` assumes you already built your code.     
+## Run an executable {#run-an-executable}
+`qa` doesn't build your code: build it first, in CI too. Then start it from `run()`, and read what it wrote:
 
 ```python title="qa/main.py"
+import json
 import subprocess
 
+
 def run(context):
-    command = [
-        'build/executable',
-        "--input", str(context.input_path),
-        "--output", str(context.output_dir),
-        # if you call e.g. "qa run -i some_input --forwarded args", you can do:
-        *context.forwarded_args,
-    ]
     process = subprocess.run(
-        command,
-        capture_output=True,
+        ["build/my-tool", "--input", str(context.input_path), "--output", str(context.output_dir)],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
     )
-    print(process.stdout)
-    print(process.stderr)
-    return {"is_failed": process.returncode != 0}
+    print(process.stdout)  # saved in the run's log
+    if process.returncode != 0:
+        return {"is_failed": True}
+    metrics = json.loads((context.output_dir / "metrics.json").read_text())
+    return {**metrics, "is_failed": False}
 ```
 
-:::tip
-Instead of returning your metrics, in some cases it's more convenient to write them as JSON in *context.output_dir/metrics.json*.
+:::caution
+`qa` saves in *log.txt* what Python prints. An executable that writes to the terminal itself isn't in the log: capture
+its output and print it, like above.
 :::
 
-### Use-case #3: Importing existing results (Advanced)
-It's is sometimes needed to easily compare results versus reference implementations or benchmarks. Let's say the benchmark results can be found alongside images in your database like so:
+To see the log while the executable runs, print its output line by line. The inference gateway example starts its
+benchmark this way, and fails the run when the benchmark crashes:
 
-```log
-database
+<RepoFile path="examples/serving-latency/qa/main.py" lines="86-98" title="qa/main.py" />
+
+Arguments after the input are forwarded to your code, as `context.forwarded_args`. It's handy to try a flag of your
+executable:
+
+```bash
+qa run --input profiles/steady-high.yaml --verbose
+#=> context.forwarded_args == ['--verbose']
+```
+
+## Compute metrics in a second step {#postprocess}
+Some projects run their code, then compute metrics from its output files. Put that second step in a `postprocess()`
+function, next to `run()`:
+
+```python title="qa/main.py"
+def postprocess(runtime_metrics, context):
+    detections = load_detections(context.output_dir / "detections.json")
+    return {**runtime_metrics, **evaluate(detections, context.input_path), "is_failed": False}
+```
+
+- `qa run` calls `postprocess()` with what `run()` returned, unless the run failed or you give `--no-postprocess`.
+- `qa postprocess --input <input>` redoes only the second step, on the files of the previous run. `runtime_metrics` is
+  then empty, and the metrics of the previous run are kept unless `postprocess()` returns new values.
+- For a whole batch: `qa batch <batch> --action-on-existing postprocess`, see
+  [existing results](/docs/using-the-qa-cli#dealing-with-existing-results).
+
+## Import results computed elsewhere {#import-existing-results}
+To compare your code with a benchmark or a reference implementation, import their results as runs. Say they are
+next to your images, in a folder per input:
+
+```text
+<database>
 ├── images
 │  ├── A.jpg
 │  └── B.jpg
@@ -117,85 +146,67 @@ database
          └── output.jpg
 ```
 
-```python title="qa/main.py"
-import os
-import shutil
+Give the benchmark as a configuration, in a batch:
 
-def run(context):
-    if context.type == 'benchmark':
-        # Next page you will learn how you can provided configurations/parameters to the run.
-        benchmark = context.params['benchmark']
-        # Find the benchmark results...
-        benchmark_outputs = context.database / benchmark / context.rel_input_path.parent / context.rel_input_path.stem
-        # To copy the result image only
-        shutil.copy(str(benchmark_outputs / 'output.jpg'), str(context.output_dir))
-        # To copy the whole directory
-        shutil.copytree(
-            str(benchmark_outputs),
-            str(context.output_dir),
-            dirs_exist_ok=True, # python>=3.8, otherwise just call `cp -R` to do it yourself...
-        )
-    # Otherwise run your code, that create *output.jpg*
-```
-
-To actually import the results, create a batch (more info later) for the benchmark. `qa batch import-standard-benchmark` with:
-
-```yaml  title="qa/batches.yaml"
+```yaml title="qa/batches.yaml"
 import-standard-benchmark:
-  type: benchmark
-  configurations:
+  configs:
   - benchmark: standard-benchmark
   inputs:
   - images
 ```
 
-> Now you can make comparisons!
+When it's set, `run()` copies the benchmark's files instead of running your code:
 
-:::tip
-From the QA-Board web application, you can set the benchark as a "milestone", to compare your results to it in a click.
-:::
-
-
-## Useful `context` properties (Reference)
-
-| **What**              |                                               |
-|-----------------------|-----------------------------------------------|
-| `database`            | path to the database                          |
-| `rel_input_path`      | input relative to the database                |
-| `input_path`          | $database / $rel_input_path                   |
-| `type`                | input type                                    |
-| `input_metadata`      | if relevant, input metadata (more info later) |
-
-| **How**            |                                                                                          |
-|--------------------|------------------------------------------------------------------------------------------|
-| `configs`          | Many algorithms need some notion of "incremental/delta/cascading configs". *Array* of strings or dicts or whatever. *You* decide how to interpret it.                                                                     |
-| `params`           | `dict` with all the above `configs` of type `dict` deep merged. It's often all you need!.|
-| `platform`         | Usually the host (linux/windows), but can be overwritten as part of your custom logic    |
-| `forwarded_args`   | Extra CLI flags. Usually used for debugging. Also available in `params`.                 |
-| `configurations`   | (advanced): Array of strings or dicts, but without tuning extra parameters like `configs`.           |
-| `extra_parameters` | (advanced): When doing tuning via QA-Board or using extra CLI forwarded arguments, a dict of `key:values`. |
+```python title="qa/main.py"
+import shutil
 
 
-| **Where**           |                                            |
-|---------------------|--------------------------------------------|
-| `output_dir`        | where your code should save its outputs    |
-| `id`                | the run's ID in QA-Board (`None` with `qa --offline`, or if the server can't be reached) |
-
-:::tip
-You can use `context.obj` to store arbitrary data.
-:::
-
-### Environment variables
-- `qa` sets `QA_LABEL` to the run's label (from `qa --label`), e.g. for your code's own logs.
-- `QA_USER` overrides the user name `qa` uses (by default, the logged-in user), e.g. for `{user}` in [storage locations](storage/where-is-the-data).
-- `GIT_MESSAGE` and `GIT_AUTHORED_DATETIME` override the commit message and date sent to QA-Board, e.g. when your code isn't in a git repository.
-
-## Accessing the QA-Board configuration
-:::note Work in Progress
-A full reference for `from qaboard.config import ...` will arrive in the docs!
-:::
-
-```python
-from qaboard.config import project, config, ...
+def run(context):
+    benchmark = context.params.get("benchmark")
+    if benchmark:
+        outputs = context.database / benchmark / context.rel_input_path.with_suffix("")
+        shutil.copytree(outputs, context.output_dir, dirs_exist_ok=True)
+        return {"is_failed": False}
+    # otherwise, run your code, which writes output.jpg
 ```
 
+Run `qa --share batch import-standard-benchmark`, then make that batch a
+[milestone](/docs/references-and-milestones) to compare with it in a click.
+
+## Reference
+### The context {#useful-context-properties-reference}
+| Property | What it is |
+|---|---|
+| `input_path` | The input's absolute path. |
+| `rel_input_path` | The input's path relative to the database, as you give it to `qa run --input` and in batches. |
+| `database` | The folder with your inputs (absolute), see [Inputs](/docs/inputs#the-database). |
+| `type` | The input type, see [input types](/docs/inputs#advanced-handling-multiple-input-types). |
+| `input_metadata` | The input's metadata, if your entrypoint has a `metadata()` function: see [Metadata](/docs/metadata-integration-external-databases). |
+| `configs` | The list of configurations, then the tuning parameters. Your code decides what they mean: see [Configurations](/docs/specifying-configurations). |
+| `params` | The mappings of `configs`, merged: often all you need. |
+| `platform` | `linux` or `windows`, or what `qa --platform` sets, e.g. `hw-model`. |
+| `forwarded_args` | The arguments after the input: `qa run --input A.jpg --verbose`. |
+| `output_dir` | Where to save the output files. `qa` creates it, and empties it before the run. |
+| `dryrun` | `True` with `qa --dryrun run`: print what you would do, without doing it. |
+| `id` | The run's id in QA-Board. `None` when results aren't sent: without `--share` outside CI, with `--offline`, or when the server can't be reached. |
+| `configurations`, `extra_parameters` | `configs` in two parts: the configurations, and the tuning parameters with the forwarded arguments. |
+
+### Environment variables {#environment-variables}
+- `qa` sets `QA_LABEL` to the run's label (from `qa --label`), e.g. for your code's own logs.
+- `QA_USER` overrides the user name `qa` uses (by default, the logged-in user), e.g. for `{user}` in
+  [storage locations](/docs/storage/where-is-the-data).
+- `GIT_MESSAGE` and `GIT_AUTHORED_DATETIME` override the commit message and date sent to QA-Board, e.g. when your code
+  isn't in a git repository.
+
+### qa's settings in your code {#accessing-the-qa-board-configuration}
+Your code can read what `qa` knows:
+
+```python
+from qaboard.config import config, project, commit_id, commit_branch, is_ci
+```
+
+- `config`: the project's *qaboard.yaml*, merged with the [site defaults](/docs/project-init#site-defaults), as a dict.
+- `project`: the project's name, as a path, e.g. `kitefin/camera-isp`.
+- `commit_id`, `commit_branch`: the commit and branch being run.
+- `is_ci`: whether `qa` runs in CI (the `CI` or `GIT_COMMIT` environment variable is set).

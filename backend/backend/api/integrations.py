@@ -129,6 +129,8 @@ def integration_error(e):
 
 
 jenkins_credentials = json.loads(os.environ.get('JENKINS_AUTH', '{}'))
+# The token of "Trigger builds remotely" sent to jobs whose integration doesn't give one
+jenkins_build_token = os.environ.get('JENKINS_BUILD_TOKEN')
 def jenkins_hostname_credentials(build_url):
   hostname = urlparse(build_url).hostname
   if hostname not in jenkins_credentials:
@@ -673,10 +675,11 @@ def trigger_jenkins_build(data):
     # the docs used to say `parameters`
     **(data.get('params') or data.get('parameters') or {}),
   }
-  if "token" in data:
-    params["token"] = data["token"]
-  else:
-    params["token"] = "qaboard" # FIXME: default to not setting it in the OSS version
+  # The job's token ("Trigger builds remotely"): the integration's, else the server's JENKINS_BUILD_TOKEN.
+  # `token: null` or "" sends none (the Windows runner sends null when it has no token).
+  token = data["token"] if "token" in data else jenkins_build_token
+  if token:
+    params["token"] = token
 
   def post(build_trigger_url):
     # Jenkins answers "201 Created" with the queue item in `location`. We don't follow redirects:

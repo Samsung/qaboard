@@ -63,7 +63,7 @@ outputs:
   metrics: qa/metrics.yaml
 
   # To learn more about how to describe how results should be visualized:
-  # http://qa-docs/docs/visualizations
+  # https://samsung.github.io/qaboard/docs/visualizations
   visualizations:
   # - name: My image
   #   path: output.jpg
@@ -160,7 +160,7 @@ bit_accuracy: {}
 
 
 # the web application can give users buttons to trigger gitlabCI/jenkins builds or webhooks
-# http://qa-docs/docs/triggering-third-party-tools
+# https://samsung.github.io/qaboard/docs/triggering-third-party-tools
 # integrations:
 #   - text: Windows
 #     href: http://direct.link/anywhere
