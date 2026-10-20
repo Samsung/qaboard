@@ -495,7 +495,9 @@ class TestCleanOutputDir(unittest.TestCase):
       (output_dir / 'a' / 'b.txt').write_text('b')
       (output_dir / 'log.lsf.txt').write_text('old')
       code = f"from pathlib import Path; from qaboard.utils import clean_output_dir; clean_output_dir(Path('{output_dir}'))"
-      subprocess.run([sys.executable, '-c', code], check=True, stdout=subprocess.DEVNULL)
+      # Not the test runner's stderr: if it's a file that was deleted, a file of the output dir can reuse its inode,
+      # and clean_output_dir would keep it as one of its own logs
+      subprocess.run([sys.executable, '-c', code], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
       self.assertFalse(output_dir.exists())
 
   def test_keeps_nested_redirected_logs(self):
