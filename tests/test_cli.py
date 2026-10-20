@@ -44,10 +44,12 @@ class TestQaCli(unittest.TestCase):
   def setUp(self):
     # the qa CLI chdirs without restoring the cwd
     os.chdir(self.project_dir)
-    def qa_(*argv):
-      # qaboard.config resolves the project from the cwd, and qa.py binds it at import time
-      reload(import_module('qaboard.config'))
-      reload(import_module('qaboard.qa'))
+    def qa_(*argv, reload_modules=True):
+      # qaboard.config resolves the project from the cwd, and qa.py binds it at import time.
+      # Tests that patch them run a previous command to load them, then keep them: reload_modules=False
+      if reload_modules:
+        reload(import_module('qaboard.config'))
+        reload(import_module('qaboard.qa'))
       import qaboard
       qaboard = reload(qaboard)
       runner = CliRunner()
@@ -75,6 +77,12 @@ class TestQaCli(unittest.TestCase):
     result = self.qa('--help')
     assert result.exit_code == 0
     assert 'Usage:' in result.output
+
+  def test_batch_help(self):
+    result = self.qa('batch', '--help')
+    assert result.exit_code == 0
+    # joblib's n_jobs=-1 uses all CPUs
+    assert '-1=one per CPU' in ' '.join(result.output.split())
 
   def test_run(self):
     result = self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"')
@@ -142,6 +150,134 @@ class TestQaCli(unittest.TestCase):
       result = self.qa('--dryrun', 'batch', '--runs-file', str(runs_file), 'images', '--list')
       assert result.exit_code != 0
 
+  def test_batch_runner_settings(self):
+    """A batch's runner settings apply to its runs, except the options given on the command line"""
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+      batches_file = Path(tmp) / 'batches.yaml'
+      images = yaml.safe_load(Path('image.batches.yaml').read_text())['images']
+      batches_file.write_text(yaml.dump({'serial': {**images, 'local': {'concurrency': 1, 'timeout': 60}}}))
+      def job_options(*args):
+        result = self.qa('--dryrun', 'batch', '--batches-file', str(batches_file), '--runner=local', '--list', *args, 'serial')
+        assert result.exit_code == 0
+        return [(job['job_options']['concurrency'], job['job_options']['timeout']) for job in json.loads(result.stdout)]
+      assert job_options() == [(1, 60)] * 3
+      # qaboard.yaml has runners.local.concurrency: -1
+      assert job_options('--local-concurrency', '-1') == [(-1, 60)] * 3
+
+  def test_batch_action_on_existing_assert_exists(self):
+    """--action-on-existing assert-exists fails if runs are missing, else does nothing with the runs that succeeded"""
+    from unittest import mock
+    from qaboard.api import dir_to_url
+    result = self.qa('--dryrun', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--list')
+    runs = json.loads(result.stdout)
+    assert len(runs) == 3
+    def past_run(index, run, is_failed=False):
+      return {
+        "id": index, "output_dir_url": dir_to_url(Path(run['output_dir'])), "is_pending": False, "is_failed": is_failed,
+        "test_input_path": run['rel_input_path'], "test_input_database": run['database'], "configurations": run['configurations'],
+        "extra_parameters": run['extra_parameters'], "platform": run['platform'], "output_type": run['type'],
+      }
+    def batch(past_runs):
+      with mock.patch('qaboard.qa.get_outputs', return_value=dict(enumerate(past_runs))):
+        return self.qa('--dryrun', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--action-on-existing', 'assert-exists', '--list', reload_modules=False)
+    # a run is missing
+    result = batch([past_run(0, runs[0]), past_run(1, runs[1])])
+    assert result.exit_code == 1
+    # they all exist: only the failed one runs again
+    result = batch([past_run(0, runs[0]), past_run(1, runs[1], is_failed=True), past_run(2, runs[2])])
+    assert result.exit_code == 0
+    jobs = json.loads(result.stdout)
+    assert [job['output_dir'] for job in jobs] == [runs[1]['output_dir']]
+    assert ' run --input ' in jobs[0]['command']
+
+  def test_check_bit_accuracy_reference_platform(self):
+    """--reference-platform compares with the reference's runs on another platform"""
+    from unittest import mock
+    from qaboard.config import ci_env_variables
+    # outside CI, so that runs are where the reference's are looked for: in CI, qa writes them in the commit's storage
+    not_ci = {k: v for k, v in os.environ.items() if k not in ci_env_variables}
+    with mock.patch.dict(os.environ, not_ci, clear=True):
+      self._check_bit_accuracy_reference_platform()
+
+  def _check_bit_accuracy_reference_platform(self):
+    import sys
+    import shutil
+    import tempfile
+    from unittest import mock
+    result = self.qa('--configuration', 'base', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--list')
+    runs = json.loads(result.stdout)
+    assert len(runs) == 3
+    with tempfile.TemporaryDirectory() as tmp:
+      # the reference's runs, on the hw platform
+      result = self.qa('--configuration', 'base', '--platform', 'hw', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--list')
+      reference_runs = json.loads(result.stdout)
+      reference_root = Path(tmp) / 'reference'
+      output_dirs = [Path(run['output_dir']) for run in runs]
+      reference_dirs = [reference_root / Path(run['output_dir']).relative_to(Path().resolve()) for run in reference_runs]
+      assert output_dirs != [d.relative_to(reference_root).resolve() for d in reference_dirs] # the platform is part of the output directory
+      def write_runs(dirs, md5):
+        for d in dirs:
+          d.mkdir(parents=True, exist_ok=True)
+          for manifest in ['manifest.outputs.json', 'manifest.inputs.json']:
+            (d / manifest).write_text(json.dumps({"out.txt": {"md5": md5}}))
+      self.addCleanup(lambda: [shutil.rmtree(d, ignore_errors=True) for d in output_dirs])
+      write_runs(output_dirs, 'same')
+      write_runs(reference_dirs, 'same')
+      def check_bit_accuracy():
+        config = sys.modules['qaboard.config']
+        with mock.patch.object(config, 'is_in_git_repo', True), mock.patch.object(config, 'is_ci', False), \
+             mock.patch.object(config, 'outputs_project_root', reference_root), \
+             mock.patch('qaboard.git.latest_commit', return_value='a' * 40), \
+             mock.patch('qaboard.git_hosts.lastest_successful_ci_commit', side_effect=lambda commit: commit), \
+             mock.patch('qaboard.conventions.get_commit_dirs', return_value=Path()):
+          return self.qa('--configuration', 'base', 'check-bit-accuracy', '--batches-file', 'image.batches.yaml', '--batch', 'images', '--reference-platform', 'hw', reload_modules=False)
+      result = check_bit_accuracy()
+      assert result.exit_code == 0, result.output
+      assert result.output.count('✔️') == 6 # outputs and inputs of each run
+      write_runs(reference_dirs[1:2], 'other')
+      result = check_bit_accuracy()
+      assert result.exit_code == 1
+      assert 'Mismatch' in result.output
+
+  def test_optimize_without_checkpoint(self):
+    """--checkpoint is optional"""
+    import tempfile
+    from unittest import mock
+    with tempfile.TemporaryDirectory() as tmp:
+      config_file = Path(tmp) / 'optimize.yaml'
+      config_file.write_text(yaml.dump({
+        "evaluations": 2,
+        "objective": {"psnr": {}},
+        "search_space": [{"Integer": {"name": "x", "low": 0, "high": 10}}],
+      }))
+      with mock.patch('qaboard.optimize.batch_objective', return_value=1.0) as batch_objective, \
+           mock.patch('qaboard.optimize.notify_qa_database'), \
+           mock.patch('qaboard.api.aggregated_metrics', return_value={}):
+        result = self.qa('--dryrun', 'optimize', '--batches-file', 'image.batches.yaml', '--batch', 'images', '--config-file', str(config_file))
+      assert result.exit_code == 0
+      assert batch_objective.call_count == 2
+      # with a checkpoint, the optimizer's state is saved
+      checkpoint = Path(tmp) / 'checkpoint.pkl'
+      with mock.patch('qaboard.optimize.batch_objective', return_value=1.0), \
+           mock.patch('qaboard.optimize.notify_qa_database'), \
+           mock.patch('qaboard.api.aggregated_metrics', return_value={}):
+        result = self.qa('--dryrun', 'optimize', '--batches-file', 'image.batches.yaml', '--batch', 'images', '--config-file', str(config_file), '--checkpoint', str(checkpoint))
+      assert result.exit_code == 0
+      assert checkpoint.exists()
+
+  def test_wait(self):
+    """qa wait waits for the run to finish, and fails when the run failed"""
+    from unittest import mock
+    pending, failed, succeeded = {"is_pending": True, "is_failed": False}, {"is_pending": False, "is_failed": True}, {"is_pending": False, "is_failed": False}
+    with mock.patch('qaboard.api.get_output', side_effect=[pending, failed]) as get_output, mock.patch('time.sleep'):
+      result = self.qa('wait', '--output-id', '1')
+    assert get_output.call_count == 2
+    assert result.exit_code == 1
+    with mock.patch('qaboard.api.get_output', side_effect=[succeeded]):
+      result = self.qa('wait', '--output-id', '1')
+    assert result.exit_code == 0
+
   def test_runner_local(self):
     result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{input_path} => {output_dir}"')
     print('stdout:', result.stdout)
@@ -184,6 +320,24 @@ class TestQaCli(unittest.TestCase):
       assert not os.system('qa init')
       assert not os.system('qa get project')
     os.chdir(prev)
+
+
+  def test_messages_name_the_qa_cli(self):
+    """qa talks about QA-Board, qaboard.yaml and `qa`, not their old name"""
+    import sys
+    import subprocess
+    import tempfile
+    qa = Path(sys.executable).parent / 'qa'
+    if not qa.exists():
+      self.skipTest('needs the qa executable')
+    with tempfile.TemporaryDirectory() as tmp:
+      # outside a project
+      out = subprocess.run([str(qa), 'get', 'commit_id'], cwd=tmp, capture_output=True, encoding='utf-8')
+      self.assertIn('run `qa init`', out.stderr)
+      out_init = subprocess.run([str(qa), '--dryrun', 'init'], cwd=tmp, capture_output=True, encoding='utf-8')
+      self.assertIn('Creating a `qaboard.yaml` configuration', out_init.stdout)
+      for output in [out.stdout, out.stderr, out_init.stdout, out_init.stderr]:
+        self.assertNotIn('qatools', output)
 
 
   @unittest.skip("tendency to fail for no reason")

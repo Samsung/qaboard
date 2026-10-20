@@ -1,40 +1,40 @@
 ---
 id: computing-quantitative-metrics
 sidebar_label: Metrics
-title: Computing quantitative metrics
-description: Return metrics from your run() function, declare which way is better where your code computes them, and choose the metrics QA-Board shows by default.
+title: Metrics
+description: Return metrics from your run() function, declare their label, unit, target and which way is better where your code computes them, and choose the metrics QA-Board shows by default.
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
 
-Algorithms are evaluated with metrics: KPIs, objective figures of merit, errors, run times... QA-Board shows the
-metrics your runs return in summaries, tables, run cards and plots over time, and compares them with a reference.
+Your `run()` function returns the numbers that say how good a run is: PSNR, mAP, p99 latency, a run time. QA-Board
+shows them in summaries, tables, run cards and plots over time, compared with the reference's. This page shows how to
+return them, then how to tell QA-Board which way is better, so that it colors improvements and regressions.
 
-## Returning metrics
-Your `run()` function returns a dict of metrics. That's all QA-Board needs to show them:
+## Return metrics {#returning-metrics}
+`run()` returns a dict:
 
 ```python title="qa/main.py"
 def run(context):
     # --snip--
     return {
         "psnr": psnr,
-        "latency": latency_ms,
-        "frames": len(frames),
+        "overshoot": overshoot,
+        "runtime": runtime_s,
         "is_failed": False,
     }
 ```
 
-Every metric with a number is shown, there is nothing else to configure. `qa` adds `compute_time`, the run's duration
-in seconds. Metrics can also be strings and [rich metrics](#rich-metrics), and `is_failed` says whether the run
-[failed](#failed-runs).
+That's all QA-Board needs. `qa run` prints the metrics, `qa` sends them to QA-Board with the run (with `--share`,
+or in CI), and the web app shows every metric with a number. `qa` adds `compute_time`, the run's duration in seconds,
+and `is_failed` says whether the run [failed](#failed-runs).
 
-:::tip
-If your code is not in Python, or runs in another process, it can write a *metrics.json* file in `context.output_dir`:
-`qa` merges it with what `run()` returns (`run()` wins for the same key). It can declare these metrics in a
+:::tip Code in another language or process
+It can write a *metrics.json* file in `context.output_dir`: `qa` merges it with what `run()` returns (`run()` wins
+for the same key). It can declare the metrics in a
 [metrics_definitions.json](#from-any-language-metrics_definitionsjson).
 :::
 
-### What QA-Board shows by default
-Until you tell it more, QA-Board doesn't know whether higher or lower values of a metric are better. So it shows them
+### What QA-Board shows by default {#what-qa-board-shows-by-default}
+Until you declare them, QA-Board doesn't know whether higher or lower values of a metric are better, so it shows them
 **in neutral colors**:
 - the **Summary** shows up to 8 metrics: those whose median changed the most vs the reference (without reference runs,
   the first ones). Their changes are gray, neither green nor red. `compute_time` is left out: pick it if you need it;
@@ -44,12 +44,43 @@ Until you tell it more, QA-Board doesn't know whether higher or lower values of 
 - each **run card** shows the run's first 6 metrics;
 - the **History** page lets you plot any metric of its commits.
 
-Hovering a metric's name says when QA-Board doesn't know which way is better, and the Summary lists those metrics
-with a link to this page. To see improvements in green and regressions in red, labels and units,
-[declare your metrics](#declaring-metrics). For the tables to color values by how good they are, give them a `target`.
+Hovering a metric's name says when QA-Board doesn't know which way is better, and the Summary lists those metrics with
+a link to this page. How people read the metrics: [Reading metrics](/docs/user-guide/metrics).
 
-## Declaring metrics
-Declaring a metric tells QA-Board how to show it. All the fields are optional:
+## Declare your metrics {#declaring-metrics}
+<Anchor id="in-the-returned-values" />
+
+Declaring a metric tells QA-Board how to show it: its label and unit, its target, and whether smaller is better. Wrap
+the values you return in a `Metric`:
+
+```python title="qa/main.py"
+from qaboard import Metric
+
+def run(context):
+    # --snip--
+    return {
+        "psnr": Metric(psnr, label="PSNR", suffix=" dB", smaller_is_better=False, target=30),
+        "overshoot": Metric(overshoot, label="Edge overshoot (halos)", short_label="Overshoot",
+                            suffix="%", scale=100, smaller_is_better=True, target=0.05),
+        "runtime": Metric(runtime_s, label="Runtime", suffix=" s", smaller_is_better=True),
+        "is_failed": False,
+    }
+```
+
+<Anchor id="what-you-get" />
+The web app now shows improvements in green and regressions in red, values with their units, and how far each run is
+from the target:
+
+<Shot
+  id="commit/summary"
+  caption="Declared metrics get colors: the int8 model's smaller size is green, its AP on small objects red, and the bars under the metrics show the share of runs that meet their target."
+/>
+
+A `Metric` behaves like a `float`: your `postprocess()` function can still compute with it. The result of a
+computation is a plain `float`, without the definition: if `postprocess()` replaces a value, wrap it again. Declaring
+needs an up-to-date `qa` (`pip install --upgrade qaboard`) and QA-Board server: older servers ignore the definitions.
+
+All the fields are optional:
 
 | Field | What it does |
 |---|---|
@@ -64,32 +95,12 @@ Declaring a metric tells QA-Board how to show it. All the fields are optional:
 | `precision` | The number of significant digits shown. Default: 3. |
 | `plot_scale` | `"log"` or `"linear"`, for the axis of the plots. Default: log in the Summary's box plots, linear on the History page. |
 
+[Quality gates](/docs/quality-gate) use the definitions too: rules about regressions need to know which way is better.
+
+### Once, next to the code that computes them {#once-next-to-the-code-that-computes-them}
 The best place to declare a metric is where your code computes it, so that the metric and its definition change
-together. There are three ways: pick the one that fits your code. They need an up-to-date `qa`
-(`pip install --upgrade qaboard`) and QA-Board server: older servers ignore the definitions.
-
-### In the returned values
-Wrap the value in a `Metric`, with the fields above:
-
-```python title="qa/main.py"
-from qaboard import Metric
-
-def run(context):
-    # --snip--
-    return {
-        "psnr": Metric(psnr, label="PSNR", suffix=" dB", smaller_is_better=False, target=30),
-        "latency": Metric(latency_ms, suffix=" ms", smaller_is_better=True),
-        "frames": len(frames),  # not declared: shown in neutral colors
-        "is_failed": False,
-    }
-```
-
-A `Metric` behaves like a `float`: your `postprocess()` function can still compute with it. The result of a
-computation is a plain `float`, without the definition: if `postprocess()` replaces a value, wrap it again.
-
-### Once, next to the code that computes them
-When a function computes the same metric in many places, or when a module computes many metrics, declare them once
-with `define_metric`, at the top of the module:
+together. When a function computes the same metric in many places, or when a module computes many metrics, declare
+them once with `define_metric`, at the top of the module:
 
 ```python title="my_algo/quality.py"
 from qaboard import define_metric
@@ -102,8 +113,8 @@ def quality_metrics(output, reference):
 ```
 
 `define_metric` only counts when it runs in `qa`'s process: the module must be imported, directly or not, by your
-*qa/main.py*. Calls in other processes, like a subprocess or `multiprocessing` workers, are not seen. If the module
-is also used without `qa`, keep the import optional:
+*qa/main.py*. Calls in other processes, like a subprocess or `multiprocessing` workers, are not seen. If the module is
+also used without `qa`, keep the import optional:
 
 ```python
 try:
@@ -112,7 +123,7 @@ except ImportError:
     define_metric = lambda *args, **kwargs: None
 ```
 
-### From any language: metrics_definitions.json
+### From any language: metrics_definitions.json {#from-any-language-metrics_definitionsjson}
 If a program in another language computes the metrics, it can write a *metrics_definitions.json* file next to its
 *metrics.json*, in `context.output_dir`:
 
@@ -127,7 +138,11 @@ Editors can check the file and complete its fields with its
 [JSON schema](pathname:///metrics_definitions.schema.json):
 `https://samsung.github.io/qaboard/metrics_definitions.schema.json`.
 
-### How it works
+<details>
+<summary>How QA-Board combines the definitions</summary>
+
+<Anchor id="how-it-works" />
+
 At the end of each run, `qa` gathers the definitions of the metrics the run returned, field by field: from
 `define_metric`, then *metrics_definitions.json*, then `Metric`, the last one winning. Fields with a wrong type are
 left out, with a warning. `qa` sends the definitions to QA-Board with the run's metrics.
@@ -137,13 +152,46 @@ use the definitions from the latest runs on the reference branch, and the Histor
 QA-Board writes a commit's definitions only when they're new or changed: give all the runs the same definitions,
 e.g. don't compute a different `target` for each input.
 
-## Declaring metrics in a metrics file
-Projects can also declare metrics in a file, listed in *qaboard.yaml*:
+Definitions in a [metrics file](#declaring-metrics-in-a-metrics-file) apply too: for a metric declared in both, the
+fields from your code win.
+
+</details>
+
+## Choose the metrics shown by default {#choosing-the-metrics-shown-by-default}
+Without configuration, QA-Board picks the metrics it shows, see [above](#what-qa-board-shows-by-default). To choose
+them, list them in a metrics file, and give its path in *qaboard.yaml*. The metrics you list don't have to be declared:
 
 ```yaml title="qaboard.yaml"
 outputs:
   metrics: qa/metrics.yaml
 ```
+
+```yaml title="qa/metrics.yaml"
+# the metric used to sort runs, shown in lists of commits and plotted over time on their page
+default_metric: psnr
+# shown in the Summary
+summary_metrics: [psnr, ssim, overshoot]
+# shown in the tables and on the run cards, and offered in the plot over time of the lists of commits
+main_metrics: [psnr, overshoot, runtime]
+
+# Optional, for the History page: the metrics in its summary and tables (default: main_metrics, else QA-Board picks),
+# those you can plot over time (default: main_metrics, else all the metrics of its commits)
+# dashboard_metrics: [psnr, runtime]
+# dashboard_evolution_metrics: [psnr, ssim, runtime]
+# also summarize the metrics per tag of the inputs, from the "tags" of their metadata
+# dashboard_breakdown_by_tag: true
+```
+
+People pick other metrics in the Summary and the tables. Run cards always show the `main_metrics`. Lists of commits
+only show metrics over time with a `default_metric` or `main_metrics`.
+
+<Shot
+  id="commit/metrics-table"
+  caption="The tables show the main metrics, one row per test: each cell is colored by how far it is from the metric's target, given in the header."
+/>
+
+## Declaring metrics in a metrics file {#declaring-metrics-in-a-metrics-file}
+The metrics file can also declare metrics, under `available_metrics`, with the fields [above](#declaring-metrics):
 
 ```yaml title="qa/metrics.yaml"
 # yaml-language-server: $schema=https://samsung.github.io/qaboard/metrics.schema.json
@@ -159,8 +207,10 @@ available_metrics:
 ```
 
 It works with the definitions from your code: for a metric declared in both, the fields from your code win, in the
-web app and in [quality gates](/docs/quality-gate). [`qa optimize`](/docs/auto-optimization) only
-reads the metrics file: declare there the metrics you optimize, with `smaller_is_better`.
+web app and in [quality gates](/docs/quality-gate). [`qa optimize`](/docs/auto-optimization) only reads the metrics
+file: declare there the metrics you optimize, with `smaller_is_better`. The
+[camera ISP example's metrics file](https://github.com/Samsung/qaboard/blob/master/examples/image-quality/qa/metrics.yaml)
+declares all its metrics.
 
 :::caution
 In metrics files, metrics that leave out `smaller_is_better` are "smaller is better", like `loss` above. Write
@@ -168,56 +218,11 @@ In metrics files, metrics that leave out `smaller_is_better` are "smaller is bet
 with nothing after it) also meant "smaller is better": if your metrics file has some, write `true`.
 :::
 
-## Choosing the metrics shown by default
-Without configuration, QA-Board picks the metrics it shows, see [above](#what-qa-board-shows-by-default). To choose
-them, list metrics in your metrics file. They don't have to be declared:
+<details>
+<summary>Moving metrics from a metrics file to your code</summary>
 
-```yaml title="qa/metrics.yaml"
-# the metric used to sort runs, shown in lists of commits and plotted over time on their page
-default_metric: psnr
-# shown in the Summary
-summary_metrics: [psnr, ssim, latency]
-# shown in the tables and on the run cards, and offered in the plot over time of the lists of commits
-main_metrics: [psnr, latency]
+<Anchor id="moving-metrics-from-a-metrics-file-to-your-code" />
 
-# Optional, for the History page: the metrics in its summary and tables (default: main_metrics, else QA-Board picks),
-# those you can plot over time (default: main_metrics, else all the metrics of its commits)
-# dashboard_metrics: [psnr, latency]
-# dashboard_evolution_metrics: [psnr, ssim, latency]
-# also summarize the metrics per tag of the inputs, from the "tags" of their metadata
-# dashboard_breakdown_by_tag: true
-```
-
-Users pick other metrics in the Summary and the tables. Run cards always show the `main_metrics`. Lists of commits
-only show metrics over time with a `default_metric` or `main_metrics`.
-
-## What you get
-- Summaries of the metrics against the reference:
-
-<Shot
-  id="commit/summary"
-  caption="The summary metrics' medians against the reference, the share of runs that meet each target, and box plots of the runs."
-/>
-
-- Tables to compare metrics per input across versions, colored by their distance to the targets:
-
-<Shot
-  id="commit/metrics-table"
-  caption="One row per slice and variant: each cell is colored by how far it is from the metric's target, and the headers give the units."
-/>
-
-- Metrics integrated in the visualizations:
-
-<Shot
-  id="commit/visualizations"
-  caption="Each run card starts with its main metrics and their change against the reference."
-/>
-
-- their evolution over time per branch, in [History](/docs/user-guide/history-and-dashboards);
-- and [quality gates](/docs/quality-gate) in your CI, that fail when metrics regress. Rules about regressions need
-  to know which way is better: declare `smaller_is_better` for the metrics they check.
-
-## Moving metrics from a metrics file to your code
 Long metrics files are hard to maintain: nobody owns the hundreds of metrics they list, and they're out of date as soon
 as the code changes. You don't have to move everything at once:
 
@@ -228,76 +233,49 @@ as the code changes. You don't have to move everything at once:
 4. Keep in the metrics file the lists of metrics to show by default (`summary_metrics`, `main_metrics`...). Once
    QA-Board's choices suit you, delete the file and `outputs.metrics` in *qaboard.yaml*.
 
-:::caution
 A definition in a metrics file without `smaller_is_better` means "smaller is better". When you move it to your code,
-write `smaller_is_better=True`, else QA-Board shows the metric in neutral colors, and [quality gate](/docs/quality-gate)
-rules about its regressions fail.
-:::
+write `smaller_is_better=True`, else QA-Board shows the metric in neutral colors, and quality gate rules about its
+regressions fail.
 
-## Failed runs
-The metric `is_failed` is boolean. If true, QA-Board will consider the run as "failed".
-The main uses cases are:
-  * highlight in the UI
-  * failing runs that don't achieve a basic target quality (or where things just crash...)
-  * simplifying the control flow, instead of raising an exception from `run()`
-  * remembering if the `run` was successful, when users split between `run/postprocess` stages
+</details>
 
-## Rich metrics
-If you return string metrics, they will be shown in the UI's tables and cards like this:
+## Failed runs {#failed-runs}
+Return `"is_failed": True` when a run didn't work: it crashed, or its output is unusable. The run's card says
+**Failed: see the logs**, and `qa run` exits with an error. Returning it is often simpler than raising an exception,
+and when you split your code between `run()` and `postprocess()`, `qa` doesn't call `postprocess()` after a failed
+`run()`.
 
-<img alt="Rich metrics in a card" src={useBaseUrl('img/rich-metrics-in-card.png')} />
+If `run()` raises an exception, or doesn't return a dict, `qa` marks the run failed. If it returns metrics without
+`is_failed`, `qa` adds `"is_failed": False`.
 
-You can return "rich" metrics to customize the display:
+## Text and tags {#rich-metrics}
+Metrics can also be strings: tables and run cards show them as tags. To customize a tag, return a dict:
 
-```python
+```python title="qa/main.py"
 def run(context):
-    # ...
-    metrics = {
-        "loss": 1.345, # regular metric
-        "status": "unstable", # string metric
-        # you can have more complex metrics..
-        "rich_status": {
+    # --snip--
+    return {
+        "loss": 1.345,          # a number
+        "status": "unstable",   # a string, shown as a tag
+        "rich_status": {        # a tag with an icon and a color, that links somewhere
             "text": "unstable",
-            # link to somewhere
             "href": "https://example.com",
-            "icon": "settings", # choose from https://blueprintjs.com/docs/#icons
-            "intent": "WARNING", # or PRIMARY|SUCCESS|DANGER
-            # the rendered "tag" supports all parameters of
-            #   https://blueprintjs.com/docs/#core/components/tag
-            # like "style" for CSS properties, large, minimal....
-        } 
+            "icon": "warning-sign",   # a Blueprint icon: https://blueprintjs.com/docs/#icons
+            "intent": "warning",      # or primary, success, danger
+            # also: "minimal": True, "large": True, "style": {...} (CSS)
+        },
     }
-    return metrics
 ```
 
-## Metrics shown as a "run-time" configuration
-It is possible to add at run-time parameters to the run. The use-cases are:
-1. **making very visible a few key parameters** nested deep in a config-file, and enabling **filtering** by them
-2. **displaying links** next to runs, grouped with the configuration (and not the metrics like above!). Users often use those badges to do deep-learning inference on QA-Board, and easily link back to the training page, managed by a different product. They'll give a model ID as configuration, their `run()` will fetch the training page URL, and it enables smooth workflows.
+## Parameters and badges next to the configuration {#metrics-shown-as-a-run-time-configuration}
+A run can add parameters to its configuration, under a `params` key. They show with the run's configuration, as
+`key: value` tags, and the filter box finds runs by them. Use it to make visible a few key settings buried in a
+configuration file, or to link to another tool, like a model registry or a training run, with `badges`: tags like the
+[rich metrics](#rich-metrics) above. The detector example returns the model it evaluated, and a link to its model card:
+
+<RepoFile path="examples/detection-eval/qa/main.py" title="qa/main.py" lines="139-147" />
 
 <Shot
   id="commit/run-badges"
-  caption="The model badge sits with the run's configuration tags, and links to the model's card."
+  caption="The run's model shows with its configuration tags, followed by its badge, a link to the model card."
 />
-
-To make it happen, return in your metrics a `params` key:
-
-```python
-def run(context):
-    return {
-        # ...
-        "params": {
-            # in the UI users will see "mode" as part of the run parameters
-            "mode": "GAN",
-            # they will also see a "badge" linking to the model training page:
-            "badges": [
-                {
-                    "text": "Training",
-                    "href": "https://wandb/run/<some-id>",
-                    "icon": "settings",
-                    # for more info on available key see above
-                }
-            ]
-        }
-    }
-```

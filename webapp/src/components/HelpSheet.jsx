@@ -93,16 +93,21 @@ const shortcuts = [
   ]},
   { title: "Image and text viewers", keys: [
     [<Kbd key="t">t</Kbd>, "Swap new and reference in place, in all the viewers"],
-    [<Kbd key="h">h</Kbd>, "Hide or show the new/reference labels"],
-    [<Kbd key="c">c</Kbd>, "Select a region of an image (after clicking it), Enter to see its histogram"],
+    [<><Kbd>1</Kbd>–<Kbd>4</Kbd></>, "Images: side by side, wipe, single, difference"],
+    [<><Kbd>+</Kbd> <Kbd>−</Kbd> <Kbd>0</Kbd></>, "Zoom in, zoom out, fit"],
+    [<><Kbd>[</Kbd> <Kbd>]</Kbd></>, "Previous or next region of interest"],
+    [<><Kbd>p</Kbd> <Kbd>f</Kbd></>, "Pixel values, full screen"],
+    [<Kbd key="c">c</Kbd>, "Images: compare with the reference, or the file picked last in the vs menu"],
+    [<Kbd key="h">h</Kbd>, "Blind test: the images in a random order, h again reveals them, then ends it"],
   ]},
   { title: "Videos (hover or click a player)", keys: [
     [<Kbd key="space">Space</Kbd>, "Play or pause"],
     [<><Kbd>←</Kbd> <Kbd>→</Kbd></>, "Previous or next frame; with Shift, one second"],
-    [<><Kbd>[</Kbd> <Kbd>]</Kbd></>, "Slower or faster"],
+    [<><Kbd>&lt;</Kbd> <Kbd>&gt;</Kbd></>, "Slower or faster"],
     [<><Kbd>+</Kbd> <Kbd>−</Kbd> <Kbd>0</Kbd></>, "Zoom in, zoom out, fit"],
-    [<><Kbd>1</Kbd>–<Kbd>4</Kbd></>, "Side by side, wipe, toggle... when comparing"],
-    [<><Kbd>t</Kbd> <Kbd>h</Kbd> <Kbd>m</Kbd></>, "Swap, hide labels, mute"],
+    [<><Kbd>1</Kbd>–<Kbd>4</Kbd></>, "Side by side, wipe, single, difference"],
+    [<><Kbd>n</Kbd> <Kbd>Shift</Kbd> <Kbd>n</Kbd></>, "Next or previous frame where the videos differ most"],
+    [<><Kbd>t</Kbd> <Kbd>h</Kbd> <Kbd>m</Kbd></>, "Swap, blind test, mute"],
   ]},
   { title: "Available Tests", keys: [
     [<><Kbd>Ctrl</Kbd> <Kbd>S</Kbd></>, "Save the batches file (⌘ S on macOS)"],
@@ -145,7 +150,7 @@ const HelpSheet = ({ isOpen, onClose }) => {
           <h4>Filtering runs</h4>
           <p>
             <code>night indoor</code> both words, <code>-night</code> excludes, <code>2X5|GW1</code> regular expression,{" "}
-            <code>threshold:0.5</code> tuning parameter, <code>failed</code>, <code>running</code>, <code>id:1234</code>.{" "}
+            <code>threshold:0.5</code> tuning parameter, <code>fail</code>, <code>running</code>, <code>id:1234</code>.{" "}
             <Doc page="user-guide/finding-results#filter-syntax">Filter syntax</Doc>
           </p>
           <h4>Searching commits</h4>

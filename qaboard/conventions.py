@@ -240,12 +240,15 @@ def batch_dir(outputs_commit, batch_label, save_with_ci=False):
 def make_batch_dir(outputs_commit, batch_label, platform, configurations, extra_parameters, save_with_ci):
   return batch_dir(outputs_commit, batch_label, save_with_ci)
 
-def make_batch_conf_dir(outputs_commit, batch_label, platform, configurations, extra_parameters, save_with_ci):
+def batch_conf_dir_name(platform, configurations, extra_parameters) -> str:
   full_configurations = [platform] if platform != 'lsf' else []
   full_configurations.extend([*configurations, extra_parameters])
+  return slugify_hash(full_configurations, maxlength=16)
+
+def make_batch_conf_dir(outputs_commit, batch_label, platform, configurations, extra_parameters, save_with_ci):
   return (
     batch_dir(outputs_commit, batch_label, save_with_ci) /
-    slugify_hash(full_configurations, maxlength=16)
+    batch_conf_dir_name(platform, configurations, extra_parameters)
   )
 
 def output_dirs_for_input_part(input_path, database, config):

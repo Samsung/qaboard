@@ -651,7 +651,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             isOpen={show_move_dialog}
             onOpening={() => setDstBatchLabel(batch.label)}
             onClose={() => setShowMoveDialog(false)}
-            title={batch_filter.length > 0 ? "Move runs to another batch" : "Move selection to another batch" }
+            title={batch_filter.length > 0 ? "Move the filtered runs to another batch" : "Move runs to another batch" }
             icon="send-to-graph"
           >
             <div className={Classes.DIALOG_BODY}>
@@ -672,7 +672,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
           </Dialog>
           <MenuItem
             icon="send-to-graph"
-            text={batch_filter.length > 0 ? "Move runs to another batch" : "Move selection to another batch"}
+            text={batch_filter.length > 0 ? "Move the filtered runs to another batch" : "Move runs to another batch"}
             minimal
             disabled={waiting || !is_logged}
             shouldDismissPopover={false}

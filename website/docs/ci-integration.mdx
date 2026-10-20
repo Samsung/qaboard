@@ -1,127 +1,168 @@
 ---
 id: ci-integration
-title: Integrating QA-Board with your CI
-sidebar_label: CI Integration
+title: Run QA-Board in your CI
+sidebar_label: CI integration
+description: Run your batch on every push with GitHub Actions, GitLab CI or Jenkins, so that every commit has results to compare with the reference.
 ---
 
-CI tools run automated scripts and tests everytime someone pushes a new commit.
+Run your tests on every commit you push: each commit then has results, and the web app compares them with the
+reference, the latest results of your reference branch. `qa` reads the commit, the branch and the CI job from the
+CI's environment variables, so the job only installs `qaboard` and runs `qa batch`.
 
-:::tip
-If you don't have a CI, try [GitHub Actions](https://docs.github.com/en/actions/quickstart) or [GitLab CI](https://docs.gitlab.com/ee/ci/quick_start/).
-
-This said, you can still view your results in the web application by using `qa --share run/batch`. *Note: It will only work with commits that were pushed to your git host!*
+:::info Before you start
+- A QA-Board server, and its address for `QABOARD_URL` (see [Installation](/docs/installation)).
+- A batch of tests to run on every commit, like `ci` (see [Batches of inputs](/docs/batches-running-on-multiple-inputs)).
+- A CI runner that can write in the results storage, at the same path as the server (like */mnt/qaboard*, an NFS
+  share): a self-hosted GitHub Actions runner, a GitLab runner or a Jenkins agent on your network. GitHub-hosted
+  runners can't save results yet: see the [roadmap](/docs/roadmap#http-upload-of-outputs).
 :::
 
+## Run your batch on every push {#running-qa-board-in-your-ci}
+1. **Add a CI job** that installs `qaboard` and runs your batch:
 
-## Requirement
-- Make sure your repository sends its push events to QA-Board. If you're not sure if/how, review the [setup guide](project-init#optional-connect-your-git-host). You should be able to see your project in the QA-Board web application.
+   <Tabs groupId="ci" queryString>
+   <TabItem value="github-actions" label="GitHub Actions" default>
 
-<Shot
-  id="projects/home"
-  caption="Projects show up on the home page once they have results."
-/>
+   <RepoFile path="website/snippets/ci/github-actions.yml" title=".github/workflows/qaboard.yml" untested />
 
-## Tokens
-Give your CI jobs a token, so that the results they send are verified, and so that it keeps working once your server
-requires tokens to send results (see [Results sent by qa](backend-admin/user-management#results-sent-by-qa)):
-1. In the web app, open **Settings → Access tokens** and create a token with the `read` and `ingest` scopes, restricted
-   to your project (e.g. `group/repo`). Choose how long it lasts: long-lived tokens are fine for CI, if you store them
-   as protected secrets.
-2. Store it in your CI's secrets as `QABOARD_TOKEN`: `qa` sends it. For example in GitHub Actions:
-   `env: {QABOARD_TOKEN: "${{ secrets.QABOARD_TOKEN }}"}`, and in GitLab CI a masked, protected CI/CD variable.
+   </TabItem>
+   <TabItem value="gitlab-ci" label="GitLab CI">
 
-The results then show they were sent with this token. Tokens tied to the CI itself (no stored secret) and tokens
-owned by an organization rather than a person are coming next.
+   <RepoFile path="website/snippets/ci/gitlab-ci.yml" title=".gitlab-ci.yml" untested />
 
-## Running QA-Board in your CI
-1. **Have your CI launch QA-Board**, e.g. `qa batch ci`, assuming you defined a batch named `ci` (examples below).
+   </TabItem>
+   <TabItem value="jenkins" label="Jenkins">
 
-:::note
-You CI is responsible for setting up an environment (`$PATH`...) in which `qaboard` is installed! Consider using `docker`, or sourcing a configuration file...
-:::
+   <RepoFile path="website/snippets/ci/Jenkinsfile" title="Jenkinsfile" untested />
 
-2. **Push a commit**. If your CI is successful, the commit will appear in your project's page: 
+   </TabItem>
+   </Tabs>
+
+   `<your-qaboard>` is your server's address, like `localhost:5151`. If your CI already builds your code, run
+   `qa batch` in the same job, after the build.
+
+2. **Push a commit.** When the job ends, the commit is in your project's commit list, with its CI batch's results.
+   The first push also adds the project to the home page.
+3. **Run the job on your reference branch too**, `main` for instance: every other commit is compared with its latest
+   results (see [References and milestones](/docs/references-and-milestones)).
 
 <Shot
   id="commits/feed"
-  caption="Each commit's row shows how its CI batch went: the main metric's median, a failed batch in red, the other batches it ran."
+  caption="Each commit shows how its CI batch went: the main metrics' medians, and the runs that crashed, in red."
 />
 
-3. If `qa` has a token for your git host, `qa batch` also sets a **commit status** named `QA` (`QA <subproject>` in a [subproject](monorepo-subprojects), with the name of its folder), with a link to the results. Batches run with a `--label` other than `default` get their own status, e.g. `QA | my-label`.
+On the commit page, the CI batch is shown as **CI**: it's the batch with the label `default`. Other batches the CI
+runs with `qa --label nightly batch ...` are listed next to it.
 
-## Example with GitHub Actions
-```yaml title=".github/workflows/qa.yml"
-# Every commit pushed to the repository, on any branch or tag
-on: push
-permissions:
-  contents: read
-  statuses: write  # for qa batch's commit status
-  checks: read     # for bit-accuracy checks that wait for the reference commit's CI
-jobs:
-  qa:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-      with:
-        # For pull_request events: the pull request's last commit, not the temporary merge commit
-        ref: ${{ github.event.pull_request.head.sha || github.sha }}
-    - run: pip install qaboard
-    - run: qa batch ci
-      env:
-        QABOARD_URL: https://qaboard.example.com
-        # GitHub Actions doesn't put its token in the environment: map it
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
-Results in QA-Board belong to commits, so running on `push` is enough: pull requests from the repository's own branches already get a run for each of their commits. With `on: [push, pull_request]`, those would run twice. If you add `pull_request` (e.g. for forks), keep the `ref:` above: `qa` records the pull request's last commit, but by default `actions/checkout` only fetches the temporary merge commit, so `qa` couldn't read the commit's details (message, author, parents) from git.
+## Link commits to their results {#commit-statuses}
+When `qa` has a token for your git host, `qa batch` sets a **commit status** named `QA` on the commit, with a link
+to its results and the number of runs. It's `failed` when runs failed. Batches with another label than `default`
+get their own status, like `QA | nightly`, and in a [subproject](/docs/monorepo-subprojects) the name is
+`QA <folder>`, with the name of the subproject's folder.
 
-`qa` reads the commit from `GITHUB_SHA`, and the branch from `GITHUB_HEAD_REF` or `GITHUB_REF_NAME`. For pull requests, it uses the pull request's last commit, not the merge commit. For tags, it records the tag. It calls the API at `GITHUB_API_URL` (else derived from `GITHUB_SERVER_URL`) for the repository `GITHUB_REPOSITORY`, so it works with GitHub Enterprise too. The token is `GITHUB_TOKEN`, else `GITHUB_ACCESS_TOKEN`, or the host's token in `QABOARD_GIT_HOSTS`.
+| CI | Token |
+|---|---|
+| GitHub Actions | `GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}` in the job's `env`, and `statuses: write` in its `permissions`. GitHub Actions doesn't put its token in the environment by itself. |
+| GitLab CI | A `GITLAB_ACCESS_TOKEN` CI/CD variable (masked), a project access token with the `api` scope. |
+| Other CIs | The token of the git host in `QABOARD_GIT_HOSTS`, else `GITLAB_ACCESS_TOKEN` or `GITHUB_ACCESS_TOKEN` (see [other CI tools](#other-ci-tools)). |
 
-## Example with GitLab CI
-```yaml title=".gitlab-ci.yml"
-stages:
-  - build
-  - qa
+Without a token, `qa batch` works the same and sets no status.
 
-build-linux:
-  stage: build
-  script:
-  - make
-  - qa save-artifacts
+## Send verified results {#tokens}
+Give your CI jobs a token, so that the results they send show who sent them, and so that they keep working once your
+server requires tokens to send results, or requires signing in (see
+[Results sent by qa](/docs/backend-admin/user-management#results-sent-by-qa)):
+1. In the web app, open **Settings → Access tokens** and create a token with the `read` and `ingest` scopes,
+   restricted to your project (e.g. `group/repo`). Long-lived tokens are fine for CI, stored as protected secrets.
+2. Store it in your CI's secrets as `QABOARD_TOKEN`: `qa` sends it. In GitHub Actions, add
+   `QABOARD_TOKEN: ${{ secrets.QABOARD_TOKEN }}` to the job's `env`. In GitLab CI, add a masked, protected CI/CD
+   variable named `QABOARD_TOKEN`.
 
-qa-tests:
-  stage: qa
-  script:
-  - qa batch ci
-```
-`qa` reads the commit and branch from `CI_COMMIT_SHA` and `CI_COMMIT_REF_NAME`. For commit statuses, give it a `GITLAB_ACCESS_TOKEN` with the `api` scope (`read_api` is enough to wait for the CI of reference commits), e.g. a CI/CD variable or the site's shared secrets. It calls the API of `GITLAB_HOST` if it's set, else of `CI_SERVER_URL`.
+Tokens tied to the CI itself (no stored secret) and tokens owned by an organization rather than a person are coming
+next.
 
-## Other CI tools
-> QA-Board knows how to work with the most common CI tools: GitHub Actions, GitLab CI, Jenkins, CircleCI, TravisCI...
+## GitHub Actions {#example-with-github-actions}
+`qa` reads the commit from `GITHUB_SHA`, and the branch from `GITHUB_HEAD_REF` or `GITHUB_REF_NAME`. For tags, it
+records the tag. It calls the API at `GITHUB_API_URL` (else derived from `GITHUB_SERVER_URL`) for the repository
+`GITHUB_REPOSITORY`, so it works with GitHub Enterprise too. The token is `GITHUB_TOKEN`, else
+`GITHUB_ACCESS_TOKEN`, or the host's token in `QABOARD_GIT_HOSTS`.
 
-Elsewhere, `qa` finds your git host from `project.url` in *qaboard.yaml* and the hosts listed in `QABOARD_GIT_HOSTS` (see [Git hosts](backend-admin/git-hosts#the-cli)), and uses the host's token there, or `GITLAB_ACCESS_TOKEN`, or `GITHUB_ACCESS_TOKEN`. It only sends `GITHUB_ACCESS_TOKEN` to github.com and the GitHub hosts listed in `QABOARD_GITHUB_HOSTS` or `QABOARD_GIT_HOSTS`. Projects whose `project.url` is on an unknown host are assumed to be on `GITLAB_HOST` (if the hostname contains "github", `qa` warns instead and sends no token).
+**Pull requests.** Results belong to commits, so `on: push` is enough: pull requests from the repository's own
+branches get a run for each commit pushed to them. With `on: [push, pull_request]`, those would run twice. If you
+add `pull_request` (for forks, for instance), check out the pull request's last commit: GitHub runs on a temporary
+merge commit, and `qa` records the pull request's last commit, whose details (message, author, parents) it reads
+from git.
 
-:::note
-`qa` detects that it runs in a CI when the `CI` environment variable is set (by GitlabCI, GitHub Actions, CircleCI, TravisCI...), or `GIT_COMMIT` (by Jenkins' git plugin).
-:::
+<RepoFile path="website/snippets/ci/github-actions-pull-requests.yml" title=".github/workflows/qaboard.yml" highlight="18-20" untested />
 
-## Failing the CI on regressions
-`qa batch` fails when runs fail. To also fail when metrics regress against a reference, run `qa gate` after it. It's
-experimental, see [Quality gate](/docs/quality-gate).
+**Waiting for the reference.** [`qa check-bit-accuracy`](/docs/bit-accuracy) waits for the end of the reference
+commit's CI: give the job `checks: read` too.
+
+## GitLab CI {#example-with-gitlab-ci}
+`qa` reads the commit and the branch from `CI_COMMIT_SHA` and `CI_COMMIT_REF_NAME`, and records tags from
+`CI_COMMIT_TAG`. For commit statuses, give it a `GITLAB_ACCESS_TOKEN` with the `api` scope (`read_api` is enough to
+wait for the CI of reference commits), as a CI/CD variable or in your site's shared secrets. It calls the API of
+`GITLAB_HOST` if it's set, else of `CI_SERVER_URL`.
+
+The GitLab runner must mount the results storage: with the docker executor, add it to the runner's `volumes`.
+
+## Jenkins and other CI tools {#other-ci-tools}
+`qa` knows that it runs in a CI when the `CI` environment variable is set (GitLab CI, GitHub Actions, CircleCI and
+Travis CI set it), or `GIT_COMMIT` (set by Jenkins' git plugin). It reads the commit and the branch from:
+
+| CI | Commit | Branch | Tag |
+|---|---|---|---|
+| Jenkins | `GIT_COMMIT` | `GIT_BRANCH`, or `gitlabBranch` (GitLab plugin) | `GIT_TAG_NAME` |
+| CircleCI | `CIRCLE_SHA1` | `CIRCLE_BRANCH` | `CIRCLE_TAG` |
+| Travis CI | `TRAVIS_COMMIT` | `TRAVIS_BRANCH` | `TRAVIS_TAG` |
+
+With another CI, set `CI=true` and `GIT_COMMIT`, `GIT_BRANCH` in the job.
+
+Outside of GitHub Actions and GitLab CI, `qa` finds your git host from `project.url` in *qaboard.yaml* and the hosts
+listed in `QABOARD_GIT_HOSTS` (see [Git hosts](/docs/backend-admin/git-hosts#the-cli)), and uses the host's token
+there, or `GITLAB_ACCESS_TOKEN`, or `GITHUB_ACCESS_TOKEN`. It only sends `GITHUB_ACCESS_TOKEN` to github.com and the
+GitHub hosts listed in `QABOARD_GITHUB_HOSTS` or `QABOARD_GIT_HOSTS`. Projects whose `project.url` is on an unknown
+host are assumed to be on `GITLAB_HOST` (if the hostname contains "github", `qa` warns instead and sends no token).
+
+## Fail the CI on regressions {#failing-the-ci-on-regressions}
+`qa batch` fails when runs fail. To also fail when results get worse, add a step after it:
+- [`qa gate`](/docs/quality-gate) (experimental) fails when metrics regress against the reference, with rules in
+  *qaboard.yaml*.
+- [`qa check-bit-accuracy`](/docs/bit-accuracy) fails when output files differ from the reference's.
 
 <Shot
   id="ci/step-summary"
   caption="In GitHub Actions, qa gate writes its table to the job summary: which rule failed, with a link to the Metrics Diff."
 />
 
-## Optionnal CI helpers
-QA-Board is not a CI tool, but it provide some utilities to run code only in some branches:
+## Save the build for runs started from the web app {#saving-artifacts}
+To let people [tune and run more tests from the web app](/docs/tuning-from-the-webapp), the CI saves what runs need,
+like your build, with `qa save-artifacts` after it builds (see [Artifacts](/docs/storage/artifacts)):
 
-:::warning
-This logic is usually better expressed in your CI tool itself. But if you're stuck with stone-edge tooling sometimes you roll your own.
-:::
+```bash
+make
+qa save-artifacts
+qa batch ci
+```
 
-```python
-# ci.py
+## Without a CI {#without-a-ci}
+Runs started from your computer with `--share` are saved like CI runs, and show in the web app in a batch named
+after you, with a warning that they may not match the committed code:
+
+```bash
+qa --share batch ci
+```
+
+If you don't have a CI yet, see [GitHub Actions](https://docs.github.com/en/actions/quickstart) or
+[GitLab CI](https://docs.gitlab.com/ee/ci/quick_start/).
+
+<details>
+<summary>Run some tests only on some branches, from a Python script</summary>
+
+This logic is usually better in your CI's configuration (rules, `if:` conditions). If your CI can't express it,
+`qaboard.ci_helpers` runs the functions you decorate only on the branches they name:
+
+```python title="ci.py"
 from qaboard.ci_helpers import on_branch, run_tests
 
 @on_branch('develop')
@@ -139,3 +180,5 @@ if __name__ == '__main__':
 ```bash
 python ci.py
 ```
+
+</details>

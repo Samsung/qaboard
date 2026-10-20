@@ -29,7 +29,8 @@ Saves and restores the demo stack's data (the database and the seeded results) a
 - The demo-data image (docs-media/demo-data/) restores a snapshot into the quickstarts' servers: Docker Compose
   (deployments/quickstart/compose.yml) and the Helm chart's demoData. It holds the database dump and the results,
   where files with the same content are hard links (most outputs don't change from one commit to the next, so it's
-  several times smaller than the snapshot). `image` takes the snapshot like `restore`
+  several times smaller than the snapshot). Its restore.sh moves the dates so that T0 becomes the time of the restore
+  (`restore` here doesn't: captures need T0). `image` takes the snapshot like `restore`
   (this checkout's key, --key, --latest or --file), and tags the image with each --tag.
 """
 import os
@@ -433,13 +434,16 @@ DEMO_DATA_RESULTS = '/mnt/qaboard'
 def demo_data_context(archive: Path, metadata: Dict, context: Path) -> Dict:
   """
   Writes the image's files next to its Dockerfile: db.sql, results.tar (relative to the results storage, files with
-  the same content and mode as hard links), metadata.json and demo-data.txt (what restore.sh logs).
+  the same content and mode as hard links), metadata.json, demo-data.txt (what restore.sh logs), and mtimes.txt: the
+  modification times of the folders and files (not their links), which restore.sh moves like the database's dates.
   """
   shutil.copy(DEMO_DATA / 'Dockerfile', context / 'Dockerfile')
   shutil.copy(DEMO_DATA / 'restore.sh', context / 'restore.sh')
   (context / 'restore.sh').chmod(0o755)
+  shutil.copy(DEMO_DATA / 'shift-dates.sql', context / 'shift-dates.sql')
   stats = {'files': 0, 'bytes': 0, 'links': 0, 'linked_bytes': 0}
   seen: Dict[tuple, str] = {}
+  mtimes: List[tuple] = []
   with (context / 'results.tar').open('wb') as out_file, tarfile.open(fileobj=out_file, mode='w|', format=tarfile.PAX_FORMAT) as out:
     for tar, member in members(archive):
       if member.name == 'db.sql':
@@ -454,6 +458,8 @@ def demo_data_context(archive: Path, metadata: Dict, context: Path) -> Dict:
       if member.issym() or member.islnk():
         info.linkname = member.linkname[len('results/'):] if member.islnk() else member.linkname
       if not member.isfile():
+        if member.isdir():
+          mtimes.append((info.mtime, info.name))
         out.addfile(info)
         continue
       data = tar.extractfile(member).read()
@@ -469,14 +475,17 @@ def demo_data_context(archive: Path, metadata: Dict, context: Path) -> Dict:
         seen[key] = info.name
         info.size = len(data)
         out.addfile(info, io.BytesIO(data))
+        mtimes.append((info.mtime, info.name))
   projects = {name: {'id': p['id'], 'commits': len(p['commits'])} for name, p in metadata['projects'].items()}
   summary = {k: metadata.get(k) for k in ('key', 'created_at', 't0', 'app_version', 'results_root')}
   (context / 'metadata.json').write_text(json.dumps({**summary, 'projects': projects, **stats}, indent=2) + '\n')
   listed = ', '.join(f"{p['id']} ({p['commits']} commits)" for p in projects.values())
   (context / 'demo-data.txt').write_text(f"QA-Board demo data: {listed}; snapshot {metadata['key']}, T0 {metadata['t0']}\n")
+  # restore.sh reads it line by line
+  (context / 'mtimes.txt').write_text(''.join(f"{mtime} {name}\n" for mtime, name in sorted(mtimes) if '\n' not in name))
   # The same snapshot gives the same files, so that rebuilding the image can give the same data layer
   created = datetime.datetime.fromisoformat(metadata['created_at']).timestamp()
-  for name in ('db.sql', 'results.tar', 'metadata.json', 'demo-data.txt'):
+  for name in ('db.sql', 'results.tar', 'metadata.json', 'demo-data.txt', 'mtimes.txt'):
     os.utime(context / name, (created, created))
   return stats
 

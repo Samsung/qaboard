@@ -78,6 +78,44 @@
   text-decoration: none;
 }
 
+/* Who it's for: links to the use cases */
+.audience {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+.audienceLabel {
+  flex: none;
+  color: var(--ifm-color-emphasis-700);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.audience ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.audience a {
+  display: inline-block;
+  padding: 0.2rem 0.75rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 999px;
+  background: var(--ifm-background-surface-color);
+  color: var(--ifm-font-color-base);
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.audience a:hover {
+  border-color: var(--ifm-color-primary);
+  color: var(--ifm-color-primary);
+  text-decoration: none;
+}
+
 /* The hero clip: its frame, or its placeholder, keeps its size before it loads */
 .heroMedia {
   min-width: 0;
@@ -146,6 +184,35 @@
 
 .sectionMore {
   margin: 1.5rem 0 0;
+}
+
+/* The viewers, on a dark stage in both themes: the colors the section's text and controls use, redefined */
+.stage {
+  --ifm-font-color-base: #e4e8ef;
+  --ifm-heading-color: #fff;
+  --ifm-color-emphasis-0: #1c2536;
+  --ifm-color-emphasis-200: rgba(255, 255, 255, 0.1);
+  --ifm-color-emphasis-300: rgba(255, 255, 255, 0.2);
+  --ifm-color-emphasis-400: rgba(255, 255, 255, 0.3);
+  --ifm-color-emphasis-500: rgba(255, 255, 255, 0.45);
+  --ifm-color-emphasis-700: #aab4c5;
+  --ifm-color-emphasis-800: #c9d0dc;
+  --ifm-color-primary: #88bcff;
+  --ifm-link-color: #88bcff;
+  --ifm-link-hover-color: #b8d7ff;
+  --ifm-background-surface-color: #141c2b;
+  --ifm-code-background: rgba(255, 255, 255, 0.1);
+  --qb-on-primary: #0b1220;
+  color: var(--ifm-font-color-base);
+  background:
+    radial-gradient(ellipse 90% 60% at 50% 0%, rgba(54, 104, 186, 0.35) 0%, transparent 70%),
+    #0c121d;
+  /* #viewers, from the loop, lands under the sticky navbar */
+  scroll-margin-top: var(--ifm-navbar-height);
+}
+.stage code {
+  border-color: rgba(255, 255, 255, 0.12);
+  color: inherit;
 }
 
 /* You already built half of this */
@@ -349,7 +416,8 @@
   list-style: none;
 }
 
-/* Every media gets the same box, whatever its shape, so the rows line up */
+/* Every media gets the same box, whatever its shape, so the rows line up: centered, else its top, or its left part
+   filling the box */
 .polishMedia {
   display: flex;
   align-items: center;
@@ -364,6 +432,24 @@
 .polishMedia figure {
   width: 100%;
   margin: 0;
+}
+/* Two classes, so that CSS minification can't merge these with Infima's rules, ahead of .polishMedia */
+.polishMedia.fitTop {
+  align-items: flex-start;
+}
+.polishMedia.fitLeft {
+  align-items: stretch;
+  justify-content: flex-start;
+}
+.polishMedia.fitLeft figure,
+.polishMedia.fitLeft figure > div {
+  height: 100%;
+}
+.polishMedia.fitLeft img,
+.polishMedia.fitLeft video {
+  width: auto;
+  max-width: none;
+  height: 100%;
 }
 
 .polishTitle {
@@ -451,6 +537,12 @@
   .stackGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  /* An odd tile out, centered under the others */
+  .polishItem:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+    justify-self: center;
+    width: calc(50% - 0.75rem);
+  }
 }
 
 @media (max-width: 600px) {
@@ -465,6 +557,9 @@
   .polishGrid,
   .stackGrid {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .polishItem:last-child:nth-child(odd) {
+    width: auto;
   }
   .ctas :global(.button) {
     flex: 1 1 100%;

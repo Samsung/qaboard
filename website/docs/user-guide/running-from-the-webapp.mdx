@@ -2,86 +2,184 @@
 id: running-from-the-webapp
 title: Running from the web app
 sidebar_label: Running from the web app
-description: Redo runs, start tests and tuning experiments, and trigger CI jobs from the web app.
+description: Redo failed runs, run a commit on other tests or settings, and start tuning experiments from the web app, without a terminal.
 ---
-You don't need a terminal to start runs: the web app can redo runs, run a commit's code on new tests, start tuning experiments and trigger CI jobs.
+From a commit's page, you can run its code again without a terminal:
 
-:::info Before you start
-- Most actions need you to be **logged in** (top of the sidebar). When you are not, they are greyed out, next to a **Log in** button. If your session expires, QA-Board tells you to log in again.
-- Running code needs the commit's **artifacts** (its build and configuration files). When they are missing, the commit page says why, and redoing runs or starting tuning first brings them back: your project may have QA-Board [rebuild them with your CI](../storage/deleting-old-data.mdx#recreating-artifacts), otherwise only the files from the source code are restored. While the CI rebuilds them, QA-Board doesn't start anything: try again when the build is done.
-- Your project needs a **task runner** (a cluster, Celery workers...) for runs to start. If none is set up, the tuning form warns you: ask whoever integrated QA-Board in your project.
+- [Redo runs](#redo-stop-and-clean-up-runs) that failed, were deleted or got stuck.
+- [Run the commit on other tests or settings](#running-tests-and-tuning), like the int8 detector on the slices where it loses small objects.
+- [Start a tuning experiment](#running-tests-and-tuning) and [see which values win](#tuning-analysis): try a grid of parameters, or let an optimizer search them.
+
+:::info What you need
+- **Log in**, at the bottom of the sidebar. Logged out, the buttons that start runs are grayed out.
+- The commit's **artifacts**: the build and configuration files your CI saved. If they were deleted, QA-Board can bring them back first (see [If runs don't start](#if-runs-dont-start)).
+- A **task runner** for your project, like a compute cluster. If there is none, the form says so: ask whoever integrated QA-Board in your project.
 :::
 
-## Redo, stop and clean up runs
+## Run tests or a tuning experiment {#running-tests-and-tuning}
+On the detector's `quant/int8` branch, the commit that calibrates int8 with percentiles still loses 7% of the AP on small objects. Can the post-processing win it back? Here is how to try 2 score thresholds and 2 NMS IoUs on `quant-search`, its outdoor and small-objects slices:
+
+1. On the commit page, select **Run Tests / Tuning** in the sidebar, under **Tuning**.
+2. In **Batch label**, name the new batch, e.g. `int8-nms`. Its runs stay apart from the CI's.
+3. In **Batch of inputs+configurations**, type the batch of tests to run: `quant-search`. The form shows **2 tests** below it: hover it to see the inputs and their configurations. To find a batch, or write your own, see [Choosing the tests to run](/docs/user-guide/available-tests).
+4. If the form lists **platforms** (like Linux and Android), pick the one to run on.
+5. Under **Manual tuning**, write each parameter with the values to try:
+   ```json
+   {
+     "score_threshold": [0.2, 0.3],
+     "nms_iou": [0.5, 0.7]
+   }
+   ```
+   With **All combinations**, the form says it **Explores 4 combinations**. To run the tests with the commit's own settings, click the **no tuning** example instead.
+6. Check the total, **8 total runs** (4 combinations on 2 tests), and click **Start 8 runs**.
+
+<Shot
+  id="tuning/manual-form"
+  caption="Every combination of 2 score thresholds and 2 NMS IoUs on the 2 tests of quant-search: the form says 8 runs before you start them."
+/>
+
+A message confirms that `int8-nms` started, with **Show its logs**. Its runs show up in the new batch, and when the last one ends, QA-Board [emails you](#emails-when-batches-end) if your server sends emails. Next: [look at the results](#tuning-analysis).
+
+QA-Board checks the form as you fill it: **Fix this to start** lists what would make the batch fail, like an unknown batch, and **Before you start** warns about the rest, like artifacts it must restore first. The form remembers what you entered, per project. If the batch doesn't start, the commit page says why: see [If runs don't start](#if-runs-dont-start).
+
+:::tip Start from a run's settings
+Hover a run's configuration tags and choose **Copy as a tuning search space**. Paste it in the **Manual tuning** editor, then add the values you want to try.
+:::
+
+<details>
+<summary>Every option of the form</summary>
+
+| Option | What it does |
+|---|---|
+| **Batch label** | The new batch's name: letters, digits and `_.@:=`, other characters become `-`. Reusing the label of an existing batch adds runs to it. |
+| **Batch of inputs+configurations** | A batch, or several with a pattern like `batch-*`. Below it: how many tests, and which file defines the batch. |
+| Platforms | Shown when the project has several. The runs use `qa --platform` with the one you pick. |
+| **Start from an example** | **no tuning**: the tests with the commit's settings. **simple-combinations**: a grid. **list-of-combinations**: a list of parameter sets, each its own grid, whose runs add up. **1x2 matrix**: a parameter whose value is a matrix. **function**: a JavaScript function that returns the parameters, for ranges and loops. |
+| **All combinations** or **Sampling** | Every combination of the values (a grid), or a uniform sample of as many as you choose. |
+| Pasting `key=value` lines | They become the JSON the editor expects: `block.threshold=10` becomes `"block.threshold": [10]`, and space-separated matrices like `[1 2 3]` become JSON arrays. |
+| **Overwrite previous identical runs** | On, the default: runs that already exist in the batch, with the same input, configuration and parameters, run again. Off: they're kept, and only the missing runs start. |
+| **Will run as** | With LSF, the user the runs start as, with their shell environment. It's you. |
+| Limits | At most 5,000 runs per batch. Over 1,000, the form asks you to check that the cluster has room. |
+
+</details>
+
+<Anchor id="available-tests" />
+To see which tests a batch runs before you start it, or to write your own batch, open the **Available Tests** view:
+see [Choosing the tests to run](/docs/user-guide/available-tests).
+
+### Let the optimizer search the parameters {#automated-tuning}
+
+:::caution Experimental
+Automated tuning runs `qa optimize`: its configuration and its solver may change.
+:::
+
+When a grid would be too big, open the **Automated tuning** tab. Describe in YAML the parameters and their ranges (`search_space`), what to optimize (`objective`, from the project's metrics) and how many `evaluations` to run, then click **Start auto-tuning**. The optimizer, [scikit-optimize](https://scikit-optimize.github.io/), picks each evaluation's parameters from the results of the previous ones. The tab starts with a commented template for your project: **Reset to the default** brings it back.
+
+For the detector, `tune-int8` searched the calibration percentile, the layers to keep in fp32, the score threshold and the NMS IoU, in 20 evaluations of `quant-search`, for the best AP on small objects and mAP with a small model. There is no email when an automated tuning ends yet. See [Auto-optimization](/docs/auto-optimization) for every setting.
+
+<Shot
+  id="tuning/auto-form"
+  caption="The detector's tune-int8 experiment in YAML: 20 evaluations, the solver's settings, then the objective, starting with AP on small objects and mAP."
+/>
+
+## Look at the results {#tuning-analysis}
+1. In the **new** bar's batch selector, pick the new batch, `int8-nms`. Its runs show up as they start, and the page refreshes by itself while some are pending.
+2. Select **Tuning Analysis** in the sidebar, under **Tuning**.
+
+<Clip
+  id="tuning/launch-to-analysis"
+  caption="The form starts 8 runs. Once they're done, pick their batch: Tuning Analysis draws one line per combination of score threshold and NMS IoU."
+/>
+
+Tuning Analysis shows how the metrics picked at its top, like in the tables, depend on the parameters. Most plots use each combination's median over the inputs (or its average):
+- **Parallel coordinates**: one line per combination, across an axis for each metric and parameter that varies, colored by the metric you pick below it. Drag along an axis to highlight the lines in a range.
+- **Sensitivity to tuning parameters**: the metric against one parameter, and with two parameters, a map over both.
+- **Breakdown by test**: one line per input, to check that every input agrees.
+- **Efficient frontier & tradeoffs**: two metrics against each other, one point per combination. The best trade-offs are on the edge of the cloud.
+
+For the inference gateway, a sweep tried the batching settings of the sharded cache: max batch 1, 16 and 64, by max delay 0, 250, 1000 and 4000 µs, on the steady-high and heavy-tail-high load profiles. With **CPU per request** added to the metrics, the frontier shows which settings are worth it:
+
+<Shot
+  id="tuning/frontier"
+  caption="Each configuration's CPU per request against its p99: the defaults picked, max batch 16 and 250 µs of delay, are on the frontier."
+/>
+
+For an automated tuning, the view starts with the **Best parameters**, their metrics and the iteration that found them, and adds a **Convergence** plot: each iteration's objective, and the best so far. The sidebar highlights **Tuning Analysis** when the selected batch is an automated tuning.
+
+<Shot
+  id="tuning/analysis"
+  caption="tune-int8 found its best parameters at iteration 10 of 20: percentile 99.999, nothing kept in fp32, score 0.2, NMS 0.4. The best objective doesn't improve after that."
+/>
+
+<details>
+<summary>Every plot and setting of Tuning Analysis</summary>
+
+| Part | What it shows |
+|---|---|
+| **N runs · M inputs** | How many runs and inputs the plots use (manual tuning). |
+| **Best parameters** | For an automated tuning: the best iteration's parameters, its metrics, and when it was found (**found at iteration 10/20**). |
+| The metrics, at the top | The metrics the plots use, the same choice as the tables'. Add one to plot it, like CPU per request. |
+| Parallel coordinates | One line per combination of parameters, with its metrics aggregated over the inputs. Only metrics and parameters that vary get an axis. For an automated tuning, the iteration and the objective are axes too. |
+| Metric and aggregation | The metric for the colors above and the Y axis below, and **Median aggregation** or **Average aggregation**. |
+| **Convergence** | For an automated tuning: each iteration's objective (lower is better) and the best so far. |
+| **Sensitivity to tuning parameters** | The metric against the parameter you pick (X axis, **Log-scale** available). With two parameters that vary, a contour map over the two you pick. With several inputs, a box plot per value. |
+| **Breakdown by test** | One line per input and configuration, against the parameter. **Relative to Best** shows each value as a percent of that input's best. |
+| **Efficient frontier & tradeoffs** | With two parameters that vary: one point per combination, the metric against a second one (**Metric on Y-axis**), colored by the parameter. Hover a point for its parameters. |
+
+- The view uses the runs that match the filter, and leaves out failed and pending runs.
+- The metrics, parameters and aggregation you pick are in the link: share it, and others see the same plots.
+- On a batch without tuning parameters, it says **How to start tuning?**, with a **Start a tuning experiment** button.
+
+</details>
+
+### Compare with the CI batch {#compare-with-the-ci-batch}
+To see what the experiment changed against the commit's CI runs, show `int8-nms` in the new bar and the same commit's
+**CI** batch in the reference bar: see
+[compare two batches of the same commit](/docs/user-guide/comparing-results#compare-two-batches-of-the-same-commit).
+To look at one combination, filter the new bar's runs, e.g. `nms_iou:0.7 score_threshold:0.3`: the Summary otherwise
+aggregates all of them.
+
+## Redo, stop and clean up runs {#redo-stop-and-clean-up-runs}
 
 | To... | Where |
 |---|---|
-| Redo **one run** | On its card (Visualizations or Output Files views), ☰ menu → **Redo** |
+| Redo **one run** | On its card (Visualizations or Output Files views), ☰ menu → **Redo**. In the Logs view, its **⋯** menu |
 | Redo the **failed** runs of a batch | Commit bar menu (☰) → **Redo failed runs** |
 | Redo **deleted** runs | Commit bar menu → **Redo deleted runs**, or the button in the "N of the runs below were deleted" message |
-| Redo **all** runs of a batch | Commit bar menu → **Redo all runs** |
+| Redo **all** runs of a batch | Commit bar menu → **Redo all runs…** |
 | **Stop** pending runs | The **Stop runs** button above the views, shown while runs are pending |
-| Unblock a run stuck as pending | On its card, ☰ menu → **Mark as failed** |
-| Delete runs or only their files | Card ☰ menu (one run), or commit bar menu (failed runs, the batch, several batches) |
-
-Redone runs use the commit's saved artifacts and the same input, configuration and parameters. They also use the runner they were started with, and the batch's runner settings, like how many runs can run at the same time: QA-Board starts them together, with a single `qa batch`. Its logs are in the [Logs](commit-page.mdx#logs) view, under "Started from QA-Board".
+| Unblock a run stuck as pending | On its card, ☰ menu → **Mark as failed**, then **Redo** it |
+| Delete runs, or only their files | Card ☰ menu (**Delete…**, **Delete output files…**), or the commit bar menu: failed runs, the whole batch, several batches |
 
 <Shot
   id="commit/run-menu"
   caption="A run card's menu: redo it, delete it, or delete only its output files. While a run is pending or running, Mark as failed replaces Redo."
 />
 
-When you filter the batch's runs, the commit bar menu's redo actions only redo the runs that match the filter: **Redo the N runs that match the filter…**, **Redo filtered failed runs**...
+Redone runs use the commit's saved artifacts and the same input, configuration and parameters. They also use the runner they were started with, and the batch's runner settings, like how many runs can run at the same time: QA-Board starts them together, with a single `qa batch`. Follow them with the counters under the filter box, or in the [Logs](/docs/user-guide/logs#batch-commands) view, under **Started from QA-Board**.
 
-The page refreshes by itself while runs are pending: follow their progress with the counters next to the filter box, or in the [Logs](commit-page.mdx#logs) view.
-
-:::caution
-Delete actions are immediate. Milestones are protected: QA-Board won't delete batches or commits saved as [milestones](comparing-results.mdx#milestones).
+:::danger
+Deleting runs can't be undone: their output files and metrics are gone. QA-Board asks you to confirm, and won't delete batches or commits saved as [milestones](/docs/user-guide/milestones).
 :::
 
-## Running tests and tuning
-To run a commit's code on other inputs, or with other parameters, open the commit page and select **Run Tests / Tuning** in the sidebar.
+<details>
+<summary>Filters, stuck runs and other details</summary>
 
-1. **Batch label**: the label of the new batch. Reusing the label of an existing batch adds runs to it.
-2. **Batch of inputs+configurations**: the name of a batch of tests, like `my-batch`, or several, like `batch-*`. Hover **N tests** to check which inputs and configurations it includes. When the batch has no tests, a warning under it says why (a batch file missing from the commit's artifacts, a batch defined nowhere, inputs not found...). The [Available Tests](commit-page.mdx#available-tests) view lists the batches you can use, and lets you define your own.
-3. If the project supports several **platforms**, pick one.
+- When you filter the batch's runs, the commit bar menu only redoes the runs that match: **Redo the N runs that match the filter…**, **Redo filtered failed runs**, **Redo filtered deleted runs**. Moving runs follows the filter too: **Move the filtered runs to another batch**. Deleting doesn't: it applies to the whole batch, and the confirmation says so.
+- **Redo all runs…** asks you to confirm: the runs' current results are replaced when they start.
+- **Mark as failed** is for runs stuck as pending or running whose job is gone, e.g. killed by the cluster: they would never report.
+- **Delete files, keep metadata**, in the commit bar menu, makes its delete actions free storage only: the runs and their metrics stay. A box then limits it to files matching patterns like `*.png`.
+- A batch with pending runs can't be renamed.
 
-   If the project's CI only saves the build (the artifacts runs need) on some branches, a warning at the top of the form says so on the commits of other branches, with the commands to save it yourself.
-4. Choose the parameters:
-   - **Manual tuning**: write the parameters to try, as JSON. Click the examples (*simple-combinations*, *list-of-combinations*, *1x2 matrix*...) to get started. Choose **All combinations** (a grid) or **Sampling** a number of them. The total number of runs is shown before you send.
-   - **Automated tuning**: describe the search space and the objective in YAML, and let the optimizer ([scikit-optimize](https://scikit-optimize.github.io/)) choose the parameters. It needs the project to compute metrics.
-   - To just run the tests, without tuning, use the *no tuning* example.
-5. **Send**. The runs start as you (the "Will run as" tag), and a message confirms the request. QA-Board emails you when the last run ends (see [below](#emails-when-batches-end)).
+</details>
 
-<Shot
-  id="tuning/manual-form"
-  caption="Every combination of 2 score thresholds and 2 NMS IoUs on a batch of 2 tests: the form says it will start 8 runs, before you send."
-/>
+## Get an email when a batch ends {#emails-when-batches-end}
+Runs can take hours, or wait for a busy cluster. When you start a batch from the form, QA-Board emails you once, when its last run ends: how many runs failed, the main metrics against their targets, the best combinations when you tuned parameters, and links to the failed runs' logs. Under the **Start** button, the form says when it will email you.
 
-<Shot
-  id="tuning/auto-form"
-  caption="Automated tuning: the search space and the objective in YAML, the optimizer picks the parameters to try."
-/>
+<details>
+<summary>What the email says, and when you get one</summary>
 
-While you fill the form, QA-Board checks it: **Fix this to start** lists what would make it fail (e.g. an unknown batch, an invalid automated tuning configuration, a platform the project doesn't have), and **Before you start** warns about the rest (e.g. missing artifacts that will be restored first).
-
-Then select the new batch in the batch selector to follow it. When it's done:
-- compare it with the CI batch (see the [tip in Comparing results](comparing-results.mdx#picking-a-reference)),
-- open the **Tuning Analysis** view to see how metrics depend on the parameters, and the best parameters found by an automated tuning.
-
-Batches started from QA-Board are listed in the [Logs](commit-page.mdx#logs) view with the command QA-Board ran and its logs:
-
-<Shot
-  id="logs/batch-commands"
-  caption="The sweep started from QA-Board: its qa batch command and its own logs."
-/>
-
-:::tip
-Turn on **Overwrite previous identical runs** to redo runs that already exist with the same input, configuration and parameters. Otherwise they are kept and not run again.
-:::
-
-### Emails when batches end
-Runs can take hours, or wait for a busy cluster: QA-Board emails you once, when the last run of the batch you started ends. The email says:
+The email says:
 - whether all runs succeeded, how many failed, and how long the batch took,
 - the median of the project's main metrics over the successful runs, and whether they meet their targets,
 - when you tuned parameters, the best combinations on the first main metric,
@@ -92,35 +190,74 @@ Good to know:
 - You get **one email per batch**, when no run is left pending: not when the first run fails. If you stop the batch from QA-Board, there is no email.
 - For **pipelines**, whose steps start other batches, you get one email when the whole pipeline is done, not one per step.
 - QA-Board emails the address of your account, or the one your administrators configured for your username. The confirmation message after you start says where.
-- Your QA-Board server must be configured to send emails: the tuning form says when it will email you. There is no email for automated tuning yet.
-- Batches you start from a terminal with `qa --share batch` email you too: see [`QA_NOTIFY`](../using-the-qa-cli.mdx#email-when-the-runs-end) to turn it off.
+- Your QA-Board server must be configured to send emails. There is no email for automated tuning yet.
+- Batches you start from a terminal with `qa --share batch` email you too: see [`QA_NOTIFY`](/docs/using-the-qa-cli#email-when-the-runs-end) to turn it off.
 
-For a video walkthrough and how a project enables it, see [Tuning from QA-Board](../tuning-from-the-webapp.mdx). For the batch syntax, see [Batches of inputs](../batches-running-on-multiple-inputs.mdx).
+</details>
 
-## Integrations: CI jobs, links and webhooks
-Projects can add buttons to the sidebar's **Integrations** menu (hover it to open). What you see depends on how your project is configured:
-
-- **Links** to docs, dashboards, build artifacts or reports. A link is disabled when its target doesn't answer.
-- **Badges**, like the pipeline status or the test coverage.
-- **GitHub Actions workflows**, **GitLab CI manual jobs** and **Jenkins builds**: click to start them for this commit. A status tag shows whether the job is pending, running, successful or failed; click the tag to open the job's page and its logs. Once started, the icon changes to *repeat* so you can start it again. You need to be logged in to start GitHub Actions workflows and GitLab CI jobs.
-- **GitHub Actions workflows** show the status of their latest run for the commit. GitHub runs them on the latest commit of the branch (or on the `ref` the project chose), not necessarily on the commit you're looking at; QA-Board then follows the run you started. Only the workflows declared in the project's *qaboard.yaml* can be seen and started.
-- If the project configured nothing, the menu shows its git host's defaults on branch pages: GitLab's pipeline status, or a link to GitHub Actions. Badges that don't load are hidden.
-- **Webhooks** that call other tools, with a tag showing the response.
+## Start CI jobs and open your tools {#integrations}
+The sidebar's **Integrations** menu (hover it to open it) has what your project added: links to reports, docs and dashboards, badges like the pipeline status, CI jobs (GitHub Actions workflows, GitLab CI manual jobs, Jenkins builds) and webhooks that call other tools. Click a job or a webhook to start it for this commit: a tag then shows whether it's pending, running, successful or failed. Click the tag to open the job's page and its logs.
 
 <Shot
   id="integrations/menu"
-  caption="Links to the project's reports and guides, and a webhook: after a click, its tag shows the job's status."
+  caption="Links to the project's reports and guides, and a webhook: after a click, its tag shows that the job is queued."
 />
 
-Good to know:
+<details>
+<summary>Good to know about integrations</summary>
+
 - On the commit list, integrations act on the branch you're looking at. On a commit page, on the selected commit and batch.
+- You need to be logged in to start GitHub Actions workflows and GitLab CI jobs. Once a job started, its icon changes to *repeat*, to start it again.
+- GitHub runs workflows on the latest commit of the branch (or on the `ref` the project chose), not necessarily on the commit you're looking at; QA-Board then follows the run you started. Workflows show the status of their latest run for the commit. Only the workflows declared in the project's *qaboard.yaml* can be seen and started.
 - Statuses refresh every few seconds while the menu is open, and your browser remembers the jobs you started on each commit.
+- A link is disabled when its target doesn't answer. Badges that don't load are hidden.
 - With many entries, a search box appears at the top of the menu.
+- If the project configured nothing, the menu shows its git host's defaults on branch pages: GitLab's pipeline status, or a link to GitHub Actions.
 - Some projects show their most used integrations directly in the sidebar, outside the menu.
 
-Project integration: see [Triggering external tools](../triggering-external-ci-tools.mdx) to configure integrations.
+To configure them for a project, see [Integrations menu](/docs/triggering-third-party-tools).
 
-## Logs
-- Each run's log is in the [Logs](commit-page.mdx#logs) view (**Show logs**), and updates live while the run is pending.
-- The **Batch logs** at the bottom list the commands that started the batch, by whom and where, with an **Open Logs** link to the cluster or CI job.
-- For CI jobs started from Integrations, click their status tag to open the job's own logs.
+</details>
+
+## If runs don't start {#if-runs-dont-start}
+The commit page tells you why, in a message above the views or in the form.
+
+<details>
+<summary>The commit's artifacts are missing</summary>
+
+Runs start from the commit's artifacts. When some are missing, a message above the views says which ones, and when and by whom they were deleted:
+- **This commit's artifacts were deleted** (or **are incomplete**, when files went missing without QA-Board knowing). If your project [configured it](/docs/storage/deleting-old-data#recreating-artifacts), **Recreate the artifacts** asks your CI to rebuild them, and redoing runs or starting a batch does it too. Otherwise, **Restore the artifacts** restores the files from the source code, but not build outputs like binaries.
+- **This commit's artifacts are being recreated**: QA-Board asked your CI, with a link to follow the build. It doesn't start anything until the build is done: try again then.
+- **Some of this commit's artifacts are missing**: you can still redo runs and start tuning, but the runs that need these files will fail.
+- **Running tests from the web app needs build artifacts**, instead of the form: the project doesn't declare any artifacts in its *qaboard.yaml*. Ask whoever integrated QA-Board in your project, and see [Tuning from QA-Board](/docs/tuning-from-the-webapp).
+
+</details>
+
+Until the runs of a batch you started show up, a message at the top of the page says how it's going, e.g. **Your batch
+is waiting for LSF**: see [Batches started from QA-Board](/docs/user-guide/logs#started-from-qa-board).
+
+<details>
+<summary>Every message of the Run Tests / Tuning form</summary>
+
+| Message | What it means |
+|---|---|
+| **Log in to start runs** | Runs started from QA-Board run as you. Once you're logged in, the form also lists the batch's tests and checks your settings. |
+| **Fix this to start** | What would make the batch fail, e.g. an unknown batch, an invalid automated tuning configuration, a platform the project doesn't have. |
+| **Before you start** | What to know first, e.g. missing artifacts QA-Board will restore. |
+| **Tuning may not work** | The project's CI only saves artifacts on some branches, and not on this commit's: the message gives the commands to save them yourself, with `qa save-artifacts`. |
+| **Please configure async runners** | The project has no task runner: runs may be killed if they take too long. |
+| **Why the batch has no tests**, **Check the batch files** | Under the batch: see [every problem flagged](/docs/user-guide/available-tests#problems). |
+| Under the **Start** button | What's missing (a batch label, a batch with tests), parameters that are not valid JSON or a function that fails, or too many runs. |
+| **Started …**, after you click | It started, and where QA-Board will email you. **Show its logs** opens the Logs view. |
+| **… failed to start. Its logs say why.** | **Show its logs** opens them. |
+| **No email when it ends: …** | The batch started, but QA-Board can't email you, and says why. |
+
+</details>
+
+## Where to go next
+
+<Cards>
+  <Card title="Logs and failed runs" to="/docs/user-guide/logs">Read a run's log while it runs, find why it failed, see the commands that started a batch.</Card>
+  <Card title="Reading metrics" to="/docs/user-guide/metrics">The Summary, Metrics Table and Metrics Diff of your experiment against the CI.</Card>
+  <Card title="Let people tune from the web app" to="/docs/tuning-from-the-webapp" eyebrow="Project integration">What a project needs for runs from the web app: artifacts, a task runner, emails.</Card>
+</Cards>

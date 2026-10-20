@@ -1,90 +1,91 @@
 ---
 id: metadata-integration-external-databases
-sidebar_label: Metadata & External Databases
-title: Using input metadata and integrating with external databases
+sidebar_label: Metadata & external databases
+title: Input metadata and external databases
+description: Give inputs metadata to filter batches, label runs and preset regions of interest, and read inputs from your own database.
 ---
-## Metadata
-Input metadata are useful to:
-- **Filter** and **group** inputs
-- Decide **what metrics to compute** on your outputs
 
-> QA-Board will forward metadata to your `run(ctx)` function as `ctx.input_metadata`.
+Inputs often come with what you know about them: the scene, the lighting, the sensor, where a test chart's patches
+are. Give that to QA-Board as **metadata**, and you can filter batches by it, show labels instead of paths, preset
+regions of interest in the image viewer, and let your code decide what to measure. When your inputs aren't files,
+read them from your own database.
 
-### Creating metadata
-To enable metadata support in QA-Board, you have 2 options:
+## Give inputs metadata {#creating-metadata}
+Define a `metadata()` function in your project's entrypoint: it returns a dict for each input. The camera ISP reads
+a *.metadata.yaml* file next to each input, when there is one:
 
-1. Fill the metadata as part of your `run`:
+<RepoFile path="examples/image-quality/qa/main.py" title="qa/main.py" lines="57-60" />
 
-```python title="qa/main.py"
-def run(context):
-  context.input_metadata = {}
-```
+The night street's gives the image viewer 3 regions of interest:
 
-2. Implement in your project's entrypoint a function that returns metadata as a dict. Here is an example:
+<RepoFile path="examples/image-quality/inputs/photos/night-street.metadata.yaml" title="inputs/photos/night-street.metadata.yaml" />
 
-```python title="qa/main.py"
-import yaml
+Your `run()` gets the metadata as `context.input_metadata`. The camera ISP's test charts say where to measure: the
+slanted edge's region for the MTF and the overshoot, the color patches for ΔE 2000, a flat region for the noise. So
+`run()` only computes the metrics that make sense for each input:
 
-def metadata(absolute_input_path, database, input_path):
-  metadata_file = absolute_input_path.with_suffix('.metadata.yaml')
-  if not metadata_file.exists():
-    return {}
-  with metadata_file.open() as f:
-    return yaml.load(f, Loader=yaml.SafeLoader)
-```
+<RepoFile path="examples/image-quality/qa/main.py" title="qa/main.py" lines="108-113" />
 
-:::tip
-If you define `metadata.label` it will be used in the UI instead of the input path.
-:::
+You can also set metadata in `run()`, with `context.input_metadata = {...}`.
 
-:::tip
-If you define `metadata.tags` as a list, e.g. `[low-light, motion]`, the History page can summarize metrics per tag: set `dashboard_breakdown_by_tag: true` in your [metrics file](computing-quantitative-metrics).
-:::
+## What metadata does {#what-metadata-does}
 
-:::tip
-QA-Board will compares runs with different input if they have the same `metadata.id`. A common use-case is comparing images from different sensors taken in the same conditions.
-:::
+| Key | What QA-Board does with it |
+|---|---|
+| `label` | Shown instead of the input's path, on run cards and in tables. |
+| `roi` | Regions of interest preset in the image viewer, see [Visualizations](/docs/visualizations#regions-of-interest). |
+| `tags` | A list, like `[low-light, motion]`: the History page summarizes metrics per tag with `dashboard_breakdown_by_tag: true` in your [metrics file](/docs/computing-quantitative-metrics). |
+| `id` | Runs on different inputs are compared when they have the same `metadata.id`: for instance images from two sensors, taken in the same conditions. |
+| anything else | Filters for batches (below), and shown in the run card's menu, under **Metadata**. |
 
+Keys that start with `_` only serve to filter batches: `run()` doesn't get them, and they're not saved with the runs.
 
+## Filter batches with metadata {#using-metadata-to-filter-batches-of-inputs}
+`only` keeps the inputs that match all its conditions, `exclude` leaves out those that match all of its own:
 
-### Using metadata to filter batches of inputs
 ```yaml title="qa/batches.yaml"
-inputs-filtered-using-metadata:
-  only: # only run tests matching all those conditions
-    PD pattern: 4PD
-    Model:            # multiple options are OK
-      - 2T7
-      - XXX
-    Binning: '1:*'    # wildcards are supported
-    Bad pixels: False # as well as Booleans, numbers…
-    Distance: '>1'    # also >=, =,==, <, <=
-    input_path: '*9296*' # matched against the absolute input path
-    rel_input_path: 'images/*' # or against the path relative to the database
-  exclude: # don't run on tests matching all the filters below
-    Location: Outdoor
+night-outdoor:
+  inputs:
+    - photos
+  only:                     # all these conditions
+    location: outdoor
+    camera:                 # one of these values
+      - k3
+      - k3-v2
+    scene: 'night*'         # wildcards
+    stabilized: false       # booleans and numbers
+    lux: '<10'              # also >, >=, =, ==, <=
+    rel_input_path: 'photos/*'  # the path relative to the database (input_path: the absolute path)
+  exclude:
+    scene: night-rain
 ```
 
 ```bash
-qa batch inputs-filtered-using-metadata
-# => run only on inputs with 4PD as PD pattern, etc.
+qa batch night-outdoor
 ```
 
-## Integrating with external input databases
-Inputs are not always existing files. In some cases you will want to use a "proper" database to organize them. If your inputs are the names of unit tests, you'll list them with something like `gtest_project --gtest_list_tests`.
+Without `inputs`, `only` and `exclude` pick from all the inputs of the database. Text matches ignore case. On big
+databases, keep `metadata()` fast: `qa batch` calls it for every input it lists when the batch has `only` or
+`exclude`, and each run calls it again for its input.
 
-To enable this with QA-Board, implement in your project's entrypoint a function that iterates over inputs given a query:
+## Read inputs from your own database {#integrating-with-external-input-databases}
+Inputs are not always files. They can be rows of a test database, or the names of unit tests, listed by something
+like `gtest_project --gtest_list_tests`. Define an `iter_inputs()` function in your project's entrypoint, that yields
+the inputs matching a query:
 
 ```python title="qa/main.py"
 def iter_inputs(path, database, only, exclude, inputs_settings):
-  # TODO: Maybe here connect to an SQL database
-  #       and execute something like
-  #       f"SELECT test, metadata from tests where path LIKE {path} and database={database}"
-  # OPTIONALLY: return filtered inputs using only/exclude
-  #             even if you don't do it, qa-board will always re-filter
-  #             but doing it yourself in SQL can be much more efficient
-  # qa reads the "input_path" (relative to "database"), "database" and "metadata" keys
-  return ({"input_path": p.path, "database": database, "metadata": p.metadata} for p in inputs)
-
-# Note: path=None should match all inputs in the database
-# Note: inputs_settings is a dict with information on how inputs should be found: file globs, use_parent, or anything else you put in qaboard.yaml's inputs.
+  """
+  path: what the batch lists under `inputs` (None: all the inputs of the database)
+  database: the database's path, from qaboard.yaml or the batch
+  only, exclude: the batch's filters
+  inputs_settings: qaboard.yaml's `inputs` settings (globs, use_parent_folder, your own keys...)
+  """
+  # For instance, query your database:
+  #   SELECT test, metadata FROM tests WHERE path LIKE ...
+  # Filtering with only/exclude here is optional: qa filters what you return again, on its metadata.
+  for test in tests:
+    yield {"input_path": test.path, "database": database, "metadata": test.metadata}
 ```
+
+`qa` reads the `input_path` (relative to `database`), `database` and `metadata` keys.

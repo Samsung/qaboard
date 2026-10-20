@@ -1,382 +1,223 @@
 ---
 id: visualizations
-title: Visualizing your algorithm's outputs
+title: Visualizations
 sidebar_label: Visualizations
+description: Show your runs' output files on the commit page, next to the reference's. List them in qaboard.yaml, hide the debug ones, offer a file per frame or stage, and preset regions of interest.
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
 
-The `run()`function wrapping your code receives an `output_directory` where it can create all kinds of files. Usually, you only want to look at a few of those files, the rest being debug data. **Visualizations** help you declare pre-sets of relevant files. 
+Your runs write files in `context.output_dir`. List the ones people should look at in *qaboard.yaml*: the commit
+page's **Visualizations** view shows them on each run's card, next to the reference run's, in a viewer picked from
+the file's extension.
 
-Here is a simple example, assuming your code an image named *output.jpg*.
+## Show an image {#show-an-image}
+If your code writes *out.png*:
 
 ```yaml title="qaboard.yaml"
 outputs:
-    visualizations:
-    - path: output.jpg
+  visualizations:
+    - name: Output
+      path: out.png
 ```
 
-:::note
-For now, to debug your visualizations, you have to commit and push your new *qaboard.yaml*.
-We plan on letting you edit simply *qaboard.yaml* locally, and update the visualizations when you use `qa --share`.
+`path` is relative to the run's output directory. Run a batch with `qa --share batch <batch>`, open the link it
+prints, then the **Visualizations** view: each run's card shows its *out.png* next to the reference's, and zooming one
+zooms the other.
+
+<Shot
+  id="commit/visualizations"
+  caption="Each run's card starts with its main metrics, then shows out.png next to the reference's, zoomed on the same window."
+/>
+
+:::note When the web app sees your changes
+A commit keeps the *qaboard.yaml* that `qa` sent with its first results. To try new visualizations, edit
+*qaboard.yaml* and run `qa --share batch <batch>` again: the batch keeps your edited *qaboard.yaml*, and the web app
+shows its new visualizations for that batch. The commit's other batches, like the CI's, keep the commit's.
+`qa --share run` doesn't change which *qaboard.yaml* a batch uses.
 :::
 
-You can provide multiple relevant files, and hide debug visualizations by default: 
+## Which viewer opens a file {#available-file-viewers}
+The extension picks the viewer. Set `type` when it doesn't say, e.g. `type: 6dof/txt` for a trajectory saved as
+*poses.tsv*.
 
-```yaml {5-6} title="qaboard.yaml"
+| Files | `type` | Viewer | In the user guide |
+|---|---|---|---|
+| *.png*, *.jpg*, *.jpeg*, *.bmp*, *.tif*, *.tiff*, *.pdf* | `image/*` | **Image**: side by side, wipe, difference, pixel values | [The image viewer](/docs/user-guide/image-viewer) |
+| *.raw*, *.dng*, *.hex* | `image/*` | **Image**, if the image server reads these raw formats (not included) | [The image viewer](/docs/user-guide/image-viewer) |
+| *.mp4*, *.webm*, *.mov*, *.mkv*..., animated *.webp* and *.gif* | `video/*` | **Video**: in sync, frame by frame | [The video viewer](/docs/user-guide/video-viewer) |
+| *.plotly.json*, *.plotly.html* | `plotly/json`, `plotly/html` | **Plot**, side by side or on the same axes | [Plots](/docs/user-guide/other-viewers#plots) |
+| *.flame.json* | `flame/json` | **Flame graph**, differential | [Flame graphs](/docs/user-guide/other-viewers#flame-graphs) |
+| *.html* | `text/html` | **HTML**, in a frame, without scripts | [HTML reports](/docs/user-guide/other-viewers#html-reports) |
+| *.pcd* | `pointcloud/pcd` | **Point cloud** in 3D, with the reference's and a ground truth | [Point clouds](/docs/user-guide/other-viewers#point-clouds-and-trajectories) |
+| any, e.g. *.tsv* | `6dof/txt` | **6DoF trajectory**, with the reference's and the ground truth | [Trajectories](/docs/user-guide/other-viewers#point-clouds-and-trajectories) |
+| any | `pointcloud/txt` | A time-of-flight camera's frames: point clouds and depth maps (legacy layout) | |
+| anything else: *.txt*, *.json*, *.log*... | `text/plain` | **Text**, diffed with the reference's | [Text](/docs/user-guide/other-viewers#text) |
+
+<Anchor id="video-viewer" /><Anchor id="point-clouds-and-trajectories" />
+What each viewer reads (video codecs, point cloud formats, the trajectories' columns...) and its options are in
+[Viewers and file formats](/docs/viewers).
+
+## Show several files, hide the debug ones {#hidden-by-default}
+Cards show the visualizations in the order of the list. Those with `default_hidden: true` start hidden: people turn
+them on in the **View options**. Hide the debug plots and the large files.
+
+```yaml title="qaboard.yaml" {7-9}
 outputs:
-    visualizations:
-    - path: output.jpg
-    - path: debug.jpg
+  visualizations:
+    - name: Output
+      path: out.png
+    - name: Edge profile
+      path: edge.plotly.json
+    - name: Color errors
+      path: color.plotly.json
       default_hidden: true
-      # type: image/jpg # auto-guessed
 ```
-
-Users will get switches to toggle debug visualizations:
 
 <Shot
   id="commit/controls-panel"
-  caption="The view options list every visualization, with switches for the ones hidden by default, like Color errors and Noise vs signal."
+  caption="The View options list every visualization: Color errors and Noise vs signal are hidden until someone turns them on."
 />
 
+Give each visualization a `name`: the View options list it by its name (or by its `label`, if you give one), and the
+web app shows and hides visualizations by name. Visualizations without a name are shown and hidden together.
 
-## Available file viewers
-QA-Board tries to guess the right image viewer depending on the file extension or a `type`
+## Every file your run writes {#output-files}
+A visualization only chooses what shows on the cards: QA-Board keeps every file your run writes in
+`context.output_dir`.
+- The **Output Files** view lists all of a run's files, and which differ from the reference's: see
+  [the commit page](/docs/user-guide/commit-page#output-files). `qa` writes their sizes and hashes in
+  *manifest.outputs.json* at the end of each run, next to the run's log (*log.txt*) and metrics (*metrics.json*).
+- The [file browser](/docs/user-guide/files) opens any run's folder.
+- `qa run` empties the output directory before it runs your code. To keep what's there, e.g. your own cache, use
+  `qa run --keep-previous`.
+- Where the files are saved and when they are deleted: [Where is the data saved?](/docs/storage/where-is-the-data) and
+  [Deleting old data](/docs/storage/deleting-old-data).
 
-Extensions                                          | Type         | Viewer                                       |
-----------------------------------------------------|--------------|----------------------------------------------|
-`*.jpg*`, `*.png*`, `*.bmp*`, `*.tif*`, `*.pdf*`... |  `image/*`   | **Image**                                    |
-`*.hex*`, `*.raw*`, `*.dng*`                        |  `image/*`   | **Image**, if the server has a reader for these raw formats (not included) |
-`*.plotly.json`, `*.plotly.html`                    | `plotly/json` / `plotly/html`| **Plot.ly**                                  |
-`*.flame.json`                                      | `flame/json` | **[Flame Graph](http://www.brendangregg.com/flamegraphs.html)**, [diffable](http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html)          |
-`*.html`                                            | `text/html` | **HTML** (in a frame, scripts don't run)     |
-`*.mp4`, `*.webm`, `*.mov`, `*.webp`, `*.gif`       | `video/*`    | **Video**: synced, side by side, wipe or difference |
-`*.txt`, unidentified                               | `text/plain*`| **Text** (diffs, with VSCode's [Monaco Editor](https://microsoft.github.io/monaco-editor/))|
-`*.pcd`                                             | `pointcloud/pcd` | **Point clouds** in 3D, against the reference's and a ground truth |
-`</>`                                               | `6dof/txt`       | **6DoF trajectories**, against the reference's and the ground truth |
-`</>`                                               | `pointcloud/txt` | A ToF camera's frames: point clouds and depth maps (legacy layout) |
-
-
-### Image viewer
-  * Supports all common image formats, and raw images with an [IIIF](https://iiif.io) server that reads them.
-  * Compares new and reference side by side, with a wipe, one at a time (single), or as their difference: perceptual (YIQ), ΔE 2000, absolute or signed per channel, or any change.
-  * Fast and smooth zoom & pan, synced across runs and visualizations. Fast image streaming via IIIF.
-  * The values of the hovered pixel in both images, and their difference, with a synced cursor on the other images. For 16-bit or raw images, the image's own values, read by the server.
-  * Zoomed in, the values written on the pixels.
-  * Regions of interest: the input's presets, or found where the images differ most, by a perceptual, SSIM or ΔE 2000 difference.
-  * Display adjustments (brightness, contrast, gamma, sharpen, one channel, false colors).
-  * Histograms per channel, of the region in view.
-  * Copy or save the new, reference or difference image.
-
-How to use it is described in the user guide: [comparing images](/docs/user-guide/comparing-results).
-
-<Clip
-  id="commit/image-diff"
-  caption="Zoom in one image and the reference follows. A wipe, then their difference, show what changed."
-/>
-
-Images are served by an [IIIF](https://iiif.io) image server, tile by tile: the viewers only load what they show, even for images over 100 MP.
-
-<Clip
-  id="commit/deep-zoom"
-  caption="A 113 MP test wall, from the full view down to single pixels, new and reference in sync."
-/>
-
-Draw your own debug information in the images you save, like detection boxes: the viewer compares them like any other image.
-
-The image viewer is also a React component you can use in your own apps, with images from any server: see its
-[README](https://github.com/Samsung/qaboard/tree/master/webapp/src/image-viewer).
-
-<Shot
-  id="commit/detections"
-  caption="Boxes drawn by the detector on a small-objects image: the int8 model misses people that fp32 finds."
-/>
-
-:::tip TIFF and PNG
-If a run saved both *image.png* and *image.tiff*, a visualization of *image.png* shows the TIFF. When the reference run doesn't have the file, the viewer falls back to the reference's *.tiff*, then *.bmp*, of the same name: it helps comparing results across a change of output format.
-:::
-
-
-### Regions of interest
-The image viewer shows thumbnails to navigate between regions of interest. Give them in the [input's metadata](metadata-integration-external-databases), or in a configuration (`{"roi": [...]}`). With YAML syntax:
-
-```yaml
-width: 800   # optional, useful if your results are showed with downscaled resolution
-height: 600  # optional, idem
-roi:
-- {x: 1408, y: 244, w: 121, h: 97, label: "Gradations and overshoots"}
-- {x: 455, y: 651, w: 58, h: 58, label: "False colors"}
-# you can override give the image dimension per ROI:
-- {image_width: 1600, image_height: 1200, x: 351, y: 567, w: 45, h: 53, label: "Details fine line"}
-```
-
-<Shot
-  id="commit/auto-roi"
-  caption="The input's preset regions, next to the regions where QA-Board finds that the images differ most."
-/>
-
-To write new ones, zoom on a region, then pick **Copy the view as a region** in the regions menu: you get its coordinates
-in the format above.
-
-
-### Plot.ly viewer
-[The Plotly library](https://plot.ly/graphing-libraries/) has everything you need from bar charts to 3d plots.
-- huge variety of plots
-- interactive plots
-- easy-ish to use with binding to [python](https://plot.ly/python/getting-started/)/JS/matlab...
-- web-based
-- open-source and popular
-- performant
-
-<Shot
-  id="commit/plotly-overlay"
-  caption="Precision-recall curves per class: the int8 model's, with the fp32 reference's drawn dashed on the same axes."
-/>
-
-<img alt="3d plot with plotly for LSF/Calibration" src={useBaseUrl('img/plotly-3d-example.png')} />
-
-All you need is to save your plot data as JSON. 
-
-```python
-import plotly.graph_objects as go
-fig = go.Figure(data=go.Bar(y=[2, 3, 1]))
-with open('graph.plotly.json', 'w') as f:
-  spec = fig.to_json() # '{"layout": {...}, "data": [{...}, {...}, ...]}'
-  f.write(spec)
-```
-
-By default, the new and reference plots are shown side by side. With `side_by_side: false`, the reference run's traces are drawn on the same axes as the new run's (when your traces set their colors, the reference's are dashed and faded):
-
-```yaml {4} title="qaboard.yaml"
-outputs:
-  visualizations:
-    - path: latency_cdf.plotly.json
-      side_by_side: false
-```
-
-<Shot
-  id="commit/latency-cdf"
-  caption="Latency percentiles on a log scale: with a shared cache, every percentile is a hundred times slower or more than the reference's."
-/>
-
-You can also save figures as stand-alone HTML, e.g. with `fig.write_html('graph.plotly.html')`. They are shown side by side (new and reference) in iframes, so the reference isn't overlaid on the same plot like with JSON.
-
-### Text Viewer
-Text files are diffed with the reference's in the Monaco editor. **Next Diff** jumps to the next change, and <kbd>t</kbd> swaps the sides.
-
-<Shot
-  id="commit/text-diff"
-  caption="Two runs' latency distributions, diffed line by line: every percentile changed."
-/>
-
-### HTML
-HTML files, like the reports your code renders, are shown one above the other: the new run's, then the reference's. Each shows in a frame of its own: images and links relative to the HTML file work, its styles don't change the page, and scripts don't run.
-
-<Shot
-  id="commit/html-report"
-  caption="A run's evaluation report, rendered by the project itself: AP per class and per object size, and the worst images."
-/>
-
-### Flame Graphs
-We love Brendan Gregg's [flame charts](http://www.brendangregg.com/flamegraphs.html) and integrated Martin Spier's [`d3-flame-graph`](https://github.com/spiermar/d3-flame-graph). At a glance, you can check where you code spends its CPU cycles, and use [differential flame graphs](http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html) to debug regressions.
-
-<Shot
-  id="commit/flame-diff"
-  caption="A differential flame graph: new work under the shared cache's lock in orange, the model work it skips in blue."
-/>
-
-> For a tutorial [read our blog post](https://samsung.github.io/qaboard/blog/2020/06/24/flame-graphs).
-
-### Video viewer
-  * New and reference play in sync, frame by frame: paused, both show the same frame, and the viewer says which, numbered like in the file.
-  * Compare them like images: side by side, with a wipe, one at a time, or as their difference (perceptual, ΔE 2000, absolute...), with display adjustments, full screen and a blind test.
-  * Zoom with the mouse wheel or a pinch, drag to pan: both videos follow, even when their resolutions differ. Zoomed in, you see the actual pixels and their values: decoded (e.g. 10-bit Y′CbCr) or as displayed.
-  * See what's in the files (codec, pixel format, color range, frame rate...) and find where and when two videos differ, frame by frame.
-  * Step frame by frame, scrub, slow down to 0.1×, loop. Copy or save the current frame as a PNG.
-
-How to use it is described in the user guide: [comparing videos](/docs/user-guide/comparing-results#video-viewer).
-
-<Clip
-  id="commit/video-compare"
-  caption="The camera driving down an aisle in low light, new and reference: frame by frame, with a wipe, zoomed in, and their difference."
-/>
-
-Browsers play **H.264**, **VP9** and **AV1** videos, in *.mp4* or *.webm* files. Other codecs (e.g. HEVC/H.265, MPEG-4 part 2) or containers (e.g. *.avi*) show an error: convert them when your code writes them, for instance with:
-
-```bash
-ffmpeg -i input.avi -c:v libx264 -pix_fmt yuv420p -movflags +faststart output.mp4
-```
-
-`+faststart` lets a video start playing before it's fully downloaded. Animated *.webp* and *.gif* files are compared the same way, but your browser plays them on its own: they are not synced.
-
-QA-Board's server reads the files with FFmpeg: the timestamp of every frame (frames are numbered like in the file,
-also with variable frame rates), their decoded values, and where two videos differ. It reads any format FFmpeg reads,
-but your browser still has to play the video.
-
-To compare exact values, write lossless videos: lossy codecs change the values your code wrote, and 4:2:0 stores
-colors at half resolution. Browsers play lossless VP9:
-
-```bash
-ffmpeg -i frames/%04d.png -c:v libvpx-vp9 -lossless 1 -pix_fmt yuv444p output.webm
-```
-
-Without the server's timestamps, QA-Board finds a video's frame rate when it plays, or when you step through its frames. If it guesses wrong, set it, with an optional image shown before the video loads:
+## Show a file per frame, stage or step {#dynamic-visualizations}
+When runs write one file per frame, pipeline stage or iteration, one visualization can offer them all. Name the part
+of the path that changes with `:`, here `:stage`:
 
 ```yaml title="qaboard.yaml"
 outputs:
   visualizations:
-  - path: camera.mp4
-    fps: 30
-    poster: camera.jpg  # default: poster.jpg, if the run created it
+    - name: ISP stage (1 raw, 2 demosaic, 3 denoise, 4 sharpen, 5 tone map)
+      path: "stages/:stage.jpg"
 ```
 
-### Point clouds and trajectories
-**Point clouds** (`*.pcd` files, ascii or binary, with `x y z` fields) open in a 3D viewer: the new run's points,
-the reference's, and a ground truth if you have one, on the same axes, in orange, blue and green. Drag to orbit,
-right-drag to pan, scroll to zoom, and show or hide each cloud.
-
-```yaml title="qaboard.yaml"
-outputs:
-  visualizations:
-  - name: Map
-    path: map.pcd                     # or a pattern, like keyframes/:id/cloud.pcd: a select picks the file
-    path_groundtruth: map.truth.pcd   # optional, in the new run's folder
-    point_size: 2                     # pixels
-```
-
-<Shot
-  id="commit/pointcloud"
-  caption="The map the odometry built from the depth camera, in orange, against where the points really are, in green: the walls drift apart where the trajectory did."
-/>
-
-**6DoF trajectories** are tab-separated values with a header row: a `t` column (seconds), then one column per pose
-value, for instance `x y z yaw pitch roll` or `x y z q_w q_x q_y q_z`. The viewer plots each column over time, and the path in 3D, at the same
-scale on every axis. It draws the reference's trajectory, and the ground truth from `GT_final.txt` in the run's
-folder, in the same format:
-
-```yaml title="qaboard.yaml"
-outputs:
-  visualizations:
-  - name: Trajectory
-    path: poses.tsv
-    type: 6dof/txt
-    show_3d: true     # default
-```
-
-<Shot
-  id="commit/trajectory-6dof"
-  caption="A trajectory against the ground truth and the reference's, per axis and in 3D: the new estimate drifts after the first turns."
-/>
-
-The `pointcloud/txt` viewer was written for a time-of-flight camera's runs: `Frame<N>/pointcloud.pcd` and depth maps
-for each frame listed in the run's metrics. Use `pointcloud/pcd` for anything else.
-
-### More Viewers?
-Tell us what you need! The next we'll implement is likely [**vega**](https://vega.github.io/vega/) specs. It would notably allow us to display `altair` visualizations. We could also have a minimal integration with notebooks, [visdom](https://github.com/facebookresearch/visdom), [webiz](https://webviz.io/)...
-
-You can also write your own viewer: viewers are React components that download a run's files and display them. They live in [`webapp/src/viewers`](https://github.com/Samsung/qaboard/tree/master/webapp/src/viewers), and [`OutputViewer.jsx`](https://github.com/Samsung/qaboard/blob/master/webapp/src/viewers/OutputViewer.jsx) picks one for each visualization `type`. Start from an existing viewer, and run the web app's dev server as described in its [README](https://github.com/Samsung/qaboard/tree/master/webapp). Contributions are welcome!
-
-
-## Dynamic visualizations
-You can use a [special syntax](https://github.com/pillarjs/path-to-regexp) to create dynamic visualizations at display-time. Users will be able to choose what to display using sliders / select options:
+The **View options** get a **Files to show** section, with a slider when the values are consecutive integers, else a
+select. The value applies to all the runs' cards, unless people choose it **Per run** (see
+[the commit page](/docs/user-guide/commit-page#view-options)).
 
 <Clip
   id="commit/dynamic-outputs"
-  caption="One visualization per ISP stage: the slider steps from the raw mosaic to the tone-mapped image, on every run's card."
+  caption="One visualization for the 5 ISP stages: the slider steps from the raw mosaic to the tone-mapped image, on every run's card."
 />
 
-```yaml {5,7} title="qaboard.yaml"
-outputs:
-    visualizations:
-    - name: Movie Frames
-      # you can use the `/user/:name` syntax to match part of filenames
-      path: ":frame/output.jpg"
-      # you can match part of filenames (experimental)
-      path: ":frame/frame_:number.jpg"
-
-      # For more examples, the full syntax is available at:
-      # https://github.com/pillarjs/path-to-regexp
-      # Note that for the most advanced syntax you need to escape strings like this
-      # path: frames/:frame(\\d+).jpg 
-
-```
-
-You can also use regular expressions **(inside parentheses!)** to match which output files you want to view:
-
-```yaml {4,6,8}
-outputs:
-    visualizations:
-      # A common use case is matching file extensions
-      path: "(.*\.jpg)"
-      # ... or parts of filenames
-      path: "(debug_.*\.jpg)"
-      # you can mix with the previous syntax
-      path: ":frame/(.*\.txt)"
-
-      # If you use regular expressions, we aware that:
-      # - You MUST use "( )" aka "capture groups" !
-      # - While you can often get away "(.*)/output.jpg", in many cases you'd want "([^/]*)/output.jpg"
-      # - Parts of paths matched via regular expressions are not synced with other outputs. Prefer the ":name" syntax
-      #   Eg if you ask also to visualize "(.*)/debug_output.jpg" and "(.*)/output.jpg"
-      #   you will get two select inputs for the frame.
-```
-
-By default, only one viewer/path is shown at a time, and you get sliders/select to decide what to show. They are in the **Files to show** section of the **View options**, and apply to all runs, but users can turn on **Per run** to choose the value in each run's card (see the [user guide](/docs/user-guide/commit-page#view-options)).
-
-Each option is named after its part of the path, as a label: `:frame` shows as *Frame*, `:noise_level` as *Noise level*. Name the parts of your paths for your users: prefer `frames/:frame.png` to `frames/(.*)\.png`, whose option gets a name made up from the visualization's.
-
-Runs don't need to have the same values: the **View options** offer the values of all runs, and numbers are sorted as numbers (`2` before `10`). Until users pick a value, each run shows its own default: its last value when the values are numbers (e.g. its last frame), else its first. When a run doesn't have the selected value, its card shows the closest number (or the default) and says so.
+- **Name the parts of your paths** for your users: each option is labeled after its part, `:stage` as *Stage*,
+  `:noise_level` as *Noise level*. Visualizations that use the same name share the option.
+- **Runs don't need the same values.** The View options offer the values of all runs, and sort numbers as numbers
+  (`2` before `10`). Until people pick a value, each run shows its own default: its last value when the values are
+  numbers (e.g. its last frame), else its first. When a run doesn't have the selected value, its card shows the
+  closest number (or the default) and says so.
+- **Show all the matching files** at once, one after the other, with `display: all`.
 
 <Shot
   id="commit/dynamic-options"
-  caption="The stage option, synced: on stage 3, every card shows stages/3.jpg. Changing it keeps the zoom."
+  caption="Files to show picks the stage: synced, the slider on 3 shows stages/3.jpg on every card. Changing it keeps the zoom."
 />
 
-If you want, you can visualize all matching files:
+<details>
+<summary>Patterns: several parts, parts of names, regular expressions</summary>
 
-```yaml {5-7}
-   # --snip--
-    - name: KPI reports
-      path: "reports/:report"
-      type: plotly/json
-      display: single  # (default): will list views one after the other
-             # all     # will render all matching paths/views
-             # viewer  # let the viewer decide what to do... (EXPERIMENTAL)
+Paths are patterns in the syntax of [path-to-regexp](https://github.com/pillarjs/path-to-regexp):
+
+```yaml title="qaboard.yaml"
+outputs:
+  visualizations:
+    - name: Frames
+      path: ":frame/output.jpg"           # a folder per frame
+    - name: Frames, by number
+      path: ":frame/frame_:number.jpg"    # part of a file name
+    - name: Debug images
+      path: "(debug_.*\\.jpg)"            # a regular expression, in parentheses
+    - name: Logs per frame
+      path: ":frame/(.*\\.txt)"           # both
+    - name: Numbered frames
+      path: "frames/:frame(\\d+).jpg"     # a named part that only matches digits
 ```
 
+With regular expressions:
+- write them in parentheses: they are "capture groups";
+- `(.*)/output.jpg` also matches folders inside folders: you often want `([^/]*)/output.jpg`;
+- their options are named after the visualization, and not shared with other visualizations: prefer named parts. Two
+  visualizations of `(.*)/debug_output.jpg` and `(.*)/output.jpg` get two selects for the frame.
 
-## Advanced Options [EXPERIMENTAL] 
-### Custom Styles
-You can style your visualizations. Without a `width`, run cards are as wide as the page allows, up to 1500px, and images
-are 390px wide for a pair:
+</details>
 
-```yaml {3-7,10-12}
+## Preset regions of interest {#regions-of-interest}
+The image viewer shows thumbnails of regions of interest above the images, to jump to the details that matter: the
+input's presets, and the regions where the images differ most. Give the presets in the
+[input's metadata](/docs/metadata-integration-external-databases), or in a configuration, as a list under `roi`. The
+camera ISP example reads each photo's metadata from a YAML file next to it:
+
+<RepoFile path="examples/image-quality/inputs/photos/facade.metadata.yaml" title="inputs/photos/facade.metadata.yaml" />
+
+<Shot
+  id="commit/auto-roi"
+  caption="The input's preset regions, and below them the regions where the server finds that the images differ most."
+/>
+
+Regions are in the pixels of the image shown. When the image is smaller than the input, e.g. downscaled, give the
+input's size in its metadata (`width`, `height`), or the size of the image a region refers to
+(`image_width`, `image_height`): the viewer scales the regions. A region can also have a `color`.
+
+To write new presets, zoom on a region in the web app, then pick **Copy the view as a region** in the regions menu:
+you get its coordinates in this format. How people use regions: [the image viewer](/docs/user-guide/image-viewer#find-where-images-differ).
+
+## Make room on the cards {#styles}
+<Anchor id="custom-styles" />
+
+Cards are as wide as the page allows, up to 1500 px. Set a width for all of them in `outputs.style`, or for one
+visualization in its `style`. Widths are a maximum: cards get narrower when the window is.
+
+```yaml title="qaboard.yaml"
 outputs:
-    # define global or per-view styles
-    style:
-        # use any CSS properties
-        width: 500px
-        # the style will be applied to the outer-container
-        # and passed down to the viewers
-    detailed_views:
-    - name: My debug visualization
+  style:
+    width: 1180px    # new and reference images about 600 px wide each
+  visualizations:
+    - name: Report
+      path: report.html
       style:
-        width: 400px   
+        width: 840px
 ```
 
-### Viewer Configuration
-Some viewers can read extra configuration parameters from their configuration: 
+## Viewer options {#viewer-options}
+<Anchor id="viewer-configuration" />
 
-```yaml {5}
-outputs:
-    detailed_views:
-    - name: My SLAM plot
-      type: 6dof/txt
-      show_3d: true
-```
+Other keys of a visualization go to its viewer: `side_by_side: false` draws a plot over the reference's, `fps` sets a
+video's frame rate, `point_size` a point cloud's. Each viewer's options are in
+[Viewers and file formats](/docs/viewers).
 
-You can specify those parameters at "display-time" by defining controls:
+<details>
+<summary>Every key of a visualization</summary>
 
-```yaml {2-7}
+| Key | What it does |
+|---|---|
+| `name` | How the View options list it, and the key that shows or hides it. |
+| `label` | Shown instead of the name. |
+| `path` | The file, relative to the run's output directory, or a [pattern](#dynamic-visualizations). |
+| `type` | The viewer, when the extension doesn't say it: see [the table](#available-file-viewers). |
+| `default_hidden` | `true` to start hidden. |
+| `display` | With a pattern: `single` (default) shows the file picked in the View options, `all` every matching file, `viewer` gives the pattern to the viewer. |
+| `style` | CSS for the viewer, e.g. `width`. |
+| Other keys | Options of the viewer: see [Viewers and file formats](/docs/viewers). |
+
+</details>
+
+`outputs.controls` adds switches to the **Viewers** section of the View options. Each viewer gets the switch's value as
+an option of the same name, which overrides the visualizations' own. The 6DoF viewer, for instance, reads
+`show_debug`, which adds plots of *DebugExtensions.txt*:
+
+```yaml title="qaboard.yaml"
 outputs:
   controls:
     - type: toggle
@@ -385,3 +226,20 @@ outputs:
       default: false
 ```
 
+## When nothing shows {#troubleshooting}
+- **Invalid visualization path** on the cards: the web app can't read a `path` pattern. Hover the tag for the error.
+- A line like **2 more without files in these runs**, under the visualizations of the View options: hover it to see
+  which visualizations found no file in the runs shown. Compare their `path` with the run's files in **Output Files**.
+- A run without the file shows nothing for that visualization. A file only the new run has shows alone, without the
+  reference's.
+- You changed *qaboard.yaml* but the cards didn't: see [when the web app sees your changes](#show-an-image).
+
+## Examples
+The demo projects show complete configurations, with what they look like in the web app:
+- [Image quality](/docs/use-cases/image-quality#the-configuration): images, a slider over the ISP's stages, plots,
+  a video.
+- [Detection](/docs/use-cases/detection-eval#the-configuration): detections drawn on the images, precision-recall
+  curves over the reference's, an HTML report.
+- [Serving latency](/docs/use-cases/serving-latency#the-configuration): latency plots, a flame graph, text diffs.
+- [Robotics](/docs/use-cases/robotics-3d#the-configuration): a trajectory, a video, a point cloud.
+- [Agent evals](/docs/use-cases/agent-evals#the-configuration): transcripts and HTML reports.

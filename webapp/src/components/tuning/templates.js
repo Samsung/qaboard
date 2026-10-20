@@ -78,12 +78,12 @@ return {
 evaluations: 50
 parallel_sampling: 1
 
-# You can configure the the solver:
+# You can configure the solver:
 # https://scikit-optimize.github.io/stable/modules/generated/skopt.optimizer.Optimizer.html#skopt.optimizer.Optimizer
 # solver:
 #   base_estimator: GP
 #   n_initial_points: 10
-#   acq_funcstring: gp_hedge
+#   acq_func: gp_hedge
 #   # etc
 
 

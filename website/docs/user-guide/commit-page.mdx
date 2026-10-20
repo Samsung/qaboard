@@ -2,291 +2,223 @@
 id: commit-page
 title: The commit page
 sidebar_label: The commit page
-description: The top bars, the view options, and what each view of the commit page is for.
+description: Find your way around a commit's results, the new and reference bars, the view options, and which view answers which question.
 ---
-The commit page shows the results of one commit (the **new** one) compared with a **reference**. Its URL looks like `/<project>/commit/<hash>?reference=<hash>&batch=...`.
-
-## The top bars
-There are two bars, **new** on top and **ref** below. Each one shows:
-
-- The commit message, its author and date.
-- A **star** to save the results you see (the commit's batch and filter) as a [milestone](comparing-results.mdx#milestones). When they are one, the star is filled and the milestone's name shows next to it.
-- The **commit hash** field: type another hash to switch commits, or hover **Change** for more options (swap the bars, pick a branch or a milestone...). See [Picking a reference](comparing-results.mdx#picking-a-reference).
-- The **branch**: click it to select the latest commit of that branch.
-- A **filter** box and the counters of runs (runs, running, pending, failed). See the [filter syntax](finding-results.mdx#filter-syntax).
-- The **batch selector** (see [Batches](finding-results.mdx#batches)).
-- A **refresh** button, and a **menu** (☰) with:
-  - *Commit*: copy the commit's artifacts directory (Windows or Linux path), view it in the browser.
-  - *Batch*: copy the batch's output directory, view it in the browser, move runs to another batch, rename the batch, **redo** failed, deleted or all runs, and delete runs (all, failed only, or several batches at once). The *Delete files, keep metadata* switch deletes only the files, optionally matching patterns like `*.png`. Batches that are milestones are protected: delete the milestone first, or delete only their files or their failed runs.
-
-:::info
-The reference bar is hidden on the **Logs**, **Available Tests** and **Run Tests / Tuning** views: they only concern the new commit.
-:::
-
-Above the views, messages tell you about the selected batch:
-- **N running** / **N pending**: hover to list the runs. A **Stop runs** button cancels them.
-- **N failed**: the list of failed runs. Read their [logs](#logs).
-- **N of the runs below were deleted**: **Redo deleted runs** runs them again.
-- **Be careful, those are local runs**: the runs were started from someone's workspace, and may not match the committed code.
-- **This commit's artifacts were deleted** (or **are incomplete**, when files went missing without QA-Board knowing): it says when and by whom, and what's missing. **Recreate the artifacts** asks your CI to rebuild them, if the project [configured it](../storage/deleting-old-data.mdx#recreating-artifacts). Otherwise, **Restore the artifacts** restores the files from the source code, but not build outputs like binaries.
-
-While runs are pending, the page refreshes by itself every 15 seconds.
-
-<a id="the-controls-panel"></a>
-
-## View options
-On the right of the page, under the top bars, the **View options** panel changes what the views of the runs' results show, and in which order. It's part of the page: the views get narrower to make room for it.
-
-- **Show or hide it**: press <kbd>o</kbd>, or use the arrow at its top. Collapsed, it becomes a thin rail with an icon per section: hover an icon to see what the section is set to, click it to open the panel on that section. A dot on an icon means the section differs from the project's defaults.
-- It starts open when the window has room for it and for the results, else collapsed. Your choice is remembered.
-- **Resize it** by dragging its left edge (or focus the edge and use the arrow keys). Double-click the edge for the default width.
-- On narrow windows, the open panel covers the page instead: <kbd>Esc</kbd> closes it.
-- The number next to its title counts what differs from the project's defaults: hover it for the list.
-
-It only lists what changes the views you're on:
-
-- **Visualizations** (on the Visualizations view): a switch to show or hide each visualization, including the ones hidden by default. The header counts how many are shown. A search box appears when there are many.
-- **Files to show** (on the Visualizations view): when a visualization has several files per run (frames, stages, reports...), pick which one to show. Hover an option to see which visualization and path it's for, and the values found in the runs.
-  - Until you pick a value, each run shows its own default: its last value when the values are numbers (e.g. its last frame), else its first. The panel says so ("Each run's last").
-  - The value you pick applies to all runs. The panel lists the values of all runs, and a run that doesn't have the selected value shows the closest one, with a note on its card.
-  - Turn on **Per run** to choose the value in each run's card instead. **Same for all runs**, in a card, turns it back off.
-  - The reset button next to an option goes back to the default. Changing an option keeps the image viewers' zoom and selected region.
-- **Viewers** (on the Visualizations and Output Files views): **Compare images** picks how all the image viewers compare new and reference: side by side, with a wipe, one at a time (single), or their difference. You can also pick it above any image. Then come the project's own switches, if its *qaboard.yaml* has `controls`.
-- **Configuration** (on the views that show runs): the settings all the runs shown share, and **Hide them in each run**, to show in each run only what's specific to it (see [reading configurations](/docs/user-guide/comparing-results#reading-configurations)).
-- **Sort runs**: sort by name, run id, storage, a tuning parameter or a metric. Until you choose, runs are sorted by the project's default metric, marked *(default)*. The order reads like the values: *Highest first*, *A to Z*, *Newest first*... It applies to the tables and the run cards.
-
-**Reset**, at the top of the panel (or at the bottom of the rail), goes back to the project's defaults for the visualizations, the files to show and the viewers. The sorting stays as it is.
+A commit page shows the results of one commit, the **new** one, next to a **reference**: by default, the latest results
+of your project's reference branch. It's where you answer "what did this commit change?". This page shows you around.
 
 <Shot
   id="commit/controls-panel"
-  caption="The switches include the visualizations hidden by default. How images are compared and the sorting apply to every card."
+  caption="The two bars say what you compare: here, a merge into main against the release before it. The sidebar picks the view; the View options, on the right, what every run's card shows."
   callouts={[
-    {anchor: 'visualizations', label: 'Visualizations'},
-    {anchor: 'image-diff', label: 'Compare images'},
-    {anchor: 'sorting', label: 'Sort runs'},
+    {x: 15, y: 0.5, w: 84.6, h: 7.6, kind: 'box', label: 'The new commit'},
+    {x: 15, y: 8.6, w: 84.6, h: 7.8, kind: 'box', label: 'The reference'},
+    {x: 0.6, y: 14, w: 12.8, h: 58, kind: 'box', label: 'The views'},
+    {x: 79.4, y: 17.2, w: 20.4, h: 66, kind: 'box', label: 'View options'},
   ]}
 />
 
-<Shot
-  id="commit/dynamic-options"
-  caption="Files to show, over the pipeline's stages: on stage 3, every card shows stages/3.jpg, new and reference."
-/>
+To review a commit, go from the big picture down to the pixels:
 
-## Views
-The sidebar of a commit page lists the views. Each one answers a different question.
+1. **Summary**: did the main metrics get better or worse? See [Reading metrics](/docs/user-guide/metrics).
+2. **Metrics Diff**: which runs changed, and by how much?
+3. **Visualizations**: look at those runs' outputs next to the reference's.
 
-| View | Use it to... |
+For a guided tour on the demo data, follow [Your first review](/docs/user-guide/first-review).
+
+## The two bars {#the-top-bars}
+The **new** bar, on top, holds the commit you look at; the **ref** bar, below, what you compare it with. They work the
+same way. Each shows:
+
+- the commit message, author and date;
+- the **commit hash**: type another one to switch commits, or click **Change** to pick a branch, a milestone, or to
+  swap the bars. See [choose another reference](/docs/user-guide/comparing-results#picking-a-reference);
+- the **branch**: click it to select its latest commit;
+- a **star**, to save the results you see (this batch, with its filter) as a
+  [milestone](/docs/user-guide/milestones#saving-a-milestone);
+- a **filter** box, to keep only some runs, and the counters of runs, running, pending and failed below it. See the
+  [filter syntax](/docs/user-guide/finding-results#filter-syntax);
+- the **batch selector**: the CI batch, your local runs, tuning experiments... See
+  [Batches](/docs/user-guide/finding-results#batches);
+- a refresh button, and a menu (☰) with the commit's and the batch's folders and actions.
+
+The **Logs**, **Available Tests** and **Run Tests / Tuning** views only concern the new commit: they hide the
+reference bar. While runs are pending, the page refreshes by itself every 15 seconds.
+
+<details>
+<summary>Every item of the ☰ menu</summary>
+
+| Section | Items |
 |---|---|
-| **Summary** | Get the big picture: how the main metrics changed |
-| **Metrics Table** | Check each run's metrics against their targets |
-| **Metrics Diff** | See per-run improvements and regressions vs the reference |
-| **Visualizations** | Look at images, plots, videos, text... side by side with the reference |
-| **Output Files** | Browse and diff all the files each run created |
-| **Logs** | Read why a run failed, see the commands that started the batch |
-| **Artifacts & Configs** | Diff the build and the configuration files between commits |
-| **Code** | Open the commit's code on your git server |
-| **Available Tests** | See, check and edit the batches of inputs you can run |
-| **Run Tests / Tuning** | Start new runs or tuning experiments on this commit |
-| **Tuning Analysis** | Understand the results of a tuning experiment |
+| Commit | **Copy artifacts directory** (Linux path, and Windows path when your server has path mappings), **View in browser**. |
+| Batch | **Copy output directory**, **View in browser**. **Move runs to another batch**, **Rename batch**. |
+| Redo | **Redo deleted runs**, **Redo failed runs**, **Redo all runs…**. With a filter, they redo only the runs that match it. See [Running from the web app](/docs/user-guide/running-from-the-webapp#redo-stop-and-clean-up-runs). |
+| Delete | **Delete failed runs…**, **Delete all runs…**, **Delete multiple batches**. With **Delete files, keep metadata**, only the files are deleted, optionally only those matching patterns like `*.png`. |
 
-Some projects open a different view by default. The selected view is part of the URL (`selected_views=`), see [Sharing](sharing.mdx#whats-in-the-url).
+Batches that are milestones are protected: see [What a milestone keeps](/docs/user-guide/milestones#what-a-milestone-keeps).
 
-### Summary
-For each **summary metric** (pick others with the metrics selector):
-- the new **median**, and the reference median with the change in percent, green when it improves, red when it degrades (changes under 1% stay neutral). Changes are gray when QA-Board doesn't know whether higher or lower is better (see below);
-- when the metric has a target, a bar with the share of runs meeting it;
-- box plots of the new and reference distributions, with the target zone in green or red.
+</details>
 
-<Shot
-  id="commit/summary"
-  caption="The int8 model is 72% smaller and its median mAP barely moves: the red AP on small objects is what it costs."
-/>
+<details>
+<summary>The messages above the views</summary>
 
-:::caution
-If the batch mixes several values of tuning parameters, a warning reminds you that the summary aggregates them all. Filter the runs (e.g. `threshold:0.5`) to compare like with like.
-:::
+- **N running** / **N pending**: hover to list the runs. **Stop runs** cancels them.
+- **N failed**: the failed runs, each name opens its log. **Open the logs** shows the [Logs](/docs/user-guide/logs)
+  view.
+- **N of the runs below were deleted**: **Redo deleted runs** runs them again.
+- **Be careful, those are local runs**: they were started from someone's workspace, and may not match the committed
+  code.
+- **This commit's artifacts were deleted**, **are incomplete**, or **are being recreated**: when and by whom, and what's
+  missing, with buttons to bring them back. See [If runs don't start](/docs/user-guide/running-from-the-webapp#if-runs-dont-start).
+- For batches started from the web app: **Your batch is waiting for LSF**, **The batch you started from QA-Board
+  failed**... See [Batches started from QA-Board](/docs/user-guide/logs#started-from-qa-board).
+- On the views that show runs, what all the runs share: see
+  [Reading configurations](/docs/user-guide/comparing-results#reading-configurations).
 
-The reference values only use reference runs on the same inputs as the new runs.
+</details>
 
-When the project doesn't choose its summary metrics, the Summary shows up to 8 metrics: those that changed the most vs the reference. Without a choice either, the tables show the project's declared metrics, and others up to 20 columns: pick more with the metrics selector above them.
+<Anchor id="the-controls-panel" />
 
-:::info Metrics in neutral colors
-QA-Board shows all the metrics of the runs. For some, it may not know if higher or lower values are better: a metric that the project didn't declare, or a count where neither is better. Their changes are shown in **gray** in the Summary and in **blue** in the tables, never green or red, and hovering their name says so. Ask the project's maintainers to [declare them](/docs/computing-quantitative-metrics#declaring-metrics).
-:::
+## View options {#view-options}
+The **View options** panel, on the right (4 in the picture above), changes what the views show, and in which order.
+Press <kbd>o</kbd> to show or hide it. It lists only what applies to the view you're on:
 
-### Metrics Table
-One row per run, with its input, tuning parameters, platform and configuration tags. For each metric, the **New** and **Ref** values side by side. The header shows the metric's target and unit, e.g. `[0.01 cm]`.
+- **Visualizations**: a switch per visualization, including the ones hidden by default.
+- **Files to show**: when runs have several files for a visualization, like the stages of a pipeline or the frames of
+  a sequence, which one every card shows. See
+  [Pipeline stages and frames](/docs/user-guide/other-viewers#pipeline-stages-and-frames).
+- **Viewers**: **Compare images** sets how every image viewer compares new and reference: side by side, with a wipe,
+  one at a time, or their difference. Then the project's own switches, if it has some.
+- **Configuration**: the settings all the runs shown share, and **Hide them in each run**.
+- **Sort runs**: by name, run id, storage, a tuning parameter or a metric, for the tables and the run cards. Until you
+  choose, runs are sorted by the project's default metric, marked *(default)*.
 
-When a metric has a **target**, cells are colored from red to green by how far they are from it (or just red/green for pass/fail metrics). Other metrics are shaded in blue: the darker, the larger the value compared with the other runs. A reference cell shows `=` when it's identical to the new value. Rows with a **Failed** tag are failed runs.
+**Reset** goes back to the project's defaults, except for the sorting.
 
-<Shot
-  id="commit/metrics-table"
-  caption="One row per slice and variant: the colors say how far each value is from its target, the headers give the units."
-/>
+<details>
+<summary>More about the panel</summary>
 
-### Metrics Diff
-One row per run, with `new − ref` for each metric, and the change in percent. Cells are green when the new run is better, red when it's worse, taking into account whether smaller is better for that metric. For metrics where QA-Board doesn't know which way is better, cells are blue: the darker, the larger the change. Hover a cell to see both values. Only metrics that the reference also has are shown.
+- **Collapsed**, it's a thin rail with an icon per section: hover an icon to see what the section is set to, click it
+  to open the panel there. A dot on an icon means the section differs from the project's defaults.
+- It starts open when the window has room for it and the results, else collapsed. Your choice is remembered.
+- **Resize** it by dragging its left edge, or focus the edge and use the arrow keys. Double-click the edge for the
+  default width. On narrow windows, the open panel covers the page: <kbd>Esc</kbd> closes it.
+- The number next to its title counts what differs from the project's defaults: hover it for the list.
+- **Visualizations**: the header counts how many are shown. Visualizations without files in these runs are listed
+  apart. A search box appears when there are many.
+- **Files to show**: until you pick a value, each run shows its own default (its last value when the values are
+  numbers, like its last frame, else its first). The value you pick applies to all runs; a run without it shows the
+  closest one, with a note on its card. **Per run** lets you choose in each card instead. Changing an option keeps the
+  image viewers' zoom and region.
+- **Compare images** can also be set above any image, or with the keys <kbd>1</kbd> to <kbd>4</kbd>.
+- **Sort runs**: the order reads like the values: *Highest first*, *A to Z*, *Newest first*... It sorts by the new
+  runs' values. The Summary doesn't use it.
 
-<Shot
-  id="commit/metrics-diff"
-  caption="int8 against fp32, slice by slice: the model size is green everywhere, while mAP and AP on small objects turn red on the slices that suffer."
-/>
+</details>
 
-:::tip
-Use the **Sort runs** section of the view options to sort runs by a metric, and see the worst regressions first.
-:::
+## The views {#views}
+The sidebar lists the views, grouped by what they're about. Each one answers a different question.
 
-Yellow **Input**, **Config** or **Platform** tags (with a `≠` icon) mean the run was compared with a reference run that is not exactly the same. Hover them for details. See [How runs are matched](comparing-results.mdx#how-runs-are-matched).
+| View | Use it to... | |
+|---|---|---|
+| <Anchor id="summary" />**Summary** | Get the big picture: how the main metrics changed | [Reading metrics](/docs/user-guide/metrics#summary) |
+| <Anchor id="metrics-table" />**Metrics Table** | Check each run's metrics against their targets | [Reading metrics](/docs/user-guide/metrics#metrics-table) |
+| <Anchor id="metrics-diff" />**Metrics Diff** | Find the runs that improved or regressed vs the reference | [Reading metrics](/docs/user-guide/metrics#metrics-diff) |
+| **Visualizations** | Look at images, videos, plots, text... next to the reference | [Run cards](#run-cards), then the [image](/docs/user-guide/image-viewer), [video](/docs/user-guide/video-viewer) and [other viewers](/docs/user-guide/other-viewers) |
+| **Output Files** | Browse and diff every file the runs created | [Output Files](#output-files) |
+| <Anchor id="logs" />**Logs** | Find out why a run failed, follow running runs | [Logs and failed runs](/docs/user-guide/logs) |
+| **Artifacts & Configs** | Diff the build and configuration files with the reference commit | [Artifacts & Configs](#artifacts-and-configs) |
+| **Code** | Open the commit on your git server | [Code](#code) |
+| <Anchor id="available-tests" />**Available Tests** | See, check and edit the batches of tests you can run | [Choosing the tests to run](/docs/user-guide/available-tests) |
+| <Anchor id="run-tests--tuning" />**Run Tests / Tuning** | Run this commit's code on more tests, or with other parameters | [Running from the web app](/docs/user-guide/running-from-the-webapp#running-tests-and-tuning) |
+| <Anchor id="tuning-analysis" />**Tuning Analysis** | See how the metrics depend on tuning parameters, and the best ones | [Running from the web app](/docs/user-guide/running-from-the-webapp#tuning-analysis) |
 
-### Visualizations
-One card per run, with its main metrics, else its first metrics (and their change vs the reference) and the visualizations configured for the project: images, plots, videos, text, HTML, flame graphs, point clouds... The reference is shown next to the new result.
+The sidebar also has the project's **Integrations** (see
+[Running from the web app](/docs/user-guide/running-from-the-webapp#integrations)) and its
+[milestones](/docs/user-guide/milestones#finding-milestones). Hover a view's name for a reminder of what it shows.
+Some projects open another view by default. The view you're on is part of the page's link: see
+[Sharing](/docs/user-guide/sharing#whats-in-the-url).
+
+<Anchor id="visualizations" />
+
+## Run cards {#run-cards}
+The **Visualizations** view has one card per run. A card starts with:
+
+- **the run's name**, usually its input. Hover it for its batch, input path and database (click to copy), metadata,
+  compute time, date and storage. Click it to see this input's results over time, in
+  [History](/docs/user-guide/history-and-dashboards).
+- **tags** for its platform and configuration, and how they differ from the reference run's: see
+  [Reading configurations](/docs/user-guide/comparing-results#reading-configurations). Orange **Input**, **Config** or
+  **Platform** tags (with a `≠`) mean the reference run is not exactly the same: see
+  [How runs are matched](/docs/user-guide/comparing-results#how-runs-are-matched).
+- **its main metrics**, each with its change against the reference run, colored when it gets better or worse: see
+  [what the colors mean](/docs/user-guide/metrics#colors).
+
+Then come the visualizations the project configured, new next to reference. A file identical to the reference's is
+tagged **Identical to the reference**. Cards load their files as you scroll to them.
 
 <Shot
   id="commit/visualizations"
-  caption="Each card starts with the run's main metrics and their change against the reference, then its output images, new next to reference."
+  caption="The facade's card: its PSNR, in red, still misses its 30 dB target, but its change, +5%, is green: better than the release. Then the regions saved for this photo, and both images, zoomed in together."
 />
 
-On each card:
-- **The run name**: hover for its batch, input path and database (click to copy), metadata, compute time, date and storage. Click it to see that input's [history](history-and-dashboards.mdx).
-- **Tags** for the platform and configurations: hover a configuration to copy it, as JSON or in a format you can paste in a tuning experiment.
-- **☰ menu**: **Redo** the run, **Mark as failed** if it's stuck, **Delete** it, or **Delete output files** only.
+Next to the run's name, the menu (☰) redoes the run, or deletes it or only its output files, once you're logged in:
+see [Redo, stop and clean up runs](/docs/user-guide/running-from-the-webapp#redo-stop-and-clean-up-runs).
 
-<Shot
-  id="commit/run-menu"
-  caption="Each run card's menu redoes the run, or deletes it, or only its output files. While a run is pending or running, Mark as failed replaces Redo."
-/>
-- **Folder icon**: open the output directory (or the reference's) in the browser. **Copy icon**: copy the new or reference output directory, as a Windows or Linux path.
-- **Fullscreen** button at the top right of the card.
+The folder icon opens the run's output directory (or the reference's) in the [file browser](/docs/user-guide/files);
+the copy icon copies its path, as a Linux or a Windows path. The button at the card's top right shows the card in full
+screen.
 
-Cards load their files when you scroll to them. The image viewer has many tools: synced zoom, a wipe, the difference, pixel values, regions of interest, adjustments and histograms. See [Comparing results](comparing-results.mdx#image-viewers) and the [list of viewers](../visualizations.mdx#available-file-viewers).
+To gather files from all the runs in one folder, use **Export**, next to the view's title: see
+[Exporting files](/docs/user-guide/sharing#exporting-files).
 
-The **Export** button next to the view's title gathers matching files from all runs in one shared directory: see [Sharing](sharing.mdx#exporting-files).
-
-### Output Files
-All the files each run created, as a tree, diffed against the reference run. It shows the total storage used.
+## Output Files {#output-files}
+Every file each run created, as a tree, compared with the reference run's files. Next to the view's title, the storage
+the runs shown use.
 
 <Shot
   id="commit/output-files"
   caption="Only the files that differ from the reference are listed: here, the pipeline stages that a rounding change touched. Click Help for what the icons mean."
 />
 
-- By default only files that are **different, added or removed** are shown. Use **Show all files**, **Hide runs without files**, **Expand all folders**, **Color-blind friendly** and the path filter to change that.
-- **Click a file** to see its diff with the reference. Press <kbd>Ctrl</kbd> or <kbd>Shift</kbd> to select several files.
+- By default, only the files that are **different, added or removed** are listed. **Show all files**, **Hide runs
+  without files**, **Expand all folders**, **Color-blind friendly** and the path filter change that.
+- **Click a file** to see its diff with the reference's. <kbd>Ctrl</kbd>-click or <kbd>Shift</kbd>-click to diff
+  several. **Next diff** jumps to the next change.
+- **Help** explains the icons and colors: bit-accurate, different, missing in the reference, only in the reference...
 
 <Clip
   id="commit/bit-accuracy-diff"
-  caption="Click a file to diff it in place: Next Diff jumps to the register that changed. Ctrl-click another file to diff it too. On a commit that only changed docs, the run is Bit-accurate."
+  caption="Click a file to diff it in place: Next diff jumps to the register that changed. Ctrl-click another file to diff it too. On a commit that only changed docs, the run is Bit-accurate."
 />
 
-- Click **Help** for the meaning of the icons and colors: bit-accurate, different, missing in the reference, only in the reference...
-- When all the files your project checks for bit-accuracy are identical to the reference's, the run is tagged **Bit-accurate**. Files your project doesn't check (*qaboard.yaml*'s `bit_accuracy.patterns`) are greyed and tagged **not checked**, like *metrics.json*, which has the run time.
+When all the files your project checks are identical to the reference's, the run is tagged **Bit-accurate**. Files the
+project doesn't check are grayed and tagged **not checked**, like *metrics.json*, which has the run time. This is the view for [bit-accuracy tests](/docs/bit-accuracy).
 
-This is the view for [bit-accuracy tests](../bit-accuracy.mdx).
+<Anchor id="artifacts--configs" />
 
-### Logs
-When runs failed, the sidebar's **Logs** entry says how many (it also shows runs still running or pending).
-
-One line per run: its status, its name, and its configuration in short (hover it to read it all). On the right, copy the path of the run's output directory (when your server has Windows path mappings, the confirmation offers the Windows path too), open it, or use the **⋯** menu to redo, mark as failed or delete it. Filter the runs with **All**, **Failed**, **Running** or **Successful**, and use **Open failed runs** to expand the logs of the failed ones at once. Big batches are paginated.
-
-<Shot
-  id="logs/crash"
-  caption="Filtered on Failed, the failed run's log, searched for its panic: the match is highlighted, with the source line that raised it."
-/>
-
-Click a run to see its full configuration (hover a tag to copy it) and read its log:
-- it updates **live** while the run is running (only the new lines are downloaded), and follows the end like a terminal until you scroll up;
-- colors, line numbers, progress bars shown like in a terminal, error and warning lines highlighted, with a button to jump to the **next error**;
-- **search** (with previous/next match), wrap lines, copy, download, or open the raw file;
-- switch between the run's `log.txt` and, when they exist, `log.lsf.txt` (what LSF captured, with its job report) and `log.dask.txt`;
-- very long logs show their last 50,000 lines, to keep the page fast: show more when you need them. If the hidden lines have errors, or matches for your search, it says how many.
-
-<Clip
-  id="logs/live-tail"
-  caption="A run still running: its log follows the end as lines arrive, the error count grows, and a click on it jumps to the first missed deadline."
-/>
-
-For runs on LSF, a summary shows why the job ended (e.g. out of memory, run time limit), the host, the run time and the memory used vs requested, with hints on which `lsf:` options of your batch to change. Failed runs are tagged with the reason.
-
-<Shot
-  id="logs/lsf-hints"
-  caption="LSF killed this 113 MP run at its memory limit: the summary compares what it used with what it asked for, and says what to change."
-/>
-
-Batches started from QA-Board (tuning, **Run Tests**) show a callout on every view while `qa batch` is waiting for LSF or running, and when it failed or didn't start any run, with the error and a link to its logs. In the Logs view, **Started from QA-Board** lists them with their status, command and logs, and buttons to copy or open their folder (it also has the script QA-Board ran).
-
-At the bottom, the **Batch** section has buttons to copy or open the batch directory, and lists the `qa batch` commands that started the batch, most recent first: when, by whom, and where their logs are:
-- **Logs in the CI job**: a link to the CI job;
-- **Show its logs**: it was started from a terminal with `qa --share batch` (or `qa optimize`), which saved what it printed in the batch directory; it was started from QA-Board; or it is an older batch that wrote its logs in the batch directory's `log.txt` (shown as **Batch logs**, only when it exists);
-- **Logs not saved**: e.g. it was started from a terminal by an older version of `qaboard`, which only printed its logs there.
-
-<Shot
-  id="logs/batch-commands"
-  caption="A tuning sweep started from QA-Board: its qa batch command, with its own logs."
-/>
-
-Whatever started the batch, each run's own logs are saved, in the list above. With the Dask runner, a link opens the logs of the Dask workers.
-
-:::tip
-The **Logs** sidebar item turns red when the batch has failed runs, with their number.
-:::
-
-### Artifacts & Configs
-Compares the commit's [artifacts](../storage/artifacts.mdx) with the reference commit: the configuration files, the build, and any other artifacts the project saves. Pick which artifacts to explore with the buttons at the top.
+## Artifacts & Configs {#artifacts-and-configs}
+Compares the commit's [artifacts](/docs/storage/artifacts) with the reference commit's: the configuration files, the
+build, and anything else the project saves with `qa save-artifacts`. Pick which artifacts to explore with the buttons
+at the top.
 
 <Shot
   id="commit/artifacts-configs"
   caption="Between two quantization commits, only build/flags.json changed: its diff shows which flags."
 />
 
-It works like Output Files: only differences are shown by default, click a file to diff it. Buttons at the bottom copy the artifacts directory path (Windows or Linux) or open it in the browser.
+It works like Output Files: only the differences are listed, click a file to diff it. The buttons at the bottom copy the
+artifacts' path or open their folder. When a commit has no artifacts, the view says to run `qa save-artifacts`,
+usually in your CI.
 
-If the artifacts are missing, the page tells you to run `qa save-artifacts` from the commit's workspace.
+## Code {#code}
+Opens the commit on your git server, in a new tab. Hover it for the commit's changes, its files (in a monorepo, the
+project's folder), the branch's files and commits, and the repository.
 
-### Code
-Opens the commit on your git server, in a new tab. In a monorepo, it opens the project's sub-folder.
+## Where to go next
 
-### Available Tests
-Edit the batches of inputs you can run, in two files:
-- **Private**: only you can see and edit it,
-- **Shared**: every QA-Board user can see and edit it.
-
-The commit's own batch files (`inputs.batches` in *qaboard.yaml*) are linked in the side panel. QA-Board reads them from the commit's artifacts, where `qa save-artifacts` saves them. When a batch is defined in several places, Private overrides Shared, which overrides the commit's files; among the commit's files, the last one wins, like for `qa batch`. For the syntax, see [Batches of inputs](../batches-running-on-multiple-inputs.mdx). You need to be logged in.
-
-- **Save** (or <kbd>Ctrl</kbd>+<kbd>S</kbd>, <kbd>⌘</kbd>+<kbd>S</kbd> on a Mac). The status next to the button tells you if there are *Unsaved changes*, when it was *Saved*, or why it was *Not saved*. A dot on a file's tab means it has unsaved changes.
-- YAML mistakes are underlined while you type, and listed below the editor: click one to go to its line. A batch defined twice is flagged too, since only its last definition is used.
-- Warnings flag what `qa batch` would ignore or misread, checked against [the batch files' schema](/docs/project-init#checking-qaboardyaml-and-batch-files-in-your-editor): unknown keys like `inpts` (with a suggestion: *Did you mean "inputs"?*), values of the wrong type like `matrix: {size: 320}` instead of a list, unknown runners or runner options, and input types (`type:`) the commit's *qaboard.yaml* doesn't define. Keys that are input settings in *qaboard.yaml* are allowed. Top-level values you reuse in batches with YAML anchors, like `lab-db: &lab-db {linux: /mnt/data, windows: //data}` then `database: *lab-db`, aren't checked as batches: the **Batches** panel shows them as *reused*.
-
-<Shot
-  id="tuning/available-tests"
-  caption="A YAML mistake is underlined as you type and listed below the editor; the Batches panel on the side lists the file's batches."
-/>
-
-- **Review changes** shows what you changed since the last save, and **Discard** drops it (with an *Undo*).
-- The **Batches** panel lists the batches and aliases in the file, with their number of inputs: click one to go to its definition. Hover it to **list its tests** (the inputs and configurations it resolves to on this commit, with all the batch files) or to **run** it from the *Run Tests / Tuning* view. *Check any batch or pattern* does the same for any batch, like the commit's, or a pattern like `nightly-*`. Listing tests uses the saved files.
-
-<Shot
-  id="tuning/which-tests-run"
-  caption="Which tests run? lists the tests a batch resolves to on this commit, before you run it: here the ci batch, 4 slices with the fp32 and int8 models."
-/>
-
-Below the tests, *Which tests run?* says which file defines the batch, and lists the batch files QA-Board read, in order. When a batch has no tests, or a file has a problem, a warning says why:
-- a file listed in `inputs.batches` is not in the commit's artifacts: the list shows where QA-Board looked for it. Check its name, and run `qa save-artifacts` on the commit (the CI usually does it),
-- a file is not valid YAML,
-- no file defines the batch,
-- the batch has an input `qa batch` can't use, like an empty `-` or a number that should be in quotes: the error gives the file and line,
-- the batch's inputs were not found under the database, as the QA-Board server sees it: for instance when the database is not mounted on the server.
-
-- **New** adds an example batch to start from.
-
-Your unsaved changes are kept in your browser: if you switch views, reload or close the tab, they come back the next time you open the view. If someone saved the same file while you were editing, saving shows both versions side by side, and lets you keep editing, use the saved file, or overwrite it with yours.
-
-### Run Tests / Tuning
-Starts new runs of this commit's code on a batch of inputs, optionally with tuning parameters. See [Running from the web app](running-from-the-webapp.mdx#running-tests-and-tuning).
-
-### Tuning Analysis
-For a tuning batch: how metrics depend on the tuning parameters. It shows the number of runs and inputs, the sensitivity to each parameter (and to pairs of parameters), a breakdown by test, and the trade-off between two metrics. For an automated tuning (optimization) batch, it also shows the **best parameters** found and the convergence. Use the batch selector to pick the tuning batch first.
-
-<Shot
-  id="tuning/analysis"
-  caption="The Tuning Analysis of an automated tuning: the best parameters it found, every iteration's parameters and metrics, and how fast it converged."
-/>
+<Cards>
+  <Card title="Reading metrics" to="/docs/user-guide/metrics">Did the commit make things better, and where? The Summary, the tables and their colors.</Card>
+  <Card title="New and reference" to="/docs/user-guide/comparing-results">Pick what you compare with, and how runs are matched.</Card>
+  <Card title="The image viewer" to="/docs/user-guide/image-viewer">Find where two images differ, down to the pixel.</Card>
+</Cards>

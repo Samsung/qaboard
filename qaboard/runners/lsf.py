@@ -17,7 +17,7 @@ import subprocess
 import time
 from pathlib import Path
 from dataclasses import dataclass, fields, replace, asdict
-from typing import Optional, List, Dict, Any, cast
+from typing import Optional, List, Dict, Any, Tuple, cast
 
 from click import secho
 
@@ -93,6 +93,8 @@ def redirect_to_log(output_dir: Path) -> str:
 class LsfRunner(BaseRunner):
   """Start jobs using the LSF task management system."""
   type = "lsf"
+  # Batches with their own get their own job arrays, or waves (see start_groups)
+  group_options = ('concurrency', 'concurrency_strategy')
 
   def __init__(self, run_context : RunContext):
     self.run_context = run_context
@@ -300,13 +302,14 @@ class LsfRunner(BaseRunner):
 
 
   @staticmethod
-  def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
+  def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True, waves_prefix: Optional[str] = None):
+    """`waves_prefix` names the waves of jobs, by default the batch prefix."""
     # start asynchronously the jobs 
     options = dict_to_LsfOptions(job_options)
     batch_prefix = job_options['command_id'][:8]
     if options.concurrency > 0 and len(jobs) > options.concurrency:
       if options.concurrency_strategy == "waves":
-        LsfRunner.start_jobs_in_waves(jobs, batch_prefix, options.concurrency)
+        LsfRunner.start_jobs_in_waves(jobs, waves_prefix or batch_prefix, options.concurrency)
       elif options.concurrency_strategy == "array":
         LsfRunner.start_jobs_as_arrays(jobs, batch_prefix, options.concurrency, batch_dir=options.batch_dir)
       else:
@@ -341,6 +344,16 @@ class LsfRunner(BaseRunner):
       if not all([j.id for j in jobs]): # if we can read the status from the database, no sync issue
         import time
         time.sleep(1) # seconds
+
+
+  @classmethod
+  def start_groups(cls, groups: List[Tuple[Dict[str, Any], List[Job]]], blocking=True):
+    """Sends all the groups, each with its concurrency, then waits for all of them: the WAIT job waits for all the batch's jobs."""
+    for index, (job_options, jobs) in enumerate(groups):
+      is_last = index == len(groups) - 1
+      # Each group has its own waves: their dependencies use their names
+      waves_prefix = f"{job_options['command_id'][:8]}_{index}" if index else None
+      LsfRunner.start_jobs(jobs, job_options, blocking=blocking and is_last, waves_prefix=waves_prefix)
 
 
   @staticmethod

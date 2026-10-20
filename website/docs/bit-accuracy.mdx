@@ -1,15 +1,57 @@
 ---
 id: bit-accuracy
-sidebar_label: Bit Accuracy
+sidebar_label: Bit accuracy
 title: Bit accuracy tests
+description: Fail the CI when a commit changes output files byte for byte, and see which files changed in the web app.
 ---
-QA-Board was started at Samsung, within a business unit focused on hardware digital design. Because of those root, QA-Board provides a number of ways to check that results are equal from commit to commit.
 
-## "Soft" bit-accuracy checks from the UI
-The web application lets you view and compare all files created by your algorithm's runs:
+Check that a change leaves your outputs identical, byte for byte: a refactoring, a compiler upgrade, or a model of a
+chip that the silicon must match. `qa check-bit-accuracy` fails your CI when output files differ from the
+reference's, and the web app's **Output Files** view shows which files changed, and how.
 
-- Files are marked depending on their status (identical, different, added, removed...). Identical files are hidden by default.
-- You can click on each file to open it with an appropriate file viewer.
+<Clip
+  id="cli/bit-accuracy"
+  caption="On the rounding change, qa check-bit-accuracy lists the files that differ and fails. On a commit that only changed the docs, it passes."
+/>
+
+## Fail the CI when outputs change {#hard-qa-check-bit-accuracy-on-the-cli}
+The camera ISP's fixed-point model must stay bit-accurate: the camera chip implements it. Its CI checks it on every
+commit.
+
+1. **Choose the files to check** with `bit_accuracy.patterns` in *qaboard.yaml* (all files by default, see
+   [what files are checked](#what-files-are-checked)). The camera ISP checks its output image, the stages' images and
+   16-bit buffers, and the register dump:
+
+   <RepoFile path="examples/image-quality/qaboard.yaml" title="qaboard.yaml" section="bit_accuracy" />
+
+2. **Check after the batch, in the CI.** `qa check-bit-accuracy --batch <batch>` compares the runs of
+   `qa batch <batch>` with the reference's (see [which reference](#which-reference)):
+
+   <Tabs groupId="ci" queryString>
+   <TabItem value="github-actions" label="GitHub Actions" default>
+
+   <RepoFile path="website/snippets/ci/github-actions-bit-accuracy.yml" title=".github/workflows/bit-accuracy.yml" highlight="26-27" untested />
+
+   </TabItem>
+   <TabItem value="gitlab-ci" label="GitLab CI">
+
+   <RepoFile path="website/snippets/ci/gitlab-ci-bit-accuracy.yml" title=".gitlab-ci.yml" highlight="19-25" untested />
+
+   </TabItem>
+   </Tabs>
+
+   `<your-qaboard>` is your server's address, like `localhost:5151`.
+
+3. **Push a commit.** When files differ, `qa check-bit-accuracy` lists them, run by run, prints a link to the
+   commit's **Output Files** view, and exits with an error. When they're all identical, it passes.
+
+`qa check-bit-accuracy` also compares the runs' input files (see [manifests](#input-and-output-manifests)), so it
+tells you when a change comes from the inputs. To fail on metrics instead of files, see the
+[quality gate](/docs/quality-gate), whose `require_bit_accuracy` checks the same files.
+
+## See which files changed {#soft-bit-accuracy-checks-from-the-ui}
+The commit page's **Output Files** view lists the files of each run that differ from the reference run's (identical
+files are hidden by default). Click a file to diff it with the reference's:
 
 <Shot
   id="commit/output-files"
@@ -21,38 +63,15 @@ The web application lets you view and compare all files created by your algorith
   caption="Click a file to diff it with the reference: Next Diff jumps to the register that changed. Ctrl-click another file to add its diff. On a commit that only changed docs, the run is Bit-accurate."
 />
 
-Like `qa check-bit-accuracy`, the web app only checks the files selected by `bit_accuracy.patterns` (see [what files are checked](#what-files-are-checked)). When all of them are identical, the run is tagged **Bit-accurate**. The other files are still listed when they differ, greyed and tagged **not checked**: for instance *metrics.json*, which has the run's measured run time. Unlike `qa check-bit-accuracy` without `--strict`, checked files that exist in only one of the runs also make the web app show differences.
+Like `qa check-bit-accuracy`, the web app only checks the files selected by `bit_accuracy.patterns`. When all of them
+are identical, the run is tagged **Bit-accurate**. The other files are still listed when they differ, greyed and
+tagged **not checked**: for instance *metrics.json*, which has the run's measured run time. Unlike
+`qa check-bit-accuracy` without `--strict`, checked files that exist in only one of the runs also make the web app
+show differences.
 
-### "Hard" `qa check-bit-accuracy` on the CLI
-`qa check-bit-accuracy --batch $batch` compares the results of `qa batch $batch` to:
-- The latest results on `project.reference_branch` from [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml) (default: *master*).
-- ...unlesss you're checking a merge made to that branch. In which case the commit's parents will act as references.
-- You can ask to compare versus a specific git commit, branch or tag with `qa check-bit-accuracy --reference $git-ref`.
-
-> If the commit you compare against has not finished its CI, `qa` will wait. It asks GitLab for the commit's pipeline jobs, or GitHub for its statuses and check runs, so it needs a token (see [CI integration](ci-integration)). Skipped jobs, and jobs allowed to fail, count as successful. `bit_accuracy.failed_ci_job_name` restricts it to a given job: in a subproject, it looks for the job `<failed_ci_job_name> <subproject>` (with the name of the subproject's folder).
-
-:::note Custom Needs
-You can opt-in to more complex behaviour in *[qaboard.yaml](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml)* with `bit_accuracy.on_reference_failed_ci: compare-first-parent` (it goes back at most `bit_accuracy.max_parents_depth` first parents, default 5), in case there are not results in the reference commit. Maybe the build failed, in which case you want to compare against the previous commit... If you're interested open an issue we'll add more details to the docs.
-:::
-
-If output files are different, `qa` prints a report and exits with a failure.
-
-<Clip
-  id="cli/bit-accuracy"
-  caption="On the rounding change, qa check-bit-accuracy lists the files that differ and fails. On a commit that only changed the docs, it passes."
-/>
-
-Other options:
-- `--strict`: by default only the files that exist in both runs are compared. With `--strict`, files that exist in only one of the runs are errors too.
-- `--reference-label`: compare to the reference's runs that used another [label](using-the-qa-cli#qa---label-my-label), e.g. `qa --label new check-bit-accuracy --batch all --reference-label old`.
-
-### Input and output manifests
-Each run saves in its output directory a *manifest.outputs.json*, with a hash of each output file, and a *manifest.inputs.json*, with a hash of the input files (at most 200 files for an input folder). `qa check-bit-accuracy` compares both, so it also tells you if the inputs changed. To list other files as inputs, set `context.obj['manifest-inputs']` to a list of paths in `run()`.
-
-For specific use-cases, there is also `qa check-bit-accuracy-manifest --batch my-batch` (it also accepts `--strict`), which checks the results versus manifests stored in the database next to the input files, instead of versus another commit. To save those manifests, use `qa batch my-batch --save-manifests-in-database` (the flag is forwarded to `qa run`). It only works for inputs that are folders.
-
-### What files are checked?
-Files matching the patterns defined as `bit_accuracy.patterns` in [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml#L121) will be checked. Without patterns, all files are checked.
+## What files are checked? {#what-files-are-checked}
+Files matching the patterns of `bit_accuracy.patterns` in *qaboard.yaml* are checked. Without patterns, all files
+are checked.
 
 ```yaml title="qaboard.yaml"
 bit_accuracy:
@@ -60,58 +79,81 @@ bit_accuracy:
   ignore: ['debug/']
 ```
 
-- Patterns are glob patterns that match the end of a file's path in the run's output directory: `out.png` checks *out.png* and *some/folder/out.png*. `*` also matches `/`.
+- Patterns are glob patterns that match the end of a file's path in the run's output directory: `out.png` checks
+  *out.png* and *some/folder/out.png*. `*` also matches `/`.
 - Files whose path starts with one of the `bit_accuracy.ignore` patterns are not checked.
-- Files that change at each run are never checked: *metrics.json* (it has the run time), *run.json*, *log.txt*, *log.lsf.txt* and *manifest.inputs.json* (`qa check-bit-accuracy` compares it on its own, see above).
+- Files that change at each run are never checked: *metrics.json* (it has the run time), *run.json*, *log.txt*,
+  *log.lsf.txt* and *manifest.inputs.json* (`qa check-bit-accuracy` compares it on its own, see
+  [manifests](#input-and-output-manifests)).
 
-The web app's **Output Files** and the [quality gate](quality-gate.mdx)'s `require_bit_accuracy` check the same files.
+The web app's **Output Files** and the [quality gate](/docs/quality-gate)'s `require_bit_accuracy` check the same
+files.
 
 :::note
-If you work with text files on both Linux and Windows, EOL can make things tricky... You can decide what files are plaintext or binary using `bit_accuracy.plaintext` *or* `bit_accuracy.binary`.
+If you work with text files on both Linux and Windows, line endings can make identical files differ. Say which files
+are text with `bit_accuracy.plaintext`, *or* which are binary with `bit_accuracy.binary`, like the camera ISP's
+`plaintext: ['*.txt']`.
 :::
 
+## Which reference {#which-reference}
+`qa check-bit-accuracy --batch <batch>` compares the results of `qa batch <batch>` with:
+- the latest commit of `project.reference_branch` (default: `master`) on your git remote,
+- or, in the CI of that branch, the commit's parents: a merge is compared with the commits it merges,
+- or what you give with `--reference`: a branch, a tag or a commit. The camera ISP compares with its release,
+  `qa --platform hw-model check-bit-accuracy --batch bitexact --reference <release-sha>`.
 
+If the reference commit's CI isn't over, `qa` waits for it. It asks GitLab for the commit's pipeline jobs, or GitHub
+for its statuses and check runs, so it needs a token (see [CI integration](/docs/ci-integration#commit-statuses));
+without one, it doesn't wait. Skipped jobs, and jobs allowed to fail, count as successful.
+`bit_accuracy.failed_ci_job_name` only looks at that job: in a subproject, it looks for the job
+`<failed_ci_job_name> <subproject>` (with the name of the subproject's folder).
 
-## Sample CI for bit-accuracy checks
-You often want to know when your algorithm's results change, *especially if another team is busy implementing them in hardware*!
+When the reference's CI failed, it's compared anyway. With `bit_accuracy.on_reference_failed_ci: compare-first-parent`,
+`qa` goes back to its first parent instead, at most `bit_accuracy.max_parents_depth` times (default 5): useful when a
+build failure left the reference without results.
 
-Here is how you could get the CI to warn you with GitLab CI (it works the same with GitHub Actions):
+## Options {#options}
+- `--strict`: by default only the files that exist in both runs are compared. With `--strict`, files that exist in
+  only one of the runs are errors too.
+- `--reference-label`: compare with the reference's runs that used another [label](/docs/using-the-qa-cli#qa---label-my-label),
+  e.g. `qa --label new check-bit-accuracy --batch all --reference-label old`.
+- `--reference-platform`: compare with the reference's runs on another platform, e.g.
+  `qa --platform hw-model check-bit-accuracy --batch <batch> --reference-platform linux`.
+- `--batch` can be repeated, and `--batches-file` names the batches files, like for `qa batch`.
 
-```yaml title=".gitlab-ci.yml"
-stages:
-  - tests
-  - bit-accuracy
+## Input and output manifests {#input-and-output-manifests}
+Each run saves in its output directory a *manifest.outputs.json*, with a hash of each output file, and a
+*manifest.inputs.json*, with a hash of the input files (at most 200 files for an input folder). `qa check-bit-accuracy`
+compares both, so it also tells you if the inputs changed. To list other files as inputs, set
+`context.obj['manifest-inputs']` to a list of paths in `run()`.
 
-tests-all:
-  stage: tests
-  script:
-  - qa batch all
+<details>
+<summary>Compare with manifests saved next to the inputs</summary>
 
-bit-accuracy-all:
-  stage: bit-accuracy
-  allow_failure: true
-  script:
-  - qa check-bit-accuracy --batch all
-```
+For specific use cases, `qa check-bit-accuracy-manifest --batch my-batch` (it also accepts `--strict`) checks the
+results against manifests stored in the database next to the input files, instead of against another commit. To save
+those manifests, use `qa batch my-batch --save-manifests-in-database` (the flag is forwarded to `qa run`). It only
+works for inputs that are folders.
 
-## Custom output comparisons
-Bit accuracy checks in QA-Board are done by checking the hashes of your output files. To make it fast, those hashes are computed once, and stored in "manifest" files to make it fast, along with other file metadata.
+</details>
 
-In some cases, you may want to compare files using something else than bit-exactness between files. Maybe you want to ignore timestamps, or maybe you want to do "semantic" comparisons... To do this, you can supply your own comparison function:
+## Custom output comparisons {#custom-output-comparisons}
+Bit accuracy checks compare the hashes of your output files, computed once and stored in the manifests. To compare
+files another way, ignoring timestamps or comparing their meaning, supply your own comparison function:
 
-1. Implement a `cmp` function in some _file.py_:
+1. Implement a `cmp` function in a Python file:
 
-```python
-from pathlib import Path
+   ```python title="cmp.py"
+   from pathlib import Path
 
-def cmp(path1 : Path, path2 : Path) -> bool:
-  """Checks if the files have the same content, like QA-Board does by default"""
-  return path1.read_bytes() == path2.read_bytes()
-```
+   def cmp(path1 : Path, path2 : Path) -> bool:
+     """Checks if the files have the same content, like QA-Board does by default"""
+     return path1.read_bytes() == path2.read_bytes()
+   ```
 
 2. Ask `qa` to use it:
 
-```bash
-export QA_BITACCURACY_CMP=/path/to/file.py
-qa check-bit-accuracy --batch <batch_name>
-```
+   ```bash
+   export QA_BITACCURACY_CMP=/path/to/cmp.py
+   qa check-bit-accuracy --batch <batch>
+   ```

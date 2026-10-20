@@ -8,7 +8,8 @@ const default_metrics = {
 
 const default_qatools_config = {
 	project: {
-		reference_branch: 'develop',
+		// like the backend and `qa`
+		reference_branch: 'master',
 	},
 	lsf: {
 		user: 'root',

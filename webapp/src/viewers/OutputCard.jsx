@@ -22,6 +22,7 @@ import {
 } from "@blueprintjs/core";
 
 import { OutputViewer } from "./OutputViewer";
+import { config_visualizations } from "./controls";
 import { MetricsTags } from "../components/metrics";
 import { OutputTags, StatusTag, RunBadges, style_skeleton } from '../components/tags'
 import { SubmittedByMenuItem } from '../components/SubmittedBy'
@@ -31,7 +32,7 @@ import { Link, history } from "../router"
 import { updateSelected } from "../hooks";
 import { http, errorMessage } from "../api/http";
 import { output_files_stale_time, invalidateOutputFiles } from "../api/queries";
-import { parse_query, path_segment, stringify_query } from "../selection";
+import { date_range_from_query, parse_query, path_segment, stringify_query } from "../selection";
 import { at_most, linux_to_windows, is_same_data } from '../utils'
 import { hasPathMappings } from '../utils/paths'
 import { is_image } from "./images/utils"
@@ -84,7 +85,7 @@ const no_options = {};
 // The options in the visualizations' paths (e.g. :frame/output.jpg), and their values in the manifest
 const compute_options = (outputs, manifest) => {
   if (!manifest) return { options: {}, parse_errors: [], should_register: false };
-  const views = [...(outputs?.visualizations ?? []), ...(outputs?.detailed_views ?? [])];
+  const views = config_visualizations(outputs);
   const manifest_paths = Object.keys(manifest);
   // We expect files for the visualizations but the manifest is empty: maybe the output is still running.
   // We register empty options for now, and again when the manifest is updated.
@@ -139,14 +140,25 @@ const FullScreenableSlimCard = ({ updateFullscreen, className, style, children }
 }
 
 
+// History shows the last 3 days by default: for older commits, it starts 3 days before the commit, to show it
+// and the commits before it
+const history_from = (commit, query) => {
+  const date = DateTime.fromISO(commit?.authored_datetime ?? '', { zone: 'utc' }).toLocal().minus({ days: 3 }).startOf('day');
+  if (!date.isValid) return query.from;
+  const [from] = date_range_from_query(query);
+  return date.toJSDate() < from ? date.toISODate() : query.from;
+};
+
 // The results of this input over time, filtered to show only this input
 const history_location = (project, commit, output, type, search) => {
   // https://stackoverflow.com/a/6969486
   const filter = output.test_input_path?.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const query = parse_query(search);
   return {
     pathname: `/${path_segment(project)}/history/${path_segment(commit?.branch ?? '')}`,
     search: stringify_query({
-      ...parse_query(search),
+      ...query,
+      from: history_from(commit, query),
       filter,
       filter_ref: filter,
       show_bit_accuracy: type === 'bit_accuracy',
@@ -403,7 +415,7 @@ const OutputCard = memo(function OutputCard(props) {
   }
   const error = { new: query_new.error, reference: query_ref.error, parse: parse_errors.length > 0 ? parse_errors : undefined, registration: registration_error };
 
-  const views = config?.outputs?.visualizations ?? [];
+  const views = config_visualizations(config?.outputs);
   const is_shown = view => (!view.default_hidden && controls.show?.[view.name] !== false) || controls.show?.[view.name] === true;
 
   // we display the input for each option before the first visualization that uses it
@@ -502,7 +514,7 @@ const OutputCard = memo(function OutputCard(props) {
                 {relevant_synced.map(option_name => (
                   <Tooltip
                     key={option_name}
-                    content={`${optionLabel(option_name)}: the same for all runs, set in the controls panel. Click to choose it per run.`}
+                    content={`${optionLabel(option_name)}: the same for all runs, set in the View options. Click to choose it per run.`}
                     position="top"
                   >
                     <Button

@@ -22,7 +22,7 @@ from qaboard.sentry_utils import traces_sample_rate
 from backend import app, db_session
 from ..models import Project, CiCommit, Batch, Output, batches_stats
 from ..utils import profiled
-from ..config import git_server
+from ..config import git_server, skip_metrics_aggregation
 from ..search import parse_query, commits_search_filter, escape_like
 from .auth import is_authorized_user, get_current_user
 from ..notifications.mail import email_enabled
@@ -201,7 +201,8 @@ def get_commits(branch=None):
   ci_commits = ci_commits.offset(offset).limit(limit + 1 if limit else max_commits)
 
   metrics_to_aggregate = json.loads(request.args.get('metrics', '{}'))
-  if project_id.startswith("CDE-Users/HW_ALG") or project_id.startswith("aqua/"): # too many results to be fast...
+  # QABOARD_SKIP_METRICS_AGGREGATION: projects with too many runs for it to be fast
+  if project_id.startswith(skip_metrics_aggregation):
     metrics_to_aggregate = {}
 
   commits = ci_commits.all()

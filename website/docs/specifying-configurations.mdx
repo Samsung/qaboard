@@ -1,139 +1,135 @@
 ---
 id: specifying-configurations
+title: Configurations
 sidebar_label: Configurations
-title: Specifying configurations
+description: Run your code on the same inputs with other settings, an ISO, a model, a build, parameters, and read them in run() as context.configs and context.params.
 ---
 
-You will want to run code on the same inputs with different configuration. Depending on your field, it could be:
-- enabling a debug/verbose mode
-- using a debug/release build
-- providing various hyperparameters
-- forward CLI flags for an executable
-- load registers values
-- read configuration from files
-- etc.
+A configuration says how to run your code on an input: at ISO 3200, with the int8 model, with a debug build, with
+these parameters. `qa` gives `run()` a list of configurations, and your code decides what they mean. The web app shows
+them as tags on each run, and compares each run with the reference run of the same input and the closest
+configuration (see [how runs are matched](/docs/user-guide/comparing-results#how-runs-are-matched)).
 
-There is a huge variety of configuration formats and needs. Hence, QA-Board is not very opiniated. The `run(context)` function will provide a list of configurations in `context.configs`. Configurations defaults to `[]`, or to the value of `inputs.configs` in *qaboard.yaml*.
-
-## Specifying configurations
-You can specify configurations on the CLI:
+## Give a configuration {#specifying-configurations}
+On the command line, with `--config` (or `-c`), before the command:
 
 ```bash
-qa --config low-power run --input my/test
-#=> ctx.configs = ['low-power']
-qa --config base:delta run --input my/test
-#=> ctx.configs = ['base', 'delta']
-
-qa --config base --config delta run --input my/test
-#=> ctx.configs = ['base', 'delta']
+qa --config low-light run --input photos/night-street.png
+#=> context.configs == ['low-light']
 ```
 
-Users often use batches to make it easier:
+In the camera ISP example, `run()` reads the configuration's name, which sets the ISO of the simulated camera:
 
-```yaml {5-6} title="qa/batches.yaml"
+<RepoFile path="examples/image-quality/qa/main.py" title="qa/main.py" lines="63-66" />
+
+To give several, repeat the option, or separate them with `:`. They stay in order:
+
+```bash
+qa --config int8 --config size-320 run --input slices/indoor
+qa --config int8:size-320 run --input slices/indoor
+#=> context.configs == ['int8', 'size-320']
+```
+
+A configuration can also be a mapping of parameters, in JSON:
+
+```bash
+qa --config base --config '{"denoise_strength": 2.0}' run --input photos/night-street.png
+#=> context.configs == ['base', {'denoise_strength': 2.0}]
+#=> context.params == {'denoise_strength': 2.0}
+```
+
+Most of the time, batches give the configurations: the camera ISP's `ci` batch runs each image at `base` and
+`low-light`. See [configurations in batches](/docs/batches-running-on-multiple-inputs#specifying-test-configurations).
+Without any, `context.configs` is `[]`, or what `inputs.configs` says in *qaboard.yaml*.
+
+## Read them in run() {#common-meaning-for-configurations}
+- `context.configs` is the list: names, paths, mappings... in the order they were given.
+- `context.params` merges all the mappings of the list, the last ones winning. It's often all you need.
+
+A common convention: names are files of parameters kept with your code, and mappings override some of their
+parameters:
+
+```yaml title="qa/batches.yaml"
 my-batch:
-  inputs:
-  - A.jpg
   configs:
-  - base
-  - delta
-
-# $ qa batch my-batch
-# => qa --config base:delta run A.jpg
-# => qa --config base:delta run B.jpg
+  - base                       # parameters from configs/base.yaml, in the repository
+  - /mnt/tuning/delta.yaml     # a file anywhere
+  - {threshold: 0.4}           # parameters given directly
+  inputs:
+  - images
 ```
 
-### Tuning parameters
-`--tuning` (JSON) and `--tuning-filepath` (a JSON file) add extra parameters, which are merged in `context.params` (they are also the last item of `context.configs`). Both options can be repeated:
-
-```bash
-qa --tuning '{"threshold": 0.5}' --tuning-filepath params.json run --input my/test
-#=> ctx.params == {"threshold": 0.5, ...params.json}
-```
-
-To tune values that are not `dict`s, give a JSON string or array: they are appended to `context.configs`.
-
-```bash
-qa --config base --tuning '"low-light"' --tuning '{"key": "value"}' run --input my/test
-#=> ctx.configs == ['base', 'low-light', {... 'key': 'value'}]
-#=> ctx.params['key'] == 'value'
-```
-
-## Common meaning for configurations
-QA-Board is not opiniated. Projects usually consider that each configuration in `ctx.configs` is meant to be merged with ones before:
-
-```yaml
-configs:
-- base                     # load from a file, e.g. ./configs/{base}.yaml, kept in source control
-- /abs/path/to/config.yaml # overwrite with info from an absolute path
-- key: value               # give directly parameters...
-- section:
-    key2: value2
-```
-
-You are free to pick different conventions.
-
-:::tip
-Many project just want to use "parameters" and don't need an array of "delta/cascading/incremental" configs... To make it easier QA-Board also provides `context.params`, a merge of all the `dict`s in `context.configs`.
-:::
-
-### Use-case #1: Running Python code
-If you don't have a lot of parameters you can do something like:
 ```python title="qa/main.py"
 from pathlib import Path
+
 import yaml
 
-def run(context):
-    return your_code(
-        input=context.input_path,
-        output=context.output_dir,
-        parameters=context.params,
-    )
-```
 
-But if you deal with long config files, consider using `str`s in `context.configs` to specify files to be loaded:
-
-```python title="qa/main.py"
 def run(context):
     parameters = {}
-    for c in context.configs:
-      if isinstance(c, str): # Load from a file.
-         # Supports absolute paths and paths relative to "./configs"
-         config_path = Path('configs') / c if not c.exists() else c
-         with config_path.open() as f:
-             new_parameters = yaml.load(f)
-      if isinstance(c, dict):
-          new_parameters = c
-      parameters.update(new_parameters) 
-
-    return my_custom_run(
-        input=context.input_path,
-        output=context.output_dir,
-        parameters=parameters
-    )
+    for config in context.configs:
+        if isinstance(config, str):  # a file: an absolute path, or a name in configs/
+            path = Path(config) if Path(config).is_absolute() else Path("configs") / f"{config}.yaml"
+            parameters.update(yaml.safe_load(path.read_text()))
+        elif isinstance(config, dict):
+            parameters.update(config)
+    return my_code(context.input_path, context.output_dir, parameters)
 ```
 
-### Use-case #2: Running an executable
-It could work as before with:
+The detector example's configurations name the model and its input size, `int8` and `size-320`. The inference
+gateway's are mappings: `{repeats: 3, duration_s: 4}` says how long to measure.
 
-```python "qa/main.py"
+### Pass them to an executable {#pass-them-to-an-executable}
+Write the parameters to a file in the output directory, and give its path to your executable:
+
+```python title="qa/main.py"
 import json
 import subprocess
 
-def run(context):
-    config_path = context.output_dir / "config.json" 
-    with config_path.open('w') as f:
-        json.dump(context.params, f)
 
-    # --snip--
-    command = [
-        'build/executable',
+def run(context):
+    config_path = context.output_dir / "config.json"
+    config_path.write_text(json.dumps(context.params))
+    process = subprocess.run([
+        "build/my-tool",
         "--input", str(context.input_path),
         "--output", str(context.output_dir),
-        '--configuration', str(config_path),
-    ]
-    subprocess.run(command)
+        "--config", str(config_path),
+    ])
+    return {"is_failed": process.returncode != 0}
 ```
 
-## "Magic" configurations
-- **Environment variables:**: if `context.params` has a key named `ENV` with e.g. `{"ENV": {"key": "value"}}`, then before the run `key=value` will be applied as environment variable.
+The file stays with the run's outputs, so you can see in the web app what the run used.
+
+## Tuning parameters {#tuning-parameters}
+`--tuning` (JSON) and `--tuning-filepath` (a JSON file) add parameters on top of the configurations. Both can be
+repeated:
+
+```bash
+qa --config int8 --tuning '{"score_threshold": 0.2}' run --input slices/indoor
+#=> context.params['score_threshold'] == 0.2
+```
+
+They are merged in `context.params`, and come last in `context.configs`. The web app shows them apart from the
+configurations, as tuning tags. A JSON string or list, instead of a mapping, is added to `context.configs`:
+
+```bash
+qa --config base --tuning '"low-light"' --tuning '{"key": "value"}' run --input my/test
+#=> context.configs == ['base', 'low-light', {..., 'key': 'value'}]
+#=> context.params['key'] == 'value'
+```
+
+This is what [tuning from the web app](/docs/tuning-from-the-webapp) and `qa batch --tuning-search` use to try
+parameter values.
+
+## Set environment variables {#magic-configurations}
+When `context.params` has an `ENV` mapping, `qa` sets those environment variables before the run. Write their values
+in quotes: environment variables are strings.
+
+```yaml title="qa/batches.yaml"
+my-batch:
+  configs:
+  - ENV: {OMP_NUM_THREADS: "4"}
+  inputs:
+  - images
+```

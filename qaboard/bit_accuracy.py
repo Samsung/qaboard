@@ -11,7 +11,7 @@ from pathlib import Path
 import click
 from click import secho
 
-from .conventions import make_batch_conf_dir, output_dirs_for_input_part, slugify_hash
+from .conventions import make_batch_conf_dir, batch_conf_dir_name, output_dirs_for_input_part, slugify_hash
 from .iterators import iter_inputs
 from .utils import PathType, checked_cde_attrs
 from .config import commit_id, project, subproject, outputs_commit_root, outputs_commit, is_ci, default_platform, config
@@ -208,6 +208,20 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignore=None):
 
 
 
+def on_reference_platform(output_dir_suffix, ba_context) -> Path:
+  """
+  Where the same run on the reference platform is, relative to its commit's directory.
+  The platform is hashed in the name of the directory of the run's configurations (see make_batch_conf_dir).
+  """
+  output_dir_suffix = Path(output_dir_suffix)
+  if not ba_context.get('reference_platform'):
+    return output_dir_suffix
+  configurations, extra_parameters = ba_context.get('configurations') or [], ba_context.get('extra_parameters') or {}
+  conf_dir = batch_conf_dir_name(ba_context.get('platform'), configurations, extra_parameters)
+  reference_conf_dir = batch_conf_dir_name(ba_context['reference_platform'], configurations, extra_parameters)
+  return Path(*(reference_conf_dir if part == conf_dir else part for part in output_dir_suffix.parts))
+
+
 def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, manifest_name='manifest.outputs.json'):
     """Compares the results of the current output directory versus a reference"""
     run_identifier = ba_context["rel_input_path"]
@@ -235,13 +249,7 @@ def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, manifest_name='m
 
     missing_runs = False
 
-    # FIXME: the platform named used to be part of the output dir,
-    #       but not anymore, so this code is broken..!
-    #       We'd need a smart refactoring, and pass RunContexts instead of output directories...
-    #       then it would be simple to compare to runs with any attribute changed.
-    if ba_context['reference_platform']:
-      from .config import platform
-      dir_ref = Path(str(dir_ref).replace(platform, ba_context['reference_platform']))
+    # Note: with a reference_platform, callers give the reference's directory, see on_reference_platform
     if ba_context['reference_label']:
       label_slub = slugify_hash(ba_context['batch_label'])
       label_slub_ref = slugify_hash(ba_context['reference_label'])
@@ -489,6 +497,8 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
         ba_contexts.append({
           "rel_input_path": run_info["input_path"],
           "configurations": run_info["configurations"],
+          "platform": run_info.get("platform"),
+          "extra_parameters": run_info.get("extra_parameters"),
           "output_dir_suffix": output_dir,
           "reference_label": reference_label,
           "reference_platform": reference_platform,
@@ -514,6 +524,8 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
         ba_contexts.append({
           "rel_input_path": run_context.rel_input_path,
           "configurations": run_context.configurations,
+          "platform": run_context.platform,
+          "extra_parameters": ctx.obj["extra_parameters"],
           "output_dir_suffix": output_directory,
           "reference_label": reference_label,
           "reference_platform": reference_platform,
@@ -536,7 +548,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
         click.secho(f"Reference directories: {reference_rootproject_ci_dirs}", fg='cyan', bold=True, err=True)
         for ba_context in ba_contexts:
           for reference_rootproject_ci_dir in reference_rootproject_ci_dirs:
-            dir_ref = reference_rootproject_ci_dir / ba_context["output_dir_suffix"]
+            dir_ref = reference_rootproject_ci_dir / on_reference_platform(ba_context["output_dir_suffix"], ba_context)
             if dir_ref.exists():
               missing_run = False
               all_bit_accurate = is_bit_accurate(commit_dir / ba_context["output_dir_suffix"], dir_ref, ba_context, strict=strict) and all_bit_accurate
@@ -548,8 +560,9 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
         click.secho(f"Reference directory: {reference_rootproject_ci_dir}", fg='cyan', bold=True, err=True)
         all_bit_accurate = True
         for ba_context in ba_contexts:
-          all_bit_accurate = is_bit_accurate(commit_dir / ba_context["output_dir_suffix"], reference_rootproject_ci_dir / ba_context["output_dir_suffix"], ba_context, strict=strict) and all_bit_accurate
-          all_bit_accurate = is_bit_accurate(commit_dir / ba_context["output_dir_suffix"], reference_rootproject_ci_dir / ba_context["output_dir_suffix"], ba_context, strict=strict, manifest_name='manifest.inputs.json') and all_bit_accurate
+          dir_ref = reference_rootproject_ci_dir / on_reference_platform(ba_context["output_dir_suffix"], ba_context)
+          all_bit_accurate = is_bit_accurate(commit_dir / ba_context["output_dir_suffix"], dir_ref, ba_context, strict=strict) and all_bit_accurate
+          all_bit_accurate = is_bit_accurate(commit_dir / ba_context["output_dir_suffix"], dir_ref, ba_context, strict=strict, manifest_name='manifest.inputs.json') and all_bit_accurate
     if not all_bit_accurate:
       click.secho(f"\nERROR: results are not bit-accurate to {reference_commits}.", bg='red', bold=True)
       if is_ci:

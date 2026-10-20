@@ -2,7 +2,7 @@
  * Tests for the visual controls of outputs.
  * Run with: cd webapp && npm test -- controls
  */
-import { controls_defaults, save_controls } from '../controls';
+import { config_visualizations, controls_defaults, save_controls } from '../controls';
 import { history } from '../../router';
 import { parse_query } from '../../selection';
 
@@ -27,6 +27,13 @@ describe('controls_defaults', () => {
 
   it('works without configuration', () => {
     expect(controls_defaults(undefined, '')).toMatchObject({ show: {}, dynamic_options: {} });
+  });
+
+  it('uses the visualizations under their old name too, detailed_views', () => {
+    const outputs = { visualizations: [{ name: 'output' }], detailed_views: [{ name: 'debug', default_hidden: true }] };
+    expect(controls_defaults({ outputs }, '').show).toEqual({ debug: false });
+    expect(config_visualizations(outputs).map(view => view.name)).toEqual(['output', 'debug']);
+    expect(config_visualizations(undefined)).toEqual([]);
   });
 });
 

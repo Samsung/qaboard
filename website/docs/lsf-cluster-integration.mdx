@@ -46,7 +46,9 @@ runners:
     # concurrency_strategy: array  # default
 ```
 
-or `qa batch --lsf-concurrency 20 my-batch`.
+or `qa batch --lsf-concurrency 20 my-batch`. A batch can have its own `concurrency` (and `concurrency_strategy`)
+under `lsf:`, see [LSF options per batch](#lsf-options-per-batch): its runs get their own job arrays, or waves, with
+their own limit. The command line option wins.
 
 Two strategies are available:
 - `array` (default): runs with identical LSF options are sent as a single [job array](https://www.ibm.com/docs/en/spectrum-lsf/10.1.0?topic=arrays-create-job-array) with a slot limit (`-J "name[1-n]%20"`). It's a sliding window, and a single `bsub` call. If runs need different LSF options (e.g. per input type), each group gets its own array and its own limit.

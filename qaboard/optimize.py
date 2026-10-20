@@ -104,7 +104,8 @@ def optimize(ctx, batches, batches_files, config_file, checkpoint, parallel_para
       # print(f"y={y}", suggested)
       click.secho(f"Updating optimizer", fg='blue')
       results = optimizer.tell(suggested, y)
-      dump(results, checkpoint, compress=9)
+      if checkpoint:
+        dump(results, checkpoint, compress=9)
 
       click.secho(f"Updating QA-Board", fg='blue')
       if parallel_param_sampling == 1:
@@ -291,7 +292,7 @@ def init_optimization(optim_config_file, checkpoint, ctx):
     **optim_config['solver'],
   )
 
-  if Path(checkpoint).exists():
+  if checkpoint and Path(checkpoint).exists():
     from skopt.utils import load
     print(f"Loading {checkpoint}")
     res = load(checkpoint)

@@ -6,6 +6,8 @@
 !deployments/quickstart/compose.yml
 !examples/*/qaboard.yaml
 !examples/*/qa/*.yaml
+!examples/*/qa/*.py
+!examples/*/inputs/**/*.metadata.yaml
 !docs-media/shots.yaml
 !qaboard/schemas/
 website/node_modules/

@@ -205,6 +205,37 @@ class TestCommitsSearch:
     query.scalar.assert_called_once()
 
 
+class TestCommitsMetrics:
+  def aggregated(self, dummy_app, api, project):
+    """The metrics the list aggregates, when the web app asks for psnr's"""
+    api.db_session.query.return_value = query_chain([mock_commit(0)], scalar=latest_commit_date)
+    api.batches_stats.reset_mock()
+    with dummy_app.test_request_context('/api/v1/commits', query_string={'project': project, 'metrics': '{"psnr": 30}'}):
+      api.get_commits()
+    return api.batches_stats.call_args.args[2]
+
+  def test_metrics_are_aggregated(self, dummy_app, api):
+    assert self.aggregated(dummy_app, api, 'group/isp') == {'psnr': 30}
+
+  def test_skipped_for_the_projects_of_the_setting(self, dummy_app, api, monkeypatch):
+    # QABOARD_SKIP_METRICS_AGGREGATION=group/big,huge/
+    monkeypatch.setattr(api, 'skip_metrics_aggregation', ('group/big', 'huge/'))
+    assert self.aggregated(dummy_app, api, 'group/big') == {}
+    assert self.aggregated(dummy_app, api, 'group/big/subproject') == {}
+    assert self.aggregated(dummy_app, api, 'huge/isp') == {}
+    assert self.aggregated(dummy_app, api, 'group/isp') == {'psnr': 30}
+    assert self.aggregated(dummy_app, api, 'huge') == {'psnr': 30}
+
+
+def test_skip_metrics_aggregation_setting(monkeypatch):
+  import backend.config
+  monkeypatch.setenv('QABOARD_SKIP_METRICS_AGGREGATION', ' group/big, huge/ ,')
+  config = importlib.reload(backend.config)
+  assert config.skip_metrics_aggregation == ('group/big', 'huge/')
+  monkeypatch.delenv('QABOARD_SKIP_METRICS_AGGREGATION')
+  assert importlib.reload(backend.config).skip_metrics_aggregation == ()
+
+
 class TestBranches:
   def test_all_branches_by_default(self, dummy_app, api):
     query = query_chain([('master',), ('dev',)])

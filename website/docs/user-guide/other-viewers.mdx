@@ -1,0 +1,273 @@
+---
+id: other-viewers
+title: Plots, flame graphs, 3D and more
+sidebar_label: Plots, 3D and more
+description: "How the other viewers compare new and reference: plots, flame graphs, text, HTML reports, point clouds and trajectories, and the stages or frames of a run."
+---
+Runs show more than images and videos: plots, CPU profiles, transcripts, the reports your code writes, 3D maps and
+trajectories. Each viewer puts the reference's result next to the new one, or over it, so you see what the change did.
+
+| If your outputs are… | you'll see… |
+|---|---|
+| Curves, bars, heatmaps: a detector's precision-recall curves, a server's latency percentiles | [Plots](#plots), the reference's drawn over the new ones, or next to them |
+| CPU profiles of a server or a pipeline | [Flame graphs](#flame-graphs), colored by what got slower or faster |
+| Text: an LLM agent's transcripts, logs, tables | [Text diffs](#text), line by line |
+| Reports your code writes as web pages | [HTML reports](#html-reports), the new one above the reference's |
+| A robot's maps and 6DoF trajectories | [Point clouds and trajectories](#point-clouds-and-trajectories), in 3D, with the ground truth |
+| Many files per run: an ISP's stages, the frames of a sequence, the images of a test set | [A slider](#pipeline-stages-and-frames) that picks the file every card shows |
+| Images and videos | The [image viewer](/docs/user-guide/image-viewer) and the [video viewer](/docs/user-guide/video-viewer) |
+
+They all show in the **Visualizations** view of the [commit page](/docs/user-guide/commit-page#views), in each run's
+card. Your project chooses what each card shows; what it hides by default has a switch in the
+[View options](/docs/user-guide/commit-page#view-options), under **Visualizations**. The full-screen button at the top
+right of a card gives its viewers the whole screen, e.g. for 3D views and deep flame graphs.
+
+:::note
+When the reference run's file is the same as the new one, the card says **Identical to the reference**: there is
+nothing to look at in that viewer.
+:::
+
+## Plots {#plots}
+Your project's code draws the plots: curves, bars, heatmaps, 3D plots... Each plot is either drawn **over the
+reference's**, on the same axes, or **next to it**: the project picks, plot by plot.
+
+Overlaid, the change is where the curves part. With a shared result cache, every latency percentile of the inference
+gateway is a hundred times the reference's or more:
+
+<Shot
+  id="commit/latency-cdf"
+  caption="The reference's latencies, dashed and faded, stay under the 12 ms SLO line until the far tail; the new ones are near a second from the median on."
+/>
+
+- **The legend says which curve is which**: `new | Latency` and `ref | Latency`, or the
+  [names you gave](/docs/user-guide/comparing-results#naming-what-you-compare) what you compare.
+- **When a plot picks its colors, the reference's curve is dashed and faded**, in the same color: with one curve per
+  class, each class keeps its color. Otherwise, the curves take the colors of what you compare: blue for new, and each
+  reference its own color.
+- **The reference's lines are a bit wider**: where nothing changed, the new line runs right on top of it.
+- **Hover** a curve for its values. **Drag** to zoom on a region, **double-click** to zoom back out. **Click a legend
+  entry** to hide or show its curve, double-click it to show only that one. The toolbar that shows at the top right
+  when you hover the plot saves it as a PNG.
+
+<Shot
+  id="commit/plotly-overlay"
+  caption="One curve per class, the reference's dashed in the same color: quantized to int8, the detector's person curve on the indoor slice falls from an AP50 of 0.19 to 0.06."
+/>
+
+Side by side, the new run's plot comes first, then the reference's. Nothing on them says which is which, and each
+zooms on its own. Projects use it for plots that would hide each other, like heatmaps:
+
+<Shot
+  id="commit/core-heatmap"
+  caption="CPU per core, new on the left: with the shared cache, the cores idle while requests queue. Below, the batch sizes overlaid: every new batch is full."
+/>
+
+<details>
+<summary>More about plots</summary>
+
+- Plots saved as web pages (`*.plotly.html`) always show side by side, each in its own frame.
+- When the project gives a ground truth, overlaid plots draw it too, in green, named `groundtruth`.
+- When the reference run doesn't have the plot, the new one shows alone.
+- In the dark theme, plots that don't choose their colors get colors that read on a dark background.
+- Projects choose, with `side_by_side` in *qaboard.yaml*, how each plot compares: see
+  [the Plot.ly viewer](/docs/viewers#plots).
+
+</details>
+
+## Flame graphs {#flame-graphs}
+A flame graph shows where a program spends its CPU time. Each bar is a function, as wide as the time spent in it, with
+the functions it calls below it. Against the reference, QA-Board draws a **differential flame graph**: the new run's
+profile, colored by what changed.
+
+<Shot
+  id="commit/flame-diff"
+  caption="The inference gateway's workers now render responses under the shared cache's lock (orange, new), and the model's forward pass runs less (blue): cache hits skip it."
+/>
+
+- **Red** functions take more time than in the reference, **blue** ones less: the darker, the bigger the change.
+  **Orange** ones are new. Light gray ones didn't change. Look for the wide red and orange bars first: that's where the
+  time went.
+- **Hover** a function: its name, its share of the samples and their number show below the graph.
+- **Click** a function to zoom into it and what it calls. **Zoom Out** goes back.
+- Type a function's name in **Highlight frames**: the bars that match turn magenta, and below the graph, you read what
+  share of the samples they take.
+- The menu below the graph picks what to draw:
+
+| Choice | Widths | Colors |
+|---|---|---|
+| **What did happen** (the default) | The new run's profile | What changed |
+| **What will happen** | The reference's profile | What changed: functions the change removed show here, in blue |
+| **After**, **Before** | The new run's profile, or the reference's | By function, as in any flame graph |
+| **After & Before** | Both, one above the other | By function |
+
+<details>
+<summary>More about flame graphs</summary>
+
+- Functions are matched between the two profiles by their call stack: the same function, called from somewhere else,
+  is another bar.
+- **Highlight frames** is case-sensitive, and reads regular expressions: `lock|wait` highlights both.
+- Without a reference profile, the flame graph shows alone, by function.
+- In the inference gateway example, widths are microseconds of CPU per 1,000 requests: the profile's unit is what your
+  project records.
+- To record flame graphs with your code, read
+  [Creating and viewing flame graphs](/blog/2020/06/24/flame-graphs), and Brendan Gregg's
+  [differential flame graphs](http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html).
+
+</details>
+
+## Text diffs {#text}
+Text files are diffed with the reference's, line by line, in the code editor of VS Code: the reference on the left, the
+new run's on the right, what was removed in red and what was added in green. It works for any text: logs, tables,
+configuration files, an LLM agent's transcripts.
+
+<Shot
+  id="commit/transcript-diff"
+  caption="The same task before and after the change: the reference's reboot is refused until the operator confirms, the new assistant reboots the robot without asking."
+/>
+
+- The tag next to the file name says which side is where, **reference ➡️ new**: press <kbd>t</kbd> to swap them.
+- **Next diff** jumps to the next change.
+- **Side-by-side** switches to an inline diff, removed lines above added ones, which reads better in a narrow card.
+  Click it again (it says **Inline diff**) to go back.
+- The editor shows up to 40 lines: scroll in it for the rest. Click in it and press <kbd>Ctrl</kbd>+<kbd>F</kbd>
+  (<kbd>⌘</kbd>+<kbd>F</kbd> on a Mac) to search.
+
+<details>
+<summary>More about text diffs</summary>
+
+- Files that no other viewer reads show as text.
+- The color codes that terminals use are removed from logs. YAML, JSON, Python and JavaScript files are highlighted.
+- Without a reference file, the new file shows alone.
+- To diff any file a run wrote, not only those your project shows, use [Output Files](/docs/user-guide/commit-page#output-files).
+
+</details>
+
+## HTML reports {#html-reports}
+Your project's code can write its own report, as a web page: a summary, tables, the worst images. Each card shows the
+new run's report, then the reference's below it, under headings with their names.
+
+<Shot
+  id="commit/agent-report"
+  caption="The fleet assistant's task after the change: it failed, with 2 unsafe actions. Each check says why, then comes the conversation."
+/>
+
+- A report is as tall as what's in it: scroll the page, not the report.
+- Its images and links work as they do next to the report's file, and links open in a new tab.
+
+<Shot
+  id="commit/html-report"
+  caption="The detector's report on the small-objects slice: AP per class and object size, latency, and the images where the int8 model missed the most objects."
+/>
+
+<details>
+<summary>More about HTML reports</summary>
+
+- Reports show in a frame of their own: their styles don't change the page around them.
+- Scripts don't run in reports: a chart drawn by a script stays empty. Ask your project to save it as a
+  [plot](#plots) instead.
+
+</details>
+
+## Point clouds and trajectories {#point-clouds-and-trajectories}
+For robots and 3D sensors, QA-Board draws maps and trajectories in 3D: the new run's, the reference's, and the ground
+truth when the project has one.
+
+**Point clouds**, like the map a robot built, show on the same axes, in the colors of what you compare, like in the
+other viewers: the new run's in blue, the reference's in its color (purple for the first reference), and the ground
+truth in green. The checkboxes above the view name each cloud like the commit page does, e.g. with a milestone's name.
+
+<Shot
+  id="commit/pointcloud"
+  caption="The reference hidden, the new map against where the points really are: false loop closures put shelves meters away."
+/>
+
+- **Drag** to orbit, **right-drag** to pan, **scroll** to zoom. **Reset view** goes back to the start.
+- The checkboxes show or hide each cloud, with its number of points. Hide the reference to compare the new map with
+  the ground truth alone.
+- Where two clouds should overlap and don't, one of the maps is wrong.
+- Point clouds are large: projects may hide them by default. Switch them on in the **View options**, under
+  **Visualizations**.
+
+**Trajectories** (6DoF: the position and orientation over time) show each value of the pose over time, on the left,
+and the path in 3D, on the right, with x and y at the same scale.
+
+<Shot
+  id="commit/trajectory-6dof"
+  caption="Each axis over time and the path in 3D, against the reference's and the ground truth: a false loop closure pulls the new trajectory away."
+/>
+
+- The legend names the new run, the reference and the ground truth: click one to hide it.
+- Hover a curve for its values. Drag to zoom on a time range, double-click to zoom back out. In 3D, drag to rotate and
+  scroll to zoom.
+- The reference's lines are a bit wider: where the new line covers them, the trajectories are the same.
+- Find the moment the new trajectory leaves the ground truth, then look at what the robot saw then. When the project
+  saves the camera as a video, it plays in sync with the reference's, in the
+  [video viewer](/docs/user-guide/video-viewer):
+
+<Clip
+  id="commit/video-sync"
+  caption="The depth camera and the path so far, new and reference playing in sync: at the false loop closure, the new path jumps away."
+/>
+
+<details>
+<summary>More about point clouds and trajectories</summary>
+
+- The project sets the size of the points, the ground truth's file, and whether trajectories have a 3D view: see
+  [Point clouds and trajectories](/docs/viewers#point-clouds-and-trajectories).
+- An older viewer shows a time-of-flight camera's runs frame by frame: depth maps and point clouds.
+
+</details>
+
+## Step through pipeline stages and frames {#pipeline-stages-and-frames}
+Some visualizations have several files per run: one per stage of a camera pipeline, per frame of a sequence, per image
+of a test set. A card shows one at a time, and **Files to show**, in the **View options**, picks which, for every run at
+once.
+
+<Clip
+  id="commit/dynamic-outputs"
+  caption="One slider over the ISP's stages, from the raw mosaic to the tone-mapped image: new and reference change together, in every run's card."
+/>
+
+1. Open the **View options** (press <kbd>o</kbd>). Under **Files to show**, each option is named after what varies in
+   the files' names, like **Stage** or **Image**.
+2. Move the slider, or pick a value in the list: a slider when the values are consecutive numbers, a list otherwise.
+   Every card shows that file, new and reference, with its path above the viewer, like `stages/3.jpg`.
+3. To follow one spot stage after stage, zoom in on an image first: the image viewers keep their zoom and region as
+   you change files.
+
+- Until you pick a value, each run shows its own default: its last one when the values are numbers (its last frame,
+  for instance), else its first. The panel says so, for instance **Each run's last**. The reset button next to the
+  option goes back to it.
+- Runs don't need to have the same files. A run without the value you picked shows the closest number, and its card
+  says which.
+- To pick a different file in each card, turn on **Per run**: each card gets its own slider or list. **Same for all
+  runs**, in a card, turns it off again.
+- Hover an option's name to see which visualizations it's for, and the values found in the runs.
+
+<Shot
+  id="commit/detections"
+  caption="The detector's project picks the photo of a slice with a slider. Each run draws its detections, and what it missed in red: the int8 model (left) misses two people that fp32 finds."
+/>
+
+<details>
+<summary>More about stages and frames</summary>
+
+- Some visualizations show all their files at once, one after the other, instead of one at a time: the project
+  chooses.
+- How projects declare these files, and how options are named: see
+  [Dynamic visualizations](/docs/visualizations#dynamic-visualizations).
+
+</details>
+
+## Where to go next
+<Cards>
+  <Card title="The image viewer" to="/docs/user-guide/image-viewer">
+    Side by side, wipe, difference, pixel values, and the regions where images differ.
+  </Card>
+  <Card title="The video viewer" to="/docs/user-guide/video-viewer">
+    Videos in sync, frame by frame, and the frames where they differ.
+  </Card>
+  <Card title="Choose what each run shows" to="/docs/visualizations" eyebrow="Project integration">
+    Declare the files, their viewers and their options in qaboard.yaml.
+  </Card>
+</Cards>

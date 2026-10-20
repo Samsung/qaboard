@@ -1,40 +1,86 @@
 ---
 id: monorepo-subprojects
-sidebar_label: Mono/Multi git repos
-title: Monorepo/Multi-repo support
+sidebar_label: Monorepos & many repos
+title: Monorepos and many repositories
+description: Give each folder of a monorepo its own QA-Board project, and share one configuration between many repositories.
 ---
 
-## Organizing monorepos with subprojects
-- **How?** Each *qaboard.yaml* in your repo will define a different QA-Board "sub"-project. Each subproject will have its own data/runs.
-- **Terminology**: if your repository url is `git@github.com:organization/algorithms`, by default the project name is will be `organization/algorithms`. It is a "_root_", at the top-level of your git repository. If you create a new `qaboard.yaml` under `algorithms/algorithm-a`, and call `qa` from `algorithm-a`, `qa` will consider that you work in a new project: `organization/algorithms/algorithm-a`. It is composed of `root_project/subproject` where `subproject` is `algorithm-a` - where the new `qaboard.yaml` is located relative to the root.
-- **Working directory:** When calling `qa [command]`, `qa` will first change the working directory to the top-most directory of your git repo, where you have your root _qaboard.yaml_.
-- **Relative paths** in _qaboard.yaml_ configuration files are always relative to the repository root.
-- **Submodules**: If you work in a submodule that uses QA-Board, and the git repo above also uses QA-Board, it can be confusing for `qa` to know what to do... So add `root: true` to your submodule's _qaboard.yaml_
-- `project.avatar_url` and `project.description` can be changed to display relevant information in the Web UI. Avatars from hosts other than your GitLab need to be listed in [`QABOARD_PROXY_HOSTS`](/docs/deploy#optional-environment-variables).
-- **In your `project.entrypoint:run()`**: you can `from qaboard.config import project, project_root, subproject` if needed. 
-- **Layering:** _project/sub/qaboard.yaml_ will inherit everything from _project/qaboard.yaml_, deep-merged. As a helper you can use the keyword `super` to add items to lists:
+A repository can hold several QA-Board projects, one per folder with a *qaboard.yaml*: each has its own results,
+batches and metrics, and inherits the configuration of the folders above it. Many repositories can also share one
+configuration.
 
-```yaml 
-# project/qaboard.yaml
-outputs:
-    visualizations:
-    - path: image.jpg
+## Add a project in a folder of your repository {#organizing-monorepos-with-subprojects}
+Say your repository is `kitefin/k3`, with a *qaboard.yaml* at its root, and the denoiser lives in *isp/denoise*:
 
-# project/subproject/qaboard.yaml
+1. **Add a *qaboard.yaml* in the folder**, with what differs from the root's. It can be empty.
+
+   ```yaml title="isp/denoise/qaboard.yaml"
+   inputs:
+     batches: isp/denoise/batches.yaml
+   outputs:
+     metrics: isp/denoise/metrics.yaml
+   ```
+
+2. **Run `qa` from that folder.**
+
+   ```bash
+   cd isp/denoise
+   qa batch ci
+   ```
+
+   The results go to a new project, `kitefin/k3/isp/denoise`: the root project's name, then the folder. It's a
+   *subproject* of the root project, `kitefin/k3`.
+
+What subprojects share:
+- **Configuration:** *isp/denoise/qaboard.yaml* inherits everything from the root *qaboard.yaml*, deep-merged. Don't
+  change `project.name` or `project.url` in a subproject.
+- **Paths:** relative paths in *qaboard.yaml* files are relative to the root's folder, and `qa` first changes its
+  working directory to it.
+- **Lists:** a subproject's list replaces the root's. To add items, write `super` where the root's items go:
+
+```yaml
+# qaboard.yaml
 outputs:
-    visualizations:
-    - super
-    - path: file.txt
-#=> the subproject will have the 2 visualizations  
+  visualizations:
+  - path: out.png
+
+# isp/denoise/qaboard.yaml
+outputs:
+  visualizations:
+  - super
+  - path: noise.plotly.json
+#=> the subproject has the 2 visualizations
 ```
 
-## Refactoring config files when working with multiple git repositories 
-A _qaboard.yaml_ file can `include` another. In this case configurations will be deep-merged. Path will still be relative to the root of the project that includes the config file.
+In `run()`, `from qaboard.config import project, project_root, subproject` tells you where you are.
 
-It has been useful for us when dealing with many repositories that all have almost the same configuration. For example, if you have a repositories called `project-a`/`project-b`..., and it's safe to assume they will always be checked-out under a parent repo, you can do:
+## Run subprojects in the CI {#ci}
+Run each subproject's batch from its folder: `cd isp/denoise && qa batch ci`. What the CI sees carries the folder:
+- `qa batch`'s commit status is `QA denoise`, with the name of the subproject's folder (see
+  [CI integration](/docs/ci-integration#commit-statuses));
+- `qa gate --post-status`'s is `qaboard/gate/isp/denoise` (see [Quality gate](/docs/quality-gate#commit-statuses));
+- `qa check-bit-accuracy` waits for the job named `<bit_accuracy.failed_ci_job_name> denoise` (see
+  [Bit accuracy](/docs/bit-accuracy#which-reference)).
 
-```yaml title="projects/project-a/qaboard.yaml" 
-# assuming projects/common contains shared files
+If your CI only saves the build on some branches, `tuning.branches` can name them per subproject, with
+`{subproject}` (the folder, *isp/denoise*) and `{subproject.name}` (its last part, *denoise*): see
+[Tuning from the web app](/docs/tuning-from-the-webapp#settings). Integrations get `${subproject}` too (see
+[Integrations](/docs/triggering-third-party-tools#dynamic-integrations-using-variables)).
+
+## Submodules {#submodules}
+If a git submodule has its own *qaboard.yaml*, and the repository around it uses QA-Board too, `qa` would see the
+submodule as a subproject. Add `root: true` to the submodule's *qaboard.yaml*: `qa` stops looking for *qaboard.yaml*
+files above it.
+
+## Share a configuration between repositories {#refactoring-config-files-when-working-with-multiple-git-repositories}
+A *qaboard.yaml* can `include` another: the included file is deep-merged under it. Its path is relative to the root
+*qaboard.yaml*'s folder.
+
+If you have many repositories, `project-a`, `project-b`..., that are always checked out next to a folder of shared
+files, each can include the shared configuration:
+
+```yaml title="projects/project-a/qaboard.yaml"
+# projects/common holds the shared files
 include: ../common/qaboard.yaml
 
 project:
@@ -42,7 +88,8 @@ project:
   url: git@github.com:projects/project-a
 ```
 
-To make it even easier to use the same config everywhere, you can use the python f-string syntax with the 2 variables `root_path` and `project_path` (which is `{root_path}/{subproject}`). It makes it possible to refactor the above as:
+`project.name` and `project.url` can use Python's format syntax with 2 variables: `root_path` (the root
+*qaboard.yaml*'s folder) and `project_path` (the subproject's folder). Every repository can then have the same file:
 
 ```yaml title="projects/project-a/qaboard.yaml"
 include: ../common/qaboard.yaml
@@ -51,3 +98,9 @@ project:
   name: "projects/{project_path.name}"
   url: git@github.com:your-organization/{project_path.name}
 ```
+
+:::tip
+`project.description` and `project.avatar_url` give each project a description and an avatar on the home page.
+Avatars from other hosts than your git hosts must be listed in
+[`QABOARD_PROXY_HOSTS`](/docs/deploy#optional-environment-variables).
+:::

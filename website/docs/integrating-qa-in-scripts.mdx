@@ -1,192 +1,174 @@
 ---
 id: apis
 sidebar_label: APIs
-title: QA-Board's API
+title: Results in scripts
+description: Find runs' output directories with the qa CLI, and read commits, batches, runs and metrics with QA-Board's HTTP API.
 ---
 
-## CLI API
-If you run batches, it can be useful to know where results where saved.
+Scripts, notebooks and agents can use QA-Board's results: the `qa` CLI says where a batch's runs save their files,
+and the HTTP API gives the commits, batches, runs and metrics that the web app shows.
+
+## Find where runs save their outputs {#cli-api}
+`qa batch <batch> --list-output-dirs` prints the output directory of each run, one per line, without running
+anything. In the detector's project:
 
 ```bash
-qa batch my-batch --list-output-dirs
-##=> prints to STDOUT each output directory on a line
-#> $some/where/place
-#> $some/other/place
-#> ...
-
-qa batch my-batch --list
-##=> prints to STDOUT an array with info on each run
-# [
-#   {
-#      "absolute_input_path": "some/file"
-#      "configurations": ["my-config"],
-#      "output_directory": "some/place"
-#   }
-# ]
+qa batch ci --list-output-dirs
 ```
 
-For specific needs, you can also use `qa get` to output internal variables:
+```text
+/home/arjun/detector/output/7622c337-20/slices-indoor
+/home/arjun/detector/output/7622c337-20/slices-outdoor
+...
+```
+
+`--list` prints the runs as JSON, with what each one would run:
 
 ```bash
-qa get --input my/input output_dir
+qa batch ci --list
+```
+
+```json
+[
+  {
+    "type": "default",
+    "input_path": "inputs/slices/indoor",
+    "database": "inputs",
+    "platform": "linux",
+    "configurations": ["fp32", "size-320"],
+    "extra_parameters": {},
+    "batch": "ci",
+    "output_dir": "/home/arjun/detector/output/7622c337-20/slices-indoor",
+    "command": "qa --configuration fp32:size-320 run --input \"slices/indoor\"",
+    "rel_input_path": "slices/indoor"
+  }
+]
+```
+
+`--list-inputs` only prints the inputs. These are local runs' directories: runs in the CI, or with `--share`, save
+their files under the project's `storage` (see [where is the data](/docs/storage/where-is-the-data)), and
+`qa --share batch ci --list-output-dirs` prints those.
+
+For other values, `qa get` prints the variables `qa` uses:
+
+```bash
 qa get commit_id
-# etc
+qa get --input slices/indoor output_dir
 ```
 
-## HTTP API
-> **TODO:** Formalize with an [openapi/swagger spec](https://editor.swagger.io/).
-
-It's not documented yet, but quite stable and there are no surprises.
+## Read results over HTTP {#http-api}
+The web app reads everything from the API at `/api/v1`, and so can your scripts. For instance, the latest commits of
+the detector, with their CI batch:
 
 ```bash
 base_url=http://localhost:5151/api/v1
-curl "$base_url/commits?project=group/my-project" | jq
+curl "$base_url/commits?project=kitefin/detector&only_ci_batches=true&limit=10" | jq
 ```
 
-To compare a commit's results with a reference, with the numbers of the **Summary** and **Metrics Diff** views, use
-`/commit/<sha>/compare` (experimental, see [Quality gate](/docs/quality-gate#from-scripts-and-agents)).
+<details>
+<summary>The answer: a list of commits</summary>
 
-### Authentication
-Reading data doesn't need to be logged-in (unless the server [blocks anonymous users](backend-admin/user-management#blocking-anonymous-users)). Some actions do, e.g. starting tuning runs. From scripts, use an API token: create one in the web app, in **Settings → Access tokens** (or use the one of `qa auth token`), then send it with an `Authorization: Bearer` header:
+```js
+[
+  {
+    "id": "<sha>",
+    "branch": "quant/int8",
+    "message": "feat(quant): percentile calibration (99.99)\n\nMinmax let a few outliers set the scale...",
+    "committer_name": "Arjun Sethuraman",
+    "committer_avatar_url": null,
+    "authored_datetime": "<date>",
+    "authored_date": "<day>",
+    "data": {
+      "qatools_config": {/* the commit's qaboard.yaml */},
+      "qatools_metrics": {/* its metrics file */}
+    },
+    "outputs_url": "/s/mnt/qaboard/kitefin/detector/...",
+    "artifacts_url": "/s/mnt/qaboard/kitefin/detector/...",
+    "batches": {
+      "default": {
+        "id": 1204,
+        "label": "default",
+        "created_date": "<date>",
+        "batch_dir_url": "/s/mnt/qaboard/kitefin/detector/...",
+        "valid_outputs": 8,
+        "pending_outputs": 0,
+        "running_outputs": 0,
+        "failed_outputs": 0,
+        "deleted_outputs": 0,
+        "aggregated_metrics": {}
+      }
+    }
+  }
+]
+```
+
+The `*_url` fields are paths on the server: add your server's address before them to download files, like
+`http://localhost:5151/s/mnt/qaboard/.../metrics.json`.
+
+</details>
+
+### Lists of commits, branches and projects {#lists-of-commits-branches-and-projects}
+`/commits` gives the commits with results, newest first: by default those of the last days with commits, or of
+`?from=&to=` (dates). Use `/commits/<branch>` for a branch's, `?committer=<name>` for a committer's. It accepts:
+- `?limit=` (at most 1000) and `?offset=`, to get pages. The `X-Has-More` response header (`true` or `false`) tells
+  if there are more.
+- `?q=` to search all the project's commits, with the
+  [syntax of the web app's search box](/docs/user-guide/finding-results#searching-commits), e.g.
+  `q=branch:release -wip`. Searches ignore the date range, unless you give `from` or `to`.
+- `?batch=<label>` for only that batch of each commit, or `?only_ci_batches=true` for the CI batch.
+- `?with_outputs=true` to add each batch's runs.
+
+Without `limit`, it answers with at most 1000 commits, and no `X-Has-More` header.
+
+```bash
+curl -i "$base_url/commits?project=kitefin/detector&q=committer:arjun&limit=50&offset=50"
+```
+
+`/project/branches?project=kitefin/detector` lists all the branches with results, by name. With `&q=quant`
+(branches whose name contains it) or `&limit=` (default 50, at most 1000), you get the most recently active branches
+first.
+
+`/projects` gives the projects with results that you can access, with their data. With `?summary=true`, it only
+gives what lists of projects need (git info, *qaboard.yaml*'s `project` section): it's much smaller. Use
+`/project?project=kitefin/detector` for the rest.
+
+### A commit's runs and metrics {#a-commits-runs}
+`/commit/<sha>?project=<project>` gives a commit with all its batches and their runs:
+
+```bash
+curl "$base_url/commit/<sha>?project=kitefin/detector" | jq '.batches.default.outputs'
+```
+
+Each run (an "output" in the API) has its input (`test_input_path`, `test_input_database`, `test_input_metadata`),
+its `configurations`, `extra_parameters` (the tuning parameters) and `platform`, its `metrics`, its state
+(`is_pending`, `is_running`, `is_failed`) and its `output_dir_url`.
+
+### Compare with a reference {#compare}
+`/commit/<sha>/compare` gives the numbers of the **Summary** and **Metrics Diff** views: each metric's median
+against a reference, and each run against its reference run. It's experimental, see
+[Quality gate](/docs/quality-gate#from-scripts-and-agents).
+
+### Milestones {#milestones}
+`/milestones?project=<project>` lists the project's shared milestones, and yours when you send a token: each with
+its `label`, `group`, `notes`, `commit`, `batch` and `filter`. See
+[References and milestones](/docs/references-and-milestones#milestones).
+
+There is no OpenAPI description of the API yet: see the [roadmap](/docs/roadmap).
+
+## Authentication {#authentication}
+Reading data doesn't need a login (unless the server
+[blocks anonymous users](/docs/backend-admin/user-management#blocking-anonymous-users)). Some actions do, like
+starting tuning runs. From scripts, use an API token: create one in the web app, in **Settings → Access tokens** (or
+use the one of `qa auth token`), then send it with an `Authorization: Bearer` header:
 
 ```bash
 curl -H "Authorization: Bearer $QABOARD_TOKEN" "$base_url/user/me/"
 ```
 
-- Give tokens only the **scopes** they need: `read`, `ingest` (send results), `act` (redo runs, start or delete batches, save milestones). You can also restrict them to some projects, e.g. `group/repo` or `group/*`.
-- When a token can't be used, the answer says why, e.g. `{"error": "This token expired...", "reason": "token_expired"}`. `/user/me/` says which token you use and its scopes.
+- Give tokens only the **scopes** they need: `read`, `ingest` (send results), `act` (redo runs, start or delete
+  batches, save milestones). You can also restrict them to some projects, e.g. `group/repo` or `group/*`.
+- When a token can't be used, the answer says why, e.g.
+  `{"error": "This token expired...", "reason": "token_expired"}`. `/user/me/` says which token you use and its scopes.
 - Tokens in URLs (`?token=`) are only accepted to read: URLs end up in logs.
-- The `qa` CLI sends its token automatically (see [Signing in](installation#signing-in)).
-
-```js
-[
-  // --snip--
-  {
-    "id": "af9370b9246657e74e8e7fbd28c180b5cca7d3a7",
-    "type": "git",
-    "branch": "origin/HM1_develop",
-    "parents": [
-      "c976adc9020683f90d51d25c39d9e177c621dc95"
-    ],
-    "message": "add dynamic min subtract\n",
-    "committer_name": "Jane Doe",
-    "committer_avatar_url": "https://gitlab.example.com/uploads/-/system/user/avatar/164/avatar.png",
-    "authored_datetime": "2019-04-30T09:05:09+00:00",
-    "authored_date": "2019-04-30",
-    "data": null,
-    "artifacts_url": "/s/mnt/qaboard/group/my-project/af/9370b9246657e7",
-    "repo_artifacts_url": "/s/mnt/qaboard/group/my-project/af/9370b9246657e7",
-    "batches": {
-      "default": {
-        "id": 19172,
-        "commit_id": "af9370b9246657e74e8e7fbd28c180b5cca7d3a7",
-        "label": "default",
-        "created_date": "2019-04-30T09:08:59.962664",
-        "data": {
-          "type": "ci"
-        },
-        "batch_dir_url": "/s/mnt/qaboard/group/my-project/af/9370b9246657e7/output",
-        "aggregated_metrics": {},
-        "valid_outputs": 0,
-        "pending_outputs": 0,
-        "running_outputs": 0,
-        "failed_outputs": 2
-      }
-    },
-    "time_of_last_batch": "2019-04-30T09:05:09+00:00"
-  },
-  // --snip--
-]
-```
-
-### Lists of commits, branches and projects
-`/commits` gives the commits with results, newest first: by default those of the last days with commits, or of `?from=&to=` (dates). Use `/commits/<branch>` for a branch's, `?committer=<name>` for a committer's. It accepts:
-- `?limit=` (at most 1000) and `?offset=`, to get pages. The `X-Has-More` response header (`true` or `false`) tells if there are more.
-- `?q=` to search all the project's commits, with the [syntax of the web app's search box](user-guide/finding-results#searching-commits), e.g. `q=branch:release -wip`. Searches ignore the date range, unless you give `from` or `to`.
-
-Without `limit`, it answers with at most 1000 commits, and no `X-Has-More` header.
-
-```bash
-curl -i "$base_url/commits?project=group/my-project&q=committer:alice&limit=50&offset=50"
-```
-
-`/project/branches?project=group/my-project` lists all the branches with results, by name. With `&q=feature` (branches whose name contains it) or `&limit=` (default 50, at most 1000), you get the most recently active branches first.
-
-`/projects` gives the projects with results that you can access, with their data. With `?summary=true`, it only gives what lists of projects need (git info, *qaboard.yaml*'s `project` section): it's much smaller. Use `/project?project=group/my-project` for the rest.
-
-```bash
-curl "$base_url/commit/2032a39564281de429e667260d1def3d16980e01?project=group/my-project" | jq
-```
-
-```js
-{
-  "id": "2032a39564281de429e667260d1def3d16980e01",
-  "type": "git",
-  "branch": "origin/InvestigateCompressionGW1",
-  "parents": [
-    "93b0a95d0ceaa78d24be33bea67a4aa333491c23"
-  ],
-  "message": "1. PARAMETERIZE compression\n2. add gw1 package\n",
-  "committer_name": "Jane Doe",
-  "committer_avatar_url": "https://gitlab.example.com/uploads/-/system/user/avatar/164/avatar.png",
-  "authored_datetime": "2019-04-28T12:55:51+00:00",
-  "authored_date": "2019-04-28",
-  "data": {
-    "qatools_config": {
-      // --snip
-     },
-    "qatools_metrics": {
-      // --snip
-     }
-  }
-  "artifacts_url": "/s/mnt/qaboard/group/my-project/20/32a39564281de4",
-  "repo_artifacts_url": "/s/mnt/qaboard/group/my-project/20/32a39564281de4",
-  "batches": {
-    "default": {
-      "id": 19071,
-      "commit_id": "2032a39564281de429e667260d1def3d16980e01",
-      "label": "default",
-      "created_date": "2019-04-28T13:27:28.119816",
-      "data": {
-        "type": "ci"
-      },
-      "batch_dir_url": "/s/mnt/qaboard/group/my-project/20/32a39564281de4/output",
-      "aggregated_metrics": {},
-      "valid_outputs": 1,
-      "pending_outputs": 2,
-      "running_outputs": 1,
-      "failed_outputs": 2,
-      "outputs": {
-        "350582": {
-          "id": 350582,
-          "output_type": "",
-          "platform": "windows",
-          "configuration": "base_2X5",
-          "extra_parameters": {},
-          "metrics": {
-            "is_failed": false,
-            "compute_time": 30.1366302967
-            "OTP_size_CrossTalk": 1040,
-            "OTP_size_DayLight50": 464,
-            // --snip
-          },
-          "is_failed": false,
-          "is_pending": false,
-          "is_running": false,
-          "data": {
-            "ci": true
-          },
-          "batch_dir_url": "/s/mnt/qaboard/group/my-project/20/32a39564281de4/output/windows/base-2x5/Truly_LSC_DB/M01",
-          "test_input_database": "\\\\server\\QA-Data\\2X5",
-          "test_input_path": "Truly_LSC_DB\\M01",
-          "test_input_tags": []
-        },
-        // --snip--
-      }
-    }
-  },
-  "time_of_last_batch": "2019-04-28T12:55:51+00:00"
-}
-
-```
+- The `qa` CLI sends its token automatically (see [Sign in](/docs/installation#signing-in)).
 

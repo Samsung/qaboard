@@ -1,0 +1,233 @@
+---
+id: viewers
+title: Viewers and file formats
+sidebar_label: Viewers and formats
+description: The files each viewer of the web app reads, how to write them from your code, and the options you can give each viewer in qaboard.yaml.
+---
+
+This page lists, viewer by viewer, the files the web app shows, how to write them from your code, and the options
+you can give the viewer. To choose which files to show, see [Visualizations](/docs/visualizations). How people use the
+viewers is in the user guide: [images](/docs/user-guide/image-viewer), [videos](/docs/user-guide/video-viewer), and
+[plots, flame graphs, 3D and more](/docs/user-guide/other-viewers).
+
+A viewer's options go next to the visualization's `path`:
+
+```yaml title="qaboard.yaml" {5}
+outputs:
+  visualizations:
+    - name: Latency percentiles
+      path: latency_cdf.plotly.json
+      side_by_side: false   # an option of the plot viewer
+```
+
+## Images {#images}
+**Files:** *.png*, *.jpg*, *.jpeg*, *.bmp*, *.tif*, *.tiff*, *.pdf*, or any file with `type: image/...`. Raw formats
+(*.raw*, *.dng*, *.hex*) need an image server that reads them.
+
+An [IIIF](https://iiif.io) image server decodes the images and sends them tile by tile: the viewer only loads what it
+shows, even for the 113 MP test wall of the camera ISP example.
+
+<Clip
+  id="landing/deep-zoom"
+  caption="The 113 MP test wall, from the whole wall down to single pixels of a Siemens star: only the tiles in view load."
+/>
+
+- **Write lossless images when you compare values.** JPEG changes the values your code computed. The
+  [camera ISP example](/docs/use-cases/image-quality) saves its output as PNG, for the difference of the images, and its intermediate
+  stages as JPEG, which are smaller.
+- **Draw your debug information in the images**, like detection boxes or what a model missed: the viewer compares them
+  like any other image.
+- **Raw formats:** admins send some extensions to another IIIF server, one that reads them, with
+  `QABOARD_IMAGE_SERVERS` (see [environment variables](/docs/deploy#optional-environment-variables)).
+- **Pixel values:** for signed-in users, the server reads the images' own values, e.g. 16-bit ones, with Pillow. For
+  raw formats, it needs a reader that QA-Board doesn't include.
+- **The viewer is a React component** you can use in your own apps, with images from any server: see its
+  [README](https://github.com/Samsung/qaboard/tree/master/webapp/src/image-viewer).
+
+<Shot
+  id="commit/detections"
+  caption="The detector draws its boxes, and outlines in red what it missed: the int8 model (left) misses two people that fp32 finds."
+/>
+
+:::tip TIFF and PNG
+If a run saved both *image.png* and *image.tiff*, a visualization of *image.png* shows the TIFF. When the reference run
+doesn't have the file, the viewer falls back to the reference's *.tiff*, then *.bmp*, of the same name: it helps
+compare results across a change of output format.
+:::
+
+## Videos {#videos}
+<Anchor id="video-viewer" />
+
+**Files:** *.mp4*, *.m4v*, *.mov*, *.webm*, *.mkv*, *.ogv*, animated *.webp* and *.gif*, or any file with
+`type: video/...`.
+
+Browsers play **H.264**, **VP9** and **AV1** videos, in *.mp4* or *.webm* files. Other codecs (e.g. HEVC/H.265,
+MPEG-4 part 2) or containers (e.g. *.avi*) show an error: convert them when your code writes them, for instance with:
+
+```bash
+ffmpeg -i input.avi -c:v libx264 -pix_fmt yuv420p -movflags +faststart output.mp4
+```
+
+`+faststart` lets a video start playing before it's fully downloaded. Animated *.webp* and *.gif* files are compared
+the same way, but your browser plays them on its own: they are not synced.
+
+For signed-in users, QA-Board's server reads the files with FFmpeg: the timestamp of every frame (frames are numbered
+like in the file, also with variable frame rates), their decoded values, and where two videos differ. It reads any
+format FFmpeg reads, but your browser still has to play the video.
+
+To compare exact values, write lossless videos: lossy codecs change the values your code wrote, and 4:2:0 stores
+colors at half resolution. Browsers play lossless VP9:
+
+```bash
+ffmpeg -i frames/%04d.png -c:v libvpx-vp9 -lossless 1 -pix_fmt yuv444p output.webm
+```
+
+Without the server's timestamps, QA-Board finds a video's frame rate when it plays, or when you step through its
+frames. If it guesses wrong, set it. You can also give an image to show before the video loads:
+
+```yaml title="qaboard.yaml"
+outputs:
+  visualizations:
+  - name: Camera
+    path: camera.mp4
+    fps: 30
+    poster: camera.jpg  # default: poster.jpg, if the run created it
+```
+
+Like images, videos can show what your code knows: the [robotics example](/docs/use-cases/robotics-3d) draws the path
+so far next to each depth frame.
+
+<Clip
+  id="commit/video-sync"
+  caption="Each frame shows the depth image and the path so far: when a false loop closure is accepted, the new path jumps away from the true one."
+/>
+
+## Plots {#plots}
+**Files:** *.plotly.json*, a [Plotly](https://plotly.com/graphing-libraries/) figure saved as JSON (its `data` and
+`layout`), or *.plotly.html*.
+
+```python title="qa/main.py"
+import plotly.graph_objects as go
+
+def run(context):
+    # --snip--
+    fig = go.Figure(data=go.Bar(y=[2, 3, 1]))
+    (context.output_dir / "graph.plotly.json").write_text(fig.to_json())
+```
+
+By default the new and reference plots show side by side. With `side_by_side: false`, the reference run's traces are
+drawn on the same axes as the new run's. When your traces set their colors, the reference's keep them, dashed and
+faded:
+
+<Shot
+  id="commit/plotly-overlay"
+  caption="With side_by_side: false, the fp32 release's precision-recall curves are dashed under the int8 model's: person drops from 0.19 to 0.06 AP50."
+/>
+
+| Option | What it does |
+|---|---|
+| `side_by_side` | `false` draws the reference's traces on the new run's axes. Default: `true`. |
+| `layout` | Plotly layout settings that replace the figure's settings of the same name, e.g. `title` or `yaxis`. |
+| `path_groundtruth` | With `side_by_side: false`, a file of the new run's folder whose traces are drawn too, as the ground truth. |
+
+Figures saved as HTML, e.g. with `fig.write_html('graph.plotly.html')`, show side by side in frames: the reference
+can't be drawn on the same axes.
+
+## Flame graphs {#flame-graphs}
+**Files:** *.flame.json*, a tree in [d3-flame-graph](https://github.com/spiermar/d3-flame-graph)'s format:
+`{"name": "main", "value": 1200, "children": [...]}`, where `value` includes the children's.
+
+The viewer shows the new run's profile, colored by how each frame changed against the reference: a
+[differential flame graph](https://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html). It matches
+frames by their path of names, so:
+- keep the names stable between runs: no addresses, hashes or thread numbers;
+- use values that compare across runs, e.g. microseconds of CPU per 1,000 requests rather than samples.
+
+The [serving latency example](/docs/use-cases/serving-latency) turns `perf`'s folded stacks into this file, in
+[`qa/flame.py`](https://github.com/Samsung/qaboard/blob/master/examples/serving-latency/qa/flame.py). To record
+profiles, see the [flame graphs blog post](/blog/2020/06/24/flame-graphs).
+
+<Shot
+  id="commit/flame-diff"
+  caption="Rendering responses under the shared cache's lock is new (orange); the model's forward pass runs less (blue): cache hits skip it."
+/>
+
+## Text {#text}
+**Files:** any file no other viewer opens, like *.txt*, *.json*, *.yaml* or *.log*, or `type: text/plain`.
+
+Text files are diffed with the reference's in [Monaco](https://microsoft.github.io/monaco-editor/), the editor of
+VS Code. Save what you want people to diff as text: a percentile table, the registers of a hardware model, a
+transcript.
+
+<Shot
+  id="commit/text-diff"
+  caption="HdrHistogram's percentile distributions of two runs, diffed: from the median on, latencies go from 3 ms to over 500 ms."
+/>
+
+| Option | What it does |
+|---|---|
+| `max_lines` | How many lines show before the editor scrolls. Default: 40. |
+| `language` | The editor's highlighting, e.g. `json`, `yaml`, `python`. Default: from the extension. |
+| `renderSideBySide` | `false` shows the diff inline. Default: `true`. |
+
+## HTML reports {#html-reports}
+**Files:** *.html*, e.g. reports your code renders.
+
+Each report shows in a frame of its own, the new run's above the reference's. Images and links relative to the HTML
+file work, its styles don't change the page, and scripts don't run. The frame grows to fit the report.
+
+<Shot
+  id="commit/html-report"
+  caption="The detector's report for one run: AP per class and per object size, latency, and the images where it missed the most objects."
+/>
+
+## Point clouds and trajectories {#point-clouds-and-trajectories}
+**Point clouds** are *.pcd* files, ascii or binary (not `binary_compressed`), with `x y z` fields: other fields are
+ignored. The 3D viewer draws the new run's points, the reference's, and a ground truth if you have one, on the same
+axes: in the colors of what people compare (blue for new, purple for the first reference), and green.
+
+```yaml title="qaboard.yaml"
+outputs:
+  visualizations:
+  - name: Map
+    path: map.pcd                     # or a pattern, like keyframes/:id/cloud.pcd: a select picks the file
+    path_groundtruth: map.truth.pcd   # optional, in the new run's folder
+    point_size: 2                     # pixels
+```
+
+<Shot
+  id="commit/pointcloud"
+  caption="The map the robot built, against where the shelves really are, in green: false loop closures put shelves meters away."
+/>
+
+**6DoF trajectories** are tab-separated values with a header row: a `t` column (seconds), then one column per pose
+value, for instance `x y z yaw pitch roll` or `x y z q_w q_x q_y q_z`. Give them `type: 6dof/txt`. The viewer plots
+each column over time, and the path in 3D, at the same scale on every axis. It draws the reference's trajectory, and
+the ground truth from *GT_final.txt* in the run's folder, in the same format:
+
+```yaml title="qaboard.yaml"
+outputs:
+  visualizations:
+  - name: Trajectory
+    path: poses.tsv
+    type: 6dof/txt
+    show_3d: true     # default
+```
+
+<Shot
+  id="commit/trajectory-6dof"
+  caption="The trajectory per axis and in 3D, against the ground truth and the reference's: a false loop closure pulls the new one away."
+/>
+
+The `pointcloud/txt` viewer was written for a time-of-flight camera's runs: `Frame<N>/pointcloud.pcd` and depth maps
+for each frame listed in the run's metrics. Use `pointcloud/pcd` for anything else.
+
+## Write your own viewer {#write-your-own-viewer}
+<Anchor id="more-viewers" />
+
+Viewers are React components that download a run's files and display them. They live in
+[`webapp/src/viewers`](https://github.com/Samsung/qaboard/tree/master/webapp/src/viewers), and
+[`OutputViewer.jsx`](https://github.com/Samsung/qaboard/blob/master/webapp/src/viewers/OutputViewer.jsx) picks one for
+each visualization `type`. Start from an existing viewer, and run the web app's dev server as described in its
+[README](https://github.com/Samsung/qaboard/tree/master/webapp). Contributions are welcome: if a viewer is missing,
+tell us in an [issue](https://github.com/Samsung/qaboard/issues).
