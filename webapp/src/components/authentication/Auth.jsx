@@ -11,11 +11,13 @@ import {
   Button,
   Dialog,
   FormGroup,
+  Callout,
 } from "@blueprintjs/core";
 import { http, errorMessage } from "../../api/http";
 import { userQuery, logged_out_user, setUser } from "../../api/queries";
 import { useSiteConfig } from "../../hooks";
 import { registerLoginHandler } from "./login";
+import { history } from "../../router";
 import { toaster } from "./../../toaster"
 import { Avatar } from '../avatars';
 import { colors, spacing, typography, borders, shadows, transitions } from '../../design/tokens';
@@ -201,6 +203,13 @@ const AuthButton = ({ appSider }) => {
 };
 
 
+// Links in menus navigate without reloading the app, and still open in new tabs on middle- or ctrl-click
+const navigate = path => event => {
+  if (event.button !== 0 || event.metaKey || event.altKey || event.ctrlKey || event.shiftKey) return;
+  event.preventDefault();
+  history.push(path);
+};
+
 const UserMenu = ({ user, logout, avatar_url_template }) => {
   const display_name = user.full_name || user.user_name;
   const avatarUrl = avatar_url_template ? avatar_url_template.replace('{user_name}', user.user_name) : null;
@@ -246,6 +255,8 @@ const UserMenu = ({ user, logout, avatar_url_template }) => {
               {user.email && <div className="user-email">{user.email}</div>}
             </UserInfo>
           </UserProfileHeader>
+          <MenuItem text="Settings" icon="cog" href="/settings" onClick={navigate("/settings")}/>
+          {user.is_admin && <MenuItem text="Admin" icon="shield" href="/admin" onClick={navigate("/admin")}/>}
           <MenuItem
             text="Log out"
             icon="log-out"
@@ -263,6 +274,9 @@ const warning = {
   intent: Intent.DANGER,
 };
 
+// What older servers answer when logins fail, shown next to the fields
+const field_errors = ["invalid-username", "invalid-password"];
+
 const LoginButton = ({ user, logout, appSider, login_type }) => {
   const queryClient = useQueryClient();
   // the site's advice to users who can't log in (QABOARD_LOGIN_HINT), e.g. which credentials to use
@@ -277,19 +291,31 @@ const LoginButton = ({ user, logout, appSider, login_type }) => {
     setLoading(true);
     http.post("/api/v1/user/auth/", data)
       .then(response => {
-        const { user_id, user_name, full_name, email, login_type } = response.data;
+        const { user_id, user_name, full_name, email, login_type, is_admin } = response.data;
         toaster.show({ message: `Welcome, ${full_name ?? user_name}`, intent: Intent.SUCCESS, timeout: 3000 });
-        setUser(queryClient, { ...logged_out_user, is_logged: true, user_name, email, login_type, full_name, user_id });
+        setUser(queryClient, { ...logged_out_user, is_logged: true, user_name, email, login_type, full_name, user_id, is_admin: !!is_admin });
+        // the server knows more about us: whether we are an admin...
+        queryClient.invalidateQueries({ queryKey: userQuery.queryKey });
         setError(null);
         setLoading(false);
         setOpen(false);
       })
       .catch(error => {
-        const error_msg = error.response?.data?.error ?? errorMessage(error);
-        setError(error_msg);
         setLoading(false);
-        if (!error_msg.startsWith('invalid'))
-          toaster.show({ message: `Could not log in: ${error_msg}`, intent: Intent.DANGER, timeout: 10000 });
+        const data = error.response?.data;
+        // Older servers answer with codes, shown next to their field
+        if (field_errors.includes(data?.error)) {
+          setError({ code: data.error });
+          return;
+        }
+        // Newer ones with a sentence for people, and its code: {error: "Wrong user name or password.", reason: "invalid_credentials"}
+        if (typeof data?.error === 'string' && data.error) {
+          setError({ code: data.reason ?? null, message: data.error });
+          return;
+        }
+        const message = errorMessage(error);
+        setError({ message });
+        toaster.show({ message: `Could not log in: ${message}`, intent: Intent.DANGER, timeout: 10000 });
       });
   };
 
@@ -308,6 +334,9 @@ const LoginButton = ({ user, logout, appSider, login_type }) => {
     }
   };
   useEffect(() => { handleLoginRef.current = handleLogin; });
+
+  const code = error?.code;
+  const password_error = code === "invalid-password" || code === "invalid_credentials";
 
   const login_button = appSider ?
     <MenuItem icon="log-in" text="Log in" intent={Intent.PRIMARY} onClick={handleLogin}/> :
@@ -330,19 +359,22 @@ const LoginButton = ({ user, logout, appSider, login_type }) => {
     >
       <form onSubmit={handleSubmit}>
         <div className={Classes.DIALOG_BODY}>
+          {!!error?.message && error.code !== "invalid_credentials" && <Callout intent={Intent.DANGER} icon={null} style={{margin: "6px", width: "auto"}} role="alert">
+            {error.message}
+          </Callout>}
           <FormGroup
             style={{padding: "6px", marginBottom: 0}}
-            intent={error === "invalid-username" ? Intent.DANGER : undefined}
-            helperText={error === "invalid-username" ? <>This username does not match any user account.{login_hint && <> {login_hint}</>}</> : undefined}
+            intent={code === "invalid-username" ? Intent.DANGER : undefined}
+            helperText={code === "invalid-username" ? <>This username does not match any user account.{login_hint && <> {login_hint}</>}</> : undefined}
           >
-            <InputGroup id="username" name="username" type="text" placeholder="username" aria-label="Username" autoFocus large  {...(error === "invalid-username" && warning)}/>
+            <InputGroup id="username" name="username" type="text" placeholder="username" aria-label="Username" autoFocus large  {...(code === "invalid-username" && warning)}/>
           </FormGroup>
           <FormGroup
             style={{padding: "6px", marginBottom: 0}}
-            intent={error === "invalid-password" ? Intent.DANGER : undefined}
-            helperText={error === "invalid-password" ? <>The password is incorrect.{login_hint && <> {login_hint}</>}</> : undefined}
+            intent={password_error ? Intent.DANGER : undefined}
+            helperText={password_error ? <>{code === "invalid-password" ? "The password is incorrect." : error.message}{login_hint && <> {login_hint}</>}</> : undefined}
           >
-            <InputGroup id="password" name="password" type="password" placeholder="********" aria-label="Password" large {...(error === "invalid-password" && warning)}/>
+            <InputGroup id="password" name="password" type="password" placeholder="********" aria-label="Password" large {...(password_error && warning)}/>
           </FormGroup>
           <div style={{padding: "6px"}} >
             <Button type="submit" large intent={Intent.PRIMARY} fill loading={is_loading}>

@@ -184,3 +184,57 @@ test('compact commit list', async ({ page }) => {
   await expect(page.getByText('Hello world').first()).toBeVisible();
   await page.waitForLoadState('networkidle');
 });
+
+// The app's own pages, not projects: settings, admin, approving a CLI login
+const token = {
+  id: 1, name: 'ci-bot', kind: 'personal', prefix: 'qab_pat_Xk3f', scopes: ['read', 'ingest'], projects: [],
+  created_at: '2026-09-01T10:00:00Z', expires_at: '2036-09-01T10:00:00Z', last_used_at: null, status: 'active', data: {},
+};
+const user_management_api = {
+  '/api/v1/user/me/': { ...api['/api/v1/user/me/'], is_admin: true, status: 'active' },
+  '/api/v1/user/tokens': { tokens: [token] },
+  '/api/v1/user/audit': { events: [], next_before_id: null },
+  '/api/v1/user/preferences': { preferences: {}, updated_at: null },
+  '/api/v1/admin/overview': { counts: { users: 3, active_30d: 2, admins: 1, pending: 0, disabled: 0, active_tokens: 1 }, checklist: [
+    { id: 'ingest_open', ok: false, severity: 'warning', title: 'Anyone can save runs', detail: 'Set QABOARD_INGEST_AUTH to warn or token.' },
+  ] },
+  '/api/v1/admin/users': { users: [{ id: 1, user_name: 'alice', full_name: 'Alice', email: 'alice@example.com', status: 'active', is_admin: true, login_type: 'LOCAL', active_tokens: 1 }], total: 1 },
+  '/api/v1/auth/device': { client_name: 'qa CLI on host-12', hostname: 'host-12', scopes: ['read', 'ingest', 'act'], status: 'pending' },
+};
+
+test.describe('user management pages', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('qaboard.release-notes.last-seen', '9999-12-31'));
+    await page.route('**/api/**', route => {
+      const { pathname } = new URL(route.request().url());
+      const all = { ...api, ...user_management_api };
+      const key = Object.keys(all).sort((a, b) => b.length - a.length).find(k => pathname.startsWith(k));
+      return route.fulfill({ json: key ? all[key] : {} });
+    });
+  });
+
+  test('settings: access tokens', async ({ page }) => {
+    await page.goto('/settings/tokens');
+    await expect(page.getByRole('tab', { name: 'Access tokens' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByText('ci-bot')).toBeVisible();
+    await page.getByRole('button', { name: 'New token' }).click();
+    await expect(page.getByRole('dialog').getByText('What it can do')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+  });
+
+  test('admin: users', async ({ page }) => {
+    await page.goto('/admin');
+    await expect(page.getByText('Anyone can save runs')).toBeVisible();
+    await page.getByRole('tab', { name: 'Users' }).click();
+    await expect(page).toHaveURL(/\/admin\/users$/);
+    await expect(page.getByRole('link', { name: 'Alice' })).toBeVisible();
+    await page.waitForLoadState('networkidle');
+  });
+
+  test('device login approval', async ({ page }) => {
+    await page.goto('/device?code=WDJB-MJHT');
+    await expect(page.getByText('Authorize qa CLI on host-12?')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Approve' })).toBeVisible();
+    await page.waitForLoadState('networkidle');
+  });
+});

@@ -24,6 +24,7 @@ import {
 import { OutputViewer } from "./OutputViewer";
 import { MetricsTags } from "../components/metrics";
 import { OutputTags, StatusTag, RunBadges, style_skeleton } from '../components/tags'
+import { SubmittedByMenuItem } from '../components/SubmittedBy'
 import { humanFileSize, humanElapsedTime } from "./bit_accuracy/utils";
 
 import { Link, history } from "../router"
@@ -213,6 +214,7 @@ const OutputHeader = ({ project, commit, output, output_ref, type, manifests, st
       </MenuItem>
     </>}
     <MenuDivider key={"Output-Info"} title="Run Info" />
+    <SubmittedByMenuItem key="user" data={output.data} />
     {!!output?.metrics?.compute_time && <MenuItem key="compute-time" text={humanElapsedTime(output.metrics.compute_time)} label="compute time" icon="stopwatch" />}
     <MenuItem
       key="created-date"

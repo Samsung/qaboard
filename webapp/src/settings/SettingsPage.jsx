@@ -1,0 +1,44 @@
+// /settings: the user's profile, preferences, access tokens, CLI logins and activity. The tab is in the URL.
+import { Tab, Tabs } from "@blueprintjs/core";
+
+import { useRouter } from "../router";
+import { PageShell, RequireLogin } from "../components/PageShell";
+import { ProfileTab } from "./ProfileTab";
+import { PreferencesTab } from "./PreferencesTab";
+import { TokensTab } from "./TokensTab";
+import { CliTab } from "./CliTab";
+import { ActivityTab } from "./ActivityTab";
+
+
+const tabs = [
+  { id: 'profile', title: 'Profile', icon: 'person', Panel: ProfileTab },
+  { id: 'preferences', title: 'Preferences', icon: 'settings', Panel: PreferencesTab },
+  { id: 'tokens', title: 'Access tokens', icon: 'key', Panel: TokensTab },
+  { id: 'cli', title: 'CLI & devices', icon: 'console', Panel: CliTab },
+  { id: 'activity', title: 'Activity', icon: 'history', Panel: ActivityTab },
+];
+
+export const SettingsPage = () => {
+  const { match, history } = useRouter();
+  const selected = tabs.find(tab => tab.id === match.params?.tab) ?? tabs[0];
+  const { Panel } = selected;
+  return <PageShell title="Settings">
+    <RequireLogin what="see your settings">
+      {user => <>
+        <Tabs
+          id="settings-tabs"
+          selectedTabId={selected.id}
+          onChange={id => history.push(`/settings/${id}`)}
+          size="large"
+        >
+          {tabs.map(tab => <Tab key={tab.id} id={tab.id} title={tab.title} icon={tab.icon}/>)}
+        </Tabs>
+        <div style={{ marginTop: 20 }}>
+          <Panel user={user}/>
+        </div>
+      </>}
+    </RequireLogin>
+  </PageShell>;
+};
+
+export default SettingsPage;

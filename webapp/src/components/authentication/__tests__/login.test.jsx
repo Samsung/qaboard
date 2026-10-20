@@ -62,12 +62,39 @@ describe('401 answers', () => {
     expect(toaster.show).not.toHaveBeenCalled();
   });
 
+  it('show the reason of disabled and pending accounts, without "Log in"', () => {
+    const toaster = { show: vi.fn() };
+    const queryClient = makeClient(true);
+    handleUnauthorized(queryClient, toaster)({ url: '/api/v1/user/tokens', data: { error: 'Your account was disabled by an admin.', reason: 'user_disabled' } });
+    expect(queryClient.getQueryData(userQuery.queryKey)).toMatchObject({ is_logged: false, reason: 'user_disabled' });
+    const [props, key] = toaster.show.mock.calls[0];
+    expect(props.message).toBe('Your account was disabled by an admin.');
+    expect(props.action).toBeUndefined();
+    expect(key).toBe('login-required');
+  });
+
+  it("don't log out for a broken token: the session may be fine", () => {
+    const toaster = { show: vi.fn() };
+    const queryClient = makeClient(true);
+    handleUnauthorized(queryClient, toaster)({ url: '/api/v1/commit/abc', data: { error: 'Your token expired on 2026-09-01.', reason: 'token_expired' } });
+    expect(queryClient.getQueryData(userQuery.queryKey).is_logged).toBe(true);
+    expect(toaster.show.mock.calls[0][0].message).toBe('Your token expired on 2026-09-01.');
+  });
+
+  it('log out on the new endpoints under /api/v1/user/', () => {
+    const toaster = { show: vi.fn() };
+    const queryClient = makeClient(true);
+    handleUnauthorized(queryClient, toaster)({ url: '/api/v1/user/tokens', data: { error: 'Log in to do this.', reason: 'sign_in_required' } });
+    expect(queryClient.getQueryData(userQuery.queryKey).is_logged).toBe(false);
+    expect(toaster.show.mock.calls[0][0].message).toMatch(/session expired/);
+  });
+
   it('reach the handler from the http client, which still throws', async () => {
     const handler = vi.fn();
     onUnauthorized(handler);
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({ error: 'You need to be logged-in to do this.' }), { status: 401 }));
     await expect(request('POST', '/api/v1/batch/redo/', { background: true })).rejects.toMatchObject({ response: { status: 401 } });
-    expect(handler).toHaveBeenCalledWith({ url: '/api/v1/batch/redo/', background: true });
+    expect(handler).toHaveBeenCalledWith(expect.objectContaining({ url: '/api/v1/batch/redo/', background: true }));
     onUnauthorized(null);
     vi.restoreAllMocks();
   });

@@ -59,9 +59,14 @@ describe('PrivateContent', () => {
   });
 
   it('logs users in', async () => {
-    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(url => url === '/api/v1/user/auth/'
-      ? json({ user_id: 1, user_name: 'alice', full_name: 'Alice', email: 'alice@example.com' })
-      : json({ is_authenticated: false }));
+    // after logging in, we ask who we are again: e.g. whether we are an admin
+    let logged = false;
+    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(url => {
+      if (url !== '/api/v1/user/auth/')
+        return json(logged ? { is_authenticated: true, user_id: 1, user_name: 'alice', full_name: 'Alice', is_admin: true } : { is_authenticated: false });
+      logged = true;
+      return json({ user_id: 1, user_name: 'alice', full_name: 'Alice', email: 'alice@example.com' });
+    });
     const { queryClient } = renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { login_required: true } });
     const dialog = await openLogin();
     fireEvent.change(dialog.getByLabelText('Username'), { target: { value: 'alice' } });
@@ -69,6 +74,36 @@ describe('PrivateContent', () => {
     expect(await screen.findByText('secret')).toBeInTheDocument();
     expect(fetch.mock.calls.some(([url, init]) => url === '/api/v1/user/auth/' && init.method === 'POST')).toBe(true);
     expect(queryClient.getQueryData(userQuery.queryKey)).toMatchObject({ is_logged: true, user_name: 'alice', full_name: 'Alice' });
+    await waitFor(() => expect(queryClient.getQueryData(userQuery.queryKey).is_admin).toBe(true));
+  });
+
+  it("shows the server's sentence when the login fails", async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(url => url === '/api/v1/user/auth/'
+      ? json({ error: 'Wrong user name or password.', reason: 'invalid_credentials' }, 401)
+      : json({ is_authenticated: false }));
+    renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { login_required: true, login_hint: 'Use your Windows credentials.' } });
+    const dialog = await openLogin();
+    fireEvent.click(dialog.getByRole('button', { name: 'Log in' }));
+    await waitFor(() => expect(screen.getByText('Wrong user name or password. Use your Windows credentials.')).toBeInTheDocument());
+    expect(toaster.show).not.toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/Could not log in/) }));
+  });
+
+  it("says why accounts can't log in", async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(url => url === '/api/v1/user/auth/'
+      ? json({ error: 'Your account is waiting for an admin.', reason: 'user_pending' }, 401)
+      : json({ is_authenticated: false }));
+    renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { login_required: true } });
+    const dialog = await openLogin();
+    fireEvent.click(dialog.getByRole('button', { name: 'Log in' }));
+    expect(await dialog.findByRole('alert')).toHaveTextContent('Your account is waiting for an admin.');
+  });
+
+  it('tells disabled users why they see nothing', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ error: 'Your account was disabled by an admin.', reason: 'user_disabled' }, 401));
+    renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { require_sign_in: true } });
+    expect(await screen.findByText('Your account was disabled by an admin.')).toBeInTheDocument();
+    expect(screen.getByText("Your account can't use QA-Board")).toBeInTheDocument();
+    expect(screen.queryByText('secret')).not.toBeInTheDocument();
   });
 
   it('shows why the login failed', async () => {

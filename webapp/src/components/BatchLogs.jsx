@@ -20,6 +20,7 @@ import { RunList, RunLogs } from './logs/RunLogs'
 import { LogViewer } from './logs/LogViewer'
 import { BatchSubmissions } from './logs/BatchSubmissions'
 import { batchSubmissions } from './logs/submissions'
+import { SubmittedBy } from './SubmittedBy'
 import { DirectoryActions } from './logs/DirectoryActions'
 import { copyWithToast } from '../utils/clipboard'
 import { fileExists } from './logs/fetchRange'
@@ -156,7 +157,8 @@ const CommandLogs = ({ id, command, logs, batch_dir_url, expanded, onShowLogs })
 /**
  * A `qa batch` command, and where its logs are. `live` while it may still write its logs.
  */
-const BatchCommand = ({ id, command, logs, batch_dir_url, live, onShowLogs }) => {
+// `submitted_by`: for the latest command, who the server says sent the batch (see SubmittedBy.jsx)
+const BatchCommand = ({ id, command, logs, batch_dir_url, live, onShowLogs, latest = false, submitted_by }) => {
   const [expanded, setExpanded] = useState(false)
   const created_at = DateTime.fromISO(command.command_created_at_datetime, { zone: 'utc' })
   const text = (command.argv ?? []).join(" ")
@@ -168,7 +170,7 @@ const BatchCommand = ({ id, command, logs, batch_dir_url, live, onShowLogs }) =>
         <Icon icon="time" size={12} />
         <Tooltip content={created_at.toLocal().toLocaleString(DateTime.DATETIME_FULL)}>{created_at.toRelative()}</Tooltip>
       </span>
-      {!!command.user && <span><Icon icon="user" size={12} />{command.user}</span>}
+      {!!command.user && <span><Icon icon="user" size={12} />{latest ? <SubmittedBy data={{ user: command.user, submitted_by }} /> : command.user}</span>}
       {!!command.HOST && <span><Icon icon="desktop" size={12} />{command.HOST}</span>}
       <span className="spacer" />
       <CommandLogs id={id} command={command} logs={logs} batch_dir_url={batch_dir_url} expanded={expanded} onShowLogs={showLogs} />
@@ -337,6 +339,8 @@ export const BatchLogs = ({ batch, project, commit }) => {
         batch_dir_url={batch.batch_dir_url}
         // qa batch usually waits for its runs
         live={index === 0 && has_pending_runs}
+        latest={index === 0}
+        submitted_by={index === 0 ? batch.data?.submitted_by : undefined}
         onShowLogs={submission_ids.has(id) ? () => setFocusedSubmission({ id }) : showBatchLog}
       />)}
     </RunList>}

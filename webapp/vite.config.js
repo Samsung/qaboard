@@ -16,8 +16,10 @@ const QABOARD_SERVER_URL = process.env.REACT_APP_QABOARD_HOST || 'http://localho
 // the api server doesn't serve the static content
 const QABOARD_API_HOST = process.env.REACT_APP_QABOARD_API_HOST || QABOARD_SERVER_URL
 
+// changeOrigin rewrites the Host header: the backend checks that the Origin of cookie-authenticated writes is our own
+// host, so we send the original one in X-Forwarded-Host (xfwd, which also sets X-Forwarded-For/Proto/Port)
 const proxy = {
-  '^/api/': { target: QABOARD_API_HOST, changeOrigin: true },
+  '^/api/': { target: QABOARD_API_HOST, changeOrigin: true, xfwd: true },
   '^/s/': { target: QABOARD_SERVER_URL, changeOrigin: true },
   '^/iiif/': { target: QABOARD_SERVER_URL, changeOrigin: true },
   '^/docs/': { target: QABOARD_SERVER_URL, changeOrigin: true },

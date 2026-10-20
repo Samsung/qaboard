@@ -1,4 +1,4 @@
-import { http, serializeParams, buildUrl, isAbort, errorMessage } from '../http';
+import { http, serializeParams, buildUrl, isAbort, errorMessage, errorReason, reason_messages, onUnauthorized, isHandledMessage, is_account_reason, is_token_reason } from '../http';
 
 const respond = (body, { status = 200, headers = {} } = {}) =>
   vi.fn().mockResolvedValue(new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers }));
@@ -51,4 +51,57 @@ test('requests can be aborted', async () => {
   const request = http.get('/slow', { signal: controller.signal });
   controller.abort();
   expect(isAbort(await request.catch(e => e))).toBe(true);
+});
+
+
+describe('401 and 403 reasons', () => {
+  afterEach(() => onUnauthorized(null));
+
+  test("messages are the server's sentence, else they say what the reason means", async () => {
+    vi.stubGlobal('fetch', respond({ error: 'Your token expired on 2026-09-01: run qa auth login.', reason: 'token_expired' }, { status: 401 }));
+    const error = await http.get('/api/v1/commit/').catch(e => e);
+    expect(errorMessage(error)).toBe('Your token expired on 2026-09-01: run qa auth login.');
+    expect(errorReason(error)).toBe('token_expired');
+    vi.stubGlobal('fetch', respond({ reason: 'not_admin' }, { status: 403 }));
+    expect(errorMessage(await http.get('/api/v1/admin/users').catch(e => e))).toBe(reason_messages.not_admin);
+    // unknown reasons fall back to the status
+    vi.stubGlobal('fetch', respond({ reason: 'something_new' }, { status: 403, headers: {} }));
+    expect(errorMessage(await http.get('/api').catch(e => e))).toMatch(/^403/);
+  });
+
+  test('401 answers reach the handler with their body, and their sentence is said once', async () => {
+    // it showed a toast
+    const handler = vi.fn(() => true);
+    onUnauthorized(handler);
+    const body = { error: 'Log in to redo runs.', reason: 'sign_in_required' };
+    vi.stubGlobal('fetch', respond(body, { status: 401 }));
+    await http.post('/api/v1/batch/redo/', {}).catch(e => e);
+    expect(handler).toHaveBeenCalledWith({ url: '/api/v1/batch/redo/', background: false, data: body });
+    // the toasts of each action are skipped (see toaster.js)
+    expect(isHandledMessage('Could not redo: Log in to redo runs.')).toBe(true);
+    expect(isHandledMessage('Something else')).toBe(false);
+    // when it says nothing (e.g. logging in), the actions say it
+    onUnauthorized(() => false);
+    vi.stubGlobal('fetch', respond({ error: 'Wrong user name or password.', reason: 'invalid_credentials' }, { status: 401 }));
+    await http.post('/api/v1/user/auth/', {}).catch(e => e);
+    expect(isHandledMessage('Wrong user name or password.')).toBe(false);
+  });
+
+  test("403 answers don't log users out", async () => {
+    const handler = vi.fn();
+    onUnauthorized(handler);
+    vi.stubGlobal('fetch', respond({ error: "You can't access this project.", reason: 'forbidden_project' }, { status: 403 }));
+    const error = await http.get('/api/v1/project').catch(e => e);
+    expect(handler).not.toHaveBeenCalled();
+    expect(errorMessage(error)).toBe("You can't access this project.");
+    expect(isHandledMessage("You can't access this project.")).toBe(false);
+  });
+
+  test('account and token reasons', () => {
+    expect(is_account_reason('user_disabled')).toBe(true);
+    expect(is_account_reason('user_pending')).toBe(true);
+    expect(is_account_reason('sign_in_required')).toBe(false);
+    expect(is_token_reason('token_revoked')).toBe(true);
+    expect(is_token_reason('forbidden_project')).toBe(false);
+  });
 });

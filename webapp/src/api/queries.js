@@ -5,7 +5,7 @@
 // commit lists of a project with queryClient.invalidateQueries({ queryKey: ['commits', project] })
 import { queryOptions, infiniteQueryOptions } from "@tanstack/react-query";
 
-import { http } from "./http";
+import { http, errorMessage, errorReason } from "./http";
 import { normalize_projects, normalize_project, normalize_commit } from "./normalize";
 import { setPathMappings, setDefaultGitHostname } from "../utils";
 
@@ -31,6 +31,8 @@ export const default_site_config = {
   webcde_installer: null,
   // whether users can ask for an email when the batches they start end
   email_notifications: false,
+  // whether runs sent without a token are accepted: "off", "warn" (accepted, marked unverified) or "token"
+  ingest_auth: 'off',
 };
 
 // Some helpers read the site's configuration outside of React
@@ -57,13 +59,25 @@ export const logged_out_user = {
   user_name: null,
   full_name: null,
   email: null,
+  is_admin: false,
 };
 
+// Who we are. With a disabled or pending account the server answers 401: we are logged out, and say why
+// with `reason` ("user_disabled", "user_pending") and `error` (the server's sentence).
 export const userQuery = queryOptions({
   queryKey: ['me'],
   queryFn: async ({ signal }) => {
-    const { is_authenticated, user_id, user_name, full_name, email, login_type } = (await http.get('/api/v1/user/me/', { signal })).data;
-    return is_authenticated ? { is_logged: true, user_id, user_name, full_name, email, login_type } : logged_out_user;
+    let data;
+    try {
+      data = (await http.get('/api/v1/user/me/', { signal })).data;
+    } catch (error) {
+      if (error?.response?.status !== 401) throw error;
+      const reason = errorReason(error);
+      return reason ? { ...logged_out_user, reason, error: errorMessage(error) } : logged_out_user;
+    }
+    const { is_authenticated, user_id, user_name, full_name, email, login_type, is_admin, status, kind, token } = data ?? {};
+    if (!is_authenticated) return logged_out_user;
+    return { is_logged: true, user_id, user_name, full_name, email, login_type, is_admin: !!is_admin, status: status ?? 'active', kind: kind ?? 'human', token: token ?? null };
   },
   staleTime: 5 * 60 * 1000,
 });
