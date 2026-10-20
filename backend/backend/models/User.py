@@ -51,6 +51,11 @@ class User(Base, UserMixin):
     # flask-login: disabled users can't log in
     return self.status != 'disabled'
 
+  @property
+  def is_authenticated(self):
+    # UserMixin's follows is_active: disabled users would look anonymous, and never be told why (backend/actor.py)
+    return True
+
   def update(self, user_name: str, full_name: str, email: str, login_type: str, data, **kwargs):
       if user_name:
         self.user_name = user_name

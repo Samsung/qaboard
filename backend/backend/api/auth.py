@@ -142,6 +142,7 @@ LOGIN_ERRORS = {
   "invalid-username": "Wrong user name or password.",
   "invalid-password": "Wrong user name or password.",
   "disabled": "This account is disabled. Ask a QA-Board admin if you need it back.",
+  "pending": "This account is waiting for an admin's approval.",
 }
 
 @app.route('/api/v1/user/auth/', methods=['POST'])
@@ -155,8 +156,11 @@ def auth_post():
     return jsonify({"error": "Enter your user name and your password.", "reason": "invalid_credentials"}), 403
   user_info = auth(username, password)
   user = User.query.filter_by(user_name=username).one_or_none() if user_info["login_success"] else None
-  if user is None or user.status == 'disabled':
-    user_info = {"login_success": False, "error": "disabled" if user is not None else "invalid-username"}
+  if user_info["login_success"]:
+    if user is None:
+      user_info = {"login_success": False, "error": "invalid-username"}
+    elif user.status in ('disabled', 'pending'):
+      user_info = {"login_success": False, "error": user.status}
   if not user_info["login_success"]:
     print(f"[auth] Failed Login @{username}")
     error = user_info.get("error")
@@ -164,8 +168,8 @@ def auth_post():
     known = user or User.query.filter_by(user_name=username).one_or_none()
     audit('auth.login_failed', 'user', known.id if known else None, username, meta={"reason": error, "login_type": login_type or "LOCAL"})
     db_session.commit()
-    if error == "disabled":
-      reason = "user_disabled"
+    if error in ("disabled", "pending"):
+      reason = f"user_{error}"
     elif error in LOGIN_ERRORS or not error:
       reason = "invalid_credentials"
     else:

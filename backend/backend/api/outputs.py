@@ -218,6 +218,8 @@ def new_output_webhook():
       output.data['root_command_id'] = str(root_command_id)
     flag_modified(output, "data")
   output.data["user"] = data['user']
+  # the changes below are in place: tell SQLAlchemy, also when the client sent no `data`
+  flag_modified(output, "data")
   # who really sent it, `user` is who it claims to be
   if submitted_by:
     output.data["submitted_by"] = submitted_by
