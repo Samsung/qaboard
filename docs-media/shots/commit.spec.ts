@@ -913,19 +913,20 @@ shot('commit/milestone', {
 shot('commit/change-menu', {
   project: DE,
   url: d => d.commitUrl(DE, 'kd-1-3', { reference: 'kd-1-2', view: 'table-kpi' }),
-  alt: 'The reference commit\'s Change menu: a project box, Switch new/reference, Also Select as New, Remove from '
-    + 'comparison, the reference branch main, then the milestones kd-1.3 and kd-1.2 with their batch, branch and commit.',
+  alt: 'The reference commit\'s Change menu: a project box, Swap the bars, Also show in the top bar, Stack another '
+    + 'reference, Remove from comparison, the reference branch main, then the milestones kd-1.3 and kd-1.2 with their '
+    + 'batch, branch and commit.',
   caption: 'Change the reference from its commit bar: swap new and reference, or pick the reference branch or a milestone.',
   actions: async ui => {
     await ui.click(ui.page.getByRole('button', { name: 'Change the reference commit' }));
-    await ui.page.locator('.bp6-popover .bp6-menu', { hasText: 'Switch new/reference' }).waitFor();
+    await ui.page.locator('.bp6-popover .bp6-menu', { hasText: 'Swap the bars' }).waitFor();
     await ui.settle();
   },
   // the reference's hash and Change, and the menu under them
   target: page => [
     page.getByRole('textbox', { name: 'The reference commit' }),
     page.getByRole('button', { name: 'Change the reference commit' }),
-    page.locator('.bp6-popover .bp6-menu', { hasText: 'Switch new/reference' }),
+    page.locator('.bp6-popover .bp6-menu', { hasText: 'Swap the bars' }),
   ],
   padding: 8,
 });
