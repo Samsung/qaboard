@@ -233,7 +233,7 @@ Deleting runs can't be undone: their output files and metrics are gone. QA-Board
 <details>
 <summary>Filters, stuck runs, milestones: the details</summary>
 
-- When you filter the batch's runs, the commit bar menu only redoes the runs that match: **Redo the N runs that match the filter…**, **Redo filtered failed runs**, **Redo filtered deleted runs**. **Move runs to another batch** follows the filter too. Deleting doesn't: it applies to the whole batch, and the confirmation says so.
+- When you filter the batch's runs, the commit bar menu only redoes the runs that match: **Redo the N runs that match the filter…**, **Redo filtered failed runs**, **Redo filtered deleted runs**. Moving runs follows the filter too: **Move the filtered runs to another batch**. Deleting doesn't: it applies to the whole batch, and the confirmation says so.
 - **Redo all runs…** asks you to confirm: the runs' current results are replaced when they start.
 - **Mark as failed** is for runs stuck as pending or running whose job is gone, e.g. killed by the cluster: they would never report.
 - **Delete files, keep metadata**, in the commit bar menu, makes its delete actions free storage only: the runs and their metrics stay. A box then limits it to files matching patterns like `*.png`.
