@@ -213,8 +213,9 @@ def get_current_user(to_jsonify=True):
       "status": getattr(user, 'status', 'active'),
       "is_admin": is_admin(user),
     })
-    if to_jsonify is False:
-      # the LDAP/SAML attributes are used by the restrictions of QABOARD_LOGIN_RESTRICTED_YAML. Never sent to clients.
+    if login_type == "SAML" and to_jsonify is False:
+      # the SAML attributes are used by the restrictions of QABOARD_LOGIN_RESTRICTED_YAML. Never sent to clients.
+      # Not LDAP's: it's a list of [dn, attributes] that matches_rules can't read (they're checked at login).
       info["data"] = user.data
     if actor is not None and actor.token is not None:
       token = actor.token

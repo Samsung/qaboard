@@ -1171,3 +1171,17 @@ def test_safe_redirect_url(auth, dummy_app, monkeypatch, url, expected):
   monkeypatch.setattr(backend.settings, "_database_values", lambda: {})
   with dummy_app.test_request_context("/api/auth/saml20/login/?acs", base_url="http://qaboard.example"):
     assert auth.safe_redirect_url(url) == expected
+
+
+@pytest.mark.parametrize("login_type, has_data", [("SAML", True), ("LDAP", False), ("LOCAL", False)])
+def test_user_info_has_the_directory_attributes_only_with_saml(auth, dummy_app, monkeypatch, login_type, has_data):
+  # LDAP's are a list of [dn, attributes] that the restrictions can't match: they're checked when users sign in
+  from backend.actor import Actor
+  monkeypatch.setattr(auth, "login_type", login_type)
+  monkeypatch.setattr(auth, "is_admin", lambda user: False)
+  user = SimpleNamespace(id=1, user_name="arthurf", full_name="Arthur", email="a@example.com", login_type=login_type,
+                         kind="human", status="active", data=[["cn=arthurf", {"memberOf": ["x"]}]])
+  with dummy_app.test_request_context("/api/v1/commits"):
+    g.actor = Actor(user)
+    assert ("data" in auth.get_current_user(to_jsonify=False)) is has_data
+    assert "data" not in auth.get_current_user().get_json()
