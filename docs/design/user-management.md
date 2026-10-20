@@ -751,3 +751,99 @@ What differs from the plan above, and why:
   - `qa auth logout` only revokes device-minted tokens (`minted_by` in hosts.yaml).
   - In CI, `qa run`/`qa batch` exit 1 when the server refuses results.
   - Server sentences say what's wrong; clients add what to do.
+
+## Appendix C: M2, sign-in (plan and API)
+Aligned with EMMA (`EMMA_Client/docs/SSO.md`): **OIDC, Authorization Code + PKCE, confidential client, handled by the
+backend**. The browser never sees the IdP's tokens. On success the backend opens the same session a password sign-in
+opens, so nothing downstream knows how users signed in. **The IdP says who you are**: its `groups` claim is recorded in
+the sign-in audit event, never used for access (M3 decides with group rules).
+
+### C.1 Providers
+- A provider is `{id, type: local|ldap|saml|oidc, name, kind: password|redirect, enabled, position, recommended}`.
+- **From the environment** (read-only in the admin panel):
+  - `local`: always there, for local accounts and break-glass admins.
+  - `ldap`/`saml`: from `QABOARD_LOGIN_TYPE` and today's variables.
+  - `sso`: an OIDC provider from `QABOARD_OIDC_ISSUER`, `QABOARD_OIDC_CLIENT_ID`, `QABOARD_OIDC_CLIENT_SECRET`,
+    `QABOARD_OIDC_SCOPES` (`openid profile email`), `QABOARD_OIDC_USERNAME_CLAIM` (`preferred_username`; SIRC:
+    `samaccountname`), `QABOARD_OIDC_GROUPS_CLAIM` (`groups`), `QABOARD_OIDC_BUTTON_LABEL`, and
+    `QABOARD_OIDC_MATCH_USERS` (`username`|`email`|`none`).
+  - An empty issuer means no SSO: the one-variable rollback.
+- **From the database** (`auth_providers`): more OIDC providers, created in **Admin → Sign-in**.
+  - Their secret is a reference to an environment variable (`client_secret_env`), or is stored encrypted with
+    `QABOARD_ENCRYPTION_KEY` (Fernet).
+- **Redirect URI**: `{QABOARD_URL}/api/v1/auth/oidc/<provider>/callback`. The env provider also answers on
+  `/api/v1/auth/oidc/callback`, so it can be registered with the IdP once.
+
+### C.2 Identities and accounts
+- `user_identities(user_id, provider_id, subject, email, claims, created_at, last_login_at)`, unique on
+  (provider_id, subject). The migration backfills `ldap`/`saml`/`local` identities from `users.login_type`.
+- **Signing in with OIDC**, in order:
+  1. The identity (provider, `sub`), if it exists.
+  2. Else, when the provider says `match_users: username` (the IdP is federated to the same directory, as at SIRC),
+     the user whose `user_name` is the username claim. `email` matches verified emails (`email_verified`).
+  3. Else a new user, if the access policy allows it.
+- The LDAP attributes stay useful (`QABOARD_LOGIN_RESTRICTED_YAML` rules read `user.data`). With an LDAP service account,
+  an SSO sign-in looks the user up in LDAP and refreshes them, as EMMA does.
+
+### C.3 Sessions
+- `user_sessions(id_hash, user_id, provider_id, created_at, last_seen_at, expires_at, ip, user_agent, revoked_at)`.
+  - The cookie holds an opaque id (`session['sid']`).
+  - The actor checks the session at each request: revoked, expired, idle, or a disabled user means signed out.
+  - `last_seen_at` is written at most every 5 minutes.
+- **Settings**: `sessions.idle_days` (30), `sessions.max_days` (180).
+- **Existing flask-login sessions** become rows at their next request: nobody is signed out by the upgrade.
+- Users list and revoke their sessions in **Settings → Sessions** (with the CLI sign-ins). Admins revoke a user's
+  sessions, and disabling a user revokes them.
+- Signing out revokes the session.
+
+### C.4 Who gets an account
+- **`auth.access_policy`**:
+  - `open`: new users are active. It's the default, and today's behaviour.
+  - `domains`: active if their email is in `auth.allowed_email_domains`, else pending.
+  - `approval`: every new user is pending.
+- **Pending users** can sign in and see the pending page, with their access request and who reviews it. They can add
+  a message.
+- **`access_requests(id, user_id, kind, message, status, decided_by, decided_at, created_at)`**, kind `instance` in M2.
+  Approving or denying a user, from the panel or the API, decides their request. The requester gets an email, if
+  email is set up.
+- **Notifications**: admins get an email (`notifications/mail.py`, when SMTP is configured), and a POST to
+  `auth.access_request_webhook` (Slack/Teams/Mattermost incoming webhooks: `{"text": ...}`). The admin panel shows a
+  badge with the pending count.
+
+### C.5 Sign-in page and errors
+- `GET /api/v1/auth/providers` → `{providers: [{id, type, kind, name, recommended, start_url}], local_signup, login_hint, auto_redirect}`.
+- `/login?next=…`: SSO buttons first (the recommended one first), then "or", then one user name/password form for
+  `ldap` and `local`.
+- **Auto-redirect**: with `auth.sso_auto_redirect`, sign-in required and a single redirect provider, the page goes
+  straight to it. `/login?local=1` is the escape hatch.
+- **Errors**: the OIDC callback redirects to `/login?error=<code>&ref=<audit event id>`. The codes are
+  `sso_unavailable`, `sso_expired` (state or nonce), `sso_failed` (IdP error), `sso_misconfigured` (missing claim,
+  invalid token), `not_allowed`, `user_disabled` and `user_pending`. Details go to the audit log and the server log,
+  never to users.
+- `next` only goes to our own pages (`safe_redirect_url`).
+
+### C.6 Doctor and admin panel
+- **`qaboard-admin check-sign-in [--provider sso] [--user alice]`**, as EMMA's `sso:check`. It checks:
+  - that the backend reaches the discovery document;
+  - that `issuer` matches;
+  - the redirect URI, by making the authorization request server-side: a login page means it's accepted, an error
+    page means it's refused, and near-misses are probed (http/https, trailing slash);
+  - the LDAP bind, and the lookup of `--user`.
+- **Admin → Sign-in**: providers (env ones read-only, DB ones editable), *Test* (the same checks), the access policy,
+  allowed domains, the webhook and session lifetimes.
+- **Admin → Users**: the pending ones, with their message; approve and deny.
+
+### C.7 Also in M2
+- **LDAP**: `ldaps://` in `QABOARD_LDAP_HOST`, or `QABOARD_LDAP_START_TLS=true`. An unknown user is an error, not a 500.
+- **Rate limits**: nginx `limit_req` on the sign-in, sign-up, device-code and OIDC endpoints, in the shipped config.
+- **The groundwork for M3**, first:
+  - one `check_access(actor, scope, project)` for `login_required`, `ingest_access` and `require_project_access`;
+  - the 401/403 helpers in `actor.py`;
+  - the providers under `backend/sign_in/` (`local.py`, `ldap.py`, `saml.py`, `oidc.py`, `sessions.py`), leaving
+    `api/auth.py` with the routes and decorators.
+- **Tests**:
+  - A throwaway IdP: an RSA key, discovery and JWKS served through `responses`.
+  - What it checks: a valid sign-in, `alg: none`, bad signatures, wrong `aud`/`iss`, expired tokens, nonce replay,
+    state mismatch, missing claims, linking rules.
+  - Sessions: idle, max, revocation, the conversion of flask-login sessions.
+  - The access policy and requests, notifications (mocked), the doctor.
