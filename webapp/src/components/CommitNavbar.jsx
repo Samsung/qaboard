@@ -35,7 +35,7 @@ import { shortId, pretty_label } from "../utils";
 import { http, errorMessage, isArtifactsError } from "../api/http";
 import { commitQuery } from "../api/queries";
 import { useRefreshCommit, useUrlText, updateSelected, useSiteConfig, useUser } from "../hooks";
-import { remove_reference } from "../selection";
+import { remove_reference, switch_new_and_reference } from "../selection";
 import { LoginMenuItem } from "./authentication/login";
 import { toaster } from "../toaster"
 import { copyDirectory } from "./logs/DirectoryActions"
@@ -425,20 +425,8 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
     })
   }
 
-  const switchSelection = () => {
-    updateSelected({
-      new_project: selected.ref_project,
-      ref_project: selected.new_project,
-      new_commit_id: selected.ref_commit_id,
-      ref_commit_id: selected.new_commit_id,
-      selected_batch_new: selected.selected_batch_ref,
-      selected_batch_ref: selected.selected_batch_new,
-      filter_batch_new: selected.filter_batch_ref,
-      filter_batch_ref: selected.filter_batch_new,
-      label_new: selected.label_ref,
-      label_ref: selected.label_new,
-    })
-  }
+  // names users gave follow their results, "new" and "ref" stay where they are
+  const switchSelection = () => updateSelected(switch_new_and_reference(selected))
 
 
   const qatools_config = project_data?.data?.qatools_config
@@ -505,13 +493,13 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             <SideLabel
               className="commit-header-side"
               color={side?.color.css}
-              label={side?.milestone ? '' : selected[`label_${type}`]}
-              fallback={type}
+              label={side?.milestone ? side.label : selected[`label_${type}`]}
+              fallback={side?.default_label ?? type}
               editable={!side?.milestone}
               onRename={label => updateSelected({ [`label_${type}`]: label })}
               tooltip={side?.milestone ? milestone_label_hint(side.label) : <span>
                 {type === 'new' ? "New: the results you're looking at." : "Reference: what the new results are compared to. Change it with “Change” or pick a milestone."}
-                {' '}Click to rename it{type === 'new' ? ', e.g. “ISP v2”' : ''}: viewers use its name.
+                {' '}Click to rename it{type === 'new' ? ', e.g. “ISP v2”' : ''}: {type === 'ref' && references?.length > 1 ? 'its tab and the viewers use' : 'viewers use'} its name.
               </span>}
             />
             {(!error_text || !!commit?.committer_name) && <CommitAvatar size='20px' commit={commit} project={selected[project_attr] ?? project} style={{ marginRight: '5px' }} />}

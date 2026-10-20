@@ -10,7 +10,7 @@ import {
 } from "./api/queries";
 import { errorMessage } from "./api/http";
 import { usePrefsStore } from "./stores/prefs";
-import { useSelected, updateSelected } from "./selection";
+import { useSelected, updateSelected, reference_names } from "./selection";
 import { available_batch, compute_batches, compute_config } from "./selectors/batches";
 import { default_project } from "./defaults";
 import { milestonesQuery, milestones_of, milestone_name, no_milestones } from "./milestones/api";
@@ -264,28 +264,33 @@ function useReferences(selected, ref_commit, milestones, enabled) {
         ?? findCachedCommit(queryClient, side.project, side.commit_id),
     })),
   });
-  const several = references.length > 1;
-  return useMemo(() => references.map((side, index) => {
-    const is_shown = index === ref_index;
-    const commit = is_shown ? ref_commit : cached_others[index < ref_index ? index : index - 1];
-    // e.g. the default reference: the latest commit on the reference branch
-    const commit_id = side.commit_id ?? (is_shown ? ref_commit?.id ?? null : null);
-    const [milestone] = milestones_of(milestones, { project: side.project, commit: commit_id ?? undefined, batch: side.batch, filter: side.filter });
-    const number = index + 1;
-    return {
-      ...side,
-      commit_id,
-      index,
-      number,
-      is_shown,
-      commit: commit ?? undefined,
-      milestone,
-      // what viewers call it: its milestone's name, else what users called it, else its number.
-      // Numbers, not letters: blind tests call images A and B.
-      display_label: side_label(milestone, side.label, several ? `reference ${number}` : 'reference'),
-      color: side_color(side_slot('reference', number)),
-    };
-  }), [references, ref_index, ref_commit, cached_others, milestones, several]);
+  return useMemo(() => {
+    const names = reference_names(references);
+    // what a reference is called if users clear its name
+    const default_name = index => reference_names(references.map((r, i) => i === index ? { ...r, label: '' } : r))[index];
+    return references.map((side, index) => {
+      const is_shown = index === ref_index;
+      const commit = is_shown ? ref_commit : cached_others[index < ref_index ? index : index - 1];
+      // e.g. the default reference: the latest commit on the reference branch
+      const commit_id = side.commit_id ?? (is_shown ? ref_commit?.id ?? null : null);
+      const [milestone] = milestones_of(milestones, { project: side.project, commit: commit_id ?? undefined, batch: side.batch, filter: side.filter });
+      const number = index + 1;
+      return {
+        ...side,
+        commit_id,
+        index,
+        number,
+        is_shown,
+        commit: commit ?? undefined,
+        milestone,
+        // what the tabs, the reference's bar and the viewers call it: its milestone's name, else what users called it,
+        // else "ref", "ref 2"... (see reference_names). Numbers, not letters: blind tests call images A and B.
+        display_label: side_label(milestone, names[index]),
+        default_label: default_name(index),
+        color: side_color(side_slot('reference', number)),
+      };
+    });
+  }, [references, ref_index, ref_commit, cached_others, milestones]);
 }
 
 
@@ -358,11 +363,11 @@ function useComparisonState() {
   const new_label = side_label(new_milestone, selected.label_new, 'new');
   const compared = useMemo(() => [
     {
-      key: 'new', label: new_label, color: side_color(side_slot('new')), project: new_project, commit: new_commit,
+      key: 'new', label: new_label, default_label: 'new', color: side_color(side_slot('new')), project: new_project, commit: new_commit,
       batch: batches.new_batch, filter: filter_batch_new, milestone: new_milestone,
     },
     {
-      key: 'reference', label: shown_reference.display_label, color: shown_reference.color, number: shown_reference.number,
+      key: 'reference', label: shown_reference.display_label, default_label: shown_reference.default_label, color: shown_reference.color, number: shown_reference.number,
       project: selected.ref_project, commit: ref_commit, batch: batches.ref_batch, filter: filter_batch_ref, milestone: shown_reference.milestone,
     },
   ], [new_label, new_project, new_commit, batches, filter_batch_new, new_milestone, shown_reference, selected.ref_project, ref_commit, filter_batch_ref]);
