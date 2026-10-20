@@ -166,6 +166,10 @@ build with the credentials of the Jenkins host in its `JENKINS_AUTH` environment
 [Jenkins' CSRF protection](https://www.jenkins.io/doc/book/security/csrf-protection/). See the
 [server's environment variables](/docs/deploy#optional-environment-variables).
 
+`token` is the **Authentication Token** of the job's **Trigger builds remotely**. Without `token`, the server sends
+the token in its `JENKINS_BUILD_TOKEN` environment variable, if it's set, and none otherwise; `token: ""` never sends
+one. *qaboard.yaml* is in your repository: when the token is a secret, keep it in `JENKINS_BUILD_TOKEN`.
+
 ## Call a webhook {#using-webhooks}
 A `webhook` sends a request when people click, from QA-Board's server (users need to be logged in). Its options are
 those of Python's [`requests`](https://requests.readthedocs.io/en/latest/api/#requests.request): `url`, `method`,

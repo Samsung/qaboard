@@ -123,6 +123,19 @@ uv run docs-media/snapshot.py image --tag ghcr.io/samsung/qaboard:demo-data   # 
   unless `.qaboard-demo/restored` is there, then the database, unless it already has QA-Board's tables, then exits.
   The backend must start after it: it creates empty tables when it starts. It holds a PostgreSQL advisory lock while
   it restores, so concurrent restores (backend replicas, the chart's migrations Job) wait, then skip.
+- **Dates move to the restore**: T0 becomes the time of the restore, so that a new user's commit list (the last 3
+  days) shows the latest demo commits. Everything moves by the same number of seconds (now − T0, from the image's
+  `metadata.json`), once, when the database or the results are restored:
+  - the database: every `timestamp` column of every table, and the dates the web app shows from JSON columns
+    ([`demo-data/shift-dates.sql`](demo-data/shift-dates.sql), in the restore's transaction);
+  - the results: the modification times of their folders and files (`mtimes.txt`, written by `snapshot.py image`;
+    busybox's `tar` gives folders the time of the restore), which the file browser shows.
+
+  What has dates in its text keeps them: paths (`qa-batch-logs/<date>-<id>/`), logs, and
+  `.qaboard-demo/demo.json`, which keeps the snapshot's T0 and commit dates. The demo stack (`snapshot.py restore`)
+  doesn't move dates: captures freeze the clock at T0. With the Helm chart, the migrations Job restores the database
+  and the backend's init container the results: each moves its dates to its own restore time, seconds or minutes
+  apart. `demo_data_e2e.py` (below) checks that the commits' dates moved, once.
 - [`.github/workflows/docs-media.yml`](../.github/workflows/docs-media.yml) builds it from the snapshot it restores
   or seeds, tests it with the Compose quickstart (on port 5252, next to the demo stack) and this run's images, then
   pushes it from master (`demo-data`, `demo-data-<commit>`) and release tags (`demo-data-<version>`). Pull requests

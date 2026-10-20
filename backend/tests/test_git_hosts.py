@@ -570,6 +570,36 @@ def test_jenkins_build_urls_use_the_configured_host(integrations, dummy_app, mon
   requests.get.assert_not_called()
 
 
+def test_jenkins_build_token(integrations, dummy_app, monkeypatch):
+  monkeypatch.setattr(integrations, "jenkins_credentials", {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
+  trigger = response(status_code=201)
+  trigger.headers = {"location": "http://jenkins/queue/item/7/"}
+  requests = MagicMock()
+  requests.post.return_value = trigger
+  requests.get.return_value = response(json_data={"url": "queue/item/7/", "executable": {"url": "http://jenkins/job/x/12/"}})
+  monkeypatch.setattr(integrations, "requests", requests)
+  def sent_token(**integration):
+    requests.post.reset_mock()
+    data, status = call(integrations, dummy_app, "jenkins_build_trigger", {"build_url": "http://jenkins/job/x", "params": {"commit": "abc"}, **integration})
+    assert status == 200
+    params = requests.post.call_args.kwargs["params"]
+    assert params["commit"] == "abc"
+    return params.get("token")
+
+  # The integration's token ("Trigger builds remotely" in the job's configuration)
+  assert sent_token(token="job-token") == "job-token"
+  # Without one, none: the Jenkins user's credentials are enough to build the job
+  monkeypatch.setattr(integrations, "jenkins_build_token", None)
+  assert sent_token() is None
+  # ...unless the server has a default: JENKINS_BUILD_TOKEN
+  monkeypatch.setattr(integrations, "jenkins_build_token", "server-token")
+  assert sent_token() == "server-token"
+  assert sent_token(token="job-token") == "job-token"
+  # `token: null` or "" sends none, e.g. the Windows runner without a token
+  assert sent_token(token=None) is None
+  assert sent_token(token="") is None
+
+
 def test_jenkins_build_trigger_errors(integrations, dummy_app, monkeypatch):
   monkeypatch.setattr(integrations, "jenkins_credentials", {"jenkins": {"user": "u", "token": "t", "crumb": "c"}})
   requests = MagicMock()

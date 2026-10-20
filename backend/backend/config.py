@@ -23,6 +23,10 @@ default_artifacts_root = default_storage_root
 # folders (see backend/storage.py). Separated by ":" like $PATH.
 storage_roots = [Path(p) for p in os.environ.get('QABOARD_STORAGE_ROOTS', str(default_storage_root)).split(':') if p]
 
+# Commit lists don't aggregate the metrics of these projects' batches: they have too many runs for it to be fast.
+# Project ids, or the start of them (e.g. "group/" for all the projects of a group), separated by ",".
+skip_metrics_aggregation = tuple(p.strip() for p in os.environ.get('QABOARD_SKIP_METRICS_AGGREGATION', '').split(',') if p.strip())
+
 # In these folders (e.g. /home), users only read the files under /s/ that their Unix account can read. Separated by ":".
 # See backend/api/files.py, nginx must check permissions with services/nginx/snippets/qaboard-files-auth.conf
 files_unix_permissions_roots = [p for p in os.environ.get('QABOARD_FILES_UNIX_PERMISSIONS', '').split(':') if p]

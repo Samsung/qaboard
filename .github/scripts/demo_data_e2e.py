@@ -12,11 +12,14 @@ Usage: demo_data_e2e.py URL [--results /mnt/qaboard] [--no-browser] [--timeout 3
    served by nginx under /s/), with its projects and their commits.
 2. Through the API, for each project: it's in the projects list, its latest commit has the batches demo.json
    lists, with runs; nginx serves a run's files, and Cantaloupe its images, where the web app asks for them.
+   The restore moved the dates once, so that T0 became the time of the restore: the latest commit is as old as it
+   was at T0 (demo.json keeps the snapshot's dates), plus the time since the restore.
 3. In Chromium (Playwright), unless --no-browser: the projects list shows the projects, the commit page of each
    project's latest commit shows its message, and the image viewers of the commit checked above get image tiles.
 Locally, a Chromium that's already installed works: PLAYWRIGHT_CHROMIUM_EXECUTABLE=/path/to/chrome.
 """
 import argparse
+import datetime
 import json
 import os
 import sys
@@ -93,11 +96,24 @@ def check_api(base, results):
         outputs = [o for b in batches.values() for o in b.get("outputs", {}).values()]
         if not outputs:
             fail(f"{pid}: the commit {commit_id} has no runs")
+        check_dates(pid, commit_id, demo["t0"], facts["at"], commit["authored_datetime"])
         images[pid] = check_files(base, pid, project, endpoint)
         latest[pid] = commit
         checked = f"{images[pid][1]} served by nginx and the image server" if images[pid] else "no PNG to check"
         log(f"OK: {pid}, {len(project['commits'])} commits; {commit_id} has {len(batches)} batches and {len(outputs)} runs; {checked}")
     return latest, images
+
+
+def check_dates(pid, commit_id, t0, at, authored_datetime):
+    """docs-media/demo-data/shift-dates.sql moved the commit's date by the time between T0 and the restore"""
+    def parse(value):
+        return datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    moved = parse(authored_datetime) - parse(at)
+    since_restore = (datetime.datetime.now(datetime.timezone.utc) - parse(t0)) - moved
+    # not moved: since_restore is the time since T0; moved twice, negative
+    if not datetime.timedelta(minutes=-5) <= since_restore <= datetime.timedelta(hours=2):
+        fail(f"{pid}: the commit {commit_id} is dated {authored_datetime}, {moved} after its date in the snapshot ({at}, "
+             f"T0 {t0}): the restore didn't move the dates by the time since T0, or moved them twice")
 
 
 def check_files(base, pid, project, endpoint):
