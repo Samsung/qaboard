@@ -8,8 +8,9 @@ from typing import Optional
 from flask import request, g, has_request_context
 
 
-# How many proxies (e.g. nginx) add themselves to X-Forwarded-For in front of the backend
-trusted_proxy_hops = int(os.environ.get('QABOARD_TRUSTED_PROXY_HOPS', 1))
+# How many proxies in front of QA-Board's nginx add the client to X-Forwarded-For, e.g. 1 behind a Kubernetes ingress.
+# QA-Board's nginx talks uwsgi: it passes the client's address as REMOTE_ADDR, and X-Forwarded-For as the client sent it.
+trusted_proxy_hops = int(os.environ.get('QABOARD_TRUSTED_PROXY_HOPS', 0))
 
 # Keys we never write in an event, wherever they are
 SECRET_KEYS = {'password', 'token', 'secret', 'access_token', 'device_code', 'client_secret'}
