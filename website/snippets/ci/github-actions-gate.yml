@@ -1,0 +1,25 @@
+# Runs your test set on every push, then fails the job when the results regress against the reference
+# (qa gate is experimental). qa saves results where the server reads them (e.g. /mnt/qaboard, an NFS
+# share), at the same path: use a self-hosted runner that mounts it. GitHub-hosted runners can't reach it yet.
+name: QA-Board
+on: push
+permissions:
+  contents: read
+  statuses: write  # for qa batch's commit status, and qa gate --post-status
+
+jobs:
+  qaboard:
+    runs-on: self-hosted
+    env:
+      QABOARD_URL: http://<your-qaboard>
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install qaboard -r requirements.txt
+      - run: qa batch ci
+      # Also when runs failed, so that the gate reports them. Its table goes to the job's summary.
+      - run: qa gate --post-status github
+        if: ${{ !cancelled() }}

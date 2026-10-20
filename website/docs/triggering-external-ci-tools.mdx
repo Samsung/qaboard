@@ -1,121 +1,102 @@
 ---
 id: triggering-third-party-tools
-title: Triggering CI and third-party tools via the web application
-sidebar_label: Triggering External Tools
+title: "Integrations: links, badges and CI jobs"
+sidebar_label: Integrations menu
+description: Add links, badges, webhooks, GitHub Actions workflows, GitLab CI jobs and Jenkins builds to the web app's Integrations menu.
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
 
-You often want to integrate various tools into your workflow, or show [status badges](https://shields.io/index.html). QA-Board lets you connect to those third-party tools on each commit's page and on commit index pages:
+The sidebar's **Integrations** menu links each commit to your other tools: docs, dashboards, coverage reports, and
+buttons that start a CI job or call a webhook for the commit people are looking at. List them under `integrations`
+in *qaboard.yaml*.
 
 <Shot
   id="integrations/menu"
   caption="The Integrations menu with links and a webhook: after a click, the webhook's tag shows its job's status."
 />
 
+## Add links {#adding-badges-and-external-links}
+The camera ISP's menu has two links to its team's docs, a divider, and a webhook:
 
-## Adding badges and external links
-Configure your project's *qaboard.yaml* like so to display direct links to docs, build artifacts, coverage reports, etc:
+<RepoFile path="examples/image-quality/qaboard.yaml" title="qaboard.yaml" section="integrations" />
+
+Each item has a `text`, and an `href` to open in a new tab, or an action (below). `icon` is one of
+[Blueprint's icons](https://blueprintjs.com/docs/#icons).
+
+A link is greyed out when its target doesn't answer: QA-Board's server checks it with a `HEAD` request. Add
+`allow_failed: true` to always enable it, for instance when the target refuses `HEAD` requests. To check another URL
+than the one you open, give it as `url`, with a `method` if needed.
+
+## Use the commit, the branch or the batch in links {#dynamic-integrations-using-variables}
+Strings can use `${...}` templates, filled with what the page shows. For instance, a link to the commit's checks on
+GitHub, and a CI badge on branch pages:
 
 ```yaml title="qaboard.yaml"
-# Show basic links
 integrations:
-- text: Docs
-  href: https://my-project/docs
-
-# Show images, commonly used to display "badges"
-- src: https://gitlab.com/my/project/badges/develop/coverage.svg
-  href: https://my-project/docs
-  alt: Coverage Report
-  # if you want to display items in the side-bar directly,
-  # not within the "Integrations" menu, you can use:
-  in_menu: false
-
-# A GitHub Actions badge, on branch pages
+- text: Checks
+  href: "${git.web_url}/commit/${commit.id}/checks"
 - src: "${git.web_url}/actions/workflows/ci.yml/badge.svg?branch=${branch}"
   href: "${git.web_url}/actions/workflows/ci.yml?query=branch%3A${branch}"
   alt: CI
 ```
 
+When a template uses a value the page doesn't have, the item is hidden. `${branch}` is only set on the commit list and
+on History pages (the branch you look at, else the reference branch): items that use it don't show on commit pages.
+To show an item only on those pages, add `only: "${branch}"` to it.
+
+Commit pages show the integrations of the commit's *qaboard.yaml*, so a change shows on the commits that make it.
+The commit list and History pages show those of the reference branch's latest *qaboard.yaml*.
+
+<details>
+<summary>Every variable</summary>
+
+| Variable | Value |
+|---|---|
+| `commit` | The commit: `commit.id`, `commit.branch`, `commit.branch_slug` (the branch in a URL- and file-friendly form), `commit.message`, `commit.committer_name`, `commit.outputs_url` (where its runs save their outputs), `commit.artifacts_url` (its [artifacts](/docs/storage/artifacts), `commit.repo_artifacts_url` / `subproject`)... On the commit list and History pages, the latest commit. |
+| `ref_commit` | The reference commit: `ref_commit.id`... |
+| `branch`, `branch_slug` | On the commit list and History pages, the branch you look at, else the reference branch. |
+| `project` | The project's full name, like `kitefin/camera-isp`. |
+| `subproject`, `project_name` | The project's name relative to its repository (see [monorepos](/docs/monorepo-subprojects)), and its last part. `project_parts` and `subproject_parts` split them on `/`, and `_tolower` variants are lowercase. |
+| `git` | The repository, the same for all git hosts: `git.web_url`, `git.path_with_namespace`, `git.default_branch`, `git.hosting_type` (`github`, `gitlab`, `gitea`, `bitbucket`)... GitLab projects also have the other fields of [GitLab's push events](https://docs.gitlab.com/ee/user/project/integrations/webhook_events.html#push-events), like `git.id`. |
+| `batch`, `ref_batch` | On commit pages, the label of the selected batch and of the reference's. |
+| `filter`, `ref_filter`, `ref_project` | On commit pages, the filters of the new and reference runs, and the reference's project. |
+| `user` | The logged-in user: `user.user_name`, `user.full_name`, `user.email`, `user.is_logged`. Without a login, `user.user_name` is `null`. |
+
+Templates are JavaScript template literals: `${encodeURIComponent(branch)}` or `${commit.id.slice(0, 8)}` work too.
+The code is `make_eval_templates_recursively` in
+[`webapp/src/utils.js`](https://github.com/Samsung/qaboard/blob/master/webapp/src/utils.js).
+
+</details>
+
+## Show badges {#badges}
+An item with `src` shows an image, often a status badge: coverage, pipeline status, the latest release.
+
+```yaml title="qaboard.yaml"
+integrations:
+- src: "${git.web_url}/badges/${branch}/coverage.svg"
+  href: https://docs.kitefin.example/coverage
+  alt: Coverage report
+  # in the sidebar itself, not in the Integrations menu
+  in_menu: false
+```
+
+Badges that fail to load, for private projects or projects without CI for instance, are hidden.
+
 :::note
-QA-Board loads images through its server, which only fetches them from your git hosts and gravatar. To show images from other hosts, ask your admins to add them to [`QABOARD_PROXY_HOSTS`](/docs/deploy#optional-environment-variables).
+Images from GitHub, Bitbucket, Codeberg and your git hosts other than GitLab load directly. The others load through
+QA-Board's server, which only fetches them from your git hosts and Gravatar: to show images from other hosts, ask
+your admins to add them to [`QABOARD_PROXY_HOSTS`](/docs/deploy#optional-environment-variables).
 :::
 
-:::tip
-The menu item will be disabled if the link doesn't work (HTTP `HEAD` request).
-To show a link but run the check on an other URL, you can provide `url`, `method` (e.g. `POST`), etc. If you add `allow_failed: true` the link is always enabled.
-:::
+## Start CI jobs
+People start the jobs from the menu, for the commit they're looking at: a status tag next to the item shows whether
+the job is pending, running, successful or failed, and opens the job's page. The tags refresh every 5 seconds while
+the menu is open, and each browser remembers the jobs it started on the last 50 commits.
 
+### GitHub Actions workflows {#start-github-actions-workflows}
+The workflow needs a
+[`workflow_dispatch`](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#workflow_dispatch)
+trigger. Configure your project with:
 
-## Styling the integrations
-Optionnaly you can style each menu item:
-```yaml
-integrations:
-  - text: Styled Integration
-    # Full list of icons: https://blueprintjs.com/docs/#icons
-    icon: build
-    # Full list of options: https://blueprintjs.com/docs/#core/components/menu
-    label: docs
-    disabled: false
-    intent: danger
-```
-
-You can add dividers to group integration:
-```yaml
-integrations:
-  # --snip--
-  - divider: true
-    title: Section Title
-  # --snip--
-```
-
-Show nested items with:
-```yaml
-integrations:
-- text: "level 1"
-  sub:
-  - text: level 1: A
-  - text: level 1: B
-```
-
-
-## Using webhooks
-You can use webhooks to trigger a variety of external tools:
-
-```yaml
-integrations:
-  - text: Jenkins Triggered Build
-    sub:
-    - text: 'Windows'
-      icon: build
-      webhook:
-      # all the options are sent straight to the python requests library. For reference:
-      # https://requests.readthedocs.io/en/latest/api/#requests.request
-         url: "https://my-application/${project}"
-         method: POST
-         json: # use "data" for a x-www-form-url-encoded body
-           branch: "${commit.branch}"
-```
-
-> If the response is in JSON format, users will see a status badge pointing to its `url` field. It will open automatically if the response has a `open: true` field. You can specify additionnal properties like explained below.
-
-## Dynamic integrations using "variables"
-You can use some special variables in your strings with some `${VARIABLE}` templating:
-- **Commit**: `commit.id`, `commit.branch`, `commit.branch_slug`... Also `branch` and `ref_commit.id`.
-- **Project**: `project` (full project name), `subproject` (project name relative to the root project), 
-- **Git** repository data with `git`, the same for all git hosts: `git.web_url`, `git.path_with_namespace`, `git.default_branch`, `git.hosting_type` (`github`, `gitlab`, `gitea`, `bitbucket`)... GitLab projects also have the other fields of [GitLab's push events](https://docs.gitlab.com/ee/user/project/integrations/webhook_events.html#push-events), e.g. `git.id`.
-- **Artifacts** are saved under `commit.artifacts_url = commit.repo_artifacts_url / subproject`.
-- **Outputs** are saved under `commit.outputs_url`
-- **Selected runs:** with `batch`, `ref_batch`, `filter`, `ref_filter`, `ref_project`...
-- **User properties**: `user.user_name` (you will get `null` if logged out), or other fields like `email`, `full_name`, `is_logged`...
-- [etc](https://github.com/Samsung/qaboard/blob/master/webapp/src/utils.js#L303)
-
-:::tip
-If you use use `${branch}` in any of the fields, the integration will only appear on project/branch pages. You can add a dummy `only: {branch}`.
-:::
-
-
-## Start GitHub Actions workflows
-The workflow needs a [`workflow_dispatch`](https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#workflow_dispatch) trigger. Configure your project with:
 ```yaml title="qaboard.yaml"
 integrations:
   - text: Benchmark
@@ -127,108 +108,120 @@ integrations:
       # optional: the branch or tag to run it on. Default: the commit's branch
       # ref: main
 ```
-The menu shows the status of the workflow's latest run for the commit, with a link to it. Clicking starts the workflow (you need to be logged in), and QA-Board follows the run it started.
 
-The server starts workflows with its own token, so it only shows and starts the workflows that the project's `qaboard.yaml` lists (the one of its reference branch), on the project's repository, and only for users who can access the project. To start one, the inputs must be those of the integration (the same names), and the `ref` too if you set one. `${...}` templates in `workflow`, `inputs` and `ref` match any value.
+The menu shows the status of the workflow's latest run for the commit, with a link to it. Clicking starts the
+workflow (users need to be logged in), and QA-Board follows the run it started.
+
+The server starts workflows with its own token, so it only shows and starts the workflows that the project's
+*qaboard.yaml* lists (the one of its reference branch), on the project's repository, and only for users who can
+access the project. To start one, the inputs must be those of the integration (the same names), and the `ref` too if
+you set one. `${...}` templates in `workflow`, `inputs` and `ref` match any value.
 
 :::note
-GitHub runs workflows on the latest commit of a branch or tag, not on a given commit. If the branch moved on, use an input to tell your workflow which commit to check out.
+GitHub runs workflows on the latest commit of a branch or tag, not on a given commit. If the branch moved on, use an
+input to tell your workflow which commit to check out.
 
-GitHub doesn't say which run a dispatch started: QA-Board follows the latest run started by a dispatch on that branch or tag since you clicked. If someone else starts the same workflow on the same branch at the same time, it may show their run.
+GitHub doesn't say which run a dispatch started: QA-Board follows the latest run started by a dispatch on that branch
+or tag since you clicked. If someone else starts the same workflow on the same branch at the same time, it may show
+their run.
 :::
 
-The QA-Board server needs a GitHub token that can read the repository's actions, and write them to start workflows (fine-grained token: *Actions: Read and write*). See [Git hosts](backend-admin/git-hosts).
+The QA-Board server needs a GitHub token that can read the repository's actions, and write them to start workflows
+(fine-grained token: *Actions: Read and write*). See [Git hosts](/docs/backend-admin/git-hosts).
 
-## Play GitlabCI manual jobs
-Configure your project with:
+### GitLab CI manual jobs {#play-gitlabci-manual-jobs}
 ```yaml title="qaboard.yaml"
 integrations:
-  - text: Gitlab Job
+  - text: Linux build
     gitlabCI:
       job_name: build-linux
 ```
-<img alt="jenkins-and-gitlab-integrations" src={useBaseUrl('img/gitlab-jenkins.gif')} />
 
-*An older recording: the menu is now named **Integrations**.*
+Clicking plays the job of that name in the commit's latest pipeline (users need to be logged in). The QA-Board
+server needs a GitLab token with the `api` scope to play jobs (`read_api` is enough to show their status). See
+[Git hosts](/docs/backend-admin/git-hosts#tokens).
 
-The QA-Board server needs a GitLab token with the `api` scope to play jobs (`read_api` is enough to show their status). See [Git hosts](backend-admin/git-hosts#tokens).
-
-## Default integrations
-If your `qaboard.yaml` has no `integrations`, branch pages show defaults for your git host, when QA-Board knows which kind it is (from its push events, or the server's [git hosts](backend-admin/git-hosts)): GitLab's pipeline status badge, or a link to GitHub Actions. Set `integrations: []` to hide them.
-
-Badges that fail to load (e.g. for private projects, or projects without CI) are hidden.
-
-
-## Trigger Jenkins builds
+### Jenkins builds {#trigger-jenkins-builds}
 ```yaml title="qaboard.yaml"
 integrations:
-  - text: Jenkins Triggered Build
+  - text: Windows build
     jenkins:
-      build_url: $JENKINS_URL/job/my-project-linux
-      # You can include the token from the job's configuration page
-      # token: qaboard   # default value # FIXME: make it empty in the OSS version
-      params:     # `parameters` works too
+      build_url: https://jenkins.kitefin.example/job/camera-isp-windows
+      # optional: the job's parameters (`parameters` works too)
+      params:
         commit: "${commit.id}"
+      # optional: the token of "Trigger builds remotely" in the job's configuration
+      # token: ...
 ```
 
-You must enable "triggering the build via scripts/webhooks" in the job's configuration. Parameters are optional.
+In the job's configuration, enable **Trigger builds remotely (e.g., from scripts)**. The QA-Board server triggers the
+build with the credentials of the Jenkins host in its `JENKINS_AUTH` environment variable:
 
-Once a build is triggered, its status (queued, running, success, failure...) is updated every 10 seconds next to the menu item. It is remembered by your browser, so it survives page refreshes (for the last 50 commits).
-
-
-
-## Webhook Example: Jenkins integration via Webhooks
-:::warning
-The out-of-the-box jenkins integration above is much better! This is just an example with webhooks!
-:::
-
-1. If you don't have one, [get an API token](https://stackoverflow.com/questions/45466090/how-to-get-the-api-token-for-jenkins) for your user
-
-```bash
-$JENKINS_URL/me/descriptorByName/jenkins.security.ApiTokenProperty/generateNewToken
-# Enter "OK to retry using POST" and get the "tokenValue"
+```json
+{"jenkins.kitefin.example": {"user": "<user>", "token": "<api-token>", "crumb": "<crumb>"}}
 ```
+
+`<api-token>` is an API token of that Jenkins user, created in their Jenkins settings, and `<crumb>` the answer of
+`<jenkins>/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,":",//crumb)`, which handles
+[Jenkins' CSRF protection](https://www.jenkins.io/doc/book/security/csrf-protection/). See the
+[server's environment variables](/docs/deploy#optional-environment-variables).
+
+## Call a webhook {#using-webhooks}
+A `webhook` sends a request when people click, from QA-Board's server (users need to be logged in). Its options are
+those of Python's [`requests`](https://requests.readthedocs.io/en/latest/api/#requests.request): `url`, `method`,
+`json` (or `data` for a form), `params`, `headers`, and `auth` with a `username` and a `password`.
+
+```yaml title="qaboard.yaml"
+integrations:
+  - text: Send to the tuning bench
+    icon: send-to
+    webhook:
+      url: http://tuning-bench.kitefin.example/api/jobs
+      method: POST
+      json:
+        project: ${project}
+        commit: ${commit.id}
+        batch: ${batch}
+```
+
+After a click, a tag next to the item shows the answer's status. If the answer is JSON:
+- a `status` field (`pending`, `running`, `success`, `failed`...) shows as an icon, like for CI jobs;
+- a `url` field makes the tag a link to it;
+- with `open: true` too, the link opens right away.
 
 :::caution
-Since you'll commit those credentials with the code, make sure you don't have too many privileges... At some point QA-Board will support *secrets*. 
+*qaboard.yaml* is in your repository: don't put credentials in webhooks. To start Jenkins builds, use the
+[Jenkins integration](#trigger-jenkins-builds), whose credentials stay on the server.
 :::
 
-2. Get a crumb to handle [Jenkins' CSRF](https://support.cloudbees.com/hc/en-us/articles/219257077-CSRF-Protection-Explained), eg at *$JENKINS_URL/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,%22:%22,//crumb)*
+## Default integrations {#default-integrations}
+If your *qaboard.yaml* has no `integrations`, branch pages show defaults for your git host, when QA-Board knows which
+kind it is (from its push events, or the server's [git hosts](/docs/backend-admin/git-hosts)): GitLab's pipeline
+status badge, or a link to GitHub Actions. Set `integrations: []` to hide them.
 
-3. Go to your Jenkins project configuration page at *$JENKINS_URL/$PROJECT/configure* and allow triggered builds:
-<img alt="Allowing triggered build" src={useBaseUrl('img/configure-jenkins-build-triggers.png')} />
-
-4. Configure your project with:
+## Organize the menu {#styling-the-integrations}
+Items take the options of Blueprint's [menu items](https://blueprintjs.com/docs/#core/components/menu): `icon`,
+`label` (shown on the right), `intent` (`primary`, `success`, `warning`, `danger`), `disabled`...
 
 ```yaml title="qaboard.yaml"
 integrations:
-  - text: Jenkins Triggered Build
-    webhook:
-      method: post
-      url: $JENKINS_URL/job/$PROJECT/buildWithParameters
-      headers:
-        Jenkins-Crumb: $JenkinsCrumb
-      params:
-        token: $TOKEN
-      auth:
-        # this needs to be hardcoded with jenkins credentials
-        # hopefully of limited scope
-        username: <the-jenkins-username>
-        password: api-token    # keep as-is
-      data:
-        commit: "${commit.id}"
-        cause: Triggered on the QA web app
-```
-
-Alternatively, you can also send users to the build page: 
-
-```yaml
-integrations:
-  - text: Build
-    label: With Parameters
+  - text: Release checklist
     icon: build
-    href: $JENKINS_URL/view/my-view/job/my-job/build?delay=0sec
-    # Jenkins behaves wtf and returns 405 errors...
-    # https://issues.jenkins-ci.org/browse/JENKINS-3121
-    allow_failed: true
+    label: docs
+    intent: danger
+  # a divider, with an optional title
+  - divider: true
+    title: Benchmarks
+  # a submenu
+  - text: Builds
+    sub:
+    - text: Linux
+      gitlabCI:
+        job_name: build-linux
+    - text: Windows
+      jenkins:
+        build_url: https://jenkins.kitefin.example/job/camera-isp-windows
 ```
+
+- `in_menu: false` shows an item in the sidebar itself, outside the menu.
+- With more than 5 items, a search box appears at the top of the menu.

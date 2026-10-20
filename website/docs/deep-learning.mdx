@@ -1,51 +1,68 @@
 ---
 id: deep-learning
-sidebar_label: Deep Learning & MLOps
-title: Deep Learning & MLOps Workflows
+sidebar_label: Deep learning & MLOps
+title: Deep learning and MLOps workflows
+description: Evaluate your models' inference in QA-Board next to the training tracker you already use, and gate model releases in the CI.
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
 
-Amazing tools exist for the R&D/training phase (like [wandb.ai](https://wandb.ai/)). They let you create easily create experiments without worrying about version control, without to setup a projects, and they have features that QA-Board doesn't have (compare N training curves at the same time, early stopping, nice reports built-in...).
+Keep training with the tools built for it, and evaluate inference in QA-Board: what each model does on each input,
+against the reference model, commit after commit. This page shows how projects connect the two.
 
-However, in our experience, tools built for _training_ usually lack important features to evaluate inference:
-- going in depth into specific difficult inputs (in our case images...): the training loss doesn't tell the whole picture
-- comparing versus reference/previous versions
-- giving users tools to trigger runs on new inputs (e.g. test database supplied by client)
-- integration with source control, CI systems, etc
-- rich/custom visualization
+Training trackers like [Weights & Biases](https://wandb.ai/), MLflow or TensorBoard are great at what they're built
+for (as of 2026): logging experiments without setting up a project, comparing many training curves at once, early
+stopping, reports. Evaluating a model for release asks other questions, where QA-Board helps:
+- Which inputs got worse? Go from a metric to the outputs of one difficult input, side by side with the reference
+  model's, with [synced viewers](/docs/visualizations).
+- Is it better than the release? Compare with a reference model, or a [milestone](/docs/references-and-milestones).
+- Did this commit change the results? Integrate with source control and the [CI](/docs/ci-integration).
+- Can someone else try it on new inputs? People [run more tests from the web app](/docs/tuning-from-the-webapp).
 
-In QA-Board, users compare the outputs of each input side by side with a reference, frame by frame if needed, with [synced viewers](visualizations).
+The [detector use case](/docs/use-cases/detection-eval) shows it on an int8 quantization: the model is 72% smaller,
+and the metrics per slice and object size show what it loses.
 
-So how do we use QA-Board and deep learning tools? Well, we setup our projects to have them work well together.
+## Show each run's model and link to its training {#workflows}
+Have `run()` return the model's details as `params`: QA-Board shows them on the run's card, as configuration tags,
+and `badges` as links, for instance to the model's card or its training page. The detector does it for each model it
+evaluates:
 
-## Workflows
-Since training is best done with dedicated tools, our projects are setup to show in QA-Board:
-- the evaluation metrics
-- model parameters and training summary
-- link to the training page
+<RepoFile path="examples/detection-eval/qa/main.py" title="qa/main.py" lines="139-147" />
 
-<img alt="A run in QA-Board with the model's training information" src={useBaseUrl('img/deep-learning/qa-wand-infoa.png')} />
+<Shot
+  id="commit/run-badges"
+  caption="The run's model, and a badge that links to its model card."
+/>
 
-Users get the best of both worlds: QA-Board, and the experiment/training-loss UI from `wandb`...
+See [metrics shown as a run-time configuration](/docs/computing-quantitative-metrics#metrics-shown-as-a-run-time-configuration)
+for the format. Projects often add the training's hyperparameters and final losses, read from their tracker's API.
 
-<img alt="Experiments in wandb" src={useBaseUrl('img/deep-learning/wandb-experiments.png')} />
-<img alt="Training metrics in wandb" src={useBaseUrl('img/deep-learning/wandb-metrics.png')} />
+## Evaluate a model from your training runs {#evaluate-a-model}
+Write a `run()` function that:
+1. reads a model id from `context.params`, or defaults to the model trained for the commit;
+2. fetches that model and its details from your tracker or model registry: hyperparameters, a link to its training
+   page;
+3. runs the model on `context.input_path`, and saves what you want to look at: detections drawn on the images, a
+   per-class report, precision-recall curves;
+4. computes the evaluation metrics, and returns them with the model's details as `params`.
 
-### What is needed to make this work?
-Users will write a `run()` function that:
-1. Reads from `context.params` some model ID (or defaults to the model that was trained for the commit)
-2. Fetches details about that model from some API: hyper-params, link to the training page... It will return those [as badges](computing-quantitative-metrics#metrics-shown-as-a-run-time-configuration)
-3. Runs the model on the `context.input_path`
-4. Does postprocessing to compute various evaluation metrics/plots
+Then evaluate any model on your test set, from a terminal or from the web app, with the model's id as a tuning
+parameter:
 
-:::tip
-Some engineers have a script that filters/sort their recent models according to various hyperparams/metrics, and start evaluation with QA-Board... Ideally we should be able to trigger directly inferences from the training page but not all ML tools make it easy!
-:::
+```bash
+qa --share --label kd-1.4-rc1 --tuning '{"model": "kd-1.4-rc1"}' batch ci
+```
 
-## MLOps
-When using MLops flows, users will have the CI:
+Here `model` is your own parameter's name, read by your `run()`. A script that lists your recent training runs can
+start an evaluation of the best ones the same way.
 
-1. **Train** a network
-2. **Fail** if the training loss is too high
-3. **Run inferences** on an evaluation batch using QA-Board
-4. **Fail** if the evaluation metrics are bad
+## Gate model releases in the CI {#mlops}
+In an MLOps pipeline, the CI:
+1. **trains** a network, or fetches the one trained for the commit;
+2. **fails** if the training loss is too high, in your training script;
+3. **runs inference** on an evaluation batch with `qa batch`;
+4. **fails** if the evaluation metrics got worse, with [`qa gate`](/docs/quality-gate) (experimental). The detector's
+   gate keeps its mAP above a floor and its AP on small objects within 10% of the reference model's:
+
+<RepoFile path="examples/detection-eval/qaboard.yaml" title="qaboard.yaml" section="gate" />
+
+To search the parameters of a model's inference (a score threshold, the quantization settings), see
+[automated tuning](/docs/auto-optimization).
