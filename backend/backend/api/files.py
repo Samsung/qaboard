@@ -92,11 +92,11 @@ def check_read_access(path: str):
     account = unix_account(user_info.get('user_name') if is_authenticated else None)
     if not unix_can_read(real_path, unix_root, account):
       if not is_authenticated:
-        return jsonify({"error": "These files are private. Sign in to see the files your account can read.", "reason": "login"}), 401
+        return jsonify({"error": "These files are private. Log in to see the files your account can read.", "reason": "login"}), 401
       return jsonify({"error": f"Your account ({user_info.get('user_name')}) doesn't have the permissions to read these files.", "reason": "forbidden"}), 403
   for description, perms_data in applicable:
     if not is_authenticated:
-      return jsonify({"error": f"Only some users can see {description}. Sign in to see these files.", "reason": "login"}), 401
+      return jsonify({"error": f"Only some users can see {description}. Log in to see these files.", "reason": "login"}), 401
     if not matches_rules(user_info, perms_data):
       return jsonify({"error": f"Only some users can see {description}.", "reason": "forbidden"}), 403
   return None
@@ -125,7 +125,7 @@ def readable_file(url, *parts):
 @app.route('/api/v1/files/authorize')
 def authorize_files():
   """
-  Whether the user can read a file: 204 if yes, else 401 (sign in) or 403.
+  Whether the user can read a file: 204 if yes, else 401 (log in) or 403.
   nginx asks before serving files (auth_request), with the original URL in QABOARD_ORIGINAL_URI.
   Others can ask with ?path=/algo/some/file
   """

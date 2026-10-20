@@ -303,18 +303,18 @@ describe('VideoViewer', () => {
     expect(video.currentTime).toBeCloseTo(40.5 / 25);
   });
 
-  it('says to sign in to read and compare the decoded frames', async () => {
+  it('says to log in to read and compare the decoded frames', async () => {
     viewer({ output_ref: output('ref') }, { user: { is_logged: false, user_id: null, user_name: null, full_name: null, email: null } });
     // the server only reads the videos for signed-in users: we don't ask
     expect(http.get).not.toHaveBeenCalled();
-    expect(screen.getByText(/Sign in \(in the sidebar\) to read the decoded values/)).toBeInTheDocument();
+    expect(screen.getByText(/Log in \(in the sidebar\) to read the decoded values/)).toBeInTheDocument();
     const differences = screen.getByRole('button', { name: 'Differences' });
     expect(differences).toBeDisabled();
-    expect(differences).toHaveAttribute('title', expect.stringMatching(/^Sign in/));
+    expect(differences).toHaveAttribute('title', expect.stringMatching(/^Log in/));
     fireEvent.click(screen.getByRole('button', { name: 'Pixel values' }));
     expect(screen.getByRole('radio', { name: /Decoded values/ })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: "What's in the files" }));
-    expect(screen.getByText(/Sign in \(in the sidebar\) to see what's in the files/)).toBeInTheDocument();
+    expect(screen.getByText(/Log in \(in the sidebar\) to see what's in the files/)).toBeInTheDocument();
     expect(http.post).not.toHaveBeenCalled();
   });
 
@@ -327,11 +327,20 @@ describe('VideoViewer', () => {
 });
 
 describe('differencePeaks', () => {
-  it('finds the first frame of each run above half of the largest difference', () => {
-    const frames = [0, 0.1, 0.6, 0.8, 0.2, 0, 1, 0.9, 0].map(value => ({ value }));
-    expect(differencePeaks(frames)).toEqual([2, 6]);
-    expect(differencePeaks(frames.map(() => ({ value: 0 })))).toEqual([]);
+  const peaks = values => differencePeaks(values.map(value => ({ value })));
+
+  it('finds the frame that differs most in each place where the videos differ', () => {
+    expect(peaks([0, 0.1, 0.6, 0.8, 0.2, 0, 1, 0.9, 0])).toEqual([3, 6]);
+    // the first frame of a flat peak
+    expect(peaks([0, 0.5, 0.5, 0, 0])).toEqual([1]);
+    expect(peaks([0, 0, 0])).toEqual([]);
     expect(differencePeaks(undefined)).toEqual([]);
+  });
+
+  it('finds the frames that stand out when every frame differs, e.g. with a new denoiser', () => {
+    expect(peaks([0.39, 0.40, 0.38, 0.45, 0.39, 0.39, 0.41, 0.37, 0.50, 0.40, 0.39, 0.47, 0.38])).toEqual([3, 8, 11]);
+    // none stands out
+    expect(peaks([0.4, 0.4, 0.4, 0.4])).toEqual([0]);
   });
 });
 

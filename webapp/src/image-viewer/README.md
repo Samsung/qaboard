@@ -205,7 +205,7 @@ resolution), and show a cross where the pointer is on the others. Viewers off-sc
 | `adjustments`, `defaultAdjustments`, `onAdjustmentsChange` | `{ brightness, contrast, gamma, sharpen, channel, falseColor, invert }` | none | How images look. Only the display changes. |
 | `pixelValues`, `defaultPixelValues`, `onPixelValuesChange` | `'image' \| 'display' \| 'off'` | `'image'` | [Values](#pixel-values-the-images-or-the-displayed-ones) written on the pixels when zoomed in. `'image'` needs `getPixels`, else they're the displayed ones. |
 | `getPixels` | `(image, { x, y, w, h }, { signal }) => Promise<{ data, width, height, channels?, mode? } \| { values, mode? }>` | | The image's own values, by tiles of 64×64 |
-| `imageValuesUnavailable` | `string` | | Without `getPixels`, why the image's own values aren't available, e.g. "Sign in to read the images' own values" |
+| `imageValuesUnavailable` | `string` | | Without `getPixels`, why the image's own values aren't available, e.g. "Log in to read the images' own values" |
 | `syncKey` | `string` | | Viewers with the same key are synced |
 | `regionSets` | `[{ id, label, regions?, loading?, error?, load?, empty? }]` | `[]` | Regions of interest |
 | `regionSet`, `defaultRegionSet`, `onRegionSetChange` | `string \| null` | | The set shown (`null`: the full image) |

@@ -44,7 +44,7 @@ const makeServer = () => {
     }
     if (url.startsWith('/api/v1/files/authorize')) {
       const path = decodeURIComponent(url.split('path=')[1])
-      if (state.restricted.has(path) && !state.user.is_authenticated) return json({ error: 'Only some users can see the project secret. Sign in to see these files.', reason: 'login' }, 401)
+      if (state.restricted.has(path) && !state.user.is_authenticated) return json({ error: 'Only some users can see the project secret. Log in to see these files.', reason: 'login' }, 401)
       return new Response(null, { status: 204 })
     }
     if (url.startsWith('/api/v1/files/run')) {
@@ -206,14 +206,16 @@ describe('FileBrowser', () => {
     await screen.findByText('other/')
   })
 
-  it('asks users to sign in for restricted folders', async () => {
+  it('asks users to log in for restricted folders', async () => {
     server.restricted.add('/algo/project/')
     renderAt('/s/algo/project/')
-    expect(await screen.findByText('Sign in to see these files')).toBeInTheDocument()
-    fireEvent.click(screen.getAllByRole('button', { name: 'Sign in' }).at(-1))
+    expect(await screen.findByText('Log in to see these files')).toBeInTheDocument()
+    // the server's message, without what the button says
+    expect(screen.getByText('Only some users can see the project secret.')).toBeInTheDocument()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Log in' }).at(-1))
     fireEvent.change(await screen.findByLabelText('Username'), { target: { value: 'alice' } })
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'secret' } })
-    fireEvent.click(screen.getAllByRole('button', { name: 'Sign in' }).at(-1))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Log in' }).at(-1))
     await screen.findByText('frame2.png')
     expect(await screen.findByText('Alice')).toBeInTheDocument()
   })
@@ -221,7 +223,7 @@ describe('FileBrowser', () => {
   it('explains why nginx refused to send a file', async () => {
     server.restricted.add('/algo/project/secret.txt')
     renderAt('/s/algo/project/secret.txt')
-    expect(await screen.findByText('Sign in to see these files')).toBeInTheDocument()
+    expect(await screen.findByText('Log in to see these files')).toBeInTheDocument()
   })
 
   it('renders only the visible rows of huge folders', async () => {
@@ -285,12 +287,12 @@ describe('runs', () => {
     await waitFor(() => expect(server.actions).toEqual(['DELETE /api/v1/output/42/?soft=true']))
   })
 
-  it('asks to sign in before changing runs', async () => {
+  it('asks to log in before changing runs', async () => {
     server.run = RUN
     renderAt('/s/algo/project/outputs/')
     const bar = await screen.findByRole('region', { name: 'Run' })
     fireEvent.click(within(bar).getByRole('button', { name: /Redo/ }))
-    expect(await screen.findByRole('dialog', { name: /Sign in/ })).toBeTruthy()
+    expect(await screen.findByRole('dialog', { name: /Log in/ })).toBeTruthy()
     expect(server.actions).toEqual([])
   })
 })

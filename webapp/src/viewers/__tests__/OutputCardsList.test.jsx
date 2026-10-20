@@ -132,6 +132,29 @@ describe('OutputCardsList', () => {
     expect(screen.getByText('a/out.bin')).toBeInTheDocument();
   });
 
+  it("links to the input's History, from 3 days before the commit", () => {
+    const history_link = () => new URL(screen.getAllByTitle("See this input's results over time")[0].href, 'http://localhost');
+    // History shows the last 3 days by default: an older commit wouldn't be in it
+    const { unmount } = render_list({ ...props, ...batches(1), new_commit: { id: 'abc', branch: 'main', authored_datetime: '2020-01-10T10:00:00Z' } });
+    act(() => mockAllIsIntersecting(true));
+    expect(history_link().pathname).toBe('/proj/history/main');
+    expect(history_link().searchParams.get('from')).toBe('2020-01-07');
+    expect(history_link().searchParams.get('filter')).toBe('input_0');
+    unmount();
+    // recent commits are in the default dates
+    render_list({ ...props, ...batches(1), new_commit: { id: 'abc', branch: 'main', authored_datetime: new Date().toISOString() } });
+    act(() => mockAllIsIntersecting(true));
+    expect(history_link().searchParams.get('from')).toBeNull();
+  });
+
+  it('draws the visualizations of projects that use their old name, detailed_views', async () => {
+    fetch.mockImplementation(async () => new Response(JSON.stringify({ 'out.bin': { md5: '1' } }), { status: 200 }));
+    const config = { outputs: { detailed_views: [{ name: 'Out', path: 'out.bin', type: 'unknown/type' }] } };
+    renderWithProviders(<MemoryRouter><OutputCardsList {...props} {...batches(1)} config={config} onRegisterOutputOptions={vi.fn()} /></MemoryRouter>);
+    act(() => mockAllIsIntersecting(true));
+    expect(await screen.findByText(/No viewer for the type/)).toHaveTextContent('unknown/type');
+  });
+
   it("says when the run doesn't have the value selected for all outputs, and shows the closest", async () => {
     fetch.mockImplementation(async () => new Response(JSON.stringify({ '1/out.bin': {}, '2/out.bin': {}, '10/out.bin': {} }), { status: 200 }));
     const config = { outputs: { visualizations: [{ name: 'Out', path: ':frame/out.bin', type: 'unknown/type' }] } };

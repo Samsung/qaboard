@@ -24,7 +24,7 @@ import { useDynamicOptions } from "./useDynamicOptions";
 import { TuningForm } from "./components/tuning/forms";
 import { BatchesEditor } from "./components/tuning/BatchesEditor";
 import TuningExploration from "./components/tuning/TuningExploration";
-import { useViewerControls, controls_changes, controls_defaults } from "./viewers/controls";
+import { useViewerControls, controls_changes, controls_defaults, config_visualizations } from "./viewers/controls";
 import { ExportPlugin } from "./plugins/ExportPlugin";
 import { humanFileSize } from "./viewers/bit_accuracy/utils";
 import { project_web_url } from "./utils";
@@ -109,7 +109,7 @@ const CiCommitResults = () => {
   const [controls, setControls] = useViewerControls(config);
   // Registrations are reset when the commit or batch changes, or when the visualizations change.
   // Which visualizations have files is reset when the filter changes (but we keep registrations for performance).
-  const visualizations_key = JSON.stringify(config.outputs?.visualizations || []);
+  const visualizations_key = JSON.stringify(config_visualizations(config.outputs));
   const dynamic = useDynamicOptions({
     config,
     reset_key: `${new_commit?.id}|${selected_batch_new}|${visualizations_key}`,
@@ -164,8 +164,7 @@ const CiCommitResults = () => {
   const warning_messages = <CommitWarningMessages project={new_project} commit={new_commit} />;
   const config_outputs = config.outputs || {};
   const controls_extra = config_outputs.controls || []
-  // we allow both for some leeway with half updated projects
-  const visualizations = [...(config_outputs.visualizations || []), ...(config_outputs.detailed_views || [])];
+  const visualizations = config_visualizations(config_outputs);
   const tuned_params = new_batch.sorted_extra_parameters.filter(p => new_batch.extra_parameters[p].size > 1)
   const has_tuning = tuned_params.length > 0
   const show_ref_navbar = shows_reference_bar(selected_views)

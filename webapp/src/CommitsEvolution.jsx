@@ -16,7 +16,7 @@ import {
 
 import { useSelected, useSiteConfig, useUrlText, updateSelected } from "./hooks";
 import { OutputCard } from "./viewers/OutputCard";
-import { useViewerControls } from "./viewers/controls";
+import { useViewerControls, config_visualizations } from "./viewers/controls";
 import { BitAccuracyForm, bit_accuracy_url_defaults } from "./viewers/bit_accuracy/utils";
 import { hash_color, match_query, average, median, matching_output, metric_info } from "./utils";
 import { yAxisSuffix, hasAllMetrics } from "./evolutionAxis";
@@ -310,7 +310,7 @@ const CommitsEvolutionPerTest = props => {
       ? matching_output({ output: hovered_output, batch: ref_batch })
       : { output_ref: undefined, mismatch: null };
     const controls_extra = qatools_config?.outputs?.controls || []
-    const visualizations = qatools_config?.outputs?.visualizations || qatools_config?.outputs?.detailed_views || []
+    const visualizations = config_visualizations(qatools_config?.outputs)
     const controls_switches = <>
       {!show_bit_accuracy && visualizations.map((view, idx) => {
         if (!view.default_hidden || controls.show?.[view.name] === undefined || controls.show?.[view.name] === null)
