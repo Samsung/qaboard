@@ -99,9 +99,12 @@ def test_settings_env_then_database_then_default(no_database, monkeypatch):
   # a wrong value in the environment is ignored
   monkeypatch.setenv('QABOARD_INGEST_AUTH', 'maybe')
   assert settings.setting('ingest.auth') == 'warn'
+  # empty values are unset, as docker-compose.yml passes them
+  monkeypatch.setenv('QABOARD_INGEST_AUTH', '')
+  assert settings.source('ingest.auth') == 'database'
 
 
-@pytest.mark.parametrize("value, expected", [("1", True), ("true", True), ("True", True), ("", False), ("false", False), ("False", False), ("0", False)])
+@pytest.mark.parametrize("value, expected", [("1", True), ("true", True), ("True", True), ("false", False), ("False", False), ("0", False)])
 def test_login_required_from_the_environment(no_database, monkeypatch, value, expected):
   # before, any value, even "False", required signing in
   monkeypatch.setenv('QABOARD_LOGIN_REQUIRED', value)

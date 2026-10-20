@@ -16,6 +16,8 @@ imagePullSecrets: []
 # Non-secret backend settings, see website/docs/start-server.mdx for all the options
 config:
   QABOARD_LOGIN_TYPE: LOCAL
+  # Admins (user names or emails, comma-separated), whatever the database says. Other settings are in the admin panel
+  # QABOARD_ADMINS: alice,bob@example.com
   # GITLAB_HOST: https://gitlab.example.com
   # Git hosts, their tokens are read from the secret (website/docs/backend-admin/git-hosts.mdx)
   # QABOARD_GIT_HOSTS: '[{"type": "github", "url": "https://github.com", "token_env": "GITHUB_ACCESS_TOKEN"}]'

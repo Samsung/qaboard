@@ -110,7 +110,8 @@ def default(key: str):
 def from_env(key: str):
   """(is set, value) from the environment"""
   definition = DEFINITIONS[key]
-  if not definition.env or os.environ.get(definition.env) is None:
+  # empty means unset: docker-compose.yml passes some variables as `VAR=${VAR:-}`
+  if not definition.env or not os.environ.get(definition.env, '').strip():
     return False, None
   raw = os.environ[definition.env]
   if definition.parse_env:
