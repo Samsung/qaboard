@@ -109,8 +109,8 @@ The sign-in policy is set via environment variables such as `QABOARD_LOGIN_*`, `
 ## Blocking anonymous users
 To block anonymous users, who are not logged-in, from accessing any content on QA-Board, turn on `auth.require_sign_in`
 in **Admin → Settings** (or set `QABOARD_LOGIN_REQUIRED=true`). The API then answers 401 to anonymous requests, except
-to sign in and for the results sent by `qa` (unless `ingest.auth` is `token`). Files under `/s/` follow the rules of
-[Restricting who can read files](#restricting-who-can-read-files).
+to sign in and for the results sent by `qa` (unless `ingest.auth` is `token`). Files under `/s/` too, when nginx checks
+who can read them (see [Restricting who can read files](#restricting-who-can-read-files)).
 
 <img alt="Image viewer" src={useBaseUrl('img/login-block-unsigned-user.jpg')} />
 

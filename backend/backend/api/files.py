@@ -24,6 +24,7 @@ from ..models import Project, Output
 from ..config import files_unix_permissions_roots
 from ..files import normalize, path_from_url, is_listable, longest_prefix, folder_for, folder_and_parents, list_directory, unix_account, unix_can_read, USER_PLACEHOLDER
 from .auth import get_current_user, restrictions, restricted_project_key, matches_rules, is_authorized_user
+from ..settings import setting
 
 
 # The projects (and their storage settings) change rarely, we don't want a database query for each file
@@ -77,6 +78,8 @@ def file_restriction(path: str):
 
 def check_read_access(path: str):
   """None if the current user can read the path, else an error response."""
+  if setting('auth.require_sign_in') and not get_current_user(to_jsonify=False).get('is_authenticated'):
+    return jsonify({"error": "Sign in to see these files.", "reason": "login"}), 401
   if not restrictions('paths') and not restrictions('projects') and not files_unix_permissions_roots:
     return None
   # Through symlinks users could reach restricted files from public folders
