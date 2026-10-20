@@ -3,6 +3,8 @@
 //   - with one reference, hovering its bar shows a handle below it: "Stack a reference"
 //   - with several, tabs in their colors: click one to compare with it, drag them to reorder, double-click to rename,
 //     right-click or "⋯" for the rest. "r" shows the next reference, "Shift r" the previous one.
+//     Hovering a tab shows what the reference's bar would: its commit, batch, filter, runs, and if it's the same as new.
+// A reference has one name, in its tab, the reference's bar and the viewers: see reference_names in src/selection.js.
 // The references not shown are fetched without their outputs (commits can have thousands). Once the page is idle, we
 // load the next and previous references' outputs, so that "r" shows them at once. Hovering a tab loads it too.
 import { useEffect, useRef, useState } from "react";
@@ -22,15 +24,18 @@ import {
   PopoverNext,
   Tooltip,
 } from "@blueprintjs/core";
+import { DateTime } from "luxon";
 
 import { MilestonesPanel } from "../milestones/MilestonesPanel";
-import { milestone_name, results_project } from "../milestones/api";
+import { results_project } from "../milestones/api";
 import { commitQuery, nb_outputs } from "../api/queries";
 import { errorMessage } from "../api/http";
 import { useComparison, useSiteConfig, updateSelected, usePrefetchCommitPage } from "../hooks";
 import {
-  add_reference, duplicate_reference, move_reference, remove_reference, rename_reference, same_side, show_as_new, show_reference,
+  add_reference, duplicate_reference, move_reference, remove_reference, rename_reference, show_as_new, show_reference,
 } from "../selection";
+import { available_batch } from "../selectors/batches";
+import { CommitAvatar } from "./avatars";
 import { is_typing } from "./HelpSheet";
 import { commit_bar_height, reference_tabs_height } from "./layout";
 import { shortId, pretty_label } from "../utils";
@@ -71,12 +76,6 @@ function usePrefetchNeighbors(references, ref_index, ready) {
 
 // Commit ids are hexadecimal, the rest are branches (or tags)
 const is_commit_id = text => /^[0-9a-f]{6,40}$/i.test(text);
-
-// What a tab calls a reference: what users called it, else its milestone, its branch, its commit
-const tab_name = (reference, project) => (reference.milestone ? milestone_name(reference.milestone) : reference.label)
-  || reference.commit?.branch
-  || (reference.commit_id ? shortId(project, reference.commit_id) : 'Latest on the reference branch');
-
 
 const Strip = styled.div`
   position: fixed;
@@ -207,17 +206,22 @@ const Tab = styled.div`
     border-radius: 50%;
     background: var(--side-color);
   }
-  .qa-tab-number {
-    flex: none;
-    font-variant-numeric: tabular-nums;
-    color: var(--qa-text-muted);
-  }
   .qa-tab-name {
-    min-width: 0;
+    flex: 0 1 auto;
+    min-width: 3ch;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     font-weight: 500;
+  }
+  /* its branch or commit, and batch: what tells apart references with the same name, e.g. copies */
+  .qa-tab-details {
+    flex: 0 100 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--qa-text-muted);
   }
   .qa-tab-meta {
     flex: none;
@@ -227,7 +231,7 @@ const Tab = styled.div`
     flex: none;
     opacity: 0;
   }
-  &:hover .qa-tab-menu, &[aria-selected="true"] .qa-tab-menu, &:focus-within .qa-tab-menu {
+  &:hover .qa-tab-menu, &[aria-selected="true"] .qa-tab-menu, &:focus-within .qa-tab-menu, .qa-tab-menu[aria-expanded="true"] {
     opacity: 1;
   }
   input {
@@ -266,26 +270,148 @@ const Handle = styled.div`
 `;
 
 
-// Everything about a reference, on hover
-const TabTooltip = ({ reference, project, same_as_new }) => <div style={{ maxWidth: 360 }}>
-  <div><strong>{reference.display_label}</strong>{reference.milestone && <> · milestone</>}</div>
-  {reference.commit?.message && <div style={{ marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{reference.commit.message}</div>}
-  <div className={Classes.TEXT_MUTED} style={{ marginTop: 4 }}>
-    {[
-      reference.commit_id ? shortId(project, reference.commit_id) : null,
-      reference.commit?.branch,
-      reference.batch !== 'default' ? `batch: ${pretty_label({ label: reference.batch })}` : null,
-      reference.filter ? `filter: ${reference.filter}` : null,
-      reference.project !== project ? reference.project : null,
-    ].filter(Boolean).join(' · ')}
-  </div>
-  {same_as_new && <div style={{ marginTop: 4 }}>The same results as new: nothing to compare.</div>}
-</div>;
+// The batch a reference shows: the one selected, else the commit's only batch (like the reference's bar)
+const reference_batch = reference => reference.commit?.batches ? available_batch(reference.commit, reference.batch) : reference.batch;
+
+// How a reference compares with the new results: the same results, the same commit with other runs, or another commit
+const relation_to_new = (reference, new_side) => {
+  if (!reference.commit_id || !new_side.commit_id || reference.project !== new_side.project || reference.commit_id !== new_side.commit_id) return null;
+  if (reference_batch(reference) === new_side.batch && (reference.filter ?? '') === (new_side.filter ?? '')) return 'same';
+  return 'same-commit';
+};
+
+// What the tab says next to its name: its branch (else its commit), and its batch if not the default
+const tab_details = (reference, project) => [
+  reference.commit?.branch || (reference.commit_id ? shortId(project, reference.commit_id) : null),
+  reference_batch(reference) !== 'default' ? pretty_label({ label: reference_batch(reference) }) : null,
+  reference.filter ? `“${reference.filter}”` : null,
+].filter(Boolean).join(' · ');
+
+const Card = styled.div`
+  width: 340px;
+  max-width: 80vw;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  .qa-card-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .qa-card-title > span:first-of-type {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .qa-card-dot {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--side-color);
+  }
+  .qa-card-status {
+    margin-left: auto;
+    flex: none;
+    font-weight: 400;
+  }
+  .qa-card-message {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .qa-card-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+  }
+  .qa-card-row > span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .qa-card-hint {
+    padding-top: 6px;
+    border-top: 1px solid var(--qa-border);
+  }
+`;
+
+// "120 runs · 3 failed · 2 running", like the reference bar's tags: tags don't read well in tooltips
+const runs_text = batch => {
+  const { valid_outputs = 0, running_outputs = 0, pending_outputs = 0, failed_outputs = 0 } = batch;
+  return [
+    `${valid_outputs} run${valid_outputs === 1 ? '' : 's'}`,
+    failed_outputs > 0 ? `${failed_outputs} failed` : null,
+    running_outputs > 0 ? `${running_outputs} running` : null,
+    pending_outputs - running_outputs > 0 ? `${pending_outputs - running_outputs} pending` : null,
+  ].filter(Boolean).join(' · ');
+};
+
+// Everything about a reference, on hover: what the reference's bar would show
+const TabCard = ({ reference, project, relation, batch_counts }) => {
+  const { commit } = reference;
+  const batch = reference_batch(reference);
+  const loaded = !!commit?.batches && !!commit.id;
+  const has_batch = !loaded || !!commit.batches[batch];
+  const date = commit?.authored_datetime ? DateTime.fromISO(commit.authored_datetime, { zone: 'utc' }) : null;
+  return <Card style={{ '--side-color': reference.color.css }}>
+    <div className="qa-card-title">
+      <span className="qa-card-dot"/>
+      <span>{reference.display_label}</span>
+      {!!reference.milestone && <Icon icon="star" size={12} title="A milestone"/>}
+      <span className={`qa-card-status ${Classes.TEXT_MUTED}`}>
+        {reference.is_shown ? 'compared with new' : `reference ${reference.number}`}
+      </span>
+    </div>
+    {commit?.error
+      ? <div className="qa-card-row"><span><Icon icon="error" size={12}/>Could not load it:</span><code>{String(commit.error)}</code></div>
+      : <>
+        {(commit?.committer_name || date) && <div className={`qa-card-row ${Classes.TEXT_MUTED}`}>
+          {commit?.committer_name && <span><CommitAvatar commit={commit} project={reference.project} size="16px"/>{commit.committer_name}</span>}
+          {date && <span title={date.toLocal().toLocaleString(DateTime.DATETIME_MED)}>{date.toRelative()}</span>}
+        </div>}
+        {commit?.message && <div className="qa-card-message">{commit.message}</div>}
+        <div className={`qa-card-row ${Classes.TEXT_MUTED}`}>
+          {reference.commit_id
+            ? <span><Icon icon="git-commit" size={12}/><code>{shortId(project, reference.commit_id)}</code></span>
+            : <span><Icon icon="git-commit" size={12}/>the latest commit with results</span>}
+          {commit?.branch && <span><Icon icon="git-branch" size={12}/>{commit.branch}</span>}
+          {reference.project !== project && <span><Icon icon="git-repo" size={12}/>{reference.project}</span>}
+        </div>
+      </>}
+    <div className="qa-card-row">
+      <span><span className={Classes.TEXT_MUTED}>Batch</span> <strong>{pretty_label({ label: batch })}</strong></span>
+      {reference.filter && <span><span className={Classes.TEXT_MUTED}>Filter</span> <code>{reference.filter}</code></span>}
+    </div>
+    <div className="qa-card-row">
+      <span><Icon icon="layers" size={12}/>
+        {!loaded
+          ? <span className={Classes.TEXT_MUTED}>Loading its runs…</span>
+          : !has_batch
+            ? (Object.keys(commit.batches).length ? 'No runs in this batch' : 'No runs yet')
+            : <>{runs_text(batch_counts ?? commit.batches[batch])}{reference.filter && <span className={Classes.TEXT_MUTED}>{batch_counts ? 'match the filter' : 'in the batch, before the filter'}</span>}</>}
+      </span>
+    </div>
+    {relation === 'same' && <div className="qa-card-row"><span><Icon icon="duplicate" size={12}/><strong>Same as new</strong></span><span className={Classes.TEXT_MUTED}>the same runs: nothing to compare</span></div>}
+    {relation === 'same-commit' && <div className="qa-card-row"><span><Icon icon="git-commit" size={12}/><strong>Same commit as new</strong></span><span className={Classes.TEXT_MUTED}>another batch or filter</span></div>}
+    <div className={`qa-card-hint ${Classes.TEXT_MUTED}`}>
+      {reference.is_shown ? 'Shown in the reference bar' : 'Click to compare with it'} · double-click to rename · right-click or ⋯ for more
+    </div>
+  </Card>;
+};
 
 
-const ReferenceTab = ({ reference, project, actions, same_as_new, dragging, drop, drag }) => {
+const ReferenceTab = ({ reference, project, actions, relation, batch_counts, dragging, drop, drag }) => {
   const prefetch = usePrefetchCommitPage(reference.project, reference.commit_id);
   const [renaming, setRenaming] = useState(null);
+  const [menu_open, setMenuOpen] = useState(false);
   const element = useRef(null);
   const can_rename = !reference.milestone;
   // keep the reference shown in view, e.g. after "r"
@@ -293,9 +419,10 @@ const ReferenceTab = ({ reference, project, actions, same_as_new, dragging, drop
     if (reference.is_shown) element.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   }, [reference.is_shown]);
 
+  const rename = () => can_rename && setRenaming(reference.label || '');
   const menu = <Menu>
     {!reference.is_shown && <MenuItem icon="eye-open" text="Compare with it" onClick={actions.show}/>}
-    <MenuItem icon="edit" text="Rename" disabled={!can_rename} title={can_rename ? undefined : "Milestones are named after themselves"} onClick={() => setRenaming(reference.label || '')}/>
+    <MenuItem icon="edit" text="Rename" disabled={!can_rename} title={can_rename ? undefined : "Milestones are named after themselves"} onClick={rename}/>
     <MenuItem icon="duplicate" text="Duplicate" label="to change its batch or filter" onClick={actions.duplicate}/>
     <MenuItem icon="chevron-up" text="Show as the new results" disabled={!actions.can_show_as_new} onClick={actions.show_as_new}/>
     <MenuDivider/>
@@ -308,61 +435,79 @@ const ReferenceTab = ({ reference, project, actions, same_as_new, dragging, drop
   const done = () => {
     const value = renaming.trim();
     setRenaming(null);
-    if (value !== (reference.label ?? '')) actions.rename(value);
+    // typing the default name is clearing it
+    const label = value === reference.default_label ? '' : value;
+    if (label !== (reference.label ?? '')) actions.rename(label);
   };
+  const details = tab_details(reference, project);
+  // clicks in the menu (in a portal) bubble to the tab through React: only those on the tab itself compare
+  const on_tab = event => event.currentTarget.contains(event.target) && !event.target.closest?.('.qa-tab-menu');
   const tab = <Tab
     ref={element}
     role="tab"
     tabIndex={0}
     aria-selected={reference.is_shown}
-    aria-label={`Reference ${reference.number}: ${tab_name(reference, project)}`}
+    aria-label={`Reference ${reference.number}: ${reference.display_label}${details ? `, ${details}` : ''}`}
     $color={reference.color.css}
     draggable={renaming === null}
     data-dragging={dragging || undefined}
     data-drop={drop}
     {...prefetch}
     {...drag}
-    onClick={() => renaming === null && actions.show()}
-    onDoubleClick={() => can_rename && setRenaming(reference.label || '')}
+    onClick={event => renaming === null && on_tab(event) && actions.show()}
+    onDoubleClick={event => on_tab(event) && rename()}
     onKeyDown={event => {
       if (renaming !== null || event.target !== event.currentTarget) return;
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); actions.show(); }
-      else if (event.key === 'F2' && can_rename) setRenaming(reference.label || '');
+      else if (event.key === 'F2') rename();
       else if (event.key === 'Delete' || event.key === 'Backspace') actions.remove();
       else if (event.altKey && event.key === 'ArrowLeft') actions.move(reference.index - 1);
       else if (event.altKey && event.key === 'ArrowRight') actions.move(reference.index + 1);
     }}
   >
     <span className="qa-tab-dot"/>
-    <span className="qa-tab-number">{reference.number}</span>
     {renaming !== null
       ? <input
           autoFocus
           value={renaming}
-          placeholder={tab_name({ ...reference, label: '' }, project)}
+          placeholder={reference.default_label}
           aria-label={`Rename reference ${reference.number}`}
           maxLength={60}
           onChange={e => setRenaming(e.target.value)}
           onFocus={e => e.target.select()}
           onBlur={done}
           onClick={e => e.stopPropagation()}
+          onDoubleClick={e => e.stopPropagation()}
           onKeyDown={e => {
             if (e.key === 'Enter') done();
             if (e.key === 'Escape') { e.stopPropagation(); setRenaming(null); }
           }}
         />
-      : <span className="qa-tab-name">{tab_name(reference, project)}</span>}
+      : <>
+        <span className="qa-tab-name">{reference.display_label}</span>
+        {!!details && <span className="qa-tab-details">{details}</span>}
+      </>}
     {!!reference.milestone && <Icon className="qa-tab-meta" icon="star" size={11} title="A milestone"/>}
-    {same_as_new && <span className="qa-tab-meta" title="The same results as new">= new</span>}
-    <PopoverNext content={menu} placement="bottom-end">
-      <Button className="qa-tab-menu" size="small" variant="minimal" icon="more" aria-label={`Reference ${reference.number}: more`} onClick={e => e.stopPropagation()}/>
+    {relation === 'same' && <span className="qa-tab-meta" title="The same results as new">= new</span>}
+    <PopoverNext content={menu} placement="bottom-end" isOpen={menu_open} onInteraction={setMenuOpen}>
+      <Button
+        className="qa-tab-menu"
+        size="small"
+        variant="minimal"
+        icon="more"
+        aria-label={`Reference ${reference.number}: more`}
+        aria-expanded={menu_open}
+        // not a drag of the tab
+        draggable={false}
+        onDragStart={e => { e.preventDefault(); e.stopPropagation(); }}
+      />
     </PopoverNext>
   </Tab>;
   return <ContextMenu content={menu} className="qa-tab-wrap">
     <Tooltip
-      content={<TabTooltip reference={reference} project={project} same_as_new={same_as_new}/>}
-      disabled={renaming !== null}
-      hoverOpenDelay={600}
+      content={<TabCard reference={reference} project={project} relation={relation} batch_counts={batch_counts}/>}
+      disabled={renaming !== null || menu_open}
+      hoverOpenDelay={500}
       placement="bottom-start"
       targetProps={{ className: 'qa-tab-wrap' }}
     >
@@ -451,7 +596,7 @@ export const ReferenceTabs = () => {
     },
     duplicate: index => {
       setAdding(false);
-      updateSelected(duplicate_reference(resolved, index));
+      updateSelected(duplicate_reference(resolved, index, references[index].display_label));
     },
   };
 
@@ -481,6 +626,8 @@ export const ReferenceTabs = () => {
     </Handle>;
 
   const new_side = { project: compared[0].project, commit_id: new_commit?.id ?? selected.new_commit_id, batch: compared[0].batch?.label ?? selected.selected_batch_new, filter: selected.filter_batch_new };
+  // the reference shown is loaded with its runs: we know how many match its filter
+  const shown_counts = selected.filter_batch_ref ? compared[1].batch?.filtered : undefined;
   const drag_props = index => ({
     onDragStart: event => {
       event.dataTransfer.effectAllowed = 'move';
@@ -515,7 +662,8 @@ export const ReferenceTabs = () => {
         key={reference.index}
         reference={reference}
         project={project}
-        same_as_new={same_side(reference, new_side)}
+        relation={relation_to_new(reference, new_side)}
+        batch_counts={reference.is_shown && shown_counts?.valid_outputs !== undefined ? shown_counts : undefined}
         dragging={dragging === reference.index}
         drop={drop?.index === reference.index && dragging !== reference.index ? drop.side : undefined}
         drag={drag_props(reference.index)}
@@ -524,7 +672,7 @@ export const ReferenceTabs = () => {
           show: () => show(reference.index),
           remove: () => updateSelected(remove_reference(resolved, reference.index)),
           rename: label => updateSelected(rename_reference(resolved, reference.index, label)),
-          duplicate: () => updateSelected(duplicate_reference(resolved, reference.index)),
+          duplicate: () => updateSelected(duplicate_reference(resolved, reference.index, reference.display_label)),
           move: to => updateSelected(move_reference(resolved, reference.index, to)),
           can_show_as_new: !!reference.commit_id && !!resolved.new_commit_id,
           show_as_new: () => updateSelected(show_as_new(resolved, reference.index)),

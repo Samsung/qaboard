@@ -45,7 +45,7 @@ To see what a tuning experiment changed, select its batch in the new bar, then u
 :::
 
 ## Naming what you compare
-Click **new** or **ref** at the start of a bar to rename it, for example `ISP v2` and `ISP v1`. The page then calls them by these names: the labels of images and videos, the legends of plots, the headers of text diffs and HTML outputs, the flame graphs' choices, the Summary, and the columns of the Metrics Table and Metrics Diff (`ISP v2 − ISP v1`). The names are in the URL: links you share keep them. Erase the name to go back to "new" or "reference".
+Click **new** or **ref** at the start of a bar to rename it, for example `ISP v2` and `ISP v1`. The page then calls them by these names: the labels of images and videos, the legends of plots, the headers of text diffs and HTML outputs, the flame graphs' choices, the Summary, and the columns of the Metrics Table and Metrics Diff (`ISP v2 − ISP v1`). The names are in the URL: links you share keep them. Erase the name to go back to "new" or "ref".
 
 When the results are a [milestone](#milestones), they are named after it, and you rename the milestone instead.
 
@@ -56,16 +56,17 @@ To compare with several references, for example the last release, a tuning exper
 
 Hover the **ref** bar: **Stack a reference** shows below it. Add a commit, a branch (its latest commit), a milestone, or the same reference again to change its batch or filter. It's shown right away, and the reference you were looking at stays.
 
-The references then show as tabs below the bars, each in its color (purple, magenta, teal, violet, then gray), with a star for milestones:
+The references then show as tabs below the bars, each with its name, its branch (and batch or filter, when they're not the default), in its color (purple, magenta, teal, violet, then gray), with a star for milestones.
+The first reference is **ref**, the ones you add **ref 2**, **ref 3**..., and a copy of a reference you named "night" is **night copy**. A reference keeps its name when you reorder or remove the others, and its tab, the **ref** bar and the viewers all use it: rename it in any of them. Its color follows its place in the tabs.
 
 - Click a tab, or press <kbd>r</kbd> and <kbd>Shift</kbd> <kbd>r</kbd>, to compare with the next or previous reference. Each keeps its batch, filter and name.
 - Drag tabs to reorder them (or <kbd>Alt</kbd> <kbd>←</kbd> <kbd>→</kbd>), double-click one to rename it, press <kbd>Delete</kbd> to remove it.
-- Right-click a tab, or its **⋯**, to duplicate it, show it as the new results (the new commit takes its place), move or remove it.
-- Hover a tab for its commit, branch, batch and filter. "= new" says it shows the same results as the new commit.
+- Right-click a tab, or click its **⋯**, to compare with it, rename, duplicate it, show it as the new results (the new commit takes its place), move or remove it.
+- Hover a tab for what its bar would show: its commit and message, who made it and when, its branch, batch and filter, and how many runs it has and how many failed. It also says when it's the same commit as the new results, or the same results ("= new" in the tab).
 
 The references are in the page's URL: share it, and others can switch between the same references. Only the reference shown is loaded with all its runs; once the page is idle, the next and previous ones load in the background (unless they have thousands of runs), and hovering a tab loads it too.
 
-When a reference is not a milestone and you didn't name it, viewers call it by its number, like "reference 2".
+When you swap the new results with a reference (**Switch new/reference**, or **Show as the new results**), names you gave follow their results, while "new", "ref" and "ref 2" stay where they are.
 
 ## How runs are matched
 For each new run, QA-Board finds the most similar reference run: first the same input, then the closest configuration, the closest tuning parameters, and the same platform. The closest is the one with the fewest different settings; between as many, the one whose values are the most similar: for `base-v1`, `base-v2` rather than `other`, for `gain: 3`, `gain: 4` rather than `gain: 100`.

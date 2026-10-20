@@ -13,7 +13,7 @@ const a = 'a'.repeat(40), b = 'b'.repeat(40), c = 'c'.repeat(40), d = 'd'.repeat
 const commits = {
   [a]: commit(a, 'Faster denoiser', 'feature/denoiser'),
   [b]: commit(b, 'Release 1.0'),
-  [c]: commit(c, 'Tuning the sharpening', 'tuning/sharpen'),
+  [c]: { ...commit(c, 'Tuning the sharpening', 'tuning/sharpen'), batches: { default: { id: 1, label: 'default', valid_outputs: 12, failed_outputs: 2, running_outputs: 0, pending_outputs: 0, outputs: {}, data: {} } } },
   [d]: commit(d, 'Latest on master'),
 };
 
@@ -77,5 +77,52 @@ test('stack a reference, rename what we compare', async ({ page }) => {
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/label=ISP\+v2|label=ISP%20v2/);
   await expect(page.getByRole('button', { name: 'ISP v2: rename' })).toBeVisible();
+  await page.waitForLoadState('networkidle');
+});
+
+// What users do with their references: stack, duplicate, rename, reorder. Each one keeps one name everywhere.
+test('a reference has one name, in its tab, the reference bar and the viewers', async ({ page }) => {
+  await page.goto(`/${project}/commit/${a}?reference=${c}`);
+  await expect(page.getByText('Tuning the sharpening').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'ref: rename' })).toBeVisible();
+
+  await page.locator('.qa-ref-bar').hover();
+  await page.getByRole('button', { name: 'Stack a reference' }).click();
+  await page.getByRole('textbox', { name: 'Add a commit or a branch as reference' }).fill(d);
+  await page.keyboard.press('Enter');
+  // the first stays "ref", the one added is "ref 2", shown in the reference bar
+  await expect(page.getByRole('tab', { name: /^Reference 1: ref, tuning\/sharpen/ })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /^Reference 2: ref 2, master/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('button', { name: 'ref 2: rename' })).toBeVisible();
+
+  // the "⋯" menu: duplicate the first one
+  await page.getByRole('tab', { name: /^Reference 1:/ }).hover();
+  await page.getByRole('button', { name: 'Reference 1: more' }).click();
+  await page.getByRole('menuitem', { name: /Duplicate/ }).click();
+  await expect(page.getByRole('tab', { name: /^Reference 2: ref 3, tuning\/sharpen/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('button', { name: 'ref 3: rename' })).toBeVisible();
+
+  // renaming in the reference bar renames its tab
+  await page.getByRole('button', { name: 'ref 3: rename' }).click();
+  await page.getByRole('textbox', { name: 'Name instead of “ref 3”' }).fill('sharper');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('tab', { name: /^Reference 2: sharper/ })).toBeVisible();
+
+  // dragging it to the end: it keeps its name, and stays shown
+  await page.getByRole('tab', { name: /^Reference 2:/ }).dragTo(page.getByRole('tab', { name: /^Reference 3:/ }), { targetPosition: { x: 80, y: 10 } });
+  await expect(page.getByRole('tab', { name: /^Reference 3: sharper/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: /^Reference 2: ref 2/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'sharper: rename' })).toBeVisible();
+  await expect(page.getByRole('tab')).toHaveCount(3);
+  await page.locator('.qa-tabs').screenshot({ path: test.info().outputPath('tabs.png') });
+
+  // hovering a tab tells what it is
+  await page.getByRole('tab', { name: /^Reference 1:/ }).hover();
+  const card = page.locator('.bp6-tooltip').filter({ hasText: 'Click to compare with it' });
+  await expect(card).toContainText('Tuning the sharpening');
+  await expect(card).toContainText('Alice');
+  await expect(card).toContainText('Batch CI');
+  await expect(card).toContainText('12 runs · 2 failed');
+  await page.screenshot({ path: test.info().outputPath('hover.png'), clip: { x: 0, y: 0, width: 900, height: 420 } });
   await page.waitForLoadState('networkidle');
 });

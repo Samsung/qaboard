@@ -76,7 +76,7 @@ const to_day = date => DateTime.fromJSDate(date).toISODate();
 // keep working. The others are in ?compare=: commit ids, or {commit, batch, filter, project, label} when not the defaults.
 // ?ref_index= is where the shown one is in the list: switching references keeps their order.
 // A "side" of the comparison: { project, commit_id, batch, filter, label }, project defaults to the page's,
-// label is what users call it ('' by default: viewers use its milestone's name, else "new" or "reference").
+// label is what users call it ('' by default: "new", or "ref", see reference_names). Milestones keep their own name.
 const side_from_query = (item, project) => {
   const value = typeof item === 'object' && item !== null ? item : { commit: item };
   return {
@@ -125,6 +125,69 @@ const new_side = selected => ({
 // Only what goes in the URL: references from useComparison() have more
 const as_side = ({ project, commit_id, batch, filter, label }) => ({ project, commit_id, batch, filter, label });
 
+// What we call the references: what users called them, else "ref", "ref 2", "ref 3"...
+// The name is given when a reference is added and kept in the URL: moving or removing references doesn't rename the others.
+// Without one (the first reference, links from before), the first is "ref", the others the next free "ref N".
+export const ref_name = number => number === 1 ? 'ref' : `ref ${number}`;
+// names we give, they stay with their place when the new and reference results are swapped
+export const is_default_name = label => !label || /^ref( \d+)?$/.test(label);
+
+export const reference_names = references => {
+  const used = new Set(references.map(r => r.label).filter(Boolean));
+  let next = 2;
+  const free = () => {
+    while (used.has(ref_name(next))) next += 1;
+    used.add(ref_name(next));
+    return ref_name(next);
+  };
+  let first = !used.has('ref');
+  return references.map(r => {
+    if (r.label) return r.label;
+    if (first) {
+      first = false;
+      used.add('ref');
+      return 'ref';
+    }
+    return free();
+  });
+};
+
+// The references with the names we gave them written down, so that they keep them wherever they go.
+// The one called "ref" doesn't need it: it's the first without a name.
+const with_names = references => {
+  const names = reference_names(references);
+  return references.map((r, i) => ({ ...r, label: r.label || (names[i] === 'ref' ? '' : names[i]) }));
+};
+
+// The name of a reference we add: the next "ref N" (never "ref": it's the one users start with)
+const next_ref_name = (references, names = reference_names(references)) => {
+  let number = 2;
+  while (names.includes(ref_name(number))) number += 1;
+  return ref_name(number);
+};
+
+// The name of a copy: "ref 3" for one of our names, else "ISP v2 copy", "ISP v2 copy 2"...
+// `name` is what the reference is called, e.g. its milestone's name
+const copy_name = (references, index, name) => {
+  const names = reference_names(references);
+  name = name || names[index];
+  if (is_default_name(name)) return next_ref_name(references, names);
+  const base = `${name} copy`;
+  let copy = base, number = 2;
+  while (names.includes(copy)) copy = `${base} ${number++}`;
+  return copy;
+};
+
+// Swapping the new results with a reference: names users gave follow their results, "new" and "ref N" stay in place.
+// Returns the labels of the new results and of the reference's place.
+const swapped_labels = (label_new, references, index) => {
+  const label_ref = references[index].label ?? '';
+  const new_label = is_default_name(label_ref) ? '' : label_ref;
+  if (label_new) return { label_new: new_label, label_ref: label_new };
+  if (is_default_name(label_ref)) return { label_new: new_label, label_ref };
+  return { label_new: new_label, label_ref: next_ref_name(references.filter((_, i) => i !== index)) };
+};
+
 // The selection changes to show `references` (a list of sides), with the one at `index` compared with the new commit
 export const references_changes = (references, index) => {
   const shown = references[index];
@@ -143,20 +206,22 @@ export const references_changes = (references, index) => {
 // ...compare the new commit with another of the references
 export const show_reference = (selected, index) => references_changes(selected.references, index);
 
-// ...add a reference, and show it. If we have it already, we show it.
+// ...add a reference, and show it. If we have it already, we show it. It's named "ref 2", "ref 3"... unless given a label.
 export const add_reference = (selected, side) => {
-  const side_ = { project: selected.project, batch: 'default', filter: '', label: '', ...side };
   const { references } = selected;
+  const side_ = { project: selected.project, batch: 'default', filter: '', ...side };
   const existing = references.findIndex(r => same_side(r, side_));
   if (existing >= 0) return references_changes(references, existing);
+  if (!side_.label) side_.label = next_ref_name(references);
   return references_changes([...references, side_], references.length);
 };
 
 // ...remove a reference. Removing the one shown shows the next one. The last one can't be removed.
+// The others keep their names: we write those we gave, e.g. the first "ref" when it's not first anymore.
 export const remove_reference = (selected, index) => {
   const { references, ref_index } = selected;
   if (references.length <= 1) return {};
-  const remaining = references.filter((_, i) => i !== index);
+  const remaining = with_names(references).filter((_, i) => i !== index);
   const shown = index === ref_index ? Math.min(index, remaining.length - 1) : ref_index - (index < ref_index ? 1 : 0);
   return references_changes(remaining, shown);
 };
@@ -166,37 +231,59 @@ export const show_as_new = (selected, index) => {
   const { references, ref_index } = selected;
   const side = references[index];
   if (!side?.commit_id || !selected.new_commit_id) return {};
-  const swapped = references.map((r, i) => i === index ? new_side(selected) : r);
+  const named = with_names(references);
+  const labels = swapped_labels(selected.label_new, named, index);
+  const swapped = named.map((r, i) => i === index ? { ...new_side(selected), label: labels.label_ref } : r);
   return {
     ...references_changes(swapped, ref_index),
     new_project: side.project,
     new_commit_id: side.commit_id,
     selected_batch_new: side.batch || 'default',
     filter_batch_new: side.filter ?? '',
-    label_new: side.label ?? '',
+    label_new: labels.label_new,
   };
 };
 
-// ...move a reference elsewhere in the list, e.g. by dragging it. The one shown stays shown.
+// ...move a reference elsewhere in the list, e.g. by dragging it. The one shown stays shown, they all keep their names.
 export const move_reference = (selected, from, to) => {
   const { references, ref_index } = selected;
   if (to < 0 || to >= references.length || from === to) return {};
-  const moved = references.filter((_, i) => i !== from);
-  moved.splice(to, 0, references[from]);
-  return references_changes(moved, moved.indexOf(references[ref_index]));
+  const named = with_names(references);
+  const moved = named.filter((_, i) => i !== from);
+  moved.splice(to, 0, named[from]);
+  return references_changes(moved, moved.indexOf(named[ref_index]));
 };
 
-// ...add a copy of a reference next to it, and show it: to change its batch or filter, and compare both
-export const duplicate_reference = (selected, index) => {
+// ...add a copy of a reference next to it, and show it: to change its batch or filter, and compare both.
+// `name`: what the reference is called, e.g. its milestone's name: the copy is "<name> copy"
+export const duplicate_reference = (selected, index, name) => {
   const { references } = selected;
-  const copy = { ...as_side(references[index]), label: '' };
-  return references_changes([...references.slice(0, index + 1), copy, ...references.slice(index + 1)], index + 1);
+  const named = with_names(references.map(as_side));
+  const copy = { ...named[index], label: copy_name(references, index, name) };
+  return references_changes([...named.slice(0, index + 1), copy, ...named.slice(index + 1)], index + 1);
 };
 
 // ...call a reference something else, '' for its default name
 export const rename_reference = (selected, index, label) => {
   const { references, ref_index } = selected;
   return references_changes(references.map((r, i) => i === index ? { ...r, label } : r), ref_index);
+};
+
+// ...swap the new results and the reference shown
+export const switch_new_and_reference = selected => {
+  const { references, ref_index } = selected;
+  const labels = swapped_labels(selected.label_new, with_names(references), ref_index);
+  return {
+    new_project: selected.ref_project,
+    ref_project: selected.new_project,
+    new_commit_id: selected.ref_commit_id,
+    ref_commit_id: selected.new_commit_id,
+    selected_batch_new: selected.selected_batch_ref,
+    selected_batch_ref: selected.selected_batch_new,
+    filter_batch_new: selected.filter_batch_ref,
+    filter_batch_ref: selected.filter_batch_new,
+    ...labels,
+  };
 };
 
 
@@ -376,4 +463,10 @@ export const updateSelected = (selected = {}, { replace = false, defaults } = {}
   (replace ? history.replace : history.push)(url);
 };
 
-export const stringify_query = query => qs.stringify(query, { arrayFormat: 'repeat' });
+// qs reads ?compare[0]=a&compare[1][commit]=b as a list with objects: "repeat" would write it compare=a&compare[commit]=b,
+// that reads back as other references. Those lists keep their indices.
+const has_objects = value => Array.isArray(value) && value.some(item => typeof item === 'object' && item !== null);
+export const stringify_query = query => qs.stringify(
+  Object.fromEntries(Object.entries(query).map(([key, value]) => [key, has_objects(value) ? { ...value } : value])),
+  { arrayFormat: 'repeat' },
+);
