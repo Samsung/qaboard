@@ -1,61 +1,129 @@
 ---
 id: installation
-title: Installing QA-Board's client
-sidebar_label: Client Installation
+title: Install the qa command line
+sidebar_label: Install qa
+description: Install qa on the machines that run your code, point it to your QA-Board server, and give it an API token for your scripts.
 ---
 import SiteInstructions from '@site/src/components/SiteInstructions';
 
-You need to install QA-Board's CLI client: `qa`. It wraps and runs your code.
+`qa` is QA-Board's command line. It runs your code on your inputs, saves the files your code writes, and sends the
+metrics to your QA-Board server. Install it on every machine that runs your code: your computer, your CI runners, your
+cluster's nodes.
 
 <SiteInstructions page="installation" />
 
-```bash
-pip install qaboard
-```
+## Install and connect {#install}
+1. Install `qa` where your code's dependencies are, e.g. your project's virtual environment: `qa` imports your Python
+   code to run it. It needs Python 3.7 or later.
 
-### With your organization's site package
-Your organization may publish a *site package* that configures `qa` for its server. Install it too, e.g.:
+   ```bash
+   pip install qaboard
+   ```
+
+   If your code is an executable that `qa` only starts, you can install `qa` as a tool instead:
+   `uv tool install qaboard`.
+2. Tell `qa` where your QA-Board server is, e.g. in your shell's profile:
+
+   ```bash
+   export QABOARD_URL=http://<your-qaboard>
+   ```
+
+   `<your-qaboard>` is your server's address, e.g. `localhost:5151` for the
+   [quickstart](/docs/get-started/quickstart)'s.
+3. Check that `qa` runs. It lists its commands:
+
+   ```bash
+   qa --help
+   ```
+
+   ```text
+   Usage: qa [OPTIONS] COMMAND [ARGS]...
+   [...]
+   Commands:
+     batch                        Run on all the inputs/tests/recordings in...
+     check-bit-accuracy           Checks the bit accuracy of the results in...
+     [...]
+     init                         Provide a sample qaboard.yaml configuration.
+     [...]
+     run                          Runs over a given input/recording/test and...
+   ```
+
+Next, [add QA-Board to your project](/docs/project-init) with `qa init`.
+
+## Your organization's site package {#with-your-organizations-site-package}
+Your organization may publish a *site package*: a small Python package that configures `qa` for its server. It sets
+the server's address and other defaults, so you don't need the environment variables below. Install it next to
+`qaboard`, e.g.:
+
 ```bash
 pip install --upgrade 'qaboard-site-mysite @ git+ssh://git@git.example.com/infra/qaboard#subdirectory=deployments/mysite/cli'
 ```
 
-The site packages auto-configure defaults such as the API URL, port, and other site-specific settings. You do not need to manually set environment variables for standard deployments. They can also provide [default `qaboard.yaml` settings for all projects](project-init#site-defaults), like where results are stored or the LSF queue.
+A site package can also give every project default *qaboard.yaml* settings, like where results are stored or the LSF
+queue: see [site defaults](/docs/project-init#site-defaults).
 
 :::tip
-Environment variables (e.g. `QABOARD_HOST`, `QABOARD_PROTOCOL`) **always override** site package defaults. This lets you point at a different server during development or testing without changing the installed package.
+Environment variables always win over the site package's defaults: set `QABOARD_URL` to try another server without
+uninstalling anything.
 :::
 
-To make sure the installation was successful, try printing a list of `qa`'s CLI commands:
+## Connect to your server {#connecting-to-a-custom-qa-board-server}
+`qa` finds your server's address in these environment variables:
 
-```bash
-qa --help
+| Variable | Example | |
+|---|---|---|
+| `QABOARD_URL` | `https://qaboard.kitefin.example` | The server's address. |
+| `QABOARD_HOST`, `QABOARD_PROTOCOL` | `qaboard.kitefin.example:5151`, `https` | The host (and port), and the protocol: `http` by default. They win over `QABOARD_URL`. |
+| `QABOARD_HOSTNAME`, `QABOARD_PORT` | `qaboard.kitefin.example`, `5151` | Both together win over the others. |
 
-# If you get errors about not using a utf8 locale, you can likely:
-#   export LC_ALL=C.utf8 LANG=C.utf8
-```
+Without any of them, `qa` uses `http://localhost:5151` and prints a warning. With `qa --offline`, it never contacts the
+server: your runs are only saved on disk.
 
-## Connecting to a custom QA-Board server
-If you installed `qaboard` without a site package (or want to override the defaults), set these environment variables:
-
-```bash
-export QABOARD_HOST=my-server:5151
-export QABOARD_PROTOCOL=http
-# or, equivalently:
-export QABOARD_URL=http://my-server:5151
-```
-
-Without any of them, `qa` uses `http://localhost:5151` and prints a warning.
-
-## API token
-Some actions need a logged-in user (e.g. starting tuning or "redo" runs from scripts). Create an API token with a `POST` to `/api/v1/user/token/` while logged-in (there is no UI for it yet, e.g. use your browser's dev tools on the web application), and save it as `QA_TOKEN` in the environment, or in a per-user secrets file readable only by you:
-
-```yaml title="~/.qaboard/secrets.yaml (chmod 600, or set QA_USER_SECRETS to another path)"
-QA_TOKEN: <your token>
-```
-
-If your server uses HTTPS with a certificate your machines don't trust (e.g. from an internal CA), point `QABOARD_API_VERIFY` to the CA bundle, or disable the checks for requests to the API:
+If your server uses HTTPS with a certificate your machines don't trust, e.g. from your company's certificate
+authority, point `QABOARD_API_VERIFY` to the CA bundle, or turn off the checks of `qa`'s requests to the server:
 
 ```bash
 export QABOARD_API_VERIFY=/etc/ssl/certs/internal-ca.pem
 export QABOARD_API_VERIFY=false
 ```
+
+## API token {#api-token}
+`qa` saves results without logging in. Scripts that act as you through the server's API, e.g. to redo runs or start
+tuning, need an API token. There is no button for it in the web app yet:
+
+1. Log in to the web app.
+2. Open your browser's developer console (<kbd>F12</kbd>), and create a token:
+
+   ```js
+   await (await fetch('/api/v1/user/token/', {method: 'POST'})).json()
+   ```
+
+   It prints `{token: "...", created_at: "...", expires_at: ...}`.
+3. Save the token in a file only you can read:
+
+   ```yaml title="~/.qaboard/secrets.yaml"
+   QA_TOKEN: <your-token>
+   ```
+
+   ```bash
+   chmod 600 ~/.qaboard/secrets.yaml
+   ```
+
+   `qa` warns when other users can read this file. `QA_USER_SECRETS` points to another file, and a `QA_TOKEN`
+   environment variable, e.g. a CI secret, works too.
+
+## If `qa` doesn't start {#troubleshooting}
+- **An error about your locale (ASCII, not UTF-8):** set a UTF-8 one, e.g. `export LC_ALL=C.UTF-8 LANG=C.UTF-8`.
+- **"Could not find a `qaboard.yaml` configuration file":** run `qa` in a project, or create one with
+  [`qa init`](/docs/project-init).
+- **"We are not sure where to find your QA-Board server":** set `QABOARD_URL`, see
+  [above](#connecting-to-a-custom-qa-board-server).
+
+<Cards>
+  <Card title="Add QA-Board to your project" to="/docs/project-init" eyebrow="Next">
+    Create *qaboard.yaml* and the `qa/` folder with `qa init`.
+  </Card>
+  <Card title="Your project on QA-Board" to="/docs/get-started/tutorial" eyebrow="Tutorial">
+    From `qa init` to every commit compared in CI, step by step.
+  </Card>
+</Cards>

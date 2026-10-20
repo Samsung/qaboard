@@ -1,113 +1,88 @@
 ---
 id: inputs
-sidebar_label: From Inputs to Outputs
-title: From Inputs to Outputs
+title: Inputs
+sidebar_label: Inputs
+description: Tell qa where your inputs are, and how to recognize them inside folders, so that qa run and qa batch find them.
 ---
 
-## What is a run?
-QA-Board will run:
-- your code on **inputs** with a given **configuration**
-- and expect **outputs files** along with **metrics**.
+Inputs are what your code runs on: an image, a video, a recording, a load profile, a folder of files. `qa` finds them
+as paths, relative to a folder you set in *qaboard.yaml*: the **database**. This page sets it up, so that
+`qa run --input` and `qa batch` find your inputs.
 
-Depending on your domain, those will be different. Here are some examples:
+## Set where your inputs are {#the-database}
+The camera ISP example keeps its inputs in the project, in its `inputs/` folder:
 
+<RepoFile path="examples/image-quality/qaboard.yaml" title="qaboard.yaml" section="inputs" />
 
-| Domain                 | Input            | Configuration         | Output                             | Metric                            |
-|------------------------|------------------|-----------------------|------------------------------------|-----------------------------------|
-| **Image processing**   | image            | feature flag & params | transformed image, debug data...   | SNR, sharpness, color accuracy... |
-| **Cloud server choice**| integration test | instance type         |                                    | cost, throughput...               |
-| **Machine learning**   | database/sample  | hyperparameters       | convergence plots / individual results| loss                           |
-|**Optimization research**| problem         | model type, solver    | solution                           | cost, runtime...                  |
-|**Software performance**| unit test        | feature flag, platform| `perf` recordings, benchmark histograms| runtime, memory, latency, IPC, throughput...|
-|**Hardware/driver perf**| hardware/unit-test | [sysbench config](https://github.com/arthur-flam/sysbench-qaboard)    | latency histogram                           | ops/s, runtime...                  |
-
-
-
-## How QA-Board looks for inputs
-To make things simple, QA-Board expects that your inputs are existing **paths**.
-
-:::note
-It is also possible to use external databases not just files. Or use a list of unit tests...  If you need it, [read this](metadata-integration-external-databases).
-:::
-
-
-Try to run:
+Inputs are then paths relative to that folder:
 
 ```bash
-qa run --input /dev/random
-#=> it should invite you to run *your* code
+qa run --input charts/slanted-edge.png
+#=> runs on inputs/charts/slanted-edge.png
 ```
 
-:::tip
-Relative paths will be searched relative to the "database". The default is `/` (or `C://` on Windows), and you can change it in *qaboard.yaml* (`inputs.database`).  
-:::
+- `database` is relative to the project's root, where *qaboard.yaml* is, or absolute, e.g. `/mnt/datasets`. Give a
+  `linux` and a `windows` path when the folder is mounted at different places. Without `database`, it's `/`.
+- `{project}`, `{subproject}` and environment variables like `$DATASETS` are replaced in it.
+- An absolute input path works too: `qa run --input /mnt/datasets/images/A.jpg`.
+- `qa --database <folder> run ...` uses another database for one command.
 
-
-## Batches of inputs
-To run on batches of multiple inputs, use `qa batch my-batch`, where **my-batch** is defined in:
-
-```yaml title="qa/batches.yaml (can be changed in qaboard.yaml via inputs.batches)"
-my-batch:
- inputs:
-   - images/A.jpg
-   - images/B.jpg
-```
-
-```bash
-qa batch my-batch
-#=> qa run --input images/A.jpg
-#=> qa run --input images/B.jpg
-```
-
-:::note
-We'll cover [batches in more depth later](batches-running-on-multiple-inputs). By default, batches run in parallel locally, but you can easily setup an async task queue like [Celery](celery-integration) (built-in support), [LSF](lsf-integration), [Dask](dask-integration) or [others](https://github.com/Samsung/qaboard/wiki/Adding-new-runners).
-:::
-
-## *(Optional)* Identifying inputs
-You'll often want to do something like "run on all the images in a given folder". For that to work, you have to tell QA-Board how to identify those images as inputs.
-
-In [*qaboard.yaml*](https://github.com/Samsung/qaboard/blob/master/qaboard/sample_project/qaboard.yaml) edit and `inputs.globs` with a [glob pattern](https://docs.python.org/3/library/glob.html). Here is an example where your inputs are *.jpg* images:
-
-```yaml title="qaboard.yaml"
-inputs:
-  globs: '*.jpg'
-```
-
-When you do this, you no longer have to define an explicit list of input paths in your batches. You can instead use folders or even [globs/wildcards](https://docs.python.org/3/library/glob.html) (`*`, `**`...):
+## Recognize inputs inside folders {#identifying-inputs}
+To run on every image of a folder, `qa` must know what an input looks like. Give it
+[glob patterns](https://docs.python.org/3/library/glob.html) in `inputs.globs`: above, the camera ISP's inputs are
+the PNG and TIFF images, and the YAML files that describe its videos. Batches can then list folders and wildcards, and
+`qa` finds the inputs in them, in subfolders too:
 
 ```yaml title="qa/batches.yaml"
-my-batch:
- inputs:
-   - images
+my-photos:
+  inputs:
+  - photos             # every input under inputs/photos
+  - charts/*.png
+```
+
+When each input is a folder, recognize it by a file it contains, and set `use_parent_folder`. In the detector
+example, each slice of the test set is a folder with its images and a *labels.json*:
+
+<RepoFile path="examples/detection-eval/qaboard.yaml" title="qaboard.yaml" lines="9-15" />
+
+```bash
+qa run --input slices/indoor
 ```
 
 :::tip
-To run on all the inputs found under `$database / $PATH` you can simply use `qa batch $PATH`.
+To see which inputs a batch finds, before running anything: `qa batch <batch> --list-inputs`. Inputs are sorted by
+path, so a batch runs them in the same order on every machine.
 :::
 
+## Inputs in the example projects {#examples}
+Each example project in the repository shows a kind of input, with its configurations and metrics:
 
-You can give multiple patterns:
+| Project | An input | Configurations | Metrics |
+|---|---|---|---|
+| [Camera ISP](/docs/use-cases/image-quality) | An image: a test chart, a photo, the 113 MP test wall | The ISO: `base`, `low-light`, `night` | PSNR, SSIM, MTF50, edge overshoot, ΔE 2000 |
+| [Detector](/docs/use-cases/detection-eval) | A slice of the test set: a folder of images and their labels | The model (`fp32`, `int8`) and its input size | mAP, AP on small objects, latency |
+| [Inference gateway](/docs/use-cases/serving-latency) | A load profile: the request rate, bursts, payload sizes | How long to measure | p50 and p99 latency, throughput |
+| [SLAM](/docs/use-cases/robotics-3d) | A sequence: a folder with a trajectory through a warehouse and its ground truth | | Trajectory error (ATE), drift |
+| [Fleet assistant](/docs/use-cases/agent-evals) | A task: the operator's request and the checks to pass | | Pass rate, unsafe actions, cost |
 
-```yaml title="qaboard.yaml"
-inputs:
-  globs:
-  - '*.jpg'
-  - '*.bmp'
-  - '*.dng'
-```
+Batches list these inputs with their configurations, to run them together: see
+[Batches of inputs](/docs/batches-running-on-multiple-inputs).
 
-A common use case is identifying folders containing a file patching a pattern, for instance movies given a sequence of frames, *frame_000.jpg*, *frame_001.jpg*... In this case you can use `use_parent_folder`:
+## Input metadata {#input-metadata}
+Your entrypoint can give each input metadata: a label, tags, the regions where to measure... `run()` gets them in
+`context.input_metadata`, and batches can select inputs by their metadata. The camera ISP example reads them from a
+YAML file next to each photo:
 
-```yaml {3} title="qaboard.yaml"
-inputs:
-  globs: frame_000.jpg
-  use_parent_folder: true
-```
+<RepoFile path="examples/image-quality/qa/main.py" title="qa/main.py" lines="57-60" />
 
-## *(Advanced)* Handling multiple input types
-Big projects sometimes need to distinguish different types of inputs, which will be processed with a different logic.
+See [Metadata and external databases](/docs/metadata-integration-external-databases), also for inputs that aren't
+files: unit tests, rows of a database...
 
-```yaml title="qaboard.yaml" {3-9}
+## Several types of inputs {#advanced-handling-multiple-input-types}
+Some projects have inputs of different kinds, recognized and processed differently, e.g. images and movies stored as
+folders of frames. Give each type its settings under `inputs.types`:
+
+```yaml title="qaboard.yaml" {3-11}
 inputs:
   types:
     default: image
@@ -116,70 +91,47 @@ inputs:
     movie:
       globs: frame_000.jpg
       use_parent_folder: true
-      # you can override the defaults per-type
-      database:
+      database:                # the settings of inputs can change per type
         linux: /mnt/movies
         windows: F://movies
 ```
 
-You can have runner settings per type:
-```yaml title="qaboard.yaml"
-  inputs:
-    types:
-      image:
-        runners:
-          lsf:
-            queue: my_queue
-```
+Choose the type of a batch with `type`, or on the command line with `qa --type`:
 
-Runner settings are merged in this order, the last one wins:
-1. `runners.<runner>` in *qaboard.yaml* (e.g. `runners.lsf.queue`),
-2. `runners.<runner>` in the input type, as above,
-3. `<runner>:` in the batch (e.g. `lsf: {queue: my_queue}`, see [batches](batches-running-on-multiple-inputs#runner-settings-per-batch)),
-4. CLI flags, like `qa batch --lsf-queue`.
-
-:::caution
-The runner itself is chosen by `qa batch --runner` or `runners.default` in *qaboard.yaml*. Choosing it with `runners.default` in an input type, or `runner:` in a batch, doesn't work at the moment: the CLI's runner always wins.
-:::
-
-You can choose what type each batch is: 
-
-```yaml {6} title="qa/batches.yaml"
+```yaml title="qa/batches.yaml" {6}
 my-images:
   inputs:
-  - my/image.jpg
+  - my/image.raw
 
-my-batch:
+my-movies:
   type: movie
   inputs:
   - folder/of/movies
-  - other/movies
 ```
-
-If needed, you can also specify the input type from the CLI:
 
 ```bash
-qa batch my-images              # by default look for images
-qa --type movie batch my-movies  # here we look for movies
+qa batch my-images                       # images, the default type
+qa --type movie run --input folder/of/movies/A
 ```
 
-And finally in `run()` you can:
+`run()` gets the type in `context.type`:
 
 ```python title="qa/main.py"
 def run(context):
-  if context.type == "image":
-    ...
-  elif context.type == "movie":
-    ...
+    if context.type == "image":
+        ...
+    elif context.type == "movie":
+        ...
 ```
 
-This feature is used to build common needs like "pipelines".
-
-## *(Advanced)* Allowing duplicate batch names
-In some of our projects, we have tons of subprojects, which all define the same "standard" batch name used in the CI. And sometimes, we also want to be able to run all of those batche at the same time, from the root project... To do it:
+A type can also have its own runner settings, e.g. another LSF queue for movies. They apply after those of
+*qaboard.yaml*, and before the batch's: see [runner settings](/docs/batches-running-on-multiple-inputs#runner-settings-per-batch).
 
 ```yaml title="qaboard.yaml"
 inputs:
-  batches: some/path/*/batches.yaml
-  allow_duplicate_batches: true
-```
+  types:
+    movie:
+      runners:
+        lsf:
+          queue: <your-long-queue>
+```
