@@ -310,43 +310,43 @@
     },
     "commit/batch-picker": {
       "alt": "The new commit's batch selector open: the CI batch, run by ci, 18 of 18 runs successful; ines 🏠 ines-halo, Ines's local runs, 5 of 5; and the tune-denoise tuning experiment, 60 of 60.",
-      "app_version": "1.1.1+ec57f61",
+      "app_version": "1.1.1+d4d9310",
       "caption": "Each commit can have several batches: CI's, your local runs (🏠) and tuning experiments. Pick one to see its runs.",
       "captured": "2026-10-20",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 12168,
-            "key": "shots/commit/batch-picker/4fa1354bbb4965fb.avif"
+            "bytes": 8966,
+            "key": "shots/commit/batch-picker/7bc541f2054d07a0.avif"
           },
           "png": {
-            "bytes": 53046,
-            "key": "shots/commit/batch-picker/319fa1b35f499427.png"
+            "bytes": 45579,
+            "key": "shots/commit/batch-picker/4e96afef746b9a21.png"
           },
           "webp": {
-            "bytes": 19462,
-            "key": "shots/commit/batch-picker/4d8e850ca897dbb5.webp"
+            "bytes": 15800,
+            "key": "shots/commit/batch-picker/4304953355a87f06.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRkgAAABXRUJQVlA4IDwAAADwAQCdASoQAAkAA4BaJZQCdAEO5yd/7AAA/vDMor7mPP2YGW+nenBbWAq38AenTDDrZy6+i7uoyRUwAAA="
+        "lqip": "data:image/webp;base64,UklGRjoAAABXRUJQVlA4IC4AAADwAQCdASoQAAkAA4BaJZQCdAEO5yOQTAAA/vDMor+7N/z7LK8gwQCce+RRbmQA"
       },
       "files": {
         "avif": {
-          "bytes": 9595,
-          "key": "shots/commit/batch-picker/3e54c391bdcc0aa6.avif"
+          "bytes": 9405,
+          "key": "shots/commit/batch-picker/b88d3afa0b399601.avif"
         },
         "png": {
-          "bytes": 47812,
-          "key": "shots/commit/batch-picker/45e82e786aa7698d.png"
+          "bytes": 41209,
+          "key": "shots/commit/batch-picker/822f10d0eca0d984.png"
         },
         "webp": {
-          "bytes": 16744,
-          "key": "shots/commit/batch-picker/c5afe2484e0f0a70.webp"
+          "bytes": 16708,
+          "key": "shots/commit/batch-picker/16d2b1a90c2ec1a9.webp"
         }
       },
       "height": 239,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAADQAQCdASoQAAkAA4BaJaQAAxZf1CdNrAD+9xafTtzXTgZ+AHpSIaa1iNJAF5YZUAAAAA==",
+      "lqip": "data:image/webp;base64,UklGRkIAAABXRUJQVlA4IDYAAADQAQCdASoQAAkAA4BaJaQAAxZgsiI0gAD+9xafTtzmbodTU4bWSuod1WQlE6L4LpeOL7wAAAA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 464
@@ -925,7 +925,7 @@
     },
     "commit/halo-after": {
       "alt": "The same leaves once the sharpening is clamped: the edges stay crisp, with only faint rims.",
-      "app_version": "1.1.1+ec57f61",
+      "app_version": "1.1.1+d4d9310",
       "caption": "With the clamp, the edges stay crisp and the halos fade.",
       "captured": "2026-10-20",
       "dark": {
@@ -947,28 +947,28 @@
       },
       "files": {
         "avif": {
-          "bytes": 25209,
-          "key": "shots/commit/halo-after/91129e8146198382.avif"
+          "bytes": 21659,
+          "key": "shots/commit/halo-after/42dba85fe0d8dba1.avif"
         },
         "png": {
-          "bytes": 99597,
-          "key": "shots/commit/halo-after/2014beb5fc18aa68.png"
+          "bytes": 46812,
+          "key": "shots/commit/halo-after/a0dae23ec5ea6ec9.png"
         },
         "webp": {
-          "bytes": 30086,
-          "key": "shots/commit/halo-after/d70c09fc0df7d5b6.webp"
+          "bytes": 25536,
+          "key": "shots/commit/halo-after/1583efe68e3d8d76.webp"
         }
       },
       "height": 364,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRnoAAABXRUJQVlA4IG4AAABQAgCdASoQAAsAA4BaJZACdAYulqyHvhReWYAA/oodsRuSmdnq05S91kqfBdzgNeRUtuLTvQ/XRbvvFsHiB50fdvmWG7QNFZ8bl9QN1zTxlJ+Zx9fE3R5AEj/YIBVhjTGt2abogaHyEbEmEgAAAA==",
+      "lqip": "data:image/webp;base64,UklGRngAAABXRUJQVlA4IGwAAAAwAgCdASoQAAsAA4BaJZgCdAYulqyHvhK6vAD+ih2xG5KZ2erTlL3WSp8F3OA15FS24tO9D9dFu+8WweIHnR92+ZYbtA0VnxuX1A3XNPGUn5nH18TdHkASP9ggDRZhUFKPQ0KH0hrOoZIAAAA=",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 545
     },
     "commit/halo-before": {
       "alt": "Leaves in front of the facade, after the bilateral denoiser: a dark rim outlines every leaf against the wall.",
-      "app_version": "1.1.1+ec57f61",
+      "app_version": "1.1.1+d4d9310",
       "caption": "With the bilateral denoiser and its detail boost, dark halos outline the leaves.",
       "captured": "2026-10-20",
       "dark": {
@@ -990,21 +990,21 @@
       },
       "files": {
         "avif": {
-          "bytes": 23407,
-          "key": "shots/commit/halo-before/cc767b0e07094099.avif"
+          "bytes": 26818,
+          "key": "shots/commit/halo-before/778e5c0d8f9a5b1c.avif"
         },
         "png": {
-          "bytes": 48573,
-          "key": "shots/commit/halo-before/5cdee82c2da14b88.png"
+          "bytes": 101077,
+          "key": "shots/commit/halo-before/1cc3ab0dd2e37cab.png"
         },
         "webp": {
-          "bytes": 27514,
-          "key": "shots/commit/halo-before/be4383cbcaf5982d.webp"
+          "bytes": 32208,
+          "key": "shots/commit/halo-before/654f0493ae812e2c.webp"
         }
       },
       "height": 364,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRngAAABXRUJQVlA4IGwAAAAwAgCdASoQAAsAA4BaJZgCdAYulqyHvhK6vAD+ih2xG5KZ2erTlL3WSp8F3OA15FS24tO9D9dFu+8WweIHnR92+ZYbtA0VnxuX1A3XNPGUn5nH18TdHkASP9ggDW+CrNHYfEHpkhQ2Do4AAAA=",
+      "lqip": "data:image/webp;base64,UklGRnoAAABXRUJQVlA4IG4AAABQAgCdASoQAAsAA4BaJZACdAYulqyHvhReWYAA/oodsRuSmdnq05S91kqfBdzgNeRUtuLTvQ/XRbvvFsHiB50fdvmWG7QNFZ8bl9QN1zTxlJ+Zx9fE3R5AEj/YIBViq9kQoTHVwS5BDWdQyQAAAA==",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 545
@@ -1604,47 +1604,47 @@
       "width": 856
     },
     "commit/reference-tabs": {
-      "alt": "The commit bars of the bilateral denoiser's merge with two references stacked: under the bars, the tabs show the top results, then, after vs, the isp-4.1 milestone, the one shown, and main, hovered: its tooltip gives main's latest commit, its message and hash.",
-      "app_version": "1.1.1+ec57f61",
+      "alt": "The bilateral denoiser's merge with two references stacked: under the bars, the tabs show the top results, then, after vs, the isp-4.1 milestone, shown, and ref 2, hovered: its tooltip gives its commit on main, its author, message and batch, still running.",
+      "app_version": "1.1.1+d4d9310",
       "caption": "Stack several references: their tabs hang below the bars, click one, or press r, to compare with it.",
       "captured": "2026-10-20",
       "dark": {
         "files": {
           "avif": {
-            "bytes": 34302,
-            "key": "shots/commit/reference-tabs/5e7b80712256114c.avif"
+            "bytes": 42324,
+            "key": "shots/commit/reference-tabs/9fe0cdea315262b8.avif"
           },
           "png": {
-            "bytes": 135542,
-            "key": "shots/commit/reference-tabs/8dd54445f0710b50.png"
+            "bytes": 168017,
+            "key": "shots/commit/reference-tabs/190383952c23078a.png"
           },
           "webp": {
-            "bytes": 64116,
-            "key": "shots/commit/reference-tabs/3d90f0d6287402e7.webp"
+            "bytes": 80664,
+            "key": "shots/commit/reference-tabs/d8686a68ef76552d.webp"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRkAAAABXRUJQVlA4IDQAAADwAQCdASoQAAcAA4BaJZwC7AELX71mE4AA/uaTpxC5oN59zMLlF5TnfouXjKhup65FFAAA"
+        "lqip": "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAACwAQCdASoQAAYAA4BaJZwAAq9fgzUwAP7unIP44z1gfiUulNxi/KlAj2LIS1JtqEAAAA=="
       },
       "files": {
         "avif": {
-          "bytes": 35275,
-          "key": "shots/commit/reference-tabs/80d2c984d47105e6.avif"
+          "bytes": 43984,
+          "key": "shots/commit/reference-tabs/9a0bf60766c60c55.avif"
         },
         "png": {
-          "bytes": 130168,
-          "key": "shots/commit/reference-tabs/204c21beb8cb1a4d.png"
+          "bytes": 161343,
+          "key": "shots/commit/reference-tabs/80bc5bc3b9320553.png"
         },
         "webp": {
-          "bytes": 66728,
-          "key": "shots/commit/reference-tabs/e0baafcbae33371d.webp"
+          "bytes": 84240,
+          "key": "shots/commit/reference-tabs/fbbe5674458c052d.webp"
         }
       },
       "height": 411,
       "kind": "still",
-      "lqip": "data:image/webp;base64,UklGRkIAAABXRUJQVlA4IDYAAACwAQCdASoQAAcAA4BaJZwAAtz8MECAAP7z+7SHv1wPTZMa/LydqXujA8cJn+cpJIbdFePwAAA=",
+      "lqip": "data:image/webp;base64,UklGRj4AAABXRUJQVlA4IDIAAACQAQCdASoQAAYAA4BaJZwAAhz2CQAA/vTvUr5htj/vKH6nd2Gbt8cRY2G8hAzEIr3oAA==",
       "project": "image-quality",
       "source_spec": "docs-media/shots/commit.spec.ts",
-      "width": 1060
+      "width": 1240
     },
     "commit/regions-all-runs": {
       "alt": "The list of a commit's runs ranked by how much their output images differ from the reference's, with a bar, a percentage and the number of regions found for each; the 113 MP test wall, a TIFF, has no out.png to compare.",
@@ -2181,52 +2181,52 @@
     },
     "commit/video-sync": {
       "alt": "The depth camera of the fast figure-8, new and reference side by side, each next to a map of the path so far. They play in sync; when a false loop closure is accepted, the new estimated path jumps away from the true one.",
-      "app_version": "1.1.1+ec57f61",
+      "app_version": "1.1.1+d4d9310",
       "caption": "Videos play in sync with the reference's: here the depth camera and the path so far, until a false loop closure pulls the new one away.",
       "captured": "2026-10-20",
       "dark": {
         "files": {
           "mp4": {
-            "bytes": 340035,
-            "key": "shots/commit/video-sync/b5fe77be790d64e8.mp4"
+            "bytes": 343133,
+            "key": "shots/commit/video-sync/cedff2d2f144dfdb.mp4"
           },
           "poster": {
-            "bytes": 32086,
-            "key": "shots/commit/video-sync/8657705270205620.webp"
+            "bytes": 31268,
+            "key": "shots/commit/video-sync/492d6345528c33a7.webp"
           },
           "vtt": {
             "bytes": 133,
             "key": "shots/commit/video-sync/751c0293cf9a70de.vtt"
           },
           "webm": {
-            "bytes": 484577,
-            "key": "shots/commit/video-sync/a6147bff7aaf8a65.webm"
+            "bytes": 471683,
+            "key": "shots/commit/video-sync/7054e7a06dcf71e0.webm"
           }
         },
-        "lqip": "data:image/webp;base64,UklGRmIAAABXRUJQVlA4IFYAAACwAQCdASoQAAgAA4BaJQBOgBdCuErAAP7vIEzs/SfPQuJPYL7EK7m3aOep14i2z1r/egcysHi8/ZNCmP7ty+avbVpvgIMUKsWETMTBdr5GDD0R1yYAAA=="
+        "lqip": "data:image/webp;base64,UklGRmYAAABXRUJQVlA4IFoAAADQAQCdASoQAAgAA4BaJQBOgBxsOXRQgAD+7IN5t04/WUibvXQIDqTADoAGMPQYd9imJT38Xg+PdWIqCIwMz37oRLpCkU3ugeJokkqWW4SGigUmDD0SLV6wAAA="
       },
       "duration": 11.13,
       "files": {
         "mp4": {
-          "bytes": 337762,
-          "key": "shots/commit/video-sync/a8459d06098549d2.mp4"
+          "bytes": 336831,
+          "key": "shots/commit/video-sync/ee23b82949197b77.mp4"
         },
         "poster": {
-          "bytes": 31804,
-          "key": "shots/commit/video-sync/8fbd5ae651e8d8fd.webp"
+          "bytes": 30796,
+          "key": "shots/commit/video-sync/ee0e3a7e3dbb5c93.webp"
         },
         "vtt": {
           "bytes": 133,
           "key": "shots/commit/video-sync/751c0293cf9a70de.vtt"
         },
         "webm": {
-          "bytes": 485139,
-          "key": "shots/commit/video-sync/7dda0d42a03cb1d9.webm"
+          "bytes": 467531,
+          "key": "shots/commit/video-sync/b51b55dde4dcf914.webm"
         }
       },
       "height": 400,
       "kind": "clip",
-      "lqip": "data:image/webp;base64,UklGRmgAAABXRUJQVlA4IFwAAACQAQCdASoQAAgAA4BaJZACdACNfIAA/uhuIrjFVgx8cRQ5DYWdaO4/YRMetwjsF4z4T+ayTt1JtaWtqrKwlnWRyKuKxzdXgCin6wU/MUOIg6BPRH3E4SlLPAAAAA==",
+      "lqip": "data:image/webp;base64,UklGRmgAAABXRUJQVlA4IFwAAADwAQCdASoQAAgAA4BaJZACdAEeYomM/sAA/uhuIrjFVgxsZKpyL+JCgmmXaphTsiQVY1Ay+svPDgzAvyE82DEplXVMmtGUBgK+PYVYsImcUN5FHMh0WFMhpSAAAA==",
       "project": "robotics-3d",
       "source_spec": "docs-media/shots/commit.spec.ts",
       "width": 840
