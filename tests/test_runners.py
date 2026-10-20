@@ -594,7 +594,8 @@ class TestCleanOutputDir(unittest.TestCase):
       (output_dir / 'a' / 'b.txt').write_text('b')
       (output_dir / 'log.lsf.txt').write_text('old')
       code = f"from pathlib import Path; from qaboard.utils import clean_output_dir; clean_output_dir(Path('{output_dir}'))"
-      subprocess.run([sys.executable, '-c', code], check=True, stdout=subprocess.DEVNULL)
+      # not redirected: neither stdout nor stderr is a file (they are when the tests' output is)
+      subprocess.run([sys.executable, '-c', code], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
       self.assertFalse(output_dir.exists())
 
   def test_keeps_nested_redirected_logs(self):

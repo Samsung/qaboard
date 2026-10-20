@@ -159,3 +159,29 @@ test('tabs say what tells references apart, and scroll when there are many', asy
   await page.screenshot({ path: test.info().outputPath('phone.png'), clip: { x: 0, y: 0, width: 600, height: 200 } });
   await page.waitForLoadState('networkidle');
 });
+
+test('the top results are the first tab: drag it on a reference to swap the bars', async ({ page }) => {
+  await page.setViewportSize({ width: 1400, height: 600 });
+  await page.goto(`/${project}/commit/${a}?label=ISP%20v2&reference=${c}&compare=${d}&compare=${e}`);
+  await expect(page.getByRole('tab')).toHaveCount(3);
+  const top = page.getByLabel(/^Top: ISP v2/);
+  await expect(top).toBeVisible();
+  await page.locator('.qa-tabs').screenshot({ path: test.info().outputPath('before.png') });
+  await page.screenshot({ path: test.info().outputPath('page-before.png'), clip: { x: 0, y: 0, width: 1400, height: 200 } });
+
+  // the shown reference's menu: swap the bars
+  await page.getByRole('tab', { name: /^Reference 1:/ }).hover();
+  await page.getByRole('button', { name: 'Reference 1: more' }).click();
+  await page.screenshot({ path: test.info().outputPath('menu.png'), clip: { x: 0, y: 0, width: 900, height: 460 } });
+  await page.keyboard.press('Escape');
+
+  // drag the top tab on reference 3: it goes in the bottom bar, reference 3 on top
+  await top.dragTo(page.getByRole('tab', { name: /^Reference 3:/ }));
+  // our names stay in their bars, users' follow their results
+  await expect(page.getByLabel(/^Top: new/)).toBeVisible();
+  await expect(page.getByRole('tab', { name: /^Reference 3: ISP v2/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByText('Faster tone mapping').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'ISP v2: rename' })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('page-after.png'), clip: { x: 0, y: 0, width: 1400, height: 200 } });
+  await page.waitForLoadState('networkidle');
+});

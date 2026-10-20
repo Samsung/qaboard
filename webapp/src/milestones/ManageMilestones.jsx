@@ -313,7 +313,7 @@ export const ManageMilestones = ({ isOpen, onClose, project }) => {
                 <td>{m.is_mine ? <span className={Classes.TEXT_MUTED}>me</span> : owner_name(m) ?? '—'}</td>
                 <td title={`Created ${m.created_at}, updated ${m.updated_at}`}>{relative_date(sort === 'created' ? m.created_at : m.updated_at)}</td>
                 <td className="qa-actions">
-                  <Button size="small" variant="minimal" icon="arrow-right" text="Open" onClick={() => open(m)} title={on_commit_page ? 'Show as the new results, keep the reference' : 'Open its results'}/>
+                  <Button size="small" variant="minimal" icon="arrow-right" text="Open" onClick={() => open(m)} title={on_commit_page ? 'Show it in the top bar, keep the reference' : 'Open its results'}/>
                   {on_commit_page && <Button size="small" variant="minimal" icon="comparison" text="As reference" onClick={() => selectAsReference(m)} title="Compare the new results with this milestone"/>}
                   {user.is_logged && <Button size="small" variant="minimal" icon={<Icon icon="heart" color={m.is_favorite ? Colors.RED4 : undefined}/>} aria-label={m.is_favorite ? 'Remove from favorites' : 'Add to favorites'} title={m.is_favorite ? 'Remove from favorites' : 'Add to favorites'} onClick={() => toggleFavorite(m).catch(() => {})}/>}
                   <Button size="small" variant="minimal" icon="link" aria-label="Copy the link" title="Copy the link" onClick={() => copyWithToast(milestone_url(m), { what: 'the link to the milestone' })}/>

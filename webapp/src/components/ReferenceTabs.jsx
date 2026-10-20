@@ -32,7 +32,7 @@ import { commitQuery, nb_outputs } from "../api/queries";
 import { errorMessage } from "../api/http";
 import { useComparison, useSiteConfig, updateSelected, usePrefetchCommitPage } from "../hooks";
 import {
-  add_reference, duplicate_reference, move_reference, remove_reference, rename_reference, show_as_new, show_reference,
+  add_reference, duplicate_reference, move_reference, remove_reference, rename_reference, show_reference, swap_with_top,
 } from "../selection";
 import { available_batch } from "../selectors/batches";
 import { CommitAvatar } from "./avatars";
@@ -98,6 +98,22 @@ const Strip = styled.div`
     flex: 0 1 auto;
   }
 
+  /* the top results: their tab stays in place, the references scroll */
+  .qa-tabs-top {
+    flex: none;
+    display: flex;
+    max-width: 40%;
+  }
+  .qa-tabs-top .qa-tab-wrap {
+    min-width: 0;
+  }
+  .qa-tabs-vs {
+    flex: none;
+    align-self: center;
+    margin-top: -4px;
+    font-size: 11px;
+    font-style: italic;
+  }
   /* many tabs scroll sideways: with the mouse wheel, a trackpad, or the keyboard ("r") */
   .qa-tabs {
     display: flex;
@@ -147,7 +163,7 @@ const Strip = styled.div`
   }
   /* narrow pages: names only, the rest is on hover */
   @container (max-width: 560px) {
-    .qa-tabs .qa-tab-details {
+    .qa-tabs .qa-tab-details, .qa-tabs-top .qa-tab-details {
       display: none;
     }
   }
@@ -171,13 +187,13 @@ const Tab = styled.div`
   outline: none;
   transition: background-color 120ms ease, color 120ms ease;
 
-  /* the tab of the reference shown hangs from its bar: same surface, a line in its color */
-  &[aria-selected="true"] {
+  /* the two tabs in the bars, the top results and the reference shown, are lit: same surface, a line in their color */
+  &[data-lit] {
     color: var(--qa-text);
     background: var(--qa-surface);
     box-shadow: 0 1px 2px rgba(17, 20, 24, 0.12), 1px 0 0 var(--qa-border), -1px 0 0 var(--qa-border), 0 1px 0 var(--qa-border);
   }
-  &[aria-selected="true"]::after {
+  &[data-lit]::after {
     content: "";
     position: absolute;
     left: 8px;
@@ -187,7 +203,7 @@ const Tab = styled.div`
     border-radius: 2px 2px 0 0;
     background: var(--side-color);
   }
-  &[aria-selected="false"]:hover {
+  &:not([data-lit]):hover {
     color: var(--qa-text);
     background: var(--qa-surface-alt);
   }
@@ -209,6 +225,10 @@ const Tab = styled.div`
   }
   &[data-drop="after"]::before {
     right: -2px;
+  }
+  /* dropped there, they swap */
+  &[data-drop="swap"] {
+    box-shadow: inset 0 0 0 2px var(--qa-intent-primary);
   }
   &[data-dragging] {
     opacity: 0.4;
@@ -267,7 +287,7 @@ const Tab = styled.div`
     flex: none;
     opacity: 0;
   }
-  &:hover .qa-tab-menu, &[aria-selected="true"] .qa-tab-menu, &:focus-within .qa-tab-menu, .qa-tab-menu[aria-expanded="true"] {
+  &:hover .qa-tab-menu, &[data-lit] .qa-tab-menu, &:focus-within .qa-tab-menu, .qa-tab-menu[aria-expanded="true"] {
     opacity: 1;
   }
   input {
@@ -308,13 +328,6 @@ const Handle = styled.div`
 
 // The batch a reference shows: the one selected, else the commit's only batch (like the reference's bar)
 const reference_batch = reference => reference.commit?.batches ? available_batch(reference.commit, reference.batch) : reference.batch;
-
-// How a reference compares with the new results: the same results, the same commit with other runs, or another commit
-const relation_to_new = (reference, new_side) => {
-  if (!reference.commit_id || !new_side.commit_id || reference.project !== new_side.project || reference.commit_id !== new_side.commit_id) return null;
-  if (reference_batch(reference) === new_side.batch && (reference.filter ?? '') === (new_side.filter ?? '')) return 'same';
-  return 'same-commit';
-};
 
 // What tells the references apart, next to their names: only what differs between them.
 // All on the same branch: no branch. Different commits on the same branch: their commits. Batches and filters when
@@ -411,7 +424,7 @@ const runs_text = batch => {
 };
 
 // Everything about a reference, on hover: what the reference's bar would show
-const TabCard = ({ reference, project, relation, batch_counts }) => {
+const TabCard = ({ reference, project, batch_counts }) => {
   const { commit } = reference;
   const batch = reference_batch(reference);
   const loaded = !!commit?.batches && !!commit.id;
@@ -423,7 +436,7 @@ const TabCard = ({ reference, project, relation, batch_counts }) => {
       <span>{reference.display_label}</span>
       {!!reference.milestone && <Icon icon="star" size={12} title="A milestone"/>}
       <span className={`qa-card-status ${Classes.TEXT_MUTED}`}>
-        {reference.is_shown ? 'compared with new' : `reference ${reference.number}`}
+        {reference.is_top ? 'top bar' : reference.is_shown ? 'bottom bar' : `reference ${reference.number}`}
       </span>
     </div>
     {commit?.error
@@ -455,16 +468,18 @@ const TabCard = ({ reference, project, relation, batch_counts }) => {
             : <>{runs_text(batch_counts ?? commit.batches[batch])}{reference.filter && <span className={Classes.TEXT_MUTED}>{batch_counts ? 'match the filter' : 'in the batch, before the filter'}</span>}</>}
       </span>
     </div>
-    {relation === 'same' && <div className="qa-card-row"><span><Icon icon="duplicate" size={12}/><strong>Same as new</strong></span><span className={Classes.TEXT_MUTED}>the same runs: nothing to compare</span></div>}
-    {relation === 'same-commit' && <div className="qa-card-row"><span><Icon icon="git-commit" size={12}/><strong>Same commit as new</strong></span><span className={Classes.TEXT_MUTED}>another batch or filter</span></div>}
     <div className={`qa-card-hint ${Classes.TEXT_MUTED}`}>
-      {reference.is_shown ? 'Shown in the reference bar' : 'Click to compare with it'} · double-click to rename · right-click or ⋯ for more
+      {reference.is_top
+        ? 'The references are compared with it. Drag it on a reference to swap them'
+        : reference.is_shown ? 'Compared with the top results. Drag it on them to swap them' : 'Click to compare with it'}
+      {' '}· double-click to rename · right-click or ⋯ for more
     </div>
   </Card>;
 };
 
 
-const ReferenceTab = ({ reference, project, details, actions, relation, batch_counts, dragging, drop, drag }) => {
+// A tab: the top results (reference.is_top: the first tab, not one of the references), or a reference
+const ReferenceTab = ({ reference, project, details, actions, batch_counts, dragging, drop, drag }) => {
   const prefetch = usePrefetchCommitPage(reference.project, reference.commit_id);
   const [renaming, setRenaming] = useState(null);
   const [menu_open, setMenuOpen] = useState(false);
@@ -476,16 +491,22 @@ const ReferenceTab = ({ reference, project, details, actions, relation, batch_co
   }, [reference.is_shown]);
 
   const rename = () => can_rename && setRenaming(reference.label || '');
+  const { is_top } = reference;
+  const what = is_top ? 'Top' : `Reference ${reference.number}`;
+  // Only the two bars swap: the top results with the reference shown. Nothing is replaced or removed.
+  const swap = actions.swap && <MenuItem icon="swap-vertical" text="Swap the bars" label={`with ${actions.swap.name}`} disabled={!actions.swap.can} onClick={actions.swap.do}/>;
   const menu = <Menu>
-    {!reference.is_shown && <MenuItem icon="eye-open" text="Compare with it" onClick={actions.show}/>}
+    {!is_top && !reference.is_shown && <MenuItem icon="eye-open" text="Compare with it" onClick={actions.show}/>}
+    {swap}
     <MenuItem icon="edit" text="Rename" disabled={!can_rename} title={can_rename ? undefined : "Milestones are named after themselves"} onClick={rename}/>
-    <MenuItem icon="duplicate" text="Duplicate" label="to change its batch or filter" onClick={actions.duplicate}/>
-    <MenuItem icon="chevron-up" text="Show as the new results" disabled={!actions.can_show_as_new} onClick={actions.show_as_new}/>
-    <MenuDivider/>
-    <MenuItem icon="arrow-left" text="Move left" disabled={reference.index === 0} onClick={() => actions.move(reference.index - 1)}/>
-    <MenuItem icon="arrow-right" text="Move right" disabled={reference.index === actions.count - 1} onClick={() => actions.move(reference.index + 1)}/>
-    <MenuDivider/>
-    <MenuItem icon="cross" text="Remove" intent={Intent.DANGER} onClick={actions.remove}/>
+    <MenuItem icon="duplicate" text={is_top ? "Add a copy as a reference" : "Duplicate"} label="to change its batch or filter" onClick={actions.duplicate}/>
+    {!is_top && <>
+      <MenuDivider/>
+      <MenuItem icon="arrow-left" text="Move left" disabled={reference.index === 0} onClick={() => actions.move(reference.index - 1)}/>
+      <MenuItem icon="arrow-right" text="Move right" disabled={reference.index === actions.count - 1} onClick={() => actions.move(reference.index + 1)}/>
+      <MenuDivider/>
+      <MenuItem icon="cross" text="Remove" intent={Intent.DANGER} onClick={actions.remove}/>
+    </>}
   </Menu>;
 
   const done = () => {
@@ -499,22 +520,25 @@ const ReferenceTab = ({ reference, project, details, actions, relation, batch_co
   const on_tab = event => event.currentTarget.contains(event.target) && !event.target.closest?.('.qa-tab-menu');
   const tab = <Tab
     ref={element}
-    role="tab"
+    role={is_top ? undefined : 'tab'}
     tabIndex={0}
-    aria-selected={reference.is_shown}
-    aria-label={`Reference ${reference.number}: ${[reference.display_label, ...details.map(d => d.text)].join(', ')}`}
+    aria-selected={is_top ? undefined : reference.is_shown}
+    aria-label={`${what}: ${[reference.display_label, ...details.map(d => d.text)].join(', ')}`}
+    data-lit={reference.is_shown || undefined}
+    data-top={is_top || undefined}
     $color={reference.color.css}
     draggable={renaming === null}
     data-dragging={dragging || undefined}
     data-drop={drop}
     {...prefetch}
     {...drag}
-    onClick={event => renaming === null && on_tab(event) && actions.show()}
+    onClick={event => renaming === null && on_tab(event) && actions.show?.()}
     onDoubleClick={event => on_tab(event) && rename()}
     onKeyDown={event => {
       if (renaming !== null || event.target !== event.currentTarget) return;
+      if (event.key === 'F2') rename();
+      if (is_top) return;
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); actions.show(); }
-      else if (event.key === 'F2') rename();
       else if (event.key === 'Delete' || event.key === 'Backspace') actions.remove();
       else if (event.altKey && event.key === 'ArrowLeft') actions.move(reference.index - 1);
       else if (event.altKey && event.key === 'ArrowRight') actions.move(reference.index + 1);
@@ -526,7 +550,7 @@ const ReferenceTab = ({ reference, project, details, actions, relation, batch_co
           autoFocus
           value={renaming}
           placeholder={reference.default_label}
-          aria-label={`Rename reference ${reference.number}`}
+          aria-label={`Rename ${is_top ? 'the top results' : `reference ${reference.number}`}`}
           maxLength={60}
           onChange={e => setRenaming(e.target.value)}
           onFocus={e => e.target.select()}
@@ -545,14 +569,13 @@ const ReferenceTab = ({ reference, project, details, actions, relation, batch_co
           {details.map(d => <span key={d.key} className="qa-tab-detail" title={`${d.key}: ${d.text}`}><Icon icon={d.icon} size={11}/><span>{d.text}</span></span>)}
         </span>}
       </>}
-    {relation === 'same' && <span className="qa-tab-meta" title="The same results as new">= new</span>}
     <PopoverNext content={menu} placement="bottom-end" isOpen={menu_open} onInteraction={setMenuOpen}>
       <Button
         className="qa-tab-menu"
         size="small"
         variant="minimal"
         icon="more"
-        aria-label={`Reference ${reference.number}: more`}
+        aria-label={`${what}: more`}
         aria-expanded={menu_open}
         // not a drag of the tab
         draggable={false}
@@ -562,7 +585,7 @@ const ReferenceTab = ({ reference, project, details, actions, relation, batch_co
   </Tab>;
   return <ContextMenu content={menu} className="qa-tab-wrap">
     <Tooltip
-      content={<TabCard reference={reference} project={project} relation={relation} batch_counts={batch_counts}/>}
+      content={<TabCard reference={reference} project={project} batch_counts={batch_counts}/>}
       disabled={renaming !== null || menu_open}
       hoverOpenDelay={500}
       placement="bottom-start"
@@ -704,12 +727,12 @@ export const ReferenceTabs = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
   });
 
-  const top = 2 * commit_bar_height;
+  const strip_top = 2 * commit_bar_height;
   const add_panel = <AddReferencePanel actions={add_actions} can_duplicate={!!references[selected.ref_index]?.commit_id}/>;
   const popover_props = { content: add_panel, isOpen: adding, onInteraction: setAdding, placement: 'bottom-start' };
 
   if (!several)
-    return <Handle style={{ top }} data-open={adding || undefined}>
+    return <Handle style={{ top: strip_top }} data-open={adding || undefined}>
       <PopoverNext {...popover_props}>
         <Tooltip content="Compare with several references, one at a time" hoverOpenDelay={500} placement="right">
           <Button size="small" icon="layers" aria-label="Stack a reference">Stack a reference</Button>
@@ -717,10 +740,32 @@ export const ReferenceTabs = () => {
       </PopoverNext>
     </Handle>;
 
-  const new_side = { project: compared[0].project, commit_id: new_commit?.id ?? selected.new_commit_id, batch: compared[0].batch?.label ?? selected.selected_batch_new, filter: selected.filter_batch_new };
-  // the reference shown is loaded with its runs: we know how many match its filter
-  const shown_counts = selected.filter_batch_ref ? compared[1].batch?.filtered : undefined;
-  const details = tabs_details(references, project);
+  // The first tab: the top results. The references are compared with them.
+  const top = {
+    is_top: true,
+    is_shown: true,
+    key: 'top',
+    project: compared[0].project,
+    commit: new_commit ?? undefined,
+    commit_id: new_commit?.id ?? selected.new_commit_id ?? null,
+    batch: selected.selected_batch_new,
+    filter: selected.filter_batch_new,
+    label: selected.label_new,
+    display_label: compared[0].label,
+    default_label: compared[0].default_label,
+    milestone: compared[0].milestone,
+    color: compared[0].color,
+  };
+  const shown = references[selected.ref_index];
+  // the tabs in the bars are loaded with their runs: we know how many match their filters
+  const filtered_counts = (side, filter) => filter && side.batch?.filtered?.valid_outputs !== undefined ? side.batch.filtered : undefined;
+  // what tells them apart, the top results included
+  const [top_details, ...details] = tabs_details([top, ...references], project);
+  const swap = index => updateSelected(swap_with_top(resolved, index));
+  const can_swap = index => !!references[index]?.commit_id && !!resolved.new_commit_id;
+
+  // Dragging a reference among the others moves it. Dragging it on the top tab, or the top tab on it, swaps them:
+  // they go in the bars, the top one in the bottom bar. drop: {index ('top' or a reference's), side: before|after|swap}
   const drag_props = index => ({
     onDragStart: event => {
       event.dataTransfer.effectAllowed = 'move';
@@ -728,17 +773,22 @@ export const ReferenceTabs = () => {
       setDragging(index);
     },
     onDragOver: event => {
-      if (dragging === null) return;
+      if (dragging === null || dragging === index) return;
+      const swapping = dragging === 'top' || index === 'top';
+      if (swapping && !can_swap(index === 'top' ? dragging : index)) return;
       event.preventDefault();
       const { left, width } = event.currentTarget.getBoundingClientRect();
-      const side = event.clientX < left + width / 2 ? 'before' : 'after';
+      const side = swapping ? 'swap' : event.clientX < left + width / 2 ? 'before' : 'after';
       if (drop?.index !== index || drop?.side !== side) setDrop({ index, side });
     },
     onDrop: event => {
       event.preventDefault();
       if (dragging !== null && drop) {
-        const to = drop.index + (drop.side === 'after' ? 1 : 0) - (dragging < drop.index + (drop.side === 'after' ? 1 : 0) ? 1 : 0);
-        updateSelected(move_reference(resolved, dragging, to));
+        if (drop.side === 'swap') swap(drop.index === 'top' ? dragging : drop.index);
+        else {
+          const to = drop.index + (drop.side === 'after' ? 1 : 0) - (dragging < drop.index + (drop.side === 'after' ? 1 : 0) ? 1 : 0);
+          updateSelected(move_reference(resolved, dragging, to));
+        }
       }
       setDragging(null);
       setDrop(null);
@@ -748,18 +798,35 @@ export const ReferenceTabs = () => {
       setDrop(null);
     },
   });
+  const drop_on = index => drop?.index === index && dragging !== index ? drop.side : undefined;
 
-  return <Strip style={{ top }}>
+  return <Strip style={{ top: strip_top }}>
+    <div className="qa-tabs-top">
+      <ReferenceTab
+        reference={top}
+        project={project}
+        details={top_details}
+        batch_counts={filtered_counts(compared[0], selected.filter_batch_new)}
+        dragging={dragging === 'top'}
+        drop={drop_on('top')}
+        drag={drag_props('top')}
+        actions={{
+          rename: label => updateSelected({ label_new: label }),
+          duplicate: () => updateSelected(add_reference(resolved, { project: top.project, commit_id: top.commit_id, batch: top.batch, filter: top.filter, label: top.label || top.milestone ? `${top.display_label} copy` : undefined })),
+          swap: { name: shown.display_label, can: can_swap(selected.ref_index), do: () => swap(selected.ref_index) },
+        }}
+      />
+    </div>
+    <span className={`qa-tabs-vs ${Classes.TEXT_MUTED}`} aria-hidden>vs</span>
     <div className="qa-tabs" role="tablist" aria-label="References" ref={tabs_element}>
       {references.map(reference => <ReferenceTab
         key={reference.index}
         reference={reference}
         project={project}
         details={details[reference.index]}
-        relation={relation_to_new(reference, new_side)}
-        batch_counts={reference.is_shown && shown_counts?.valid_outputs !== undefined ? shown_counts : undefined}
+        batch_counts={reference.is_shown ? filtered_counts(compared[1], selected.filter_batch_ref) : undefined}
         dragging={dragging === reference.index}
-        drop={drop?.index === reference.index && dragging !== reference.index ? drop.side : undefined}
+        drop={drop_on(reference.index)}
         drag={drag_props(reference.index)}
         actions={{
           count: references.length,
@@ -768,8 +835,8 @@ export const ReferenceTabs = () => {
           rename: label => updateSelected(rename_reference(resolved, reference.index, label)),
           duplicate: () => updateSelected(duplicate_reference(resolved, reference.index, reference.display_label)),
           move: to => updateSelected(move_reference(resolved, reference.index, to)),
-          can_show_as_new: !!reference.commit_id && !!resolved.new_commit_id,
-          show_as_new: () => updateSelected(show_as_new(resolved, reference.index)),
+          // only the reference in the bottom bar swaps with the top results
+          swap: reference.is_shown ? { name: top.display_label, can: can_swap(reference.index), do: () => swap(reference.index) } : undefined,
         }}
       />)}
     </div>
