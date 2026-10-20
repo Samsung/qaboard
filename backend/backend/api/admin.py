@@ -16,6 +16,7 @@ from .. import settings as settings_lib
 from .. import tokens as tokens_lib
 from .auth import admin_required, is_login_restricted
 from .users import page_of_events
+from ..search import escape_like
 
 
 USER_STATUSES = ('active', 'pending', 'disabled')
@@ -275,7 +276,7 @@ def admin_audit():
   if request.args.get('action'):
     action = request.args['action']
     # "token" matches every token.* action
-    query = query.filter(or_(AuditEvent.action == action, AuditEvent.action.like(f"{action}.%")))
+    query = query.filter(or_(AuditEvent.action == action, AuditEvent.action.like(f"{escape_like(action)}.%", escape='\\')))
   if request.args.get('actor'):
     query = query.filter(AuditEvent.actor_label == request.args['actor'])
   if request.args.get('target_type'):

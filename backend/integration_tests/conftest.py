@@ -36,7 +36,8 @@ else:
       connection.close()
   admin_sql(f'CREATE DATABASE "{test_database}"')
   data_dir = Path(tempfile.mkdtemp(prefix='qaboard-tests-'))
-  (data_dir / 'storage').mkdir()
+  # not inside the data folder: the server never writes there for clients (backend/storage.py)
+  storage_dir = Path(tempfile.mkdtemp(prefix='qaboard-tests-storage-'))
   # backend/database.py and backend/config.py read them when they're imported
   os.environ.update({
     'QABOARD_DB_HOST': url.hostname or 'localhost',
@@ -45,7 +46,7 @@ else:
     'QABOARD_DB_PASSWORD': url.password or '',
     'QABOARD_DB_NAME': test_database,
     'QABOARD_DATA_DIR': str(data_dir),
-    'QABOARD_STORAGE_ROOTS': str(data_dir / 'storage'),
+    'QABOARD_STORAGE_ROOTS': str(storage_dir),
     'SECRET_KEY': 'integration-tests',
     'QABOARD_HOST': 'localhost:5151',
   })

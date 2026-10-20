@@ -97,7 +97,10 @@ def revoke_tokens(user_name):
 @click.option('--days', type=int, default=None, help="Delete the events older than this, by default the audit.retention_days setting.")
 def purge_audit(days):
   days = days or setting('audit.retention_days')
-  click.echo(f"Deleted {purge(days)} events older than {days} days.")
+  count = purge(days)
+  system_audit('audit.purge', meta={"days": days, "deleted": count})
+  db_session.commit()
+  click.echo(f"Deleted {count} events older than {days} days.")
 
 
 if __name__ == '__main__':
