@@ -3,12 +3,14 @@
   margin: 0 0 var(--ifm-leading);
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
   gap: 0.75rem;
 }
 
-.card {
+.card,
+.cards > .card {
   position: relative;
+  /* Docusaurus spaces list items (.markdown li + li): not the cards of a grid */
   margin: 0;
   padding: 0.85rem 1rem;
   border: 1px solid var(--ifm-color-emphasis-300);
