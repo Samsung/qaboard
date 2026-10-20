@@ -6,7 +6,7 @@ description: Sign in, keep your preferences everywhere, create API tokens for sc
 ---
 
 ## Signing in
-Sign in from the button at the bottom of the sidebar. Depending on your server, you use your directory account (e.g.
+Sign in with the **Log in** button, at the top right of the home page and in a project's sidebar. Depending on your server, you use your directory account (e.g.
 your Windows credentials), your company's single sign-on, or a QA-Board account. If your server requires signing in,
 you see the sign-in page first, and come back to the page you asked for.
 
@@ -42,6 +42,7 @@ Run `qa auth login`, open the link it prints in any browser (it also works when 
 SSH), check that the code is the one in your terminal, and approve. See [Signing in](/docs/installation#signing-in).
 
 ## Verified runs
-Runs sent with a token show who really sent them: hover the check mark next to the run's user. Runs sent without a
-token only carry the user name `qa` found on the computer that ran them. Your server can mark them as unverified,
-or require tokens to send results.
+Runs sent with a token show who really sent them: open a run's **Run Info** to read "Sent by alice with token
+nightly CI", and the batch logs show a check mark next to the user of each `qa batch`. Runs sent without a token only
+carry the user name `qa` found on the computer that ran them: your server can mark them as unverified, or require
+tokens to send results.
