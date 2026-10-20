@@ -44,6 +44,8 @@ const redirects = [
   {from: 'lsf-cluster-integration', to: 'lsf-integration'},
   // The product tour became the user guide's walkthrough
   {from: 'tour', to: 'user-guide/first-review'},
+  // Merged into visualizations
+  {from: 'creating-and-viewing-outputs-files', to: 'visualizations#output-files'},
 ].map(({from, to}) => ({from: docsPath(from), to: docsPath(to)}))
 
 const logo = {

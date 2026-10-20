@@ -4,7 +4,6 @@ sidebar_label: Metrics
 title: Metrics
 description: Return metrics from your run() function, declare their label, unit, target and which way is better where your code computes them, and choose the metrics QA-Board shows by default.
 ---
-import Link from '@docusaurus/Link';
 
 Your `run()` function returns the numbers that say how good a run is: PSNR, mAP, p99 latency, a run time. QA-Board
 shows them in summaries, tables, run cards and plots over time, compared with the reference's. This page shows how to
@@ -49,7 +48,7 @@ Hovering a metric's name says when QA-Board doesn't know which way is better, an
 a link to this page. How people read the metrics: [Reading metrics](/docs/user-guide/metrics).
 
 ## Declare your metrics {#declaring-metrics}
-<Link id="in-the-returned-values" />
+<Anchor id="in-the-returned-values" />
 
 Declaring a metric tells QA-Board how to show it: its label and unit, its target, and whether smaller is better. Wrap
 the values you return in a `Metric`:
@@ -68,7 +67,7 @@ def run(context):
     }
 ```
 
-<Link id="what-you-get" />
+<Anchor id="what-you-get" />
 The web app now shows improvements in green and regressions in red, values with their units, and how far each run is
 from the target:
 
@@ -142,7 +141,7 @@ Editors can check the file and complete its fields with its
 <details>
 <summary>How QA-Board combines the definitions</summary>
 
-<Link id="how-it-works" />
+<Anchor id="how-it-works" />
 
 At the end of each run, `qa` gathers the definitions of the metrics the run returned, field by field: from
 `define_metric`, then *metrics_definitions.json*, then `Metric`, the last one winning. Fields with a wrong type are
@@ -222,7 +221,7 @@ with nothing after it) also meant "smaller is better": if your metrics file has 
 <details>
 <summary>Moving metrics from a metrics file to your code</summary>
 
-<Link id="moving-metrics-from-a-metrics-file-to-your-code" />
+<Anchor id="moving-metrics-from-a-metrics-file-to-your-code" />
 
 Long metrics files are hard to maintain: nobody owns the hundreds of metrics they list, and they're out of date as soon
 as the code changes. You don't have to move everything at once:

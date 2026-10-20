@@ -127,7 +127,7 @@ const sidebars: SidebarsConfig = {
       items: [
         "computing-quantitative-metrics",
         "visualizations",
-        "creating-and-viewing-outputs-files",
+        "viewers",
         "references-and-milestones",
       ],
     },

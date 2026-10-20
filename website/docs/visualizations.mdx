@@ -4,7 +4,6 @@ title: Visualizations
 sidebar_label: Visualizations
 description: Show your runs' output files on the commit page, next to the reference's. List them in qaboard.yaml, hide the debug ones, offer a file per frame or stage, and preset regions of interest.
 ---
-import Link from '@docusaurus/Link';
 
 Your runs write files in `context.output_dir`. List the ones people should look at in *qaboard.yaml*: the commit
 page's **Visualizations** view shows them on each run's card, next to the reference run's, in a viewer picked from
@@ -52,7 +51,7 @@ The extension picks the viewer. Set `type` when it doesn't say, e.g. `type: 6dof
 | any | `pointcloud/txt` | A time-of-flight camera's frames: point clouds and depth maps (legacy layout) | |
 | anything else: *.txt*, *.json*, *.log*... | `text/plain` | **Text**, diffed with the reference's | [Text](/docs/user-guide/other-viewers#text) |
 
-<Link id="video-viewer" /><Link id="point-clouds-and-trajectories" />
+<Anchor id="video-viewer" /><Anchor id="point-clouds-and-trajectories" />
 What each viewer reads (video codecs, point cloud formats, the trajectories' columns...) and its options are in
 [Viewers and file formats](/docs/viewers).
 
@@ -174,7 +173,7 @@ To write new presets, zoom on a region in the web app, then pick **Copy the view
 you get its coordinates in this format. How people use regions: [the image viewer](/docs/user-guide/image-viewer#find-where-images-differ).
 
 ## Make room on the cards {#styles}
-<Link id="custom-styles" />
+<Anchor id="custom-styles" />
 
 Cards are as wide as the page allows, up to 1500 px. Set a width for all of them in `outputs.style`, or for one
 visualization in its `style`. Widths are a maximum: cards get narrower when the window is.
@@ -191,7 +190,7 @@ outputs:
 ```
 
 ## Viewer options {#viewer-options}
-<Link id="viewer-configuration" />
+<Anchor id="viewer-configuration" />
 
 Other keys of a visualization go to its viewer: `side_by_side: false` draws a plot over the reference's, `fps` sets a
 video's frame rate, `point_size` a point cloud's. Each viewer's options are in

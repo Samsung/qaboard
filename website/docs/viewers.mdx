@@ -4,7 +4,6 @@ title: Viewers and file formats
 sidebar_label: Viewers and formats
 description: The files each viewer of the web app reads, how to write them from your code, and the options you can give each viewer in qaboard.yaml.
 ---
-import Link from '@docusaurus/Link';
 
 This page lists, viewer by viewer, the files the web app shows, how to write them from your code, and the options
 you can give the viewer. To choose which files to show, see [Visualizations](/docs/visualizations). How people use the
@@ -57,7 +56,7 @@ compare results across a change of output format.
 :::
 
 ## Videos {#videos}
-<Link id="video-viewer" />
+<Anchor id="video-viewer" />
 
 **Files:** *.mp4*, *.m4v*, *.mov*, *.webm*, *.mkv*, *.ogv*, animated *.webp* and *.gif*, or any file with
 `type: video/...`.
@@ -224,7 +223,7 @@ The `pointcloud/txt` viewer was written for a time-of-flight camera's runs: `Fra
 for each frame listed in the run's metrics. Use `pointcloud/pcd` for anything else.
 
 ## Write your own viewer {#write-your-own-viewer}
-<Link id="more-viewers" />
+<Anchor id="more-viewers" />
 
 Viewers are React components that download a run's files and display them. They live in
 [`webapp/src/viewers`](https://github.com/Samsung/qaboard/tree/master/webapp/src/viewers), and
