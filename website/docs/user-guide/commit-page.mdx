@@ -32,7 +32,7 @@ same way. Each shows:
 
 - the commit message, author and date;
 - the **commit hash**: type another one to switch commits, or click **Change** to pick a branch, a milestone, or to
-  switch new and reference. See [Picking a reference](/docs/user-guide/comparing-results#picking-a-reference);
+  switch new and reference. See [choose another reference](/docs/user-guide/comparing-results#picking-a-reference);
 - the **branch**: click it to select its latest commit;
 - a **star**, to save the results you see (this batch, with its filter) as a
   [milestone](/docs/user-guide/milestones#saving-a-milestone);
@@ -79,7 +79,7 @@ Batches that are milestones are protected: delete the milestone first, or delete
 
 </details>
 
-<a id="the-controls-panel"></a>
+<Anchor id="the-controls-panel" />
 
 ## View options {#view-options}
 The **View options** panel, on the right, changes what the views show, and in which order. Press <kbd>o</kbd> to show
@@ -133,17 +133,17 @@ The sidebar lists the views, grouped by what they're about. Each one answers a d
 
 | View | Use it to... | |
 |---|---|---|
-| <a id="summary"></a>**Summary** | Get the big picture: how the main metrics changed | [Reading metrics](/docs/user-guide/metrics#summary) |
-| <a id="metrics-table"></a>**Metrics Table** | Check each run's metrics against their targets | [Reading metrics](/docs/user-guide/metrics#metrics-table) |
-| <a id="metrics-diff"></a>**Metrics Diff** | Find the runs that improved or regressed vs the reference | [Reading metrics](/docs/user-guide/metrics#metrics-diff) |
+| <Anchor id="summary" />**Summary** | Get the big picture: how the main metrics changed | [Reading metrics](/docs/user-guide/metrics#summary) |
+| <Anchor id="metrics-table" />**Metrics Table** | Check each run's metrics against their targets | [Reading metrics](/docs/user-guide/metrics#metrics-table) |
+| <Anchor id="metrics-diff" />**Metrics Diff** | Find the runs that improved or regressed vs the reference | [Reading metrics](/docs/user-guide/metrics#metrics-diff) |
 | **Visualizations** | Look at images, videos, plots, text... next to the reference | [Run cards](#run-cards), then the [image](/docs/user-guide/image-viewer), [video](/docs/user-guide/video-viewer) and [other viewers](/docs/user-guide/other-viewers) |
 | **Output Files** | Browse and diff every file the runs created | [Output Files](#output-files) |
-| <a id="logs"></a>**Logs** | Find out why a run failed, follow running runs | [Logs and failed runs](/docs/user-guide/logs) |
+| <Anchor id="logs" />**Logs** | Find out why a run failed, follow running runs | [Logs and failed runs](/docs/user-guide/logs) |
 | **Artifacts & Configs** | Diff the build and configuration files with the reference commit | [Artifacts & Configs](#artifacts-and-configs) |
 | **Code** | Open the commit on your git server | [Code](#code) |
-| <a id="available-tests"></a>**Available Tests** | See, check and edit the batches of tests you can run | [Running from the web app](/docs/user-guide/running-from-the-webapp#available-tests) |
-| <a id="run-tests--tuning"></a>**Run Tests / Tuning** | Run this commit's code on more tests, or with other parameters | [Running from the web app](/docs/user-guide/running-from-the-webapp#running-tests-and-tuning) |
-| <a id="tuning-analysis"></a>**Tuning Analysis** | See how the metrics depend on tuning parameters, and the best ones | [Running from the web app](/docs/user-guide/running-from-the-webapp#tuning-analysis) |
+| <Anchor id="available-tests" />**Available Tests** | See, check and edit the batches of tests you can run | [Running from the web app](/docs/user-guide/running-from-the-webapp#available-tests) |
+| <Anchor id="run-tests--tuning" />**Run Tests / Tuning** | Run this commit's code on more tests, or with other parameters | [Running from the web app](/docs/user-guide/running-from-the-webapp#running-tests-and-tuning) |
+| <Anchor id="tuning-analysis" />**Tuning Analysis** | See how the metrics depend on tuning parameters, and the best ones | [Running from the web app](/docs/user-guide/running-from-the-webapp#tuning-analysis) |
 
 The sidebar also has the project's **Integrations** (see
 [Running from the web app](/docs/user-guide/running-from-the-webapp#integrations)) and its
@@ -151,7 +151,7 @@ The sidebar also has the project's **Integrations** (see
 Some projects open another view by default. The view you're on is part of the page's link: see
 [Sharing](/docs/user-guide/sharing#whats-in-the-url).
 
-<a id="visualizations"></a>
+<Anchor id="visualizations" />
 
 ## Run cards {#run-cards}
 The **Visualizations** view has one card per run. A card starts with:
@@ -207,7 +207,7 @@ When all the files your project checks are identical to the reference's, the run
 project doesn't check (`bit_accuracy.patterns` in *qaboard.yaml*) are grayed and tagged **not checked**, like
 *metrics.json*, which has the run time. This is the view for [bit-accuracy tests](/docs/bit-accuracy).
 
-<a id="artifacts--configs"></a>
+<Anchor id="artifacts--configs" />
 
 ## Artifacts & Configs {#artifacts-and-configs}
 Compares the commit's [artifacts](/docs/storage/artifacts) with the reference commit's: the configuration files, the
