@@ -2,70 +2,142 @@
 id: tips-and-faq
 title: Tips & FAQ
 sidebar_label: Tips & FAQ
-description: Keyboard shortcuts, lesser-known tricks, and answers to common questions about the QA-Board web app.
+description: Answers to common questions about the QA-Board web app, the keyboard shortcuts worth learning, and lesser-known tricks.
 ---
+Answers to the questions people ask in their first weeks with QA-Board, the keyboard shortcuts worth learning, and a
+few tricks.
+
+## FAQ
+
+### Where do I start?
+Follow [Your first review](/docs/user-guide/first-review): it walks through one commit of the demo projects, from the
+commit list to the pixel that changed. The [overview](/docs/user-guide/overview) explains the few words you need.
+
+### I can't find my commit
+- Search for it: type a word of its message or the start of its hash in the search box of the commit list. It looks
+  at all the commits, while the list only shows the last 3 days. See
+  [Find your commit](/docs/user-guide/finding-results#find-your-commit).
+- Only commits **with results** are listed. If your CI didn't run QA-Board on it yet, the commit doesn't exist for
+  QA-Board.
+- Check you're in the right **project**: in a monorepo, each sub-project is a separate project.
+
+### Was my commit better or worse?
+Open the commit page: the **Summary** compares the median of each metric with the reference's, in green when it got
+better and in red when it got worse. Then the **Metrics Diff** shows each test's change. See
+[Reading metrics](/docs/user-guide/metrics).
+
+### What is my commit compared with?
+By default, with the latest commit with results on the project's reference branch, when you opened the page. It shows
+in the second bar, the reference's. If it's not what you expected, change it as explained in
+[Picking a reference](/docs/user-guide/comparing-results#picking-a-reference), and check the reference's **batch**
+and **filter** too.
+
+### Where do the two images differ?
+In an image viewer, pick the difference mode (or press <kbd>4</kbd>), or open the regions of interest menu to let
+QA-Board find where they differ most. See
+[Find where images differ](/docs/user-guide/image-viewer#find-where-images-differ).
+
+### Why did my run fail?
+Open the commit page's **Logs** view: a failed run's log opens on its last lines, where the error usually is. See
+[Why did my run fail?](/docs/user-guide/logs#why-did-my-run-fail).
+
+### What does an orange ≠ tag on a run mean? {#reference-mismatch-tags}
+Its reference run is not exactly the same test: the closest match used another configuration (**Config**), input
+(**Input**) or platform (**Platform**). Hover the tag to see how they differ. Make the reference's filter match the new
+one, or pick a reference batch with the same tests. See
+[How runs are matched](/docs/user-guide/comparing-results#how-runs-are-matched).
+
+### The page says "No results" or "Error"
+- **No results**: the commit's CI batch has no finished runs. Check the CI pipeline, or pick another batch in the
+  batch selector: the commit may only have tuning or local runs.
+- An **Error** tag next to the commit: hover it. A `404` usually means a wrong commit hash, or runs saved in another
+  project. A `500` is a server error: contact your QA-Board admins.
+
+### A run is stuck as pending
+If it's really dead (e.g. killed by the cluster), use **Mark as failed** in the run's ☰ menu, then **Redo** it. See
+[Redo, stop and clean up runs](/docs/user-guide/running-from-the-webapp#redo-stop-and-clean-up-runs).
+
+### My local runs don't show up
+Runs started from your workspace only appear in QA-Board with `qa --share`, see
+[QA CLI tips](/docs/using-the-qa-cli). They show up in a batch named after you (`you 🏠 label`), with a warning that
+they may not match the committed code.
+
+### How do I compare with the last release?
+On the commit page, open the **Change** menu of the reference's bar and pick the release's milestone. See
+[Milestones](/docs/user-guide/milestones).
+
+### How do I show a colleague what I see?
+Copy the URL from your browser's address bar: it holds the commits, batches, filters and view. See
+[Sharing](/docs/user-guide/sharing).
+
+### Where are the files?
+On a shared storage. Open a run's folder with the folder icon of its card, copy paths from the ☰ menus, or see
+[Where is the data saved?](/docs/storage/where-is-the-data).
+
+### Why does the "What's new" dialog show up again?
+"Seen" release notes are remembered by your browser. A new browser, another computer or a private window doesn't
+know you've seen them. See [What's new](/docs/user-guide/whats-new).
+
+### I'd like a new feature, or I found a bug
+Tell your QA-Board admins, with the URL of the page. See
+[Report a bug or ask for help](/docs/user-guide/sharing#bug-reports-and-support).
 
 ## Keyboard shortcuts
-
-Press <kbd>?</kbd> anywhere in the web app (or click the **?** button in the sidebar) for a cheat sheet of these shortcuts, QA-Board's words and the filter syntax.
+Press <kbd>?</kbd> anywhere in the web app (or click the **?** button in the sidebar) for a cheat sheet of the
+shortcuts, QA-Board's words and the filter syntax. The most useful shortcuts:
 
 | Key | Where | What it does |
 |---|---|---|
 | <kbd>?</kbd> | Everywhere | Open or close the cheat sheet. |
-| <kbd>t</kbd> | Text viewers | Swap **new** and **reference** in place, to flip between them. Applies to all viewers on the page. |
-| <kbd>1</kbd>-<kbd>4</kbd>, <kbd>t</kbd>, <kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd> | Images (anywhere on the page: the viewer under the mouse, else the one used last) | Pick the [comparison mode](comparing-results.mdx#image-viewers) (side by side, wipe, single, difference), swap new and reference (one image shown: the other, then their difference), zoom. <kbd>p</kbd> shows or hides the pixel values, <kbd>h</kbd> starts a [blind test](comparing-results.mdx#blind-test) (then reveals and ends it), <kbd>f</kbd> goes full screen, <kbd>[</kbd> <kbd>]</kbd> go to the previous or next region of interest. |
-| <kbd>o</kbd> | Commit page | Show or hide the [view options](commit-page.mdx#view-options): visualizations, files to show, viewers, sorting. |
-| <kbd>Ctrl</kbd> / <kbd>Shift</kbd> + click | Output Files, Artifacts & Configs | Select several files to diff. |
-| <kbd>Space</kbd>, <kbd>←</kbd> <kbd>→</kbd>, <kbd>&lt;</kbd> <kbd>&gt;</kbd> | Videos (hover or click a player) | Play or pause, previous or next frame (one second with <kbd>Shift</kbd>), slower or faster. <kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd> zoom, <kbd>1</kbd>-<kbd>4</kbd> pick the comparison mode, <kbd>t</kbd> toggles, <kbd>p</kbd> pixel values, <kbd>[</kbd> <kbd>]</kbd> regions, <kbd>n</kbd> <kbd>N</kbd> where the videos differ most, <kbd>h</kbd> blind test, <kbd>f</kbd> full screen, <kbd>m</kbd> mutes. |
-| <kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>S</kbd> | Available Tests | Save the batches file. |
-| <kbd>Esc</kbd> | Dialogs, What's new | Close. |
+| <kbd>o</kbd> | Commit page | Show or hide the [view options](/docs/user-guide/commit-page#view-options). |
+| <kbd>1</kbd>-<kbd>4</kbd> | Image and video viewers | Side by side, wipe, single image, difference. |
+| <kbd>t</kbd> | Image, video and text viewers | Swap new and reference in place, to flip between them. |
+| <kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd> | Image and video viewers | Zoom in, zoom out, fit. |
+| <kbd>f</kbd> | Image and video viewers | Full screen. |
+| <kbd>Space</kbd>, <kbd>←</kbd> <kbd>→</kbd> | Videos | Play or pause, previous or next frame. |
+| <kbd>r</kbd>, <kbd>Shift</kbd> + <kbd>r</kbd> | Commit page, with several references | Compare with the next or previous reference. |
 | <kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>{'\\'}</kbd> | Everywhere | Collapse or expand the sidebar. |
-| ↑ ↓ <kbd>Enter</kbd> | Batch selector, filter suggestions | Pick an item without the mouse. |
+| <kbd>Esc</kbd> | Dialogs, menus, What's new | Close. |
 
-Shortcuts are ignored while you type in a text box.
+Image viewers listen to the keys when the mouse is over them, else the one you used last. Video players, when you
+hover or click them. Shortcuts are ignored while you type in a text box.
+
+Every viewer and tool has more:
+- **Images**: pixel values, blind tests, regions of interest... See
+  [the image viewer's shortcuts](/docs/user-guide/image-viewer#keyboard-shortcuts), or click the keyboard button of a
+  viewer.
+- **Videos**: speed, first and last frame, where the videos differ most... See
+  [the video viewer's shortcuts](/docs/user-guide/video-viewer#keyboard-shortcuts).
+- **The file browser**: filter, go to a path, copy paths... See
+  [its shortcuts](/docs/user-guide/files#keyboard-shortcuts), or press <kbd>?</kbd> in it.
+
+<details>
+<summary>Shortcuts of the other tools</summary>
+
+| Key | Where | What it does |
+|---|---|---|
+| <kbd>Ctrl</kbd> / <kbd>Shift</kbd> + click | Output Files, Artifacts & Configs | Select several files to diff. |
+| <kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>F</kbd> | Logs | Search the log. <kbd>Enter</kbd> and <kbd>Shift</kbd> + <kbd>Enter</kbd> go to the next or previous match, <kbd>Esc</kbd> clears the search. |
+| <kbd>Ctrl</kbd> / <kbd>⌘</kbd> + <kbd>S</kbd> | Available Tests | Save the batches file. |
+| ↑ ↓ <kbd>Enter</kbd> | Batch selector, search suggestions | Pick an item without the mouse. |
+| <kbd>F2</kbd>, <kbd>Delete</kbd>, <kbd>Alt</kbd> + <kbd>←</kbd> <kbd>→</kbd> | A reference's tab, when it has the focus | Rename it, remove it, move it left or right. |
+
+</details>
 
 ## Tricks worth knowing
-- **Click a run's name** on a card to see the history of that input.
-- **Hover almost anything**: metric names show their description, values show their exact number, `≠` tags explain reference mismatches, run names show metadata and paths to copy.
-- **Full screen**: image viewers have a [full screen](comparing-results.mdx#full-screen) button (or <kbd>f</kbd>) to compare images on the whole screen, and each card has one at its top right.
-- **Compare two batches of the same commit**: in the commit bar's **Change** menu, **Also select as reference**, then pick another batch in the reference bar.
-- **Compare across projects**: **Change Project** in the same menu, e.g. to compare two sub-projects of a monorepo.
+- **Click a run's name** on its card to see the [history](/docs/user-guide/history-and-dashboards) of that input.
+- **Hover almost anything**: metric names show their description, values their exact number, `≠` tags explain
+  reference mismatches, run names show metadata and paths to copy.
+- **Full screen**: image viewers have a [full screen](/docs/user-guide/image-viewer#full-screen) button (or
+  <kbd>f</kbd>) to compare images on the whole screen, and each card has one at its top right.
+- **Compare two batches of the same commit**: in the commit bar's **Change** menu, **Also select as reference**, then
+  pick another batch in the reference bar.
+- **Compare across projects**: type another project in the **Change project** box of the same menu, e.g. to compare
+  two sub-projects of a monorepo.
 - **Sort by a metric** in the view options to see the worst regressions first.
-- **Filter with negatives and regexps**: `-night`, `2X5|GW1`, `threshold:0.5`, `fail`. See the [filter syntax](finding-results.mdx#filter-syntax).
+- **Filter with exclusions and patterns**: `-gradient`, `facade|foliage`, `denoise_strength:1.6`, `fail`. See the
+  [filter syntax](/docs/user-guide/finding-results#filter-syntax).
 - **Search the batch selector**: type `failed`, `running`, `local`, `tuning` or a user name.
 - **Short hashes** work everywhere you type a commit.
-- **Copy an image** with the **Copy** button above image viewers, and paste it straight into a chat.
-- **Share the exact view**: everything is in the URL, see [Sharing](sharing.mdx).
-
-## FAQ
-
-### I can't find my commit
-- Widen the **date range** of the commit list: by default it only shows the last 3 days.
-- Only commits **with results** are listed. If your CI didn't run QA-Board yet, the commit doesn't exist for QA-Board.
-- Paste its hash in the **Filter...** box and choose **Go to commit**.
-- Check you're in the right **project**: in a monorepo, each sub-project is a separate project.
-
-### The page says "No results" or "Error"
-- **No results**: the commit's CI batch has no finished runs. Check the CI pipeline, or pick another batch in the batch selector (the commit may only have tuning or local runs).
-- An **Error** tag next to the commit: hover it. A `404` usually means a wrong commit hash, or runs saved in another project. A `500` is a server error: contact your QA-Board admins.
-
-### Why is the reference not what I expected?
-By default it's the latest commit with results on the project's reference branch, when you opened the page. Check the **ref** bar, and change it as explained in [Picking a reference](comparing-results.mdx#picking-a-reference). Also check the reference **batch** and **filter**.
-
-### Some runs are compared with the wrong reference run
-Look for yellow `≠` tags: the best match used another configuration, platform or tuning parameters. Make the reference filter match the new filter, or choose a reference batch with the same tests. See [How runs are matched](comparing-results.mdx#how-runs-are-matched).
-
-### A run is stuck as pending
-If it's really dead (e.g. killed by the cluster), use **Mark as failed** in the run's ☰ menu, then **Redo** it. See [Running from the web app](running-from-the-webapp.mdx).
-
-### My local runs don't show up
-Runs started from your workspace only appear in QA-Board with `qa --share`, see [QA CLI tips](../using-the-qa-cli.mdx). They show up in a batch named after you (`you 🏠 label`), with a warning that they may not match the committed code.
-
-### Why does the "What's new" dialog show up again?
-"Seen" release notes are remembered by your browser. A new browser, another computer or a private window doesn't know you've seen them. See [What's new](whats-new.mdx).
-
-### Where are the files?
-On a shared storage. Copy the paths from the ☰ menus, or see [Where is the data saved?](../storage/where-is-the-data-saved.mdx).
-
-### I'd like a new feature, or I found a bug
-Tell your QA-Board admins, with the URL of the page. See [Sharing](sharing.mdx#bug-reports-and-support).
+- **Copy an image** with the copy button of an image viewer, and paste it straight into a chat. See
+  [Copy and save](/docs/user-guide/image-viewer#copy-and-save).

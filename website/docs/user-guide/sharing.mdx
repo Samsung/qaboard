@@ -4,15 +4,34 @@ title: Sharing results
 sidebar_label: Sharing
 description: Share exactly what you see with a link, copy paths and images, export files, and report bugs.
 ---
+Show a colleague exactly what you see, give them the path to the files, or gather the images for a report.
 
-## Links are shareable
-Almost everything you select is saved in the page's URL. **Copy the URL from your browser's address bar** and whoever opens it sees the same commits, batches, filters and view as you. The browser's back and forward buttons also work as you'd expect.
+## Copy the URL {#links-are-shareable}
+Almost everything you select is saved in the page's URL. **Copy the URL from your browser's address bar** and send
+it: whoever opens it sees the same commits, batches, filters and view as you. The browser's back and forward buttons
+work too.
+
+The reference commit is written in the URL as soon as it's known. A link shared today still shows the same comparison
+next month, even after the reference branch moved on.
 
 :::tip
-The reference commit is written in the URL as soon as it's known (`reference=<hash>`). A link shared today still shows the same comparison next month, even if the reference branch moved on.
+To share a [milestone](/docs/user-guide/milestones), copy its link from the milestones menus or its dialog: it keeps
+working when the milestone is renamed. See [Links to milestones](/docs/user-guide/milestones#links-to-milestones).
 :::
 
-### What's in the URL
+### What's in the URL {#whats-in-the-url}
+On a commit page, the URL holds the new commit, the reference, their batches and filters, and the view. On the commit
+list, it holds the search and the dates; on the History page, the filter, the batch and the chart options.
+
+Options left at their default are left out, to keep links short: e.g. the `default` batch, an empty filter, the
+project's default metrics and view, or visualizations shown by default. Links follow the project's defaults.
+
+Some things stay in your browser and are not shared: your favorite projects, the groups of milestones you collapsed,
+whether the view options are open and how wide, and the statuses of the CI jobs you started.
+
+<details>
+<summary>Every parameter of the URL</summary>
+
 On a commit page, `/<project>/commit/<hash>?...`:
 
 | Parameter | What it holds |
@@ -20,49 +39,63 @@ On a commit page, `/<project>/commit/<hash>?...`:
 | path `/<project>/commit/<hash>` | The project and the **new** commit |
 | `reference` | The **reference** commit |
 | `batch`, `batch_ref` | The new and reference batches (`default` is CI) |
-| `filter`, `filter_ref` | The new and reference [filters](finding-results.mdx#filter-syntax) |
-| `new_project`, `ref_project` | Only when results come from [another project](comparing-results.mdx#picking-a-reference) |
+| `filter`, `filter_ref` | The new and reference [filters](/docs/user-guide/finding-results#filter-syntax) |
+| `label`, `label_ref` | The [names you gave](/docs/user-guide/comparing-results#naming-what-you-compare) the new and the reference results |
+| `compare`, `ref_index` | The [other references](/docs/user-guide/comparing-results#several-references) you stacked, and which one is shown |
+| `new_project`, `ref_project` | Only when results come from [another project](/docs/user-guide/comparing-results#picking-a-reference) |
 | `selected_views` | The view: `summary`, `table-kpi` (Metrics Table), `table-compare` (Metrics Diff), `output-list` (Visualizations), `bit_accuracy` (Output Files), `logs`, `parameters` (Artifacts & Configs), `groups` (Available Tests), `tuning`, `optimization` (Analysis) |
 | `sort_by`, `sort_order` | How runs are sorted |
 | `controls` | Visualizations shown or hidden, how images are compared, dynamic options (as JSON, only what you changed) |
 | `show_all_files`, `expand_all`, `files_filter`... | Options of the Output Files view (`params_...` for Artifacts & Configs) |
 
-On the commit list, the **Filter...** box is saved as `search`, and the date range as `from` and `to` (e.g. `?from=2026-09-01&to=2026-09-30`). On the History page, the filter, batch and chart options (`selected_metric`, `breakdown_per_test`, `relative`...) are saved too.
+On the commit list, the search box is saved as `search`, and the date range as `from` and `to` (e.g.
+`?from=2026-09-01&to=2026-09-30`). On the History page, the filter, batch and chart options (`selected_metric`,
+`breakdown_per_test`, `relative`...) are saved too.
 
-Options that have their default value are left out, to keep links short: e.g. the `default` batch, an empty filter, the project's default metrics and view, or visualizations shown by default. Links follow the project's defaults.
+</details>
 
-Some things stay in your browser and are not shared: your favorite projects, the groups of milestones you collapsed, whether the view options are open and how wide, and the statuses of the CI jobs you started.
-
-To share a [milestone](comparing-results.mdx#milestones), copy its link (`/<project>/milestone/<id>-<name>`) from the milestones menus or its dialog: it keeps working when the milestone is renamed.
-
-## Copying paths, hashes and images
+## Copy a path, a hash or an image {#copying-paths-hashes-and-images}
 Results live on a shared storage, so you often want a path rather than a link:
 
-- **Commit hash**: the copy icon next to the hash, in the commit list.
-- **Commit or batch directory**: the ☰ menu of a commit row or of a commit bar, as a **Windows** or **Linux** path, or open it in the browser.
-- **Run output directory**: the copy and folder icons on each run's card, for the new and the reference run. The folder icon opens it in the [file browser](files.mdx), where you can copy the path of any file.
-- **Input path, database, batch**: hover the run's name on its card and click the value to copy it.
-- **Configuration**: hover a configuration tag, copy it as JSON, or in tuning format to paste in a [tuning experiment](running-from-the-webapp.mdx#running-tests-and-tuning).
-- **Images**: the **Copy** button above an image viewer copies the new, reference or diff image to your clipboard, ready to paste in a chat or a slide.
+- **A run's output folder**: the copy and folder icons on each run's card, for the new and the reference run. The
+  folder icon opens it in the [file browser](/docs/user-guide/files), where you can copy the path of any file.
+- **A commit's or a batch's folder**: the ☰ menu of a commit row or of a commit bar, as a **Windows** or **Linux**
+  path, or open it in the browser.
+- **The commit hash**: the copy icon next to the hash, in the commit list.
+- **An input's path, database or batch**: hover the run's name on its card and click the value to copy it.
+- **A configuration**: hover a configuration tag, copy it as JSON, or in tuning format to paste in a
+  [tuning experiment](/docs/user-guide/running-from-the-webapp#running-tests-and-tuning).
+- **An image**: the copy button of an image viewer copies the new image, the reference or their difference to your
+  clipboard, ready to paste in a chat or a slide, or saves it as PNG. See
+  [Copy and save images](/docs/user-guide/image-viewer#copy-and-save).
 
-## Exporting files
-In the **Visualizations** and **Output Files** views, the **Export** button at the right of the view's title gathers the files matching a pattern from all the (filtered) runs, new and reference, into one directory:
+## Export files for a report {#exporting-files}
+To put the outputs of many runs in a slide deck or a script, gather them in one folder. In the **Visualizations** and
+**Output Files** views, **Export** collects the files matching a pattern from all the (filtered) runs, new and
+reference:
+
+1. Filter the runs you want, e.g. `low-light` (see [Filter the runs](/docs/user-guide/finding-results#filter-syntax)).
+2. Click **Export** at the right of the view's title.
+3. Type a pattern, like `*.png`, `*.txt` or `**/*.jpg` (`**/` matches any number of folders).
+4. Click **Export** in the box, or press <kbd>Enter</kbd>. The export folder's Windows path is copied to your
+   clipboard, and both its Windows and Linux paths show in the box. They stay there if you close the box and open it
+   again.
+5. Open the folder to share or post-process the files.
 
 <Shot
   id="commit/export"
   caption="Export gathers the PNG files of the 4 filtered runs into one folder, and shows its Windows and Linux paths."
 />
 
-1. Click **Export** next to the view's title.
-2. Type a pattern, like `*.png`, `*.txt` or `**/*.jpg` (`**/` matches any number of folders).
-3. Click **Export** in the box, or press Enter. The export directory's Windows path is copied to your clipboard, and both the Windows and Linux paths are shown. They stay there if you close the box and open it again.
-4. Open it to share or post-process the files, e.g. in a slide deck.
+By default, the exported files are **links** to the original files, in a shared folder: nothing is copied, so it's
+fast. Use **Edit where** to choose your own folder: files are then copied (or linked, if it's on the same filesystem).
 
-By default, files are exported as **links** to the original files in a shared directory (no copy, it's fast). Use **Edit where** to choose your own directory: files are then copied (or linked, if it's on the same filesystem).
-
-## Bug reports and support
-- If the web app crashes, you'll see **Sorry, something went wrong!** with a **Report the bug** button. Depending on your server, it opens an email with the page's URL and the error filled in, or your team's issue tracker.
-- For anything else, send the URL of the page you're looking at to your QA-Board admins: thanks to the URL, they'll see exactly what you see.
+## Report a bug or ask for help {#bug-reports-and-support}
+- If the web app crashes, you'll see **Sorry, something went wrong!** with a **Report the bug** button. Depending on
+  your server, it opens an email with the page's URL and the error filled in, or your team's issue tracker.
+- For anything else, send the URL of the page you're looking at to your QA-Board admins: with the URL, they see
+  exactly what you see.
 - Questions on how a project's results are produced (metrics, visualizations, inputs) go to that project's lead.
 
-Admins configure where bug reports go with `QABOARD_SUPPORT_URL`, see [Server Bringup](../start-server.mdx).
+Admins choose where bug reports go with `QABOARD_SUPPORT_URL`, see the server's
+[environment variables](/docs/deploy#optional-environment-variables).
