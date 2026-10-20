@@ -103,9 +103,11 @@ shot('commit/image-sbs', {
 shot('commit/image-perceptual-diff', {
   project: IQ,
   url: d => halos(d, 'photos/facade base', { image_mode: 'difference' }),
+  // the difference's colormap runs from yellow (a little) through orange and purple to black (its maximum and more);
+  // where the images don't differ, a faded copy of the image shows, almost white
   alt: 'The facade window, new and reference on each side of their perceptual difference: the window frame\'s edges '
-    + 'show in yellow to dark red, the flat wall fades to light gray. Above them, the comparison modes and the '
-    + 'difference\'s settings.',
+    + 'stand out, from yellow through orange and purple to black where they differ most, the flat wall fades to white. '
+    + 'Above them, the comparison modes and the difference\'s settings.',
   caption: 'The difference shows between the images where they differ; raise its maximum until only the halos stand out.',
   actions: async ui => {
     await showCard(ui);
@@ -233,6 +235,38 @@ shot('commit/image-filters', {
   },
   // the run's name and metrics, and the viewer
   target: page => [cards(page).first().getByText('photos/night-street.png', { exact: true }), viewer(page)],
+  padding: 4,
+});
+
+shot('commit/blind-test', {
+  project: IQ,
+  url: d => halos(d, 'photos/facade base'),
+  alt: 'A blind test on the leaves over the facade\'s window: the two images side by side, labelled A and B in gray '
+    + 'instead of new and reference, and so are the hovered pixel\'s values above them; in the toolbar, Reveal shows '
+    + 'which is which.',
+  caption: 'A blind test hides which image is which: A and B, in a random order, until you click Reveal.',
+  actions: async ui => {
+    const scope = viewer(ui.page);
+    await showCard(ui);
+    await preset(ui, scope, 'Leaves over a window');
+    // The test shows each viewer's images in a random order (QaboardImageViewer.jsx: the test's seed): the same coin
+    // in every capture, the app's own order for it. Math.random is the page's again right after the click
+    await ui.page.evaluate(() => {
+      const w = window as unknown as { __shotRandom?: () => number };
+      w.__shotRandom = Math.random;
+      Math.random = () => 0.37;
+    });
+    await ui.click(scope.getByRole('button', { name: 'Blind test', exact: true }));
+    await ui.page.evaluate(() => {
+      const w = window as unknown as { __shotRandom?: () => number };
+      if (w.__shotRandom) Math.random = w.__shotRandom;
+    });
+    await scope.getByRole('button', { name: 'Reveal', exact: true }).waitFor();
+    // a pixel on a leaf's edge: its values, for A and B
+    await ui.hover(newImage(scope), { position: await hoverImage(ui, scope, { x: 45, y: 50 }) });
+    await ui.settle();
+  },
+  target: page => [toolbar(viewer(page)), pixelValues(viewer(page)), imageRow(viewer(page))],
   padding: 4,
 });
 
@@ -394,6 +428,82 @@ clip('commit/video-compare', {
   },
 });
 
+// The video viewer of the aisle's card (webapp/src/viewers/videos/): its toolbar, the line with the hovered pixel's
+// values, the videos, then the transport and the timeline
+const videoViewer = (page: Page) => page.locator('.qaboard-video-viewer').first();
+const videoBatch = (d: Demo) => d.commitUrl(IQ, 'merge-bilateral', { reference: 'isp-4-1', view: 'output-list', batch: 'video', batch_ref: 'video' });
+// The aisle's card right below the commit bars, both videos loaded
+async function showVideos(ui: Ui) {
+  await showCard(ui);
+  await ui.page.waitForFunction(() => [...document.querySelectorAll('video')].every(v => v.readyState >= 2));
+}
+// Both videos `count` frames further, paused (the keys act on the viewer under the mouse)
+async function stepFrames(ui: Ui, count: number) {
+  await ui.hover(videos(ui.page));
+  for (let i = 0; i < count; i++) await ui.press('ArrowRight');
+  await ui.settle();
+}
+
+shot('commit/video-differences', {
+  project: IQ,
+  url: videoBatch,
+  storage: { 'qaboard:video-viewer:mode': '"side-by-side"' },
+  alt: 'The aisle video, new and reference side by side, on the frame where they differ most, a badge saying both show '
+    + 'it; above the timeline, a bar per frame, taller and darker where they differ more, and a summary of the '
+    + 'comparison; the regions menu lists Differences, whole video.',
+  caption: 'Differences compares every decoded frame on the server: how much each frame differs, over the timeline, and '
+    + 'where and when they differ most.',
+  actions: async ui => {
+    const viewer = videoViewer(ui.page);
+    await showVideos(ui);
+    // the server decodes and compares the 72 frames of both videos: about a second
+    await ui.click(viewer.getByRole('button', { name: 'Differences', exact: true }));
+    const summary = viewer.locator('.video-difference-summary');
+    await summary.waitFor({ timeout: 60_000 });
+    await ui.settle();
+    // "Differ in 72 of 72 frames · most at frame 12 (Δ 99, PSNR 31.0 dB)": both videos on that frame, as decoded
+    const most = Number(/most at frame (\d+)/.exec(await summary.textContent() ?? '')?.[1] ?? 0);
+    await stepFrames(ui, most);
+    await viewer.locator('.video-frame-badge', { hasText: new RegExp(`Frame ${most} · both`) }).waitFor();
+    await mouseAway(ui);
+    // the regions where and when they differ most, found by the same comparison
+    await ui.click(viewer.getByRole('button', { name: 'Regions of interest' }));
+    await ui.page.getByRole('menuitem', { name: /^Differences, whole video/ }).waitFor();
+    await ui.settle();
+  },
+  target: page => videoViewer(page),
+  padding: 4,
+});
+
+shot('commit/video-properties', {
+  project: IQ,
+  url: videoBatch,
+  // the panel under the toolbar, as high as it gets (640 px)
+  viewport: { width: 1440, height: 1100 },
+  alt: 'What\'s in the files, open over the aisle video: new and reference side by side, both VP9, yuv420p, 8-bit with '
+    + 'chroma 4:2:0, their color range, 24 fps, 72 frames, keyframes and bit rate, the frames the browser showed and '
+    + 'dropped; the rows that differ highlighted; notes below.',
+  caption: 'What\'s in the files: codecs, pixel formats, color range, frame rates, keyframes, and what differs between '
+    + 'the two files.',
+  actions: async ui => {
+    const viewer = videoViewer(ui.page);
+    await showVideos(ui);
+    // frames decoded, for the browser's row
+    await stepFrames(ui, 12);
+    await mouseAway(ui);
+    await ui.click(viewer.getByRole('button', { name: 'What\'s in the files', exact: true }));
+    // the server read both files: a column for each
+    await viewer.locator('.video-info-panel tr', { hasText: 'Pixel format' }).waitFor();
+    await ui.settle();
+  },
+  // the button and its panel
+  target: page => [
+    videoViewer(page).getByRole('button', { name: 'What\'s in the files', exact: true }),
+    videoViewer(page).locator('.qiv-popover', { has: page.locator('.video-info-panel') }),
+  ],
+  padding: 8,
+});
+
 
 // The commit bars, fixed at the top of the page: the new commit's, then the reference's. On the right of each, the
 // filter box with the counters under it, then the batch selector.
@@ -458,6 +568,40 @@ shot('commit/export', {
     page.locator('.bp6-popover', { has: page.getByLabel(/Files to export/) }),
   ],
   padding: 8,
+});
+
+// Several references (webapp/src/components/ReferenceTabs.jsx): tabs below the commit bars, one compared at a time.
+// The URL stacks them (webapp/src/selection.js): `reference` is the one shown, `compare` the others
+const referenceTabs = (page: Page) => page.getByRole('tablist', { name: 'References' });
+const tabTooltip = (page: Page) => page.locator('.bp6-tooltip', { hasText: 'reference 2' });
+
+shot('commit/reference-tabs', {
+  project: IQ,
+  // the merge against the release before it, and against the head of main at T0 (story.yaml: chroma-low-light)
+  url: d => d.commitUrl(IQ, 'merge-bilateral', {
+    reference: 'isp-4-1', view: 'table-kpi', query: { compare: d.sha(IQ, 'chroma-low-light') },
+  }),
+  alt: 'The commit bars of the bilateral denoiser\'s merge with two references stacked: under the ref bar, tab 1, the '
+    + 'isp-4.1 milestone, is the one shown; tab 2, main, is hovered, and its tooltip gives main\'s latest commit, its '
+    + 'message and hash; r and Shift r switch between them.',
+  caption: 'Stack several references: their tabs hang below the bars, click one, or press r, to compare with it.',
+  actions: async ui => {
+    await referenceTabs(ui.page).waitFor();
+    // what a tab is, on hover
+    await ui.hover(referenceTabs(ui.page).getByRole('tab', { name: /^Reference 2:/ }));
+    await tabTooltip(ui.page).waitFor();
+    await ui.settle();
+  },
+  // a box: the bars and the tabs are fixed at the top, from the sidebar's edge (the tabs start 14 px after it), down
+  // to the tooltip under the tabs
+  target: async page => {
+    const tabs = await stableBox(referenceTabs(page));
+    const strip = await stableBox(referenceTabs(page).locator('xpath=..'));
+    const tooltip = await stableBox(tabTooltip(page));
+    const x = Math.max(0, Math.floor(tabs.x - 14));
+    const bottom = Math.max(strip.y + strip.height, tooltip.y + tooltip.height) + 8;
+    return { x, y: 0, width: strip.x + strip.width - x, height: bottom };
+  },
 });
 
 // Dynamic outputs: `stages/:stage.jpg` in qaboard.yaml gives a slider over the ISP's stages, synced across runs
@@ -1051,9 +1195,10 @@ const falseClosures = (d: Demo, show: (typeof R3D_VIZ)[number]) =>
 shot('commit/trajectory-6dof', {
   project: R3D,
   url: d => falseClosures(d, 'Trajectory'),
-  alt: 'The fast figure-8\'s trajectory: on the left, x, y, z and the orientation over time, the new estimate in orange, '
-    + 'the reference in blue and the ground truth in green; on the right, the three paths in 3D. The orange path jumps '
-    + 'away from the others when a false loop closure is accepted.',
+  // no colors: the viewers use the sides' colors (new blue, reference purple), which may change
+  alt: 'The fast figure-8\'s trajectory: on the left, x, y, z and the orientation over time, the new estimate, the '
+    + 'reference\'s and the ground truth; on the right, the three paths in 3D. The new path jumps away from the others '
+    + 'when a false loop closure is accepted.',
   caption: 'Trajectories against the ground truth and the reference\'s, per axis and in 3D: a false loop closure '
     + 'pulls the new one away.',
   actions: async ui => {

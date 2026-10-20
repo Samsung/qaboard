@@ -32,7 +32,9 @@ features:
   flame-diff: Differential flame graphs
   text-diff: Monaco text diff with Next Diff
   video-sync: Videos played in sync with the reference
-  video-compare: Videos compared frame by frame, side by side, with a wipe, toggled or as their difference, synced zoom
+  video-compare: Videos compared frame by frame, side by side, with a wipe, one at a time (Single) or as their difference, synced zoom
+  video-differences: The server's comparison of decoded video frames, over the timeline and as regions
+  video-properties: What's in two video files, side by side, with what differs highlighted
   pointcloud: Point clouds in 3D against the reference's and a ground truth
   trajectory-6dof: 6DoF trajectories against ground truth
   bit-accuracy-tree: Bit-accuracy tree of output files with in-place diff
@@ -42,6 +44,8 @@ features:
   batch-editor: Monaco batch editor with problems and test listing
   tuning-analysis: Tuning analysis, efficient frontier, convergence
   milestones: Milestones, personal and shared, with groups, favorites and links
+  blind-test: Blind tests, the images called A and B in a random order until revealed
+  reference-tabs: Several references stacked as tabs, compared one at a time
   whats-new: What's new dialog and panel
 
 shots:
@@ -134,11 +138,20 @@ shots:
   - id: commits/milestones-menu
     kind: still
     project: detection-eval
-    shows: 'The sidebar''s Milestones menu: the favorite kd-1.3, then my milestones with the kd-1.3 and kd-1.2 releases and, in a group, entropy-try (added by the spec in the API''s answer only).'
+    shows: 'The sidebar''s Milestones menu: the favorite kd-1.3, then my milestones with the kd-1.3 and kd-1.2 releases and, in a group, entropy-try on the entropy-calib commit (added by the spec in the API''s answer only).'
     pages: [references-and-milestones, user-guide/milestones, landing]
     features: [milestones]
     phase: 2
     status: captured
+  - id: commits/manage-milestones
+    kind: still
+    project: detection-eval
+    shows: 'The Milestones dialog opened from the sidebar''s Milestones menu, Manage milestones…, on the kd-1.3 commit page: the table of entropy-try (personal, in quant/calibration, added by the spec in the API''s answer only), kd-1.3 (a favorite) and kd-1.2, with their notes, batch, runs and datasets, commit and branch, owner, date, and Open, As reference, favorite, link and edit; kd-1.3 and kd-1.2 selected, the footer with "Compare kd-1.3 with kd-1.2", Move, Share, Make personal and Delete.'
+    pages: [user-guide/milestones]
+    features: [milestones]
+    needs: kd-1-3, kd-1-2 (milestones); entropy-calib
+    phase: 3
+    status: planned
   - id: integrations/menu
     kind: still
     project: image-quality
@@ -174,7 +187,7 @@ shots:
   - id: commit/compare-tour
     kind: clip
     project: detection-eval
-    shows: 'From the Summary (int8 runs against the fp32 release) to the Metrics Diff, then sorting by mAP, ascending, in the Controls panel brings the worst slice, indoor (-35%), to the top.'
+    shows: 'From the Summary (int8 runs against the fp32 release) to the Metrics Diff, then sorting by mAP, ascending, in the View options brings the worst slice, indoor (-35%), to the top.'
     pages: [user-guide/metrics, landing]
     needs: int8-minmax
     phase: 2
@@ -195,6 +208,15 @@ shots:
     features: [milestones]
     phase: 2
     status: captured
+  - id: commit/reference-tabs
+    kind: still
+    project: image-quality
+    shows: 'The commit bars of merge-bilateral with two references stacked (from the URL: reference and compare): tab 1, the isp-4.1 milestone with its star, shown; tab 2, main (its head at T0, chroma-low-light), hovered, its tooltip with the commit''s message, hash and branch; the "r next · ⇧ r previous" hint.'
+    pages: [user-guide/comparing-results]
+    features: [reference-tabs]
+    needs: merge-bilateral vs isp-4-1 and chroma-low-light
+    phase: 3
+    status: planned
   - id: commit/batch-picker
     kind: still
     project: image-quality
@@ -231,7 +253,7 @@ shots:
   - id: commit/controls-panel
     kind: still
     project: image-quality
-    shows: The Controls panel open, with the visualization switches (hidden ones included), how images are compared, and Sorting.
+    shows: The View options open, with the visualization switches (hidden ones included), how images are compared, and Sort runs.
     pages: [user-guide/commit-page, user-guide/overview, visualizations]
     anchors: [visualizations, image-diff, sorting]
     phase: 1
@@ -257,7 +279,7 @@ shots:
   - id: commit/image-perceptual-diff
     kind: still
     project: image-quality
-    shows: "New and reference on each side of their difference, its maximum raised: halos stand out around edges, the flat wall fades to gray."
+    shows: "New and reference on each side of their difference, its maximum raised: halos stand out around edges, from yellow through orange and purple to black, the flat wall fades to white."
     pages: [user-guide/first-review, user-guide/image-viewer]
     features: [image-diff]
     needs: merge-bilateral vs isp-4-1
@@ -304,6 +326,15 @@ shots:
     features: [image-filters]
     phase: 1
     status: published
+  - id: commit/blind-test
+    kind: still
+    project: image-quality
+    shows: 'A blind test in progress on the leaves over the facade''s window: the two images side by side, labelled A and B in gray, a pixel hovered (its values for A and B above them), and the toolbar''s Reveal button. Which is new is left to the app''s coin, pinned by the spec so that every capture shows the same order.'
+    pages: [user-guide/image-viewer]
+    features: [blind-test]
+    needs: merge-bilateral vs isp-4-1
+    phase: 3
+    status: planned
   - id: commit/deep-zoom
     kind: clip
     project: image-quality
@@ -316,16 +347,34 @@ shots:
   - id: commit/video-compare
     kind: clip
     project: image-quality
-    shows: 'The camera''s video driving down the warehouse aisle in low light, new and reference on either side of a wipe, stepped frame by frame in sync; the divider moves, a zoom on a white package where the new denoiser draws dark rims, the toggle flips them in place, then their difference.'
+    shows: 'The camera''s video driving down the warehouse aisle in low light, new and reference on either side of a wipe, stepped frame by frame in sync; the divider moves, a zoom on a white package where the new denoiser draws dark rims, Single flips them in place, then their difference.'
     pages: [use-cases/image-quality, user-guide/video-viewer, landing]
     features: [video-compare]
     needs: merge-bilateral vs isp-4-1 (video batch)
     phase: 2
     status: captured
+  - id: commit/video-differences
+    kind: still
+    project: image-quality
+    shows: 'The aisle video''s viewer after Differences (next to the timeline): new and reference side by side on the frame where they differ most (frame 12), the badge "✓ Frame 12 · both", bars over the timeline colored by how much each frame differs, the summary ("Differ in 72 of 72 frames · most at frame 12…"), and the regions menu open on "Differences, whole video".'
+    pages: [user-guide/video-viewer]
+    features: [video-differences]
+    needs: merge-bilateral vs isp-4-1 (video batch)
+    phase: 3
+    status: planned
+  - id: commit/video-properties
+    kind: still
+    project: image-quality
+    shows: 'The aisle video''s "What''s in the files" panel, opened by the properties button: new and reference side by side, codec (vp9), pixel format (yuv420p, 8-bit), chroma 4:2:0, color range and matrix, 24 fps, 72 frames, keyframes, bit rate, the frames the browser showed and dropped, the rows that differ highlighted (the bit rate), and the notes under the table.'
+    pages: [user-guide/video-viewer]
+    features: [video-properties]
+    needs: merge-bilateral vs isp-4-1 (video batch)
+    phase: 3
+    status: planned
   - id: commit/dynamic-outputs
     kind: clip
     project: image-quality
-    shows: The ISP stage slider of the Controls panel steps from the raw mosaic to the tone-mapped image of the facade's window (its "Window frame (halos)" region); scrolling down, the next run's card follows the slider too.
+    shows: The ISP stage slider of the View options steps from the raw mosaic to the tone-mapped image of the facade's window (its "Window frame (halos)" region); scrolling down, the next run's card follows the slider too.
     pages: [use-cases/image-quality, user-guide/other-viewers, visualizations, recipes/dynamic-outputs]
     features: [dynamic-outputs]
     phase: 2
@@ -333,7 +382,7 @@ shots:
   - id: commit/dynamic-options
     kind: still
     project: image-quality
-    shows: "Dynamic Options in the Controls panel: the stage option, synced across runs, on stage 3; the card shows `stages/3.jpg`, new and reference."
+    shows: "Files to show in the View options: the stage option, synced across runs, on stage 3; the card shows `stages/3.jpg`, new and reference."
     pages: [visualizations, recipes/dynamic-outputs]
     features: [dynamic-outputs]
     phase: 2
@@ -481,7 +530,7 @@ shots:
   - id: commit/trajectory-6dof
     kind: still
     project: robotics-3d
-    shows: The figure8-fast trajectory against the ground truth and the reference's, per axis and in 3D; a false loop closure pulls it away.
+    shows: The figure8-fast trajectory against the ground truth and the reference's, per axis and in 3D, in the sides' colors (new blue, reference purple, ground truth green); a false loop closure pulls it away.
     pages: [use-cases/robotics-3d, user-guide/other-viewers, viewers]
     features: [trajectory-6dof]
     needs: merge-loop-closure vs fw-26-08
@@ -526,7 +575,7 @@ shots:
   - id: logs/lsf-hints
     kind: still
     project: image-quality
-    shows: "The 113 MP run killed by LSF: TERM_MEMLIMIT, memory used against requested, and the hint on what to change."
+    shows: "The 113 MP run killed by LSF: TERM_MEMLIMIT, the memory used (measured when seeding, a little over the limit) against the 3072 MB requested, and the hint on what to change."
     pages: [lsf-integration, user-guide/logs, landing]
     features: [lsf-hints]
     needs: one-tile (lsf-memlimit)
@@ -553,7 +602,7 @@ shots:
   - id: history/find-regression
     kind: clip
     project: serving-latency
-    shows: 'Filtered on heavy-tail-high, the last two weeks of main: hovering along the line until the commits change at payload-copy (p99 3 to 12 ms), a click freezes it as the reference, then payload-borrow is 76% faster.'
+    shows: 'Filtered on heavy-tail-high, the last two weeks of main: hovering along the line until the commits change at payload-copy (p99 3 to 12 ms), a click keeps it as the reference, then payload-borrow''s p99 is back near 3 ms (around -70% against it: measured, it moves with every seed).'
     pages: [use-cases/serving-latency, user-guide/history-and-dashboards, landing, recipes/find-regression, tutorials/perf-regression]
     needs: payload-copy
     phase: 2
@@ -734,7 +783,7 @@ shots:
   - id: landing/every-stage
     kind: clip
     project: image-quality
-    shows: The facade's window, new image, stage by stage of the ISP (the Controls panel's stage slider, out of the crop), from the raw mosaic to the tone-mapped output; captions name the stages.
+    shows: The facade's window, new image, stage by stage of the ISP (the View options' stage slider, out of the crop), from the raw mosaic to the tone-mapped output; captions name the stages.
     pages: [landing]
     features: [dynamic-outputs]
     needs: merge-bilateral vs isp-4-1
