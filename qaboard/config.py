@@ -155,6 +155,7 @@ platform = 'windows' if on_windows else 'linux'
 
 
 user = os.environ.get('QA_USER', getuser())
+local_commit_placeholder = f'<local:{user}>'
 
 
 def storage_roots(config: Dict, project: Path, subproject: Path, user_name: Optional[str] = None) -> Tuple[Path, Path, Path]:
@@ -318,18 +319,22 @@ for d in (repo_root, *list(repo_root.parents)):
     is_in_git_repo = True
     repo_root = d
     break
+
+
+def _git_head_or_placeholder(repo_root: Path) -> Tuple[str, str]:
+  """The (branch, commit) of the git HEAD, or placeholders outside git or if the HEAD can't be read."""
+  if is_in_git_repo:
+    try:
+      return git_head(repo_root)
+    except (OSError, ValueError) as e: # e.g. a .git pointer to a missing directory, an undecodable file
+      click.secho(f'WARNING: Could not read the git HEAD, using placeholders: {e}', fg='yellow', err=True)
+  return local_commit_placeholder, local_commit_placeholder
+
+
 if not commit_id or not commit_branch:
-    if is_in_git_repo:
-      commit_branch_, commit_id_ = git_head(repo_root)
-      if not commit_id:
-        commit_id = commit_id_
-      if not commit_branch:
-        commit_branch = commit_branch_
-    else:
-      if not commit_branch:
-        commit_branch = f'<local:{user}>'
-      if not commit_id:
-        commit_id = f'<local:{user}>'
+    fallback_branch, fallback_id = _git_head_or_placeholder(repo_root)
+    commit_branch = commit_branch or fallback_branch
+    commit_id = commit_id or fallback_id
 
 if artifacts_project_root:
     artifacts_branch_root = artifacts_project_root / 'branches' / slugify(commit_branch) / subproject_for_artifacts

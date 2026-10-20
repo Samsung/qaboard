@@ -530,3 +530,6 @@ users_restrict.yml
 /docs-media/out/
 /website/.media-cache/
 !/docs-media/shots/lib/
+
+# The CLI tests glob *.jpg under the sample project: the inputs are real tracked fixtures
+!/qaboard/sample_project/cli_tests/**/*.jpg

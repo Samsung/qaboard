@@ -1,8 +1,11 @@
+import os
 import subprocess
 from pathlib import Path
 from typing import Tuple, Optional, List
 
 import click
+
+from .compat import linux_to_windows
 
 
 def git_show(format: str, reference: Optional[str] = None) -> str:
@@ -81,6 +84,13 @@ def latest_commit(reference: str) -> str:
     return reference
 
 
+def _safe_linux_to_windows(path: str) -> str:
+  """On Windows, translate an absolute linux path in a .git pointer or commondir. Relative paths resolve as-is."""
+  if os.name != 'nt' or not path.startswith(('/', '\\')):
+    return path
+  return linux_to_windows(path)
+
+
 def git_dirs(repo_root: Path) -> Tuple[Path, Path]:
   """
   Return the git directory (HEAD) and the common directory (refs/, packed-refs) of a checkout.
@@ -94,11 +104,13 @@ def git_dirs(repo_root: Path) -> Tuple[Path, Path]:
     pointer = git_dir.read_text().strip()
     if pointer.startswith('gitdir:'):
       pointer = pointer[len('gitdir:'):].strip()
+    pointer = _safe_linux_to_windows(pointer)
     git_dir = repo_root / pointer # stays absolute if the pointer is absolute
+  # .git/worktrees/some-worktree/commondir points to the main repository's .git
   common_dir = git_dir
   commondir_path = git_dir / 'commondir'
   if commondir_path.is_file():
-    common_dir = git_dir / commondir_path.read_text().strip()
+    common_dir = git_dir / _safe_linux_to_windows(commondir_path.read_text().strip())
   return git_dir, common_dir
 
 

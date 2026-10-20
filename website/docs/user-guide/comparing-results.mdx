@@ -72,7 +72,7 @@ Click **new** or **ref** at the start of a bar to rename it, for example `ISP v2
 uses these names: the labels of images and videos, the legends of plots, the headers of text diffs and HTML outputs,
 the flame graphs' choices, the **Summary**, and the columns of the **Metrics Table** and **Metrics Diff**
 (`ISP v2 − ISP v1`). The names are saved in the link, so people you share it with see them too. Erase a name to go
-back to "new" or "reference".
+back to "new" or "ref".
 
 Results that are a milestone are named after it: rename the milestone instead.
 
@@ -91,9 +91,12 @@ are compared with one reference at a time, and you switch between them.
 3. Switch references with their tabs, below the bars, or press <kbd>r</kbd> (next) and <kbd>Shift</kbd> <kbd>r</kbd>
    (previous). Each keeps its batch, filter and name.
 
-Each reference has its color (purple, magenta, teal, violet, then gray), and milestones a star. Hover a tab for its
-commit, branch, batch and filter: "= new" says it shows the same results as the new bar. When a reference is not a
-milestone and you didn't name it, viewers call it by its number, like "reference 2".
+Each tab shows its reference's name, in its color (purple, magenta, teal, violet, then gray), with a star for
+milestones. The first reference is **ref**, the ones you add **ref 2**, **ref 3**...: the tab, the **ref** bar and the
+viewers all use that name, and you can rename it in any of them. Next to the name, a tab says only what tells it apart
+from the others: its batch or filter, its commit when others are on the same branch, its branch, its project. Hover a
+tab for what its bar would show: the commit and its message, who made it and when, the batch, the filter, and how many
+runs it has and how many failed. "= new" says it shows the same results as the new bar.
 
 The references are saved in the page's link: share it, and others can switch between the same references.
 
@@ -102,8 +105,13 @@ The references are saved in the page's link: share it, and others can switch bet
 
 - Drag tabs to reorder them, or press <kbd>Alt</kbd> <kbd>←</kbd> <kbd>→</kbd>.
 - Double-click a tab to rename it, press <kbd>Delete</kbd> to remove it.
-- Right-click a tab, or its **⋯**, to **Duplicate** it (to change its batch or filter), **Show as the new results**
-  (the new commit takes its place), move or remove it.
+- Right-click a tab, or click its **⋯**, to compare with it, rename it, **Duplicate** it (to change its batch or
+  filter), **Show as the new results** (the new commit takes its place), move or remove it.
+- A reference keeps its name when you reorder or remove the others; its color follows its place. A copy of a reference
+  you named "night" is "night copy".
+- When you swap the new results with a reference (**Switch new/reference**, or **Show as the new results**), the names
+  you gave follow their results, while "new", "ref" and "ref 2" stay where they are.
+- When there isn't room, the tabs' details give way first, then the tabs scroll sideways (with the mouse wheel too).
 - Only the reference shown is loaded with all its runs. Once the page is idle, the next and previous ones load in the
   background (unless they have thousands of runs), and hovering a tab loads it too.
 

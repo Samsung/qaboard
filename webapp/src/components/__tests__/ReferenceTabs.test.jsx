@@ -8,9 +8,9 @@ import { history, matchRoutes, RouteMatch } from '../../router';
 import { routes } from '../../routes';
 import { makeQueryClient } from '../../test-utils';
 import { milestonesQuery, index_milestones } from '../../milestones/api';
-import { ReferenceTabs } from '../ReferenceTabs';
+import { ReferenceTabs, tabs_details } from '../ReferenceTabs';
 
-const commit = id => ({ id, branch: `branch-${id.slice(0, 3)}`, message: `Commit ${id}`, authored_datetime: '2026-09-01T10:00:00Z', batches: {} });
+const commit = id => ({ id, branch: `branch-${id.slice(0, 3)}`, message: `Commit ${id}`, committer_name: 'Ada', authored_datetime: '2026-09-01T10:00:00Z', batches: { default: { label: 'default', valid_outputs: 3, failed_outputs: 1 } } });
 
 const Labels = () => {
   const { labels, compared } = useComparison();
@@ -54,7 +54,7 @@ test('with one reference, users stack more: commits or branches', async () => {
   show(`/p/commit/${a}?reference=${b}`);
   expect(screen.queryByRole('tab')).not.toBeInTheDocument();
   // new is blue, the reference purple
-  expect(screen.getByTestId('labels')).toHaveTextContent('new vs reference (var(--qa-side-0),var(--qa-side-1))');
+  expect(screen.getByTestId('labels')).toHaveTextContent('new vs ref (var(--qa-side-0),var(--qa-side-1))');
 
   fireEvent.click(screen.getByRole('button', { name: 'Stack a reference' }));
   const input = await screen.findByRole('textbox', { name: 'Add a commit or a branch as reference' });
@@ -62,6 +62,7 @@ test('with one reference, users stack more: commits or branches', async () => {
   fireEvent.keyDown(input, { key: 'Enter' });
   await waitFor(() => expect(reference()).toBe(c));
   expect(query().getAll('compare')).toEqual([b]);
+  expect(query().get('label_ref')).toBe('ref 2');
   // the new reference is a milestone: viewers use its name, it's the second reference: magenta
   await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('new vs release 1.0 (var(--qa-side-0),var(--qa-side-2))'));
   expect(tab(2)).toHaveAttribute('aria-selected', 'true');
@@ -72,19 +73,19 @@ test('with one reference, users stack more: commits or branches', async () => {
   fireEvent.change(branch_input, { target: { value: 'feature/night' } });
   fireEvent.keyDown(branch_input, { key: 'Enter' });
   await waitFor(() => expect(reference()).toBe(e));
-  expect(query().getAll('compare')).toEqual([b, c]);
+  expect(query().get('label_ref')).toBe('ref 3');
   await waitFor(() => expect(screen.getAllByRole('tab')).toHaveLength(3));
 });
 
 test('users switch between references with their tabs or "r"', async () => {
   show(`/p/commit/${a}?reference=${b}&compare=${d}`);
   expect(tab(1)).toHaveAttribute('aria-selected', 'true');
-  expect(screen.getByTestId('labels')).toHaveTextContent('new vs reference 1');
+  expect(screen.getByTestId('labels')).toHaveTextContent('new vs ref (');
 
   fireEvent.click(tab(2));
   await waitFor(() => expect(reference()).toBe(d));
   expect(tab(2)).toHaveAttribute('aria-selected', 'true');
-  expect(screen.getByTestId('labels')).toHaveTextContent('new vs reference 2');
+  expect(screen.getByTestId('labels')).toHaveTextContent('new vs ref 2 (');
 
   fireEvent.keyDown(document.body, { key: 'r' });
   await waitFor(() => expect(reference()).toBe(b));
@@ -96,7 +97,9 @@ test('users reorder, rename and remove references from their tabs', async () => 
   show(`/p/commit/${a}?reference=${b}&compare=${d}`);
   // alt+arrows move the tab focused
   fireEvent.keyDown(tab(1), { key: 'ArrowRight', altKey: true });
-  await waitFor(() => expect(query().getAll('compare')).toEqual([d]));
+  await waitFor(() => expect(query().get('compare[0][commit]')).toBe(d));
+  // it keeps its name: the other one is written down
+  expect(query().get('compare[0][label]')).toBe('ref 2');
   expect(query().get('ref_index')).toBe('1');
   expect(screen.getAllByRole('tab').map(t => t.getAttribute('aria-selected'))).toEqual(['false', 'true']);
 
@@ -134,4 +137,89 @@ test('big references are loaded only when users compare with them', async () => 
   await new Promise(resolve => setTimeout(resolve, 500));
   const full = fetch.mock.calls.map(([url]) => new URL(url, 'http://localhost')).filter(u => u.pathname === `/api/v1/commit/${f}` && !u.searchParams.has('with_outputs'));
   expect(full).toHaveLength(0);
+});
+
+test('a reference has the same name in its tab and in the viewers, wherever it goes', async () => {
+  show(`/p/commit/${a}?reference=${b}&compare=${d}`);
+  // the tab says its name, then its branch
+  await waitFor(() => expect(tab(2)).toHaveTextContent('ref 2branch-ddd'));
+  expect(tab(1)).toHaveTextContent(/^ref/);
+
+  // the "⋯" menu has the same actions as the right-click menu
+  fireEvent.click(screen.getByRole('button', { name: 'Reference 2: more' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: /Duplicate/ }));
+  await waitFor(() => expect(screen.getAllByRole('tab')).toHaveLength(3));
+  // the copy is shown, named after the next free number
+  expect(tab(3)).toHaveAttribute('aria-selected', 'true');
+  expect(tab(3)).toHaveTextContent(/^ref 3/);
+  expect(screen.getByTestId('labels')).toHaveTextContent('new vs ref 3 (');
+
+  // moving it keeps its name, and it stays shown
+  fireEvent.click(screen.getByRole('button', { name: 'Reference 3: more' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Move left' }));
+  await waitFor(() => expect(tab(2)).toHaveTextContent(/^ref 3/));
+  expect(tab(2)).toHaveAttribute('aria-selected', 'true');
+  expect(tab(3)).toHaveTextContent(/^ref 2/);
+  expect(screen.getByTestId('labels')).toHaveTextContent('new vs ref 3 (');
+
+  // renaming from the menu: the tab and the viewers use the name
+  fireEvent.click(screen.getByRole('button', { name: 'Reference 2: more' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));
+  const input = screen.getByRole('textbox', { name: 'Rename reference 2' });
+  expect(input).toHaveValue('ref 3');
+  fireEvent.change(input, { target: { value: 'tuned' } });
+  fireEvent.keyDown(input, { key: 'Enter' });
+  await waitFor(() => expect(screen.getByTestId('labels')).toHaveTextContent('new vs tuned ('));
+  expect(tab(2)).toHaveTextContent(/^tuned/);
+  // clicking menu items doesn't also switch references
+  expect(reference()).toBe(d);
+});
+
+test('hovering a tab says what the reference is', async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  try {
+    show(`/p/commit/${a}?reference=${b}&compare=${a}`);
+    await waitFor(() => expect(tab(2)).toHaveTextContent('branch-aaa'));
+    fireEvent.mouseEnter(tab(2));
+    await act(() => vi.advanceTimersByTimeAsync(1000));
+    const card = await screen.findByText('Commit ' + a);
+    const tooltip = card.closest('.bp6-popover-content') ?? document.body;
+    expect(tooltip).toHaveTextContent('ref 2');
+    expect(tooltip).toHaveTextContent('aaaaaaaa');
+    expect(tooltip).toHaveTextContent('branch-aaa');
+    expect(tooltip).toHaveTextContent('Ada');
+    expect(tooltip).toHaveTextContent('Batch CI');
+    expect(tooltip).toHaveTextContent('3 runs');
+    expect(tooltip).toHaveTextContent('1 failed');
+    // the same commit and batch as new
+    expect(tooltip).toHaveTextContent('Same as new');
+    expect(tab(2)).toHaveTextContent('= new');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+describe('tabs say only what tells references apart', () => {
+  const ref = (commit_id, branch, more = {}) => ({ project: 'p', commit_id, batch: 'default', filter: '', commit: { id: commit_id, branch, batches: {} }, ...more });
+  const texts = refs => tabs_details(refs, 'p').map(details => details.map(d => `${d.key}:${d.text}`));
+
+  test('branches only when they differ, commits when they share one', () => {
+    expect(texts([ref(a, 'master'), ref(b, 'develop')])).toEqual([['branch:master'], ['branch:develop']]);
+    // all on master: their commits
+    expect(texts([ref(a, 'master'), ref(b, 'master')])).toEqual([['commit:aaaaaaaa'], ['commit:bbbbbbbb']]);
+    // two on master, one on develop
+    expect(texts([ref(a, 'master'), ref(b, 'master'), ref(c, 'develop')]))
+      .toEqual([['commit:aaaaaaaa', 'branch:master'], ['commit:bbbbbbbb', 'branch:master'], ['branch:develop']]);
+  });
+
+  test('copies: their batch or filter when they differ', () => {
+    expect(texts([ref(a, 'master'), ref(a, 'master')])).toEqual([[], []]);
+    expect(texts([ref(a, 'master'), ref(a, 'master', { batch: 'night' })])).toEqual([[], ['batch:night']]);
+    expect(texts([ref(a, 'master'), ref(a, 'master', { filter: 'indoor' })])).toEqual([[], ['filter:indoor']]);
+  });
+
+  test("milestones are told apart by their names, other projects by their project", () => {
+    expect(texts([ref(a, 'master', { milestone: { label: 'v1' } }), ref(b, 'develop')])).toEqual([[], ['branch:develop']]);
+    expect(texts([ref(a, 'master'), ref(a, 'master', { project: 'q' })])).toEqual([['project:p'], ['project:q']]);
+  });
 });

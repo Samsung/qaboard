@@ -1,6 +1,7 @@
 import os
 import shutil
 import json
+from importlib import import_module, reload
 from pathlib import Path
 
 import yaml
@@ -20,9 +21,8 @@ class TestQaCli(unittest.TestCase):
   def setUpClass(self):
     self.previous_cwd = os.getcwd()
     root_repo = Path(__file__).resolve().parent.parent
-    os.chdir(root_repo / 'qaboard/sample_project')
-    # we create some files...
-    os.system("mkdir -p cli_tests/dir; touch cli_tests/a.jpg; touch cli_tests/b.jpg; touch cli_tests/dir/c.jpg")
+    self.project_dir = root_repo / 'qaboard/sample_project'
+    os.chdir(self.project_dir)
     database = str(Path())
     images = {'images': {
       "globs": ['*.jpg'],
@@ -42,8 +42,14 @@ class TestQaCli(unittest.TestCase):
     os.chdir(self.previous_cwd)
 
   def setUp(self):
-    from importlib import reload
-    def qa_(*argv):
+    # the qa CLI chdirs without restoring the cwd
+    os.chdir(self.project_dir)
+    def qa_(*argv, reload_modules=True):
+      # qaboard.config resolves the project from the cwd, and qa.py binds it at import time.
+      # Tests that patch them run a previous command to load them, then keep them: reload_modules=False
+      if reload_modules:
+        reload(import_module('qaboard.config'))
+        reload(import_module('qaboard.qa'))
       import qaboard
       qaboard = reload(qaboard)
       runner = CliRunner()
@@ -174,7 +180,7 @@ class TestQaCli(unittest.TestCase):
       }
     def batch(past_runs):
       with mock.patch('qaboard.qa.get_outputs', return_value=dict(enumerate(past_runs))):
-        return self.qa('--dryrun', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--action-on-existing', 'assert-exists', '--list')
+        return self.qa('--dryrun', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--action-on-existing', 'assert-exists', '--list', reload_modules=False)
     # a run is missing
     result = batch([past_run(0, runs[0]), past_run(1, runs[1])])
     assert result.exit_code == 1
@@ -217,7 +223,7 @@ class TestQaCli(unittest.TestCase):
              mock.patch('qaboard.git.latest_commit', return_value='a' * 40), \
              mock.patch('qaboard.git_hosts.lastest_successful_ci_commit', side_effect=lambda commit: commit), \
              mock.patch('qaboard.conventions.get_commit_dirs', return_value=Path()):
-          return self.qa('--configuration', 'base', 'check-bit-accuracy', '--batches-file', 'image.batches.yaml', '--batch', 'images', '--reference-platform', 'hw')
+          return self.qa('--configuration', 'base', 'check-bit-accuracy', '--batches-file', 'image.batches.yaml', '--batch', 'images', '--reference-platform', 'hw', reload_modules=False)
       result = check_bit_accuracy()
       assert result.exit_code == 0, result.output
       assert result.output.count('✔️') == 6 # outputs and inputs of each run

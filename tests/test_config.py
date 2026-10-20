@@ -6,6 +6,9 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
+
+from tests.test_git import make_broken_checkout
 
 
 class TestFindConfigs(unittest.TestCase):
@@ -68,6 +71,16 @@ class TestStorageRoots(unittest.TestCase):
     from qaboard.config import user
     outputs, _, _ = self.storage_roots(self.config, Path('group/repo'), Path('.'))
     self.assertEqual(outputs, Path(f'/algo/outputs/{user}'))
+
+
+class TestGitHeadFallback(unittest.TestCase):
+  def test_unresolvable_head_warns_and_uses_placeholders(self):
+    from qaboard.config import _git_head_or_placeholder, user
+    with tempfile.TemporaryDirectory() as tmp, \
+         mock.patch('qaboard.config.is_in_git_repo', True), \
+         mock.patch('qaboard.config.click.secho') as secho:
+      self.assertEqual(_git_head_or_placeholder(make_broken_checkout(Path(tmp))), (f'<local:{user}>', f'<local:{user}>'))
+    self.assertIn('Could not read the git HEAD', secho.call_args.args[0])
 
 
 if __name__ == '__main__':
