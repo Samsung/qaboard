@@ -420,7 +420,9 @@ class TestIngestMessages(AuthTestCase):
     _, stderr = self.notify(response(401, {"error": "You need to be logged-in to do this."}))
     self.assertIn('Failed to update QA-Board.', stderr)
     self.assertIn('401: {"error": "You need to be logged-in to do this."}', stderr)
-    self.assertNotIn('qa auth login', stderr)
+    # no hint: older servers don't say why. (The data dump has the commit message, which can mention anything.)
+    self.assertNotIn('Run `qa auth login`', stderr)
+    self.assertNotIn('run `qa auth login`', stderr)
     self.assertNotIn('secret', stderr)
 
   def test_warning_header_and_nudge(self):
