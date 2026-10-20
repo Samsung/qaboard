@@ -123,7 +123,7 @@ QA-Board can connect to external authentication systems (LDAP, SAML). If needed,
 | `QABOARD_DB_HOST`      | db      | Connect the backend to a non-default database host (e.g. instead of dev'ing with prod dumps, connect directly to it) |
 | `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port               |
 | `QABOARD_DB_POOL_SIZE` / `QABOARD_DB_MAX_OVERFLOW` | 4 / 2 | Database connections kept open by each uwsgi process (it runs 4 threads), and extra ones it may open. PostgreSQL's `max_connections` must cover them, see [Database settings](backend-admin/deployment#database-settings) |
-| `JENKINS_AUTH`         | _none_  | Credentials used to [trigger jenkins jobs](triggering-third-party-tools) on 1 or many jenkins servers. The format is a JSON string looking like `{"hostname_1": {"user": "jenkinsuser", "token": "xxxxx", "crumb": "yyy"}}` ([how-to-get-the-token-crumb?](triggering-third-party-tools))               |
+| `JENKINS_AUTH`         | _none_  | Credentials used to [trigger jenkins jobs](triggering-third-party-tools) on 1 or many jenkins servers. The format is a JSON string looking like `{"hostname_1": {"user": "jenkinsuser", "token": "xxxxx", "crumb": "yyy"}}` (see [Jenkins builds](/docs/triggering-third-party-tools#trigger-jenkins-builds) for the token and crumb)               |
 | `QABOARD_LOGIN_TYPE`   | _LOCAL_  | Set to `LOCAL/LDAP/SAML`                   |
 | `QABOARD_LOGIN_REQUIRED`   | _empty_  | Any non-empty value (e.g. `true`) blocks anonymous users. Leave it unset/empty to allow them: even `false` enables it |
 | `QABOARD_DISABLE_SIGNUP`   | _empty_  | Set to `True` (exactly) to disallow local users from signing up                   |
