@@ -487,16 +487,15 @@ def wait(ctx, output_id):
   first = True
   while True:
     output = get_output(output_id)
+    if not output["is_pending"]:
+      break
     if first:
       click.secho("...waiting for previously started pending run. To run directly, use qa batch --action-on-pending=run")
-    else:
       first = False
+    else:
       click.secho("...waiting")
-    if output["is_pending"]:
-        time.sleep(5)
-        continue
-    break
-    exit(0 if not output["is_failed"] else 1)
+    time.sleep(5)
+  exit(0 if not output["is_failed"] else 1)
 
 
 lsf_config = config['lsf'] if 'lsf' in config else config.get('runners', {}).get('lsf', {})

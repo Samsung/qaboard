@@ -252,6 +252,18 @@ class TestQaCli(unittest.TestCase):
       assert result.exit_code == 0
       assert checkpoint.exists()
 
+  def test_wait(self):
+    """qa wait waits for the run to finish, and fails when the run failed"""
+    from unittest import mock
+    pending, failed, succeeded = {"is_pending": True, "is_failed": False}, {"is_pending": False, "is_failed": True}, {"is_pending": False, "is_failed": False}
+    with mock.patch('qaboard.api.get_output', side_effect=[pending, failed]) as get_output, mock.patch('time.sleep'):
+      result = self.qa('wait', '--output-id', '1')
+    assert get_output.call_count == 2
+    assert result.exit_code == 1
+    with mock.patch('qaboard.api.get_output', side_effect=[succeeded]):
+      result = self.qa('wait', '--output-id', '1')
+    assert result.exit_code == 0
+
   def test_runner_local(self):
     result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{input_path} => {output_dir}"')
     print('stdout:', result.stdout)

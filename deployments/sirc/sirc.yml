@@ -59,6 +59,8 @@ services:
     - QABOARD_TUNING_RUNNER=lsf
     # The token of "Trigger builds remotely" sent to the Jenkins jobs of integrations without `token` (was hard-coded)
     - JENKINS_BUILD_TOKEN=qaboard
+    # Commit lists of these projects skip the batches' aggregated metrics: too many runs per batch (was hard-coded)
+    - QABOARD_SKIP_METRICS_AGGREGATION=CDE-Users/HW_ALG,aqua/
     - QABOARD_DEFAULT_USER=ispq
     - QA_LSF_SSH_TARGET=ispq@ispq-vdi
     - 'QABOARD_IMAGE_SERVERS={"default": "https://cantaloupe-svc.transchip.com/iiif/2/", "raw,hex,cde": "https://iipsrv.transchip.com/fcgi-bin/iipsrv.fcgi?IIIF=/"}'

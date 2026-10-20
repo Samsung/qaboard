@@ -90,9 +90,7 @@ In prose, call them by their role: "the camera ISP project", "the inference gate
   `-5d` are the weekend: the seeder warns about commits there.
 - Each project's history spans about 6 weeks before T0, mostly on weekdays, within the authors' hours.
 - The newest finished results are at least 10 minutes before T0; one batch per project is still running at T0.
-- The quickstarts' demo-data image moves all dates when it restores the data, so that T0 becomes the restore time:
-  the latest commits are in the commit list, which starts with the last 3 days
-  ([how](../docs-media/README.md#the-demo-data-image)). The demo stack that captures run on keeps T0.
+- The quickstart's demo-data image shifts all dates on restore so that T0 becomes the restore time.
 
 ### Branches
 - `main` is the reference branch everywhere, set explicitly in *qaboard.yaml*.
