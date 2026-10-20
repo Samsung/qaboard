@@ -85,8 +85,9 @@ Name things the way the web app does, and the same way every time.
 - Commit page sections and views: **Metrics** (**Summary**, **Metrics Table**, **Metrics Diff**), **Outputs**
   (**Visualizations**, **Output Files**, **Logs**), **Source** (**Artifacts & Configs**, **Code**), **Tuning**
   (**Available Tests**, **Run Tests / Tuning**, **Analysis**).
-- Elsewhere: **History**, **Milestones**, **Integrations** (formerly "Actions & Links"), the **Controls** panel,
-  **Image Diff**, **Dynamic Options**, **What's new**, the file browser.
+- Elsewhere: **History**, **Milestones**, **Integrations** (formerly "Actions & Links"), the **View options** panel
+  (formerly "Controls") with **Compare images** (formerly "Image Diff") and **Files to show** (formerly "Dynamic
+  Options"), **What's new**, the file browser.
 - `SIDEBAR.md` writes "Run Tests/Tuning"; the app writes **Run Tests / Tuning**: follow the app.
 
 ## Claims
@@ -122,7 +123,7 @@ in the present tense. The landing page only claims Shipped and Experimental item
   - No: "The History page."
 - **Alt text says what's there,** for someone who can't see it: the view, the state that matters, the key values.
   One or two sentences, no "screenshot of", no file names, no repeat of the caption. Clips: describe the action
-  ("Zooming into the image; the reference follows, then Image Diff turns on").
+  ("Zooming into the image; the reference follows, then their difference shows").
 - **Call-outs:** at most 4, labeled with the UI's names, anchored to elements recorded by the shot (`anchor`), not to
   pixel positions, when possible.
 - Put the shot right after the paragraph it illustrates. One shot per idea; a clip when the point is a motion (sync,
