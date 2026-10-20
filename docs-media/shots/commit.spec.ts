@@ -581,9 +581,9 @@ shot('commit/reference-tabs', {
   url: d => d.commitUrl(IQ, 'merge-bilateral', {
     reference: 'isp-4-1', view: 'table-kpi', query: { compare: d.sha(IQ, 'chroma-low-light') },
   }),
-  alt: 'The commit bars of the bilateral denoiser\'s merge with two references stacked: under the ref bar, tab 1, the '
-    + 'isp-4.1 milestone, is the one shown; tab 2, main, is hovered, and its tooltip gives main\'s latest commit, its '
-    + 'message and hash; r and Shift r switch between them.',
+  alt: 'The commit bars of the bilateral denoiser\'s merge with two references stacked: under the bars, the tabs show '
+    + 'the top results, then, after vs, the isp-4.1 milestone, the one shown, and main, hovered: its tooltip gives '
+    + 'main\'s latest commit, its message and hash.',
   caption: 'Stack several references: their tabs hang below the bars, click one, or press r, to compare with it.',
   actions: async ui => {
     await referenceTabs(ui.page).waitFor();
