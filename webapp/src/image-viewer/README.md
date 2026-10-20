@@ -15,7 +15,7 @@ import '@qaboard/image-viewer/style.css';
 ```
 
 - [Install](#install)
-- [Usage](#usage): images, comparison modes, pixel values (the image's or the displayed ones), regions of interest, sync
+- [Usage](#usage): images, comparison modes, comparing with other images, pixel values (the image's or the displayed ones), regions of interest, sync
 - [Props](#props)
 - [The difference](#the-difference)
 - [Theming](#theming)
@@ -86,6 +86,35 @@ const [mode, setMode] = useState('side-by-side');
 The same goes for `diff` / `onDiffChange` (how the difference is computed), `adjustments` / `onAdjustmentsChange`
 and `pixelValues` / `onPixelValuesChange`. Without them, the viewer keeps its own state, from
 `defaultMode`, `defaultDiff`...
+
+### Comparing with other images
+Users often want to compare an image with something else than its reference: its ground truth, the input, another
+stage of the pipeline... List those images in `compareWith`: the toolbar then shows **vs reference ▾**, a menu with a
+search box, the reference first, then your images by `group`, with thumbnails for IIIF images. The image picked shows
+instead of the reference, in every mode, with its name and a file icon on its label, in its own color (teal, or its
+`color`). The undo button next to the menu, or <kbd>c</kbd>, goes back to the reference; <kbd>c</kbd> again goes back
+to the image picked last.
+
+```jsx
+<ImageViewer
+  image={{ iiif: '/iiif/2/runs%2F42%2Fout%2F0001.png', label: 'new' }}
+  // optional: `detail` says what it is, in the menu
+  reference={{ iiif: '/iiif/2/runs%2F41%2Fout%2F0001.png', label: 'reference', detail: 'The same file in the reference run' }}
+  compareWith={[
+    { id: 'gt/0001.png', image: { iiif: '/iiif/2/runs%2F42%2Fgt%2F0001.png' }, group: 'Suggested', detail: 'Same name, in gt/' },
+    { id: 'input.png', image: { iiif: '/iiif/2/runs%2F42%2Finput.png' }, group: 'This run' },
+  ]}
+/>
+```
+
+An item's `label` is its `id` by default; folders are muted in the menu. Without a reference, the menu reads
+**Compare with…**: the image shows alone until users pick one. Control what's compared (`compared`, `onComparedChange`:
+an id, or `null` for the reference) to pick the same in several viewers: QA-Board compares the image of every run of
+a page with that run's file of the same name. When a viewer has no item with the id, it compares with the reference,
+and says the image is missing.
+
+The viewer doesn't know where the images come from: QA-Board lists the files of the run, the likeliest first (the same
+name in another folder, names that start alike next to it).
 
 ### Pixel values: the image's, or the displayed ones
 There are two kinds of values, and the viewer always says which one users look at:
@@ -199,7 +228,9 @@ resolution), and show a cross where the pointer is on the others. Viewers off-sc
 | Prop | Type | Default | |
 |---|---|---|---|
 | `image` | URL or `{ url \| iiif, label?, color?, textColor?, href?, ... }` | required | The image. `color`: of its label (blue by default, purple for `reference`), `textColor`: of the label's text (white) |
-| `reference` | same, or `null` | `null` | What it's compared with |
+| `reference` | same, or `null` | `null` | What it's compared with. `detail`: what it is, in the **vs** menu |
+| `compareWith` | `[{ id, image, label?, group?, detail?, title? }]` | `[]` | [Other images](#comparing-with-other-images) users can compare with instead of the reference |
+| `compared`, `defaultCompared`, `onComparedChange` | `string \| null` | `null` | The id of the image of `compareWith` compared with, `null`: the reference |
 | `mode`, `defaultMode`, `onModeChange` | `'side-by-side' \| 'wipe' \| 'single' \| 'difference'` | `'side-by-side'` | How they're compared |
 | `diff`, `defaultDiff`, `onDiffChange` | `{ method, gain?, max?, layout? }` | `{ method: 'perceptual' }` | [The difference](#the-difference), and whether the images show on its sides (`layout: 'between'`, the default) or not (`'alone'`) |
 | `adjustments`, `defaultAdjustments`, `onAdjustmentsChange` | `{ brightness, contrast, gamma, sharpen, channel, falseColor, invert }` | none | How images look. Only the display changes. |
@@ -225,7 +256,7 @@ Anywhere on the page: for the viewer in full screen, else under the mouse, else 
 last if it's in view, else the first in view. <kbd>1</kbd>–<kbd>4</kbd> the mode, <kbd>t</kbd> toggle: swap the sides
 (around the difference too); when one image shows, or the difference alone, the other image, their difference, and
 again (like a click on the image), <kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd> zoom, <kbd>p</kbd> pixel values,
-<kbd>h</kbd> blind test (then reveal, then end), <kbd>f</kbd> full screen (<kbd>Esc</kbd> leaves), <kbd>[</kbd> <kbd>]</kbd> previous / next region. The wheel or a pinch zooms, a drag pans, a
+<kbd>h</kbd> blind test (then reveal, then end), <kbd>c</kbd> compare with the reference, or the image of `compareWith` picked last, <kbd>f</kbd> full screen (<kbd>Esc</kbd> leaves), <kbd>[</kbd> <kbd>]</kbd> previous / next region. The wheel or a pinch zooms, a drag pans, a
 double-click zooms in.
 
 

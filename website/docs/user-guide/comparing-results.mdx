@@ -186,6 +186,18 @@ images. Then **Done** (or <kbd>h</kbd>) ends the test: new first again everywher
   caption="Both images at the same zoom on the leaves over a window: only the new one outlines each leaf with a dark halo."
 />
 
+### Compare with another file of the run
+To compare an image with its ground truth, the input or another stage instead of the reference, click
+**vs reference ▾** next to the comparison modes. The menu lists the run's other images, the likeliest first: the same
+name in another folder (`gt/0001.png` for `out/0001.png`), then names that start alike in the same folder. Type to find
+one, then click it or press <kbd>Enter</kbd>. It shows instead of the reference, in every mode (side by side, wipe,
+single, difference), with its file name and a file icon on a teal label.
+
+Every run's viewer of that visualization then compares with its own file of that name, so you can go through all the
+runs of the page. A run without the file compares with its reference, and says the file is missing. The undo button
+next to the menu, or <kbd>c</kbd>, goes back to the reference; <kbd>c</kbd> again goes back to the file. Runs without a
+reference can compare with their files too: the menu then reads **Compare with…**.
+
 ### Synced zoom and pan
 Zoom (mouse wheel, pinch, or <kbd>+</kbd> <kbd>-</kbd>) or pan (drag) in one image and the others follow. All the
 viewers of the same input with the same image proportions stay in sync, including the other visualizations of the run.

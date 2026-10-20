@@ -3,6 +3,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 import { Comparison } from './comparison';
+import { candidateLabel, CompareWithMenu } from './compareWith';
 import { describeAdjustments, filterPrimitives, normalizeAdjustments, changedAdjustments } from './adjustments';
 import { DEFAULT_DIFF, normalizeDiff } from './metrics';
 import { regionAsYaml } from './regions';
@@ -86,6 +87,10 @@ const saveCanvas = async (canvas, filter, filename) => {
 export const ImageViewer = ({
   image,
   reference = null,
+  compareWith = [],
+  compared: compared_prop,
+  defaultCompared = null,
+  onComparedChange,
   mode: mode_prop,
   defaultMode = DEFAULT_MODE,
   onModeChange,
@@ -118,7 +123,17 @@ export const ImageViewer = ({
   className = '',
   style,
 }) => {
-  const images = { a: normalizeImage(image), b: normalizeImage(reference) };
+  // What the image is compared with: the reference, or one of the app's other images, e.g. another file of the same
+  // run (compareWith.jsx). Controlled with onComparedChange, e.g. the same for several viewers, or not.
+  const [compared_id, setCompared] = useControllable(compared_prop, defaultCompared, onComparedChange);
+  const alternative = compared_id != null ? compareWith.find(candidate => candidate.id === compared_id) ?? null : null;
+  // e.g. a file the other viewers' runs have, but not this one's: we show the reference and say it
+  const missing = compared_id != null && !alternative ? compared_id : null;
+  const reference_name = normalizeImage(reference)?.label ?? 'reference';
+  const images = {
+    a: normalizeImage(image),
+    b: alternative ? { ...normalizeImage(alternative.image), label: candidateLabel(alternative) } : normalizeImage(reference),
+  };
   const comparing = !!images.b;
   const labels = { a: images.a?.label ?? 'new', b: images.b?.label ?? 'reference' };
 
@@ -269,7 +284,7 @@ export const ImageViewer = ({
   // again. The first is new, or A during a blind test: with swapped shared by the viewers of a page, they all stay in step.
   const single = mode === 'single' || (mode === 'difference' && diff_layout === 'alone');
   const lead = blind?.a === 'B' ? 'b' : 'a';
-  const other = lead === 'a' ? 'b' : 'a';
+  const trailing = lead === 'a' ? 'b' : 'a';
   const flip = () => {
     if (!single || (mode === 'single' && first === lead)) return swap();
     if (mode === 'single') {
@@ -283,8 +298,8 @@ export const ImageViewer = ({
     setMode('single');
   };
   const flip_title = !single ? `Swap the sides: ${names[second]} | ${names[first]}`
-    : mode === 'single' && first === lead ? `Show the ${names[other]} image`
-    : mode === 'single' ? `Show the difference: ${names[lead]} − ${names[other]}`
+    : mode === 'single' && first === lead ? `Show the ${names[trailing]} image`
+    : mode === 'single' ? `Show the difference: ${names[lead]} − ${names[trailing]}`
     : `Show the ${names[lead]} image`;
   // Picking the mode shown again: Single flips the images, Difference shows or hides the images on its sides
   const pickMode = value => {
@@ -343,6 +358,26 @@ export const ImageViewer = ({
     setMessage(text);
     setTimeout(() => setMessage(m => m === text ? null : m), 2500);
   };
+  // Picking what to compare with. c goes back to the reference, then to the image picked last.
+  const [picker_open, setPickerOpen] = useState(false);
+  const last_other = useRef(null);
+  const alternative_id = alternative?.id ?? null;
+  useEffect(() => {
+    if (alternative_id !== null) last_other.current = alternative_id;
+  }, [alternative_id]);
+  const pickCompared = id => {
+    if (id === (compared_id ?? null)) return;
+    if (id !== null) last_other.current = id;
+    setCompared(id);
+    const candidate = id !== null ? compareWith.find(c => c.id === id) : null;
+    notify(candidate ? `Comparing with ${candidateLabel(candidate)}` : reference ? `Comparing with the ${reference_name} again` : 'The image alone again');
+  };
+  const toggleCompared = () => {
+    if (compared_id != null) return pickCompared(null);
+    if (compareWith.some(c => c.id === last_other.current)) return pickCompared(last_other.current);
+    setPickerOpen(true);
+  };
+
   const copyRegion = () => {
     const region = controller.visibleRegion();
     if (!region || !size_a) return;
@@ -384,6 +419,10 @@ export const ImageViewer = ({
         case 't':
           if (!comparing) return false;
           flip();
+          return true;
+        case 'c':
+          if (compareWith.length === 0 || hidden) return false;
+          toggleCompared();
           return true;
         case 'h':
           if (!comparing) return false;
@@ -463,6 +502,7 @@ export const ImageViewer = ({
     onClick={flip}
     onPointerDown={event => event.stopPropagation()}
   >
+    {name === 'b' && alternative && !hidden && <Icon icon="document" size={12} className="qiv-label-icon" />}
     {names[name]}{resolution(name)}
   </button>;
 
@@ -540,7 +580,7 @@ export const ImageViewer = ({
 
   return <div
     ref={root}
-    className={`qiv ${fullscreen ? 'qiv-fullscreen' : ''} ${className}`}
+    className={`qiv ${fullscreen ? 'qiv-fullscreen' : ''} ${alternative && !hidden ? 'qiv-vs-other' : ''} ${className}`}
     data-theme={theme}
     style={{ ...imageColors(images.a, images.b), ...style }}
     onPointerEnter={() => { hovered_viewer = last_viewer = root.current; }}
@@ -555,6 +595,34 @@ export const ImageViewer = ({
     <div className="qiv-header" ref={header}>
     <div className="qiv-toolbar">
       {comparing && <Segmented label="Compare" options={MODES} value={mode} onChange={pickMode} />}
+      {compareWith.length > 0 && <span className="qiv-group qiv-compare-with">
+        <Popover open={picker_open} onOpenChange={setPickerOpen} button={props => <Button
+          {...props}
+          icon={alternative ? 'document' : 'git-branch'}
+          className={`qiv-compare-button ${alternative ? 'qiv-intent' : ''}`}
+          disabled={hidden}
+          title={hidden ? 'Pick what to compare with after the blind test'
+            : `Compare with ${alternative ? candidateLabel(alternative) : reference ? `the ${reference_name}` : 'another image'}. Click to compare with another image (c: ${alternative ? 'back to the reference' : 'the image picked last'})`}
+        >
+          {comparing ? <><span className="qiv-compare-vs">vs</span> <span className="qiv-compare-current">{alternative ? candidateLabel(alternative) : reference_name}</span></> : 'Compare with…'}
+          <Icon icon="chevron-down" size={12} />
+        </Button>}>
+          {({ close }) => <CompareWithMenu
+            reference={reference}
+            referenceName={reference_name}
+            candidates={compareWith}
+            selected={alternative?.id ?? null}
+            onSelect={pickCompared}
+            close={close}
+          />}
+        </Popover>
+        {alternative && !hidden && <Button
+          icon="undo"
+          title={reference ? `Back to the ${reference_name} (c)` : 'Show the image alone (c)'}
+          label={reference ? `Back to the ${reference_name}` : 'Show the image alone'}
+          onClick={() => pickCompared(null)}
+        />}
+      </span>}
       {mode === 'difference' && <Button
         icon="three-columns"
         title={diff_between ? 'Show the difference alone (4)' : `Show the images on each side of the difference: ${names[first]} | difference | ${names[second]} (4)`}
@@ -582,6 +650,9 @@ export const ImageViewer = ({
       {loading && <Spinner label="Loading the images" />}
       {tile_errors > 0 && <span className="qiv-warning-text" title={controller.images.a?.tileError ?? controller.images.b?.tileError}>
         <Icon icon="warning-sign" size={12} /> {tile_errors} tile{tile_errors > 1 ? 's' : ''} failed
+      </span>}
+      {missing && <span className="qiv-warning-text" title={`${missing} isn't available here: ${reference ? `comparing with the ${reference_name}` : 'the image shows alone'}`}>
+        <Icon icon="warning-sign" size={12} /> no {missing.split('/').pop()} here
       </span>}
       {different_aspect && <span className="qiv-warning-text" title="The images are compared at the same width: their bottoms don't match.">
         <Icon icon="warning-sign" size={12} /> different aspect ratios

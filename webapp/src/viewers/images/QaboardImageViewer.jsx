@@ -1,4 +1,5 @@
-// The image viewer in QA-Board: compares an image of a run with the same image of its reference run.
+// The image viewer in QA-Board: compares an image of a run with the same image of its reference run, or with another
+// image of the run (e.g. its ground truth).
 // It maps runs, their files and the site's image servers to the viewer's props (src/image-viewer/README.md).
 import { useState } from 'react';
 import { Tag } from '@blueprintjs/core';
@@ -12,6 +13,7 @@ import { useComparison, useSiteConfig, useUser } from '../../hooks';
 import { usePrefsStore } from '../../stores/prefs';
 import { at_most, is_same_data } from '../../utils';
 import { build_image_name, iiif_url } from './utils';
+import { compareCandidates } from './compareWith';
 import { regionProviders } from './regionProviders';
 import { regionsQuery } from './regionSearch';
 import { differenceProviders, RegionsTriage, usePagePairs } from './RegionsTriage';
@@ -33,14 +35,31 @@ const runImage = (output, path, manifest, image_servers, label, color) => {
   };
 };
 
-// What the image is compared with: the same image in the reference run.
-// To compare with another file of the same run instead (e.g. the input, or a previous stage), this is where to
-// return { ...runImage(output_new, other_path, manifests.new, image_servers, other_path) }: the viewer compares
-// any two images, and the labels say which.
+// What the image is compared with: the same image in the reference run...
 const referenceImage = ({ output_ref, path_ref, manifests, image_servers, label = 'reference', color }) => {
   const available = !!output_ref && !output_ref.deleted && !!output_ref.output_dir_url && manifests?.reference?.[path_ref] !== undefined;
-  return available ? runImage(output_ref, path_ref, manifests.reference, image_servers, label, color) : null;
+  return available ? { ...runImage(output_ref, path_ref, manifests.reference, image_servers, label, color), detail: 'The same file in the reference run' } : null;
 };
+
+// ...or another image of the run, e.g. its ground truth, picked in the viewer's "vs" menu.
+// Later: the images of the reference run, of other runs...
+const otherImages = ({ output_new, path, manifests, image_servers }) => {
+  if (output_new.deleted || !output_new.output_dir_url) return [];
+  return compareCandidates(path, manifests?.new).map(({ path: other, suggested, reason }) => ({
+    id: other,
+    image: runImage(output_new, other, manifests.new, image_servers, other),
+    group: suggested ? 'Suggested' : 'This run',
+    detail: reason,
+  }));
+};
+
+// The image picked to compare with is the same for the viewers of a visualization: each run's viewer compares with its
+// own file of that name, e.g. every run with its ground truth. Like the adjustments, it's not saved.
+const useComparedStore = create(set => ({
+  // { [path]: path of the other image | null }
+  by_path: {},
+  set: (path, other) => set(state => ({ by_path: { ...state.by_path, [path]: other } })),
+}));
 
 // The image's own values (e.g. 16-bit, raw...), read by the server, as binary: the viewer asks for tiles of 64x64
 const TYPED_ARRAYS = {
@@ -175,8 +194,18 @@ const ImageViewerForRuns = ({
   const identical = is_same_data(path, manifests?.new?.[path], manifests?.reference?.[path_ref]);
   const same_data = identical && output_ref?.id !== output_new.id;
   const reference = identical ? null : referenceImage({ output_ref, path_ref, manifests, image_servers, label: labels?.reference, color: labels?.colors?.reference });
+  const compare_with = otherImages({ output_new, path, manifests, image_servers });
+  const compared = useComparedStore(state => state.by_path[path] ?? null);
+  const setCompared = useComparedStore(state => state.set);
+  // when the run has it: else the viewer says so, and shows the reference
+  const other = compare_with.some(candidate => candidate.id === compared) ? compared : null;
+  const same_as_other = !!other && is_same_data(path, manifests?.new?.[path], manifests?.new?.[other]);
   const signed_in = useUser().is_logged;
-  const region_sets = useRegionSets({ output_new, output_ref: reference ? output_ref : null, path, path_ref }, signed_in);
+  // the regions where the images differ: of the image and the other image of the run, or its reference
+  const region_context = other
+    ? { output_new, output_ref: output_new, path, path_ref: other }
+    : { output_new, output_ref: reference ? output_ref : null, path, path_ref };
+  const region_sets = useRegionSets(region_context, signed_in);
   const page = usePageKey();
   const chosen = useRegionSetStore(state => state.by_path[path]);
   const setChosen = useRegionSetStore(state => state.set);
@@ -197,7 +226,7 @@ const ImageViewerForRuns = ({
   // Where the images differ, for all the runs of the page: from the viewers of the page's runs
   const pairs = usePagePairs();
   const [triage, setTriage] = useState(null);
-  const in_page = !!reference && pairs.some(pair => pair.output_new.id === output_new.id);
+  const in_page = !!reference && !other && pairs.some(pair => pair.output_new.id === output_new.id);
   const comparing = differenceProviders()[0];
   const region_actions = signed_in && in_page && comparing && pairs.length > 1 ? [{
     id: 'all-runs',
@@ -221,6 +250,9 @@ const ImageViewerForRuns = ({
     style={{ width: fullscreen ? '100%' : at_most(style?.width), maxWidth: '100%' }}
     image={image}
     reference={reference}
+    compareWith={compare_with}
+    compared={compared}
+    onComparedChange={value => setCompared(path, value)}
     mode={mode}
     onModeChange={value => onControlsChange ? onControlsChange({ image_mode: value, diff: undefined }) : setLocalMode(value)}
     diff={diff_settings}
@@ -245,7 +277,8 @@ const ImageViewerForRuns = ({
     notice={<>
       {label && <span className="qaboard-image-viewer-label">{label}</span>}
       {/* no tooltips: they wouldn't show in full screen */}
-      {same_data && <Tag minimal icon="duplicate" title="The new and reference files have the same hash">same as the reference</Tag>}
+      {same_data && !other && <Tag minimal icon="duplicate" title="The new and reference files have the same hash">same as the reference</Tag>}
+      {same_as_other && <Tag minimal icon="duplicate" title={`${path} and ${other} have the same hash`}>same data as {other.split('/').pop()}</Tag>}
       {triage && <RegionsTriage path={path} path_ref={path_ref} provider={triage} onProviderChange={setTriage} onShow={showRun} onClose={() => setTriage(null)} />}
     </>}
   />;
