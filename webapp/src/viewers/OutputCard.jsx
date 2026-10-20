@@ -500,7 +500,7 @@ const OutputCard = memo(function OutputCard(props) {
                 {relevant_synced.map(option_name => (
                   <Tooltip
                     key={option_name}
-                    content={`${optionLabel(option_name)}: the same for all runs, set in the controls panel. Click to choose it per run.`}
+                    content={`${optionLabel(option_name)}: the same for all runs, set in the View options. Click to choose it per run.`}
                     position="top"
                   >
                     <Button
