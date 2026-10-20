@@ -2,8 +2,8 @@
 
 ## Purpose
 - **Shows:** QA-Board as the place where a team follows its tests over time: how many there are, which fail, which
-  are flaky or skipped, and how much code they cover, per suite and in total; the list of tests diffed between
-  commits; a tree report; and the experimental gate catching tests that were deleted to get a green CI.
+  are flaky or skipped, and how much code they cover, per suite and in total; each suite's tests compared with the
+  reference's in the test viewer; and the experimental gate catching tests that were deleted to get a green CI.
 - **Audience:** teams that track unit and integration tests, coverage and their targets in CI dashboards, and want to
   review changes to them like any other result.
 - **Phase 3.**
@@ -82,19 +82,23 @@ tests are reported, not gated.
 outputs:
   visualizations:
     - name: Tests
-      path: tests.txt             # `FAIL   tests/codec/test_varint.py::test_round_trip_fuzz[17]`, sorted: diffed
-    - name: Report
-      path: report.html           # tree of folders, files and classes, with counts; failures open, with pytest's output
+      path: junit.xml             # QA-Board's test viewer: the tests as a tree, compared with the reference's report
     - name: Lines without tests
       path: coverage.txt          # coverage.py's report: missed lines and branches per file
+    - name: Test list
+      path: tests.txt             # `FAIL   tests/codec/test_varint.py::test_round_trip_fuzz[17]`, sorted: diffed
+      default_hidden: true
     - name: Slowest tests
       path: slowest.plotly.json   # the 15 slowest, the reference's overlaid
       side_by_side: false
       default_hidden: true
-    - name: JUnit XML
-      path: junit.xml
+    - name: HTML report
+      path: report.html           # tree of folders, files and classes, written by qa/report.py
       default_hidden: true
 ```
+
+`junit.xml` marks the flaky tests like Maven Surefire does (`<flakyFailure>` instead of `<failure>`), so the report
+itself says which ones they are.
 
 ## Batches (`qa/batches.yaml`)
 
@@ -151,5 +155,5 @@ Measured with the replay of every commit's flags, on 4 CPUs (pytest 9.1, coverag
   100 ms of the runs starting).
 
 ## Shots it must make possible
-`history/test-volume`, `commit/tests-diff` and `commit/deleted-tests`, for the use case page (specs in
+`history/test-volume`, `commit/junit-viewer`, `commit/tests-diff` and `commit/deleted-tests`, for the use case page (specs in
 `docs-media/shots/history.spec.ts` and `commit.spec.ts`).

@@ -2,7 +2,7 @@
 id: software-quality
 title: "Software quality: tests and coverage over time"
 sidebar_label: Tests and coverage
-description: An SDK's unit test suites followed over six weeks of commits. Test counts, failures, flaky and skipped tests and coverage per suite and in total, the list of tests diffed between commits, a report per suite, and the quality gate catching tests deleted to get a green CI.
+description: An SDK's unit test suites followed over six weeks of commits. Test counts, failures, flaky and skipped tests and coverage per suite and in total, each suite's tests compared with the reference's in the test viewer, and the quality gate catching tests deleted to get a green CI.
 ---
 For teams that follow their unit and integration tests in CI dashboards: how many tests there are, which fail, which
 are flaky or skipped, how much code they cover, and whether that's going the right way. This page follows the fleet
@@ -21,7 +21,8 @@ to make it green.
 **A run is a test suite in one configuration**, not a test case. A suite is what your CI runs as one command: a test
 executable, a pytest folder, a CTest label. Its configurations are how you run it: build types, sanitizers, the
 deprecation warnings that fail the tests in a strict mode. The run's metrics count its test cases, and the test cases
-themselves are the run's files: the JUnit XML report, a list of tests with their status, an HTML report.
+themselves are in the run's JUnit XML report, which the [test viewer](/docs/user-guide/other-viewers#test-reports)
+compares with the reference's.
 
 - **Inputs** are the suites: folders recognized by a file in them (see
   [Recognize inputs inside folders](/docs/inputs#identifying-inputs)). **Configurations** are the modes, set in a
@@ -43,7 +44,7 @@ logs and videos. For unit tests, it isn't:
 - **Each run is a process.** In the example, a run takes about 2 s, most of it starting Python, pytest and
   coverage.py. Its 609 tests in two modes as 1,218 runs would take 40 minutes of CPU instead of 20 s.
 - **A run per test makes the commit page a list of pass/fail cards**, and the Metrics Diff a table of 0s and 1s.
-  Per suite, the Metrics Diff says "missions: 12 tests instead of 24", and the diff of the test lists says which.
+  Per suite, the Metrics Diff says "missions: 12 tests instead of 24", and the test viewer says which.
 - **The database copes either way.** A run is one row of the `outputs` table, with a few hundred bytes of metrics:
   the example's 10 runs per commit make 10,000 rows for 1,000 commits. Garbage collection deletes the runs' files
   after a while, keeps their metrics, and keeps everything on the reference branch and milestones (see
@@ -61,7 +62,8 @@ For each suite and mode, the example's `run()`:
 1. runs pytest under coverage.py, which writes a JUnit XML report;
 2. reads the report: each test case's status, time and failure message;
 3. runs the tests that failed again, alone: those that pass are **flaky**, the others **failed**;
-4. returns the counts, the coverage of the suite's package and the lines no test runs, and writes the run's files.
+4. returns the counts, the coverage of the suite's package and the lines no test runs, and marks the flaky tests in
+   the report.
 
 Its story, over six weeks:
 1. The platform team targets 85% line coverage in every package for release 1.6. People and the team's coding agent
@@ -83,20 +85,25 @@ suite's line instead.
 
 <Shot id="history/test-volume" />
 
-**The list of tests, diffed with the reference's**: one line per test, its status then its id. Tests that started
-failing, were added, deleted or skipped are the diff's changed lines, and **Next Diff** jumps between them.
-
-<Shot id="commit/tests-diff" />
-
 **The Metrics Diff of the coding agent's change**, suite by suite against `main`: no test fails any more, because
 half of the missions tests are gone. The coverage didn't move: the remaining tests still run the same lines, they
 no longer check the reserve.
 
 <Shot id="commit/deleted-tests" />
 
-**A report per run**, an HTML page your code writes: the tests as a tree of folders, files and classes with their
-counts, the failures expanded with pytest's output, and the passing tests folded. The **Lines without tests**
-visualization is coverage.py's report, diffed: lines that a commit covers or stops covering show as changes.
+**Each suite's tests, against the reference's**, in the test viewer: on the agent's change, nothing failing is
+fixed. Of the missions suite's 10 failing tests, 8 are removed and 2 are skipped; 4 more passing tests are gone.
+Click a chip to see those tests, a test to see why it failed in the reference, and press <kbd>n</kbd> to go from one
+failure to the next. See
+[Test reports](/docs/user-guide/other-viewers#test-reports).
+
+<Shot id="commit/junit-viewer" />
+
+**Lines without tests** is coverage.py's report, diffed: lines that a commit covers or stops covering show as
+changes. The example also keeps the list of tests as text, hidden by default: one line per test, its status then its
+id, which the text viewer diffs.
+
+<Shot id="commit/tests-diff" />
 
 **The quality gate** (experimental) fails CI on the agent's change: the missions suite has fewer tests and more
 skipped tests than its reference run.
@@ -120,8 +127,8 @@ a target, so the **Summary** shows the share of runs that reach it.
 
 The example's [`qa/junit.py`](https://github.com/Samsung/qaboard/blob/master/examples/software-quality/qa/junit.py)
 reads the JUnit XML reports of pytest, GoogleTest (`--gtest_output=xml:junit.xml`), CTest (`--output-junit`) and
-Maven Surefire, which reports flaky tests itself. It uses the standard library only: copy it, and change the command
-that `qa/main.py` runs.
+Maven Surefire, which reports flaky tests itself, to compute the metrics. It uses the standard library only: copy it,
+and change the command that `qa/main.py` runs. The test viewer reads the same reports.
 
 ## Other quality metrics {#other-quality-metrics}
 Test counts are the start. Return any number your tools compute, and declare which way is better
@@ -145,8 +152,8 @@ Counts (tests, findings, lines without tests) add up over suites: follow them wi
 rate) don't: follow each suite's, or return the counts they come from.
 
 ## What QA-Board doesn't do (yet) {#limits}
-- **No viewer for test reports.** The example shows tests with the text viewer (the list of tests, diffed) and an
-  HTML report its code writes. Neither filters tests or follows one test across commits.
+- **No history of a single test case.** The test viewer compares a run with its reference. To follow one test across
+  commits, follow its suite on [History](/docs/user-guide/history-and-dashboards), or make it a run of its own.
 - **No ratios of sums.** The project's line coverage is `1 - sum(lines without tests) / sum(lines)`: plot its parts,
   or add a run that measures coverage over all the tests, in a batch of its own.
 - **Targets apply to each run.** A target of 85% coverage is each suite's. A goal for the total, like "1,000 tests by
@@ -167,7 +174,8 @@ the suite again: see the example's
 [README](https://github.com/Samsung/qaboard/tree/master/examples/software-quality#readme).
 
 ## Read more
-- [Text](/docs/viewers#text) and [HTML reports](/docs/viewers#html-reports): the viewers the example uses.
+- [Test reports](/docs/viewers#test-reports): the files the test viewer reads, and how to write them.
+- [Text](/docs/viewers#text) and [HTML reports](/docs/viewers#html-reports): the other viewers the example uses.
 - [History](/docs/user-guide/history-and-dashboards): metrics across commits, per test or aggregated.
 - [Quality gate](/docs/quality-gate): fail the CI on regressions.
 - [CI integration](/docs/ci-integration): run `qa batch` in your CI.

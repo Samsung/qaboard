@@ -4,8 +4,8 @@ QA-Board runs this file: `qa run --input codec` calls run(context).
 A run is one test suite (tests/<suite>/, described by its suite.yaml) in one mode: `default`, or `strict`, where
 warnings are errors. It runs the suite with pytest under coverage.py, reads the JUnit XML report, runs the tests that
 failed again, alone, to tell flaky tests from failing ones, and returns the counts and the coverage of the package the
-suite tests (qa/metrics.yaml). It saves the report, the list of tests with their status (diffed between commits), the
-lines that no test runs, and the slowest tests.
+suite tests (qa/metrics.yaml). It saves the JUnit report, with the flaky tests marked, for QA-Board's test viewer, the
+lines that no test runs, the list of tests as text, an HTML report and the slowest tests.
 - the SDK's and the tests' flags come from build/flags.json (what a commit changed), see fleet_sdk/_flags.py.
 - to wrap another test runner, keep qa/junit.py and replace pytest_command() and rerun(): see SPEC.md.
 """
@@ -13,6 +13,7 @@ import json
 import os
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import yaml
@@ -65,6 +66,19 @@ def rerun(failed, output_dir: Path, mode: str) -> set:
     return {node_id(c) for c in junit.read(xml) if c['status'] == 'passed'}
 
 
+def mark_flaky(xml: Path, flaky: set):
+    """Rewrites the report's flaky tests like Maven Surefire does: <flakyFailure> instead of <failure>, so that the
+    report says it, and QA-Board's viewer shows them as flaky"""
+    tree = ET.parse(xml)
+    for case in tree.iter('testcase'):
+        if node_id(junit._case(case, '')) not in flaky:
+            continue
+        for child in list(case):
+            if child.tag in ('failure', 'error'):
+                child.tag = 'flakyFailure' if child.tag == 'failure' else 'flakyError'
+    tree.write(xml, encoding='utf-8', xml_declaration=True)
+
+
 def env() -> dict:
     return {**os.environ, 'PYTHONPATH': str(ROOT), 'PYTHONDONTWRITEBYTECODE': '1'}
 
@@ -115,6 +129,8 @@ def evaluate(suite_dir: Path, mode: str, output_dir: Path) -> dict:
     for case in cases:
         if case['id'] in flaky:
             case['status'] = 'flaky'
+    if flaky:
+        mark_flaky(xml, flaky)
     counts = junit.counts(cases)
     run_tests = counts['tests'] - counts['skipped']
     times = [c['time'] for c in cases]

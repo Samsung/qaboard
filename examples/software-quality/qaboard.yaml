@@ -20,18 +20,20 @@ outputs:
     width: 840px
   visualizations:
     - name: Tests
-      path: tests.txt              # one line per test, its status then its id: failing, new, deleted and skipped tests are diffed
-      max_lines: 30
-    - name: Report
-      path: report.html            # the tests as a tree, with counts per folder, file and class, and the failures
+      path: junit.xml              # pytest's JUnit XML report: QA-Board's test viewer compares it with the reference's
+      height: 440
     - name: Lines without tests
       path: coverage.txt           # coverage.py's report: per file, the lines and branches no test runs
+    - name: Test list
+      path: tests.txt              # one line per test, its status then its id, as text: diffed
+      max_lines: 30
+      default_hidden: true
     - name: Slowest tests
       path: slowest.plotly.json
       side_by_side: false
       default_hidden: true
-    - name: JUnit XML
-      path: junit.xml
+    - name: HTML report
+      path: report.html            # the same tests, in a report our code writes: what a run can show without a viewer
       default_hidden: true
 
 # `qa save-artifacts` saves what each commit changed in the code

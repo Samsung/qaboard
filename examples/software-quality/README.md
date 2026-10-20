@@ -3,8 +3,8 @@
 The (fictional) SDK that robots and fleet tools use to talk to the fleet backend, with its test suites, wrapped with
 QA-Board: `qa/main.py` runs one suite under pytest and coverage.py, reads the JUnit XML report, runs the failed tests
 again alone to find the flaky ones, and returns the counts (tests, failed, skipped, flaky) and the coverage of the
-package the suite tests. Each run saves the list of tests with their status, which QA-Board diffs between commits, an
-HTML report of the tests as a tree, the lines no test runs, and the slowest tests. [`SPEC.md`](SPEC.md) describes
+package the suite tests. Each run saves the JUnit XML report, which QA-Board's test viewer compares with the
+reference's, the lines no test runs, the list of tests as text, an HTML report and the slowest tests. [`SPEC.md`](SPEC.md) describes
 everything it computes; `story.yaml` is the six weeks of history the QA-Board docs show: tests written toward a
 coverage target, a flaky test, a failure in strict mode only, and a coding agent that deletes tests to get a green CI,
 caught by the quality gate.
