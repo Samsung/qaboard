@@ -2,6 +2,199 @@
 id: first-review
 title: Your first review
 sidebar_label: Your first review
-description: "Follow one commit of a demo project from the commit list to the pixel that changed, and learn the web app on the way."
+description: "Review one commit of a demo project step by step: its metrics against the last release, its images in sync, their difference, the commit that changed them, a milestone and a link to share."
 ---
-This page is being written.
+Was this commit better? This page answers that question for one real commit of the demo data, in ten short steps.
+On the way, you meet the parts of the web app you'll use every day.
+
+The camera team of Kitefin Robotics, a fictional company, works on `kitefin/camera-isp`: the image pipeline of their
+robot's camera, from the raw sensor data to the displayed image. Ines replaced its denoiser with a bilateral filter.
+Her commit said "+1.6 dB PSNR in low light", and she merged it into `main`. Let's check.
+
+:::info Before you start
+You need a QA-Board server with the demo projects: [run one on your computer](/docs/get-started/quickstart), then
+open [http://localhost:5151](http://localhost:5151). Two steps need you to log in: click **Log in** (top right of the
+projects list, or at the bottom of the sidebar) and sign in as `ines`, password `kitefin-demo`. Every person of the
+demo world has an account.
+:::
+
+## 1. Open the project {#step-1-open-the-project}
+On the projects list, click **kitefin/camera-isp**. You get its commits with results, on every branch, newest first,
+grouped by day.
+
+<Shot
+  id="projects/home"
+  caption="Click a project's name to see its commits. The star pins a project on top of the list, only for you."
+/>
+
+More in [Finding results](/docs/user-guide/finding-results#projects-list).
+
+## 2. Find the commit {#step-2-find-the-commit}
+1. Type `bilateral` in the **Search commits** box at the top right. After a moment, the list shows every commit that
+   mentions it, on any branch and at any date.
+2. Find **Merge branch 'isp/bilateral-denoise'**, on `main`, and click **26 runs** on the right of its row.
+
+The commit page opens.
+
+<Shot
+  id="commits/filter"
+  caption="The same search on another demo project: the list keeps the commits that mention the word, and the box suggests matching branches."
+/>
+
+The list shows the last 3 days at first, so it may be empty: the demo commits keep the dates of the day the demo data
+was made. Searches look at every date. More in [Searching commits](/docs/user-guide/finding-results#searching-commits).
+
+## 3. Compare it with the release {#step-3-compare-with-the-release}
+The page has two bars at the top: the commit you opened, tagged **new**, and below it the reference it's compared
+with, tagged **ref**. By default, the reference is the latest commit with results on the project's reference branch,
+`main`. For a commit in the past, that's a later one. To judge the denoiser, compare it with the release before it,
+which the team saved as a milestone:
+
+1. In the reference bar, click **Change**.
+2. Under **Shared with the project**, click **isp-4.1**.
+
+The reference bar now shows the release, *isp: release 4.1, gaussian denoise and detail boost 1.2*, with a crown:
+it's a milestone shared with the project. Tables and viewers now call it **isp-4.1**.
+
+More in [Picking a reference](/docs/user-guide/comparing-results#picking-a-reference).
+
+## 4. Read the metrics {#step-4-read-the-metrics}
+The page opened on the **Summary**: each main metric's median over the runs, new against reference, with its change,
+green when it gets better and red when it gets worse. Medians say that something moved. To see which runs moved:
+
+1. Click **Metrics Diff** in the sidebar: one row per run, the change of each metric.
+2. Type `base linux` in the **Filter runs…** box of the new commit's bar. The table keeps the 10 runs at ISO 100, on
+   the float pipeline (the `hw-model` platform runs the camera chip's fixed-point model).
+
+On the facade photo, PSNR is up 1.34 dB (5%). On the slanted-edge chart, PSNR is up too, but **Overshoot** is up
+163%, in red: the sharpened edge now overshoots by 11% of its step, against about 4% in the release. That's what halos
+look like in numbers.
+
+<Clip
+  id="landing/hero"
+  caption="Filtered on the facade and the slanted edge: PSNR is up, and so is the edge overshoot. The images show why, as the next steps do."
+/>
+
+More in [Reading metrics](/docs/user-guide/metrics#metrics-diff).
+
+## 5. Look at the images {#step-5-look-at-the-images}
+1. Click **Visualizations** in the sidebar, and type `facade` before `base linux` in the filter box.
+2. On the card of **photos/facade.png**, click the preset **Window frame (halos)**, then scroll on an image to zoom
+   and drag it to move.
+
+Each card is one run: its main metrics against the reference, then its images, new and reference side by side. When
+you zoom into one image, the other follows.
+
+<Shot
+  id="commit/visualizations"
+  caption="The facade's card: PSNR and SSIM up against the release, the regions the team saved for this photo, then the new and reference images, zoomed in together."
+/>
+
+More in [Synced zoom and pan](/docs/user-guide/image-viewer#synced-zoom-and-pan).
+
+## 6. Show their difference {#step-6-show-their-difference}
+1. In the card's toolbar, click **Difference**. Their difference shows between the images: small differences, like
+   the noise the denoisers leave, color it everywhere.
+2. In the menu next to **Perceptual**, pick **20%**.
+
+Small differences fade. What's left outlines the window frame: the halos that PSNR missed.
+
+<Shot
+  id="commit/image-perceptual-diff"
+  caption="At 20%, the flat wall fades to white: only the edges of the window frame, where the halos are, stay colored."
+/>
+
+More in [The difference](/docs/user-guide/image-viewer#the-difference).
+
+## 7. See which runs changed most (optional) {#step-7-see-which-runs-changed-most}
+Did other images change as much?
+
+1. Remove `facade` from the filter box, so the page shows the 10 runs again.
+2. On any card, open the regions menu at the right of the toolbar (it says **Presets**), and click **Where they
+   differ, in all 10 runs…**
+
+The server compares each run's images with the reference's, and ranks the runs. **Show** scrolls to a run's card
+and zooms on the regions found.
+
+<Shot
+  id="commit/regions-all-runs"
+  caption="The Siemens star, the backlit window and the facade changed most; the flat gray chart barely moved."
+/>
+
+More in [Which runs changed most](/docs/user-guide/image-viewer#which-runs-changed-most).
+
+## 8. Find when it started {#step-8-find-when-it-started}
+1. On the card of **photos/facade.png**, click its name. History opens: the facade's metrics over the commits of
+   `main`.
+2. History shows the last 3 days at first. Click the start date at the top, and pick a day before the merge (its bar
+   said how long ago it was).
+3. Hover the points of the PSNR chart, from right to left.
+
+Below the chart, the hovered commit shows as **New** and the commit before it as **Reference**, with their images.
+Where the PSNR jumps, the new commit is the merge, and the leaves get halos.
+
+<Shot
+  id="history/image-diff"
+  caption="The facade's PSNR jumps at the merge of the bilateral denoiser; hovering that point compares its images with the commit before: only the new one outlines the leaves."
+/>
+
+Press your browser's **Back** button to return to the commit page. More in
+[History](/docs/user-guide/history-and-dashboards).
+
+## 9. Save it as a milestone {#step-9-save-a-milestone}
+A milestone keeps these results, so that you can compare the fix with them later.
+
+1. Clear the filter box (its **✕**): a milestone keeps the batch and the filter you're looking at.
+2. Click the star next to the new commit's hash.
+3. Name it, like `bilateral, with halos`, leave **Only me** selected, and click **Save milestone**.
+
+The star turns gold, and the name shows next to it. The milestone is saved in your account: you'll find it under
+**My milestones**, in the **Change** menus and in the sidebar's **Milestones**. More in
+[Milestones](/docs/user-guide/milestones#saving-a-milestone).
+
+## 10. Share what you found {#step-10-share}
+Copy the page's address from your browser, and paste it in your bug report or chat. It holds the commits, the
+reference, the filter and the view: whoever opens it sees what you see, even after `main` moves on.
+
+To share the milestone, click its star again, then **Copy link**. More in [Sharing](/docs/user-guide/sharing).
+
+## Check the fix {#check-the-fix}
+Ten days later, Ines merged a fix: near strong edges, the sharpening now stays within the range of the neighboring
+pixels. Compare it with your milestone:
+
+1. Click the project's name, **camera-isp**, in the sidebar: its commits show again. Search for `halo-clamp`, and
+   open the runs of **Merge branch 'isp/halo-clamp'**.
+2. In the reference bar, click **Change**, then your milestone under **My milestones**.
+
+The edge overshoot is back to about 5%, and on the facade, the dark rims around the leaves fade.
+
+<Compare before="commit/halo-before" after="commit/halo-after" beforeLabel="Bilateral denoiser" afterLabel="With the clamp" />
+
+## Try the other demo projects {#other-demo-projects}
+Each demo project has a story of its own. Its use case page says what to look for.
+
+<Cards>
+  <Card title="An int8 model that misses small objects" to="/docs/use-cases/detection-eval" eyebrow="kitefin/detector">
+    The quantized detector is 72% smaller. Sort the Metrics Diff to find the slice that paid for it.
+  </Card>
+  <Card title="A p99 regression on one load profile" to="/docs/use-cases/serving-latency" eyebrow="kitefin/inference-gateway">
+    The median over all tests hid it. Follow one test's p99 in History to the commit that more than tripled it.
+  </Card>
+  <Card title="A false loop closure, in 3D" to="/docs/use-cases/robotics-3d" eyebrow="kitefin/slam">
+    Trajectories, point clouds and depth videos against the ground truth: watch the path jump meters away.
+  </Card>
+  <Card title="An agent that stopped asking" to="/docs/use-cases/agent-evals" eyebrow="kitefin/fleet-assistant">
+    Diff an LLM agent's transcripts with the reference's: after a change, it reboots robots without asking.
+  </Card>
+</Cards>
+
+## What else you can do {#what-else}
+- **Run more tests, or tune parameters**, from the web app, on any commit: see
+  [Running from the web app](/docs/user-guide/running-from-the-webapp#running-tests-and-tuning).
+- **Find why a run failed**: on the camera project, search `one tile`, open *isp: process frames in one tile*, then
+  its **Logs**: the 113 MP test wall's run was killed at its 3 GB memory limit. See
+  [Logs and failed runs](/docs/user-guide/logs#why-did-my-run-fail).
+- **Compare videos frame by frame**: on the merge commit, against isp-4.1, pick the **video** batch in both bars. See
+  [The video viewer](/docs/user-guide/video-viewer).
+- **Put your own project on QA-Board**, and fail CI when a metric gets worse: see the
+  [tutorial](/docs/get-started/tutorial) and the [quality gate](/docs/quality-gate) (experimental).
