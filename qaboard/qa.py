@@ -55,16 +55,18 @@ from .metrics import split_metrics, run_definitions
 @click.option('--offline', is_flag=True, help="Do not notify QA-Board about run statuses.")
 def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, share, database, input_type, offline):
   """Entrypoint to running your algo, launching batchs..."""
+  # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
+  # http://click.pocoo.org/6/complex/
+  if not ctx.obj:
+    ctx.obj = {}
+  # Signing in is global, per server: it doesn't need a project
+  if ctx.invoked_subcommand == 'auth':
+    return
   # We want all paths to be relative to top-most qaboard.yaml
   # it should be located at the root of the git repository
   if config_has_error and not ignore_config_errors:
     click.secho('Please fix the error(s) above in qaboard.yaml', fg='red', err=True, bold=True)
     exit(1)
-
-  # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
-  # http://click.pocoo.org/6/complex/
-  if not ctx.obj:
-    ctx.obj = {}
 
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
   noop_command = 'init' in sys.argv
@@ -1073,6 +1075,10 @@ qa.add_command(optimize)
 
 from .gate import gate
 qa.add_command(gate)
+
+
+from .auth import auth
+qa.add_command(auth)
 
 
 @qa.command()

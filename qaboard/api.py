@@ -16,7 +16,8 @@ import click
 from .config import project, commit_id, is_ci, available_metrics
 from .run import RunContext
 
-from .site_config import site_config, user_secret, as_requests_verify
+from .site_config import site_config, as_requests_verify
+from .auth import resolve_token, print_server_warning, auth_error_hint, nudge_unverified
 
 qaboard_protocol = site_config('QABOARD_PROTOCOL', 'http')
 qaboard_hostname = site_config('QABOARD_HOSTNAME')
@@ -48,11 +49,31 @@ if api_verify is False:
   warnings.filterwarnings('ignore', message=f"Unverified HTTPS request is being made to host '{re.escape(urlparse(api_prefix).hostname or '')}'")
 
 
-headers = {'Content-Type': 'application/json'}
-# API token, needed for actions that require a logged-in user. Read from $QA_TOKEN or ~/.qaboard/secrets.yaml
-qa_token = user_secret('QA_TOKEN')
-if qa_token:
-  headers["Authorization"] = f"Bearer {qa_token}"
+# (connect, read) timeouts for requests to the server. The server gives up on requests long before the read timeout.
+api_timeout = (30, 600)
+
+
+def headers_for(server_url):
+  """Headers for requests to a server, with the token qa uses for it, if any (see qaboard/auth.py)."""
+  token, _ = resolve_token(server_url)
+  return {'Content-Type': 'application/json', **({"Authorization": f"Bearer {token}"} if token else {})}
+
+# API token, to sign what qa sends and for actions that require a logged-in user:
+# $QABOARD_TOKEN or $QA_TOKEN, `qa auth login`'s for the server, or the legacy QA_TOKEN in ~/.qaboard/secrets.yaml
+qa_token, qa_token_source = resolve_token(qaboard_url)
+headers = headers_for(qaboard_url)
+
+
+def print_auth_error(r, message="Failed to update QA-Board"):
+  """When the server says why it refused a request (e.g. the token expired), prints it with what to do. Returns whether it did."""
+  hint = auth_error_hint(r, qa_token_source)
+  if not hint:
+    return False
+  sentence, *fixes = hint.split('\n')
+  click.secho(f"WARNING: {message}: {sentence}", fg='yellow', bold=True, err=True)
+  for fix in fixes:
+    click.secho(f"         {fix}", fg='yellow', err=True)
+  return True
 
 def url_to_dir(url: str) -> Path:
   from .compat import linux_to_windows
@@ -140,7 +161,7 @@ def notify_qa_database(object_type='output', **kwargs):
   Updating the QA database.
   """
   import requests
-  from .config import is_ci, config, _metrics
+  from .config import is_ci, config, _metrics, user
   from .config import commit_id, commit_branch, commit_tag, commit_committer_name, commit_committer_email, commit_authored_datetime, commit_parents, commit_message
 
   if kwargs.get('offline'):
@@ -178,10 +199,15 @@ def notify_qa_database(object_type='output', **kwargs):
   try:
     import simplejson
     data = simplejson.dumps(data, ignore_nan=True, cls=makeNumpyEncoder())
-    r = requests.post(url, data=data, headers=headers, verify=api_verify)
+    r = requests.post(url, data=data, headers=headers, verify=api_verify, timeout=api_timeout)
     if 'QA_VERBOSE' in os.environ:
       click.secho(r.text, fg='cyan', dim=True, err=True)
+    print_server_warning(r)
+    if print_auth_error(r):
+      return None
     r.raise_for_status()
+    if not qa_token and not is_ci:
+      nudge_unverified(kwargs.get('user') or user)
     try:
       return r.json()
     except Exception:
@@ -206,7 +232,9 @@ def get_output(output_id):
   import requests
   url = f"{api_prefix}/output/{output_id}/"
   try:
-    r = requests.get(url, headers=headers, verify=api_verify)
+    r = requests.get(url, headers=headers, verify=api_verify, timeout=api_timeout)
+    if print_auth_error(r, f"Failed to get output {output_id} from QA-Board"):
+      return None
     r.raise_for_status()
     return r.json()
   except Exception:
@@ -231,14 +259,15 @@ def batch_info(reference, batch, is_branch=False, project=project, metrics: Opti
     params["branch"] = reference
   commit_id = reference if not is_branch else ''
   url = f'{api_prefix}/commit/{commit_id}'
-  r = requests.get(url, params=params, headers=headers, verify=api_verify)
+  r = requests.get(url, params=params, headers=headers, verify=api_verify, timeout=api_timeout)
   try:
     r.raise_for_status()
     data = r.json()
   except Exception as e:
     if ignore_errors:
       return {}
-    click.secho(r.text, fg='red', err=True)
+    if not print_auth_error(r, "Failed to get info from QA-Board"):
+      click.secho(r.text, fg='red', err=True)
     click.secho(f'[ERROR]: Failed to get info from QA-Board. ({url} | {params})', fg='red', bold=True, err=True)
     raise e
   if 'batches' not in data:

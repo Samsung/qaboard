@@ -375,6 +375,10 @@ def fetch_comparison(api_prefix: str, project: str, commit: str, reference: Opti
     r.raise_for_status()
     return r.json(), None
   except Exception:
+    from .auth import auth_error_hint
+    hint = auth_error_hint(r)
+    if hint:
+      return None, hint.replace('\n', ' ')
     return None, f"QA-Board answered {r.status_code}: {r.text[:300]}"
 
 
@@ -672,9 +676,11 @@ def gate(ctx, reference, batches, commit, output_format, as_json, wait, timeout,
 
   qaboard_url = server.rstrip('/') if server else api.qaboard_url
   api_prefix = f"{qaboard_url}/api/v1" if server else api.api_prefix
+  # the token qa uses for another server, if any
+  headers = api.headers_for(qaboard_url) if server else api.headers
   def fetch(label):
     return fetch_comparison(api_prefix, project_name, commit, gate_config.reference, label, gate_config.metrics,
-                            gate_config.require_bit_accuracy, api.headers, api.api_verify)
+                            gate_config.require_bit_accuracy, headers, api.api_verify)
 
   deadline = time.monotonic() + timeout
   while True:

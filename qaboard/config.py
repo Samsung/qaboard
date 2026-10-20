@@ -25,6 +25,8 @@ config_has_error = False
 
 # Don't lots of verbose info if the users just wants the help, or start a new project
 ignore_config_errors = len(sys.argv)==1 or '--help' in sys.argv or 'init' in sys.argv
+# `qa auth` doesn't need a project
+ignore_config_errors = ignore_config_errors or sys.argv[1:2] == ['auth']
 # When the code is imported we care less about warnings...
 ignore_config_errors = ignore_config_errors or not sys.argv or not sys.argv[0].endswith('qa')
 

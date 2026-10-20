@@ -88,6 +88,22 @@ def user_secret(key, default=None):
     return os.getenv(key, user_secrets.get(key, default))
 
 
+def user_config_dir() -> Path:
+  """
+  Where qaboard keeps the user's configuration (logins in hosts.yaml, caches...):
+  %APPDATA%\\qaboard on Windows, else $XDG_CONFIG_HOME/qaboard or ~/.config/qaboard.
+  It is not created here.
+  """
+  if os.name == 'nt':
+    appdata = os.environ.get('APPDATA')
+    return (Path(appdata) if appdata else Path.home() / 'AppData' / 'Roaming') / 'qaboard'
+  # https://specifications.freedesktop.org/basedir-spec/latest/: relative paths are invalid and ignored
+  xdg_config_home = os.environ.get('XDG_CONFIG_HOME')
+  if xdg_config_home and os.path.isabs(xdg_config_home):
+    return Path(xdg_config_home) / 'qaboard'
+  return Path.home() / '.config' / 'qaboard'
+
+
 
 def site_config(key, default=None):
     """Get a config value: ENV > secrets > site package > default."""
