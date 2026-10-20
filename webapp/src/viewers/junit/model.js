@@ -173,7 +173,10 @@ export function visibleCounts(root, filter) {
 }
 
 const SEVERITY = { 'new-failure': 0, failed: 1, error: 1, removed: 2, flaky: 3, skipped: 4, passed: 5 };
-const severity = test => test.change === 'new-failure' ? 0 : SEVERITY[test.status];
+// removed tests that failed in the reference come first: deleting a failing test is how a CI gets green
+const severity = test => test.change === 'new-failure' ? 0
+  : test.status === 'removed' && test.ref && isFailing(test.ref) ? 1.5
+  : SEVERITY[test.status];
 const problems = node => node.changes['new-failure'] || 0;
 const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
 

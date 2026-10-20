@@ -108,7 +108,7 @@ itself says which ones they are.
 | `quick` | 5 suites, `default` | about 10 s |
 
 ## Story (`story.yaml`)
-22 commits by adaeze and kaito, and three by the Kitefin Coding Agent. The plot: **the team writes tests toward 85%
+21 commits by adaeze and kaito, and three by the Kitefin Coding Agent. The plot: **the team writes tests toward 85%
 coverage per package, and QA-Board shows the volume, the failures, a flaky test and a strict-only failure; then,
 asked to get CI green after a real bug, the agent deletes and skips the tests that caught it: no test fails, the
 coverage doesn't move, and the gate fails because a suite lost tests.**
@@ -140,7 +140,7 @@ in `tests.txt` where the parent's are `PASS`.
 
 ## Determinism and budget
 - The tests are deterministic: random cases are seeded from `$QA_SEED` and the test's id. Test times are measured.
-- A `ci` batch takes about 20 s, the whole story (25 ci batches) about 9 min, plus the seeder's own work.
+- A `ci` batch takes about 10 s with the seeder's parallel runs: seeding the story took 4 min on 4 CPUs (24 ci batches and the checks).
 
 ## As built
 Measured with the replay of every commit's flags, on 4 CPUs (pytest 9.1, coverage.py 7.16, Python 3.12).

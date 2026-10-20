@@ -27,6 +27,7 @@ outputs:
     - name: Test list
       path: tests.txt              # one line per test, its status then its id, as text: diffed
       max_lines: 30
+      renderSideBySide: false      # inline: the ids are long
       default_hidden: true
     - name: Slowest tests
       path: slowest.plotly.json

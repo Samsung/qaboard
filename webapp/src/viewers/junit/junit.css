@@ -130,7 +130,8 @@ button.qa-junit-tile:focus-visible { outline: 2px solid var(--qa-intent-primary)
   background: var(--qa-surface);
   overflow: hidden;
 }
-.qa-junit-tree-pane { flex: 3 1 420px; min-width: 0; }
+/* their content doesn't size them: a long test name or trace scrolls in its box instead of widening the card */
+.qa-junit-tree-pane { flex: 3 1 420px; min-width: 0; contain: inline-size; }
 .qa-junit-scroll { overflow: auto; contain: strict; }
 .qa-junit-tree { position: relative; width: 100%; outline: none; }
 .qa-junit-tree:focus-visible .qa-junit-selected { box-shadow: inset 2px 0 0 var(--qa-intent-primary); }
@@ -192,6 +193,7 @@ button.qa-junit-tile:focus-visible { outline: 2px solid var(--qa-intent-primary)
 .qa-junit-details {
   flex: 2 1 300px;
   min-width: 0;
+  contain: inline-size;
   border-left: 1px solid var(--qa-border);
   padding: 10px 12px;
   overflow: auto;

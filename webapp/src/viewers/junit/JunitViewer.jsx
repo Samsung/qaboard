@@ -127,8 +127,8 @@ const Row = memo(function Row({ row, selected, words, has_reference, visible, on
         </Tooltip>}
         <MicroBar counts={node.counts}/>
         {visible
-          ? <span className="qa-junit-num qa-junit-matches" title={`${visible.get(node.key)} of its ${node.counts.tests} tests match`}>
-              {visible.get(node.key).toLocaleString()}<span className="qa-junit-muted">/{node.counts.tests.toLocaleString()}</span>
+          ? <span className="qa-junit-num qa-junit-matches" title={`${visible.get(node.key)} of its ${node.counts.tests + node.counts.removed} tests match`}>
+              {visible.get(node.key).toLocaleString()}<span className="qa-junit-muted">/{(node.counts.tests + node.counts.removed).toLocaleString()}</span>
             </span>
           : <span className="qa-junit-num">{node.counts.tests.toLocaleString()}</span>}
         <span className="qa-junit-time">{formatTime(node.time)}</span>
@@ -485,7 +485,7 @@ export function JunitReport({ xml, ref_xml, labels: labels_, height = 440, path 
     <div className="qa-junit-toolbar">
       <InputGroup
         inputRef={search_input} size="small" leftIcon="search" className="qa-junit-search"
-        placeholder="Search tests and messages, -word to exclude  ( / )" value={search}
+        placeholder="Search tests, -word to exclude ( / )" value={search}
         onChange={e => setSearch(e.target.value)} onKeyDown={onSearchKeyDown} aria-label="Search the tests"
         rightElement={search ? <Button variant="minimal" size="small" icon="cross" aria-label="Clear the search" onClick={() => setSearch('')}/> : undefined}
       />

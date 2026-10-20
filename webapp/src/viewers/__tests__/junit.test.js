@@ -118,6 +118,13 @@ describe('compareTests', () => {
     expect(compared.find(t => t.name === 'gone').status).toBe('removed');
   });
 
+  it('puts the removed tests that failed in the reference first', () => {
+    const ref = [test('a.b::passing', 'passed'), test('a.b::failing', 'failed')];
+    const root = buildTree(compareTests([], ref));
+    const rows = flatten(root, { expanded: true, visible: null, sort: 'status' }).filter(r => r.kind === 'test');
+    expect(rows.map(r => r.test.name)).toEqual(['failing', 'passing']);
+  });
+
   it('counts tests, removed ones apart', () => {
     const { counts, changes } = countTests(compareTests(now, ref));
     expect(counts).toMatchObject({ tests: 9, passed: 4, failed: 2, flaky: 1, skipped: 2, removed: 1 });

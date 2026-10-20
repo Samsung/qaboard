@@ -174,8 +174,8 @@ shot('history/test-volume', {
     selected_metric: 'tests', breakdown_per_test: 'false', selected_aggregation: 'sum',
   }),
   alt: 'Performance over time on main for six weeks: the sum of Tests over the five suites, default mode. It climbs '
-    + 'from 131 as frame, A*, range, registry and reserve tests are written, dips where a branch deleted tests, then '
-    + 'jumps to 609 when the codec runs 200 fuzz cases per round trip.',
+    + 'from 131 as frame, A*, range, registry and reserve tests are written, flat at 249, then jumps to 609 when the '
+    + 'codec runs 200 fuzz cases per round trip.',
   caption: 'The number of tests of every suite added up, commit by commit: written tests make steps, fuzz cases a jump.',
   actions: async ui => {
     await ui.plots();

@@ -1329,7 +1329,7 @@ shot('commit/junit-viewer', {
   // the coding agent's change against main at the time, the missions suite in default mode
   url: d => d.commitUrl(SQ, 'green-ci', { reference: 'closest-robot', view: 'output-list', filter: 'missions default', controls: showOnlySq('Tests') }),
   alt: 'The test viewer of the missions suite against main: no test fails, 12 removed and 2 newly skipped, none fixed. '
-    + 'The tree shows test_reserve\'s tests struck through, and the details of a removed test say it failed in main.',
+    + 'The tree shows test_reserve\'s tests struck through, and the details of a removed test say it failed in the reference.',
   caption: 'No test fails after the agent\'s change, and none was fixed: 12 tests are gone and 2 skipped.',
   viewport: { width: 1440, height: 1200 },
   actions: async ui => {
@@ -1354,8 +1354,17 @@ shot('commit/tests-diff', {
   caption: 'One line per test, diffed with the reference\'s: the tests the varint fast path broke show as changed lines.',
   actions: async ui => {
     await showCard(ui);
-    await viewer(cards(ui.page).first()).locator('.modified-in-monaco-diff-editor .view-line').first().waitFor();
-    await mouseAway(ui);
+    // viewers are numbered in qaboard.yaml's order: the test list is the third
+    const list = viewer(cards(ui.page).first(), SQ_VIZ.indexOf('Test list'));
+    // an inline diff (renderSideBySide: false in qaboard.yaml)
+    await list.locator('.monaco-diff-editor .view-line').first().waitFor();
+    // to the first test that changed status
+    await ui.click(cards(ui.page).first().getByRole('button', { name: /Next diff/ }));
+    await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await ui.settle();
+    // away from the commit header's buttons and their tooltips
+    await ui.cursor.moveTo({ x: 1420, y: 880 });
+    await ui.hold(500);
     await ui.settle();
   },
   target: page => cards(page).first(),
