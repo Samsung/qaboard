@@ -28,12 +28,12 @@ An [IIIF](https://iiif.io) image server decodes the images and sends them tile b
 shows, even for the 113 MP test wall of the camera ISP example.
 
 <Clip
-  id="commit/deep-zoom"
-  caption="The 113 MP test wall, from the whole wall down to single pixels: only the tiles in view load, new and reference in sync."
+  id="landing/deep-zoom"
+  caption="The 113 MP test wall, from the whole wall down to single pixels of a Siemens star: only the tiles in view load."
 />
 
 - **Write lossless images when you compare values.** JPEG changes the values your code computed. The
-  [camera ISP example](/docs/use-cases/image-quality) saves its output as PNG, for **Image Diff**, and its intermediate
+  [camera ISP example](/docs/use-cases/image-quality) saves its output as PNG, for the difference of the images, and its intermediate
   stages as JPEG, which are smaller.
 - **Draw your debug information in the images**, like detection boxes or what a model missed: the viewer compares them
   like any other image.
