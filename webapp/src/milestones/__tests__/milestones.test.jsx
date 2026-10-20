@@ -185,7 +185,7 @@ describe('MilestonesPanel', () => {
     usePrefsStore.setState({ milestones: { p: { k1: { commit: 'a' }, k2: { commit: 'b' } } } });
     renderPanel({ user: { is_logged: false }, list: [] });
     expect(screen.getByText(/2 milestones are saved only in this browser/)).toBeInTheDocument();
-    expect(screen.getByText('Log in to save your own milestones.')).toBeInTheDocument();
+    expect(screen.getByText('Sign in to save your own milestones.')).toBeInTheDocument();
   });
 
   test('explains milestones when there are none', () => {
@@ -234,7 +234,7 @@ describe('saving milestones', () => {
   test('saving needs a login', async () => {
     renderButton({ user: { is_logged: false } });
     fireEvent.click(screen.getByLabelText('Save as a milestone'));
-    expect(await screen.findByText('Log in to save milestones')).toBeInTheDocument();
+    expect(await screen.findByText('Sign in to save milestones')).toBeInTheDocument();
   });
 
   test('a filled star with the name of the milestone, to edit it', async () => {

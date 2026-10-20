@@ -307,14 +307,14 @@ describe('VideoViewer', () => {
     viewer({ output_ref: output('ref') }, { user: { is_logged: false, user_id: null, user_name: null, full_name: null, email: null } });
     // the server only reads the videos for signed-in users: we don't ask
     expect(http.get).not.toHaveBeenCalled();
-    expect(screen.getByText(/Log in \(in the sidebar\) to read the decoded values/)).toBeInTheDocument();
+    expect(screen.getByText(/Sign in \(in the sidebar\) to read the decoded values/)).toBeInTheDocument();
     const differences = screen.getByRole('button', { name: 'Differences' });
     expect(differences).toBeDisabled();
-    expect(differences).toHaveAttribute('title', expect.stringMatching(/^Log in/));
+    expect(differences).toHaveAttribute('title', expect.stringMatching(/^Sign in/));
     fireEvent.click(screen.getByRole('button', { name: 'Pixel values' }));
     expect(screen.getByRole('radio', { name: /Decoded values/ })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: "What's in the files" }));
-    expect(screen.getByText(/Log in \(in the sidebar\) to see what's in the files/)).toBeInTheDocument();
+    expect(screen.getByText(/Sign in \(in the sidebar\) to see what's in the files/)).toBeInTheDocument();
     expect(http.post).not.toHaveBeenCalled();
   });
 

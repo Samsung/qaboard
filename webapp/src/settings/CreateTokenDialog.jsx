@@ -7,17 +7,32 @@ import {
 import { DateTime } from "luxon";
 
 import { errorMessage } from "../api/http";
+import { useSiteConfig } from "../hooks";
 import { copyWithToast } from "../utils/clipboard";
 import { scopes } from "./format";
 import { createToken } from "./api";
 
 
-export const expiry_presets = [
-  { value: '30', label: '30 days', days: 30 },
-  { value: '90', label: '90 days', days: 90 },
-  { value: '365', label: '1 year', days: 365 },
-  { value: 'never', label: 'No expiry', days: null },
-];
+const preset_days = [30, 90, 365];
+const days_label = days => days % 365 === 0
+  ? `${days / 365} year${days === 365 ? '' : 's'}`
+  : `${days} day${days === 1 ? '' : 's'}`;
+
+// The server's token policy (/api/v1/config `tokens`) => the expiry choices, and the one chosen first.
+// - its default lifetime is offered, even if it's not one of our presets
+// - nothing longer than its maximum, and with a maximum, no "No expiry"
+export const expiryOptions = ({ default_lifetime_days, max_lifetime_days } = {}) => {
+  const max = max_lifetime_days || null;
+  const fallback = default_lifetime_days || 90;
+  const days = new Set([...preset_days, fallback, ...(max ? [max] : [])]);
+  const options = [...days]
+    .filter(d => !max || d <= max)
+    .sort((a, b) => a - b)
+    .map(d => ({ value: String(d), label: days_label(d), days: d }));
+  if (!max) options.push({ value: 'never', label: 'No expiry', days: null });
+  const initial = options.find(o => o.days === Math.min(fallback, max ?? Infinity)) ?? options[0];
+  return { options, initial: initial.value };
+};
 const default_scopes = ['read', 'ingest'];
 
 
@@ -56,16 +71,18 @@ export const TokenSecret = ({ token }) => {
 
 const TokenForm = ({ is_admin, onCreated, onClose }) => {
   const queryClient = useQueryClient();
+  const { tokens: policy } = useSiteConfig();
+  const [expiry_options] = useState(() => expiryOptions(policy ?? {}));
   const [name, setName] = useState('');
   const [chosen_scopes, setScopes] = useState(default_scopes);
   const [projects, setProjects] = useState([]);
-  const [expiry, setExpiry] = useState('90');
+  const [expiry, setExpiry] = useState(expiry_options.initial);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
 
   const offered_scopes = scopes.filter(scope => !scope.admin_only || is_admin);
   const toggleScope = id => setScopes(current => current.includes(id) ? current.filter(s => s !== id) : [...current, id]);
-  const preset = expiry_presets.find(p => p.value === expiry);
+  const preset = expiry_options.options.find(p => p.value === expiry) ?? expiry_options.options[0];
   const expires_on = preset.days ? DateTime.now().plus({ days: preset.days }).toLocaleString(DateTime.DATE_MED) : null;
   const valid = name.trim().length > 0 && chosen_scopes.length > 0;
 
@@ -94,7 +111,7 @@ const TokenForm = ({ is_admin, onCreated, onClose }) => {
         {expiry === 'never' && <p style={{ marginTop: 6, marginBottom: 0 }}>Choose an expiry date and try again.</p>}
       </Callout>}
       <FormGroup label="Name" labelFor="token-name" helperText="What it's for, e.g. “ci-bot” or “nightly benchmarks”.">
-        <InputGroup id="token-name" value={name} onChange={e => setName(e.target.value)} autoFocus maxLength={100} placeholder="ci-bot"/>
+        <InputGroup id="token-name" value={name} onChange={e => setName(e.target.value)} autoFocus maxLength={100}/>
       </FormGroup>
       <FormGroup label="What it can do" helperText={chosen_scopes.length === 0 ? "Choose at least one." : "Give it only what it needs: it can do this as you."} intent={chosen_scopes.length === 0 ? Intent.DANGER : undefined}>
         {offered_scopes.map(scope => <Checkbox
@@ -112,11 +129,13 @@ const TokenForm = ({ is_admin, onCreated, onClose }) => {
           placeholder="group/repo, group/*"
           addOnBlur
           leftIcon="projects"
+          // Enter adds the project, it never creates the token
+          onKeyDown={event => { if (event.key === 'Enter') event.preventDefault(); }}
         />
       </FormGroup>
       <FormGroup label="Expires" helperText={expires_on ? `On ${expires_on}.` : "It works until you revoke it."}>
         <RadioGroup inline selectedValue={expiry} onChange={e => setExpiry(e.currentTarget.value)}>
-          {expiry_presets.map(p => <Radio key={p.value} value={p.value} label={p.label}/>)}
+          {expiry_options.options.map(p => <Radio key={p.value} value={p.value} label={p.label}/>)}
         </RadioGroup>
       </FormGroup>
     </DialogBody>
@@ -141,8 +160,9 @@ export const CreateTokenDialog = ({ isOpen, onClose, is_admin = false }) => {
     title={created ? "Token created" : "New access token"}
     icon="key"
     style={{ width: 620, maxWidth: 'calc(100vw - 32px)' }}
-    // users must not lose the secret by clicking next to the dialog
+    // users must not lose the secret by clicking next to the dialog, or pressing Escape
     canOutsideClickClose={!created}
+    canEscapeKeyClose={!created}
   >
     {created
       ? <>

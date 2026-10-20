@@ -5,7 +5,7 @@ import { Button, Classes, HTMLSelect, HTMLTable, InputGroup, Intent, NonIdealSta
 import { useLocation } from "react-router";
 
 import { history, Link } from "../router";
-import { Time } from "../settings/format";
+import { Time, AdminTag, loginTypeLabel } from "../settings/format";
 import { Loading } from "../settings/states";
 import { AdminError } from "./states";
 import { usersQuery, users_page_size } from "./api";
@@ -15,7 +15,7 @@ export const UserTags = ({ user }) => <span style={{ display: 'inline-flex', fle
   {user.status === 'disabled' && <Tag minimal intent={Intent.DANGER}>Disabled</Tag>}
   {user.status === 'pending' && <Tag minimal intent={Intent.WARNING}>Pending</Tag>}
   {user.is_admin && <Tooltip content={user.is_admin_from_env ? "Admin from the server's environment (QABOARD_ADMINS)" : "Admin"} hoverOpenDelay={300}>
-    <Tag minimal intent={Intent.PRIMARY} icon="shield">Admin{user.is_admin_from_env ? ' (env)' : ''}</Tag>
+    <AdminTag from_env={user.is_admin_from_env}/>
   </Tooltip>}
   {user.kind === 'service' && <Tag minimal icon="automatic-updates">Service</Tag>}
 </span>;
@@ -91,7 +91,7 @@ export const Users = () => {
       ? <NonIdealState
         icon={filtered ? 'search' : 'people'}
         title={filtered ? 'No matching users' : 'No users yet'}
-        description={filtered ? 'Change the filters to see more users.' : 'Users appear here once they log in.'}
+        description={filtered ? 'Change the filters to see more users.' : 'Users appear here once they sign in.'}
         action={filtered ? <Button icon="cross" text="Clear the filters" onClick={() => { setSearch(''); writeFilters({}); }}/> : undefined}
       />
       : <>
@@ -101,10 +101,10 @@ export const Users = () => {
               <tr>
                 <th>User</th>
                 <th>Email</th>
-                <th>Login</th>
+                <th>Sign-in</th>
                 <th>Status</th>
                 <th>Active tokens</th>
-                <th>Last login</th>
+                <th>Last sign-in</th>
                 <th>Created</th>
               </tr>
             </thead>
@@ -115,7 +115,7 @@ export const Users = () => {
                   {user.full_name && <div className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>{user.user_name}</div>}
                 </td>
                 <td>{user.email || <span className={Classes.TEXT_MUTED}>—</span>}</td>
-                <td>{user.login_type ?? '—'}</td>
+                <td>{loginTypeLabel(user.login_type) ?? '—'}</td>
                 <td><UserTags user={user}/></td>
                 <td>{user.active_tokens ?? 0}</td>
                 <td><Time iso={user.last_login_at}/></td>

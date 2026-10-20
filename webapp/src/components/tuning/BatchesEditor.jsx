@@ -89,7 +89,7 @@ const errorMessage = error => {
       return data;
     }
   }
-  return data?.error ?? (error?.response?.status === 401 ? "Please log in again." : error?.message ?? String(error));
+  return data?.error ?? (error?.response?.status === 401 ? "Please sign in again." : error?.message ?? String(error));
 };
 
 const relative = date => Date.now() - date.getTime() < 10 * 1000
@@ -557,7 +557,7 @@ export function BatchesEditor({ project, commit, config, git, web_url, available
   };
 
   if (files.length === 0)
-    return <NonIdealState icon="lock" title="Log in to edit batches" />;
+    return <NonIdealState icon="lock" title="Sign in to edit batches" />;
 
   // Where batches come from
   let commit_files = config?.inputs?.batches ?? config?.inputs?.groups ?? []; // .groups for backward compat

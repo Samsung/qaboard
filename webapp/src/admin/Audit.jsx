@@ -75,7 +75,7 @@ export const Audit = () => {
     {isPending && <Loading label="Loading the audit log"/>}
     {error && <AdminError error={error} refetch={refetch} what="the audit log"/>}
     {!isPending && !error && (events.length === 0
-      ? <NonIdealState icon="history" title={filtered ? 'No matching events' : 'No events yet'} description={filtered ? 'Change the filters to see more events.' : 'Logins, tokens and admin actions will show up here.'}/>
+      ? <NonIdealState icon="history" title={filtered ? 'No matching events' : 'No events yet'} description={filtered ? 'Change the filters to see more events.' : 'Sign-ins, tokens and admin actions will show up here.'}/>
       : <div style={{ opacity: isFetching && !isFetchingNextPage ? 0.7 : 1 }}>
         <AuditEvents events={events} onFilter={changes => setFilter('actor' in changes ? { actor: changes.actor } : { target: formatTarget(changes) })}/>
         {hasNextPage

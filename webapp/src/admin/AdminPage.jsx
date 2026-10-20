@@ -3,7 +3,7 @@ import { Tab, Tabs } from "@blueprintjs/core";
 
 import { useRouter } from "../router";
 import { NotAdmin } from "./states";
-import { PageShell, RequireLogin } from "../components/PageShell";
+import { PageShell, RequireLogin, ScrollingTabs } from "../components/PageShell";
 import { Overview } from "./Overview";
 import { Users } from "./Users";
 import { UserDetail } from "./UserDetail";
@@ -28,15 +28,17 @@ export const AdminPage = () => {
   return <PageShell title="Admin" wide>
     <RequireLogin what="administer QA-Board">
       {me => !me.is_admin ? <NotAdmin/> : <>
-        <Tabs
-          id="admin-tabs"
-          selectedTabId={selected.id}
-          onChange={id => history.push(`/admin/${id}`)}
-          size="large"
-        >
-          {sections.map(section => <Tab key={section.id} id={section.id} title={section.title} icon={section.icon}/>)}
-        </Tabs>
-        <div style={{ marginTop: 20 }}>
+        <ScrollingTabs>
+          <Tabs
+            id="admin-tabs"
+            selectedTabId={selected.id}
+            onChange={id => history.push(`/admin/${id}`)}
+            size="large"
+          >
+            {sections.map(section => <Tab key={section.id} id={section.id} title={section.title} icon={section.icon}/>)}
+          </Tabs>
+        </ScrollingTabs>
+        <div style={{ marginTop: 20, minWidth: 0 }}>
           {user_id ? <UserDetail id={user_id} me={me}/> : <Panel me={me}/>}
         </div>
       </>}

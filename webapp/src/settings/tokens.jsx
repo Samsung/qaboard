@@ -1,4 +1,4 @@
-// Lists of tokens: the user's own (Settings), their CLI logins, and all the tokens (Admin)
+// Lists of tokens: the user's own (Settings), their CLI sign-ins, and all the tokens (Admin)
 import { useState } from "react";
 import { Alert, Button, Classes, HTMLTable, Intent, Tag, Tooltip } from "@blueprintjs/core";
 
@@ -47,7 +47,7 @@ const Expiry = ({ token }) => {
 };
 
 const Projects = ({ projects }) => projects?.length
-  ? <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4 }}>{projects.map(pattern => <code key={pattern} className={Classes.CODE}>{pattern}</code>)}</span>
+  ? <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4, maxWidth: 220 }}>{projects.map(pattern => <code key={pattern} className={Classes.CODE}>{pattern}</code>)}</span>
   : <span className={Classes.TEXT_MUTED}>All</span>;
 
 const LastUsed = ({ token }) => <>
@@ -55,8 +55,14 @@ const LastUsed = ({ token }) => <>
   {token.last_used_ip && <div className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>from {token.last_used_ip}</div>}
 </>;
 
-// CLI logins are named after the computer
+// CLI sign-ins are named after the computer
 export const device_name = token => token.data?.hostname || token.name;
+// "qa CLI on host-12" => "qa CLI": the computer is already in the row's name
+const client_name = token => {
+  const { client, hostname } = token.data ?? {};
+  if (!client) return null;
+  return hostname ? client.replace(` on ${hostname}`, '').trim() || null : client;
+};
 
 
 // `kind`: "personal" (the default) or "cli" (named after the computer).
@@ -69,7 +75,7 @@ export const TokensTable = ({ tokens, onRevoke, kind = 'personal', show_user = f
   const confirm = () => {
     setBusy(true);
     Promise.resolve(onRevoke(revoking))
-      .then(() => toaster.show({ message: `Revoked ${is_cli ? `the login on ${device_name(revoking)}` : `“${revoking.name}”`}`, intent: Intent.SUCCESS, icon: 'tick', timeout: 3000 }))
+      .then(() => toaster.show({ message: `Revoked ${is_cli ? `the CLI sign-in on ${device_name(revoking)}` : `“${revoking.name}”`}`, intent: Intent.SUCCESS, icon: 'tick', timeout: 3000 }))
       .catch(error => toaster.show({ message: `Could not revoke the token: ${errorMessage(error)}`, intent: Intent.DANGER }))
       .finally(() => {
         setBusy(false);
@@ -79,7 +85,7 @@ export const TokensTable = ({ tokens, onRevoke, kind = 'personal', show_user = f
 
   return <>
     <div style={{ overflowX: 'auto' }}>
-      <HTMLTable compact style={{ width: '100%' }} aria-label={is_cli ? 'CLI logins' : 'Access tokens'}>
+      <HTMLTable compact style={{ width: '100%' }} aria-label={is_cli ? 'CLI sign-ins' : 'Access tokens'}>
         <thead>
           <tr>
             <th>{is_cli ? 'Computer' : 'Name'}</th>
@@ -98,13 +104,13 @@ export const TokensTable = ({ tokens, onRevoke, kind = 'personal', show_user = f
             <td>
               <strong>{is_cli ? device_name(token) : token.name}</strong>
               <div className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>
-                {is_cli && token.data?.client ? <>{token.data.client} · </> : null}
+                {is_cli && client_name(token) ? <>{client_name(token)} · </> : null}
                 {token.prefix && <code>{token.prefix}…</code>}
               </div>
             </td>
             {show_user && <td>{token.user ? <Link to={`/admin/users/${token.user.id}`}>{token.user.user_name}</Link> : '—'}</td>}
             {!is_cli && <td>{token.kind === 'legacy' ? <span className={Classes.TEXT_MUTED}>all</span> : <ScopeTags scopes={token.scopes}/>}</td>}
-            {!is_cli && <td><Projects projects={token.projects}/></td>}
+            {!is_cli && <td style={{ maxWidth: 240 }}><Projects projects={token.projects}/></td>}
             <td><Time iso={token.created_at}/></td>
             <td><Expiry token={token}/></td>
             <td><LastUsed token={token}/></td>
@@ -135,7 +141,7 @@ export const TokensTable = ({ tokens, onRevoke, kind = 'personal', show_user = f
       canEscapeKeyCancel
     >
       {revoking && (is_cli
-        ? <p>Revoke the login on <strong>{device_name(revoking)}</strong>? <code>qa</code> will stop working there until you run <code>qa auth login</code> again.</p>
+        ? <p>Revoke the CLI sign-in on <strong>{device_name(revoking)}</strong>? <code>qa</code> will stop working there until you run <code>qa auth login</code> again.</p>
         : <p>Revoke <strong>{revoking.name}</strong>? Scripts and CI jobs that use it will stop working right away. This can't be undone.</p>)}
     </Alert>
   </>;

@@ -1,8 +1,8 @@
-// /device: users approve here the logins `qa auth login` starts on their computers (OAuth device flow, RFC 8628).
+// /device: users approve here the sign-ins `qa auth login` starts on their computers (OAuth device flow, RFC 8628).
 // The CLI prints a code, e.g. WDJB-MJHT, and a link to /device?code=WDJB-MJHT.
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button, Callout, Card, Classes, FormGroup, InputGroup, Intent, NonIdealState } from "@blueprintjs/core";
+import { Button, Callout, Card, Classes, FormGroup, Icon, InputGroup, Intent } from "@blueprintjs/core";
 import { useLocation } from "react-router";
 
 import { http, errorMessage } from "../api/http";
@@ -31,9 +31,11 @@ const scope_sentences = {
   read: 'see projects and runs',
   ingest: 'save runs',
   act: 'redo, delete and tune runs',
-  manage: "change projects' settings",
   admin: 'use the admin API',
 };
+
+// The form, the request and its answer are cards of the same width, aligned with the page's title
+const card_style = { maxWidth: 560 };
 const what_it_can_do = scopes => {
   const phrases = (scopes ?? []).map(scope => scope_sentences[scope] ?? scope);
   if (phrases.length <= 1) return phrases.join('');
@@ -48,10 +50,9 @@ const CodeForm = ({ initial = '', error }) => {
     const code = normalizeCode(text);
     if (code) history.replace(`/device?code=${encodeURIComponent(code)}`);
   };
-  return <Card style={{ maxWidth: 480 }}>
+  return <Card style={card_style}>
     <form onSubmit={submit}>
-      <h4 className={Classes.HEADING}>Log in from the command line</h4>
-      <p className={Classes.TEXT_MUTED}>Type the code that <code>qa auth login</code> shows in your terminal.</p>
+      <p>Type the code that <code>qa auth login</code> shows in your terminal.</p>
       {error && <Callout intent={Intent.DANGER} style={{ marginBottom: 12 }} role="alert">{error}</Callout>}
       <FormGroup label="Code" labelFor="device-code">
         <InputGroup
@@ -73,18 +74,33 @@ const CodeForm = ({ initial = '', error }) => {
 };
 
 
-const Done = ({ status, device }) => {
+const Result = ({ icon, intent, title, children, action }) => <Card style={card_style}>
+  <h4 className={Classes.HEADING} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+    <Icon icon={icon} intent={intent} size={20}/>{title}
+  </h4>
+  {children}
+  {action && <div style={{ marginTop: 12 }}>{action}</div>}
+</Card>;
+
+// `answered`: whether users just answered here, else the request was answered before (e.g. in another tab)
+const Done = ({ status, device, answered }) => {
   const where = device?.hostname ? <strong>{device.hostname}</strong> : 'your computer';
+  const another_code = <Button text="Type another code" onClick={() => history.replace('/device')}/>;
+  if (status === 'approved' && answered)
+    return <Result icon="tick-circle" intent={Intent.SUCCESS} title="You're signed in">
+      <p>Go back to your terminal: <code>qa</code> can now work as you on {where}.</p>
+    </Result>;
   if (status === 'approved')
-    return <NonIdealState icon="tick-circle" title="You're logged in" description={<p>Go back to your terminal: <code>qa</code> can now work as you on {where}.</p>}/>;
+    return <Result icon="tick-circle" intent={Intent.SUCCESS} title="This sign-in was already approved" action={another_code}>
+      <p>Nothing else to do: <code>qa</code> works as you on {where}. To sign in on another computer, run <code>qa auth login</code> there.</p>
+    </Result>;
   if (status === 'denied')
-    return <NonIdealState icon="disable" title="Login denied" description={<p>Nothing was shared with {where}. If you didn't start this login, you're all set.</p>}/>;
-  return <NonIdealState
-    icon="time"
-    title="This code expired"
-    description={<p>Run <code>qa auth login</code> again to get a new code.</p>}
-    action={<Button text="Type another code" onClick={() => history.replace('/device')}/>}
-  />;
+    return <Result icon="disable" intent={Intent.DANGER} title="Sign-in denied" action={answered ? undefined : another_code}>
+      <p>Nothing was shared with {where}. If you didn't start this sign-in, you're all set.</p>
+    </Result>;
+  return <Result icon="time" intent={Intent.WARNING} title="This code expired" action={another_code}>
+    <p>Run <code>qa auth login</code> again to get a new code.</p>
+  </Result>;
 };
 
 
@@ -95,16 +111,16 @@ const Approve = ({ code, user }) => {
   const [busy, setBusy] = useState(null);
   const [answer_error, setAnswerError] = useState(null);
 
-  if (isPending) return <Loading label="Looking for the login request"/>;
+  if (isPending) return <Loading label="Looking for the sign-in request"/>;
   if (error)
     return <CodeForm
       initial={code}
       error={error.response?.status === 404
-        ? "This code doesn't match any login request. Check it in your terminal, or run qa auth login again."
+        ? "This code doesn't match any sign-in request. Check it in your terminal, or run qa auth login again."
         : errorMessage(error)}
     />;
   const status = result ?? device?.status ?? 'pending';
-  if (status !== 'pending') return <Done status={status} device={device}/>;
+  if (status !== 'pending') return <Done status={status} device={device} answered={!!result}/>;
 
   const answer = approve => {
     setBusy(approve ? 'approve' : 'deny');
@@ -119,11 +135,11 @@ const Approve = ({ code, user }) => {
   };
 
   const client = device?.client_name || 'qa CLI';
-  return <Card style={{ maxWidth: 560 }}>
+  return <Card style={card_style}>
     <h4 className={Classes.HEADING}>Authorize {client}{device?.hostname && !client.includes(device.hostname) ? ` on ${device.hostname}` : ''}?</h4>
     <p>
       It will be able to {what_it_can_do(device?.scopes) || 'use QA-Board'} as <strong>{user.user_name}</strong>, until you revoke it
-      in <Link to="/settings/cli">Settings → CLI &amp; devices</Link>.
+      in <Link to="/settings/cli">Settings → CLI sign-ins</Link>.
     </p>
     <table className={Classes.TEXT_MUTED} style={{ marginBottom: 12, borderSpacing: '12px 4px', marginLeft: -12 }}>
       <tbody>
@@ -152,8 +168,8 @@ const Approve = ({ code, user }) => {
 export const DevicePage = () => {
   const location = useLocation();
   const code = normalizeCode(new URLSearchParams(location.search).get('code'));
-  return <PageShell title="Device login" description="Approve here the logins you start from the command line, with qa auth login.">
-    <RequireLogin what="approve this login">
+  return <PageShell title="Device sign-in" description={<>Approve here the sign-ins you start from the command line with <code>qa auth login</code>.</>}>
+    <RequireLogin what="approve this sign-in">
       {user => code ? <Approve key={code} code={code} user={user}/> : <CodeForm/>}
     </RequireLogin>
   </PageShell>;

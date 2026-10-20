@@ -57,18 +57,18 @@ describe('AdminPage', () => {
     expect(await screen.findByText('Admins only')).toBeInTheDocument();
   });
 
-  it('asks logged-out users to log in', async () => {
+  it('asks signed-out users to sign in', async () => {
     mockApi({ 'GET /api/v1/user/me/': { is_authenticated: false } });
     renderPage('/admin/users', undefined);
-    expect(await screen.findByText('Log in to continue')).toBeInTheDocument();
+    expect(await screen.findByText('Sign in to continue')).toBeInTheDocument();
   });
 
   it('shows the overview to admins', async () => {
     mockApi({ 'GET /api/v1/admin/overview': {
       counts: { users: 12, active_30d: 8, admins: 1, pending: 0, disabled: 1, active_tokens: 5 },
       checklist: [
-        { id: 'secure_cookies', ok: true, severity: 'warning', title: 'Cookies are Secure', detail: '' },
-        { id: 'ingest_open', ok: false, severity: 'warning', title: 'Anyone can save runs', detail: 'Set QABOARD_INGEST_AUTH=warn.' },
+        { id: 'https', ok: true, severity: 'info', title: 'Cookies are only sent over HTTPS', detail: null },
+        { id: 'ingest_auth', ok: false, severity: 'warning', title: 'Anyone who can reach the server can send results', detail: 'Results sent without a token are marked unverified. Move ingest.auth to "warn", then "token", once CI jobs use tokens (QABOARD_TOKEN).' },
       ],
     } });
     renderPage('/admin', admin);
@@ -77,7 +77,12 @@ describe('AdminPage', () => {
     expect(screen.getByText('1 to review')).toBeInTheDocument();
     // what's left to do comes first
     const items = screen.getAllByRole('listitem').map(item => item.textContent);
-    expect(items[0]).toMatch(/Anyone can save runs/);
+    expect(items[0]).toMatch(/Anyone who can reach the server can send results/);
+    // where to fix it
+    expect(screen.getByRole('link', { name: 'Anyone who can reach the server can send results' })).toHaveAttribute('href', '/admin/settings');
+    expect(screen.getByRole('link', { name: 'ingest.auth' })).toHaveAttribute('href', '/admin/settings');
+    // nothing to say about what's fine
+    expect(items[1]).toBe('Cookies are only sent over HTTPS');
   });
 
   it('says when the server refuses: not an admin anymore', async () => {
@@ -99,6 +104,8 @@ describe('Users', () => {
     expect(await screen.findByText('Alice')).toBeInTheDocument();
     expect(screen.getByText('3 users')).toBeInTheDocument();
     expect(screen.getByText('Admin (env)')).toBeInTheDocument();
+    // sign-in methods in words
+    expect(screen.getAllByText('LDAP').length).toBe(3);
     const bob = screen.getByRole('link', { name: 'bob' });
     expect(bob).toHaveAttribute('href', '/admin/users/3');
     expect(within(bob.closest('tr')).getByText('Disabled')).toBeInTheDocument();
@@ -143,7 +150,7 @@ describe('UserDetail', () => {
     expect(screen.getByText('Created a token')).toBeInTheDocument();
   });
 
-  it('disables users after asking, and makes them admins', async () => {
+  it('disables users after asking, and makes them admins after asking', async () => {
     const fetch = mockApi({
       'GET /api/v1/admin/users/2': detail(),
       'POST /api/v1/admin/users/2': (url, init) => [user(JSON.parse(init.body)), 200],
@@ -157,8 +164,32 @@ describe('UserDetail', () => {
     await waitFor(() => expect(toaster.show).toHaveBeenCalledWith(expect.objectContaining({ message: 'Disabled alice' })));
 
     fireEvent.click(screen.getByRole('button', { name: 'Make admin' }));
+    const confirm = within(await screen.findByRole('alertdialog'));
+    expect(confirm.getByText(/an admin\?/)).toBeInTheDocument();
+    expect(calls(fetch, 'POST', '/api/v1/admin/users/2')).toHaveLength(1);
+    fireEvent.click(confirm.getByRole('button', { name: 'Make admin' }));
     await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/admin/users/2')).toHaveLength(2));
     expect(JSON.parse(calls(fetch, 'POST', '/api/v1/admin/users/2')[1][1].body)).toEqual({ is_admin: true });
+  });
+
+  it('approves or denies pending users', async () => {
+    const fetch = mockApi({
+      'GET /api/v1/admin/users/2': detail({ status: 'pending', login_type: 'LOCAL' }),
+      'POST /api/v1/admin/users/2': (url, init) => [user(JSON.parse(init.body)), 200],
+    });
+    renderAt('/admin/users/2', <UserDetail id="2" me={admin}/>);
+    const approve = await screen.findByRole('button', { name: 'Approve' });
+    expect(approve).toHaveClass('bp6-intent-primary');
+    expect(screen.queryByRole('button', { name: 'Disable' })).not.toBeInTheDocument();
+    expect(screen.getByText('User name and password')).toBeInTheDocument();
+    fireEvent.click(approve);
+    await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/admin/users/2')).toHaveLength(1));
+    expect(JSON.parse(calls(fetch, 'POST', '/api/v1/admin/users/2')[0][1].body)).toEqual({ status: 'active' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Deny' }));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Deny' }));
+    await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/admin/users/2')).toHaveLength(2));
+    expect(JSON.parse(calls(fetch, 'POST', '/api/v1/admin/users/2')[1][1].body)).toEqual({ status: 'disabled' });
   });
 
   it('revokes all their tokens', async () => {
@@ -194,41 +225,83 @@ describe('UserDetail', () => {
 
 
 describe('Settings', () => {
+  // backend/settings.py describe()
+  const setting = props => ({ value: null, default: null, source: 'default', env: null, description: '', type: 'str', choices: null, nullable: false, editable: true, ...props });
   const settings = [
-    { key: 'auth.require_sign_in', value: true, default: false, source: 'env', env: 'QABOARD_LOGIN_REQUIRED', description: 'Only logged-in users see anything.', editable: true },
-    { key: 'tokens.default_lifetime_days', value: 90, default: 90, source: 'default', env: null, description: 'How long new tokens live.', editable: true },
-    { key: 'auth.allowed_origins', value: ['https://a.example'], default: [], source: 'database', env: 'QABOARD_ALLOWED_ORIGINS', description: 'Other sites that can call the API.', editable: true },
+    setting({ key: 'auth.require_sign_in', value: true, default: false, source: 'env', env: 'QABOARD_LOGIN_REQUIRED', type: 'bool', editable: false,
+      description: 'Anonymous users can\'t see anything.' }),
+    setting({ key: 'auth.local_signup', value: true, default: true, env: 'QABOARD_DISABLE_SIGNUP', type: 'bool', description: 'Anyone can create a local account.' }),
+    setting({ key: 'ingest.auth', value: 'off', default: 'off', env: 'QABOARD_INGEST_AUTH', type: 'str', choices: ['off', 'warn', 'token'],
+      description: 'How runs sent by `qa` are authenticated.' }),
+    setting({ key: 'tokens.default_lifetime_days', value: 90, default: 90, type: 'int', description: 'How long new tokens live.' }),
+    setting({ key: 'tokens.max_lifetime_days', value: null, default: null, type: 'int', nullable: true, description: 'The longest lifetime.' }),
+    setting({ key: 'auth.allowed_origins', value: ['https://a.example'], default: [], source: 'database', env: 'QABOARD_ALLOWED_ORIGINS', type: 'list', description: 'Other origins.' }),
   ];
+  const mockSettings = () => mockApi({
+    'GET /api/v1/admin/settings': { settings },
+    'POST /api/v1/admin/settings': (url, init) => {
+      const [[key, value]] = Object.entries(JSON.parse(init.body));
+      return [{ settings: settings.map(s => s.key === key ? { ...s, value: value ?? s.default, source: value === null ? 'default' : 'database' } : s) }, 200];
+    },
+  });
+  const posted = fetch => calls(fetch, 'POST', '/api/v1/admin/settings').map(([, init]) => JSON.parse(init.body));
 
-  it('shows where values come from, and edits those not set by the environment', async () => {
-    const fetch = mockApi({
-      'GET /api/v1/admin/settings': { settings },
-      'POST /api/v1/admin/settings': (url, init) => [{ settings: settings.map(s => s.key === 'tokens.default_lifetime_days' ? { ...s, value: JSON.parse(init.body)[s.key], source: 'database' } : s) }, 200],
-    });
+  it('shows where values come from: settings from the environment are read-only, with their variable', async () => {
+    mockSettings();
     renderWithProviders(<Settings/>);
     const env_row = within(await screen.findByTestId('setting-auth.require_sign_in'));
     expect(env_row.getByText('environment')).toBeInTheDocument();
+    expect(env_row.getByText('QABOARD_LOGIN_REQUIRED')).toBeInTheDocument();
+    expect(env_row.getByLabelText('Value of auth.require_sign_in')).toBeDisabled();
     expect(env_row.queryByRole('button', { name: /Edit/ })).not.toBeInTheDocument();
     expect(within(screen.getByTestId('setting-auth.allowed_origins')).getByText('database')).toBeInTheDocument();
-
-    const row = within(screen.getByTestId('setting-tokens.default_lifetime_days'));
-    fireEvent.click(row.getByRole('button', { name: 'Edit tokens.default_lifetime_days' }));
-    fireEvent.change(row.getByLabelText('Value of tokens.default_lifetime_days'), { target: { value: 'soon' } });
-    fireEvent.click(row.getByRole('button', { name: 'Save' }));
-    expect(row.getByRole('alert')).toHaveTextContent('Type a number.');
-    fireEvent.change(row.getByLabelText('Value of tokens.default_lifetime_days'), { target: { value: '30' } });
-    fireEvent.click(row.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/admin/settings')).toHaveLength(1));
-    expect(JSON.parse(calls(fetch, 'POST', '/api/v1/admin/settings')[0][1].body)).toEqual({ 'tokens.default_lifetime_days': 30 });
-    expect(await row.findByText('database')).toBeInTheDocument();
+    // `code` in descriptions
+    expect(within(screen.getByTestId('setting-ingest.auth')).getByText('qa').tagName).toBe('CODE');
+    // empty values say so, the same way
+    expect(within(screen.getByTestId('setting-tokens.max_lifetime_days')).getByText('Not set')).toBeInTheDocument();
   });
 
-  it('resets settings to their default', async () => {
-    const fetch = mockApi({ 'GET /api/v1/admin/settings': { settings }, 'POST /api/v1/admin/settings': { settings } });
+  it('switches booleans and picks choices right away', async () => {
+    const fetch = mockSettings();
     renderWithProviders(<Settings/>);
-    fireEvent.click(await screen.findByRole('button', { name: 'Reset auth.allowed_origins to its default' }));
-    await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/admin/settings')).toHaveLength(1));
-    expect(JSON.parse(calls(fetch, 'POST', '/api/v1/admin/settings')[0][1].body)).toEqual({ 'auth.allowed_origins': null });
+    fireEvent.click(await screen.findByLabelText('Value of auth.local_signup'));
+    await waitFor(() => expect(posted(fetch)).toEqual([{ 'auth.local_signup': false }]));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Value of ingest.auth' }), { target: { value: 'warn' } });
+    await waitFor(() => expect(posted(fetch)).toHaveLength(2));
+    expect(posted(fetch)[1]).toEqual({ 'ingest.auth': 'warn' });
+  });
+
+  it('edits numbers, empty means not set when it can be', async () => {
+    const fetch = mockSettings();
+    renderWithProviders(<Settings/>);
+    const row = within(await screen.findByTestId('setting-tokens.default_lifetime_days'));
+    fireEvent.click(row.getByRole('button', { name: 'Edit tokens.default_lifetime_days' }));
+    fireEvent.change(row.getByLabelText('Value of tokens.default_lifetime_days'), { target: { value: '1.5' } });
+    fireEvent.click(row.getByRole('button', { name: 'Save' }));
+    expect(row.getByRole('alert')).toHaveTextContent('Type a whole number.');
+    fireEvent.change(row.getByLabelText('Value of tokens.default_lifetime_days'), { target: { value: '30' } });
+    fireEvent.click(row.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(posted(fetch)).toEqual([{ 'tokens.default_lifetime_days': 30 }]));
+    expect(await row.findByText('database')).toBeInTheDocument();
+
+    const max = within(screen.getByTestId('setting-tokens.max_lifetime_days'));
+    fireEvent.click(max.getByRole('button', { name: 'Edit tokens.max_lifetime_days' }));
+    fireEvent.click(max.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(posted(fetch)).toHaveLength(2));
+    expect(posted(fetch)[1]).toEqual({ 'tokens.max_lifetime_days': null });
+  });
+
+  it('edits lists as comma-separated text, and resets settings to their default', async () => {
+    const fetch = mockSettings();
+    renderWithProviders(<Settings/>);
+    const row = within(await screen.findByTestId('setting-auth.allowed_origins'));
+    fireEvent.click(row.getByRole('button', { name: 'Edit auth.allowed_origins' }));
+    fireEvent.change(row.getByLabelText('Value of auth.allowed_origins'), { target: { value: 'https://a.example, https://b.example' } });
+    fireEvent.click(row.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(posted(fetch)).toEqual([{ 'auth.allowed_origins': ['https://a.example', 'https://b.example'] }]));
+    fireEvent.click(await row.findByRole('button', { name: 'Reset auth.allowed_origins to its default' }));
+    await waitFor(() => expect(posted(fetch)).toHaveLength(2));
+    expect(posted(fetch)[1]).toEqual({ 'auth.allowed_origins': null });
   });
 });
 

@@ -6,7 +6,7 @@ import { Alert, Button, Classes, HTMLTable, Intent, NonIdealState, Tooltip } fro
 import { Link } from "../router";
 import { errorMessage } from "../api/http";
 import { toaster } from "../toaster";
-import { Time } from "../settings/format";
+import { Time, loginTypeLabel } from "../settings/format";
 import { Loading } from "../settings/states";
 import { TokensTable } from "../settings/tokens";
 import { AuditEvents } from "../settings/AuditEvents";
@@ -18,12 +18,22 @@ import { adminUserQuery, updateUser, revokeUserTokens, adminRevokeToken } from "
 // The actions that need a confirmation
 const confirmations = {
   disable: {
-    text: user => <p>Disable <strong>{user.user_name}</strong>? They are logged out, and their tokens stop working at their next request, until you enable the account again.</p>,
+    text: user => <p>Disable <strong>{user.user_name}</strong>? They are signed out, and their tokens stop working at their next request, until you enable the account again.</p>,
     button: 'Disable',
   },
+  deny: {
+    text: user => <p>Deny <strong>{user.user_name}</strong>'s account? It is disabled: they can't sign in. You can enable it later.</p>,
+    button: 'Deny',
+  },
   revoke_tokens: {
-    text: user => <p>Revoke all the tokens of <strong>{user.user_name}</strong>, CLI logins included? Their scripts and CI jobs will stop working. This can't be undone.</p>,
+    text: user => <p>Revoke all the tokens of <strong>{user.user_name}</strong>, CLI sign-ins included? Their scripts and CI jobs will stop working. This can't be undone.</p>,
     button: 'Revoke all',
+  },
+  make_admin: {
+    text: user => <p>Make <strong>{user.user_name}</strong> an admin? They will manage users, tokens and the server's settings.</p>,
+    button: 'Make admin',
+    intent: Intent.PRIMARY,
+    icon: 'shield',
   },
   remove_admin: {
     text: user => <p>Remove the admin role of <strong>{user.user_name}</strong>?</p>,
@@ -51,6 +61,8 @@ const Actions = ({ user, me }) => {
   const actions = {
     disable: () => run('disable', () => updateUser(queryClient, user.id, { status: 'disabled' }), () => `Disabled ${user.user_name}`),
     enable: () => run('enable', () => updateUser(queryClient, user.id, { status: 'active' }), () => `Enabled ${user.user_name}`),
+    approve: () => run('approve', () => updateUser(queryClient, user.id, { status: 'active' }), () => `Approved ${user.user_name}: they can sign in`),
+    deny: () => run('deny', () => updateUser(queryClient, user.id, { status: 'disabled' }), () => `Denied ${user.user_name}'s account`),
     make_admin: () => run('make_admin', () => updateUser(queryClient, user.id, { is_admin: true }), () => `${user.user_name} is now an admin`),
     remove_admin: () => run('remove_admin', () => updateUser(queryClient, user.id, { is_admin: false }), () => `${user.user_name} isn't an admin anymore`),
     revoke_tokens: () => run('revoke_tokens', () => revokeUserTokens(queryClient, user.id), result => {
@@ -67,23 +79,27 @@ const Actions = ({ user, me }) => {
       loading={busy === 'remove_admin'}
       onClick={() => setConfirming('remove_admin')}
     />
-    : <Button icon="shield" text="Make admin" loading={busy === 'make_admin'} onClick={actions.make_admin}/>;
+    : <Button icon="shield" text="Make admin" loading={busy === 'make_admin'} onClick={() => setConfirming('make_admin')}/>;
   const admin_tooltip = user.is_admin_from_env
     ? "Admin from QABOARD_ADMINS, in the server's environment: change it there."
     : is_me && user.is_admin ? "You can't remove your own admin role." : null;
 
   return <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+    {user.status === 'pending' && <>
+      <Button icon="tick" intent={Intent.PRIMARY} text="Approve" loading={busy === 'approve'} onClick={actions.approve}/>
+      <Button icon="cross" intent={Intent.DANGER} variant="outlined" text="Deny" loading={busy === 'deny'} onClick={() => setConfirming('deny')}/>
+    </>}
     {user.status === 'disabled'
       ? <Button icon="unlock" intent={Intent.SUCCESS} text="Enable" loading={busy === 'enable'} onClick={actions.enable}/>
-      : <Tooltip content="You can't disable yourself." disabled={!is_me}>
+      : user.status !== 'pending' && <Tooltip content="You can't disable yourself." disabled={!is_me}>
         <Button icon="disable" intent={Intent.DANGER} variant="outlined" text="Disable" disabled={is_me} loading={busy === 'disable'} onClick={() => setConfirming('disable')}/>
       </Tooltip>}
     {admin_tooltip ? <Tooltip content={admin_tooltip}>{admin_button}</Tooltip> : admin_button}
     <Button icon="key" text="Revoke all tokens" intent={Intent.DANGER} variant="outlined" disabled={!user.active_tokens} loading={busy === 'revoke_tokens'} onClick={() => setConfirming('revoke_tokens')}/>
     <Alert
       isOpen={!!confirming}
-      intent={Intent.DANGER}
-      icon="warning-sign"
+      intent={confirmations[confirming]?.intent ?? Intent.DANGER}
+      icon={confirmations[confirming]?.icon ?? "warning-sign"}
       cancelButtonText="Cancel"
       confirmButtonText={confirmations[confirming]?.button}
       loading={!!busy}
@@ -118,8 +134,8 @@ export const UserDetail = ({ id, me }) => {
       <tbody>
         <tr><th scope="row">User name</th><td><code>{user.user_name}</code></td></tr>
         <tr><th scope="row">Email</th><td>{user.email || <span className={Classes.TEXT_MUTED}>Not set</span>}</td></tr>
-        <tr><th scope="row">Login</th><td>{user.login_type ?? '—'}</td></tr>
-        <tr><th scope="row">Last login</th><td><Time iso={user.last_login_at}/></td></tr>
+        <tr><th scope="row">Sign-in</th><td>{loginTypeLabel(user.login_type) ?? '—'}</td></tr>
+        <tr><th scope="row">Last sign-in</th><td><Time iso={user.last_login_at}/></td></tr>
         <tr><th scope="row">Created</th><td><Time iso={user.created_date}/></td></tr>
       </tbody>
     </HTMLTable>

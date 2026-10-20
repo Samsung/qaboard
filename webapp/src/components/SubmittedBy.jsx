@@ -7,7 +7,7 @@ import { useSiteConfig } from "../hooks";
 
 export const submittedByText = ({ user_name, token_name, via } = {}) => {
   if (token_name) return `Sent by ${user_name} with token ${token_name}`;
-  if (via === 'session') return `Sent by ${user_name}, logged in`;
+  if (via === 'session') return `Sent by ${user_name}, signed in`;
   return `Sent by ${user_name}`;
 };
 

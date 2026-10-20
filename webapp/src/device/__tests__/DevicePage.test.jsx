@@ -1,5 +1,5 @@
 /**
- * /device: users approve or deny the logins `qa auth login` starts on their computers.
+ * /device: users approve or deny the sign-ins `qa auth login` starts on their computers.
  * Run with: cd webapp && npm test -- DevicePage
  */
 import { act, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -12,7 +12,8 @@ import { renderWithProviders } from '../../test-utils';
 const json = (data, status = 200) => Promise.resolve(new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }));
 
 const alice = { is_logged: true, user_id: 1, user_name: 'alice', full_name: 'Alice' };
-const request = { client_name: 'qa CLI on host-12', hostname: 'host-12', scopes: ['read', 'ingest', 'act'], created_at: '2026-10-20T10:00:00Z', expires_at: '2026-10-20T10:15:00Z', status: 'pending' };
+// api/tokens.py serialize_device()
+const request = { user_code: 'WDJB-MJHT', client_name: 'qa CLI on host-12', hostname: 'host-12', ip: '10.0.0.5', scopes: ['read', 'ingest', 'act'], created_at: '2026-10-20T10:00:00Z', expires_at: '2026-10-20T10:15:00Z', status: 'pending' };
 
 const mockApi = ({ device = request, device_status = 200, answer = init => ({ status: JSON.parse(init.body).approve ? 'approved' : 'denied' }) } = {}) =>
   vi.spyOn(globalThis, 'fetch').mockImplementation((url, init = {}) => {
@@ -43,7 +44,7 @@ describe('DevicePage', () => {
     expect(screen.getByText(/see projects and runs, save runs and redo, delete and tune runs/)).toBeInTheDocument();
     expect(fetch.mock.calls.map(([url]) => url)).toContain('/api/v1/auth/device?code=WDJB-MJHT');
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
-    expect(await screen.findByText("You're logged in")).toBeInTheDocument();
+    expect(await screen.findByText("You're signed in")).toBeInTheDocument();
     const [, init] = fetch.mock.calls.find(([, init]) => init?.method === 'POST');
     expect(JSON.parse(init.body)).toEqual({ code: 'WDJB-MJHT', approve: true });
   });
@@ -52,7 +53,7 @@ describe('DevicePage', () => {
     const fetch = mockApi();
     renderAt('/device?code=WDJB-MJHT', alice);
     fireEvent.click(await screen.findByRole('button', { name: 'Deny' }));
-    expect(await screen.findByText('Login denied')).toBeInTheDocument();
+    expect(await screen.findByText('Sign-in denied')).toBeInTheDocument();
     const [, init] = fetch.mock.calls.find(([, init]) => init?.method === 'POST');
     expect(JSON.parse(init.body)).toEqual({ code: 'WDJB-MJHT', approve: false });
   });
@@ -70,7 +71,7 @@ describe('DevicePage', () => {
   it('says when the code is unknown or expired', async () => {
     mockApi({ device_status: 404 });
     renderAt('/device?code=AAAA-BBBB', alice);
-    expect(await screen.findByRole('alert')).toHaveTextContent("This code doesn't match any login request.");
+    expect(await screen.findByRole('alert')).toHaveTextContent("This code doesn't match any sign-in request.");
   });
 
   it('says when the request was already answered', async () => {
@@ -80,13 +81,31 @@ describe('DevicePage', () => {
     expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
   });
 
-  it('asks logged-out users to log in first, and keeps the code', async () => {
+  it('says when the sign-in was already approved, e.g. in another tab', async () => {
+    // the server says "approved" once the CLI got its token
+    mockApi({ device: { ...request, status: 'approved' } });
+    renderAt('/device?code=WDJB-MJHT', alice);
+    expect(await screen.findByText('This sign-in was already approved')).toBeInTheDocument();
+    expect(screen.queryByText('This code expired')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Type another code' })).toBeInTheDocument();
+  });
+
+  it('shows the command as code, and its title once', async () => {
+    mockApi();
+    renderAt('/device', alice);
+    expect(await screen.findByRole('heading', { name: 'Device sign-in' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading')).toHaveLength(1);
+    const command = screen.getAllByText('qa auth login');
+    expect(command.every(element => element.tagName === 'CODE')).toBe(true);
+  });
+
+  it('asks signed-out users to sign in first, and keeps the code', async () => {
     const fetch = mockApi();
     renderAt('/device?code=WDJB-MJHT', undefined);
-    expect(await screen.findByText('Log in to continue')).toBeInTheDocument();
-    expect(screen.getByText('Log in to approve this login.')).toBeInTheDocument();
+    expect(await screen.findByText('Sign in to continue')).toBeInTheDocument();
+    expect(screen.getByText('Sign in to approve this sign-in.')).toBeInTheDocument();
     expect(fetch.mock.calls.some(([url]) => url.startsWith('/api/v1/auth/device'))).toBe(false);
     expect(history.location.search).toBe('?code=WDJB-MJHT');
-    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Log in' }).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Sign in' }).length).toBeGreaterThan(0));
   });
 });

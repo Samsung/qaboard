@@ -32,6 +32,6 @@ test('runs without a verified sender are unverified, unless the server accepts a
 });
 
 test('sentences', () => {
-  expect(submittedByText({ user_name: 'alice', via: 'session' })).toBe('Sent by alice, logged in');
+  expect(submittedByText({ user_name: 'alice', via: 'session' })).toBe('Sent by alice, signed in');
   expect(submittedByText({ user_name: 'alice' })).toBe('Sent by alice');
 });

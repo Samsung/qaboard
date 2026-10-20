@@ -102,6 +102,7 @@ describe('401 and 403 reasons', () => {
     expect(is_account_reason('user_pending')).toBe(true);
     expect(is_account_reason('sign_in_required')).toBe(false);
     expect(is_token_reason('token_revoked')).toBe(true);
+    expect(is_token_reason('token_in_url')).toBe(true);
     expect(is_token_reason('forbidden_project')).toBe(false);
   });
 });

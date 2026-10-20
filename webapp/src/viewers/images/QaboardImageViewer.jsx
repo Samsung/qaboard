@@ -130,8 +130,8 @@ const usePageKey = () => {
 };
 
 // The server reads the images' values and compares them for signed-in users only
-const SIGN_IN_VALUES = "Log in (in the sidebar) to read the images' own values: raw, 16-bit…";
-const SIGN_IN_SEARCH = 'Log in (in the sidebar) to find where the images differ';
+const SIGN_IN_VALUES = "Sign in (in the sidebar) to read the images' own values: raw, 16-bit…";
+const SIGN_IN_SEARCH = 'Sign in (in the sidebar) to find where the images differ';
 
 // The regions of interest of the providers. Those found on demand are shared by the page (regionSearch.js): a search
 // for all the runs fills each viewer.

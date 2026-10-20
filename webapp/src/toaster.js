@@ -8,15 +8,15 @@ const toasterPromise = OverlayToaster.create({
     className: "qa-toaster",
 });
 
-// What older backends answer to logged-out users. 401 answers get one toast, with a "Log in" button
-// (see components/authentication/login.jsx): we skip the toasts of each action that repeat it.
-const LOGIN_REQUIRED_ERROR = "You need to be logged-in to do this.";
+// What backends answer to signed-out users (older ones: "You need to be logged-in..."). 401 answers get one toast,
+// with a "Sign in" button (see components/authentication/login.jsx): we skip the toasts of each action that repeat it.
+const LOGIN_REQUIRED_ERRORS = ["You need to be logged-in to do this.", "Sign in to do this."];
 const LOGIN_TOAST_KEY = "login-required"; // the key of its toast
 
 export const toaster = {
     show: (props, key) => {
         const message = props?.message;
-        if (key !== LOGIN_TOAST_KEY && typeof message === 'string' && (message.includes(LOGIN_REQUIRED_ERROR) || isHandledMessage(message)))
+        if (key !== LOGIN_TOAST_KEY && typeof message === 'string' && (LOGIN_REQUIRED_ERRORS.some(sentence => message.includes(sentence)) || isHandledMessage(message)))
             return Promise.resolve();
         return toasterPromise.then(toaster => toaster.show(props, key));
     },

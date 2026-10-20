@@ -193,7 +193,7 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
       {legacy_count > 0 && !user.is_logged && <li style={{ padding: '6px 0' }}>
         <Callout intent={Intent.WARNING} icon="warning-sign" compact>
           {legacy_count} milestone{legacy_count > 1 ? 's are' : ' is'} saved only in this browser.
-          Log in to move {legacy_count > 1 ? 'them' : 'it'} to your account: you'll find {legacy_count > 1 ? 'them' : 'it'} on every computer.
+          Sign in to move {legacy_count > 1 ? 'them' : 'it'} to your account: you'll find {legacy_count > 1 ? 'them' : 'it'} on every computer.
           <div style={{ marginTop: 6 }}><AuthButton/></div>
         </Callout>
       </li>}
@@ -223,7 +223,7 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
         ? <Tree node={build_tree(mine, 'mine')} section="mine" expand={is_searching} {...item_props}/>
         : !is_searching && !isPending && (user.is_logged
           ? <MenuItem disabled multiline icon="star-empty" text={<>None yet. To save the results you're looking at, click <Icon icon="star-empty" size={12}/> next to the commit's hash.</>}/>
-          : <MenuItem disabled multiline icon="log-in" text="Log in to save your own milestones."/>
+          : <MenuItem disabled multiline icon="log-in" text="Sign in to save your own milestones."/>
         )}
 
       {team.length > 0 && <>

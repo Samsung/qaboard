@@ -59,7 +59,7 @@ const parseBody = async (response, responseType) => {
   }
 };
 
-// Told about 401 answers, e.g. to ask users to log in (see components/authentication/login.jsx), with their body:
+// Told about 401 answers, e.g. to ask users to sign in (see components/authentication/login.jsx), with their body:
 // {error: "<a sentence for people>", reason: "sign_in_required"...}.
 // `background` requests are those users didn't ask for: status polling, pre-flight checks...
 let unauthorized_handler = null;
@@ -120,23 +120,24 @@ export const http = {
 // Why the server refused, from 401 and 403 answers: {error: "<a sentence>", reason: "<code>"}.
 // The server's sentence comes first, those are for servers that only give the code.
 export const reason_messages = {
-  sign_in_required: "Log in to do this.",
+  sign_in_required: "Sign in to do this.",
   token_invalid: "The access token is invalid: create a new one in Settings.",
   token_expired: "The access token expired: create a new one in Settings.",
   token_idle_expired: "The access token expired because it wasn't used for a long time: create a new one in Settings.",
   token_revoked: "The access token was revoked: create a new one in Settings.",
+  token_in_url: "Access tokens can't be sent in links: send them in the Authorization header.",
   user_disabled: "Your account is disabled. Ask an admin if you need it.",
   user_pending: "Your account is waiting for an admin's approval.",
   missing_scope: "The access token doesn't allow this.",
   token_project: "The access token can't be used for this project.",
   forbidden_project: "You don't have access to this project.",
-  session_required: "Do this from the web app, logged in: access tokens can't.",
+  session_required: "Do this from the web app, signed in: access tokens can't.",
   not_admin: "Only admins can do this.",
   cross_site_write: "QA-Board refused a request sent from another site. Reload the page and try again.",
   ingest_token_required: "This server only saves runs sent with an access token: run qa auth login.",
 };
 export const errorReason = error => error?.response?.data?.reason ?? null;
-// Accounts that can't use the server: being logged out isn't the problem
+// Accounts that can't use the server: being signed out isn't the problem
 export const is_account_reason = reason => reason === 'user_disabled' || reason === 'user_pending';
 export const is_token_reason = reason => typeof reason === 'string' && reason.startsWith('token_');
 

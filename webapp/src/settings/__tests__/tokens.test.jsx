@@ -9,6 +9,8 @@ import { DateTime } from 'luxon';
 import { TokensTab } from '../TokensTab';
 import { CliTab } from '../CliTab';
 import { TokenStatusTags } from '../tokens';
+import { expiryOptions } from '../CreateTokenDialog';
+import { Time } from '../format';
 import { renderWithProviders } from '../../test-utils';
 import { copyWithToast } from '../../utils/clipboard';
 
@@ -81,10 +83,51 @@ describe('TokensTab', () => {
     expect(within(screen.getByTestId('token-4')).queryByRole('button', { name: /Revoke/ })).not.toBeInTheDocument();
   });
 
-  it('says what tokens are for when there is none', async () => {
+  it('says what tokens are for when there is none, with one button to create one', async () => {
     mockApi({ tokens: [] });
     renderWithProviders(<TokensTab user={alice}/>);
     expect(await screen.findByText('No access tokens yet')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create a token' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New token' })).not.toBeInTheDocument();
+  });
+
+  it('adds projects with Enter, without creating the token, and keeps the secret on Escape', async () => {
+    const secret = 'qab_pat_0123456789abcdefghijABCDEFGHIJ0123456789xyzXYZ';
+    const fetch = mockApi({ tokens: [], created: { ...token({ id: 9, name: 'nightly', projects: ['group/*'] }), token: secret } });
+    renderWithProviders(<TokensTab user={alice}/>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Create a token' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    // no placeholder that looks like a value
+    expect(dialog.getByLabelText('Name')).not.toHaveAttribute('placeholder');
+    // tokens can't have the manage scope (yet)
+    expect(dialog.queryByRole('checkbox', { name: /Manage/ })).not.toBeInTheDocument();
+    fireEvent.change(dialog.getByLabelText('Name'), { target: { value: 'nightly' } });
+    const projects = dialog.getByLabelText(/Projects/);
+    fireEvent.change(projects, { target: { value: 'group/*' } });
+    // the browser would submit the form if Enter's default action wasn't prevented
+    expect(fireEvent.keyDown(projects, { key: 'Enter' })).toBe(false);
+    expect(document.querySelector('.bp6-tag-input .bp6-tag')).toHaveTextContent('group/*');
+    expect(fireEvent.keyDown(projects, { key: 'Enter' })).toBe(false);
+    expect(fetch.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Create token' }));
+    expect(await dialog.findByText('Copy your token now')).toBeInTheDocument();
+    const [, init] = fetch.mock.calls.find(([, init]) => init?.method === 'POST');
+    expect(JSON.parse(init.body).projects).toEqual(['group/*']);
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    // a closing dialog keeps its content until its transition ends
+    await new Promise(resolve => setTimeout(resolve, 400));
+    expect(screen.getByDisplayValue(secret)).toBeInTheDocument();
+  });
+
+  it("follows the server's token policy: its default lifetime, and its maximum", async () => {
+    mockApi({ tokens: [] });
+    renderWithProviders(<TokensTab user={alice}/>, { siteConfig: { tokens: { default_lifetime_days: 180, max_lifetime_days: 365 } } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Create a token' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    expect(dialog.getAllByRole('radio').map(radio => radio.closest('label').textContent)).toEqual(['30 days', '90 days', '180 days', '1 year']);
+    expect(dialog.getByRole('radio', { name: '180 days' })).toBeChecked();
+    expect(dialog.queryByRole('radio', { name: 'No expiry' })).not.toBeInTheDocument();
   });
 
   it('creates a token and shows its secret once', async () => {
@@ -114,7 +157,7 @@ describe('TokensTab', () => {
     // once closed, the secret is gone
     fireEvent.click(dialog.getByRole('button', { name: 'I copied it, close' }));
     await waitFor(() => expect(screen.queryByDisplayValue(secret)).not.toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button', { name: 'New token' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Create a token' }));
     const again = within(await screen.findByRole('dialog'));
     expect(again.getByRole('button', { name: 'Create token' })).toBeInTheDocument();
     expect(screen.queryByDisplayValue(secret)).not.toBeInTheDocument();
@@ -147,13 +190,39 @@ describe('TokensTab', () => {
 
 
 describe('CliTab', () => {
-  it('lists CLI logins by computer, with how to log in', async () => {
-    mockApi({ tokens: [token({ id: 1 }), token({ id: 3, name: 'qa CLI on host-12', kind: 'cli', data: { client: 'qa CLI', hostname: 'host-12' }, expires_at: null, idle_expiry_days: 180 })] });
+  it('lists CLI sign-ins by computer, with how to sign in', async () => {
+    mockApi({ tokens: [token({ id: 1 }), token({ id: 3, name: 'qa CLI on host-12', kind: 'cli', data: { client: 'qa CLI on host-12', hostname: 'host-12' }, expires_at: null, idle_expiry_days: 180 })] });
     renderWithProviders(<CliTab/>);
     const row = within(await screen.findByTestId('token-3'));
     expect(row.getByText('host-12')).toBeInTheDocument();
+    // the client, without repeating the computer
+    expect(row.getByText(/^qa CLI ·/)).toBeInTheDocument();
+    expect(row.queryByText(/qa CLI on host-12/)).not.toBeInTheDocument();
     expect(row.getByText('After 180 days unused')).toBeInTheDocument();
     expect(screen.queryByTestId('token-1')).not.toBeInTheDocument();
     expect(screen.getByText('qa auth login')).toBeInTheDocument();
   });
+});
+
+
+describe('expiryOptions', () => {
+  const values = policy => expiryOptions(policy).options.map(option => option.value);
+  it('offers the presets and no expiry, without a maximum', () => {
+    expect(values({ default_lifetime_days: 90, max_lifetime_days: null })).toEqual(['30', '90', '365', 'never']);
+    expect(expiryOptions({ default_lifetime_days: 90 }).initial).toBe('90');
+    // servers that don't say
+    expect(expiryOptions().initial).toBe('90');
+  });
+  it("offers the server's default, and nothing above its maximum", () => {
+    expect(values({ default_lifetime_days: 14, max_lifetime_days: null })).toEqual(['14', '30', '90', '365', 'never']);
+    expect(expiryOptions({ default_lifetime_days: 14 }).initial).toBe('14');
+    expect(values({ default_lifetime_days: 30, max_lifetime_days: 60 })).toEqual(['30', '60']);
+    expect(expiryOptions({ default_lifetime_days: 90, max_lifetime_days: 60 }).initial).toBe('60');
+    expect(expiryOptions({ default_lifetime_days: 730 }).options.find(o => o.value === '730').label).toBe('2 years');
+  });
+});
+
+test('dates of a few seconds ago say "just now"', () => {
+  renderWithProviders(<Time iso={DateTime.utc().minus({ seconds: 2 }).toISO()}/>);
+  expect(screen.getByText('just now')).toBeInTheDocument();
 });

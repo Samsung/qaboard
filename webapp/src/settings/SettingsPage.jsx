@@ -1,8 +1,8 @@
-// /settings: the user's profile, preferences, access tokens, CLI logins and activity. The tab is in the URL.
+// /settings: the user's profile, preferences, access tokens, CLI sign-ins and activity. The tab is in the URL.
 import { Tab, Tabs } from "@blueprintjs/core";
 
 import { useRouter } from "../router";
-import { PageShell, RequireLogin } from "../components/PageShell";
+import { PageShell, RequireLogin, ScrollingTabs } from "../components/PageShell";
 import { ProfileTab } from "./ProfileTab";
 import { PreferencesTab } from "./PreferencesTab";
 import { TokensTab } from "./TokensTab";
@@ -14,7 +14,7 @@ const tabs = [
   { id: 'profile', title: 'Profile', icon: 'person', Panel: ProfileTab },
   { id: 'preferences', title: 'Preferences', icon: 'settings', Panel: PreferencesTab },
   { id: 'tokens', title: 'Access tokens', icon: 'key', Panel: TokensTab },
-  { id: 'cli', title: 'CLI & devices', icon: 'console', Panel: CliTab },
+  { id: 'cli', title: 'CLI sign-ins', icon: 'console', Panel: CliTab },
   { id: 'activity', title: 'Activity', icon: 'history', Panel: ActivityTab },
 ];
 
@@ -25,15 +25,17 @@ export const SettingsPage = () => {
   return <PageShell title="Settings">
     <RequireLogin what="see your settings">
       {user => <>
-        <Tabs
-          id="settings-tabs"
-          selectedTabId={selected.id}
-          onChange={id => history.push(`/settings/${id}`)}
-          size="large"
-        >
-          {tabs.map(tab => <Tab key={tab.id} id={tab.id} title={tab.title} icon={tab.icon}/>)}
-        </Tabs>
-        <div style={{ marginTop: 20 }}>
+        <ScrollingTabs>
+          <Tabs
+            id="settings-tabs"
+            selectedTabId={selected.id}
+            onChange={id => history.push(`/settings/${id}`)}
+            size="large"
+          >
+            {tabs.map(tab => <Tab key={tab.id} id={tab.id} title={tab.title} icon={tab.icon}/>)}
+          </Tabs>
+        </ScrollingTabs>
+        <div style={{ marginTop: 20, minWidth: 0 }}>
           <Panel user={user}/>
         </div>
       </>}

@@ -185,7 +185,7 @@ test('compact commit list', async ({ page }) => {
   await page.waitForLoadState('networkidle');
 });
 
-// The app's own pages, not projects: settings, admin, approving a CLI login
+// The app's own pages, not projects: settings, admin, approving a CLI sign-in
 const token = {
   id: 1, name: 'ci-bot', kind: 'personal', prefix: 'qab_pat_Xk3f', scopes: ['read', 'ingest'], projects: [],
   created_at: '2026-09-01T10:00:00Z', expires_at: '2036-09-01T10:00:00Z', last_used_at: null, status: 'active', data: {},
@@ -196,7 +196,7 @@ const user_management_api = {
   '/api/v1/user/audit': { events: [], next_before_id: null },
   '/api/v1/user/preferences': { preferences: {}, updated_at: null },
   '/api/v1/admin/overview': { counts: { users: 3, active_30d: 2, admins: 1, pending: 0, disabled: 0, active_tokens: 1 }, checklist: [
-    { id: 'ingest_open', ok: false, severity: 'warning', title: 'Anyone can save runs', detail: 'Set QABOARD_INGEST_AUTH to warn or token.' },
+    { id: 'ingest_auth', ok: false, severity: 'warning', title: 'Anyone can save runs', detail: 'Move ingest.auth to "warn", then "token".' },
   ] },
   '/api/v1/admin/users': { users: [{ id: 1, user_name: 'alice', full_name: 'Alice', email: 'alice@example.com', status: 'active', is_admin: true, login_type: 'LOCAL', active_tokens: 1 }], total: 1 },
   '/api/v1/auth/device': { client_name: 'qa CLI on host-12', hostname: 'host-12', scopes: ['read', 'ingest', 'act'], status: 'pending' },
@@ -231,10 +231,31 @@ test.describe('user management pages', () => {
     await page.waitForLoadState('networkidle');
   });
 
-  test('device login approval', async ({ page }) => {
+  test('narrow screens: no sideways scrolling', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    for (const path of ['/settings/tokens', '/admin/users', '/']) {
+      await page.goto(path);
+      await page.waitForLoadState('networkidle');
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflow, path).toBeLessThanOrEqual(0);
+    }
+  });
+
+  test('device sign-in approval', async ({ page }) => {
     await page.goto('/device?code=WDJB-MJHT');
     await expect(page.getByText('Authorize qa CLI on host-12?')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Approve' })).toBeVisible();
     await page.waitForLoadState('networkidle');
+  });
+
+  test('signed out: "Sign in" opens the sign-in dialog', async ({ page }) => {
+    await page.route('**/api/v1/user/me/', route => route.fulfill({ json: { is_authenticated: false } }));
+    await page.goto('/settings');
+    await expect(page.getByText('Sign in to continue')).toBeVisible();
+    await page.getByRole('button', { name: 'Sign in' }).first().click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByLabel('User name')).toBeVisible();
+    await expect(dialog.getByLabel('Password')).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Sign in' })).toBeVisible();
   });
 });

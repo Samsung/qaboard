@@ -5,8 +5,9 @@
 import { screen, fireEvent, waitFor, within } from '@testing-library/react';
 
 import PrivateContent from '../PrivateContent';
+import AuthButton from '../Auth';
 import { renderWithProviders } from '../../../test-utils';
-import { userQuery } from '../../../api/queries';
+import { userQuery, logged_out_user } from '../../../api/queries';
 import { toaster } from '../../../toaster';
 
 const json = (data, status = 200) => Promise.resolve(new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }));
@@ -14,7 +15,7 @@ const json = (data, status = 200) => Promise.resolve(new Response(JSON.stringify
 // Until we know who users are, the button is a disabled placeholder
 const openLogin = async () => {
   const button = await waitFor(() => {
-    const button = screen.getByRole('button', { name: 'Log in' });
+    const button = screen.getByRole('button', { name: 'Sign in' });
     expect(button).toBeEnabled();
     return button;
   });
@@ -33,10 +34,10 @@ describe('PrivateContent', () => {
     expect(screen.getByText('secret')).toBeInTheDocument();
   });
 
-  it('asks logged-out users to log in, even when a parent passes enabled', async () => {
+  it('asks signed-out users to sign in, even when a parent passes enabled', async () => {
     const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ is_authenticated: false }));
     renderWithProviders(<PrivateContent enabled={false}>secret</PrivateContent>, { siteConfig: { login_required: true } });
-    expect(await screen.findByText('The content is available for logged-in users only.')).toBeInTheDocument();
+    expect(await screen.findByText('Sign in to see the content.')).toBeInTheDocument();
     expect(screen.queryByText('secret')).not.toBeInTheDocument();
     expect(fetch.mock.calls[0][0]).toBe('/api/v1/user/me/');
   });
@@ -58,7 +59,7 @@ describe('PrivateContent', () => {
     expect(screen.getByText('secret')).toBeInTheDocument();
   });
 
-  it('logs users in', async () => {
+  it('signs users in', async () => {
     // after logging in, we ask who we are again: e.g. whether we are an admin
     let logged = false;
     const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(url => {
@@ -69,32 +70,32 @@ describe('PrivateContent', () => {
     });
     const { queryClient } = renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { login_required: true } });
     const dialog = await openLogin();
-    fireEvent.change(dialog.getByLabelText('Username'), { target: { value: 'alice' } });
-    fireEvent.click(dialog.getByRole('button', { name: 'Log in' }));
+    fireEvent.change(dialog.getByLabelText('User name'), { target: { value: 'alice' } });
+    fireEvent.click(dialog.getByRole('button', { name: 'Sign in' }));
     expect(await screen.findByText('secret')).toBeInTheDocument();
     expect(fetch.mock.calls.some(([url, init]) => url === '/api/v1/user/auth/' && init.method === 'POST')).toBe(true);
     expect(queryClient.getQueryData(userQuery.queryKey)).toMatchObject({ is_logged: true, user_name: 'alice', full_name: 'Alice' });
     await waitFor(() => expect(queryClient.getQueryData(userQuery.queryKey).is_admin).toBe(true));
   });
 
-  it("shows the server's sentence when the login fails", async () => {
+  it("shows the server's sentence when signing in fails", async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(url => url === '/api/v1/user/auth/'
-      ? json({ error: 'Wrong user name or password.', reason: 'invalid_credentials' }, 401)
+      ? json({ error: 'Wrong user name or password.', reason: 'invalid_credentials' }, 403)
       : json({ is_authenticated: false }));
     renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { login_required: true, login_hint: 'Use your Windows credentials.' } });
     const dialog = await openLogin();
-    fireEvent.click(dialog.getByRole('button', { name: 'Log in' }));
+    fireEvent.click(dialog.getByRole('button', { name: 'Sign in' }));
     await waitFor(() => expect(screen.getByText('Wrong user name or password. Use your Windows credentials.')).toBeInTheDocument());
-    expect(toaster.show).not.toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/Could not log in/) }));
+    expect(toaster.show).not.toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/Could not sign in/) }));
   });
 
-  it("says why accounts can't log in", async () => {
+  it("says why accounts can't sign in", async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(url => url === '/api/v1/user/auth/'
-      ? json({ error: 'Your account is waiting for an admin.', reason: 'user_pending' }, 401)
+      ? json({ error: 'Your account is waiting for an admin.', reason: 'user_pending' }, 403)
       : json({ is_authenticated: false }));
     renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { login_required: true } });
     const dialog = await openLogin();
-    fireEvent.click(dialog.getByRole('button', { name: 'Log in' }));
+    fireEvent.click(dialog.getByRole('button', { name: 'Sign in' }));
     expect(await dialog.findByRole('alert')).toHaveTextContent('Your account is waiting for an admin.');
   });
 
@@ -102,38 +103,87 @@ describe('PrivateContent', () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ error: 'Your account was disabled by an admin.', reason: 'user_disabled' }, 401));
     renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { require_sign_in: true } });
     expect(await screen.findByText('Your account was disabled by an admin.')).toBeInTheDocument();
-    expect(screen.getByText("Your account can't use QA-Board")).toBeInTheDocument();
+    expect(screen.getByText('Your account is disabled')).toBeInTheDocument();
     expect(screen.queryByText('secret')).not.toBeInTheDocument();
   });
 
-  it('shows why the login failed', async () => {
+  // GET /api/v1/user/me/ for a session whose user was disabled: 200, once, then the session is closed
+  const disabled_me = { is_authenticated: false, is_anonymous: true, is_active: false, reason: 'user_disabled', error: 'An admin disabled this account.' };
+  const anonymous_me = { is_authenticated: false, is_anonymous: true, is_active: false };
+
+  it('tells disabled users why they were signed out, from a 200 answer, and remembers it', async () => {
+    let calls = 0;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json(calls++ === 0 ? disabled_me : anonymous_me));
+    const { queryClient } = renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { require_sign_in: true } });
+    expect(await screen.findByText('An admin disabled this account.')).toBeInTheDocument();
+    expect(screen.getByText('Your account is disabled')).toBeInTheDocument();
+    // the next answers are plain anonymous: we keep saying why until users sign in again
+    await queryClient.refetchQueries({ queryKey: userQuery.queryKey });
+    expect(calls).toBe(2);
+    expect(queryClient.getQueryData(userQuery.queryKey)).toMatchObject({ is_logged: false, reason: 'user_disabled', error: 'An admin disabled this account.' });
+    expect(screen.getByText('An admin disabled this account.')).toBeInTheDocument();
+  });
+
+  it('says pending accounts wait for approval, also when signing in is optional', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ ...anonymous_me, reason: 'user_pending', error: 'An admin needs to approve this account.' }));
+    renderWithProviders(<><PrivateContent>secret</PrivateContent><AuthButton/></>, { siteConfig: { require_sign_in: false } });
+    // the content is public, the button says why users are signed out
+    expect(screen.getByText('secret')).toBeInTheDocument();
+    const button = await screen.findByRole('button', { name: 'Account pending' });
+    fireEvent.click(button);
+    const dialog = within(await screen.findByRole('dialog'));
+    expect(dialog.getByRole('alert')).toHaveTextContent('Your account is pending approval');
+    expect(dialog.getByRole('alert')).toHaveTextContent('An admin needs to approve this account.');
+    expect(dialog.getByRole('alert')).toHaveClass('bp6-intent-warning');
+  });
+
+  it('forgets the reason once users sign in again', async () => {
+    let signed_in = false;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(url => {
+      if (url === '/api/v1/user/auth/') { signed_in = true; return json({ user_id: 2, user_name: 'bob' }); }
+      return json(signed_in ? { is_authenticated: true, user_id: 2, user_name: 'bob' } : anonymous_me);
+    });
+    const { queryClient } = renderWithProviders(<AuthButton/>, {
+      siteConfig: { require_sign_in: false },
+      user: { ...logged_out_user, reason: 'user_disabled', error: 'An admin disabled this account.' },
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Account disabled' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    fireEvent.change(dialog.getByLabelText('User name'), { target: { value: 'bob' } });
+    fireEvent.change(dialog.getByLabelText('Password'), { target: { value: 'secret' } });
+    fireEvent.click(dialog.getByRole('button', { name: 'Sign in' }));
+    await waitFor(() => expect(queryClient.getQueryData(userQuery.queryKey)).toMatchObject({ is_logged: true, user_name: 'bob' }));
+    expect(queryClient.getQueryData(userQuery.queryKey).reason).toBeUndefined();
+  });
+
+  it('shows why signing in failed', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(url => url === '/api/v1/user/auth/'
       ? json({ error: 'invalid-password' }, 401)
       : json({ is_authenticated: false }));
     renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { login_required: true } });
     const dialog = await openLogin();
-    fireEvent.click(dialog.getByRole('button', { name: 'Log in' }));
+    fireEvent.click(dialog.getByRole('button', { name: 'Sign in' }));
     await waitFor(() => expect(screen.getByText('The password is incorrect.')).toBeInTheDocument());
   });
 
-  it("gives the site's advice when the login fails", async () => {
+  it("gives the site's advice when signing in fails", async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(url => url === '/api/v1/user/auth/'
       ? json({ error: 'invalid-username' }, 401)
       : json({ is_authenticated: false }));
     renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { login_required: true, login_hint: 'Use your Windows credentials.' } });
     const dialog = await openLogin();
-    fireEvent.click(dialog.getByRole('button', { name: 'Log in' }));
-    await waitFor(() => expect(screen.getByText('This username does not match any user account. Use your Windows credentials.')).toBeInTheDocument());
+    fireEvent.click(dialog.getByRole('button', { name: 'Sign in' }));
+    await waitFor(() => expect(screen.getByText('This user name does not match any account. Use your Windows credentials.')).toBeInTheDocument());
   });
 
-  it('says why users could not log in when the server fails', async () => {
+  it('says why users could not sign in when the server fails', async () => {
     vi.spyOn(globalThis, 'fetch').mockImplementation(url => url === '/api/v1/user/auth/'
       ? Promise.resolve(new Response('oops', { status: 502, statusText: 'Bad Gateway' }))
       : json({ is_authenticated: false }));
     renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { login_required: true } });
     const dialog = await openLogin();
-    fireEvent.click(dialog.getByRole('button', { name: 'Log in' }));
+    fireEvent.click(dialog.getByRole('button', { name: 'Sign in' }));
     // the toaster is mocked in setupTests.js
-    await waitFor(() => expect(toaster.show).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/^Could not log in: .*502/) })));
+    await waitFor(() => expect(toaster.show).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/^Could not sign in: .*502/) })));
   });
 });

@@ -1,5 +1,5 @@
 /**
- * Logged-out users: actions are disabled with a "Log in" suggestion, and 401 answers show one clear toast.
+ * Signed-out users: actions are disabled with a "Sign in" suggestion, and 401 answers show one clear toast.
  * Run with: cd webapp && npm test -- login
  */
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -21,8 +21,8 @@ describe('login suggestions', () => {
     const handler = vi.fn();
     const unregister = registerLoginHandler(handler);
     render(<><LoginHint/><LoginMenuItem/></>);
-    fireEvent.click(screen.getByText('Log in'));
-    fireEvent.click(screen.getByText('Log in to redo, rename or delete'));
+    fireEvent.click(screen.getByText('Sign in'));
+    fireEvent.click(screen.getByText('Sign in to redo, rename or delete'));
     expect(handler).toHaveBeenCalledTimes(2);
     unregister();
   });
@@ -30,15 +30,15 @@ describe('login suggestions', () => {
 
 
 describe('401 answers', () => {
-  it('show one toast with a "Log in" button', () => {
+  it('show one toast with a "Sign in" button', () => {
     const toaster = { show: vi.fn() };
     const handle = handleUnauthorized(makeClient(false), toaster);
     handle({ url: '/api/v1/batch/redo/' });
     handle({ url: '/api/v1/output/1/' });
     expect(toaster.show).toHaveBeenCalledTimes(2);
     const [props, key] = toaster.show.mock.calls[0];
-    expect(props.message).toBe('Log in to do this.');
-    expect(props.action.text).toBe('Log in');
+    expect(props.message).toBe('Sign in to do this.');
+    expect(props.action.text).toBe('Sign in');
     // the same key: the second toast replaces the first
     expect(key).toBe('login-required');
     expect(toaster.show.mock.calls[1][1]).toBe('login-required');
@@ -62,7 +62,7 @@ describe('401 answers', () => {
     expect(toaster.show).not.toHaveBeenCalled();
   });
 
-  it('show the reason of disabled and pending accounts, without "Log in"', () => {
+  it('show the reason of disabled and pending accounts, without "Sign in"', () => {
     const toaster = { show: vi.fn() };
     const queryClient = makeClient(true);
     handleUnauthorized(queryClient, toaster)({ url: '/api/v1/user/tokens', data: { error: 'Your account was disabled by an admin.', reason: 'user_disabled' } });
@@ -84,7 +84,7 @@ describe('401 answers', () => {
   it('log out on the new endpoints under /api/v1/user/', () => {
     const toaster = { show: vi.fn() };
     const queryClient = makeClient(true);
-    handleUnauthorized(queryClient, toaster)({ url: '/api/v1/user/tokens', data: { error: 'Log in to do this.', reason: 'sign_in_required' } });
+    handleUnauthorized(queryClient, toaster)({ url: '/api/v1/user/tokens', data: { error: 'Sign in to do this.', reason: 'sign_in_required' } });
     expect(queryClient.getQueryData(userQuery.queryKey).is_logged).toBe(false);
     expect(toaster.show.mock.calls[0][0].message).toMatch(/session expired/);
   });

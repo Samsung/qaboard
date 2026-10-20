@@ -12,11 +12,12 @@ import { useSiteConfig } from "../../hooks";
 import { toaster } from "./../../toaster"
 
 
-// Logged-out users are checked again each time, logged-in users when the check is stale
+// Signed-out users are checked again each time, signed-in users when the check is stale
 const refetchOnMount = query => query.state.data?.is_logged ? true : 'always';
 
-// Shows its content only to logged-in users, when the server requires a login.
-// Whether a login is required comes from the site configuration, it wins over the `enabled` prop.
+// Shows its content only to signed-in users, when the server requires signing in.
+// Whether it's required comes from the site configuration, it wins over the `enabled` prop.
+// Disabled and pending accounts are told why they are signed out.
 const PrivateContent = ({ children }) => {
   const { login_required, require_sign_in } = useSiteConfig();
   const enabled = !!(login_required || require_sign_in);
@@ -27,6 +28,7 @@ const PrivateContent = ({ children }) => {
     toaster.show({ message: errorMessage(error), intent: Intent.DANGER, timeout: 3000 });
   }, [error]);
 
+  // when signing in isn't required, the sign-in button says why (see Auth.jsx)
   if (user.is_logged || !enabled)
     return children;
   // don't flash the login callout while we don't know yet
@@ -35,16 +37,16 @@ const PrivateContent = ({ children }) => {
   if (user.reason)
     return <AccountCallout user={user}/>;
   return <Callout intent={Intent.PRIMARY}>
-    <h4 className={Classes.HEADING}>The content is available for logged-in users only.</h4>
+    <h4 className={Classes.HEADING}>Sign in to see the content.</h4>
     <AuthButton/>
   </Callout>;
 };
 
-// Disabled and pending accounts can't use the server: logging in again won't help
-export const AccountCallout = ({ user }) => {
+// Disabled and pending accounts can't use the server: signing in again won't help
+export const AccountCallout = ({ user, style }) => {
   const pending = user.reason === 'user_pending';
-  return <Callout intent={pending ? Intent.WARNING : Intent.DANGER} icon={pending ? "time" : "blocked-person"}>
-    <h4 className={Classes.HEADING}>{pending ? "Your account is waiting for approval" : "Your account can't use QA-Board"}</h4>
+  return <Callout intent={pending ? Intent.WARNING : Intent.DANGER} icon={pending ? "time" : "blocked-person"} style={style} role="alert">
+    <h4 className={Classes.HEADING}>{pending ? "Your account is pending approval" : "Your account is disabled"}</h4>
     <p>{user.error || reason_messages[user.reason]}</p>
   </Callout>;
 };

@@ -45,6 +45,19 @@ const Check = styled.li`
   .detail { grid-column: 2; }
 `;
 
+// Where admins fix each item
+const item_links = {
+  require_sign_in: '/admin/settings',
+  ingest_auth: '/admin/settings',
+  local_signup: '/admin/settings',
+  legacy_tokens: '/admin/tokens',
+};
+// The settings named in the details, e.g. "Set auth.require_sign_in to...", link to the settings
+const setting_name = /\b((?:auth|ingest|tokens|audit)\.[a-z_]+[a-z])\b/;
+export const Detail = ({ text }) => text.split(setting_name).map((part, i) => i % 2
+  ? <Link key={i} to="/admin/settings"><code>{part}</code></Link>
+  : part);
+
 // What's left to do first, then what's fine
 export const Checklist = ({ checklist }) => {
   const sorted = [...checklist].sort((a, b) => (a.ok - b.ok) || (severity_order[a.severity] ?? 3) - (severity_order[b.severity] ?? 3));
@@ -60,8 +73,10 @@ export const Checklist = ({ checklist }) => {
           intent={item.ok ? Intent.SUCCESS : severity_intents[item.severity] ?? Intent.WARNING}
           aria-label={item.ok ? 'Done' : 'To review'}
         />
-        <strong style={item.ok ? { fontWeight: 'normal' } : undefined}>{item.title}</strong>
-        {item.detail && <span className={`detail ${Classes.TEXT_MUTED}`}>{item.detail}</span>}
+        <strong style={item.ok ? { fontWeight: 'normal' } : undefined}>
+          {item_links[item.id] ? <Link to={item_links[item.id]} style={{ color: 'inherit' }}>{item.title}</Link> : item.title}
+        </strong>
+        {typeof item.detail === 'string' && item.detail && <span className={`detail ${Classes.TEXT_MUTED}`}><Detail text={item.detail}/></span>}
       </Check>)}
     </ul>
   </section>;
