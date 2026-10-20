@@ -728,3 +728,19 @@ via: token|session}` when the caller is authenticated (outputs: `Output.data`, b
 `CiCommit.data`). With `ingest.auth=warn` and no credentials, the answer has the header
 `X-QABoard-Warning: <sentence>`, which the CLI prints. A valid token without access to the project: 403 in `token`
 mode, else accepted as unverified, with the warning header.
+
+## Appendix B: M1 as built (2026-10-20)
+What differs from the plan above, and why:
+- **CORS stays open, without credentials.** flask-cors doesn't send `Access-Control-Allow-Credentials`, so other
+  origins can't read authenticated answers. Cookie writes from other origins are refused by the `Origin` check
+  (`backend/actor.py`), so restricting CORS too would only break anonymous reads from dashboards.
+- **No server-side sessions yet** (M2). Disabling a user takes effect at the next request anyway, because the actor
+  re-reads the user each time. The flask-login remember cookie (180 days) stays until then.
+- **`POST /api/v1/task/celery/<id>` stays anonymous**: WebCDE calls it, and we don't know yet if it can send a token.
+  It's listed in `tests/test_security.py` and SECURITY.md.
+- **The device flow mints the token when the CLI polls** after the approval, so the secret is never stored.
+- **Ingest on missing projects** keeps today's errors (404 from the commit lookup) rather than a new 400.
+- **LDAP's directory attributes** stay out of the per-request user info, as before: `QABOARD_LOGIN_RESTRICTED_YAML`'s
+  `data:` rules only match SAML attributes at request time (LDAP's are checked at sign-in). M3's groups replace this.
+- **Integration tests** (`backend/integration_tests/`) run the real app on a database they create, with
+  `BACKEND_TEST_MODE=no-mock` and `QABOARD_TEST_DATABASE_URL`. GitHub CI runs them; the GitLab job (no database) skips them.
