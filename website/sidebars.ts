@@ -115,8 +115,8 @@ const sidebars: SidebarsConfig = {
         "introduction",
         "installation",
         "project-init",
-        "inputs",
         "running-your-code",
+        "inputs",
         "specifying-configurations",
       ],
     },
@@ -136,6 +136,7 @@ const sidebars: SidebarsConfig = {
       label: 'Run batches',
       items: [
         "batches-running-on-multiple-inputs",
+        "batches-advanced",
         "using-the-qa-cli",
         {
           type: 'category',
