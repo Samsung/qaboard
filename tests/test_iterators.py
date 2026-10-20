@@ -307,6 +307,73 @@ class TestIterators(unittest.TestCase):
         batch('empty-*')
       self.assertIn(':7: The batch "empty-item"', str(error.exception))
 
+  def test_platforms_of_batches_and_inputs(self):
+    """Batches and inputs with their own settings can set their platform"""
+    import tempfile
+    from qaboard.iterators import iter_inputs
+    with tempfile.TemporaryDirectory() as tmp:
+      database = Path(tmp)
+      for name in ['a.txt', 'b.txt']:
+        (database / name).write_text('')
+      batches_file = database / 'batches.yaml'
+      batches_file.write_text('\n'.join([
+        'batch-platform:',
+        '  platform: hw',
+        '  inputs:',
+        '  - a.txt: {local: {timeout: 10}}',
+        '  - b.txt',
+        'input-platform:',
+        '  platform: hw',
+        '  inputs:',
+        '  - a.txt: {platform: sim, crop: A}',
+        '  - b.txt',
+      ]))
+      def platforms(batch):
+        runs = iter_inputs([batch], [batches_file], database, [], 'linux', {"type": "local"}, {"inputs": {"globs": "*.txt"}})
+        return [(run.rel_input_path.as_posix(), run.platform, run.configurations) for run in runs]
+      self.assertEqual(platforms('batch-platform'), [('a.txt', 'hw', []), ('b.txt', 'hw', [])])
+      self.assertEqual(platforms('input-platform'), [('a.txt', 'sim', [{'crop': 'A'}]), ('b.txt', 'hw', [])])
+
+  def test_runner_settings_of_inputs(self):
+    """Inputs can have their own runner settings, but the command line options win"""
+    import tempfile
+    from qaboard.iterators import iter_inputs
+    with tempfile.TemporaryDirectory() as tmp:
+      database = Path(tmp)
+      for name in ['a.txt', 'b.txt']:
+        (database / name).write_text('')
+      batches_file = database / 'batches.yaml'
+      batches_file.write_text('\n'.join([
+        'my-batch:',
+        '  local: {concurrency: 2}',
+        '  inputs:',
+        '  - a.txt: {local: {concurrency: 1}}',
+        '  - b.txt',
+      ]))
+      def concurrency(cli_runner_overrides=None):
+        runs = iter_inputs(['my-batch'], [batches_file], database, [], 'linux', {"type": "local", "concurrency": 4}, {"inputs": {"globs": "*.txt"}}, cli_runner_overrides=cli_runner_overrides)
+        return [run.job_options['concurrency'] for run in runs]
+      self.assertEqual(concurrency(), [1, 2])
+      self.assertEqual(concurrency({"type": "local"}), [1, 2])
+      self.assertEqual(concurrency({"type": "local", "concurrency": 8}), [8, 8])
+
+  def test_wildcards_match_batches_not_aliases(self):
+    import tempfile
+    from qaboard.iterators import iter_inputs
+    with tempfile.TemporaryDirectory() as tmp:
+      database = Path(tmp)
+      for name in ['a.txt', 'b.txt']:
+        (database / name).write_text('')
+      batches_file = database / 'batches.yaml'
+      batches_file.write_text('\n'.join([
+        'only-a:',
+        '  inputs: [a.txt]',
+        'aliases:',
+        '  all: [only-a]',
+      ]))
+      runs = list(iter_inputs(['*'], [batches_file], database, [], 'linux', {"type": "local"}, {"inputs": {"globs": "*.txt"}}))
+      self.assertEqual([(run.batch, run.rel_input_path.as_posix()) for run in runs], [('only-a', 'a.txt')])
+
   def test_input_type_runner_settings(self):
     """Test that input types can specify runner settings"""
     from qaboard.iterators import iter_inputs

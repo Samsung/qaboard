@@ -164,7 +164,8 @@ inputs:
 
 ## Run a list of runs {#running-a-list-of-runs}
 Instead of batches, `qa batch --runs-file runs.json` does the runs listed in a JSON file. QA-Board uses it to redo
-runs: they start together, so the batch's runner settings, like its concurrency, apply to all of them.
+runs. They start together: the settings that apply to all of them, like the concurrency, are the first run's, even
+if the runs come from batches with their own.
 
 ```json title="runs.json"
 {

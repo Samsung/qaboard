@@ -14,9 +14,10 @@ qa batch --runner=local my-batch
 ```
 
 ## Configuration
-The main option is `concurrency` (joblib's `n_jobs`). If it is not set, runs are done one at a time; the sample `qaboard.yaml` created by `qa init` uses `-1` (1 run per CPU). It applies to a whole `qa batch` command, and you can set it:
+The main option is `concurrency` (joblib's `n_jobs`): how many runs run at the same time. If it is not set, runs are
+done one at a time; `-1` runs one per CPU, as in the sample *qaboard.yaml* created by `qa init`. You can set it:
 
-- In *qaboard.yaml*:
+- In *qaboard.yaml*, for all batches:
 
 ```yaml title="qaboard.yaml"
 runners:
@@ -25,20 +26,30 @@ runners:
     concurrency: 1 # serially
 ```
 
--	On the CLI:
+- Per batch, in a batches file:
 
+```yaml title="qa/batches.yaml"
+large-images:
+  inputs:
+  - charts/test-wall-113mp.tiff
+  local:
+    concurrency: 1 # needs all the memory
 ```
+
+- On the CLI, for all batches:
+
+```bash
 qa batch --local-concurrency 1
 ```
 
--	via the `QA_BATCH_CONCURRENCY` environment variable
+The command line wins, then the batch's setting, then *qaboard.yaml*. The `QA_BATCH_CONCURRENCY` environment variable
+replaces the value from *qaboard.yaml*.
 
-You can also set a `timeout` (in seconds, 0 means no timeout) with `runners.local.timeout`, `qa batch --local-timeout` or `QA_BATCH_TIMEOUT`.
+You can also set a `timeout`, in seconds, for each run (0 means no timeout): `runners.local.timeout`, `timeout` under
+a batch's `local:`, `qa batch --local-timeout` or `QA_BATCH_TIMEOUT`. When a run takes longer, `qa batch` fails with
+a `TimeoutError`.
 
-:::caution
-A batch's own `local:` settings in a batches file don't change the concurrency or the timeout yet: `qa batch` uses
-the command's, for all its runs.
-:::
+When batches have their own concurrency or timeout, `qa batch` runs them one after the other, each with its own.
 
 :::tip
 Read [joblib's docs](https://joblib.readthedocs.io/en/latest/generated/joblib.Parallel.html)

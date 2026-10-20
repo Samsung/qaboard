@@ -95,7 +95,7 @@ with `categories`. `preset_params` gives parameters a fixed value for every eval
   [scikit-optimize's `Optimizer`](https://scikit-optimize.github.io/stable/modules/generated/skopt.optimizer.Optimizer.html),
   like `n_initial_points` (random evaluations before it models the objective) or `random_state`.
 - `--checkpoint`: the optimizer's state is saved there after each evaluation, and loaded if it exists, to restart an
-  interrupted optimization. Give it: `qa optimize` needs it today.
+  interrupted optimization.
 - `parallel_sampling` in the configuration file, or `--parallel-param-sampling`: how many parameter sets are
   evaluated at the same time (default 1).
 - `keep_all_best_iters: true`: by default, the runs of the previous best iteration are deleted when a better one is

@@ -44,7 +44,7 @@ import threading
 import subprocess
 from pathlib import Path
 from dataclasses import dataclass, field, replace, fields
-from typing import Optional, List, Dict, Any, Set
+from typing import Optional, List, Dict, Any, Set, Tuple
 
 from click import secho
 
@@ -267,16 +267,22 @@ def run_tasks(tasks: List[Dict[str, Any]], job_options: Dict[str, Any]):
 
     # Sliding window of `concurrency` runs
     pending = list(enumerate(tasks))
-    pending.reverse()
     concurrency = options.concurrency if options.concurrency > 0 else len(tasks)
+    # Tasks can also have the concurrency of their group, e.g. their batch's (see DaskRunner.start_groups)
+    def can_start(task: Dict[str, Any]) -> bool:
+      limit = task.get('concurrency') or 0
+      return limit <= 0 or sum(1 for t in in_flight.values() if t.get('group') == task.get('group')) < limit
     nb_done, nb_failed = 0, 0
     seen_workers, no_worker_since = False, None
     while pending or in_flight:
       if stop_event.is_set():
         secho("The batch was stopped.", fg='red', err=True)
         abort()
-      while pending and len(in_flight) < concurrency:
-        index, task = pending.pop()
+      while len(in_flight) < concurrency:
+        startable = next((i for i, (_, task) in enumerate(pending) if can_start(task)), None)
+        if startable is None:
+          break
+        index, task = pending.pop(startable)
         in_flight[submit(index, task)] = task
       try:
         done, _ = wait(list(in_flight), timeout=poll_interval, return_when="FIRST_COMPLETED")
@@ -348,6 +354,8 @@ def start_driver(tasks: List[Dict[str, Any]], job_options: Dict[str, Any]):
 class DaskRunner(BaseRunner):
   """Execute runs on Dask workers, by default started as LSF jobs."""
   type = "dask"
+  # Batches with their own share the workers, with their own limit (see start_groups)
+  group_options = ('concurrency',)
 
   def __init__(self, run_context: RunContext):
     self.run_context = run_context
@@ -357,9 +365,31 @@ class DaskRunner(BaseRunner):
 
   @staticmethod
   def start_jobs(jobs: List[Job], job_options: Dict[str, Any], blocking=True):
+    return DaskRunner.start_tasks([job_to_task(job, job_options) for job in jobs], job_options, blocking)
+
+  @classmethod
+  def start_groups(cls, groups: List[Tuple[Dict[str, Any], List[Job]]], blocking=True):
+    """
+    The runs of all groups share the same workers, but each group has at most its own `concurrency` in flight.
+    In all, we never have more in flight than the largest concurrency.
+    """
+    if len(groups) == 1:
+      job_options, jobs = groups[0]
+      return DaskRunner.start_jobs(jobs, job_options, blocking)
+    tasks: List[Dict[str, Any]] = []
+    limits = []
+    for index, (job_options, jobs) in enumerate(groups):
+      concurrency = dict_to_DaskOptions(job_options).concurrency
+      limits.append(concurrency if concurrency > 0 else len(jobs))
+      tasks.extend({**job_to_task(job, job_options), "group": index, "concurrency": concurrency} for job in jobs)
+    # Not more than the groups can run, so that we don't start useless workers
+    concurrency = min(max(limits), sum(min(limit, len(jobs)) for limit, (_, jobs) in zip(limits, groups)))
+    return DaskRunner.start_tasks(tasks, {**groups[0][0], "concurrency": concurrency}, blocking)
+
+  @staticmethod
+  def start_tasks(tasks: List[Dict[str, Any]], job_options: Dict[str, Any], blocking=True):
     from distributed import Client, fire_and_forget # type: ignore
     options = dict_to_DaskOptions(job_options)
-    tasks = [job_to_task(job, job_options) for job in jobs]
     if blocking:
       return run_tasks(tasks, job_options)
     # The driver sends the runs `concurrency` at a time. With an existing cluster, it connects to it.

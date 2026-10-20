@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import sys
+import json
 import time
 from copy import deepcopy
 from dataclasses import dataclass, field, asdict
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 
 import click
 
@@ -49,6 +50,9 @@ class Job():
 class JobGroup():
   jobs: List[Job] = field(default_factory=list)
   job_options: Optional[Dict[str, Any]] = None
+  # Batches can set options for the jobs started together, like their concurrency (Runner.group_options):
+  # we start the jobs by groups with the same. Otherwise, e.g. when QA-Board redoes runs, all start with job_options.
+  split_by_job_options: bool = True
 
   # https://docs.python.org/3/library/dataclasses.html
   def __post_init__(self):
@@ -67,6 +71,18 @@ class JobGroup():
   def append(self, job : Job):
     self.jobs.append(job)
 
+  def groups(self) -> List[Tuple[Dict[str, Any], List[Job]]]:
+    """The jobs, by groups with the same Runner.group_options, and the job options each group starts with."""
+    assert self.job_options is not None
+    if not self.split_by_job_options:
+      return [(self.job_options, self.jobs)] if self.jobs else []
+    groups: Dict[str, Tuple[Dict[str, Any], List[Job]]] = {}
+    for job in self.jobs:
+      own_options = {k: v for k, v in job.run_context.job_options.items() if k in self.Runner.group_options}
+      key = json.dumps(own_options, sort_keys=True, default=str)
+      groups.setdefault(key, ({**self.job_options, **own_options}, []))[1].append(job)
+    return list(groups.values())
+
 
   def start(self, blocking=True, qa_context: Optional[Dict[str, Any]] = None) -> bool:
     """
@@ -74,7 +90,7 @@ class JobGroup():
     """
     if not self.jobs:
       return False
-    self.Runner.start_jobs(self.jobs, self.job_options, blocking)
+    self.Runner.start_groups(self.groups(), blocking)
     if not blocking:
       return True
 
