@@ -473,8 +473,8 @@ function FinalCta() {
             <Link className="button button--primary button--lg" to="/docs/get-started/quickstart">
               Run it locally
             </Link>
-            <Link className="button button--secondary button--lg" to="/docs/tour">
-              Take the tour
+            <Link className="button button--secondary button--lg" to="/docs/user-guide/first-review">
+              Take a first look
             </Link>
           </div>
         </div>

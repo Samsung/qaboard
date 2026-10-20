@@ -34,9 +34,14 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Get started',
       collapsible: false,
-      items: ['get-started/quickstart', 'get-started/tutorial', 'get-started/concepts'],
+      items: [
+        'get-started/quickstart',
+        'get-started/tutorial',
+        'get-started/concepts',
+        // The walkthrough of the web app on the demo projects lives in the user guide (it replaced the product tour)
+        {type: 'link', label: 'Your first review', href: '/docs/user-guide/first-review'},
+      ],
     },
-    'tour',
     {
       type: 'category',
       label: 'Use cases',
@@ -63,86 +68,116 @@ const sidebars: SidebarsConfig = {
     },
   ],
 
-  // People who look at results in the web app
+  // People who look at results in the web app: start with a walkthrough, then one page per task, viewers on their own
   userGuide: [
-    "user-guide/overview",
-    "user-guide/finding-results",
-    "user-guide/commit-page",
-    "user-guide/comparing-results",
-    "user-guide/history-and-dashboards",
-    "user-guide/running-from-the-webapp",
-    "user-guide/sharing",
-    "user-guide/files",
-    "user-guide/tips-and-faq",
-    "user-guide/whats-new",
+    'user-guide/overview',
+    'user-guide/first-review',
+    {
+      type: 'category',
+      label: 'Find and compare',
+      collapsed: false,
+      items: [
+        'user-guide/finding-results',
+        'user-guide/commit-page',
+        'user-guide/metrics',
+        'user-guide/comparing-results',
+        'user-guide/milestones',
+        'user-guide/history-and-dashboards',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Look at outputs',
+      collapsed: false,
+      items: ['user-guide/image-viewer', 'user-guide/video-viewer', 'user-guide/other-viewers'],
+    },
+    {
+      type: 'category',
+      label: 'Run and share',
+      collapsed: false,
+      items: ['user-guide/running-from-the-webapp', 'user-guide/logs', 'user-guide/sharing', 'user-guide/files'],
+    },
+    {
+      type: 'category',
+      label: 'Help',
+      collapsed: false,
+      items: ['user-guide/tips-and-faq', 'user-guide/whats-new'],
+    },
   ],
 
-  // Project integration: wrapping code with qa, qaboard.yaml, runners, CI
-  docs: {
-    "Project setup": [
+  // Project integration: wrapping code with qa, qaboard.yaml, runners, CI. Grouped by what the integrator is doing
+  docs: [
+    {
+      type: 'category',
+      label: 'Set up a project',
+      collapsed: false,
+      items: [
         "introduction",
         "installation",
         "project-init",
         "inputs",
         "running-your-code",
-        "creating-and-viewing-outputs-files",
-        "computing-quantitative-metrics",
         "specifying-configurations",
-    ],
-    "Guides": [
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Show results',
+      collapsed: false,
+      items: [
+        "computing-quantitative-metrics",
         "visualizations",
+        "creating-and-viewing-outputs-files",
+        "references-and-milestones",
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Run batches',
+      items: [
         "batches-running-on-multiple-inputs",
         "using-the-qa-cli",
-        "references-and-milestones",
-        "tuning-from-the-webapp",
-        "auto-optimization",
         {
-            type: 'category',
-            label: 'Distributed Task Queues',
-            items: [
-                "local-multiprocessing",
-                "celery-integration",
-                "lsf-integration",
-                "dask-integration",
-                "jenkins-integration",
-            ],
+          type: 'category',
+          label: 'Runners',
+          items: [
+            "local-multiprocessing",
+            "celery-integration",
+            "lsf-integration",
+            "dask-integration",
+            "jenkins-integration",
+          ],
         },
-        {
-            type: 'category',
-            label: 'Storage & Artifacts',
-            items: [
-              "storage/artifacts",
-              "storage/where-is-the-data",
-              "storage/deleting-old-data",
-            ],
-        },
-        "triggering-third-party-tools",
+      ],
+    },
+    {
+      type: 'category',
+      label: 'CI and integrations',
+      items: [
         "ci-integration",
         "quality-gate",
-        "deep-learning",
-        "debugging-runs-with-an-IDE",
-        "metadata-integration-external-databases",
-        "bit-accuracy",
-        "faq",
+        "triggering-third-party-tools",
         "apis",
-        // "history"
-        "monorepo-subprojects",
-        // "docker-integration",
-        // "remote-platforms",
-    ],
-    // "Parameter Tuning": [
-    // 	"Tuning Workflows",
-    // 	"Enabling Tuning from QA-Board", // Save artifacts..
-    // 	"Tuning runners", // setup LSF and != LSF///
-    //   "Auto-Tuning"
-    // ],
-    //      ""
-    //   "Admin Guides": [
-    // 	  "starting-server",
-    // 	  "server-maintenance"
-    //   ]
-    // "alternatives",
-  },
+        "metadata-integration-external-databases",
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Tuning',
+      items: ["tuning-from-the-webapp", "auto-optimization"],
+    },
+    {
+      type: 'category',
+      label: 'Recipes',
+      items: ["bit-accuracy", "deep-learning", "monorepo-subprojects", "debugging-runs-with-an-IDE"],
+    },
+    {
+      type: 'category',
+      label: 'Storage & Artifacts',
+      items: ["storage/artifacts", "storage/where-is-the-data", "storage/deleting-old-data"],
+    },
+    "faq",
+  ],
 
   // Admins who run the QA-Board server
   admin: {
