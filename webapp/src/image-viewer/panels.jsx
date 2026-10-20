@@ -660,6 +660,7 @@ export const SHORTCUTS = [
   ['Drag', 'Pan (drag the divider to wipe)'],
   ['Double-click', 'Zoom in'],
   ['p', 'Show / hide the pixel values when zoomed in'],
+  ['c', 'Compare with the reference, or with the image picked last (from the vs menu)'],
   ['h', 'Blind test: the images in a random order, called A and B. h again reveals them, then ends it'],
   ['[ ]', 'Previous / next region of interest'],
 ];

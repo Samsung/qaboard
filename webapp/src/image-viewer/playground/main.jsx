@@ -42,11 +42,12 @@ const draw = (canvas, reference) => {
   }
 };
 
-const makeImage = (width, height, reference) => new Promise(resolve => {
+const makeImage = (width, height, reference, tweak) => new Promise(resolve => {
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   draw(canvas, reference);
+  tweak?.(canvas.getContext('2d'), width, height);
   canvas.toBlob(blob => resolve(URL.createObjectURL(blob)), 'image/png');
 });
 
@@ -79,7 +80,19 @@ const App = () => {
   const [mode, setMode] = useState('side-by-side');
   const [theme, setTheme] = useState('light');
   useEffect(() => {
-    Promise.all([makeImage(960, 640, false), makeImage(960, 640, true)]).then(([a, b]) => setImages({ a, b }));
+    Promise.all([
+      makeImage(960, 640, false),
+      makeImage(960, 640, true),
+      // other files of the run, to compare with: a ground truth, the input
+      makeImage(960, 640, false, (context, width, height) => {
+        context.fillStyle = '#3e63dd';
+        context.fillRect(width * 0.3, height * 0.05, width * 0.2, height * 0.2);
+      }),
+      makeImage(960, 640, false, context => {
+        context.filter = 'blur(3px) grayscale(1)';
+        context.drawImage(context.canvas, 0, 0);
+      }),
+    ]).then(([a, b, gt, input]) => setImages({ a, b, gt, input }));
   }, []);
   if (!images) return null;
   const regions = [{ id: 'presets', label: 'Presets', regions: [
@@ -93,7 +106,16 @@ const App = () => {
     </p>
     <ImageViewer
       image={{ url: images.a, label: 'new' }}
-      reference={{ url: images.b, label: 'reference' }}
+      reference={{ url: images.b, label: 'reference', detail: 'The same file in the reference run' }}
+      compareWith={[
+        { id: 'gt/chart.png', image: images.gt, group: 'Suggested', detail: 'Same name, in gt/' },
+        { id: 'input.png', image: images.input, group: 'This run' },
+        ...Array.from({ length: 30 }, (_, i) => ({ id: `debug/stage_${i + 1}.png`, image: images.input, group: 'This run' })),
+      ]}
+      compareScopes={[
+        { value: 'all', label: 'All runs', title: 'Every run compares with its own file of that name', phrase: 'in every run' },
+        { value: 'run', label: 'This run', title: 'Only this run: the others keep what they compare with', phrase: 'in this run only' },
+      ]}
       mode={mode}
       onModeChange={setMode}
       syncKey="chart"

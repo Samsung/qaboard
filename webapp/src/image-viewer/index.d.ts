@@ -19,6 +19,20 @@ export interface ImageDescriptor {
   [key: string]: unknown;
 }
 
+/** An image users can compare with instead of the reference */
+export interface CompareWithItem {
+  id: string;
+  image: ImageSource;
+  /** Shown on the image and in the menu. Default: the image's label, else the id. Folders (before a /) are muted in the menu. */
+  label?: string;
+  /** The menu lists the items by group, in the order the groups first appear, e.g. "Suggested", "This run" */
+  group?: string;
+  /** Under the label in the menu, e.g. why it's suggested */
+  detail?: string;
+  /** On hover in the menu */
+  title?: string;
+}
+
 export type Mode = 'side-by-side' | 'wipe' | 'single' | 'difference';
 
 export type DiffMethod = 'absolute' | 'signed' | 'perceptual' | 'deltaE' | 'exact';
@@ -126,8 +140,22 @@ export type PixelValuesSource = 'image' | 'display' | 'off';
 export interface ImageViewerProps {
   /** The image */
   image: ImageSource;
-  /** What it's compared with. Without it, the viewer shows the image alone. */
+  /** What it's compared with. Without it, the viewer shows the image alone. Its `detail` says what it is in the "vs" menu. */
   reference?: ImageSource | null;
+
+  /** Other images users can compare the image with instead of the reference, e.g. its ground truth: picked in the "vs" menu */
+  compareWith?: CompareWithItem[];
+  /** The id of the item of compareWith the image is compared with, null for the reference. Controlled with onComparedChange, or not */
+  compared?: string | null;
+  defaultCompared?: string | null;
+  onComparedChange?: (id: string | null) => void;
+  /** Where a pick applies, e.g. every run of a page or one: shown under "Apply to" in the menu when there are several */
+  compareScopes?: { value: string; label: string; title?: string; phrase?: string }[];
+  /** Controlled with onCompareScopeChange, or not: the first scope by default */
+  compareScope?: string;
+  onCompareScopeChange?: (scope: string) => void;
+  /** Next to what's compared with, in the toolbar, e.g. "this run" */
+  comparedNote?: string;
 
   /** How the images are compared: controlled with onModeChange, or not, from defaultMode */
   mode?: Mode;

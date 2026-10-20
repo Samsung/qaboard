@@ -12,6 +12,8 @@
   --qiv-primary: #2d72d2;
   --qiv-warning: #c87619;
   --qiv-reference: #9752fe;
+  /* another image than the reference, e.g. another file of the run */
+  --qiv-other: #00756c;
   --qiv-danger: #cd4246;
   --qiv-stage: #1c2127;
   --qiv-pane: #111418;
@@ -30,6 +32,7 @@
   --qiv-primary: #4c90f0;
   --qiv-warning: #ec9a3c;
   --qiv-reference: #9c4bf5;
+  --qiv-other: #0b9f93;
   --qiv-stage: #111418;
   --qiv-pane: #0b0d10;
   --qiv-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
@@ -47,6 +50,7 @@
     --qiv-primary: #4c90f0;
     --qiv-warning: #ec9a3c;
     --qiv-reference: #9c4bf5;
+    --qiv-other: #0b9f93;
     --qiv-stage: #111418;
     --qiv-pane: #0b0d10;
     --qiv-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
@@ -507,7 +511,7 @@
   color: var(--qiv-a-text, #fff);
 }
 .qiv-label.qiv-warning {
-  background: var(--qiv-b, #9752fe);
+  background: var(--qiv-b, var(--qiv-reference));
   color: var(--qiv-b-text, #fff);
 }
 /* during a blind test: nothing tells new from reference */
@@ -1002,4 +1006,176 @@
   cursor: default;
   background: var(--qiv-surface);
   color: var(--qiv-text);
+}
+
+/* Compare with: the reference, or another image */
+.qiv-vs-other {
+  --qiv-reference: var(--qiv-other);
+}
+.qiv-compare-button {
+  max-width: 280px;
+}
+.qiv-compare-button > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.qiv-compare-vs {
+  color: var(--qiv-text-muted);
+  font-size: 12px;
+}
+.qiv-compare-current {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qiv-vs-other .qiv-compare-button {
+  box-shadow: inset 0 0 0 1px var(--qiv-other);
+  color: var(--qiv-other);
+}
+@container (max-width: 760px) {
+  .qiv-compare-button {
+    max-width: 160px;
+  }
+}
+.qiv-label-icon {
+  margin-right: 4px;
+}
+.qiv-compare-menu {
+  display: flex;
+  flex-direction: column;
+  width: min(420px, 90vw);
+}
+.qiv-popover:has(.qiv-compare-menu) {
+  max-width: min(440px, 92vw);
+}
+.qiv-compare-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 2px 4px;
+  padding: 0 8px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 3px;
+  background: var(--qiv-surface-alt);
+  color: var(--qiv-text-muted);
+}
+.qiv-compare-search:focus-within {
+  border-color: var(--qiv-accent);
+  box-shadow: 0 0 0 1px var(--qiv-accent);
+}
+.qiv-compare-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 28px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--qiv-text);
+  font: inherit;
+  font-size: 13px;
+}
+.qiv-compare-list {
+  max-height: min(360px, 50vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.qiv-compare-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px 4px 4px;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.qiv-compare-item[data-active="true"] {
+  background: var(--qiv-hover);
+}
+.qiv-compare-item.qiv-active {
+  color: var(--qiv-accent);
+}
+.qiv-compare-thumbnail {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 32px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--qiv-surface-alt);
+  color: var(--qiv-text-muted);
+}
+.qiv-compare-thumbnail img {
+  max-width: 100%;
+  max-height: 100%;
+}
+.qiv-compare-reference {
+  color: var(--qiv-reference);
+}
+.qiv-compare-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+.qiv-compare-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qiv-compare-name mark {
+  background: transparent;
+  color: inherit;
+  font-weight: 600;
+}
+.qiv-compare-item.qiv-active .qiv-compare-name .qiv-muted {
+  color: inherit;
+  opacity: 0.75;
+}
+.qiv-compare-detail {
+  overflow: hidden;
+  color: var(--qiv-text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qiv-compare-footer {
+  margin-top: 4px;
+  padding: 6px 8px 4px;
+  border-top: 1px solid var(--qiv-border);
+  font-size: 11px;
+  white-space: normal;
+}
+.qiv-compare-note {
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--qiv-pressed);
+  font-size: 11px;
+}
+.qiv-compare-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 4px;
+  padding: 6px 8px 2px;
+  border-top: 1px solid var(--qiv-border);
+  font-size: 12px;
+}
+.qiv-compare-scope-hint {
+  flex-basis: 100%;
+  color: var(--qiv-text-muted);
+  font-size: 11px;
+  white-space: normal;
+}
+.qiv-compare-scope + .qiv-compare-footer {
+  margin-top: 0;
+  border-top: none;
 }
