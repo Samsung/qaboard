@@ -1,0 +1,47 @@
+---
+id: account
+title: Your account and access tokens
+sidebar_label: Account and tokens
+description: Sign in, keep your preferences everywhere, create API tokens for scripts and CI, and sign in from the qa CLI.
+---
+
+## Signing in
+Sign in from the button at the bottom of the sidebar. Depending on your server, you use your directory account (e.g.
+your Windows credentials), your company's single sign-on, or a QA-Board account. If your server requires signing in,
+you see the sign-in page first, and come back to the page you asked for.
+
+When something goes wrong, the message says what to do: a wrong password, a disabled account (ask your QA-Board
+admins), or a link you need to open again.
+
+## Settings
+Open **Settings** from your user menu:
+- **Profile**: your name, email and user name, as your server knows them.
+- **Preferences**: the theme, how dense commit lists are... When you're signed in, your preferences, favorites and
+  view options follow you to other browsers and computers.
+- **Access tokens**: tokens for scripts and CI (below).
+- **CLI & devices**: the computers where you ran `qa auth login`. Revoke the ones you don't use anymore.
+- **Activity**: your recent sign-ins, the tokens you created or revoked, and the CLI logins you approved. If you see
+  something you didn't do, revoke your tokens and tell your admins.
+
+## Access tokens
+Scripts and CI jobs use tokens to act as you. Create one in **Settings → Access tokens**:
+- **A name** that says where you'll use it, e.g. "nightly CI of group/repo".
+- **Scopes**: what it can do. `read` reads projects and results, `ingest` sends results (`qa run`, `qa batch`), `act`
+  redoes runs, starts or deletes batches and saves milestones. Give it only what it needs.
+- **Projects** (optional): restrict it to some projects, e.g. `group/repo` (and its subprojects) or `group/*`.
+- **Expiry**: 30, 90 or 365 days, or never if your server allows it.
+
+The token is shown **once**: copy it then, and store it like a password, e.g. in your CI's secrets as `QABOARD_TOKEN`.
+The list shows when and from where each token was last used. Revoke a token as soon as you don't need it, or if it
+may have leaked: it stops working at once.
+
+See [CI integration](/docs/ci-integration#tokens) and [APIs](/docs/apis#authentication) for how to use tokens.
+
+## Signing in from the qa CLI
+Run `qa auth login`, open the link it prints in any browser (it also works when `qa` runs on a server you reach over
+SSH), check that the code is the one in your terminal, and approve. See [Signing in](/docs/installation#signing-in).
+
+## Verified runs
+Runs sent with a token show who really sent them: hover the check mark next to the run's user. Runs sent without a
+token only carry the user name `qa` found on the computer that ran them. Your server can mark them as unverified,
+or require tokens to send results.

@@ -73,6 +73,7 @@ const sidebars: SidebarsConfig = {
     "user-guide/running-from-the-webapp",
     "user-guide/sharing",
     "user-guide/files",
+    "user-guide/account",
     "user-guide/tips-and-faq",
     "user-guide/whats-new",
   ],
