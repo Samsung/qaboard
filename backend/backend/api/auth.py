@@ -215,7 +215,8 @@ def get_current_user(to_jsonify=True):
         "projects": token.projects or [],
         "expires_at": tokens_lib.iso(token.expires_at),
         "idle_expiry_days": token.idle_expiry_days,
-        "last_used_at": tokens_lib.iso(token.last_used_at),
+        # before this request
+        "last_used_at": tokens_lib.iso(g.get('token_previous_use', token.last_used_at)),
       }
   if to_jsonify:
     return jsonify(info)

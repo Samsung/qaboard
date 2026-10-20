@@ -744,3 +744,10 @@ What differs from the plan above, and why:
   `data:` rules only match SAML attributes at request time (LDAP's are checked at sign-in). M3's groups replace this.
 - **Integration tests** (`backend/integration_tests/`) run the real app on a database they create, with
   `BACKEND_TEST_MODE=no-mock` and `QABOARD_TEST_DATABASE_URL`. GitHub CI runs them; the GitLab job (no database) skips them.
+- **Review fixes** (after a 5-agent review):
+  - `QABOARD_ADMINS` matches user names exactly, and emails only for directory accounts.
+  - No `manage` scope until M3 enforces it. Legacy tokens get `read ingest act`.
+  - The CLI has no daily nudge: the server's `X-QABoard-Warning` (warn mode) says it.
+  - `qa auth logout` only revokes device-minted tokens (`minted_by` in hosts.yaml).
+  - In CI, `qa run`/`qa batch` exit 1 when the server refuses results.
+  - Server sentences say what's wrong; clients add what to do.

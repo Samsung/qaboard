@@ -25,8 +25,9 @@ config_has_error = False
 
 # Don't lots of verbose info if the users just wants the help, or start a new project
 ignore_config_errors = len(sys.argv)==1 or '--help' in sys.argv or 'init' in sys.argv
-# `qa auth` doesn't need a project
-ignore_config_errors = ignore_config_errors or sys.argv[1:2] == ['auth']
+# `qa auth` doesn't need a project: we don't even read qaboard.yaml, it may have errors
+is_auth_command = sys.argv[1:2] == ['auth']
+ignore_config_errors = ignore_config_errors or is_auth_command
 # When the code is imported we care less about warnings...
 ignore_config_errors = ignore_config_errors or not sys.argv or not sys.argv[0].endswith('qa')
 
@@ -58,7 +59,7 @@ def find_configs(path : Path) -> List[Tuple[Dict, Path]]:
 
 
 
-qatools_configsxpaths = find_configs(path=Path())
+qatools_configsxpaths = find_configs(path=Path()) if not is_auth_command else []
 qatools_configs = [q[0] for q in qatools_configsxpaths]
 qatools_config_paths = [q[1] for q in qatools_configsxpaths]
 if not qatools_configsxpaths:

@@ -94,6 +94,47 @@ class TestQaCli(unittest.TestCase):
     assert '/dev/null =>' in result.output
     assert "'is_failed': False" in result.output
 
+  def test_run_in_ci_when_the_server_refuses_results(self):
+    from unittest import mock
+    from tests.test_auth import response
+    self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"') # loads the modules
+    config = import_module('qaboard.config')
+    expired = response(401, {"error": "This token expired on 2026-09-01.", "reason": "token_expired"})
+    env = {k: v for k, v in os.environ.items() if k not in ('QA_OFFLINE', 'QA_AUTH_WARNING_SHOWN', 'QABOARD_TOKEN', 'QA_TOKEN')}
+    with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(config, 'is_ci', True), \
+         mock.patch('qaboard.api.results_refused', None), mock.patch('qaboard.auth._warnings_shown', set()), \
+         mock.patch('requests.post', return_value=expired) as post:
+      result = self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"', reload_modules=False)
+    self.assertEqual(result.exit_code, 1)
+    # the results would be lost: it doesn't run
+    self.assertEqual(post.call_count, 1)
+    self.assertNotIn('a.jpg =>', result.output)
+    self.assertIn('WARNING: QA-Board refused the results: This token expired on 2026-09-01.', result.output)
+    self.assertEqual(click.unstyle(result.output).strip().splitlines()[-1], 'ERROR: QA-Board refused the results (token_expired): they were not saved. '
+                     f'Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.')
+
+  def test_batch_in_ci_when_the_server_refuses_results(self):
+    from unittest import mock
+    from tests.test_auth import response
+    self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--list') # loads the modules
+    config = import_module('qaboard.config')
+    refused = response(403, {"error": "This server only accepts results sent with a token.", "reason": "ingest_token_required"})
+    env = {k: v for k, v in os.environ.items() if k not in ('QA_OFFLINE', 'QA_AUTH_WARNING_SHOWN', 'QABOARD_TOKEN', 'QA_TOKEN')}
+    # qa.py binds is_ci when it's imported
+    with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(config, 'is_ci', True), mock.patch.object(import_module('qaboard.qa'), 'is_ci', True), \
+         mock.patch('qaboard.api.results_refused', None), mock.patch('qaboard.auth._warnings_shown', set()), \
+         mock.patch('requests.get', return_value=response(404, {"error": "Not found"})), \
+         mock.patch('requests.post', return_value=refused) as post:
+      result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{input_path} => {output_dir}"', reload_modules=False)
+    self.assertEqual(result.exit_code, 1, result.output)
+    # only the batch was sent, no run started
+    self.assertEqual([c.args[0].rstrip('/').rsplit('/', 1)[-1] for c in post.call_args_list], ['batch'], result.output)
+    self.assertNotIn('a.jpg =>', result.output)
+    output = click.unstyle(result.output)
+    self.assertEqual(output.count('This server only accepts results sent with a token.'), 1)
+    self.assertEqual(output.strip().splitlines()[-1], 'ERROR: QA-Board refused the results (ingest_token_required): they were not saved. '
+                     f'Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.')
+
   def test_get(self):
     result = self.qa('get', 'commit_id')
     assert result.exit_code == 0

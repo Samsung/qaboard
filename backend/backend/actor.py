@@ -144,6 +144,8 @@ def touch(token):
   from .audit import audit, client_ip
   now = datetime.datetime.utcnow()
   ip = client_ip()
+  # /user/me says when the token was used before this request
+  g.token_previous_use = token.last_used_at
   # not on every IP change either: tokens shared by many CI runners change IPs all the time
   if token.last_used_at and now - token.last_used_at < LAST_USED_EVERY:
     return

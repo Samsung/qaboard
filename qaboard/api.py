@@ -17,27 +17,24 @@ from .config import project, commit_id, is_ci, available_metrics
 from .run import RunContext
 
 from .site_config import site_config, as_requests_verify
-from .auth import resolve_token, print_server_warning, auth_error_hint, nudge_unverified
+from .credentials import resolve_token, default_server, refusal, fix_for
+from .auth import print_server_warning, first_time
 
 qaboard_protocol = site_config('QABOARD_PROTOCOL', 'http')
 qaboard_hostname = site_config('QABOARD_HOSTNAME')
 qaboard_port = site_config('QABOARD_PORT')
 qaboard_host = site_config('QABOARD_HOST')
-if qaboard_hostname and qaboard_port:
-  qaboard_url = f"{qaboard_protocol}://{qaboard_hostname}:{qaboard_port}"
-elif qaboard_host:
-  qaboard_url = f"{qaboard_protocol}://{qaboard_host}"
-else:
-  qaboard_url = site_config('QABOARD_URL')
-  # Only when nothing says where the server is: QABOARD_URL=http://localhost:5151 is fine
-  if not qaboard_url:
-    qaboard_url = 'http://localhost:5151'
-    click.secho(f"WARNING: We are not sure where to find your QA-Board server.", fg='yellow', bold=True, err=True)
-    click.secho(f"         We will default to {qaboard_url}", fg='yellow', bold=True, err=True)
-    click.secho(f"         To remove this warning provide it as an environment variable (via QABOARD_HOST, e.g. 'qaboard-srv', 'qaboard-srv:443').", fg='yellow', err=True)
-    click.secho(f"         If needed you can define QABOARD_PROTOCOL (default: http). You can also provide both QABOARD_HOSTNAME and QABOARD_PORT.", fg='yellow', err=True)
-    click.secho(f"       > If you have not started a QA-Board server, read the docs to learn how to start one!", fg='yellow', err=True)
-    click.secho(f"       > If your organization has a site package (e.g. qaboard-site-sirc), install it.", fg='yellow', err=True)
+# What gives the URL, e.g. "$QABOARD_URL", None for the default
+qaboard_url, qaboard_url_source = default_server()
+# Only when nothing says where the server is: QABOARD_URL=http://localhost:5151 is fine.
+# `qa auth status` says it too.
+if not qaboard_url_source and sys.argv[1:2] != ['auth']:
+  click.secho("WARNING: We are not sure where to find your QA-Board server.", fg='yellow', bold=True, err=True)
+  click.secho(f"         We will default to {qaboard_url}", fg='yellow', bold=True, err=True)
+  click.secho("         To remove this warning provide it as an environment variable (via QABOARD_HOST, e.g. 'qaboard-srv', 'qaboard-srv:443').", fg='yellow', err=True)
+  click.secho("         If needed you can define QABOARD_PROTOCOL (default: http). You can also provide both QABOARD_HOSTNAME and QABOARD_PORT.", fg='yellow', err=True)
+  click.secho("       > If you have not started a QA-Board server, read the docs to learn how to start one!", fg='yellow', err=True)
+  click.secho("       > If your organization has a site package (e.g. qaboard-site-sirc), install it.", fg='yellow', err=True)
 
 api_prefix = site_config('QABOARD_API_PREFIX', f"{qaboard_url}/api/v1")
 # Whether requests to the API check TLS certificates: true (default), false, or the path to a CA bundle.
@@ -54,26 +51,59 @@ api_timeout = (30, 600)
 
 
 def headers_for(server_url):
-  """Headers for requests to a server, with the token qa uses for it, if any (see qaboard/auth.py)."""
+  """Headers for requests to a server, with the token qa uses for it, if any (see qaboard/credentials.py)."""
   token, _ = resolve_token(server_url)
   return {'Content-Type': 'application/json', **({"Authorization": f"Bearer {token}"} if token else {})}
 
-# API token, to sign what qa sends and for actions that require a logged-in user:
+# API token, to sign what qa sends and for actions that require a signed-in user:
 # $QABOARD_TOKEN or $QA_TOKEN, `qa auth login`'s for the server, or the legacy QA_TOKEN in ~/.qaboard/secrets.yaml
 qa_token, qa_token_source = resolve_token(qaboard_url)
 headers = headers_for(qaboard_url)
 
 
-def print_auth_error(r, message="Failed to update QA-Board"):
-  """When the server says why it refused a request (e.g. the token expired), prints it with what to do. Returns whether it did."""
-  hint = auth_error_hint(r, qa_token_source)
-  if not hint:
+# The first time QA-Board refused results qa sent (output, batch, commit), as given by credentials.refusal
+results_refused: Optional[Dict[str, Any]] = None
+
+
+def project_name() -> Optional[str]:
+  from .config import project
+  return Path(project).as_posix() if project else None
+
+
+def print_auth_error(r, message="Failed to update QA-Board", ingest=False):
+  """
+  When the server says why it refused a request (e.g. the token expired), prints it with what to do, once. Returns whether it did.
+  `ingest`: the request sent results. In CI, `exit_if_results_refused` then fails with what to do.
+  """
+  global results_refused
+  from .config import is_ci
+  refused = refusal(r)
+  if not refused:
     return False
-  sentence, *fixes = hint.split('\n')
-  click.secho(f"WARNING: {message}: {sentence}", fg='yellow', bold=True, err=True)
-  for fix in fixes:
+  if ingest and results_refused is None:
+    results_refused = refused
+  if not first_time(f"{refused['reason']}: {refused['error']}"):
+    return True
+  click.secho(f"WARNING: {message}: {refused['error']}", fg='yellow', bold=True, err=True)
+  fix = None if ingest and is_ci else fix_for(refused, qa_token_source, ci=is_ci, project=project_name())
+  if fix:
     click.secho(f"         {fix}", fg='yellow', err=True)
   return True
+
+
+def exit_if_results_refused():
+  """In CI, exits with an error if QA-Board refused results qa sent (e.g. the token expired): they were not saved."""
+  from .config import is_ci
+  if not is_ci or not results_refused:
+    return
+  env_name = qa_token_source if qa_token_source in ('QABOARD_TOKEN', 'QA_TOKEN') else 'QABOARD_TOKEN'
+  project = project_name()
+  click.secho(
+    f"ERROR: QA-Board refused the results ({results_refused['reason']}): they were not saved. "
+    f"Set {env_name} to a valid token with the ingest scope{f' for {project}' if project else ''}.",
+    fg='red', bold=True, err=True,
+  )
+  sys.exit(1)
 
 def url_to_dir(url: str) -> Path:
   from .compat import linux_to_windows
@@ -161,7 +191,7 @@ def notify_qa_database(object_type='output', **kwargs):
   Updating the QA database.
   """
   import requests
-  from .config import is_ci, config, _metrics, user
+  from .config import is_ci, config, _metrics
   from .config import commit_id, commit_branch, commit_tag, commit_committer_name, commit_committer_email, commit_authored_datetime, commit_parents, commit_message
 
   if kwargs.get('offline'):
@@ -203,11 +233,9 @@ def notify_qa_database(object_type='output', **kwargs):
     if 'QA_VERBOSE' in os.environ:
       click.secho(r.text, fg='cyan', dim=True, err=True)
     print_server_warning(r)
-    if print_auth_error(r):
+    if print_auth_error(r, "QA-Board refused the results", ingest=True):
       return None
     r.raise_for_status()
-    if not qa_token and not is_ci:
-      nudge_unverified(kwargs.get('user') or user)
     try:
       return r.json()
     except Exception:

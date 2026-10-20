@@ -4,6 +4,7 @@ Tests for `qa auth`: where tokens are saved and found, the device flow, and what
 import io
 import os
 import json
+import datetime
 import stat
 import tempfile
 import unittest
@@ -31,11 +32,12 @@ APPROVED = {"access_token": "qab_pat_new", "token_type": "Bearer", "token_id": 1
             "scopes": ["read", "ingest", "act"], "expires_at": None, "idle_expiry_days": 180}
 
 
-def response(status, body=None, headers=None):
+def response(status, body=None, headers=None, text=None):
+  """A JSON response, or a web page with `text`"""
   r = requests.models.Response()
   r.status_code = status
-  r._content = json.dumps(body).encode() if body is not None else b''
-  r.headers['Content-Type'] = 'application/json'
+  r._content = text.encode() if text is not None else json.dumps(body).encode() if body is not None else b''
+  r.headers['Content-Type'] = 'text/html' if text is not None else 'application/json'
   r.headers.update(headers or {})
   r.request = requests.Request('GET', SERVER, headers={'Authorization': 'Bearer secret'}).prepare()
   return r
@@ -46,10 +48,12 @@ class FakeServer:
   def __init__(self, routes):
     self.routes = {k: list(v) for k, v in routes.items()}
     self.calls = []
+    self.urls = []
 
   def __call__(self, method, url, headers=None, json=None, **kwargs):
     path = urlsplit(url).path
     self.calls.append((method, path, headers or {}, json))
+    self.urls.append(url)
     responses = self.routes.get((method, path))
     if not responses:
       return response(404, {"error": "Not found"})
@@ -64,11 +68,17 @@ class AuthTestCase(unittest.TestCase):
     tmp = tempfile.TemporaryDirectory()
     self.addCleanup(tmp.cleanup)
     self.dir = Path(tmp.name)
-    env = {k: v for k, v in os.environ.items() if k not in ('QABOARD_TOKEN', 'QA_TOKEN')}
+    hidden = ('QABOARD_TOKEN', 'QA_TOKEN', 'QABOARD_HOST', 'QABOARD_HOSTNAME', 'QABOARD_PORT', 'QA_AUTH_WARNING_SHOWN')
+    env = {k: v for k, v in os.environ.items() if k not in hidden}
     env['XDG_CONFIG_HOME'] = str(self.dir / 'config')
+    # the server qa sends results to: the legacy token in secrets.yaml is only sent to it
+    env['QABOARD_URL'] = SERVER
     for patcher in [
       mock.patch.dict(os.environ, env, clear=True),
-      mock.patch.dict('qaboard.auth.user_secrets', {}, clear=True),
+      mock.patch.dict('qaboard.credentials.user_secrets', {}, clear=True),
+      mock.patch('qaboard.config.is_ci', False),
+      mock.patch('qaboard.auth._warnings_shown', set()),
+      mock.patch('qaboard.api.results_refused', None),
     ]:
       patcher.start()
       self.addCleanup(patcher.stop)
@@ -141,7 +151,7 @@ class TestStorage(AuthTestCase):
     self.assertEqual(stat.S_IMODE(self.hosts_path.parent.stat().st_mode), 0o700)
     self.assertEqual(os.listdir(self.hosts_path.parent), ['hosts.yaml'])
     login = self.hosts()[SERVER]
-    self.assertEqual((login['user'], login['token'], login['token_id']), ('alice', 'qab_pat_secret', 12))
+    self.assertEqual((login['user'], login['token'], login['token_id'], login['minted_by']), ('alice', 'qab_pat_secret', 12, 'with-token'))
     self.assertIn('created_at', login)
     # replaced atomically, other servers are kept
     self.hosts_path.chmod(0o644)
@@ -152,19 +162,30 @@ class TestStorage(AuthTestCase):
   def test_precedence(self):
     resolve_token = self.auth.resolve_token
     self.assertEqual(resolve_token(SERVER), (None, None))
-    with mock.patch.dict('qaboard.auth.user_secrets', {'QA_TOKEN': 'legacy'}):
+    with mock.patch.dict('qaboard.credentials.user_secrets', {'QA_TOKEN': 'legacy'}):
       self.assertEqual(resolve_token(SERVER), ('legacy', 'secrets.yaml'))
+      # the legacy token is only for the server qa sends results to
+      self.assertEqual(resolve_token('http://other.test'), (None, None))
       # keys are normalized, so are hand-edited hosts.yaml
       self.save({'user': 'alice', 'token': 'saved'}, url='HTTP://qa.test:80/')
       self.assertEqual(resolve_token('http://qa.test/'), ('saved', 'hosts.yaml'))
-      self.assertEqual(resolve_token('http://other.test'), ('legacy', 'secrets.yaml'))
       with mock.patch.dict(os.environ, {'QA_TOKEN': 'env-alias'}):
         self.assertEqual(resolve_token(SERVER), ('env-alias', 'QA_TOKEN'))
+        # environment variables are for every server
+        self.assertEqual(resolve_token('http://other.test'), ('env-alias', 'QA_TOKEN'))
         with mock.patch.dict(os.environ, {'QABOARD_TOKEN': ' env \n'}):
           self.assertEqual(resolve_token(SERVER), ('env', 'QABOARD_TOKEN'))
         # empty means unset
         with mock.patch.dict(os.environ, {'QABOARD_TOKEN': ''}):
           self.assertEqual(resolve_token(SERVER), ('env-alias', 'QA_TOKEN'))
+
+  def test_default_server(self):
+    from qaboard.credentials import default_server
+    self.assertEqual(default_server(), (SERVER, '$QABOARD_URL'))
+    with mock.patch.dict(os.environ, {'QABOARD_HOST': 'qa-srv:5151', 'QABOARD_PROTOCOL': 'https'}):
+      self.assertEqual(default_server(), ('https://qa-srv:5151', '$QABOARD_HOST'))
+    del os.environ['QABOARD_URL']
+    self.assertEqual(default_server(), ('http://localhost:5151', None))
 
   def test_headers_for_another_server(self):
     from qaboard.api import headers_for
@@ -195,7 +216,8 @@ class TestLogin(AuthTestCase):
     self.assertIn('WDJB-MJHT', result.output)
     self.assertIn(f'open {SERVER}/device and enter the code', result.output)
     self.assertIn(f'{SERVER}/device?code=WDJB-MJHT', result.output)
-    self.assertIn(f'Logged in to {SERVER} as alice.', result.output)
+    self.assertIn(f'Signed in to {SERVER} as alice.', result.output)
+    self.assertIn('Waiting for you to approve the sign-in', result.output)
     # slow_down adds 5s to the interval
     self.assertEqual(result.sleeps, [5, 5, 10, 10])
     method, path, headers, body = server.calls[0]
@@ -205,7 +227,7 @@ class TestLogin(AuthTestCase):
     me_call = server.calls[-1]
     self.assertEqual((me_call[1], me_call[2]['Authorization']), ('/api/v1/user/me/', 'Bearer qab_pat_new'))
     login = self.hosts()[SERVER]
-    self.assertEqual((login['user'], login['token'], login['token_id']), ('alice', 'qab_pat_new', 12))
+    self.assertEqual((login['user'], login['token'], login['token_id'], login['minted_by']), ('alice', 'qab_pat_new', 12, 'device'))
 
   def test_denied(self):
     result = self.qa_auth('login', '--server', SERVER, '--no-browser', server=self.device_server(
@@ -213,13 +235,13 @@ class TestLogin(AuthTestCase):
       response(400, {"error": "access_denied", "error_description": "The user denied the request"}),
     ))
     self.assertEqual(result.exit_code, 1)
-    self.assertIn('The login was denied in the browser.', result.output)
+    self.assertIn('The sign-in was denied in the browser.', result.output)
     self.assertFalse(self.hosts_path.exists())
 
   def test_expired(self):
     result = self.qa_auth('login', '--server', SERVER, '--no-browser', server=self.device_server(response(400, {"error": "expired_token"})))
     self.assertEqual(result.exit_code, 1)
-    self.assertIn('The code expired before the login was approved. Run `qa auth login` again.', result.output)
+    self.assertIn('The code expired before the sign-in was approved. Run `qa auth login` again.', result.output)
     self.assertFalse(self.hosts_path.exists())
 
   def test_ctrl_c(self):
@@ -227,7 +249,7 @@ class TestLogin(AuthTestCase):
     with mock.patch('requests.request', server), mock.patch('time.sleep', side_effect=KeyboardInterrupt):
       result = CliRunner().invoke(self.auth.auth, ['login', '--server', SERVER, '--no-browser'])
     self.assertEqual(result.exit_code, 130)
-    self.assertIn('The login was cancelled.', result.output)
+    self.assertIn('The sign-in was cancelled.', result.output)
     self.assertFalse(self.hosts_path.exists())
 
   def test_old_server(self):
@@ -262,19 +284,58 @@ class TestLogin(AuthTestCase):
     self.assertEqual(result.exit_code, 0, result.output)
     self.assertEqual(server.calls[0][2]['Authorization'], 'Bearer qab_pat_pasted')
     login = self.hosts()[SERVER]
-    self.assertEqual((login['user'], login['token'], login['token_id']), ('alice', 'qab_pat_pasted', 12))
+    self.assertEqual((login['user'], login['token'], login['token_id'], login['minted_by']), ('alice', 'qab_pat_pasted', 12, 'with-token'))
 
   def test_with_a_rejected_token(self):
-    server = FakeServer({('GET', '/api/v1/user/me/'): [response(401, {"error": "This token was revoked on 2026-10-01.", "reason": "token_revoked"})]})
+    server = FakeServer({('GET', '/api/v1/user/me/'): [response(401, {"error": "This token was revoked.", "reason": "token_revoked"})]})
     result = self.qa_auth('login', '--server', SERVER, '--with-token', input='qab_pat_revoked\n', server=server)
     self.assertEqual(result.exit_code, 1)
-    self.assertIn('The token was not accepted: This token was revoked on 2026-10-01.', result.output)
+    self.assertIn('The token was not accepted: This token was revoked.\nCreate a new token in Settings → Access tokens.', result.output)
     self.assertFalse(self.hosts_path.exists())
     # older servers ignore unknown tokens
     server = FakeServer({('GET', '/api/v1/user/me/'): [response(200, {"is_authenticated": False})]})
     result = self.qa_auth('login', '--server', SERVER, '--with-token', input='qab_pat_unknown\n', server=server)
     self.assertEqual(result.exit_code, 1)
     self.assertIn('QA-Board did not accept the token.', result.output)
+
+  def test_in_ci(self):
+    server = FakeServer({('GET', '/api/v1/user/me/'): [response(200, ME)]})
+    with mock.patch('qaboard.config.is_ci', True):
+      result = self.qa_auth('login', '--server', SERVER, server=server)
+      self.assertEqual(result.exit_code, 1)
+      self.assertIn('qa auth login needs a browser. In CI, set QABOARD_TOKEN (Settings → Access tokens).', result.output)
+      self.assertEqual(server.calls, [])
+      result = self.qa_auth('login', '--server', SERVER, '--with-token', input='qab_pat_pasted', server=server)
+      self.assertEqual(result.exit_code, 0, result.output)
+    # over SSH (no display) the device flow works
+    with mock.patch.dict(os.environ, {'SSH_CONNECTION': '10.0.0.1 1234 10.0.0.2 22'}):
+      result = self.qa_auth('login', '--server', SERVER, server=self.device_server(response(200, APPROVED)))
+    self.assertEqual(result.exit_code, 0, result.output)
+
+  def test_login_again_revokes_the_previous_token(self):
+    self.save({'user': 'alice', 'token': 'qab_pat_old', 'token_id': 7, 'minted_by': 'device'})
+    server = self.device_server(response(200, APPROVED))
+    server.routes[('DELETE', '/api/v1/user/tokens/7')] = [response(200, {"id": 7, "status": "revoked"})]
+    result = self.qa_auth('login', '--server', SERVER, '--no-browser', server=server)
+    self.assertEqual(result.exit_code, 0, result.output)
+    delete = [c for c in server.calls if c[0] == 'DELETE']
+    self.assertEqual([(c[1], c[2]['Authorization']) for c in delete], [('/api/v1/user/tokens/7', 'Bearer qab_pat_old')])
+    self.assertIn('Revoked the token of your previous sign-in.', result.output)
+    self.assertEqual(self.hosts()[SERVER]['token'], 'qab_pat_new')
+    # tokens given with --with-token may be used elsewhere
+    self.save({'user': 'alice', 'token': 'qab_pat_given', 'token_id': 8, 'minted_by': 'with-token'})
+    server = self.device_server(response(200, APPROVED))
+    result = self.qa_auth('login', '--server', SERVER, '--no-browser', server=server)
+    self.assertEqual(result.exit_code, 0, result.output)
+    self.assertEqual(server.paths('DELETE'), [])
+
+  def test_server_without_scheme(self):
+    self.save({'user': 'alice', 'token': 'qab_pat_saved', 'token_id': 12}, url='https://qa.test')
+    server = FakeServer({('GET', '/api/v1/user/me/'): [response(200, ME)]})
+    result = self.qa_auth('status', '--server', 'qa.test', server=server)
+    self.assertEqual(result.exit_code, 0, result.output)
+    self.assertEqual(server.urls, ['https://qa.test/api/v1/user/me/'])
+    self.assertIn('QA-Board server: https://qa.test (from --server)', result.output)
 
   def test_with_no_token(self):
     result = self.qa_auth('login', '--server', SERVER, '--with-token', input='\n')
@@ -286,7 +347,7 @@ class TestLogin(AuthTestCase):
     with mock.patch.dict(os.environ, {'QABOARD_TOKEN': 'from-ci'}):
       result = self.qa_auth('login', '--server', SERVER, '--with-token', input='qab_pat_pasted', server=server)
     self.assertEqual(result.exit_code, 0, result.output)
-    self.assertIn('$QABOARD_TOKEN is set: qa uses it instead of this login', result.output)
+    self.assertIn('$QABOARD_TOKEN is set: qa uses it instead of this sign-in', result.output)
 
 
 class TestStatusLogoutToken(AuthTestCase):
@@ -296,7 +357,7 @@ class TestStatusLogoutToken(AuthTestCase):
     result = self.qa_auth('status', '--server', SERVER, server=server)
     self.assertEqual(result.exit_code, 0, result.output)
     self.assertEqual(server.calls[0][2]['Authorization'], 'Bearer qab_pat_saved')
-    for line in [f'QA-Board server: {SERVER}', f'Token from: {self.hosts_path}', 'Logged in as: alice (Alice Doe)',
+    for line in [f'QA-Board server: {SERVER} (from --server)', f'Token from: {self.hosts_path}', 'Signed in as: alice (Alice Doe)',
                  'Token: qa CLI on host-12 (qab_pat_Xk3f...)', 'Scopes: read, ingest, act', 'Expires: never']:
       self.assertIn(line, result.output)
 
@@ -311,39 +372,137 @@ class TestStatusLogoutToken(AuthTestCase):
     self.assertIn('Token details: not available', result.output)
     self.assertIn('is not used', result.output)
 
+  def test_status_expiry(self):
+    self.save({'user': 'alice', 'token': 'qab_pat_saved', 'token_id': 12})
+    two_hours_ago = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=2, minutes=5)).isoformat()
+    me = {**ME, 'token': {**ME['token'], 'idle_expiry_days': 180, 'last_used_at': two_hours_ago}}
+    result = self.qa_auth('status', '--server', SERVER, server=FakeServer({('GET', '/api/v1/user/me/'): [response(200, me)]}))
+    self.assertIn('Expires: after 180 days without use (last used 2 hours ago)', result.output)
+    me['token'].update(expires_at='2026-12-01T10:00:00Z', last_used_at=None)
+    result = self.qa_auth('status', '--server', SERVER, server=FakeServer({('GET', '/api/v1/user/me/'): [response(200, me)]}))
+    local = datetime.datetime(2026, 12, 1, 10, tzinfo=datetime.timezone.utc).astimezone().strftime('%Y-%m-%d %H:%M')
+    self.assertIn(f'Expires: {local}, or after 180 days without use (not used yet)', result.output)
+
+  def test_time_ago(self):
+    now = datetime.datetime(2026, 10, 20, 12, tzinfo=datetime.timezone.utc)
+    ago = lambda **kwargs: self.auth.time_ago(now - datetime.timedelta(**kwargs), now)
+    self.assertEqual([ago(seconds=10), ago(minutes=1), ago(minutes=59), ago(hours=1), ago(hours=47), ago(days=3)],
+                     ['just now', '1 minute ago', '59 minutes ago', '1 hour ago', '47 hours ago', '3 days ago'])
+
   def test_status_not_logged_in(self):
     result = self.qa_auth('status', '--server', SERVER)
     self.assertEqual(result.exit_code, 1)
-    self.assertIn('Not logged in. Run `qa auth login`', result.output)
+    self.assertIn(f'Not signed in to {SERVER}. Run `qa auth login --server {SERVER}`.', result.output)
+    self.assertNotIn('other servers', result.output)
+
+  def test_status_with_several_servers(self):
+    self.auth.save_login('https://qa.example', user='alice', token='qab_pat_example')
+    self.auth.save_login('http://qa-staging:5151', user='alice.d', token='qab_pat_staging')
+    with mock.patch.multiple('qaboard.api', qaboard_url='http://localhost:5151', api_prefix='http://localhost:5151/api/v1', qaboard_url_source=None):
+      result = self.qa_auth('status')
+    self.assertEqual(result.exit_code, 1)
+    self.assertIn('QA-Board server: http://localhost:5151 (the default: QABOARD_URL is not set)', result.output)
+    self.assertIn('Not signed in to http://localhost:5151. Run `qa auth login`.', result.output)
+    self.assertIn('You are signed in to other servers:\n', result.output)
+    self.assertIn('\n  https://qa.example as alice\n', result.output)
+    self.assertIn('\n  http://qa-staging:5151 as alice.d\n', result.output)
+    self.assertIn('To use one, set QABOARD_URL to it, or add e.g. --server http', result.output)
 
   def test_status_rejected(self):
     self.save({'user': 'alice', 'token': 'qab_pat_saved', 'token_id': 12})
-    server = FakeServer({('GET', '/api/v1/user/me/'): [response(401, {"error": "Your token expired on 2026-09-01.", "reason": "token_expired"})]})
+    server = FakeServer({('GET', '/api/v1/user/me/'): [response(401, {"error": "This token expired on 2026-09-01.", "reason": "token_expired"})]})
     result = self.qa_auth('status', '--server', SERVER, server=server)
     self.assertEqual(result.exit_code, 1)
-    self.assertIn('Your token expired on 2026-09-01.', result.output)
-    self.assertIn('qa auth login', result.output)
+    self.assertIn('The token was not accepted: This token expired on 2026-09-01.\n  Run `qa auth login` to sign in again.', result.output)
+
+  def test_status_rejected_in_ci(self):
+    server = FakeServer({('GET', '/api/v1/user/me/'): [response(401, {"error": "This token expired after 180 days without use.", "reason": "token_idle_expired"})]})
+    with mock.patch.dict(os.environ, {'QABOARD_TOKEN': 'from-ci'}), mock.patch('qaboard.config.is_ci', True):
+      result = self.qa_auth('status', '--server', SERVER, server=server)
+    self.assertEqual(result.exit_code, 1)
+    self.assertIn('This token expired after 180 days without use.\n  Replace $QABOARD_TOKEN with a valid token (Settings → Access tokens).', result.output)
+    self.assertNotIn('qa auth login', result.output)
+
+  def test_status_with_a_legacy_token(self):
+    with mock.patch.dict('qaboard.credentials.user_secrets', {'QA_TOKEN': 'legacy'}):
+      result = self.qa_auth('status', '--server', SERVER, server=FakeServer({('GET', '/api/v1/user/me/'): [response(200, ME)]}))
+    self.assertEqual(result.exit_code, 0, result.output)
+    self.assertIn('Older way: run `qa auth login`, then remove QA_TOKEN from', result.output)
+
+  def test_status_wrong_url(self):
+    self.save({'user': 'alice', 'token': 'qab_pat_saved', 'token_id': 12})
+    result = self.qa_auth('status', '--server', SERVER)
+    self.assertEqual(result.exit_code, 1)
+    self.assertIn(f'Could not check the token: {SERVER}/api/v1/user/me/ answered 404: Not found. Is the --server URL right?', result.output)
+    self.assertNotIn('not accepted', result.output)
+    page = '<html><head><title>Welcome to nginx!</title></head><body>' + 'x' * 5000 + '</body></html>'
+    for status in (200, 401):
+      server = FakeServer({('GET', '/api/v1/user/me/'): [response(status, text=page)]})
+      with mock.patch.multiple('qaboard.api', qaboard_url=SERVER, api_prefix=f'{SERVER}/api/v1', qaboard_url_source='$QABOARD_URL'):
+        result = self.qa_auth('status', server=server)
+      self.assertEqual(result.exit_code, 1)
+      self.assertIn(f"answered {status} (a web page: Welcome to nginx!), not QA-Board's API. Is QABOARD_URL right?", result.output)
+      self.assertNotIn('xxx', result.output)
+      self.assertNotIn('not accepted', result.output)
+
+  def test_status_server_down(self):
+    self.save({'user': 'alice', 'token': 'qab_pat_saved', 'token_id': 12})
+    refused = requests.ConnectionError("HTTPConnectionPool(host='qa.test', port=80): Max retries exceeded (Caused by NewConnectionError(...: [Errno 111] Connection refused'))")
+    with mock.patch('requests.request', side_effect=refused):
+      result = CliRunner().invoke(self.auth.auth, ['status', '--server', SERVER])
+    self.assertEqual(result.exit_code, 1)
+    self.assertIn(f'Could not reach QA-Board at {SERVER} (connection refused). Check --server.', result.output)
+    with mock.patch('requests.request', side_effect=requests.ConnectTimeout('timed out')), \
+         mock.patch.multiple('qaboard.api', qaboard_url=SERVER, api_prefix=f'{SERVER}/api/v1', qaboard_url_source='$QABOARD_URL'):
+      result = CliRunner().invoke(self.auth.auth, ['status'])
+    self.assertIn(f'Could not reach QA-Board at {SERVER} (timed out). Check QABOARD_URL or --server.', result.output)
 
   def test_logout(self):
-    self.save({'user': 'alice', 'token': 'qab_pat_saved', 'token_id': 12})
+    self.save({'user': 'alice', 'token': 'qab_pat_saved', 'token_id': 12, 'minted_by': 'device'})
     server = FakeServer({('DELETE', '/api/v1/user/tokens/12'): [response(200, {"id": 12, "status": "revoked"})]})
     result = self.qa_auth('logout', '--server', SERVER, server=server)
     self.assertEqual(result.exit_code, 0, result.output)
     self.assertEqual(server.calls[0][2]['Authorization'], 'Bearer qab_pat_saved')
     self.assertIn('Revoked the token on the server.', result.output)
-    self.assertIn(f'Logged out of {SERVER}.', result.output)
+    self.assertIn(f'Signed out of {SERVER}.', result.output)
     self.assertEqual(self.hosts(), {})
 
+  def test_logout_of_a_token_qa_did_not_create(self):
+    # --with-token, or older hosts.yaml that don't say
+    for login in [{'minted_by': 'with-token'}, {}]:
+      self.save({'user': 'alice', 'token': 'qab_pat_given', 'token_id': 12, **login})
+      server = FakeServer({('DELETE', '/api/v1/user/tokens/12'): [response(200, {"id": 12, "status": "revoked"})]})
+      result = self.qa_auth('logout', '--server', SERVER, server=server)
+      self.assertEqual(result.exit_code, 0, result.output)
+      self.assertEqual(server.calls, [])
+      self.assertIn('Forgot the token. It still works: revoke it in Settings → Access tokens if you no longer need it.', result.output)
+      self.assertIn(f'Signed out of {SERVER}.', result.output)
+      self.assertEqual(self.hosts(), {})
+    self.save({'user': 'alice', 'token': 'qab_pat_given', 'token_id': 12, 'minted_by': 'with-token'})
+    server = FakeServer({('DELETE', '/api/v1/user/tokens/12'): [response(200, {"id": 12, "status": "revoked"})]})
+    result = self.qa_auth('logout', '--revoke', '--server', SERVER, server=server)
+    self.assertEqual(server.paths('DELETE'), ['/api/v1/user/tokens/12'])
+    self.assertIn('Revoked the token on the server.', result.output)
+    self.assertNotIn('Forgot', result.output)
+
+  def test_logout_of_a_token_already_revoked(self):
+    self.save({'user': 'alice', 'token': 'qab_pat_saved', 'token_id': 12, 'minted_by': 'device'})
+    server = FakeServer({('DELETE', '/api/v1/user/tokens/12'): [response(401, {"error": "This token was revoked.", "reason": "token_revoked"})]})
+    result = self.qa_auth('logout', '--server', SERVER, server=server)
+    self.assertEqual(result.exit_code, 0, result.output)
+    self.assertIn('The token could already not be used: This token was revoked.', result.output)
+    self.assertNotIn('Revoked the token on the server.', result.output)
+
   def test_logout_when_revoking_fails(self):
-    self.save({'user': 'alice', 'token': 'qab_pat_saved', 'token_id': 12})
+    self.save({'user': 'alice', 'token': 'qab_pat_saved', 'token_id': 12, 'minted_by': 'device'})
     self.auth.save_login('https://other.example', user='bob', token='qab_pat_other')
     server = FakeServer({('DELETE', '/api/v1/user/tokens/12'): [response(500, {"error": "Internal error"})]})
     result = self.qa_auth('logout', '--server', SERVER, server=server)
     self.assertEqual(result.exit_code, 0, result.output)
-    self.assertIn('Could not revoke the token on the server (500: Internal error). Revoke it in the web app', result.output)
+    self.assertIn('Could not revoke the token on the server (500: Internal error). Revoke it in Settings → Access tokens.', result.output)
     self.assertEqual(list(self.hosts()), ['https://other.example'])
     with mock.patch('requests.request', side_effect=requests.ConnectionError('unreachable')):
-      result = CliRunner().invoke(self.auth.auth, ['logout', '--server', 'https://other.example'])
+      result = CliRunner().invoke(self.auth.auth, ['logout', '--revoke', '--server', 'https://other.example'])
     self.assertEqual(result.exit_code, 0, result.output)
     self.assertIn("qa doesn't know the token's id", result.output)
     self.assertEqual(self.hosts(), {})
@@ -355,7 +514,7 @@ class TestStatusLogoutToken(AuthTestCase):
     self.assertIn("The token comes from $QABOARD_TOKEN: `qa auth logout` can't remove it.", result.output)
     result = self.qa_auth('logout', '--server', SERVER)
     self.assertEqual(result.exit_code, 1)
-    self.assertIn(f'Not logged in to {SERVER}.', result.output)
+    self.assertIn(f'Not signed in to {SERVER}.', result.output)
 
   def test_token(self):
     result = self.qa_auth('token', '--server', SERVER)
@@ -375,6 +534,18 @@ class TestStatusLogoutToken(AuthTestCase):
       os.chdir(previous_cwd)
     self.assertEqual((result.exit_code, result.stdout), (0, 'qab_pat_saved\n'))
 
+  def test_qa_auth_with_a_broken_qaboard_yaml(self):
+    import sys
+    import subprocess
+    env = {k: v for k, v in os.environ.items() if k not in ('CI', 'GIT_COMMIT')}
+    for content in ['project:\n  name: [broken\n', 'project:\n  name: no-url\n', 'just a string']:
+      (self.dir / 'qaboard.yaml').write_text(content)
+      process = subprocess.run([sys.executable, '-m', 'qaboard', 'auth', 'token', '--server', SERVER],
+                               cwd=self.dir, env=env, capture_output=True, text=True)
+      self.assertEqual(process.returncode, 1, process.stderr)
+      self.assertIn(f'Not signed in to {SERVER}', process.stderr)
+      self.assertNotIn('Traceback', process.stderr)
+
 
 class TestIngestMessages(AuthTestCase):
   def setUp(self):
@@ -382,39 +553,95 @@ class TestIngestMessages(AuthTestCase):
     for patcher in [
       mock.patch('qaboard.api.qa_token', None),
       mock.patch('qaboard.api.qa_token_source', None),
-      mock.patch('qaboard.config.is_ci', False),
-      mock.patch.object(self.auth, '_warnings_shown', set()),
+      mock.patch('qaboard.config.project', Path('group/repo')),
     ]:
       patcher.start()
       self.addCleanup(patcher.stop)
 
-  def notify(self, r):
+  def notify(self, r, object_type='output'):
     from qaboard.api import notify_qa_database
     stderr = io.StringIO()
-    with mock.patch('requests.post', return_value=r) as post, redirect_stderr(stderr):
-      result = notify_qa_database(object_type='output', share=True, batch_label='default', user='alice')
+    with mock.patch('requests.post', **({'side_effect': r} if isinstance(r, Exception) else {'return_value': r})) as post, redirect_stderr(stderr):
+      result = notify_qa_database(object_type=object_type, share=True, batch_label='default', user='alice')
     self.assertIsNotNone(post.call_args.kwargs.get('timeout'))
     return result, stderr.getvalue()
 
+  def exit_if_results_refused(self):
+    from qaboard.api import exit_if_results_refused
+    stderr = io.StringIO()
+    with redirect_stderr(stderr):
+      try:
+        exit_if_results_refused()
+      except SystemExit as e:
+        return e.code, stderr.getvalue()
+    return None, stderr.getvalue()
+
   def test_expired_token(self):
     with mock.patch('qaboard.api.qa_token_source', 'hosts.yaml'):
-      result, stderr = self.notify(response(401, {"error": "Your token expired on 2026-09-01.", "reason": "token_expired"}))
+      result, stderr = self.notify(response(401, {"error": "This token expired on 2026-09-01.", "reason": "token_expired"}))
     self.assertIsNone(result)
-    self.assertIn('Failed to update QA-Board: Your token expired on 2026-09-01.', stderr)
-    self.assertIn('Run `qa auth login` to get a new token.', stderr)
-    self.assertNotIn('Traceback', stderr)
-    self.assertNotIn('qaboard_config', stderr)
+    self.assertEqual(stderr, 'WARNING: QA-Board refused the results: This token expired on 2026-09-01.\n'
+                             '         Run `qa auth login` to sign in again.\n')
+    # outside CI, it's only a warning
+    self.assertEqual(self.exit_if_results_refused(), (None, ''))
 
   def test_expired_env_token(self):
     with mock.patch('qaboard.api.qa_token_source', 'QABOARD_TOKEN'):
       _, stderr = self.notify(response(401, {"error": "This token was revoked.", "reason": "token_revoked"}))
-    self.assertIn('The token comes from $QABOARD_TOKEN: replace it, or unset it and run `qa auth login`.', stderr)
+    self.assertIn('Replace $QABOARD_TOKEN with a valid token (Settings → Access tokens).', stderr)
+    self.assertNotIn('qa auth login', stderr)
 
-  def test_ingest_token_required(self):
-    _, stderr = self.notify(response(403, {"error": "This server only accepts runs sent with a token.", "reason": "ingest_token_required"}))
-    self.assertIn('This server only accepts runs sent with a token.', stderr)
-    self.assertIn('Run `qa auth login`, or in CI set QABOARD_TOKEN', stderr)
-    self.assertNotIn('unverified', stderr)
+  def test_fixes(self):
+    cases = [
+      ({"error": "This server only accepts results sent with a token.", "reason": "ingest_token_required"}, 403, 'Run `qa auth login`.'),
+      ({"error": "This token can't access group/repo.", "reason": "token_project"}, 403, 'Create a token for group/repo in Settings → Access tokens.'),
+      ({"error": "This token can't do this: it needs the \"act\" scope.", "reason": "missing_scope", "required": "act"}, 403,
+       'Create a token with the "act" scope in Settings → Access tokens, then sign in with it: `qa auth login --with-token`.'),
+      ({"error": "Tokens in URLs are only accepted to read: send it in the Authorization header.", "reason": "token_in_url"}, 401, None),
+    ]
+    for body, status, fix in cases:
+      os.environ.pop('QA_AUTH_WARNING_SHOWN', None)
+      with self.subTest(body['reason']), mock.patch('qaboard.auth._warnings_shown', set()):
+        _, stderr = self.notify(response(status, body))
+        lines = stderr.splitlines()
+        self.assertEqual(lines[0], f"WARNING: QA-Board refused the results: {body['error']}")
+        self.assertEqual(lines[1:], [f"         {fix}"] if fix else [])
+
+  def test_in_ci(self):
+    with mock.patch('qaboard.config.is_ci', True):
+      _, stderr = self.notify(response(401, {"error": "This token expired on 2026-09-01.", "reason": "token_expired"}), object_type='batch')
+      # what to do is said once, at the end
+      self.assertEqual(stderr, 'WARNING: QA-Board refused the results: This token expired on 2026-09-01.\n')
+      code, stderr = self.exit_if_results_refused()
+    self.assertEqual(code, 1)
+    self.assertEqual(stderr, 'ERROR: QA-Board refused the results (token_expired): they were not saved. '
+                             'Set QABOARD_TOKEN to a valid token with the ingest scope for group/repo.\n')
+
+  def test_in_ci_other_failures_stay_warnings(self):
+    with mock.patch('qaboard.config.is_ci', True):
+      for failure in [requests.ConnectionError('Connection refused'), response(500, {"error": "Internal error"}), response(401, {"error": "You need to be logged-in to do this."})]:
+        result, stderr = self.notify(failure)
+        self.assertIsNone(result)
+        self.assertIn('Failed to update QA-Board.', stderr)
+        self.assertEqual(self.exit_if_results_refused(), (None, ''))
+
+  def test_once_per_batch(self):
+    expired = response(401, {"error": "This token expired on 2026-09-01.", "reason": "token_expired"})
+    _, stderr = self.notify(expired)
+    self.assertIn('This token expired', stderr)
+    _, stderr = self.notify(expired)
+    self.assertEqual(stderr, '')
+    # the runs `qa batch` starts inherit the environment
+    self.assertEqual(os.environ.get('QA_AUTH_WARNING_SHOWN'), '1')
+    with mock.patch('qaboard.auth._warnings_shown', set()):
+      _, stderr = self.notify(expired)
+      self.assertEqual(stderr, '')
+      _, stderr = self.notify(response(200, {"id": 1}, headers={'X-QABoard-Warning': 'This run was sent without a token.'}))
+      self.assertEqual(stderr, '')
+    del os.environ['QA_AUTH_WARNING_SHOWN']
+    with mock.patch('qaboard.auth._warnings_shown', set()):
+      _, stderr = self.notify(expired)
+    self.assertIn('This token expired', stderr)
 
   def test_older_servers(self):
     _, stderr = self.notify(response(401, {"error": "You need to be logged-in to do this."}))
@@ -425,61 +652,30 @@ class TestIngestMessages(AuthTestCase):
     self.assertNotIn('run `qa auth login`', stderr)
     self.assertNotIn('secret', stderr)
 
-  def test_warning_header_and_nudge(self):
+  def test_warning_header(self):
     warning = {'X-QABoard-Warning': 'This run was sent without a token: it is saved as unverified.'}
     result, stderr = self.notify(response(200, {"id": 1}, headers=warning))
     self.assertEqual(result, {"id": 1})
-    self.assertIn('WARNING: This run was sent without a token: it is saved as unverified.', stderr)
-    self.assertIn("Your runs are saved as unverified 'alice'. Run `qa auth login` to sign them.", stderr)
-    # once per process, and the nudge once a day
+    self.assertEqual(stderr, 'WARNING: This run was sent without a token: it is saved as unverified.\n')
+    # once per process
     _, stderr = self.notify(response(200, {"id": 2}, headers=warning))
     self.assertEqual(stderr, '')
 
-  def test_no_nudge_with_a_token_or_in_ci(self):
-    with mock.patch('qaboard.api.qa_token', 'qab_pat_saved'):
-      _, stderr = self.notify(response(200, {"id": 1}))
+  def test_nothing_to_say(self):
+    # e.g. ingest.auth=off: no nudge
+    _, stderr = self.notify(response(200, {"id": 1}))
     self.assertEqual(stderr, '')
-    with mock.patch('qaboard.config.is_ci', True):
-      _, stderr = self.notify(response(200, {"id": 1}))
-    self.assertEqual(stderr, '')
+    self.assertFalse((self.dir / 'config').exists())
 
   def test_gate_message(self):
     from qaboard.gate import fetch_comparison
-    r = response(401, {"error": "Your token expired on 2026-09-01.", "reason": "token_expired"})
+    r = response(401, {"error": "This token expired on 2026-09-01.", "reason": "token_expired"})
     with mock.patch('requests.get', return_value=r):
       data, error = fetch_comparison(f'{SERVER}/api/v1', 'p', 'c0ffee', None, 'default', [], False, {}, True)
-    self.assertEqual(error, 'Your token expired on 2026-09-01. Run `qa auth login` to get a new token.')
-
-
-class TestNudge(AuthTestCase):
-  def nudge(self):
-    stderr = io.StringIO()
-    with redirect_stderr(stderr):
-      self.auth.nudge_unverified('alice')
-    return stderr.getvalue()
-
-  def test_once_a_day(self):
-    self.assertIn("unverified 'alice'", self.nudge())
-    self.assertEqual(self.nudge(), '')
-    path = self.dir / 'config' / 'qaboard' / 'last-auth-nudge'
-    path.write_text(str(float(path.read_text()) - 25 * 3600))
-    self.assertIn("unverified 'alice'", self.nudge())
-    self.assertEqual(self.nudge(), '')
-    path.write_text('corrupted')
-    self.assertIn("unverified 'alice'", self.nudge())
-
-  @unittest.skipIf(os.name == 'nt' or (hasattr(os, 'geteuid') and os.geteuid() == 0), "root can write anywhere")
-  def test_read_only_config_dir(self):
-    read_only = self.dir / 'config'
-    read_only.mkdir()
-    read_only.chmod(0o500)
-    self.addCleanup(read_only.chmod, 0o700)
-    self.assertEqual(self.nudge(), '')
-
-  def test_unwritable_config_dir(self):
-    # e.g. a file where the config directory should be
-    (self.dir / 'config').write_text('')
-    self.assertEqual(self.nudge(), '')
+      self.assertEqual(error, 'This token expired on 2026-09-01. Run `qa auth login` to sign in again.')
+      with mock.patch('qaboard.config.is_ci', True):
+        data, error = fetch_comparison(f'{SERVER}/api/v1', 'p', 'c0ffee', None, 'default', [], False, {}, True)
+      self.assertEqual(error, 'This token expired on 2026-09-01. Set QABOARD_TOKEN to a valid token (Settings → Access tokens).')
 
 
 if __name__ == '__main__':

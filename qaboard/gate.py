@@ -354,8 +354,8 @@ def metrics_diff_url(qaboard_url: str, project: str, commit: str, reference: Opt
 
 
 def fetch_comparison(api_prefix: str, project: str, commit: str, reference: Optional[str], batch: str, metrics: List[str],
-                     bit_accuracy: bool, headers: Dict[str, str], verify: Any) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
-  """GET /api/v1/commit/<sha>/compare. Returns (data, None), or (None, why it failed)"""
+                     bit_accuracy: bool, headers: Dict[str, str], verify: Any, token_source: Optional[str] = None) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+  """GET /api/v1/commit/<sha>/compare. Returns (data, None), or (None, why it failed). `token_source`: see credentials.resolve_token"""
   import requests
   params = {'project': project, 'batch': batch}
   if reference:
@@ -375,8 +375,9 @@ def fetch_comparison(api_prefix: str, project: str, commit: str, reference: Opti
     r.raise_for_status()
     return r.json(), None
   except Exception:
-    from .auth import auth_error_hint
-    hint = auth_error_hint(r)
+    from .credentials import auth_error_hint
+    from .config import is_ci
+    hint = auth_error_hint(r, token_source, ci=bool(is_ci), project=project)
     if hint:
       return None, hint.replace('\n', ' ')
     return None, f"QA-Board answered {r.status_code}: {r.text[:300]}"
@@ -653,6 +654,7 @@ def gate(ctx, reference, batches, commit, output_format, as_json, wait, timeout,
   """Fail when quality regresses vs a reference (experimental). Exit codes: 0 pass, 1 fail, 2 undecidable."""
   from .config import config, available_metrics, commit_id, project, project_root, subproject
   from . import api
+  from .credentials import resolve_token
   click.secho(EXPERIMENTAL_NOTICE, fg='yellow', err=True)
   output_format = 'json' if as_json else output_format
 
@@ -678,9 +680,10 @@ def gate(ctx, reference, batches, commit, output_format, as_json, wait, timeout,
   api_prefix = f"{qaboard_url}/api/v1" if server else api.api_prefix
   # the token qa uses for another server, if any
   headers = api.headers_for(qaboard_url) if server else api.headers
+  token_source = resolve_token(qaboard_url)[1] if server else api.qa_token_source
   def fetch(label):
     return fetch_comparison(api_prefix, project_name, commit, gate_config.reference, label, gate_config.metrics,
-                            gate_config.require_bit_accuracy, headers, api.api_verify)
+                            gate_config.require_bit_accuracy, headers, api.api_verify, token_source)
 
   deadline = time.monotonic() + timeout
   while True:

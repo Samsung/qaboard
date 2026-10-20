@@ -193,7 +193,10 @@ def test_the_manage_scope_isnt_offered_until_it_does_something(logged_in):
 def test_me_says_when_the_token_expires(logged_in, make_client):
   token = new_token(logged_in('alice'), expires_in_days=None, idle_expiry_days=30)
   me = make_client().get('/api/v1/user/me/', headers=bearer(token["token"])).get_json()["token"]
-  assert me["expires_at"] is None and me["idle_expiry_days"] == 30 and me["last_used_at"]
+  # not used before this request
+  assert me["expires_at"] is None and me["idle_expiry_days"] == 30 and me["last_used_at"] is None
+  me = make_client().get('/api/v1/user/me/', headers=bearer(token["token"])).get_json()["token"]
+  assert me["last_used_at"]
 
 
 def test_the_config_says_how_long_tokens_last(client):

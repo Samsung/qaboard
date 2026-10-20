@@ -104,7 +104,7 @@ projects.
 
 ```bash
 qa auth status   # which server, which user, which token
-qa auth logout   # revokes the token, and forgets it
+qa auth logout   # signs out: revokes the token qa auth login created, and forgets it
 qa auth token    # prints the token, e.g. for curl
 ```
 
@@ -113,7 +113,11 @@ revoke it in the web app, in **Settings → CLI & devices**.
 
 **In CI and scripts**, give `qa` a token in `QABOARD_TOKEN`: create one in **Settings → Access tokens** (see
 [CI integration](/docs/ci-integration#tokens)). `qa` uses `$QABOARD_TOKEN` (or `$QA_TOKEN`), then the login of
-`qa auth login`, then `QA_TOKEN` in *~/.qaboard/secrets.yaml* (the older way: it still works).
+`qa auth login`, then `QA_TOKEN` in *~/.qaboard/secrets.yaml* (the older way: it still works, for your default
+server only). A token you save with `qa auth login --with-token` isn't revoked by `qa auth logout` (add `--revoke`).
+
+In CI, when the server refuses the results (an expired token, a token for other projects, a server that requires
+tokens...), `qa run` and `qa batch` fail before running anything, and say what to fix.
 
 ## If `qa` doesn't start {#troubleshooting}
 - **An error about your locale (ASCII, not UTF-8):** set a UTF-8 one, e.g. `export LC_ALL=C.UTF-8 LANG=C.UTF-8`.
