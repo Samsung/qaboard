@@ -112,6 +112,10 @@ const App = () => {
         { id: 'input.png', image: images.input, group: 'This run' },
         ...Array.from({ length: 30 }, (_, i) => ({ id: `debug/stage_${i + 1}.png`, image: images.input, group: 'This run' })),
       ]}
+      compareScopes={[
+        { value: 'all', label: 'All runs', title: 'Every run compares with its own file of that name', phrase: 'in every run' },
+        { value: 'run', label: 'This run', title: 'Only this run: the others keep what they compare with', phrase: 'in this run only' },
+      ]}
       mode={mode}
       onModeChange={setMode}
       syncKey="chart"

@@ -149,6 +149,13 @@ export interface ImageViewerProps {
   compared?: string | null;
   defaultCompared?: string | null;
   onComparedChange?: (id: string | null) => void;
+  /** Where a pick applies, e.g. every run of a page or one: shown under "Apply to" in the menu when there are several */
+  compareScopes?: { value: string; label: string; title?: string; phrase?: string }[];
+  /** Controlled with onCompareScopeChange, or not: the first scope by default */
+  compareScope?: string;
+  onCompareScopeChange?: (scope: string) => void;
+  /** Next to what's compared with, in the toolbar, e.g. "this run" */
+  comparedNote?: string;
 
   /** How the images are compared: controlled with onModeChange, or not, from defaultMode */
   mode?: Mode;

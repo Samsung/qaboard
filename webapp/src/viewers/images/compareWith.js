@@ -42,3 +42,21 @@ export const compareCandidates = (path, manifest) => {
   const is_suggested = new Set(suggested.map(candidate => candidate.path));
   return [...suggested, ...paths.filter(other => !is_suggested.has(other)).map(other => ({ path: other, suggested: false }))];
 };
+
+// What the viewers of a visualization compare with: { all: path | null, runs: { [output id]: path | null } }.
+// A pick applies to every run of the page (and undoes the runs picked alone), or to one run, e.g. to spot-check it.
+export const COMPARE_SCOPES = [
+  { value: 'all', label: 'All runs', title: 'Every run compares with its own file of that name', phrase: 'in every run' },
+  { value: 'run', label: 'This run', title: 'Only this run: the others keep what they compare with', phrase: 'in this run only' },
+];
+
+export const pickCompared = (entry, output_id, other, scope) => scope === 'run'
+  ? { all: entry?.all ?? null, runs: { ...entry?.runs, [output_id]: other } }
+  : { all: other, runs: {} };
+
+// What a run compares with, and whether it differs from the other runs
+export const comparedFor = (entry, output_id) => {
+  const all = entry?.all ?? null;
+  const own = entry && Object.hasOwn(entry.runs, output_id) ? entry.runs[output_id] : undefined;
+  return { compared: own !== undefined ? own : all, alone: own !== undefined && own !== all };
+};

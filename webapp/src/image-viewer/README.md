@@ -113,6 +113,11 @@ an id, or `null` for the reference) to pick the same in several viewers: QA-Boar
 a page with that run's file of the same name. When a viewer has no item with the id, it compares with the reference,
 and says the image is missing.
 
+Say where a pick applies with `compareScopes` (`[{ value, label, title?, phrase? }]`, the first by default), e.g. every
+run of the page or this one only: the menu shows them under **Apply to**, the message after a pick ends with the
+`phrase` ("Comparing with gt/0001.png in every run"), and you get the scope back to store the pick where it belongs.
+`comparedNote` shows next to the name in the toolbar, e.g. "this run" when a run differs from the others.
+
 The viewer doesn't know where the images come from: QA-Board lists the files of the run, the likeliest first (the same
 name in another folder, names that start alike next to it).
 
@@ -231,6 +236,8 @@ resolution), and show a cross where the pointer is on the others. Viewers off-sc
 | `reference` | same, or `null` | `null` | What it's compared with. `detail`: what it is, in the **vs** menu |
 | `compareWith` | `[{ id, image, label?, group?, detail?, title? }]` | `[]` | [Other images](#comparing-with-other-images) users can compare with instead of the reference |
 | `compared`, `defaultCompared`, `onComparedChange` | `string \| null` | `null` | The id of the image of `compareWith` compared with, `null`: the reference |
+| `compareScopes`, `compareScope`, `onCompareScopeChange` | `[{ value, label, title?, phrase? }]`, `string` | `[]` | Where a pick applies, e.g. `'all'` the runs or this `'run'` |
+| `comparedNote` | `string` | | Next to what's compared with, in the toolbar |
 | `mode`, `defaultMode`, `onModeChange` | `'side-by-side' \| 'wipe' \| 'single' \| 'difference'` | `'side-by-side'` | How they're compared |
 | `diff`, `defaultDiff`, `onDiffChange` | `{ method, gain?, max?, layout? }` | `{ method: 'perceptual' }` | [The difference](#the-difference), and whether the images show on its sides (`layout: 'between'`, the default) or not (`'alone'`) |
 | `adjustments`, `defaultAdjustments`, `onAdjustmentsChange` | `{ brightness, contrast, gamma, sharpen, channel, falseColor, invert }` | none | How images look. Only the display changes. |

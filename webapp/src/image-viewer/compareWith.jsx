@@ -1,12 +1,13 @@
 // What the image is compared with: the reference, or another image the app offers (`compareWith`), e.g. another file
 // of the same run: the ground truth, the input, a previous stage... The app lists them, the viewer lets users pick one.
 //   compareWith: [{ id, image, label?, group?, detail?, title? }]
+// Apps can also say where a pick applies (compareScopes), e.g. to every run of a page or to this one only.
 // The viewer knows nothing of where they come from: apps add their own groups (e.g. "Suggested", "This run", later
 // "Other runs").
 import { useEffect, useRef, useState } from 'react';
 
 import { normalizeImage, thumbnailUrl } from './sources';
-import { Icon } from './ui';
+import { Icon, Segmented } from './ui';
 
 // The most items listed at once: type to find the others
 const LIMIT = 200;
@@ -60,7 +61,7 @@ const Thumbnail = ({ image }) => {
 };
 
 // The menu: a search box, the reference, then the app's images by group. Arrows and Enter pick one.
-export const CompareWithMenu = ({ reference, referenceName, candidates, selected, onSelect, close }) => {
+export const CompareWithMenu = ({ reference, referenceName, candidates, selected, onSelect, close, scopes = [], scope, onScopeChange }) => {
   const [query, setQuery] = useState('');
   const matches = matchCandidates(candidates, query);
   const shown = matches.slice(0, LIMIT);
@@ -140,6 +141,11 @@ export const CompareWithMenu = ({ reference, referenceName, candidates, selected
       </div>}
       {matches.length > shown.length && <div className="qiv-hint">{matches.length - shown.length} more: type to find them</div>}
     </div>
+    {scopes.length > 1 && <div className="qiv-compare-scope">
+      <span className="qiv-muted">Apply to</span>
+      <Segmented label="Apply to" options={scopes} value={scope} onChange={onScopeChange} />
+      <span className="qiv-compare-scope-hint">{scopes.find(option => option.value === scope)?.title}</span>
+    </div>}
     <div className="qiv-hint qiv-compare-footer">
       <kbd>↑</kbd> <kbd>↓</kbd> <kbd>Enter</kbd> to pick · <kbd>c</kbd> switches between the reference and the image picked last
     </div>

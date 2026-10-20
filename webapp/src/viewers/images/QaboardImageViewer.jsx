@@ -13,7 +13,7 @@ import { useComparison, useSiteConfig, useUser } from '../../hooks';
 import { usePrefsStore } from '../../stores/prefs';
 import { at_most, is_same_data } from '../../utils';
 import { build_image_name, iiif_url } from './utils';
-import { compareCandidates } from './compareWith';
+import { COMPARE_SCOPES, comparedFor, compareCandidates, pickCompared } from './compareWith';
 import { regionProviders } from './regionProviders';
 import { regionsQuery } from './regionSearch';
 import { differenceProviders, RegionsTriage, usePagePairs } from './RegionsTriage';
@@ -54,11 +54,16 @@ const otherImages = ({ output_new, path, manifests, image_servers }) => {
 };
 
 // The image picked to compare with is the same for the viewers of a visualization: each run's viewer compares with its
-// own file of that name, e.g. every run with its ground truth. Like the adjustments, it's not saved.
+// own file of that name, e.g. every run with its ground truth. Or users pick for one run, to spot-check it. Like the
+// adjustments, it's not saved.
 const useComparedStore = create(set => ({
-  // { [path]: path of the other image | null }
+  // { [path]: { all, runs } } (compareWith.js)
   by_path: {},
-  set: (path, other) => set(state => ({ by_path: { ...state.by_path, [path]: other } })),
+  scope: 'all',
+  setScope: scope => set({ scope }),
+  set: (path, output_id, other) => set(state => ({
+    by_path: { ...state.by_path, [path]: pickCompared(state.by_path[path], output_id, other, state.scope) },
+  })),
 }));
 
 // The image's own values (e.g. 16-bit, raw...), read by the server, as binary: the viewer asks for tiles of 64x64
@@ -195,8 +200,11 @@ const ImageViewerForRuns = ({
   const same_data = identical && output_ref?.id !== output_new.id;
   const reference = identical ? null : referenceImage({ output_ref, path_ref, manifests, image_servers, label: labels?.reference, color: labels?.colors?.reference });
   const compare_with = otherImages({ output_new, path, manifests, image_servers });
-  const compared = useComparedStore(state => state.by_path[path] ?? null);
+  const compared_entry = useComparedStore(state => state.by_path[path]);
+  const { compared, alone } = comparedFor(compared_entry, output_new.id);
   const setCompared = useComparedStore(state => state.set);
+  const compare_scope = useComparedStore(state => state.scope);
+  const setCompareScope = useComparedStore(state => state.setScope);
   // when the run has it: else the viewer says so, and shows the reference
   const other = compare_with.some(candidate => candidate.id === compared) ? compared : null;
   const same_as_other = !!other && is_same_data(path, manifests?.new?.[path], manifests?.new?.[other]);
@@ -252,7 +260,11 @@ const ImageViewerForRuns = ({
     reference={reference}
     compareWith={compare_with}
     compared={compared}
-    onComparedChange={value => setCompared(path, value)}
+    onComparedChange={value => setCompared(path, output_new.id, value)}
+    compareScopes={COMPARE_SCOPES}
+    compareScope={compare_scope}
+    onCompareScopeChange={setCompareScope}
+    comparedNote={alone ? 'this run' : undefined}
     mode={mode}
     onModeChange={value => onControlsChange ? onControlsChange({ image_mode: value, diff: undefined }) : setLocalMode(value)}
     diff={diff_settings}

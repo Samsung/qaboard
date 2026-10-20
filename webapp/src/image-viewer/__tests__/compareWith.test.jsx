@@ -70,4 +70,12 @@ describe('compare with', () => {
     menu({ reference: null });
     expect(screen.getAllByRole('option')).toHaveLength(3);
   });
+
+  it('says where a pick applies, when the app gives options', () => {
+    const onScopeChange = vi.fn();
+    menu({ scopes: [{ value: 'all', label: 'All runs', title: 'Every run' }, { value: 'run', label: 'This run' }], scope: 'all', onScopeChange });
+    expect(screen.getByRole('radio', { name: 'All runs' }).getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(screen.getByRole('radio', { name: 'This run' }));
+    expect(onScopeChange).toHaveBeenCalledWith('run');
+  });
 });

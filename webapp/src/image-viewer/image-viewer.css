@@ -1153,3 +1153,29 @@
   font-size: 11px;
   white-space: normal;
 }
+.qiv-compare-note {
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--qiv-pressed);
+  font-size: 11px;
+}
+.qiv-compare-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 4px;
+  padding: 6px 8px 2px;
+  border-top: 1px solid var(--qiv-border);
+  font-size: 12px;
+}
+.qiv-compare-scope-hint {
+  flex-basis: 100%;
+  color: var(--qiv-text-muted);
+  font-size: 11px;
+  white-space: normal;
+}
+.qiv-compare-scope + .qiv-compare-footer {
+  margin-top: 0;
+  border-top: none;
+}

@@ -91,6 +91,10 @@ export const ImageViewer = ({
   compared: compared_prop,
   defaultCompared = null,
   onComparedChange,
+  compareScopes = [],
+  compareScope: compare_scope_prop,
+  onCompareScopeChange,
+  comparedNote,
   mode: mode_prop,
   defaultMode = DEFAULT_MODE,
   onModeChange,
@@ -360,6 +364,9 @@ export const ImageViewer = ({
   };
   // Picking what to compare with. c goes back to the reference, then to the image picked last.
   const [picker_open, setPickerOpen] = useState(false);
+  // Where a pick applies, e.g. every run of the page or this one: the app's options ({ value, label, title?, phrase? })
+  const [compare_scope, setCompareScope] = useControllable(compare_scope_prop, compareScopes[0]?.value, onCompareScopeChange);
+  const scope_phrase = compareScopes.find(option => option.value === compare_scope)?.phrase;
   const last_other = useRef(null);
   const alternative_id = alternative?.id ?? null;
   useEffect(() => {
@@ -370,7 +377,8 @@ export const ImageViewer = ({
     if (id !== null) last_other.current = id;
     setCompared(id);
     const candidate = id !== null ? compareWith.find(c => c.id === id) : null;
-    notify(candidate ? `Comparing with ${candidateLabel(candidate)}` : reference ? `Comparing with the ${reference_name} again` : 'The image alone again');
+    const what = candidate ? `Comparing with ${candidateLabel(candidate)}` : reference ? `Comparing with the ${reference_name} again` : 'The image alone again';
+    notify(scope_phrase ? `${what} ${scope_phrase}` : what);
   };
   const toggleCompared = () => {
     if (compared_id != null) return pickCompared(null);
@@ -604,7 +612,7 @@ export const ImageViewer = ({
           title={hidden ? 'Pick what to compare with after the blind test'
             : `Compare with ${alternative ? candidateLabel(alternative) : reference ? `the ${reference_name}` : 'another image'}. Click to compare with another image (c: ${alternative ? 'back to the reference' : 'the image picked last'})`}
         >
-          {comparing ? <><span className="qiv-compare-vs">vs</span> <span className="qiv-compare-current">{alternative ? candidateLabel(alternative) : reference_name}</span></> : 'Compare with…'}
+          {comparing ? <><span className="qiv-compare-vs">vs</span> <span className="qiv-compare-current">{alternative ? candidateLabel(alternative) : reference_name}</span>{comparedNote && <span className="qiv-compare-note">{comparedNote}</span>}</> : 'Compare with…'}
           <Icon icon="chevron-down" size={12} />
         </Button>}>
           {({ close }) => <CompareWithMenu
@@ -614,6 +622,9 @@ export const ImageViewer = ({
             selected={alternative?.id ?? null}
             onSelect={pickCompared}
             close={close}
+            scopes={compareScopes}
+            scope={compare_scope}
+            onScopeChange={setCompareScope}
           />}
         </Popover>
         {alternative && !hidden && <Button

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { closeness, compareCandidates } from '../compareWith';
+import { closeness, comparedFor, compareCandidates, pickCompared } from '../compareWith';
 
 const manifest = paths => Object.fromEntries(paths.map(path => [path, { st_size: 1 }]));
 
@@ -32,5 +32,21 @@ describe('the images to compare with', () => {
     expect(closeness('out/a.png', 'other/b.png').score).toBe(0);
     expect(closeness('out/frame.png', 'out/frame_gt.png').score).toBeGreaterThan(closeness('out/frame.png', 'out/frame_x.png').score);
     expect(compareCandidates('a.png', undefined)).toEqual([]);
+  });
+});
+
+describe('what the runs compare with', () => {
+  it('is the same file for every run, or one run picks alone', () => {
+    let entry = pickCompared(undefined, 1, 'gt/a.png', 'all');
+    expect(comparedFor(entry, 1)).toEqual({ compared: 'gt/a.png', alone: false });
+    expect(comparedFor(entry, 2)).toEqual({ compared: 'gt/a.png', alone: false });
+    // a spot check: run 2 goes back to its reference, the others don't
+    entry = pickCompared(entry, 2, null, 'run');
+    expect(comparedFor(entry, 2)).toEqual({ compared: null, alone: true });
+    expect(comparedFor(entry, 1)).toEqual({ compared: 'gt/a.png', alone: false });
+    // picking for all the runs again undoes it
+    entry = pickCompared(entry, 1, 'input.png', 'all');
+    expect(comparedFor(entry, 2)).toEqual({ compared: 'input.png', alone: false });
+    expect(comparedFor(undefined, 1)).toEqual({ compared: null, alone: false });
   });
 });
