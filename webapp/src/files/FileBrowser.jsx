@@ -8,9 +8,6 @@ import {
   Callout,
   Checkbox,
   Classes,
-  Dialog,
-  DialogBody,
-  FormGroup,
   InputGroup,
   Intent,
   NonIdealState,
@@ -32,7 +29,7 @@ import { ThemeButton } from "../components/ThemeButton";
 import { toaster } from "../toaster";
 import { copyText } from "../utils/clipboard";
 import { setPathMappings } from "../utils/paths";
-import { fetchAccess, fetchJson, fetchListing, fetchRun, runAction, signIn, signOut } from "./api";
+import { fetchAccess, fetchJson, fetchListing, fetchRun, runAction, signOut, signInUrl, navigateTo } from "./api";
 import {
   baseName, breadcrumbs, filterEntries, formatAbsoluteTime, formatRelativeTime, formatSize, formatSummary, iconName,
   joinPath, linuxPath, parentPath, parseLocation, pathFromUrl, sortEntries, summarize, urlFromPath, windowsPath,
@@ -99,7 +96,6 @@ export default function FileBrowser() {
   // from the config's state, not the module's path mappings: React (and its compiler) re-render on state changes
   const showWindows = (config.path_mappings?.length ?? 0) > 0
   const [user, setUser] = useState(null)
-  const [isSigningIn, setIsSigningIn] = useState(false)
   const [reloads, setReloads] = useState(0) // the refresh button, "r", after signing in...
 
   const cache = useRef(new Map())
@@ -308,19 +304,8 @@ export default function FileBrowser() {
     setReloads(n => n + 1)
   }
 
-  const onSignedIn = () => {
-    setIsSigningIn(false)
-    cache.current.clear()
-    loadUser()
-    if (isFolder) setReloads(n => n + 1)
-    else window.location.reload()
-  }
-  const requestSignIn = () => {
-    if (config.login_type === 'SAML')
-      window.location.href = '/api/auth/saml20/login/?sso'
-    else
-      setIsSigningIn(true)
-  }
+  // the web app's sign-in page (single sign-on, passwords...) comes back here
+  const requestSignIn = () => navigateTo(signInUrl(window.location))
   const onSignOut = async () => {
     if (config.login_type === 'SAML') {
       window.location.href = '/api/auth/saml20/login/?slo'
@@ -436,7 +421,6 @@ export default function FileBrowser() {
       {config.docs_root && <a href={`${config.docs_root}docs/user-guide/files`} target="_blank" rel="noopener noreferrer">Help</a>}
     </footer>
 
-    <SignInDialog isOpen={isSigningIn} onClose={() => setIsSigningIn(false)} onSignedIn={onSignedIn}/>
   </div>
 }
 
@@ -847,41 +831,4 @@ function FileAccess({ path, user, navigate, onSignIn, support_url }) {
 }
 
 
-const SIGN_IN_ERRORS = {
-  'invalid-username': 'This username does not match any user account.',
-  'invalid-password': 'The password is incorrect.',
-}
-
-function SignInDialog({ isOpen, onClose, onSignedIn }) {
-  const [error, setError] = useState(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const usernameRef = useRef(null)
-  const submit = async event => {
-    event.preventDefault()
-    const form = new FormData(event.target)
-    setIsLoading(true)
-    try {
-      await signIn(form.get('username'), form.get('password'))
-      setError(null)
-      onSignedIn()
-    } catch (e) {
-      setError(SIGN_IN_ERRORS[e.message] ?? e.message ?? 'Could not sign in')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-  return <Dialog isOpen={isOpen} onClose={onClose} onOpened={() => usernameRef.current?.focus()} title="Sign in" icon={<LogInIcon/>} style={{ width: 360 }}>
-    <form onSubmit={submit}>
-      <DialogBody>
-        <FormGroup label="User name" labelFor="fb-username">
-          <InputGroup id="fb-username" name="username" inputRef={usernameRef} autoComplete="username"/>
-        </FormGroup>
-        <FormGroup label="Password" labelFor="fb-password" intent={error ? Intent.DANGER : Intent.NONE} helperText={error}>
-          <InputGroup id="fb-password" name="password" type="password" autoComplete="current-password" intent={error ? Intent.DANGER : Intent.NONE}/>
-        </FormGroup>
-        <Button type="submit" intent={Intent.PRIMARY} fill loading={isLoading} text="Sign in"/>
-      </DialogBody>
-    </form>
-  </Dialog>
-}
 

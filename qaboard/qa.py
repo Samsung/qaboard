@@ -27,7 +27,7 @@ from .utils import save_outputs_manifest, total_storage
 from .utils import redirect_std_streams, clean_output_dir
 from .utils import getenvs
 from .api import url_to_dir, print_url
-from .api import get_outputs, notify_qa_database, serialize_paths, exit_if_results_refused
+from .api import get_outputs, notify_qa_database, serialize_paths, exit_if_results_refused, ResultsUnreadable, print_auth_error
 from .iterators import iter_inputs, iter_parameters, load_runs_file, iter_runs, rerun_job_options, local_job_options
 from .batch_logs import saves_logs, batch_log
 
@@ -604,7 +604,16 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
 
   print_url(ctx)
   # if the commit does not exist or there are network errors it will return empty data
-  existing_outputs = get_outputs(ctx.obj, ignore_errors=True)
+  try:
+    existing_outputs = get_outputs(ctx.obj, ignore_errors=True)
+  except ResultsUnreadable as e:
+    # e.g. the server requires signing in: we can't tell which runs exist or are pending
+    existing_outputs = {}
+    print_auth_error(e.response, "QA-Board refused to read the batch's runs")
+    if action_on_existing != 'run':
+      click.secho(f"ERROR: --action-on-existing={action_on_existing} needs the batch's runs, else all the runs would be done again.", fg='red', bold=True, err=True)
+      exit(1)
+    click.secho("         qa batch can't see which runs are pending: it may start them again.", fg='yellow', err=True)
   log = batch_log(ctx)
   command_id = os.environ.get('QA_BATCH_COMMAND_ID', log['command_id'] if log else str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
   from .notify import is_nested, inherit_root_command, notify_channel, print_notification

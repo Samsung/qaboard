@@ -273,8 +273,16 @@ def get_output(output_id):
       pass
 
 
+class ResultsUnreadable(Exception):
+  """QA-Board refused to read results (e.g. signing in is required): `response` says why"""
+  def __init__(self, response):
+    super().__init__(f"QA-Board refused to read results ({response.status_code})")
+    self.response = response
+
+
 def batch_info(reference, batch, is_branch=False, project=project, metrics: Optional[List[str]]=None, ignore_errors=False):
-  """Get data about a batch of outputs in the database"""
+  """Get data about a batch of outputs in the database. `ignore_errors` is for network errors and missing commits:
+  refusals (e.g. signing in is required) raise ResultsUnreadable."""
   import requests
   params = {
     # project names use "/", but Path() uses "\\" on Windows
@@ -293,6 +301,8 @@ def batch_info(reference, batch, is_branch=False, project=project, metrics: Opti
     data = r.json()
   except Exception as e:
     if ignore_errors:
+      if refusal(r):
+        raise ResultsUnreadable(r)
       return {}
     if not print_auth_error(r, "Failed to get info from QA-Board"):
       click.secho(r.text, fg='red', err=True)
@@ -320,6 +330,8 @@ def get_outputs(qa_context: Optional[Dict[str, Any]], ignore_errors=False) -> Di
       metrics=["none-required"],
       ignore_errors=ignore_errors,
     )['outputs']
+  except ResultsUnreadable:
+    raise
   except Exception:
     return {}
 

@@ -232,6 +232,28 @@ class TestQaCli(unittest.TestCase):
     assert [job['output_dir'] for job in jobs] == [runs[1]['output_dir']]
     assert ' run --input ' in jobs[0]['command']
 
+  def test_batch_when_the_server_wont_read_runs(self):
+    """When signing in is required: qa batch says so, and doesn't redo every run when asked to skip the existing ones"""
+    from unittest import mock
+    from tests.test_auth import response
+    self.qa('--dryrun', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--list') # loads the modules
+    api = import_module('qaboard.api')
+    refused = api.ResultsUnreadable(response(401, {"error": "Sign in to do this.", "reason": "sign_in_required"}))
+    def batch(*args):
+      with mock.patch('qaboard.qa.get_outputs', side_effect=refused), mock.patch('qaboard.auth._warnings_shown', set()), \
+           mock.patch.dict(os.environ, {k: v for k, v in os.environ.items() if k != 'QA_AUTH_WARNING_SHOWN'}, clear=True):
+        return self.qa('--dryrun', 'batch', '--batches-file', 'image.batches.yaml', 'images', *args, '--list', reload_modules=False)
+    result = batch('--action-on-existing', 'skip')
+    assert result.exit_code == 1, result.output
+    output = click.unstyle(result.output)
+    assert "WARNING: QA-Board refused to read the batch's runs: Sign in to do this." in output
+    assert "--action-on-existing=skip needs the batch's runs" in output
+    # by default runs are done again anyway: a warning
+    result = batch()
+    assert result.exit_code == 0, result.output
+    assert len(json.loads(result.stdout)) == 3
+    assert "can't see which runs are pending" in click.unstyle(result.output)
+
   def test_check_bit_accuracy_reference_platform(self):
     """--reference-platform compares with the reference's runs on another platform"""
     from unittest import mock

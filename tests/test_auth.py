@@ -585,6 +585,16 @@ class TestIngestMessages(AuthTestCase):
     # outside CI, it's only a warning
     self.assertEqual(self.exit_if_results_refused(), (None, ''))
 
+  def test_reading_runs(self):
+    """qa batch looks up the runs it may skip: refusals are errors, network errors and missing commits aren't"""
+    from qaboard.api import batch_info, ResultsUnreadable
+    with mock.patch('requests.get', return_value=response(401, {"error": "Sign in to do this.", "reason": "sign_in_required"})):
+      with self.assertRaises(ResultsUnreadable) as raised:
+        batch_info('abc', 'default', project='group/repo', metrics=['none'], ignore_errors=True)
+    self.assertEqual(raised.exception.response.status_code, 401)
+    with mock.patch('requests.get', return_value=response(404, {"error": "Not found"})):
+      self.assertEqual(batch_info('abc', 'default', project='group/repo', metrics=['none'], ignore_errors=True), {})
+
   def test_expired_env_token(self):
     with mock.patch('qaboard.api.qa_token_source', 'QABOARD_TOKEN'):
       _, stderr = self.notify(response(401, {"error": "This token was revoked.", "reason": "token_revoked"}))

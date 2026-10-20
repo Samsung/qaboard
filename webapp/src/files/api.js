@@ -57,14 +57,9 @@ export const fetchJson = async url => {
   return response.json()
 }
 
-export const signIn = async (username, password) => {
-  const form = new FormData()
-  form.append('username', username)
-  form.append('password', password)
-  const response = await fetch('/api/v1/user/auth/', { method: 'POST', body: form, credentials: 'same-origin' })
-  if (!response.ok) throw await readError(response)
-  return response.json()
-}
+// The web app's sign-in page, then back to this file or folder
+export const signInUrl = ({ pathname, search = '' }) => `/login?${new URLSearchParams({ next: `${pathname}${search}` })}`
+export const navigateTo = url => window.location.assign(url)
 
 export const signOut = () => fetch('/api/v1/user/logout/', { method: 'POST', credentials: 'same-origin' })
 

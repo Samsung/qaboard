@@ -128,6 +128,11 @@ in **Admin → Settings** (or set `QABOARD_LOGIN_REQUIRED=true`). The API then a
 to sign in and for the results sent by `qa` (unless `ingest.auth` is `token`). Files under `/s/` too, when nginx checks
 who can read them (see [Restricting who can read files](#restricting-who-can-read-files)).
 
+Before turning it on, give a token with the `read` scope (`QABOARD_TOKEN`) to the CI jobs and scripts that read
+results: `qa gate`, `qa check-bit-accuracy`, `qa optimize`, and `qa batch` with `--action-on-existing` other than
+`run`, which needs the batch's past runs. Sending results keeps working without a token, unless `ingest.auth` is
+`token`. Users run `qa auth login` once.
+
 <img alt="Image viewer" src={useBaseUrl('img/login-block-unsigned-user.jpg')} />
 
 ## API tokens
