@@ -75,7 +75,6 @@ build-backend = "hatchling.build"
 # Outputs from running the sample project, e.g. during tests (hatch ignores nested .gitignore files)
 exclude = [
     "qaboard/sample_project/**/output/",
-    "qaboard/sample_project/**/cli_tests/**/*.jpg",
     "qaboard/sample_project/**/*.batches.yaml",
 ]
 
