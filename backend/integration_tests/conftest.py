@@ -66,7 +66,9 @@ def app():
   from backend.database import db_session, engine
   db_session.remove()
   engine.dispose()
-  admin_sql(f'DROP DATABASE IF EXISTS "{test_database}" WITH (FORCE)')
+  # the server runs PostgreSQL 12 (docker-compose.yml): no DROP DATABASE ... WITH (FORCE), it's 13+
+  admin_sql(f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{test_database}' AND pid <> pg_backend_pid()")
+  admin_sql(f'DROP DATABASE IF EXISTS "{test_database}"')
 
 
 @pytest.fixture(autouse=True)
