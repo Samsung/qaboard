@@ -96,6 +96,35 @@ def revoke_tokens(user_name):
   click.echo(f"Revoked {count} token{'s' if count != 1 else ''} of {user.user_name}.")
 
 
+@cli.command('check-sign-in')
+@click.option('--provider', 'provider_id', default=None, help="Only this provider, e.g. sso. By default all of them.")
+@click.option('--user', 'user_name', default=None, help="Also look this user up in LDAP, with the service account.")
+@click.option('--url', 'url', default=None, help="QA-Board's public URL, for the OIDC redirect URIs. By default $QABOARD_URL.")
+def check_sign_in(provider_id, user_name, url):
+  """Checks the sign-in providers like they fail: the IdP unreachable, the issuer, the redirect URI, LDAP's service account"""
+  import os
+  from backend.sign_in import providers, doctor, oidc
+  public_url = (url or os.environ.get('QABOARD_URL') or '').rstrip('/')
+  ok = True
+  for provider in providers.all_providers():
+    if provider_id and provider.id != provider_id:
+      continue
+    if provider.type == 'oidc':
+      if not public_url:
+        raise click.ClickException("Set $QABOARD_URL, or give --url: the redirect URIs depend on it.")
+      checks = doctor.check_oidc(provider, oidc.redirect_uri(provider, public_url))
+    elif provider.type == 'ldap':
+      checks = doctor.check_ldap(user_name)
+    else:
+      continue
+    click.secho(f"{provider.name} ({provider.id})", bold=True)
+    for c in checks:
+      click.secho(f"  {'OK  ' if c['ok'] else 'FAIL'} {c['check']}: {c['detail']}", fg=None if c['ok'] else 'red')
+      ok = ok and c['ok']
+  if not ok:
+    raise SystemExit(1)
+
+
 @cli.command('purge-audit')
 @click.option('--days', type=int, default=None, help="Delete the events older than this, by default the audit.retention_days setting.")
 def purge_audit(days):

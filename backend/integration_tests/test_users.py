@@ -137,7 +137,7 @@ def test_my_audit_events(logged_in, make_client):
   alice_id = User.query.filter(User.user_name == 'alice').one().id
   login_event = answer["events"][-1]
   assert login_event["actor_user_id"] == alice_id and login_event["actor_kind"] == "user"
-  assert login_event["meta"]["login_type"] == "LOCAL" and login_event["ip"] == "127.0.0.1"
+  assert login_event["meta"]["provider"] == "local" and login_event["ip"] == "127.0.0.1"
   assert answer["events"][1]["target_label"] == "laptop" and answer["events"][1]["meta"]["scopes"] == ["read", "ingest", "act"]
 
   # failed attempts on my account are mine to see

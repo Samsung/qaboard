@@ -24,6 +24,8 @@ from ..settings import setting
 from ..audit import audit
 from ..admins import is_admin, is_env_admin
 from ..actor import unauthenticated
+from ..sign_in import sessions
+from ..sign_in.accounts import finish as finish_sign_in, new_user_status
 from .. import tokens as tokens_lib
 
 
@@ -142,7 +144,7 @@ def auth_post():
   if user_info["login_success"]:
     if user is None:
       user_info = {"login_success": False, "error": "invalid-username"}
-    elif user.status in ('disabled', 'pending'):
+    elif user.status == 'disabled':
       user_info = {"login_success": False, "error": user.status}
   if not user_info["login_success"]:
     print(f"[auth] Failed Login @{username}")
@@ -159,18 +161,11 @@ def auth_post():
       reason = "not_allowed"
     return jsonify({"error": LOGIN_ERRORS.get(error) or error or LOGIN_ERRORS["invalid-password"], "reason": reason}), 403
 
-  login_user(user, remember=True, duration=timedelta(days=180))
-  signed_in(user)
+  provider_id = 'ldap' if (user.login_type or '').upper() == 'LDAP' else 'local'
+  finish_sign_in(user, provider_id)
   print(f"[auth] Login @{username}")
   # not user_info's data: with LDAP it holds everything the directory knows about the user
-  return jsonify({k: v for k, v in user_info.items() if k != 'data'})
-
-
-def signed_in(user, provider=None, **meta):
-  """Bookkeeping after a successful sign-in"""
-  user.last_login_at = tokens_lib.utcnow()
-  audit('auth.login', 'user', user.id, user.user_name, user=user, meta={"login_type": provider or user.login_type or "LOCAL", **meta})
-  db_session.commit()
+  return jsonify({**{k: v for k, v in user_info.items() if k != 'data'}, "status": user.status, "is_admin": is_admin(user), "user_id": user.id})
 
 
 @app.route('/api/v1/user/me/', methods=['GET'])
@@ -189,6 +184,18 @@ def get_current_user(to_jsonify=True):
     auth_error = g.get('auth_error')
     if auth_error:
       info["reason"], info["error"] = auth_error
+    pending_user = g.get('pending_user')
+    if pending_user is not None and to_jsonify:
+      # what the "waiting for an admin" page shows
+      from ..sign_in.access import pending_request, reviewers, serialize as serialize_request
+      request_row = pending_request(pending_user)
+      info["pending"] = {
+        "user_name": pending_user.user_name,
+        "full_name": pending_user.full_name,
+        "email": pending_user.email,
+        "request": serialize_request(request_row) if request_row else None,
+        "reviewers": [u.full_name or u.user_name for u in reviewers()][:5],
+      }
   else:
     info.update({
       "user_id": user.id,
@@ -366,6 +373,8 @@ def logout():
   if actor is not None and actor.user is not None and actor.token is None:
     audit('auth.logout', 'user', actor.user.id, actor.user.user_name)
     db_session.commit()
+  sessions.end()
+  db_session.commit()
   if current_user.is_authenticated:
     logout_user()
   session.pop('samlUserdata', None)
@@ -392,10 +401,12 @@ def create_user(info):
     # TODO: use a slower hash, currently the default is pbkdf2:sha256
     # https://werkzeug.palletsprojects.com/en/1.0.x/utils/#werkzeug.security.generate_password_hash
     password=generate_password_hash(info["password"]) if "password" in info else None,
+    # active, or waiting for an admin (auth.access_policy)
+    status=new_user_status(info.get("email")),
   )
   db_session.add(user)
   db_session.commit()
-  print(f"[auth] Created the user @{user.user_name}")
+  print(f"[auth] Created the user @{user.user_name}" + (" (waiting for an admin)" if user.status == 'pending' else ""))
   return user
 
 
@@ -534,6 +545,54 @@ def auth_local(username, password):
     info["data"] = user.data
   return info
 
+def ldap_connection():
+  """Bound with the service account. QABOARD_LDAP_HOST can be ldaps://host, or set QABOARD_LDAP_START_TLS=true."""
+  if ldap_host.startswith(('ldap://', 'ldaps://')):
+    ldap_uri = ldap_host if not os.environ.get('QABOARD_LDAP_PORT') else f"{ldap_host}:{ldap_port}"
+  else:
+    ldap_uri = f"ldap://{ldap_host}" if not ldap_port else f"ldap://{ldap_host}:{ldap_port}"
+  ldap_connect = ldap.initialize(ldap_uri)
+  ldap_connect.set_option(ldap.OPT_REFERRALS, 0)
+  if env_flag('QABOARD_LDAP_START_TLS'):
+    ldap_connect.start_tls_s()
+  ldap_connect.simple_bind_s(ldap_bind_dn, ldap_password)
+  return ldap_connect
+
+
+def ldap_search(user_name: str) -> str:
+  return ldap_user_filter.replace("{login}", ldap.filter.escape_filter_chars(user_name))
+
+
+def ldap_user_info(details, user_info):
+  """Fills user_info from the directory's answer"""
+  user_ldap = details[0][1]
+  user_info["full_name"] = str(user_ldap[ldap_attr_common_name][0], 'utf-8') if ldap_attr_common_name in user_ldap else None
+  if ldap_attr_email not in user_ldap:
+    user_info["email"] = None
+  else:
+    user_info["email"] = str(user_ldap[ldap_attr_email][0], 'utf-8')
+  # serialize and deserialize to str-json, to avoid dealing with bytes-type errors. # FIXME: any better solution?
+  user_info["data"] = simplejson.loads(simplejson.dumps(details))
+  return user_info
+
+
+def ldap_lookup(user_name: str):
+  """
+  What the directory knows about a user, with the service account: after an SSO sign-in, it keeps the accounts'
+  attributes up to date (QABOARD_LOGIN_RESTRICTED_YAML's rules read them). None if unknown, or without LDAP.
+  """
+  if login_type != "LDAP":
+    return None
+  ldap_connect = ldap_connection()
+  try:
+    details = [d for d in ldap_connect.search_s(ldap_user_base, ldap.SCOPE_SUBTREE, ldap_search(user_name), [ldap_attr_common_name, 'mail']) if d[0]]
+  finally:
+    ldap_connect.unbind_s()
+  if not details:
+    return None
+  return ldap_user_info(details, {"user_name": user_name, "login_type": login_type})
+
+
 def auth_ldap(user_name, password):
   if login_type != "LDAP":
     raise Exception("LDAP authentication is disabled")
@@ -542,42 +601,26 @@ def auth_ldap(user_name, password):
     "login_type": login_type,
     "login_success": False,
   }
-  # TODO: support for secure LDAP
-  ldap_uri = f"ldap://{ldap_host}" if not ldap_port else f"ldap://{ldap_host}:{ldap_port}"
-  ldap_connect = ldap.initialize(ldap_uri)
-  ldap_connect.set_option(ldap.OPT_REFERRALS, 0)
-  ldap_connect.simple_bind_s(ldap_bind_dn, ldap_password)
-
-  # check if the user exists
-  ldap_search = ldap_user_filter.replace("{login}", ldap.filter.escape_filter_chars(user_name))
-  certificate = ldap_connect.search_s(
-    ldap_user_base,
-    ldap.SCOPE_SUBTREE, 
-    ldap_search, 
-    ['distinguishedName'],
-  )[0][0]
+  ldap_connect = ldap_connection()
+  # check if the user exists. Referrals come as entries without a DN.
+  found = [entry for entry in ldap_connect.search_s(ldap_user_base, ldap.SCOPE_SUBTREE, ldap_search(user_name), ['distinguishedName']) if entry[0]]
+  certificate = found[0][0] if found else None
 
   if certificate:
     # check the password and get the full user info
     try:
       ldap_connect.set_option(ldap.OPT_REFERRALS, 0)
-      ldap_connect.simple_bind_s(certificate, password) 
+      ldap_connect.simple_bind_s(certificate, password)
       details = ldap_connect.search_s(
         ldap_user_base,
-        ldap.SCOPE_SUBTREE, 
-        ldap_search,
+        ldap.SCOPE_SUBTREE,
+        ldap_search(user_name),
         [ldap_attr_common_name, 'mail'],
       )
-      user_ldap = details[0][1]
       user_info["login_success"] = True
-      user_info["full_name"] = str(user_ldap[ldap_attr_common_name][0], 'utf-8')
-      if ldap_attr_email not in user_ldap:
-        user_info["email"] = None
+      ldap_user_info(details, user_info)
+      if user_info["email"] is None:
         user_info["error"] = f"missing-email-({ldap_attr_email} LDAP attribute)"
-      else:
-        user_info["email"] = str(user_ldap[ldap_attr_email][0], 'utf-8')
-      # serialize and deserialize to str-json, to avoid dealing with bytes-type errors. # FIXME: any better solution?
-      user_info["data"] = simplejson.loads(simplejson.dumps(details)) 
     except (ldap.INVALID_CREDENTIALS, ldap.OPERATIONS_ERROR):
       user_info["error"] = "invalid-password"
   else:
@@ -672,13 +715,12 @@ def saml_auth():
               user = update_user(user, user_info)
             else:
               user = create_user(user_info)
-            if user.status in ('disabled', 'pending'):
+            if user.status == 'disabled':
               session.clear()
               audit('auth.login_failed', 'user', user.id, user.user_name, meta={"reason": user.status, "login_type": "SAML"})
               db_session.commit()
-              return LOGIN_ERRORS[user.status], 403
-            login_user(user, remember=True, duration=timedelta(days=180))
-            signed_in(user, "SAML")
+              return redirect(f"/login?error=user_disabled")
+            finish_sign_in(user, 'saml', subject=session.get('samlNameId') or user.user_name, claims={k: v for k, v in (session.get('samlUserdata') or {}).items()})
             return redirect(safe_redirect_url(request.form.get('RelayState')))
     elif 'sls' in request.args:
         request_id = None

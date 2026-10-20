@@ -42,6 +42,8 @@ app.config.update(
     REMEMBER_COOKIE_HTTPONLY=True,
     REMEMBER_COOKIE_SAMESITE='Lax',
     REMEMBER_COOKIE_SECURE=_secure_cookies,
+    # the session's row says when it really ends (backend/sign_in/sessions.py)
+    PERMANENT_SESSION_LIFETIME=365 * 24 * 3600,
 )
 
 # Errors, traces and profiles are sent to Sentry if $SENTRY_DSN is set: see backend/sentry.py
@@ -87,6 +89,8 @@ import backend.api.auth
 import backend.api.tokens
 import backend.api.users
 import backend.api.admin
+import backend.api.sign_in
+import backend.api.admin_sign_in
 import backend.api.tasks
 import backend.api.files
 

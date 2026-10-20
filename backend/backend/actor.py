@@ -32,6 +32,7 @@ PUBLIC_ENDPOINTS = {
   'get_site_config', 'health',
   # signing in
   'get_current_user', 'auth_post', 'signup', 'logout', 'saml_auth', 'device_code', 'device_token',
+  'sign_in_providers', 'oidc_start', 'oidc_callback', 'my_access_request',
   # nginx asks it whether users may read files, it answers 401 itself
   'authorize_files',
 }
@@ -161,15 +162,32 @@ def touch(token):
 
 
 def session_user():
-  from flask_login import current_user
-  user = current_user._get_current_object() if current_user else None
-  if user is not None and getattr(user, 'is_authenticated', False):
-    return user
-  # Users who signed in with SAML before sessions were shared with flask-login
-  if 'samlUserdata' in session:
+  """The user of the request's session (backend/sign_in/sessions.py)"""
+  from .sign_in import sessions
+  row = sessions.current()
+  if row is not None:
+    return row.user
+  if 'sid' in session or g.get('auth_error'):
+    return None
+  # Sessions opened before sessions were stored (flask-login's cookies, SAML's): they become stored sessions, nobody
+  # is signed out by the upgrade
+  user = None
+  if session.get('_user_id') or request.cookies.get('remember_token'):
+    from flask_login import current_user
+    candidate = current_user._get_current_object() if current_user else None
+    if candidate is not None and not getattr(candidate, 'is_anonymous', True):
+      user = candidate
+  elif 'samlUserdata' in session:
     from .api.auth import saml_session_user
-    return saml_session_user()
-  return None
+    user = saml_session_user()
+  if user is None:
+    return None
+  from flask_login import logout_user
+  from backend import db_session
+  logout_user()
+  sessions.start(user, (user.login_type or 'local').lower())
+  db_session.commit()
+  return user
 
 
 def own_origins() -> set:
@@ -219,10 +237,15 @@ def resolve_actor():
   else:
     user = session_user()
     if user is not None:
-      if user.status in USER_ERRORS:
-        from flask_login import logout_user
-        logout_user()
-        session.pop('samlUserdata', None)
+      if user.status == 'disabled':
+        from .sign_in import sessions
+        from backend import db_session
+        sessions.end()
+        db_session.commit()
+        g.auth_error = USER_ERRORS[user.status]
+      elif user.status == 'pending':
+        # they keep their session: they see that they wait for an admin, and can say why they need access
+        g.pending_user = user
         g.auth_error = USER_ERRORS[user.status]
       else:
         g.actor = Actor(user)

@@ -36,6 +36,7 @@ class Definition(NamedTuple):
   choices: Optional[tuple] = None
   nullable: bool = False
   minimum: Optional[int] = None
+  maximum: Optional[int] = None
 
 
 DEFINITIONS = {
@@ -66,6 +67,30 @@ DEFINITIONS = {
   'tokens.cli_idle_expiry_days': Definition(
     "Tokens created by `qa auth login` expire after this many days without being used.",
     180, int, minimum=1,
+  ),
+  'auth.access_policy': Definition(
+    "Who gets an account when they first sign in: \"open\" (everyone a sign-in method accepts), \"domains\" (emails in auth.allowed_email_domains, the others wait for an admin), \"approval\" (everyone waits for an admin).",
+    'open', str, env='QABOARD_ACCESS_POLICY', choices=('open', 'domains', 'approval'),
+  ),
+  'auth.allowed_email_domains': Definition(
+    "With auth.access_policy \"domains\": the email domains whose users get an account right away, e.g. example.com.",
+    [], list, env='QABOARD_ALLOWED_EMAIL_DOMAINS', parse_env=env_list,
+  ),
+  'auth.access_request_webhook': Definition(
+    "An incoming webhook (Slack, Teams, Mattermost...) told when users wait for an admin. QA-Board sends {\"text\": \"...\"}.",
+    None, str, env='QABOARD_ACCESS_REQUEST_WEBHOOK', nullable=True,
+  ),
+  'auth.sso_auto_redirect': Definition(
+    "When signing in is required and there is a single single sign-on method, the sign-in page goes straight to it. /login?local=1 still shows the password form.",
+    False, bool, env='QABOARD_SSO_AUTO_REDIRECT', parse_env=env_flag,
+  ),
+  'sessions.idle_days': Definition(
+    "Browser sessions end after this many days without activity.",
+    30, int, minimum=1,
+  ),
+  'sessions.max_days': Definition(
+    "Browser sessions end after this many days, active or not: users sign in again.",
+    180, int, minimum=1, maximum=365,
   ),
   'audit.retention_days': Definition(
     "Audit events older than this are deleted by `qaboard-admin purge-audit` (run it from a scheduled job).",
@@ -175,6 +200,8 @@ def validate(key: str, value):
       raise ValueError(f"{key} must be a whole number")
     if definition.minimum is not None and value < definition.minimum:
       raise ValueError(f"{key} must be at least {definition.minimum}")
+    if definition.maximum is not None and value > definition.maximum:
+      raise ValueError(f"{key} must be at most {definition.maximum}")
   elif definition.type is list:
     if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
       raise ValueError(f"{key} must be a list of texts")

@@ -68,3 +68,17 @@ def test_users_keep_working(alembic, make_user, client):
   alembic('upgrade', 'head')
   assert sql("SELECT status, is_admin, kind, preferences::text FROM users") == [('active', False, 'human', '{}')]
   assert client.post('/api/v1/user/auth/', data={"username": "alice", "password": "password"}).status_code == 200
+
+
+def test_identities_are_backfilled(alembic, make_user, client):
+  """Users get an identity per their login type: the sign-in methods they have"""
+  from backend.database import db_session
+  from backend.models import User
+  make_user('alice')
+  make_user('bob', login_type='LDAP')
+  alembic('downgrade', 'c3d5e7f9a1b2')
+  assert not sql("SELECT 1 FROM information_schema.tables WHERE table_name = 'user_sessions'")
+  alembic('upgrade', 'head')
+  rows = sql("SELECT u.user_name, i.provider_id, i.subject FROM user_identities i JOIN users u ON u.id = i.user_id ORDER BY u.user_name")
+  assert rows == [('alice', 'local', 'alice'), ('bob', 'ldap', 'bob')]
+  assert client.post('/api/v1/user/auth/', data={"username": "alice", "password": "password"}).status_code == 200

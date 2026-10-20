@@ -87,6 +87,8 @@ def pytest_configure():
     models_mod.DeviceAuthorization = MagicMock()
     models_mod.AuditEvent = MagicMock()
     models_mod.Setting = MagicMock()
+    for name in ('AuthProvider', 'UserIdentity', 'UserSession', 'AccessRequest'):
+        setattr(models_mod, name, MagicMock())
     models_mod.batches_stats = MagicMock()
     models_mod.BatchNotification = MagicMock()
     sys.modules['backend.models'] = models_mod

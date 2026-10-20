@@ -214,18 +214,23 @@ def test_disabled_users_wrong_password(client, make_user):
   assert response.get_json()["reason"] == "invalid_credentials"
 
 
-def test_pending_users_cant_log_in(client, make_user):
-  """Users waiting for an admin are told so when they log in"""
+def test_pending_users_sign_in_to_wait(client, make_user, make_client):
+  """Users waiting for an admin sign in to a page that says so, where they say why they need access"""
   make_user('alice', status='pending')
   response = client.post('/api/v1/user/auth/', data={"username": "alice", "password": "password"})
-  assert response.status_code == 403
-  assert response.get_json() == {"error": "This account is waiting for an admin's approval.", "reason": "user_pending"}
-  assert client.get('/api/v1/user/me/').get_json()["is_authenticated"] is False
-  from backend.models import AuditEvent, User
-  assert User.query.filter(User.user_name == 'alice').one().last_login_at is None
-  assert AuditEvent.query.filter(AuditEvent.action == 'auth.login').count() == 0
-  event = AuditEvent.query.filter(AuditEvent.action == 'auth.login_failed').one()
-  assert event.meta["reason"] == "pending"
+  assert response.status_code == 200 and response.get_json()["status"] == "pending"
+  me = client.get('/api/v1/user/me/').get_json()
+  assert me["is_authenticated"] is False and me["reason"] == "user_pending"
+  assert me["pending"]["user_name"] == "alice" and me["pending"]["request"]["status"] == "pending"
+  # nothing else
+  assert client.get('/api/v1/user/tokens').status_code == 401
+  response = client.post('/api/v1/user/access-request', json={"message": "I'm in the camera team"})
+  assert response.status_code == 200 and response.get_json()["message"] == "I'm in the camera team"
+  assert client.get('/api/v1/user/me/').get_json()["pending"]["request"]["message"] == "I'm in the camera team"
+  assert make_client().post('/api/v1/user/access-request', json={"message": "x"}).status_code == 401
+  from backend.models import AuditEvent
+  event = AuditEvent.query.filter(AuditEvent.action == 'auth.login').one()
+  assert event.meta["pending"] is True
 
 
 def test_pending_user_session(logged_in):
