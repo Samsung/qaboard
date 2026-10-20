@@ -1,5 +1,5 @@
 """
-Tests for backend/metrics_aggregation.py: the per-batch medians and averages of the runs' metrics,
+Tests for backend/metrics_aggregation.py: the per-batch medians, averages and sums of the runs' metrics,
 e.g. for the chart above a branch's commits.
 
 The SQL itself runs only against a real PostgreSQL: set QABOARD_TEST_DATABASE_URL (postgresql://user:password@host/db).
@@ -39,14 +39,14 @@ def test_metric_names():
 def test_one_query_for_all_batches(sql_text):
   session = MagicMock()
   session.execute.return_value.fetchall.return_value = [
-    # batch_id, loss median, loss average, recall median, recall average
-    (1, 0.5, 0.75, 0.9, 0.8),
-    (2, None, None, float('nan'), 0.6),
+    # batch_id, loss median, loss average, loss sum, recall median, recall average, recall sum
+    (1, 0.5, 0.75, 3, 0.9, 0.8, 2.4),
+    (2, None, None, None, float('nan'), 0.6, 1.2),
   ]
   aggregated = aggregated_metrics(session, [1, 2, 3, 1], {'loss': 0.1, 'recall': 0.5})
   assert aggregated == {
-    1: {'loss_median': 0.5, 'loss_average': 0.75, 'recall_median': 0.9, 'recall_average': 0.8},
-    2: {'recall_average': 0.6},
+    1: {'loss_median': 0.5, 'loss_average': 0.75, 'loss_sum': 3.0, 'recall_median': 0.9, 'recall_average': 0.8, 'recall_sum': 2.4},
+    2: {'recall_average': 0.6, 'recall_sum': 1.2},
     # no valid run
     3: {},
   }
@@ -126,13 +126,13 @@ def test_postgres_aggregation(postgres):
   aggregated = aggregated_metrics(session, [1, 2, 4], {'loss': 5, 'recall': 0.4, "it's": 1})
   assert session.queries == 1
   assert aggregated == {
-    1: {'loss_median': 3.0, 'loss_average': 4.0, 'recall_median': 0.5, 'recall_average': 0.5},
+    1: {'loss_median': 3.0, 'loss_average': 4.0, 'loss_sum': 20.0, 'recall_median': 0.5, 'recall_average': 0.5, 'recall_sum': 2.0},
     2: {},
     4: {},
   }
   # medians interpolate, like numpy's
   aggregated = aggregated_metrics(session, [1], {'recall': None})
-  assert aggregated == {1: {'recall_median': 0.5, 'recall_average': 0.5}}
+  assert aggregated == {1: {'recall_median': 0.5, 'recall_average': 0.5, 'recall_sum': 2.0}}
   run(5, '{"x": 1}')
   run(5, '{"x": 2}')
-  assert aggregated_metrics(session, [5], {'x': None}) == {5: {'x_median': 1.5, 'x_average': 1.5}}
+  assert aggregated_metrics(session, [5], {'x': None}) == {5: {'x_median': 1.5, 'x_average': 1.5, 'x_sum': 3.0}}

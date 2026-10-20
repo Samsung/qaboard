@@ -2,7 +2,7 @@
 Per-batch aggregates of the runs' metrics, e.g. for the chart above a branch's commits and the tuning views.
 
 The web app asks for some metrics (the `metrics` query parameter, {metric: target}), and gets for each batch
-`{metric}_median` and `{metric}_average`, computed by PostgreSQL with one grouped query over all the batches.
+`{metric}_median`, `{metric}_average` and `{metric}_sum`, computed by PostgreSQL with one grouped query over all the batches.
 """
 import math
 from typing import Dict, Iterable, List, Tuple
@@ -21,7 +21,7 @@ def metric_names(metrics) -> List[str]:
 
 def aggregation_query(metrics: List[str]) -> Tuple[str, Dict]:
   """
-  The SQL (with :named parameters) giving, per batch in :batch_ids, the median and average of each metric.
+  The SQL (with :named parameters) giving, per batch in :batch_ids, the median, average and sum of each metric.
   Only the valid runs count: not failed, not pending, not deleted. Values that are null, missing or not
   numbers (strings, booleans, objects...) are ignored. A metric without any value gives NULLs.
   """
@@ -35,7 +35,8 @@ def aggregation_query(metrics: List[str]) -> Tuple[str, Dict]:
     )
     aggregates.append(
       f"percentile_cont(0.5) WITHIN GROUP (ORDER BY value_{index}) AS median_{index}, "
-      f"avg(value_{index}) AS average_{index}"
+      f"avg(value_{index}) AS average_{index}, "
+      f"sum(value_{index}) AS sum_{index}"
     )
   sql = (
     f"SELECT batch_id, {', '.join(aggregates)} "
@@ -55,24 +56,26 @@ def is_number(value) -> bool:
 
 
 def aggregates_from_rows(rows, metrics: List[str]) -> Dict[int, Dict[str, float]]:
-  """{batch_id: {'{metric}_median': ..., '{metric}_average': ...}} from the query's rows, without missing values"""
+  """{batch_id: {'{metric}_median': ..., '{metric}_average': ..., '{metric}_sum': ...}} from the query's rows, without missing values"""
   aggregated = {}
   for row in rows:
     batch_id, numbers = row[0], row[1:]
     batch = {}
     for index, metric in enumerate(metrics):
-      median, average = numbers[2 * index], numbers[2 * index + 1]
+      median, average, total = numbers[3 * index:3 * index + 3]
       if is_number(median):
         batch[f'{metric}_median'] = float(median)
       if is_number(average):
         batch[f'{metric}_average'] = float(average)
+      if is_number(total):
+        batch[f'{metric}_sum'] = float(total)
     aggregated[batch_id] = batch
   return aggregated
 
 
 def aggregated_metrics(session, batch_ids: Iterable[int], metrics) -> Dict[int, Dict[str, float]]:
   """
-  {batch_id: {'{metric}_median': ..., '{metric}_average': ...}} for each batch, with one query.
+  {batch_id: {'{metric}_median': ..., '{metric}_average': ..., '{metric}_sum': ...}} for each batch, with one query.
   Batches without any value for the metrics get {}. Without metrics or batches, nothing is queried.
   """
   names = metric_names(metrics)
