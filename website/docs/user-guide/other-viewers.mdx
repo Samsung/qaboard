@@ -2,7 +2,7 @@
 id: other-viewers
 title: Plots, flame graphs, 3D and more
 sidebar_label: Plots, 3D and more
-description: "How the other viewers compare new and reference: plots, flame graphs, text, HTML reports, point clouds and trajectories, and the stages or frames of a run."
+description: "How the other viewers compare new and reference: plots, flame graphs, test reports, text, HTML reports, point clouds and trajectories, and the stages or frames of a run."
 ---
 Runs show more than images and videos: plots, CPU profiles, transcripts, the reports your code writes, 3D maps and
 trajectories. Each viewer puts the reference's result next to the new one, or over it, so you see what the change did.
@@ -11,6 +11,7 @@ trajectories. Each viewer puts the reference's result next to the new one, or ov
 |---|---|
 | Curves, bars, heatmaps: a detector's precision-recall curves, a server's latency percentiles | [Plots](#plots), the reference's drawn over the new ones, or next to them |
 | CPU profiles of a server or a pipeline | [Flame graphs](#flame-graphs), colored by what got slower or faster |
+| Unit and integration test reports (JUnit XML) | [Test reports](#test-reports): each test against the reference, with what started failing, what got fixed and what disappeared |
 | Text: an LLM agent's transcripts, logs, tables | [Text diffs](#text), line by line |
 | Reports your code writes as web pages | [HTML reports](#html-reports), the new one above the reference's |
 | A robot's maps and 6DoF trajectories | [Point clouds and trajectories](#point-clouds-and-trajectories), in 3D, with the ground truth |
@@ -112,6 +113,54 @@ profile, colored by what changed.
 - To record flame graphs with your code, read
   [Creating and viewing flame graphs](/blog/2020/06/24/flame-graphs), and Brendan Gregg's
   [differential flame graphs](http://www.brendangregg.com/blog/2014-11-09/differential-flame-graphs.html).
+
+</details>
+
+## Test reports {#test-reports}
+When a run is a test suite, its card shows the suite's tests compared with the reference run's: which ones started
+failing, which got fixed, which are new, gone, skipped or flaky, and why each failure happened.
+
+<Shot id="commit/junit-viewer" />
+
+To review a change to the tests:
+1. **Read the numbers at the top.** Each status has its count and its change vs the reference. The colored chips below
+   name the changes: **new failures**, **fixed**, **added**, **removed**, **newly flaky**, **newly skipped**.
+2. **Click a chip or a number** to see only those tests. Shift-click numbers to combine them, e.g. failed and errors.
+3. **Click a test** to see its details on the right: its status here and in the reference, its time, the failure's
+   message and trace, and its output. When the reference failed differently, its failure shows too.
+4. **Press <kbd>n</kbd>** to go to the next failure, <kbd>p</kbd> to the previous one: the groups above it open.
+
+The list opens on the first new failure, with the groups that have failures or changes open. A removed test is
+struck through: the reference ran it, this run didn't, which a green CI doesn't tell you.
+
+- **Search** tests by name, group or failure message: every word must match, and `-word` leaves out the tests that
+  have it, e.g. `codec -fuzz`. <kbd>/</kbd> goes to the search, <kbd>Esc</kbd> clears it and the filters.
+- **Sort** by failures first (the default), by name (tests stay in the order they ran), or slowest first.
+- Groups are the packages, modules, classes or suites of the report. Each shows how many of its tests failed or are
+  flaky, its most important change, a bar of its tests' statuses, how many tests it has and their time.
+- **Much slower** tests took twice as long as in the reference and at least 100 ms more.
+
+<details>
+<summary>Keyboard shortcuts and more</summary>
+
+Click in the list, then:
+
+| Keys | What they do |
+|---|---|
+| <kbd>↑</kbd> <kbd>↓</kbd>, <kbd>Home</kbd> <kbd>End</kbd>, <kbd>PgUp</kbd> <kbd>PgDn</kbd> | Move in the list |
+| <kbd>→</kbd> <kbd>←</kbd> | Open or close a group, or go to its first child or its parent |
+| <kbd>Enter</kbd>, double-click | Open or close a group |
+| <kbd>n</kbd> <kbd>p</kbd> | Next or previous failure: new failures, failures and removed tests |
+| <kbd>c</kbd> | Copy the test's id, e.g. to run it alone |
+| <kbd>/</kbd>, <kbd>Esc</kbd> | Search, clear the search and the filters |
+
+- The ⌘ button above the list shows these shortcuts.
+- A group's details have **Search this group**, to see only its tests, and **Open all below**.
+- Tests are matched with the reference's by their id: their class (or file) and name. A renamed test shows as
+  removed, and its new name as added.
+- Flaky tests are those the report marks as failed, then passed when run again. Not every test runner says it.
+- Without a reference report, the new one shows alone, without changes.
+- The viewer stays fast with tens of thousands of tests: only the rows you see are drawn.
 
 </details>
 
