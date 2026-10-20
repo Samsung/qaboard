@@ -1,72 +1,72 @@
 ---
 id: references-and-milestones
-title: References & Milestones
-sidebar_label: References & Milestones
+title: References and milestones
+sidebar_label: References & milestones
+description: Choose what your project's results are compared with by default, list reference branches, and use milestones from the CI and scripts.
 ---
 
-when looking at results, it is important to *compare* them to a reference.  It could to a previous version, results from a benchmark
+Every result in QA-Board is compared with a reference: the web app shows each run next to the matching run of the
+reference, and `qa gate` and `qa check-bit-accuracy` fail on the differences. As whoever integrates a project, you
+choose the default reference, and the versions worth comparing with. People [pick other references](/docs/user-guide/comparing-results#picking-a-reference)
+and [save milestones](/docs/user-guide/milestones#saving-a-milestone) in the web app.
 
-## Comparing versus a reference
-In results pages, QA-Board always compares the commit you selected (labeled `new`) versus a reference (`ref`):
-
-<Shot
-  id="commit/visualizations"
-  caption="The new commit's bar on top, the reference's below; each run is shown against its reference run."
-/>
-
-The reference is by default the latest commit from the project's reference branch:
+## Set the default reference {#comparing-versus-a-reference}
+By default, a commit is compared with the latest commit of the project's reference branch that has successful runs:
 
 ```yaml title="qaboard.yaml"
 project:
-    reference_branch: master
+  reference_branch: main
 ```
 
-:::note
-Set `reference_branch` explicitly: when it's missing, the web application uses `develop`, while the `qa` CLI (e.g. `qa check-bit-accuracy`) uses `master`.
-:::
-
-To change the selected `new` or `ref` commit, you can edit the commit ID field in the navbar. Hovering **Change** gives you a menu with other options:
+Run your CI on that branch (see [CI integration](/docs/ci-integration)): its latest results are what every other
+commit is compared with. On a commit page, the reference's **Change** menu offers the reference branch, the
+milestones, and to switch the new and reference commits:
 
 <Shot
   id="commit/change-menu"
-  caption="Switch new and reference, or pick the reference branch's latest commit or a milestone."
+  caption="The reference's Change menu: the reference branch, main, then the shared milestones, kd-1.3 and kd-1.2."
 />
 
-:::tip
-Clicking on the branch name in the navbar will select the latest commit on the branch.
+:::caution
+Set `reference_branch`: without it, the commit page compares with the latest commit that has results on any branch,
+while the **Change** menu, `qa check-bit-accuracy` and `qa gate` use `master`.
 :::
 
-## Project References
-You can also list in *qaboard.yaml* other versions as milestones.
+## List reference branches in *qaboard.yaml* {#project-references}
+Release branches and long-lived branches you often compare with can be listed under `project.milestones`:
 
-```yaml {3-6} title="qaboard.yaml"
+```yaml {3-5} title="qaboard.yaml"
 project:
-    reference_branch: master
-    milestones:
-    - release/v1.0.0      # tag
-    - feature/better-perf # branch
-    - e45123a3565         # commit id
+  reference_branch: main
+  milestones:
+    - release/kd-1.3
+    - quant/int8
 ```
 
-## Defining Milestones from QA-Board
-Logged-in users save milestones with the “star” icon in each commit navbar: a commit's batch, with the filter they selected. They give them a name, and optionally a group (like `tuning/denoiser`) and notes:
+They are listed in the **Milestones** menus under "From qaboard.yaml": picking one compares with the latest commit of
+that branch. To keep the results of one commit, save a milestone instead.
 
-<Shot
-  id="commit/milestone"
-  caption="Saving the results of a commit: the dialog says what it saves, then asks for a name, a group and who sees it."
-/>
-
-You'll now be able to select them in the **Change** menu, and in the sidebar's **Milestones** menu:
+## Use milestones in the CI and in scripts {#milestones}
+Milestones are results saved in the web app to compare with later: a commit's batch, with a name like `kd-1.2`, notes,
+and a filter. They're shared with everyone on the project, or private. See
+[Milestones](/docs/user-guide/milestones) in the user guide for how people save and find them.
 
 <Shot
   id="commits/milestones-menu"
-  caption="Your favorites first, then your milestones by group, then the project's."
+  caption="The Milestones menu: the detector's releases, kd-1.3 and kd-1.2, shared with everyone, then a private milestone."
 />
 
-- Milestones are saved in your account. You choose who sees them in their lists: only you, or everyone on the project. Only their owner can edit or delete them.
-- Each milestone has a link, `/<project>/milestone/<id>-<name>`, that anyone who can see the project can open. Renaming a milestone keeps its link.
-- Add milestones to your favorites (the heart): they are listed first, and in the sidebar.
-- In the milestones menus, the search box matches their name, group, notes, branch, batch, filter or owner.
-- The [cleanup of old results](storage/deleting-old-data) keeps the batches that are milestones, and the web application won't delete all their runs.
+For integrators:
+- **Gate on a release:** `qa gate --reference kd-1.2`, or `gate.reference: kd-1.2` in *qaboard.yaml*, compares with a
+  shared milestone, by its name (see [Quality gate](/docs/quality-gate#set-the-rules)). `#12` names the milestone
+  whose link is `/<project>/milestone/12-...`, shared or not.
+- **Read them from scripts:** `GET /api/v1/milestones?project=<project>` lists the shared milestones (and yours, with
+  your [API token](/docs/apis#authentication)): each with its `label`, `group`, `notes`, `commit`, `batch` and
+  `filter`.
+- **Link to them:** each milestone has a link, `/<project>/milestone/<id>-<name>`, that anyone who can see the
+  project can open. Renaming a milestone keeps its link.
+- **Keep their results:** the [cleanup of old results](/docs/storage/deleting-old-data) keeps the batches that are
+  milestones, and the web app won't delete all their runs.
 
-See the user guide on [milestones](/docs/user-guide/comparing-results#milestones).
+`qa check-bit-accuracy --reference` takes a branch, a tag or a commit, not a milestone (see
+[Bit accuracy](/docs/bit-accuracy#which-reference)).

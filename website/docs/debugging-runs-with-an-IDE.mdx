@@ -1,60 +1,76 @@
 ---
 id: debugging-runs-with-an-IDE
-title: Debugging QA-Board' runs in an IDE
+title: Debugging runs in an IDE
 sidebar_label: Debugging with IDEs
+description: Set breakpoints in your run() function by debugging one qa run in VS Code or PyCharm.
 ---
-import useBaseUrl from '@docusaurus/useBaseUrl';
 
-## How to debug runs
-In most cases you want to debug code and set breakpoints inside your `run()` function. That means you want to debug individual **runs**, not a whole batch.
+To stop at a breakpoint in your `run()` function, debug one run: `qa run` on one input, as a Python module, in your
+IDE. Debugging `qa batch` doesn't work: its runs execute in other processes (with `--runner local`), or on other
+machines (with a cluster's runner), where your debugger can't follow.
 
-:::tip
-If you try to debug the `qa batch` command, your debugger will not be able to attach to the runs. Those at best will happen in a different subprocess (if using `qa batch --runner=local`), and at worst on a different computer (if using distributed job schedulers).
-:::
+## Find the run's command {#how-to-debug-runs}
+Take the `qa run` command of the run you want to debug:
+- **From a batch:** `qa --dryrun batch ci` prints each run's command, and its output directory, without running
+  anything. In the detector's project:
 
-To know what `qa run` command you need to debug, you can:
-- Look at the logs of your run in the web UI: it's at the top.
-- Run `qa --dryrun batch xxxx` to just print the individual `qa run` commands executed in a batch.
+  ```bash
+  qa --dryrun batch ci
+  ```
 
-## Debugging with PyCharm
-Edit your "debug configurations" like this:
+  ```text
+  qa --configuration fp32:size-320 run --input "slices/indoor"
+     /home/arjun/detector/output/7622c337-20/slices-indoor
+  qa --configuration fp32:size-320 run --input "slices/outdoor"
+     /home/arjun/detector/output/7622c337-20/slices-outdoor
+  ...
+  ```
 
-- **Module name:** `qaboard` *(make sure you select "module" not "script" in the dropdown menu).*
-- **Parameters:** CLI parameters for `qa`: **`run -i images/A.jpg`**. Don't write `qa`, and make sure you debug a `run` command, not a batch.
-- **Working directory:** Check it’s defined as the directory with *qaboard.yaml*. If this directory happens to have a subfolder named "qaboard", use it.
+  `qa batch ci --list` prints the same as JSON, with each run's `command`.
+- **From a CI run:** the first line of its log, in the web app's **Logs** view, is its `qa run` command.
 
-<img alt="pyCharm setup" src={useBaseUrl('img/pycharm-debugging-setup.png')} />
+Then give your IDE the arguments that come after `qa`.
 
-> In some cases you'll also need to define as environment variables `LC_ALL=en_US.utf8 LANG=en_US.utf8`
+## VS Code {#debugging-with-vscode}
+Add a configuration to *.vscode/launch.json* (**Run > Add Configuration...**):
 
-## Debugging with VSCode
-To configure debugging, the editor opens a file called *launch.json*. You want to add configurations that look like those:
-
-```json
+```json title=".vscode/launch.json"
 {
-  "name": "qaboard",
-  "type": "python",
-  "request": "launch",
-  "module": "qaboard",
-  "args": [
-    "--help",
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "qa run",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "qaboard",
+      "cwd": "${workspaceFolder}",
+      "args": ["--configuration", "int8:size-320", "run", "--input", "slices/small-objects"]
+    }
   ]
-},
+}
 ```
 
-To debug `qa run`, for instance:
-```json
-  "args": [
-    "--database",
-    ".",
-    "run", // don't debug "qa batch" command
-    "--input",
-    "images/A.jpg",
-  ]
-```
+- `module` is `qaboard`: VS Code runs `python -m qaboard`, which is `qa`.
+- `args` are the arguments after `qa`. Debug a `run`, not a `batch`.
+- `cwd` is the folder with your *qaboard.yaml*.
 
 :::caution
-Don't start `args` with `"--"`: `qa` now treats everything after `--` as arguments forwarded to your code, so the command would be ignored.
+Don't start `args` with `"--"`: `qa` treats everything after `--` as arguments forwarded to your code, so the command
+would be ignored.
 :::
 
-Here is a more in-depth review of your options at https://code.visualstudio.com/docs/python/debugging
+See VS Code's [Python debugging docs](https://code.visualstudio.com/docs/python/debugging) for the other options.
+
+## PyCharm {#debugging-with-pycharm}
+In **Run > Edit Configurations...**, add a **Python** configuration:
+1. In the script/module selector, choose **Module**, not **Script**, and enter `qaboard`.
+2. **Parameters**: the arguments after `qa`, like `--configuration int8:size-320 run --input slices/small-objects`.
+   Debug a `run`, not a `batch`.
+3. **Working directory**: the folder with your *qaboard.yaml*.
+
+Then start it with **Debug**: PyCharm stops at the breakpoints in your `run()`.
+
+:::tip
+If `qa` complains about the locale, add the environment variables `LC_ALL=en_US.utf8` and `LANG=en_US.utf8` to the
+configuration.
+:::
