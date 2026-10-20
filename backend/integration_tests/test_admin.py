@@ -601,7 +601,9 @@ def test_overview(people, make_client):
   checklist = {item["id"]: item for item in overview["checklist"]}
   assert set(checklist) >= {"require_sign_in", "ingest_auth", "https", "secret_key", "legacy_tokens", "local_signup"}
   for item in overview["checklist"]:
-    assert item["severity"] in ("info", "warning", "danger") and item["title"] and item["detail"]
+    assert item["severity"] in ("info", "warning", "danger") and item["title"]
+    # what to do about it
+    assert item["ok"] or item["detail"]
     assert isinstance(item["ok"], bool)
   assert checklist["require_sign_in"]["ok"] is False and checklist["require_sign_in"]["severity"] == "warning"
   assert checklist["ingest_auth"]["ok"] is False

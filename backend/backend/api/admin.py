@@ -90,19 +90,22 @@ def admin_overview():
 def checklist() -> list:
   """What admins should look at to secure their server"""
   items = []
-  def item(id, ok, severity, title, detail):
-    items.append({"id": id, "ok": ok, "severity": 'info' if ok else severity, "title": title, "detail": detail})
+  def item(id, ok, severity, title, detail, ok_detail=None):
+    # what to do when it's not ok, else what to know, if anything
+    items.append({"id": id, "ok": ok, "severity": 'info' if ok else severity, "title": title, "detail": ok_detail if ok else detail})
 
   require_sign_in = settings_lib.setting('auth.require_sign_in')
   item('require_sign_in', require_sign_in, 'warning',
        "Sign-in is required" if require_sign_in else "Anonymous users can read every project",
-       "Set auth.require_sign_in to require signing in, except for sending results (see ingest.auth).")
+       "Set auth.require_sign_in to require signing in, except for sending results (see ingest.auth).",
+       "Anonymous users only see the sign-in page. Results sent by qa follow ingest.auth.")
 
   ingest = settings_lib.setting('ingest.auth')
   item('ingest_auth', ingest == 'token', 'warning' if ingest == 'off' else 'info',
        {"off": "Anyone who can reach the server can send results", "warn": "Results without a token are accepted, with a warning",
         "token": "Sending results requires a token"}[ingest],
-       "Results sent without a token are marked unverified. Move ingest.auth to \"warn\", then \"token\", once CI jobs use tokens (QABOARD_TOKEN).")
+       "Results sent without a token are marked unverified. Move ingest.auth to \"warn\", then \"token\", once CI jobs use tokens (QABOARD_TOKEN).",
+       "CI jobs need a token with the ingest scope, in QABOARD_TOKEN.")
 
   qaboard_url = os.environ.get('QABOARD_URL', '')
   secure = qaboard_url.startswith('https://') or os.environ.get('QABOARD_COOKIE_SECURE', '').lower() in ('1', 'true', 'yes')
@@ -123,7 +126,8 @@ def checklist() -> list:
   risky_signup = local_signup and login_type != 'LOCAL'
   item('local_signup', not risky_signup, 'danger',
        "Local sign-up is off" if not local_signup else ("Anyone can create a local account" if risky_signup else "Anyone can create an account"),
-       "With LDAP or SAML, local accounts could take the names of directory users who never signed in. Turn auth.local_signup off.")
+       "With LDAP or SAML, local accounts could take the names of directory users who never signed in. Turn auth.local_signup off.",
+       "Turn auth.local_signup off if only admins should create accounts (qaboard-admin create-admin --password)." if local_signup else None)
 
   if is_login_restricted:
     item('restrictions_yaml', True, 'info', "Project restrictions come from QABOARD_LOGIN_RESTRICTED_YAML",
