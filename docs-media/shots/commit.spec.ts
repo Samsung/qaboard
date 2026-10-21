@@ -581,9 +581,9 @@ shot('commit/reference-tabs', {
   url: d => d.commitUrl(IQ, 'merge-bilateral', {
     reference: 'isp-4-1', view: 'table-kpi', query: { compare: d.sha(IQ, 'chroma-low-light') },
   }),
-  alt: 'The commit bars of the bilateral denoiser\'s merge with two references stacked: under the bars, the tabs show '
-    + 'the top results, then, after vs, the isp-4.1 milestone, the one shown, and main, hovered: its tooltip gives '
-    + 'main\'s latest commit, its message and hash.',
+  alt: 'The bilateral denoiser\'s merge with two references stacked: under the bars, the tabs show the top results, '
+    + 'then, after vs, the isp-4.1 milestone, shown, and ref 2, hovered: its tooltip gives its commit on main, its '
+    + 'author, message and batch, still running.',
   caption: 'Stack several references: their tabs hang below the bars, click one, or press r, to compare with it.',
   actions: async ui => {
     await referenceTabs(ui.page).waitFor();
@@ -592,13 +592,13 @@ shot('commit/reference-tabs', {
     await tabTooltip(ui.page).waitFor();
     await ui.settle();
   },
-  // a box: the bars and the tabs are fixed at the top, from the sidebar's edge (the tabs start 14 px after it), down
-  // to the tooltip under the tabs
+  // a box: the bars and the tabs are fixed at the top, from the sidebar's edge (the top results' tab, before "vs" and
+  // the references, starts 14 px after it), down to the tooltip under the tabs
   target: async page => {
-    const tabs = await stableBox(referenceTabs(page));
+    const top = await stableBox(page.locator('.qa-tabs-top'));
     const strip = await stableBox(referenceTabs(page).locator('xpath=..'));
     const tooltip = await stableBox(tabTooltip(page));
-    const x = Math.max(0, Math.floor(tabs.x - 14));
+    const x = Math.max(0, Math.floor(top.x - 14));
     const bottom = Math.max(strip.y + strip.height, tooltip.y + tooltip.height) + 8;
     return { x, y: 0, width: strip.x + strip.width - x, height: bottom };
   },
@@ -913,19 +913,20 @@ shot('commit/milestone', {
 shot('commit/change-menu', {
   project: DE,
   url: d => d.commitUrl(DE, 'kd-1-3', { reference: 'kd-1-2', view: 'table-kpi' }),
-  alt: 'The reference commit\'s Change menu: a project box, Switch new/reference, Also Select as New, Remove from '
-    + 'comparison, the reference branch main, then the milestones kd-1.3 and kd-1.2 with their batch, branch and commit.',
+  alt: 'The reference commit\'s Change menu: a project box, Swap the bars, Also show in the top bar, Stack another '
+    + 'reference, Remove from comparison, the reference branch main, then the milestones kd-1.3 and kd-1.2 with their '
+    + 'batch, branch and commit.',
   caption: 'Change the reference from its commit bar: swap new and reference, or pick the reference branch or a milestone.',
   actions: async ui => {
     await ui.click(ui.page.getByRole('button', { name: 'Change the reference commit' }));
-    await ui.page.locator('.bp6-popover .bp6-menu', { hasText: 'Switch new/reference' }).waitFor();
+    await ui.page.locator('.bp6-popover .bp6-menu', { hasText: 'Swap the bars' }).waitFor();
     await ui.settle();
   },
   // the reference's hash and Change, and the menu under them
   target: page => [
     page.getByRole('textbox', { name: 'The reference commit' }),
     page.getByRole('button', { name: 'Change the reference commit' }),
-    page.locator('.bp6-popover .bp6-menu', { hasText: 'Switch new/reference' }),
+    page.locator('.bp6-popover .bp6-menu', { hasText: 'Swap the bars' }),
   ],
   padding: 8,
 });
@@ -1314,4 +1315,74 @@ shot('commit/agent-report', {
     ];
   },
   padding: 8,
+});
+
+
+// The fleet SDK's tests (examples/software-quality): each run is one test suite in one mode (default, strict).
+// Visualizations, in qaboard.yaml's order: 0 Tests (junit.xml, the test viewer), 1 Lines without tests, then hidden
+// by default: 2 Test list, 3 Slowest tests, 4 HTML report
+const SQ = 'software-quality';
+const SQ_VIZ = ['Tests', 'Lines without tests', 'Test list', 'Slowest tests', 'HTML report'] as const;
+const showOnlySq = (name: (typeof SQ_VIZ)[number]) => ({ show: Object.fromEntries(SQ_VIZ.map(v => [v, v === name])) });
+
+shot('commit/junit-viewer', {
+  project: SQ,
+  // the coding agent's change against main at the time, the missions suite in default mode
+  url: d => d.commitUrl(SQ, 'green-ci', { reference: 'closest-robot', view: 'output-list', filter: 'missions default', controls: showOnlySq('Tests') }),
+  alt: 'The test viewer of the missions suite against main: no test fails, 12 removed and 2 newly skipped, none fixed. '
+    + 'The tree shows test_reserve\'s tests struck through, and the details of a removed test say it failed in the reference.',
+  caption: 'No test fails after the agent\'s change, and none was fixed: 12 tests are gone and 2 skipped.',
+  viewport: { width: 1440, height: 1200 },
+  actions: async ui => {
+    await showCard(ui);
+    const report = cards(ui.page).first().getByRole('tree', { name: 'Tests' });
+    await report.waitFor();
+    // the removed tests
+    await ui.click(cards(ui.page).first().getByRole('toolbar', { name: 'Changes' }).getByText(/removed/));
+    await ui.settle();
+    await mouseAway(ui);
+  },
+  target: page => cards(page).first(),
+  padding: 2,
+});
+
+shot('commit/tests-diff', {
+  project: SQ,
+  // the varint fast path against its parent, the codec suite in default mode
+  url: d => d.commitUrl(SQ, 'varint-fast-path', { reference: 'grid-docs', view: 'output-list', filter: 'codec default', controls: showOnlySq('Test list') }),
+  alt: 'The codec suite\'s list of tests diffed with the commit before: lines that were PASS are now FAIL, for '
+    + 'varint round trips and frames with sequence numbers over 2^32; the run\'s metrics above say 17 failed.',
+  caption: 'One line per test, diffed with the reference\'s: the tests the varint fast path broke show as changed lines.',
+  actions: async ui => {
+    await showCard(ui);
+    // viewers are numbered in qaboard.yaml's order: the test list is the third
+    const list = viewer(cards(ui.page).first(), SQ_VIZ.indexOf('Test list'));
+    // an inline diff (renderSideBySide: false in qaboard.yaml)
+    await list.locator('.monaco-diff-editor .view-line').first().waitFor();
+    // to the first test that changed status
+    await ui.click(cards(ui.page).first().getByRole('button', { name: /Next diff/ }));
+    await ui.page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await ui.settle();
+    // away from the commit header's buttons and their tooltips
+    await ui.cursor.moveTo({ x: 1420, y: 880 });
+    await ui.hold(500);
+    await ui.settle();
+  },
+  target: page => cards(page).first(),
+  padding: 2,
+});
+
+shot('commit/deleted-tests', {
+  project: SQ,
+  // the coding agent's change against main at the time, which had the missions bug
+  url: d => d.commitUrl(SQ, 'green-ci', { reference: 'closest-robot', view: 'table-compare', filter: 'default' }),
+  alt: 'The Metrics Diff of the coding agent\'s change against main, suite by suite: missions goes from 10 failed '
+    + 'tests to 0, from 24 tests to 12, from 0 skipped to 2, and its coverage doesn\'t change.',
+  caption: 'No test fails any more, because half of them are gone: the Metrics Diff shows the missions suite lost 12 tests and skips 2.',
+  actions: async ui => {
+    await ui.cursor.moveTo({ x: 1420, y: 880 });
+    await ui.settle();
+  },
+  target: page => viewCard(page, 'Metrics Diff'),
+  padding: 0,
 });

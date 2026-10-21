@@ -18,6 +18,10 @@ const LoadableTofViewer = lazy(() => import('./tof/TofOutputCard' /* webpackChun
 const LoadablePointCloudViewer = lazy(() => import('./pointcloud/PointCloudViewer' /* webpackChunkName: "pointcloud-viewer" */));
 const LoadableSlamViewer = lazy(() => import('./slam/SlamOutputCard' /* webpackChunkName: "slam-viewer" */));
 const LoadableFlameGraphViewer = lazy(() => import('./flame-graph' /* webpackChunkName: "flame-graph-viewer" */));
+const LoadableJunitViewer = lazy(() => import('./junit/JunitViewer'));
+
+// JUnit XML test reports: junit.xml, report.junit.xml, Maven's and Gradle's TEST-*.xml
+export const is_junit = path => /(^|\/)(junit|[^/]*[._-]junit|TEST-[^/]*)\.xml$/i.test(path || '');
 
 const OutputViewer = props_ => {
     const [image_viewer, setImageViewer] = useState('image')
@@ -60,6 +64,8 @@ const OutputViewer = props_ => {
         viewer = <LoadableHtmlViewer {...props} type={type} output_ref={maybe_output_ref}/>
       else if (type === 'flame/json')
         viewer = <LoadableFlameGraphViewer {...props} type={type} output_ref={maybe_output_ref}/>
+      else if (type === 'junit/xml')
+        viewer = <LoadableJunitViewer {...props} type={type} output_ref={maybe_output_ref}/>
       else if (type === 'files/bit-accuracy')
         viewer = <LoadableBitAccuracyViewer {...props} type={type} output_ref={output_ref}/>
       else viewer = <p>
@@ -73,6 +79,8 @@ const OutputViewer = props_ => {
         viewer = <LoadablePointCloudViewer {...props} output_ref={maybe_output_ref}/>
       } else if (path.endsWith('flame.json')) {
         viewer = <LoadableFlameGraphViewer {...props} type={type} output_ref={maybe_output_ref}/>
+      } else if (is_junit(path)) {
+        viewer = <LoadableJunitViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (path.endsWith('html')) {
         viewer = <LoadableHtmlViewer {...props} type={type} output_ref={maybe_output_ref}/>
       } else if (/\.(mp4|m4v|mov|webm|mkv|ogv|webp|gif)$/i.test(path)) {

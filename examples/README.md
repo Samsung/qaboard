@@ -30,9 +30,9 @@ Story times are UTC. Each persona works on weekdays within the hours given, in U
 | `tobias` | Tobias M. Wendt | Imaging, fixed-point and silicon bring-up | `camera-isp` | 06:30-15:30 |
 | `arjun` | Arjun Sethuraman | Perception, ML engineer: detection, quantization | `detector`; `slam`, `fleet-assistant` | 13:00-22:00 |
 | `mira` | Mira Kowalczyk | Perception, robotics engineer: odometry, sensor fusion | `slam`; `detector` | 07:00-16:00 |
-| `adaeze` | Adaeze Nwankwo | Fleet platform, tech lead | `inference-gateway` | 08:00-17:00 |
-| `kaito` | Kaito Nishimaki | Fleet platform, performance engineer | `inference-gateway`; `fleet-assistant` | 00:00-09:00 |
-| `agent` | Kitefin Coding Agent | A coding agent account the platform team assigns tasks to | `inference-gateway`, `fleet-assistant` | any time |
+| `adaeze` | Adaeze Nwankwo | Fleet platform, tech lead | `inference-gateway`; `fleet-sdk` | 08:00-17:00 |
+| `kaito` | Kaito Nishimaki | Fleet platform, performance engineer | `inference-gateway`; `fleet-assistant`, `fleet-sdk` | 00:00-09:00 |
+| `agent` | Kitefin Coding Agent | A coding agent account the platform team assigns tasks to | `inference-gateway`, `fleet-assistant`, `fleet-sdk` | any time |
 
 Emails are `<handle>@kitefin.example`. CI runs are started by the user `ci`.
 
@@ -74,6 +74,7 @@ example's *qaboard.yaml*. Today a card shows the description only when the git h
 | [`detection-eval`](detection-eval/SPEC.md) | `kitefin/detector` | Object detector of the K3 robots, evaluated in fp32 and int8 at several input sizes. | `main` | 2 |
 | [`robotics-3d`](robotics-3d/SPEC.md) | `kitefin/slam` | Odometry and mapping from the K3's depth camera and IMU, against ground-truth trajectories. | `main` | 3 |
 | [`agent-evals`](agent-evals/SPEC.md) | `kitefin/fleet-assistant` | The operators' assistant: answers questions and acts on the fleet through tools, scored on scripted tasks. | `main` | 3 |
+| [`software-quality`](software-quality/SPEC.md) | `kitefin/fleet-sdk` | The SDK robots and fleet tools use to talk to the fleet backend: its test suites, their coverage and their flaky tests. | `main` | 3 |
 
 In prose, call them by their role: "the camera ISP project", "the inference gateway".
 
@@ -111,6 +112,7 @@ which the web app treats as a branch name:
 | `kitefin/detector` | `kd-1.2`: fp32, 320 px · `kd-1.3`: int8, per-channel, recalibrated |
 | `kitefin/slam` | `fw-26.08`: ICP and IMU odometry · `fw-26.09`: Loop closure |
 | `kitefin/fleet-assistant` | `assistant-0.4`: Tool calling · `assistant-0.5`: Confirmation before actions |
+| `kitefin/fleet-sdk` | `sdk-1.4`: Telemetry codec, warehouse grid and missions · `sdk-1.5`: Range and registry tests, deprecations fail CI |
 
 ### Batches, platforms, users
 - The CI batch has the label `default` (shown as **CI**). Tuning batches are labeled `tune-<what>` (`tune-batching`),

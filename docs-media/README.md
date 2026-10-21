@@ -287,7 +287,8 @@ Specs import only `./lib`. Signatures (`docs-media/shots/lib/index.ts`):
 import type { Page, Locator } from '@playwright/test';
 
 export type ShotId = `${string}/${string}`;            // checked against the id regex at registration
-export type ProjectKey = 'image-quality' | 'serving-latency' | 'detection-eval' | 'robotics-3d' | 'agent-evals';
+export type ProjectKey = 'image-quality' | 'serving-latency' | 'detection-eval' | 'robotics-3d' | 'agent-evals'
+  | 'software-quality';
 export type View = 'summary' | 'table-kpi' | 'table-compare' | 'output-list' | 'bit_accuracy' | 'logs'
                  | 'parameters' | 'groups' | 'tuning' | 'optimization';   // the app's `selected_views` values
 
@@ -486,7 +487,7 @@ shot('commit/pixel-tooltip', {
 | Kind | Rule |
 |---|---|
 | Still | AVIF ≤ 250 KB, WebP ≤ 450 KB (both at 2x), LQIP data URI ≤ 1 KB. PNG master ≤ 6 MB, never served to readers |
-| Clip | 6-20 s; MP4 ≤ 3 MB and WebM ≤ 3 MB; `landing/hero` ≤ 2 MB each; poster ≤ 200 KB |
+| Clip | 6-20 s; MP4 ≤ 3 MB and WebM ≤ 3 MB; `landing/hero` ≤ 2 MB each; poster ≤ 350 KB (a frame of two videos side by side, like `commit/video-compare`, takes about 280 KB) |
 | Tape | ≤ 45 s; MP4 and WebM ≤ 1.5 MB each |
 | All published media | ≤ 120 MB served files in total (GitHub Pages: 1 GB per site) |
 | Landing page | ≤ 4 MB before any clip plays; the hero poster is the LCP element (< 2.5 s on 4G) |

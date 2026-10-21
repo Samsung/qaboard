@@ -77,7 +77,7 @@ CONTENT_TYPES = {
 KB, MB = 1000, 1000 * 1000
 BUDGETS = {
     "still": {"avif": 250 * KB, "webp": 450 * KB, "png": 6 * MB, "lqip": 1 * KB},
-    "clip": {"mp4": 3 * MB, "webm": 3 * MB, "poster": 200 * KB, "lqip": 1 * KB, "duration": (6, 20)},
+    "clip": {"mp4": 3 * MB, "webm": 3 * MB, "poster": 350 * KB, "lqip": 1 * KB, "duration": (6, 20)},
     "tape": {"mp4": int(1.5 * MB), "webm": int(1.5 * MB), "poster": 200 * KB, "lqip": 1 * KB, "duration": (1, 45)},
 }
 BUDGET_OVERRIDES = {"landing/hero": {"mp4": 2 * MB, "webm": 2 * MB}}

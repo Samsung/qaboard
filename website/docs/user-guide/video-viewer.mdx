@@ -125,6 +125,11 @@ duration. Videos of different proportions get a *different aspect ratios* warnin
 The properties button, **What's in the files**, lists what the server read from the two files, side by side, with the
 rows that differ highlighted. Under the table, notes say what it means for what you see.
 
+<Shot
+  id="commit/video-properties"
+  caption="The aisle video's two files: the same codec, pixel format and frame rate, but the new one takes 6.5 Mb/s, the reference 5.1."
+/>
+
 | Row | What to look for |
 |---|---|
 | **Codec**, **Compression** | e.g. `vp9 (Profile 0)`, `h264 (High)`. A lossy codec changes the values your code wrote: part of a difference can be the encoder's, not your algorithm's. |
@@ -180,6 +185,11 @@ the reference's frame shown at the same time. Then:
   at the frame where it differs most. <kbd>[</kbd> <kbd>]</kbd> go from one to the next.
 - **Differences, this frame**, in the same menu, shows the 3 regions that differ most in the frame you're on, and
   follows you from frame to frame.
+
+<Shot
+  id="commit/video-differences"
+  caption="After Differences: the summary gives the frame that differs most, the timeline's bars how much each frame differs, and the regions menu where."
+/>
 
 The regions menu also has the input's **Presets**, from its metadata or the configuration (see
 [regions of interest](/docs/visualizations#regions-of-interest)), and **Full image** to see the whole frame again.

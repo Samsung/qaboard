@@ -10,7 +10,7 @@ import {
 } from "./api/queries";
 import { errorMessage } from "./api/http";
 import { usePrefsStore } from "./stores/prefs";
-import { useSelected, updateSelected, reference_names } from "./selection";
+import { useSelected, updateSelected, reference_names, reference_colors } from "./selection";
 import { available_batch, compute_batches, compute_config } from "./selectors/batches";
 import { default_project } from "./defaults";
 import { milestonesQuery, milestones_of, milestone_name, no_milestones } from "./milestones/api";
@@ -268,6 +268,7 @@ function useReferences(selected, ref_commit, milestones, enabled) {
     const names = reference_names(references);
     // what a reference is called if users clear its name
     const default_name = index => reference_names(references.map((r, i) => i === index ? { ...r, label: '' } : r))[index];
+    const colors = reference_colors(references);
     return references.map((side, index) => {
       const is_shown = index === ref_index;
       const commit = is_shown ? ref_commit : cached_others[index < ref_index ? index : index - 1];
@@ -287,7 +288,7 @@ function useReferences(selected, ref_commit, milestones, enabled) {
         // else "ref", "ref 2"... (see reference_names). Numbers, not letters: blind tests call images A and B.
         display_label: side_label(milestone, names[index]),
         default_label: default_name(index),
-        color: side_color(side_slot('reference', number)),
+        color: side_color(side_slot('reference', colors[index])),
       };
     });
   }, [references, ref_index, ref_commit, cached_others, milestones]);

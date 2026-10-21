@@ -19,7 +19,7 @@ import { OutputCard } from "./viewers/OutputCard";
 import { useViewerControls, config_visualizations } from "./viewers/controls";
 import { BitAccuracyForm, bit_accuracy_url_defaults } from "./viewers/bit_accuracy/utils";
 import { hash_color, match_query, average, median, matching_output, metric_info } from "./utils";
-import { yAxisSuffix, hasAllMetrics } from "./evolutionAxis";
+import { yAxisSuffix, hasAllMetrics, sum } from "./evolutionAxis";
 import CommitRow from "./components/CommitRow";
 
 
@@ -101,7 +101,7 @@ const traces_per_batch = ({ commits, metrics, aggregation, available_metrics, pe
       if (!per_output_granularity) {
         y = commits_with_batch.map(c => c.batches[label].aggregated_metrics[`${metric.key}_${shown_aggregation}`])
       } else {
-        let aggregation_func = shown_aggregation === 'median' ? median : average;
+        let aggregation_func = { median, average, sum }[shown_aggregation] || median;
         y = commits_with_batch
               .map(c => Object.values(c.batches[label].outputs || {}).filter(output_filter_))
               .map(outputs => aggregation_func(outputs.map(o => o.metrics[metric.key])))
@@ -188,7 +188,8 @@ const commit_line = (commit, color) => ({
 const make_layout = ({ metric = {}, aggregation, relative, hovered_commit, hovered_commit_ref }) => {
   const threshold = metric.target * metric.scale;
   const shapes = [];
-  if (!relative && !!threshold)
+  // a target is each run's: it means nothing for a sum over the runs
+  if (!relative && !!threshold && aggregation !== 'sum')
     shapes.push({
       type: "line",
       layer: "below",
@@ -485,6 +486,7 @@ const CommitsEvolution = ({ project, project_data, commits = [], new_commit, ref
           >
             <option key="median" value="median">median</option>
             <option key="average" value="average">average</option>
+            <option key="sum" value="sum">sum</option>
           </HTMLSelect>
         )}
         {offer_breakdown_per_test && (
