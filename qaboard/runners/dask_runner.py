@@ -85,6 +85,14 @@ def forwarded_env() -> Dict[str, str]:
   return {k: v for k, v in os.environ.items() if k not in excluded_env and not k.startswith(excluded_env_prefixes)}
 
 
+def run_env(env: Dict[str, str]) -> Dict[str, str]:
+  """The environment of a run on a worker. Like with the LSF runner, runs are headless."""
+  environment = {**os.environ, **env, "MPLBACKEND": "agg"}
+  # Otherwise runs that use matplotlib, OpenCV or Qt open X11 connections back to the submitter's display
+  environment.pop("DISPLAY", None)
+  return environment
+
+
 ###
 ### What runs on the workers.
 ###
@@ -110,7 +118,7 @@ def _run_command(command: str, cwd: Optional[str], env: Dict[str, str], log_path
       command,
       shell=True,
       cwd=cwd,
-      env={**os.environ, **env},
+      env=run_env(env),
       stdout=log,
       stderr=subprocess.STDOUT,
     )

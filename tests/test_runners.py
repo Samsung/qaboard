@@ -679,6 +679,14 @@ class TestDaskRunner(unittest.TestCase):
     log = (jobs[0].run_context.output_dir / 'log.dask.txt').read_text()
     self.assertEqual(Path(log.strip()).resolve(), (self.root / 'PSP_2x').resolve())
 
+  def test_headless(self):
+    """Runs don't open windows or X11 connections back to the submitter's display."""
+    from qaboard.runners.dask_runner import DaskRunner
+    jobs = make_jobs('dask', ['mkdir -p output && cd output && echo "display=${DISPLAY-unset} mpl=$MPLBACKEND"'], self.root, scheduler_address=self.cluster.scheduler_address)
+    with mock.patch.dict(os.environ, {'DISPLAY': 'submitter:1', 'MPLBACKEND': 'TkAgg'}):
+      DaskRunner.start_jobs(jobs, jobs[0].run_context.job_options, blocking=True)
+    self.assertEqual((jobs[0].run_context.output_dir / 'log.dask.txt').read_text(), 'display=unset mpl=agg\n')
+
   def test_stop(self):
     import threading
     from qaboard.runners.dask_runner import DaskRunner
