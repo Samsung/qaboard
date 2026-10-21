@@ -358,8 +358,8 @@ def iter_inputs(
       default_runner_for_type = input_type_runners['default']
       updated_job_configuration["type"] = default_runner_for_type
     
-    # Apply specific runner configuration from input type
-    current_runner = updated_job_configuration.get('type', 'local')
+    # Apply specific runner configuration from input type, for the runner that will run
+    current_runner = (cli_runner_overrides or {}).get('type', updated_job_configuration.get('type', 'local'))
     if current_runner in input_type_runners and isinstance(input_type_runners[current_runner], dict):
       updated_job_configuration = {**updated_job_configuration, **input_type_runners[current_runner]}
 
@@ -500,7 +500,7 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
           runner = default_runner_for_type
         
         # Apply specific runner configuration from input type for the current runner
-        current_runner = run_context.job_options.get('type', runner)
+        current_runner = (cli_runner_overrides or {}).get('type', run_context.job_options.get('type', runner))
         if current_runner in input_type_runners and isinstance(input_type_runners[current_runner], dict):
           run_context.job_options = {**run_context.job_options, **input_type_runners[current_runner]}
     else:
@@ -520,7 +520,10 @@ def iter_batch(batch: Dict, default_run_context: RunContext, qatools_config, def
         if runner in input_type_runners and isinstance(input_type_runners[runner], dict):
           run_context.job_options = {**run_context.job_options, **input_type_runners[runner]}
     
-    # Apply batch-level runner configuration
+    # Apply batch-level runner configuration, for the runner that will run: e.g. `--runner=local` uses the batch's `local` settings,
+    # even if the default runner is lsf
+    if cli_runner_overrides and 'type' in cli_runner_overrides:
+      runner = cli_runner_overrides['type']
     if runner in batch and isinstance(batch[runner], dict):
       run_context.job_options = {**run_context.job_options, **batch[runner]}
 

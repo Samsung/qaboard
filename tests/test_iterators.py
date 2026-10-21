@@ -356,6 +356,9 @@ class TestIterators(unittest.TestCase):
       self.assertEqual(concurrency(), [1, 2])
       self.assertEqual(concurrency({"type": "local"}), [1, 2])
       self.assertEqual(concurrency({"type": "local", "concurrency": 8}), [8, 8])
+      # --runner=local uses the batch's local settings, even if the default runner is another one
+      runs = iter_inputs(['my-batch'], [batches_file], database, [], 'linux', {"type": "lsf"}, {"inputs": {"globs": "*.txt"}}, cli_runner_overrides={"type": "local"})
+      self.assertEqual([(run.job_options['type'], run.job_options.get('concurrency')) for run in runs], [('local', 1), ('local', 2)])
 
   def test_wildcards_match_batches_not_aliases(self):
     import tempfile
