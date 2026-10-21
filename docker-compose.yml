@@ -109,6 +109,8 @@ services:
     # the secrets of the sign-in providers added in the admin panel (long random text, e.g. `openssl rand -base64 32`)
     - CELERY_BROKER_URL=pyamqp://guest:guest@rabbitmq:${QABOARD_PORT_RABBITMQ:-5672}//
     - QABOARD_RUN_MIGRATIONS
+    # 0: don't run the server's jobs (Admin > Storage) next to uwsgi, if you run `qaboard-admin jobs worker` elsewhere
+    - QABOARD_JOBS_WORKER
     # Used by docker and deployments/deploy.py to know when a replica is ready to serve traffic
     healthcheck:
       # Never through the http_proxy of the environment, it may not bypass localhost
@@ -117,7 +119,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s
-    # uwsgi finishes in-flight requests on SIGTERM
+    # uwsgi finishes in-flight requests on SIGTERM, the jobs worker stops its job at the next check (it resumes later)
     stop_grace_period: 60s
 
   frontend:

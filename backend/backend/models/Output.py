@@ -229,6 +229,8 @@ class Output(Base):
 
     if not soft:
       print(output_dir)
+      if dryrun:
+        return
       rmtree(output_dir)
       rm_empty_parents(output_dir)
     else:
@@ -240,6 +242,8 @@ class Output(Base):
             files = json.load(f)
         except Exception as e:
             print(f"{e}: corrupted manifest {manifest_path}")
+            if dryrun:
+              return
             rmtree(output_dir)
             rm_empty_parents(output_dir)
             self.deleted = True
@@ -261,7 +265,7 @@ class Output(Base):
             rmtree(output_file)
             rm_empty_parents(output_dir)
       else:
-        self.delete(soft=False)
+        self.delete(soft=False, dryrun=dryrun)
         return
     if not filter: # better not TODO: update .data.storage at least
       self.deleted = True

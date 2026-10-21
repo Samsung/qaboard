@@ -29,7 +29,7 @@ storage:
 `after:` supports human-readable values like *2weeks*, *1year*, *3months*... A commit is old when it got no new outputs for that long, or, if it never had any, when it was authored that long ago.
 
 :::caution
-Data is deleted when the server runs `qaboard_clean` (see the [server's cron jobs](../deploy#optional-cleanup)). It applies to all projects: without `storage.garbage.after`, outputs are deleted after **1month**. Use `qaboard_clean --help` for the options (e.g. `--project`). `qaboard_clean --dryrun` lists what would be deleted, without deleting or changing anything.
+Data is deleted when the server runs `qaboard_clean` (see the [server's cron jobs](../deploy#optional-cleanup)), or when admins run or schedule *Delete old results* in **Admin → Storage** ([cleaning the storage](/docs/backend-admin/storage)). It applies to all projects: without `storage.garbage.after`, outputs are deleted after **1month**. Use `qaboard_clean --help` for the options (e.g. `--project`). `qaboard_clean --dryrun` lists what would be deleted, without deleting or changing anything.
 :::
 
 To also allow deleting results on the reference branch (the latest commit is kept), set `storage.garbage.can_delete_reference_branch: true`.
@@ -43,6 +43,8 @@ Logged-in users can also delete results from a commit's page, in the batch's men
 - **Delete failed runs** or **Delete all runs** of a batch.
 - With the *Delete files, keep metadata* switch, only the files are deleted, and the runs stay listed (they can be redone later). You can then also give a file pattern, like `*.png` or `**/*.py`, to delete only the matching files.
 - **Delete multiple batches** at once.
+
+Deleted runs stay listed, as deleted, until an admin deletes them for good ([cleaning the storage](/docs/backend-admin/storage)).
 
 Batches that are [milestones](../references-and-milestones) are protected: their runs can't all be deleted this way (only their files, or their failed runs, can). Deleting all the runs of a commit keeps its milestone batches.
 
