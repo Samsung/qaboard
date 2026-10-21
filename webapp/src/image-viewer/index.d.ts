@@ -122,6 +122,45 @@ export interface PixelData {
   channels?: number;
   /** What the values are, e.g. "I;16" or "RGB;10" */
   mode?: string;
+  /** What the image's metadata says about its sensor, for the analysis of raw images */
+  sensor?: SensorInfo;
+}
+
+/** A color filter array: the colors of its 2x2 cells row by row, the size of a cell in pixels, where the cells start */
+export interface Cfa {
+  pattern: 'RGGB' | 'GRBG' | 'GBRG' | 'BGGR';
+  /** 1: Bayer, 2: Tetra (Quad Bayer), 3: Nona, 4: 16-cell… up to 9 */
+  block?: number;
+  /** Pixel (x, y) is in cell ((x + offset.x) / block). Default: { x: 0, y: 0 }, the pattern starts at the file's first pixel */
+  offset?: { x: number; y: number };
+}
+
+/** What an image's metadata says about its sensor. Any field can be missing: the viewer guesses the CFA from the pixels. */
+export interface SensorInfo {
+  cfa?: Cfa;
+  bitDepth?: number;
+  blackLevel?: number;
+  /** By default 2^bitDepth - 1 */
+  whiteLevel?: number;
+  /** No CFA: monochrome */
+  mono?: boolean;
+  /** Where the file was cut from a larger image */
+  crop?: { x: number; y: number; fullWidth: number; fullHeight: number };
+  /** Where it comes from, shown to users, e.g. "the file's header" */
+  source?: string;
+  /** The metadata's fields used, shown to users */
+  fields?: Record<string, unknown>;
+}
+
+/** What users set about the sensor: it wins over the metadata and the guess. Missing fields are automatic. */
+export interface SensorSetting {
+  kind?: 'auto' | 'mosaic' | 'mono';
+  pattern?: Cfa['pattern'] | null;
+  block?: number | null;
+  offset?: { x: number; y: number } | null;
+  blackLevel?: number | null;
+  /** How the channels are grouped: R G B, R Gr Gb B, or each sub-pixel of the cells. Default: 'cfa' */
+  grouping?: 'rgb' | 'cfa' | 'sub';
 }
 
 /** The values of a region, as rows of pixels */
@@ -130,6 +169,7 @@ export interface PixelRows {
   values: (number | number[])[][];
   /** What the values are, e.g. "I;16" or "RGB" */
   mode?: string;
+  sensor?: SensorInfo;
 }
 
 export type Pixels = PixelData | PixelRows;
@@ -186,6 +226,16 @@ export interface ImageViewerProps {
   analysis?: AnalysisView;
   defaultAnalysis?: AnalysisView;
   onAnalysisChange?: (view: AnalysisView) => void;
+  /** What the analysis measures: the displayed values, or the image's own ('image', needs getPixels), per channel of its sensor. Default: 'display' */
+  analysisValues?: 'display' | 'image';
+  defaultAnalysisValues?: 'display' | 'image';
+  onAnalysisValuesChange?: (values: 'display' | 'image') => void;
+  /** What users set about the images' sensor (CFA, black level…): control it to remember it, e.g. per project */
+  sensor?: SensorSetting;
+  defaultSensor?: SensorSetting;
+  onSensorChange?: (sensor: SensorSetting) => void;
+  /** Where what users set of the sensor is remembered, shown to them, e.g. "for the project" */
+  sensorRemembered?: string;
 
   /** Viewers with the same key, showing images of the same aspect ratio, zoom and pan together */
   syncKey?: string | null;

@@ -41,6 +41,11 @@ shows, even for the 113 MP test wall of the camera ISP example.
   `QABOARD_IMAGE_SERVERS` (see [environment variables](/docs/deploy#optional-environment-variables)).
 - **Pixel values:** for signed-in users, the server reads the images' own values, e.g. 16-bit ones, with Pillow. For
   raw formats, it needs a reader that QA-Board doesn't include.
+- **Raw images by channel of the sensor:** the analysis panel measures the images' own values per channel of their
+  color filter array (see [the user guide](/docs/user-guide/image-viewer#image-values)). It guesses the CFA from the
+  pixels; when the server's image reader returns metadata, it uses the pattern (`pattern`: `GRBG`...), the cell size
+  (`samplePerPixel`: `2x2`...), the bit depth (`imageType`: `UI10`...) and the black level (`pedestal`). Readers with
+  other names for them: add them to `backend/backend/sensor.py`.
 - **The viewer is a React component** you can use in your own apps, with images from any server: see its
   [README](https://github.com/Samsung/qaboard/tree/master/webapp/src/image-viewer).
 

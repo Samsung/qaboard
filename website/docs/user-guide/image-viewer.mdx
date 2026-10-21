@@ -315,7 +315,43 @@ definition. **Copy** copies the table as tab-separated values, to paste in a spr
 - They are computed on the displayed 8-bit sRGB pixels, at the screen's resolution: zoomed out, a screen pixel averages
   many image pixels, which lowers the standard deviation. Zoom to 100% or more to measure noise.
 - They are not the image's own values (raw, 10-bit, 16-bit...), and don't separate the channels of a color filter
-  array (Gr, R, B, Gb): a raw image shows as the image server converts it.
+  array (Gr, R, B, Gb): for those, pick **Image values**, below.
+
+</details>
+
+### Raw images, by channel of the sensor {#image-values}
+Pick **Image values** next to the views (signed in) to measure the image's own values instead of the displayed ones:
+10-bit, 16-bit, raw, at full resolution. The three views then work per channel of the sensor's color filter array
+(CFA): **R**, **Gr**, **Gb** and **B**, like a raw image tool. Your browser remembers the choice.
+
+A card above the views says what the sensor is, with a diagram of its pattern from the file's first pixel: for example
+*GRBG · Tetra 2×2*, *10-bit*, *black 64*. A tag next to each value says where it comes from:
+
+- **metadata**: the image's reader on the server, e.g. a raw file's header or its JSON sidecar,
+- **guessed**: the pixels. QA-Board finds the cell size (Bayer 1×1, Tetra 2×2, Nona 3×3, 4×4… up to 9×9) and where the
+  greens are from a patch at the center of the view. It can't tell red from blue in a single channel: **swap them** if
+  they're the other way. Images where each pixel has only one of R, G and B set are read exactly,
+- **yours**: what you set with the **Sensor** button: the pattern, the cell size, the offset, the black level. It
+  applies to both images, and is remembered for the project.
+
+When the metadata and the pixels disagree, the card says so. When the reference's metadata knows what you only guessed
+for the new image, **use its…** copies it.
+
+- **R G B**, **R Gr Gb B** or **Sub-pixels** groups the channels. Sub-pixels splits each cell, e.g. R1 to R4 in Tetra:
+  their maps show how each differs from its cell. When some sub-pixels are brighter, e.g. long and short exposures,
+  the card says which.
+- **Statistics** adds the mean without the black level, the SNR from it, the share of values at or under the black
+  level and at the white level, and the ratios R/G, B/G (the white balance) and Gr/Gb (the greens' imbalance).
+- **Row / column** plots each channel, averaged over a period of the CFA, with the black and white levels.
+- **Histogram** shows each channel's values, on a linear or log scale.
+
+<details>
+<summary>What is read</summary>
+
+- Views of up to 2 million pixels are read whole. Larger ones are read in strips across them, evenly spaced, and the
+  views say how many rows and columns: zoom in to read every pixel.
+- Without a black level, the statistics use 0. Set it once for the project with the **Sensor** button.
+- Without metadata, the bit depth comes from the largest value: 10-bit values in a 16-bit file read as 10-bit.
 
 </details>
 
