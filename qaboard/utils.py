@@ -294,7 +294,10 @@ def copy(src, destination):
 
 
 
-default_plaintext = set(['.txt', '.cde', '.hex', '.iir', '.dvs'])
+# .hex is deliberately excluded from plaintext, since SIRC hex files contain CRLF, and every stored reference manifest records their raw hash.
+# Normalizing hex breaks cross-platform bit-accuracy.
+# Projects that want EOL-insensitive hex should opt in via bit_accuracy.plaintext.
+default_plaintext = set(['.txt', '.cde', '.iir', '.dvs'])
 def is_plaintext(path, config=None):
   if not config:
     config = {}
