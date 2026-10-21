@@ -3,7 +3,7 @@
 import {
   selection_from_url, url_for_selection, date_range_from_query, route_info,
   show_reference, add_reference, remove_reference, swap_with_top, move_reference, duplicate_reference, rename_reference,
-  reference_names, reference_colors, switch_new_and_reference,
+  reference_names, reference_colors, side_colors, switch_new_and_reference,
 } from '../selection';
 import { matchRoutes } from '../router';
 import { route_paths } from '../route_paths';
@@ -253,14 +253,14 @@ describe('several references', () => {
     const { url, selected } = act('/p/commit/a?batch=x&reference=b&compare=c', swap_with_top, 1);
     expect(selected.new_commit_id).toBe('c');
     expect(selected.selected_batch_new).toBe('default');
-    // the place keeps its name: "ref 2" is now the commit that was on top, and the top is "new"
+    // the place keeps its name: "ref 2" is now the commit that was on top, and the top is "new". Colors follow results.
     expect(selected.references).toEqual([
-      { project: 'p', commit_id: 'b', batch: 'default', filter: '', label: '' },
-      { project: 'p', commit_id: 'a', batch: 'x', filter: '', label: 'ref 2' },
+      { project: 'p', commit_id: 'b', batch: 'default', filter: '', label: '', color: 1 },
+      { project: 'p', commit_id: 'a', batch: 'x', filter: '', label: 'ref 2', color: 0 },
     ]);
     // the old top results are in the bottom bar
     expect(selected).toMatchObject({ ref_commit_id: 'a', ref_index: 1, selected_batch_ref: 'x', label_new: '' });
-    expect(url).toBe('/p/commit/c?reference=a&compare=b&batch_ref=x&label_ref=ref%202&ref_index=1');
+    expect(url).toBe("/p/commit/c?reference=a&compare%5B0%5D%5Bcommit%5D=b&compare%5B0%5D%5Bcolor%5D=1&batch_ref=x&label_ref=ref%202&color_ref=0&ref_index=1");
     // swapping again goes back, with the reference compared shown
     expect(act(url, swap_with_top, 1).selected).toMatchObject({
       new_commit_id: 'a', selected_batch_new: 'x', ref_commit_id: 'c', ref_index: 1, label_ref: 'ref 2', label_new: '',
@@ -391,8 +391,23 @@ describe('several references', () => {
     expect(colors(selected)).toEqual([3, 4, 2, 1]);
     // renaming keeps it
     expect(colors(act(url, rename_reference, 2, 'night').selected)).toEqual([3, 4, 2, 1]);
-    // swapping with the top results: the top is blue, the place keeps its color
-    expect(colors(act(url, swap_with_top, 2).selected)).toEqual([3, 4, 2, 1]);
+    // swapping with the top results: colors follow their results
+    const swapped = act(url, swap_with_top, 2).selected;
+    expect(side_colors(swapped.color_new, swapped.references)).toEqual([2, 3, 4, 0, 1]);
+    // and back
+    const back = act(act(url, swap_with_top, 2).url, swap_with_top, 2).selected;
+    expect(side_colors(back.color_new, back.references)).toEqual([0, 3, 4, 2, 1]);
+  });
+
+  test('the new results and the reference swapped: their colors follow them, changing a commit keeps its color', () => {
+    let { url, selected } = act('/p/commit/a?reference=b&compare=c', switch_new_and_reference);
+    expect(selected).toMatchObject({ new_commit_id: 'b', ref_commit_id: 'a', color_ref: 0 });
+    expect(side_colors(selected.color_new, selected.references)).toEqual([1, 0, 2]);
+    // another commit on top: the same color
+    ({ url, selected } = roundtrip(url, { new_commit_id: 'd' }));
+    expect(side_colors(selected.color_new, selected.references)).toEqual([1, 0, 2]);
+    // swapped back: as before, nothing in the URL
+    expect(act(url, switch_new_and_reference).url).not.toMatch(/color/);
   });
 
   test('past 4 references they are gray, until a color is freed', () => {

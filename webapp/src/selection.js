@@ -8,7 +8,7 @@ import { DateTime } from "luxon";
 
 import { history, useRouter, matchRoutes } from "./router";
 import { route_paths } from "./route_paths";
-import { reference_color_count } from "./sideColors";
+import { side_color_count } from "./sideColors";
 
 
 // Names in the URL's query string
@@ -23,7 +23,8 @@ const url_keys = {
   // what users call the new and the reference results, instead of "new" and "reference"
   label_new: "label",
   label_ref: "label_ref",
-  // the color of the reference shown, see reference_colors
+  // the colors of the new results and of the reference shown, see side_colors
+  color_new: "color_new",
   color_ref: "color_ref",
   // the references that are not shown, see `references` below
   other_refs: "compare",
@@ -80,10 +81,11 @@ const to_day = date => DateTime.fromJSDate(date).toISODate();
 // ?ref_index= is where the shown one is in the list: switching references keeps their order.
 // A "side" of the comparison: { project, commit_id, batch, filter, label, color }, project defaults to the page's,
 // label is what users call it ('' by default: "new", or "ref", see reference_names). Milestones keep their own name.
-// color is its color's number, see reference_colors (undefined by default).
+// color is its color's number, see side_colors (undefined by default).
 const color_from_query = value => {
+  if (value === undefined || value === null || value === '') return undefined;
   const color = Number(value);
-  return Number.isInteger(color) && color >= 1 && color <= reference_color_count ? color : undefined;
+  return Number.isInteger(color) && color >= 0 && color < side_color_count ? color : undefined;
 };
 
 const side_from_query = (item, project) => {
@@ -131,6 +133,7 @@ const new_side = selected => ({
   batch: selected.selected_batch_new,
   filter: selected.filter_batch_new,
   label: selected.label_new,
+  color: selected.color_new,
 });
 
 // Only what goes in the URL: references from useComparison() have more
@@ -172,43 +175,49 @@ const with_names = references => {
   return references.map((r, i) => ({ ...r, label: r.label || (names[i] === 'ref' ? '' : names[i]) }));
 };
 
-// The colors of the references: each keeps its own wherever it goes, e.g. when users drag it elsewhere, so that
-// they can tell which is which. Those without one (the first reference, those we add, links from before) take the
-// first free color, in order: one freed when a reference is removed is the next one we use. Past 4, they are gray (undefined).
-// Returns their colors' numbers, for side_color (src/sideColors.js).
-export const reference_colors = references => {
+// The colors of what we compare: each keeps its own wherever it goes, so that users can tell which is which, e.g.
+// when they drag a reference elsewhere, or swap it with the top results (the top results are then in its color).
+// Changing the commit of a bar keeps its color. Those without one (by default, those we add, links from before) take the
+// first free color, in order: the new results blue, the first reference purple... A color freed when a reference is
+// removed is the next one we use. Past 5, they are gray (undefined).
+// `color_new` is the new results' color, `references` sides with theirs. Returns their colors' numbers, for side_color
+// (src/sideColors.js): [new, ...references].
+export const side_colors = (color_new, references) => {
   const used = new Set();
-  const colors = references.map(r => {
-    const color = color_number(r.color);
+  const colors = [color_new, ...references.map(r => r.color)].map(color => {
+    color = color_number(color);
     if (color === undefined || used.has(color)) return undefined;
     used.add(color);
     return color;
   });
-  let next = 1;
+  let next = 0;
   return colors.map(color => {
     if (color !== undefined) return color;
     while (used.has(next)) next += 1;
-    if (next > reference_color_count) return undefined;
+    if (next >= side_color_count) return undefined;
     used.add(next);
     return next;
   });
 };
+// ...of the references only
+export const reference_colors = (references, color_new) => side_colors(color_new, references).slice(1);
 
 // The references with their colors written down, so that they keep them wherever they go
-const with_colors = references => {
-  const colors = reference_colors(references);
+const with_colors = (references, color_new) => {
+  const colors = reference_colors(references, color_new);
   return references.map((r, i) => ({ ...r, color: colors[i] }));
 };
 
-// The colors only where they're needed to get them back, so that URLs stay short: the first is purple anyway...
-const needed_colors = references => {
-  const colors = reference_colors(references);
-  let sides = references.map((r, i) => ({ ...r, color: colors[i] }));
+// The colors only where they're needed to get them back, so that URLs stay short: new is blue anyway, the first
+// reference purple... Returns the color of the new results, and the references.
+const needed_colors = (color_new, references) => {
+  const colors = side_colors(color_new, references);
+  let sides = [{ color: colors[0] }, ...references.map((r, i) => ({ ...r, color: colors[i + 1] }))];
   for (let i = 0; i < sides.length; i++) {
     const without = sides.map((r, j) => j === i ? { ...r, color: undefined } : r);
-    if (reference_colors(without).every((color, j) => color === colors[j])) sides = without;
+    if (side_colors(without[0].color, without.slice(1)).every((color, j) => color === colors[j])) sides = without;
   }
-  return sides;
+  return { color_new: sides[0].color, references: sides.slice(1) };
 };
 
 // The name of a reference we add: the next "ref N" (never "ref": it's the one users start with)
@@ -242,10 +251,13 @@ const swapped_labels = (label_new, references, index) => {
 
 // The selection changes to show `references` (a list of sides), with the one at `index` compared with the new commit.
 // Those without a color get one: give them theirs with with_colors before moving or removing references.
-export const references_changes = (references, index) => {
-  references = needed_colors(references);
+// `color_new`: the color of the new results, from the selection
+export const references_changes = (references, index, color_new) => {
+  const needed = needed_colors(color_new, references);
+  references = needed.references;
   const shown = references[index];
   return {
+    color_new: needed.color_new,
     ref_project: shown.project,
     ref_commit_id: shown.commit_id ?? undefined,
     selected_batch_ref: shown.batch || 'default',
@@ -259,42 +271,44 @@ export const references_changes = (references, index) => {
 
 // What to change in the selection to... (pure: they take the selection, and return the changes for updateSelected)
 // ...compare the new commit with another of the references
-export const show_reference = (selected, index) => references_changes(selected.references, index);
+export const show_reference = (selected, index) => references_changes(selected.references, index, selected.color_new);
 
 // ...add a reference, and show it. If we have it already, we show it. It's named "ref 2", "ref 3"... unless given a label,
 // and gets the first free color.
 export const add_reference = (selected, side) => {
-  const references = with_colors(selected.references);
+  const { color_new } = selected;
+  const references = with_colors(selected.references, color_new);
   const side_ = { project: selected.project, batch: 'default', filter: '', ...side, color: undefined };
   const existing = references.findIndex(r => same_side(r, side_));
-  if (existing >= 0) return references_changes(references, existing);
+  if (existing >= 0) return references_changes(references, existing, color_new);
   if (!side_.label) side_.label = next_ref_name(references);
-  return references_changes([...references, side_], references.length);
+  return references_changes([...references, side_], references.length, color_new);
 };
 
 // ...remove a reference. Removing the one shown shows the next one. The last one can't be removed.
 // The others keep their names: we write those we gave, e.g. the first "ref" when it's not first anymore.
 // They keep their colors too: the one freed goes to the first gray reference, else to the next one added.
 export const remove_reference = (selected, index) => {
-  const { references, ref_index } = selected;
+  const { references, ref_index, color_new } = selected;
   if (references.length <= 1) return {};
-  const remaining = with_colors(with_names(references)).filter((_, i) => i !== index);
+  const remaining = with_colors(with_names(references), color_new).filter((_, i) => i !== index);
   const shown = index === ref_index ? Math.min(index, remaining.length - 1) : ref_index - (index < ref_index ? 1 : 0);
-  return references_changes(remaining, shown);
+  return references_changes(remaining, shown, color_new);
 };
 
 // ...swap a reference with the top results: it goes in the top bar, and the top results take its place in the
 // references, shown in the bottom bar. Both bars change, nothing else: the same comparison, reversed.
-// The top results are always blue: like "ref N", the reference's color stays with its place.
+// Colors follow their results: the top bar takes the reference's color, and the reference's place the top's.
 export const swap_with_top = (selected, index) => {
   const { references } = selected;
   const side = references[index];
   if (!side?.commit_id || !selected.new_commit_id) return {};
-  const named = with_colors(with_names(references));
+  const [color_new, ...colors] = side_colors(selected.color_new, references);
+  const named = with_names(references).map((r, i) => ({ ...r, color: colors[i] }));
   const labels = swapped_labels(selected.label_new, named, index);
-  const swapped = named.map((r, i) => i === index ? { ...new_side(selected), label: labels.label_ref, color: r.color } : r);
+  const swapped = named.map((r, i) => i === index ? { ...new_side(selected), label: labels.label_ref, color: color_new } : r);
   return {
-    ...references_changes(swapped, index),
+    ...references_changes(swapped, index, colors[index]),
     new_project: side.project,
     new_commit_id: side.commit_id,
     selected_batch_new: side.batch || 'default',
@@ -306,34 +320,40 @@ export const swap_with_top = (selected, index) => {
 // ...move a reference elsewhere in the list, e.g. by dragging it. The one shown stays shown, they all keep their names
 // and colors.
 export const move_reference = (selected, from, to) => {
-  const { references, ref_index } = selected;
+  const { references, ref_index, color_new } = selected;
   if (to < 0 || to >= references.length || from === to) return {};
-  const named = with_colors(with_names(references));
+  const named = with_colors(with_names(references), color_new);
   const moved = named.filter((_, i) => i !== from);
   moved.splice(to, 0, named[from]);
-  return references_changes(moved, moved.indexOf(named[ref_index]));
+  return references_changes(moved, moved.indexOf(named[ref_index]), color_new);
 };
 
 // ...add a copy of a reference next to it, and show it: to change its batch or filter, and compare both.
 // `name`: what the reference is called, e.g. its milestone's name: the copy is "<name> copy", in the first free color
 export const duplicate_reference = (selected, index, name) => {
-  const { references } = selected;
-  const named = with_colors(with_names(references.map(as_side)));
+  const { references, color_new } = selected;
+  const named = with_colors(with_names(references.map(as_side)), color_new);
   const copy = { ...named[index], label: copy_name(references, index, name), color: undefined };
-  return references_changes([...named.slice(0, index + 1), copy, ...named.slice(index + 1)], index + 1);
+  return references_changes([...named.slice(0, index + 1), copy, ...named.slice(index + 1)], index + 1, color_new);
 };
 
 // ...call a reference something else, '' for its default name
 export const rename_reference = (selected, index, label) => {
-  const { references, ref_index } = selected;
-  return references_changes(references.map((r, i) => i === index ? { ...r, label } : r), ref_index);
+  const { references, ref_index, color_new } = selected;
+  return references_changes(references.map((r, i) => i === index ? { ...r, label } : r), ref_index, color_new);
 };
 
 // ...swap the new results and the reference shown
+// Their colors follow them too.
 export const switch_new_and_reference = selected => {
   const { references, ref_index } = selected;
   const labels = swapped_labels(selected.label_new, with_names(references), ref_index);
+  const [color_new, ...colors] = side_colors(selected.color_new, references);
+  const swapped = references.map((r, i) => i === ref_index
+    ? { ...new_side(selected), label: labels.label_ref, color: color_new }
+    : { ...r, color: colors[i] });
   return {
+    ...references_changes(swapped, ref_index, colors[ref_index]),
     new_project: selected.ref_project,
     ref_project: selected.new_project,
     new_commit_id: selected.ref_commit_id,
@@ -396,6 +416,7 @@ export const selection_from_url = (match, search) => {
     filter_batch_new: query.filter ?? "",
     filter_batch_ref: ref_side.filter,
     label_new: query.label ?? "",
+    color_new: color_from_query(query.color_new),
     label_ref: ref_side.label,
     color_ref: ref_side.color,
 
