@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.29659b20.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.010c760e.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.e90d7a4a.js" defer="defer"></script>
 </head>
 <body>
@@ -477,6 +477,7 @@
 <li class="">When a batch has an input it can&#x27;t use, like an empty <code>-</code> or a number, <code>qa batch</code> says which batch, in which file and at which line, instead of &quot;Could not understand the inputs in the batch&quot; followed by all its inputs. Available Tests and Run Tests / Tuning show the same error.</li>
 <li class="">Stopping a batch whose runs can&#x27;t be stopped reports the error instead of failing.</li>
 <li class="">The tuning form no longer asks for an Android device, which runs never received.</li>
+<li class=""><code>qa batch --runner=local</code> (or any <code>--runner</code>) uses the batch&#x27;s and the input type&#x27;s settings for that runner, e.g. its <code>local</code> concurrency and timeout, also when the project&#x27;s default runner is another one, like LSF.</li>
 </ul>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli">CLI<a href="#cli" class="hash-link" aria-label="Direct link to CLI" title="Direct link to CLI" translate="no">​</a></h3>
 <ul>
