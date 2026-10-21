@@ -41,7 +41,7 @@ export const definitionsFiles = definitions => [...new Set((definitions ?? []).f
 
 /**
  * Where the batch (or the batches its alias or pattern stands for) is defined.
- * When several files define a batch, they are listed in order.
+ * When several files define a batch, they are listed in order: like for `qa batch`, the last one wins.
  */
 export function BatchDefinitions({ definitions, style }) {
   if (!definitions?.length) return null;

@@ -144,9 +144,10 @@ Celery, or on the server. Until its runs show up, a message on every view of the
 In the Logs view, **Started from QA-Board** lists these `qa batch` commands, most recent first (**Show N older** for
 more than three): their status (**Queued**, **Running**, **Failed**, **Done**), who started them and when, and the
 batch files their batches come from (e.g. *from qa/batches.yaml*, or your private batches' file). Open one for which file
-defines each batch, the command it ran and its log, live while it runs. `qa batch` reads a merged copy of these files,
-the `batches.yaml` in its folder: when several files define a batch, they're listed in order, and the later ones override
-the settings they share. Its folder buttons copy the path of, or open, the folder with
+defines each batch, the command it ran and its log, live while it runs. `qa batch` reads copies of these files, saved
+in the `batches` folder next to its log so you can see what ran and run it again: like on your computer, it reads them in
+order, uses their file-level defaults (`database`, `configurations`, `platform`), and when several files define a batch,
+the last one wins. Its folder buttons copy the path of, or open, the folder with
 the script QA-Board ran and its logs.
 
 <Shot

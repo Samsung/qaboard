@@ -101,12 +101,37 @@ def test_check_tuning_request_says_where_batches_are_defined(tmp_path, monkeypat
         {"name": "night-1", "files": ["sub/batches.yaml"]},
         {"name": "night-2", "files": ["sub/batches.yaml", "alice.yml"]},
     ]
-    assert tuning.batches_file_header(check["definitions"]) == "\n".join([
-        "# The batches QA-Board started, merged from the batch files that define them:",
-        "# - night-1: sub/batches.yaml",
-        "# - night-2: sub/batches.yaml, then alice.yml",
-        "",
-    ])
+    # `qa batch` reads them in the same order as on the commit, QA-Board's last
+    assert [f["path"] for f in check["batches_files"]] == ["sub/batches.yaml", "alice.yml"]
+
+
+def test_copy_batches_files(tmp_path):
+    # `qa batch` reads exact copies, with their comments and file-level defaults, so runs match local ones
+    from backend.api.tuning import copy_batches_files
+    content = "# nightly runs\nconfigurations: [base]\nnight: {inputs: [a]}\n"
+    (tmp_path / "batches.yaml").write_text(content)
+    (tmp_path / "alice.yml").write_text("night: {inputs: [b]}\n")
+    files = [
+        {"source": "commit", "path": "qa/batches.yaml", "location": tmp_path / "batches.yaml"},
+        # paths from qaboard.yaml can be absolute or go up: the copies stay in the submission's folder
+        {"source": "commit", "path": "/shared/../batches.yaml", "location": tmp_path / "batches.yaml"},
+        {"source": "commit", "path": "batches.yaml", "location": tmp_path / "batches.yaml"},
+        {"source": "qaboard", "path": "alice.yml", "location": tmp_path / "alice.yml"},
+    ]
+    log_dir = tmp_path / "log"
+    copies = copy_batches_files(files, log_dir)
+    assert [c.relative_to(log_dir).as_posix() for c in copies] == [
+        "batches/commit/qa/batches.yaml",
+        "batches/commit/shared/batches.yaml",
+        "batches/commit/batches.yaml",
+        "batches/qaboard/alice.yml",
+    ]
+    assert copies[0].read_text() == content
+    assert copies[3].read_text() == "night: {inputs: [b]}\n"
+    # two paths that end up the same don't overwrite each other
+    copies = copy_batches_files([files[2], {**files[3], "source": "commit", "path": "batches.yaml"}], tmp_path / "log2")
+    assert [c.name for c in copies] == ["batches.yaml", "1-batches.yaml"]
+    assert copies[1].read_text() == "night: {inputs: [b]}\n"
 
 
 def test_check_tuning_request_without_batches_files(tmp_path):
