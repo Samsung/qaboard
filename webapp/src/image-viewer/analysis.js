@@ -129,7 +129,7 @@ export const nearest = (profile, x) => {
 
 // The band around the mean: 'minmax', 'std' (±1σ) or 'none'
 export const bandOf = (profile, j, c, band) => {
-  const i = 4 * j + c;
+  const i = (profile.stride ?? 4) * j + c;
   if (band === 'minmax') return [profile.min[i], profile.max[i]];
   if (band === 'std') return [profile.mean[i] - profile.std[i], profile.mean[i] + profile.std[i]];
   return [profile.mean[i], profile.mean[i]];
@@ -141,7 +141,7 @@ export const valueRange = (profiles, channels, band) => {
   let hi = -Infinity;
   for (const profile of profiles)
     for (let j = 0; j < profile.length; j++)
-      for (let c = 0; c < 4; c++) {
+      for (let c = 0; c < (profile.stride ?? 4); c++) {
         if (!channels[c]) continue;
         const [a, b] = bandOf(profile, j, c, band);
         if (a < lo) lo = a;
@@ -164,12 +164,12 @@ export const niceTicks = (lo, hi, count = 5) => {
   return ticks;
 };
 
-// The axis of the values: their range padded a little, or all the 8-bit values
-export const valueDomain = (range, scale) => {
-  if (scale === 'full' || !range) return [0, 255];
+// The axis of the values: their range padded a little, or all the values, from 0 to `max` (8-bit by default)
+export const valueDomain = (range, scale, max = 255) => {
+  if (scale === 'full' || !range) return [Math.min(0, range?.[0] ?? 0), max];
   const [lo, hi] = range;
-  const pad = Math.max(1, (hi - lo) * 0.08);
-  return [Math.max(0, lo - pad), Math.min(255, hi + pad)];
+  const pad = Math.max(max > 255 ? 0.5 : 1, (hi - lo) * 0.08);
+  return [Math.max(Math.min(0, lo), lo - pad), Math.min(Math.max(max, hi), hi + pad)];
 };
 
 

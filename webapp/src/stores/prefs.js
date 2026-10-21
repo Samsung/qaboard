@@ -26,6 +26,10 @@ export const usePrefsStore = create()(persist(
     imagePixelValues: 'image',
     // the view of the image viewers' analysis panel: 'histogram', 'profiles' or 'stats'
     imageAnalysis: 'histogram',
+    // ...and what it measures: the displayed values ('display') or the images' own ('image')
+    imageAnalysisValues: 'display',
+    // project => what users said of the sensor of its raw images: CFA, black level... (see the image viewer's `sensor`)
+    imageSensor: {},
     // runs show only the settings of their configuration that not all runs share
     hide_shared_settings: true,
 
@@ -43,6 +47,8 @@ export const usePrefsStore = create()(persist(
     setSiderCollapsed: collapsed => set({ siderCollapsed: !!collapsed }),
     setImagePixelValues: values => set({ imagePixelValues: values }),
     setImageAnalysis: view => set({ imageAnalysis: view }),
+    setImageAnalysisValues: values => set({ imageAnalysisValues: values }),
+    setImageSensor: (project, sensor) => set(state => ({ imageSensor: { ...state.imageSensor, [project]: sensor } })),
     setCommitListDensity: density => set({ commitListDensity: density === 'compact' ? 'compact' : 'comfortable' }),
     toggleHideSharedSettings: () => set(state => ({ hide_shared_settings: !state.hide_shared_settings })),
     updateTuning: (project, form) => set(state => ({

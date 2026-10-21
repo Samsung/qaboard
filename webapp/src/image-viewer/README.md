@@ -171,6 +171,44 @@ JSON works too, but binary is about 3× smaller and needs no parsing. QA-Board's
 `GET /api/v1/output/image/pixels?image_url=…&x=…&y=…&w=…&h=…&format=binary` (backend/backend/api/image.py): it
 answers with the values' type and shape in `X-Pixels-Dtype` and `X-Pixels-Shape`, and keeps the decoded images on disk.
 
+### Raw images: analysis by channel of the sensor
+With `getPixels`, the analysis panel (<kbd>a</kbd>) measures the image's own values too: **Image values**, next to
+its views. Its histograms, row and column profiles and statistics are then per channel of the sensor's color filter
+array (CFA): R, Gr, Gb and B, R G B, or each sub-pixel of the cells (R1 to R4 in Tetra...), on the values at full
+resolution. Views up to 2 million pixels are read whole, larger ones in strips across them, by requests of 256×256.
+
+A card says what the sensor is, with a diagram of the CFA, and where each value comes from:
+
+1. what users set (the **Sensor** button: pattern, cell size, offset, black level), in the `sensor` prop
+   (`{ kind, pattern, block, offset, blackLevel, grouping }`): control it to remember it, e.g. per project,
+2. the image's metadata: return it from `getPixels` as `sensor`,
+3. the pixels: the CFA guessed from a 256×256 patch at the center of the view, the bit depth from the largest value.
+
+```jsx
+const getPixels = async (image, region, { signal }) => {
+  // ...
+  return {
+    data, width, height, channels: 1, mode: 'I;16',
+    // all optional: what you know
+    sensor: {
+      cfa: { pattern: 'GRBG', block: 2 },  // Tetra; 1 for Bayer, 3 for Nona... the pattern of the file's first pixel
+      bitDepth: 10, blackLevel: 64,        // whiteLevel: 2^bitDepth - 1 by default
+      source: "the file's header",         // shown to users
+      fields: { pattern: 'GRBG', samplePerPixel: '2x2', pedestal: 64 },  // the metadata used, shown to users
+    },
+  };
+};
+```
+
+How the CFA is guessed (`cfa.js`): the mean over a period of the CFA (2 × the cell size, in both directions) has all
+the colors in equal parts. Each pixel minus that mean leaves its color's difference, and noise and the scene's
+details. For each cell size from 1×1 to 9×9, we measure how much the position in the period explains it (R², with an F
+test for significance), and keep the smallest size that explains about as much as the best (multiples explain it too).
+The cells start where they're most uniform, the greens are the diagonal whose cells are most alike period by period,
+and red is assumed on the top row: one channel can't tell red from blue, the card says so. The guess is checked on the
+4 quarters of the patch for its confidence. Images whose pixels each have one of R, G or B set are read exactly.
+Sub-pixels with consistently different levels (e.g. long and short exposures) are reported.
+
 ### Regions of interest
 Users step through regions (with thumbnails for IIIF images), or copy the region in view:
 
@@ -246,6 +284,9 @@ resolution), and show a cross where the pointer is on the others. Viewers off-sc
 | `getPixels` | `(image, { x, y, w, h }, { signal }) => Promise<{ data, width, height, channels?, mode? } \| { values, mode? }>` | | The image's own values, by tiles of 64×64 |
 | `imageValuesUnavailable` | `string` | | Without `getPixels`, why the image's own values aren't available, e.g. "Log in to read the images' own values" |
 | `analysis`, `defaultAnalysis`, `onAnalysisChange` | `'histogram' \| 'profiles' \| 'stats'` | the one picked last on the page | The view of the analysis panel under the images (<kbd>a</kbd> shows it) |
+| `analysisValues`, `defaultAnalysisValues`, `onAnalysisValuesChange` | `'display' \| 'image'` | `'display'` | What the analysis measures: the displayed values, or the [image's own](#raw-images-analysis-by-channel-of-the-sensor) (needs `getPixels`) |
+| `sensor`, `defaultSensor`, `onSensorChange` | `{ kind?, pattern?, block?, offset?, blackLevel?, grouping? }` | automatic | What users set about the sensor of raw images |
+| `sensorRemembered` | `string` | | Where it's remembered, shown to users, e.g. "for the project" |
 | `syncKey` | `string` | | Viewers with the same key are synced |
 | `regionSets` | `[{ id, label, regions?, loading?, error?, load?, empty? }]` | `[]` | Regions of interest |
 | `regionSet`, `defaultRegionSet`, `onRegionSetChange` | `string \| null` | | The set shown (`null`: the full image) |
@@ -327,7 +368,8 @@ The viewer inherits the font of the page.
 | `overlays.jsx` | Drawn over the images: the difference, the highlighted values, pixel values, crosshairs, minimap |
 | `panels.jsx` | Values under the pointer, histograms, adjustments, regions |
 | `histogram.js`, `highlightRenderer.js` | Histograms, and the range of values highlighted from them, on the GPU (one more WebGL context shared by all the viewers) |
-| `analysis.js`, `analysisPanel.jsx` | The analysis panel: histogram, row and column profiles, statistics of the view (displayed values) |
+| `analysis.js`, `analysisPanel.jsx`, `profilePlot.jsx` | The analysis panel: histogram, row and column profiles, statistics of the view (displayed values) |
+| `cfa.js`, `imageAnalysis.js`, `regionValues.js`, `sensorPanel.jsx` | The analysis of the image's own values: CFAs and their guess, reading the view with `getPixels`, the sensor's card |
 | `adjustments.js` | Display adjustments, as an SVG filter: they don't touch the pixels we read |
 | `regions.js`, `pixels.js`, `colormaps.js` | Helpers |
 | `ui.jsx`, `icons.js`, `image-viewer.css` | Buttons, menus, icons (from Blueprint): the viewer doesn't need a UI kit |

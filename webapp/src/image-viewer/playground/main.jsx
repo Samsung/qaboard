@@ -75,6 +75,52 @@ const getPixels = async (image, { x, y, w, h }) => {
   return { data, width: w, height: h, channels: 3, mode: 'RGB;10' };
 };
 
+// Raw images: the chart through a Tetra (Quad Bayer) GRBG color filter, 10-bit, with a black level and noise, shown in
+// gray as a raw viewer would. The new image has no metadata (the viewer guesses its CFA), the reference has some.
+const RAW_GAINS = { R: 0.5, G: 1, B: 0.7 };
+const makeRaw = (url, { black = 64, seed = 1, metadata = null } = {}) => new Promise(resolve => {
+  const img = new Image();
+  img.onload = () => {
+    const { naturalWidth: w, naturalHeight: h } = img;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    context.drawImage(img, 0, 0);
+    const rgba = context.getImageData(0, 0, w, h).data;
+    const values = new Uint16Array(w * h);
+    const gray = context.createImageData(w, h);
+    let random = seed;
+    for (let y = 0; y < h; y++)
+      for (let x = 0; x < w; x++) {
+        const cell = 2 * (Math.floor(y / 2) % 2) + (Math.floor(x / 2) % 2);
+        const color = 'GRBG'[cell];
+        const c = 'RGB'.indexOf(color);
+        random = (random * 16807) % 2147483647;
+        const noise = ((random / 2147483647) - 0.5) * 12;
+        const v = Math.max(0, Math.min(1023, Math.round(black + rgba[4 * (y * w + x) + c] * 3.4 * RAW_GAINS[color] + noise)));
+        values[y * w + x] = v;
+        const i = 4 * (y * w + x);
+        gray.data[i] = gray.data[i + 1] = gray.data[i + 2] = v >> 2;
+        gray.data[i + 3] = 255;
+      }
+    context.putImageData(gray, 0, 0);
+    canvas.toBlob(blob => resolve({ url: URL.createObjectURL(blob), values, width: w, height: h, metadata }), 'image/png');
+  };
+  img.src = url;
+});
+const raws = new Map();
+const getRawPixels = async (image, { x, y, w, h }) => {
+  const raw = raws.get(image.url);
+  const width = Math.min(w, raw.width - x);
+  const height = Math.min(h, raw.height - y);
+  const data = new Uint16Array(width * height);
+  for (let j = 0; j < height; j++) data.set(raw.values.subarray((y + j) * raw.width + x, (y + j) * raw.width + x + width), j * width);
+  // a server would be a bit slower
+  await new Promise(resolve => setTimeout(resolve, 20));
+  return { data, width, height, channels: 1, mode: 'I;16', sensor: raw.metadata ?? undefined };
+};
+
 const App = () => {
   const [images, setImages] = useState(null);
   const [mode, setMode] = useState('side-by-side');
@@ -92,7 +138,17 @@ const App = () => {
         context.filter = 'blur(3px) grayscale(1)';
         context.drawImage(context.canvas, 0, 0);
       }),
-    ]).then(([a, b, gt, input]) => setImages({ a, b, gt, input }));
+    ]).then(async ([a, b, gt, input]) => {
+      const raw_a = await makeRaw(a, { black: 64, seed: 3 });
+      const raw_b = await makeRaw(b, {
+        black: 64,
+        seed: 5,
+        metadata: { cfa: { pattern: 'GRBG', block: 2 }, bitDepth: 10, whiteLevel: 1023, blackLevel: 64, source: 'the playground', fields: { pattern: 'GRBG', samplePerPixel: '2x2', imageType: 'UI10', pedestal: 64 } },
+      });
+      raws.set(raw_a.url, raw_a);
+      raws.set(raw_b.url, raw_b);
+      setImages({ a, b, gt, input, raw_a: raw_a.url, raw_b: raw_b.url });
+    });
   }, []);
   if (!images) return null;
   const regions = [{ id: 'presets', label: 'Presets', regions: [
@@ -121,6 +177,16 @@ const App = () => {
       syncKey="chart"
       regionSets={regions}
       getPixels={getPixels}
+      theme={theme}
+      style={{ maxWidth: 1200 }}
+    />
+    <h4 style={{ color: theme === 'dark' ? '#fff' : '#000' }}>Raw images: Tetra GRBG, 10-bit (the new one without metadata)</h4>
+    <ImageViewer
+      className="playground-raw"
+      image={{ url: images.raw_a, label: 'new' }}
+      reference={{ url: images.raw_b, label: 'reference' }}
+      getPixels={getRawPixels}
+      defaultAnalysisValues="image"
       theme={theme}
       style={{ maxWidth: 1200 }}
     />

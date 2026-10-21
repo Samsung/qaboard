@@ -1,11 +1,13 @@
 // The analysis panel, under the images: the histogram of the view, the profiles of its rows and columns, or its
 // statistics. Users pick the view in its header; the channels shown are the same for all.
-import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useEffectEvent, useState, useSyncExternalStore } from 'react';
 
-import { ANALYSES, STATS, alongImage, bandOf, formatStat, formatStatDelta, nearest, niceTicks, profilesOf, statsOf, statsTsv, valueDomain, valueRange } from './analysis';
+import { ANALYSES, STATS, alongImage, formatStat, formatStatDelta, profilesOf, statsOf, statsTsv } from './analysis';
 import { pixelDensityRatio } from './comparison';
 import { CHANNELS } from './histogram';
-import { CHANNEL_COLORS, CHANNEL_TITLES, ChannelButtons, Histogram, LineLegend, isLight, readHistograms } from './panels';
+import { CHANNEL_COLORS, CHANNEL_TITLES, ChannelButtons, Histogram, LineLegend, readHistograms } from './panels';
+import { ProfilePlot } from './profilePlot';
+import { GroupingPicker, ImageChannelButtons, ImageValuesView, SensorCard, useImageAnalysis } from './sensorPanel';
 import { Button, Segmented, Select } from './ui';
 
 // What the viewers display, read again after they draw (at most every 250ms), and when `key` changes
@@ -35,18 +37,53 @@ const useAfterDraws = (controller, read, key) => {
 
 const CORS_ERROR = "The image server doesn't allow reading the pixels (CORS)";
 
-export const AnalysisPanel = ({ controller, comparing, names, view, onViewChange, channels, onChannelsChange, range, onRangeChange, onGuideChange }) => <div className="qiv-analysis">
-  <div className="qiv-histogram-header">
-    <Segmented className="qiv-analysis-views" label="Analysis of the view" options={ANALYSES} value={view} onChange={onViewChange} />
-    <span className="qiv-histogram-legend">
-      <ChannelButtons channels={channels} onChange={onChannelsChange} hint={view === 'histogram' ? 'The range you drag applies to the channels shown.' : ''} />
-      {view !== 'stats' && <LineLegend names={names} comparing={comparing} />}
-    </span>
-  </div>
-  {view === 'histogram' && <Histogram controller={controller} comparing={comparing} names={names} channels={channels} range={range} onRangeChange={onRangeChange} />}
-  {view === 'profiles' && <Profiles controller={controller} comparing={comparing} names={names} channels={channels} onGuideChange={onGuideChange} />}
-  {view === 'stats' && <Stats controller={controller} comparing={comparing} names={names} channels={channels} />}
-</div>;
+// What the analysis measures: the displayed values (8-bit, what users see), or the image's own (getPixels)
+const VALUES = [
+  { value: 'display', label: 'Displayed', title: 'The displayed values: 8-bit sRGB, at the screen\'s resolution' },
+  { value: 'image', label: 'Image values', title: "The image's own values (raw, 10-bit, 16-bit…), at full resolution, per channel of the sensor: R, Gr, Gb, B" },
+];
+
+export const AnalysisPanel = ({ controller, comparing, names, view, onViewChange, channels, onChannelsChange, range, onRangeChange, onGuideChange, values, onValuesChange, images, sizes, getPixels, imageValuesUnavailable, sensor, onSensorChange, sensorRemembered }) => {
+  const image_values = values === 'image' && !!getPixels;
+  const state = useImageAnalysis({ controller, images, comparing, sizes, getPixels, setting: sensor, active: image_values });
+  const [hidden, setHidden] = useState(() => new Set());
+  const pointer = useSyncExternalStore(controller.subscribePointer, controller.getPointer);
+  const pixel = image_values && pointer ? controller.imagePixel('a', pointer.point) : null;
+  const marker = pixel ? { x: pixel.x + 0.5, y: pixel.y + 0.5 } : null;
+  const analysis = state.results?.a ?? null;
+  const values_options = VALUES.map(option => option.value === 'image' && !getPixels
+    ? { ...option, title: imageValuesUnavailable ?? "The app doesn't read the image's own values" }
+    : option);
+  return <div className="qiv-analysis">
+    <div className="qiv-histogram-header">
+      <span className="qiv-analysis-pickers">
+        <Segmented className="qiv-analysis-views" label="Analysis of the view" options={ANALYSES} value={view} onChange={onViewChange} />
+        <Segmented
+          className={`qiv-analysis-views qiv-analysis-values ${getPixels ? '' : 'qiv-unavailable'}`}
+          label="Values"
+          options={values_options}
+          value={image_values ? 'image' : 'display'}
+          onChange={value => (value === 'display' || getPixels) && onValuesChange(value)}
+        />
+      </span>
+      <span className="qiv-histogram-legend">
+        {image_values ? <>
+          <GroupingPicker analysis={analysis} value={sensor.grouping} onChange={grouping => onSensorChange({ ...sensor, grouping })} />
+          <ImageChannelButtons analysis={analysis} hidden={hidden} onChange={setHidden} />
+        </> : <ChannelButtons channels={channels} onChange={onChannelsChange} hint={view === 'histogram' ? 'The range you drag applies to the channels shown.' : ''} />}
+        {view !== 'stats' && <LineLegend names={names} comparing={comparing} />}
+      </span>
+    </div>
+    {image_values ? <>
+      <SensorCard state={state} setting={sensor} onSettingChange={onSensorChange} names={names} comparing={comparing} remembered={sensorRemembered} />
+      <ImageValuesView view={view} state={state} names={names} comparing={comparing} hidden={hidden} marker={marker} onGuideChange={onGuideChange} />
+    </> : <>
+      {view === 'histogram' && <Histogram controller={controller} comparing={comparing} names={names} channels={channels} range={range} onRangeChange={onRangeChange} />}
+      {view === 'profiles' && <Profiles controller={controller} comparing={comparing} names={names} channels={channels} onGuideChange={onGuideChange} />}
+      {view === 'stats' && <Stats controller={controller} comparing={comparing} names={names} channels={channels} />}
+    </>}
+  </div>;
+};
 
 
 // --- Profiles ---
@@ -100,199 +137,6 @@ const readProfiles = (controller, comparing, line) => {
   return series.filter(Boolean);
 };
 
-const MARGIN = { left: 36, right: 10, top: 8, bottom: 20 };
-const rgba = (color, alpha) => {
-  if (color.startsWith('#')) {
-    const n = parseInt(color.slice(1), 16);
-    return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
-  }
-  return color.replace(/rgba?\(([^,]+),([^,]+),([^,)]+).*/, `rgba($1,$2,$3,${alpha})`);
-};
-const tickLabel = (value, step) => step >= 1 ? String(Math.round(value)) : value.toFixed(1);
-
-const drawProfiles = (element, series, key, channels, band, x_domain, y_domain) => {
-  const ratio = window.devicePixelRatio || 1;
-  const width = element.clientWidth;
-  const height = element.clientHeight;
-  element.width = Math.round(width * ratio);
-  element.height = Math.round(height * ratio);
-  const context = element.getContext('2d');
-  context.setTransform(ratio, 0, 0, ratio, 0, 0);
-  context.clearRect(0, 0, width, height);
-  const plot_width = width - MARGIN.left - MARGIN.right;
-  const plot_height = height - MARGIN.top - MARGIN.bottom;
-  if (plot_width <= 0 || plot_height <= 0) return;
-  const style = getComputedStyle(element);
-  const text_color = style.color;
-  const dark = isLight(text_color);
-  const grid_color = style.getPropertyValue('--qiv-border').trim() || 'rgba(128, 128, 128, 0.3)';
-  const [x0, x1] = x_domain;
-  const [y0, y1] = y_domain;
-  const X = x => MARGIN.left + (x - x0) / (x1 - x0 || 1) * plot_width;
-  const Y = v => MARGIN.top + (1 - (v - y0) / (y1 - y0 || 1)) * plot_height;
-  const snap = v => Math.round(v * ratio) / ratio + 0.5 / ratio;
-
-  // the grid, and its values
-  context.font = `10.5px ${style.getPropertyValue('--qiv-mono').trim() || 'monospace'}`;
-  context.lineWidth = 1;
-  context.strokeStyle = grid_color;
-  context.fillStyle = rgba(text_color, 0.65);
-  const y_ticks = niceTicks(y0, y1, Math.max(2, Math.min(6, Math.floor(plot_height / 26))));
-  const y_step = y_ticks.length > 1 ? y_ticks[1] - y_ticks[0] : 1;
-  context.textAlign = 'right';
-  context.textBaseline = 'middle';
-  context.beginPath();
-  for (const tick of y_ticks) {
-    const y = snap(Y(tick));
-    context.moveTo(MARGIN.left, y);
-    context.lineTo(width - MARGIN.right, y);
-    context.fillText(tickLabel(tick, y_step), MARGIN.left - 5, y);
-  }
-  // pixels are integers: no ticks between them
-  const x_ticks = niceTicks(x0, x1, Math.max(2, Math.floor(plot_width / 90))).filter(Number.isInteger);
-  context.textAlign = 'center';
-  context.textBaseline = 'top';
-  for (const tick of x_ticks) {
-    const x = snap(X(tick));
-    context.moveTo(x, MARGIN.top);
-    context.lineTo(x, MARGIN.top + plot_height);
-    context.fillText(String(tick), Math.min(width - MARGIN.right - 8, Math.max(MARGIN.left + 8, x)), MARGIN.top + plot_height + 5);
-  }
-  context.stroke();
-  context.strokeStyle = rgba(text_color, 0.35);
-  context.beginPath();
-  context.moveTo(MARGIN.left, snap(MARGIN.top + plot_height));
-  context.lineTo(width - MARGIN.right, snap(MARGIN.top + plot_height));
-  context.stroke();
-
-  context.save();
-  context.beginPath();
-  context.rect(MARGIN.left, MARGIN.top - 2, plot_width, plot_height + 2);
-  context.clip();
-  const color = c => c === 3 ? text_color : CHANNEL_COLORS[c];
-  // the band of the first image: how much the values vary across each column or row
-  const [first] = series;
-  if (band !== 'none' && first) {
-    const profile = first[key];
-    // light, not to hide the lines: with all the channels, they overlap
-    context.globalCompositeOperation = dark ? 'lighter' : 'source-over';
-    for (let c = 0; c < 4; c++) {
-      if (!channels[c] || !profile.length) continue;
-      context.beginPath();
-      for (let j = 0; j < profile.length; j++) context.lineTo(X(profile.x[j]), Y(bandOf(profile, j, c, band)[1]));
-      for (let j = profile.length - 1; j >= 0; j--) context.lineTo(X(profile.x[j]), Y(bandOf(profile, j, c, band)[0]));
-      context.closePath();
-      context.fillStyle = rgba(c === 3 ? text_color : CHANNEL_COLORS[c], c === 3 ? 0.07 : dark ? 0.16 : 0.1);
-      context.fill();
-    }
-    context.globalCompositeOperation = 'source-over';
-  }
-  // the means, of the other image dashed
-  context.lineJoin = 'round';
-  for (const s of series) {
-    const profile = s[key];
-    for (let c = 0; c < 4; c++) {
-      if (!channels[c] || !profile.length) continue;
-      context.beginPath();
-      for (let j = 0; j < profile.length; j++) context.lineTo(X(profile.x[j]), Y(profile.mean[4 * j + c]));
-      context.strokeStyle = color(c);
-      context.globalAlpha = c === 3 ? 0.85 : 1;
-      context.lineWidth = c === 3 ? 1.5 : 1.25;
-      context.setLineDash(s.dashed ? [4, 3] : []);
-      context.stroke();
-    }
-  }
-  context.restore();
-};
-
-// The domain of the positions: from the first to the last, over the pixels' widths
-const positionDomain = (series, key) => {
-  let lo = Infinity;
-  let hi = -Infinity;
-  for (const s of series) {
-    const profile = s[key];
-    if (!profile.length) continue;
-    lo = Math.min(lo, profile.x[0]);
-    hi = Math.max(hi, profile.x[profile.length - 1]);
-  }
-  if (!(hi >= lo)) return null;
-  return hi - lo < 1 ? [lo - 0.5, hi + 0.5] : [lo, hi];
-};
-
-// One profile: along x (`columns`) or y (`rows`)
-const ProfilePlot = ({ title, detail, axis, series, channels, band, scale, marker, onGuideChange }) => {
-  const canvas = useRef(null);
-  const key = axis === 'x' ? 'columns' : 'rows';
-  const [hover, setHover] = useState(null);
-  const x_domain = positionDomain(series, key);
-  const y_domain = valueDomain(valueRange(series.map(s => s[key]), channels, band), scale);
-  const draw = useEffectEvent(() => {
-    if (canvas.current && x_domain) drawProfiles(canvas.current, series, key, channels, band, x_domain, y_domain);
-    else if (canvas.current) canvas.current.getContext('2d')?.clearRect(0, 0, canvas.current.width, canvas.current.height);
-  });
-  useEffect(() => {
-    draw();
-  });
-  useEffect(() => {
-    const element = canvas.current;
-    if (!element || typeof ResizeObserver === 'undefined') return;
-    const observer = new ResizeObserver(() => draw());
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
-
-  // where a position is, over the canvas
-  // (not x_domain[0] in the function: the React Compiler would read it to memoize it, even when there's no domain)
-  const [x_start, x_end] = x_domain ?? [0, 1];
-  const left = x => `calc(${MARGIN.left}px + (100% - ${MARGIN.left + MARGIN.right}px) * ${(x - x_start) / (x_end - x_start || 1)})`;
-  const [first] = series;
-  const positionAt = event => {
-    const element = canvas.current;
-    if (!element || !x_domain || !first?.[key].length) return null;
-    const rect = element.getBoundingClientRect();
-    const fraction = (event.clientX - rect.left - MARGIN.left) / (rect.width - MARGIN.left - MARGIN.right);
-    const x = x_domain[0] + Math.min(1, Math.max(0, fraction)) * (x_domain[1] - x_domain[0]);
-    return first[key].x[nearest(first[key], x)];
-  };
-  const onPointerMove = event => {
-    const position = positionAt(event);
-    setHover(position);
-    onGuideChange(position === null ? null : { axis, value: position });
-  };
-  const onPointerLeave = () => {
-    setHover(null);
-    onGuideChange(null);
-  };
-  // the values at the position hovered, else at the pointer on the images
-  const at = hover ?? marker;
-  const shown = at !== null && x_domain && at >= x_domain[0] - 1 && at <= x_domain[1] + 1;
-  const valueOf = (s, c) => {
-    const profile = s[key];
-    const j = nearest(profile, at);
-    if (j < 0 || Math.abs(profile.x[j] - at) > 1) return '–';
-    return profile.mean[4 * j + c].toFixed(1);
-  };
-  return <div className="qiv-profile">
-    <div className="qiv-profile-title">
-      <span>{title}</span>
-      <span className="qiv-muted">{detail}</span>
-    </div>
-    <div className="qiv-profile-plot" onPointerMove={onPointerMove} onPointerLeave={onPointerLeave}>
-      <canvas ref={canvas} aria-hidden="true" />
-      {x_domain && marker !== null && marker >= x_domain[0] && marker <= x_domain[1] && <div className="qiv-profile-marker" style={{ left: left(marker) }} />}
-      {x_domain && hover !== null && <div className="qiv-histogram-cursor qiv-profile-cursor" style={{ left: left(hover) }} />}
-    </div>
-    <div className="qiv-histogram-readout qiv-mono qiv-profile-readout">
-      {shown && first ? <>
-        <span>{axis} {Math.floor(at)}</span>
-        {CHANNELS.map((name, c) => channels[c] && <span key={name}>
-          <span style={{ color: c === 3 ? undefined : CHANNEL_COLORS[c] }}>{name}</span> {valueOf(first, c)}{series[1] ? ` / ${valueOf(series[1], c)}` : ''}
-        </span>)}
-      </> : <span className="qiv-muted">Hover to see the values, and where it is on the images</span>}
-    </div>
-  </div>;
-};
-
 const Profiles = ({ controller, comparing, names, channels, onGuideChange }) => {
   const [settings, setSettings] = useState(() => ({ ...profile_settings }));
   const change = patch => {
@@ -330,6 +174,7 @@ const Profiles = ({ controller, comparing, names, channels, onGuideChange }) => 
   const line = result?.line ?? null;
   useEffect(() => () => onGuideChange(null), [onGuideChange]);
 
+  const lines = CHANNELS.map((name, c) => ({ name, color: c === 3 ? null : CHANNEL_COLORS[c], shown: channels[c] }));
   const titles = at_pointer
     ? { x: line ? `Row ${line.y}` : 'Row under the pointer', y: line ? `Column ${line.x}` : 'Column under the pointer' }
     : { x: 'Columns', y: 'Rows' };
@@ -344,8 +189,8 @@ const Profiles = ({ controller, comparing, names, channels, onGuideChange }) => 
       {at_pointer && !pointed && <span className="qiv-muted">The center of the view: move the pointer over the images</span>}
     </div>
     {result?.error ? <div className="qiv-message qiv-histogram-message qiv-profiles-message">{result.error}</div> : <div className="qiv-profiles-plots">
-      <ProfilePlot title={titles.x} detail={details.x} axis="x" series={series} channels={channels} band={band} scale={scale} marker={pixel ? pixel.x + 0.5 : null} onGuideChange={onGuideChange} />
-      <ProfilePlot title={titles.y} detail={details.y} axis="y" series={series} channels={channels} band={band} scale={scale} marker={pixel ? pixel.y + 0.5 : null} onGuideChange={onGuideChange} />
+      <ProfilePlot title={titles.x} detail={details.x} axis="x" series={series} lines={lines} band={band} scale={scale} marker={pixel ? pixel.x + 0.5 : null} onGuideChange={onGuideChange} />
+      <ProfilePlot title={titles.y} detail={details.y} axis="y" series={series} lines={lines} band={band} scale={scale} marker={pixel ? pixel.y + 0.5 : null} onGuideChange={onGuideChange} />
     </div>}
     <div className="qiv-histogram-footer">
       <span className="qiv-muted">{at_pointer ? 'The row and column stay when the pointer leaves the images' : 'Of the view: zoom in to profile a part of the image'}</span>

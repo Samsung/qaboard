@@ -1099,6 +1099,419 @@
   font-size: 12px;
 }
 
+/* The analysis on the image's own values: the sensor, then its channels */
+.qiv-analysis-pickers {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+.qiv-analysis-values.qiv-unavailable .qiv-button:last-child {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.qiv-grouping .qiv-button {
+  font-family: var(--qiv-mono);
+  font-size: 11px;
+}
+.qiv-sensor-wrap {
+  margin: 4px 0 8px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 6px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--qiv-accent) 5%, var(--qiv-surface)), var(--qiv-surface) 60%);
+}
+.qiv-sensor {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 10px 12px;
+}
+.qiv-sensor-empty {
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+  border: 1px dashed var(--qiv-border);
+  border-radius: 6px;
+}
+.qiv-sensor-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.qiv-sensor-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 14px;
+}
+.qiv-sensor-title strong {
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+.qiv-sensor-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 14px;
+}
+.qiv-sensor-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--qiv-text-muted);
+  line-height: 1.45;
+}
+.qiv-levels-note {
+  color: var(--qiv-text);
+}
+.qiv-levels-note::before {
+  content: "◐ ";
+  color: var(--qiv-warning);
+}
+.qiv-sensor-swatch {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #222, #ddd);
+}
+.qiv-sensor-swatch-rgb {
+  background: conic-gradient(#ef6b6f, #f5c451, #46b97f, #2fb7a5, #5b7ff0, #a46ff0, #ef6b6f);
+}
+/* where a value comes from */
+.qiv-source {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+  cursor: help;
+  color: var(--qiv-text-muted);
+  background: var(--qiv-hover);
+}
+.qiv-source-metadata {
+  color: #1c6e42;
+  background: rgba(48, 164, 108, 0.16);
+}
+.qiv-source-pixels {
+  color: #935610;
+  background: rgba(236, 154, 60, 0.18);
+}
+.qiv-source-user {
+  color: var(--qiv-accent);
+  background: var(--qiv-pressed);
+}
+.qiv-source-default {
+  color: var(--qiv-danger);
+  background: rgba(205, 66, 70, 0.14);
+}
+:where(.qiv[data-theme="dark"]) .qiv-source-metadata { color: #72ca9b; }
+:where(.qiv[data-theme="dark"]) .qiv-source-pixels { color: #fbb360; }
+@media (prefers-color-scheme: dark) {
+  :where(.qiv:not([data-theme="light"])) .qiv-source-metadata { color: #72ca9b; }
+  :where(.qiv:not([data-theme="light"])) .qiv-source-pixels { color: #fbb360; }
+}
+.qiv-check {
+  font-size: 12px;
+  color: var(--qiv-text-muted);
+}
+.qiv-check-ok {
+  color: #30a46c;
+}
+.qiv-check-warn {
+  color: var(--qiv-warning);
+  font-weight: 600;
+}
+.qiv-danger-text {
+  color: var(--qiv-danger);
+}
+.qiv-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--qiv-accent);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/* The CFA, drawn */
+.qiv-cfa {
+  flex: 0 0 auto;
+  border-radius: 3px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+.qiv-cfa-grid {
+  stroke: rgba(0, 0, 0, 0.18);
+  stroke-width: 0.6;
+  fill: none;
+}
+.qiv-cfa-edges {
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 1.4;
+  fill: none;
+}
+.qiv-cfa-label,
+.qiv-cfa-sub {
+  fill: #fff;
+  font-family: var(--qiv-mono);
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.35);
+  stroke-width: 2px;
+  pointer-events: none;
+}
+.qiv-cfa-sub {
+  font-size: 9px;
+  font-weight: 600;
+}
+.qiv-cfa-bright {
+  fill: #fff6c2;
+  stroke: rgba(0, 0, 0, 0.5);
+  stroke-width: 0.6;
+}
+.qiv-cfa-origin {
+  fill: #fff;
+  stroke: rgba(0, 0, 0, 0.6);
+  stroke-width: 0.6;
+}
+
+/* Setting the sensor */
+.qiv-sensor-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 330px;
+  padding: 8px;
+}
+.qiv-popover:has(.qiv-sensor-editor) {
+  max-width: min(460px, 94vw);
+}
+.qiv-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+.qiv-field-label {
+  width: 78px;
+  color: var(--qiv-text-muted);
+  font-size: 12px;
+}
+.qiv-patterns {
+  display: inline-flex;
+  gap: 4px;
+}
+.qiv-pattern {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 4px 2px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-family: var(--qiv-mono);
+  font-size: 10px;
+  cursor: pointer;
+}
+.qiv-pattern svg {
+  border-radius: 2px;
+}
+.qiv-pattern:hover {
+  background: var(--qiv-hover);
+}
+.qiv-pattern.qiv-active {
+  border-color: var(--qiv-accent);
+  box-shadow: 0 0 0 1px var(--qiv-accent);
+  color: var(--qiv-accent);
+}
+.qiv-number {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+.qiv-number input {
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--qiv-border);
+  border-radius: 3px;
+  background: var(--qiv-surface);
+  color: inherit;
+  font-family: var(--qiv-mono);
+  font-size: 12px;
+}
+.qiv-sensor-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--qiv-border);
+}
+.qiv-sensor-editor .qiv-button.qiv-small,
+.qiv-sensor-editor .qiv-segmented .qiv-button {
+  height: 24px;
+  font-size: 12px;
+}
+
+/* How we know */
+.qiv-sensor-details {
+  border-top: 1px solid var(--qiv-border);
+}
+.qiv-sensor-details summary {
+  padding: 4px 12px;
+  color: var(--qiv-text-muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+.qiv-sensor-details-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 12px 24px;
+  padding: 4px 12px 10px;
+}
+.qiv-detail-title {
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.qiv-guess-scores {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 56px;
+  margin-bottom: 4px;
+}
+.qiv-guess-score {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  width: 20px;
+  height: 100%;
+  font-family: var(--qiv-mono);
+  font-size: 10px;
+  color: var(--qiv-text-muted);
+  cursor: help;
+}
+.qiv-guess-score i {
+  width: 14px;
+  min-height: 2px;
+  margin-bottom: 2px;
+  border-radius: 2px 2px 0 0;
+  background: color-mix(in srgb, var(--qiv-text-muted) 45%, transparent);
+}
+.qiv-guess-score.qiv-active {
+  color: var(--qiv-accent);
+  font-weight: 700;
+}
+.qiv-guess-score.qiv-active i {
+  background: var(--qiv-accent);
+}
+.qiv-meta-fields {
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.qiv-meta-fields td {
+  padding: 1px 12px 1px 0;
+}
+.qiv-meta-fields td:first-child {
+  color: var(--qiv-text-muted);
+}
+
+/* The channels' values */
+.qiv-image-values {
+  position: relative;
+}
+.qiv-image-values.qiv-loading > :not(.qiv-progress) {
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+.qiv-progress {
+  position: absolute;
+  top: -5px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  overflow: hidden;
+  border-radius: 1px;
+  background: var(--qiv-border);
+}
+.qiv-progress i {
+  display: block;
+  height: 100%;
+  background: var(--qiv-accent);
+  transition: width 0.2s;
+}
+.qiv-image-loading {
+  display: flex;
+  justify-content: center;
+  padding: 24px;
+}
+.qiv-image-stats-top {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  margin-bottom: 6px;
+}
+.qiv-ratios {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+}
+.qiv-ratio {
+  cursor: help;
+}
+.qiv-stats-count {
+  display: block;
+  font-size: 10px;
+  font-family: var(--qiv-mono);
+}
+.qiv-subpixel-maps {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+}
+.qiv-subpixel-map {
+  margin: 0;
+  text-align: center;
+}
+.qiv-subpixel-map figcaption {
+  font-family: var(--qiv-mono);
+  font-weight: 600;
+  font-size: 11px;
+}
+.qiv-subpixel-level {
+  font-size: 11px;
+}
+.qiv-sensor-other {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 6px;
+}
+.qiv-subpixel-frame {
+  fill: none;
+  stroke: rgba(0, 0, 0, 0.4);
+}
+.qiv-image-histogram-plot {
+  height: 170px;
+}
+
 .qiv-spinner {
   display: inline-block;
   flex: 0 0 auto;

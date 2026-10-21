@@ -13,6 +13,7 @@ import { PixelTiles } from './pixelTiles';
 import { ALL_CHANNELS } from './histogram';
 import { ANALYSES, normalizeAnalysis } from './analysis';
 import { AnalysisPanel } from './analysisPanel';
+import { normalizeSensorSetting } from './imageAnalysis';
 import { Crosshair, DiffLayer, GuideLine, HighlightLayer, Minimap, PixelValues } from './overlays';
 import { AdjustmentsPanel, DiffLegend, DiffSettings, Readout, RegionsMenu, RegionsStrip, Shortcuts, ValuesBadge, ValuesPanel } from './panels';
 import { Button, FilterPrimitive, Icon, MenuDivider, MenuItem, Popover, Segmented, Spinner } from './ui';
@@ -116,6 +117,13 @@ export const ImageViewer = ({
   analysis: analysis_prop,
   defaultAnalysis,
   onAnalysisChange,
+  analysisValues: analysis_values_prop,
+  defaultAnalysisValues = 'display',
+  onAnalysisValuesChange,
+  sensor: sensor_prop,
+  defaultSensor,
+  onSensorChange,
+  sensorRemembered,
   syncKey = null,
   regionSets = [],
   regionSet: region_set_prop,
@@ -215,6 +223,11 @@ export const ImageViewer = ({
   const [histogram_channels, setHistogramChannels] = useState(ALL_CHANNELS);
   const [highlight_range, setHighlightRange] = useState(null);
   const highlight = show_analysis && analysis === 'histogram' && highlight_range ? { ...highlight_range, channels: histogram_channels } : null;
+  // What it measures: the displayed values, or the image's own ('image', with getPixels), per channel of its sensor,
+  // e.g. R, Gr, Gb, B. What users say of the sensor (its CFA, black level...): controlled to remember it, e.g. per project.
+  const [analysis_values, setAnalysisValues] = useControllable(analysis_values_prop, defaultAnalysisValues, onAnalysisValuesChange);
+  const [sensor_setting, setSensorSetting] = useControllable(sensor_prop, defaultSensor, onSensorChange);
+  const sensor = normalizeSensorSetting(sensor_setting);
   // The row or column hovered on its profile, shown on the images: { axis: 'x' | 'y', value }
   const [guide, setGuide] = useState(null);
   const [diff_error, setDiffError] = useState(null);
@@ -839,6 +852,15 @@ export const ImageViewer = ({
       range={highlight_range}
       onRangeChange={setHighlightRange}
       onGuideChange={setGuide}
+      values={analysis_values === 'image' ? 'image' : 'display'}
+      onValuesChange={setAnalysisValues}
+      images={images}
+      sizes={{ a: size_a, b: size_b }}
+      getPixels={getPixels}
+      imageValuesUnavailable={imageValuesUnavailable}
+      sensor={sensor}
+      onSensorChange={setSensorSetting}
+      sensorRemembered={sensorRemembered}
     />}
   </div>;
 };

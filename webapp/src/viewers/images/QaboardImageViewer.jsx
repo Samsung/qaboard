@@ -9,7 +9,7 @@ import { create } from 'zustand';
 
 import { ImageViewer } from '../../image-viewer';
 import { errorMessage, http, isAbort } from '../../api/http';
-import { useComparison, useLabels, useSiteConfig, useUser } from '../../hooks';
+import { useComparison, useLabels, useSelected, useSiteConfig, useUser } from '../../hooks';
 import { usePrefsStore } from '../../stores/prefs';
 import { at_most, is_same_data } from '../../utils';
 import { build_image_name, iiif_url } from './utils';
@@ -79,7 +79,29 @@ const getPixels = async (image, { x, y, w, h }, { signal }) => {
   });
   const [height, width, channels = 1] = headers.get('X-Pixels-Shape').split(',').map(Number);
   const TypedArray = TYPED_ARRAYS[headers.get('X-Pixels-Dtype')] ?? Float64Array;
-  return { data: new TypedArray(data), width, height, channels, mode: headers.get('X-Pixels-Mode') ?? undefined };
+  return { data: new TypedArray(data), width, height, channels, mode: headers.get('X-Pixels-Mode') ?? undefined, sensor: sensorOf(headers.get('X-Pixels-Sensor')) };
+};
+
+// What the image's reader on the server says about its sensor (backend/backend/sensor.py), for the viewer's analysis
+export const sensorOf = header => {
+  if (!header) return undefined;
+  let info;
+  try {
+    info = JSON.parse(header);
+  } catch {
+    return undefined;
+  }
+  const crop = info.crop && { x: info.crop.x, y: info.crop.y, fullWidth: info.crop.full_width, fullHeight: info.crop.full_height };
+  return {
+    cfa: info.cfa ?? undefined,
+    bitDepth: info.bit_depth ?? undefined,
+    blackLevel: info.black_level ?? undefined,
+    whiteLevel: info.white_level ?? undefined,
+    mono: info.mono ?? undefined,
+    crop: crop ?? undefined,
+    source: "the file's metadata, from the server's image reader",
+    fields: info.fields,
+  };
 };
 
 // Display adjustments are shared by the viewers of the same visualization, so that the runs stay comparable.
@@ -192,6 +214,12 @@ const ImageViewerForRuns = ({
   const setPixelValues = usePrefsStore(state => state.setImagePixelValues);
   const analysis = usePrefsStore(state => state.imageAnalysis);
   const setAnalysis = usePrefsStore(state => state.setImageAnalysis);
+  const analysis_values = usePrefsStore(state => state.imageAnalysisValues);
+  const setAnalysisValues = usePrefsStore(state => state.setImageAnalysisValues);
+  // what users said of the sensor of the project's raw images
+  const { project } = useSelected();
+  const sensor = usePrefsStore(state => state.imageSensor[project]);
+  const setSensor = usePrefsStore(state => state.setImageSensor);
   const adjustments = useAdjustmentsStore(state => state.by_path[path]);
   const setAdjustments = useAdjustmentsStore(state => state.set);
 
@@ -284,6 +312,11 @@ const ImageViewerForRuns = ({
     onPixelValuesChange={setPixelValues}
     analysis={analysis}
     onAnalysisChange={setAnalysis}
+    analysisValues={analysis_values}
+    onAnalysisValuesChange={setAnalysisValues}
+    sensor={sensor}
+    onSensorChange={value => setSensor(project, value)}
+    sensorRemembered="for the project, in this browser"
     // the same input's images are synced, e.g. the other runs', or the other visualizations of a run
     syncKey={output_new.test_input_path ?? null}
     regionSets={region_sets}

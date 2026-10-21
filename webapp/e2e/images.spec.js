@@ -46,7 +46,15 @@ const commit = (hexsha, batch_id, message, metadata, qatools_config, runs = [nul
 
 // differences: by run, the largest difference the server finds, for the regions where they differ (none: identical),
 // after diff_delay ms. eight_bit: the image's own values are 8-bit RGB (else 10-bit)
-const setup = async (page, { metadata = {}, manifests, qatools_config = default_config, runs, differences = {}, diff_delay = 0, eight_bit = false, signed_in = true } = {}) => {
+// raw images: the images through a GBRG Bayer CFA, 10-bit with a black level of 64. Only the reference's reader knows it.
+const RAW_GAINS = { R: 0.5, G: 1, B: 0.7 };
+const rawValue = (image, x, y) => {
+  const color = 'GBRG'[2 * (y % 2) + (x % 2)];
+  return 64 + Math.round(4 * image.pixel(x, y)['RGB'.indexOf(color)] * RAW_GAINS[color]);
+};
+const RAW_SENSOR = { cfa: { pattern: 'GBRG', block: 1 }, bit_depth: 10, white_level: 1023, black_level: 64, fields: { pattern: 'GBRG', imageType: 'UI10', pedestal: 64 } };
+
+const setup = async (page, { metadata = {}, manifests, qatools_config = default_config, runs, differences = {}, diff_delay = 0, eight_bit = false, raw = false, signed_in = true } = {}) => {
   const api = {
     '/api/v1/config': {},
     '/api/v1/user/me/': signed_in ? { is_authenticated: true, user_id: 1, user_name: 'alice', full_name: 'Alice', email: 'alice@example.com', login_type: 'local' } : { is_authenticated: false },
@@ -77,6 +85,17 @@ const setup = async (page, { metadata = {}, manifests, qatools_config = default_
       const [x, y, w, h] = ['x', 'y', 'w', 'h'].map(k => Number(url.searchParams.get(k)));
       pixel_requests.push({ x, y, w, h });
       const [cw, ch] = [Math.min(w, image.width - x), Math.min(h, image.height - y)];
+      if (raw) {
+        const data = Uint16Array.from({ length: cw * ch }, (_, i) => rawValue(image, x + (i % cw), y + Math.floor(i / cw)));
+        return route.fulfill({
+          body: Buffer.from(data.buffer),
+          contentType: 'application/octet-stream',
+          headers: {
+            'X-Pixels-Dtype': 'uint16', 'X-Pixels-Shape': `${ch},${cw}`, 'X-Pixels-Mode': 'I;16',
+            ...(hexshaOf(folder) === 'ref' ? { 'X-Pixels-Sensor': JSON.stringify(RAW_SENSOR) } : {}),
+          },
+        });
+      }
       const values = Array.from({ length: ch }, (_, j) => Array.from({ length: cw }, (_, i) => image.pixel(x + i, y + j).map(v => eight_bit ? v : 4 * v)));
       const mode = eight_bit ? 'RGB' : 'RGB;10';
       if (url.searchParams.get('format') === 'binary')
@@ -315,6 +334,45 @@ test('analyzes the view: histogram, row and column profiles, statistics, and rem
   await expect(page.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
   await page.getByRole('button', { name: /analysis of the view/ }).click();
   await expect(page.getByRole('radio', { name: 'Statistics' })).toBeChecked();
+});
+
+test('analyzes raw images by channel of their CFA, from their metadata or guessed from the pixels', async ({ page }) => {
+  await setup(page, { raw: true });
+  await expect(page.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
+  await page.getByRole('button', { name: /analysis of the view/ }).click();
+  await page.getByRole('radio', { name: 'Statistics' }).click();
+  await page.getByRole('radio', { name: 'Image values' }).click();
+  const card = page.locator('.qiv-sensor');
+  // the new image has no metadata: guessed, red and blue in an order we can't know
+  await expect(card.locator('.qiv-sensor-title')).toContainText(/(GRBG|GBRG) · Bayer/);
+  await expect(card.locator('.qiv-sensor-title .qiv-source')).toHaveText('guessed');
+  await expect(card).toContainText('10-bit');
+  // the reference's reader knows
+  await expect(card.locator('.qiv-sensor-other')).toContainText('ref: GBRG · Bayer');
+  await expect(card.locator('.qiv-sensor-other .qiv-source').first()).toHaveText('metadata');
+  await expect(card.locator('.qiv-sensor-other')).toContainText('black 64');
+  // the same sensor: use what the reference's metadata says
+  await card.getByRole('button', { name: /^use its .*black level 64/ }).click();
+  await expect(card.locator('.qiv-sensor-title')).toContainText('GBRG · Bayer');
+  await expect(card.locator('.qiv-sensor-facts')).toContainText('black 64');
+  // the statistics of each channel, without the black level: red has half the gain of green, in a scene where red
+  // averages 128 and green 96
+  const table = page.locator('.qiv-stats-table');
+  await expect(table).toContainText('Gr');
+  await expect(page.locator('.qiv-ratio', { hasText: 'R/G' }).first()).toContainText(/0\.6[67]\d/);
+  // or set it: remembered for the project
+  await card.getByRole('button', { name: 'Sensor' }).click();
+  await page.getByLabel('Black level').fill('60');
+  await page.getByLabel('Black level').press('Enter');
+  await expect(card.locator('.qiv-sensor-facts')).toContainText('black 60');
+  await page.keyboard.press('Escape');
+  await page.reload();
+  await expect(page.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
+  await page.getByRole('button', { name: /analysis of the view/ }).click();
+  await expect(page.getByRole('radio', { name: 'Image values' })).toBeChecked();
+  await expect(card.locator('.qiv-sensor-title')).toContainText('GBRG · Bayer');
+  await expect(card.locator('.qiv-sensor-title .qiv-source')).toHaveText('yours');
+  await expect(card.locator('.qiv-sensor-facts')).toContainText('black 60');
 });
 
 test('reads the displayed value of the pixel it names, also on the edges of pixels', async ({ page }) => {

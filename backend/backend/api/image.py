@@ -11,6 +11,7 @@ from flask import request, jsonify, Response
 from backend import app
 from .image_diff import METHODS, difference_map, find_regions
 from ..images import read_image, ImageType
+from ..sensor import sensor_info
 from .auth import login_required
 from .files import readable_file
 
@@ -232,6 +233,8 @@ def get_pixels():
   bottom edges. As JSON: nested lists (rows, then pixels, then channels for color images). With format=binary: the
   values, little-endian, with their type and shape in the headers X-Pixels-Dtype (e.g. uint16) and X-Pixels-Shape
   (height,width[,channels]): smaller and faster to read.
+  What the image's reader says about its sensor (CFA, bit depth, black level, see sensor.py) is in "sensor", or the
+  header X-Pixels-Sensor (JSON).
   """
   try:
     x, y, w, h = (int(request.args[k]) for k in ('x', 'y', 'w', 'h'))
@@ -250,6 +253,8 @@ def get_pixels():
   height, width = image.shape[:2]
   if x >= width or y >= height:
     return jsonify({"error": f"The region starts outside the {width}x{height} image"}), 400
+  # what the reader says about the sensor, e.g. its CFA, for the analysis of raw images
+  sensor = sensor_info(meta)
   meta = _image_meta(meta)
   region = np.asarray(image[y:y+h, x:x+w])
 
@@ -264,6 +269,8 @@ def get_pixels():
     }
     if mode:
       headers['X-Pixels-Mode'] = str(mode)
+    if sensor:
+      headers['X-Pixels-Sensor'] = json.dumps(sensor, separators=(',', ':'), default=str)
     return Response(region.tobytes(), mimetype='application/octet-stream', headers=headers)
 
   # NaN and infinity are not JSON
@@ -272,6 +279,7 @@ def get_pixels():
   return jsonify({
     "values": region.tolist(),
     "meta": meta,
+    "sensor": sensor,
     "width": int(width),
     "height": int(height),
   })
