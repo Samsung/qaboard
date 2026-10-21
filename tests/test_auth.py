@@ -76,6 +76,9 @@ class AuthTestCase(unittest.TestCase):
     for patcher in [
       mock.patch.dict(os.environ, env, clear=True),
       mock.patch.dict('qaboard.credentials.user_secrets', {}, clear=True),
+      # nor the shared secrets and site package defaults (e.g. qaboard-site-sirc sets QABOARD_URL)
+      mock.patch.dict('qaboard.site_config.secrets', {}, clear=True),
+      mock.patch.dict('qaboard.site_config._site_defaults', {}, clear=True),
       mock.patch('qaboard.config.is_ci', False),
       mock.patch('qaboard.auth._warnings_shown', set()),
       mock.patch('qaboard.api.results_refused', None),
