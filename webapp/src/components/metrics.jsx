@@ -21,8 +21,8 @@ import { RunBadge } from "./tags";
 import { format, plotly_palette, match_query, metric_info, with_undeclared_metrics } from "../utils";
 import { summary_outputs, metric_values, summary_stats, mixed_parameters, changed_metrics } from "../utils/compare";
 import { useIsDark } from "../theme";
-import { useSiteConfig } from "../hooks";
-import { plot_color, with_default_labels } from "../sideColors";
+import { useLabels, useSiteConfig } from "../hooks";
+import { plot_color } from "../sideColors";
 
 
 
@@ -155,13 +155,11 @@ const with_log_ticks = (layout, values) => {
   return { ...layout, yaxis: { ...layout.yaxis, tickvals }, margin: { ...layout.margin, t: Math.max(layout.margin?.t ?? 0, 8) } };
 };
 
-// colors: the side colors (src/sideColors.js) of the series, by default new's and the reference's
-const HistogramComparaison = ({ series, metric, xaxis_labels, layout, use_plotly_default_colors, colors: side_colors }) => {
-  const xdata = xaxis_labels || ["New", "Reference"];
+// colors: the side colors (src/sideColors.js) of the series, unless use_plotly_default_colors
+const HistogramComparaison = ({ series, metric, xaxis_labels: xdata, layout, use_plotly_default_colors, colors: side_colors = [] }) => {
   const is_dark = useIsDark();
   const axis_color = is_dark ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.8)";
-  const default_colors = with_default_labels().colors;
-  const colors = (side_colors ?? [default_colors.new, default_colors.reference]).map(c => plot_color(c, is_dark));
+  const colors = side_colors.map(c => plot_color(c, is_dark));
   const base_layout = {
     bargap: 0,
     bargroupgap: 0,
@@ -337,7 +335,8 @@ const tags_breakdown = outputs => {
 const no_runs = { outputs: {}, filtered: { outputs: [] } };
 
 // labels: what the commit page calls the new and reference results, and their colors (useComparison().labels)
-const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: xaxis_labels_, metrics, selected_metrics: selected_metrics_, labels }) => {
+const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: xaxis_labels_, metrics, selected_metrics: selected_metrics_, labels: labels_ }) => {
+  const labels = useLabels(labels_);
   const { available_metrics = {}, summary_metrics = [] } = metrics ?? {};
   const used_metrics = new_batch?.used_metrics;
 
@@ -367,8 +366,7 @@ const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: 
   );
 
   if (new_batch === null) return <span />;
-  const xaxis_labels = xaxis_labels_ || (labels ? [labels.new, labels.reference] : ["New", "Reference"]);
-  const sides = with_default_labels(labels);
+  const xaxis_labels = xaxis_labels_ || [labels.new, labels.reference];
 
   const batch_data = new_batch.data || {};
   const has_runs = new_batch.filtered?.outputs?.length > 0;
@@ -408,7 +406,7 @@ const MetricsSummary = ({ new_batch, ref_batch, breakdown_by_tag, xaxis_labels: 
           outputs_ref={outputs_ref}
           outputs_by_tag={breakdown_by_tag ? outputs_by_tag : undefined}
           xaxis_labels={xaxis_labels}
-          sides={sides}
+          sides={labels}
         />
       )}
       {!no_runs_state && <UndeclaredMetricsNote metrics={selected_metrics}/>}
@@ -517,7 +515,7 @@ const breakdown_layout = {
 // A side's color in the plots, next to its numbers
 const swatch = color => ({ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: color, marginRight: 8, verticalAlign: 'middle' });
 
-// sides: the names and colors of what we compare (with_default_labels)
+// sides: the names and colors of what we compare (useComparison().labels)
 const MetricSummary = ({ metric: m, outputs_new, outputs_ref, outputs_by_tag, xaxis_labels, sides }) => {
   const breakdown_by_tag = outputs_by_tag !== undefined;
   // The same numbers as GET /api/v1/commit/<sha>/compare, see utils/compare.js

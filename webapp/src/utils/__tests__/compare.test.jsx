@@ -3,7 +3,8 @@
  * GET /api/v1/commit/<sha>/compare (used by `qa gate`) must give the same, see backend/tests/test_compare.py.
  * Run with: cd webapp && npm test -- compare
  */
-import { render, screen, within } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
+import { renderWithProviders as render } from '../../test-utils';
 
 import { metrics_fill_defaults, metric_info, with_undeclared_metrics } from '../../utils';
 import { normalize_commit } from '../../api/normalize';

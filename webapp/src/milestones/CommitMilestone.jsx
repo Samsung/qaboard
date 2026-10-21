@@ -1,5 +1,5 @@
 // In the commit bars: a star to save the results shown (commit, batch, filter) as a milestone,
-// filled when they are one, with the milestone's name next to it.
+// filled when they are one, with the milestone's name next to it if the bar calls them something else.
 import { Button, Classes, Colors, Icon, Position, Tag, Tooltip } from "@blueprintjs/core";
 
 import { copyWithToast } from "../utils/clipboard";
@@ -9,7 +9,8 @@ import { openMilestoneDialog } from "./MilestoneDialog";
 
 
 // new_side: in the reference bar, what the new bar shows ({project, commit, batch, filter}), to link to the comparison
-export const CommitMilestoneButton = ({ project, project_shown, commit, batch, filter, runs, new_side }) => {
+// name_shown: what the bar calls the results
+export const CommitMilestoneButton = ({ project, project_shown, commit, batch, filter, runs, new_side, name_shown }) => {
   const index = useMilestones(project);
   const results_project = project_shown ?? project;
   const selection = { project: results_project, commit: commit?.id, batch: batch?.label ?? 'default' };
@@ -48,7 +49,7 @@ export const CommitMilestoneButton = ({ project, project_shown, commit, batch, f
         <Icon icon={milestone ? (milestone.shared ? 'crown' : 'star') : 'star-empty'} color={milestone ? Colors.GOLD4 : undefined}/>
       </Button>
     </Tooltip>
-    {!!milestone && <Tag
+    {!!milestone && (name_shown !== milestone_name(milestone) || exact.length > 1) && <Tag
       minimal
       interactive
       onClick={open}

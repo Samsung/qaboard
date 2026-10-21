@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
-import { plot_color, side_color, with_default_labels } from "../sideColors";
+import { plot_color, side_color } from "../sideColors";
 
 const css = fs.readFileSync(path.join(import.meta.dirname, "../App.css"), "utf-8");
 
@@ -20,9 +20,4 @@ describe("the colors of what we compare", () => {
     expect(plot_color(side_color(7), true)).toBe(dark.other);
   });
 
-  it("are new and reference, blue and purple, without names", () => {
-    expect(with_default_labels(undefined)).toEqual({ new: 'new', reference: 'reference', colors: { new: side_color(0), reference: side_color(1) } });
-    const labels = { new: 'ISP v2', reference: 'v1.4', colors: { new: side_color(0), reference: side_color(2) } };
-    expect(with_default_labels(labels)).toEqual(labels);
-  });
 });

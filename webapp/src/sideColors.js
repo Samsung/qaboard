@@ -1,6 +1,6 @@
-// The colors of what we compare: the new results are blue, the references purple, then magenta, teal, violet.
-// References keep their color wherever they go, like their name: the first is purple, those added get the first free
-// color (see reference_colors in src/selection.js). Past 4 references, they are gray: their number and name tell them apart.
+// The colors of what we compare: by default the new results are blue, the references purple, then magenta, teal, violet.
+// They keep their color wherever they go, even when they are swapped with the top results: those added get the first
+// free color (see side_colors in src/selection.js). Past 5, they are gray: their number and name tell them apart.
 //
 // Checked with the dataviz skill's validator (scripts/validate_palette.js, all pairs: new is next to every reference
 // in viewers, references are next to each other in the tabs): no pair is closer than ΔE 16 for full color vision,
@@ -16,12 +16,10 @@ const other_dark = '#8f99a8';
 // on the colors above: teal is too light for white text
 const text = ['#ffffff', '#ffffff', '#ffffff', '#111418', '#ffffff'];
 
-// how many references have a color, the others are gray
-export const reference_color_count = light.length - 1;
+// how many colors, the others are gray
+export const side_color_count = light.length;
 
-// slot 0 is the new results, slot n a reference's color number n (undefined: gray)
-export const side_slot = (key, color) => key === 'new' ? 0 : color;
-
+// slot n is the color number n, 0 (blue) for the new results by default, undefined: gray
 export const side_color = slot => ({
   slot,
   // for the app's UI
@@ -35,15 +33,3 @@ export const side_color = slot => ({
 
 // For plots (Plotly, canvases): the side's color in the theme, e.g. plot_color(labels.colors.new, useIsDark())
 export const plot_color = (color, is_dark) => is_dark ? color.hex_dark ?? color.hex : color.hex;
-
-// What viewers call the two sides they compare, and their colors. The commit page gives them useComparison().labels:
-// milestones' names, what users called them... Elsewhere (history, bit accuracy of artifacts...) they are new and reference.
-const default_colors = { new: side_color(side_slot('new')), reference: side_color(side_slot('reference', 1)) };
-export const with_default_labels = labels => ({
-  new: labels?.new ?? 'new',
-  reference: labels?.reference ?? 'reference',
-  colors: {
-    new: labels?.colors?.new ?? default_colors.new,
-    reference: labels?.colors?.reference ?? default_colors.reference,
-  },
-});

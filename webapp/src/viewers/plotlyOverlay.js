@@ -1,17 +1,12 @@
 // Plots saved with `side_by_side: false`: the new run's traces, with the reference's (and the ground truth's) on the
 // same axes. Traces that set their colors keep them: the reference's are then dashed and faded.
-// The others get the colors of what we compare (src/sideColors.js), and are named after them: "new | p99"...
+// The others get the colors of what we compare (src/sideColors.js), and are named after them: "ISP v2 | p99"...
 import { Colors } from "@blueprintjs/core";
-import { side_color } from "../sideColors";
 
-export const colors = {
-  groundtruth: `${Colors.GREEN2}dd`,
-  new: `${side_color(0).hex}dd`,
-  ref: `${side_color(1).hex}dd`,
-};
+const groundtruth = { name: 'groundtruth', color: `${Colors.GREEN2}dd` };
 
 
-export const adapt = (trace, label, name = label, color = colors[label]) => {
+export const adapt = (trace, label, name, color) => {
   let width = (trace.line && trace.line.width) || 2;
   let size = (trace.marker && trace.marker.size) || 3;
   if (label === "ref") {
@@ -44,8 +39,8 @@ export const adapt = (trace, label, name = label, color = colors[label]) => {
 }
 
 // All the traces to draw, the reference's under the new run's.
-// names and colors (optional) by label, e.g. { new: 'ISP v2', ref: 'v1.4' }: those of the sides compared
-export const overlay = (data, has_ref, { names = {}, colors: sides_colors = {} } = {}) => {
+// names and colors by label, e.g. { new: 'ISP v2', ref: 'v1.4' }: those of the sides compared (useComparison().labels)
+export const overlay = (data, has_ref, { names = {}, colors = {} } = {}) => {
   let traces = [];
   ['groundtruth', 'ref', 'new'].forEach(label => {
     let trace = data[label]
@@ -53,7 +48,7 @@ export const overlay = (data, has_ref, { names = {}, colors: sides_colors = {} }
       return
     // a figure's data is a list of traces
     if (has_ref)
-      trace = (Array.isArray(trace) ? trace : [trace]).map(t => adapt(t, label, names[label] ?? label, sides_colors[label] ?? colors[label]))
+      trace = (Array.isArray(trace) ? trace : [trace]).map(t => adapt(t, label, names[label] ?? groundtruth.name, colors[label] ?? groundtruth.color))
     traces = traces.concat(trace)
   });
   return traces

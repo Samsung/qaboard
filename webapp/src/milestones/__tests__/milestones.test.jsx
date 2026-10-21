@@ -198,8 +198,8 @@ describe('MilestonesPanel', () => {
 
 describe('saving milestones', () => {
   const commit = { id: SHA, branch: 'feature/denoise', message: 'Faster denoising\n\nDetails', committer_name: 'carol', authored_datetime: '2026-10-01T10:00:00Z' };
-  const renderButton = ({ list = [], user = alice, batch = { label: 'sweep-3' }, filter = 'gain:4' } = {}) => renderWithProviders(<>
-    <CommitMilestoneButton project="p" project_shown="p" commit={commit} batch={batch} filter={filter} runs={12}/>
+  const renderButton = ({ list = [], user = alice, batch = { label: 'sweep-3' }, filter = 'gain:4', name_shown } = {}) => renderWithProviders(<>
+    <CommitMilestoneButton project="p" project_shown="p" commit={commit} batch={batch} filter={filter} runs={12} name_shown={name_shown}/>
     <MilestoneDialogHost/>
   </>, { user, milestones: { p: list } });
 
@@ -250,6 +250,16 @@ describe('saving milestones', () => {
     fireEvent.change(dialog.getByLabelText(/Notes/), { target: { value: 'psnr +0.5' } });
     fireEvent.click(dialog.getByText('Save'));
     await waitFor(() => expect(calls.find(c => c.method === 'POST')?.body).toEqual({ label: 'Best denoiser', group: 'tuning/denoiser', notes: 'psnr +0.5', shared: false }));
+  });
+
+  test("the milestone's name isn't repeated next to the star when the bar shows it already", () => {
+    const { unmount } = renderButton({ list: milestones, name_shown: 'Best denoiser' });
+    expect(screen.getByLabelText('Milestone: Best denoiser')).toBeInTheDocument();
+    expect(screen.queryByText('Best denoiser')).not.toBeInTheDocument();
+    unmount();
+    // users called it something else on the page
+    renderButton({ list: milestones, name_shown: 'tuned' });
+    expect(screen.getByText('Best denoiser')).toBeInTheDocument();
   });
 
   test("others' milestones are read-only, users can save their own", async () => {

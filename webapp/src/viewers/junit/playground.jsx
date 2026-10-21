@@ -11,6 +11,7 @@ import "@blueprintjs/icons/lib/css/blueprint-icons.css";
 import "../../App.css";
 
 import { JunitReport } from './JunitViewer';
+import { side_color } from '../../sideColors';
 
 const params = new URLSearchParams(window.location.search);
 const count = parseInt(params.get('tests') || '3000', 10);
@@ -64,7 +65,7 @@ createRoot(document.getElementById('root')).render(
     <QueryClientProvider client={new QueryClient()}>
       <div style={{ padding: 16, maxWidth: 1180, margin: '0 auto', background: 'var(--qa-background)', minHeight: '100vh' }}>
         <h3 style={{ marginTop: 0 }}>junit.xml</h3>
-        <JunitReport xml={xml} ref_xml={ref_xml} path="junit.xml" labels={{ new: 'agent/fix-ci', reference: 'main' }}/>
+        <JunitReport xml={xml} ref_xml={ref_xml} path="junit.xml" labels={{ new: 'agent/fix-ci', reference: 'main', colors: { new: side_color(0), reference: side_color(1) } }}/>
       </div>
     </QueryClientProvider>
   </StrictMode>,

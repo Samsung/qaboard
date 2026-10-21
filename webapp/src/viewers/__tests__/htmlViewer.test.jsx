@@ -17,10 +17,10 @@ afterEach(() => vi.unstubAllGlobals());
 
 
 describe('HtmlViewer', () => {
-  it('says which document is new and which the reference', async () => {
+  it('says which document is new and which the reference, with the names the page gives them', async () => {
     renderWithProviders(<HtmlViewer path="report.html" output_new={output_new} output_ref={output_ref}/>);
-    expect(await screen.findByRole('heading', { name: /New/ })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Reference/ })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /new/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /reference/ })).toBeInTheDocument();
     expect(screen.getByTitle('report.html (reference)')).toBeInTheDocument();
   });
 

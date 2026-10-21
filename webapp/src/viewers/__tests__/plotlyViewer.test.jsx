@@ -24,9 +24,9 @@ const render = props => renderWithProviders(<PlotlyViewer path="plot.plotly.json
 
 
 describe('PlotlyViewer', () => {
-  it('overlays the reference in its color', async () => {
+  it("overlays the reference in its color, with the page's names", async () => {
     render();
-    expect(await screen.findByTestId('plot')).toHaveAttribute('data-traces', 'ref | p99 #9752fedd,new | p99 #2d72d2dd');
+    expect(await screen.findByTestId('plot')).toHaveAttribute('data-traces', 'reference | p99 #9752fedd,new | p99 #2d72d2dd');
   });
 
   it('uses the names and colors of what the commit page compares', async () => {

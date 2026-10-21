@@ -2,7 +2,8 @@
  * Tests for the bit-accuracy viewer: comparing the files of two outputs.
  * Run with: cd webapp && npm test -- bitAccuracyViewer
  */
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
+import { renderWithProviders as render, test_labels } from '../../test-utils';
 
 import BitAccuracyViewer from '../bit_accuracy/bitAccuracyViewer';
 
@@ -70,11 +71,11 @@ describe('BitAccuracyViewer', () => {
   });
 
   it('downloads the new or reference file, under their names', async () => {
-    const labels = { new: 'ISP v2', reference: 'v1.4' };
+    const labels = { new: 'ISP v2', reference: 'v1.4', colors: test_labels.colors };
     const { unmount } = render(<BitAccuracyViewer manifests={manifests} output_new={output_new} output_ref={output_ref} show_all_files />);
     fireEvent.mouseEnter(screen.getByText('1 B'));
-    expect(await screen.findByText('Download (New)')).toBeInTheDocument();
-    expect(screen.getByText('Download (Reference)')).toBeInTheDocument();
+    expect(await screen.findByText('Download (new)')).toBeInTheDocument();
+    expect(screen.getByText('Download (reference)')).toBeInTheDocument();
     unmount();
     render(<BitAccuracyViewer manifests={manifests} output_new={output_new} output_ref={output_ref} show_all_files labels={labels} />);
     fireEvent.mouseEnter(screen.getByText('1 B'));

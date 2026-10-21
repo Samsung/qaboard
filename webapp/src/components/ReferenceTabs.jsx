@@ -32,7 +32,7 @@ import { commitQuery, nb_outputs } from "../api/queries";
 import { errorMessage } from "../api/http";
 import { useComparison, useSiteConfig, updateSelected, usePrefetchCommitPage } from "../hooks";
 import {
-  add_reference, duplicate_reference, move_reference, remove_reference, rename_reference, show_reference, swap_with_top,
+  add_reference, duplicate_reference, is_default_name, move_reference, remove_reference, rename_reference, show_reference, swap_with_top,
 } from "../selection";
 import { available_batch } from "../selectors/batches";
 import { CommitAvatar } from "./avatars";
@@ -484,13 +484,13 @@ const ReferenceTab = ({ reference, project, details, actions, batch_counts, drag
   const [renaming, setRenaming] = useState(null);
   const [menu_open, setMenuOpen] = useState(false);
   const element = useRef(null);
-  const can_rename = !reference.milestone;
   // keep the reference shown in view, e.g. after "r"
   useEffect(() => {
     if (reference.is_shown) element.current?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
   }, [reference.is_shown]);
 
-  const rename = () => can_rename && setRenaming(reference.label || '');
+  // milestones are called by their name, also instead of the names we give, like "ref 2"
+  const rename = () => setRenaming(reference.milestone && is_default_name(reference.label) ? '' : reference.label || '');
   const { is_top } = reference;
   const what = is_top ? 'Top' : `Reference ${reference.number}`;
   // Only the two bars swap: the top results with the reference shown. Nothing is replaced or removed.
@@ -498,7 +498,7 @@ const ReferenceTab = ({ reference, project, details, actions, batch_counts, drag
   const menu = <Menu>
     {!is_top && !reference.is_shown && <MenuItem icon="eye-open" text="Compare with it" onClick={actions.show}/>}
     {swap}
-    <MenuItem icon="edit" text="Rename" disabled={!can_rename} title={can_rename ? undefined : "Milestones are named after themselves"} onClick={rename}/>
+    <MenuItem icon="edit" text="Rename" onClick={rename}/>
     <MenuItem icon="duplicate" text={is_top ? "Add a copy as a reference" : "Duplicate"} label="to change its batch or filter" onClick={actions.duplicate}/>
     {!is_top && <>
       <MenuDivider/>

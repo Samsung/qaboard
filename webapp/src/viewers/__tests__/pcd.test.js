@@ -56,13 +56,14 @@ describe('parsePcd', () => {
 
 describe('pointCloudLayers', () => {
   it('names and colors the new and reference clouds like the other viewers', () => {
-    const [groundtruth, reference, new_] = pointCloudLayers(undefined, false);
+    const labels = { new: 'new', reference: 'reference', colors: { new: side_color(0), reference: side_color(1) } };
+    const [groundtruth, reference, new_] = pointCloudLayers(labels, false);
     expect([new_.label, reference.label, groundtruth.label]).toEqual(['new', 'reference', 'ground truth']);
     expect([new_.color, new_.css]).toEqual([side_color(0).hex, side_color(0).css]);
     expect([reference.color, reference.css]).toEqual([side_color(1).hex, side_color(1).css]);
     // what the commit page calls them, e.g. a milestone, with its color, in the theme
-    const labels = { new: 'new', reference: 'fw-26-08', colors: { new: side_color(0), reference: side_color(2) } };
-    const layers = pointCloudLayers(labels, true);
+    const milestone = { new: 'new', reference: 'fw-26-08', colors: { new: side_color(0), reference: side_color(2) } };
+    const layers = pointCloudLayers(milestone, true);
     expect(layers.map(layer => layer.label)).toEqual(['ground truth', 'fw-26-08', 'new']);
     expect(layers[1].color).toBe(side_color(2).hex_dark);
   });

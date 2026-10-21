@@ -10,11 +10,11 @@ import {
 } from "./api/queries";
 import { errorMessage } from "./api/http";
 import { usePrefsStore } from "./stores/prefs";
-import { useSelected, updateSelected, reference_names, reference_colors } from "./selection";
+import { useSelected, updateSelected, reference_names, side_colors, is_default_name } from "./selection";
 import { available_batch, compute_batches, compute_config } from "./selectors/batches";
 import { default_project } from "./defaults";
 import { milestonesQuery, milestones_of, milestone_name, no_milestones } from "./milestones/api";
-import { side_color, side_slot } from "./sideColors";
+import { side_color } from "./sideColors";
 import { with_undeclared_metrics } from "./utils";
 
 // The keys of a Set of metrics, as a string that only changes when they do
@@ -240,8 +240,10 @@ function useCommitIdsInUrl(selected, new_commit, ref_commit) {
 }
 
 
-// Milestones have their own name: users can't rename them
-const side_label = (milestone, label, fallback) => milestone ? milestone_name(milestone) : label || fallback;
+// Milestones are called by their name, unless users called them something else on this page (names we give, like
+// "ref 2", don't count)
+const side_label = (milestone, label, fallback) => label && !is_default_name(label) ? label
+  : milestone ? milestone_name(milestone) : label || fallback;
 
 // The references users selected (see `references` in src/selection.js), with what we know about them:
 // their commit (without its outputs, unless we have them already), their name, color...
@@ -251,7 +253,7 @@ const commits_data = results => results.map(result => result.data);
 
 function useReferences(selected, ref_commit, milestones, enabled) {
   const queryClient = useQueryClient();
-  const { references, ref_index } = selected;
+  const { references, ref_index, color_new } = selected;
   // Not the one shown: it's ref_commit, that refreshes while its runs are running.
   // While they load, their commit with its outputs if we have it, e.g. after we compared with them.
   const others = references.filter((_, index) => index !== ref_index);
@@ -268,7 +270,7 @@ function useReferences(selected, ref_commit, milestones, enabled) {
     const names = reference_names(references);
     // what a reference is called if users clear its name
     const default_name = index => reference_names(references.map((r, i) => i === index ? { ...r, label: '' } : r))[index];
-    const colors = reference_colors(references);
+    const colors = side_colors(color_new, references).slice(1);
     return references.map((side, index) => {
       const is_shown = index === ref_index;
       const commit = is_shown ? ref_commit : cached_others[index < ref_index ? index : index - 1];
@@ -287,11 +289,11 @@ function useReferences(selected, ref_commit, milestones, enabled) {
         // what the tabs, the reference's bar and the viewers call it: its milestone's name, else what users called it,
         // else "ref", "ref 2"... (see reference_names). Numbers, not letters: blind tests call images A and B.
         display_label: side_label(milestone, names[index]),
-        default_label: default_name(index),
-        color: side_color(side_slot('reference', colors[index])),
+        default_label: milestone ? milestone_name(milestone) : default_name(index),
+        color: side_color(colors[index]),
       };
     });
-  }, [references, ref_index, ref_commit, cached_others, milestones]);
+  }, [references, ref_index, color_new, ref_commit, cached_others, milestones]);
 }
 
 
@@ -362,16 +364,17 @@ function useComparisonState() {
   })[0];
   const shown_reference = references[selected.ref_index];
   const new_label = side_label(new_milestone, selected.label_new, 'new');
+  const [new_color] = side_colors(selected.color_new, selected.references);
   const compared = useMemo(() => [
     {
-      key: 'new', label: new_label, default_label: 'new', color: side_color(side_slot('new')), project: new_project, commit: new_commit,
+      key: 'new', label: new_label, default_label: new_milestone ? milestone_name(new_milestone) : 'new', color: side_color(new_color), project: new_project, commit: new_commit,
       batch: batches.new_batch, filter: filter_batch_new, milestone: new_milestone,
     },
     {
       key: 'reference', label: shown_reference.display_label, default_label: shown_reference.default_label, color: shown_reference.color, number: shown_reference.number,
       project: selected.ref_project, commit: ref_commit, batch: batches.ref_batch, filter: filter_batch_ref, milestone: shown_reference.milestone,
     },
-  ], [new_label, new_project, new_commit, batches, filter_batch_new, new_milestone, shown_reference, selected.ref_project, ref_commit, filter_batch_ref]);
+  ], [new_label, new_color, new_project, new_commit, batches, filter_batch_new, new_milestone, shown_reference, selected.ref_project, ref_commit, filter_batch_ref]);
   // what viewers call the new and reference results, and their colors: labels.new, labels.colors.reference...
   const labels = useMemo(() => ({
     new: compared[0].label,
@@ -393,13 +396,20 @@ function useComparisonState() {
   );
 }
 
-const ComparisonContext = createContext(null);
+export const ComparisonContext = createContext(null);
 
 export const ComparisonProvider = ({ children }) =>
   createElement(ComparisonContext.Provider, { value: useComparisonState() }, children);
 
 // Everything about the comparison of the new and reference commits: commits, batches, configuration and metrics
 export const useComparison = () => useContext(ComparisonContext);
+
+// What viewers call the new and reference results, and their colors: { new, reference, colors: { new, reference } }.
+// Those given, else the page's (useComparison().labels): milestones' names, what users called them...
+export const useLabels = labels => {
+  const comparison = useContext(ComparisonContext);
+  return labels ?? comparison?.labels;
+};
 
 // The commits listed on the current page. With `ignore_search`, the list without the search from the URL
 export const useCommitsList = ({ ignore_search = false } = {}) => {

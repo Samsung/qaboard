@@ -56,4 +56,15 @@ describe('what the runs compare with', () => {
     expect(comparedFor(entry, 2)).toEqual({ compared: 'input.png', alone: false });
     expect(comparedFor(undefined, 1)).toEqual({ compared: null, alone: false });
   });
+
+  it('is for the page it was picked on', () => {
+    let entry = pickCompared(undefined, 1, 'gt/a.png', 'run', '/p/commit/a 7');
+    expect(comparedFor(entry, 1, '/p/commit/a 7')).toEqual({ compared: 'gt/a.png', alone: true });
+    // another commit or batch: back to the reference
+    expect(comparedFor(entry, 1, '/p/commit/b 8')).toEqual({ compared: null, alone: false });
+    // picks there start over, they don't keep the other page's
+    entry = pickCompared(entry, 2, 'input.png', 'run', '/p/commit/b 8');
+    expect(comparedFor(entry, 1, '/p/commit/b 8')).toEqual({ compared: null, alone: false });
+    expect(comparedFor(entry, 2, '/p/commit/b 8')).toEqual({ compared: 'input.png', alone: true });
+  });
 });

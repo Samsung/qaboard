@@ -4,11 +4,12 @@ import * as THREE from "three";
 import { Button, Checkbox, Colors } from "@blueprintjs/core";
 
 import { fileQuery } from "../../api/queries";
-import { plot_color, with_default_labels } from "../../sideColors";
+import { plot_color } from "../../sideColors";
 import { useIsDark } from "../../theme";
 import { OrbitControls } from "../tof/OrbitControls";
 import { ViewerError } from "../ViewerStates";
 import { parsePcd } from "./pcd";
+import { useLabels } from "../../hooks";
 
 const GROUNDTRUTH = Colors.GREEN4;
 
@@ -16,11 +17,10 @@ const GROUNDTRUTH = Colors.GREEN4;
 // in the other viewers (src/sideColors.js): blue and purple by default. The ground truth is green.
 // color: for the 3D view, in the theme; css: for the page
 export const pointCloudLayers = (labels, is_dark) => {
-  const sides = with_default_labels(labels);
   return [
     { key: 'groundtruth', label: 'ground truth', color: GROUNDTRUTH, css: GROUNDTRUTH },
-    { key: 'reference', label: sides.reference, color: plot_color(sides.colors.reference, is_dark), css: sides.colors.reference.css },
-    { key: 'new', label: sides.new, color: plot_color(sides.colors.new, is_dark), css: sides.colors.new.css },
+    { key: 'reference', label: labels.reference, color: plot_color(labels.colors.reference, is_dark), css: labels.colors.reference.css },
+    { key: 'new', label: labels.new, color: plot_color(labels.colors.new, is_dark), css: labels.colors.new.css },
   ];
 };
 
@@ -41,7 +41,8 @@ const usePointCloud = (url, is_running) => {
 
 // Point clouds (PCD files) of the new run, its reference and an optional ground truth, on the same 3D axes, z up.
 // Drag to orbit, right-drag to pan, scroll to zoom.
-const PointCloudViewer = ({ output_new, output_ref, path, path_groundtruth, style, point_size = 2, labels }) => {
+const PointCloudViewer = ({ output_new, output_ref, path, path_groundtruth, style, point_size = 2, labels: labels_ }) => {
+  const labels = useLabels(labels_);
   const is_dark = useIsDark();
   const layers = pointCloudLayers(labels, is_dark);
   const width = px(style?.width, 840);

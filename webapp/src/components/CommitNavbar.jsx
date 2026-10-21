@@ -28,14 +28,14 @@ import { openAddReference } from "./ReferenceTabs";
 import { SideLabel, milestone_label_hint } from "./SideLabel";
 import { MilestonesPanel } from "../milestones/MilestonesPanel"
 import { CommitMilestoneButton } from "../milestones/CommitMilestone"
-import { milestones_of, results_project } from "../milestones/api"
+import { milestone_name, milestones_of, results_project } from "../milestones/api"
 import { useMilestones } from "../milestones/hooks"
 
 import { shortId, pretty_label } from "../utils";
 import { http, errorMessage, isArtifactsError } from "../api/http";
 import { commitQuery } from "../api/queries";
 import { useRefreshCommit, useUrlText, updateSelected, useSiteConfig, useUser } from "../hooks";
-import { remove_reference, switch_new_and_reference } from "../selection";
+import { is_default_name, remove_reference, switch_new_and_reference } from "../selection";
 import { LoginMenuItem } from "./authentication/login";
 import { toaster } from "../toaster"
 import { copyDirectory } from "./logs/DirectoryActions"
@@ -189,6 +189,9 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
   const [soft_delete, setSoftDelete] = useState(false);
   const { docs_root } = useSiteConfig();
   const milestones = useMilestones(project);
+  // what users called the results, if they did: milestones are called by their name, also instead of "ref 2"
+  const raw_label = selected[`label_${type}`] ?? '';
+  const own_label = side?.milestone && is_default_name(raw_label) ? '' : raw_label;
   // the batch action users need to confirm: 'redo-all', 'delete-failed' or 'delete-all'
   const [confirming, setConfirming] = useState(null);
   const [show_rename_dialog, setShowRenameDialog] = useState(false);
@@ -493,11 +496,10 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
             <SideLabel
               className="commit-header-side"
               color={side?.color.css}
-              label={side?.milestone ? side.label : selected[`label_${type}`]}
+              label={own_label}
               fallback={side?.default_label ?? type}
-              editable={!side?.milestone}
               onRename={label => updateSelected({ [`label_${type}`]: label })}
-              tooltip={side?.milestone ? milestone_label_hint(side.label) : <span>
+              tooltip={side?.milestone ? milestone_label_hint(milestone_name(side.milestone), own_label) : <span>
                 {type === 'new' ? "New: the results you're looking at." : "Reference: what the new results are compared to. Change it with “Change” or pick a milestone."}
                 {' '}Click to rename it{type === 'new' ? ', e.g. “ISP v2”' : ''}: {type === 'ref' && references?.length > 1 ? 'its tab and the viewers use' : 'viewers use'} its name.
               </span>}
@@ -513,6 +515,7 @@ const CommitNavbar = ({ update, loading, commit, batch, filter, project, project
         <div style={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
 
           <CommitMilestoneButton
+            name_shown={side?.label}
             project={project}
             project_shown={selected[project_attr]}
             commit={commit}

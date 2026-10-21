@@ -179,6 +179,26 @@ test('a reference has the same name in its tab and in the viewers, wherever it g
   expect(reference()).toBe(d);
 });
 
+test('milestones are called by their name, unless users call them something else on the page', async () => {
+  show(`/p/commit/${a}?reference=${b}&compare%5B0%5D%5Bcommit%5D=${c}&compare%5B0%5D%5Blabel%5D=ref%202`);
+  // "ref 2" is a name we gave: the milestone's wins
+  await waitFor(() => expect(tab(2)).toHaveTextContent(/^release 1\.0/));
+  fireEvent.doubleClick(tab(2));
+  const input = screen.getByRole('textbox', { name: 'Rename reference 2' });
+  expect(input).toHaveValue('');
+  expect(input).toHaveAttribute('placeholder', 'release 1.0');
+  fireEvent.change(input, { target: { value: 'v1 tuned' } });
+  fireEvent.keyDown(input, { key: 'Enter' });
+  await waitFor(() => expect(tab(2)).toHaveTextContent(/^v1 tuned/));
+  // cleared: the milestone's name again
+  fireEvent.doubleClick(tab(2));
+  const again = screen.getByRole('textbox', { name: 'Rename reference 2' });
+  expect(again).toHaveValue('v1 tuned');
+  fireEvent.change(again, { target: { value: '' } });
+  fireEvent.keyDown(again, { key: 'Enter' });
+  await waitFor(() => expect(tab(2)).toHaveTextContent(/^release 1\.0/));
+});
+
 test('hovering a tab says what the reference is', async () => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
   try {
