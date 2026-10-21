@@ -724,7 +724,7 @@ def start_tuning(hexsha):
     if not check["artifacts"]["ok"]:
         # We never run from missing artifacts: e.g. without its qaboard.yaml, a subproject's runs would be saved in the parent project
         try:
-            restored = ci_commit.ensure_artifacts(user=user)
+            restored = ci_commit.ensure_artifacts(user=g.user)
         except ArtifactsUnavailable as e:
             db_session.add(ci_commit)
             db_session.commit()

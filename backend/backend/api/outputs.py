@@ -92,7 +92,7 @@ def output_redo(output_id):
     return jsonify({"error": f"Cannot find output {output_id}"}), 400
   if not is_authorized_user(g.user, output.batch.ci_commit.project_id):
     return forbidden_project(output.batch.ci_commit.project_id)
-  return redo_response(output.batch, [output], g.user['user_name'])
+  return redo_response(output.batch, [output], g.user)
 
 
 @app.route("/api/v1/output/<output_id>/manifest", methods=['GET'])

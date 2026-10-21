@@ -46,11 +46,16 @@ def recreate_settings(*configs: Optional[Dict]) -> Optional[Dict]:
   return None
 
 
-def template_variables(ci_commit, user=None) -> Dict[str, str]:
+def template_variables(ci_commit, user: Optional[Dict] = None) -> Dict[str, str]:
+  """`user` is who asked, as in flask's g.user: {user_name, full_name, email...}"""
   from qaboard.conventions import slugify
   branch = re.sub('^origin/', '', ci_commit.branch or '')
+  user = user or {}
   return {
     'commit.id': ci_commit.hexsha,
+    'commit.short_id': ci_commit.hexsha[:8],
+    'commit.message': getattr(ci_commit, 'message', None) or '',
+    'commit.committer': getattr(ci_commit, 'committer_name', None) or '',
     'commit.branch': branch,
     'commit.branch_slug': slugify(branch) if branch else '',
     'commit.artifacts_dir': str(ci_commit.artifacts_dir),
@@ -60,7 +65,10 @@ def template_variables(ci_commit, user=None) -> Dict[str, str]:
     'project_id': ci_commit.project.id,
     'subproject': ci_commit.project.id_relative,
     'git': ci_commit.project.id_git,
-    'user': user or '',
+    'user': user.get('user_name') or '',
+    'user.name': user.get('user_name') or '',
+    'user.full_name': user.get('full_name') or '',
+    'user.email': user.get('email') or '',
   }
 
 
@@ -143,13 +151,13 @@ def in_progress(recreation: Optional[Dict], now=None) -> bool:
     return False
 
 
-def trigger(settings: Dict, ci_commit, user=None) -> Dict:
+def trigger(settings: Dict, ci_commit, user: Optional[Dict] = None) -> Dict:
   """
   Asks the CI to recreate the artifacts. Returns what we remember in CiCommit.data.artifacts_recreation:
     {status: triggered|failed, at, by, via, web_url?, error?}
   """
   now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-  recreation: Dict[str, Any] = {"at": now, "by": user, "via": describe(settings) if isinstance(settings, dict) else "?"}
+  recreation: Dict[str, Any] = {"at": now, "by": (user or {}).get('user_name'), "via": describe(settings) if isinstance(settings, dict) else "?"}
   variables = template_variables(ci_commit, user)
   errors = validate(settings, variables)
   if errors:
