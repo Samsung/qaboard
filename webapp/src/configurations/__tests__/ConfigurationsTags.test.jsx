@@ -36,6 +36,17 @@ describe('ConfigurationsTags', () => {
     expect(screen.queryByText('base')).not.toBeInTheDocument();
   });
 
+  it("never hides or shortens tuning parameters, even when all runs share them", () => {
+    const curve = [...Array(30).keys()].map(i => i / 10);
+    const run = r => ({ configurations: ['base', long, { isp: { awb: 'auto' } }], extra_parameters: { curve, nr: r } });
+    const shared = shared_configuration([run(1), run(2)]);
+    const { container } = withShared(<ConfigurationsTags configurations={run(1).configurations} tuning={run(1).extra_parameters} />, shared);
+    expect(screen.getByText('3 shared')).toBeInTheDocument();
+    expect(screen.getByText('curve')).toBeInTheDocument();
+    expect(container.textContent).toContain(`[${curve.join(', ')}]`);
+    expect(screen.getByText('nr')).toBeInTheDocument();
+  });
+
   it('keeps hidden settings where they are when they are a prefix and a suffix', () => {
     const configurations = r => ['base', long, 'conf/common.yaml', `scene-${r}`, { lens: [1, 2], sharpen: 0.4, nr: 2 }];
     const shared = shared_configuration([{ configurations: configurations(1) }, { configurations: configurations(2) }]);

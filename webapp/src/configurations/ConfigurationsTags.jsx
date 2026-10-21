@@ -114,8 +114,10 @@ const Key = ({ token }) => {
 
 // A setting, or how it changed. `elide`: hide that many characters of a string, e.g. a long folder all runs share
 // `value_only`: a changed setting's value, without its key
-export const SettingText = ({ d, full = false, elide = 0, value_only = false }) => {
+export const SettingText = ({ d, full: full_asked = false, elide = 0, value_only = false }) => {
   const { op, token, ref } = d;
+  // when people tune, the tuning parameters are what they look at: their values are never cut short
+  const full = full_asked || token.source === 'tuning';
   const short = full ? (x => x) : shorten;
   // long values, e.g. lists: only where they changed, [1, 0.98, 0.95 → 0.9]
   const key = !value_only && token.kind === 'param' && <Key token={token} />;
@@ -232,9 +234,12 @@ const wrapper_style = { marginRight: '5px', marginBottom: '3px', fontWeight: 400
 const Setting = ({ d, configurations, tuning, intent, inverted, interactive, muted, shared }) => {
   const { icon, intent: op_intent } = op_style[d.op] ?? {};
   const elide = d.token.kind === 'string' ? shared?.elided?.get(d.token.text) ?? 0 : 0;
+  // their values are never cut short (see SettingText): long ones wrap
+  const is_tuning = d.token.source === 'tuning';
   const Component = muted && !op_intent ? SharedTag : Tag;
   const tag = <Component
     round
+    multiline={is_tuning}
     minimal={!inverted}
     interactive={interactive}
     intent={op_intent ?? (muted ? Intent.NONE : intent)}
@@ -283,7 +288,7 @@ const GapTag = styled(Tag)`
 export const SharedSettings = ({ tokens, limit }) => {
   const shown = limit ? tokens.slice(0, limit) : tokens;
   return <>
-    {shown.map(token => <Tag key={token.full} round minimal style={wrapper_style}>
+    {shown.map(token => <Tag key={token.full} round minimal multiline={token.source === 'tuning'} style={wrapper_style}>
       <SettingText d={{ op: 'same', token }} />
     </Tag>)}
   </>;
@@ -343,7 +348,7 @@ const Gap = ({ tokens, changes, shared, configurations, tuning, onShow }) => {
  * - mismatch: how its reference run differs (output.reference_mismatch): we mark how the settings differ
  * - collapse: when we show many runs (see SharedConfigurationContext), hide the settings they all share,
  *   and the changes from the reference they all have. They're behind "··· N shared" tags, where they are
- *   when they're at the start or the end, else in one tag, first.
+ *   when they're at the start or the end, else in one tag, first. Tuning parameters are never hidden or shortened.
  */
 export const ConfigurationsTags = ({ configurations, tuning = null, mismatch = null, inverted, intent = Intent.NONE, toplevel = true, collapse = true }) => {
   const shared = useSharedConfiguration();
@@ -364,8 +369,10 @@ export const ConfigurationsTags = ({ configurations, tuning = null, mismatch = n
   const entries = [];
   ops.forEach((d, idx) => {
     const shared_setting = is_shared(d);
-    const hidden_token = can_hide && shared.collapse && shared_setting;
-    const hidden_change = can_hide && in_all_runs(d);
+    // tuning parameters are always shown, even when all runs share them
+    const tuning_setting = d.token.source === 'tuning';
+    const hidden_token = can_hide && shared.collapse && shared_setting && !tuning_setting;
+    const hidden_change = can_hide && in_all_runs(d) && !tuning_setting;
     if (hidden_token || hidden_change) {
       let block = entries.at(-1);
       if (!block?.hidden) entries.push(block = { hidden: true, tokens: [], changes: [] });

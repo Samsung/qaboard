@@ -17,7 +17,7 @@ import { TableCompare, TableKpi } from "./components/tables";
 import { BatchLogs } from "./components/BatchLogs";
 import { CommitParameters } from "./components/Parameters";
 import { OutputCardsList } from "./viewers/OutputCardsList";
-import { useComparison, useRefreshCommit, useSiteConfig, useUser, updateSelected } from "./hooks";
+import { useComparison, useRefreshCommit, useSelected, useSiteConfig, useUser, updateSelected } from "./hooks";
 import { useDynamicOptions } from "./useDynamicOptions";
 
 
@@ -26,7 +26,7 @@ import { BatchesEditor } from "./components/tuning/BatchesEditor";
 import TuningExploration from "./components/tuning/TuningExploration";
 import { useViewerControls, controls_changes, controls_defaults, config_visualizations } from "./viewers/controls";
 import { ExportPlugin } from "./plugins/ExportPlugin";
-import { humanFileSize } from "./viewers/bit_accuracy/utils";
+import { humanFileSize, file_options as file_options_list, bit_accuracy_url_defaults } from "./viewers/bit_accuracy/utils";
 import { project_web_url } from "./utils";
 
 import PrivateContent from "./components/authentication/PrivateContent"
@@ -119,6 +119,19 @@ const CiCommitResults = () => {
   const [view_options_expanded, setViewOptionsExpanded] = useSidePanelExpanded();
   // incremented to bring their Files to show into view
   const [reveal_files, setRevealFiles] = useState(0);
+  // a section of the view options to open and bring into view: { id }, a new object each time
+  const [reveal_section, setRevealSection] = useState(null);
+
+  // The output files' options, in the URL like their filter (see OutputCardsList)
+  const { query } = useSelected();
+  const file_options = Object.fromEntries(file_options_list.map(({ name }) => [name, query[name] === 'true']));
+  const has_file_options = Object.values(file_options).some(Boolean);
+  const saveFileOptions = changes => updateSelected(changes, { replace: true, defaults: bit_accuracy_url_defaults });
+  const toggleFileOption = name => () => saveFileOptions({ [name]: !file_options[name] });
+  const showFileOptions = () => {
+    setViewOptionsExpanded(true);
+    setRevealSection({ id: 'files' });
+  };
 
   const toggle = name => () => setControls({ ...controls, [name]: !controls[name] });
   // e.g. how image viewers compare images, set from any of them
@@ -135,8 +148,11 @@ const CiCommitResults = () => {
     dynamic_options: { ...controls.dynamic_options, [name]: undefined },
   });
   // What users changed, e.g. visualizations shown or dynamic options, can be reset to the project's defaults
-  const has_controls_changes = Object.keys(controls_changes(controls, controls_defaults(config, ''))).length > 0;
-  const resetControls = () => setControls(controls_defaults(config, ''));
+  const has_controls_changes = Object.keys(controls_changes(controls, controls_defaults(config, ''))).length > 0 || has_file_options;
+  const resetControls = () => {
+    setControls(controls_defaults(config, ''));
+    saveFileOptions(Object.fromEntries(file_options_list.map(({ name }) => [name, false])));
+  };
   // Dynamic options are synced across output cards unless users unlink them
   const toggleDynamicOptionSync = name => {
     const sync = controls.dynamic_options_sync?.[name] === false;
@@ -405,7 +421,7 @@ const CiCommitResults = () => {
                 <ViewTitle title="Output Files" actions={export_plugin}>
                   <p className={Classes.TEXT_MUTED}>Storage used by the {nb_runs} run{nb_runs === 1 ? '' : 's'} shown: {humanFileSize(storage, true)}</p>
                 </ViewTitle>
-                <OutputCardsList type='bit_accuracy' {...output_cards_props}/>
+                <OutputCardsList type='bit_accuracy' {...output_cards_props} onShowFileOptions={showFileOptions}/>
              </ViewSection>}
 
             {views.includes('optimization') && <ViewSection>
@@ -456,6 +472,9 @@ const CiCommitResults = () => {
           expanded={view_options_expanded}
           setExpanded={setViewOptionsExpanded}
           revealFiles={reveal_files}
+          revealSection={reveal_section}
+          file_options={file_options}
+          onToggleFileOption={toggleFileOption}
         />
       )}
     </Container>

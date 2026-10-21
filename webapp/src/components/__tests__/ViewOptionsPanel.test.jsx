@@ -229,3 +229,20 @@ describe('the docked panel', () => {
     expect(screen.getByRole('button', { name: 'Collapse the view options' })).toBeInTheDocument();
   });
 });
+
+test("the output files' options are in the panel, and open there from the output files view", () => {
+  const onToggleFileOption = vi.fn(name => () => {});
+  const props = panel_props({}, { selected_views: ['bit-accuracy'], new_batch: { used_metrics: [], outputs: { 1: {} } }, onToggleFileOption });
+  const { rerender } = render(<Panel {...props} file_options={{ show_all_files: false, expand_all: true }} />);
+  expect(screen.getByText('Output files')).toBeInTheDocument();
+  expect(screen.getByRole('checkbox', { name: /Expand all folders/ })).toBeChecked();
+  fireEvent.click(screen.getByRole('checkbox', { name: /Color-blind friendly/ }));
+  expect(onToggleFileOption).toHaveBeenCalledWith('color_blind_friendly');
+
+  // collapsed, the output files view opens it
+  const section = () => screen.getByRole('button', { name: 'Output files' });
+  fireEvent.click(section());
+  expect(section()).toHaveAttribute('aria-expanded', 'false');
+  rerender(<Panel {...props} file_options={{ expand_all: true }} revealSection={{ id: 'files' }} />);
+  expect(section()).toHaveAttribute('aria-expanded', 'true');
+});

@@ -13,8 +13,9 @@ import { OutputCard } from "./OutputCard";
 const all_at_once = 300;
 const page_size = 100;
 
-function OutputCardsList({ type, project, config, metrics, new_commit, new_batch, ref_batch, controls, onControlsChange, onRegisterOutputOptions, onToggleDynamicOptionSync, labels }) {
+function OutputCardsList({ type, project, config, metrics, new_commit, new_batch, ref_batch, controls, onControlsChange, onRegisterOutputOptions, onToggleDynamicOptionSync, labels, onShowFileOptions }) {
   // bit-accuracy controls, saved in the URL. They don't add browser history entries.
+  // onShowFileOptions: opens where users change them (the View options), else they're in a popover
   const { query, filter_batch_new } = useSelected();
   const flag = name => query[name] === 'true';
   const [show_all_files, hide_runs_without_files, expand_all, color_blind_friendly] = ['show_all_files', 'hide_runs_without_files', 'expand_all', 'color_blind_friendly'].map(flag);
@@ -63,6 +64,7 @@ function OutputCardsList({ type, project, config, metrics, new_commit, new_batch
                                    color_blind_friendly={color_blind_friendly}
                                    toggle={toggle}
                                    update={update}
+                                   onShowOptions={onShowFileOptions}
                                   />
       }
       <div

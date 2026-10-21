@@ -1,4 +1,4 @@
-import { Colors, Button, Icon, PopoverNext, Callout, FormGroup, Switch, InputGroup } from "@blueprintjs/core";
+import { Classes, Colors, Button, Icon, PopoverNext, Switch, InputGroup } from "@blueprintjs/core";
 
 import { useIsDark } from "../../theme";
 
@@ -158,9 +158,10 @@ const humanElapsedTime = (seconds_str) => {
     return ''
   }
 
-  const seconds = (Number(seconds_str) % 60).toFixed(0);
-  const minutes = ((Number(seconds_str) / 60) % 60).toFixed(0);
-  const hours = (Number(seconds_str) / 3600).toFixed(0);
+  // rounding would say 90s are "2min30s"
+  const seconds = String(Math.floor(Number(seconds_str) % 60));
+  const minutes = String(Math.floor(Number(seconds_str) / 60) % 60);
+  const hours = String(Math.floor(Number(seconds_str) / 3600));
   let elapsed_time = '';
   if (hours   !== '0') elapsed_time += hours + 'h'
   if (minutes !== '0') elapsed_time += minutes + 'min'
@@ -227,57 +228,63 @@ const bit_accuracy_help = <PopoverNext content={<BitAccuracyHelp/>} placement="b
 
 
 
-// Three columns of options (each with its help below), and the help on the right
-const form_grid = { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr)) auto', gap: '0 24px', alignItems: 'start', marginBottom: '20px' };
-const form_group = { margin: 0 };
+// The options of the output files views. Users change them once in a while: they're in the commit page's
+// View options (or a popover elsewhere), while the filter, used all the time, stays above the files.
+const file_options = [
+  { name: 'show_all_files', label: 'Show all files', short: 'all files', help: 'By default, only the checked files that are different, added or removed show.' },
+  { name: 'hide_runs_without_files', label: 'Hide runs without files', short: 'runs without files hidden' },
+  { name: 'expand_all', label: 'Expand all folders', short: 'folders expanded' },
+  { name: 'color_blind_friendly', label: 'Color-blind friendly', short: 'color-blind friendly' },
+];
 
-const BitAccuracyForm = ({ show_all_files, hide_runs_without_files, expand_all, color_blind_friendly, files_filter, toggle, update }) => {
-  return <Callout style={form_grid}>
-    <FormGroup
-      helperText="By default the only files shown are the checked files that are different/added/removed."
-      style={form_group}
-    >
-      <Switch
-        label="Show all files"
-        checked={show_all_files}
-        onChange={toggle('show_all_files')}
-      />
-      <Switch
-        label="Hide runs without files"
-        checked={hide_runs_without_files}
-        onChange={toggle('hide_runs_without_files')}
-      />
-    </FormGroup>
-    <FormGroup style={form_group}>
-      <Switch
-        label="Expand all folders"
-        checked={expand_all}
-        onChange={toggle('expand_all')}
-      />
-      <Switch
-        label="Color-blind friendly"
-        checked={color_blind_friendly}
-        onChange={toggle('color_blind_friendly')}
-      />
-    </FormGroup>
-    <FormGroup
-      labelFor="files-filter"
-      helperText={<span>Filter files by path.<br/><code>match:name</code> shows identical files, <code>diff:name</code> different ones</span>}
-      style={form_group}
-    >
-      <InputGroup
-        id="files-filter"
-        value={files_filter}
-        placeholder="Filter by path"
-        aria-label="Filter files by path"
-        onChange={update('files_filter')}
-        type="text"
-        leftIcon="filter"
-        rightElement={files_filter ? <Button variant="minimal" icon="cross" aria-label="Clear the filter" onClick={() => update('files_filter')('')}/> : undefined}
-      />
-    </FormGroup>
-    <span>{bit_accuracy_help}</span>
-  </Callout>
+// The options turned on, e.g. "all files, folders expanded"
+const file_options_summary = options => file_options.filter(o => !!options[o.name]).map(o => o.short);
+
+const FileOptionSwitches = ({ options, toggle }) => file_options.map(o => <Switch
+  key={o.name}
+  label={o.help
+    ? <>{o.label}<div className={Classes.TEXT_MUTED} style={{ fontSize: 12, lineHeight: '16px', margin: '2px 0 4px' }}>{o.help}</div></>
+    : o.label}
+  checked={!!options[o.name]}
+  onChange={toggle(o.name)}
+/>);
+
+const files_toolbar = { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px 8px', marginBottom: '12px' };
+
+// The files filter, and the files options: a button that opens them, in the View options with `onShowOptions`
+const BitAccuracyForm = ({ show_all_files, hide_runs_without_files, expand_all, color_blind_friendly, files_filter, toggle, update, onShowOptions }) => {
+  const options = { show_all_files, hide_runs_without_files, expand_all, color_blind_friendly };
+  const on = file_options_summary(options);
+  const options_button = <Button
+    icon="settings"
+    variant="minimal"
+    onClick={onShowOptions}
+    title={onShowOptions ? "Change them in the View options (press o)" : undefined}
+  >
+    {on.length > 0 ? <>File options: <strong>{on.join(', ')}</strong></> : 'File options'}
+  </Button>;
+  return <div style={files_toolbar}>
+    <InputGroup
+      id="files-filter"
+      value={files_filter}
+      placeholder="Filter files by path"
+      aria-label="Filter files by path"
+      onChange={update('files_filter')}
+      type="text"
+      leftIcon="filter"
+      style={{ width: 320 }}
+      rightElement={files_filter ? <Button variant="minimal" icon="cross" aria-label="Clear the filter" onClick={() => update('files_filter')('')}/> : undefined}
+    />
+    <span className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>
+      <code>match:name</code> identical files, <code>diff:name</code> different ones
+    </span>
+    {onShowOptions
+      ? options_button
+      : <PopoverNext placement="bottom-start" content={<div style={{ padding: '12px 16px', maxWidth: 320 }}><FileOptionSwitches options={options} toggle={toggle}/></div>}>
+        {options_button}
+      </PopoverNext>}
+    <span style={{ marginLeft: 'auto' }}>{bit_accuracy_help}</span>
+  </div>
 }
 
 
@@ -285,4 +292,4 @@ const BitAccuracyForm = ({ show_all_files, hide_runs_without_files, expand_all, 
 // The options of the bit-accuracy viewers are in the URL, but not when they have their default value
 const bit_accuracy_url_defaults = { show_all_files: false, hide_runs_without_files: false, expand_all: false, color_blind_friendly: false, files_filter: '' };
 
-export { state_colors, bit_accuracy_url_defaults, getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, humanFileSize, updateMissingFrom, BitAccuracyForm, bit_accuracy_help, humanElapsedTime }
+export { state_colors, bit_accuracy_url_defaults, file_options, file_options_summary, FileOptionSwitches, getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, humanFileSize, updateMissingFrom, BitAccuracyForm, bit_accuracy_help, humanElapsedTime }
