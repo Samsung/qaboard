@@ -146,14 +146,23 @@ const Strip = styled.div`
     font-size: 11px;
     white-space: nowrap;
   }
-  /* while dragging a tab: where it would go, in words */
+  /* while dragging a tab: where it would go, in words. It floats below the tabs: taking room would move them */
   .qa-tabs-drop-hint {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 12px;
+    z-index: 1;
+    max-width: 420px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: var(--qa-surface);
+    box-shadow: 0 0 0 1px var(--qa-border), 0 2px 6px rgba(17, 20, 24, 0.15);
     font-size: 12px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 420px;
     color: var(--qa-text);
+    pointer-events: none;
   }
   .qa-tabs-drop-hint strong {
     font-weight: 600;
@@ -897,11 +906,10 @@ export const ReferenceTabs = () => {
           <Button size="small" variant="minimal" icon="plus" aria-label="Stack a reference"/>
         </Tooltip>
       </PopoverNext>
-      {drop_hint
-        ? <span className="qa-tabs-drop-hint" aria-live="polite">{drop_hint}</span>
-        : <span className={`qa-tabs-hint ${Classes.TEXT_MUTED}`}>
-          <kbd>r</kbd> next · <kbd>⇧ r</kbd> previous
-        </span>}
+      <span className={`qa-tabs-hint ${Classes.TEXT_MUTED}`}>
+        <kbd>r</kbd> next · <kbd>⇧ r</kbd> previous
+      </span>
     </div>
+    {drop_hint && <span className="qa-tabs-drop-hint" aria-live="polite">{drop_hint}</span>}
   </Strip>;
 };
