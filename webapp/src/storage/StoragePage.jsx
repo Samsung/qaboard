@@ -3,15 +3,13 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AnchorButton, Breadcrumbs, Button, Callout, Card, Checkbox, Classes, HTMLSelect, HTMLTable, Icon, InputGroup, Intent,
+  Breadcrumbs, Button, Callout, Card, Checkbox, Classes, HTMLSelect, HTMLTable, Icon, InputGroup, Intent,
   NonIdealState, SegmentedControl, Tab, Tabs, Tag, Tooltip,
 } from "@blueprintjs/core";
 import { useLocation } from "react-router";
 import styled from "styled-components";
 
 import { history, Link, useRouter } from "../router";
-import { useSiteConfig } from "../hooks";
-import { quota_url } from "../utils";
 import { PageShell, RequireLogin, ScrollingTabs } from "../components/PageShell";
 import { Time } from "../settings/format";
 import { Loading, QueryError } from "../settings/states";
@@ -314,7 +312,6 @@ const ActiveFilters = ({ filters, setFilters }) => {
 
 
 export const StorageUsage = ({ me, view, filters }) => {
-  const { quota_url_template } = useSiteConfig();
   const [selection, setSelection] = useState({ all: false, keys: new Map() });
   const [deleting, setDeleting] = useState(null);
   const [help, setHelp] = useState(false);
@@ -331,7 +328,6 @@ export const StorageUsage = ({ me, view, filters }) => {
   const [branch, setBranch] = useDebounced(filters.branch, branch => setFilters({ branch, page: '' }));
 
   const { data: overview, isPending, error, refetch } = useQuery(overviewQuery(filters));
-  const dashboard = quota_url(quota_url_template, me.user_name, filters.project);
   const scope = filters.scope || 'me';
   const selected_items = [...selection.keys.values()];
   const selected_bytes = selection.all ? selection.totals?.bytes ?? 0 : selected_items.reduce((sum, item) => sum + item.bytes, 0);
@@ -353,7 +349,6 @@ export const StorageUsage = ({ me, view, filters }) => {
       </Tooltip>}
       <span style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <Button icon="help" variant="minimal" text="Why does IT's quota say something else?" onClick={() => setHelp(true)}/>
-        {dashboard && <AnchorButton icon="dashboard" variant="minimal" text="Quota dashboard" href={dashboard} target="_blank" rel="noopener noreferrer" endIcon="share"/>}
       </span>
     </div>
 

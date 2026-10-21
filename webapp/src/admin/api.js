@@ -172,11 +172,16 @@ export const testProvider = async (id, { user_name } = {}) =>
 
 
 // Groups of users (design/user-management.md, Appendix D.3): members added by admins, or by rules on the claims of
-// their sign-in. [{id, name, description, member_count, rule_count}]
+// their sign-in. {groups: [{id, name, description, member_count, rule_count}], sync: {last_job, schedule}}:
+// the daily update of users' groups (backend/jobs/groups.py). Refreshed while it runs.
 export const groupsQuery = queryOptions({
   queryKey: ['admin', 'groups'],
-  queryFn: async ({ signal }) => (await http.get('/api/v1/admin/groups', { signal })).data?.groups ?? [],
+  queryFn: async ({ signal }) => {
+    const { data } = await http.get('/api/v1/admin/groups', { signal });
+    return { groups: data?.groups ?? [], sync: data?.sync ?? null };
+  },
   staleTime: 30 * 1000,
+  refetchInterval: query => isActiveJob(query.state.data?.sync?.last_job) ? 2000 : false,
 });
 
 // {group, members: [{user: {id, user_name, full_name}, source: manual|rule, added_at}], rules: [{id, provider_id, claim, values}]}

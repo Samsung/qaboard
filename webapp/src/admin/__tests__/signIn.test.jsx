@@ -139,7 +139,8 @@ describe('Sign-in', () => {
     const dialog = within(await screen.findByRole('dialog'));
     expect(dialog.getByRole('radio', { name: 'Stored encrypted' })).toBeDisabled();
     expect(dialog.getByRole('radio', { name: 'From an environment variable' })).toBeChecked();
-    expect(dialog.getByText(/QABOARD_ENCRYPTION_KEY/)).toBeInTheDocument();
+    expect(dialog.getAllByText(/QABOARD_ENCRYPTION_KEY/).length).toBeGreaterThan(0);
+    expect(dialog.getByRole("checkbox", { name: /Refresh groups daily/ })).toBeDisabled();
     expect(dialog.getByLabelText('Environment variable with the client secret')).toBeInTheDocument();
     expect(document.querySelector('.bp6-dialog input[type=password]')).toBeNull();
     expect(validateProvider({ id: 'a', name: 'A', issuer: 'https://a', client_id: 'x', scopes: 'openid', secret_mode: 'env', client_secret_env: '', client_secret: '', redirect_uri: '' }, { create: true, can_encrypt: false }))

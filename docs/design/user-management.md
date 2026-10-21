@@ -524,7 +524,7 @@ All additive. They keep the conventions: one alembic revision per milestone step
 | **M3** | **Authorization**: roles, grants, groups and rules (LDAP and SSO), visibility with inheritance, `authorize()` on every endpoint, Access tab, YAML import, project access requests | Owners manage who can see or upload, from the web app | 3-4 sessions |
 | **M4** | **Namespaces and organizations**: personal namespaces, orgs, service accounts, project creation policy, repository links | "Create an organization", your first runs land under your name, org CI tokens | 2-3 sessions |
 | **M5** | **CI and ingest trust**: `QABOARD_INGEST_AUTH` per project, OIDC token exchange for GitHub and GitLab, token expiry emails, rate limits | CI uploads with no secret, owners can require verified runs | 2 sessions |
-| **M6** | **Enterprise and cloud**: SCIM, scheduled LDAP sync, MFA/passkeys and email verification for local accounts, audit streaming and retention, admin "act as", git member import, account deletion and export | Ready for a public instance | ongoing |
+| **M6** | **Enterprise and cloud**: SCIM, MFA/passkeys and email verification for local accounts, audit streaming and retention, admin "act as", git member import, account deletion and export | Ready for a public instance | ongoing |
 
 Plans and billing stay out of scope. Namespaces (M4) are where they would attach (`namespaces.data.entitlements`),
 and nothing above assumes one tenant per server.
@@ -913,7 +913,7 @@ projects have owners. (A seeded instance grant `everyone → developer` would ha
 - **Rules are evaluated at each sign-in** from the identity's claims: an OIDC claim (`groups`), an LDAP attribute
   (`memberOf`), a SAML attribute, or `email_domain`. Values match case-insensitively; a list claim matches when any
   element does. The sign-in replaces the user's `rule` memberships; `manual` ones are kept.
-- Memberships from rules lag until the next sign-in (M6 adds a scheduled LDAP sync). Disabling a user is immediate.
+- Memberships from rules are updated at sign-in, when rules change, and daily (LDAP lookups, OIDC refresh tokens). Disabling a user is immediate.
 
 ### D.4 Enforcement
 - `access.authorize(actor, permission, project_id) -> Decision(allowed, role, via, reason, required)` is the only
@@ -968,7 +968,7 @@ Audit: `grant.create|update|delete`, `visibility.update`, `group.*`, `group_memb
 ### D.7 Later in M3
 - **YAML import** (`qaboard-admin import-restrictions`): `projects:` keys become private visibility and grants,
   `data:` rules become groups with rules, `login:` stays a sign-in rule.
-- `auth.reauthenticate_after` for SSO sessions, and the scheduled LDAP sync (M6).
+- `auth.reauthenticate_after` for SSO sessions.
 
 ### D.8 As built (2026-10-21)
 - **No seed grant**: an instance grant `everyone → developer` would have overridden `private`. The baseline is
@@ -983,5 +983,12 @@ Audit: `grant.create|update|delete`, `visibility.update`, `group.*`, `group_memb
   and exports needed nothing more than reading, the run and manifest GETs had no check (the manifest one wrote a file).
 - **Jenkins**: the CLI's Jenkins runner triggers builds without a user, so `jenkins/build/trigger` stays as it was
   without a project; the web app sends the project, and then needs a developer.
-- **Not yet** (D.7): the YAML import, `auth.reauthenticate_after`, a scheduled LDAP sync, the GitLab job endpoints'
-  mapping to projects.
+- **Groups' updates** (`jobs/groups.py`, the *Users' groups* schedule): daily and when rules change. LDAP: one lookup
+  per account on one connection (not a scan of the groups: it works with any user filter, and reads names and emails
+  too), `memberOf` or `QABOARD_LDAP_GROUP_ATTRIBUTES`, AD nested groups on request; over 20% of accounts not found
+  changes nothing. OIDC, opt-in per provider (`refresh_groups`): `offline_access`, refresh tokens encrypted on
+  `user_identities`, `invalid_grant` forgets the identity's claims and revokes its sessions. Rules read each sign-in
+  method's last claims (`identity.claims`, the directory's under `ldap`): one method doesn't undo another's groups.
+  The LDAP search only fetched `cn` and `mail` before: `memberOf` rules could never match.
+- **Not yet** (D.7): the YAML import (left to admins), `auth.reauthenticate_after`, the GitLab job endpoints' mapping
+  to projects, SCIM (M6: push-based, instead of daily pulls).

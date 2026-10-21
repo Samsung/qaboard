@@ -67,6 +67,8 @@ if login_type == "LDAP":
   # User attributes
   ldap_attr_email = os.environ.get('QABOARD_LDAP_ATTRIBUTE_EMAIL', "mail")
   ldap_attr_common_name = os.environ.get('QABOARD_LDAP_ATTRIBUTE_COMMON_NAME', "cn")
+  # What group rules can read (Admin → Groups), e.g. memberOf,department
+  ldap_group_attributes = [a.strip() for a in os.environ.get('QABOARD_LDAP_GROUP_ATTRIBUTES', 'memberOf').split(',') if a.strip()]
 
 elif login_type == "SAML":
   # the directory that contains the settings files and certs
@@ -560,6 +562,27 @@ def ldap_search(user_name: str) -> str:
   return ldap_user_filter.replace("{login}", ldap.filter.escape_filter_chars(user_name))
 
 
+def ldap_attributes() -> list:
+  return [ldap_attr_common_name, ldap_attr_email, *ldap_group_attributes]
+
+
+# Active Directory's LDAP_MATCHING_RULE_IN_CHAIN: the groups that contain the user, also through other groups
+IN_CHAIN = '1.2.840.113556.1.4.1941'
+
+
+def ldap_details(ldap_connect, user_name: str) -> list:
+  """[[dn, {attribute: [values]}]], or [] if the directory doesn't know the user. Referrals come as entries without a DN."""
+  details = [d for d in ldap_connect.search_s(ldap_user_base, ldap.SCOPE_SUBTREE, ldap_search(user_name), ldap_attributes()) if d[0]]
+  if details and env_flag('QABOARD_LDAP_NESTED_GROUPS') and 'memberOf' in ldap_group_attributes:
+    dn, attributes = details[0]
+    base = os.environ.get('QABOARD_LDAP_GROUP_BASE') or ldap_user_base
+    groups = ldap_connect.search_s(base, ldap.SCOPE_SUBTREE, f"(member:{IN_CHAIN}:={ldap.filter.escape_filter_chars(dn)})", ['cn'])
+    direct = list(attributes.get('memberOf') or [])
+    seen = {(v.decode() if isinstance(v, bytes) else v).casefold() for v in direct}
+    attributes['memberOf'] = direct + [group_dn.encode() for group_dn, _ in groups if group_dn and group_dn.casefold() not in seen]
+  return details
+
+
 def ldap_user_info(details, user_info):
   """Fills user_info from the directory's answer"""
   user_ldap = details[0][1]
@@ -573,21 +596,26 @@ def ldap_user_info(details, user_info):
   return user_info
 
 
+def ldap_lookups(user_names):
+  """(user_name, user_info or None if the directory doesn't know them), with one connection of the service account"""
+  ldap_connect = ldap_connection()
+  try:
+    for user_name in user_names:
+      details = ldap_details(ldap_connect, user_name)
+      yield user_name, (ldap_user_info(details, {"user_name": user_name, "login_type": login_type}) if details else None)
+  finally:
+    ldap_connect.unbind_s()
+
+
 def ldap_lookup(user_name: str):
   """
   What the directory knows about a user, with the service account: after an SSO sign-in, it keeps the accounts'
-  attributes up to date (QABOARD_LOGIN_RESTRICTED_YAML's rules read them). None if unknown, or without LDAP.
+  attributes up to date (group rules and QABOARD_LOGIN_RESTRICTED_YAML's rules read them). None if unknown, or without LDAP.
+  The daily group sync looks up every LDAP account (backend/jobs/groups.py).
   """
   if login_type != "LDAP":
     return None
-  ldap_connect = ldap_connection()
-  try:
-    details = [d for d in ldap_connect.search_s(ldap_user_base, ldap.SCOPE_SUBTREE, ldap_search(user_name), [ldap_attr_common_name, 'mail']) if d[0]]
-  finally:
-    ldap_connect.unbind_s()
-  if not details:
-    return None
-  return ldap_user_info(details, {"user_name": user_name, "login_type": login_type})
+  return next(ldap_lookups([user_name]))[1]
 
 
 def auth_ldap(user_name, password):
@@ -608,12 +636,7 @@ def auth_ldap(user_name, password):
     try:
       ldap_connect.set_option(ldap.OPT_REFERRALS, 0)
       ldap_connect.simple_bind_s(certificate, password)
-      details = ldap_connect.search_s(
-        ldap_user_base,
-        ldap.SCOPE_SUBTREE,
-        ldap_search(user_name),
-        [ldap_attr_common_name, 'mail'],
-      )
+      details = ldap_details(ldap_connect, user_name)
       user_info["login_success"] = True
       ldap_user_info(details, user_info)
       if user_info["email"] is None:

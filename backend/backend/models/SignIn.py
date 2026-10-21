@@ -45,6 +45,10 @@ class UserIdentity(Base):
   claims = Column(JSONB(), nullable=False, default=dict, server_default='{}')
   created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
   last_login_at = Column(DateTime, nullable=True)
+  # OIDC providers with `refresh_groups`: the refresh token, encrypted ($QABOARD_ENCRYPTION_KEY), and when the
+  # claims were last refreshed with it, daily (backend/jobs/groups.py)
+  refresh_token_encrypted = Column(Text, nullable=True)
+  claims_refreshed_at = Column(DateTime, nullable=True)
 
   __table_args__ = (UniqueConstraint('provider_id', 'subject', name='uq_user_identities_provider_subject'),)
 

@@ -16,8 +16,11 @@ def find(provider_id: str, subject: str):
   return UserIdentity.query.filter(UserIdentity.provider_id == provider_id, UserIdentity.subject == subject).one_or_none()
 
 
-def record(user, provider_id: str, subject: str, email: Optional[str] = None, claims: Optional[dict] = None):
-  """Creates or refreshes the identity a user signed in with. Added to the database session: the caller commits."""
+def record(user, provider_id: str, subject: str, email: Optional[str] = None, claims: Optional[dict] = None, refresh_token: Optional[str] = None):
+  """
+  Creates or refreshes the identity a user signed in with. Added to the database session: the caller commits.
+  `refresh_token`: for providers that refresh groups daily, stored encrypted.
+  """
   from backend import db_session
   from ..models import UserIdentity
   identity = find(provider_id, subject)
@@ -33,7 +36,20 @@ def record(user, provider_id: str, subject: str, email: Optional[str] = None, cl
   identity.email = email or identity.email
   identity.claims = {k: v for k, v in (claims or {}).items() if k not in DROPPED_CLAIMS}
   identity.last_login_at = utcnow()
+  identity.claims_refreshed_at = identity.last_login_at
+  if refresh_token:
+    store_refresh_token(identity, refresh_token)
   return identity
+
+
+def store_refresh_token(identity, refresh_token: Optional[str]):
+  from .crypto import can_encrypt, encrypt
+  if refresh_token is None:
+    identity.refresh_token_encrypted = None
+  elif can_encrypt():
+    identity.refresh_token_encrypted = encrypt(refresh_token)
+  else:
+    print(f"[sign-in] WARNING: {identity.provider_id} refreshes groups, but refresh tokens can't be stored without $QABOARD_ENCRYPTION_KEY")
 
 
 def serialize(identity, providers_by_id=None) -> dict:

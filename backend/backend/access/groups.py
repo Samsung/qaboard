@@ -1,20 +1,50 @@
 """
-Groups filled by sign-in claims (Appendix D.3): at each sign-in, the user's "rule" memberships are replaced by the
-groups whose rules match the claims of the identity they signed in with. Admins' "manual" memberships stay.
+Groups filled by rules (Appendix D.3), from what QA-Board knows of each user:
+- the claims of each sign-in method's last sign-in (OIDC, SAML), refreshed daily for OIDC providers with `refresh_groups`;
+- the directory's attributes (users.data), from LDAP sign-ins, SSO sign-ins matched to LDAP accounts, and the daily sync;
+- `email_domain`.
+A rule for one sign-in method reads its claims, a rule for any reads them all: signing in one way doesn't undo the
+groups another way gave. Each sync replaces the user's "rule" memberships; admins' "manual" ones stay.
+They sync at each sign-in, and daily for everyone (backend/jobs/groups.py).
 """
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Optional, List
 
 
-def claims_of(user, provider_id: str, claims: Optional[dict]) -> dict:
-  """The claims rules can match: the identity's (OIDC, SAML), LDAP's attributes, and email_domain"""
-  found = dict(claims or {})
+def directory_attributes(user) -> dict:
+  """LDAP's answer, kept in users.data: [[dn, {attribute: [values]}]]"""
   data = getattr(user, 'data', None)
-  # LDAP sign-ins keep the directory's answer in users.data: [[dn, {attribute: [values]}]]
-  if not found and isinstance(data, list) and data and isinstance(data[0], list) and len(data[0]) == 2 and isinstance(data[0][1], dict):
-    found = dict(data[0][1])
+  if isinstance(data, list) and data and isinstance(data[0], list) and len(data[0]) == 2 and isinstance(data[0][1], dict):
+    return dict(data[0][1])
+  return {}
+
+
+def claims_by_source(user, identities=(), provider_id: Optional[str] = None, claims: Optional[dict] = None) -> dict:
+  """{provider_id: claims}: each identity's last claims, the directory's under `ldap`. `claims`: a sign-in's, newer."""
+  sources = {identity.provider_id: dict(identity.claims or {}) for identity in identities}
+  directory = directory_attributes(user)
+  if directory:
+    sources['ldap'] = {**sources.get('ldap', {}), **directory}
+  if provider_id is not None:
+    sources[provider_id] = {**sources.get(provider_id, {}), **(claims or {})}
+  if not sources:
+    sources['local'] = {}
   if user.email and '@' in user.email:
-    found['email_domain'] = user.email.rsplit('@', 1)[1]
-  return found
+    for found in sources.values():
+      found['email_domain'] = user.email.rsplit('@', 1)[1]
+  return sources
+
+
+def lookup(claims: dict, name: str):
+  """A claim, or a nested one: `realm_access.roles` (Keycloak), `resource_access.qaboard.roles`"""
+  if name in claims:
+    return claims[name]
+  value = claims
+  for part in name.split('.'):
+    if not isinstance(value, dict) or part not in value:
+      return None
+    value = value[part]
+  return value
 
 
 def _values(value) -> list:
@@ -34,27 +64,54 @@ def _names(value: str) -> set:
 def rule_matches(rule, provider_id: str, claims: dict) -> bool:
   if rule.provider_id and rule.provider_id != provider_id:
     return False
-  if rule.claim not in claims:
+  value = lookup(claims, rule.claim)
+  if value is None:
     return False
   wanted = {str(v).casefold() for v in (rule.values or [])}
-  return any(_names(value) & wanted for value in _values(claims[rule.claim]))
+  return any(_names(v) & wanted for v in _values(value))
 
 
-def sync(user, provider_id: str, claims: Optional[dict]) -> list:
-  """Updates the user's rule memberships (added to the database session: the caller commits). Returns the group names."""
+def matches_any(rule, sources: dict) -> bool:
+  return any(rule_matches(rule, provider_id, claims) for provider_id, claims in sources.items())
+
+
+def groups_overage(claims: Optional[dict]) -> bool:
+  """Microsoft Entra ID sends no groups when users are in too many (over 200): it points to Graph instead"""
+  return isinstance(claims, dict) and ('groups' in (claims.get('_claim_names') or {}) or claims.get('hasgroups') in (True, 'true'))
+
+
+@dataclass
+class Synced:
+  groups: List[str] = field(default_factory=list)  # all the rule groups the user is in
+  added: List[str] = field(default_factory=list)
+  removed: List[str] = field(default_factory=list)
+
+
+def sync(user, provider_id: Optional[str] = None, claims: Optional[dict] = None, rules=None, names=None) -> Synced:
+  """
+  Updates the user's rule memberships (added to the database session: the caller commits).
+  `provider_id`, `claims`: a sign-in's. `rules`, `names` ({group_id: name}): when syncing many users.
+  """
   from backend import db_session
-  from ..models import Group, GroupMember, GroupRule
-  rules = GroupRule.query.all()
+  from ..models import Group, GroupMember, GroupRule, UserIdentity
+  rules = GroupRule.query.all() if rules is None else rules
   memberships = {m.group_id: m for m in GroupMember.query.filter(GroupMember.user_id == user.id).all()}
   if not rules and not memberships:
-    return []
-  found = claims_of(user, provider_id, claims)
+    return Synced()
+  identities = UserIdentity.query.filter(UserIdentity.user_id == user.id).all()
+  sources = claims_by_source(user, identities, provider_id, claims)
   # rule memberships that no rule matches anymore (changed or deleted rules) end
-  matched = {rule.group_id for rule in rules if rule_matches(rule, provider_id, found)}
+  matched = {rule.group_id for rule in rules if matches_any(rule, sources)}
+  removed, added = [], []
   for group_id, member in memberships.items():
     if member.source == 'rule' and group_id not in matched:
       db_session.delete(member)
+      removed.append(group_id)
   for group_id in matched - set(memberships):
     db_session.add(GroupMember(group_id=group_id, user_id=user.id, source='rule'))
-  names = {g.id: g.name for g in Group.query.filter(Group.id.in_(matched)).all()} if matched else {}
-  return sorted(names.values())
+    added.append(group_id)
+  if names is None:
+    ids = matched | set(removed)
+    names = {g.id: g.name for g in Group.query.filter(Group.id.in_(ids)).all()} if ids else {}
+  name = lambda group_id: names.get(group_id, f"#{group_id}")
+  return Synced(groups=sorted(name(i) for i in matched), added=sorted(name(i) for i in added), removed=sorted(name(i) for i in removed))

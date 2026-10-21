@@ -52,18 +52,60 @@ Tokens never have more than their user, their scopes (`read`, `ingest`, `act`) a
 
 ## Groups
 Create groups in **Admin → Groups**, then grant them roles on projects. Add members by hand, or with **rules** that
-add users when they sign in:
+add users from their groups in your directory or identity provider:
 
 | Claim | Signs in with | Example values |
 |---|---|---|
 | `groups` | single sign-on (OpenID Connect), if your IdP sends it | `camera-team` |
-| `memberOf` | LDAP (or any LDAP attribute), SAML attributes | `CN=camera-algo,OU=Groups,DC=example,DC=com`, or just `camera-algo` |
+| `realm_access.roles` | Keycloak's realm roles (nested claims are written with dots) | `camera` |
+| `memberOf` | LDAP (or the attributes in `QABOARD_LDAP_GROUP_ATTRIBUTES`), SAML attributes | `CN=camera-algo,OU=Groups,DC=example,DC=com`, or just `camera-algo` |
 | `email_domain` | any | `example.com` |
 
-Values match case-insensitively; an LDAP group matches by its full DN or its name. Each sign-in replaces the
-memberships rules added: users leave a group at their next sign-in without the claim. Members you add by hand stay.
+Values match case-insensitively; an LDAP group matches by its full DN or its name. Members you add by hand stay.
 To write rules, look at **Admin → Audit**: `auth.login` events list the groups each sign-in put users in, and for
 single sign-on the groups the identity provider sent.
+
+**When rules apply**: when users sign in, when you add or delete a rule (for everyone, in a minute), and every day,
+with the *Users' groups* schedule the jobs worker creates (**Admin → Storage → Schedules**, `QABOARD_GROUPS_SYNC_AUTO=0`
+to manage it yourself). **Update now** in **Admin → Groups** runs it at once.
+A rule for one sign-in method reads what it last said, a rule for any reads them all: users who sign in with LDAP
+one day and single sign-on the next keep the groups both give.
+
+<details>
+<summary>Groups from LDAP</summary>
+
+Every day, QA-Board looks up each LDAP account with the service account (`QABOARD_LDAP_BIND_DN`), one query per user
+on one connection, and reads `memberOf` (or `QABOARD_LDAP_GROUP_ATTRIBUTES`). Users who leave a group in the directory
+leave the QA-Board group the next day, without signing in again. Accounts the directory doesn't know anymore lose
+their directory groups. When it doesn't find over 20% of the accounts (a wrong base, an outage), nothing changes and
+the job reports an error.
+
+Single sign-on accounts matched to LDAP accounts (`QABOARD_OIDC_MATCH_USERS=username`) are LDAP accounts: their
+directory groups are kept up to date too.
+
+`memberOf` only lists the groups users are directly in. With Active Directory, set `QABOARD_LDAP_NESTED_GROUPS=true`
+to add the groups of their groups: it costs one more query per user.
+
+</details>
+
+<details>
+<summary>Groups from single sign-on</summary>
+
+Identity providers send the groups when users sign in. To keep them up to date between sign-ins, enable **Refresh
+groups daily** on the provider (`QABOARD_OIDC_REFRESH_GROUPS=true` for the environment's): QA-Board asks for
+`offline_access`, keeps each user's refresh token encrypted (it needs `QABOARD_ENCRYPTION_KEY`), and reads their claims
+again every day. When the provider refuses a refresh token, e.g. the user was disabled, the groups it gave end, and
+the user's QA-Board sessions from that provider too: signing in again gives the groups back.
+
+- **Keycloak**: add a *Group Membership* mapper to the client (`groups`), or use realm roles (`realm_access.roles`).
+  Offline tokens need the `offline_access` role, which users have by default.
+- **Microsoft Entra ID**: in the app registration's *Token configuration*, add a groups claim, emitted as
+  `sAMAccountName` for groups synced from Active Directory (else they're ids). Users in over 200 groups get none
+  (Entra's "overage"): choose *Groups assigned to the application*. QA-Board warns about it in the audit log
+  (`groups_overage`).
+- **Okta**: add a `groups` claim to the ID token, with a filter.
+
+</details>
 
 ## Access requests
 Users without the role they need get a clear refusal: in the web app with the project's owners and a **Request

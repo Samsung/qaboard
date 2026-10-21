@@ -118,6 +118,9 @@ The sign-in policy is set via environment variables such as `QABOARD_LOGIN_*`, `
 | `QABOARD_LDAP_USER_FILTER` | _none_  | User lookup filter, the placeholder `{login}` will be replaced by the user supplied login. (e.g. `(&(objectClass=inetOrgPerson)(\|(uid={login})(mail={login})))`, or `(&(objectClass=user)(\|(sAMAccountName={login})))`) |
 | `QABOARD_LDAP_ATTRIBUTE_EMAIL`         | _mail_  |                                            |
 | `QABOARD_LDAP_ATTRIBUTE_COMMON_NAME`   | _cn_    |                                            |
+| `QABOARD_LDAP_GROUP_ATTRIBUTES`   | _memberOf_    | The attributes [group rules](/docs/backend-admin/project-access#groups) can read, separated by commas, e.g. `memberOf,department` |
+| `QABOARD_LDAP_NESTED_GROUPS`   | _false_    | Active Directory: `true` adds the groups of users' groups to `memberOf` (`LDAP_MATCHING_RULE_IN_CHAIN`) |
+| `QABOARD_LDAP_GROUP_BASE`   | `QABOARD_LDAP_USER_BASE`    | Where to search the nested groups |
 | `QABOARD_SAML_DIR`   | _none_  | The path to the directory with the SAML configuration files, as in the [python-saml](https://github.com/SAML-Toolkits/python-saml) docs |
 | `QABOARD_SAML_ATTRIBUTE_EMAIL`         | _none_  |                                            |
 | `QABOARD_SAML_ATTRIBUTE_COMMON_NAME`         | _none_  |                                            |

@@ -18,6 +18,7 @@ import { SubjectName } from "../access/roles";
 import { AdminError } from "./states";
 import {
   groupsQuery, groupQuery, signInAdminQuery, createGroup, deleteGroup, addGroupMember, removeGroupMember, addGroupRule, deleteGroupRule,
+  startJob, isActiveJob,
 } from "./api";
 
 
@@ -75,17 +76,42 @@ const NewGroupDialog = ({ isOpen, onClose }) => {
 };
 
 
+// The update of users' groups from LDAP and single sign-on: daily, and when rules change
+const GroupsSync = ({ sync }) => {
+  const queryClient = useQueryClient();
+  const [starting, setStarting] = useState(false);
+  const job = sync?.last_job;
+  const active = isActiveJob(job);
+  const start = () => {
+    setStarting(true);
+    startJob(queryClient, 'sync_groups', {})
+      .then(() => showSuccess("Updating users' groups"))
+      .catch(error => error?.response?.status === 409 ? queryClient.invalidateQueries({ queryKey: ['admin', 'groups'] }) : showError(error))
+      .finally(() => setStarting(false));
+  };
+  return <div aria-label="Updates of users' groups" role="group" className={Classes.TEXT_MUTED} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 12 }}>
+    <span>
+      Rules apply when users sign in, and {sync?.schedule?.enabled === false ? 'when you update them' : 'every day'}, from LDAP and single sign-on.
+      {job && <> Last update: <Link to={`/admin/storage/jobs/${job.id}`}>{active ? 'running…' : job.status === 'done' ? 'done' : job.status.replace(/_/g, ' ')}</Link>{job.finished_at && <>, <Time iso={job.finished_at}/></>}.</>}
+    </span>
+    <Button size="small" variant="minimal" icon="refresh" text="Update now" loading={starting || active} onClick={start}/>
+  </div>;
+};
+
+
 export const Groups = () => {
   const [creating, setCreating] = useState(false);
-  const { data: groups, isPending, error, refetch } = useQuery(groupsQuery);
+  const { data, isPending, error, refetch } = useQuery(groupsQuery);
+  const groups = data?.groups;
   return <section aria-label="Groups">
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16 }}>
       <p className={Classes.TEXT_MUTED} style={{ margin: 0, maxWidth: 680 }}>
         Give roles to many users at once: project owners pick groups on their projects' Access page.
-        Add members here, or rules that add them when they sign in.
+        Add members here, or rules that add users from their sign-in's groups.
       </p>
       <Button icon="add" intent={Intent.PRIMARY} text="New group" onClick={() => setCreating(true)}/>
     </div>
+    {data && <GroupsSync sync={data.sync}/>}
     {isPending && <Loading label="Loading the groups"/>}
     {error && <AdminError error={error} refetch={refetch} what="the groups"/>}
     {!isPending && !error && (groups.length === 0
@@ -159,7 +185,7 @@ const Members = ({ group, members }) => {
               return <tr key={member_user.id}>
                 <td><Link to={`/admin/users/${member_user.id}`}><SubjectName subject={{ type: 'user', ...member_user }}/></Link></td>
                 <td>
-                  {member.source === 'rule' && <Tooltip content="Added by a rule: they leave at their next sign-in without the claim." hoverOpenDelay={300}><Tag minimal icon="automatic-updates" style={{ marginRight: 6 }}>Rule</Tag></Tooltip>}
+                  {member.source === 'rule' && <Tooltip content="Added by a rule: they leave when their sign-in's groups don't match it anymore (checked daily)." hoverOpenDelay={300}><Tag minimal icon="automatic-updates" style={{ marginRight: 6 }}>Rule</Tag></Tooltip>}
                   <Time iso={member.added_at} never="—"/>
                 </td>
                 <td>{member.source === 'rule'
@@ -175,7 +201,8 @@ const Members = ({ group, members }) => {
 
 
 // The claims sign-ins give: OIDC's groups, LDAP's memberOf, and the email's domain
-const claim_suggestions = ['groups', 'memberOf', 'email_domain'];
+// Keycloak roles are nested: realm_access.roles
+const claim_suggestions = ['groups', 'memberOf', 'email_domain', 'roles', 'realm_access.roles'];
 
 const Rules = ({ group, rules }) => {
   const queryClient = useQueryClient();
@@ -196,7 +223,7 @@ const Rules = ({ group, rules }) => {
     setError(null);
     addGroupRule(queryClient, group.id, { provider_id: provider_id || null, claim: claim.trim(), values })
       .then(() => {
-        showSuccess(`Added a rule to ${group.name}`);
+        showSuccess(`Added a rule to ${group.name}: it applies to everyone in a minute`);
         setClaim('');
         setValues([]);
       })
@@ -206,7 +233,7 @@ const Rules = ({ group, rules }) => {
   const remove = rule => {
     setBusy(rule.id);
     deleteGroupRule(queryClient, group.id, rule.id)
-      .then(() => showSuccess("Deleted the rule: its members leave at their next sign-in"))
+      .then(() => showSuccess("Deleted the rule: the users it added leave in a minute"))
       .catch(showError)
       .finally(() => setBusy(null));
   };

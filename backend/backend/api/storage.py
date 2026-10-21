@@ -5,7 +5,6 @@ the deletions.
 
 Users delete only their own runs (Output.data.user), admins anyone's. Milestones and running runs are kept.
 """
-import os
 from collections import defaultdict
 
 from flask import request, jsonify, g
@@ -97,7 +96,6 @@ def status() -> dict:
   return {
     "updated_at": usage.iso(usage.updated_at()),
     "building": queue.serialize_job(building) if building else None,
-    "quota_url_template": os.environ.get('QABOARD_QUOTA_URL_TEMPLATE'),
     "can_delete_others": is_admin(),
   }
 

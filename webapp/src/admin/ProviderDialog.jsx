@@ -40,6 +40,7 @@ const fromProvider = provider => {
     redirect_uri: config.redirect_uri ?? '',
     enabled: provider?.enabled ?? true,
     recommended: !!provider?.recommended,
+    refresh_groups: !!config.refresh_groups,
     position: provider?.position ?? 0,
   };
 };
@@ -75,6 +76,7 @@ const toBody = (form, { create }) => ({
   redirect_uri: form.redirect_uri.trim(),
   enabled: form.enabled,
   recommended: form.recommended,
+  refresh_groups: form.refresh_groups,
   position: Number(form.position) || 0,
   client_secret_env: form.secret_mode === 'env' ? form.client_secret_env.trim() : '',
   ...(form.secret_mode === 'stored' && form.client_secret ? { client_secret: form.client_secret } : {}),
@@ -208,6 +210,19 @@ const ProviderForm = ({ provider, onClose, can_encrypt, public_url }) => {
         <Switch checked={form.enabled} onChange={() => set({ enabled: !form.enabled })} label="Enabled: on the sign-in page"/>
         <Switch checked={form.recommended} onChange={() => set({ recommended: !form.recommended })} label="Recommended: the first, main button"/>
       </div>
+      <Switch
+        checked={form.refresh_groups}
+        disabled={!can_encrypt && !form.refresh_groups}
+        onChange={() => set({ refresh_groups: !form.refresh_groups })}
+        labelElement={<span>
+          Refresh groups daily
+          <span className={Classes.TEXT_MUTED} style={{ display: 'block', fontSize: 12 }}>
+            Asks for <code>offline_access</code> and keeps users' refresh tokens, encrypted, to read their groups every day.
+            When the provider refuses one (e.g. a disabled user), their groups from it and their sessions end.
+            {!can_encrypt && <> Needs <code>$QABOARD_ENCRYPTION_KEY</code> on the server.</>}
+          </span>
+        </span>}
+      />
 
       <Button
         variant="minimal"

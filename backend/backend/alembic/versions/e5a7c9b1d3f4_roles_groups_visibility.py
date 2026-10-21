@@ -4,6 +4,7 @@
 - role_grants: viewer/developer/owner for users and groups, on all projects or on a project and the ones under it
 - project_visibility: public/internal/private for a project and the ones under it
 - access_requests: + resource_id, role, for project access requests
+- user_identities: + refresh_token_encrypted, claims_refreshed_at, to refresh OIDC groups daily
 Nothing is seeded: the defaults (projects.default_visibility, projects.signed_in_role) keep today's behaviour.
 Also declared in the models, for databases created by the app.
 
@@ -90,9 +91,15 @@ def upgrade():
     op.create_index('ix_access_requests_resource_id', 'access_requests', ['resource_id'])
   if not has_column('access_requests', 'role'):
     op.add_column('access_requests', sa.Column('role', sa.String(), nullable=True))
+  if not has_column('user_identities', 'refresh_token_encrypted'):
+    op.add_column('user_identities', sa.Column('refresh_token_encrypted', sa.Text(), nullable=True))
+  if not has_column('user_identities', 'claims_refreshed_at'):
+    op.add_column('user_identities', sa.Column('claims_refreshed_at', sa.DateTime(), nullable=True))
 
 
 def downgrade():
+  op.drop_column('user_identities', 'claims_refreshed_at')
+  op.drop_column('user_identities', 'refresh_token_encrypted')
   op.drop_index('ix_access_requests_resource_id', 'access_requests')
   op.drop_column('access_requests', 'role')
   op.drop_column('access_requests', 'resource_id')

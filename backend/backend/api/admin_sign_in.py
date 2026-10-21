@@ -59,6 +59,10 @@ def provider_fields(body: dict, existing=None):
       config[key] = (body[key] or '').strip() or None
   if 'recommended' in body:
     config['recommended'] = bool(body['recommended'])
+  if 'refresh_groups' in body:
+    if body['refresh_groups'] and not can_encrypt():
+      return None, "Refreshing groups daily stores refresh tokens: set $QABOARD_ENCRYPTION_KEY on the server first."
+    config['refresh_groups'] = bool(body['refresh_groups']) or None
   fields = {"config": {k: v for k, v in config.items() if v is not None}}
   if 'name' in body:
     fields['name'] = str(body['name']).strip()[:100]

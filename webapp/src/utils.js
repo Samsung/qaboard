@@ -318,15 +318,6 @@ const project_avatar_style = project_id => {
 };
 
 
-// Link to a storage quota dashboard, if the site has one (QABOARD_QUOTA_URL_TEMPLATE)
-const quota_url = (template, user_name, project) => {
-  if (!template || !user_name)
-    return null
-  return template
-    .replace('{user_name}', encodeURIComponent(user_name))
-    .replace('{project}', encodeURIComponent(project ?? ''))
-}
-
 // The project's page on its git server
 const project_web_url = project_data => repo_url(project_data);
 
@@ -620,7 +611,6 @@ export {
   plotly_palette,
   linux_to_windows,
   setPathMappings,
-  quota_url,
   are_on_same_filesystem, extract_drive_and_folder,
   make_eval_templates_recursively,
   metrics_fill_defaults,

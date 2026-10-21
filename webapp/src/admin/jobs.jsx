@@ -46,6 +46,8 @@ export const progressSummary = job => {
   } else if (job.kind === 'garbage_collect') {
     parts.push(`${plural(progress.outputs ?? 0, 'run')} ${job.dry_run ? 'to clean' : 'cleaned'}`);
     if (progress.artifacts) parts.push(`artifacts of ${plural(progress.artifacts, 'commit')}`);
+  } else if (job.kind === 'sync_groups' && progress.users !== undefined) {
+    parts.push(`${plural(progress.users_changed ?? 0, 'user')} changed groups`);
   }
   if (progress.projects_total) parts.push(`${number(progress.projects_done ?? 0)}/${plural(progress.projects_total, 'project')}`);
   return parts.join(', ');
@@ -72,6 +74,14 @@ export const counters = {
     { key: 'commits_busy', label: 'Commits with runs in progress' },
     { key: 'commits_failed', label: 'Commits with errors', intent: Intent.DANGER, hint: "The next job tries them again: see the errors." },
     { key: 'commits_checked', label: 'Commits checked' },
+  ],
+  sync_groups: [
+    { key: 'users_changed', label: 'Users who changed groups', main: true },
+    { key: 'users', label: 'Users checked' },
+    { key: 'ldap_accounts', label: 'LDAP accounts updated' },
+    { key: 'ldap_unknown', label: "LDAP accounts the directory doesn't know", hint: "They lost their directory groups." },
+    { key: 'sso_refreshed', label: 'Single sign-on accounts refreshed' },
+    { key: 'sso_refused', label: 'Refresh tokens refused', hint: "Their groups from that provider ended, and their sessions from it: signing in again gives them back." },
   ],
   garbage_collect: [
     { key: 'outputs', label: 'Runs cleaned', dry: 'Runs to clean', main: true, hint: "Their files are deleted, their metadata stays: a hard delete removes it later." },

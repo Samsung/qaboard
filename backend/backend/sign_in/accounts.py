@@ -10,11 +10,12 @@ from .access import initial_status, request_access
 from .oidc import SignInError
 
 
-def finish(user, provider_id: str, subject: Optional[str] = None, email: Optional[str] = None, claims: Optional[dict] = None, **meta):
+def finish(user, provider_id: str, subject: Optional[str] = None, email: Optional[str] = None, claims: Optional[dict] = None,
+           refresh_token: Optional[str] = None, **meta):
   """Bookkeeping of a successful sign-in, and its session. Commits."""
   from backend import db_session
   from ..audit import audit
-  identities.record(user, provider_id, subject or user.user_name, email=email or user.email, claims=claims)
+  identities.record(user, provider_id, subject or user.user_name, email=email or user.email, claims=claims, refresh_token=refresh_token)
   if user.status == 'pending':
     request_access(user)
   user.last_login_at = utcnow()
@@ -22,7 +23,7 @@ def finish(user, provider_id: str, subject: Optional[str] = None, email: Optiona
   from ..access.groups import sync as sync_groups
   try:
     with db_session.begin_nested():
-      groups = sync_groups(user, provider_id, claims)
+      groups = sync_groups(user, provider_id, claims).groups
   except Exception as e:
     # a sign-in never fails because of groups: the memberships stay as they were
     print(f"[sign-in] WARNING: could not update the groups of {user.user_name}: {type(e).__name__}: {e}")

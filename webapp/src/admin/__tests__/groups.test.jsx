@@ -55,6 +55,20 @@ describe('Groups', () => {
     }
   });
 
+  it("shows the last update of users' groups, and updates them now", async () => {
+    const fetch = mockApi({
+      'GET /api/v1/admin/groups': { groups: [group], sync: { last_job: { id: 31, kind: 'sync_groups', status: 'done', finished_at: '2026-10-20T04:41:00Z' }, schedule: { id: 2, enabled: true } } },
+      'POST /api/v1/admin/jobs': [{ id: 32, kind: 'sync_groups', status: 'queued' }, 201],
+    });
+    renderAt('/admin/groups', <Groups/>);
+    const sync = within(await screen.findByRole('group', { name: "Updates of users' groups" }));
+    expect(sync.getByText(/every day/)).toBeInTheDocument();
+    expect(sync.getByRole('link', { name: 'done' })).toHaveAttribute('href', '/admin/storage/jobs/31');
+    fireEvent.click(sync.getByRole('button', { name: 'Update now' }));
+    await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/admin/jobs')).toHaveLength(1));
+    expect(body(calls(fetch, 'POST', '/api/v1/admin/jobs')[0])).toEqual({ kind: 'sync_groups', params: {} });
+  });
+
   it('lists groups with their counts, and creates one', async () => {
     const fetch = mockApi({
       'GET /api/v1/admin/groups': { groups: [group] },
@@ -128,7 +142,7 @@ describe('Groups', () => {
 
     fireEvent.click(rule.getByRole('button', { name: 'Delete the rule on email_domain' }));
     await waitFor(() => expect(calls(fetch, 'DELETE', '/api/v1/admin/groups/7/rules/3')).toHaveLength(1));
-    await waitFor(() => expect(toaster.show).toHaveBeenCalledWith(expect.objectContaining({ message: 'Deleted the rule: its members leave at their next sign-in' })));
+    await waitFor(() => expect(toaster.show).toHaveBeenCalledWith(expect.objectContaining({ message: 'Deleted the rule: the users it added leave in a minute' })));
   });
 
   it('asks before deleting a group', async () => {

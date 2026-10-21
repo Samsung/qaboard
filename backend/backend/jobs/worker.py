@@ -29,10 +29,16 @@ USAGE_EVERY = 300
 USAGE_LOCK = 802_517  # pg_advisory_lock key: one worker at a time updates the storage usage
 # The worker schedules a nightly rebuild of the storage usage, and runs one if there was none. QABOARD_STORAGE_USAGE_AUTO=0 to manage it yourself.
 USAGE_SCHEDULE = {"name": "Storage usage", "kind": "storage_usage", "cron": "17 3 * * *", "timezone": "UTC", "params": {}}
+# And a daily update of users' groups, from LDAP and single sign-on (jobs/groups.py). QABOARD_GROUPS_SYNC_AUTO=0 to manage it yourself.
+GROUPS_SCHEDULE = {"name": "Users' groups", "kind": "sync_groups", "cron": "41 4 * * *", "timezone": "UTC", "params": {}}
 
 
 def storage_usage_auto() -> bool:
   return os.environ.get('QABOARD_STORAGE_USAGE_AUTO', '1') != '0'
+
+
+def groups_sync_auto() -> bool:
+  return os.environ.get('QABOARD_GROUPS_SYNC_AUTO', '1') != '0'
 
 
 class Worker:
@@ -78,7 +84,10 @@ class Worker:
         print(f"[worker {self.id}] WARNING: heartbeat failed: {e}", flush=True)
 
   def defaults(self):
-    """What every server needs: the storage usage, rebuilt nightly. Admins can change or disable the schedule."""
+    """What every server needs: the storage usage, rebuilt nightly, and users' groups. Admins can change or disable the schedules."""
+    if groups_sync_auto() and not JobSchedule.query.filter(JobSchedule.kind == 'sync_groups').first():
+      queue.save_schedule(JobSchedule(), GROUPS_SCHEDULE)
+      db_session.commit()
     if not storage_usage_auto():
       return
     if not JobSchedule.query.filter(JobSchedule.kind == 'storage_usage').first():

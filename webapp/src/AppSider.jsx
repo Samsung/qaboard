@@ -29,7 +29,6 @@ import { LogsMenuItem, logs_hint_class } from "./AppSiderLogsItem"
 import { useCommitsList, useComparison, useSiteConfig, useUser, updateSelected } from "./hooks"
 import { usePrefsStore } from "./stores/prefs"
 import { useIntegrationStatuses } from "./useIntegrationStatuses"
-import { quota_url } from "./utils"
 import { repo_url, tree_url, commit_url, commits_url as git_commits_url, default_integrations } from "./git"
 
 // The sidebar's width, also what the page leaves free for it: a CSS variable (App.css), smaller when collapsed.
@@ -425,13 +424,11 @@ const MenuItemLink = ({ to, ...props }) => {
   return <MenuItem {...props} href={to} onClick={handleClick}/>
 }
 
-// How much storage the project's runs use, and the site's quota dashboard if it has one (QABOARD_QUOTA_URL_TEMPLATE)
+// How much storage the project's runs use
 const StorageMenuItem = ({ user, project }) => {
-  const { quota_url_template } = useSiteConfig()
   if (!user?.is_logged)
     return null
   const storage = `/storage/batches?project=${encodeURIComponent(project ?? '')}`
-  const dashboard = quota_url(quota_url_template, user?.user_name, project)
   return <MenuItemLink
     to={storage}
     icon="database"
@@ -441,7 +438,6 @@ const StorageMenuItem = ({ user, project }) => {
     <MenuItemLink to={storage} icon="database" text="Your runs in this project"/>
     <MenuItemLink to="/storage" icon="projects" text="Your runs in every project"/>
     <MenuItemLink to={`/storage/batches?scope=all&project=${encodeURIComponent(project ?? '')}`} icon="people" text="Everyone's runs in this project"/>
-    {dashboard && <MenuItem href={dashboard} rel="noopener noreferrer" target="_blank" icon="dashboard" text="Quota dashboard" title="Opens in a new tab"/>}
   </MenuItemLink>
 }
 

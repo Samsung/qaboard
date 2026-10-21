@@ -58,6 +58,8 @@ services:
     # - QABOARD_LDAP_PASSWORD=${QABOARD_LDAP_PASSWORD}
     # - QABOARD_LDAP_HOST=${QABOARD_LDAP_HOST}
     - QABOARD_LDAP_USER_FILTER=(&(objectClass=user)(sAMAccountName={login}))
+    # group rules (Admin → Groups) read memberOf, updated daily. Uncomment for AD's nested groups: one more query per user
+    # - QABOARD_LDAP_NESTED_GROUPS=true
     # Sentry: SENTRY_DSN (backend) and SENTRY_FRONTEND_DSN (web app) are secrets, in .env. The image trusts the SIRC CA (CA_CERT_URL)
     - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-production}
     - QABOARD_TUNING_RUNNER=lsf
@@ -68,7 +70,6 @@ services:
     - QABOARD_DEFAULT_USER=ispq
     - QA_LSF_SSH_TARGET=ispq@ispq-vdi
     - 'QABOARD_IMAGE_SERVERS={"default": "https://cantaloupe-svc.transchip.com/iiif/2/", "raw,hex": "https://iipsrv.transchip.com/fcgi-bin/iipsrv.fcgi?IIIF=/"}'
-    - QABOARD_QUOTA_URL_TEMPLATE=https://metabase.transchip.com/dashboard/154-storage-cleanup-dashboard?project={project}&username={user_name}
     - QABOARD_SUPPORT_URL=mailto:arthur.flam@samsung.com
     - QABOARD_LOGIN_HINT=Try your Windows credentials.
     # Links in emails and exports

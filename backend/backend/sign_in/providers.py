@@ -82,6 +82,8 @@ def env_oidc() -> Optional[Provider]:
       # the IdP is federated to the same directory as LDAP: its user names are the same accounts
       "match_users": (os.environ.get('QABOARD_OIDC_MATCH_USERS') or 'none').strip().lower(),
       "redirect_uri": os.environ.get('QABOARD_OIDC_REDIRECT_URI') or None,
+      # read users' claims daily with refresh tokens (backend/jobs/groups.py)
+      "refresh_groups": os.environ.get('QABOARD_OIDC_REFRESH_GROUPS', '').strip().lower() in ('1', 'true', 'yes') or None,
     },
   )
 

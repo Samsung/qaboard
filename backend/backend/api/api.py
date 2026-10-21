@@ -73,8 +73,6 @@ def get_site_config():
         "git_web_url": git_hosts.default.url,
         # The git hosts we know, to link to projects whose data doesn't say where they are hosted: [{type, url, name}]
         "git_hosts": git_hosts.public(),
-        # Optional link to a storage quota dashboard, with {user_name} and {project} placeholders
-        "quota_url_template": os.environ.get('QABOARD_QUOTA_URL_TEMPLATE'),
         # Where users report issues
         "support_url": os.environ.get('QABOARD_SUPPORT_URL', 'https://github.com/Samsung/qaboard/issues'),
         # Shown to users who can't log in, e.g. which credentials to use

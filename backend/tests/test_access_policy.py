@@ -5,7 +5,7 @@ Who gets which role, from the database: integration_tests/test_access.py.
 from types import SimpleNamespace
 
 from backend.access.policy import prefixes, applies_to, highest, allows, required_role, PERMISSIONS
-from backend.access.groups import rule_matches, claims_of
+from backend.access.groups import rule_matches, claims_by_source, matches_any, groups_overage
 
 
 def test_roles_are_ordered():
@@ -48,9 +48,39 @@ def test_rules_match_ldap_dns_by_their_name():
   assert not rule_matches(rule("memberOf", ["Groups"]), "ldap", claims)
 
 
-def test_claims_of_ldap_accounts_and_emails():
+def test_rules_read_nested_claims():
+  claims = {"realm_access": {"roles": ["camera"]}, "resource_access": {"qaboard": {"roles": ["admin"]}}}
+  assert rule_matches(rule("realm_access.roles", ["camera"]), "sso", claims)
+  assert rule_matches(rule("resource_access.qaboard.roles", ["admin"]), "sso", claims)
+  assert not rule_matches(rule("realm_access.groups", ["camera"]), "sso", claims)
+  assert not rule_matches(rule("realm_access", ["camera"]), "sso", claims)
+
+
+def identity(provider_id, claims):
+  return SimpleNamespace(provider_id=provider_id, claims=claims)
+
+
+def test_claims_by_source():
   ldap_user = SimpleNamespace(email="alice@Example.com", data=[["CN=alice,DC=example", {"memberOf": ["CN=camera-algo,OU=Groups"]}]])
-  assert claims_of(ldap_user, "ldap", None) == {"memberOf": ["CN=camera-algo,OU=Groups"], "email_domain": "Example.com"}
-  # an identity's claims win over the directory's answer
-  assert claims_of(ldap_user, "sso", {"groups": ["x"]}) == {"groups": ["x"], "email_domain": "Example.com"}
-  assert claims_of(SimpleNamespace(email=None, data={}), "local", None) == {}
+  assert claims_by_source(ldap_user) == {"ldap": {"memberOf": ["CN=camera-algo,OU=Groups"], "email_domain": "Example.com"}}
+  # each sign-in method keeps its claims: signing in with SSO doesn't drop LDAP's groups
+  sources = claims_by_source(ldap_user, [identity("sso", {"groups": ["old"]}), identity("ldap", {})], "sso", {"groups": ["x"]})
+  assert sources == {
+    "sso": {"groups": ["x"], "email_domain": "Example.com"},
+    "ldap": {"memberOf": ["CN=camera-algo,OU=Groups"], "email_domain": "Example.com"},
+  }
+  assert claims_by_source(SimpleNamespace(email=None, data={})) == {"local": {}}
+
+
+def test_rules_for_one_sign_in_method_read_its_claims():
+  sources = {"sso": {"groups": ["camera"]}, "ldap": {"memberOf": ["CN=isp,OU=Groups"]}}
+  assert matches_any(rule("memberOf", ["isp"]), sources)
+  assert matches_any(rule("memberOf", ["isp"], provider_id="ldap"), sources)
+  assert not matches_any(rule("memberOf", ["isp"], provider_id="sso"), sources)
+  assert matches_any(rule("groups", ["camera"], provider_id="sso"), sources)
+
+
+def test_entra_groups_overage():
+  assert groups_overage({"_claim_names": {"groups": "src1"}, "_claim_sources": {"src1": {}}})
+  assert groups_overage({"hasgroups": True})
+  assert not groups_overage({"groups": ["a"]}) and not groups_overage(None)

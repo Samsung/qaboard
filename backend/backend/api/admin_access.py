@@ -37,6 +37,31 @@ def get_group(group_id):
   return group, (None if group else (jsonify({"error": "This group doesn't exist."}), 404))
 
 
+def apply_rules():
+  """Rules changed: a job updates everyone's groups now (backend/jobs/groups.py). The job, or None if one is already queued."""
+  from ..jobs import queue
+  try:
+    job = queue.create('sync_groups', {}, user=g.actor.user, label='rules changed')
+    db_session.commit()
+    return queue.serialize_job(job)
+  except queue.Busy:
+    db_session.rollback()
+    return None
+
+
+def groups_sync() -> dict:
+  """The last update of users' groups, and when the next one runs"""
+  from ..models import Job, JobSchedule
+  from ..jobs import queue
+  job = Job.query.filter(Job.kind == 'sync_groups').order_by(Job.id.desc()).first()
+  schedule = JobSchedule.query.filter(JobSchedule.kind == 'sync_groups').order_by(JobSchedule.id).first()
+  return {
+    "last_job": queue.serialize_job(job) if job else None,
+    "schedule": {"id": schedule.id, "enabled": schedule.enabled, "cron": schedule.cron, "timezone": schedule.timezone,
+                 "next_run_at": iso(schedule.next_run_at)} if schedule else None,
+  }
+
+
 def clean_name(value):
   name = value.strip() if isinstance(value, str) else ''
   if not name or len(name) > 100:
@@ -50,7 +75,7 @@ def clean_name(value):
 def admin_groups():
   from ..models import Group
   if request.method == 'GET':
-    return jsonify({"groups": [serialize_group(group) for group in Group.query.order_by(Group.name).all()]})
+    return jsonify({"groups": [serialize_group(group) for group in Group.query.order_by(Group.name).all()], "sync": groups_sync()})
   body = request.get_json(silent=True) or {}
   name = clean_name(body.get('name'))
   if not name:
@@ -145,7 +170,7 @@ def admin_remove_group_member(group_id, user_id):
   audit('group_member.remove', 'group', group.id, group.name, meta={"user": user_name, "source": member.source})
   db_session.commit()
   changed()
-  # rules add users back at their next sign-in
+  # rules add users back at their next sign-in, or the daily sync
   return jsonify({"status": "OK"})
 
 
@@ -175,7 +200,8 @@ def admin_add_group_rule(group_id):
   db_session.flush()
   audit('group_rule.create', 'group', group.id, group.name, meta={"provider": provider_id, "claim": claim, "values": rule.values})
   db_session.commit()
-  return jsonify({"id": rule.id, "provider_id": rule.provider_id, "claim": rule.claim, "values": rule.values, "created_at": iso(rule.created_at)}), 201
+  return jsonify({"id": rule.id, "provider_id": rule.provider_id, "claim": rule.claim, "values": rule.values, "created_at": iso(rule.created_at),
+                  "sync_job": apply_rules()}), 201
 
 
 @app.route('/api/v1/admin/groups/<int:group_id>/rules/<int:rule_id>', methods=['DELETE'])
@@ -192,8 +218,7 @@ def admin_delete_group_rule(group_id, rule_id):
   db_session.delete(rule)
   audit('group_rule.delete', 'group', group.id, group.name, meta={"claim": rule.claim, "values": rule.values})
   db_session.commit()
-  # members it added leave at their next sign-in
-  return jsonify({"status": "OK"})
+  return jsonify({"status": "OK", "sync_job": apply_rules()})
 
 
 @app.route('/api/v1/admin/grants', methods=['GET', 'POST'])
