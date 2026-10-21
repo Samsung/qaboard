@@ -3,6 +3,7 @@
 // Milestones are listed by group ("tuning/denoiser" nests), and the search box matches everything they say.
 import { useMemo, useState } from "react";
 import styled from "styled-components";
+import { DateTime } from "luxon";
 import {
   Button,
   Callout,
@@ -80,6 +81,28 @@ const Panel = styled(Menu)`
   .bp6-menu-item:focus-visible .qa-milestone-actions .bp6-button,
   .qa-milestone-actions .bp6-button:focus-visible {
     opacity: 1;
+  }
+  /* until then, the date they were updated shows where the actions will */
+  .qa-milestone-hover-slot {
+    display: inline-grid;
+    align-items: center;
+    justify-items: end;
+  }
+  .qa-milestone-hover-slot > * {
+    grid-area: 1 / 1;
+  }
+  .qa-milestone-hover-slot > .qa-milestone-hover-actions {
+    display: flex;
+  }
+  .qa-milestone-date {
+    font-size: 12px;
+    white-space: nowrap;
+    padding: 0 4px;
+  }
+  .bp6-menu-item:hover .qa-milestone-date,
+  .bp6-menu-item:focus-visible .qa-milestone-date,
+  .qa-milestone-hover-slot:focus-within .qa-milestone-date {
+    visibility: hidden;
   }
   .bp6-menu-item.qa-milestones-group {
     min-height: 26px;
@@ -189,6 +212,8 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
           rightElement={search ? <Button variant="minimal" icon="cross" aria-label="Clear the search" onClick={() => setSearch('')}/> : undefined}
         />
       </div>}
+      {/* first: with many milestones, it would be out of sight at the end */}
+      {list.length > 0 && <MenuItem icon="properties" text="Manage milestones…" title="Sort, edit, delete, move or share several milestones, compare two" onClick={() => openManageMilestones({ project })}/>}
 
       {legacy_count > 0 && !user.is_logged && <li style={{ padding: '6px 0' }}>
         <Callout intent={Intent.WARNING} icon="warning-sign" compact>
@@ -241,7 +266,6 @@ export const MilestonesPanel = ({ project, project_data, selected, onSelect, doc
         Milestones are results worth comparing with: a release, a benchmark, your best tuning.
         Save one with <Icon icon="star-empty" size={12}/> next to a commit's hash, or list branches under <code>project.milestones</code> in <em>qaboard.yaml</em>.
       </span>}/>}
-      {list.length > 0 && <MenuItem icon="properties" text="Manage milestones…" title="Sort, edit, delete, move or share several milestones, compare two" onClick={() => openManageMilestones({ project })}/>}
       <MenuItem icon="manual" text="Learn about milestones" href={`${docs_root}docs/user-guide/milestones`} target="_blank" rel="noopener noreferrer"/>
     </Panel>;
 };
@@ -309,6 +333,9 @@ const FavoriteGroup = ({ section, group, milestones, expand, ...props }) => {
 };
 
 
+const full_date = date => DateTime.fromISO(date).toLocaleString(DateTime.DATETIME_MED);
+const dates_title = m => [`Updated ${full_date(m.updated_at)}`, m.created_at && m.created_at !== m.updated_at && `saved ${full_date(m.created_at)}`].filter(Boolean).join(', ');
+
 export const MilestoneItem = ({ milestone: m, onSelect, onEdit, is_selected, project, show_owner, search, depth = 0 }) => {
   const user = useUser();
   const { toggleFavorite } = useMilestoneActions(project);
@@ -332,7 +359,6 @@ export const MilestoneItem = ({ milestone: m, onSelect, onEdit, is_selected, pro
         <span title={m.message ?? undefined}>{m.branch ? `${m.branch} @ ` : ''}<code>{m.commit.slice(0, 8)}</code></span>
         {results_project(m) !== project && <span title="Project">{results_project(m)}</span>}
         {show_owner && !m.is_mine && owner && <span title="Saved by">{owner}</span>}
-        {!!m.updated_at && <span title={`Saved ${m.created_at}`}>{relative_date(m.updated_at)}</span>}
       </div>
       {matched.length > 0 && <div className="qa-milestone-matched">
         {matched.slice(0, 3).map(v => <Tag key={`${v.kind}-${v.name}`} minimal intent={Intent.PRIMARY} icon={v.kind === 'dataset' ? 'database' : v.kind === 'qa batch' ? 'layout-skew-grid' : 'desktop'} title={`Its runs used the ${v.kind} ${v.name}`}>
@@ -354,15 +380,20 @@ export const MilestoneItem = ({ milestone: m, onSelect, onEdit, is_selected, pro
         aria-pressed={!!m.is_favorite}
         onClick={stop(() => toggleFavorite(m).catch(() => {}))}
       />}
-      <Button variant="minimal" size="small" icon="link" aria-label="Copy the link" title="Copy the link" onClick={stop(() => copyWithToast(milestone_url(m), { what: 'the link to the milestone' }))}/>
-      {!!onEdit && <Button
-        variant="minimal"
-        size="small"
-        icon={m.can_edit ? 'edit' : 'info-sign'}
-        aria-label={m.can_edit ? 'Edit' : 'Details'}
-        title={m.can_edit ? 'Edit' : 'Details'}
-        onClick={stop(() => onEdit(m))}
-      />}
+      <span className="qa-milestone-hover-slot">
+        {!!m.updated_at && <span className={`qa-milestone-date ${Classes.TEXT_MUTED}`} title={dates_title(m)}>{relative_date(m.updated_at, { style: 'short' })}</span>}
+        <span className="qa-milestone-hover-actions">
+          <Button variant="minimal" size="small" icon="link" aria-label="Copy the link" title="Copy the link" onClick={stop(() => copyWithToast(milestone_url(m), { what: 'the link to the milestone' }))}/>
+          {!!onEdit && <Button
+            variant="minimal"
+            size="small"
+            icon={m.can_edit ? 'edit' : 'info-sign'}
+            aria-label={m.can_edit ? 'Edit' : 'Details'}
+            title={m.can_edit ? 'Edit' : 'Details'}
+            onClick={stop(() => onEdit(m))}
+          />}
+        </span>
+      </span>
     </span>}
     onClick={() => onSelect(m)}
   />;
