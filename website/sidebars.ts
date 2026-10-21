@@ -102,6 +102,7 @@ const sidebars: SidebarsConfig = {
         'user-guide/sharing',
         'user-guide/files',
         'user-guide/account',
+        'user-guide/project-access',
       ],
     },
     {
@@ -196,6 +197,7 @@ const sidebars: SidebarsConfig = {
         "backend-admin/kubernetes",
         "backend-admin/user-management",
         "backend-admin/sign-in",
+        "backend-admin/project-access",
         "backend-admin/monitoring",
         "backend-admin/troubleshooting",
     ]

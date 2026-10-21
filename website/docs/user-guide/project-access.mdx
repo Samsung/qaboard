@@ -1,0 +1,41 @@
+---
+id: project-access
+title: Who can access a project
+sidebar_label: Project access
+description: See your role on a project, ask for access, and, as an owner, choose who can see it and act on its runs.
+---
+
+Open a project's **Access** tab, in its sidebar, to see your role and who owns the project.
+
+## Roles
+- **Viewers** see the project, its runs, metrics and files.
+- **Developers** also send results with `qa run` and `qa batch`, redo, stop, rename or delete runs, start tuning,
+  export, and save milestones.
+- **Owners** also choose who can see the project, add members, and decide access requests.
+
+Your server may make everyone signed in a developer of public and internal projects: the Access tab says how you got
+your role.
+
+## Ask for access
+If you can't see a project, or can't act on its runs, QA-Board says so with the project's owners. Click **Request
+access** (or open the Access tab), choose the role you need and say why, e.g. your team. The owners get an email,
+and you get one when they decide. From `qa`, the error says whom to ask.
+
+## Manage a project, as an owner
+In the **Access** tab:
+- **Visibility**: *Public* (anyone who can open QA-Board), *Internal* (anyone signed in), *Private* (only members).
+  Projects inherit their group's visibility: a project can be more private than its group, not more public.
+- **Members**: add users or groups as viewers, developers or owners, optionally until a date. Members of a group's
+  projects (e.g. `group`) are members of every project under it; they're shown as inherited, and changed there.
+- **Requests**: approve, with the role you choose, or deny.
+
+A project always keeps an owner: add another one before you leave.
+
+<details>
+<summary>What private projects hide</summary>
+
+Their commits, runs, metrics and milestones, from the web app, the API and `qa`, and their outputs and artifacts
+folders under `/s/` when your server checks who reads files. Tokens limited to other projects can't read them
+either. Results sent without a token may still be accepted, unless your server requires tokens.
+
+</details>

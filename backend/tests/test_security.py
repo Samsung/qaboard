@@ -1212,3 +1212,36 @@ def test_auth_module_defines_each_name_once():
   tree = ast.parse((Path(__file__).parent.parent / "backend" / "api" / "auth.py").read_text())
   names = [node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.ClassDef))]
   assert sorted({n for n in names if names.count(n) > 1}) == []
+
+
+# Routes that mention projects without calling one of PROJECT_CHECKS, and why
+PROJECT_CHECKS = {
+  "is_authorized_user", "require_project_access", "forbidden_project", "ingest_access", "can", "authorize", "may_manage",
+  "get_milestone", "check_read_access", "readable_file", "_video_path", "github_workflow",
+}
+UNCHECKED_PROJECT_ROUTES = {
+  # admins: admin_required
+  ("admin.py", "admin_audit"), ("admin_access.py", "admin_grants"), ("admin_access.py", "admin_delete_grant"),
+  # asking for access works without access (role_of tells what they have)
+  ("access.py", "request_project_access"),
+  # "project" is a word in their answers, not a project they read
+  ("auth.py", "get_current_user"), ("sign_in.py", "my_access_request"), ("tokens.py", "new_token"),
+  # GitLab project ids, not QA-Board projects (TODO_WARTS.md)
+  ("integrations.py", "gitlab_job"), ("integrations.py", "gitlab_play_manual_job"),
+  # login_required checks ?project=, the only project it reads
+  ("tuning.py", "check_tuning"),
+}
+
+
+def test_routes_that_touch_projects_check_access():
+  """Every route that mentions a project calls a check of backend/access/ (or one that does): new routes can't forget"""
+  missing = []
+  for path, node in api_functions():
+    source = ast.unparse(node)
+    # projects, or what belongs to one
+    if not route_methods(node) or not any(word in source for word in ("project", "Output", "Batch", "CiCommit", "Milestone")):
+      continue
+    calls = {getattr(n.func, 'id', getattr(n.func, 'attr', None)) for n in ast.walk(node) if isinstance(n, ast.Call)}
+    if not calls & PROJECT_CHECKS and (path.name, node.name) not in UNCHECKED_PROJECT_ROUTES:
+      missing.append(f"{path.name}:{node.name}")
+  assert not missing, f"These routes touch projects without checking access (backend/access/): {missing}"

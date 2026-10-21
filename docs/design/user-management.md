@@ -969,3 +969,19 @@ Audit: `grant.create|update|delete`, `visibility.update`, `group.*`, `group_memb
 - **YAML import** (`qaboard-admin import-restrictions`): `projects:` keys become private visibility and grants,
   `data:` rules become groups with rules, `login:` stays a sign-in rule.
 - `auth.reauthenticate_after` for SSO sessions, and the scheduled LDAP sync (M6).
+
+### D.8 As built (2026-10-21)
+- **No seed grant**: an instance grant `everyone → developer` would have overridden `private`. The baseline is
+  `projects.signed_in_role` instead, which only applies to public and internal projects. No built-in groups.
+- **Files**: every project's storage folders are mapped (cached 5 minutes, for new projects); visibility and roles
+  are checked live, so making a project private protects its files at once. Public projects read without a token
+  skip loading grants: nginx asks for each file.
+- **Checks**: `login_required`'s `?project=` needs `project.read`; endpoints that change runs call
+  `require_project_access`, which defaults to `runs.act`. `test_security.py` fails for a route that loads projects,
+  runs, batches, commits or milestones without a check (an allow-list says why for the others).
+- **Found on the way**: changing, deleting or redoing a run only checked that the user could see the project, tuning
+  and exports needed nothing more than reading, the run and manifest GETs had no check (the manifest one wrote a file).
+- **Jenkins**: the CLI's Jenkins runner triggers builds without a user, so `jenkins/build/trigger` stays as it was
+  without a project; the web app sends the project, and then needs a developer.
+- **Not yet** (D.7): the YAML import, `auth.reauthenticate_after`, a scheduled LDAP sync, the GitLab job endpoints'
+  mapping to projects.

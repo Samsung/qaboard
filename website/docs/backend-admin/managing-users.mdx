@@ -6,7 +6,7 @@ title: User Management
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
 QA-Board has users, admins, API tokens and an audit log. You can require signing in, and restrict who can use the
-server or read some projects. Users sign in with single sign-on (OpenID Connect), LDAP, SAML or local accounts (see
+server or read some projects (see [Project access and roles](/docs/backend-admin/project-access)). Users sign in with single sign-on (OpenID Connect), LDAP, SAML or local accounts (see
 [Sign-in and single sign-on](/docs/backend-admin/sign-in)), and the `qa` CLI with `qa auth login`.
 
 ## Admins and the admin panel
@@ -54,6 +54,8 @@ the panel then shows the setting as "set by the environment", and you change it 
 | `auth.sso_auto_redirect` | `QABOARD_SSO_AUTO_REDIRECT` | `false` | The sign-in page goes straight to the only single sign-on, when signing in is required |
 | `sessions.idle_days` | | `30` | Browser sessions end after this many days without activity |
 | `sessions.max_days` | | `180` | Browser sessions end after this many days in any case (365 at most) |
+| `projects.default_visibility` | `QABOARD_DEFAULT_VISIBILITY` | `public` | The visibility of projects whose owners didn't choose (see [Project access and roles](/docs/backend-admin/project-access)) |
+| `projects.signed_in_role` | `QABOARD_SIGNED_IN_ROLE` | `developer` | The role of signed-in users on public and internal projects: `viewer` or `developer` |
 
 Empty environment variables count as unset.
 
@@ -199,6 +201,11 @@ login:
 ```
 
 ## Managing Projects
+:::tip
+Owners now manage who can access their projects from the web app: see [Project access and roles](/docs/backend-admin/project-access).
+The file below keeps working: its projects are private, and the users its rules match are their developers.
+:::
+
 If you need to restrict a project so that only specific users have access, you can configure this in the configuration file.\
 Example:
 ```yml title="users_restrict.yml"

@@ -1,0 +1,100 @@
+---
+id: project-access
+sidebar_label: Project access
+title: Project access and roles
+---
+
+Decide who can see each project, and who can send results or act on its runs, from the web app. Projects' owners
+manage their members in **Project → Access**; you set the defaults and the groups. Users see the same page in the
+[user guide](/docs/user-guide/project-access).
+
+## Nothing changes when you upgrade
+The defaults keep how QA-Board worked before roles:
+- **Projects are public**: anyone who can open QA-Board sees them (`projects.default_visibility`).
+- **Everyone signed in is a developer** of public and internal projects: they can send results, redo, stop or
+  delete runs (`projects.signed_in_role`).
+- Projects in `QABOARD_LOGIN_RESTRICTED_YAML` stay restricted: they're private, and the users its rules match are
+  their developers.
+
+## Give projects owners, then tighten
+1. **Make owners.** Open a project's **Access** tab, add its owners (you're an owner of every project as an admin).
+   Owners of `group` own every project under it, e.g. `group/repo` and `group/repo/subproject`.
+2. **Owners add their teams**: users or groups, as viewers, developers or owners, optionally until a date.
+3. **Set `projects.signed_in_role` to `viewer`** in **Admin → Settings**: signed-in users still see public and
+   internal projects, and only members act on them. The admin overview says how many projects have owners.
+4. **Make sensitive projects private**: only their members see them, their runs, and their files.
+
+| Role | Can |
+|---|---|
+| Viewer | see the project, its runs, metrics and files |
+| Developer | also send results (`qa run`, `qa batch`), redo, stop, rename or delete runs, start tuning, export, save milestones |
+| Owner | also choose the visibility, add and remove members, and decide access requests |
+
+Admins are owners of every project.
+
+<details>
+<summary>How QA-Board decides</summary>
+
+A user's role on `a/b/c` is the highest of:
+- their grants, and their groups' grants, on `a/b/c`, `a/b`, `a`, or all projects (**Admin → Groups → Roles on all
+  projects**). Expired grants don't count;
+- what the visibility gives: viewer for anyone on public projects, `projects.signed_in_role` for signed-in users on
+  public and internal ones, nothing on private ones;
+- the YAML file's rules, for its projects (developer);
+- owner, for admins.
+
+Visibility is inherited: a project's effective visibility is the most restrictive of its own and its prefixes'. A
+project can be more private than its group, never more public. Without any, `projects.default_visibility` applies.
+
+Tokens never have more than their user, their scopes (`read`, `ingest`, `act`) and their projects allow.
+
+</details>
+
+## Groups
+Create groups in **Admin → Groups**, then grant them roles on projects. Add members by hand, or with **rules** that
+add users when they sign in:
+
+| Claim | Signs in with | Example values |
+|---|---|---|
+| `groups` | single sign-on (OpenID Connect), if your IdP sends it | `camera-team` |
+| `memberOf` | LDAP (or any LDAP attribute), SAML attributes | `CN=camera-algo,OU=Groups,DC=example,DC=com`, or just `camera-algo` |
+| `email_domain` | any | `example.com` |
+
+Values match case-insensitively; an LDAP group matches by its full DN or its name. Each sign-in replaces the
+memberships rules added: users leave a group at their next sign-in without the claim. Members you add by hand stay.
+To write rules, look at **Admin → Audit**: `auth.login` events list the groups each sign-in put users in, and for
+single sign-on the groups the identity provider sent.
+
+## Access requests
+Users without the role they need get a clear refusal: in the web app with the project's owners and a **Request
+access** button, in `qa` with whom to ask. Owners get an email ([when QA-Board sends emails](/docs/deploy#emails)),
+and approve or deny in the project's Access tab; the requester gets an email.
+
+## What else follows roles
+- **Results sent by `qa`**: a signed-in sender (or a token) needs the developer role. With `ingest.auth` set to
+  `token`, others are refused; with `off` or `warn`, their results are saved as unverified, like anonymous ones.
+  **Anonymous results are still accepted with `off` and `warn`, also on private projects**: set `ingest.auth` to
+  `token` to stop them ([results sent by qa](/docs/backend-admin/user-management#results-sent-by-qa)).
+- **Files under `/s/`**: the outputs and artifacts folders of a project follow its roles, when nginx checks who can
+  read files ([restricting who can read files](/docs/backend-admin/user-management#restricting-who-can-read-files)).
+  Sub-projects share their repository's folders: reading them needs access to every non-public project stored there.
+- **Milestones**: saving or editing shared ones needs the developer role; favorites only need to see the project.
+
+## The YAML file
+`QABOARD_LOGIN_RESTRICTED_YAML` keeps working. Its `projects:` become private projects whose matching users are
+developers, on top of their grants. Its `login:` rules still decide who can sign in, and `paths:` which folders
+users can read. Move its projects to grants when owners are in place, then remove them from the file.
+
+<details>
+<summary>Settings and API</summary>
+
+| Setting | Environment variable | Default | What it does |
+|---|---|---|---|
+| `projects.default_visibility` | `QABOARD_DEFAULT_VISIBILITY` | `public` | The visibility of projects without one: `public`, `internal`, `private` |
+| `projects.signed_in_role` | `QABOARD_SIGNED_IN_ROLE` | `developer` | The role of signed-in users on public and internal projects: `viewer` or `developer` |
+
+The web app uses `/api/v1/project/access` (visibility, grants, requests), `/api/v1/directory` (the member picker)
+and `/api/v1/admin/groups`, `/api/v1/admin/grants`. Scripts can call them with a token of an owner (the `act`
+scope), or an admin (`admin` for the admin API).
+
+</details>

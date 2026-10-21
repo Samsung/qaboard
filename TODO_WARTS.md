@@ -30,15 +30,15 @@ Found while surveying the code base (October 2026), after the cleanups that chan
     in the login change the search, and the first match is used. Escape it.
   - `search_s(...)[0][0]` (385) raises `IndexError` (500) for unknown users instead of returning `invalid-username`.
   - No LDAPS/StartTLS (372): passwords go in clear to the LDAP server. Support `ldaps://` or `start_tls_s()`.
-- **Celery task endpoint** (api/tasks.py:20-24): `POST /api/v1/task/celery/<id>` needs no login, and loops
-  `while result.status == "PENDING": sleep(1)` with no timeout: without a free worker, each call ties a uwsgi
-  worker forever (compose runs 2). Add `@login_required` and a deadline. [S, API]
 - **Image endpoints** (api/image.py): `GET/POST /api/v1/output/diff/report` (167) needs no login, `mkdir`s and writes a PDF in
   `data['output_dir_url_new'][2:]/reports` without `check_storage_path`, and its `report_url` has a double slash (`/s//algo/...`).
   `/api/v1/output/image/pixel` (123) and `/image/diff` (149) read any image the server can read (`url_to_dir` of a client URL).
   Add `@login_required`, `check_storage_path` for writes, and restrict reads to the storage roots. [S, API]
-- **Project permissions are only checked on some reads** (`is_authorized_user`, api/auth.py:272): `GET /api/v1/output/<id>`,
-  `/manifest`, `/api/v1/tests/groups`, image endpoints and `/s/` ignore `QABOARD_LOGIN_RESTRICTED_YAML`. [M, API]
+- **GitLab job endpoints** (api/integrations.py `gitlab_job`, `gitlab_play_manual_job`) take GitLab project ids, not
+  QA-Board projects: anyone (signed in, to play jobs) can read or play the jobs of any GitLab project the server's
+  token can. Map them to the QA-Board project that lists the integration. [M, API]
+- **Anonymous results on private projects**: with `ingest.auth` off or warn, anyone can still send results to any
+  project (unverified). Per-project ingest policies are M5. [M, API]
 - **Error messages echo user data** (api/auth.py:347,417,491): `user_info{...}` includes LDAP/SAML attributes. Log them, return a plain message. [S, API]
 - **Stored XSS**: `forms.jsx:531` renders the server's `message` as HTML, built with f-strings from DB paths (api/tuning.py:143-171);
   `viewers/html.jsx:30-33` renders output HTML files in the app's origin; `OutputCard.jsx:567-570` renders error responses as HTML.

@@ -22,9 +22,12 @@ inspector = Inspect(app=celery_app)
 @login_required
 def task_celery(id):
     result = ssh_task.delay(id)
+    # without a free worker, don't hold a uwsgi worker forever
+    deadline = time.monotonic() + 120
     while result.status == "PENDING":
+        if time.monotonic() > deadline:
+            return "No Celery worker started the task within 2 minutes", 504
         time.sleep(1)
-        # TODO: result.abort() after some time?
     print(f"{result} {result.id} {result.status}")
     statuses = inspector.query_task(result.id)
     for hostname, tasks_info in statuses.items():
