@@ -80,17 +80,87 @@ export const resolveLink = (link, docs_root) => {
 };
 
 
-const textOf = html => html.replace(/<[^>]+>/g, ' ');
+// Search filters the notes down to what matches: the highlights, and the bullets of "All changes" with
+// their section headings. A highlight or bullet matches when it has every word of the query, counting
+// its note's title and its section headings: "image" keeps the bullets under "### Comparing images".
+// A query that matches a note's title, period or version keeps all of that note.
+const matchesAll = (words, ...texts) => {
+  const text = texts.join(' ').toLowerCase();
+  return words.every(w => text.includes(w));
+};
+
+const isList = el => el.nodeName === 'UL' || el.nodeName === 'OL';
+const escape = text => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const indexList = el => ({
+  tag: el.nodeName.toLowerCase(),
+  items: [...el.children].map(li => {
+    const own = [...li.childNodes].filter(c => !isList(c));
+    return {
+      html: li.outerHTML,
+      text: own.map(c => c.textContent).join(' '),
+      ownHtml: own.map(c => c.outerHTML ?? escape(c.textContent)).join(''),
+      sublists: [...li.children].filter(isList).map(indexList),
+    };
+  }),
+});
+
+// The html is flat: ## sections, ### groups, then lists or paragraphs. It is parsed once per note.
+const blocksCache = new Map();
+const blocksOf = html => {
+  if (!blocksCache.has(html)) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    blocksCache.set(html, [...doc.body.children].map(el => {
+      if (/^H[1-6]$/.test(el.nodeName)) return { heading: el.nodeName, text: el.textContent, html: el.outerHTML };
+      if (isList(el)) return { list: indexList(el) };
+      return { text: el.textContent, html: el.outerHTML };
+    }));
+  }
+  return blocksCache.get(html);
+};
+
+// The list items that match. An item with sub-items is kept whole when its own text matches,
+// else with only the sub-items that match.
+const filterList = (list, words, context) => {
+  const items = list.items.flatMap(item => {
+    if (matchesAll(words, context, item.text)) return [item.html];
+    const sublists = item.sublists.map(sub => filterList(sub, words, `${context} ${item.text}`)).filter(Boolean);
+    return sublists.length ? [`<li>${item.ownHtml}${sublists.join('')}</li>`] : [];
+  });
+  return items.length ? `<${list.tag}>\n${items.join('\n')}\n</${list.tag}>` : null;
+};
+
+const filterHtml = (html, words, context) => {
+  if (!html) return html;
+  const headings = [];  // the current h2, h3...
+  const shown = new Set();  // the headings already kept
+  const kept = [];
+  for (const block of blocksOf(html)) {
+    if (block.heading) {
+      // a heading ends the sections of its level and below
+      while (headings.length && headings.at(-1).heading >= block.heading) headings.pop();
+      headings.push(block);
+      continue;
+    }
+    const ctx = [context, ...headings.map(h => h.text)].join(' ');
+    const out = block.list ? filterList(block.list, words, ctx) : matchesAll(words, ctx, block.text) ? block.html : null;
+    if (!out) continue;
+    // the headings above what's kept, once each
+    headings.filter(h => !shown.has(h)).forEach(h => { shown.add(h); kept.push(h.html) });
+    kept.push(out);
+  }
+  return kept.join('\n');
+};
 
 export const searchNotes = (notes, query) => {
   const words = query.toLowerCase().split(/\s+/).filter(w => w.length > 0);
   if (words.length === 0) return notes;
-  return notes.filter(n => {
-    const text = [
-      n.title, n.period, n.version, n.description, textOf(n.html),
-      ...n.highlights.flatMap(h => [h.title, h.description, AUDIENCES[h.audience]?.label]),
-    ].join(' ').toLowerCase();
-    return words.every(w => text.includes(w));
+  return notes.flatMap(n => {
+    const context = [n.title, n.period, n.version].join(' ');
+    if (matchesAll(words, context)) return [n];
+    const highlights = n.highlights.filter(h => matchesAll(words, context, h.title, h.description, AUDIENCES[h.audience]?.label));
+    const html = filterHtml(n.html, words, context);
+    if (highlights.length === 0 && !html && !matchesAll(words, context, n.description)) return [];
+    return [{ ...n, highlights, html }];
   });
 };
 
