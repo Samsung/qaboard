@@ -16,7 +16,7 @@ from shlex import quote
 from html import escape
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Dict, Any
+from typing import Dict, List, Any
 
 import yaml
 from flask import request, jsonify, g
@@ -153,11 +153,6 @@ def commit_batches_files(ci_commit, config):
   return files
 
 
-def get_commit_batches_paths(ci_commit):
-  """The commit's batch files that are in its artifacts."""
-  return [f["location"] for f in commit_batches_files(ci_commit, commit_qaboard_config(ci_commit)) if f["exists"]]
-
-
 def read_batches_file(batches_file):
   """
   Returns the batches defined in a file, or None if it can't be read.
@@ -190,9 +185,10 @@ def read_batches_file(batches_file):
 def batch_definitions(files_batches):
   """
   Where each batch is defined, and the aliases, from [(file, batches)].
+  Returns ({batch: [the paths of the files defining it, in order]}, aliases).
   Like for `qa batch`, the last file defining a batch wins.
   """
-  defined: Dict[str, str] = {}
+  defined: Dict[str, List[str]] = {}
   aliases: Dict[str, Any] = {}
   for batches_file, batches in files_batches:
     if not batches:
@@ -203,8 +199,22 @@ def batch_definitions(files_batches):
     names = [n for n in batches if isinstance(n, str) and not n.startswith('.') and n not in BATCH_FILE_SETTINGS]
     batches_file["batches"] = len(names)
     for name in names:
-      defined[name] = batches_file["path"]
+      defined.setdefault(name, []).append(batches_file["path"])
   return defined, aliases
+
+
+def definitions_of(batches, defined):
+  """
+  Where the batches are defined, from batch_definitions(). `batches` can be patterns, like `qa batch --batch 'night-*'`.
+  Returns ([{"name", "files"}], the batches that are not defined).
+  """
+  definitions, undefined = [], []
+  for batch in batches:
+    matches = [batch] if batch in defined else [n for n in defined if fnmatch.fnmatch(n, batch)]
+    definitions.extend({"name": m, "files": defined[m]} for m in matches)
+    if not matches:
+      undefined.append(batch)
+  return definitions, undefined
 
 
 def batches_warnings(name, files, defined, aliases, tests, missing_inputs, artifacts_dir=None):
@@ -224,12 +234,7 @@ def batches_warnings(name, files, defined, aliases, tests, missing_inputs, artif
     if f["status"] == "invalid":
       warnings.append(f"Could not read `{f['path']}`: {f['error']}")
 
-  definitions, undefined = [], []
-  for batch in resolve_aliases([name], aliases):
-    matches = [batch] if batch in defined else [n for n in defined if fnmatch.fnmatch(n, batch)]
-    definitions.extend({"name": m, "file": defined[m]} for m in matches)
-    if not matches:
-      undefined.append(batch)
+  definitions, undefined = definitions_of(resolve_aliases([name], aliases), defined)
   # Names that are not batches are used as input paths, like with `qa batch`
   used_as_paths = any(getattr(t, 'batch', None) is None for t in tests)
   if undefined and not used_as_paths:
@@ -548,27 +553,30 @@ def find_commit(project_id, hexsha):
 
 
 def load_batches(ci_commit, project_id, groups):
-    """Merges the batches defined in the commit's batches files and in the custom groups. Returns (merged_batches, errors)."""
+    """
+    Merges the batches defined in the commit's batches files and in the custom groups.
+    Returns (merged_batches, errors, defined): `defined` says which files define each batch, see batch_definitions().
+    """
     errors = []
-    batches_paths = get_commit_batches_paths(ci_commit)
+    # the commit's files as in its qaboard.yaml, the custom groups as users see them in QA-Board
+    files = [f for f in commit_batches_files(ci_commit, commit_qaboard_config(ci_commit)) if f["exists"]]
     for group in groups:
         try:
-            batches_paths.append(get_groups_path(project_id, name=group))
+            files.append({"source": "qaboard", "path": f"{group}.yml", "location": get_groups_path(project_id, name=group), "exists": True})
         except ValueError as e:
             errors.append(str(e))
     merged_batches: Dict[str, Any] = {}
-    for path in batches_paths:
-        try:
-            with path.open() as f:
-                c_dict = yaml.load(f, Loader=yaml.SafeLoader) or {}
-            if not isinstance(c_dict, dict):
-                raise ValueError("it should define a mapping of batches")
-        except Exception as e:
-            errors.append(f"Could not read the batches in {path.name}: {e}")
+    files_batches = []
+    for batches_file in files:
+        batches = read_batches_file(batches_file)
+        if batches is None:
+            errors.append(f"Could not read the batches in {batches_file['path']}: {batches_file.get('error', 'it should define a mapping of batches')}")
             continue
-        merged_batches = merge(c_dict, merged_batches)
+        files_batches.append((batches_file, batches))
+        merged_batches = merge(batches, merged_batches)
     merged_batches['aliases'] = merged_batches.get('aliases', merged_batches.get('groups', {})) or {} # backward-compat
-    return merged_batches, errors
+    defined, _ = batch_definitions(files_batches)
+    return merged_batches, errors, defined
 
 
 def pipeline_batches(batches, merged_batches):
@@ -586,6 +594,13 @@ def pipeline_batches(batches, merged_batches):
                         elif isinstance(step_config, list): batches = batches + [b for b in step_config if isinstance(b, str)]
                         batches = list(resolve_aliases(batches, merged_batches['aliases']))
     return batches
+
+
+def batches_file_header(definitions):
+    """Comments for the merged batches file we run: where each batch comes from."""
+    lines = ["# The batches QA-Board started, merged from the batch files that define them:"]
+    lines += [f"# - {d['name']}: {', then '.join(d['files'])}" for d in definitions]
+    return "\n".join(lines) + "\n"
 
 
 def check_tuning_search(tuning_search) -> list:
@@ -619,7 +634,8 @@ def check_tuning_search(tuning_search) -> list:
 def check_tuning_request(ci_commit, data):
     """
     Checks a request to run a batch from QA-Board, before we start anything.
-    Returns {errors, warnings, artifacts, nb_batches, merged_batches, batches}: with errors we don't start.
+    Returns {errors, warnings, artifacts, merged_batches, batches, definitions}: with errors we don't start.
+    `definitions` says in which files the batches that would run are defined: [{"name", "files"}].
     """
     from .commit import commit_artifacts_info
     errors, warnings = [], []
@@ -661,7 +677,7 @@ def check_tuning_request(ci_commit, data):
     if entrypoint and artifacts["ok"] and not (ci_commit.repo_artifacts_dir / entrypoint).exists():
         warnings.append(f"The project's entrypoint ({entrypoint}) is not in the artifacts: runs will likely fail. Check `artifacts` in qaboard.yaml.")
 
-    merged_batches, batches = {}, []
+    merged_batches, batches, definitions = {}, [], []
     selected_group = str(data.get('selected_group') or '').strip()
     groups = data.get('groups') or []
     if not isinstance(groups, list):
@@ -670,10 +686,11 @@ def check_tuning_request(ci_commit, data):
     if not selected_group:
         errors.append("Select the batch of inputs to run on.")
     else:
-        merged_batches, batches_errors = load_batches(ci_commit, ci_commit.project_id, groups)
+        merged_batches, batches_errors, defined = load_batches(ci_commit, ci_commit.project_id, groups)
         warnings.extend(batches_errors)
         batches = list(resolve_aliases(selected_group, merged_batches['aliases']))
         batches = pipeline_batches(batches, merged_batches)
+        definitions, _ = definitions_of(batches, defined)
         defined = sorted(k for k in merged_batches if k not in ('aliases', 'groups', 'database'))
         # `qa batch` also accepts wildcards (batch-*), and input paths (semi-deprecated)
         unknown = [b for b in batches if b not in merged_batches and not fnmatch.filter(defined, b)]
@@ -693,6 +710,7 @@ def check_tuning_request(ci_commit, data):
         "artifacts": artifacts,
         "merged_batches": merged_batches,
         "batches": batches,
+        "definitions": definitions,
     }
 
 
@@ -705,7 +723,7 @@ def check_tuning(hexsha):
     if not ci_commit:
         return jsonify({"error": f"Commit {hexsha} was not found in {project_id}", "errors": [f"Commit {hexsha} was not found in {project_id}"], "warnings": []}), 404
     check = check_tuning_request(ci_commit, request.get_json())
-    return jsonify({k: v for k, v in check.items() if k in ("errors", "warnings", "artifacts", "batches")})
+    return jsonify({k: v for k, v in check.items() if k in ("errors", "warnings", "artifacts", "batches", "definitions")})
 
 
 @app.route("/api/v1/commit/<hexsha>/batch", methods=["POST"], strict_slashes=False)
@@ -790,6 +808,8 @@ def start_tuning(hexsha):
     os.umask(prev_mask)
     merged_batches_path = f'{log_dir}/batches.yaml'
     with Path(merged_batches_path).open('w') as f:
+        # `qa batch` reads this copy: we say where the batches come from
+        f.write(batches_file_header(check["definitions"]))
         f.write(yaml.dump(merged_batches))
 
     working_directory = ci_commit.artifacts_dir
@@ -836,6 +856,9 @@ def start_tuning(hexsha):
         "runner": runner,
         "command": batch_command,
         "log_dir": str(log_dir),
+        # where the batches are defined: the command reads a merged copy of the batch files
+        "batch": data['selected_group'],
+        "definitions": check["definitions"],
         # local/celery: we wait for `qa batch` (it uses --no-wait), LSF: `qa batch` is an LSF job
         "status": "submitting",
     }

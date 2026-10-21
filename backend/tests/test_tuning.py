@@ -76,6 +76,8 @@ def test_check_tuning_request(tmp_path):
     check = check_tuning_request(ci_commit, data)
     assert check["errors"] == []
     assert check["batches"] == ["smoke"]
+    # the alias stands for a batch of the commit's batch file, named as in its qaboard.yaml
+    assert check["definitions"] == [{"name": "smoke", "files": ["sub/batches.yaml"]}]
     # the entrypoint is missing from the artifacts
     assert any("entrypoint" in w for w in check["warnings"])
 
@@ -84,6 +86,27 @@ def test_check_tuning_request(tmp_path):
     assert "Unknown batch: smok" in errors and "Defined: all, smoke" not in errors and "smoke" in errors
     assert "Unknown platform" in errors
     assert "name to the batch" in errors
+
+
+def test_check_tuning_request_says_where_batches_are_defined(tmp_path, monkeypatch):
+    import backend.api.tuning as tuning
+    config = {"project": {"name": "repo"}, "inputs": {"batches": "sub/batches.yaml"}}
+    ci_commit = make_commit(tmp_path, config, batches={"night-1": {}, "night-2": {"inputs": ["a"]}, "day": {}})
+    monkeypatch.setattr(tuning, "qaboard_data_shared_dir", tmp_path / "shared")
+    tuning.get_groups_path("repo/sub", name="alice").write_text("night-2:\n  inputs: [b]\n")
+    data = {"batch_label": "x", "selected_group": "night-*", "groups": ["alice"], "tuning_search": {"search_type": "grid"}}
+    check = tuning.check_tuning_request(ci_commit, data)
+    assert check["errors"] == []
+    assert check["definitions"] == [
+        {"name": "night-1", "files": ["sub/batches.yaml"]},
+        {"name": "night-2", "files": ["sub/batches.yaml", "alice.yml"]},
+    ]
+    assert tuning.batches_file_header(check["definitions"]) == "\n".join([
+        "# The batches QA-Board started, merged from the batch files that define them:",
+        "# - night-1: sub/batches.yaml",
+        "# - night-2: sub/batches.yaml, then alice.yml",
+        "",
+    ])
 
 
 def test_check_tuning_request_without_batches_files(tmp_path):
@@ -193,7 +216,7 @@ def list_tests(app, name, commit="94d909ca"):
 def test_lists_a_batch_and_where_it_is_defined(dummy_app, batches_setup):
     data = list_tests(dummy_app, "ci")
     assert data["tests"] == [{"input_path": "a", "configurations": []}]
-    assert data["definitions"] == [{"name": "ci", "file": "qa/tests/tests.yaml"}]
+    assert data["definitions"] == [{"name": "ci", "files": ["qa/tests/tests.yaml"]}]
     assert [(f["path"], f["status"]) for f in data["files"]] == [
         ("qa/tests/tests.yaml", "ok"),
         ("qa/tests/nightly.yaml", "missing"),
@@ -209,7 +232,7 @@ def test_lists_a_batch_and_where_it_is_defined(dummy_app, batches_setup):
 
 def test_the_last_file_defining_a_batch_wins_like_for_qa_batch(dummy_app, batches_setup):
     data = list_tests(dummy_app, "both")
-    assert data["definitions"] == [{"name": "both", "file": "qa/tests/modes.yaml"}]
+    assert data["definitions"] == [{"name": "both", "files": ["qa/tests/tests.yaml", "qa/tests/modes.yaml"]}]
     assert [t["input_path"] for t in data["tests"]] == ["a", "b"]
 
 
@@ -223,7 +246,7 @@ def test_says_when_a_batch_is_not_defined(dummy_app, batches_setup):
 def test_says_which_inputs_are_missing(dummy_app, batches_setup):
     data = list_tests(dummy_app, "broken")
     assert data["tests"] == []
-    assert data["definitions"] == [{"name": "broken", "file": "qa/tests/tests.yaml"}]
+    assert data["definitions"] == [{"name": "broken", "files": ["qa/tests/tests.yaml"]}]
     assert f"Inputs not found by the QA-Board server: `missing-input` under `{batches_setup.database}`." in data["warnings"]
 
 
@@ -288,4 +311,4 @@ def test_says_which_input_is_wrong(dummy_app, batches_setup):
     assert data["tests"] == []
     # the file as in qaboard.yaml, not its path in the artifacts
     assert data["error"] == 'qa/tests/tests.yaml:4: The batch "ci" has an empty input, after "a": a "-" with nothing after it. Remove the "-", or write the input after it.'
-    assert data["definitions"] == [{"name": "ci", "file": "qa/tests/tests.yaml"}]
+    assert data["definitions"] == [{"name": "ci", "files": ["qa/tests/tests.yaml"]}]

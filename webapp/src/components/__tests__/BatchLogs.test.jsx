@@ -99,6 +99,17 @@ describe('BatchLogs', () => {
     await screen.findByText('[qaboard] qa batch exited with code 0')
   })
 
+  it('says which batch files the batches started from QA-Board come from', async () => {
+    const one = { id: 's1', created_at: '2026-10-12T08:00:00Z', user: 'alice', runner: 'local', command: 'qa batch --batch nightly', status: 'done', log_dir_url: '/s/b/qaboard-batches/1',
+      definitions: [{ name: 'nightly', files: ['qa/batches.yaml', 'alice.yml'] }] }
+    const two = { ...one, id: 's2', created_at: '2026-10-11T08:00:00Z', log_dir_url: '/s/b/qaboard-batches/2', definitions: [{ name: 'ci', files: ['qa/batches.yaml'] }] }
+    renderLogs(makeBatch({ submissions: { s1: one, s2: two } }))
+    expect(screen.getByText(/from 2 batch files/)).toBeInTheDocument()
+    expect(screen.getByText(/from qa\/batches\.yaml/)).toBeInTheDocument()
+    fireEvent.click(screen.getAllByLabelText('Show the logs')[0])
+    expect(await screen.findByText((_, el) => el?.tagName === 'P' && el.textContent === 'nightly is defined in qa/batches.yaml, then alice.yml.')).toBeInTheDocument()
+  })
+
   it('shows the logs of older submissions, hidden by default', async () => {
     const scrollIntoView = vi.fn()
     Element.prototype.scrollIntoView = scrollIntoView

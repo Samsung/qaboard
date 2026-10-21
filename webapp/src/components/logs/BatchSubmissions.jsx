@@ -11,6 +11,7 @@ import { RunList, Header, Content, INTERACTIVE } from "./RunLogs";
 import { batchSubmissions, is_final, useSubmissionStatus } from "./submissions";
 import { DirectoryActions } from "./DirectoryActions";
 import { copyWithToast } from "../../utils/clipboard";
+import { BatchDefinitions, definitionsFiles } from "../tuning/BatchReport";
 
 
 const Meta = styled.span`
@@ -97,6 +98,13 @@ const waitingHint = submission => submission.runner === 'lsf'
   ? "LSF hasn't started the job yet. The cluster may be busy."
   : "qa batch hasn't written logs yet."
 
+// The batch files the batch came from, in a few words
+const fromFiles = submission => {
+  const files = definitionsFiles(submission.definitions)
+  if (!files.length) return null
+  return files.length === 1 ? `from ${files[0]}` : `from ${files.length} batch files`
+}
+
 const lsfJob = submission => submission.lsf_job_id ? `LSF job ${submission.lsf_job_id}${submission.queue ? ` (${submission.queue})` : ''}` : null
 
 
@@ -145,6 +153,7 @@ const SubmissionRow = ({ submission, expanded, onToggle, focus }) => {
             submission.user && `by ${submission.user}`,
             relative(submission.created_at),
             lsfJob(submission),
+            fromFiles(submission),
           ].filter(Boolean).map((text, index) => <React.Fragment key={index}>
             {index > 0 && ' · '}
             {index === 1 ? <Tooltip content={absolute(submission.created_at)}>{text}</Tooltip> : text}
@@ -163,6 +172,7 @@ const SubmissionRow = ({ submission, expanded, onToggle, focus }) => {
               {!!status.last_error && <LastError>{status.last_error}</LastError>}
             </Callout>
         )}
+        <BatchDefinitions definitions={submission.definitions} style={{ margin: '0 0 6px 0' }} />
         {!!submission.command && <Command className={Classes.MONOSPACE_TEXT}>
           <code>{submission.command}</code>
           <Tooltip content="Copy the command">
