@@ -9,6 +9,7 @@ import { LsfReport, LsfTag } from "./LsfReport";
 import { fetchLsfReport, lsfKilled } from "./lsf";
 import { fileExists } from "./fetchRange";
 import { DirectoryActions } from "./DirectoryActions";
+import { RunInfoMenuItems, runTime } from "../RunInfoMenu";
 
 
 // A list of runs, each with its logs
@@ -71,6 +72,12 @@ export const Header = styled.div`
     min-width: 0;
     font-size: 12px;
   }
+  .runtime {
+    flex: none;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
   .name, .summary {
     white-space: nowrap;
     overflow: hidden;
@@ -115,10 +122,13 @@ export const runName = output => {
   return `${output.test_input_database === '/' ? '/' : ''}${output.test_input_path}`
 }
 
-// "base · config.yaml · isp: {...} · lr=0.1": how the run is configured, as one line of text.
+// "lr=0.1 · base · config.yaml · isp: {...}": how the run is configured, as one line of text.
 // Rendering the configurations as tags is slow and wide when lists have 100s of runs.
+// The tuning parameters come first: when people tune, they tell runs apart, and long lines are cut at their end.
 export const configurationSummary = output => {
   const parts = []
+  for (const [key, value] of Object.entries(output.extra_parameters ?? {}))
+    if (!hidden_keys.includes(key)) parts.push(`${key}=${JSON.stringify(value)}`)
   if (output.platform && output.platform !== 'linux') parts.push(`@${output.platform}`)
   for (const configuration of output.configurations ?? []) {
     if (typeof configuration === 'string') parts.push(configuration)
@@ -126,8 +136,6 @@ export const configurationSummary = output => {
       for (const [key, value] of Object.entries(configuration))
         if (!hidden_keys.includes(key)) parts.push(`${key}: ${JSON.stringify(value)}`)
   }
-  for (const [key, value] of Object.entries(output.extra_parameters ?? {}))
-    if (!hidden_keys.includes(key)) parts.push(`${key}=${JSON.stringify(value)}`)
   return parts.join(' · ')
 }
 
@@ -168,6 +176,7 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, expa
   const is_pending = !!output.is_pending
   const is_batch = output.output_type === "batch"
   const summary = useMemo(() => is_batch ? '' : configurationSummary(output), [is_batch, output])
+  const runtime = is_batch ? null : runTime(output)
 
   // Is there a log.lsf.txt? For failed runs, what does LSF's report say?
   // We don't care about LSF's report for runs that didn't fail: lists can have 100s of them.
@@ -240,11 +249,14 @@ export const RunLogs = memo(function RunLogs({ id, output, project, commit, expa
       {summary
         ? <span className={`summary ${Classes.TEXT_MUTED}`} title={summary}>{summary}</span>
         : <span className="summary" />}
+      {!!runtime && <span className={`runtime ${Classes.TEXT_MUTED}`} title="Compute time">{runtime}</span>}
       <span className="actions">
         {/* the batch's section has them */}
         {!!base && !is_batch && <DirectoryActions url={base} />}
-        {!is_batch && !!output.id && <PopoverNext placement="bottom-end" content={<RunActionsMenu output={output} project={project} commit={commit} />}>
-          <Button size="small" variant="minimal" icon="more" aria-label="Run actions" />
+        {!is_batch && !!output.id && <PopoverNext placement="bottom-end" content={<RunActionsMenu output={output} project={project} commit={commit}>
+          <RunInfoMenuItems project={project} commit={commit} output={output} />
+        </RunActionsMenu>}>
+          <Button size="small" variant="minimal" icon="more" aria-label="Run actions" title="Run info, history and actions" />
         </PopoverNext>}
       </span>
     </Header>

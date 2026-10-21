@@ -132,19 +132,25 @@ describe('OutputCardsList', () => {
     expect(screen.getByText('a/out.bin')).toBeInTheDocument();
   });
 
-  it("links to the input's History, from 3 days before the commit", () => {
-    const history_link = () => new URL(screen.getAllByTitle("See this input's results over time")[0].href, 'http://localhost');
+  it("links to the input's History from the run's menu, from 3 days before the commit", async () => {
+    const history_link = async () => {
+      fireEvent.click(screen.getAllByLabelText('Run actions')[0]);
+      return new URL((await screen.findByTitle("See this input's results over time")).closest('a').href, 'http://localhost');
+    };
     // History shows the last 3 days by default: an older commit wouldn't be in it
     const { unmount } = render_list({ ...props, ...batches(1), new_commit: { id: 'abc', branch: 'main', authored_datetime: '2020-01-10T10:00:00Z' } });
     act(() => mockAllIsIntersecting(true));
-    expect(history_link().pathname).toBe('/proj/history/main');
-    expect(history_link().searchParams.get('from')).toBe('2020-01-07');
-    expect(history_link().searchParams.get('filter')).toBe('input_0');
+    // the input's path is not a link anymore
+    expect(screen.getByText('input_0').closest('a')).toBeNull();
+    const link = await history_link();
+    expect(link.pathname).toBe('/proj/history/main');
+    expect(link.searchParams.get('from')).toBe('2020-01-07');
+    expect(link.searchParams.get('filter')).toBe('input_0');
     unmount();
     // recent commits are in the default dates
     render_list({ ...props, ...batches(1), new_commit: { id: 'abc', branch: 'main', authored_datetime: new Date().toISOString() } });
     act(() => mockAllIsIntersecting(true));
-    expect(history_link().searchParams.get('from')).toBeNull();
+    expect((await history_link()).searchParams.get('from')).toBeNull();
   });
 
   it('draws the visualizations of projects that use their old name, detailed_views', async () => {
