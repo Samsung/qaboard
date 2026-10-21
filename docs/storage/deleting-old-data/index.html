@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.fbc42d74.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.380f0099.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.97cfa7b3.js" defer="defer"></script>
 </head>
 <body>
@@ -86,7 +86,7 @@
 <ul>
 <li class="">The CI job must build, then call <code>qa save-artifacts</code>: that&#x27;s how QA-Board knows the artifacts are back. Until then, redos and tuning are refused with a message, and the commit page links to the build. Requests are not sent again for 2 hours, unless users click <strong>Ask again to recreate the artifacts</strong> on the commit page.</li>
 <li class="">GitlabCI jobs are always those of the project&#x27;s own repository. Webhooks don&#x27;t follow redirects.</li>
-<li class="">Values can use <code>${commit.id}</code>, <code>${commit.branch}</code>, <code>${commit.branch_slug}</code>, <code>${commit.artifacts_dir}</code>, <code>${commit.repo_artifacts_dir}</code>, <code>${project}</code>, <code>${subproject}</code>, <code>${git}</code> (the repository) and <code>${user}</code> (who asked). In <code>url</code> and <code>build_url</code>, they are URL-encoded.</li>
+<li class="">Values can use <code>${commit.id}</code>, <code>${commit.branch}</code>, <code>${commit.branch_slug}</code>, <code>${commit.artifacts_dir}</code>, <code>${commit.repo_artifacts_dir}</code>, <code>${project}</code>, <code>${subproject}</code>, <code>${git}</code> (the repository), <code>${commit.short_id}</code>, <code>${commit.message}</code>, <code>${commit.committer}</code>, and who asked: <code>${user}</code> (their user name, also <code>${user.name}</code>), <code>${user.full_name}</code> and <code>${user.email}</code>. In <code>url</code> and <code>build_url</code>, they are URL-encoded.</li>
 <li class="">The server sends the requests: GitlabCI needs <code>GITLAB_ACCESS_TOKEN</code>, and Jenkins needs credentials for its host in <code>JENKINS_AUTH</code> (see the <a class="" href="/qaboard/docs/deploy#optional-environment-variables">server&#x27;s environment variables</a>). Webhooks are sent as configured.</li>
 <li class="">The settings used are those in the latest <em>qaboard.yaml</em> of the <code>reference_branch</code>, or else the commit&#x27;s own.</li>
 <li class="">The commit page and the tuning form warn about errors in <code>recreate_artifacts</code>, like unknown <code>${variables}</code>.</li>

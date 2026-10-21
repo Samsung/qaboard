@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.fbc42d74.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.380f0099.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.97cfa7b3.js" defer="defer"></script>
 </head>
 <body>
@@ -47,6 +47,11 @@ like any other image.</li>
 <code>QABOARD_IMAGE_SERVERS</code> (see <a class="" href="/qaboard/docs/deploy#optional-environment-variables">environment variables</a>).</li>
 <li class=""><strong>Pixel values:</strong> for signed-in users, the server reads the images&#x27; own values, e.g. 16-bit ones, with Pillow. For
 raw formats, it needs a reader that QA-Board doesn&#x27;t include.</li>
+<li class=""><strong>Raw images by channel of the sensor:</strong> the analysis panel measures the images&#x27; own values per channel of their
+color filter array (see <a class="" href="/qaboard/docs/user-guide/image-viewer#image-values">the user guide</a>). It guesses the CFA from the
+pixels; when the server&#x27;s image reader returns metadata, it uses the pattern (<code>pattern</code>: <code>GRBG</code>...), the cell size
+(<code>samplePerPixel</code>: <code>2x2</code>...), the bit depth (<code>imageType</code>: <code>UI10</code>...) and the black level (<code>pedestal</code>). Readers with
+other names for them: add them to <code>backend/backend/sensor.py</code>.</li>
 <li class=""><strong>The viewer is a React component</strong> you can use in your own apps, with images from any server: see its
 <a href="https://github.com/Samsung/qaboard/tree/master/webapp/src/image-viewer" target="_blank" rel="noopener noreferrer" class="">README</a>.</li>
 </ul>
