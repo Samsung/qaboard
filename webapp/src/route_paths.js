@@ -20,7 +20,8 @@ export const route_paths = {
 export const app_paths = {
   settings: "/settings/:tab(profile|preferences|sign-in|sessions|tokens|cli|activity)?",
   admin_user: "/admin/users/:user_id(\\d+)",
-  admin: "/admin/:section(overview|users|requests|sign-in|tokens|audit|settings)?",
+  admin_job: "/admin/storage/jobs/:job_id(\\d+)",
+  admin: "/admin/:section(overview|users|requests|sign-in|tokens|storage|audit|settings)?",
   // the ways to sign in, ?next=<page> to go back to it (see login/LoginPage.jsx)
   login: "/login",
   // where `qa auth login` sends users to approve the login

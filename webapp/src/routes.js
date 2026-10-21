@@ -32,6 +32,7 @@ export const routes = Object.entries(route_paths).map(([name, path]) => ({ name,
 const app_pages = {
   settings: SettingsPage,
   admin_user: AdminPage,
+  admin_job: AdminPage,
   admin: AdminPage,
   device: DevicePage,
   login: LoginPage,

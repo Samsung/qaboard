@@ -27,7 +27,8 @@ spec:
       {{- with .Values.backend.podSecurityContext }}
       securityContext: {{- toYaml . | nindent 8 }}
       {{- end }}
-      # uwsgi finishes in-flight requests on SIGTERM (up to 30s), after the preStop delay
+      # uwsgi finishes in-flight requests on SIGTERM (up to 30s), after the preStop delay. The jobs worker (Admin > Storage)
+      # stops its job at the next check: it is queued again, and resumed by another replica
       terminationGracePeriodSeconds: 60
       {{- if .Values.demoData.enabled }}
       # Restores the demo projects before the backend first starts (it creates empty tables), then does nothing

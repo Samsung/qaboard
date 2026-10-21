@@ -1,0 +1,211 @@
+// Admin → Storage: clean the storage with server jobs, now or on a schedule, and follow them.
+// Jobs run in the background (`qaboard-admin jobs worker`, next to the backend): their page shows their progress and errors.
+import { useState } from "react";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert, Button, ButtonGroup, Callout, Card, Classes, HTMLTable, Intent, NonIdealState, Switch, Tag, Tooltip } from "@blueprintjs/core";
+
+import { errorMessage } from "../api/http";
+import { toaster } from "../toaster";
+import { history, Link } from "../router";
+import { Time } from "../settings/format";
+import { Loading } from "../settings/states";
+import { AdminError } from "./states";
+import { jobsQuery, schedulesQuery, saveSchedule, deleteSchedule, runSchedule } from "./api";
+import { JobStatus, kind_labels, progressSummary, nbErrors, number, formatDuration, jobDuration, isStale } from "./jobs";
+import { JobDialog, ScheduleDialog } from "./JobForm";
+
+
+// Jobs only run if a worker does: admins must know when none does
+export const Workers = ({ workers, queued }) => {
+  const online = workers?.online ?? [];
+  if (online.length > 0)
+    return <span className={Classes.TEXT_MUTED} data-testid="workers">
+      <Tag minimal intent={Intent.SUCCESS} round icon="pulse">{online.length} worker{online.length === 1 ? '' : 's'}</Tag>
+      {' '}ready to run jobs
+    </span>;
+  return <Callout intent={queued ? Intent.DANGER : Intent.WARNING} title="No worker is running jobs" data-testid="workers">
+    {queued ? 'Queued jobs will wait until one starts. ' : ''}
+    The backend starts one next to the server, unless <code>QABOARD_JOBS_WORKER=0</code>: check the backend's logs,
+    or run <code>qaboard-admin jobs worker</code>.
+    {workers?.last_seen_at && <> The last one was seen <Time iso={workers.last_seen_at}/>.</>}
+  </Callout>;
+};
+
+
+const JobsTable = ({ jobs }) => <div style={{ overflowX: 'auto' }}>
+  <HTMLTable compact interactive style={{ width: '100%' }} aria-label="Jobs">
+    <thead>
+      <tr>
+        <th>Job</th>
+        <th>Status</th>
+        <th>Progress</th>
+        <th>Errors</th>
+        <th>Started by</th>
+        <th>Created</th>
+        <th>Duration</th>
+      </tr>
+    </thead>
+    <tbody>
+      {jobs.map(job => {
+        const errors = nbErrors(job);
+        return <tr key={job.id} onClick={event => { if (!event.target.closest('a')) history.push(`/admin/storage/jobs/${job.id}`); }} style={{ cursor: 'pointer' }}>
+          <td style={{ minWidth: 220 }}>
+            <Link to={`/admin/storage/jobs/${job.id}`}><strong>#{job.id} {job.kind_label ?? kind_labels[job.kind] ?? job.kind}</strong></Link>
+            <div className={Classes.TEXT_MUTED} style={{ fontSize: 12, overflowWrap: 'anywhere' }}>{job.description}</div>
+          </td>
+          <td>
+            <JobStatus job={job}/>
+            {isStale(job) && <div><Tag minimal intent={Intent.WARNING}>No news from its worker</Tag></div>}
+          </td>
+          <td style={{ minWidth: 180 }}>{progressSummary(job)}</td>
+          <td>{errors ? <Tag minimal intent={Intent.DANGER} round>{number(errors)}</Tag> : <span className={Classes.TEXT_MUTED}>—</span>}</td>
+          <td style={{ overflowWrap: 'anywhere' }}>{job.created_by ?? '—'}</td>
+          <td><Time iso={job.created_at}/></td>
+          <td style={{ whiteSpace: 'nowrap' }}>{formatDuration(jobDuration(job)) || <span className={Classes.TEXT_MUTED}>—</span>}</td>
+        </tr>;
+      })}
+    </tbody>
+  </HTMLTable>
+</div>;
+
+
+const Jobs = () => {
+  const { data, isPending, error, refetch, hasNextPage, fetchNextPage, isFetchingNextPage } = useInfiniteQuery(jobsQuery());
+  const jobs = data?.pages.flatMap(page => page.jobs) ?? [];
+  const workers = data?.pages[0]?.workers;
+  return <section aria-label="Jobs" style={{ marginBottom: 32 }}>
+    <h4 className={Classes.HEADING}>Jobs</h4>
+    {isPending && <Loading label="Loading the jobs"/>}
+    {error && <AdminError error={error} refetch={refetch} what="the jobs"/>}
+    {!isPending && !error && <>
+      <div style={{ marginBottom: 12 }}><Workers workers={workers} queued={jobs.some(job => job.status === 'queued')}/></div>
+      {jobs.length === 0
+        ? <NonIdealState icon="history" title="No jobs yet" description="Jobs you start, and those of the schedules, show up here, with their progress and errors."/>
+        : <>
+          <JobsTable jobs={jobs}/>
+          {hasNextPage && <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
+            <Button variant="minimal" icon="chevron-down" text="Older jobs" loading={isFetchingNextPage} onClick={() => fetchNextPage()}/>
+          </div>}
+        </>}
+    </>}
+  </section>;
+};
+
+
+const Schedules = () => {
+  const queryClient = useQueryClient();
+  const { data: schedules = [], isPending, error, refetch } = useQuery(schedulesQuery);
+  const [editing, setEditing] = useState(null);  // {} for a new one
+  const [deleting, setDeleting] = useState(null);
+  const fail = error => toaster.show({ message: errorMessage(error), intent: Intent.DANGER, timeout: 8000 });
+
+  const toggle = schedule => saveSchedule(queryClient, schedule.id, { enabled: !schedule.enabled })
+    .then(saved => toaster.show({ message: `"${saved.name}" is ${saved.enabled ? 'enabled' : 'disabled'}`, intent: Intent.SUCCESS, timeout: 3000 }))
+    .catch(fail);
+  const run = schedule => runSchedule(queryClient, schedule.id)
+    .then(job => history.push(`/admin/storage/jobs/${job.id}`))
+    .catch(fail);
+  const remove = schedule => deleteSchedule(queryClient, schedule.id)
+    .then(() => toaster.show({ message: `Deleted "${schedule.name}"`, intent: Intent.SUCCESS, timeout: 3000 }))
+    .catch(fail)
+    .finally(() => setDeleting(null));
+
+  return <section aria-label="Schedules" style={{ marginBottom: 32 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+      <h4 className={Classes.HEADING} style={{ margin: 0 }}>Schedules</h4>
+      <Button icon="add" text="New schedule" onClick={() => setEditing({})}/>
+    </div>
+    {isPending && <Loading label="Loading the schedules"/>}
+    {error && <AdminError error={error} refetch={refetch} what="the schedules"/>}
+    {!isPending && !error && (schedules.length === 0
+      ? <p className={Classes.TEXT_MUTED}>
+        No schedules. Replace the server's cron jobs (e.g. <code>qaboard_clean</code>) with schedules: their runs are listed here, with their errors.
+      </p>
+      : <div style={{ overflowX: 'auto' }}>
+        <HTMLTable compact style={{ width: '100%' }} aria-label="Schedules">
+          <thead>
+            <tr>
+              <th>Schedule</th>
+              <th>When</th>
+              <th>Next run</th>
+              <th>Last run</th>
+              <th>Enabled</th>
+              <th><span className={Classes.TEXT_MUTED}>Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {schedules.map(schedule => <tr key={schedule.id}>
+              <td style={{ minWidth: 220 }}>
+                <strong>{schedule.name}</strong>
+                <div className={Classes.TEXT_MUTED} style={{ fontSize: 12, overflowWrap: 'anywhere' }}>{schedule.description}{schedule.params?.dry_run ? ' (dry run)' : ''}</div>
+              </td>
+              <td><code>{schedule.cron}</code> <span className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>{schedule.timezone}</span></td>
+              <td>{schedule.enabled ? <Time iso={schedule.next_run_at} never="—"/> : <span className={Classes.TEXT_MUTED}>Disabled</span>}</td>
+              <td>
+                {schedule.last_job
+                  ? <Link to={`/admin/storage/jobs/${schedule.last_job.id}`} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                    <JobStatus job={schedule.last_job}/> <Time iso={schedule.last_job.created_at}/>
+                  </Link>
+                  : <span className={Classes.TEXT_MUTED}>Never</span>}
+                {schedule.last_message && <div style={{ fontSize: 12 }} className={Classes.INTENT_WARNING}>{schedule.last_message}</div>}
+              </td>
+              <td><Switch checked={schedule.enabled} onChange={() => toggle(schedule)} aria-label={`Enable ${schedule.name}`} style={{ marginBottom: 0 }}/></td>
+              <td style={{ whiteSpace: 'nowrap' }}>
+                <ButtonGroup variant="minimal">
+                  <Tooltip content="Run it now" hoverOpenDelay={300}><Button icon="play" aria-label={`Run ${schedule.name} now`} onClick={() => run(schedule)}/></Tooltip>
+                  <Tooltip content="Edit" hoverOpenDelay={300}><Button icon="edit" aria-label={`Edit ${schedule.name}`} onClick={() => setEditing(schedule)}/></Tooltip>
+                  <Tooltip content="Delete" hoverOpenDelay={300}><Button icon="trash" aria-label={`Delete ${schedule.name}`} onClick={() => setDeleting(schedule)}/></Tooltip>
+                </ButtonGroup>
+              </td>
+            </tr>)}
+          </tbody>
+        </HTMLTable>
+      </div>)}
+    {editing && <ScheduleDialog isOpen schedule={editing} onClose={() => setEditing(null)}/>}
+    <Alert
+      isOpen={!!deleting}
+      intent={Intent.DANGER}
+      icon="trash"
+      confirmButtonText="Delete"
+      cancelButtonText="Cancel"
+      onConfirm={() => remove(deleting)}
+      onCancel={() => setDeleting(null)}
+    >
+      <p>Delete the schedule "{deleting?.name}"? Its past jobs stay listed.</p>
+    </Alert>
+  </section>;
+};
+
+
+const actions = [
+  {
+    kind: 'hard_delete',
+    icon: 'trash',
+    title: 'Hard-delete deleted runs',
+    description: "When users delete runs, QA-Board deletes their files but keeps their metadata. Delete them for good: their rows, and what's left of their files. Milestones are kept.",
+  },
+  {
+    kind: 'garbage_collect',
+    icon: 'clean',
+    title: 'Delete old results',
+    description: "Delete the files of old runs, as each project's qaboard.yaml says (storage.garbage), like qaboard_clean. Set a default for the projects that say nothing.",
+  },
+];
+
+export const Storage = () => {
+  const [starting, setStarting] = useState(null);
+  return <>
+    <section aria-label="Clean the storage" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12, marginBottom: 28 }}>
+      {actions.map(action => <Card key={action.kind} compact style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <h5 className={Classes.HEADING} style={{ margin: 0 }}>{action.title}</h5>
+        <p className={Classes.TEXT_MUTED} style={{ margin: 0, flex: 1 }}>{action.description}</p>
+        <div><Button icon={action.icon} text="Start…" onClick={() => setStarting(action.kind)}/></div>
+      </Card>)}
+    </section>
+    {starting && <JobDialog kind={starting} isOpen onClose={() => setStarting(null)}/>}
+    <Schedules/>
+    <Jobs/>
+  </>;
+};
+
+export default Storage;

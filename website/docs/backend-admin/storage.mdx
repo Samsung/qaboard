@@ -1,0 +1,81 @@
+---
+id: storage
+sidebar_label: Cleaning the storage
+title: Cleaning the storage
+---
+Free disk space and keep the database small from **Admin → Storage**: delete for good the runs users deleted, delete old
+results as each project's *qaboard.yaml* says, and schedule both instead of keeping cron jobs on the server. Jobs run in
+the background: their page shows their progress, their log, and every error.
+
+## Delete the runs users deleted, for good
+When users delete runs, QA-Board deletes their files but keeps their metadata, so they stay listed and can be redone.
+On a busy server, those runs can become most of the database.
+
+1. In **Admin → Storage**, click **Start…** in *Hard-delete deleted runs*.
+2. Choose the projects, with patterns: `*` matches anything, including `/`, so `group/repo*` is a project and its
+   subprojects. Leave some out with **Except**. The form says how many projects match.
+3. Choose the runs' dates: **Runs created before** takes a date (`2026-01-31`, UTC) or a duration before the job starts
+   (`1month`). **Count the deleted runs** says how many match.
+4. Start a **dry run** first: it deletes nothing and says what would be deleted. On its page, **Run it for real**.
+
+What's left of the runs' files is deleted, then their rows. Batches left without runs are deleted too; commits are kept.
+
+**Milestones are never deleted**: the batches saved as [milestones](/docs/user-guide/milestones), and the commits that
+*qaboard.yaml* protects (the latest commit of `project.reference_branch`, and `project.milestones`). Projects that list
+`project.milestones` need their git repository to know which commits those are: when the server can't read it, the
+project is skipped, with an error.
+
+:::tip Fast
+Most deleted runs have no files left. The job checks each batch's folder once and remembers the folders that are
+missing, instead of checking every run's.
+:::
+
+## Delete old results
+*Delete old results* does what `qaboard_clean` does: it deletes the files of old runs, and the commits' artifacts if
+*qaboard.yaml* asks for it, following each project's `storage.garbage` settings ([deleting old data](/docs/storage/deleting-old-data)).
+**By default, older than** applies to the projects whose *qaboard.yaml* doesn't say. The runs stay listed as deleted:
+a hard delete removes them later.
+
+## Follow jobs and fix their errors
+Errors don't stop a job: the run is kept, so that the next job tries again, and the error is listed on the job's page
+with the file that could not be deleted and its owner. Group them by kind, owner or project to see what to fix first,
+and **Download all (CSV)** to send them to the people concerned. Once fixed, **Run again**.
+
+- **Permissions**: the server could not delete files. The worker runs as root and deletes files as their owner
+  (`setuid`): on NFS, check that root can change to the owner's user, or fix the files' permissions.
+- **Outside the storage**: the folder isn't in `QABOARD_STORAGE_ROOTS`, where QA-Board never deletes anything.
+- **Git**: the project's repository can't be read (see above).
+
+Only one job of each kind runs at a time. Cancel a running job from its page: it stops within seconds.
+
+## Schedule jobs
+Click **New schedule**, choose the job and its settings, and when it runs with a cron expression
+(`minute hour day-of-month month day-of-week`, e.g. `0 2 * * *` every night at 2:00) in a time zone. The form shows the
+next runs. A schedule's run is skipped, with a message, while a job of the same kind is still running.
+
+For example, to replace the cron job of the [server's setup](/docs/deploy#optional-cleanup):
+- *Old results*: **Delete old results** of `*`, by default older than `1month`, every Saturday at 1:59.
+- *Nightly purge*: **Hard-delete deleted runs** of `*`, created before `1month`, every night.
+
+<details>
+<summary>Where jobs run</summary>
+
+The backend's container starts a worker next to the web server (`qaboard-admin jobs worker`): every replica runs one,
+and the database decides which runs a job. The workers' list is in **Admin → Storage**, and their logs are the
+backend's. Set `QABOARD_JOBS_WORKER=0` to run the worker elsewhere, with the same storage mounts.
+
+When the backend restarts (e.g. a deploy), the running job stops at its next check and is queued again: another worker
+resumes it where it was. If a worker is killed, its job is queued again after 10 minutes.
+
+From the backend's container:
+
+```bash
+qaboard-admin jobs list
+qaboard-admin jobs start hard_delete --param created_before=3months --param 'projects=["group/*"]' --param dry_run=true
+qaboard-admin jobs worker --once   # runs what's queued and due, then exits
+```
+
+Errors are kept 90 days after their job ends (at most 20,000 per job, more are only counted). Starting, cancelling and
+scheduling jobs is in the audit log.
+
+</details>

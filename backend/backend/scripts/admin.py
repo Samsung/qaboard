@@ -26,7 +26,7 @@ def find_user(user_name):
 
 @click.group()
 def cli():
-  """Manage QA-Board's users from the server"""
+  """Manage QA-Board from the server: users, and the jobs that maintain the storage"""
 
 
 @cli.command('create-admin')
@@ -134,6 +134,56 @@ def purge_audit(days):
   system_audit('audit.purge', meta={"days": days, "deleted": count})
   db_session.commit()
   click.echo(f"Deleted {count} events older than {days} days.")
+
+
+@cli.group()
+def jobs():
+  """Server jobs, e.g. hard-deleting deleted runs. Admins start and schedule them in the web app (Admin > Storage)."""
+
+
+@jobs.command('worker')
+@click.option('--once', is_flag=True, help="Run the queued and due jobs, then exit (e.g. from a cron job), instead of waiting for more.")
+@click.option('--poll', type=float, default=5, help="Seconds between checks for new jobs.")
+def jobs_worker(once, poll):
+  """Runs the jobs: keep one running next to the backend (the `jobs` service). Stops gracefully on SIGTERM."""
+  from backend.jobs.worker import Worker
+  Worker(poll_seconds=poll).loop(once=once)
+
+
+@jobs.command('start')
+@click.argument('kind')
+@click.option('--param', 'param_list', multiple=True, help='KEY=VALUE, the value is read as JSON if it can be, e.g. --param \'projects=["a*"]\' --param dry_run=true')
+def jobs_start(kind, param_list):
+  """Queues a job, e.g. `qaboard-admin jobs start hard_delete --param created_before=3months --param dry_run=true`"""
+  import json
+  from backend.jobs import queue
+  from backend.jobs.params import ParamsError
+  params = {}
+  for item in param_list:
+    key, _, value = item.partition('=')
+    try:
+      params[key] = json.loads(value)
+    except ValueError:
+      params[key] = value
+  try:
+    job = queue.create(kind, params, label='qaboard-admin')
+  except (ParamsError, queue.Busy) as e:
+    raise click.ClickException(str(e))
+  system_audit('job.create', target_type='job', target_id=job.id, target_label=kind, meta={"kind": kind, "params": job.params})
+  db_session.commit()
+  click.echo(f"Queued job {job.id}: {queue.serialize_job(job)['description']}")
+
+
+@jobs.command('list')
+@click.option('--limit', type=int, default=20)
+def jobs_list(limit):
+  """The latest jobs"""
+  from backend.models import Job
+  from backend.jobs import queue
+  for job in Job.query.order_by(Job.id.desc()).limit(limit):
+    j = queue.serialize_job(job)
+    errors = sum((j['progress'].get('errors') or {}).values())
+    click.echo(f"{j['id']:>6}  {j['status']:<16} {j['created_at']}  {j['description']}{' (dry run)' if j['dry_run'] else ''}{f'  [{errors} errors]' if errors else ''}")
 
 
 if __name__ == '__main__':
