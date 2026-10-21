@@ -187,7 +187,7 @@
     },
 
     "storage": {
-      "description": "Where results are saved. `{project}`, `{subproject}` and `{user}` are replaced. Docs: https://samsung.github.io/qaboard/docs/storage/where-is-the-data-saved",
+      "description": "Where results are saved. `{project}`, `{subproject}` and `{user}` are replaced. Docs: https://samsung.github.io/qaboard/docs/storage/where-is-the-data",
       "anyOf": [
         {"type": "string"},
         {
