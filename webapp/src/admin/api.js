@@ -169,3 +169,102 @@ export const deleteProvider = async (queryClient, id) => {
 // The checks of `qaboard-admin check-sign-in`: {checks: [{check, ok, detail}], ok}. `user_name`: for LDAP, a user to look up.
 export const testProvider = async (id, { user_name } = {}) =>
   (await http.post(`/api/v1/admin/sign-in/providers/${encodeURIComponent(id)}/test`, user_name ? { user_name } : {})).data;
+
+
+// Groups of users (design/user-management.md, Appendix D.3): members added by admins, or by rules on the claims of
+// their sign-in. [{id, name, description, member_count, rule_count}]
+export const groupsQuery = queryOptions({
+  queryKey: ['admin', 'groups'],
+  queryFn: async ({ signal }) => (await http.get('/api/v1/admin/groups', { signal })).data?.groups ?? [],
+  staleTime: 30 * 1000,
+});
+
+// {group, members: [{user: {id, user_name, full_name}, source: manual|rule, added_at}], rules: [{id, provider_id, claim, values}]}
+// Servers may answer the group's fields at the top level, with its members and rules.
+export const groupQuery = id => queryOptions({
+  queryKey: ['admin', 'group', String(id)],
+  queryFn: async ({ signal }) => {
+    const { data } = await http.get(`/api/v1/admin/groups/${encodeURIComponent(id)}`, { signal });
+    const { members, rules, group, ...fields } = data ?? {};
+    return { group: group ?? fields, members: members ?? group?.members ?? [], rules: rules ?? group?.rules ?? [] };
+  },
+  enabled: id !== undefined && id !== null,
+  staleTime: 30 * 1000,
+});
+
+const invalidateGroups = queryClient => Promise.all([
+  queryClient.invalidateQueries({ queryKey: ['admin'] }),
+  // the member pickers
+  queryClient.invalidateQueries({ queryKey: ['directory'] }),
+]);
+const group_url = id => `/api/v1/admin/groups/${encodeURIComponent(id)}`;
+
+// => the group
+export const createGroup = async (queryClient, { name, description }) => {
+  const { data } = await http.post('/api/v1/admin/groups', { name, description });
+  await invalidateGroups(queryClient);
+  return data?.group ?? data;
+};
+
+export const updateGroup = async (queryClient, id, changes) => {
+  const { data } = await http.post(group_url(id), changes);
+  await invalidateGroups(queryClient);
+  return data;
+};
+
+export const deleteGroup = async (queryClient, id) => {
+  const { data } = await http.delete(group_url(id));
+  await invalidateGroups(queryClient);
+  return data;
+};
+
+export const addGroupMember = async (queryClient, id, user_id) => {
+  const { data } = await http.post(`${group_url(id)}/members`, { user_id });
+  await invalidateGroups(queryClient);
+  return data;
+};
+
+export const removeGroupMember = async (queryClient, id, user_id) => {
+  const { data } = await http.delete(`${group_url(id)}/members/${encodeURIComponent(user_id)}`);
+  await invalidateGroups(queryClient);
+  return data;
+};
+
+// `provider_id`: null for any way of signing in. `values`: any of them matches.
+export const addGroupRule = async (queryClient, id, { provider_id, claim, values }) => {
+  const { data } = await http.post(`${group_url(id)}/rules`, { provider_id: provider_id ?? null, claim, values });
+  await invalidateGroups(queryClient);
+  return data;
+};
+
+export const deleteGroupRule = async (queryClient, id, rule_id) => {
+  const { data } = await http.delete(`${group_url(id)}/rules/${encodeURIComponent(rule_id)}`);
+  await invalidateGroups(queryClient);
+  return data;
+};
+
+
+// Roles on all projects, private ones included: [{id, subject, role, granted_by, granted_at, expires_at}]
+export const instanceGrantsQuery = queryOptions({
+  queryKey: ['admin', 'grants', 'instance'],
+  queryFn: async ({ signal }) => (await http.get('/api/v1/admin/grants', { params: { resource_type: 'instance' }, signal })).data?.grants ?? [],
+  staleTime: 30 * 1000,
+});
+
+const invalidateGrants = queryClient => Promise.all([
+  queryClient.invalidateQueries({ queryKey: ['admin'] }),
+  queryClient.invalidateQueries({ queryKey: ['access'] }),
+]);
+
+// `subject`: {type: user|group, id}. Same subject: changes the role. => the grant
+export const addInstanceGrant = async (queryClient, { subject, role }) => {
+  const { data } = await http.post('/api/v1/admin/grants', { subject: { type: subject.type, id: subject.id }, role });
+  await invalidateGrants(queryClient);
+  return data;
+};
+
+export const deleteInstanceGrant = async (queryClient, id) => {
+  const { data } = await http.delete(`/api/v1/admin/grants/${encodeURIComponent(id)}`);
+  await invalidateGrants(queryClient);
+  return data;
+};

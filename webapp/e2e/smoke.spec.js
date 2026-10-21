@@ -200,6 +200,19 @@ const user_management_api = {
   ] },
   '/api/v1/admin/users': { users: [{ id: 1, user_name: 'alice', full_name: 'Alice', email: 'alice@example.com', status: 'active', is_admin: true, login_type: 'LOCAL', active_tokens: 1 }], total: 1 },
   '/api/v1/auth/device': { client_name: 'qa CLI on host-12', hostname: 'host-12', scopes: ['read', 'ingest', 'act'], status: 'pending' },
+  '/api/v1/project/access': {
+    project, my_role: 'owner', via: 'grant', can_manage: true,
+    visibility: { own: null, effective: 'internal', inherited_from: 'group', default: 'public' },
+    owners: [{ type: 'user', id: 1, name: 'alice' }],
+    grants: [
+      { id: 1, subject: { type: 'user', id: 1, name: 'alice', full_name: 'Alice' }, role: 'owner', resource_id: project, inherited: false, source: 'manual', expires_at: null, granted_by: null, granted_at: '2026-09-01T10:00:00Z' },
+      { id: 2, subject: { type: 'group', id: 7, name: 'camera-team' }, role: 'developer', resource_id: 'group', inherited: true, source: 'manual', expires_at: '2027-01-31T23:59:59Z', granted_by: { user_name: 'root' }, granted_at: '2026-09-01T10:00:00Z' },
+    ],
+    requests: [{ id: 3, user: { id: 2, user_name: 'bob', full_name: 'Bob' }, role: 'developer', message: 'I run the benchmarks.', status: 'pending', created_at: '2026-09-01T10:00:00Z' }],
+  },
+  '/api/v1/directory': { users: [{ id: 2, user_name: 'bob', full_name: 'Bob' }], groups: [{ id: 7, name: 'camera-team' }] },
+  '/api/v1/admin/groups': { groups: [{ id: 7, name: 'camera-team', description: 'Camera algorithms', member_count: 4, rule_count: 1 }] },
+  '/api/v1/admin/grants': { grants: [{ id: 4, subject: { type: 'group', id: 8, name: 'qa' }, role: 'viewer', granted_at: '2026-09-01T10:00:00Z' }] },
 };
 
 test.describe('user management pages', () => {
@@ -231,9 +244,28 @@ test.describe('user management pages', () => {
     await page.waitForLoadState('networkidle');
   });
 
+  test('project access', async ({ page }) => {
+    await page.goto(`/${project}/access`);
+    await expect(page.getByRole('table', { name: 'Members' }).getByText('camera-team')).toBeVisible();
+    await expect(page.getByRole('navigation').getByRole('menuitem', { name: 'Access' })).toHaveClass(/active/);
+    await expect(page.getByText('I run the benchmarks.')).toBeVisible();
+    await page.getByRole('button', { name: 'Add member' }).click();
+    await page.getByRole('dialog').getByLabel('User or group').fill('bo');
+    await expect(page.getByRole('option', { name: /Bob/ })).toBeVisible();
+    await page.waitForLoadState('networkidle');
+  });
+
+  test('admin: groups and roles on all projects', async ({ page }) => {
+    await page.goto('/admin/groups');
+    await expect(page.getByRole('link', { name: 'camera-team' })).toBeVisible();
+    await page.getByRole('tab', { name: 'Overview' }).click();
+    await expect(page.getByRole('table', { name: 'Roles on all projects' }).getByText('qa')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+  });
+
   test('narrow screens: no sideways scrolling', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
-    for (const path of ['/settings/tokens', '/admin/users', '/']) {
+    for (const path of ['/settings/tokens', '/admin/users', '/admin/groups', '/admin', '/', `/${project}/access`]) {
       await page.goto(path);
       await page.waitForLoadState('networkidle');
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

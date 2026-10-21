@@ -98,7 +98,7 @@ def yaml_key(project_id: str) -> Optional[str]:
 
 
 def effective_visibility(project_id: str) -> dict:
-  """{effective, own, inherited_from, default}: the most restrictive of the rules on the project and its prefixes"""
+  """{effective, own, inherited_from, default, parent}: the most restrictive of the rules on the project and its prefixes"""
   from ..settings import setting
   rules = visibility_rules()
   default = setting('projects.default_visibility')
@@ -109,9 +109,12 @@ def effective_visibility(project_id: str) -> dict:
     inherited_from = None if path == (project_id or '').strip('/') else path
   else:
     visibility, inherited_from = default, None
+  # what removing the project's own rule would give ("Inherit" in the Access page)
+  above = [v for path, v in found if path != (project_id or '').strip('/')]
+  parent = max(above, key=lambda v: RESTRICTIVENESS[v]) if above else default
   if yaml_key(project_id) is not None:
-    visibility, inherited_from = 'private', 'QABOARD_LOGIN_RESTRICTED_YAML'
-  return {"effective": visibility, "own": own, "inherited_from": inherited_from, "default": default}
+    visibility, inherited_from, parent = 'private', 'QABOARD_LOGIN_RESTRICTED_YAML', 'private'
+  return {"effective": visibility, "own": own, "inherited_from": inherited_from, "default": default, "parent": parent}
 
 
 def role_of(user, project_id: str):

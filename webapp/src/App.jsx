@@ -41,6 +41,7 @@ import AppNavbar from './AppNavbar'
 import { MilestoneDialogHost } from "./milestones/MilestoneDialog"
 import { ManageMilestonesHost } from "./milestones/ManageMilestones"
 import { useImportLegacyMilestones } from "./milestones/hooks"
+import { ProjectAccessGate } from "./access/NoProjectAccess"
 
 // In development, inspect queries and their cache: https://tanstack.com/query/latest/docs/framework/react/devtools
 const ReactQueryDevtools = import.meta.env.DEV
@@ -141,9 +142,12 @@ const ProjectApp = ({ pathname }) => {
         <AppNavbar/>
         {/* the content area: on its left the sidebar (collapsible), on its right room for a docked side panel (see App.css) */}
         <div className="qa-content-area" style={{paddingLeft: sider_width, minHeight: '100vh', display: 'flex', flexDirection: 'column'}}>
-          <Suspense fallback={<EmptyLoading/>}>
-            <Main/>
-          </Suspense>
+          {/* projects users can't see say whom to ask */}
+          <ProjectAccessGate>
+            <Suspense fallback={<EmptyLoading/>}>
+              <Main/>
+            </Suspense>
+          </ProjectAccessGate>
           <Footer/>
         </div>
       </div>

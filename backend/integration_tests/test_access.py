@@ -61,7 +61,7 @@ def test_defaults_keep_todays_behaviour(client, logged_in):
   assert dave.post('/api/v1/batch/rename/', json={"id": batch_id, "label": "renamed"}).status_code == 200
   access = dave.get(f'/api/v1/project/access?project={PROJECT}').get_json()
   assert (access["my_role"], access["via"], access["can_manage"]) == ("developer", "signed_in", False)
-  assert access["visibility"] == {"effective": "public", "own": None, "inherited_from": None, "default": "public"}
+  assert access["visibility"] == {"effective": "public", "own": None, "inherited_from": None, "default": "public", "parent": "public"}
   assert client.get(f'/api/v1/project/access?project={PROJECT}').get_json()["my_role"] == "viewer"
 
 
@@ -168,7 +168,7 @@ def test_visibility_and_grants_apply_to_the_projects_under_a_prefix(client, logg
   root.post('/api/v1/project/access/visibility', json={"project": "group", "visibility": "private"})
   root.post('/api/v1/project/access/visibility', json={"project": "group/a/sub", "visibility": "public"})
   visibility = root.get('/api/v1/project/access?project=group/a/sub').get_json()["visibility"]
-  assert visibility == {"effective": "private", "own": "public", "inherited_from": "group", "default": "public"}
+  assert visibility == {"effective": "private", "own": "public", "inherited_from": "group", "default": "public", "parent": "private"}
   assert bob.get('/api/v1/commits?project=group/a/sub').status_code == 403
   # a grant on the group: its projects, by path segments
   root.post('/api/v1/project/access/grants', json={"project": "group", "subject": {"type": "user", "id": bob_id}, "role": "viewer"})

@@ -518,6 +518,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
   let reference_branch = qatools_config.project?.reference_branch;
 
   const is_history = selected.route.is_history;
+  const is_access = selected.route.is_access;
   const is_branch = !!selected.branch;
   const is_project_home = selected.route.is_commits && !is_branch;
   const tag = selected.branch ?? selected.committer ?? reference_branch;
@@ -527,7 +528,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
   return <>
     {/* The branch's commits: highlighted on their page, a link elsewhere */}
     <SiderHint name={branch ? `Commits on ${branch}` : tag && !is_branch && !(is_project_home || is_history) ? `Commits by ${tag}` : 'All commits'}>
-      {(is_project_home || is_history)
+      {(is_project_home || is_history || is_access)
         ? <MenuItemLink to={commits_url} text={(is_branch || project_data.is_loaded) ? branch ?? 'All commits' : <span className={Classes.SKELETON}>branch</span>} title={branch ? `Commits on ${branch}` : 'Commits on all branches'} icon='git-branch'/>
         : <MenuItem icon={is_branch ? "git-branch" : 'user'} active text={tag ?? 'All commits'} title={is_branch ? `Commits on ${tag}` : tag && `Commits by ${tag}`}/>
       }
@@ -551,6 +552,9 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
     />
     <SiderMilestones project={project} project_data={project_data} docs_root={docs_root}/>
     <QuotaMenuItem user={user} project={project} />
+    <SiderHint name="Access" content="Who can see the project, upload runs and act on them. Request access, or manage it.">
+      <MenuItemLink to={`/${path_segment(project)}/access`} active={is_access} icon="people" text="Access"/>
+    </SiderHint>
   </>
 }
 
@@ -703,7 +707,7 @@ const AppSider = () => {
 
       {/* Navigation Section: views of the results on commit pages, else (commit lists, history) the project's pages */}
       <SiderSection>
-        {(route.is_list || route.is_history) && (
+        {(route.is_list || route.is_history || route.is_access) && (
           <>
             <SiderMenu>
               <ProjectSideCommitList
