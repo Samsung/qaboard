@@ -1,6 +1,6 @@
 // The colors of what we compare: the new results are blue, the references purple, then magenta, teal, violet.
-// A reference's color follows its place in the list of references, like its number: 1 is purple.
-// Past 4 references, they are gray: their number and name tell them apart.
+// References keep their color wherever they go, like their name: the first is purple, those added get the first free
+// color (see reference_colors in src/selection.js). Past 4 references, they are gray: their number and name tell them apart.
 //
 // Checked with the dataviz skill's validator (scripts/validate_palette.js, all pairs: new is next to every reference
 // in viewers, references are next to each other in the tabs): no pair is closer than ΔE 16 for full color vision,
@@ -16,12 +16,16 @@ const other_dark = '#8f99a8';
 // on the colors above: teal is too light for white text
 const text = ['#ffffff', '#ffffff', '#ffffff', '#111418', '#ffffff'];
 
-// slot 0 is the new results, slot n the reference number n
-export const side_slot = (key, number) => key === 'new' ? 0 : number;
+// how many references have a color, the others are gray
+export const reference_color_count = light.length - 1;
+
+// slot 0 is the new results, slot n a reference's color number n (undefined: gray)
+export const side_slot = (key, color) => key === 'new' ? 0 : color;
 
 export const side_color = slot => ({
+  slot,
   // for the app's UI
-  css: slot < light.length ? `var(--qa-side-${slot})` : 'var(--qa-side-other)',
+  css: slot !== undefined && slot < light.length ? `var(--qa-side-${slot})` : 'var(--qa-side-other)',
   // for labels on images
   hex: light[slot] ?? other,
   // for plots in the dark theme

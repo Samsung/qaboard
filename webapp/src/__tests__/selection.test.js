@@ -3,7 +3,7 @@
 import {
   selection_from_url, url_for_selection, date_range_from_query, route_info,
   show_reference, add_reference, remove_reference, swap_with_top, move_reference, duplicate_reference, rename_reference,
-  reference_names, switch_new_and_reference,
+  reference_names, reference_colors, switch_new_and_reference,
 } from '../selection';
 import { matchRoutes } from '../router';
 import { route_paths } from '../route_paths';
@@ -362,5 +362,46 @@ describe('several references', () => {
     expect(act(url, swap_with_top, 1).selected).toMatchObject({ new_commit_id: 'c', label_new: 'night' });
     // no name: as before
     expect(roundtrip('/p/commit/a?label=x', { label_new: '' }).url).toBe('/p/commit/a?');
+  });
+
+  test('references keep their colors wherever they go, freed colors are used again', () => {
+    const colors = selected => reference_colors(selected.references);
+    // links from before, and while users only add references: colors in order, nothing more in the URL
+    expect(colors(select('/p/commit/a?reference=b&compare=c&compare=d'))).toEqual([1, 2, 3]);
+    let { url, selected } = act('/p/commit/a?reference=b', add_reference, { commit_id: 'c' });
+    ({ url, selected } = act(url, add_reference, { commit_id: 'd' }));
+    expect(colors(selected)).toEqual([1, 2, 3]);
+    expect(url).not.toMatch(/color/);
+    // dragging: they keep their colors
+    ({ url, selected } = act(url, move_reference, 2, 0));
+    expect(ids(selected)).toEqual(['d', 'b', 'c']);
+    expect(colors(selected)).toEqual([3, 1, 2]);
+    // switching: too
+    ({ url, selected } = act(url, show_reference, 1));
+    expect(colors(selected)).toEqual([3, 1, 2]);
+    expect(selected.color_ref).toBe(1);
+    // removing one: the others keep theirs, the next one added gets the free color
+    ({ url, selected } = act(url, remove_reference, 1));
+    expect(colors(selected)).toEqual([3, 2]);
+    ({ url, selected } = act(url, add_reference, { commit_id: 'e' }));
+    expect(colors(selected)).toEqual([3, 2, 1]);
+    // a copy gets the next free color
+    ({ url, selected } = act(url, duplicate_reference, 0));
+    expect(ids(selected)).toEqual(['d', 'd', 'c', 'e']);
+    expect(colors(selected)).toEqual([3, 4, 2, 1]);
+    // renaming keeps it
+    expect(colors(act(url, rename_reference, 2, 'night').selected)).toEqual([3, 4, 2, 1]);
+    // swapping with the top results: the top is blue, the place keeps its color
+    expect(colors(act(url, swap_with_top, 2).selected)).toEqual([3, 4, 2, 1]);
+  });
+
+  test('past 4 references they are gray, until a color is freed', () => {
+    let { url, selected } = { url: '/p/commit/a?reference=b&compare=c&compare=d&compare=e&compare=f' };
+    expect(reference_colors(select(url).references)).toEqual([1, 2, 3, 4, undefined]);
+    ({ url, selected } = act(url, remove_reference, 1));
+    expect(reference_colors(selected.references)).toEqual([1, 3, 4, 2]);
+    // colors in the URL that don't exist, or that another has already, are ignored
+    expect(reference_colors(select('/p/commit/a?reference=b&color_ref=9&compare%5B0%5D%5Bcommit%5D=c&compare%5B0%5D%5Bcolor%5D=1').references)).toEqual([2, 1]);
+    expect(reference_colors(select('/p/commit/a?reference=b&color_ref=2&compare%5B0%5D%5Bcommit%5D=c&compare%5B0%5D%5Bcolor%5D=2').references)).toEqual([2, 1]);
   });
 });

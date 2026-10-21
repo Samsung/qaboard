@@ -102,6 +102,8 @@ test('users reorder, rename and remove references from their tabs', async () => 
   expect(query().get('compare[0][label]')).toBe('ref 2');
   expect(query().get('ref_index')).toBe('1');
   expect(screen.getAllByRole('tab').map(t => t.getAttribute('aria-selected'))).toEqual(['false', 'true']);
+  // and its color: purple, now second
+  expect(screen.getByTestId('labels')).toHaveTextContent('(var(--qa-side-0),var(--qa-side-1))');
 
   // double-click renames, viewers use the name
   fireEvent.doubleClick(tab(2));
@@ -115,6 +117,8 @@ test('users reorder, rename and remove references from their tabs', async () => 
   await waitFor(() => expect(reference()).toBe(d));
   expect(window.location.search).not.toContain('compare');
   expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+  // the one left keeps its color
+  expect(screen.getByTestId('labels')).toHaveTextContent('new vs ref 2 (var(--qa-side-0),var(--qa-side-2))');
 });
 
 test('references not shown are loaded without their outputs, then the next ones with them once idle', async () => {
