@@ -155,10 +155,12 @@ def test_recreate_settings_prefers_the_first_config():
 
 
 def test_template_variables(tmp_path):
-  variables = recreate_artifacts.template_variables(commit(tmp_path), user="arthur")
+  variables = recreate_artifacts.template_variables(commit(tmp_path), user={"user_name": "arthur", "full_name": "Arthur F", "email": "arthur@example.com"})
   assert variables["commit.branch"] == "feature/x"
   assert variables["subproject"] == "sub/a"
   assert recreate_artifacts.fill({"a": ["${commit.id}", "${ user }"]}, variables) == {"a": [variables["commit.id"], "arthur"]}
+  assert recreate_artifacts.fill("${user.email} ${user.name} ${user.full_name}", variables) == "arthur@example.com arthur Arthur F"
+  assert recreate_artifacts.template_variables(commit(tmp_path))["user.email"] == ""
   with pytest.raises(KeyError):
     recreate_artifacts.fill("${commit.nope}", variables)
 
@@ -192,7 +194,7 @@ def test_trigger_webhook(tmp_path, monkeypatch):
     return Response()
   monkeypatch.setattr(recreate_artifacts.requests, "request", request)
   settings = {"webhook": {"url": "https://ci/hooks/build", "json": {"commit": "${commit.id}"}}}
-  recreation = recreate_artifacts.trigger(settings, commit(tmp_path), user="arthur")
+  recreation = recreate_artifacts.trigger(settings, commit(tmp_path), user={"user_name": "arthur"})
   assert recreation["status"] == "triggered"
   assert recreation["web_url"] == "https://ci/build/1"
   assert recreation["by"] == "arthur"

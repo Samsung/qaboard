@@ -214,7 +214,7 @@ def commit_save_artifacts():
     return forbidden
   print(f"[save-artifacts] {ci_commit}")
   try:
-    result = ci_commit.restore_artifacts(user=g.user['user_name'], force=True)
+    result = ci_commit.restore_artifacts(user=g.user, force=True)
   except UnsafePathError as e:
     return jsonify({"error": f"{e}"}), 400
   db_session.add(ci_commit)

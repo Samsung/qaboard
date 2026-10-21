@@ -98,7 +98,7 @@ def setup(tmp_path, monkeypatch):
 def test_redo_outputs(setup, tmp_path):
   batch, calls = setup()
   outputs = [make_output("images/a.jpg"), make_output("images/b.jpg", data={})]
-  submission = redo.redo_outputs(batch, outputs, "arthurf")
+  submission = redo.redo_outputs(batch, outputs, {"user_name": "arthurf"})
 
   assert submission["status"] == "done", redo.log_tail(submission)
   assert submission["exit_code"] == 0
@@ -124,21 +124,21 @@ def test_redo_outputs(setup, tmp_path):
 def test_redo_outputs_refuses_unsafe_users(setup):
   batch, calls = setup()
   with pytest.raises(ValueError):
-    redo.redo_outputs(batch, [make_output()], "a;b")
+    redo.redo_outputs(batch, [make_output()], {"user_name": "a;b"})
   assert not calls.exists()
 
 
 def test_redo_response(setup, dummy_app):
   batch, calls = setup()
   with dummy_app.test_request_context():
-    response, status = redo.redo_response(batch, [], "arthurf")
+    response, status = redo.redo_response(batch, [], {"user_name": "arthurf"})
     assert status == 400
-    response = redo.redo_response(batch, [make_output()], "arthurf")
+    response = redo.redo_response(batch, [make_output()], {"user_name": "arthurf"})
     assert response.get_json()["submission"]["status"] == "done"
 
   batch, calls = setup(fail_on="--runs-file")
   with dummy_app.test_request_context():
-    response, status = redo.redo_response(batch, [make_output()], "arthurf")
+    response, status = redo.redo_response(batch, [make_output()], {"user_name": "arthurf"})
     assert status == 500
     assert "qa batch exited with code 1" in response.get_json()["error"]
     assert "[qaboard] qa batch exited with code 1" in response.get_json()["logs"]
@@ -150,7 +150,7 @@ def test_redo_refuses_unusable_artifacts(setup, dummy_app):
   batch, calls = setup()
   batch.ci_commit.ensure_artifacts = MagicMock(side_effect=ArtifactsUnavailable("The subproject's qaboard.yaml is missing.", {"ok": False}))
   with dummy_app.test_request_context():
-    response, status = redo.redo_response(batch, [make_output()], "arthurf")
+    response, status = redo.redo_response(batch, [make_output()], {"user_name": "arthurf"})
   assert status == 409
   assert response.get_json() == {"error": "The subproject's qaboard.yaml is missing.", "artifacts": {"ok": False}}
   # nothing was started
@@ -161,5 +161,5 @@ def test_redo_tells_what_could_not_be_restored(setup, dummy_app):
   batch, calls = setup()
   batch.ci_commit.ensure_artifacts = MagicMock(return_value={"status": "restored", "message": "Build outputs (e.g. binaries) can't be restored this way."})
   with dummy_app.test_request_context():
-    response = redo.redo_response(batch, [make_output()], "arthurf")
+    response = redo.redo_response(batch, [make_output()], {"user_name": "arthurf"})
   assert response.get_json()["warning"] == "Build outputs (e.g. binaries) can't be restored this way."

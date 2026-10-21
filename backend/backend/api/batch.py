@@ -212,7 +212,7 @@ def redo_batch():
     o for o in batch.outputs
     if (not only_failed or o.is_failed) and (not only_deleted or o.deleted) and (output_ids is None or o.id in output_ids)
   ]
-  return redo_response(batch, outputs, g.user['user_name'])
+  return redo_response(batch, outputs, g.user)
 
 @app.route('/api/v1/batch/rename', methods=['POST'])
 @app.route('/api/v1/batch/rename/', methods=['POST'])

@@ -220,7 +220,7 @@ class CiCommit(Base):
 
   def restore_artifacts(self, user=None, force=False):
     """
-    Brings the artifacts back: asks the CI to recreate them if `recreate_artifacts` is configured,
+    Brings the artifacts back (`user` is who asked, as in g.user): asks the CI to recreate them if `recreate_artifacts` is configured,
     otherwise restores the files from the source code.
     Returns {status: restored|recreating|failed, message, ...}
     """

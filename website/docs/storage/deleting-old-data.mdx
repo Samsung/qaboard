@@ -129,7 +129,7 @@ recreate_artifacts:
 
 - The CI job must build, then call `qa save-artifacts`: that's how QA-Board knows the artifacts are back. Until then, redos and tuning are refused with a message, and the commit page links to the build. Requests are not sent again for 2 hours, unless users click **Ask again to recreate the artifacts** on the commit page.
 - GitlabCI jobs are always those of the project's own repository. Webhooks don't follow redirects.
-- Values can use `${commit.id}`, `${commit.branch}`, `${commit.branch_slug}`, `${commit.artifacts_dir}`, `${commit.repo_artifacts_dir}`, `${project}`, `${subproject}`, `${git}` (the repository) and `${user}` (who asked). In `url` and `build_url`, they are URL-encoded.
+- Values can use `${commit.id}`, `${commit.branch}`, `${commit.branch_slug}`, `${commit.artifacts_dir}`, `${commit.repo_artifacts_dir}`, `${project}`, `${subproject}`, `${git}` (the repository), `${commit.short_id}`, `${commit.message}`, `${commit.committer}`, and who asked: `${user}` (their user name, also `${user.name}`), `${user.full_name}` and `${user.email}`. In `url` and `build_url`, they are URL-encoded.
 - The server sends the requests: GitlabCI needs `GITLAB_ACCESS_TOKEN`, and Jenkins needs credentials for its host in `JENKINS_AUTH` (see the [server's environment variables](../deploy#optional-environment-variables)). Webhooks are sent as configured.
 - The settings used are those in the latest *qaboard.yaml* of the `reference_branch`, or else the commit's own.
 - The commit page and the tuning form warn about errors in `recreate_artifacts`, like unknown `${variables}`.

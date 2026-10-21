@@ -108,19 +108,19 @@ def redo_script(ci_commit, user, command_id, batch_command) -> str:
   ])
 
 
-def redo_outputs(batch, outputs, user) -> dict:
+def redo_outputs(batch, outputs, user_info) -> dict:
   """
-  Redo the `outputs` from `batch`, as `user` (the logged-in user who asked).
+  Redo the `outputs` from `batch`, as `user_info` (the logged-in user who asked, g.user).
   Returns the submission (see submissions.py): its status is "done" if `qa batch` could start the runs, "failed" otherwise.
   Raises ValueError (e.g. UnsafePathError) if the user name or folders are not safe to use.
   """
-  user = safe_user_name(user)
+  user = safe_user_name(user_info['user_name'])
   ci_commit = batch.ci_commit
   # We run code from there
   check_storage_path(ci_commit.artifacts_dir)
   # We never run from missing artifacts: e.g. without its qaboard.yaml, a subproject's runs would be saved in the parent project.
   # Raises ArtifactsUnavailable if they are missing and can't be restored right now.
-  restored = ci_commit.ensure_artifacts(user=user)
+  restored = ci_commit.ensure_artifacts(user=user_info)
 
   command_id = str(uuid.uuid4())
   created_at = datetime.datetime.utcnow()
@@ -195,13 +195,13 @@ def log_tail(submission, size=4000) -> str:
     return submission.get('error', '')
 
 
-def redo_response(batch, outputs, user):
+def redo_response(batch, outputs, user_info):
   """The API's response when users ask to redo runs"""
   from flask import jsonify
   if not outputs:
     return jsonify({"error": "There are no runs to redo."}), 400
   try:
-    submission = redo_outputs(batch, outputs, user)
+    submission = redo_outputs(batch, outputs, user_info)
   except ArtifactsUnavailable as e:
     # we remember that the artifacts are missing, and that we asked to recreate them
     db_session.add(batch.ci_commit)
