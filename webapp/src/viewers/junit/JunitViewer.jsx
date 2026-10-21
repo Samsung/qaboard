@@ -10,7 +10,6 @@ import {
 import copy from "copy-to-clipboard";
 
 import { fileQuery } from "../../api/queries";
-import { with_default_labels } from "../../sideColors";
 import { toaster } from "../../toaster";
 import { ViewerError, ViewerLoading } from "../ViewerStates";
 import { parseJunit } from "./parse";
@@ -19,6 +18,7 @@ import {
   defaultExpanded, flatten, formatTime, isFailing, parseSearch, testFilter, visibleCounts,
 } from "./model";
 import "./junit.css";
+import { useLabels } from "../../hooks";
 
 const ROW_HEIGHT = 26;
 
@@ -316,7 +316,7 @@ const Summary = ({ counts, ref_counts, time, ref_time, statuses, onToggleStatus,
 };
 
 export function JunitReport({ xml, ref_xml, labels: labels_, height = 440, path }) {
-  const labels = with_default_labels(labels_);
+  const labels = useLabels(labels_);
   const parsed = useMemo(() => parseJunit(xml), [xml]);
   const parsed_ref = useMemo(() => ref_xml ? parseJunit(ref_xml) : null, [ref_xml]);
   const has_reference = !!parsed_ref && !parsed_ref.error;

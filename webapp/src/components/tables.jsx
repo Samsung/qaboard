@@ -15,6 +15,7 @@ import { PlatformTag, ConfigurationsTags, RunBadges, RunBadge, MismatchTags } fr
 import { metric_formatter, percent_formatter, MetricHeader } from "./metrics"
 import { diff_cell, is_number } from "../utils/compare"
 import { metric_info } from "../utils"
+import { useLabels } from "../hooks"
 
 // Inside the view's card: the metrics picker above the table
 const TableArea = styled.div`
@@ -224,7 +225,11 @@ const CompareRow = memo(({ output, output_ref, metrics, index, measure, labels }
 
 const no_metrics = [];
 const no_metrics_object = {};
-const cell_default_labels = ["New", "Reference"];
+// labels: what the columns call the new and reference results, [new, reference], by default the page's (useLabels)
+const useTableLabels = labels => {
+  const page = useLabels();
+  return useMemo(() => labels ?? [page.new, page.reference], [labels, page]);
+};
 
 const TableCompare = ({
   new_batch,
@@ -232,13 +237,12 @@ const TableCompare = ({
   metrics = no_metrics,
   available_metrics = no_metrics_object,
   input,
-  labels
+  labels: labels_,
 }) => {
+  const labels = useTableLabels(labels_);
   const { outputs, metrics_, hidden_count } = useTableData({ new_batch, metrics, available_metrics, with_refs_only: true });
   if (new_batch === undefined || new_batch === null || new_batch.outputs === undefined || new_batch.outputs === null) return <span />;
-  const [label_new, label_ref] = labels || ["new", "ref"];
-  // the cells' tooltips
-  const cell_labels = labels || cell_default_labels;
+  const [label_new, label_ref] = labels;
 
   if (outputs.length === 0)
     return <TableArea>{input}<NoRuns new_batch={new_batch}/></TableArea>;
@@ -285,7 +289,7 @@ const TableCompare = ({
           </tr>
         </thead>
         <VirtualTbody items={outputs} renderRow={([id, output], index, measure) =>
-          <CompareRow key={id} index={index} measure={measure} output={output} output_ref={ref_batch?.outputs?.[output.reference_id]} metrics={metrics_} labels={cell_labels}/>
+          <CompareRow key={id} index={index} measure={measure} output={output} output_ref={ref_batch?.outputs?.[output.reference_id]} metrics={metrics_} labels={labels}/>
         }/>
       </HTMLTable>
     </TableArea>
@@ -311,8 +315,9 @@ const TableKpi = ({
   metrics = no_metrics,
   available_metrics = no_metrics_object,
   input,
-  labels
+  labels: labels_,
 }) => {
+  const labels = useTableLabels(labels_);
   const { outputs, metrics_, hidden_count } = useTableData({ new_batch, metrics, available_metrics, with_refs_only: false });
   // Metrics we can't color by their target are shaded by how values rank among the new runs'
   const rankers = useMemo(() => Object.fromEntries(metrics_
@@ -320,7 +325,7 @@ const TableKpi = ({
     .map(m => [m.key, ranker(outputs.map(([, o]) => o.metrics?.[m.key]))])),
   [metrics_, outputs]);
   if (new_batch?.outputs === undefined || new_batch?.outputs === null) return <span />;
-  const [label_new, label_ref] = labels || ["New", "Ref"];
+  const [label_new, label_ref] = labels;
   if (outputs.length === 0)
     return <TableArea>{input}<NoRuns new_batch={new_batch}/></TableArea>;
   return (
@@ -361,7 +366,7 @@ const TableKpi = ({
           </tr>
         </thead>
         <VirtualTbody items={outputs} renderRow={([id, output], index, measure) =>
-          <KpiRow key={id} index={index} measure={measure} output={output} output_ref={ref_batch?.outputs?.[output.reference_id]} metrics={metrics_} metrics_with_refs={new_batch.metrics_with_refs} rankers={rankers} label_new={labels?.[0] ?? "new"}/>
+          <KpiRow key={id} index={index} measure={measure} output={output} output_ref={ref_batch?.outputs?.[output.reference_id]} metrics={metrics_} metrics_with_refs={new_batch.metrics_with_refs} rankers={rankers} label_new={label_new}/>
         }/>
       </HTMLTable>
     </TableArea>

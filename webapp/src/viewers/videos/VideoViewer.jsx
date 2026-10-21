@@ -5,7 +5,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { errorMessage, http, isAbort } from '../../api/http';
 import { colorAt } from '../../image-viewer/colormaps';
-import { useUser } from '../../hooks';
+import { useLabels, useUser } from '../../hooks';
 import { at_most, is_same_data } from '../../utils';
 import { presetRegions } from '../images/regionProviders';
 import '../images/image-viewer-theme.css';
@@ -76,9 +76,10 @@ const VideoViewer = ({
   fps,
   style,
   fullscreen,
-  // what to call the new and reference videos
-  labels,
+  // what to call the new and reference videos (useLabels)
+  labels: labels_,
 }) => {
+  const labels = useLabels(labels_);
   const queryClient = useQueryClient();
   const signed_in = useUser().is_logged;
   const path_reference = path_ref ?? path;
@@ -97,18 +98,18 @@ const VideoViewer = ({
 
   const video = {
     url: fileUrl(output_new, path),
-    label: labels?.new ?? 'new',
-    color: labels?.colors?.new.hex,
-    textColor: labels?.colors?.new.text,
+    label: labels.new,
+    color: labels.colors.new.hex,
+    textColor: labels.colors.new.text,
     file: file_new,
     info: query_new.data,
     size: manifests?.new?.[path]?.st_size,
   };
   const reference = comparing ? {
     url: fileUrl(output_ref, path_reference),
-    label: labels?.reference ?? 'reference',
-    color: labels?.colors?.reference.hex,
-    textColor: labels?.colors?.reference.text,
+    label: labels.reference,
+    color: labels.colors.reference.hex,
+    textColor: labels.colors.reference.text,
     file: file_ref,
     info: query_ref.data,
     size: manifests?.reference?.[path_reference]?.st_size,

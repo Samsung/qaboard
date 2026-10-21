@@ -59,7 +59,9 @@ const history_metrics = (commits, batch_label, available_metrics) => {
 };
 
 const Dashboard = () => {
-  const { project, project_data, selected, new_commit, ref_commit, new_batch, ref_batch, selected_batch_new } = useComparison();
+  const { project, project_data, selected, new_commit, ref_commit, new_batch, ref_batch, selected_batch_new, labels } = useComparison();
+  // what the tables call the new and reference results
+  const table_labels = useMemo(() => [labels.new, labels.reference], [labels]);
   const { commits, error, refetch, isPending, isFetching, date_range, qatools_metrics } = useCommitsList();
 
   useEffect(() => {
@@ -164,6 +166,7 @@ const Dashboard = () => {
               metrics={metrics}
               new_batch={new_batch}
               ref_batch={ref_batch}
+              labels={labels}
             />
           </Card>
         </ViewSection>
@@ -184,6 +187,7 @@ const Dashboard = () => {
             metrics={metrics}
             new_batch={new_batch}
             ref_batch={ref_batch}
+            labels={labels}
           />
         </Card>
       </ViewSection>}
@@ -210,6 +214,7 @@ const Dashboard = () => {
                   metrics={selected_metrics_keys}
                   available_metrics={available_metrics}
                   input={metricTableSelect}
+                  labels={table_labels}
                 />
               }
             />
@@ -224,6 +229,7 @@ const Dashboard = () => {
                     metrics={selected_metrics_keys}
                     available_metrics={available_metrics}
                     input={metricTableSelect}
+                    labels={table_labels}
                   />
                 }
               />

@@ -394,13 +394,20 @@ function useComparisonState() {
   );
 }
 
-const ComparisonContext = createContext(null);
+export const ComparisonContext = createContext(null);
 
 export const ComparisonProvider = ({ children }) =>
   createElement(ComparisonContext.Provider, { value: useComparisonState() }, children);
 
 // Everything about the comparison of the new and reference commits: commits, batches, configuration and metrics
 export const useComparison = () => useContext(ComparisonContext);
+
+// What viewers call the new and reference results, and their colors: { new, reference, colors: { new, reference } }.
+// Those given, else the page's (useComparison().labels): milestones' names, what users called them...
+export const useLabels = labels => {
+  const comparison = useContext(ComparisonContext);
+  return labels ?? comparison?.labels;
+};
 
 // The commits listed on the current page. With `ignore_search`, the list without the search from the URL
 export const useCommitsList = ({ ignore_search = false } = {}) => {

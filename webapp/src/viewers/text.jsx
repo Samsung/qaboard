@@ -7,7 +7,7 @@ import MonacoEditor, { MonacoDiffEditor, preloadMonaco } from "../components/Mon
 import { fileQuery } from "../api/queries";
 import { is_same_data } from "../utils"
 import { ViewerError } from "./ViewerStates";
-import { with_default_labels } from "../sideColors";
+import { useLabels } from "../hooks";
 
 // TODO: Implement a way to hide identical lines in the diff viewer
 // 1. We could use the diffNavigator
@@ -70,7 +70,8 @@ const editor_height = (data, max_lines, inline) => {
 };
 
 
-function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideBySide: side_by_side_default, always_show_diff, only_diff, manifests, width, max_lines = 40, language: language_prop, is_running, labels }) {
+function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideBySide: side_by_side_default, always_show_diff, only_diff, manifests, width, max_lines = 40, language: language_prop, is_running, labels: labels_ }) {
+  const labels = useLabels(labels_);
   const query_new = useQuery(textFileQuery(text_url_new, { is_running }));
   // we don't really care about errors for reference files
   const query_ref = useQuery({ ...textFileQuery(text_url_ref, { is_running }), enabled: !!text_url_new && !!text_url_ref });
@@ -138,13 +139,12 @@ function GenericTextViewer({ text_url_new, text_url_ref, filename, renderSideByS
       />
 
   // what the commit page calls the files' runs, in their colors
-  const sides = with_default_labels(labels);
-  const side = key => <><span aria-hidden style={{ color: sides.colors[key].css }}>●</span> {sides[key]}</>;
+  const side = key => <><span aria-hidden style={{ color: labels.colors[key].css }}>●</span> {labels[key]}</>;
   return <>
     <h3 className={Classes.HEADING}>
       <span style={{marginRight: "5px"}}>{filename}</span>
       {show_diff
-        ? <Tooltip content={`Press T to swap ${sides.new} and ${sides.reference}`}><Tag>{side(shown_left)} ➡️ {side(shown_left==="reference" ? "new" : "reference")}</Tag></Tooltip>
+        ? <Tooltip content={`Press T to swap ${labels.new} and ${labels.reference}`}><Tag>{side(shown_left)} ➡️ {side(shown_left==="reference" ? "new" : "reference")}</Tag></Tooltip>
         : <Tag>{side('new')}</Tag>}
       {!no_reference && <Button size="small" variant="minimal" style={{marginLeft: "5px", verticalAlign: "bottom"}} icon={renderSideBySide ? "comparison" : "align-justify"} onClick={() => setRenderSideBySide(!renderSideBySide)}>
         {renderSideBySide ? "Side-by-side" : "Inline diff"}

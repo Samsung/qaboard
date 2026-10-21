@@ -35,7 +35,7 @@ describe('GenericTextViewer', () => {
     expect(await screen.findByTestId('diff')).toHaveTextContent('reference log ➡️ new log');
   });
 
-  it('says what it diffs: new and reference, or their names on the commit page', async () => {
+  it("says what it diffs: the page's names", async () => {
     const { unmount } = render(<GenericTextViewer filename="log.txt" text_url_new="/new/log.txt" text_url_ref="/ref/log.txt"/>);
     expect(await screen.findByText(/reference ➡️/)).toHaveTextContent('● reference ➡️ ● new');
     unmount();

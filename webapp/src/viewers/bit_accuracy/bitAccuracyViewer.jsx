@@ -7,6 +7,7 @@ import { useIsDark } from "../../theme"
 import { getNodeById, forEachNode, visitDepthFirst, copyNodeData, filterNodes, updateMissingFrom, humanFileSize, state_colors } from "./utils"
 import { bitAccuracyChecker, markChecked, bitAccuracySummary } from "./checked"
 import { match_query, is_same_data } from "../../utils"
+import { useLabels } from "../../hooks"
 
 
 // Turns a flat file manifest into a proper tree
@@ -157,8 +158,8 @@ const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref,
       <Menu>
         {output_new && !missing_from_new && (
           <MenuItem
-            icon="download"
-            text={`Download (${labels?.new ?? 'New'})`}
+            icon={<Icon icon="download" color={labels.colors.new.css}/>}
+            text={`Download (${labels.new})`}
             onClick={() => {
               const downloadUrl = `${output_new.output_dir_url}/${node.id}`;
               window.open(downloadUrl, '_blank');
@@ -167,8 +168,8 @@ const applyStyle = (has_reference, color_blind_friendly, output_new, output_ref,
         )}
         {output_ref && !missing_from_reference && (
           <MenuItem
-            icon="download"
-            text={`Download (${labels?.reference ?? 'Reference'})`}
+            icon={<Icon icon="download" color={labels.colors.reference.css}/>}
+            text={`Download (${labels.reference})`}
             onClick={() => {
               const downloadUrl = `${output_ref.output_dir_url}/${node.id}`;
               window.open(downloadUrl, '_blank');
@@ -296,16 +297,16 @@ const BitAccuracyViewer = props_ => {
   // folders users expanded (true) or collapsed (false)
   const [expanded, setExpanded] = useState({});
   const is_dark = useIsDark();
-  const { new: label_new, reference: label_ref } = props_.labels ?? {};
+  const labels = useLabels(props_.labels);
 
   const { mixed: tree, summary } = useMemo(() => {
     if (!manifests) return { mixed: [] };
     return mergeTrees(
       manifests.new ? to_tree(manifests.new) : undefined,
       manifests.reference ? to_tree(manifests.reference) : undefined,
-      { files_filter, show_all_files, output_new, output_ref, color_blind_friendly, bit_accuracy, colors: state_colors(is_dark), labels: { new: label_new, reference: label_ref } },
+      { files_filter, show_all_files, output_new, output_ref, color_blind_friendly, bit_accuracy, colors: state_colors(is_dark), labels },
     );
-  }, [manifests, files_filter, show_all_files, output_new, output_ref, color_blind_friendly, bit_accuracy, is_dark, label_new, label_ref]);
+  }, [manifests, files_filter, show_all_files, output_new, output_ref, color_blind_friendly, bit_accuracy, is_dark, labels]);
   const { bit_accurate } = summary ?? {};
 
   const has_filter = !!files_filter && files_filter.length > 0;

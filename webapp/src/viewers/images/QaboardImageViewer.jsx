@@ -9,7 +9,7 @@ import { create } from 'zustand';
 
 import { ImageViewer } from '../../image-viewer';
 import { errorMessage, http, isAbort } from '../../api/http';
-import { useComparison, useSiteConfig, useUser } from '../../hooks';
+import { useComparison, useLabels, useSiteConfig, useUser } from '../../hooks';
 import { usePrefsStore } from '../../stores/prefs';
 import { at_most, is_same_data } from '../../utils';
 import { build_image_name, iiif_url } from './utils';
@@ -176,8 +176,8 @@ const ImageViewerForRuns = ({
   path_ref = path,
   manifests,
   label,
-  // what to call the new and reference images, e.g. their milestones' names
-  labels,
+  // what to call the new and reference images, e.g. their milestones' names (useLabels)
+  labels: labels_,
   style,
   fullscreen,
   // the visual controls, see ../controls.js
@@ -186,6 +186,7 @@ const ImageViewerForRuns = ({
   diff,
   onControlsChange,
 }) => {
+  const labels = useLabels(labels_);
   const { image_servers } = useSiteConfig();
   const pixel_values = usePrefsStore(state => state.imagePixelValues);
   const setPixelValues = usePrefsStore(state => state.setImagePixelValues);
@@ -199,11 +200,11 @@ const ImageViewerForRuns = ({
   const mode = (onControlsChange ? image_mode : local_mode) ?? (diff ? 'difference' : 'side-by-side');
   const diff_settings = onControlsChange ? image_diff : local_diff;
 
-  const image = runImage(output_new, path, manifests?.new, image_servers, labels?.new ?? 'new', labels?.colors?.new);
+  const image = runImage(output_new, path, manifests?.new, image_servers, labels.new, labels.colors.new);
   // Identical files: we show one. When a run is compared with itself it's obvious, else we say it.
   const identical = is_same_data(path, manifests?.new?.[path], manifests?.reference?.[path_ref]);
   const same_data = identical && output_ref?.id !== output_new.id;
-  const reference = identical ? null : referenceImage({ output_ref, path_ref, manifests, image_servers, label: labels?.reference, color: labels?.colors?.reference });
+  const reference = identical ? null : referenceImage({ output_ref, path_ref, manifests, image_servers, label: labels.reference, color: labels.colors.reference });
   const compare_with = otherImages({ output_new, path, manifests, image_servers });
   const compared_entry = useComparedStore(state => state.by_path[path]);
   const compared_page = useNewPageKey();

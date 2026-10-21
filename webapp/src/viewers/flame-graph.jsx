@@ -16,7 +16,7 @@ import { forEachInTree, selfDelta } from './flameDeltas';
 
 import { fileQuery } from "../api/queries";
 import { ViewerError } from "./ViewerStates";
-import { with_default_labels } from "../sideColors";
+import { useLabels } from "../hooks";
 
 // Integrates 
 // We love Brendan Gregg's flame charts
@@ -136,7 +136,8 @@ const with_deltas = (tree, map_other, invert, id) => {
 }
 
 
-const FlameGraphViewer = ({ output_new, output_ref, path, labels }) => {
+const FlameGraphViewer = ({ output_new, output_ref, path, labels: labels_ }) => {
+  const labels = useLabels(labels_);
   const [comparaison, setComparaison] = useState('diff-what-did-happen'); // 'diff-what-will-happen' | 'new' | 'ref' | 'both'
   const url_new = output_new?.output_dir_url && path ? `${output_new.output_dir_url}/${path}` : undefined;
   const url_ref = url_new && output_ref?.output_dir_url ? `${output_ref.output_dir_url}/${path}` : undefined;
@@ -159,7 +160,7 @@ const FlameGraphViewer = ({ output_new, output_ref, path, labels }) => {
   const is_loaded = !!url_new && !query_new.isPending && (!url_ref || !query_ref.isPending);
   const both = is_loaded && !!data_new && !!data_ref;
   // what the commit page calls them
-  const { new: label_new, reference: label_ref } = with_default_labels(labels);
+  const { new: label_new, reference: label_ref } = labels;
   return <>
       <div>
       {query_new.isError && <ViewerError path={path} error={query_new.error}/>}

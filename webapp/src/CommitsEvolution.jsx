@@ -9,12 +9,11 @@ import {
   Tag,
   Tooltip,
   Colors,
-  Intent,
   FormGroup,
   Switch
 } from "@blueprintjs/core";
 
-import { useSelected, useSiteConfig, useUrlText, updateSelected } from "./hooks";
+import { useComparison, useSelected, useSiteConfig, useUrlText, updateSelected } from "./hooks";
 import { OutputCard } from "./viewers/OutputCard";
 import { useViewerControls, config_visualizations } from "./viewers/controls";
 import { BitAccuracyForm, bit_accuracy_url_defaults } from "./viewers/bit_accuracy/utils";
@@ -238,6 +237,9 @@ const CommitsEvolutionPerTest = props => {
     available_metrics = {},
     onSelect,
   } = props;
+  // what the page calls the commits hovered, and their colors
+  const { labels } = useComparison();
+  const side_tag = key => <Tag minimal style={{marginRight: '8px'}}><span aria-hidden style={{ color: labels.colors[key].css }}>●</span> {labels[key]}</Tag>;
   const qatools_config = project_data?.data?.qatools_config;
 
   const [hovered, setHovered] = useState({ label: null, test_input_path: "", configurations: "" });
@@ -343,14 +345,14 @@ const CommitsEvolutionPerTest = props => {
         commit={legend_commit}
         project={project}
         project_data={project_data}
-        tag={<Tag style={{marginRight: '8px'}} intent={Intent.WARNING}>New</Tag>}
+        tag={side_tag('new')}
       />
       {!!legend_commit_ref && <div><CommitRow
         default_batch={hovered_label}
         commit={legend_commit_ref}
         project={project}
         project_data={project_data}
-        tag={<Tag style={{marginRight: '8px'}} intent={Intent.PRIMARY}>Reference</Tag>}
+        tag={side_tag('reference')}
       /></div>}
       {!aggregation && <div style={{display: 'flex', flex: '0 0 auto'}}>{controls_switches}</div>}
       {!!hovered_output && <OutputCard

@@ -4,8 +4,9 @@ import Plot from "../components/Plot";
 import { fileQuery } from "../api/queries";
 import { overlay } from "./plotlyOverlay";
 import { ViewerError } from "./ViewerStates";
-import { plot_color, with_default_labels } from "../sideColors";
+import { plot_color } from "../sideColors";
 import { useIsDark } from "../theme";
+import { useLabels } from "../hooks";
 
 
 // TODO: keep the zoom in the state, like explained here
@@ -21,7 +22,8 @@ import { useIsDark } from "../theme";
 const px = (value, fallback) => parseFloat(String(value ?? fallback).replace(/px$/, ''));
 
 
-const PlotlyViewer = ({ output_new, output_ref, path, path_groundtruth, style, side_by_side = true, layout, labels }) => {
+const PlotlyViewer = ({ output_new, output_ref, path, path_groundtruth, style, side_by_side = true, layout, labels: labels_ }) => {
+  const labels = useLabels(labels_);
   const is_dark = useIsDark();
   const width = style?.width || '840px';
   const height = style?.height || '525';
@@ -36,12 +38,11 @@ const PlotlyViewer = ({ output_new, output_ref, path, path_groundtruth, style, s
   const query_ref = useQuery(fileQuery(url(output_ref, path), { is_running: output_ref?.is_running }));
   const query_groundtruth = useQuery(fileQuery(url(output_new, path_groundtruth), { is_running: output_new?.is_running }));
 
-  const sides = with_default_labels(labels);
   if (is_html)
     return <div style={{display: "flex"}}>
-        <iframe title={sides.new} scrolling="no" style={{border: "none"}} seamless="seamless" src={`${output_new.output_dir_url}/${path}`} height={height} width={width}></iframe>
+        <iframe title={labels.new} scrolling="no" style={{border: "none"}} seamless="seamless" src={`${output_new.output_dir_url}/${path}`} height={height} width={width}></iframe>
         {has_ref &&
-        <iframe title={sides.reference} scrolling="no" style={{border: "none"}} seamless="seamless" src={`${output_ref.output_dir_url}/${path}`} height={height} width={width}></iframe>
+        <iframe title={labels.reference} scrolling="no" style={{border: "none"}} seamless="seamless" src={`${output_ref.output_dir_url}/${path}`} height={height} width={width}></iframe>
         }
     </div>
 
@@ -72,10 +73,10 @@ const PlotlyViewer = ({ output_new, output_ref, path, path_groundtruth, style, s
       yaxis: { ...layout_.yaxis, automargin: true },
       legend: { ...layout_.legend, traceorder: 'reversed' },
     };
-    // named and colored like the sides compared, e.g. "ISP v2 | p99"; without names, "new | p99" and "ref | p99"
+    // named and colored like the labels compared, e.g. "ISP v2 | p99"; without names, "new | p99" and "ref | p99"
     const traces = overlay(data, has_ref, {
-      names: labels ? { new: labels.new, ref: labels.reference } : undefined,
-      colors: { new: `${plot_color(sides.colors.new, is_dark)}dd`, ref: `${plot_color(sides.colors.reference, is_dark)}dd` },
+      names: { new: labels.new, ref: labels.reference },
+      colors: { new: `${plot_color(labels.colors.new, is_dark)}dd`, ref: `${plot_color(labels.colors.reference, is_dark)}dd` },
     });
     if (traces.length === 0)
       return <span></span>

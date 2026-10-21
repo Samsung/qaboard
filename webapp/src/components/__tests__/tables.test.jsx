@@ -80,8 +80,8 @@ describe('TableCompare', () => {
 
   it('names the columns and tooltips after what we compare', () => {
     const { unmount } = renderWithProviders(<TableCompare new_batch={new_batch} ref_batch={ref_batch} metrics={['loss']} available_metrics={available_metrics}/>);
-    expect(screen.getByText('new − ref')).toBeInTheDocument();
-    expect(screen.getAllByRole('row')[2].querySelector('td')).toHaveAttribute('title', 'New: 1\nReference: 2');
+    expect(screen.getByText('new − reference')).toBeInTheDocument();
+    expect(screen.getAllByRole('row')[2].querySelector('td')).toHaveAttribute('title', 'new: 1\nreference: 2');
     unmount();
     renderWithProviders(<TableCompare new_batch={new_batch} ref_batch={ref_batch} metrics={['loss']} available_metrics={available_metrics} labels={['ISP v2', 'v1.4']}/>);
     expect(screen.getByText('ISP v2 − v1.4')).toBeInTheDocument();
@@ -131,8 +131,8 @@ describe('TableKpi', () => {
     const [, labels] = container.querySelectorAll('thead tr');
     const row = container.querySelector('tbody tr');
     expect(labels.children).toHaveLength(row.children.length);
-    // New and Ref over PSNR and Runtime, an empty cell over the overshoot
-    expect([...labels.children].slice(1).map(th => th.textContent)).toEqual(['New', 'Ref', '', 'New', 'Ref']);
+    // new and reference over PSNR and Runtime, an empty cell over the overshoot
+    expect([...labels.children].slice(1).map(th => th.textContent)).toEqual(['new', 'reference', '', 'new', 'reference']);
     expect(labels.children[0].textContent).toBe('1 run');
   });
 

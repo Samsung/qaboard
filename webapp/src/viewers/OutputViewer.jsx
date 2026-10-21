@@ -3,7 +3,7 @@ import {
   Button,
 } from "@blueprintjs/core";
 
-import { useSiteConfig } from "../hooks";
+import { useComparison, useSiteConfig } from "../hooks";
 import { is_image } from "./images/utils"
 import { ViewerLoading } from "./ViewerStates"
 
@@ -23,11 +23,15 @@ const LoadableJunitViewer = lazy(() => import('./junit/JunitViewer'));
 // JUnit XML test reports: junit.xml, report.junit.xml, Maven's and Gradle's TEST-*.xml
 export const is_junit = path => /(^|\/)(junit|[^/]*[._-]junit|TEST-[^/]*)\.xml$/i.test(path || '');
 
+// labels: what the viewers call the new and reference results, and their colors, by default those of the page
+// (useComparison().labels): milestones' names, what users called them...
 const OutputViewer = props_ => {
     const [image_viewer, setImageViewer] = useState('image')
     const { docs_root } = useSiteConfig();
+    const comparison = useComparison();
 
-    const { type, output_ref, ...props } = props_;
+    const { type, output_ref, ...props_rest } = props_;
+    const props = { ...props_rest, labels: props_.labels ?? comparison?.labels };
     const maybe_output_ref = (props_.show_reference === undefined || props_.show_reference) ? output_ref : undefined;
     let viewer;
     if (is_image(props_)) {

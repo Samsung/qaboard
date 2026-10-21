@@ -33,15 +33,3 @@ export const side_color = slot => ({
 
 // For plots (Plotly, canvases): the side's color in the theme, e.g. plot_color(labels.colors.new, useIsDark())
 export const plot_color = (color, is_dark) => is_dark ? color.hex_dark ?? color.hex : color.hex;
-
-// What viewers call the two sides they compare, and their colors. The commit page gives them useComparison().labels:
-// milestones' names, what users called them... Elsewhere (history, bit accuracy of artifacts...) they are new and reference.
-const default_colors = { new: side_color(0), reference: side_color(1) };
-export const with_default_labels = labels => ({
-  new: labels?.new ?? 'new',
-  reference: labels?.reference ?? 'reference',
-  colors: {
-    new: labels?.colors?.new ?? default_colors.new,
-    reference: labels?.colors?.reference ?? default_colors.reference,
-  },
-});

@@ -4,8 +4,9 @@ import { tsvParse } from "d3-dsv";
 
 import Plot from "../../components/Plot";
 import { fileQuery } from "../../api/queries";
-import { plot_color, with_default_labels } from "../../sideColors";
+import { plot_color } from "../../sideColors";
 import { useIsDark } from "../../theme";
+import { useLabels } from "../../hooks";
 
 // No "Send to Cloud" or "Edit chart" links: they would upload the data to Plotly's public Chart Studio
 const config = {
@@ -48,7 +49,8 @@ const try_parse = (text, parse, label) => {
 
 const px = (value, fallback) => parseFloat(String(value ?? fallback).replace(/px$/, ''));
 
-const SlamOutputCard = ({ output_new, output_ref, show_debug, select_debug = "", path = 'camera_poses_debug.csv', show_3d = true, layout, style, labels }) => {
+const SlamOutputCard = ({ output_new, output_ref, show_debug, select_debug = "", path = 'camera_poses_debug.csv', show_3d = true, layout, style, labels: labels_ }) => {
+  const labels = useLabels(labels_);
   // the card's width, shared by the plots of each axis and the 3D view
   const width = px(style?.width, 700);
   const plot_width = show_3d ? Math.max(300, Math.floor((width - 16) / 2)) : width;
@@ -70,9 +72,8 @@ const SlamOutputCard = ({ output_new, output_ref, show_debug, select_debug = "",
 
   // the traces' names and colors: what the commit page calls the runs
   const is_dark = useIsDark();
-  const sides = with_default_labels(labels);
-  const style_new = useMemo(() => ({ name: sides.new, color: plot_color(sides.colors.new, is_dark) }), [sides.new, sides.colors.new, is_dark]);
-  const style_ref = useMemo(() => ({ name: sides.reference, color: plot_color(sides.colors.reference, is_dark) }), [sides.reference, sides.colors.reference, is_dark]);
+  const style_new = useMemo(() => ({ name: labels.new, color: plot_color(labels.colors.new, is_dark) }), [labels.new, labels.colors.new, is_dark]);
+  const style_ref = useMemo(() => ({ name: labels.reference, color: plot_color(labels.colors.reference, is_dark) }), [labels.reference, labels.colors.reference, is_dark]);
 
   // other traces are made with regards to the columns of the new data
   const data_set = poses_new?.data_set;
