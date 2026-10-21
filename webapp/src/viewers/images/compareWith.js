@@ -49,19 +49,24 @@ export const compareCandidates = (path, manifest, image_servers) => {
   return [...suggested, ...paths.filter(other => !is_suggested.has(other)).map(other => ({ path: other, suggested: false }))];
 };
 
-// What the viewers of a visualization compare with: { all: path | null, runs: { [output id]: path | null } }.
+// What the viewers of a visualization compare with: { page, all: path | null, runs: { [output id]: path | null } }.
 // A pick applies to every run of the page (and undoes the runs picked alone), or to one run, e.g. to spot-check it.
+// It's for the page it was picked on (its commit and batch): on another, the images are compared with their reference.
 export const COMPARE_SCOPES = [
   { value: 'all', label: 'All runs', title: 'Every run compares with its own file of that name', phrase: 'in every run' },
   { value: 'run', label: 'This run', title: 'Only this run: the others keep what they compare with', phrase: 'in this run only' },
 ];
 
-export const pickCompared = (entry, output_id, other, scope) => scope === 'run'
-  ? { all: entry?.all ?? null, runs: { ...entry?.runs, [output_id]: other } }
-  : { all: other, runs: {} };
+export const pickCompared = (entry, output_id, other, scope, page) => {
+  if (entry?.page !== page) entry = undefined;
+  return scope === 'run'
+    ? { page, all: entry?.all ?? null, runs: { ...entry?.runs, [output_id]: other } }
+    : { page, all: other, runs: {} };
+};
 
 // What a run compares with, and whether it differs from the other runs
-export const comparedFor = (entry, output_id) => {
+export const comparedFor = (entry, output_id, page) => {
+  if (entry?.page !== page) entry = undefined;
   const all = entry?.all ?? null;
   const own = entry && Object.hasOwn(entry.runs, output_id) ? entry.runs[output_id] : undefined;
   return { compared: own !== undefined ? own : all, alone: own !== undefined && own !== all };
