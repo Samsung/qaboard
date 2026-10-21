@@ -34,6 +34,8 @@ services:
         <<: *sirc-build-args
         GIT_SSL_VERIFY: "false"
         QABOARD_EXTRA: "sirc"
+        # sirc-sso.sirc.co.il doesn't send its intermediate certificate
+        CA_CERTS: "deployments/sirc/certs/godaddy-g2-intermediate.crt"
     env_file:
       - .env
       - deployments/sirc/.env
