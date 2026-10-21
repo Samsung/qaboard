@@ -71,6 +71,19 @@ def test_overview(alice, world, storage):
   assert alice.get('/api/v1/storage/overview?scope=nope').status_code == 400
 
 
+def test_private_projects_are_hidden(alice, logged_in, world, storage):
+  """Users who can't read a private project don't see its usage, even with scope=all"""
+  from backend.models import ProjectVisibility
+  setup_runs(world, storage)
+  world.db.add(ProjectVisibility(path='proj/b', visibility='private'))
+  world.commit()
+  bob = logged_in('bob')
+  everyone = bob.get('/api/v1/storage/overview?scope=all').get_json()
+  assert [p["project_id"] for p in everyone["projects"]] == ['proj/a']
+  assert everyone["totals"]["bytes"] == 36 * GB
+  assert bob.get('/api/v1/storage/overview?scope=all&project=proj/b').status_code == 403
+
+
 def test_batches_commits_branches(alice, world, storage):
   ids = setup_runs(world, storage)
   batches = alice.get('/api/v1/storage/items?group=batch').get_json()

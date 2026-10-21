@@ -137,9 +137,17 @@ def checklist() -> list:
     item(f'invalid_env:{key}', False, 'danger', f"${definition.env} is invalid: it's ignored",
          f"{problem}. QA-Board uses {key} = {settings_lib.setting(key)!r} instead: fix the server's environment.")
 
+  from ..models import RoleGrant
+  signed_in_role = settings_lib.setting('projects.signed_in_role')
+  owned = RoleGrant.query.filter(RoleGrant.resource_type == 'project', RoleGrant.role == 'owner').count()
+  item('signed_in_role', signed_in_role == 'viewer', 'info',
+       "Signed-in users are viewers of public and internal projects" if signed_in_role == 'viewer' else "Everyone signed in can send results and act on every project",
+       f"projects.signed_in_role is developer, as before project roles. {owned} project owner grant{'s' if owned != 1 else ''} so far: once projects have owners, set it to viewer, and owners make their teams developers (Project → Access).",
+       "Owners make their teams developers in Project → Access. Private projects only follow their members.")
+
   if is_login_restricted:
-    item('restrictions_yaml', True, 'info', "Project restrictions come from QABOARD_LOGIN_RESTRICTED_YAML",
-         "Coming next: manage who can access projects from the web app, and import this file.")
+    item('restrictions_yaml', True, 'info', "Project restrictions also come from QABOARD_LOGIN_RESTRICTED_YAML",
+         "Its projects are private, and the users its rules match are their developers. Owners can add members in Project → Access.")
   return items
 
 

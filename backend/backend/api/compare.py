@@ -20,7 +20,7 @@ import json
 from flask import request, jsonify
 
 from backend import app, db_session
-from .auth import is_authorized_user
+from .auth import is_authorized_user, forbidden_project
 from ..models import CiCommit, Batch, Milestone
 from ..compare import compare_outputs, run_counts, manifests_mismatch
 from ..metrics_definitions import available_metrics
@@ -121,7 +121,12 @@ def resolve_reference(commit, reference: str, label: str):
   if milestone:
     info.update(type='milestone', milestone=milestone.label or reference, milestone_batch=milestone.batch or 'default', milestone_filter=milestone.filter or '')
     sha = str(milestone.commit_hexsha or '')
-    found = find_commit(milestone.commit_project_id or commit.project_id, sha) if re.fullmatch(r'[0-9a-fA-F]{4,64}', sha) else None
+    milestone_project = milestone.commit_project_id or commit.project_id
+    # a milestone can point to another project's commit: only if we can see it
+    if milestone_project != commit.project_id and not is_authorized_user(None, milestone_project):
+      info['forbidden'] = milestone_project
+      return None, info
+    found = find_commit(milestone_project, sha) if re.fullmatch(r'[0-9a-fA-F]{4,64}', sha) else None
     return found, info
   if re.fullmatch(r'[0-9a-fA-F]{7,64}', reference):
     found = find_commit(commit.project_id, reference)
@@ -181,7 +186,7 @@ def compare_commit(commit_id):
   if not project_id:
     return jsonify({'error': 'Missing the ?project= parameter'}), 400
   if not is_authorized_user(None, project_id):
-    return jsonify({'error': "Forbidden: You don't have permission to access this project"}), 403
+    return forbidden_project(project_id)
   if not re.fullmatch(r'[0-9a-fA-F]{4,64}', commit_id):
     return jsonify({'error': f'Not a commit sha: {commit_id}'}), 400
   commit = find_commit(project_id, commit_id)

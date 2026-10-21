@@ -114,7 +114,8 @@ export function useIntegrationStatuses(context) {
       params = webhook;
     } else if (jenkins) {
       url = '/api/v1/jenkins/build/trigger/';
-      params = jenkins;
+      // the server checks we're a developer of the project
+      params = { ...jenkins, project };
     } else if (githubActions) {
       url = '/api/v1/github/workflow/dispatch/';
       params = { ...github_workflow(project, project_data, commit), ...githubActions };

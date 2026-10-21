@@ -76,7 +76,6 @@ image servers -- all opt-in via ENV vars.
 
 Optional site settings for the backend:
 - `GITLAB_HOST`: also the fallback for git links in the UI (default: https://gitlab.com)
-- `QABOARD_QUOTA_URL_TEMPLATE`: shows a "Quota" link, with `{user_name}` and `{project}` placeholders
 - `QABOARD_SUPPORT_URL`: where users report bugs, can be a `mailto:` (default: GitHub issues)
 
 Optional site settings for the CLI (env vars, or defaults from a site package):

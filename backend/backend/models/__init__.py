@@ -11,5 +11,6 @@ from .BatchNotification import *
 from .AuditEvent import *
 from .Setting import *
 from .SignIn import *
+from .Access import *
 from .Job import *
 from .StorageUsage import *

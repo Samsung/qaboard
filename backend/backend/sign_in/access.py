@@ -82,15 +82,16 @@ def new_request_text(user, request_row) -> str:
   return f"{who}{email} signed in to QA-Board and waits for an admin.{message}\nApprove or deny: {public_url()}/admin/users/{user.id}"
 
 
-def notify(text: str, subject: str, to_admins: bool = False, to_user=None):
+def notify(text: str, subject: str, to_admins: bool = False, to_user=None, to_users=()):
   """Emails and the webhook, in the background: they never block or fail the request"""
   from ..notifications.mail import email_enabled, is_email
   recipients = []
   if email_enabled():
     if to_admins:
       recipients = [u.email for u in reviewers() if is_email(u.email)]
-    if to_user is not None and is_email(to_user.email):
-      recipients.append(to_user.email)
+    for user in [to_user, *to_users]:
+      if user is not None and is_email(user.email) and user.email not in recipients:
+        recipients.append(user.email)
   webhook = setting('auth.access_request_webhook') if to_admins else None
   if not recipients and not webhook:
     return
@@ -122,5 +123,8 @@ def serialize(request_row) -> dict:
     "status": request_row.status,
     "created_at": iso(request_row.created_at),
     "decided_at": iso(request_row.decided_at),
+    # project requests: which project, which role
+    "project": request_row.resource_id,
+    "role": request_row.role,
     "user": {"id": user.id, "user_name": user.user_name, "full_name": user.full_name, "email": user.email} if user else None,
   }

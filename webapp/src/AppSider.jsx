@@ -29,7 +29,6 @@ import { LogsMenuItem, logs_hint_class } from "./AppSiderLogsItem"
 import { useCommitsList, useComparison, useSiteConfig, useUser, updateSelected } from "./hooks"
 import { usePrefsStore } from "./stores/prefs"
 import { useIntegrationStatuses } from "./useIntegrationStatuses"
-import { quota_url } from "./utils"
 import { repo_url, tree_url, commit_url, commits_url as git_commits_url, default_integrations } from "./git"
 
 // The sidebar's width, also what the page leaves free for it: a CSS variable (App.css), smaller when collapsed.
@@ -425,13 +424,11 @@ const MenuItemLink = ({ to, ...props }) => {
   return <MenuItem {...props} href={to} onClick={handleClick}/>
 }
 
-// How much storage the project's runs use, and the site's quota dashboard if it has one (QABOARD_QUOTA_URL_TEMPLATE)
+// How much storage the project's runs use
 const StorageMenuItem = ({ user, project }) => {
-  const { quota_url_template } = useSiteConfig()
   if (!user?.is_logged)
     return null
   const storage = `/storage/batches?project=${encodeURIComponent(project ?? '')}`
-  const dashboard = quota_url(quota_url_template, user?.user_name, project)
   return <MenuItemLink
     to={storage}
     icon="database"
@@ -441,7 +438,6 @@ const StorageMenuItem = ({ user, project }) => {
     <MenuItemLink to={storage} icon="database" text="Your runs in this project"/>
     <MenuItemLink to="/storage" icon="projects" text="Your runs in every project"/>
     <MenuItemLink to={`/storage/batches?scope=all&project=${encodeURIComponent(project ?? '')}`} icon="people" text="Everyone's runs in this project"/>
-    {dashboard && <MenuItem href={dashboard} rel="noopener noreferrer" target="_blank" icon="dashboard" text="Quota dashboard" title="Opens in a new tab"/>}
   </MenuItemLink>
 }
 
@@ -523,6 +519,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
   let reference_branch = qatools_config.project?.reference_branch;
 
   const is_history = selected.route.is_history;
+  const is_access = selected.route.is_access;
   const is_branch = !!selected.branch;
   const is_project_home = selected.route.is_commits && !is_branch;
   const tag = selected.branch ?? selected.committer ?? reference_branch;
@@ -532,7 +529,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
   return <>
     {/* The branch's commits: highlighted on their page, a link elsewhere */}
     <SiderHint name={branch ? `Commits on ${branch}` : tag && !is_branch && !(is_project_home || is_history) ? `Commits by ${tag}` : 'All commits'}>
-      {(is_project_home || is_history)
+      {(is_project_home || is_history || is_access)
         ? <MenuItemLink to={commits_url} text={(is_branch || project_data.is_loaded) ? branch ?? 'All commits' : <span className={Classes.SKELETON}>branch</span>} title={branch ? `Commits on ${branch}` : 'Commits on all branches'} icon='git-branch'/>
         : <MenuItem icon={is_branch ? "git-branch" : 'user'} active text={tag ?? 'All commits'} title={is_branch ? `Commits on ${tag}` : tag && `Commits by ${tag}`}/>
       }
@@ -556,6 +553,9 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
     />
     <SiderMilestones project={project} project_data={project_data} docs_root={docs_root}/>
     <StorageMenuItem user={user} project={project} />
+    <SiderHint name="Access" content="Who can see the project, upload runs and act on them. Request access, or manage it.">
+      <MenuItemLink to={`/${path_segment(project)}/access`} active={is_access} icon="people" text="Access"/>
+    </SiderHint>
   </>
 }
 
@@ -708,7 +708,7 @@ const AppSider = () => {
 
       {/* Navigation Section: views of the results on commit pages, else (commit lists, history) the project's pages */}
       <SiderSection>
-        {(route.is_list || route.is_history) && (
+        {(route.is_list || route.is_history || route.is_access) && (
           <>
             <SiderMenu>
               <ProjectSideCommitList

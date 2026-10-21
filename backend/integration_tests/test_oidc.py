@@ -42,11 +42,28 @@ class FakeIdP:
     mocked.add_callback(responses.POST, f'{ISSUER}/protocol/openid-connect/token', callback=self.token_endpoint)
     self.nonce = None
     self.challenge = None
+    # refresh tokens (refresh_groups): what the token endpoint answers to grant_type=refresh_token
+    self.refresh_refused = False
+    self.refreshed = 0
+
+  def refresh(self, body):
+    import json
+    if self.refresh_refused or body['refresh_token'][0] not in ('rt-1', f'rt-{self.refreshed + 1}'):
+      return (400, {}, json.dumps({"error": "invalid_grant", "error_description": "Token is not active"}))
+    self.refreshed += 1
+    now = int(time.time())
+    claims = {"iss": ISSUER, "aud": CLIENT_ID, "sub": "subject-alice", "exp": now + 300, "iat": now,
+              "preferred_username": "alice", "email": "alice@example.com", "groups": ["/camera"], **self.claims}
+    id_token = jwt.encode(self.header, {k: v for k, v in claims.items() if v is not None}, self.signing_key)
+    # rotated
+    return (200, {}, json.dumps({"access_token": "at", "id_token": id_token, "refresh_token": f"rt-{self.refreshed + 1}", "token_type": "Bearer"}))
 
   def token_endpoint(self, request):
     import json
     body = parse_qs(request.body)
     self.last_token_request = request
+    if body.get('grant_type') == ['refresh_token']:
+      return self.refresh(body)
     verifier = body['code_verifier'][0]
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b'=').decode()
     if challenge != self.challenge or body['code'][0] != 'the-code':
@@ -58,7 +75,7 @@ class FakeIdP:
               "preferred_username": "alice", "email": "alice@example.com", "name": "Alice Doe", "groups": ["/camera"], **self.claims}
     claims = {k: v for k, v in claims.items() if v is not None}
     id_token = self.raw_id_token or jwt.encode(self.header, claims, self.signing_key, algorithms=["RS256", "none"] if self.header.get("alg") == "none" else None)
-    return (200, {}, json.dumps({"access_token": "at", "id_token": id_token, "token_type": "Bearer"}))
+    return (200, {}, json.dumps({"access_token": "at", "id_token": id_token, "refresh_token": "rt-1", "token_type": "Bearer"}))
 
   def start(self, client, url='/api/v1/auth/oidc/sso/start?next=/group/repo/commits'):
     response = client.get(url)

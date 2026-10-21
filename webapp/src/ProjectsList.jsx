@@ -32,7 +32,7 @@ import { useProjects, useSiteConfig, useUser } from './hooks'
 import { usePrefsStore } from './stores/prefs'
 import { match_query } from "./utils"
 import { errorMessage } from "./api/http"
-import { project_web_url, quota_url } from "./utils"
+import { project_web_url } from "./utils"
 
 
 const LastCommitAt = ({ project, className }) => {
@@ -153,7 +153,7 @@ const page_size = 50;
 const ProjectsList = () => {
   const { data: projects = {}, error, isPending, refetch } = useProjects();
   const user = useUser();
-  const { docs_root, support_url, quota_url_template } = useSiteConfig();
+  const { docs_root, support_url } = useSiteConfig();
   const favorites = usePrefsStore(state => state.favorites);
   const [query, setQuery] = useState('');
   const [nb_shown, setNbShown] = useState(page_size);
@@ -181,7 +181,6 @@ const ProjectsList = () => {
   if (isPending)
     warnings = <div aria-busy="true" aria-label="Loading projects">{[0, 1, 2, 3, 4].map(i => <ProjectCardSkeleton key={i}/>)}</div>;
 
-  const user_quota_url = user.is_logged && quota_url(quota_url_template, user.user_name);
   return (
     <div style={{minHeight: '100vh', display: 'flex', flexDirection: 'column'}}>
       <WrappingNavbar className={Classes.DARK}>
@@ -197,9 +196,6 @@ const ProjectsList = () => {
             {user.is_logged && <Link to="/storage" style={{paddingRight: '15px'}}>
               <Button icon="database" text="Storage usage" style={{color : "#fff"}} title="How much storage your runs use, and deleting what you don't need"/>
             </Link>}
-            {user_quota_url && <a style={{paddingRight: '15px'}} href={user_quota_url} rel="noopener noreferrer" target="_blank">
-              <Button icon="dashboard" text="Quotas" style={{color : "#fff"}}/>
-            </a>}
             <AuthButton/>
           </NavbarGroup>
       </WrappingNavbar>

@@ -7,6 +7,7 @@ const CiCommitList = lazy(() => import("./CiCommitList"));
 const CiCommitResults = lazy(() => import("./CiCommitResults"));
 const Dashboard = lazy(() => import("./Dashboard"));
 const MilestonePage = lazy(() => import("./milestones/MilestonePage"));
+const AccessPage = lazy(() => import("./access/AccessPage"));
 const SettingsPage = lazy(() => import("./settings/SettingsPage"));
 const AdminPage = lazy(() => import("./admin/AdminPage"));
 const StoragePage = lazy(() => import("./storage/StoragePage"));
@@ -24,6 +25,7 @@ const pages = {
   history_branch: Dashboard,
   history: Dashboard,
   milestone: MilestonePage,
+  access: AccessPage,
   project: CiCommitList,
 };
 
@@ -33,6 +35,7 @@ export const routes = Object.entries(route_paths).map(([name, path]) => ({ name,
 const app_pages = {
   settings: SettingsPage,
   admin_user: AdminPage,
+  admin_group: AdminPage,
   admin_job: AdminPage,
   admin: AdminPage,
   storage: StoragePage,

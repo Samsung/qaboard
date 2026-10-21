@@ -131,6 +131,7 @@ export const reason_messages = {
   missing_scope: "The access token doesn't allow this.",
   token_project: "The access token can't be used for this project.",
   forbidden_project: "You don't have access to this project.",
+  missing_role: "You don't have the role this needs on the project. Ask an owner, or request access.",
   session_required: "Do this from the web app, signed in: access tokens can't.",
   not_admin: "Only admins can do this.",
   cross_site_write: "QA-Board refused a request sent from another site. Reload the page and try again.",
@@ -147,9 +148,16 @@ const is_html = text => /<\/?[a-z][^>]*>/i.test(text);
 const max_length = 300;
 const shorten = text => text.length > max_length ? `${text.slice(0, max_length)}…` : text;
 
+// 403 {reason: "missing_role", required: "developer", project}: which role, where, and what to do
+const missingRoleMessage = data => data?.reason === 'missing_role' && typeof data.required === 'string' && typeof data.project === 'string'
+  ? `You need the ${data.required} role on ${data.project}. Ask an owner, or request access.`
+  : null;
+
 export const errorMessage = error => {
   if (!error) return '';
   const data = error.response?.data;
+  const missing_role = missingRoleMessage(data);
+  if (missing_role) return missing_role;
   if (data?.error) return String(data.error);
   if (data?.reason && reason_messages[data.reason]) return reason_messages[data.reason];
   if (Array.isArray(data?.errors) && data.errors.length > 0) return data.errors.join(' ');

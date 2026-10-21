@@ -25,7 +25,6 @@ export const default_site_config = {
   sentry_trace_lifecycle: 'static',
   git_web_url: 'https://gitlab.com',
   git_hosts: [],
-  quota_url_template: null,
   support_url: 'https://github.com/Samsung/qaboard/issues',
   login_hint: null,
   webcde_installer: null,

@@ -12,7 +12,7 @@ from ..storage import check_storage_path, UnsafePathError
 from ..redo import redo_response
 from ..metrics_definitions import save_metrics_definitions
 from ..notifications.batches import on_run_ended
-from .auth import login_required, is_authorized_user, ingest_access, forbidden_project
+from .auth import login_required, is_authorized_user, ingest_access, forbidden_project, require_project_access
 
 # Keys of a run's data that only the server sets
 # - optimization_best allows `qa optimize` to replace this run (see api/batch.py)
@@ -27,6 +27,8 @@ def get_output(output_id):
     output = Output.query.filter(Output.id==output_id).one()
   except NoResultFound:
     return jsonify({"error": f"Cannot find output {output_id}"}), 400
+  if not is_authorized_user(None, output.batch.ci_commit.project_id):
+    return forbidden_project(output.batch.ci_commit.project_id)
   return jsonify(output.to_dict())
 
 
@@ -42,8 +44,8 @@ def update_output(output_id):
     if request.method == 'DELETE':
       return {"status": "OK"}
     return jsonify({"error": f"Cannot find output {output_id}"}), 400
-  if not is_authorized_user(g.user, output.batch.ci_commit.project_id):
-    return forbidden_project(output.batch.ci_commit.project_id)
+  if forbidden := require_project_access(g.user, output.batch.ci_commit.project_id):
+    return forbidden
 
   if request.method == 'PUT':
     data = request.get_json()
@@ -94,8 +96,8 @@ def output_redo(output_id):
     output = Output.query.filter(Output.id==output_id).one()
   except NoResultFound:
     return jsonify({"error": f"Cannot find output {output_id}"}), 400
-  if not is_authorized_user(g.user, output.batch.ci_commit.project_id):
-    return forbidden_project(output.batch.ci_commit.project_id)
+  if forbidden := require_project_access(g.user, output.batch.ci_commit.project_id):
+    return forbidden
   return redo_response(output.batch, [output], g.user)
 
 
@@ -106,6 +108,8 @@ def get_output_manifest(output_id):
     output = Output.query.filter(Output.id==output_id).one()
   except NoResultFound:
     return jsonify({"error": f"Cannot find output {output_id}"}), 400
+  if not is_authorized_user(None, output.batch.ci_commit.project_id):
+    return forbidden_project(output.batch.ci_commit.project_id)
   manifest_path = output.output_dir / "manifest.outputs.json"
   if output.is_running or request.args.get('refresh') or not manifest_path.exists():
     try:

@@ -405,7 +405,7 @@ def integrations(monkeypatch, tmp_path):
     "secret": GITHUB_PROJECT,
     "group/gitlab-repo": {"git": {"path_with_namespace": "group/gitlab-repo", "web_url": "https://gitlab.example.com/group/gitlab-repo"}, "qatools_config": GITHUB_PROJECT["qatools_config"]},
   })
-  module.is_authorized_user = lambda user, project: project != "secret"
+  module.can = lambda permission, project: project != "secret"
   return module
 
 

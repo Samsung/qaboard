@@ -6,6 +6,7 @@ import styled from "styled-components";
 import { Link } from "../router";
 import { Loading } from "../settings/states";
 import { AdminError } from "./states";
+import { InstanceRoles } from "./InstanceRoles";
 import { overviewQuery } from "./api";
 
 
@@ -53,7 +54,7 @@ const item_links = {
   legacy_tokens: '/admin/tokens',
 };
 // The settings named in the details, e.g. "Set auth.require_sign_in to...", link to the settings
-const setting_name = /\b((?:auth|ingest|tokens|audit)\.[a-z_]+[a-z])\b/;
+const setting_name = /\b((?:auth|ingest|tokens|audit|projects)\.[a-z_]+[a-z])\b/;
 export const Detail = ({ text }) => text.split(setting_name).map((part, i) => i % 2
   ? <Link key={i} to="/admin/settings"><code>{part}</code></Link>
   : part);
@@ -99,6 +100,7 @@ export const Overview = () => {
       })}
     </Counts>
     {(data?.checklist?.length ?? 0) > 0 && <Checklist checklist={data.checklist}/>}
+    <div style={{ marginTop: 28 }}><InstanceRoles/></div>
   </>;
 };
 

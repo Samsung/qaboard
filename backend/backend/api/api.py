@@ -73,8 +73,6 @@ def get_site_config():
         "git_web_url": git_hosts.default.url,
         # The git hosts we know, to link to projects whose data doesn't say where they are hosted: [{type, url, name}]
         "git_hosts": git_hosts.public(),
-        # Optional link to a storage quota dashboard, with {user_name} and {project} placeholders
-        "quota_url_template": os.environ.get('QABOARD_QUOTA_URL_TEMPLATE'),
         # Where users report issues
         "support_url": os.environ.get('QABOARD_SUPPORT_URL', 'https://github.com/Samsung/qaboard/issues'),
         # Shown to users who can't log in, e.g. which credentials to use
@@ -350,15 +348,11 @@ def get_projects():
 @app.route("/api/v1/project")
 def get_project():
   project_id = request.args['project']
-  project = (Project
-               .query.filter(
-                 Project.id==project_id,
-               )
-               .one()
-              )
-
-  if not is_authorized_user(None, project_id): 
+  if not is_authorized_user(None, project_id):
     return forbidden_project(project_id)
+  project = Project.query.filter(Project.id == project_id).one_or_none()
+  if project is None:
+    return jsonify({"error": f"There is no project {project_id}."}), 404
 
   # Milestones from older versions, kept for rollbacks: they are in their own table, see /api/v1/milestones
   return jsonify({k: v for k, v in project.data.items() if k != 'milestones'})

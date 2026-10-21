@@ -45,6 +45,10 @@ class UserIdentity(Base):
   claims = Column(JSONB(), nullable=False, default=dict, server_default='{}')
   created_at = Column(DateTime, nullable=False, default=datetime.datetime.utcnow)
   last_login_at = Column(DateTime, nullable=True)
+  # OIDC providers with `refresh_groups`: the refresh token, encrypted ($QABOARD_ENCRYPTION_KEY), and when the
+  # claims were last refreshed with it, daily (backend/jobs/groups.py)
+  refresh_token_encrypted = Column(Text, nullable=True)
+  claims_refreshed_at = Column(DateTime, nullable=True)
 
   __table_args__ = (UniqueConstraint('provider_id', 'subject', name='uq_user_identities_provider_subject'),)
 
@@ -73,8 +77,11 @@ class AccessRequest(Base):
   id = Column(Integer, primary_key=True)
   user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
   user = relationship("User", foreign_keys=[user_id])
-  # instance (M2). Later: a role on a project or a namespace
+  # instance: a pending user waits for an admin (M2). project: a role on resource_id, decided by its owners (M3)
   kind = Column(String(), nullable=False, default='instance', server_default='instance')
+  # the project (an id or a prefix), and the role asked
+  resource_id = Column(String(), nullable=True, index=True)
+  role = Column(String(), nullable=True)
   message = Column(Text(), nullable=False, default='', server_default='')
   # pending, approved, denied
   status = Column(String(), nullable=False, default='pending', server_default='pending')

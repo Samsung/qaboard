@@ -13,6 +13,7 @@ from ..sign_in import providers as providers_lib, sessions, identities, oidc
 from ..sign_in.oidc import SignInError
 from ..sign_in.accounts import finish as finish_sign_in, oidc_account
 from ..sign_in.access import request_access, serialize as serialize_request
+from ..access.groups import groups_overage
 from .auth import login_required, session_required, safe_redirect_url, is_login_restricted, is_authorized_user, ldap_lookup, update_user, login_type
 from .tokens import public_url
 
@@ -77,14 +78,16 @@ def oidc_callback(provider_id=None):
       raise SignInError('sso_failed', f"The IdP answered {request.args['error']}: {request.args.get('error_description', '')}")
     if not request.args.get('code'):
       raise SignInError('sso_failed', "The IdP sent no code")
-    claims = oidc.exchange_code(provider, request.args['code'], saved)
+    claims, refresh_token = oidc.exchange_code(provider, request.args['code'], saved)
+    # kept to refresh the groups daily, if the provider does
+    refresh_token = refresh_token if provider.config.get('refresh_groups') else None
     linking_user = g.actor.user if saved.get('link') and g.actor.token is None else None
     user, email = oidc_account(provider, claims, linking_user=linking_user)
     if user.status == 'disabled':
       raise SignInError('user_disabled', f"{user.user_name} is disabled")
     groups = claims.get(provider.claim('groups'))
     if linking_user is not None:
-      identity = identities.record(user, provider.id, claims['sub'], email=email, claims=claims)
+      identity = identities.record(user, provider.id, claims['sub'], email=email, claims=claims, refresh_token=refresh_token)
       audit('identity.link', 'user', user.id, user.user_name, meta={"provider": provider.id})
       db_session.commit()
       return redirect(safe_redirect_url(saved.get('next')))
@@ -98,8 +101,11 @@ def oidc_callback(provider_id=None):
         print(f"[sign-in] WARNING: could not look up {user.user_name} in LDAP: {type(e).__name__}")
     if is_login_restricted and not is_authorized_user({"user_name": user.user_name, "email": user.email, "data": user.data}):
       raise SignInError('not_allowed', f"{user.user_name} isn't allowed by the login rules of QABOARD_LOGIN_RESTRICTED_YAML")
-    finish_sign_in(user, provider.id, subject=claims['sub'], email=email, claims=claims,
-                   **({"idp_groups": groups} if isinstance(groups, list) else {}))
+    overage = groups_overage(claims)
+    if overage:
+      print(f"[sign-in] WARNING: {provider.id} sent no groups for {user.user_name}: they're in too many groups (Entra ID's overage). Send only the application's groups.")
+    finish_sign_in(user, provider.id, subject=claims['sub'], email=email, claims=claims, refresh_token=refresh_token,
+                   **({"idp_groups": groups} if isinstance(groups, list) else {}), **({"groups_overage": True} if overage else {}))
     if user.status == 'pending':
       # the sign-in page shows them their request
       next_url = safe_redirect_url(saved.get('next'))

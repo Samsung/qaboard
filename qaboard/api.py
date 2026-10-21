@@ -85,7 +85,7 @@ def print_auth_error(r, message="Failed to update QA-Board", ingest=False):
   if not first_time(f"{refused['reason']}: {refused['error']}"):
     return True
   click.secho(f"WARNING: {message}: {refused['error']}", fg='yellow', bold=True, err=True)
-  fix = None if ingest and is_ci else fix_for(refused, qa_token_source, ci=is_ci, project=project_name())
+  fix = None if ingest and is_ci and refused['reason'] != 'missing_role' else fix_for(refused, qa_token_source, ci=is_ci, project=project_name(), server=qaboard_url)
   if fix:
     click.secho(f"         {fix}", fg='yellow', err=True)
   return True
@@ -98,11 +98,11 @@ def exit_if_results_refused():
     return
   env_name = qa_token_source if qa_token_source in ('QABOARD_TOKEN', 'QA_TOKEN') else 'QABOARD_TOKEN'
   project = project_name()
-  click.secho(
-    f"ERROR: QA-Board refused the results ({results_refused['reason']}): they were not saved. "
-    f"Set {env_name} to a valid token with the ingest scope{f' for {project}' if project else ''}.",
-    fg='red', bold=True, err=True,
-  )
+  if results_refused['reason'] == 'missing_role':
+    fix = f"The user of {env_name} must be a developer of {results_refused.get('project') or project or 'the project'}."
+  else:
+    fix = f"Set {env_name} to a valid token with the ingest scope{f' for {project}' if project else ''}."
+  click.secho(f"ERROR: QA-Board refused the results ({results_refused['reason']}): they were not saved. {fix}", fg='red', bold=True, err=True)
   sys.exit(1)
 
 def url_to_dir(url: str) -> Path:

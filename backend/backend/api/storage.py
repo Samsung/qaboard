@@ -5,7 +5,6 @@ the deletions.
 
 Users delete only their own runs (Output.data.user), admins anyone's. Milestones and running runs are kept.
 """
-import os
 from collections import defaultdict
 
 from flask import request, jsonify, g
@@ -16,7 +15,9 @@ from ..audit import audit
 from .. import storage_usage as usage
 from ..jobs import queue
 from ..jobs.params import ParamsError
-from .auth import login_required, is_login_restricted, is_authorized_user
+from .auth import login_required
+from ..access import can, visibility_rules, yaml_key
+from ..settings import setting
 
 
 # Big deletions need users to type a confirmation
@@ -35,10 +36,16 @@ def is_admin() -> bool:
 
 
 def allowed_projects():
-  """None if users can see every project"""
-  if not is_login_restricted:
+  """None if users can see every project. Signed in, they see public and internal ones: only private ones are hidden."""
+  if is_admin():
     return None
-  return [p for (p,) in db_session.query(Project.id) if is_authorized_user(g.user, p)]
+  projects = [p for (p,) in db_session.query(Project.id)]
+  token = getattr(g.get('actor'), 'token', None)
+  maybe_hidden = (setting('projects.default_visibility') == 'private' or 'private' in visibility_rules().values()
+                  or (token is not None and token.projects))
+  if not maybe_hidden and not any(yaml_key(p) is not None for p in projects):
+    return None
+  return [p for p in projects if can('project.read', p)]
 
 
 def int_or_none(value, name):
@@ -89,7 +96,6 @@ def status() -> dict:
   return {
     "updated_at": usage.iso(usage.updated_at()),
     "building": queue.serialize_job(building) if building else None,
-    "quota_url_template": os.environ.get('QABOARD_QUOTA_URL_TEMPLATE'),
     "can_delete_others": is_admin(),
   }
 

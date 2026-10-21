@@ -26,6 +26,13 @@ QA-Board has two very different trust boundaries:
 
 Fixed on the default branch, after the `qaboard` 1.0.3 release:
 
+- Some project data could be read without checking who can see the project: a run's details and its manifest
+  (`GET /api/v1/output/<id>` and `/manifest`, which also wrote a file), a project's test groups, the commits of
+  milestones used as references, and files under `/s/` with tokens limited to other projects. They now follow
+  project roles.
+- `POST /api/v1/task/celery/<id>` didn't require a login, and waited forever for a Celery worker: it now requires
+  one, and gives up after 2 minutes.
+
 - Shell command injection in the "redo runs" and "tuning" features: values stored in the database (batch labels, paths, configurations, job options...) were put unquoted in shell scripts.
 - Shell command injection when stopping batches, through the stored runner options. Stopping Dask batches could also connect to any scheduler address; it now only connects to those listed in `QABOARD_DASK_SCHEDULERS`.
 - Missing authentication: redo, tuning and other actions could be used by anyone. They now require a logged-in user (or an API token), and jobs run as that user instead of a user name chosen by the client.
@@ -53,7 +60,7 @@ We know about the issues below. In the deployments maintained by the authors, th
 
 ### Results are sent to the server without authentication (by default)
 By default (`ingest.auth` is `off`), the `qa` CLI can send runs, batches and commits to `POST /api/v1/output`, `/api/v1/batch` and `/api/v1/commit` without authentication, so that it works from any CI or workstation. Results sent with a token record who really sent them; the others are shown as unverified. As a result, until you require tokens:
-- anyone who can reach the server can create or change results, and delete results (`qa optimize` deletes the previous best iteration's runs through `POST /api/v1/batch`);
+- anyone who can reach the server can create or change results, also in private projects, and delete results (`qa optimize` deletes the previous best iteration's runs through `POST /api/v1/batch`);
 - the output and artifacts folders stored with results can be any folder in the storage (`QABOARD_STORAGE_ROOTS`). Deleting results, and the cleanup scripts, delete files there, as the owner of the files when the server can switch users;
 - the reference branch's `qaboard.yaml` sent with a commit becomes the project's configuration. Its `recreate_artifacts` settings tell the server where to send a request (a webhook URL, a Jenkins job, a job of the project's own GitLab repository) when a logged-in user redoes runs on a commit whose artifacts are missing. GitLab and Jenkins credentials are only sent to the hosts configured on the server, but webhooks can target any address the server can reach (without following redirects);
 - results can point to an existing commit and replace its artifacts folder. Redo, tuning and "Run Tests" run code from that folder (its `.envrc` files and the project's entrypoint). They run as the logged-in user when an LSF bridge is configured, but listing the tests of a tuning group (`POST /api/v1/tests/group`, a logged-in user is needed) runs `qa batch --list` in the backend itself, as the server's user.
@@ -61,7 +68,7 @@ By default (`ingest.auth` is `off`), the `qa` CLI can send runs, batches and com
 Code that runs as the server's user can read its credentials (database, GitLab token, the ssh key of the LSF bridge...). If users can write in the storage, they can also change the `.envrc` files and the code that the server, CI and other users run from it.
 
 *Mitigations*: require tokens to send results (`ingest.auth` set to `token` in the admin panel, or `QABOARD_INGEST_AUTH=token`, after a period in `warn`); only expose the server to trusted networks; set `QABOARD_STORAGE_ROOTS` as narrowly as you can; make sure users can't write to the artifacts folders.
-*Planned*: project roles (who may send results to which project), and running the tests listing without access to the server's credentials.
+*Planned*: per-project ingest policies (signed-in senders already need the developer role), and running the tests listing without access to the server's credentials.
 
 ### Insecure defaults in `docker-compose.yml`
 - RabbitMQ is published on ports 5672/15672 with the `guest:guest` account. Celery workers run the shell commands given in the tasks they receive, so **anyone who can reach RabbitMQ can run commands on the workers**.
@@ -84,7 +91,6 @@ Without `QABOARD_WEBHOOK_SECRET`, anyone who can reach the server can send fake 
 
 ### Other
 - `POST /api/v1/webhook/proxy` lets logged-in users send any HTTP request to any URL from the server (SSRF), e.g. to internal services. It is used for the webhook integrations configured in `qaboard.yaml`.
-- `POST /api/v1/task/celery/<id>`, used by WebCDE, doesn't require a login, and waits without a deadline for a Celery worker.
 - Anyone who can reach the server can read the files it serves under `/s/`, unless you restrict them (see [user management](https://samsung.github.io/qaboard/docs/backend-admin/user-management#restricting-who-can-read-files)). Even then, the image server (IIIF, `/iiif/`) doesn't check permissions, and `docker-compose.yml` mounts the whole host filesystem in it (`/:/repository`): anyone who can reach it can read the images it can decode, anywhere on the host.
   *Mitigations*: mount only the storage folders in the image server's container, and don't expose `/iiif/` to untrusted networks.
 - The example WebDAV configuration (`services/nginx/webdav.conf`) lets anyone who can reach the server read, write and delete files, without QA-Board's checks. It is only enabled where a deployment includes it.

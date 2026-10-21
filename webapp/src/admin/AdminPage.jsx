@@ -8,6 +8,7 @@ import { PageShell, RequireLogin, ScrollingTabs } from "../components/PageShell"
 import { Overview } from "./Overview";
 import { Users } from "./Users";
 import { UserDetail } from "./UserDetail";
+import { Groups, GroupDetail } from "./Groups";
 import { AdminTokens } from "./Tokens";
 import { Audit } from "./Audit";
 import { Settings } from "./Settings";
@@ -21,6 +22,7 @@ import { accessRequestsQuery } from "./api";
 const sections = [
   { id: 'overview', title: 'Overview', icon: 'dashboard', Panel: Overview },
   { id: 'users', title: 'Users', icon: 'people', Panel: Users },
+  { id: 'groups', title: 'Groups', icon: 'inherited-group', Panel: Groups },
   { id: 'requests', title: 'Access requests', icon: 'endorsed', Panel: AccessRequests },
   { id: 'sign-in', title: 'Sign-in', icon: 'log-in', Panel: SignIn },
   { id: 'tokens', title: 'Tokens', icon: 'key', Panel: AdminTokens },
@@ -30,7 +32,7 @@ const sections = [
 ];
 
 // The tabs, and the selected one. Users waiting for an admin are counted on their tab.
-const AdminSections = ({ me, selected, user_id, job_id, history }) => {
+const AdminSections = ({ me, selected, user_id, group_id, job_id, history }) => {
   const { data: requests } = useQuery(accessRequestsQuery('pending', { background: true }));
   const nb_pending = requests?.length ?? 0;
   const { Panel } = selected;
@@ -52,7 +54,7 @@ const AdminSections = ({ me, selected, user_id, job_id, history }) => {
       </Tabs>
     </ScrollingTabs>
     <div style={{ marginTop: 20, minWidth: 0 }}>
-      {user_id ? <UserDetail id={user_id} me={me}/> : job_id ? <JobDetail id={job_id}/> : <Panel me={me}/>}
+      {user_id ? <UserDetail id={user_id} me={me}/> : group_id ? <GroupDetail id={group_id}/> : job_id ? <JobDetail id={job_id}/> : <Panel me={me}/>}
     </div>
   </>;
 };
@@ -60,12 +62,13 @@ const AdminSections = ({ me, selected, user_id, job_id, history }) => {
 export const AdminPage = () => {
   const { match, history } = useRouter();
   const user_id = match.params?.user_id;
+  const group_id = match.params?.group_id;
   const job_id = match.params?.job_id;
-  const section_id = user_id ? 'users' : job_id ? 'storage' : match.params?.section;
+  const section_id = user_id ? 'users' : group_id ? 'groups' : job_id ? 'storage' : match.params?.section;
   const selected = sections.find(section => section.id === section_id) ?? sections[0];
   return <PageShell title="Admin" wide>
     <RequireLogin what="administer QA-Board">
-      {me => !me.is_admin ? <NotAdmin/> : <AdminSections me={me} selected={selected} user_id={user_id} job_id={job_id} history={history}/>}
+      {me => !me.is_admin ? <NotAdmin/> : <AdminSections me={me} selected={selected} user_id={user_id} group_id={group_id} job_id={job_id} history={history}/>}
     </RequireLogin>
   </PageShell>;
 };

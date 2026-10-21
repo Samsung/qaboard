@@ -102,6 +102,15 @@ def revoke_all(user_id: int, except_id: Optional[int] = None) -> int:
   return query.update({"revoked_at": now}, synchronize_session=False)
 
 
+def revoke_provider(user_id: int, provider_id: str) -> int:
+  """Revokes the sessions a user started with a provider, e.g. when the IdP refuses their refresh token. The caller commits."""
+  from ..models import UserSession
+  now = utcnow()
+  query = UserSession.query.filter(UserSession.user_id == user_id, UserSession.provider_id == provider_id,
+                                   UserSession.revoked_at.is_(None), UserSession.expires_at > now)
+  return query.update({"revoked_at": now}, synchronize_session=False)
+
+
 def serialize(row, current_id=None) -> dict:
   return {
     "id": row.id,

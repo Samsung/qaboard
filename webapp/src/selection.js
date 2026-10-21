@@ -40,7 +40,8 @@ export const route_info = path => {
   const is_commits = ['project', 'commits', 'branch'].includes(name);
   const is_commit = ['commit', 'latest_commit'].includes(name);
   const is_history = ['history', 'history_branch', 'dashboard', 'dashboard_branch'].includes(name);
-  return { is_committer, is_commits, is_commit, is_history, is_list: is_commits || is_committer };
+  const is_access = name === 'access';
+  return { is_committer, is_commits, is_commit, is_history, is_access, is_list: is_commits || is_committer };
 };
 
 const decode = value => {

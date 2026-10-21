@@ -160,17 +160,14 @@ def test_restricted_project_key(auth, monkeypatch):
 
 
 def test_is_authorized_user(auth, monkeypatch):
+  """Without a project: the "login" rules. Projects' rules are checked by backend/access/ (integration_tests/test_access.py)"""
   monkeypatch.setattr(auth, "users_restrict_config", RESTRICTIONS)
-  alice = {"user_name": "alice", "email": "alice@example.com"}
   bob = {"user_name": "bob", "email": "bob@example.com"}
-  assert auth.is_authorized_user(alice, "secret/project")
-  assert not auth.is_authorized_user(bob, "secret/project")
-  assert auth.is_authorized_user(bob, "group/repo")
-  assert not auth.is_authorized_user(alice, "group/repo")
-  assert auth.is_authorized_user(alice, "group/open")
-  assert auth.is_authorized_user(alice, "public")
   # no "login" rules: anyone can sign in
   assert auth.is_authorized_user(bob)
+  monkeypatch.setattr(auth, "users_restrict_config", {"login": {"user_name": ["alice"]}})
+  assert not auth.is_authorized_user(bob)
+  assert auth.is_authorized_user({"user_name": "alice"})
 
 
 def test_matches_rules(auth):
@@ -196,9 +193,19 @@ def api_files(monkeypatch):
     "projects": {"group/repo": {"user_name": ["bob"]}},
   }
   monkeypatch.setattr(api_files, "restrictions", lambda section: config.get(section) or {})
-  monkeypatch.setattr(api_files, "restricted_project_dirs", lambda: {"/algo/group/repo": "group/repo", "/algo/outputs/{user}/group/repo": "group/repo"})
+  monkeypatch.setattr(api_files, "project_dirs", lambda: {"/algo/group/repo": {"group/repo"}, "/algo/outputs/{user}/group/repo": {"group/repo"}})
   monkeypatch.setattr(api_files, "matches_rules", lambda user_info, rules: user_info.get("user_name") in rules["user_name"])
   monkeypatch.setattr(api_files, "get_current_user", lambda to_jsonify: {"is_authenticated": False})
+  # group/repo is private, bob can see it (the roles are tested in integration_tests/test_access.py)
+  monkeypatch.setattr(api_files, "current_actor", lambda: None)
+  monkeypatch.setattr(api_files, "effective_visibility", lambda project_id: {"effective": "private" if project_id == "group/repo" else "public"})
+  def authorize(actor, permission, project_id):
+    from backend.access import Decision
+    user = api_files.get_current_user(to_jsonify=False)
+    if project_id != "group/repo" or user.get("user_name") == "bob":
+      return Decision(allowed=True, permission=permission, project_id=project_id)
+    return Decision(allowed=False, permission=permission, project_id=project_id, reason="missing_role" if user.get("is_authenticated") else "sign_in_required")
+  monkeypatch.setattr(api_files, "authorize", authorize)
   api_files.config = config
   return api_files
 
@@ -213,11 +220,11 @@ def status(response):
 
 def test_file_restriction(api_files):
   assert api_files.file_restriction("/algo/public/x") is None
-  assert api_files.file_restriction("/algo/secret/x")[0] == "the folder /algo/secret"
+  assert api_files.file_restriction("/algo/secret/x")[1] == "the folder /algo/secret"
   assert api_files.file_restriction("/algo/secret/shared/x") is None
-  assert api_files.file_restriction("/algo/group/repo/commit/output")[0] == "the project group/repo"
+  assert api_files.file_restriction("/algo/group/repo/commit/output")[:2] == ("projects", "the project group/repo")
   # outputs saved per user, with storage.outputs: /algo/outputs/{user}
-  assert api_files.file_restriction("/algo/outputs/alice/group/repo/commit/output")[0] == "the project group/repo"
+  assert api_files.file_restriction("/algo/outputs/alice/group/repo/commit/output")[2] == {"group/repo"}
   assert api_files.file_restriction("/algo/outputs/alice/other/repo/commit/output") is None
 
 
@@ -237,6 +244,7 @@ def test_check_read_access(api_files, dummy_app, monkeypatch):
 
 def test_check_read_access_without_restrictions(api_files, dummy_app, monkeypatch):
   monkeypatch.setattr(api_files, "restrictions", lambda section: {})
+  monkeypatch.setattr(api_files, "project_dirs", lambda: {})
   get_current_user = MagicMock()
   monkeypatch.setattr(api_files, "get_current_user", get_current_user)
   with dummy_app.test_request_context("/"):
@@ -351,12 +359,10 @@ def test_run_of_folder(api_files, dummy_app, monkeypatch):
   assert run("/algo/secret/run")[1] == 401
 
 
-def test_restricted_project_dirs(api_files, monkeypatch):
+def test_project_dirs(api_files, monkeypatch):
   import backend.api.files as module
-  monkeypatch.undo() # the real restricted_project_dirs
+  monkeypatch.undo() # the real project_dirs
   monkeypatch.setattr(module, "_project_dirs", {"expires": 0.0, "dirs": {}})
-  monkeypatch.setattr(module, "restrictions", lambda section: {"projects": {"group": {"user_name": ["bob"]}}}.get(section, {}))
-  monkeypatch.setattr(module, "restricted_project_key", lambda project: "group" if project.startswith("group") else None)
   def project(id, outputs, artifacts):
     p = MagicMock()
     p.id = id
@@ -370,13 +376,16 @@ def test_restricted_project_dirs(api_files, monkeypatch):
   ]
   monkeypatch.setattr(module.Project, "query", MagicMock())
   module.Project.query.all.return_value = projects
-  expected = {"/algo/outputs/group/repo": "group", "/algo/artifacts/group/repo": "group"}
-  assert module.restricted_project_dirs() == expected
+  # sub-projects share their repository's folders
+  group = {"group/repo", "group/repo/subproject"}
+  expected = {"/algo/outputs/group/repo": group, "/algo/artifacts/group/repo": group,
+              "/algo/outputs/other/repo": {"other/repo"}, "/algo/artifacts/other/repo": {"other/repo"}}
+  assert module.project_dirs() == expected
   # Folders per user stay patterns, see test_folder_for
   projects[0].storage_roots.assert_called_with(user_name="{user}")
   # cached
   module.Project.query.all.return_value = []
-  assert module.restricted_project_dirs() == expected
+  assert module.project_dirs() == expected
 
 
 # ==========================================
@@ -447,7 +456,7 @@ def test_unix_account(monkeypatch):
 def test_check_read_access_unix_permissions(api_files, dummy_app, monkeypatch, home):
   api_files.config["paths"] = {}
   api_files.config["projects"] = {}
-  monkeypatch.setattr(api_files, "restricted_project_dirs", lambda: {})
+  monkeypatch.setattr(api_files, "project_dirs", lambda: {})
   monkeypatch.setattr(api_files, "files_unix_permissions_roots", [str(home)])
   me = UnixAccount(uid=os.getuid(), gids=frozenset())
   stranger = UnixAccount(uid=os.getuid() + 12345, gids=frozenset())

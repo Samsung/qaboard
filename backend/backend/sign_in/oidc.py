@@ -3,6 +3,9 @@ OpenID Connect, Authorization Code + PKCE, confidential client, handled by the b
 sees the IdP's tokens. The handshake (state, nonce, PKCE verifier) waits in the session cookie for 10 minutes.
 
 The ID token is checked with joserfc: signature (the IdP's JWKS, never `alg: none`), issuer, audience, expiry, nonce.
+
+Providers with `refresh_groups` also ask for `offline_access`: the daily group sync uses the refresh token to read
+users' claims again (refresh_claims), and stops their QA-Board sessions when the IdP refuses it.
 """
 import time
 import base64
@@ -38,6 +41,10 @@ class SignInError(Exception):
     super().__init__(detail)
     self.code = code
     self.detail = detail
+
+
+class RefreshRefused(Exception):
+  """The IdP refused a refresh token (invalid_grant): revoked, expired, or the user was disabled"""
 
 
 def _get_json(url: str, what: str) -> dict:
@@ -107,13 +114,20 @@ def authorization_url(provider: Provider, callback_url: str, next_url: Optional[
     "response_type": "code",
     "client_id": provider.config['client_id'],
     "redirect_uri": callback_url,
-    "scope": ' '.join(provider.config.get('scopes') or ['openid', 'profile', 'email']),
+    "scope": ' '.join(scopes(provider)),
     "state": state,
     "nonce": nonce,
     "code_challenge": pkce_challenge(verifier),
     "code_challenge_method": "S256",
   }
   return f"{document['authorization_endpoint']}?{urlencode(params)}"
+
+
+def scopes(provider: Provider) -> list:
+  found = list(provider.config.get('scopes') or ['openid', 'profile', 'email'])
+  if provider.config.get('refresh_groups') and 'offline_access' not in found:
+    found.append('offline_access')
+  return found
 
 
 def handshake(provider_id: Optional[str], state: Optional[str]) -> dict:
@@ -128,11 +142,10 @@ def handshake(provider_id: Optional[str], state: Optional[str]) -> dict:
   return saved
 
 
-def exchange_code(provider: Provider, code: str, saved: dict) -> dict:
-  """The code for tokens, server-to-server. Returns the ID token's claims (and userinfo's, for missing claims)."""
-  document = metadata(provider)
+def token_request(provider: Provider, document: dict, data: dict):
+  """POSTs to the token endpoint, with the client's credentials"""
   secret = provider.client_secret()
-  data = {"grant_type": "authorization_code", "code": code, "redirect_uri": saved['redirect_uri'], "code_verifier": saved['verifier']}
+  data = dict(data)
   auth = None
   methods = document.get('token_endpoint_auth_methods_supported') or ['client_secret_basic']
   if secret and 'client_secret_basic' in methods:
@@ -140,16 +153,29 @@ def exchange_code(provider: Provider, code: str, saved: dict) -> dict:
   else:
     data.update(client_id=provider.config['client_id'], **({"client_secret": secret} if secret else {}))
   try:
-    response = requests.post(document['token_endpoint'], data=data, auth=auth, timeout=TIMEOUT, headers={"Accept": "application/json"})
+    return requests.post(document['token_endpoint'], data=data, auth=auth, timeout=TIMEOUT, headers={"Accept": "application/json"})
   except Exception as e:
     raise SignInError('sso_unavailable', f"Could not reach the token endpoint: {type(e).__name__}: {e}")
+
+
+def error_of(response):
+  """(error code, detail) of a refused token request"""
+  try:
+    error = response.json()
+    return error.get('error'), f"{error.get('error')}: {error.get('error_description', '')}"
+  except Exception:
+    return None, response.text[:300]
+
+
+def exchange_code(provider: Provider, code: str, saved: dict):
+  """
+  The code for tokens, server-to-server. Returns the ID token's claims (and userinfo's, for missing claims), and the
+  refresh token if the IdP sent one.
+  """
+  document = metadata(provider)
+  response = token_request(provider, document, {"grant_type": "authorization_code", "code": code, "redirect_uri": saved['redirect_uri'], "code_verifier": saved['verifier']})
   if response.status_code != 200:
-    try:
-      error = response.json()
-      detail = f"{error.get('error')}: {error.get('error_description', '')}"
-    except Exception:
-      detail = response.text[:300]
-    raise SignInError('sso_failed', f"The IdP refused the code ({response.status_code}): {detail}")
+    raise SignInError('sso_failed', f"The IdP refused the code ({response.status_code}): {error_of(response)[1]}")
   tokens = response.json()
   if not tokens.get('id_token'):
     raise SignInError('sso_misconfigured', "The IdP sent no ID token: is `openid` in the scopes?")
@@ -157,10 +183,34 @@ def exchange_code(provider: Provider, code: str, saved: dict) -> dict:
   missing = [provider.claim(name) for name in ('username', 'email', 'name') if provider.claim(name) not in claims]
   if missing and tokens.get('access_token') and document.get('userinfo_endpoint'):
     claims = {**userinfo(document['userinfo_endpoint'], tokens['access_token'], claims['sub']), **claims}
-  return claims
+  return claims, tokens.get('refresh_token')
 
 
-def verify_id_token(provider: Provider, id_token: str, nonce: str) -> dict:
+def refresh_claims(provider: Provider, subject: str, refresh_token: str):
+  """
+  The user's claims now, with a refresh token: the new ID token's, else userinfo's. Returns them and the refresh token
+  to keep (IdPs may rotate it). Raises RefreshRefused when the IdP refuses it, SignInError when it can't answer.
+  """
+  document = metadata(provider)
+  response = token_request(provider, document, {"grant_type": "refresh_token", "refresh_token": refresh_token})
+  if response.status_code != 200:
+    code, detail = error_of(response)
+    if code in ('invalid_grant', 'unauthorized_client'):
+      raise RefreshRefused(detail)
+    raise SignInError('sso_unavailable', f"The IdP didn't refresh the token ({response.status_code}): {detail}")
+  tokens = response.json()
+  claims = verify_id_token(provider, tokens['id_token'], nonce=None) if tokens.get('id_token') else {}
+  if tokens.get('access_token') and document.get('userinfo_endpoint'):
+    claims = {**userinfo(document['userinfo_endpoint'], tokens['access_token'], subject), **claims}
+  if not claims:
+    raise SignInError('sso_misconfigured', "The IdP refreshed the token without an ID token, and userinfo said nothing")
+  if claims.get('sub') != subject:
+    raise RefreshRefused(f"The refreshed claims are for {claims.get('sub')!r}, not {subject!r}")
+  return claims, tokens.get('refresh_token') or refresh_token
+
+
+def verify_id_token(provider: Provider, id_token: str, nonce: Optional[str]) -> dict:
+  """`nonce`: the sign-in's. None for refreshed ID tokens, that don't need one (OIDC Core 12.2)."""
   from joserfc import jwt
   from joserfc.jwk import KeySet
   from joserfc.errors import JoseError
@@ -183,7 +233,7 @@ def verify_id_token(provider: Provider, id_token: str, nonce: str) -> dict:
     iss={"essential": True, "value": document['issuer']},
     sub={"essential": True},
     exp={"essential": True},
-    nonce={"essential": True, "value": nonce},
+    **({"nonce": {"essential": True, "value": nonce}} if nonce is not None else {}),
   )
   try:
     registry.validate(claims)

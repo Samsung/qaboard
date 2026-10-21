@@ -2,7 +2,7 @@
 What jobs can do. Each kind validates its parameters, describes them, and runs, reporting to a Reporter.
 To add a kind: a module with validate(params) -> params, describe(params) -> str, run(params, report), listed here.
 """
-from . import hard_delete, garbage_collect, artifacts, usage, delete_runs
+from . import hard_delete, garbage_collect, artifacts, usage, delete_runs, groups
 
 
 KINDS = {
@@ -11,6 +11,7 @@ KINDS = {
   'delete_artifacts': artifacts,
   'storage_usage': usage,
   'delete_runs': delete_runs,
+  'sync_groups': groups,
 }
 
 LABELS = {
@@ -19,6 +20,7 @@ LABELS = {
   'delete_artifacts': 'Delete artifacts',
   'storage_usage': 'Compute storage usage',
   'delete_runs': "Delete users' runs",
+  'sync_groups': "Update users' groups",
 }
 
 # Kinds run in the worker's interactive lane, next to the long maintenance jobs: users wait for them

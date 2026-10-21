@@ -524,7 +524,7 @@ All additive. They keep the conventions: one alembic revision per milestone step
 | **M3** | **Authorization**: roles, grants, groups and rules (LDAP and SSO), visibility with inheritance, `authorize()` on every endpoint, Access tab, YAML import, project access requests | Owners manage who can see or upload, from the web app | 3-4 sessions |
 | **M4** | **Namespaces and organizations**: personal namespaces, orgs, service accounts, project creation policy, repository links | "Create an organization", your first runs land under your name, org CI tokens | 2-3 sessions |
 | **M5** | **CI and ingest trust**: `QABOARD_INGEST_AUTH` per project, OIDC token exchange for GitHub and GitLab, token expiry emails, rate limits | CI uploads with no secret, owners can require verified runs | 2 sessions |
-| **M6** | **Enterprise and cloud**: SCIM, scheduled LDAP sync, MFA/passkeys and email verification for local accounts, audit streaming and retention, admin "act as", git member import, account deletion and export | Ready for a public instance | ongoing |
+| **M6** | **Enterprise and cloud**: SCIM, MFA/passkeys and email verification for local accounts, audit streaming and retention, admin "act as", git member import, account deletion and export | Ready for a public instance | ongoing |
 
 Plans and billing stay out of scope. Namespaces (M4) are where they would attach (`namespaces.data.entitlements`),
 and nothing above assumes one tenant per server.
@@ -866,3 +866,129 @@ the sign-in audit event, never used for access (M3 decides with group rules).
   `CA_CERT_URL`: certifi's doesn't.
 - **Docs**: [Sign-in and single sign-on](/docs/backend-admin/sign-in) on the website, `deployments/sirc/runbooks/sso.md`
   for SIRC's Keycloak.
+
+## Appendix D: M3, authorization (plan and API)
+Owners decide who can see a project and who can upload or act on its runs, from the web app. **Nothing changes on
+upgrade**: today's behaviour is what the defaults say (projects public unless the YAML restricts them, everyone signed
+in is a developer everywhere), and admins tighten it when owners are in place.
+
+### D.1 Roles and permissions
+One table in code, `backend/access/policy.py`:
+
+| Permission | viewer | developer | owner | token scope |
+|---|:-:|:-:|:-:|---|
+| `project.read` | ✓ | ✓ | ✓ | read |
+| `runs.ingest` | | ✓ | ✓ | ingest |
+| `runs.act` (redo, stop, rename, move, delete batches and runs, tuning, exports, save artifacts) | | ✓ | ✓ | act |
+| `milestones.write` | | ✓ | ✓ | act |
+| `project.access` (visibility, members, requests) | | | ✓ | act |
+
+Instance admins are owners everywhere (the API says `"via": "admin"`). Roles are ordered levels: `maintainer` can be
+added between developer and owner later without a migration.
+
+### D.2 Who has which role on `a/b/c`
+The highest of:
+- **Grants**, `role_grants(subject_type user|group, subject_id, resource_type instance|project, resource_id, role,
+  source, granted_by_id, granted_at, expires_at)`. A project grant's `resource_id` is a project id **or a prefix**,
+  matched by path segments: a grant on `a/b` applies to `a/b` and `a/b/c`, not to `a/bc`. That covers GitLab groups
+  before M4's namespaces. Expired grants are ignored.
+- **Groups** the user is in.
+- **Visibility**: `public` projects give viewer to anyone (anonymous too, when the server lets anonymous users in),
+  `internal` ones nothing to anonymous users; both give signed-in users `projects.signed_in_role` (setting: viewer or
+  developer, default developer: today, any signed-in user can redo or delete). `private` projects give nothing: only
+  grants count. A project's effective visibility is the most restrictive of the rules on it and on its prefixes
+  (`project_visibility(path, visibility)`); without any, `projects.default_visibility` (setting, default `public`:
+  today's behaviour).
+- **The YAML file**, while it's there: a project matched by `projects:` in `QABOARD_LOGIN_RESTRICTED_YAML` is
+  private, and the users its rules match are developers on it. Exactly today's behaviour; grants add to it.
+- Tokens never have more than their user, their scopes and their project patterns allow.
+
+No seed rows: the defaults are settings. The admin overview recommends `projects.signed_in_role: viewer` once
+projects have owners. (A seeded instance grant `everyone → developer` would have overridden `private`.)
+
+### D.3 Groups and rules
+- No built-in groups: "everyone signed in" is `projects.signed_in_role`.
+- `groups(id, name, description, created_at)`, `group_members(group_id, user_id, source manual|rule, added_by_id,
+  added_at)`, `group_rules(group_id, provider_id or null for any, claim, values)`.
+- **Rules are evaluated at each sign-in** from the identity's claims: an OIDC claim (`groups`), an LDAP attribute
+  (`memberOf`), a SAML attribute, or `email_domain`. Values match case-insensitively; a list claim matches when any
+  element does. The sign-in replaces the user's `rule` memberships; `manual` ones are kept.
+- Memberships from rules are updated at sign-in, when rules change, and daily (LDAP lookups, OIDC refresh tokens). Disabling a user is immediate.
+
+### D.4 Enforcement
+- `access.authorize(actor, permission, project_id) -> Decision(allowed, role, via, reason, required)` is the only
+  check. `require_project_access`, `is_authorized_user(..., project)` and `ingest_access` call it.
+- **403 body** (`reason: missing_role`): `{"error", "reason", "required": "developer", "project", "owners": [...],
+  "can_request": true}`. Owners are listed only to signed-in users.
+- **Ingest** (`qa run`, `qa batch`): a signed-in sender without `runs.ingest` is refused with `ingest.auth=token`, and
+  saved as unverified otherwise (as today for anonymous senders). Per-project ingest policies are M5.
+- **Files** under `/s/`: the storage folders of projects that aren't public are protected like the YAML's restricted
+  projects (`restricted_project_dirs`), and readers need `project.read`. Tokens' project patterns apply to files too.
+- **Holes closed**: `GET /output/<id>` and `/manifest` (no check, and the manifest wrote on GET), `GET /tests/groups`,
+  milestone references in comparisons, Jenkins triggers (no auth).
+- **Tests**: an integration matrix runs every project endpoint as an outsider, a viewer and a developer on a private
+  project, and `test_security.py` checks every route declares a policy.
+
+### D.5 API
+Project access (`project` is an id or a prefix; managing needs `project.access`):
+- `GET /api/v1/project/access?project=a/b` → `{project, my_role, via, can_manage, visibility: {own, effective,
+  inherited_from, default}, owners: [{type, id, name}], grants: [{id, subject: {type, id, name, full_name},
+  role, resource_id, inherited, source, expires_at, granted_by, granted_at}], requests: [...] (managers)}`.
+  Non-managers see their role and the owners, not the grants.
+- `POST /api/v1/project/access/visibility` `{project, visibility: public|internal|private|null}` (null: inherit).
+- `POST /api/v1/project/access/grants` `{project, subject: {type: user|group, id}, role, expires_at?}` → the grant.
+  Same subject and resource: updates the role.
+- `DELETE /api/v1/project/access/grants/<id>`. An owner can't remove the last owner grant of a project (unless admin).
+- `POST /api/v1/project/access/requests` `{project, role, message}` (signed in) → the request; one pending per user
+  and project. Owners get an email, the user an email when decided.
+- `POST /api/v1/project/access/requests/<id>` `{decision: approve|deny, role?}` (managers): approving grants the role.
+- `GET /api/v1/directory?q=` (signed in) → `{users: [{id, user_name, full_name}], groups: [{id, name}]}`, 10 each,
+  for the member picker.
+
+Admin (`/api/v1/admin/...`, admins):
+- `groups` GET (with member and rule counts), POST `{name, description}`; `groups/<id>` GET (members, rules),
+  POST, DELETE; `groups/<id>/members` POST `{user_id}`, `groups/<id>/members/<user_id>` DELETE;
+  `groups/<id>/rules` POST `{provider_id?, claim, values}`, `groups/<id>/rules/<rule_id>` DELETE.
+- `grants?resource_type=instance` GET, POST `{subject, role}`, `grants/<id>` DELETE: roles on all projects for a user
+  or a group (e.g. the QA team as viewers), private ones included.
+- The overview's checklist flags `projects.signed_in_role: developer` and projects without owners.
+
+Audit: `grant.create|update|delete`, `visibility.update`, `group.*`, `group_member.*`, `group_rule.*`,
+`access_request.*` with the project.
+
+### D.6 Web app
+- **Project → Access** (`/<project>/access`, in the project's sidebar): visibility (managers change it, inherited
+  values say from where), members with role, source, inherited-from and expiry, add a user or group, pending requests.
+  Others see their role, the owners, and **Request access**.
+- **403 on a project page**: "You don't have access to a/b", the owners, and Request access.
+- **Admin → Groups**: groups, members, rules (with the claims of recent sign-ins as hints). **Admin → Overview**:
+  the roles on all projects, `projects.signed_in_role`, and the recommendations.
+- The CLI's 403s say whom to ask: "Ask an owner of a/b for the developer role: <url>/a/b/access".
+
+### D.7 Later in M3
+- **YAML import** (`qaboard-admin import-restrictions`): `projects:` keys become private visibility and grants,
+  `data:` rules become groups with rules, `login:` stays a sign-in rule.
+- `auth.reauthenticate_after` for SSO sessions.
+
+### D.8 As built (2026-10-21)
+- **No seed grant**: an instance grant `everyone → developer` would have overridden `private`. The baseline is
+  `projects.signed_in_role` instead, which only applies to public and internal projects. No built-in groups.
+- **Files**: every project's storage folders are mapped (cached 5 minutes, for new projects); visibility and roles
+  are checked live, so making a project private protects its files at once. Public projects read without a token
+  skip loading grants: nginx asks for each file.
+- **Checks**: `login_required`'s `?project=` needs `project.read`; endpoints that change runs call
+  `require_project_access`, which defaults to `runs.act`. `test_security.py` fails for a route that loads projects,
+  runs, batches, commits or milestones without a check (an allow-list says why for the others).
+- **Found on the way**: changing, deleting or redoing a run only checked that the user could see the project, tuning
+  and exports needed nothing more than reading, the run and manifest GETs had no check (the manifest one wrote a file).
+- **Jenkins**: the CLI's Jenkins runner triggers builds without a user, so `jenkins/build/trigger` stays as it was
+  without a project; the web app sends the project, and then needs a developer.
+- **Groups' updates** (`jobs/groups.py`, the *Users' groups* schedule): daily and when rules change. LDAP: one lookup
+  per account on one connection (not a scan of the groups: it works with any user filter, and reads names and emails
+  too), `memberOf` or `QABOARD_LDAP_GROUP_ATTRIBUTES`, AD nested groups on request; over 20% of accounts not found
+  changes nothing. OIDC, opt-in per provider (`refresh_groups`): `offline_access`, refresh tokens encrypted on
+  `user_identities`, `invalid_grant` forgets the identity's claims and revokes its sessions. Rules read each sign-in
+  method's last claims (`identity.claims`, the directory's under `ldap`): one method doesn't undo another's groups.
+  The LDAP search only fetched `cn` and `mail` before: `memberOf` rules could never match.
+- **Not yet** (D.7): the YAML import (left to admins), `auth.reauthenticate_after`, the GitLab job endpoints' mapping
+  to projects, SCIM (M6: push-based, instead of daily pulls).

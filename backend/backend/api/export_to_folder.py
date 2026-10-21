@@ -155,8 +155,11 @@ def commonprefix(m):
 def export_to_folder():
   project_id = request.args['project']
   ref_project_id = request.args.get('ref_project', project_id)
-  # login_required checked `project`: the reference's runs are linked in the export too
-  if ref_project_id != project_id and (forbidden := require_project_access(g.user, ref_project_id)):
+  # it creates links or copies in a folder: an action on the project's runs
+  if forbidden := require_project_access(g.user, project_id):
+    return forbidden
+  # the reference's runs are linked in the export too
+  if ref_project_id != project_id and (forbidden := require_project_access(g.user, ref_project_id, 'project.read')):
     return forbidden
 
   new_commit_id = request.args['new_commit_id']

@@ -82,3 +82,18 @@ def test_identities_are_backfilled(alembic, make_user, client):
   rows = sql("SELECT u.user_name, i.provider_id, i.subject FROM user_identities i JOIN users u ON u.id = i.user_id ORDER BY u.user_name")
   assert rows == [('alice', 'local', 'alice'), ('bob', 'ldap', 'bob')]
   assert client.post('/api/v1/user/auth/', data={"username": "alice", "password": "password"}).status_code == 200
+
+
+def test_roles_groups_and_visibility(alembic, make_user, client):
+  """Additive: the tables come and go, existing access requests keep working, nothing is seeded"""
+  make_user('alice')
+  alembic('downgrade', 'b8c0d2e4f6a8')
+  assert not sql("SELECT 1 FROM information_schema.tables WHERE table_name = 'role_grants'")
+  assert 'resource_id' not in {r[0] for r in sql("SELECT column_name FROM information_schema.columns WHERE table_name = 'access_requests'")}
+  sql("INSERT INTO access_requests (user_id, kind, message, status, created_at) VALUES (1, 'instance', 'hi', 'pending', now())")
+  alembic('upgrade', 'head')
+  for table in ('groups', 'group_members', 'group_rules', 'role_grants', 'project_visibility'):
+    assert sql("SELECT 1 FROM information_schema.tables WHERE table_name = :table", table=table), table
+  assert sql("SELECT count(*) FROM role_grants")[0][0] == 0
+  assert sql("SELECT kind, resource_id, role FROM access_requests") == [('instance', None, None)]
+  assert client.post('/api/v1/user/auth/', data={"username": "alice", "password": "password"}).status_code == 200

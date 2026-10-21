@@ -72,7 +72,8 @@ Users who already have an account (LDAP, local) don't get a new one by default: 
 | `QABOARD_OIDC_USERNAME_CLAIM` | `preferred_username` | The claim with the user name, e.g. `samaccountname` with Active Directory |
 | `QABOARD_OIDC_EMAIL_CLAIM` | `email` | |
 | `QABOARD_OIDC_NAME_CLAIM` | `name` | |
-| `QABOARD_OIDC_GROUPS_CLAIM` | `groups` | Recorded in the audit log at each sign-in, never used for access |
+| `QABOARD_OIDC_GROUPS_CLAIM` | `groups` | Recorded in the audit log at each sign-in. [Group rules](/docs/backend-admin/project-access#groups) can read any claim |
+| `QABOARD_OIDC_REFRESH_GROUPS` | `false` | `true` reads users' claims again every day, with refresh tokens (needs `QABOARD_ENCRYPTION_KEY`, see [groups](/docs/backend-admin/project-access#groups)) |
 | `QABOARD_OIDC_REDIRECT_URI` | `$QABOARD_URL/api/v1/auth/oidc/callback` | Only if the IdP has another URI registered for QA-Board |
 
 </details>

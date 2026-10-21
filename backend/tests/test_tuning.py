@@ -178,6 +178,8 @@ def batches_setup(tmp_path, monkeypatch):
     monkeypatch.setattr(tuning, "CiCommit", ci_commit)
     monkeypatch.setattr(tuning, "Project", MagicMock(get_or_create=MagicMock(return_value=project)))
     monkeypatch.setattr(tuning, "qaboard_data_shared_dir", tmp_path / "shared")
+    # listing tests needs the developer role (tested in integration_tests/test_access.py)
+    monkeypatch.setattr(tuning, "require_project_access", lambda *args, **kwargs: None)
     return SimpleNamespace(commit=commit, config=config, artifacts=artifacts, database=database, tmp_path=tmp_path)
 
 

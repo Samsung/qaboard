@@ -133,7 +133,8 @@ def test_login_required_allows_logged_in_users(auth, dummy_app, monkeypatch):
 def test_login_required_checks_project_permissions(auth, dummy_app, monkeypatch):
   monkeypatch.setattr(auth, "get_current_user", lambda to_jsonify: {"is_authenticated": True, "user_name": "arthurf"})
   monkeypatch.setattr(auth, "is_login_restricted", True)
-  monkeypatch.setattr(auth, "is_authorized_user", lambda user_info, project: project != "secret")
+  monkeypatch.setattr(auth, "users_restrict_config", {"projects": {"secret": {"user_name": ["alice"]}}})
+  fake_access(monkeypatch, auth)
   handler = MagicMock(return_value="OK")
   with dummy_app.test_request_context("/api/v1/commit/abc/batch?project=secret", method="POST"):
     response, status = auth.login_required(handler)()
@@ -188,7 +189,24 @@ def restricted(auth, monkeypatch):
     "group/B": {"user_name": ["bob"]},
   }})
   monkeypatch.setattr(auth, "get_current_user", lambda to_jsonify: {"is_authenticated": True, "user_name": "alice"})
+  fake_access(monkeypatch, auth)
   return auth
+
+
+def fake_access(monkeypatch, auth):
+  """
+  backend/access/ decides from the database (integration_tests/test_access.py): here, like the YAML of `auth` says,
+  the users its rules match are developers of its projects, the other projects are open to everyone
+  """
+  import backend.access as access
+  def authorize(actor, permission, project_id):
+    key = auth.restricted_project_key(project_id) if project_id else None
+    rules = auth.restrictions('projects').get(key) if key else None
+    allowed = not (auth.is_login_restricted and rules) or auth.matches_rules(auth.get_current_user(to_jsonify=False), rules)
+    return access.Decision(allowed=allowed, permission=permission, project_id=project_id, role='developer' if allowed else None,
+                           reason=None if allowed else 'missing_role', required=access.required_role(permission))
+  monkeypatch.setattr(access, "authorize", authorize)
+  monkeypatch.setattr(access, "owners", lambda project_id: [])
 
 
 @pytest.fixture
@@ -229,7 +247,8 @@ def test_batch_changes_check_the_batch_project(batch_api, restricted, dummy_app,
       response = handler(**args)
     assert status_of(response) == expected_status, project
     if expected_status == 403:
-      assert response[0].get_json() == {"error": "Forbidden: You don't have permission to access this project", "reason": "forbidden_project"}
+      refusal = response[0].get_json()
+      assert refusal["reason"] == "missing_role" and refusal["project"] == "group/B" and refusal["required"] == "developer"
       assert batch.changed == []
     else:
       assert action in batch.changed
@@ -400,14 +419,12 @@ UNAUTHENTICATED_ENDPOINTS = {
   ("sign_in.py", "my_access_request"),
   # the CLI sends results, checked by ingest_access: anonymous unless ingest.auth is "token" (see "Known issues" in SECURITY.md)
   ("outputs.py", "new_output_webhook"), ("batch.py", "update_batch"), ("commit.py", "api_ci_commit"),
-  # the CLI's Jenkins runner triggers builds (anonymous unless sign-in is required)
+  # the CLI's Jenkins runner triggers builds (anonymous unless sign-in is required). With a project (the web app): developers
   ("integrations.py", "jenkins_build_trigger"),
   # read-only, POST is only used to send parameters
   ("integrations.py", "gitlab_job"), ("integrations.py", "jenkins_build"), ("integrations.py", "github_workflow_run"),
   # checks the login itself when writing
   ("tuning.py", "groups"),
-  # FIXME: WebCDE calls it, we don't know yet if it can send credentials (TODO_WARTS.md "Celery task endpoint")
-  ("tasks.py", "task_celery"),
   # authenticated with the git host's webhook secret (QABOARD_WEBHOOK_SECRET by default)
   ("webhooks.py", "gitlab_webhook"), ("webhooks.py", "github_webhook"), ("webhooks.py", "gitea_webhook"), ("webhooks.py", "bitbucket_webhook"),
 }
@@ -471,7 +488,7 @@ def c(): pass
 
 def test_admin_endpoints_require_admins():
   for path, node in api_functions():
-    if path.name == "admin.py" and route_methods(node):
+    if path.name in ("admin.py", "admin_sign_in.py", "admin_access.py") and route_methods(node):
       assert "admin_required" in {ast.unparse(d) for d in node.decorator_list}, node.name
 
 
@@ -1195,3 +1212,41 @@ def test_auth_module_defines_each_name_once():
   tree = ast.parse((Path(__file__).parent.parent / "backend" / "api" / "auth.py").read_text())
   names = [node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.ClassDef))]
   assert sorted({n for n in names if names.count(n) > 1}) == []
+
+
+# Routes that mention projects without calling one of PROJECT_CHECKS, and why
+PROJECT_CHECKS = {
+  "is_authorized_user", "require_project_access", "forbidden_project", "ingest_access", "can", "authorize", "may_manage",
+  "get_milestone", "check_read_access", "readable_file", "_video_path", "github_workflow",
+}
+UNCHECKED_PROJECT_ROUTES = {
+  # admins: admin_required
+  ("admin.py", "admin_audit"), ("admin_access.py", "admin_grants"), ("admin_access.py", "admin_delete_grant"),
+  ("admin_jobs.py", "admin_estimate_job"), ("admin_jobs.py", "admin_jobs_projects"), ("admin_jobs.py", "admin_job_errors"),
+  ("admin_jobs.py", "admin_job_errors_csv"),
+  # storage usage: filters_from limits them to the projects users can read (allowed_projects), and users only
+  # delete their own runs. Their deletions' errors are about their own runs.
+  ("storage.py", "storage_overview"), ("storage.py", "storage_delete"), ("storage.py", "storage_job_errors"),
+  # asking for access works without access (role_of tells what they have)
+  ("access.py", "request_project_access"),
+  # "project" is a word in their answers, not a project they read
+  ("auth.py", "get_current_user"), ("sign_in.py", "my_access_request"), ("tokens.py", "new_token"),
+  # GitLab project ids, not QA-Board projects (TODO_WARTS.md)
+  ("integrations.py", "gitlab_job"), ("integrations.py", "gitlab_play_manual_job"),
+  # login_required checks ?project=, the only project it reads
+  ("tuning.py", "check_tuning"),
+}
+
+
+def test_routes_that_touch_projects_check_access():
+  """Every route that mentions a project calls a check of backend/access/ (or one that does): new routes can't forget"""
+  missing = []
+  for path, node in api_functions():
+    source = ast.unparse(node)
+    # projects, or what belongs to one
+    if not route_methods(node) or not any(word in source for word in ("project", "Output", "Batch", "CiCommit", "Milestone")):
+      continue
+    calls = {getattr(n.func, 'id', getattr(n.func, 'attr', None)) for n in ast.walk(node) if isinstance(n, ast.Call)}
+    if not calls & PROJECT_CHECKS and (path.name, node.name) not in UNCHECKED_PROJECT_ROUTES:
+      missing.append(f"{path.name}:{node.name}")
+  assert not missing, f"These routes touch projects without checking access (backend/access/): {missing}"

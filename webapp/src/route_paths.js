@@ -12,6 +12,8 @@ export const route_paths = {
   history: "/:project_id+/history",
   // links to milestones: /<project>/milestone/<id>-<label>
   milestone: "/:project_id+/milestone/:name+",
+  // who can see and change the project
+  access: "/:project_id+/access",
   project: "/:project_id+",
 };
 
@@ -20,10 +22,12 @@ export const route_paths = {
 export const app_paths = {
   settings: "/settings/:tab(profile|preferences|sign-in|sessions|tokens|cli|activity)?",
   admin_user: "/admin/users/:user_id(\\d+)",
+  // group ids: whatever the server uses
+  admin_group: "/admin/groups/:group_id",
   admin_job: "/admin/storage/jobs/:job_id(\\d+)",
   // how much storage runs use, and deleting their files
   storage: "/storage/:view(projects|batches|commits|branches|folders)?",
-  admin: "/admin/:section(overview|users|requests|sign-in|tokens|storage|audit|settings)?",
+  admin: "/admin/:section(overview|users|groups|requests|sign-in|tokens|storage|audit|settings)?",
   // the ways to sign in, ?next=<page> to go back to it (see login/LoginPage.jsx)
   login: "/login",
   // where `qa auth login` sends users to approve the login

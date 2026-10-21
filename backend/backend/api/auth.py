@@ -27,6 +27,7 @@ from ..actor import unauthenticated
 from ..sign_in import sessions
 from ..sign_in.accounts import finish as finish_sign_in, new_user_status
 from .. import tokens as tokens_lib
+from ..access import can
 
 
 login_manager = LoginManager(app)
@@ -66,6 +67,8 @@ if login_type == "LDAP":
   # User attributes
   ldap_attr_email = os.environ.get('QABOARD_LDAP_ATTRIBUTE_EMAIL', "mail")
   ldap_attr_common_name = os.environ.get('QABOARD_LDAP_ATTRIBUTE_COMMON_NAME', "cn")
+  # What group rules can read (Admin → Groups), e.g. memberOf,department
+  ldap_group_attributes = [a.strip() for a in os.environ.get('QABOARD_LDAP_GROUP_ATTRIBUTES', 'memberOf').split(',') if a.strip()]
 
 elif login_type == "SAML":
   # the directory that contains the settings files and certs
@@ -247,7 +250,8 @@ def login_required(f):
   Decorator for endpoints that need a logged-in user (session cookie, SAML session or API token).
   The user's info is available as `flask.g.user` (see get_current_user).
   With a token, writes need the "act" scope, and the token must allow `?project=`.
-  If QABOARD_LOGIN_RESTRICTED is set, also checks the user may access `?project=`.
+  With `?project=`, the user must be able to see it. Endpoints that change a project check more with
+  require_project_access (e.g. runs.act), on the project of the object they load.
   """
   @wraps(f)
   def wrapper(*args, **kwargs):
@@ -262,8 +266,11 @@ def login_required(f):
         return jsonify({"error": f"This token can't do this: it needs the \"{scope}\" scope.", "reason": "missing_scope", "required": scope}), 403
       if project and not actor.allows_project(project):
         return jsonify({"error": f"This token can't access {project}.", "reason": "token_project"}), 403
-    if is_login_restricted and not is_authorized_user(user_info, project):
-      return forbidden_project(project)
+    if project:
+      if forbidden := require_project_access(user_info, project, 'project.read'):
+        return forbidden
+    elif is_login_restricted and not is_authorized_user(user_info, None):
+      return forbidden_project(None)
     g.user = user_info
     return f(*args, **kwargs)
   return wrapper
@@ -314,23 +321,23 @@ def admin_required(f):
   return wrapper
 
 
-def require_project_access(user_info: dict, project_id: str):
+def require_project_access(user_info: dict, project_id: str, permission: str = 'runs.act'):
   """
-  None if the user may access the project, else a 403 response to return.
+  None if the current user (or token) has the permission on the project (backend/access/policy.py), else the
+  response to return: 401 to sign in, 403 with whom to ask.
   Endpoints that change a batch, run or commit must check the project of the object they loaded:
   `login_required` only checks the `?project=` the client chose.
-  Always None when QABOARD_LOGIN_RESTRICTED is off (`is_authorized_user` is then always true).
+  `user_info` is unused: the check is always about who is calling (g.actor).
   """
-  if is_authorized_user(user_info, project_id):
-    return None
-  return forbidden_project(project_id)
+  from ..access import authorize, denied
+  decision = authorize(g.get('actor') if has_request_context() else None, permission, project_id)
+  return None if decision.allowed else denied(decision)
 
 
-def forbidden_project(project_id=None):
-  """The 403 of projects users can't access. With a token, it may be the token's restriction."""
-  actor = g.get('actor') if has_request_context() else None
-  if project_id and actor is not None and actor.token is not None and not actor.allows_project(project_id):
-    return jsonify({"error": f"This token can't access {project_id}.", "reason": "token_project"}), 403
+def forbidden_project(project_id=None, permission: str = 'project.read'):
+  """The response for a project the current user can't see (or act on), e.g. after is_authorized_user"""
+  if project_id and (forbidden := require_project_access(None, project_id, permission)):
+    return forbidden
   return jsonify({"error": "Forbidden: You don't have permission to access this project", "reason": "forbidden_project"}), 403
 
 
@@ -356,8 +363,8 @@ def ingest_access(project_id: str):
     problem = ("missing_scope", "This token can't send results: it needs the \"ingest\" scope.")
   elif not actor.allows_project(project_id):
     problem = ("token_project", f"This token can't send results to {project_id}.")
-  elif is_login_restricted and not is_authorized_user(get_current_user(to_jsonify=False), project_id):
-    problem = ("forbidden_project", f"You don't have permission to access {project_id}.")
+  elif not can('runs.ingest', project_id, actor):
+    problem = ("missing_role", f"You need the developer role to send results to {project_id}.")
   if problem:
     reason, message = problem
     if mode == 'token':
@@ -489,20 +496,12 @@ def is_authorized_user(user_info: dict, project=None):
       bool: True if the user is authorized to access the project (or authorized in general 
             if no project is provided), False otherwise.
   """
+  if project:
+    # the current user (or token) can see it: backend/access/
+    return can('project.read', project)
   if not user_info:
     user_info = get_current_user(to_jsonify=False)
-
-  actor = g.get('actor') if has_request_context() else None
-  if project and actor is not None and actor.token is not None and not actor.allows_project(project):
-    return False
-
-  if project:
-    project = restricted_project_key(project)
-    if project is None:
-      # Project is public
-      return True
-
-  perms_data = restrictions('projects')[project] if project else restrictions('login')
+  perms_data = restrictions('login')
   if not perms_data:
     return True
   return matches_rules(user_info, perms_data)
@@ -563,6 +562,27 @@ def ldap_search(user_name: str) -> str:
   return ldap_user_filter.replace("{login}", ldap.filter.escape_filter_chars(user_name))
 
 
+def ldap_attributes() -> list:
+  return [ldap_attr_common_name, ldap_attr_email, *ldap_group_attributes]
+
+
+# Active Directory's LDAP_MATCHING_RULE_IN_CHAIN: the groups that contain the user, also through other groups
+IN_CHAIN = '1.2.840.113556.1.4.1941'
+
+
+def ldap_details(ldap_connect, user_name: str) -> list:
+  """[[dn, {attribute: [values]}]], or [] if the directory doesn't know the user. Referrals come as entries without a DN."""
+  details = [d for d in ldap_connect.search_s(ldap_user_base, ldap.SCOPE_SUBTREE, ldap_search(user_name), ldap_attributes()) if d[0]]
+  if details and env_flag('QABOARD_LDAP_NESTED_GROUPS') and 'memberOf' in ldap_group_attributes:
+    dn, attributes = details[0]
+    base = os.environ.get('QABOARD_LDAP_GROUP_BASE') or ldap_user_base
+    groups = ldap_connect.search_s(base, ldap.SCOPE_SUBTREE, f"(member:{IN_CHAIN}:={ldap.filter.escape_filter_chars(dn)})", ['cn'])
+    direct = list(attributes.get('memberOf') or [])
+    seen = {(v.decode() if isinstance(v, bytes) else v).casefold() for v in direct}
+    attributes['memberOf'] = direct + [group_dn.encode() for group_dn, _ in groups if group_dn and group_dn.casefold() not in seen]
+  return details
+
+
 def ldap_user_info(details, user_info):
   """Fills user_info from the directory's answer"""
   user_ldap = details[0][1]
@@ -576,21 +596,26 @@ def ldap_user_info(details, user_info):
   return user_info
 
 
+def ldap_lookups(user_names):
+  """(user_name, user_info or None if the directory doesn't know them), with one connection of the service account"""
+  ldap_connect = ldap_connection()
+  try:
+    for user_name in user_names:
+      details = ldap_details(ldap_connect, user_name)
+      yield user_name, (ldap_user_info(details, {"user_name": user_name, "login_type": login_type}) if details else None)
+  finally:
+    ldap_connect.unbind_s()
+
+
 def ldap_lookup(user_name: str):
   """
   What the directory knows about a user, with the service account: after an SSO sign-in, it keeps the accounts'
-  attributes up to date (QABOARD_LOGIN_RESTRICTED_YAML's rules read them). None if unknown, or without LDAP.
+  attributes up to date (group rules and QABOARD_LOGIN_RESTRICTED_YAML's rules read them). None if unknown, or without LDAP.
+  The daily group sync looks up every LDAP account (backend/jobs/groups.py).
   """
   if login_type != "LDAP":
     return None
-  ldap_connect = ldap_connection()
-  try:
-    details = [d for d in ldap_connect.search_s(ldap_user_base, ldap.SCOPE_SUBTREE, ldap_search(user_name), [ldap_attr_common_name, 'mail']) if d[0]]
-  finally:
-    ldap_connect.unbind_s()
-  if not details:
-    return None
-  return ldap_user_info(details, {"user_name": user_name, "login_type": login_type})
+  return next(ldap_lookups([user_name]))[1]
 
 
 def auth_ldap(user_name, password):
@@ -611,12 +636,7 @@ def auth_ldap(user_name, password):
     try:
       ldap_connect.set_option(ldap.OPT_REFERRALS, 0)
       ldap_connect.simple_bind_s(certificate, password)
-      details = ldap_connect.search_s(
-        ldap_user_base,
-        ldap.SCOPE_SUBTREE,
-        ldap_search(user_name),
-        [ldap_attr_common_name, 'mail'],
-      )
+      details = ldap_details(ldap_connect, user_name)
       user_info["login_success"] = True
       ldap_user_info(details, user_info)
       if user_info["email"] is None:
