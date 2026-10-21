@@ -1,5 +1,6 @@
 // What we call one side of the comparison, in its color: "● new", "● ref", or what users renamed it.
-// Click it to rename it: the name goes in the URL, and viewers use it. Milestones keep their own name.
+// Click it to rename it: the name goes in the URL, and viewers use it. Milestones are called by their name, unless
+// users rename them on the page.
 import { useState } from "react";
 import styled from "styled-components";
 import { Classes, Icon, Tooltip } from "@blueprintjs/core";
@@ -66,7 +67,7 @@ const Pill = styled.span`
 `;
 
 // color: a CSS color. label: what users called it ('' if nothing). fallback: its default name, e.g. "new".
-// editable: false for milestones. onRename(label): '' resets it.
+// onRename(label): '' resets it.
 export const SideLabel = ({ color, label, fallback, editable = true, onRename, tooltip, className }) => {
   const [draft, setDraft] = useState(null);
   const text = label || fallback;
@@ -117,6 +118,13 @@ export const SideLabel = ({ color, label, fallback, editable = true, onRename, t
 };
 
 // For tooltips: why a milestone's name can't change
-export const milestone_label_hint = name => <span>
-  Named after its milestone, <strong>{name}</strong>. <span className={Classes.TEXT_MUTED}>Rename the milestone to change it.</span>
-</span>;
+// name: the milestone's, renamed: what users called it on this page, if they did
+export const milestone_label_hint = (name, renamed) => renamed
+  ? <span>
+      The milestone <strong>{name}</strong>, called “{renamed}” on this page.{' '}
+      <span className={Classes.TEXT_MUTED}>Click to rename it, clear the name to use the milestone's.</span>
+    </span>
+  : <span>
+      Named after its milestone, <strong>{name}</strong>.{' '}
+      <span className={Classes.TEXT_MUTED}>Click to call it something else on this page; rename the milestone to change it for everyone.</span>
+    </span>;

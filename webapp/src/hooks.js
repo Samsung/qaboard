@@ -10,7 +10,7 @@ import {
 } from "./api/queries";
 import { errorMessage } from "./api/http";
 import { usePrefsStore } from "./stores/prefs";
-import { useSelected, updateSelected, reference_names, side_colors } from "./selection";
+import { useSelected, updateSelected, reference_names, side_colors, is_default_name } from "./selection";
 import { available_batch, compute_batches, compute_config } from "./selectors/batches";
 import { default_project } from "./defaults";
 import { milestonesQuery, milestones_of, milestone_name, no_milestones } from "./milestones/api";
@@ -240,8 +240,10 @@ function useCommitIdsInUrl(selected, new_commit, ref_commit) {
 }
 
 
-// Milestones have their own name: users can't rename them
-const side_label = (milestone, label, fallback) => milestone ? milestone_name(milestone) : label || fallback;
+// Milestones are called by their name, unless users called them something else on this page (names we give, like
+// "ref 2", don't count)
+const side_label = (milestone, label, fallback) => label && !is_default_name(label) ? label
+  : milestone ? milestone_name(milestone) : label || fallback;
 
 // The references users selected (see `references` in src/selection.js), with what we know about them:
 // their commit (without its outputs, unless we have them already), their name, color...
@@ -287,7 +289,7 @@ function useReferences(selected, ref_commit, milestones, enabled) {
         // what the tabs, the reference's bar and the viewers call it: its milestone's name, else what users called it,
         // else "ref", "ref 2"... (see reference_names). Numbers, not letters: blind tests call images A and B.
         display_label: side_label(milestone, names[index]),
-        default_label: default_name(index),
+        default_label: milestone ? milestone_name(milestone) : default_name(index),
         color: side_color(colors[index]),
       };
     });
@@ -365,7 +367,7 @@ function useComparisonState() {
   const [new_color] = side_colors(selected.color_new, selected.references);
   const compared = useMemo(() => [
     {
-      key: 'new', label: new_label, default_label: 'new', color: side_color(new_color), project: new_project, commit: new_commit,
+      key: 'new', label: new_label, default_label: new_milestone ? milestone_name(new_milestone) : 'new', color: side_color(new_color), project: new_project, commit: new_commit,
       batch: batches.new_batch, filter: filter_batch_new, milestone: new_milestone,
     },
     {
