@@ -116,6 +116,7 @@
 <ul>
 <li class="">Open a folder under <code>/s/</code> in your browser to get the new <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/files">file browser</a>: sort and filter files (e.g. <code>*.png</code>), copy their Linux or Windows paths, paste a path to go there, and navigate with the keyboard (press <code>?</code>). Scripts and <code>curl</code> still get nginx's plain index.</li>
 <li class="">In the file browser, a bar shows the run whose folder you are in, with its status and a link to its results: <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/files#runs">redo it, delete it or mark it as failed</a> from there.</li>
+<li class="">Sign in from the file browser with any of your server's sign-in methods, single sign-on included: <strong>Sign in</strong> opens the sign-in page, then brings you back to the file.</li>
 </ul>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="git-hosts-and-integrations">Git hosts and integrations<a href="https://samsung.github.io/qaboard/release-notes/2026-10#git-hosts-and-integrations" class="hash-link" aria-label="Direct link to Git hosts and integrations" title="Direct link to Git hosts and integrations" translate="no">​</a></h3>
 <ul>
@@ -154,6 +155,24 @@
 <li class="">Save several milestones on the same batch, for example one per filter. When the results you look at are a milestone, its name shows next to the star.</li>
 <li class="">Milestones you saved in your browser before (the "private" ones) move to your account the next time you log in with that browser.</li>
 </ul>
+<h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="accounts-tokens-and-admins">Accounts, tokens and admins<a href="https://samsung.github.io/qaboard/release-notes/2026-10#accounts-tokens-and-admins" class="hash-link" aria-label="Direct link to Accounts, tokens and admins" title="Direct link to Accounts, tokens and admins" translate="no">​</a></h3>
+<ul>
+<li class="">Create API tokens in <strong>Settings → Access tokens</strong>, with only the scopes they need (read, send results, act), for some
+projects only, and with an expiry date or none. The token is shown once, with how to use it (<a class="" href="https://samsung.github.io/qaboard/docs/apis#authentication">APIs</a>).</li>
+<li class="">See when and from where your tokens were last used, and revoke them. <strong>Settings → CLI &amp; devices</strong> lists the logins of
+<code>qa auth login</code>, and <strong>Activity</strong> your recent sign-ins and token changes.</li>
+<li class="">Approve <code>qa auth login</code> from any browser: open the link it prints and check the code.</li>
+<li class="">Keep your preferences (theme, list density, favorites...) from browser to browser and computer to computer when you're signed in.</li>
+<li class="">See who really sent a run: runs sent with a token show it, the others can be marked as unverified.</li>
+<li class="">Admins: see users, their tokens and last sign-ins, disable accounts and make admins, revoke any token, read the
+audit log and change settings in the new <strong>Admin</strong> panel, with a security checklist (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/user-management">user management</a>).</li>
+<li class="">Read why you can't do something: errors say what's wrong and what to do, e.g. that a token expired or lacks a scope.</li>
+<li class="">Sign in with your company's single sign-on, when your admins set it up: its button comes first on the new sign-in page.</li>
+<li class="">See where you're signed in in <strong>Settings → Sessions</strong>, and sign out of the browsers you don't use anymore, or of all of them but this one.</li>
+<li class="">Add another way to sign in to your account, or remove one, in <strong>Settings → Sign-in methods</strong>.</li>
+<li class="">Ask for access: when your admins approve new accounts, you can sign in and say why you need QA-Board, and you get
+an email when they decide.</li>
+</ul>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="help-whats-new-and-links">Help, What's new and links<a href="https://samsung.github.io/qaboard/release-notes/2026-10#help-whats-new-and-links" class="hash-link" aria-label="Direct link to Help, What's new and links" title="Direct link to Help, What's new and links" translate="no">​</a></h3>
 <ul>
 <li class="">Read the release notes in the new "What's new" panel, with a search box (<code>/#whats-new</code> opens it). It pops up once a month is over; the current month's notes show as a preview, tagged "In progress".</li>
@@ -163,6 +182,24 @@
 <li class="">Link to History with or without the breakdown per test, or relative to the first commit: <code>?breakdown_per_test=false</code> and <code>?relative=true</code> in the URL now work.</li>
 </ul>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="cli-and-project-setup">CLI and project setup<a href="https://samsung.github.io/qaboard/release-notes/2026-10#cli-and-project-setup" class="hash-link" aria-label="Direct link to CLI and project setup" title="Direct link to CLI and project setup" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="signing-in">Signing in<a href="https://samsung.github.io/qaboard/release-notes/2026-10#signing-in" class="hash-link" aria-label="Direct link to Signing in" title="Direct link to Signing in" translate="no">​</a></h3>
+<ul>
+<li class="">Sign in from the CLI with <code>qa auth login</code>: open the link it prints in any browser, even when <code>qa</code> runs over SSH,
+and approve the code. The token is saved per server in your config folder, never in your projects, so it works in
+every checkout and worktree. <code>qa auth status</code>, <code>qa auth logout</code> and <code>qa auth token</code> (<a class="" href="https://samsung.github.io/qaboard/docs/installation#signing-in">signing in</a>).</li>
+<li class="">Set <code>QABOARD_TOKEN</code> in CI to send verified results (<a class="" href="https://samsung.github.io/qaboard/docs/ci-integration#tokens">CI tokens</a>). <code>QA_TOKEN</code> and
+<em>~/.qaboard/secrets.yaml</em> still work.</li>
+<li class="">Read why the server refused your token (expired, revoked, missing a scope...) and what to do, instead of a stack trace.
+The advice fits where you are: in CI it's about <code>QABOARD_TOKEN</code>, never about signing in from a browser.</li>
+<li class="">CI jobs fail when QA-Board refuses their results, before running anything, instead of passing with nothing saved.</li>
+<li class=""><code>qa auth logout</code> only revokes the tokens <code>qa auth login</code> created: a token you saved with <code>--with-token</code> (e.g. your
+CI's) keeps working, unless you add <code>--revoke</code>.</li>
+<li class=""><code>qa auth status</code> says where the server's address comes from, and lists the other servers you're signed in to.
+A wrong <code>QABOARD_URL</code> or a server that's down is reported as such, not as a bad token.</li>
+<li class=""><code>qa gate --server</code> no longer sends your token for the default server to another server.</li>
+<li class=""><code>qa batch</code> says when the server won't show it the batch's runs (e.g. it requires signing in), and stops instead of
+running them all again when you asked to skip, sync or post-process the existing ones (<code>--action-on-existing</code>).</li>
+</ul>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="project-setup-and-the-qa-cli">Project setup and the qa CLI<a href="https://samsung.github.io/qaboard/release-notes/2026-10#project-setup-and-the-qa-cli" class="hash-link" aria-label="Direct link to Project setup and the qa CLI" title="Direct link to Project setup and the qa CLI" translate="no">​</a></h3>
 <ul>
 <li class="">At SIRC, upgrading <code>qaboard</code> now requires also installing <code>qaboard-site-sirc</code>, see the <a class="" href="https://samsung.github.io/qaboard/docs/installation">installation instructions</a>. Site packages provide a base <code>qaboard.yaml</code> that every project's configuration is merged on (<a class="" href="https://samsung.github.io/qaboard/docs/project-init#site-defaults">site defaults</a>): <code>qa init</code> shows the inherited values instead of overriding them.</li>
@@ -203,6 +240,38 @@
 </ul>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="server-and-administration">Server and administration<a href="https://samsung.github.io/qaboard/release-notes/2026-10#server-and-administration" class="hash-link" aria-label="Direct link to Server and administration" title="Direct link to Server and administration" translate="no">​</a></h2>
 <ul>
+<li class=""><strong>Users, tokens and admins</strong>: an admin panel, settings in the database, and an audit log (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/user-management">user management</a>).<!-- -->
+<ul>
+<li class="">Make admins with <code>QABOARD_ADMINS</code>, from the admin panel, or with <code>qaboard-admin create-admin</code> in the backend's container. Approve or disable accounts waiting for an admin.</li>
+<li class="">Change settings from <strong>Admin → Settings</strong> without restarting the server: requiring sign-in, local sign-up, token
+lifetimes, how results are authenticated. Environment variables still win when they're set.</li>
+<li class="">Require tokens to send results: <code>ingest.auth</code> (or <code>QABOARD_INGEST_AUTH</code>) goes from <code>off</code> (the default) to <code>warn</code>
+(<code>qa</code> asks users to sign in) to <code>token</code> (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/user-management#results-sent-by-qa">results sent by qa</a>).</li>
+<li class="">Find sign-ins, failed sign-ins, token changes, CLI logins and admin changes in the audit log, with who and from which IP.</li>
+<li class="">Tokens are stored hashed, can have scopes, projects and an expiry date, and expire when unused for long if you want.</li>
+<li class="">Disabled accounts stop working at once: their sessions and tokens are refused at the next request.</li>
+</ul>
+</li>
+<li class=""><strong>Single sign-on</strong> with OpenID Connect (Keycloak, Entra ID, Okta, Google...), next to LDAP, SAML and local accounts
+(<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/sign-in">sign-in and single sign-on</a>).<!-- -->
+<ul>
+<li class="">Set <code>QABOARD_OIDC_ISSUER</code>, <code>QABOARD_OIDC_CLIENT_ID</code> and <code>QABOARD_OIDC_CLIENT_SECRET</code>; add more providers from
+<strong>Admin → Sign-in</strong>.</li>
+<li class="">Find what's wrong before users do: <code>qaboard-admin check-sign-in</code> and <strong>Admin → Sign-in → Test</strong> check that the server
+reaches your identity provider, the issuer, the signing keys, and whether the redirect URI is registered.</li>
+<li class="">Keep users' accounts when they move to single sign-on: match them by user name when your identity provider shares
+LDAP's directory, or by verified email.</li>
+<li class="">Send users straight to your identity provider with <code>auth.sso_auto_redirect</code>; <code>/login?local=1</code> keeps a way in for
+local admins.</li>
+</ul>
+</li>
+<li class="">Decide who gets an account with <code>auth.access_policy</code>: everyone, emails of some domains, or after an admin approves.
+Admins get an email and a webhook message (Slack, Teams, Mattermost) when someone waits.</li>
+<li class="">Sessions are stored on the server: they end after <code>sessions.idle_days</code> without activity and <code>sessions.max_days</code> in any
+case, users and admins can end them, and disabling a user ends theirs. Nobody is signed out by the upgrade.</li>
+<li class="">Use LDAP over TLS: <code>ldaps://</code> in <code>QABOARD_LDAP_HOST</code>, or <code>QABOARD_LDAP_START_TLS=true</code>.</li>
+<li class="">Sign-in, sign-up and <code>qa auth login</code> are rate-limited by the shipped nginx configuration. Behind a load balancer or
+an ingress, set <code>QABOARD_TRUSTED_PROXY_HOPS=1</code> to record users' IPs in the audit log.</li>
 <li class="">Keep the commit lists of projects with many runs per batch fast: list them in <code>QABOARD_SKIP_METRICS_AGGREGATION</code> (project ids, or their start like <code>group/</code>), and their commit lists skip the batches' aggregated metrics, which commit pages still show (<a class="" href="https://samsung.github.io/qaboard/docs/deploy#optional-environment-variables">environment variables</a>).</li>
 <li class="">Jenkins builds started from QA-Board send the job's <code>token</code> from <em>qaboard.yaml</em>, else the server's new <code>JENKINS_BUILD_TOKEN</code>, else none, instead of the token <code>qaboard</code>. If your Jenkins jobs expect <code>qaboard</code> and your integrations don't set <code>token</code>, set <code>JENKINS_BUILD_TOKEN=qaboard</code> before upgrading (<a class="" href="https://samsung.github.io/qaboard/docs/triggering-third-party-tools#trigger-jenkins-builds">Jenkins builds</a>).</li>
 <li class="">Free more storage: the cleanup of old results (<code>qaboard_clean</code>) keeps only the batches that are milestones, not all the batches of their commit (<a class="" href="https://samsung.github.io/qaboard/docs/storage/deleting-old-data">deleting old data</a>).</li>
@@ -217,6 +286,22 @@
 <li class="">Daily database backups older than 14 days are deleted after each successful backup, but never the newest 3, nor dumps with other names. Set <code>QABOARD_BACKUP_RETENTION_DAYS</code> to keep them longer (<code>0</code> keeps them all). <strong>Before upgrading, move the old daily backups you want to keep</strong> (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/deployment#backups">backups</a>).</li>
 <li class="">Versions from before October 2026 don't start on a database migrated by this one: to roll back to them, first undo the newer migrations (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/deployment">rollbacks</a>).</li>
 <li class="">The <code>website</code> image (the docs your server serves) is built from the repository's root, like the <code>frontend</code> image: if you build it without <code>docker compose</code>, run <code>docker build -f website/Dockerfile .</code>.</li>
+<li class="">Local sign-up is off by default with LDAP or SAML: local accounts could take the name of directory users who never
+signed in. Turn on <code>auth.local_signup</code> in the admin panel if you need it.</li>
+<li class=""><strong>Name your first admins</strong> in <code>QABOARD_ADMINS</code> (user names, or the emails of LDAP/SAML accounts), else nobody can
+open the admin panel. Without access to the web app: <code>qaboard-admin create-admin &lt;user&gt;</code> in the backend's container.</li>
+<li class="">Existing API tokens are hashed by the migration and keep working, as "legacy" tokens (they can read, send results
+and act, not use the admin API). <strong>After this upgrade, older versions can't use any API token</strong>, even after a
+plain rollback of the code (and while old backends still run during the deploy), and they ignore what you set in
+the admin panel, like requiring sign-in, and disabled accounts. If you may roll back, set what matters with
+environment variables. Downgrading the database (<code>alembic downgrade</code>) deletes the tokens.</li>
+<li class="">Results sent with an unknown, expired or revoked token are now refused, even when <code>ingest.auth</code> is <code>off</code>: before,
+the token was ignored. Check the <code>QABOARD_TOKEN</code>/<code>QA_TOKEN</code> of your CI jobs (and users' shell profiles).</li>
+<li class="">The audit log records the address nginx sees, not <code>X-Forwarded-For</code>, unless you set <code>QABOARD_TRUSTED_PROXY_HOPS</code>:
+clients could choose what it says. Behind a load balancer or an ingress, set it to <code>1</code>.</li>
+<li class=""><code>QABOARD_LOGIN_REQUIRED=true</code> now also blocks anonymous requests to the API, so CI jobs that read results
+(<code>qa gate</code>, <code>qa check-bit-accuracy</code>) need a token with the <code>read</code> scope. <code>QABOARD_LOGIN_REQUIRED=false</code> now allows
+anonymous users (any non-empty value used to block them), and an empty value lets you set it in the admin panel.</li>
 <li class="">At SIRC, QA-Board no longer serves the storage over WebDAV (<code>/davs/algo/</code>): it let anyone write and delete files. <code>services/nginx/webdav.conf</code> explains how to bring it back.</li>
 </ul>
 </li>
@@ -317,6 +402,7 @@
 <ul>
 <li class="">Many pages updated to match the code, and features that were never documented: GitHub webhooks, API tokens, batch options, bit-accuracy manifests, auto-optimization...</li>
 <li class="">The project setup and CI pages cover GitHub and GitLab equally (<a class="" href="https://samsung.github.io/qaboard/docs/ci-integration">CI integration</a>), and admins get a new <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/git-hosts">git hosts</a> page.</li>
+<li class="">Set up single sign-on and decide who gets an account with the new <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/sign-in">sign-in and single sign-on</a> page.</li>
 <li class="">Find the server docs in one place, written for any site: starting a server, deployments and rollbacks with <code>deploy.py</code>, Kubernetes, host maintenance, backups and <a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/troubleshooting">troubleshooting</a>.</li>
 <li class="">Write your own file viewer: see <a class="" href="https://samsung.github.io/qaboard/docs/viewers#write-your-own-viewer">Viewers and file formats</a>.</li>
 <li class="">Start with <a class="" href="https://samsung.github.io/qaboard/docs/introduction">how a project integrates QA-Board</a>: the steps from installing <code>qa</code> to running in CI, and what you get after each.</li>
@@ -364,7 +450,7 @@
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="fixes">Fixes<a href="https://samsung.github.io/qaboard/release-notes/2026-10#fixes" class="hash-link" aria-label="Direct link to Fixes" title="Direct link to Fixes" translate="no">​</a></h2>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="across-the-web-app">Across the web app<a href="https://samsung.github.io/qaboard/release-notes/2026-10#across-the-web-app" class="hash-link" aria-label="Direct link to Across the web app" title="Direct link to Across the web app" translate="no">​</a></h3>
 <ul>
-<li class="">The image and video viewers and the file browser say <strong>Log in</strong> and <strong>Log out</strong>, like the sidebar, instead of "Sign in" and "Sign out".</li>
+<li class="">The whole web app says <strong>Sign in</strong> and <strong>Sign out</strong>: the sidebar, the viewers and the file browser used different words.</li>
 <li class="">The cheat sheet (<code>?</code>) lists the viewers' real shortcuts: <code>h</code> starts a blind test, <code>&lt;</code> and <code>&gt;</code> change a video's speed, and the run filter's example <code>fail</code> keeps the failed runs. The image viewer's own list includes full screen (<code>f</code>).</li>
 <li class="">The batch menu says <strong>Move the filtered runs to another batch</strong> when you filter runs, instead of the other way around.</li>
 <li class="">The automated tuning example names the solver's <code>acq_func</code> option correctly.</li>
@@ -516,6 +602,14 @@
 </ul>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="security-and-data-safety">Security and data safety<a href="https://samsung.github.io/qaboard/release-notes/2026-10#security-and-data-safety" class="hash-link" aria-label="Direct link to Security and data safety" title="Direct link to Security and data safety" translate="no">​</a></h3>
 <ul>
+<li class="">Requiring sign-in now blocks anonymous requests to the API itself, not only the web app's pages.</li>
+<li class="">API tokens are no longer stored in clear, and a token in a URL (<code>?token=</code>) is only accepted to read. Requests made
+with a token no longer open a session cookie.</li>
+<li class="">Session cookies are <code>HttpOnly</code> and <code>SameSite=Lax</code>, and <code>Secure</code> when <code>QABOARD_URL</code> is https. Changes made with
+cookies must come from QA-Board's own pages.</li>
+<li class="">Signing in with SAML only sends you back to QA-Board's own pages (open redirect), and lands on the home page instead
+of an empty error page when there's nowhere to go back to.</li>
+<li class="">Logging in no longer sends everything the directory knows about you to the browser.</li>
 <li class="">Reading the values of an image's or a video's pixels, what's in a video, and finding where images or videos differ now require a login, and only read files in the storage (<code>QABOARD_STORAGE_ROOTS</code>) that you're allowed to see. Signed out, the viewers show the displayed values and say to sign in for the rest. These endpoints could read images anywhere on the server, without a login.</li>
 <li class="">The unused PDF report of the regions where images differ (<code>/api/v1/output/diff/report</code>) is removed: it could write files anywhere on the server, without a login.</li>
 <li class="">Marking a run as failed or deleting it now requires a login.</li>
