@@ -74,13 +74,17 @@ def update_output(output_id):
     if output.is_pending:
       return {"error": "Please wait for the Output to finish running before deleting it"}, 500
     soft = request.args.get('soft') == 'true'
+    batch_id = output.batch_id
     try:
       output.delete(soft=soft)
     except UnsafePathError as e:
       return jsonify({"error": f"{e}"}), 400
     if not soft:
       db_session.delete(output)
-      db_session.commit()
+    # soft deletes mark the run as deleted
+    db_session.commit()
+    from ..storage_usage import refresh_soon
+    refresh_soon([batch_id])
     return {"status": "OK"}
 
 

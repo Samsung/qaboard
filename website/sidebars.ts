@@ -101,6 +101,7 @@ const sidebars: SidebarsConfig = {
         'user-guide/logs',
         'user-guide/sharing',
         'user-guide/files',
+        'user-guide/storage-usage',
         'user-guide/account',
         'user-guide/project-access',
       ],
@@ -198,6 +199,7 @@ const sidebars: SidebarsConfig = {
         "backend-admin/user-management",
         "backend-admin/sign-in",
         "backend-admin/project-access",
+        "backend-admin/storage",
         "backend-admin/monitoring",
         "backend-admin/troubleshooting",
     ]

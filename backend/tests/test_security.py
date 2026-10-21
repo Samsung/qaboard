@@ -1222,6 +1222,11 @@ PROJECT_CHECKS = {
 UNCHECKED_PROJECT_ROUTES = {
   # admins: admin_required
   ("admin.py", "admin_audit"), ("admin_access.py", "admin_grants"), ("admin_access.py", "admin_delete_grant"),
+  ("admin_jobs.py", "admin_estimate_job"), ("admin_jobs.py", "admin_jobs_projects"), ("admin_jobs.py", "admin_job_errors"),
+  ("admin_jobs.py", "admin_job_errors_csv"),
+  # storage usage: filters_from limits them to the projects users can read (allowed_projects), and users only
+  # delete their own runs. Their deletions' errors are about their own runs.
+  ("storage.py", "storage_overview"), ("storage.py", "storage_delete"), ("storage.py", "storage_job_errors"),
   # asking for access works without access (role_of tells what they have)
   ("access.py", "request_project_access"),
   # "project" is a word in their answers, not a project they read

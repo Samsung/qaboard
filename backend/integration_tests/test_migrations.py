@@ -87,7 +87,7 @@ def test_identities_are_backfilled(alembic, make_user, client):
 def test_roles_groups_and_visibility(alembic, make_user, client):
   """Additive: the tables come and go, existing access requests keep working, nothing is seeded"""
   make_user('alice')
-  alembic('downgrade', 'd4e6f8a0b2c3')
+  alembic('downgrade', 'b8c0d2e4f6a8')
   assert not sql("SELECT 1 FROM information_schema.tables WHERE table_name = 'role_grants'")
   assert 'resource_id' not in {r[0] for r in sql("SELECT column_name FROM information_schema.columns WHERE table_name = 'access_requests'")}
   sql("INSERT INTO access_requests (user_id, kind, message, status, created_at) VALUES (1, 'instance', 'hi', 'pending', now())")

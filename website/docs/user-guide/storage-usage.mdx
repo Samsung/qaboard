@@ -1,0 +1,56 @@
+---
+id: storage-usage
+title: Storage usage
+sidebar_label: Storage usage
+description: "See how much storage your runs use, find the runs in the folder of a quota alert, and delete what you don't need."
+---
+Short on quota? **Storage usage** shows how much storage your runs take, project by project, down to each batch,
+commit, branch and folder, and deletes the files of many runs at once. Open it from your profile menu (**Storage
+usage**, next to **Settings**), or from a project's sidebar.
+
+## Find what takes space
+- **Projects**: your usage in each project. Click one to see its batches.
+- **Batches**, **Commits**, **Branches**: the biggest first. Filter by project, branch, or age (*No runs for 3 months*),
+  search, and sort by size, age or number of runs.
+- **Folders**: the folders your runs are in, like on disk. **Paste the folder from a quota alert** to see what QA-Board
+  knows there, and open its subfolders. Your biggest folders are suggested.
+- **Your runs** or **Everyone's**: see who uses the most in a project, and click a name to see their runs.
+
+Sizes are what `qa` measured when each run ended. They're updated every few minutes, and right away when you delete
+runs from QA-Board.
+
+## Delete runs' files
+1. Check the batches, commits or branches you don't need. To take everything that matches the filters, check the page,
+   then **Select all … that match the filters**. In **Folders**, **Delete the files of these runs…** takes what's in the folder.
+2. Click **Delete the files…**. QA-Board says how much space it frees, and what it keeps:
+   - **Milestones**: batches saved as [milestones](/docs/user-guide/milestones) are kept, shown with a lock. Delete the milestone first if you don't need it.
+   - **Other people's runs**: you delete only the runs you ran. Ask them, or an admin.
+   - **Running runs** are kept.
+3. For big deletions, type the sentence QA-Board asks for, then confirm.
+
+The deletion runs in the background: follow it in **Your deletions**, at the top of the page, with its errors, e.g.
+files QA-Board could not delete.
+
+:::info What deleting does
+The runs' files are deleted, which frees your quota. The runs stay listed, as deleted, with their metrics: you can
+redo them later if the commit's artifacts are there. **The files can't be recovered.**
+:::
+
+## Why does IT's quota say something else?
+QA-Board counts the files of the runs it knows. Your quota counts every file you own on the storage. They differ because of:
+- files QA-Board doesn't track: exports ("Export to a shared folder" writes to a `share/` folder next to the commit's
+  batches), files you copied next to your runs, files written after a run ended,
+- folders you deleted yourself, until QA-Board cleans up their runs,
+- how the storage counts: small files take more space than their size, and snapshots keep deleted files for a while,
+- your other files on the same storage.
+
+Click **Why does IT's quota say something else?** on the page: it gives the commands that measure a folder, its biggest
+subfolders, your biggest files and your exports, for the folder you paste:
+
+```bash
+du -sh /algo/project/outputs/alice
+du -h --max-depth=3 /algo/project/outputs/alice 2>/dev/null | sort -rh | head -30
+find /algo/project/outputs/alice -user alice -type f -size +100M -printf '%s\t%p\n' 2>/dev/null | sort -rn | head -50 | numfmt --to=si --field=1
+```
+
+Prefer deleting runs from QA-Board rather than their folders: QA-Board then knows the space is free.

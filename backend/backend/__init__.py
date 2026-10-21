@@ -91,6 +91,8 @@ import backend.api.users
 import backend.api.admin
 import backend.api.sign_in
 import backend.api.admin_sign_in
+import backend.api.admin_jobs
+import backend.api.storage
 import backend.api.tasks
 import backend.api.files
 import backend.api.access

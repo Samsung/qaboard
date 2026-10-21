@@ -268,3 +268,106 @@ export const deleteInstanceGrant = async (queryClient, id) => {
   await invalidateGrants(queryClient);
   return data;
 };
+
+// Admin → Storage: server jobs (hard deletes, old results), their errors and schedules (api/admin_jobs.py).
+const active_statuses = ['queued', 'running'];
+export const isActiveJob = job => active_statuses.includes(job?.status);
+
+// {jobs, next_before_id, workers: {online, last_seen_at}, kinds}. Refreshed while jobs run.
+export const jobsQuery = ({ status = '', kind = '' } = {}) => infiniteQueryOptions({
+  queryKey: ['admin', 'jobs', { status, kind }],
+  queryFn: async ({ signal, pageParam }) => {
+    const { data } = await http.get('/api/v1/admin/jobs', { params: { status: status || undefined, kind: kind || undefined, before_id: pageParam, limit: 30 }, signal });
+    return { jobs: data?.jobs ?? [], next_before_id: data?.next_before_id ?? null, workers: data?.workers ?? { online: [], last_seen_at: null } };
+  },
+  initialPageParam: undefined,
+  getNextPageParam: last_page => last_page.next_before_id ?? undefined,
+  refetchInterval: query => query.state.data?.pages?.some(page => page.jobs.some(isActiveJob)) ? 3000 : 30000,
+});
+
+export const jobQuery = id => queryOptions({
+  queryKey: ['admin', 'job', String(id)],
+  queryFn: async ({ signal }) => (await http.get(`/api/v1/admin/jobs/${id}`, { signal })).data,
+  enabled: !!id,
+  refetchInterval: query => isActiveJob(query.state.data) ? 2000 : false,
+});
+
+export const jobErrorsQuery = (id, { kind = '', owner = '', project = '', offset = 0 } = {}, { active = false } = {}) => queryOptions({
+  queryKey: ['admin', 'job', String(id), 'errors', { kind, owner, project, offset }],
+  queryFn: async ({ signal }) => (await http.get(`/api/v1/admin/jobs/${id}/errors`, {
+    params: { kind: kind || undefined, owner: owner || undefined, project: project || undefined, offset, limit: job_errors_page_size }, signal,
+  })).data,
+  placeholderData: keepPreviousData,
+  refetchInterval: active ? 5000 : false,
+});
+export const job_errors_page_size = 100;
+
+const invalidateJobs = queryClient => queryClient.invalidateQueries({ queryKey: ['admin'] });
+
+// 409 when a job of the same kind is queued or running: error.response.data.job is that job
+export const startJob = async (queryClient, kind, params) => {
+  const { data } = await http.post('/api/v1/admin/jobs', { kind, params });
+  invalidateJobs(queryClient);
+  return data;
+};
+
+export const cancelJob = async (queryClient, id) => {
+  const { data } = await http.post(`/api/v1/admin/jobs/${id}/cancel`);
+  invalidateJobs(queryClient);
+  return data;
+};
+
+// The same job again. `changes`: e.g. {dry_run: false} to run a dry run for real
+export const retryJob = async (queryClient, id, changes = {}) => {
+  const { data } = await http.post(`/api/v1/admin/jobs/${id}/retry`, changes);
+  invalidateJobs(queryClient);
+  return data;
+};
+
+// {total, projects: {id: count}, timeout}: how many deleted runs a hard delete would look at
+export const estimateJob = async (kind, params) => (await http.post('/api/v1/admin/jobs/estimate', { kind, params })).data;
+
+// The projects that patterns select: {total, projects (the first 200)}
+export const matchingProjectsQuery = ({ projects, exclude_projects }) => queryOptions({
+  queryKey: ['admin', 'jobs-projects', { projects, exclude_projects }],
+  queryFn: async ({ signal }) => (await http.get('/api/v1/admin/jobs/projects', { params: { projects, exclude_projects }, signal })).data,
+  placeholderData: keepPreviousData,
+  staleTime: 60 * 1000,
+});
+
+export const schedulesQuery = queryOptions({
+  queryKey: ['admin', 'job-schedules'],
+  queryFn: async ({ signal }) => (await http.get('/api/v1/admin/job-schedules', { signal })).data?.schedules ?? [],
+  refetchInterval: 30 * 1000,
+});
+
+// When a cron expression runs next: {next_runs} or an error
+export const nextRunsQuery = (cron, timezone) => queryOptions({
+  queryKey: ['admin', 'next-runs', cron, timezone],
+  queryFn: async ({ signal }) => (await http.get('/api/v1/admin/job-schedules/next-runs', { params: { cron, timezone }, signal })).data?.next_runs ?? [],
+  enabled: !!cron?.trim(),
+  retry: false,
+  staleTime: 60 * 1000,
+});
+
+// `id` to update, else creates it
+export const saveSchedule = async (queryClient, id, fields) => {
+  const { data } = id
+    ? await http.post(`/api/v1/admin/job-schedules/${id}`, fields)
+    : await http.post('/api/v1/admin/job-schedules', fields);
+  invalidateJobs(queryClient);
+  return data;
+};
+
+export const deleteSchedule = async (queryClient, id) => {
+  const { data } = await http.delete(`/api/v1/admin/job-schedules/${id}`);
+  invalidateJobs(queryClient);
+  return data;
+};
+
+// => the job, started now
+export const runSchedule = async (queryClient, id) => {
+  const { data } = await http.post(`/api/v1/admin/job-schedules/${id}/run`);
+  invalidateJobs(queryClient);
+  return data;
+};

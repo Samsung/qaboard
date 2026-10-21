@@ -8,7 +8,7 @@ Nothing is seeded: the defaults (projects.default_visibility, projects.signed_in
 Also declared in the models, for databases created by the app.
 
 Revision ID: e5a7c9b1d3f4
-Revises: d4e6f8a0b2c3
+Revises: b8c0d2e4f6a8
 Create Date: 2026-10-21 10:00:00.000000
 
 """
@@ -19,7 +19,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision = 'e5a7c9b1d3f4'
-down_revision = 'd4e6f8a0b2c3'
+down_revision = 'b8c0d2e4f6a8'
 branch_labels = None
 depends_on = None
 
