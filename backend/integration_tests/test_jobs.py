@@ -259,7 +259,7 @@ def test_dry_runs_change_nothing(admin, world, storage):
 
 def test_missing_folders_are_checked_once(world, storage):
   """Most deleted runs have no files: one missing parent folder answers for all of them"""
-  from backend.jobs.hard_delete import Folders
+  from backend.jobs.common import Folders
   (storage / 'a' / 'b').mkdir(parents=True)
   folders = Folders()
   assert not folders.exists(storage / 'a' / 'b' / 'c' / 'd' / 'run1')
@@ -267,6 +267,52 @@ def test_missing_folders_are_checked_once(world, storage):
   assert not folders.exists(storage / 'a' / 'b' / 'c' / 'other' / 'run2')
   assert folders.checks == checks, "c is known missing"
   assert folders.exists(storage / 'a' / 'b')
+
+
+def test_purge_runs_whose_files_are_gone(admin, world, storage):
+  """Runs whose folder was deleted outside QA-Board: only their metadata goes, never files"""
+  from backend.models import Output, Batch
+  batch = world.batch('proj')
+  live_gone = world.run(batch, deleted=False)
+  live_here = world.run(batch, deleted=False, files=True)
+  deleted_here = world.run(batch, deleted=True, files=True)
+  emptied = world.batch('proj', label='gone')
+  only_run = world.run(emptied, deleted=False)
+  emptied_id = emptied.id
+  world.commit()
+  answer = start(admin, runs='missing_files', created_before='1month')
+  assert answer["description"] == 'Hard-delete the runs whose files are gone of *, created before 1month'
+  run_jobs()
+  done = job(admin, answer["id"])
+  assert done["status"] == 'done', done["error"]
+  assert not exists(Output, live_gone.id) and not exists(Output, only_run.id) and not exists(Batch, emptied_id)
+  assert exists(Output, live_here.id) and exists(Output, deleted_here.id)
+  assert deleted_here.output_dir.exists(), "this mode never deletes files"
+  assert done["progress"]["runs_deleted"] == 2 and done["progress"]["live_runs_without_files"] == 2
+
+  both = start(admin, runs='both')
+  run_jobs()
+  assert job(admin, both["id"])["progress"]["runs_deleted"] == 1
+  assert not exists(Output, deleted_here.id) and exists(Output, live_here.id)
+
+
+def test_storage_that_may_not_be_mounted_is_left_alone(admin, world, storage):
+  """Everything looks missing when storage isn't mounted: we never purge runs from a folder missing under a storage root"""
+  from backend.models import Output
+  root = Path(os.environ['QABOARD_STORAGE_ROOTS'].split(':')[0])
+  batch = world.batch('proj')
+  unmounted = world.run(batch, deleted=False, override=root / 'not-mounted' / 'run')
+  outside = world.run(batch, deleted=False, override='/nowhere/run')
+  outside_deleted = world.run(batch, deleted=True, override='/nowhere/run2')
+  world.commit()
+  answer = start(admin, runs='both')
+  run_jobs()
+  done = job(admin, answer["id"])
+  assert done["status"] == 'done_with_errors' and done["progress"]["errors"] == {"storage": 2}
+  assert exists(Output, unmounted.id) and exists(Output, outside.id)
+  assert not exists(Output, outside_deleted.id), "users deleted it: its metadata can go"
+  errors = admin.get(f'/api/v1/admin/jobs/{answer["id"]}/errors').get_json()["errors"]
+  assert any('is it mounted?' in e["message"] for e in errors)
 
 
 def test_estimate_and_matching_projects(admin, world):
@@ -490,3 +536,98 @@ def test_cron():
       Cron(wrong)
   with pytest.raises(CronError):
     Cron('0 0 31 2 *').next_after(at)
+
+
+# ---------------------------------------------------------------------------
+# Artifacts
+# ---------------------------------------------------------------------------
+
+def artifacts(world, storage, hexsha, branch='feature', files=True, latest=None, project='proj', days=90):
+  """A commit with artifacts: a manifest of the "build" group, and its files"""
+  import json
+  from backend.models import CiCommit
+  folder = storage / 'artifacts' / hexsha[:8]
+  commit = CiCommit(hexsha, project=world.project(project), branch=branch,
+                    authored_datetime=datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=days))
+  commit.latest_output_datetime = latest or commit.authored_datetime
+  commit.commit_dir_override = str(folder)
+  world.db.add(commit)
+  world.db.flush()
+  if files:
+    (folder / 'manifests').mkdir(parents=True)
+    (folder / 'build').mkdir()
+    for name in ['app', 'keep.txt']:
+      (folder / 'build' / name).write_text(name)
+    (folder / 'manifests' / 'build.json').write_text(json.dumps({"build/app": {}, "build/keep.txt": {}}))
+  return commit.id, folder
+
+
+def test_delete_artifacts(admin, world, storage):
+  from backend.database import db_session
+  from backend.models import CiCommit, Milestone, Batch
+  old, old_dir = artifacts(world, storage, '1' * 40)
+  gone, _ = artifacts(world, storage, '2' * 40, files=False)
+  milestone, milestone_dir = artifacts(world, storage, '3' * 40)
+  world.db.add(Milestone(project_id='proj', commit_hexsha='3' * 40, batch='default'))
+  reference, reference_dir = artifacts(world, storage, '4' * 40, branch='master')
+  older_reference, older_reference_dir = artifacts(world, storage, '5' * 40, branch='master', days=200)
+  recent, recent_dir = artifacts(world, storage, '6' * 40, latest=datetime.datetime.now(datetime.timezone.utc))
+  busy, busy_dir = artifacts(world, storage, '7' * 40)
+  world.run(world.batch('proj', hexsha='7' * 40), deleted=False, pending=True)
+  world.commit()
+
+  assert admin.post('/api/v1/admin/jobs', json={"kind": "delete_artifacts"}).status_code == 400, "older_than is required"
+  answer = start(admin, kind='delete_artifacts', older_than='1month', keep=['build/keep.txt'], dry_run=True)
+  assert answer["description"] == 'Delete the artifacts of *, for commits without runs for 1month, keeping build/keep.txt'
+  run_jobs()
+  dry = job(admin, answer["id"])
+  assert dry["status"] == 'done' and dry["progress"]["commits_deleted"] == 2 and (old_dir / 'build' / 'app').exists()
+  db_session.expire_all()
+  assert not db_session.get(CiCommit, gone).deleted
+
+  answer = admin.post(f'/api/v1/admin/jobs/{answer["id"]}/retry', json={"dry_run": False}).get_json()
+  run_jobs()
+  done = job(admin, answer["id"])
+  assert done["status"] == 'done', done["error"]
+  progress = done["progress"]
+  assert progress["commits_deleted"] == 2 and progress["commits_without_files"] == 1 and progress["artifacts_files"] == 1
+  # the reference branch's commits aren't even looked at
+  assert progress["commits_protected"] == 1 and progress["commits_busy"] == 1
+  assert not (old_dir / 'build' / 'app').exists() and (old_dir / 'build' / 'keep.txt').exists()
+  for folder in [milestone_dir, reference_dir, older_reference_dir, recent_dir, busy_dir]:
+    assert (folder / 'build' / 'app').exists(), folder
+  db_session.expire_all()
+  deleted = {c.id: c for c in CiCommit.query.filter(CiCommit.deleted.is_(True))}
+  assert set(deleted) == {old, gone}
+  assert deleted[old].data['artifacts_deleted']['by'] == f'admin job #{answer["id"]}'
+  assert deleted[gone].data['artifacts_deleted']['already_gone'] is True
+
+  # the reference branch's older commits, when asked (its latest stays)
+  answer = start(admin, kind='delete_artifacts', older_than='1month', can_delete_reference_branch=True)
+  run_jobs()
+  assert not (older_reference_dir / 'build' / 'app').exists() and (reference_dir / 'build' / 'app').exists()
+
+
+def test_artifacts_errors_are_tried_again(admin, world, storage, monkeypatch):
+  from backend.models import CiCommit
+  from backend.jobs import common
+  old, old_dir = artifacts(world, storage, '1' * 40)
+  world.commit()
+  import sys
+  ci_commit_module = sys.modules['backend.models.CiCommit']
+  real_rmtree = ci_commit_module.rmtree
+  def rmtree(path):
+    raise Exception(f"ERROR [Errno 13] Permission denied: '{path}': Could not remove: {path}")
+  monkeypatch.setattr(ci_commit_module, 'rmtree', rmtree)
+  answer = start(admin, kind='delete_artifacts', older_than='1month')
+  run_jobs()
+  done = job(admin, answer["id"])
+  assert done["status"] == 'done_with_errors' and done["progress"]["errors"] == {"permission": 2} and done["progress"]["commits_failed"] == 1
+  error = admin.get(f'/api/v1/admin/jobs/{answer["id"]}/errors').get_json()["errors"][0]
+  assert error["path"] == str(old_dir / 'build' / 'app') and error["owner"] == 'root'
+
+  monkeypatch.setattr(ci_commit_module, 'rmtree', real_rmtree)
+  answer = start(admin, kind='delete_artifacts', older_than='1month')
+  run_jobs()
+  assert job(admin, answer["id"])["progress"]["commits_deleted"] == 1
+  assert not (old_dir / 'build' / 'app').exists()

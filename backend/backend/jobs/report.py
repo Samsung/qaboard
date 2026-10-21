@@ -27,8 +27,10 @@ def utcnow():
   return datetime.datetime.utcnow()
 
 
-# rmtree (backend/fs_utils.py) raises "ERROR <reason>: Could not remove: <path>"
+# rmtree (backend/fs_utils.py) raises "ERROR <reason>: Could not remove: <path>",
+# CiCommit.delete reports "Could not remove <path>: <error>"
 could_not_remove = re.compile(r'Could not remove: (?P<path>.+)$')
+could_not_remove_artifact = re.compile(r'^Could not remove (?P<path>/[^:]+):')
 
 
 def error_kind(error: BaseException) -> str:
@@ -37,6 +39,8 @@ def error_kind(error: BaseException) -> str:
   if isinstance(error, PermissionError):
     return 'permission'
   message = str(error)
+  if 'is not inside the storage folders' in message:
+    return 'unsafe_path'
   if 'Permission denied' in message or 'Operation not permitted' in message or 'Errno 13' in message or 'Errno 1]' in message:
     return 'permission'
   if 'Read-only file system' in message:
@@ -46,9 +50,10 @@ def error_kind(error: BaseException) -> str:
 
 def failed_path(error: BaseException, default=None) -> Optional[str]:
   """The file that could not be deleted, often deeper than the folder we tried to delete"""
-  match = could_not_remove.search(str(error))
-  if match:
-    return match.group('path').strip()
+  for pattern in (could_not_remove, could_not_remove_artifact):
+    match = pattern.search(str(error))
+    if match:
+      return match.group('path').strip()
   filename = getattr(error, 'filename', None)
   return str(filename) if filename else (str(default) if default else None)
 
@@ -91,6 +96,10 @@ class Reporter:
     """Records an error from an exception, e.g. when deleting a folder failed"""
     path = failed_path(error, path)
     self.error(error_kind(error), str(error), path=path, owner=owner(path), **context)
+
+  def error_message(self, message: str, **context):
+    """Records an error that we only have as text, e.g. from CiCommit.delete"""
+    self.exception(Exception(message), **context)
 
   def should_stop(self) -> bool:
     return False

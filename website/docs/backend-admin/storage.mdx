@@ -3,8 +3,9 @@ id: storage
 sidebar_label: Cleaning the storage
 title: Cleaning the storage
 ---
-Free disk space and keep the database small from **Admin → Storage**: delete for good the runs users deleted, delete old
-results as each project's *qaboard.yaml* says, and schedule both instead of keeping cron jobs on the server. Jobs run in
+Free disk space and keep the database small from **Admin → Storage**: delete for good the runs users deleted, purge the
+runs whose files are gone, delete commits' artifacts, delete old results as each project's *qaboard.yaml* says, and
+schedule these jobs instead of keeping cron jobs on the server. Jobs run in
 the background: their page shows their progress, their log, and every error.
 
 ## Delete the runs users deleted, for good
@@ -30,6 +31,37 @@ Most deleted runs have no files left. The job checks each batch's folder once an
 missing, instead of checking every run's.
 :::
 
+## Purge runs whose files are gone
+Runs whose folder was deleted outside QA-Board (quota scripts, users cleaning their folders...) stay listed, without
+files. Click **Start…** in *Purge runs whose files are gone*: it's the same job, for **Which runs: Whose files are
+gone**. It deletes their metadata, never files: runs that still have their folder are kept. Choose **Both** to also
+hard-delete the runs users deleted.
+
+:::caution Storage that isn't mounted looks empty
+If the backend's container doesn't see a storage (autofs, NFS outage), all its runs would look like they lost their
+files. So runs are never purged from a folder missing right under a storage root (`QABOARD_STORAGE_ROOTS`, e.g.
+`/algo/CIS` for `/algo`), from a storage root that is missing or empty, or outside the storage roots: they're kept, with
+a *Storage not mounted?* error. Check the container's mounts, and run the job again.
+:::
+
+## Delete artifacts
+Commits' artifacts (what `qa save-artifacts` saved: builds, configurations...) are often the biggest folders. Click
+**Start…** in *Delete artifacts*, and choose the projects and how long commits must have gone without runs
+(**Commits without runs for**, e.g. `1month`). It keeps:
+- the artifacts of milestones: commits with batches saved as milestones (to redo or compare them), and the commits
+  *qaboard.yaml* protects,
+- the commits on the reference branch, unless you check **Also on the reference branch** (its latest commit is always kept),
+- the commits with runs in progress,
+- what **Keep** lists (artifact groups like `coverage_report`, paths or globs like `build/*.html`), and what each
+  project's `storage.garbage.artifacts.keep` lists,
+- the files other subprojects of the same commit still use.
+
+Runs and commits stay. Commit pages say when and by which job the artifacts were deleted, and QA-Board recreates them
+when users redo runs, if *qaboard.yaml* says how ([recreating artifacts](/docs/storage/deleting-old-data#recreating-artifacts)).
+Commits whose artifacts folder is already gone are only marked as such. Commits with errors are tried again by the next job.
+
+Unlike *Delete old results*, this job doesn't need `storage.garbage.artifacts.delete` in *qaboard.yaml*: admins decide.
+
 ## Delete old results
 *Delete old results* does what `qaboard_clean` does: it deletes the files of old runs, and the commits' artifacts if
 *qaboard.yaml* asks for it, following each project's `storage.garbage` settings ([deleting old data](/docs/storage/deleting-old-data)).
@@ -45,6 +77,7 @@ and **Download all (CSV)** to send them to the people concerned. Once fixed, **R
   (`setuid`): on NFS, check that root can change to the owner's user, or fix the files' permissions.
 - **Outside the storage**: the folder isn't in `QABOARD_STORAGE_ROOTS`, where QA-Board never deletes anything.
 - **Git**: the project's repository can't be read (see above).
+- **Storage not mounted?**: a folder is missing where the storage may just not be mounted (see above).
 
 Only one job of each kind runs at a time. Cancel a running job from its page: it stops within seconds.
 
@@ -55,7 +88,8 @@ next runs. A schedule's run is skipped, with a message, while a job of the same 
 
 For example, to replace the cron job of the [server's setup](/docs/deploy#optional-cleanup):
 - *Old results*: **Delete old results** of `*`, by default older than `1month`, every Saturday at 1:59.
-- *Nightly purge*: **Hard-delete deleted runs** of `*`, created before `1month`, every night.
+- *Nightly purge*: **Hard-delete runs** of `*`, **Both**, created before `1month`, every night.
+- *Artifacts*: **Delete artifacts** of `*`, commits without runs for `2months`, every Sunday.
 
 <details>
 <summary>Where jobs run</summary>

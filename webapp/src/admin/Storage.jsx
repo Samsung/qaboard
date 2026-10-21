@@ -12,7 +12,7 @@ import { Loading } from "../settings/states";
 import { AdminError } from "./states";
 import { jobsQuery, schedulesQuery, saveSchedule, deleteSchedule, runSchedule } from "./api";
 import { JobStatus, kind_labels, progressSummary, nbErrors, number, formatDuration, jobDuration, isStale } from "./jobs";
-import { JobDialog, ScheduleDialog } from "./JobForm";
+import { JobDialog, ScheduleDialog, kind_icons } from "./JobForm";
 
 
 // Jobs only run if a worker does: admins must know when none does
@@ -180,13 +180,23 @@ const Schedules = () => {
 const actions = [
   {
     kind: 'hard_delete',
-    icon: 'trash',
+    initial: { runs: 'deleted' },
     title: 'Hard-delete deleted runs',
     description: "When users delete runs, QA-Board deletes their files but keeps their metadata. Delete them for good: their rows, and what's left of their files. Milestones are kept.",
   },
   {
+    kind: 'hard_delete',
+    initial: { runs: 'missing_files' },
+    title: 'Purge runs whose files are gone',
+    description: "Runs whose folder was deleted outside QA-Board (quota scripts, users...) stay listed, without files. Delete their metadata. No file is deleted, milestones are kept.",
+  },
+  {
+    kind: 'delete_artifacts',
+    title: 'Delete artifacts',
+    description: "Delete what qa save-artifacts saved for commits without recent runs (builds, configurations...). Milestones' artifacts are kept, and QA-Board can recreate them.",
+  },
+  {
     kind: 'garbage_collect',
-    icon: 'clean',
     title: 'Delete old results',
     description: "Delete the files of old runs, as each project's qaboard.yaml says (storage.garbage), like qaboard_clean. Set a default for the projects that say nothing.",
   },
@@ -196,13 +206,13 @@ export const Storage = () => {
   const [starting, setStarting] = useState(null);
   return <>
     <section aria-label="Clean the storage" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12, marginBottom: 28 }}>
-      {actions.map(action => <Card key={action.kind} compact style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {actions.map(action => <Card key={action.title} compact style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         <h5 className={Classes.HEADING} style={{ margin: 0 }}>{action.title}</h5>
         <p className={Classes.TEXT_MUTED} style={{ margin: 0, flex: 1 }}>{action.description}</p>
-        <div><Button icon={action.icon} text="Start…" onClick={() => setStarting(action.kind)}/></div>
+        <div><Button icon={kind_icons[action.kind]} text="Start…" aria-label={`Start: ${action.title}`} onClick={() => setStarting(action)}/></div>
       </Card>)}
     </section>
-    {starting && <JobDialog kind={starting} isOpen onClose={() => setStarting(null)}/>}
+    {starting && <JobDialog kind={starting.kind} initial={starting.initial} title={starting.title} isOpen onClose={() => setStarting(null)}/>}
     <Schedules/>
     <Jobs/>
   </>;

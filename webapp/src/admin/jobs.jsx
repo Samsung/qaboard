@@ -5,8 +5,9 @@ import { parseDate } from "../settings/format";
 
 
 export const kind_labels = {
-  hard_delete: 'Hard-delete deleted runs',
+  hard_delete: 'Hard-delete runs',
   garbage_collect: 'Delete old results',
+  delete_artifacts: 'Delete artifacts',
 };
 
 const statuses = {
@@ -39,6 +40,9 @@ export const progressSummary = job => {
   if (job.kind === 'hard_delete') {
     parts.push(`${plural(progress.runs_deleted ?? 0, 'run')} ${job.dry_run ? 'to delete' : 'deleted'}`);
     if (progress.runs_protected) parts.push(`${number(progress.runs_protected)} kept in milestones`);
+  } else if (job.kind === 'delete_artifacts') {
+    parts.push(`artifacts of ${plural(progress.commits_deleted ?? 0, 'commit')} ${job.dry_run ? 'to delete' : 'deleted'}`);
+    if (progress.artifacts_files) parts.push(`${plural(progress.artifacts_files, 'file')}`);
   } else if (job.kind === 'garbage_collect') {
     parts.push(`${plural(progress.outputs ?? 0, 'run')} ${job.dry_run ? 'to clean' : 'cleaned'}`);
     if (progress.artifacts) parts.push(`artifacts of ${plural(progress.artifacts, 'commit')}`);
@@ -53,10 +57,21 @@ export const counters = {
     { key: 'runs_deleted', label: 'Runs deleted', dry: 'Runs to delete', main: true },
     { key: 'runs_without_files', label: 'had no files left', hint: "Their folders were already gone: only their metadata was deleted (the fast path)." },
     { key: 'runs_with_files', label: 'had files', hint: "What soft deletes left, e.g. their manifest." },
+    { key: 'live_runs_without_files', label: "weren't deleted, but had no files", hint: "Their folders were deleted outside QA-Board, e.g. by a quota script." },
     { key: 'runs_protected', label: 'Runs kept in milestones', hint: "In batches saved as milestones, or commits that qaboard.yaml protects." },
     { key: 'runs_failed', label: 'Runs kept because of errors', intent: Intent.DANGER, hint: "They'll be tried again by the next job: see the errors." },
     { key: 'batches_deleted', label: 'Empty batches deleted', dry: 'Batches checked', dry_key: 'batches_checked' },
     { key: 'batches_checked', label: 'Batches checked' },
+  ],
+  delete_artifacts: [
+    { key: 'commits_deleted', label: 'Commits without artifacts', dry: 'Commits whose artifacts would be deleted', main: true },
+    { key: 'commits_without_files', label: 'were already gone', hint: "Their artifacts folder was already deleted: they're only marked as such (the fast path)." },
+    { key: 'artifacts_files', label: 'Files deleted', dry: 'Files to delete' },
+    { key: 'artifacts_files_kept', label: 'Files kept', hint: "Listed in `keep`, or used by other subprojects of the same commit." },
+    { key: 'commits_protected', label: 'Commits kept for milestones', hint: "Their artifacts are needed to redo or compare milestones." },
+    { key: 'commits_busy', label: 'Commits with runs in progress' },
+    { key: 'commits_failed', label: 'Commits with errors', intent: Intent.DANGER, hint: "The next job tries them again: see the errors." },
+    { key: 'commits_checked', label: 'Commits checked' },
   ],
   garbage_collect: [
     { key: 'outputs', label: 'Runs cleaned', dry: 'Runs to clean', main: true, hint: "Their files are deleted, their metadata stays: a hard delete removes it later." },
@@ -69,6 +84,7 @@ export const counters = {
 export const error_kinds = {
   permission: { label: 'Permissions', hint: "The server could not delete files: fix who owns them or their permissions, then run the job again." },
   unsafe_path: { label: 'Outside the storage', hint: "The folder is outside $QABOARD_STORAGE_ROOTS: QA-Board never deletes there. Add the storage, or delete it yourself." },
+  storage: { label: 'Storage not mounted?', hint: "A folder is missing right under a storage root, or outside the storage: the storage may not be mounted, so QA-Board kept the runs. Check the mounts of the backend's container." },
   git: { label: 'Git', hint: "The project's git repository can't be read: the server can't know which commits qaboard.yaml protects, so the project was skipped." },
   config: { label: 'qaboard.yaml', hint: "The project's storage settings are invalid." },
   database: { label: 'Database' },

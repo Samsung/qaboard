@@ -96,7 +96,7 @@ describe('Storage', () => {
     renderAt('/admin/storage', <Storage/>);
     expect(await screen.findByText('No jobs yet')).toBeInTheDocument();
     expect(screen.getByTestId('workers')).toHaveTextContent('1 worker ready to run jobs');
-    fireEvent.click(screen.getAllByRole('button', { name: 'Start…' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Start: Hard-delete deleted runs' }));
     const dialog = within(await screen.findByRole('dialog'));
     fireEvent.change(dialog.getByLabelText('Projects'), { target: { value: 'group/*' } });
     fireEvent.change(dialog.getByLabelText('Except'), { target: { value: 'group/c, x*' } });
@@ -109,9 +109,36 @@ describe('Storage', () => {
     await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/admin/jobs')).toHaveLength(2));
     expect(JSON.parse(calls(fetch, 'POST', '/api/v1/admin/jobs').at(-1)[1].body)).toEqual({
       kind: 'hard_delete',
-      params: { projects: ['group/*'], exclude_projects: ['group/c', 'x*'], created_before: '1month', dry_run: true },
+      params: { projects: ['group/*'], exclude_projects: ['group/c', 'x*'], runs: 'deleted', created_before: '1month', dry_run: true },
     });
     await waitFor(() => expect(history.location.pathname).toBe('/admin/storage/jobs/9'));
+  });
+
+  it('purges runs whose files are gone, and deletes artifacts', async () => {
+    const fetch = mockApi({
+      'GET /api/v1/admin/jobs': { jobs: [], next_before_id: null, workers: worker },
+      'GET /api/v1/admin/job-schedules': { schedules: [] },
+      'POST /api/v1/admin/jobs': (url, init) => [job({ id: 12, kind: JSON.parse(init.body).kind, status: 'queued' }), 201],
+    });
+    renderAt('/admin/storage', <Storage/>);
+    fireEvent.click(await screen.findByRole('button', { name: 'Start: Purge runs whose files are gone' }));
+    let dialog = within(await screen.findByRole('dialog'));
+    expect(dialog.getByRole('radio', { name: /Whose files are gone/ })).toBeChecked();
+    expect(dialog.getByRole('button', { name: 'Count the runs to check' })).toBeInTheDocument();
+    fireEvent.click(dialog.getByRole('button', { name: 'Start the dry run' }));
+    await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/admin/jobs')).toHaveLength(1));
+    expect(JSON.parse(calls(fetch, 'POST', '/api/v1/admin/jobs')[0][1].body).params.runs).toBe('missing_files');
+
+    act(() => history.replace('/admin/storage'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Start: Delete artifacts' }));
+    dialog = within(await screen.findByRole('dialog'));
+    fireEvent.change(dialog.getByLabelText('Keep'), { target: { value: 'coverage_report, build/*.html' } });
+    fireEvent.click(dialog.getByRole('button', { name: 'Start the dry run' }));
+    await waitFor(() => expect(calls(fetch, 'POST', '/api/v1/admin/jobs')).toHaveLength(2));
+    expect(JSON.parse(calls(fetch, 'POST', '/api/v1/admin/jobs')[1][1].body)).toEqual({
+      kind: 'delete_artifacts',
+      params: { projects: ['*'], exclude_projects: [], older_than: '1month', keep: ['coverage_report', 'build/*.html'], can_delete_reference_branch: false, dry_run: true },
+    });
   });
 
   it('warns before deleting for real, and shows why the server refuses', async () => {
@@ -121,7 +148,7 @@ describe('Storage', () => {
       'POST /api/v1/admin/jobs': () => [{ error: 'Job #3 (Hard-delete deleted runs) is already running: wait for it to finish, or cancel it.', job: job({ id: 3, status: 'running' }) }, 409],
     });
     renderAt('/admin/storage', <Storage/>);
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Start…' }))[0]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Start: Hard-delete deleted runs' }));
     const dialog = within(await screen.findByRole('dialog'));
     fireEvent.change(dialog.getByLabelText('Runs created before'), { target: { value: 'soon' } });
     fireEvent.click(dialog.getByRole('checkbox', { name: /Dry run/ }));
@@ -215,8 +242,12 @@ describe('job forms', () => {
   it('converts parameters both ways', () => {
     expect(splitPatterns(' a*, b\nc ,')).toEqual(['a*', 'b', 'c']);
     const form = fromParams('hard_delete', { projects: ['a*', 'b'], created_before: null, dry_run: false });
-    expect(form).toEqual({ projects: 'a*, b', exclude_projects: '', created_before: '', created_after: '', dry_run: false });
-    expect(toParams('hard_delete', form)).toEqual({ projects: ['a*', 'b'], exclude_projects: [], dry_run: false });
+    expect(form).toEqual({ projects: 'a*, b', exclude_projects: '', runs: 'deleted', created_before: '', created_after: '', dry_run: false });
+    expect(toParams('hard_delete', form)).toEqual({ projects: ['a*', 'b'], exclude_projects: [], runs: 'deleted', dry_run: false });
+    expect(toParams('delete_artifacts', fromParams('delete_artifacts', { keep: ['coverage', 'build/*.html'] }))).toEqual({
+      projects: ['*'], exclude_projects: [], older_than: '1month', keep: ['coverage', 'build/*.html'], can_delete_reference_branch: false, dry_run: true,
+    });
+    expect(Object.keys(validateParams('delete_artifacts', { ...fromParams('delete_artifacts'), older_than: '' }))).toEqual(['older_than']);
   });
 
   it('checks the dates, durations and projects', () => {
@@ -230,6 +261,7 @@ describe('job forms', () => {
   it('summarizes progress', () => {
     expect(progressSummary(job({ dry_run: true, progress: { runs_deleted: 1, projects_total: 2, projects_done: 1 } }))).toBe('1 run to delete, 1/2 projects');
     expect(progressSummary(job({ kind: 'garbage_collect', progress: { outputs: 10, artifacts: 2 } }))).toBe('10 runs cleaned, artifacts of 2 commits');
+    expect(progressSummary(job({ kind: 'delete_artifacts', progress: { commits_deleted: 3, artifacts_files: 40 } }))).toBe('artifacts of 3 commits deleted, 40 files');
     expect(formatDuration(3725)).toBe('1h 2min');
     expect(formatDuration(42)).toBe('42s');
   });

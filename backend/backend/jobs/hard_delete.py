@@ -1,21 +1,23 @@
 """
-Hard-deletes the runs users deleted: what's left of their files (soft deletes keep e.g. their manifest), then their
-rows in the database. Batches left without runs are deleted too. Commits are kept.
+Hard-deletes runs: their rows in the database, and what's left of their files. Batches left without runs are deleted
+too. Commits are kept. Which runs (`runs`):
+- deleted: the runs users deleted. Soft deletes keep e.g. their manifest: we delete it.
+- missing_files: the runs whose folder is gone, e.g. deleted by a quota script or by users, deleted in QA-Board or not.
+  We never delete files then: only the metadata of runs that have none left.
+- both
 
 - Milestones are never deleted: the batches saved as milestones in the web app, and the commits qaboard.yaml
   protects (the latest commit of `project.reference_branch`, and `project.milestones`).
-- Fast path: most deleted runs have no files left. When a folder is missing, so is everything inside it: we check
+- Fast path: most of those runs have no files left. When a folder is missing, so is everything inside it: we check
   each batch's folder once, and remember the missing folders, instead of checking each run's.
+- Storage that isn't mounted looks empty: we never conclude that runs lost their files from a folder missing right
+  under a storage root (see common.Folders).
 - Errors (e.g. permissions) don't stop the job: the run is kept, so that the next job tries again, and the error
   is recorded with the file and its owner.
 
 The job resumes where it was if it's interrupted: it only looks at what's left.
 """
-import io
-import os
-import contextlib
 from pathlib import Path
-from typing import List
 
 from sqlalchemy import func
 from sqlalchemy.orm import contains_eager
@@ -25,19 +27,25 @@ from ..models import Project, CiCommit, Batch, Output
 from ..storage import check_storage_path
 from ..fs_utils import rmtree, rm_empty_parents
 from . import params as p
+from .common import matching_projects, quiet, Folders, StorageUnavailable, Protection
 from .report import Reporter, utcnow
 
 
-PARAMS = ('projects', 'exclude_projects', 'created_before', 'created_after', 'dry_run')
+PARAMS = ('projects', 'exclude_projects', 'runs', 'created_before', 'created_after', 'dry_run')
+RUNS = ('deleted', 'missing_files', 'both')
 COMMITS_PER_PAGE = 200
 ROWS_PER_DELETE = 5_000
 
 
 def validate(params: dict) -> dict:
   p.known_keys(params, PARAMS)
+  runs = params.get('runs') or 'deleted'
+  if runs not in RUNS:
+    raise p.ParamsError(f"`runs` must be one of: {', '.join(RUNS)}")
   return {
     "projects": p.globs(params.get('projects'), 'projects', default=['*']),
     "exclude_projects": p.globs(params.get('exclude_projects'), 'exclude_projects'),
+    "runs": runs,
     "created_before": p.date_or_duration(params.get('created_before'), 'created_before'),
     "created_after": p.date_or_duration(params.get('created_after'), 'created_after'),
     "dry_run": p.boolean(params.get('dry_run'), 'dry_run'),
@@ -45,7 +53,12 @@ def validate(params: dict) -> dict:
 
 
 def describe(params: dict) -> str:
-  what = f"Hard-delete the deleted runs of {', '.join(params['projects'])}"
+  which = {
+    'deleted': 'the deleted runs',
+    'missing_files': 'the runs whose files are gone',
+    'both': 'the deleted runs, and those whose files are gone,',
+  }[params.get('runs') or 'deleted']
+  what = f"Hard-delete {which} of {', '.join(params['projects'])}"
   if params.get('exclude_projects'):
     what += f" except {', '.join(params['exclude_projects'])}"
   if params.get('created_before'):
@@ -55,14 +68,11 @@ def describe(params: dict) -> str:
   return what
 
 
-def matching_projects(params: dict) -> List[str]:
-  ids = [project_id for (project_id,) in db_session.query(Project.id).order_by(Project.id)]
-  return [i for i in ids if p.matches(i, params['projects'], params['exclude_projects'])]
-
-
-def deleted_runs(query, before, after):
-  """The runs users deleted, in the dates. Never those running again (redone)."""
-  query = query.filter(Output.deleted.is_(True), Output.is_pending.isnot(True))
+def candidate_runs(query, runs, before, after):
+  """The runs we look at, in the dates. Never those running (or running again)."""
+  query = query.filter(Output.is_pending.isnot(True))
+  if runs == 'deleted':
+    query = query.filter(Output.deleted.is_(True))
   if before:
     query = query.filter(Output.created_date < before)
   if after:
@@ -71,7 +81,7 @@ def deleted_runs(query, before, after):
 
 
 def estimate(params: dict, timeout_seconds=20) -> dict:
-  """How many deleted runs match, per project, before excluding the milestones. Raises on timeout (big databases)."""
+  """How many runs match, per project, before excluding the milestones and checking the disk. Raises on timeout."""
   from sqlalchemy import text
   now = utcnow()
   before, after = p.to_datetime(params['created_before'], now), p.to_datetime(params['created_after'], now)
@@ -86,89 +96,16 @@ def estimate(params: dict, timeout_seconds=20) -> dict:
              .join(CiCommit, Batch.ci_commit_id == CiCommit.id)
              .filter(CiCommit.project_id.in_(project_ids))
              .group_by(CiCommit.project_id))
-    counts = dict(deleted_runs(query, before, after).all())
+    counts = dict(candidate_runs(query, params['runs'], before, after).all())
   finally:
     db_session.rollback()
   return {"total": sum(counts.values()), "projects": dict(sorted(counts.items(), key=lambda kv: -kv[1]))}
 
 
-def lexists(path) -> bool:
-  """Whether the path exists. When we can't tell (e.g. no permission to look), we say it does: we'll try to delete it and report the error."""
-  try:
-    os.lstat(path)
-    return True
-  except (FileNotFoundError, NotADirectoryError):
-    return False
-  except OSError:
-    return True
-
-
-class Folders:
-  """Whether folders exist, remembering the missing ones: what they would contain is missing too, without checking."""
-  def __init__(self, max_missing=100_000):
-    self.missing = set()
-    self.max_missing = max_missing
-    self.checks = 0
-
-  def exists(self, path) -> bool:
-    path = Path(path)
-    if any(str(parent) in self.missing for parent in (path, *path.parents)):
-      return False
-    self.checks += 1
-    if lexists(path):
-      return True
-    # the highest missing folder: its other subfolders are missing too
-    top = path
-    for parent in path.parents:
-      if parent == parent.parent:
-        break
-      self.checks += 1
-      if lexists(parent):
-        break
-      top = parent
-    if len(self.missing) > self.max_missing:
-      self.missing.clear()
-    self.missing.add(str(top))
-    return False
-
-
-class Protection:
-  """What we must not delete in a project"""
-  def __init__(self, project: Project, report: Reporter):
-    self.project_id = project.id
-    self.milestone_batches = project.milestone_batches
-    self.commits = set()
-    config = (project.data or {}).get('qatools_config') or {}
-    project_config = (config.get('project') or {}) if isinstance(config, dict) else {}
-    if not isinstance(project_config, dict):
-      project_config = {}
-    milestones = project_config.get('milestones') or []
-    repo = project.repo if milestones else None
-    if milestones and not repo:
-      raise SkipProject("could not read its git repository, to know the commits that qaboard.yaml's project.milestones protect")
-    if repo:
-      self.commits.update(project.protected_ref_commits)
-    else:
-      # without git: the latest commit we know on the reference branch
-      reference = project_config.get('reference_branch') or 'master'
-      latest = (db_session.query(CiCommit.hexsha)
-                .filter(CiCommit.project_id == project.id, CiCommit.branch.in_([reference, f'origin/{reference}']))
-                .order_by(CiCommit.authored_datetime.desc().nullslast()).first())
-      if latest:
-        self.commits.add(latest[0])
-
-  def protects(self, hexsha: str, label: str) -> bool:
-    return hexsha in self.commits or label in self.milestone_batches.of_commit(self.project_id, hexsha)
-
-
-class SkipProject(Exception):
-  pass
-
-
 def delete_files(path: Path):
-  """Deletes a run's folder. rmtree prints every file: millions of lines we don't want in the logs."""
+  """Deletes a run's folder"""
   check_storage_path(path)
-  with contextlib.redirect_stdout(io.StringIO()):
+  with quiet():
     rmtree(path)
     rm_empty_parents(path)
 
@@ -183,6 +120,9 @@ class HardDelete:
     self.params = params
     self.report = report
     self.dry_run = params['dry_run']
+    self.runs = params.get('runs') or 'deleted'
+    # Runs users didn't delete: we only delete their metadata if they have no files, and must be sure of it
+    self.live_runs = self.runs != 'deleted'
     now = utcnow()
     self.before = p.to_datetime(params['created_before'], now)
     self.after = p.to_datetime(params['created_after'], now)
@@ -217,7 +157,7 @@ class HardDelete:
     if project is None:
       return True
     try:
-      protection = Protection(project, report)
+      protection = Protection(project)
     except Exception as e:
       # without knowing its milestones, we don't touch the project
       report.error('git', f"{project_id} was skipped: {e}", project_id=project_id)
@@ -246,9 +186,9 @@ class HardDelete:
         # runs are created after their batch
         query = query.filter(Batch.created_date < self.before)
       batches = query.order_by(Batch.id).all()
-      counts = dict(deleted_runs(
+      counts = dict(candidate_runs(
         db_session.query(Output.batch_id, func.count(Output.id)).filter(Output.batch_id.in_([b.id for b in batches])),
-        self.before, self.after,
+        self.runs, self.before, self.after,
       ).group_by(Output.batch_id).all()) if batches else {}
       for batch in batches:
         if counts.get(batch.id):
@@ -264,6 +204,11 @@ class HardDelete:
     report.add(folder_checks=folders.checks)
     return True
 
+  def missing(self, folders: Folders, path, deleted: bool) -> bool:
+    """Whether a folder is missing. Raises StorageUnavailable when the storage may not be mounted."""
+    # outside the storage, we can't tell if it's mounted: fine for runs users deleted, not for the others
+    return not folders.exists(path, outside_storage=deleted)
+
   def batch(self, batch: Batch, nb_runs: int, protection: Protection, folders: Folders):
     report = self.report
     commit = batch.ci_commit
@@ -278,14 +223,19 @@ class HardDelete:
       report.add(runs_failed=nb_runs)
       return
 
-    runs = deleted_runs(db_session.query(Output).filter(Output.batch_id == batch.id), self.before, self.after)
+    runs = candidate_runs(db_session.query(Output).filter(Output.batch_id == batch.id), self.runs, self.before, self.after)
     to_delete = []
     # Fast path: the runs saved in the batch's folder, when it's missing
     in_batch_dir = runs.filter(Output.output_dir_override.is_(None))
-    if not folders.exists(batch_dir):
-      ids = [i for (i,) in in_batch_dir.with_entities(Output.id)]
-      to_delete.extend(ids)
-      report.add(runs_without_files=len(ids))
+    try:
+      batch_dir_missing = self.missing(folders, batch_dir, deleted=not self.live_runs)
+    except StorageUnavailable as e:
+      report.error('storage', str(e), path=e.path, **context)
+      report.add(runs_failed=nb_runs)
+      return
+    if batch_dir_missing:
+      for output_id, deleted in in_batch_dir.with_entities(Output.id, Output.deleted):
+        self.without_files(output_id, deleted, to_delete)
     else:
       for output in in_batch_dir.all():
         try:
@@ -294,16 +244,12 @@ class HardDelete:
           report.error('other', f"Could not find the folder of run {output.id}: {e}", output_id=output.id, **context)
           report.add(runs_failed=1)
           continue
-        self.delete_run(output, output_dir, folders, to_delete, context)
+        self.delete_run(output.id, bool(output.deleted), output_dir, folders, to_delete, context)
     # Runs saved elsewhere: each has its folder, often in a few missing parent folders
-    for output_id, output_dir in runs.filter(Output.output_dir_override.isnot(None)).with_entities(Output.id, Output.output_dir_override):
-      if not folders.exists(output_dir):
-        to_delete.append(output_id)
-        report.add(runs_without_files=1)
-      else:
-        self.delete_run(output_id, Path(output_dir), folders, to_delete, context)
+    for output_id, deleted, output_dir in runs.filter(Output.output_dir_override.isnot(None)).with_entities(Output.id, Output.deleted, Output.output_dir_override):
+      self.delete_run(output_id, bool(deleted), Path(output_dir), folders, to_delete, context)
 
-    if self.dry_run:
+    if self.dry_run or not to_delete:
       report.add(runs_deleted=len(to_delete))
       return
     try:
@@ -321,13 +267,25 @@ class HardDelete:
       return
     report.add(runs_deleted=len(to_delete), batches_deleted=1 if batch_deleted else 0)
 
-  def delete_run(self, output, output_dir: Path, folders: Folders, to_delete: list, context: dict):
+  def without_files(self, output_id: int, deleted: bool, to_delete: list):
+    to_delete.append(output_id)
+    self.report.add(runs_without_files=1, **({} if deleted else {"live_runs_without_files": 1}))
+
+  def delete_run(self, output_id: int, deleted: bool, output_dir: Path, folders: Folders, to_delete: list, context: dict):
     """A run whose folder may exist"""
-    output_id = output if isinstance(output, int) else output.id
-    if not folders.exists(output_dir):
-      to_delete.append(output_id)
-      self.report.add(runs_without_files=1)
+    try:
+      missing = self.missing(folders, output_dir, deleted)
+    except StorageUnavailable as e:
+      self.report.error('storage', str(e), path=e.path, output_id=output_id, **context)
+      self.report.add(runs_failed=1)
       return
+    if missing:
+      self.without_files(output_id, deleted, to_delete)
+      return
+    if not deleted:
+      return  # it has files: users still have it
+    if self.runs == 'missing_files':
+      return  # we don't delete files in this mode
     if self.dry_run:
       to_delete.append(output_id)
       self.report.add(runs_with_files=1)
