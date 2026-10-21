@@ -49,6 +49,8 @@ else:
     'QABOARD_STORAGE_ROOTS': str(storage_dir),
     'SECRET_KEY': 'integration-tests',
     'QABOARD_HOST': 'localhost:5151',
+    # tests of the jobs worker don't want its default jobs (test_storage_usage.py does)
+    'QABOARD_STORAGE_USAGE_AUTO': '0',
   })
   for name in ['QABOARD_LOGIN_TYPE', 'QABOARD_LOGIN_REQUIRED', 'QABOARD_DISABLE_SIGNUP', 'QABOARD_INGEST_AUTH',
                'QABOARD_ADMINS', 'QABOARD_LOGIN_RESTRICTED', 'QABOARD_URL', 'QABOARD_ALLOWED_ORIGINS', 'SENTRY_DSN']:

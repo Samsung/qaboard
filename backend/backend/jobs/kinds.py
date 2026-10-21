@@ -2,20 +2,27 @@
 What jobs can do. Each kind validates its parameters, describes them, and runs, reporting to a Reporter.
 To add a kind: a module with validate(params) -> params, describe(params) -> str, run(params, report), listed here.
 """
-from . import hard_delete, garbage_collect, artifacts
+from . import hard_delete, garbage_collect, artifacts, usage, delete_runs
 
 
 KINDS = {
   'hard_delete': hard_delete,
   'garbage_collect': garbage_collect,
   'delete_artifacts': artifacts,
+  'storage_usage': usage,
+  'delete_runs': delete_runs,
 }
 
 LABELS = {
   'hard_delete': 'Hard-delete runs',
   'garbage_collect': 'Delete old results',
   'delete_artifacts': 'Delete artifacts',
+  'storage_usage': 'Compute storage usage',
+  'delete_runs': "Delete users' runs",
 }
+
+# Kinds run in the worker's interactive lane, next to the long maintenance jobs: users wait for them
+INTERACTIVE = [kind for kind, module in KINDS.items() if getattr(module, 'INTERACTIVE', False)]
 
 
 def get(kind: str):

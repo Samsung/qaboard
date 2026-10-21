@@ -58,6 +58,8 @@ class CiCommit(Base):
     # Created by the migration e7f3b2a91c40 on existing databases.
     Index('ix_ci_commits_project_id_authored_datetime', 'project_id', authored_datetime.desc()),
     Index('ix_ci_commits_project_id_branch_authored_datetime', 'project_id', 'branch', authored_datetime.desc()),
+    # The commits with new runs, whose storage usage must be updated (backend/storage_usage.py)
+    Index('ix_ci_commits_latest_output_datetime', 'latest_output_datetime'),
   )
   # In the end there having a commit's parents is not all that useful for QA-Board:
   # not all commits are used for runs: e.g. CI runs only on pushed commits, so

@@ -266,6 +266,10 @@ class HardDelete:
       report.add(runs_failed=len(to_delete))
       return
     report.add(runs_deleted=len(to_delete), batches_deleted=1 if batch_deleted else 0)
+    if not batch_deleted:
+      # users' storage usage counts the runs that weren't deleted
+      from ..storage_usage import refresh_soon
+      refresh_soon([batch.id])
 
   def without_files(self, output_id: int, deleted: bool, to_delete: list):
     to_delete.append(output_id)

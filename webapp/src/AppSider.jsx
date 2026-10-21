@@ -425,19 +425,24 @@ const MenuItemLink = ({ to, ...props }) => {
   return <MenuItem {...props} href={to} onClick={handleClick}/>
 }
 
-// Only shown if the site has a quota dashboard (QABOARD_QUOTA_URL_TEMPLATE)
-const QuotaMenuItem = ({ user, project }) => {
+// How much storage the project's runs use, and the site's quota dashboard if it has one (QABOARD_QUOTA_URL_TEMPLATE)
+const StorageMenuItem = ({ user, project }) => {
   const { quota_url_template } = useSiteConfig()
-  const href = quota_url(quota_url_template, user?.user_name, project)
-  if (!user?.is_logged || !href)
+  if (!user?.is_logged)
     return null
-  return <MenuItem
-    href={href}
-    rel="noopener noreferrer" target="_blank"
+  const storage = `/storage/batches?project=${encodeURIComponent(project ?? '')}`
+  const dashboard = quota_url(quota_url_template, user?.user_name, project)
+  return <MenuItemLink
+    to={storage}
     icon="database"
-    text="Quota"
-    title="Your storage quota dashboard (opens in a new tab)"
-  />
+    text="Storage usage"
+    title="How much storage your runs use in this project, and deleting what you don't need"
+  >
+    <MenuItemLink to={storage} icon="database" text="Your runs in this project"/>
+    <MenuItemLink to="/storage" icon="projects" text="Your runs in every project"/>
+    <MenuItemLink to={`/storage/batches?scope=all&project=${encodeURIComponent(project ?? '')}`} icon="people" text="Everyone's runs in this project"/>
+    {dashboard && <MenuItem href={dashboard} rel="noopener noreferrer" target="_blank" icon="dashboard" text="Quota dashboard" title="Opens in a new tab"/>}
+  </MenuItemLink>
 }
 
 // Milestones: a menu to pick any of them, and the user's favorites one click away
@@ -550,7 +555,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
       {...integrationProps}
     />
     <SiderMilestones project={project} project_data={project_data} docs_root={docs_root}/>
-    <QuotaMenuItem user={user} project={project} />
+    <StorageMenuItem user={user} project={project} />
   </>
 }
 

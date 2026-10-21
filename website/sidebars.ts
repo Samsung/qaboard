@@ -101,6 +101,7 @@ const sidebars: SidebarsConfig = {
         'user-guide/logs',
         'user-guide/sharing',
         'user-guide/files',
+        'user-guide/storage-usage',
         'user-guide/account',
       ],
     },

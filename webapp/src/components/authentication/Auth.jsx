@@ -228,6 +228,7 @@ const UserMenu = ({ user, logout, avatar_url_template, appSider = false }) => {
   </UserMenuTrigger>;
   const items = <>
     <MenuItem text="Settings" icon="cog" href="/settings" onClick={navigate("/settings")}/>
+    <MenuItem text="Storage usage" icon="database" href="/storage" onClick={navigate("/storage")}/>
     {user.is_admin && <MenuItem
       text="Admin"
       icon="shield"

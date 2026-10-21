@@ -39,7 +39,7 @@ def create(kind: str, params: dict, user=None, label: Optional[str] = None, sche
   """Queues a job. Raises ParamsError if the parameters are invalid, Busy if a job of the kind is active. The caller commits."""
   params = kinds.validate(kind, params)
   # Jobs of the same kind would do the same work twice, and fight over the same files
-  busy = active_job(kind)
+  busy = None if getattr(kinds.get(kind), 'CONCURRENT', False) else active_job(kind)
   if busy:
     raise Busy(busy)
   job = Job(
@@ -82,10 +82,14 @@ def requeue_stale(now=None) -> int:
   return len(stale)
 
 
-def claim(worker_id: str) -> Optional[int]:
-  """The next queued job, now running on this worker"""
-  job = (Job.query.filter(Job.status == 'queued').order_by(Job.id)
-         .with_for_update(skip_locked=True).first())
+def claim(worker_id: str, interactive: Optional[bool] = None) -> Optional[int]:
+  """The next queued job, now running on this worker. `interactive`: only those kinds (True), or only the others (False)"""
+  query = Job.query.filter(Job.status == 'queued')
+  if interactive is True:
+    query = query.filter(Job.kind.in_(kinds.INTERACTIVE))
+  elif interactive is False:
+    query = query.filter(Job.kind.notin_(kinds.INTERACTIVE))
+  job = query.order_by(Job.id).with_for_update(skip_locked=True).first()
   if job is None:
     db_session.commit()
     return None

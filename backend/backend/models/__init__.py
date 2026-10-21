@@ -12,3 +12,4 @@ from .AuditEvent import *
 from .Setting import *
 from .SignIn import *
 from .Job import *
+from .StorageUsage import *
