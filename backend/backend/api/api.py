@@ -350,15 +350,11 @@ def get_projects():
 @app.route("/api/v1/project")
 def get_project():
   project_id = request.args['project']
-  project = (Project
-               .query.filter(
-                 Project.id==project_id,
-               )
-               .one()
-              )
-
-  if not is_authorized_user(None, project_id): 
+  if not is_authorized_user(None, project_id):
     return forbidden_project(project_id)
+  project = Project.query.filter(Project.id == project_id).one_or_none()
+  if project is None:
+    return jsonify({"error": f"There is no project {project_id}."}), 404
 
   # Milestones from older versions, kept for rollbacks: they are in their own table, see /api/v1/milestones
   return jsonify({k: v for k, v in project.data.items() if k != 'milestones'})

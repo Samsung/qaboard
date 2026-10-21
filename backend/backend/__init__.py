@@ -93,6 +93,8 @@ import backend.api.sign_in
 import backend.api.admin_sign_in
 import backend.api.tasks
 import backend.api.files
+import backend.api.access
+import backend.api.admin_access
 
 # Who is calling, and whether they may call the API at all: see backend/actor.py
 from .actor import register as register_actor

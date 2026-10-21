@@ -34,13 +34,13 @@ from ..storage import check_storage_path, UnsafePathError
 from ..submissions import record_submission, MAX_SUBMISSIONS, user_batch_dir, submission_dir # noqa: F401
 from ..artifacts import ArtifactsUnavailable
 from ..notifications.batches import request_batch_notification, cancel_batch_notification
-from .auth import login_required
+from .auth import login_required, require_project_access, is_authorized_user, forbidden_project
 
 
-def get_groups_path(project_id, name="extra-batches"):
+def get_groups_path(project_id, name="extra-batches", create=True):
     """
     Return the path of the file where we save the groups of tests we defined for a project.
-    Creates it if it does not exist yet.
+    Creates it if it does not exist yet (unless `create` is False).
     """
     name = str(name)
     if not re.match(r'^[\w.@-]+$', name) or name.startswith('.'):
@@ -49,7 +49,7 @@ def get_groups_path(project_id, name="extra-batches"):
     path = (root / project_id / f"{name}.yml").resolve()
     if not path.is_relative_to(root):
         raise ValueError(f"Invalid project: {project_id!r}")
-    if not path.exists():
+    if create and not path.exists():
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("w") as f:
             f.write("""# Docs:\n# https://samsung.github.io/qaboard/docs/batches-running-on-multiple-inputs""")
@@ -67,13 +67,18 @@ def groups():
     """
     project_id = request.args["project"]
     name = request.args["name"]
+    if not is_authorized_user(None, project_id):
+        return forbidden_project(project_id)
     try:
-        groups_path = get_groups_path(project_id, name=name)
+        # reading doesn't create the file
+        groups_path = get_groups_path(project_id, name=name, create=request.method == "POST")
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
     if request.method == "POST":
-        return login_required(update_groups)(groups_path)
+        return login_required(lambda path: require_project_access(None, project_id) or update_groups(path))(groups_path)
     else:
+        if not groups_path.exists():
+            return "# Docs:\n# https://samsung.github.io/qaboard/docs/batches-running-on-multiple-inputs"
         try:
             with groups_path.open("r") as f:
                 return f.read()
@@ -275,6 +280,9 @@ def get_group():
         return jsonify({"tests": []})
 
     project_id = request.args["project"]
+    # it may run `qa batch --list` in the commit's artifacts
+    if forbidden := require_project_access(None, project_id):
+        return forbidden
     project = Project.get_or_create(session=db_session, id=project_id)
     data = request.get_json()
     try:
@@ -709,6 +717,8 @@ def start_tuning(hexsha):
     project_id = request.args["project"]
     data = request.get_json()
 
+    if forbidden := require_project_access(None, project_id):
+        return forbidden
     # We run as the logged-in user, ignoring data['user']
     try:
         user = safe_user_name(g.user['user_name'])

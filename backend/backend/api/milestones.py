@@ -16,7 +16,7 @@ from sqlalchemy import or_
 from backend import app, db_session
 from backend.models import Project, Milestone, MilestoneFavorite, MilestoneGroupFavorite, CiCommit, Batch, Output, TestInput
 from backend.milestones import summarize_runs, normalize_group, clean_fields, from_legacy, same_results, can_edit, serialize
-from .auth import get_current_user, require_project_access, is_authorized_user, login_required
+from .auth import get_current_user, require_project_access, is_authorized_user, login_required, forbidden_project
 
 
 def current_user_info():
@@ -53,7 +53,7 @@ def get_milestone(milestone_id):
   if milestone is None:
     return None, user_info, (jsonify({"error": "This milestone doesn't exist anymore: it was deleted."}), 404)
   if not is_authorized_user(user_info, milestone.project_id):
-    return None, user_info, (jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403)
+    return None, user_info, forbidden_project(milestone.project_id)
   return milestone, user_info, None
 
 
@@ -103,7 +103,7 @@ def list_milestones():
     return jsonify({"error": "Missing ?project="}), 400
   user_info, user_id = current_user_info()
   if not is_authorized_user(user_info, project_id):
-    return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
+    return forbidden_project(project_id)
   # shared milestones, and the user's own. Personal milestones are only listed for their owner,
   # even after their owner is deleted (user_id becomes NULL): their links still work.
   visible = [Milestone.shared == True]
@@ -144,13 +144,13 @@ def create_milestone():
   project_id = body.get('project')
   if not project_id or not Project.query.filter(Project.id == project_id).one_or_none():
     return jsonify({"error": "Project not found"}), 404
-  if forbidden := require_project_access(user_info, project_id):
+  if forbidden := require_project_access(user_info, project_id, 'milestones.write'):
     return forbidden
   fields, error = clean_fields(body)
   if error:
     return jsonify({"error": error}), 400
   # milestones protect their batch from deletion: only in projects the user can see
-  if fields['commit_project_id'] and (forbidden := require_project_access(user_info, fields['commit_project_id'])):
+  if fields['commit_project_id'] and (forbidden := require_project_access(user_info, fields['commit_project_id'], 'project.read')):
     return forbidden
   commit_info = fields.pop('commit_info', None)
   milestone = Milestone(project_id=project_id, user_id=user_id, data={}, **fields)
@@ -184,6 +184,9 @@ def edit_milestone(milestone_id):
   if not can_edit(milestone.user_id, user_id, milestone.data, user_info.get('user_name')):
     owner = milestone.user.full_name or milestone.user.user_name if milestone.user else None
     return jsonify({"error": f"Only {owner or 'its owner'} can edit or delete this milestone. Add it to your favorites, or save your own."}), 403
+  # shared milestones without an owner: whoever can save milestones in the project
+  if milestone.user_id != user_id and (forbidden := require_project_access(user_info, milestone.project_id, 'milestones.write')):
+    return forbidden
 
   if request.method == 'DELETE':
     db_session.delete(milestone)
@@ -193,7 +196,7 @@ def edit_milestone(milestone_id):
   fields, error = clean_fields(request.get_json(silent=True) or {}, partial=True)
   if error:
     return jsonify({"error": error}), 400
-  if fields.get('commit_project_id') and (forbidden := require_project_access(user_info, fields['commit_project_id'])):
+  if fields.get('commit_project_id') and (forbidden := require_project_access(user_info, fields['commit_project_id'], 'project.read')):
     return forbidden
   set_commit_info(milestone, fields.pop('commit_info', None))
   for name, value in fields.items():
@@ -243,7 +246,8 @@ def favorite_group():
     return jsonify({"error": "Expected {project, section: mine|shared, group}"}), 400
   if not Project.query.filter(Project.id == project_id).one_or_none():
     return jsonify({"error": "Project not found"}), 404
-  if forbidden := require_project_access(user_info, project_id):
+  # favorites are personal: seeing the project is enough
+  if forbidden := require_project_access(user_info, project_id, 'project.read'):
     return forbidden
   is_favorite = body.get('is_favorite', True) in (True, 'true')
   key = dict(user_id=user_id, project_id=project_id, section=section, group=group)

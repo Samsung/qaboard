@@ -198,7 +198,8 @@ def json_body(r) -> Dict[str, Any]:
 
 def refusal(r) -> Optional[Dict[str, Any]]:
   """
-  For a 401 or 403 that says why (JSON with a `reason`): {status, reason, error (the server's sentence), required?}.
+  For a 401 or 403 that says why (JSON with a `reason`): {status, reason, error (the server's sentence), required?,
+  project?, owners? (whom to ask for a role)}.
   None otherwise: callers keep their usual error handling, e.g. for older servers or proxies.
   """
   status = getattr(r, 'status_code', None)
@@ -211,10 +212,14 @@ def refusal(r) -> Optional[Dict[str, Any]]:
   if not isinstance(error, str) or not error.strip():
     error = f"QA-Board refused the request ({status} {reason})."
   required = body.get('required')
-  return {'status': status, 'reason': reason, 'error': error.strip(), 'required': required if isinstance(required, str) else None}
+  owners = [o.get('name') for o in body.get('owners') or [] if isinstance(o, dict) and isinstance(o.get('name'), str)]
+  return {
+    'status': status, 'reason': reason, 'error': error.strip(), 'required': required if isinstance(required, str) else None,
+    'project': body.get('project') if isinstance(body.get('project'), str) else None, 'owners': owners,
+  }
 
 
-def fix_for(refused: Dict[str, Any], token_source: Optional[str] = None, ci: bool = False, project: Optional[str] = None) -> Optional[str]:
+def fix_for(refused: Dict[str, Any], token_source: Optional[str] = None, ci: bool = False, project: Optional[str] = None, server: Optional[str] = None) -> Optional[str]:
   """
   One line that says what to do about a refusal, after the server's sentence (it only says what's wrong).
   In CI, never `qa auth login`: there is no one to sign in.
@@ -238,6 +243,12 @@ def fix_for(refused: Dict[str, Any], token_source: Optional[str] = None, ci: boo
     if token_source == 'secrets.yaml':
       return f"Run `qa auth login`, then remove QA_TOKEN from {user_secrets_path}."
     return "Run `qa auth login` to sign in again."
+  if reason == 'missing_role':
+    target = refused.get('project') or project or 'the project'
+    owners = refused.get('owners') or []
+    who = f" ({', '.join(owners[:3])})" if owners else ''
+    where = f": {server.rstrip('/')}/{target}/access" if server else " on its Access page in QA-Board"
+    return f"Ask an owner{who} of {target} for the {refused.get('required') or 'needed'} role, or request it{where}."
   if reason in ('sign_in_required', 'ingest_token_required'):
     if ci:
       scope = " with the ingest scope" if reason == 'ingest_token_required' else ''

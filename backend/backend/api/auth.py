@@ -27,6 +27,7 @@ from ..actor import unauthenticated
 from ..sign_in import sessions
 from ..sign_in.accounts import finish as finish_sign_in, new_user_status
 from .. import tokens as tokens_lib
+from ..access import can
 
 
 login_manager = LoginManager(app)
@@ -247,7 +248,8 @@ def login_required(f):
   Decorator for endpoints that need a logged-in user (session cookie, SAML session or API token).
   The user's info is available as `flask.g.user` (see get_current_user).
   With a token, writes need the "act" scope, and the token must allow `?project=`.
-  If QABOARD_LOGIN_RESTRICTED is set, also checks the user may access `?project=`.
+  With `?project=`, the user must be able to see it. Endpoints that change a project check more with
+  require_project_access (e.g. runs.act), on the project of the object they load.
   """
   @wraps(f)
   def wrapper(*args, **kwargs):
@@ -262,8 +264,11 @@ def login_required(f):
         return jsonify({"error": f"This token can't do this: it needs the \"{scope}\" scope.", "reason": "missing_scope", "required": scope}), 403
       if project and not actor.allows_project(project):
         return jsonify({"error": f"This token can't access {project}.", "reason": "token_project"}), 403
-    if is_login_restricted and not is_authorized_user(user_info, project):
-      return forbidden_project(project)
+    if project:
+      if forbidden := require_project_access(user_info, project, 'project.read'):
+        return forbidden
+    elif is_login_restricted and not is_authorized_user(user_info, None):
+      return forbidden_project(None)
     g.user = user_info
     return f(*args, **kwargs)
   return wrapper
@@ -314,23 +319,23 @@ def admin_required(f):
   return wrapper
 
 
-def require_project_access(user_info: dict, project_id: str):
+def require_project_access(user_info: dict, project_id: str, permission: str = 'runs.act'):
   """
-  None if the user may access the project, else a 403 response to return.
+  None if the current user (or token) has the permission on the project (backend/access/policy.py), else the
+  response to return: 401 to sign in, 403 with whom to ask.
   Endpoints that change a batch, run or commit must check the project of the object they loaded:
   `login_required` only checks the `?project=` the client chose.
-  Always None when QABOARD_LOGIN_RESTRICTED is off (`is_authorized_user` is then always true).
+  `user_info` is unused: the check is always about who is calling (g.actor).
   """
-  if is_authorized_user(user_info, project_id):
-    return None
-  return forbidden_project(project_id)
+  from ..access import authorize, denied
+  decision = authorize(g.get('actor') if has_request_context() else None, permission, project_id)
+  return None if decision.allowed else denied(decision)
 
 
-def forbidden_project(project_id=None):
-  """The 403 of projects users can't access. With a token, it may be the token's restriction."""
-  actor = g.get('actor') if has_request_context() else None
-  if project_id and actor is not None and actor.token is not None and not actor.allows_project(project_id):
-    return jsonify({"error": f"This token can't access {project_id}.", "reason": "token_project"}), 403
+def forbidden_project(project_id=None, permission: str = 'project.read'):
+  """The response for a project the current user can't see (or act on), e.g. after is_authorized_user"""
+  if project_id and (forbidden := require_project_access(None, project_id, permission)):
+    return forbidden
   return jsonify({"error": "Forbidden: You don't have permission to access this project", "reason": "forbidden_project"}), 403
 
 
@@ -356,8 +361,8 @@ def ingest_access(project_id: str):
     problem = ("missing_scope", "This token can't send results: it needs the \"ingest\" scope.")
   elif not actor.allows_project(project_id):
     problem = ("token_project", f"This token can't send results to {project_id}.")
-  elif is_login_restricted and not is_authorized_user(get_current_user(to_jsonify=False), project_id):
-    problem = ("forbidden_project", f"You don't have permission to access {project_id}.")
+  elif not can('runs.ingest', project_id, actor):
+    problem = ("missing_role", f"You need the developer role to send results to {project_id}.")
   if problem:
     reason, message = problem
     if mode == 'token':
@@ -489,20 +494,12 @@ def is_authorized_user(user_info: dict, project=None):
       bool: True if the user is authorized to access the project (or authorized in general 
             if no project is provided), False otherwise.
   """
+  if project:
+    # the current user (or token) can see it: backend/access/
+    return can('project.read', project)
   if not user_info:
     user_info = get_current_user(to_jsonify=False)
-
-  actor = g.get('actor') if has_request_context() else None
-  if project and actor is not None and actor.token is not None and not actor.allows_project(project):
-    return False
-
-  if project:
-    project = restricted_project_key(project)
-    if project is None:
-      # Project is public
-      return True
-
-  perms_data = restrictions('projects')[project] if project else restrictions('login')
+  perms_data = restrictions('login')
   if not perms_data:
     return True
   return matches_rules(user_info, perms_data)

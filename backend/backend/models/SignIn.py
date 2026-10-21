@@ -73,8 +73,11 @@ class AccessRequest(Base):
   id = Column(Integer, primary_key=True)
   user_id = Column(Integer, ForeignKey('users.id', ondelete='CASCADE'), nullable=False, index=True)
   user = relationship("User", foreign_keys=[user_id])
-  # instance (M2). Later: a role on a project or a namespace
+  # instance: a pending user waits for an admin (M2). project: a role on resource_id, decided by its owners (M3)
   kind = Column(String(), nullable=False, default='instance', server_default='instance')
+  # the project (an id or a prefix), and the role asked
+  resource_id = Column(String(), nullable=True, index=True)
+  role = Column(String(), nullable=True)
   message = Column(Text(), nullable=False, default='', server_default='')
   # pending, approved, denied
   status = Column(String(), nullable=False, default='pending', server_default='pending')

@@ -11,6 +11,7 @@ from celery.app.control import Inspect
 from qaboard.runners.celery_app import app as celery_app, ssh_task
 
 from backend import app
+from .auth import login_required
 
 
 # https://github.com/celery/celery/blob/main/celery/app/control.py#L340
@@ -18,6 +19,7 @@ inspector = Inspect(app=celery_app)
 
 
 @app.post("/api/v1/task/celery/<id>")
+@login_required
 def task_celery(id):
     result = ssh_task.delay(id)
     while result.status == "PENDING":

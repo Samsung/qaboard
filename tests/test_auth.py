@@ -556,6 +556,7 @@ class TestIngestMessages(AuthTestCase):
     for patcher in [
       mock.patch('qaboard.api.qa_token', None),
       mock.patch('qaboard.api.qa_token_source', None),
+      mock.patch('qaboard.api.qaboard_url', SERVER),
       mock.patch('qaboard.config.project', Path('group/repo')),
     ]:
       patcher.start()
@@ -611,6 +612,9 @@ class TestIngestMessages(AuthTestCase):
       ({"error": "This token can't do this: it needs the \"act\" scope.", "reason": "missing_scope", "required": "act"}, 403,
        'Create a token with the "act" scope in Settings → Access tokens, then sign in with it: `qa auth login --with-token`.'),
       ({"error": "Tokens in URLs are only accepted to read: send it in the Authorization header.", "reason": "token_in_url"}, 401, None),
+      ({"error": "You need the developer role to send results to group/repo: you're a viewer.", "reason": "missing_role", "required": "developer",
+        "project": "group/repo", "owners": [{"type": "user", "id": 1, "name": "alice"}]}, 403,
+       'Ask an owner (alice) of group/repo for the developer role, or request it: http://qa.test/group/repo/access.'),
     ]
     for body, status, fix in cases:
       os.environ.pop('QA_AUTH_WARNING_SHOWN', None)

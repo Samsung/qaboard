@@ -20,7 +20,8 @@ from ..config import qaboard_data_dir
 from ..git_hosts import git_hosts
 from ..git_utils import check_project_path
 from ..models import Project
-from .auth import login_required, is_authorized_user
+from .auth import login_required, is_authorized_user, require_project_access
+from ..access import can
 
 # We love our proxies
 import urllib3
@@ -370,8 +371,8 @@ def github_workflow(data, dispatch=False):
   project_id = data.get('project')
   if not isinstance(project_id, str) or not project_id:
     raise IntegrationError("Missing `project`", 400)
-  if not is_authorized_user(None, project_id):
-    raise IntegrationError("Forbidden: You don't have permission to access this project", 403)
+  if not can('runs.act' if dispatch else 'project.read', project_id):
+    raise IntegrationError("Forbidden: you need the developer role to start workflows" if dispatch else "Forbidden: You don't have permission to access this project", 403)
   project = Project.query.filter(Project.id == project_id).one_or_none()
   if not project:
     raise IntegrationError(f"Unknown project: {project_id}", 404)
@@ -654,9 +655,13 @@ def jenkins_build():
 @app.route("/api/v1/jenkins/build/trigger/", methods=['POST'])
 def jenkins_build_trigger():
   """
-  Trigger a Jenkins build.
+  Trigger a Jenkins build, with the server's Jenkins credentials. The CLI's Jenkins runner calls it without a user
+  (anonymous unless sign-in is required); the web app says which project: then only its developers can.
   """
-  return trigger_jenkins_build(request.get_json())
+  data = request.get_json(silent=True) or {}
+  if data.get('project') and (forbidden := require_project_access(None, data['project'])):
+    return forbidden
+  return trigger_jenkins_build(data)
 
 
 def trigger_jenkins_build(data):

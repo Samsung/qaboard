@@ -6,10 +6,13 @@ nginx serves the files (services/nginx/snippets/qaboard-files.conf). It asks us:
 - whether the user can read a file, with auth_request, if the deployment enables it (snippets/qaboard-files-auth.conf)
 The file browser also asks which run a folder belongs to, to redo or delete it (with the outputs API).
 
-Files are restricted with QABOARD_LOGIN_RESTRICTED_YAML:
-- "projects": the outputs and artifacts folders of the restricted projects, from their storage settings in qaboard.yaml
-- "paths" (optional): any folder, e.g. "/algo/secret: {user_name: [john.doe]}"
-The most specific folder decides. Its rules are the same as for projects, and with empty rules anyone can read it.
+Who can read files:
+- the outputs and artifacts folders of projects (from their storage settings in qaboard.yaml): whoever can see the
+  projects stored there (backend/access/: visibility, roles, QABOARD_LOGIN_RESTRICTED_YAML's projects), with tokens'
+  project restrictions
+- QABOARD_LOGIN_RESTRICTED_YAML's "paths" (optional): any folder, e.g. "/algo/secret: {user_name: [john.doe]}",
+  with the same rules as the YAML's projects; with empty rules anyone can read it.
+The most specific folder decides.
 And in the folders listed in QABOARD_FILES_UNIX_PERMISSIONS (e.g. /home), users only read what their Unix account can read.
 """
 import os
@@ -23,7 +26,8 @@ from backend import app
 from ..models import Project, Output
 from ..config import files_unix_permissions_roots
 from ..files import normalize, path_from_url, is_listable, longest_prefix, folder_for, folder_and_parents, list_directory, unix_account, unix_can_read, USER_PLACEHOLDER
-from .auth import get_current_user, restrictions, restricted_project_key, matches_rules, is_authorized_user
+from .auth import get_current_user, restrictions, matches_rules, is_authorized_user
+from ..access import authorize, current_actor, effective_visibility
 from ..settings import setting
 
 
@@ -32,46 +36,48 @@ PROJECT_DIRS_TTL = 300 # seconds
 _project_dirs = {"expires": 0.0, "dirs": {}}
 
 
-def restricted_project_dirs() -> dict:
+def invalidate_project_dirs():
+  _project_dirs["expires"] = 0.0
+
+
+def project_dirs() -> dict:
   """
-  {folder: project key in QABOARD_LOGIN_RESTRICTED_YAML} for the outputs and artifacts of restricted projects.
+  {folder: {project ids}} for the outputs and artifacts of every project.
   Storage settings often have a folder per user (e.g. /algo/outputs/{user}): those folders keep {user}, see folder_for.
+  Sub-projects share the storage of their git repository: a folder lists all the projects stored there.
   """
-  if not restrictions('projects'):
-    return {}
   now = time.monotonic()
   if now < _project_dirs["expires"]:
     return _project_dirs["dirs"]
   dirs = {}
   for project in Project.query.all():
-    key = restricted_project_key(project.id)
-    if key is None:
-      continue
     try:
       roots = project.storage_roots(user_name=USER_PLACEHOLDER)
     except Exception as e:
       print(f"[files] Could not get the storage of {project.id}: {e}")
       continue
-    # Sub-projects share the storage of their git repository: restricting one restricts the whole repository
     for kind in ('outputs', 'artifacts'):
       if roots[kind].is_absolute():
-        dirs.setdefault(normalize(str(roots[kind])), key)
+        dirs.setdefault(normalize(str(roots[kind])), set()).add(project.id)
   _project_dirs.update(expires=now + PROJECT_DIRS_TTL, dirs=dirs)
   return dirs
 
 
 def file_restriction(path: str):
-  """The restriction that applies to a path: (description, rules), None if anyone can read it."""
+  """
+  What decides who can read a path: ("paths", description, rules) from QABOARD_LOGIN_RESTRICTED_YAML,
+  ("projects", description, project ids) for the storage of projects, or None if anyone can read it.
+  The most specific folder decides; with equal folders, the YAML's paths win.
+  """
   rules = {}
   for prefix, perms_data in restrictions('paths').items():
-    rules[normalize(prefix)] = (f"the folder {prefix}", perms_data)
-  projects = restrictions('projects')
-  for pattern, key in restricted_project_dirs().items():
+    rules[normalize(prefix)] = ("paths", f"the folder {prefix}", perms_data)
+  for pattern, project_ids in project_dirs().items():
     folder = folder_for(pattern, path)
     if folder:
-      rules.setdefault(folder, (f"the project {key}", projects[key]))
+      rules.setdefault(folder, ("projects", f"the project {sorted(project_ids)[0]}", project_ids))
   restriction = longest_prefix(path, rules)
-  if restriction is None or not restriction[1]:
+  if restriction is None or not restriction[2]:
     return None
   return restriction
 
@@ -80,8 +86,6 @@ def check_read_access(path: str):
   """None if the current user can read the path, else an error response."""
   if setting('auth.require_sign_in') and not get_current_user(to_jsonify=False).get('is_authenticated'):
     return jsonify({"error": "Sign in to see these files.", "reason": "login"}), 401
-  if not restrictions('paths') and not restrictions('projects') and not files_unix_permissions_roots:
-    return None
   # Through symlinks users could reach restricted files from public folders
   real_path = os.path.realpath(path)
   applicable = [r for r in (file_restriction(path), file_restriction(real_path)) if r]
@@ -97,10 +101,24 @@ def check_read_access(path: str):
       if not is_authenticated:
         return jsonify({"error": "These files are private. Log in to see the files your account can read.", "reason": "login"}), 401
       return jsonify({"error": f"Your account ({user_info.get('user_name')}) doesn't have the permissions to read these files.", "reason": "forbidden"}), 403
-  for description, perms_data in applicable:
+  for kind, description, rules in applicable:
+    if kind == "projects":
+      # project roles (backend/access/), and tokens' projects. Folders shared by sub-projects: all of them.
+      actor = current_actor()
+      for project_id in sorted(rules):
+        # nginx asks for each file: public projects don't need the user's grants
+        if (actor is None or actor.token is None) and effective_visibility(project_id)['effective'] == 'public':
+          continue
+        decision = authorize(actor, 'project.read', project_id)
+        if decision.allowed:
+          continue
+        if decision.reason == 'sign_in_required':
+          return jsonify({"error": f"Only some users can see the project {project_id}. Log in to see these files.", "reason": "login"}), 401
+        return jsonify({"error": f"Only some users can see the project {project_id}.", "reason": "forbidden", "project": project_id}), 403
+      continue
     if not is_authenticated:
       return jsonify({"error": f"Only some users can see {description}. Log in to see these files.", "reason": "login"}), 401
-    if not matches_rules(user_info, perms_data):
+    if not matches_rules(user_info, rules):
       return jsonify({"error": f"Only some users can see {description}.", "reason": "forbidden"}), 403
   return None
 

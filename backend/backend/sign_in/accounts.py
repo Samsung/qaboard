@@ -18,7 +18,19 @@ def finish(user, provider_id: str, subject: Optional[str] = None, email: Optiona
   if user.status == 'pending':
     request_access(user)
   user.last_login_at = utcnow()
-  audit('auth.login', 'user', user.id, user.user_name, user=user, meta={"provider": provider_id, **({"pending": True} if user.status == 'pending' else {}), **meta})
+  # groups whose rules match this sign-in's claims (backend/access/groups.py)
+  from ..access.groups import sync as sync_groups
+  try:
+    with db_session.begin_nested():
+      groups = sync_groups(user, provider_id, claims)
+  except Exception as e:
+    # a sign-in never fails because of groups: the memberships stay as they were
+    print(f"[sign-in] WARNING: could not update the groups of {user.user_name}: {type(e).__name__}: {e}")
+    groups = None
+  audit('auth.login', 'user', user.id, user.user_name, user=user, meta={
+    "provider": provider_id, **({"pending": True} if user.status == 'pending' else {}),
+    **({"groups": groups} if groups else {}), **meta,
+  })
   sessions.start(user, provider_id)
   db_session.commit()
 

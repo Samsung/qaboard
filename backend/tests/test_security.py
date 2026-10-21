@@ -133,7 +133,8 @@ def test_login_required_allows_logged_in_users(auth, dummy_app, monkeypatch):
 def test_login_required_checks_project_permissions(auth, dummy_app, monkeypatch):
   monkeypatch.setattr(auth, "get_current_user", lambda to_jsonify: {"is_authenticated": True, "user_name": "arthurf"})
   monkeypatch.setattr(auth, "is_login_restricted", True)
-  monkeypatch.setattr(auth, "is_authorized_user", lambda user_info, project: project != "secret")
+  monkeypatch.setattr(auth, "users_restrict_config", {"projects": {"secret": {"user_name": ["alice"]}}})
+  fake_access(monkeypatch, auth)
   handler = MagicMock(return_value="OK")
   with dummy_app.test_request_context("/api/v1/commit/abc/batch?project=secret", method="POST"):
     response, status = auth.login_required(handler)()
@@ -188,7 +189,24 @@ def restricted(auth, monkeypatch):
     "group/B": {"user_name": ["bob"]},
   }})
   monkeypatch.setattr(auth, "get_current_user", lambda to_jsonify: {"is_authenticated": True, "user_name": "alice"})
+  fake_access(monkeypatch, auth)
   return auth
+
+
+def fake_access(monkeypatch, auth):
+  """
+  backend/access/ decides from the database (integration_tests/test_access.py): here, like the YAML of `auth` says,
+  the users its rules match are developers of its projects, the other projects are open to everyone
+  """
+  import backend.access as access
+  def authorize(actor, permission, project_id):
+    key = auth.restricted_project_key(project_id) if project_id else None
+    rules = auth.restrictions('projects').get(key) if key else None
+    allowed = not (auth.is_login_restricted and rules) or auth.matches_rules(auth.get_current_user(to_jsonify=False), rules)
+    return access.Decision(allowed=allowed, permission=permission, project_id=project_id, role='developer' if allowed else None,
+                           reason=None if allowed else 'missing_role', required=access.required_role(permission))
+  monkeypatch.setattr(access, "authorize", authorize)
+  monkeypatch.setattr(access, "owners", lambda project_id: [])
 
 
 @pytest.fixture
@@ -229,7 +247,8 @@ def test_batch_changes_check_the_batch_project(batch_api, restricted, dummy_app,
       response = handler(**args)
     assert status_of(response) == expected_status, project
     if expected_status == 403:
-      assert response[0].get_json() == {"error": "Forbidden: You don't have permission to access this project", "reason": "forbidden_project"}
+      refusal = response[0].get_json()
+      assert refusal["reason"] == "missing_role" and refusal["project"] == "group/B" and refusal["required"] == "developer"
       assert batch.changed == []
     else:
       assert action in batch.changed
@@ -400,14 +419,12 @@ UNAUTHENTICATED_ENDPOINTS = {
   ("sign_in.py", "my_access_request"),
   # the CLI sends results, checked by ingest_access: anonymous unless ingest.auth is "token" (see "Known issues" in SECURITY.md)
   ("outputs.py", "new_output_webhook"), ("batch.py", "update_batch"), ("commit.py", "api_ci_commit"),
-  # the CLI's Jenkins runner triggers builds (anonymous unless sign-in is required)
+  # the CLI's Jenkins runner triggers builds (anonymous unless sign-in is required). With a project (the web app): developers
   ("integrations.py", "jenkins_build_trigger"),
   # read-only, POST is only used to send parameters
   ("integrations.py", "gitlab_job"), ("integrations.py", "jenkins_build"), ("integrations.py", "github_workflow_run"),
   # checks the login itself when writing
   ("tuning.py", "groups"),
-  # FIXME: WebCDE calls it, we don't know yet if it can send credentials (TODO_WARTS.md "Celery task endpoint")
-  ("tasks.py", "task_celery"),
   # authenticated with the git host's webhook secret (QABOARD_WEBHOOK_SECRET by default)
   ("webhooks.py", "gitlab_webhook"), ("webhooks.py", "github_webhook"), ("webhooks.py", "gitea_webhook"), ("webhooks.py", "bitbucket_webhook"),
 }
@@ -471,7 +488,7 @@ def c(): pass
 
 def test_admin_endpoints_require_admins():
   for path, node in api_functions():
-    if path.name == "admin.py" and route_methods(node):
+    if path.name in ("admin.py", "admin_sign_in.py", "admin_access.py") and route_methods(node):
       assert "admin_required" in {ast.unparse(d) for d in node.decorator_list}, node.name
 
 
