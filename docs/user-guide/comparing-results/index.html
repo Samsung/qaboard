@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.310b1fe2.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.2e535c87.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.97cfa7b3.js" defer="defer"></script>
 </head>
 <body>
@@ -70,10 +70,11 @@ uses these names: the labels of images and videos, the legends of plots, the hea
 the flame graphs&#x27; choices, the <strong>Summary</strong>, and the columns of the <strong>Metrics Table</strong> and <strong>Metrics Diff</strong>
 (<code>ISP v2 − ISP v1</code>). The names are saved in the link, so people you share it with see them too. Erase a name to go
 back to &quot;new&quot; or &quot;ref&quot;.</p>
-<p>Results that are a milestone are named after it: rename the milestone instead.</p>
+<p>Results that are a milestone are named after it. You can still rename them on the page: the milestone&#x27;s name then shows
+next to its star. Erase the name to go back to the milestone&#x27;s.</p>
 <span id="metric-diffs-and-colors" class="anchorTargetHideOnScrollNavbar_vjPI"></span>
 <p>Each side also has its color, in its bar, in the viewers&#x27; labels and in plots: <strong>new</strong> is blue, and each reference has
-its own color. Green and red never stand for a side: they say what got better or worse (see
+its own color. Results keep their color wherever they go: when you swap the bars, the colors swap too. Green and red never stand for a side: they say what got better or worse (see
 <a class="" href="/qaboard/docs/user-guide/metrics#colors">what the colors mean</a>).</p>
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="several-references">Compare with several references<a href="#several-references" class="hash-link" aria-label="Direct link to Compare with several references" title="Direct link to Compare with several references" translate="no">​</a></h2>
 <p>To compare with the last release, a tuning experiment and the latest <code>main</code> on one page, stack them. The new results
@@ -105,7 +106,8 @@ stop comparing with what was on top, swap, then remove it.</li>
 <li class="">A reference keeps its name and its color when you reorder or remove the others. The color of a reference you
 remove goes to the next one you add (or to the first gray one). A copy of a reference you named &quot;night&quot; is
 &quot;night copy&quot;, in the next free color.</li>
-<li class="">When you swap the bars, the top results are always blue: the reference&#x27;s place keeps its color.</li>
+<li class="">When you swap the bars, the colors follow their results: the top bar takes the reference&#x27;s color. Picking
+another commit in a bar keeps its color.</li>
 <li class="">When you swap the bars, the names you gave follow their results, while &quot;new&quot;, &quot;ref&quot; and &quot;ref 2&quot; stay in their
 bars.</li>
 <li class="">When there isn&#x27;t room, the tabs&#x27; details give way first, then the tabs scroll sideways (with the mouse wheel too).</li>
