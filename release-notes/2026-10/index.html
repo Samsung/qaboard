@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.010c760e.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.9bf8b837.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.e90d7a4a.js" defer="defer"></script>
 </head>
 <body>
@@ -491,6 +491,7 @@
 <li class=""><code>qa check-bit-accuracy --reference-platform</code> finds the reference&#x27;s runs on the other platform when runs have configurations, instead of saying there is no reference.</li>
 <li class=""><code>qa</code> tells you to run <code>qa init</code>, not <code>qatools init</code>, when it can&#x27;t find <em>qaboard.yaml</em>, and <code>qa batch --help</code> says that <code>--local-concurrency -1</code> runs one run per CPU.</li>
 <li class="">With LSF job arrays and the Dask runner, <code>qa run</code> no longer deletes the log file its output goes to: errors are no longer lost.</li>
+<li class="">Runs on Dask workers are headless, like with LSF: they use matplotlib&#x27;s <code>agg</code> backend and no <code>DISPLAY</code>, instead of opening X11 connections back to the display of whoever started the batch.</li>
 <li class="">Runs started from a <code>git worktree</code> checkout are saved under their commit, instead of their branch name. Submodules with a relative <code>.git</code> pointer also work.</li>
 <li class="">On Windows, <code>qa</code> works in a <code>git worktree</code> whose <code>.git</code> pointer holds an absolute Linux path: it is translated with the site&#x27;s path mappings (<code>QABOARD_PATH_MAPPINGS</code>).</li>
 <li class=""><code>qa</code> starts even when the git HEAD cannot be read, e.g. an unresolvable worktree pointer: it warns and continues with <code>&lt;local:user&gt;</code> commit placeholders instead of crashing at startup.</li>

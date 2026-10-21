@@ -480,6 +480,7 @@
 <li class=""><code>qa check-bit-accuracy --reference-platform</code> finds the reference's runs on the other platform when runs have configurations, instead of saying there is no reference.</li>
 <li class=""><code>qa</code> tells you to run <code>qa init</code>, not <code>qatools init</code>, when it can't find <em>qaboard.yaml</em>, and <code>qa batch --help</code> says that <code>--local-concurrency -1</code> runs one run per CPU.</li>
 <li class="">With LSF job arrays and the Dask runner, <code>qa run</code> no longer deletes the log file its output goes to: errors are no longer lost.</li>
+<li class="">Runs on Dask workers are headless, like with LSF: they use matplotlib's <code>agg</code> backend and no <code>DISPLAY</code>, instead of opening X11 connections back to the display of whoever started the batch.</li>
 <li class="">Runs started from a <code>git worktree</code> checkout are saved under their commit, instead of their branch name. Submodules with a relative <code>.git</code> pointer also work.</li>
 <li class="">On Windows, <code>qa</code> works in a <code>git worktree</code> whose <code>.git</code> pointer holds an absolute Linux path: it is translated with the site's path mappings (<code>QABOARD_PATH_MAPPINGS</code>).</li>
 <li class=""><code>qa</code> starts even when the git HEAD cannot be read, e.g. an unresolvable worktree pointer: it warns and continues with <code>&lt;local:user&gt;</code> commit placeholders instead of crashing at startup.</li>
