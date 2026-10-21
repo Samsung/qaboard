@@ -119,6 +119,20 @@ describe('MilestonesPanel', () => {
     expect(panel.getByText('Dan D')).toBeInTheDocument();
   });
 
+  test('Manage milestones comes first, and each milestone says when it was updated', () => {
+    vi.useFakeTimers({ now: new Date('2026-10-05T10:00:00Z'), toFake: ['Date'] });
+    try {
+      renderPanel();
+      const items = screen.getAllByRole('menuitem');
+      expect(items[0]).toHaveTextContent('Manage milestones…');
+      const row = screen.getByText('Quick check').closest('a');
+      expect(row.querySelector('.qa-milestone-date')).toHaveTextContent('3 days ago');
+      expect(row.querySelector('.qa-milestone-date').title).toMatch(/^Updated .*2026.*, saved .*2026/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test('counts show for long lists, and for collapsed groups', () => {
     const many = [1, 2, 3].map(id => make({ id, label: `sweep ${id}`, group: 'tuning' }));
     renderPanel({ list: many });

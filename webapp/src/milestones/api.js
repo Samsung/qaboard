@@ -66,7 +66,7 @@ export const milestone_name = m => m.label || [m.branch ?? m.commit?.slice(0, 8)
 
 export const owner_name = m => m.owner?.full_name || m.owner?.user_name || null;
 
-export const relative_date = date => date ? DateTime.fromISO(date).toRelative() : null;
+export const relative_date = (date, options) => date ? DateTime.fromISO(date).toRelative(options) : null;
 
 const same_commit = (a, b) => !!a && !!b && (a === b || (a.length >= 7 && b.startsWith(a)) || (b.length >= 7 && a.startsWith(b)));
 
