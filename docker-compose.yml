@@ -97,9 +97,19 @@ services:
     - REDIS_HOST=redis
     - REDIS_PORT=6379
     - QABOARD_LOGIN_TYPE=${QABOARD_LOGIN_TYPE:-LOCAL} # LOCAL/LDAP/SAML
-    - QABOARD_LOGIN_REQUIRED=${QABOARD_LOGIN_REQUIRED:-} # non-empty: users must login to see anything
+    - QABOARD_LOGIN_REQUIRED=${QABOARD_LOGIN_REQUIRED:-} # true: users must sign in to see anything. Empty: as set in the admin panel
     - QABOARD_LOGIN_RESTRICTED=${QABOARD_LOGIN_RESTRICTED:-} # true/false
     - QABOARD_LOGIN_RESTRICTED_YAML=${QABOARD_LOGIN_RESTRICTED_YAML:-} # path
+    # User names or emails of admins, comma-separated: they're admins whatever the database says
+    - QABOARD_ADMINS=${QABOARD_ADMINS:-}
+    # off/warn/token: how runs sent by `qa` are authenticated. Empty: as set in the admin panel (default: off)
+    - QABOARD_INGEST_AUTH=${QABOARD_INGEST_AUTH:-}
+    # Single sign-on with OpenID Connect, see website/docs/backend-admin/sign-in.mdx. An empty issuer: no SSO
+    - QABOARD_OIDC_ISSUER=${QABOARD_OIDC_ISSUER:-}
+    - QABOARD_OIDC_CLIENT_ID=${QABOARD_OIDC_CLIENT_ID:-}
+    - QABOARD_OIDC_CLIENT_SECRET=${QABOARD_OIDC_CLIENT_SECRET:-}
+    # Encrypts the secrets of the sign-in providers added in the admin panel: long random text, e.g. `openssl rand -base64 32`
+    - QABOARD_ENCRYPTION_KEY=${QABOARD_ENCRYPTION_KEY:-}
     - CELERY_BROKER_URL=pyamqp://guest:guest@rabbitmq:${QABOARD_PORT_RABBITMQ:-5672}//
     - QABOARD_RUN_MIGRATIONS
     # Used by docker and deployments/deploy.py to know when a replica is ready to serve traffic

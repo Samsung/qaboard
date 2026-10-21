@@ -33,6 +33,19 @@ def _secret_key():
     raise RuntimeError(f"Empty {key_path}")
 app.secret_key = _secret_key()
 
+# Session cookies: not readable by scripts, not sent by other websites' forms, and only over HTTPS when we're served over HTTPS
+_secure_cookies = os.environ.get('QABOARD_COOKIE_SECURE', '').strip().lower() in ('1', 'true', 'yes', 'on') or os.environ.get('QABOARD_URL', '').startswith('https://')
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=_secure_cookies,
+    REMEMBER_COOKIE_HTTPONLY=True,
+    REMEMBER_COOKIE_SAMESITE='Lax',
+    REMEMBER_COOKIE_SECURE=_secure_cookies,
+    # the session's row says when it really ends (backend/sign_in/sessions.py)
+    PERMANENT_SESSION_LIFETIME=365 * 24 * 3600,
+)
+
 # Errors, traces and profiles are sent to Sentry if $SENTRY_DSN is set: see backend/sentry.py
 # Under uWSGI, each worker initializes Sentry after it forks (see the end of this file)
 from .sentry import init_sentry, track_users
@@ -73,8 +86,17 @@ import backend.api.image
 import backend.api.video
 import backend.api.milestones
 import backend.api.auth
+import backend.api.tokens
+import backend.api.users
+import backend.api.admin
+import backend.api.sign_in
+import backend.api.admin_sign_in
 import backend.api.tasks
 import backend.api.files
+
+# Who is calling, and whether they may call the API at all: see backend/actor.py
+from .actor import register as register_actor
+register_actor(app)
 
 # Enable cross-origin requests to avoid development headaches
 # cors = CORS(app, resources={r"/api/*": {"origins": "*"}})

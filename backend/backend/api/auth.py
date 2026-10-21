@@ -9,7 +9,7 @@ import yaml
 import ldap
 import ldap.filter
 import simplejson
-from flask import request, jsonify, redirect, session, g
+from flask import request, jsonify, redirect, session, g, has_request_context
 from flask_login import LoginManager, login_user, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 try:
@@ -20,6 +20,13 @@ except Exception as e:
   print(f"WARNING: Could not import onelogin.saml2: {e}")
 from backend import app, db_session
 from ..models import User, Token
+from ..settings import setting
+from ..audit import audit
+from ..admins import is_admin, is_env_admin
+from ..actor import unauthenticated
+from ..sign_in import sessions
+from ..sign_in.accounts import finish as finish_sign_in, new_user_status
+from .. import tokens as tokens_lib
 
 
 login_manager = LoginManager(app)
@@ -77,28 +84,16 @@ not_authorized_error = "The user is not authorized, please contact QA-Board admi
 #        Needs to be namespaced under "ldap". 
 
 
-@app.route('/api/v1/user/token/', methods=['POST'])
-def create_token():
-  if not current_user.is_authenticated:
-    return f"Not logged-in", 403
-  token = Token(current_user)
-  db_session.add(token)
-  db_session.commit()
-  return jsonify({
-    "token": token.token,
-    "created_at": token.created_at.isoformat(),
-    "expires_at": token.expires_at.isoformat() if token.expires_at else None,
-  })
-
-
 @app.route('/api/v1/user/signup/', methods=['POST'])
 def signup():
-  if os.environ.get("QABOARD_DISABLE_SIGNUP") == "True":
-    return f"Signup disabled", 403
+  if not setting('auth.local_signup'):
+    return jsonify({"error": "Signing up is disabled on this server: sign in with your usual account, or ask an admin.", "reason": "signup_disabled"}), 403
   user_name = request.form.get('user_name')
   if not user_name or not request.form.get('password'):
     return jsonify({"error": "Both user_name and password are required"}), 400
-  if User.query.filter_by(user_name=user_name).one_or_none():
+  # "ALICE" next to "alice" would be confusing, and look like an admin from $QABOARD_ADMINS
+  from ..search import escape_like
+  if User.query.filter(User.user_name.ilike(escape_like(user_name), escape='\\')).first():
     return jsonify({"error": "This user name is already taken"}), 409
   # Never log or return the form or the exception: they contain the password, its hash, or the SQL query
   try:
@@ -116,6 +111,8 @@ def signup():
     if type(e).__name__ == "IntegrityError": # sqlalchemy.exc, e.g. the email is already used
       return jsonify({"error": "This user name or email is already used"}), 409
     return jsonify({"error": "Could not create the user"}), 500
+  audit('auth.signup', 'user', user.id, user.user_name, user=user)
+  db_session.commit()
   return jsonify({
     "id": user.id,
     "email": user.email,
@@ -125,6 +122,14 @@ def signup():
   })
 
 
+# What users see when they can't sign in. We don't say whether the user name exists.
+LOGIN_ERRORS = {
+  "invalid-username": "Wrong user name or password.",
+  "invalid-password": "Wrong user name or password.",
+  "disabled": "This account is disabled. Ask a QA-Board admin if you need it back.",
+  "pending": "This account is waiting for an admin's approval.",
+}
+
 @app.route('/api/v1/user/auth/', methods=['POST'])
 def auth_post():
   if current_user.is_authenticated:
@@ -133,90 +138,178 @@ def auth_post():
   password = request.form.get('password')
   # LDAP servers can treat a bind with an empty password as an anonymous bind, that succeeds
   if not username or not password:
-    return jsonify({"error": "invalid-password"}), 403
+    return jsonify({"error": "Enter your user name and your password.", "reason": "invalid_credentials"}), 403
   user_info = auth(username, password)
+  user = User.query.filter_by(user_name=username).one_or_none() if user_info["login_success"] else None
+  if user_info["login_success"]:
+    if user is None:
+      user_info = {"login_success": False, "error": "invalid-username"}
+    elif user.status == 'disabled':
+      user_info = {"login_success": False, "error": user.status}
   if not user_info["login_success"]:
     print(f"[auth] Failed Login @{username}")
-    return jsonify({"error": user_info["error"]}), 403
+    error = user_info.get("error")
+    # linked to the account if it exists, so its owner sees the attempts
+    known = user or User.query.filter_by(user_name=username).one_or_none()
+    audit('auth.login_failed', 'user', known.id if known else None, username, meta={"reason": error, "login_type": login_type or "LOCAL"})
+    db_session.commit()
+    if error in ("disabled", "pending"):
+      reason = f"user_{error}"
+    elif error in LOGIN_ERRORS or not error:
+      reason = "invalid_credentials"
+    else:
+      reason = "not_allowed"
+    return jsonify({"error": LOGIN_ERRORS.get(error) or error or LOGIN_ERRORS["invalid-password"], "reason": reason}), 403
 
-  user = User.query.filter_by(user_name=username).one()
-  login_user(user, remember=True, duration=timedelta(days=180))
+  provider_id = 'ldap' if (user.login_type or '').upper() == 'LDAP' else 'local'
+  finish_sign_in(user, provider_id)
   print(f"[auth] Login @{username}")
-  return jsonify(user_info)
+  # not user_info's data: with LDAP it holds everything the directory knows about the user
+  return jsonify({**{k: v for k, v in user_info.items() if k != 'data'}, "status": user.status, "is_admin": is_admin(user), "user_id": user.id})
 
 
 @app.route('/api/v1/user/me/', methods=['GET'])
 def get_current_user(to_jsonify=True):
-  if login_type == "SAML":
-    info = {
-      "is_authenticated": False,
-    }
-    if 'samlUserdata' in session:
-        if len(session['samlUserdata']) > 0:
-            samlUserdata = session['samlUserdata']
-            user_name = samlUserdata.get(saml_attr_user_name, [])[0]
-            # email = samlUserdata.get(saml_attr_email, [])[0]
-            # full_name = samlUserdata.get(saml_attr_common_name, [])[0]
-            # user_id = samlUserdata.get(saml_attr_id, [])[0]
-            user = User.query.filter_by(user_name=user_name).one_or_none()
-            if user:
-              info.update({
-                "is_authenticated": True,
-                "login_type": login_type,
-                "user_id": user.id,
-                "user_name": user.user_name,
-                "full_name": user.full_name,
-                "email": user.email,
-                "data": user.data,
-              })
-    if not info["is_authenticated"] and current_user.is_authenticated:
-      # e.g. scripts using an API token
-      info.update({
-        "is_authenticated": True,
-        "login_type": current_user.login_type,
-        "user_id": current_user.id,
-        "user_name": current_user.user_name,
-        "full_name": current_user.full_name,
-        "email": current_user.email,
-      })
-  else: # login_type != "SAML"
-    # https://flask-login.readthedocs.io/en/latest/#your-user-class
-    is_authenticated = current_user.is_authenticated
-    info = {
-      "is_authenticated": is_authenticated,
-      "is_anonymous": current_user.is_anonymous,
-      "is_active": current_user.is_active,
-    }
-    if is_authenticated:
-      info.update({
-        "user_id": current_user.id,
-        "user_name": current_user.user_name,
-        "full_name": current_user.full_name,
-        "email": current_user.email,
-        "login_type": current_user.login_type,
-      })
-
+  """
+  Who is calling (see backend/actor.py). With a token, also which one: its scopes and projects.
+  """
+  actor = g.get('actor')
+  user = actor.user if actor is not None else (current_user if current_user and current_user.is_authenticated else None)
+  info = {
+    "is_authenticated": user is not None,
+    "is_anonymous": user is None,
+    "is_active": user is not None,
+  }
+  if user is None:
+    auth_error = g.get('auth_error')
+    if auth_error:
+      info["reason"], info["error"] = auth_error
+    pending_user = g.get('pending_user')
+    if pending_user is not None and to_jsonify:
+      # what the "waiting for an admin" page shows
+      from ..sign_in.access import pending_request, reviewers, serialize as serialize_request
+      request_row = pending_request(pending_user)
+      info["pending"] = {
+        "user_name": pending_user.user_name,
+        "full_name": pending_user.full_name,
+        "email": pending_user.email,
+        "request": serialize_request(request_row) if request_row else None,
+        "reviewers": [u.full_name or u.user_name for u in reviewers()][:5],
+      }
+  else:
+    info.update({
+      "user_id": user.id,
+      "user_name": user.user_name,
+      "full_name": user.full_name,
+      "email": user.email,
+      "login_type": user.login_type,
+      "kind": getattr(user, 'kind', 'human'),
+      "status": getattr(user, 'status', 'active'),
+      "is_admin": is_admin(user),
+    })
+    if login_type == "SAML" and to_jsonify is False:
+      # the SAML attributes are used by the restrictions of QABOARD_LOGIN_RESTRICTED_YAML. Never sent to clients.
+      # Not LDAP's: it's a list of [dn, attributes] that matches_rules can't read (they're checked at login).
+      info["data"] = user.data
+    if actor is not None and actor.token is not None:
+      token = actor.token
+      info["token"] = {
+        "id": token.id,
+        "name": token.name,
+        "prefix": token.prefix,
+        "kind": token.kind,
+        "scopes": tokens_lib.scopes_of(token),
+        "projects": token.projects or [],
+        "expires_at": tokens_lib.iso(token.expires_at),
+        "idle_expiry_days": token.idle_expiry_days,
+        # before this request
+        "last_used_at": tokens_lib.iso(g.get('token_previous_use', token.last_used_at)),
+      }
   if to_jsonify:
     return jsonify(info)
   else:
     return info
 
 
+def saml_session_user():
+  """The user of a SAML session opened before SAML sign-ins were also flask-login sessions"""
+  if login_type != "SAML":
+    return None
+  user_data = session.get('samlUserdata') or {}
+  user_name = (user_data.get(saml_attr_user_name) or [None])[0]
+  if not user_name:
+    return None
+  return User.query.filter_by(user_name=user_name).one_or_none()
+
+
 def login_required(f):
   """
   Decorator for endpoints that need a logged-in user (session cookie, SAML session or API token).
   The user's info is available as `flask.g.user` (see get_current_user).
+  With a token, writes need the "act" scope, and the token must allow `?project=`.
   If QABOARD_LOGIN_RESTRICTED is set, also checks the user may access `?project=`.
   """
   @wraps(f)
   def wrapper(*args, **kwargs):
     user_info = get_current_user(to_jsonify=False)
     if not user_info.get('is_authenticated') or not user_info.get('user_name'):
-      return jsonify({"error": "You need to be logged-in to do this."}), 401
+      return unauthenticated()
     project = request.args.get('project')
+    actor = g.get('actor')
+    if actor is not None and actor.token is not None:
+      scope = 'read' if request.method in ('GET', 'HEAD') else 'act'
+      if not actor.has_scope(scope):
+        return jsonify({"error": f"This token can't do this: it needs the \"{scope}\" scope.", "reason": "missing_scope", "required": scope}), 403
+      if project and not actor.allows_project(project):
+        return jsonify({"error": f"This token can't access {project}.", "reason": "token_project"}), 403
     if is_login_restricted and not is_authorized_user(user_info, project):
-      return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
+      return forbidden_project(project)
     g.user = user_info
+    return f(*args, **kwargs)
+  return wrapper
+
+
+def authenticated(f):
+  """Endpoints that need a user, whatever the credential and its scopes: they check what they allow themselves"""
+  @wraps(f)
+  def wrapper(*args, **kwargs):
+    actor = g.get('actor')
+    if actor is None or actor.user is None:
+      return unauthenticated()
+    g.user = get_current_user(to_jsonify=False)
+    return f(*args, **kwargs)
+  return wrapper
+
+
+def session_required(f):
+  """
+  For actions that create credentials (tokens, device approvals): a token can't create tokens,
+  else one leaked token could keep minting new ones after it's revoked.
+  """
+  @wraps(f)
+  def wrapper(*args, **kwargs):
+    actor = g.get('actor')
+    if actor is None or actor.user is None:
+      return unauthenticated()
+    if actor.token is not None:
+      return jsonify({"error": "Do this from the web app: tokens can't create tokens.", "reason": "session_required"}), 403
+    g.user = get_current_user(to_jsonify=False)
+    return f(*args, **kwargs)
+  return wrapper
+
+
+def admin_required(f):
+  """Admin endpoints: an admin's session, or a token of an admin with the "admin" scope"""
+  @wraps(f)
+  def wrapper(*args, **kwargs):
+    actor = g.get('actor')
+    if actor is None or actor.user is None:
+      return unauthenticated()
+    if not actor.is_admin:
+      return jsonify({"error": "Only QA-Board admins can do this.", "reason": "not_admin"}), 403
+    if not actor.has_scope('admin'):
+      return jsonify({"error": "This token can't use the admin API: it needs the \"admin\" scope.", "reason": "missing_scope", "required": "admin"}), 403
+    g.user = get_current_user(to_jsonify=False)
     return f(*args, **kwargs)
   return wrapper
 
@@ -230,38 +323,67 @@ def require_project_access(user_info: dict, project_id: str):
   """
   if is_authorized_user(user_info, project_id):
     return None
-  return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
+  return forbidden_project(project_id)
+
+
+def forbidden_project(project_id=None):
+  """The 403 of projects users can't access. With a token, it may be the token's restriction."""
+  actor = g.get('actor') if has_request_context() else None
+  if project_id and actor is not None and actor.token is not None and not actor.allows_project(project_id):
+    return jsonify({"error": f"This token can't access {project_id}.", "reason": "token_project"}), 403
+  return jsonify({"error": "Forbidden: You don't have permission to access this project", "reason": "forbidden_project"}), 403
+
+
+def ingest_access(project_id: str):
+  """
+  For the endpoints where `qa` sends results: (submitted_by, None) or (None, an error response).
+  `submitted_by` says who really sent them (a token's user), None for unverified results.
+  With ingest.auth "off" or "warn" we accept unverified results, and the X-QABoard-Warning header tells the CLI why.
+  """
+  mode = setting('ingest.auth')
+  actor = g.get('actor')
+  if actor is None or actor.user is None:
+    if mode == 'token':
+      return None, (jsonify({
+        "error": "This server only accepts results sent with a token.",
+        "reason": "ingest_token_required",
+      }), 403)
+    if mode == 'warn':
+      g.qaboard_warning = "Your results were saved as unverified, without a token. This server will soon require one: run `qa auth login`, or set QABOARD_TOKEN in CI."
+    return None, None
+  problem = None
+  if not actor.has_scope('ingest'):
+    problem = ("missing_scope", "This token can't send results: it needs the \"ingest\" scope.")
+  elif not actor.allows_project(project_id):
+    problem = ("token_project", f"This token can't send results to {project_id}.")
+  elif is_login_restricted and not is_authorized_user(get_current_user(to_jsonify=False), project_id):
+    problem = ("forbidden_project", f"You don't have permission to access {project_id}.")
+  if problem:
+    reason, message = problem
+    if mode == 'token':
+      return None, (jsonify({"error": message, "reason": reason, **({"required": "ingest"} if reason == "missing_scope" else {})}), 403)
+    g.qaboard_warning = f"{message} Your results were saved as unverified."
+    return None, None
+  return actor.submitted_by(), None
 
 
 @app.route('/api/v1/user/logout/', methods=['POST'])
 def logout():
+  actor = g.get('actor')
+  if actor is not None and actor.user is not None and actor.token is None:
+    audit('auth.logout', 'user', actor.user.id, actor.user.user_name)
+    db_session.commit()
+  sessions.end()
+  db_session.commit()
   if current_user.is_authenticated:
     logout_user()
+  session.pop('samlUserdata', None)
   return jsonify({"status": "OK"})
 
 
 @login_manager.user_loader
 def load_user(user_id):
   return User.query.get(user_id)
-
-
-@login_manager.request_loader
-def load_user_from_request(request):
-  auth_header = request.headers.get('Authorization')
-  if auth_header and auth_header.startswith("Bearer "):
-    token_str = auth_header.replace("Bearer ", "")
-  else:
-    token_str = request.args.get('token')
-  if not token_str:
-    return None
-
-  token = Token.query.filter_by(token=token_str).first()
-  if token and token.is_valid():
-    user = User.query.get(token.user_id)
-    if user:
-        login_user(user)
-        return user
-  return None
 
 
 def create_user(info):
@@ -279,10 +401,12 @@ def create_user(info):
     # TODO: use a slower hash, currently the default is pbkdf2:sha256
     # https://werkzeug.palletsprojects.com/en/1.0.x/utils/#werkzeug.security.generate_password_hash
     password=generate_password_hash(info["password"]) if "password" in info else None,
+    # active, or waiting for an admin (auth.access_policy)
+    status=new_user_status(info.get("email")),
   )
   db_session.add(user)
   db_session.commit()
-  print(f"Created {user}")
+  print(f"[auth] Created the user @{user.user_name}" + (" (waiting for an admin)" if user.status == 'pending' else ""))
   return user
 
 
@@ -368,6 +492,10 @@ def is_authorized_user(user_info: dict, project=None):
   if not user_info:
     user_info = get_current_user(to_jsonify=False)
 
+  actor = g.get('actor') if has_request_context() else None
+  if project and actor is not None and actor.token is not None and not actor.allows_project(project):
+    return False
+
   if project:
     project = restricted_project_key(project)
     if project is None:
@@ -417,6 +545,54 @@ def auth_local(username, password):
     info["data"] = user.data
   return info
 
+def ldap_connection():
+  """Bound with the service account. QABOARD_LDAP_HOST can be ldaps://host, or set QABOARD_LDAP_START_TLS=true."""
+  if ldap_host.startswith(('ldap://', 'ldaps://')):
+    ldap_uri = ldap_host if not os.environ.get('QABOARD_LDAP_PORT') else f"{ldap_host}:{ldap_port}"
+  else:
+    ldap_uri = f"ldap://{ldap_host}" if not ldap_port else f"ldap://{ldap_host}:{ldap_port}"
+  ldap_connect = ldap.initialize(ldap_uri)
+  ldap_connect.set_option(ldap.OPT_REFERRALS, 0)
+  if env_flag('QABOARD_LDAP_START_TLS'):
+    ldap_connect.start_tls_s()
+  ldap_connect.simple_bind_s(ldap_bind_dn, ldap_password)
+  return ldap_connect
+
+
+def ldap_search(user_name: str) -> str:
+  return ldap_user_filter.replace("{login}", ldap.filter.escape_filter_chars(user_name))
+
+
+def ldap_user_info(details, user_info):
+  """Fills user_info from the directory's answer"""
+  user_ldap = details[0][1]
+  user_info["full_name"] = str(user_ldap[ldap_attr_common_name][0], 'utf-8') if ldap_attr_common_name in user_ldap else None
+  if ldap_attr_email not in user_ldap:
+    user_info["email"] = None
+  else:
+    user_info["email"] = str(user_ldap[ldap_attr_email][0], 'utf-8')
+  # serialize and deserialize to str-json, to avoid dealing with bytes-type errors. # FIXME: any better solution?
+  user_info["data"] = simplejson.loads(simplejson.dumps(details))
+  return user_info
+
+
+def ldap_lookup(user_name: str):
+  """
+  What the directory knows about a user, with the service account: after an SSO sign-in, it keeps the accounts'
+  attributes up to date (QABOARD_LOGIN_RESTRICTED_YAML's rules read them). None if unknown, or without LDAP.
+  """
+  if login_type != "LDAP":
+    return None
+  ldap_connect = ldap_connection()
+  try:
+    details = [d for d in ldap_connect.search_s(ldap_user_base, ldap.SCOPE_SUBTREE, ldap_search(user_name), [ldap_attr_common_name, 'mail']) if d[0]]
+  finally:
+    ldap_connect.unbind_s()
+  if not details:
+    return None
+  return ldap_user_info(details, {"user_name": user_name, "login_type": login_type})
+
+
 def auth_ldap(user_name, password):
   if login_type != "LDAP":
     raise Exception("LDAP authentication is disabled")
@@ -425,42 +601,26 @@ def auth_ldap(user_name, password):
     "login_type": login_type,
     "login_success": False,
   }
-  # TODO: support for secure LDAP
-  ldap_uri = f"ldap://{ldap_host}" if not ldap_port else f"ldap://{ldap_host}:{ldap_port}"
-  ldap_connect = ldap.initialize(ldap_uri)
-  ldap_connect.set_option(ldap.OPT_REFERRALS, 0)
-  ldap_connect.simple_bind_s(ldap_bind_dn, ldap_password)
-
-  # check if the user exists
-  ldap_search = ldap_user_filter.replace("{login}", ldap.filter.escape_filter_chars(user_name))
-  certificate = ldap_connect.search_s(
-    ldap_user_base,
-    ldap.SCOPE_SUBTREE, 
-    ldap_search, 
-    ['distinguishedName'],
-  )[0][0]
+  ldap_connect = ldap_connection()
+  # check if the user exists. Referrals come as entries without a DN.
+  found = [entry for entry in ldap_connect.search_s(ldap_user_base, ldap.SCOPE_SUBTREE, ldap_search(user_name), ['distinguishedName']) if entry[0]]
+  certificate = found[0][0] if found else None
 
   if certificate:
     # check the password and get the full user info
     try:
       ldap_connect.set_option(ldap.OPT_REFERRALS, 0)
-      ldap_connect.simple_bind_s(certificate, password) 
+      ldap_connect.simple_bind_s(certificate, password)
       details = ldap_connect.search_s(
         ldap_user_base,
-        ldap.SCOPE_SUBTREE, 
-        ldap_search,
+        ldap.SCOPE_SUBTREE,
+        ldap_search(user_name),
         [ldap_attr_common_name, 'mail'],
       )
-      user_ldap = details[0][1]
       user_info["login_success"] = True
-      user_info["full_name"] = str(user_ldap[ldap_attr_common_name][0], 'utf-8')
-      if ldap_attr_email not in user_ldap:
-        user_info["email"] = None
+      ldap_user_info(details, user_info)
+      if user_info["email"] is None:
         user_info["error"] = f"missing-email-({ldap_attr_email} LDAP attribute)"
-      else:
-        user_info["email"] = str(user_ldap[ldap_attr_email][0], 'utf-8')
-      # serialize and deserialize to str-json, to avoid dealing with bytes-type errors. # FIXME: any better solution?
-      user_info["data"] = simplejson.loads(simplejson.dumps(details)) 
     except (ldap.INVALID_CREDENTIALS, ldap.OPERATIONS_ERROR):
       user_info["error"] = "invalid-password"
   else:
@@ -550,18 +710,18 @@ def saml_auth():
                 session.clear()
                 return " ".join(errors), 403
 
-            # user_info = get_current_user(to_jsonify=False)
             user = User.query.filter_by(user_name=user_info.get("user_name")).one_or_none()
             if user:
               user = update_user(user, user_info)
             else:
               user = create_user(user_info)
-
-            self_url = OneLogin_Saml2_Utils.get_self_url(req)
-            if 'RelayState' in request.form and self_url != request.form['RelayState']:
-                # TODO: To avoid 'Open Redirect' attacks, before execute the redirection confirm
-                # the value of the request.form['RelayState'] is a trusted URL.
-                return redirect(auth.redirect_to(request.form['RelayState']))
+            if user.status == 'disabled':
+              session.clear()
+              audit('auth.login_failed', 'user', user.id, user.user_name, meta={"reason": user.status, "login_type": "SAML"})
+              db_session.commit()
+              return redirect(f"/login?error=user_disabled")
+            finish_sign_in(user, 'saml', subject=session.get('samlNameId') or user.user_name, claims={k: v for k, v in (session.get('samlUserdata') or {}).items()})
+            return redirect(safe_redirect_url(request.form.get('RelayState')))
     elif 'sls' in request.args:
         request_id = None
         if 'LogoutRequestID' in session:
@@ -579,6 +739,20 @@ def saml_auth():
     # raise Exception(" ".join(errors))
     print(" ".join(errors))
     return " ".join(errors), 403
+
+
+def safe_redirect_url(url) -> str:
+  """Where to send users after they sign in: only our own pages, to avoid open redirects"""
+  from urllib.parse import urlparse
+  from ..actor import own_origins
+  if not url or not isinstance(url, str):
+    return '/'
+  parsed = urlparse(url)
+  if not parsed.scheme and not parsed.netloc and url.startswith('/') and not url.startswith('//') and '\\' not in url:
+    return url
+  if parsed.scheme in ('http', 'https') and (parsed.hostname or '').lower() in own_origins() and 'saml20' not in parsed.path:
+    return url
+  return '/'
 
 
 def init_saml_auth(req):

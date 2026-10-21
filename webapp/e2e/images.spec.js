@@ -426,16 +426,16 @@ test('finds where the images differ in all the runs, and ranks them', async ({ p
   expect(diff_requests).toHaveLength(3);
 });
 
-test('logged out: says to log in for the images\' own values and to find where they differ', async ({ page }) => {
+test('logged out: says to sign in for the images\' own values and to find where they differ', async ({ page }) => {
   const { pixel_requests, diff_requests } = await setup(page, { runs: ['A', 'B'], differences: { A: 0.3 }, signed_in: false });
   const first = page.locator('.output-card[data-output-id="100"]');
   await expect(first.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
-  await expect(first.locator('.qiv-readout')).toContainText("Log in (in the sidebar) to read the images' own values");
+  await expect(first.locator('.qiv-readout')).toContainText("Sign in (in the sidebar) to read the images' own values");
   await first.getByRole('button', { name: 'Regions of interest' }).click();
   // no search over all the runs
   await expect(page.getByRole('menuitem', { name: /in all 2 runs/ })).toHaveCount(0);
   await page.getByRole('menuitem', { name: 'Where they differ: perceptual' }).click();
-  await expect(first.locator('.qiv-regions')).toContainText('Log in (in the sidebar) to find where the images differ');
+  await expect(first.locator('.qiv-regions')).toContainText('Sign in (in the sidebar) to find where the images differ');
   // hovering shows the displayed values only, without asking the server
   await first.locator('.qiv-stage').hover();
   await expect(first.locator('.qiv-readout')).toContainText('x ');

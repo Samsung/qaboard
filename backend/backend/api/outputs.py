@@ -12,7 +12,12 @@ from ..storage import check_storage_path, UnsafePathError
 from ..redo import redo_response
 from ..metrics_definitions import save_metrics_definitions
 from ..notifications.batches import on_run_ended
-from .auth import login_required, is_authorized_user
+from .auth import login_required, is_authorized_user, ingest_access, forbidden_project
+
+# Keys of a run's data that only the server sets
+# - optimization_best allows `qa optimize` to replace this run (see api/batch.py)
+# - submitted_by is who really sent it (api/auth.py:ingest_access)
+SERVER_KEYS = {'optimization_best', 'submitted_by'}
 
 
 @app.route("/api/v1/output/<output_id>", methods=['GET'])
@@ -38,7 +43,7 @@ def update_output(output_id):
       return {"status": "OK"}
     return jsonify({"error": f"Cannot find output {output_id}"}), 400
   if not is_authorized_user(g.user, output.batch.ci_commit.project_id):
-    return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
+    return forbidden_project(output.batch.ci_commit.project_id)
 
   if request.method == 'PUT':
     data = request.get_json()
@@ -86,7 +91,7 @@ def output_redo(output_id):
   except NoResultFound:
     return jsonify({"error": f"Cannot find output {output_id}"}), 400
   if not is_authorized_user(g.user, output.batch.ci_commit.project_id):
-    return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
+    return forbidden_project(output.batch.ci_commit.project_id)
   return redo_response(output.batch, [output], g.user['user_name'])
 
 
@@ -135,6 +140,10 @@ def new_output_webhook():
       check_storage_path(artifacts_commit)
   except UnsafePathError as e:
     return jsonify({"error": f"{e}"}), 400
+
+  submitted_by, error = ingest_access(data.get('project'))
+  if error:
+    return error
 
   # We get a handle on the Commit object related to our new output
   try:
@@ -200,8 +209,7 @@ def new_output_webhook():
   if not output.data:
     output.data = {}
   if "data" in data: # e.g. storage, job_options, batch name
-    # optimization_best is set by the server only: it allows `qa optimize` to replace this run (see api/batch.py)
-    output.data.update({k: v for k, v in data['data'].items() if k != 'optimization_best'})
+    output.data.update({k: v for k, v in data['data'].items() if k not in SERVER_KEYS})
     # The `qa batch` command that started the run: the first one when they are nested, e.g. in pipelines.
     # Older clients only send the command of their own `qa batch`. Used to know when batches end (backend/notifications/)
     job_options = data['data'].get('job_options') if isinstance(data['data'].get('job_options'), dict) else {}
@@ -210,6 +218,13 @@ def new_output_webhook():
       output.data['root_command_id'] = str(root_command_id)
     flag_modified(output, "data")
   output.data["user"] = data['user']
+  # the changes below are in place: tell SQLAlchemy, also when the client sent no `data`
+  flag_modified(output, "data")
+  # who really sent it, `user` is who it claims to be
+  if submitted_by:
+    output.data["submitted_by"] = submitted_by
+  else:
+    output.data.pop("submitted_by", None)
   # we can only trust CI outputs to run on the exact code from the commit
   output.data["ci"] = data['job_type'] == 'ci'
   if data.get('batch'):

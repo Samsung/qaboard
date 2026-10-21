@@ -1,0 +1,367 @@
+"""
+The admin panel's API: users, tokens, the audit log, settings, and a security checklist.
+Admins are users with `is_admin` and those in $QABOARD_ADMINS (see backend/admins.py).
+"""
+import os
+import datetime
+
+from flask import request, jsonify, g
+from sqlalchemy import or_, func
+
+from backend import app, db_session
+from ..models import User, Token, AuditEvent
+from ..admins import is_admin, is_env_admin, env_admins
+from ..audit import audit, diff, serialize as serialize_event
+from .. import settings as settings_lib
+from .. import tokens as tokens_lib
+from .auth import admin_required, is_login_restricted
+from .users import page_of_events
+from ..search import escape_like
+
+
+USER_STATUSES = ('active', 'pending', 'disabled')
+
+
+def active_tokens_query():
+  now = tokens_lib.utcnow()
+  return (Token.query
+          .filter(Token.revoked.isnot(True), Token.revoked_at.is_(None))
+          .filter(or_(Token.expires_at.is_(None), Token.expires_at > now)))
+
+
+def serialize_user(user, active_tokens=None) -> dict:
+  return {
+    "id": user.id,
+    "user_name": user.user_name,
+    "full_name": user.full_name,
+    "email": user.email,
+    "kind": user.kind,
+    "status": user.status,
+    "is_admin": is_admin(user),
+    "is_admin_from_env": is_env_admin(user),
+    "login_type": user.login_type,
+    "created_date": tokens_lib.iso(user.created_date),
+    "last_login_at": tokens_lib.iso(user.last_login_at),
+    "active_tokens": active_tokens,
+  }
+
+
+def pagination(default_limit=50):
+  try:
+    limit = max(1, min(int(request.args.get('limit', default_limit)), 500))
+    offset = max(0, int(request.args.get('offset', 0)))
+  except ValueError:
+    return None, None
+  return limit, offset
+
+
+def active_token_counts(user_ids) -> dict:
+  if not user_ids:
+    return {}
+  rows = (active_tokens_query()
+          .with_entities(Token.user_id, Token.expires_at, Token.idle_expiry_days, Token.last_used_at, Token.created_at)
+          .filter(Token.user_id.in_(user_ids)).all())
+  now = tokens_lib.utcnow()
+  counts = {}
+  for user_id, _, idle_days, last_used_at, created_at in rows:
+    last = last_used_at or created_at
+    if idle_days and last and now >= last + datetime.timedelta(days=idle_days):
+      continue
+    counts[user_id] = counts.get(user_id, 0) + 1
+  return counts
+
+
+@app.route('/api/v1/admin/overview', methods=['GET'])
+@app.route('/api/v1/admin/overview/', methods=['GET'])
+@admin_required
+def admin_overview():
+  now = tokens_lib.utcnow()
+  counts = {
+    "users": User.query.filter(User.kind == 'human').count(),
+    "active_30d": User.query.filter(User.last_login_at > now - datetime.timedelta(days=30)).count(),
+    "admins": sum(1 for u in User.query.filter(User.status == 'active').all() if is_admin(u)),
+    "pending": User.query.filter(User.status == 'pending').count(),
+    "disabled": User.query.filter(User.status == 'disabled').count(),
+    "active_tokens": sum(active_token_counts([u for (u,) in db_session.query(User.id).all()]).values()),
+  }
+  return jsonify({"counts": counts, "checklist": checklist()})
+
+
+def checklist() -> list:
+  """What admins should look at to secure their server"""
+  items = []
+  def item(id, ok, severity, title, detail, ok_detail=None):
+    # what to do when it's not ok, else what to know, if anything
+    items.append({"id": id, "ok": ok, "severity": 'info' if ok else severity, "title": title, "detail": ok_detail if ok else detail})
+
+  require_sign_in = settings_lib.setting('auth.require_sign_in')
+  item('require_sign_in', require_sign_in, 'warning',
+       "Sign-in is required" if require_sign_in else "Anonymous users can read every project",
+       "Set auth.require_sign_in to require signing in, except for sending results (see ingest.auth).",
+       "Anonymous users only see the sign-in page. Results sent by qa follow ingest.auth.")
+
+  ingest = settings_lib.setting('ingest.auth')
+  item('ingest_auth', ingest == 'token', 'warning' if ingest == 'off' else 'info',
+       {"off": "Anyone who can reach the server can send results", "warn": "Results without a token are accepted, with a warning",
+        "token": "Sending results requires a token"}[ingest],
+       {"off": "Results sent without a token are marked unverified. Move ingest.auth to \"warn\", then \"token\", once CI jobs use tokens (QABOARD_TOKEN).",
+        "warn": "qa asks users to sign in. Move ingest.auth to \"token\" once all CI jobs use tokens (QABOARD_TOKEN).",
+        "token": None}[ingest],
+       "CI jobs need a token with the ingest scope, in QABOARD_TOKEN.")
+
+  from backend import app
+  secure = bool(app.config.get('SESSION_COOKIE_SECURE'))
+  item('https', secure, 'warning', "Cookies are only sent over HTTPS" if secure else "Cookies can be sent over plain HTTP",
+       "Serve QA-Board over HTTPS and set QABOARD_URL=https://…: session cookies then get the Secure flag.")
+
+  item('secret_key', bool(os.environ.get('SECRET_KEY')), 'info',
+       "SECRET_KEY is set" if os.environ.get('SECRET_KEY') else "SECRET_KEY was generated by the server",
+       "The generated key is saved in the data folder: all the replicas must share it. Setting $SECRET_KEY is simpler with several hosts.")
+
+  legacy = active_tokens_query().filter(Token.kind == 'legacy').count()
+  item('legacy_tokens', legacy == 0, 'warning',
+       "No legacy tokens" if not legacy else f"{legacy} legacy token{'s' if legacy > 1 else ''} without an expiry date",
+       "Tokens created before scopes can read, send results and act as their user, forever. Ask their owners to replace them (Admin → Tokens).")
+
+  local_signup = settings_lib.setting('auth.local_signup')
+  login_type = settings_lib.login_type()
+  risky_signup = local_signup and (login_type != 'LOCAL' or require_sign_in)
+  item('local_signup', not risky_signup, 'danger' if login_type != 'LOCAL' else 'warning',
+       "Local sign-up is off" if not local_signup else ("Anyone can create a local account" if login_type != 'LOCAL' else "Anyone can create an account"),
+       "With LDAP or SAML, local accounts could take the names of directory users who never signed in. Turn auth.local_signup off."
+       if login_type != 'LOCAL' else "Sign-in is required, but anyone can create an account: turn auth.local_signup off, and create accounts with qaboard-admin create-admin --password.",
+       "Turn auth.local_signup off if only admins should create accounts (qaboard-admin create-admin --password)." if local_signup else None)
+
+  for key, problem in settings_lib.invalid_env().items():
+    definition = settings_lib.DEFINITIONS[key]
+    item(f'invalid_env:{key}', False, 'danger', f"${definition.env} is invalid: it's ignored",
+         f"{problem}. QA-Board uses {key} = {settings_lib.setting(key)!r} instead: fix the server's environment.")
+
+  if is_login_restricted:
+    item('restrictions_yaml', True, 'info', "Project restrictions come from QABOARD_LOGIN_RESTRICTED_YAML",
+         "Coming next: manage who can access projects from the web app, and import this file.")
+  return items
+
+
+@app.route('/api/v1/admin/users', methods=['GET'])
+@app.route('/api/v1/admin/users/', methods=['GET'])
+@admin_required
+def admin_users():
+  limit, offset = pagination()
+  if limit is None:
+    return jsonify({"error": "limit and offset must be numbers"}), 400
+  query = User.query
+  search = (request.args.get('search') or '').strip()
+  if search:
+    pattern = f"%{search}%"
+    query = query.filter(or_(User.user_name.ilike(pattern), User.full_name.ilike(pattern), User.email.ilike(pattern)))
+  status = request.args.get('status')
+  if status:
+    if status not in USER_STATUSES:
+      return jsonify({"error": f"status must be one of {', '.join(USER_STATUSES)}"}), 400
+    query = query.filter(User.status == status)
+  if request.args.get('admin') in ('true', '1'):
+    # few admins: we check $QABOARD_ADMINS's rules in Python
+    candidates = env_admins()
+    emails = [a.lower() for a in candidates if '@' in a]
+    query = query.filter(or_(User.is_admin.is_(True), User.user_name.in_(candidates), func.lower(User.email).in_(emails)))
+    users = [u for u in query.order_by(User.last_login_at.desc().nullslast(), User.id.desc()).all() if is_admin(u) or u.is_admin]
+    total = len(users)
+    users = users[offset:offset + limit]
+  else:
+    total = query.count()
+    users = query.order_by(User.last_login_at.desc().nullslast(), User.id.desc()).offset(offset).limit(limit).all()
+  counts = active_token_counts([u.id for u in users])
+  return jsonify({"users": [serialize_user(u, counts.get(u.id, 0)) for u in users], "total": total})
+
+
+def get_user_or_404(user_id):
+  user = User.query.filter(User.id == user_id).one_or_none()
+  if user is None:
+    return None, (jsonify({"error": "This user doesn't exist."}), 404)
+  return user, None
+
+
+@app.route('/api/v1/admin/users/<int:user_id>', methods=['GET'])
+@app.route('/api/v1/admin/users/<int:user_id>/', methods=['GET'])
+@admin_required
+def admin_user(user_id):
+  user, error = get_user_or_404(user_id)
+  if error:
+    return error
+  tokens = Token.query.filter(Token.user_id == user.id).order_by(Token.id.desc()).all()
+  events = (AuditEvent.query
+            .filter(or_(AuditEvent.actor_user_id == user.id, (AuditEvent.target_type == 'user') & (AuditEvent.target_id == str(user.id))))
+            .order_by(AuditEvent.id.desc()).limit(50).all())
+  counts = active_token_counts([user.id])
+  from ..models import AccessRequest
+  from ..sign_in.access import serialize as serialize_request
+  access_request = AccessRequest.query.filter(AccessRequest.user_id == user.id).order_by(AccessRequest.id.desc()).first()
+  return jsonify({
+    "user": serialize_user(user, counts.get(user.id, 0)),
+    "tokens": [tokens_lib.serialize(t) for t in tokens],
+    "audit": [serialize_event(e) for e in events],
+    # the latest, pending or decided
+    "access_request": serialize_request(access_request) if access_request else None,
+  })
+
+
+@app.route('/api/v1/admin/users/<int:user_id>', methods=['POST'])
+@app.route('/api/v1/admin/users/<int:user_id>/', methods=['POST'])
+@admin_required
+def admin_update_user(user_id):
+  user, error = get_user_or_404(user_id)
+  if error:
+    return error
+  body = request.get_json(silent=True) or {}
+  me = g.actor.user
+  before = {"status": user.status, "is_admin": bool(user.is_admin)}
+  if 'status' in body:
+    status = body['status']
+    if status not in USER_STATUSES:
+      return jsonify({"error": f"status must be one of {', '.join(USER_STATUSES)}"}), 400
+    if user.id == me.id and status != 'active':
+      return jsonify({"error": "You can't disable your own account: ask another admin."}), 400
+    if status != 'active' and is_env_admin(user):
+      return jsonify({"error": f"{user.user_name} is an admin because of $QABOARD_ADMINS: remove them from it first."}), 400
+    user.status = status
+  if 'is_admin' in body:
+    if not isinstance(body['is_admin'], bool):
+      return jsonify({"error": "is_admin must be true or false"}), 400
+    if not body['is_admin'] and is_env_admin(user):
+      return jsonify({"error": f"{user.user_name} is an admin because of $QABOARD_ADMINS: remove them from it first."}), 400
+    if user.id == me.id and not body['is_admin']:
+      return jsonify({"error": "You can't remove your own admin role: ask another admin."}), 400
+    user.is_admin = body['is_admin']
+  changes = diff(before, {"status": user.status, "is_admin": bool(user.is_admin)})
+  if changes:
+    audit('user.update', 'user', user.id, user.user_name, changes=changes)
+  if 'status' in changes:
+    from ..sign_in.access import decide
+    from ..sign_in.sessions import revoke_all
+    if before['status'] == 'pending':
+      decide(user, user.status, by=me)
+    if user.status == 'disabled':
+      revoke_all(user.id)
+  db_session.commit()
+  counts = active_token_counts([user.id])
+  return jsonify(serialize_user(user, counts.get(user.id, 0)))
+
+
+@app.route('/api/v1/admin/users/<int:user_id>/revoke-tokens', methods=['POST'])
+@app.route('/api/v1/admin/users/<int:user_id>/revoke-tokens/', methods=['POST'])
+@admin_required
+def admin_revoke_user_tokens(user_id):
+  user, error = get_user_or_404(user_id)
+  if error:
+    return error
+  revoked = 0
+  for token in Token.query.filter(Token.user_id == user.id).all():
+    if tokens_lib.revoke(token, by=g.actor.user, reason='admin'):
+      revoked += 1
+  db_session.commit()
+  return jsonify({"revoked": revoked})
+
+
+@app.route('/api/v1/admin/tokens', methods=['GET'])
+@app.route('/api/v1/admin/tokens/', methods=['GET'])
+@admin_required
+def admin_tokens():
+  limit, offset = pagination()
+  if limit is None:
+    return jsonify({"error": "limit and offset must be numbers"}), 400
+  query = Token.query
+  if request.args.get('user'):
+    try:
+      query = query.filter(Token.user_id == int(request.args['user']))
+    except ValueError:
+      return jsonify({"error": "user must be a user id"}), 400
+  status = request.args.get('status')
+  statuses = ('active', 'expired', 'idle_expired', 'revoked')
+  if status and status not in statuses:
+    return jsonify({"error": f"status must be one of {', '.join(statuses)}"}), 400
+  tokens = query.order_by(Token.id.desc()).all()
+  # few enough to filter here: the status depends on dates and on the idle expiry
+  if status:
+    tokens = [t for t in tokens if tokens_lib.status(t) == status]
+  page = tokens[offset:offset + limit]
+  return jsonify({"tokens": [tokens_lib.serialize(t, with_user=True) for t in page], "total": len(tokens)})
+
+
+@app.route('/api/v1/admin/tokens/<int:token_id>', methods=['DELETE'])
+@app.route('/api/v1/admin/tokens/<int:token_id>/', methods=['DELETE'])
+@admin_required
+def admin_revoke_token(token_id):
+  token = Token.query.filter(Token.id == token_id).one_or_none()
+  if token is None:
+    return jsonify({"error": "This token doesn't exist."}), 404
+  tokens_lib.revoke(token, by=g.actor.user, reason='admin')
+  db_session.commit()
+  return jsonify(tokens_lib.serialize(token, with_user=True))
+
+
+@app.route('/api/v1/admin/audit', methods=['GET'])
+@app.route('/api/v1/admin/audit/', methods=['GET'])
+@admin_required
+def admin_audit():
+  query = AuditEvent.query
+  if request.args.get('action'):
+    action = request.args['action']
+    # "token" matches every token.* action
+    query = query.filter(or_(AuditEvent.action == action, AuditEvent.action.like(f"{escape_like(action)}.%", escape='\\')))
+  if request.args.get('actor'):
+    query = query.filter(AuditEvent.actor_label == request.args['actor'])
+  if request.args.get('target_type'):
+    query = query.filter(AuditEvent.target_type == request.args['target_type'])
+  if request.args.get('target_id'):
+    query = query.filter(AuditEvent.target_id == request.args['target_id'])
+  if request.args.get('project'):
+    query = query.filter(AuditEvent.project_id == request.args['project'])
+  answer, error = page_of_events(query, default_limit=100)
+  return error or jsonify(answer)
+
+
+@app.route('/api/v1/admin/audit/actions', methods=['GET'])
+@app.route('/api/v1/admin/audit/actions/', methods=['GET'])
+@admin_required
+def admin_audit_actions():
+  actions = [a for (a,) in db_session.query(AuditEvent.action).distinct().order_by(AuditEvent.action).all()]
+  return jsonify({"actions": actions})
+
+
+@app.route('/api/v1/admin/settings', methods=['GET'])
+@app.route('/api/v1/admin/settings/', methods=['GET'])
+@admin_required
+def admin_settings():
+  return jsonify({"settings": settings_lib.describe_all()})
+
+
+@app.route('/api/v1/admin/settings', methods=['POST'])
+@app.route('/api/v1/admin/settings/', methods=['POST'])
+@admin_required
+def admin_update_settings():
+  body = request.get_json(silent=True)
+  if not isinstance(body, dict) or not body:
+    return jsonify({"error": "Send {\"setting.key\": value}, null resets a setting to its default."}), 400
+  # all valid, or nothing changes
+  values = {}
+  for key, value in body.items():
+    if key not in settings_lib.DEFINITIONS:
+      return jsonify({"error": f"Unknown setting: {key}"}), 400
+    if settings_lib.source(key) == 'env':
+      env = settings_lib.DEFINITIONS[key].env
+      return jsonify({"error": f"{key} is set by ${env}: change it in the server's environment."}), 400
+    if value is not None and value == settings_lib.masked(key, settings_lib.setting(key)) and settings_lib.DEFINITIONS[key].secret:
+      return jsonify({"error": f"Type the whole new value of {key}: the current one is hidden."}), 400
+    try:
+      values[key] = None if value is None else settings_lib.validate(key, value)
+    except ValueError as e:
+      return jsonify({"error": str(e)}), 400
+  for key, value in values.items():
+    before = settings_lib.setting(key)
+    after = settings_lib.save(key, value, by=g.actor.user)
+    if before != after:
+      audit('setting.update', 'setting', key, key, changes={"value": {"from": settings_lib.masked(key, before), "to": settings_lib.masked(key, after)}})
+  db_session.commit()
+  settings_lib.invalidate_cache()
+  return jsonify({"settings": settings_lib.describe_all()})

@@ -1,26 +1,16 @@
 /**
- * Tests for the login gate and button.
+ * Tests for the login gate and button. Signing in itself is on /login (login/__tests__/LoginPage.test.jsx).
  * Run with: cd webapp && npm test -- PrivateContent
  */
-import { screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { act, screen, fireEvent } from '@testing-library/react';
 
 import PrivateContent from '../PrivateContent';
+import AuthButton from '../Auth';
+import { history } from '../../../router';
 import { renderWithProviders } from '../../../test-utils';
 import { userQuery } from '../../../api/queries';
-import { toaster } from '../../../toaster';
 
 const json = (data, status = 200) => Promise.resolve(new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } }));
-
-// Until we know who users are, the button is a disabled placeholder
-const openLogin = async () => {
-  const button = await waitFor(() => {
-    const button = screen.getByRole('button', { name: 'Log in' });
-    expect(button).toBeEnabled();
-    return button;
-  });
-  fireEvent.click(button);
-  return within(await screen.findByRole('dialog'));
-};
 
 const alice = { is_logged: true, user_id: 1, user_name: 'alice', full_name: 'Alice', email: 'alice@example.com' };
 
@@ -33,10 +23,12 @@ describe('PrivateContent', () => {
     expect(screen.getByText('secret')).toBeInTheDocument();
   });
 
-  it('asks logged-out users to log in, even when a parent passes enabled', async () => {
+  it('sends signed-out users to the sign-in page, which comes back here, even when a parent passes enabled', async () => {
     const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ is_authenticated: false }));
+    act(() => history.replace('/group/project/commits?branch=dev'));
     renderWithProviders(<PrivateContent enabled={false}>secret</PrivateContent>, { siteConfig: { login_required: true } });
-    expect(await screen.findByText('The content is available for logged-in users only.')).toBeInTheDocument();
+    await vi.waitFor(() => expect(history.location.pathname).toBe('/login'));
+    expect(new URLSearchParams(history.location.search).get('next')).toBe('/group/project/commits?branch=dev');
     expect(screen.queryByText('secret')).not.toBeInTheDocument();
     expect(fetch.mock.calls[0][0]).toBe('/api/v1/user/me/');
   });
@@ -58,47 +50,53 @@ describe('PrivateContent', () => {
     expect(screen.getByText('secret')).toBeInTheDocument();
   });
 
-  it('logs users in', async () => {
-    const fetch = vi.spyOn(globalThis, 'fetch').mockImplementation(url => url === '/api/v1/user/auth/'
-      ? json({ user_id: 1, user_name: 'alice', full_name: 'Alice', email: 'alice@example.com' })
-      : json({ is_authenticated: false }));
-    const { queryClient } = renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { login_required: true } });
-    const dialog = await openLogin();
-    fireEvent.change(dialog.getByLabelText('Username'), { target: { value: 'alice' } });
-    fireEvent.click(dialog.getByRole('button', { name: 'Log in' }));
-    expect(await screen.findByText('secret')).toBeInTheDocument();
-    expect(fetch.mock.calls.some(([url, init]) => url === '/api/v1/user/auth/' && init.method === 'POST')).toBe(true);
-    expect(queryClient.getQueryData(userQuery.queryKey)).toMatchObject({ is_logged: true, user_name: 'alice', full_name: 'Alice' });
+  it('tells disabled users why they see nothing', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ error: 'Your account was disabled by an admin.', reason: 'user_disabled' }, 401));
+    renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { require_sign_in: true } });
+    expect(await screen.findByText('Your account was disabled by an admin.')).toBeInTheDocument();
+    expect(screen.getByText('Your account is disabled')).toBeInTheDocument();
+    expect(screen.queryByText('secret')).not.toBeInTheDocument();
   });
 
-  it('shows why the login failed', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(url => url === '/api/v1/user/auth/'
-      ? json({ error: 'invalid-password' }, 401)
-      : json({ is_authenticated: false }));
-    renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { login_required: true } });
-    const dialog = await openLogin();
-    fireEvent.click(dialog.getByRole('button', { name: 'Log in' }));
-    await waitFor(() => expect(screen.getByText('The password is incorrect.')).toBeInTheDocument());
+  // GET /api/v1/user/me/ for a session whose user was disabled: 200, once, then the session is closed
+  const disabled_me = { is_authenticated: false, is_anonymous: true, is_active: false, reason: 'user_disabled', error: 'An admin disabled this account.' };
+  const anonymous_me = { is_authenticated: false, is_anonymous: true, is_active: false };
+
+  it('tells disabled users why they were signed out, from a 200 answer, and remembers it', async () => {
+    let calls = 0;
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json(calls++ === 0 ? disabled_me : anonymous_me));
+    const { queryClient } = renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { require_sign_in: true } });
+    expect(await screen.findByText('An admin disabled this account.')).toBeInTheDocument();
+    expect(screen.getByText('Your account is disabled')).toBeInTheDocument();
+    // the next answers are plain anonymous: we keep saying why until users sign in again
+    await queryClient.refetchQueries({ queryKey: userQuery.queryKey });
+    expect(calls).toBe(2);
+    expect(queryClient.getQueryData(userQuery.queryKey)).toMatchObject({ is_logged: false, reason: 'user_disabled', error: 'An admin disabled this account.' });
+    expect(screen.getByText('An admin disabled this account.')).toBeInTheDocument();
   });
 
-  it("gives the site's advice when the login fails", async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(url => url === '/api/v1/user/auth/'
-      ? json({ error: 'invalid-username' }, 401)
-      : json({ is_authenticated: false }));
-    renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { login_required: true, login_hint: 'Use your Windows credentials.' } });
-    const dialog = await openLogin();
-    fireEvent.click(dialog.getByRole('button', { name: 'Log in' }));
-    await waitFor(() => expect(screen.getByText('This username does not match any user account. Use your Windows credentials.')).toBeInTheDocument());
+  it('says pending accounts wait for approval, also when signing in is optional', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ ...anonymous_me, reason: 'user_pending', error: 'An admin needs to approve this account.' }));
+    act(() => history.replace('/group/project'));
+    renderWithProviders(<><PrivateContent>secret</PrivateContent><AuthButton/></>, { siteConfig: { require_sign_in: false } });
+    // the content is public, the button says why users are signed out, and the sign-in page shows their request
+    expect(screen.getByText('secret')).toBeInTheDocument();
+    const button = await screen.findByRole('button', { name: 'Account pending' });
+    expect(button).toHaveAttribute('href', '/login?next=%2Fgroup%2Fproject');
+    fireEvent.click(button);
+    expect(history.location.pathname).toBe('/login');
   });
 
-  it('says why users could not log in when the server fails', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(url => url === '/api/v1/user/auth/'
-      ? Promise.resolve(new Response('oops', { status: 502, statusText: 'Bad Gateway' }))
-      : json({ is_authenticated: false }));
-    renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { login_required: true } });
-    const dialog = await openLogin();
-    fireEvent.click(dialog.getByRole('button', { name: 'Log in' }));
-    // the toaster is mocked in setupTests.js
-    await waitFor(() => expect(toaster.show).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/^Could not log in: .*502/) })));
+  it('shows pending users their access request when signing in is required', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(() => json({ ...anonymous_me, reason: 'user_pending', error: "This account is waiting for an admin's approval.", pending: {
+      user_name: 'alice', full_name: 'Alice', email: 'alice@example.com', reviewers: ['Root'],
+      request: { id: 3, kind: 'instance', message: 'I work on the ISP team', status: 'pending', created_at: '2026-10-19T10:00:00Z', decided_at: null },
+    } }));
+    const { queryClient } = renderWithProviders(<PrivateContent>secret</PrivateContent>, { siteConfig: { require_sign_in: true } });
+    expect(await screen.findByText('Your account is waiting for approval')).toBeInTheDocument();
+    expect(screen.getByText('I work on the ISP team')).toBeInTheDocument();
+    expect(screen.getByText(/Root reviews requests/)).toBeInTheDocument();
+    expect(screen.queryByText('secret')).not.toBeInTheDocument();
+    expect(queryClient.getQueryData(userQuery.queryKey).pending.request.message).toBe('I work on the ISP team');
   });
 });

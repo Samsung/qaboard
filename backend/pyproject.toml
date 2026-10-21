@@ -42,6 +42,7 @@ dependencies = [
     "av>=14",
     "pytz>=2026.1.post1",
     "flower>=2.1.0",
+    "authlib>=1.9.1",
 ]
 
 [tool.setuptools.packages.find]
@@ -98,10 +99,16 @@ qaboard_clean = "backend.clean:clean"
 qaboard_clean_untracked_hwalg_artifacts = "backend.clean:clean_untracked_hwalg_artifacts"
 qaboard_clean_untracked_hwalg_outputs = "backend.clean:clean_untracked_hwalg_outputs"
 qaboard_init_database = "backend.scripts.init_database:init_database"
+qaboard-admin = "backend.scripts.admin:cli"
+
+[tool.pytest.ini_options]
+# The integration tests need a real database, and no mocks: see integration_tests/conftest.py
+testpaths = ["tests"]
 
 [dependency-groups]
 dev = [
     "pytest",
     "pytest-cov>=7.0.0",
     "diff-cover>=9.0.0",
+    "responses>=0.26.3",
 ]

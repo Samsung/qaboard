@@ -8,9 +8,6 @@ import {
   Callout,
   Checkbox,
   Classes,
-  Dialog,
-  DialogBody,
-  FormGroup,
   InputGroup,
   Intent,
   NonIdealState,
@@ -32,7 +29,7 @@ import { ThemeButton } from "../components/ThemeButton";
 import { toaster } from "../toaster";
 import { copyText } from "../utils/clipboard";
 import { setPathMappings } from "../utils/paths";
-import { fetchAccess, fetchJson, fetchListing, fetchRun, runAction, signIn, signOut } from "./api";
+import { fetchAccess, fetchJson, fetchListing, fetchRun, runAction, signOut, signInUrl, navigateTo } from "./api";
 import {
   baseName, breadcrumbs, filterEntries, formatAbsoluteTime, formatRelativeTime, formatSize, formatSummary, iconName,
   joinPath, linuxPath, parentPath, parseLocation, pathFromUrl, sortEntries, summarize, urlFromPath, windowsPath,
@@ -99,7 +96,6 @@ export default function FileBrowser() {
   // from the config's state, not the module's path mappings: React (and its compiler) re-render on state changes
   const showWindows = (config.path_mappings?.length ?? 0) > 0
   const [user, setUser] = useState(null)
-  const [isSigningIn, setIsSigningIn] = useState(false)
   const [reloads, setReloads] = useState(0) // the refresh button, "r", after signing in...
 
   const cache = useRef(new Map())
@@ -128,7 +124,7 @@ export default function FileBrowser() {
     return preferences
   })
 
-  // The site's configuration (Windows paths, how users log in) and who the user is
+  // The site's configuration (Windows paths, how users sign in) and who the user is
   const loadUser = useCallback(() => fetchJson('/api/v1/user/me/').then(setUser).catch(() => setUser(null)), [])
   useEffect(() => {
     fetchJson('/api/v1/config').then(config => {
@@ -308,19 +304,8 @@ export default function FileBrowser() {
     setReloads(n => n + 1)
   }
 
-  const onSignedIn = () => {
-    setIsSigningIn(false)
-    cache.current.clear()
-    loadUser()
-    if (isFolder) setReloads(n => n + 1)
-    else window.location.reload()
-  }
-  const requestSignIn = () => {
-    if (config.login_type === 'SAML')
-      window.location.href = '/api/auth/saml20/login/?sso'
-    else
-      setIsSigningIn(true)
-  }
+  // the web app's sign-in page (single sign-on, passwords...) comes back here
+  const requestSignIn = () => navigateTo(signInUrl(window.location))
   const onSignOut = async () => {
     if (config.login_type === 'SAML') {
       window.location.href = '/api/auth/saml20/login/?slo'
@@ -436,7 +421,6 @@ export default function FileBrowser() {
       {config.docs_root && <a href={`${config.docs_root}docs/user-guide/files`} target="_blank" rel="noopener noreferrer">Help</a>}
     </footer>
 
-    <SignInDialog isOpen={isSigningIn} onClose={() => setIsSigningIn(false)} onSignedIn={onSignedIn}/>
   </div>
 }
 
@@ -509,7 +493,7 @@ function RunBar({ run, path, user, navigate, onSignIn, onDone }) {
     <span className="fb-run-actions">
       <AnchorButton size="small" variant="minimal" icon={<ShareIcon/>} text="Results" href={run.url} target="_blank" rel="noopener noreferrer"
         title="Open the run's results and logs in QA-Board"/>
-      {actions.map(name => <Tooltip key={name} content={signedIn ? RUN_ACTIONS[name].title : 'Log in to change runs'} disabled={signedIn && !RUN_ACTIONS[name].title} placement="bottom">
+      {actions.map(name => <Tooltip key={name} content={signedIn ? RUN_ACTIONS[name].title : 'Sign in to change runs'} disabled={signedIn && !RUN_ACTIONS[name].title} placement="bottom">
         <Button size="small" variant="minimal" icon={RUN_ACTIONS[name].icon} text={RUN_ACTIONS[name].text}
           intent={RUN_ACTIONS[name].intent} disabled={busy} onClick={() => request(name)}/>
       </Tooltip>)}
@@ -609,11 +593,11 @@ function PathInput({ path, close, navigate }) {
 function UserMenu({ user, onSignIn, onSignOut }) {
   if (user === null) return null
   if (!user.is_authenticated)
-    return <Button className="fb-user" size="small" variant="minimal" icon={<LogInIcon/>} text="Log in" onClick={onSignIn}/>
+    return <Button className="fb-user" size="small" variant="minimal" icon={<LogInIcon/>} text="Sign in" onClick={onSignIn}/>
   return <span className="fb-user">
     <span className="fb-user-name" title={user.email ?? undefined}>{user.full_name || user.user_name}</span>
-    <Tooltip content="Log out" placement="bottom">
-      <Button size="small" variant="minimal" icon={<LogOutIcon/>} aria-label="Log out" onClick={onSignOut}/>
+    <Tooltip content="Sign out" placement="bottom">
+      <Button size="small" variant="minimal" icon={<LogOutIcon/>} aria-label="Sign out" onClick={onSignOut}/>
     </Tooltip>
   </span>
 }
@@ -804,13 +788,13 @@ function ErrorState({ error, path, user, navigate, onSignIn, retry, support_url 
   const parent = parentPath(path)
   const up = parent && <Button icon={<ArrowUpIcon/>} text="Parent folder" onClick={() => navigate(parent)}/>
   if (error.status === 401)
-    return <NonIdealState className="fb-error" icon={<LockIcon size={48}/>} title="Log in to see these files"
-      description={error.message?.replace(/ (Log|Sign) in[^.]*\.$/, '')} action={<Button intent={Intent.PRIMARY} icon={<LogInIcon/>} text="Log in" onClick={onSignIn}/>}/>
+    return <NonIdealState className="fb-error" icon={<LockIcon size={48}/>} title="Sign in to see these files"
+      description={error.message?.replace(/ (Log|Sign) in[^.]*\.$/, '')} action={<Button intent={Intent.PRIMARY} icon={<LogInIcon/>} text="Sign in" onClick={onSignIn}/>}/>
   if (error.reason === 'forbidden')
     return <NonIdealState className="fb-error" icon={<LockIcon size={48}/>} title="You don't have access"
       description={<>
         <p>{error.message}</p>
-        {user?.is_authenticated && <p className={Classes.TEXT_MUTED}>You are logged in as {user.user_name}.</p>}
+        {user?.is_authenticated && <p className={Classes.TEXT_MUTED}>You are signed in as {user.user_name}.</p>}
         {support_url && <p><a href={support_url}>Ask for access</a></p>}
       </>}
       action={up}/>
@@ -847,41 +831,4 @@ function FileAccess({ path, user, navigate, onSignIn, support_url }) {
 }
 
 
-const SIGN_IN_ERRORS = {
-  'invalid-username': 'This username does not match any user account.',
-  'invalid-password': 'The password is incorrect.',
-}
-
-function SignInDialog({ isOpen, onClose, onSignedIn }) {
-  const [error, setError] = useState(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const usernameRef = useRef(null)
-  const submit = async event => {
-    event.preventDefault()
-    const form = new FormData(event.target)
-    setIsLoading(true)
-    try {
-      await signIn(form.get('username'), form.get('password'))
-      setError(null)
-      onSignedIn()
-    } catch (e) {
-      setError(SIGN_IN_ERRORS[e.message] ?? e.message ?? 'Could not log in')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-  return <Dialog isOpen={isOpen} onClose={onClose} onOpened={() => usernameRef.current?.focus()} title="Log in" icon={<LogInIcon/>} style={{ width: 360 }}>
-    <form onSubmit={submit}>
-      <DialogBody>
-        <FormGroup label="Username" labelFor="fb-username">
-          <InputGroup id="fb-username" name="username" inputRef={usernameRef} autoComplete="username"/>
-        </FormGroup>
-        <FormGroup label="Password" labelFor="fb-password" intent={error ? Intent.DANGER : Intent.NONE} helperText={error}>
-          <InputGroup id="fb-password" name="password" type="password" autoComplete="current-password" intent={error ? Intent.DANGER : Intent.NONE}/>
-        </FormGroup>
-        <Button type="submit" intent={Intent.PRIMARY} fill loading={isLoading} text="Log in"/>
-      </DialogBody>
-    </form>
-  </Dialog>
-}
 

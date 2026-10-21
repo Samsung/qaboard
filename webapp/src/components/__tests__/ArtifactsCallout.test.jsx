@@ -64,7 +64,7 @@ describe('ArtifactsCallout', () => {
   it('asks logged-out users to log in', () => {
     render(<ArtifactsCallout deleted artifacts={{ok: false, problems: []}} onRestore={() => {}} />, { user: { is_logged: false } })
     expect(screen.getByText('Restore the artifacts').closest('button')).toBeDisabled()
-    expect(screen.getByText('Log in')).toBeInTheDocument()
+    expect(screen.getByText('Sign in')).toBeInTheDocument()
   })
 
   it('shows configuration errors', () => {

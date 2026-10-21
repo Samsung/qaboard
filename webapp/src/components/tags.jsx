@@ -146,7 +146,7 @@ const RunActionsMenu = ({ output, project, commit }) => {
   }
   return (
     <Menu>
-      {!is_logged && <LoginMenuItem text="Log in to redo or delete"/>}
+      {!is_logged && <LoginMenuItem text="Sign in to redo or delete"/>}
       {id && is_pending && <MenuItem
         icon="stop"
         text="Mark as failed"

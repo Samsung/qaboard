@@ -5,14 +5,69 @@ title: User Management
 ---
 import useBaseUrl from '@docusaurus/useBaseUrl';
 
-QA-Board offers a user management system. It can be used to block access to anonymous users, or restrict executing code (via Tuning) to logged-in users.
+QA-Board has users, admins, API tokens and an audit log. You can require signing in, and restrict who can use the
+server or read some projects. Users sign in with single sign-on (OpenID Connect), LDAP, SAML or local accounts (see
+[Sign-in and single sign-on](/docs/backend-admin/sign-in)), and the `qa` CLI with `qa auth login`.
+
+## Admins and the admin panel
+Admins see **Admin** in the user menu, at `/admin`:
+- **Overview**: how many users and tokens, and a **security checklist** of what to look at next.
+- **Users**: search them, see when they last signed in and their tokens, disable accounts, make admins, approve
+  the users who [wait for an admin](/docs/backend-admin/sign-in#decide-who-gets-an-account).
+  A disabled user's sessions and tokens stop working at their next request.
+- **Sign-in**: the sign-in providers, add OpenID Connect providers, and test them.
+- **Tokens**: every API token, with when and from where it was last used. Revoke any of them.
+- **Audit**: sign-ins (and failed ones), tokens created and revoked, `qa auth login` approvals, admin changes and
+  setting changes, with who did it and from which IP.
+- **Settings**: change the settings below without restarting the server.
+
+**The first admins** come from the environment: `QABOARD_ADMINS` lists user names (exactly, case included), or the
+emails of LDAP/SAML accounts (local accounts' emails aren't verified), comma-separated. They're admins whatever the
+database says, and can't be disabled from the web app, so you can't lock yourself out. Admins then make other admins from the panel. From
+the server, `qaboard-admin` does the same:
+
+```bash
+docker compose exec backend qaboard-admin create-admin alice
+# a local account, for a first admin before LDAP or SAML are set up. It asks for the password, or reads it from stdin
+docker compose exec backend qaboard-admin create-admin admin --password
+docker compose exec backend qaboard-admin list-admins
+docker compose exec backend qaboard-admin revoke-tokens bob   # e.g. after a leak
+```
+
+## Settings
+Settings are stored in the database and changed in **Admin → Settings**. An environment variable, when set, wins:
+the panel then shows the setting as "set by the environment", and you change it where you deploy.
+
+| Setting | Environment variable | Default | What it does |
+|---|---|---|---|
+| `auth.require_sign_in` | `QABOARD_LOGIN_REQUIRED` | `false` | Anonymous users can't see anything (see [Blocking anonymous users](#blocking-anonymous-users)) |
+| `auth.local_signup` | `QABOARD_DISABLE_SIGNUP` (`true` turns it off) | on with `LOCAL`, off with LDAP or SAML | Anyone can create a local account with a password |
+| `ingest.auth` | `QABOARD_INGEST_AUTH` | `off` | How results sent by `qa` are authenticated (see [Results sent by qa](#results-sent-by-qa)) |
+| `auth.allowed_origins` | `QABOARD_ALLOWED_ORIGINS` (comma-separated) | none | Other websites allowed to make changes with users' cookies |
+| `tokens.default_lifetime_days` | | `90` | The default lifetime of the tokens users create |
+| `tokens.max_lifetime_days` | | none | The longest lifetime users may choose. Empty: tokens may never expire |
+| `tokens.cli_idle_expiry_days` | | `180` | Tokens created by `qa auth login` expire after this many days without use |
+| `audit.retention_days` | | `730` | `qaboard-admin purge-audit` deletes older audit events |
+| `auth.access_policy` | `QABOARD_ACCESS_POLICY` | `open` | Who gets an account: `open`, `domains`, `approval` (see [Decide who gets an account](/docs/backend-admin/sign-in#decide-who-gets-an-account)) |
+| `auth.allowed_email_domains` | `QABOARD_ALLOWED_EMAIL_DOMAINS` | none | With `domains`: the email domains whose users get an account right away |
+| `auth.access_request_webhook` | `QABOARD_ACCESS_REQUEST_WEBHOOK` | none | A Slack, Teams or Mattermost incoming webhook told when users wait for an admin |
+| `auth.sso_auto_redirect` | `QABOARD_SSO_AUTO_REDIRECT` | `false` | The sign-in page goes straight to the only single sign-on, when signing in is required |
+| `sessions.idle_days` | | `30` | Browser sessions end after this many days without activity |
+| `sessions.max_days` | | `180` | Browser sessions end after this many days in any case (365 at most) |
+
+Empty environment variables count as unset.
 
 ## Authentication Providers
+`QABOARD_LOGIN_TYPE` chooses the password accounts, or SAML:
 - `LOCAL`: an internal users list, created by qaboard admins.<br />
 - `LDAP`
 - `SAML`: SSO via SAML
 
-Users log in from the **Log in** button at the top right of the web app. With `LOCAL` and `LDAP`, it opens a form; with `SAML`, it redirects them to your identity provider.
+Single sign-on with OpenID Connect comes on top of any of them: see [Sign-in and single sign-on](/docs/backend-admin/sign-in).
+Local accounts always work, for admins created with `qaboard-admin create-admin --password`.
+
+Users sign in from the **Sign in** button at the top right of the web app: it shows the single sign-on buttons, then a
+user name and password form for `LOCAL` and `LDAP`.
 
 <Shot
   id="auth/login"
@@ -21,7 +76,8 @@ Users log in from the **Log in** button at the top right of the web app. With `L
 
 > **To register a new `LOCAL` user**, either:
 > - add an entry to the database under `users` table.<br />
-> - use the signup endpoint (_signup()_ in _backend/backend/api/auth.py_). It is enabled unless `QABOARD_DISABLE_SIGNUP=True`:
+> - use `qaboard-admin create-admin <user_name> --password` (it also makes them an admin).<br />
+> - use the signup endpoint (_signup()_ in _backend/backend/api/auth.py_), when `auth.local_signup` is on:
 > ```bash
 > curl -d "user_name=<user_name>&password=<password>&email=<user_email>&full_name=<user_full_name>" -X POST '<qaboard_url>/api/v1/user/signup/'
 > ```
@@ -36,7 +92,7 @@ This flow can be improved. So far all instances of QA-Board rely on external aut
 :::
 
 :::note
-With docker compose, set them in `services.backend.environment` in your site overlay (see `deployments/example.yml`). Only some of them (`QABOARD_LOGIN_TYPE`, `QABOARD_LOGIN_REQUIRED`, `QABOARD_LOGIN_RESTRICTED`, `QABOARD_LOGIN_RESTRICTED_YAML`) are forwarded from an `.env` file by *docker-compose.yml*.
+With docker compose, set them in `services.backend.environment` in your site overlay (see `deployments/example.yml`). Only some of them (`QABOARD_LOGIN_TYPE`, `QABOARD_LOGIN_REQUIRED`, `QABOARD_LOGIN_RESTRICTED`, `QABOARD_LOGIN_RESTRICTED_YAML`, `QABOARD_ADMINS`, `QABOARD_INGEST_AUTH`) are forwarded from an `.env` file by *docker-compose.yml*.
 :::
 
 The sign-in policy is set via environment variables such as `QABOARD_LOGIN_*`, `QABOARD_LDAP_*`, `QABOARD_SAML_*`, as described below:
@@ -44,12 +100,16 @@ The sign-in policy is set via environment variables such as `QABOARD_LOGIN_*`, `
 | ENV Variable           | Default | Usage                                                |
 -------------------------|-------- |------------------------------------------------------|
 | `QABOARD_LOGIN_TYPE`   | _LOCAL_  | Set to `LOCAL/LDAP/SAML`                   |
-| `QABOARD_LOGIN_REQUIRED`   | _empty_  | Any non-empty value (e.g. `true`) blocks anonymous users. Leave it unset/empty to allow them: even `false` enables it |
-| `QABOARD_DISABLE_SIGNUP`   | _empty_  | Set to `True` (exactly) to disable the signup endpoint for `LOCAL` users |
+| `QABOARD_ADMINS`   | _empty_  | User names of admins, or emails of LDAP/SAML accounts, comma-separated |
+| `QABOARD_LOGIN_REQUIRED`   | _empty_  | `true` blocks anonymous users, `false` allows them. Empty: as set in the admin panel (`auth.require_sign_in`) |
+| `QABOARD_DISABLE_SIGNUP`   | _empty_  | `true` disables the signup of `LOCAL` users, `false` enables it. Empty: as set in the admin panel (`auth.local_signup`) |
+| `QABOARD_COOKIE_SECURE`   | _empty_  | `true` sends session cookies only over HTTPS. It's automatic when `QABOARD_URL` starts with `https://` |
+| `QABOARD_TRUSTED_PROXY_HOPS`   | _0_  | How many proxies in front of QA-Board's nginx add the client to `X-Forwarded-For`, e.g. `1` behind a Kubernetes ingress or a load balancer. The audit log uses it to find users' IPs: with `0`, it's the address nginx sees. |
 | `QABOARD_LOGIN_RESTRICTED`   | _empty_  | `true` uses a configuration file to allow only specific users (empty, `false` or `0` turn it off) |
 | `QABOARD_LOGIN_RESTRICTED_YAML`   | _none_  | The path to the users configuration file                     |
-| `QABOARD_LDAP_HOST`   | _none_  | Server hostname (including port)                   |
-| `QABOARD_LDAP_PORT`   | _389_  | Server port, usually 389 (or 636 if SSL is used / **not supported yet!**). |
+| `QABOARD_LDAP_HOST`   | _none_  | Server hostname (including port), or a URL: `ldaps://ldap.example.com:636` for LDAP over TLS |
+| `QABOARD_LDAP_PORT`   | _389_  | Server port, usually 389 (636 with `ldaps://`) |
+| `QABOARD_LDAP_START_TLS`   | _false_  | `true` upgrades the connection to TLS (StartTLS) |
 | `QABOARD_LDAP_USER_BASE`   | _none_  | Search base for users. |
 | `QABOARD_LDAP_BIND_DN`     | _none_  | The Distinguished Name to bind as, this user will be used to lookup information about other users. |
 | `QABOARD_LDAP_PASSWORD`    | _none_  | The password to bind with for the lookup user. |
@@ -63,9 +123,49 @@ The sign-in policy is set via environment variables such as `QABOARD_LOGIN_*`, `
 | `QABOARD_SAML_ATTRIBUTE_ID`   | _none_    |                                            |
 
 ## Blocking anonymous users
-To block anonymous users, who are not logged-in, from accessing any content on QA-Board, set the environment variable `QABOARD_LOGIN_REQUIRED=true` (any non-empty value) and restart the backend. The webapp reads it from the backend: no frontend rebuild is needed.
+To block anonymous users, who are not signed in, from accessing any content on QA-Board, turn on `auth.require_sign_in`
+in **Admin → Settings** (or set `QABOARD_LOGIN_REQUIRED=true`). The API then answers 401 to anonymous requests, except
+to sign in and for the results sent by `qa` (unless `ingest.auth` is `token`). Files under `/s/` too, when nginx checks
+who can read them (see [Restricting who can read files](#restricting-who-can-read-files)).
+
+Before turning it on, give a token with the `read` scope (`QABOARD_TOKEN`) to the CI jobs and scripts that read
+results: `qa gate`, `qa check-bit-accuracy`, `qa optimize`, and `qa batch` with `--action-on-existing` other than
+`run`, which needs the batch's past runs. Sending results keeps working without a token, unless `ingest.auth` is
+`token`. Users run `qa auth login` once.
 
 <img alt="Image viewer" src={useBaseUrl('img/login-block-unsigned-user.jpg')} />
+
+## API tokens
+Users create tokens in **Settings → Access tokens**, or with `qa auth login` (see [Signing in from the CLI](/docs/installation#signing-in)).
+- Tokens look like `qab_pat_…`: secret scanners can recognize them, and a checksum rejects typos. The server only
+  stores a hash, and shows a token once.
+- **Scopes** limit what a token can do: `read`, `ingest` (send results), `act` (redo runs, start or delete batches,
+  save milestones), `admin` (the admin API, for admins).
+  A token can also be restricted to some projects (`group/repo`, `group/*`). It never has more rights than its user has.
+- Tokens expire after `tokens.default_lifetime_days` unless users choose otherwise, and `tokens.max_lifetime_days`
+  caps it. Tokens of `qa auth login` expire after `tokens.cli_idle_expiry_days` without use.
+- Requests with a token that can't be used get a 401 saying why (unknown, revoked, expired...). Tokens in `?token=`
+  URLs are only accepted to read: URLs end up in access logs.
+- Tokens created before October 2026 keep working, as **legacy** tokens: `read`, `ingest` and `act`, no expiry. The security
+  checklist counts them: ask their owners to replace them.
+
+## Results sent by qa
+Until now, anyone who could reach the server could send results. `ingest.auth` (or `QABOARD_INGEST_AUTH`) decides:
+- `off` (the default): results without a token are accepted. They're shown as unverified: the user name they carry
+  (`$QA_USER` or the Unix login) is only what they claim.
+- `warn`: the same, and `qa` prints a warning asking users to run `qa auth login`.
+- `token`: results must be sent with a token with the `ingest` scope, for the project.
+
+With a valid token, runs, batches and commits record who really sent them, and the web app shows it. Move from `off`
+to `warn` to `token` once your CI jobs have tokens (`QABOARD_TOKEN`, see [CI integration](/docs/ci-integration)).
+In every mode, a token that can't be used (unknown, expired, revoked, for other projects) is refused, and the results
+aren't saved: `qa` says why and what to do, and in CI, `qa run` and `qa batch` fail.
+
+## Security
+- Session cookies are `HttpOnly` and `SameSite=Lax`, and `Secure` when `QABOARD_URL` is `https://…`.
+- Changes made with cookies must come from QA-Board's own pages: other websites can't make users' browsers change
+  things (add exceptions to `auth.allowed_origins`).
+- Signing in, signing out, failed sign-ins, tokens and admin changes are in the audit log. It never contains passwords or tokens.
 
 ## Restricting sign-in
 To allow only specific users to sign-in, set the environment variables:
@@ -199,7 +299,7 @@ nginx serves the output and artifacts files under `/s/`, and by default anyone w
 
 In both cases, nginx must ask the backend before sending files: add `include snippets/qaboard-files-auth.conf;` to **all** the `/s/` locations of your nginx configuration (with the helm chart, set `proxy.restrictFiles: true`). Files can be reached from several locations through symlinks: the backend checks where links lead, but only for the locations that ask it.
 
-In the [file browser](../user-guide/files.mdx), users who are not logged in see **Log in to see these files**, others **You don't have access**. Scripts can authenticate with an API token: `curl -H "Authorization: Bearer <token>" https://qaboard/s/...`
+In the [file browser](../user-guide/files.mdx), users who are not signed in see **Sign in to see these files**, others **You don't have access**. Scripts can authenticate with an API token: `curl -H "Authorization: Bearer <token>" https://qaboard/s/...`
 
 ### Restricted projects
 The `projects` restricted in `users_restrict.yml` also restrict their files: the outputs and artifacts folders from the projects' `storage` in *qaboard.yaml*. If needed, you can also restrict other folders under `paths`, with the same rules as projects:

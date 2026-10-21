@@ -94,6 +94,47 @@ class TestQaCli(unittest.TestCase):
     assert '/dev/null =>' in result.output
     assert "'is_failed': False" in result.output
 
+  def test_run_in_ci_when_the_server_refuses_results(self):
+    from unittest import mock
+    from tests.test_auth import response
+    self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"') # loads the modules
+    config = import_module('qaboard.config')
+    expired = response(401, {"error": "This token expired on 2026-09-01.", "reason": "token_expired"})
+    env = {k: v for k, v in os.environ.items() if k not in ('QA_OFFLINE', 'QA_AUTH_WARNING_SHOWN', 'QABOARD_TOKEN', 'QA_TOKEN')}
+    with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(config, 'is_ci', True), \
+         mock.patch('qaboard.api.results_refused', None), mock.patch('qaboard.auth._warnings_shown', set()), \
+         mock.patch('requests.post', return_value=expired) as post:
+      result = self.qa('run', '-i', 'cli_tests/a.jpg', 'echo "{input_path} => {output_dir}"', reload_modules=False)
+    self.assertEqual(result.exit_code, 1)
+    # the results would be lost: it doesn't run
+    self.assertEqual(post.call_count, 1)
+    self.assertNotIn('a.jpg =>', result.output)
+    self.assertIn('WARNING: QA-Board refused the results: This token expired on 2026-09-01.', result.output)
+    self.assertEqual(click.unstyle(result.output).strip().splitlines()[-1], 'ERROR: QA-Board refused the results (token_expired): they were not saved. '
+                     f'Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.')
+
+  def test_batch_in_ci_when_the_server_refuses_results(self):
+    from unittest import mock
+    from tests.test_auth import response
+    self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--list') # loads the modules
+    config = import_module('qaboard.config')
+    refused = response(403, {"error": "This server only accepts results sent with a token.", "reason": "ingest_token_required"})
+    env = {k: v for k, v in os.environ.items() if k not in ('QA_OFFLINE', 'QA_AUTH_WARNING_SHOWN', 'QABOARD_TOKEN', 'QA_TOKEN')}
+    # qa.py binds is_ci when it's imported
+    with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(config, 'is_ci', True), mock.patch.object(import_module('qaboard.qa'), 'is_ci', True), \
+         mock.patch('qaboard.api.results_refused', None), mock.patch('qaboard.auth._warnings_shown', set()), \
+         mock.patch('requests.get', return_value=response(404, {"error": "Not found"})), \
+         mock.patch('requests.post', return_value=refused) as post:
+      result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{input_path} => {output_dir}"', reload_modules=False)
+    self.assertEqual(result.exit_code, 1, result.output)
+    # only the batch was sent, no run started
+    self.assertEqual([c.args[0].rstrip('/').rsplit('/', 1)[-1] for c in post.call_args_list], ['batch'], result.output)
+    self.assertNotIn('a.jpg =>', result.output)
+    output = click.unstyle(result.output)
+    self.assertEqual(output.count('This server only accepts results sent with a token.'), 1)
+    self.assertEqual(output.strip().splitlines()[-1], 'ERROR: QA-Board refused the results (ingest_token_required): they were not saved. '
+                     f'Set QABOARD_TOKEN to a valid token with the ingest scope for {Path(config.project).as_posix()}.')
+
   def test_get(self):
     result = self.qa('get', 'commit_id')
     assert result.exit_code == 0
@@ -190,6 +231,28 @@ class TestQaCli(unittest.TestCase):
     jobs = json.loads(result.stdout)
     assert [job['output_dir'] for job in jobs] == [runs[1]['output_dir']]
     assert ' run --input ' in jobs[0]['command']
+
+  def test_batch_when_the_server_wont_read_runs(self):
+    """When signing in is required: qa batch says so, and doesn't redo every run when asked to skip the existing ones"""
+    from unittest import mock
+    from tests.test_auth import response
+    self.qa('--dryrun', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--list') # loads the modules
+    api = import_module('qaboard.api')
+    refused = api.ResultsUnreadable(response(401, {"error": "Sign in to do this.", "reason": "sign_in_required"}))
+    def batch(*args):
+      with mock.patch('qaboard.qa.get_outputs', side_effect=refused), mock.patch('qaboard.auth._warnings_shown', set()), \
+           mock.patch.dict(os.environ, {k: v for k, v in os.environ.items() if k != 'QA_AUTH_WARNING_SHOWN'}, clear=True):
+        return self.qa('--dryrun', 'batch', '--batches-file', 'image.batches.yaml', 'images', *args, '--list', reload_modules=False)
+    result = batch('--action-on-existing', 'skip')
+    assert result.exit_code == 1, result.output
+    output = click.unstyle(result.output)
+    assert "WARNING: QA-Board refused to read the batch's runs: Sign in to do this." in output
+    assert "--action-on-existing=skip needs the batch's runs" in output
+    # by default runs are done again anyway: a warning
+    result = batch()
+    assert result.exit_code == 0, result.output
+    assert len(json.loads(result.stdout)) == 3
+    assert "can't see which runs are pending" in click.unstyle(result.output)
 
   def test_check_bit_accuracy_reference_platform(self):
     """--reference-platform compares with the reference's runs on another platform"""

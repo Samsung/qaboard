@@ -1,6 +1,7 @@
 """
 Tests for backend/shell_utils.py and the `login_required` decorator in backend/api/auth.py
 """
+import ast
 import sys
 import json
 import types
@@ -160,6 +161,7 @@ def test_env_flag(auth, monkeypatch, value, expected):
 
 class FakeBatch:
   def __init__(self, project_id, label="default"):
+    self.id = 1
     self.label = label
     self.ci_commit = SimpleNamespace(project_id=project_id, hexsha="abc", batches=[self], get_or_create_batch=MagicMock())
     self.ci_commit.project = SimpleNamespace(protected_ref_commits=[], milestones_on=lambda hexsha=None: [])
@@ -227,7 +229,7 @@ def test_batch_changes_check_the_batch_project(batch_api, restricted, dummy_app,
       response = handler(**args)
     assert status_of(response) == expected_status, project
     if expected_status == 403:
-      assert response[0].get_json() == {"error": "Forbidden: You don't have permission to access this project"}
+      assert response[0].get_json() == {"error": "Forbidden: You don't have permission to access this project", "reason": "forbidden_project"}
       assert batch.changed == []
     else:
       assert action in batch.changed
@@ -311,7 +313,7 @@ def signup(auth, dummy_app, monkeypatch):
   monkeypatch.delenv("QABOARD_DISABLE_SIGNUP", raising=False)
   monkeypatch.setattr(auth, "User", MagicMock())
   monkeypatch.setattr(auth, "db_session", MagicMock())
-  auth.User.query.filter_by.return_value.one_or_none.return_value = None
+  auth.User.query.filter.return_value.first.return_value = None
   def post(form=SIGNUP_FORM):
     with dummy_app.test_request_context("/api/v1/user/signup/", method="POST", data=form):
       return auth.signup()
@@ -324,7 +326,8 @@ def assert_no_secrets(text):
 
 
 def test_signup_existing_user_name(auth, signup, monkeypatch, capsys):
-  auth.User.query.filter_by.return_value.one_or_none.return_value = MagicMock()
+  # even with another case: "ALICE" next to "alice"
+  auth.User.query.filter.return_value.first.return_value = MagicMock()
   monkeypatch.setattr(auth, "create_user", MagicMock())
   response, status = signup()
   assert status == 409
@@ -390,39 +393,93 @@ def test_unauthorized_login_error_has_no_user_info(auth, dummy_app, monkeypatch)
 # Endpoints that change things without login_required, and why
 UNAUTHENTICATED_ENDPOINTS = {
   # login, signup... or checks the login itself
-  ("auth.py", "create_token"), ("auth.py", "signup"), ("auth.py", "auth_post"), ("auth.py", "logout"), ("auth.py", "saml_auth"),
-  # the CLI sends results without authentication (see "Known issues" in SECURITY.md)
+  ("auth.py", "signup"), ("auth.py", "auth_post"), ("auth.py", "logout"), ("auth.py", "saml_auth"),
+  # the device flow of `qa auth login`: the CLI isn't logged-in yet, approving it needs a session (session_required)
+  ("tokens.py", "device_code"), ("tokens.py", "device_token"),
+  # users waiting for an admin say why they need access: it checks their pending session itself
+  ("sign_in.py", "my_access_request"),
+  # the CLI sends results, checked by ingest_access: anonymous unless ingest.auth is "token" (see "Known issues" in SECURITY.md)
   ("outputs.py", "new_output_webhook"), ("batch.py", "update_batch"), ("commit.py", "api_ci_commit"),
+  # the CLI's Jenkins runner triggers builds (anonymous unless sign-in is required)
   ("integrations.py", "jenkins_build_trigger"),
   # read-only, POST is only used to send parameters
   ("integrations.py", "gitlab_job"), ("integrations.py", "jenkins_build"), ("integrations.py", "github_workflow_run"),
   # checks the login itself when writing
   ("tuning.py", "groups"),
+  # FIXME: WebCDE calls it, we don't know yet if it can send credentials (TODO_WARTS.md "Celery task endpoint")
+  ("tasks.py", "task_celery"),
   # authenticated with the git host's webhook secret (QABOARD_WEBHOOK_SECRET by default)
   ("webhooks.py", "gitlab_webhook"), ("webhooks.py", "github_webhook"), ("webhooks.py", "gitea_webhook"), ("webhooks.py", "bitbucket_webhook"),
 }
+# Decorators that check who is calling
+AUTH_DECORATORS = {"login_required", "session_required", "admin_required", "authenticated"}
+ROUTE_DECORATORS = {"app.route": None, "app.get": {"GET"}, "app.post": {"POST"}, "app.put": {"PUT"}, "app.delete": {"DELETE"}, "app.patch": {"PATCH"}}
 
-def test_endpoints_that_change_things_require_login():
-  import ast
+
+def route_methods(node):
+  """The HTTP methods of a function's routes, e.g. @app.route(..., methods=[...]) or @app.post(...)"""
+  methods = set()
+  for d in node.decorator_list:
+    if not isinstance(d, ast.Call) or ast.unparse(d.func) not in ROUTE_DECORATORS:
+      continue
+    fixed = ROUTE_DECORATORS[ast.unparse(d.func)]
+    if fixed:
+      methods |= fixed
+    else:
+      declared = [kw.value for kw in d.keywords if kw.arg == "methods"]
+      methods |= set(ast.literal_eval(declared[0])) if declared else {"GET"}
+  return methods
+
+
+def api_functions():
   import warnings
-  missing = []
   for path in sorted((Path(__file__).parent.parent / "backend" / "api").glob("*.py")):
     with warnings.catch_warnings():
       warnings.simplefilter("ignore", SyntaxWarning)
       tree = ast.parse(path.read_text())
     for node in ast.walk(tree):
-      if not isinstance(node, ast.FunctionDef):
-        continue
-      decorators = [ast.unparse(d) for d in node.decorator_list]
-      methods = set()
-      for d in node.decorator_list:
-        if isinstance(d, ast.Call) and ast.unparse(d.func) == "app.route":
-          methods |= {m for kw in d.keywords if kw.arg == "methods" for m in ast.literal_eval(kw.value)}
-      if not methods - {"GET", "HEAD", "OPTIONS"}:
-        continue
-      if "login_required" not in decorators and (path.name, node.name) not in UNAUTHENTICATED_ENDPOINTS:
-        missing.append(f"{path.name}:{node.name}")
+      if isinstance(node, ast.FunctionDef):
+        yield path, node
+
+
+def test_endpoints_that_change_things_require_login():
+  missing = []
+  for path, node in api_functions():
+    methods = route_methods(node)
+    if not methods - {"GET", "HEAD", "OPTIONS"}:
+      continue
+    decorators = {ast.unparse(d) for d in node.decorator_list}
+    if not decorators & AUTH_DECORATORS and (path.name, node.name) not in UNAUTHENTICATED_ENDPOINTS:
+      missing.append(f"{path.name}:{node.name}")
   assert not missing, f"These endpoints change things without login_required: {missing}"
+
+
+def test_route_methods_sees_every_route_decorator():
+  tree = ast.parse("""
+@app.post("/a")
+def a(): pass
+@app.route("/b", methods=["GET", "DELETE"])
+def b(): pass
+@app.route("/c")
+def c(): pass
+""")
+  functions = {n.name: n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
+  assert route_methods(functions["a"]) == {"POST"}
+  assert route_methods(functions["b"]) == {"GET", "DELETE"}
+  assert route_methods(functions["c"]) == {"GET"}
+
+
+def test_admin_endpoints_require_admins():
+  for path, node in api_functions():
+    if path.name == "admin.py" and route_methods(node):
+      assert "admin_required" in {ast.unparse(d) for d in node.decorator_list}, node.name
+
+
+def test_credentials_are_only_created_from_sessions():
+  # else a leaked token could keep creating tokens after it's revoked
+  functions = {(path.name, node.name): node for path, node in api_functions()}
+  for key in [("tokens.py", "new_token"), ("tokens.py", "approve_device"), ("tokens.py", "create_token")]:
+    assert "session_required" in {ast.unparse(d) for d in functions[key].decorator_list}, key
 
 
 # ==========================================
@@ -1095,3 +1152,46 @@ def test_readable_file(tmp_path, monkeypatch, dummy_app):
     # restricted files need the right user
     monkeypatch.setattr(api_files, "check_read_access", lambda path: ("login", 401))
     assert api_files.readable_file(f"/s{storage}/run/out.png")[1] == ("login", 401)
+
+
+# ==========================================
+# Where users go after signing in
+# ==========================================
+
+@pytest.mark.parametrize("url, expected", [
+  (None, "/"),
+  ("", "/"),
+  ("/group/repo/commits", "/group/repo/commits"),
+  ("//evil.example/x", "/"),
+  ("/\\evil.example", "/"),
+  ("https://evil.example/", "/"),
+  ("javascript:alert(1)", "/"),
+  ("http://qaboard.example/group/repo", "http://qaboard.example/group/repo"),
+  ("http://qaboard.example/api/auth/saml20/login/?sso", "/"),
+])
+def test_safe_redirect_url(auth, dummy_app, monkeypatch, url, expected):
+  import backend.settings
+  monkeypatch.setattr(backend.settings, "_database_values", lambda: {})
+  with dummy_app.test_request_context("/api/auth/saml20/login/?acs", base_url="http://qaboard.example"):
+    assert auth.safe_redirect_url(url) == expected
+
+
+@pytest.mark.parametrize("login_type, has_data", [("SAML", True), ("LDAP", False), ("LOCAL", False)])
+def test_user_info_has_the_directory_attributes_only_with_saml(auth, dummy_app, monkeypatch, login_type, has_data):
+  # LDAP's are a list of [dn, attributes] that the restrictions can't match: they're checked when users sign in
+  from backend.actor import Actor
+  monkeypatch.setattr(auth, "login_type", login_type)
+  monkeypatch.setattr(auth, "is_admin", lambda user: False)
+  user = SimpleNamespace(id=1, user_name="arthurf", full_name="Arthur", email="a@example.com", login_type=login_type,
+                         kind="human", status="active", data=[["cn=arthurf", {"memberOf": ["x"]}]])
+  with dummy_app.test_request_context("/api/v1/commits"):
+    g.actor = Actor(user)
+    assert ("data" in auth.get_current_user(to_jsonify=False)) is has_data
+    assert "data" not in auth.get_current_user().get_json()
+
+
+def test_auth_module_defines_each_name_once():
+  # a decorator named like a helper silently replaced it once (signed_in): sign-ins weren't audited anymore
+  tree = ast.parse((Path(__file__).parent.parent / "backend" / "api" / "auth.py").read_text())
+  names = [node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.ClassDef))]
+  assert sorted({n for n in names if names.count(n) > 1}) == []

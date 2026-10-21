@@ -46,6 +46,8 @@ services:
     - QABOARD_DATA_GIT_DIR=/algo/ws/ispq/qaboard_prod_data_git
     - QA_RUNNERS_LSF_BRIDGE=ssh ispq@ispq-vdi 'bsub_su {user} -I {bsub_command}'
     - QABOARD_LOGIN_TYPE=LDAP
+    # Admins whatever the database says (the break-glass access): they make other admins in the web app
+    - QABOARD_ADMINS=arthurf
     - QABOARD_DISABLE_SIGNUP=True
     - QABOARD_LOGIN_RESTRICTED=True
     - QABOARD_LOGIN_RESTRICTED_YAML=/etc/ldap/users_restrict.yml

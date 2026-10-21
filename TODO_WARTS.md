@@ -37,27 +37,12 @@ Found while surveying the code base (October 2026), after the cleanups that chan
   `data['output_dir_url_new'][2:]/reports` without `check_storage_path`, and its `report_url` has a double slash (`/s//algo/...`).
   `/api/v1/output/image/pixel` (123) and `/image/diff` (149) read any image the server can read (`url_to_dir` of a client URL).
   Add `@login_required`, `check_storage_path` for writes, and restrict reads to the storage roots. [S, API]
-- **`QABOARD_LOGIN_REQUIRED` is only enforced by the web app** (webapp/src/components/authentication/PrivateContent.jsx:21):
-  the backend reports it in `/api/v1/config` (api/api.py:55) but no `before_request` checks it, so every GET API and the CLI ingest
-  endpoints answer anonymous requests, and `/s/` files stay readable, while website/docs/backend-admin/managing-users.mdx:59 says it
-  "blocks anonymous users from accessing any content". Fix: a `before_request` requiring a session or token for `/api/` except an
-  explicit allowlist (health, config, login/SAML, signed webhooks, `files/authorize` which does its own check), and nginx `auth_request`
-  for `/s/`. The `qa` CLI already sends `Authorization: Bearer $QA_TOKEN` (qaboard/api.py:55), so check CI tokens exist at SIRC before
-  enabling it; ship it behind a flag first. Also `tests/test_security.py`'s AST check only sees `app.route`, so `@app.post`
-  endpoints (api/tasks.py:20) escape it. [M, API]
 - **Project permissions are only checked on some reads** (`is_authorized_user`, api/auth.py:272): `GET /api/v1/output/<id>`,
   `/manifest`, `/api/v1/tests/groups`, image endpoints and `/s/` ignore `QABOARD_LOGIN_RESTRICTED_YAML`. [M, API]
-- **Local signup can squat LDAP/SAML user names** (api/auth.py:83-104, 331-336): signup is on unless `QABOARD_DISABLE_SIGNUP=True`,
-  and `auth()` (328-336) uses the local password for any user stored as `LOCAL`. Someone can sign up with the name of an LDAP user who never
-  logged in, and keep that account. Disable local signup when `QABOARD_LOGIN_TYPE` is LDAP/SAML. [S, behaviour]
-- **SAML open redirects** (api/auth.py:503,518, flagged by TODOs): validate `RelayState`/SLO URLs against the server's host. [S, behaviour]
-  After a successful ACS without `RelayState`, the code falls through to "Handle bad requests" and answers an empty 403 (520).
 - **Error messages echo user data** (api/auth.py:347,417,491): `user_info{...}` includes LDAP/SAML attributes. Log them, return a plain message. [S, API]
 - **Stored XSS**: `forms.jsx:531` renders the server's `message` as HTML, built with f-strings from DB paths (api/tuning.py:143-171);
   `viewers/html.jsx:30-33` renders output HTML files in the app's origin; `OutputCard.jsx:567-570` renders error responses as HTML.
   Escape the tuning message (or send text), and render user HTML in a sandboxed `<iframe srcdoc>`. [M, behaviour]
-- **API tokens** (models/User.py:64-99, api/auth.py:219,227): stored in clear in the database, accepted in `?token=` (ends up in access logs),
-  and `login_user(user)` in the request loader also sets a session cookie for token requests. Store a hash, prefer the header. [M, behaviour]
 - **Webhooks are accepted unauthenticated by default** (no `webhook_secret` in `QABOARD_GIT_HOSTS` and `QABOARD_WEBHOOK_SECRET` empty,
   `receive_push` in api/webhooks.py): warn at startup, or require a secret for new hosts. [S, no change]
 
@@ -161,12 +146,9 @@ Found while surveying the code base (October 2026), after the cleanups that chan
   then add `F401,F811,F841` (or use ruff with `F,B`). `ruff check --select B` also finds the issues above (B023 in clean.py:94,178). [S, no change]
 - Mixed line endings: 69 files are CRLF (`git ls-files --eol | grep crlf`, e.g. api/export_to_folder.py, qaboard/run.py, AppSider.jsx).
   Normalize them with a `.gitattributes` (`* text=auto`) in one commit. [S, no change]
-- tests/test_runners.py `TestCleanOutputDir.test_removes_everything_when_not_redirected` depends on how the runner captures stderr
-  (it failed once locally with green, passed on a rerun). [S, no change]
 
 ## Docs
 
-- website/docs/backend-admin/managing-users.mdx:59 overstates `QABOARD_LOGIN_REQUIRED` (see Security). [S, no change]
 - backend/README.md:7, MIGRATION.md:9, drafts/ use internal git hosts; the public README should point to GitHub. [S, no change]
 
 ## Left after the git-hosts and performance changes

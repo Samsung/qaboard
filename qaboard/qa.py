@@ -27,7 +27,7 @@ from .utils import save_outputs_manifest, total_storage
 from .utils import redirect_std_streams, clean_output_dir
 from .utils import getenvs
 from .api import url_to_dir, print_url
-from .api import get_outputs, notify_qa_database, serialize_paths
+from .api import get_outputs, notify_qa_database, serialize_paths, exit_if_results_refused, ResultsUnreadable, print_auth_error
 from .iterators import iter_inputs, iter_parameters, load_runs_file, iter_runs, rerun_job_options, local_job_options
 from .batch_logs import saves_logs, batch_log
 
@@ -55,16 +55,18 @@ from .metrics import split_metrics, run_definitions
 @click.option('--offline', is_flag=True, help="Do not notify QA-Board about run statuses.")
 def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, share, database, input_type, offline):
   """Entrypoint to running your algo, launching batchs..."""
+  # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
+  # http://click.pocoo.org/6/complex/
+  if not ctx.obj:
+    ctx.obj = {}
+  # Signing in is global, per server: it doesn't need a project
+  if ctx.invoked_subcommand == 'auth':
+    return
   # We want all paths to be relative to top-most qaboard.yaml
   # it should be located at the root of the git repository
   if config_has_error and not ignore_config_errors:
     click.secho('Please fix the error(s) above in qaboard.yaml', fg='red', err=True, bold=True)
     exit(1)
-
-  # Click passes `ctx.obj` to downstream commands, we can use it as a scratchpad
-  # http://click.pocoo.org/6/complex/
-  if not ctx.obj:
-    ctx.obj = {}
 
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
   noop_command = 'init' in sys.argv
@@ -242,6 +244,8 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
           qa_run_data = notify_qa_database(**ctx.obj, is_pending=True, is_running=True)
           if qa_run_data:
             run_context.id = qa_run_data["id"]
+          # in CI, results QA-Board refuses are lost: don't compute them
+          exit_if_results_refused()
 
       start = time.time()
       cwd = os.getcwd() 
@@ -278,9 +282,11 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
       if metrics['is_failed']:
         click.secho('[ERROR] The run has failed.', fg='red', err=True)
         click.secho(str(metrics), fg='red', bold=True)
-        exit(1)
       else:
         click.secho(str(metrics), fg='green')
+      exit_if_results_refused()
+      if metrics['is_failed']:
+        exit(1)
 
 
 def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_database=False):
@@ -598,7 +604,16 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
 
   print_url(ctx)
   # if the commit does not exist or there are network errors it will return empty data
-  existing_outputs = get_outputs(ctx.obj, ignore_errors=True)
+  try:
+    existing_outputs = get_outputs(ctx.obj, ignore_errors=True)
+  except ResultsUnreadable as e:
+    # e.g. the server requires signing in: we can't tell which runs exist or are pending
+    existing_outputs = {}
+    print_auth_error(e.response, "QA-Board refused to read the batch's runs")
+    if action_on_existing != 'run':
+      click.secho(f"ERROR: --action-on-existing={action_on_existing} needs the batch's runs, else all the runs would be done again.", fg='red', bold=True, err=True)
+      exit(1)
+    click.secho("         qa batch can't see which runs are pending: it may start them again.", fg='yellow', err=True)
   log = batch_log(ctx)
   command_id = os.environ.get('QA_BATCH_COMMAND_ID', log['command_id'] if log else str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
   from .notify import is_nested, inherit_root_command, notify_channel, print_notification
@@ -642,6 +657,8 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
     if not os.environ.get('QA_BATCH_COMMAND_HIDE_LOGS'):
       response = notify_qa_database(object_type='batch', command={command_id: command_data}, **ctx.obj)
       notification = response.get('notification') if isinstance(response, dict) else None
+      # in CI, results QA-Board refuses are lost: don't compute them
+      exit_if_results_refused()
 
 
   tuning_search, filetype = load_tuning_search(tuning_search_dict, tuning_search_file)
@@ -925,6 +942,7 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
     return
 
   if not dryrun:
+    exit_if_results_refused()
     if total_runs:
       print_notification(notification)
     is_failed = jobs.start(
@@ -950,6 +968,7 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
         description=f"{len(jobs)} results",
       )
 
+    exit_if_results_refused()
     if is_failed and not no_wait:
       del os.environ['QA_BATCH'] # restore verbosity
       if should_notify_qa_database:
@@ -1068,6 +1087,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
 
   # if the commit was deleted, this notification will mark it as good again 
   notify_qa_database(object_type='commit', **ctx.obj)
+  exit_if_results_refused()
 
 
 from .bit_accuracy import check_bit_accuracy, check_bit_accuracy_manifest
@@ -1081,6 +1101,10 @@ qa.add_command(optimize)
 
 from .gate import gate
 qa.add_command(gate)
+
+
+from .auth import auth
+qa.add_command(auth)
 
 
 @qa.command()

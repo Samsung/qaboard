@@ -149,7 +149,7 @@ export const MilestoneDialog = ({ isOpen, onClose, project, milestone, target, r
       ? <MilestoneForm key={milestone?.id ?? 'new'} project={project} milestone={milestone} target={target} runs={runs} onClose={onClose} onSaved={onSaved} user={user}/>
       : <DialogBody>
           <ResultsSummary project={project} target={target} runs={runs}/>
-          <Callout intent={Intent.PRIMARY} icon="log-in" title="Log in to save milestones">
+          <Callout intent={Intent.PRIMARY} icon="log-in" title="Sign in to save milestones">
             <p>Milestones are saved in your account: they follow you on every computer, and you can share them with the project.</p>
             <AuthButton/>
           </Callout>

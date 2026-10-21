@@ -68,6 +68,19 @@ get their own status, like `QA | nightly`, and in a [subproject](/docs/monorepo-
 
 Without a token, `qa batch` works the same and sets no status.
 
+## Send verified results {#tokens}
+Give your CI jobs a token, so that the results they send show who sent them, and so that they keep working once your
+server requires tokens to send results, or requires signing in (see
+[Results sent by qa](/docs/backend-admin/user-management#results-sent-by-qa)):
+1. In the web app, open **Settings → Access tokens** and create a token with the `read` and `ingest` scopes,
+   restricted to your project (e.g. `group/repo`). Long-lived tokens are fine for CI, stored as protected secrets.
+2. Store it in your CI's secrets as `QABOARD_TOKEN`: `qa` sends it. In GitHub Actions, add
+   `QABOARD_TOKEN: ${{ secrets.QABOARD_TOKEN }}` to the job's `env`. In GitLab CI, add a masked, protected CI/CD
+   variable named `QABOARD_TOKEN`.
+
+Tokens tied to the CI itself (no stored secret) and tokens owned by an organization rather than a person are coming
+next.
+
 ## GitHub Actions {#example-with-github-actions}
 `qa` reads the commit from `GITHUB_SHA`, and the branch from `GITHUB_HEAD_REF` or `GITHUB_REF_NAME`. For tags, it
 records the tag. It calls the API at `GITHUB_API_URL` (else derived from `GITHUB_SERVER_URL`) for the repository

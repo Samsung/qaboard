@@ -305,7 +305,7 @@ const useGroupInfo = ({ project, selected_group, commit_id, available_tests_file
     queryKey: ['tests-group', project, selected_group, commit_id ?? null, available_tests_files],
     queryFn: async ({ signal }) => {
       const params = { project, name: selected_group, commit: commit_id };
-      // background: no "Log in" toast, the form already says to log in
+      // background: no "Sign in" toast, the form already says to sign in
       return (await http.post('/api/v1/tests/group', { groups: Object.values(available_tests_files ?? {}) }, { params, signal, background: true })).data;
     },
     // the server needs to know who asks
@@ -730,9 +730,9 @@ const TuningForm = ({ project, git, config, metrics, commit, available_tests_fil
                         : undefined}
       intent={(combinations === "invalid" || total_runs > MAX_RUNS) && search_type !== "optimize" ? Intent.DANGER : undefined}
     >
-    {!is_logged && <Callout intent={Intent.PRIMARY} icon="log-in" title="Log in to start runs" style={{marginBottom: '10px'}} data-testid="tuning-login">
-      <p>Runs started from QA-Board run as you. Once you are logged in, QA-Board also lists the batch's tests and checks your settings.</p>
-      <Button icon="log-in" intent={Intent.PRIMARY} text="Log in" onClick={requestLogin}/>
+    {!is_logged && <Callout intent={Intent.PRIMARY} icon="log-in" title="Sign in to start runs" style={{marginBottom: '10px'}} data-testid="tuning-login">
+      <p>Runs started from QA-Board run as you. Once you are signed in, QA-Board also lists the batch's tests and checks your settings.</p>
+      <Button icon="log-in" intent={Intent.PRIMARY} text="Sign in" onClick={requestLogin}/>
     </Callout>}
     {check_errors.length > 0 && <Callout intent={Intent.DANGER} title="Fix this to start" icon="error" style={{marginBottom: '10px'}} data-testid="tuning-check-errors">
       <ul className={Classes.LIST}>{check_errors.map(e => <li key={e}>{e}</li>)}</ul>

@@ -15,6 +15,7 @@ They used to be pages of the public docs website. The website now only has the g
 | [troubleshooting.md](troubleshooting.md) | Logs, shells, restarts, disk full |
 | [host-upgrades.md](host-upgrades.md) | Maintenance of the `qa` host: pause deploys, backup, restart, checks |
 | [ssl-certificates.md](ssl-certificates.md) | Getting the HTTPS certificate from IT |
+| [sso.md](sso.md) | Single sign-on with Keycloak: asking IT for the clients, configuring, checking, rolling back |
 
 Keep them in sync with the generic pages: when a change is not SIRC-specific, document it on the website too.
 

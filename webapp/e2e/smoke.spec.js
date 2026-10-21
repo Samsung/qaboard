@@ -184,3 +184,85 @@ test('compact commit list', async ({ page }) => {
   await expect(page.getByText('Hello world').first()).toBeVisible();
   await page.waitForLoadState('networkidle');
 });
+
+// The app's own pages, not projects: settings, admin, approving a CLI sign-in
+const token = {
+  id: 1, name: 'ci-bot', kind: 'personal', prefix: 'qab_pat_Xk3f', scopes: ['read', 'ingest'], projects: [],
+  created_at: '2026-09-01T10:00:00Z', expires_at: '2036-09-01T10:00:00Z', last_used_at: null, status: 'active', data: {},
+};
+const user_management_api = {
+  '/api/v1/user/me/': { ...api['/api/v1/user/me/'], is_admin: true, status: 'active' },
+  '/api/v1/user/tokens': { tokens: [token] },
+  '/api/v1/user/audit': { events: [], next_before_id: null },
+  '/api/v1/user/preferences': { preferences: {}, updated_at: null },
+  '/api/v1/admin/overview': { counts: { users: 3, active_30d: 2, admins: 1, pending: 0, disabled: 0, active_tokens: 1 }, checklist: [
+    { id: 'ingest_auth', ok: false, severity: 'warning', title: 'Anyone can save runs', detail: 'Move ingest.auth to "warn", then "token".' },
+  ] },
+  '/api/v1/admin/users': { users: [{ id: 1, user_name: 'alice', full_name: 'Alice', email: 'alice@example.com', status: 'active', is_admin: true, login_type: 'LOCAL', active_tokens: 1 }], total: 1 },
+  '/api/v1/auth/device': { client_name: 'qa CLI on host-12', hostname: 'host-12', scopes: ['read', 'ingest', 'act'], status: 'pending' },
+};
+
+test.describe('user management pages', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('qaboard.release-notes.last-seen', '9999-12-31'));
+    await page.route('**/api/**', route => {
+      const { pathname } = new URL(route.request().url());
+      const all = { ...api, ...user_management_api };
+      const key = Object.keys(all).sort((a, b) => b.length - a.length).find(k => pathname.startsWith(k));
+      return route.fulfill({ json: key ? all[key] : {} });
+    });
+  });
+
+  test('settings: access tokens', async ({ page }) => {
+    await page.goto('/settings/tokens');
+    await expect(page.getByRole('tab', { name: 'Access tokens' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByText('ci-bot')).toBeVisible();
+    await page.getByRole('button', { name: 'New token' }).click();
+    await expect(page.getByRole('dialog').getByText('What it can do')).toBeVisible();
+    await page.waitForLoadState('networkidle');
+  });
+
+  test('admin: users', async ({ page }) => {
+    await page.goto('/admin');
+    await expect(page.getByText('Anyone can save runs')).toBeVisible();
+    await page.getByRole('tab', { name: 'Users' }).click();
+    await expect(page).toHaveURL(/\/admin\/users$/);
+    await expect(page.getByRole('link', { name: 'Alice' })).toBeVisible();
+    await page.waitForLoadState('networkidle');
+  });
+
+  test('narrow screens: no sideways scrolling', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    for (const path of ['/settings/tokens', '/admin/users', '/']) {
+      await page.goto(path);
+      await page.waitForLoadState('networkidle');
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflow, path).toBeLessThanOrEqual(0);
+    }
+  });
+
+  test('device sign-in approval', async ({ page }) => {
+    await page.goto('/device?code=WDJB-MJHT');
+    await expect(page.getByText('Authorize qa CLI on host-12?')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Approve' })).toBeVisible();
+    await page.waitForLoadState('networkidle');
+  });
+
+  test('signed out: pages that need a user go to the sign-in page, single sign-on first', async ({ page }) => {
+    await page.route('**/api/v1/user/me/', route => route.fulfill({ json: { is_authenticated: false } }));
+    await page.route('**/api/v1/auth/providers**', route => route.fulfill({ json: {
+      providers: [
+        { id: 'sso', type: 'oidc', kind: 'redirect', name: 'Company SSO', recommended: true, start_url: '/api/v1/auth/oidc/sso/start?next=%2Fsettings' },
+        { id: 'local', type: 'local', kind: 'password', name: 'QA-Board account', recommended: false, start_url: null },
+      ],
+      password_form: true, local_signup: false, auto_redirect: false,
+    } }));
+    await page.goto('/settings');
+    await expect(page).toHaveURL(/\/login\?next=%2Fsettings$/);
+    await expect(page.getByRole('button', { name: 'Company SSO' })).toHaveAttribute('href', '/api/v1/auth/oidc/sso/start?next=%2Fsettings');
+    const form = page.getByRole('form', { name: 'Sign in with a user name and password' });
+    await expect(form.getByRole('textbox', { name: 'User name' })).toBeVisible();
+    await expect(form.getByLabel('Password', { exact: true })).toBeVisible();
+    await expect(form.getByRole('button', { name: 'Sign in' })).toBeVisible();
+  });
+});

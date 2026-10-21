@@ -68,7 +68,7 @@ export const ArtifactsCallout = ({ deleted, artifacts, waiting, onRestore }) => 
         disabled={!!waiting || !is_logged}
         onClick={onRestore}
       />
-      {!is_logged && <LoginHint text="Log in to bring the artifacts back"/>}
+      {!is_logged && <LoginHint text="Sign in to bring the artifacts back"/>}
     </>}
   </Callout>
 }

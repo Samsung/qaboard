@@ -14,6 +14,8 @@ jobs:
       QABOARD_URL: http://<your-qaboard>
       # qa batch sets a commit status that links to the results
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # results sent with a token show who sent them (Settings > Access tokens: read and ingest scopes)
+      QABOARD_TOKEN: ${{ secrets.QABOARD_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

@@ -10,7 +10,6 @@ or a file with `version = "x.y.z"`) and the upgrade command we suggest (QABOARD_
 import os
 import json
 import datetime
-from pathlib import Path
 
 import click
 
@@ -44,17 +43,13 @@ def check_for_updates():
   if 'QA_NO_CHECK_FOR_UPDATES' in os.environ:
     return
   # qaboard user configuration and related files is saved in standard locations
-  if os.name != 'nt':
-    # On windows we use %LOCALAPPDATA%
-    config_home = Path(os.environ['LOCALAPPDATA']) if 'LOCALAPPDATA' in os.environ else Path.home() / '.config'
-  else:
-    # On linux we use XDG directories
-    # https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-    config_home = Path(os.environ['XDG_CONFIG_HOME']) if 'XDG_CONFIG_HOME' in os.environ else Path.home() / '.config'
-
-  qaboard_config_dir = config_home / 'qaboard'
-  if not qaboard_config_dir.exists():
-    qaboard_config_dir.mkdir(parents=True, exist_ok=True)
+  from .site_config import user_config_dir
+  qaboard_config_dir = user_config_dir()
+  try:
+    # it also holds logins (hosts.yaml)
+    qaboard_config_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+  except OSError: # e.g. a read-only home directory
+    return
 
   # We cache the latest version found 
   qaboard_latest_update = qaboard_config_dir / 'latest-version'

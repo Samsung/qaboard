@@ -22,6 +22,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import EmptyLoading from "./components/EmptyLoading";
 import Footer from "./components/Footer";
 import { ThemeSync } from "./theme";
+import { PrefsSync } from "./stores/prefsSync";
 
 import "normalize.css";
 import "@blueprintjs/core/lib/css/blueprint.css";
@@ -31,7 +32,7 @@ import "@blueprintjs/select/lib/css/blueprint-select.css";
 
 import "./App.css";
 
-import { routes } from './routes'
+import { routes, matchAppRoute } from './routes'
 import { ReleaseNotesProvider } from "./releaseNotes/ReleaseNotes"
 import { HelpSheetProvider } from "./components/HelpSheet"
 import PrivateContent from "./components/authentication/PrivateContent"
@@ -53,7 +54,7 @@ const shouldForwardProp = (prop, target) => typeof target !== "string" || isProp
 // Asks users to log in when the server answers 401, once for all actions
 installLoginHandler(queryClient, toaster);
 
-const route_name = pathname => matchRoutes(routes, pathname)?.route.path ?? pathname;
+const route_name = pathname => (matchAppRoute(pathname) ?? matchRoutes(routes, pathname))?.route.path ?? pathname;
 
 
 
@@ -80,6 +81,7 @@ const App = ({ persist = true }) => {
   const providerProps = persist ? { client: queryClient, persistOptions, onSuccess: onCacheRestored } : { client: queryClient };
   return <Provider {...providerProps}>
     <ThemeSync/>
+    <PrefsSync/>
     <ErrorBoundary fallback={props => <Fallback {...props}/>}>
       <Analytics/>
       <StyleSheetManager shouldForwardProp={shouldForwardProp}>
@@ -101,6 +103,16 @@ const Routes = () => {
   const { pathname } = useLocation();
   if (pathname === "/")
     return <ProjectsList/>
+  // settings, admin...: they check by themselves who users are
+  const app_page = matchAppRoute(pathname);
+  if (app_page) {
+    const { route: { main: Main }, match } = app_page;
+    return <RouteMatch match={match}>
+      <Suspense fallback={<EmptyLoading/>}>
+        <Main/>
+      </Suspense>
+    </RouteMatch>
+  }
   return <PrivateContent>
     <ProjectApp pathname={pathname}/>
   </PrivateContent>

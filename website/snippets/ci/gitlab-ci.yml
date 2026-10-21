@@ -6,6 +6,7 @@ qaboard:
   image: python:3.12
   variables:
     QABOARD_URL: http://<your-qaboard>
+    # QABOARD_TOKEN: a masked CI/CD variable, with a token from Settings > Access tokens (read and ingest scopes)
   script:
     - pip install qaboard -r requirements.txt
     # qa reads the commit and the branch from CI_COMMIT_SHA and CI_COMMIT_REF_NAME

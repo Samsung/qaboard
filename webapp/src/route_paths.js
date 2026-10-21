@@ -14,3 +14,15 @@ export const route_paths = {
   milestone: "/:project_id+/milestone/:name+",
   project: "/:project_id+",
 };
+
+// Pages of the app itself, matched before the projects' pages, exactly: they don't take over projects that would
+// have the same name, e.g. /admin/commits stays the commits of a project named "admin".
+export const app_paths = {
+  settings: "/settings/:tab(profile|preferences|sign-in|sessions|tokens|cli|activity)?",
+  admin_user: "/admin/users/:user_id(\\d+)",
+  admin: "/admin/:section(overview|users|requests|sign-in|tokens|audit|settings)?",
+  // the ways to sign in, ?next=<page> to go back to it (see login/LoginPage.jsx)
+  login: "/login",
+  // where `qa auth login` sends users to approve the login
+  device: "/device",
+};

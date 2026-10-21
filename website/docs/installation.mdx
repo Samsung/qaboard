@@ -87,30 +87,37 @@ export QABOARD_API_VERIFY=/etc/ssl/certs/internal-ca.pem
 export QABOARD_API_VERIFY=false
 ```
 
-## API token {#api-token}
-`qa` saves results without logging in. Scripts that act as you through the server's API, e.g. to redo runs or start
-tuning, need an API token. There is no button for it in the web app yet:
+## Sign in {#signing-in}
+Sign in once per server, so that the results you send are signed with your name, and so that `qa` can do what needs
+a signed-in user (e.g. start tuning or redo runs from scripts):
 
-1. Log in to the web app.
-2. Open your browser's developer console (<kbd>F12</kbd>), and create a token:
+```bash
+qa auth login
+# Your one-time code: WDJB-MJHT
+# To sign in, open https://<your-qaboard>/device and enter the code
+```
 
-   ```js
-   await (await fetch('/api/v1/user/token/', {method: 'POST'})).json()
-   ```
+Open the link in any browser, even on another computer: it works when `qa` runs over SSH. Sign in to QA-Board as
+usual, check the code and approve. `qa` saves a token for this server in *~/.config/qaboard/hosts.yaml*, readable
+only by you (*%APPDATA%\\qaboard* on Windows). It serves all your checkouts and worktrees: it's never saved in your
+projects.
 
-   It prints `{token: "...", created_at: "...", expires_at: ...}`.
-3. Save the token in a file only you can read:
+```bash
+qa auth status   # which server, which user, which token
+qa auth logout   # signs out: revokes the token qa auth login created, and forgets it
+qa auth token    # prints the token, e.g. for curl
+```
 
-   ```yaml title="~/.qaboard/secrets.yaml"
-   QA_TOKEN: <your-token>
-   ```
+The token expires after 180 days without use (admins can change it): run `qa auth login` again. You can see and
+revoke it in the web app, in **Settings → CLI & devices**.
 
-   ```bash
-   chmod 600 ~/.qaboard/secrets.yaml
-   ```
+**In CI and scripts**, give `qa` a token in `QABOARD_TOKEN`: create one in **Settings → Access tokens** (see
+[CI integration](/docs/ci-integration#tokens)). `qa` uses `$QABOARD_TOKEN` (or `$QA_TOKEN`), then the login of
+`qa auth login`, then `QA_TOKEN` in *~/.qaboard/secrets.yaml* (the older way: it still works, for your default
+server only). A token you save with `qa auth login --with-token` isn't revoked by `qa auth logout` (add `--revoke`).
 
-   `qa` warns when other users can read this file. `QA_USER_SECRETS` points to another file, and a `QA_TOKEN`
-   environment variable, e.g. a CI secret, works too.
+In CI, when the server refuses the results (an expired token, a token for other projects, a server that requires
+tokens...), `qa run` and `qa batch` fail before running anything, and say what to fix.
 
 ## If `qa` doesn't start {#troubleshooting}
 - **An error about your locale (ASCII, not UTF-8):** set a UTF-8 one, e.g. `export LC_ALL=C.UTF-8 LANG=C.UTF-8`.

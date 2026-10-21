@@ -34,7 +34,7 @@ def answer(milestone, user_info, favorites=None):
 
 
 def login_error():
-  return jsonify({"error": "Log in to save milestones: they are saved in your account."}), 401
+  return jsonify({"error": "Sign in to save milestones: they are saved in your account.", "reason": "sign_in_required"}), 401
 
 
 def favorite_ids(user_id, milestone_ids=None):

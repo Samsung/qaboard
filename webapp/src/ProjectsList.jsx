@@ -14,7 +14,6 @@ import {
   Intent,
   InputGroup,
   NonIdealState,
-  Navbar,
   NavbarDivider,
   NavbarGroup,
   NavbarHeading,
@@ -24,6 +23,7 @@ import { Container } from "./components/layout";
 import { ProjectAvatar } from "./components/avatars";
 import { LoadMore } from "./components/LoadMore";
 import AuthButton from "./components/authentication/Auth"
+import { WrappingNavbar } from "./components/PageShell"
 import PrivateContent from "./components/authentication/PrivateContent"
 import { WhatsNewLink } from './releaseNotes/ReleaseNotes'
 import { ThemeButton } from './components/ThemeButton'
@@ -184,7 +184,7 @@ const ProjectsList = () => {
   const user_quota_url = user.is_logged && quota_url(quota_url_template, user.user_name);
   return (
     <div style={{minHeight: '100vh', display: 'flex', flexDirection: 'column'}}>
-      <Navbar className={Classes.DARK}>
+      <WrappingNavbar className={Classes.DARK}>
           <NavbarGroup align={Alignment.LEFT}>
               <NavbarHeading><b>QA-Board</b></NavbarHeading>
               <NavbarDivider />
@@ -199,7 +199,7 @@ const ProjectsList = () => {
             </a>}
             <AuthButton/>
           </NavbarGroup>
-      </Navbar>
+      </WrappingNavbar>
       <Container>
         <PrivateContent>
           <div style={{display: "flex", justifyContent: "space-between", alignItems: "baseline"}}>

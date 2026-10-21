@@ -11,7 +11,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.attributes import flag_modified
 
 from backend import app, db_session
-from .auth import is_authorized_user, login_required, require_project_access
+from .auth import is_authorized_user, login_required, require_project_access, ingest_access, forbidden_project
 from ..models import Project, CiCommit, latest_successful_commit, Batch
 from ..storage import UnsafePathError
 from .. import recreate_artifacts
@@ -23,6 +23,9 @@ from .. import recreate_artifacts
 @app.route("/api/v1/commit/<path:commit_id>", methods=['GET', 'POST'])
 def api_ci_commit(commit_id=None):
   if request.method == 'POST':
+    submitted_by, error = ingest_access(request.json.get('project'))
+    if error:
+      return error
     # git_commit_sha for backward-compatibility
     hexsha = commit_id or request.json.get('commit_sha') or request.json.get('git_commit_sha')
     try:
@@ -44,8 +47,12 @@ def api_ci_commit(commit_id=None):
     if not isinstance(commit_data, dict):
       commit_data = {}
     # QA-Board's own bookkeeping, clients can't change it
-    commit_data = {k: v for k, v in commit_data.items() if k not in ('artifacts_recreation', 'artifacts_deleted')}
+    commit_data = {k: v for k, v in commit_data.items() if k not in ('artifacts_recreation', 'artifacts_deleted', 'submitted_by')}
     commit.data = {**commit.data, **commit_data}
+    if submitted_by:
+      commit.data['submitted_by'] = submitted_by
+    else:
+      commit.data.pop('submitted_by', None)
     flag_modified(commit, "data")
     # `qa save-artifacts` calls us when it's done. It may have saved only some artifacts,
     # so we check they are really usable before saying they are back.
@@ -69,7 +76,7 @@ def api_ci_commit(commit_id=None):
   project_id = request.args['project']
 
   if not is_authorized_user(None, project_id):
-    return f"Forbidden: You don't have permission to access this project", 403
+    return forbidden_project(project_id)
 
   # ?with_outputs=false: only the commit and its batches' counts and metrics, e.g. for the references users
   # stacked but don't look at (a commit can have thousands of outputs)

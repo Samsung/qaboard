@@ -24,8 +24,9 @@ from ..models import Project, CiCommit, Batch, Output, batches_stats
 from ..utils import profiled
 from ..config import git_server, skip_metrics_aggregation
 from ..search import parse_query, commits_search_filter, escape_like
-from .auth import is_authorized_user, get_current_user
+from .auth import is_authorized_user, get_current_user, forbidden_project
 from ..notifications.mail import email_enabled
+from ..settings import setting
 
 to_datetime = lambda s: timezone.localize(datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ'))
 timezone = pytz.timezone("utc")
@@ -48,7 +49,14 @@ def get_site_config():
     return jsonify({
         "image_servers": _image_servers,
         "login_type": os.environ.get('QABOARD_LOGIN_TYPE', 'LOCAL'),
-        "login_required": bool(os.environ.get('QABOARD_LOGIN_REQUIRED', '')),
+        # login_required: the name before settings were also stored in the database
+        "login_required": setting('auth.require_sign_in'),
+        "require_sign_in": setting('auth.require_sign_in'),
+        "local_signup": setting('auth.local_signup'),
+        # how `qa` authenticates the results it sends: off, warn or token
+        "ingest_auth": setting('ingest.auth'),
+        # what the web app offers when users create tokens
+        "tokens": {"default_lifetime_days": setting('tokens.default_lifetime_days'), "max_lifetime_days": setting('tokens.max_lifetime_days')},
         # The web app can report to its own Sentry project (where its source maps are uploaded)
         "sentry_dsn": os.environ.get('SENTRY_FRONTEND_DSN') or os.environ.get('SENTRY_DSN'),
         "sentry_environment": os.environ.get('SENTRY_ENVIRONMENT') or 'production',
@@ -122,7 +130,7 @@ def get_commits(branch=None):
   project_id = request.args['project']
 
   if not is_authorized_user(None, project_id):
-    return f"Forbidden: You don't have permission to access this project", 403
+    return forbidden_project(project_id)
 
   try:
     limit = int_arg('limit', min_value=1, max_value=max_commits)
@@ -236,7 +244,7 @@ def get_branches():
   """
   project_id = request.args.get('project')
   if not is_authorized_user(None, project_id):
-    return f"Forbidden: You don't have permission to access this project", 403
+    return forbidden_project(project_id)
 
   search = request.args.get('q')
   try:
@@ -350,7 +358,7 @@ def get_project():
               )
 
   if not is_authorized_user(None, project_id): 
-    return f"Forbidden: You don't have permission to access this project", 403
+    return forbidden_project(project_id)
 
   # Milestones from older versions, kept for rollbacks: they are in their own table, see /api/v1/milestones
   return jsonify({k: v for k, v in project.data.items() if k != 'milestones'})

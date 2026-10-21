@@ -16,9 +16,9 @@ const is_animated_image = path => /\.(webp|gif)$/i.test(path);
 
 // The server reads and compares the videos for logged-in users only
 const SIGN_IN = {
-  info: "Log in (in the sidebar) to see what's in the files, and to number the frames like the files do",
-  values: 'Log in (in the sidebar) to read the decoded values of the frames',
-  compare: 'Log in (in the sidebar) to compare the decoded frames of the videos',
+  info: "Sign in (in the sidebar) to see what's in the files, and to number the frames like the files do",
+  values: 'Sign in (in the sidebar) to read the decoded values of the frames',
+  compare: 'Sign in (in the sidebar) to compare the decoded frames of the videos',
 };
 
 // The server reads the files from their path: the URL of the run's directory, then the file's

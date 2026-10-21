@@ -182,7 +182,7 @@ const BatchStatusMessages = ({ project, commit, batch }) => {
       </>}
     >
       {some_pending && <Button size="small" icon="stop" disabled={waiting_stop || !is_logged} onClick={stop_batch}>Stop runs</Button>}
-      {some_pending && !is_logged && <LoginHint text="Log in to stop runs"/>}
+      {some_pending && !is_logged && <LoginHint text="Sign in to stop runs"/>}
     </Callout>
   )
   let failed_message = batch.filtered.failed_outputs > 0 && (
@@ -212,7 +212,7 @@ const BatchStatusMessages = ({ project, commit, batch }) => {
         disabled={waiting_redo || !is_logged}
         onClick={redo_batch}
       />
-      {!is_logged && <LoginHint text="Log in to redo runs"/>}
+      {!is_logged && <LoginHint text="Sign in to redo runs"/>}
     </Callout>
   )
 

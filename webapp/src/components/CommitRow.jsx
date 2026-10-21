@@ -341,7 +341,7 @@ const CommitMenu = ({ commit, project, project_data = {}, style }) => {
         <MenuItem text="Copy directory" label={hasPathMappings() ? <Tag minimal>linux</Tag> : undefined} className={Classes.TEXT_MUTED} minimal icon="duplicate" onClick={() => copyDirectory(commit.artifacts_url)} />
         <MenuItem text="View in browser" rel="noopener noreferrer" target="_blank" href={commit.artifacts_url} className={Classes.TEXT_MUTED} minimal icon="folder-shared-open"/>
         <MenuDivider title="Manage"/>
-        {!is_logged && <LoginMenuItem text="Log in to delete runs"/>}
+        {!is_logged && <LoginMenuItem text="Sign in to delete runs"/>}
         <MenuItem
           text={commit_milestones.length > 0 ? "Delete all runs, except milestones…" : "Delete all runs…"}
           icon="trash"

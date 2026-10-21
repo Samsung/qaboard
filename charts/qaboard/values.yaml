@@ -16,6 +16,8 @@ imagePullSecrets: []
 # Non-secret backend settings, see website/docs/start-server.mdx for all the options
 config:
   QABOARD_LOGIN_TYPE: LOCAL
+  # Admins (user names or emails, comma-separated), whatever the database says. Other settings are in the admin panel
+  # QABOARD_ADMINS: alice,bob@example.com
   # GITLAB_HOST: https://gitlab.example.com
   # Git hosts, their tokens are read from the secret (website/docs/backend-admin/git-hosts.mdx)
   # QABOARD_GIT_HOSTS: '[{"type": "github", "url": "https://github.com", "token_env": "GITHUB_ACCESS_TOKEN"}]'
@@ -30,6 +32,9 @@ config:
   # QABOARD_EMAIL_FROM: QA-Board <qaboard-noreply@example.com>
   # QABOARD_EMAIL_DOMAIN: example.com
   # QABOARD_URL: https://qaboard.example.com
+  # Single sign-on with OpenID Connect (website/docs/backend-admin/sign-in.mdx). QABOARD_OIDC_CLIENT_SECRET goes in the secret
+  # QABOARD_OIDC_ISSUER: https://keycloak.example.com/realms/company
+  # QABOARD_OIDC_CLIENT_ID: qaboard
 
 # The storage where runs save their results (outputs and artifacts), shared by the `qa` CLI and the server.
 # Runs tell the server the path of their results: everything must see the storage at the same absolute path,
@@ -77,7 +82,8 @@ demoData:
   accessMode: ReadWriteMany
 
 # Secret backend settings: SECRET_KEY (signs sessions, must be the same for all replicas),
-# QABOARD_DB_PASSWORD (unless database.cnpg.enabled), GITLAB_ACCESS_TOKEN, GITHUB_ACCESS_TOKEN, QABOARD_LDAP_PASSWORD...
+# QABOARD_DB_PASSWORD (unless database.cnpg.enabled), GITLAB_ACCESS_TOKEN, GITHUB_ACCESS_TOKEN, QABOARD_LDAP_PASSWORD,
+# QABOARD_OIDC_CLIENT_SECRET, QABOARD_ENCRYPTION_KEY (for the secrets of sign-in providers added in the admin panel)...
 secret:
   # Recommended: create the secret yourself (e.g. with sealed-secrets/external-secrets) and reference it
   existingSecret: ""

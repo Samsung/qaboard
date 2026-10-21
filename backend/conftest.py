@@ -51,13 +51,22 @@ def pytest_configure():
     auth_mod.matches_rules = MagicMock()
     # Pass-through: the decorator itself is tested in tests/test_security.py
     auth_mod.login_required = lambda f: f
+    auth_mod.session_required = lambda f: f
+    auth_mod.authenticated = lambda f: f
+    auth_mod.admin_required = lambda f: f
+    # Unverified results, accepted (tests/test_security.py tests the real one)
+    auth_mod.ingest_access = MagicMock(return_value=(None, None))
     # Like the real one, follows is_authorized_user (tests/test_security.py tests the real one)
+    def jsonify_forbidden():
+        from flask import jsonify
+        return jsonify({"error": "Forbidden: You don't have permission to access this project", "reason": "forbidden_project"}), 403
     def require_project_access(user_info, project_id):
         if auth_mod.is_authorized_user(user_info, project_id):
             return None
         from flask import jsonify
         return jsonify({"error": "Forbidden: You don't have permission to access this project"}), 403
     auth_mod.require_project_access = require_project_access
+    auth_mod.forbidden_project = lambda project_id=None: (jsonify_forbidden())
     sys.modules['backend.api.auth'] = auth_mod
     api_mod.auth = auth_mod
 
@@ -74,6 +83,12 @@ def pytest_configure():
     models_mod.MilestoneGroupFavorite = MagicMock()
     models_mod.TestInput = MagicMock()
     models_mod.User = MagicMock()
+    models_mod.Token = MagicMock()
+    models_mod.DeviceAuthorization = MagicMock()
+    models_mod.AuditEvent = MagicMock()
+    models_mod.Setting = MagicMock()
+    for name in ('AuthProvider', 'UserIdentity', 'UserSession', 'AccessRequest'):
+        setattr(models_mod, name, MagicMock())
     models_mod.batches_stats = MagicMock()
     models_mod.BatchNotification = MagicMock()
     sys.modules['backend.models'] = models_mod
