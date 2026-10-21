@@ -81,6 +81,19 @@ and **Download all (CSV)** to send them to the people concerned. Once fixed, **R
 
 Only one job of each kind runs at a time. Cancel a running job from its page: it stops within seconds.
 
+## Users' storage usage
+Users see how much storage their runs use, and delete their runs' files, in **Storage usage** (their profile menu,
+[user guide](/docs/user-guide/storage-usage)). Their deletions are jobs too, listed here as *Delete users' runs*: they
+run next to the maintenance jobs, so users never wait for a long hard delete.
+
+The numbers come from the `storage_usage` table, one row per batch and user who ran it:
+- the worker updates the batches of the commits with new runs every 5 minutes, and deletions from the web app update theirs right away,
+- the *Storage usage* schedule rebuilds it every night (`Compute storage usage`): it catches runs deleted by scripts.
+  It's created with the first worker, which also runs a first rebuild. Change or disable it here.
+  `QABOARD_STORAGE_USAGE_AUTO=0` stops the worker from creating it and from updating the table.
+
+A rebuild reads every run once, chunk by chunk: count about 5 minutes for 50 million runs.
+
 ## Schedule jobs
 Click **New schedule**, choose the job and its settings, and when it runs with a cron expression
 (`minute hour day-of-month month day-of-week`, e.g. `0 2 * * *` every night at 2:00) in a time zone. The form shows the

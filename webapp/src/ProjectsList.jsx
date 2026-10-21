@@ -194,8 +194,11 @@ const ProjectsList = () => {
           </NavbarGroup>
           <NavbarGroup align={Alignment.RIGHT}>
             <ThemeButton style={{marginRight: '10px'}}/>
+            {user.is_logged && <Link to="/storage" style={{paddingRight: '15px'}}>
+              <Button icon="database" text="Storage usage" style={{color : "#fff"}} title="How much storage your runs use, and deleting what you don't need"/>
+            </Link>}
             {user_quota_url && <a style={{paddingRight: '15px'}} href={user_quota_url} rel="noopener noreferrer" target="_blank">
-              <Button icon="database" text="Quotas" style={{color : "#fff"}}/>
+              <Button icon="dashboard" text="Quotas" style={{color : "#fff"}}/>
             </a>}
             <AuthButton/>
           </NavbarGroup>

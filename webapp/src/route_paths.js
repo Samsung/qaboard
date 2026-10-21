@@ -21,6 +21,8 @@ export const app_paths = {
   settings: "/settings/:tab(profile|preferences|sign-in|sessions|tokens|cli|activity)?",
   admin_user: "/admin/users/:user_id(\\d+)",
   admin_job: "/admin/storage/jobs/:job_id(\\d+)",
+  // how much storage runs use, and deleting their files
+  storage: "/storage/:view(projects|batches|commits|branches|folders)?",
   admin: "/admin/:section(overview|users|requests|sign-in|tokens|storage|audit|settings)?",
   // the ways to sign in, ?next=<page> to go back to it (see login/LoginPage.jsx)
   login: "/login",

@@ -56,20 +56,25 @@ class World:
     self.db.flush()
     return batch
 
-  def run(self, batch, deleted=True, files=False, override=None, created=None, pending=False):
-    """A run. `files`: its folder exists, with a manifest, like after a soft delete"""
+  def run(self, batch, deleted=True, files=False, override=None, created=None, pending=False, user=None, size=None):
+    """A run. `files`: its folder exists, with a manifest, like after a soft delete. `user` ran it, its files take `size` bytes."""
     from backend.models import Output, TestInput
     self.inputs += 1
     test_input = TestInput('/db', f'input-{self.inputs}.bin')
+    data = {**({"user": user} if user else {}), **({"storage": size} if size is not None else {})}
     output = Output(batch=batch, test_input=test_input, platform='linux', configurations=['base'], extra_parameters={},
                     deleted=deleted, is_pending=pending, output_dir_override=str(override) if override else None,
-                    created_date=created or now() - datetime.timedelta(days=300), data={})
+                    created_date=created or now() - datetime.timedelta(days=300), data=data)
     self.db.add(output)
     self.db.flush()
     folder = output.output_dir
     if files:
       folder.mkdir(parents=True, exist_ok=True)
-      (folder / 'manifest.outputs.json').write_text('{}')
+      if size:
+        (folder / 'image.png').write_bytes(b'x' * 10)
+        (folder / 'manifest.outputs.json').write_text('{"image.png": {"st_size": 10}}')
+      else:
+        (folder / 'manifest.outputs.json').write_text('{}')
     return Run(output.id, folder, batch.id)
 
   def commit(self):

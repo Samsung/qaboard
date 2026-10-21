@@ -13,6 +13,16 @@ from .auth import login_required, require_project_access, ingest_access
 from ..audit import audit
 
 
+def refresh_soon(batch_ids):
+  """The storage usage of these batches changed (backend/storage_usage.py). It never fails the change itself."""
+  try:
+    from ..storage_usage import refresh_soon
+  except Exception as e:  # e.g. the unit tests, without a database
+    print(f"WARNING: could not update the storage usage: {e}")
+    return
+  refresh_soon(batch_ids)
+
+
 
 
 @app.route('/api/v1/batch', methods=['POST'])
@@ -230,6 +240,7 @@ def rename_batch():
   except:
     return '{"error":"already exists"}', 403
   batch.rename(label=data['label'], db_session=db_session)
+  refresh_soon([batch.id])
   return '{"status": "OK"}'
 
 # Check move: existing, delete if empty, filter
@@ -250,9 +261,11 @@ def move_batch():
   for o in filter_outputs(data.get('filter'), batch.outputs):
     o.batch = dst_batch
     db_session.add(o)
+  batch_id, dst_batch_id = batch.id, dst_batch.id
   if not batch.outputs:
     batch.delete(session=db_session)
   db_session.commit()
+  refresh_soon([batch_id, dst_batch_id])
   return '{"status": "OK"}'
 
 
@@ -288,8 +301,10 @@ def delete_batch(batch_id):
   audit('batch.delete', 'batch', batch.id, batch.label, project_id=ci_commit.project_id, meta={
     "commit": ci_commit.hexsha, "soft": soft, "only_failed": only_failed, **({"filter": filter} if filter else {}),
   })
+  batch_id = batch.id
   batch.delete(session=db_session, soft=soft, only_failed=only_failed, filter=filter)
   db_session.commit()
+  refresh_soon([batch_id])
   return {"status": "OK"}
 
 

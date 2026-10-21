@@ -9,6 +9,7 @@ const Dashboard = lazy(() => import("./Dashboard"));
 const MilestonePage = lazy(() => import("./milestones/MilestonePage"));
 const SettingsPage = lazy(() => import("./settings/SettingsPage"));
 const AdminPage = lazy(() => import("./admin/AdminPage"));
+const StoragePage = lazy(() => import("./storage/StoragePage"));
 const DevicePage = lazy(() => import("./device/DevicePage"));
 const LoginPage = lazy(() => import("./login/LoginPage"));
 
@@ -34,6 +35,7 @@ const app_pages = {
   admin_user: AdminPage,
   admin_job: AdminPage,
   admin: AdminPage,
+  storage: StoragePage,
   device: DevicePage,
   login: LoginPage,
 };

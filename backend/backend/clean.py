@@ -367,7 +367,11 @@ def collect_garbage(select_project, report, before=None, default_after='1month',
                 report.log(f"DELETE {commit}", level='debug')
                 db_session.delete(commit)
             # the artifacts' state must be saved as soon as possible: if we crash later, we must not lose that they were deleted
+            commit_id = commit.id
             db_session.commit()
+            if nb_outputs_deleted:
+                from .storage_usage import refresh_soon
+                refresh_soon(commit_ids=[commit_id])
 
     if dryrun:
         db_session.rollback()
