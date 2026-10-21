@@ -266,8 +266,15 @@ values**, **Displayed values** or **Off**); <kbd>p</kbd> hides or shows them. Yo
 
 </details>
 
-## Histograms {#histograms}
-The histogram button shows the red, green, blue and luminance (**Y**) histograms of what the images show, new in solid
+## Histograms, profiles and statistics {#analysis}
+The analysis button, under the zoom (or <kbd>a</kbd>), opens a panel under the images with three views: **Histogram**,
+**Row / column** profiles and **Statistics**. Your browser remembers the view you picked last. The three views measure
+what the images show (the displayed values, from 0 to 255) in the view: zoom on a region to measure that region. Click
+**R**, **G**, **B** or **Y** (luminance) at the top right to show one channel alone, click it again to show them all
+(<kbd>Shift</kbd>+click shows or hides one channel).
+
+### Histograms {#histograms}
+The histogram shows the red, green, blue and luminance (**Y**) histograms of what the images show, new in solid
 lines and the reference dashed. Zoom on a region to see its histograms. Hover them to read the share of the pixels at a
 value, in each channel. They count the displayed values, from 0 to 255.
 
@@ -282,6 +289,35 @@ to clear it.
   id="commit/roi-histograms"
   caption="Zoomed on a band of the sky gradient: the new image's peaks (solid) are taller and narrower than the reference's (dashed), with less noise in the sky."
 />
+
+### Row and column profiles {#profiles}
+**Row / column** plots two profiles: **Columns**, the average of each column of the view along x, and **Rows**, the
+average of each row along y, new in solid lines and the reference dashed. Use them to see vignetting and lens
+shading, banding, a gradient that isn't smooth, or where two images drift apart. A band around each average shows how
+much the values vary across the column or row: **±1 std dev** (noise, on flat areas) or **min–max**.
+
+Pick **Row and column under the pointer** to plot the values along the row and the column of the pixel under the
+pointer instead: they stay when you leave the images, so that you can read them. **Values: 0–255** shows the whole
+range rather than fitting the axis to the values.
+
+Hover a profile to read the values at a position, and see that column or row on the images (zoomed in, it frames the
+pixels). Hover the images to see where the pointer is on the profiles. x and y are pixels of the new image.
+
+### Statistics {#statistics}
+**Statistics** gives, for each channel shown and each image: the mean, standard deviation, SNR (20·log10(mean / std
+dev), meaningful on a flat area such as a gray patch), min, 1st percentile, median, 99th percentile, max, and the shares
+of values clipped at 0 and saturated at 255. The Δ lines give new − reference. Hover a column's name for its
+definition. **Copy** copies the table as tab-separated values, to paste in a spreadsheet.
+
+<details>
+<summary>What the profiles and statistics measure</summary>
+
+- They are computed on the displayed 8-bit sRGB pixels, at the screen's resolution: zoomed out, a screen pixel averages
+  many image pixels, which lowers the standard deviation. Zoom to 100% or more to measure noise.
+- They are not the image's own values (raw, 10-bit, 16-bit...), and don't separate the channels of a color filter
+  array (Gr, R, B, Gb): a raw image shows as the image server converts it.
+
+</details>
 
 ## Adjust the display {#adjust-the-display}
 The adjustments button changes how the images look: **Brightness**, **Contrast**, **Gamma**, **Sharpen**, one
@@ -365,6 +401,7 @@ text box. The keyboard button in the viewer's toolbar lists them.
 | Drag | Pan. Drag the divider to wipe. |
 | Double-click | Zoom in. |
 | <kbd>p</kbd> | Show or hide the values written on the pixels. |
+| <kbd>a</kbd> | Show or hide the analysis panel: histogram, row and column profiles, statistics. |
 | <kbd>c</kbd> | Compare with the reference, or with the file you picked last in the **vs** menu. |
 | <kbd>h</kbd> | Start a blind test, then reveal which image is which, then end it. |
 | <kbd>[</kbd> <kbd>]</kbd> | Previous or next region of interest. |
