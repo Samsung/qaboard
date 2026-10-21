@@ -11,8 +11,10 @@ import { DEFAULT_MODE, MODES } from './modes';
 import { imageColors, normalizeImage } from './sources';
 import { PixelTiles } from './pixelTiles';
 import { ALL_CHANNELS } from './histogram';
-import { Crosshair, DiffLayer, HighlightLayer, Minimap, PixelValues } from './overlays';
-import { AdjustmentsPanel, DiffLegend, DiffSettings, Histogram, Readout, RegionsMenu, RegionsStrip, Shortcuts, ValuesBadge, ValuesPanel } from './panels';
+import { ANALYSES, normalizeAnalysis } from './analysis';
+import { AnalysisPanel } from './analysisPanel';
+import { Crosshair, DiffLayer, GuideLine, HighlightLayer, Minimap, PixelValues } from './overlays';
+import { AdjustmentsPanel, DiffLegend, DiffSettings, Readout, RegionsMenu, RegionsStrip, Shortcuts, ValuesBadge, ValuesPanel } from './panels';
 import { Button, FilterPrimitive, Icon, MenuDivider, MenuItem, Popover, Segmented, Spinner } from './ui';
 import './image-viewer.css';
 
@@ -52,6 +54,10 @@ const useControllable = (value, initial, onChange) => {
   };
   return [current, set];
 };
+
+const ANALYSIS_ICONS = Object.fromEntries(ANALYSES.map(a => [a.value, a.icon]));
+// Without `analysis`, the view of the analysis panel users picked last, for the next viewers of the page
+let last_analysis;
 
 const clamp = (x, min, max) => Math.min(max, Math.max(min, x));
 
@@ -107,6 +113,9 @@ export const ImageViewer = ({
   pixelValues: pixel_values_prop,
   defaultPixelValues = 'image',
   onPixelValuesChange,
+  analysis: analysis_prop,
+  defaultAnalysis,
+  onAnalysisChange,
   syncKey = null,
   regionSets = [],
   regionSet: region_set_prop,
@@ -193,11 +202,21 @@ export const ImageViewer = ({
     : { a: blind.a, b: other_letter(blind.a) };
   const [wipe, setWipe] = useState(0.5);
   const [base, setBase] = useState(10);
-  const [show_histogram, setShowHistogram] = useState(false);
-  // The channels the histogram shows, and the range of values it highlights on the images (with the channels shown)
+  // The analysis panel, under the images: its view ('histogram', 'profiles' or 'stats') is remembered, by the app or for
+  // the page, and whether it shows is for each viewer
+  const [show_analysis, setShowAnalysis] = useState(false);
+  const [analysis_setting, setAnalysisSetting] = useControllable(analysis_prop, defaultAnalysis ?? last_analysis, onAnalysisChange);
+  const analysis = normalizeAnalysis(analysis_setting);
+  const setAnalysis = value => {
+    last_analysis = value;
+    setAnalysisSetting(value);
+  };
+  // The channels the analysis shows, and the range of values the histogram highlights on the images (with the channels shown)
   const [histogram_channels, setHistogramChannels] = useState(ALL_CHANNELS);
   const [highlight_range, setHighlightRange] = useState(null);
-  const highlight = show_histogram && highlight_range ? { ...highlight_range, channels: histogram_channels } : null;
+  const highlight = show_analysis && analysis === 'histogram' && highlight_range ? { ...highlight_range, channels: histogram_channels } : null;
+  // The row or column hovered on its profile, shown on the images: { axis: 'x' | 'y', value }
+  const [guide, setGuide] = useState(null);
   const [diff_error, setDiffError] = useState(null);
   const [message, setMessage] = useState(null);
   const diff_canvas = useRef(null);
@@ -441,6 +460,9 @@ export const ImageViewer = ({
         case 'p':
           toggleValues();
           return true;
+        case 'a':
+          setShowAnalysis(!show_analysis);
+          return true;
         case 'f':
           if (!can_fullscreen) return false;
           toggleFullscreen();
@@ -558,6 +580,7 @@ export const ImageViewer = ({
     <HighlightLayer controller={controller} pane={name} highlight={highlight} active={visible && shown(name)} width={pane_width} height={pane_height} />
     {pixelValues(name)}
     <Crosshair controller={controller} pane={name} />
+    {show_analysis && <GuideLine controller={controller} guide={guide} />}
     {apart && label(name, 'left')}
     {pane_error(name)}
   </div>;
@@ -694,7 +717,13 @@ export const ImageViewer = ({
       />}>
         <ValuesPanel source={pixel_source} available={!!getPixels} unavailable={imageValuesUnavailable} onChange={setValues} />
       </Popover>
-      <Button icon="timeline-area-chart" title="Histogram of the view: drag on it to highlight a range of values" active={show_histogram} aria-pressed={show_histogram} onClick={() => setShowHistogram(!show_histogram)} />
+      <Button
+        icon={ANALYSIS_ICONS[analysis]}
+        title={`${show_analysis ? 'Hide' : 'Show'} the analysis of the view: histogram, row and column profiles, statistics (a)`}
+        active={show_analysis}
+        aria-pressed={show_analysis}
+        onClick={() => setShowAnalysis(!show_analysis)}
+      />
       <span className="qiv-group">
         <Button icon="zoom-out" title="Zoom out (−)" onClick={() => controller.zoomBy(1 / ZOOM_STEP)} />
         <Button className="qiv-zoom" text={zoom ? `${zoom < 0.1 ? (100 * zoom).toFixed(1) : Math.round(100 * zoom)}%` : '–'} title="Fit (0). Scroll or pinch to zoom, drag to pan. 100%: one image pixel per screen pixel" onClick={() => controller.fit()} />
@@ -754,6 +783,7 @@ export const ImageViewer = ({
         <DiffLayer controller={controller} order={[first, second]} diff={diff} active={visible} width={pane_width} height={pane_height} canvasRef={diff_canvas} onError={setDiffError} />
         {pixelValues('diff')}
         <Crosshair controller={controller} pane="diff" />
+        {show_analysis && <GuideLine controller={controller} guide={guide} />}
         {diff_between && <>
           <span className="qiv-label qiv-label-left qiv-label-diff" title={`${names[first]} − ${names[second]}`}>difference</span>
           <div className="qiv-stage-notes"><DiffLegend diff={diff} names={[names[first], names[second]]} /></div>
@@ -798,14 +828,17 @@ export const ImageViewer = ({
       {mode === 'single' && label(first, 'left')}
       <Minimap controller={controller} image={hidden ? images[first] : images.a} size={size_a} />
     </div>
-    {show_histogram && <Histogram
+    {show_analysis && <AnalysisPanel
       controller={controller}
       comparing={comparing}
       names={names}
+      view={analysis}
+      onViewChange={setAnalysis}
       channels={histogram_channels}
       onChannelsChange={setHistogramChannels}
       range={highlight_range}
       onRangeChange={setHighlightRange}
+      onGuideChange={setGuide}
     />}
   </div>;
 };

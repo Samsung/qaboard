@@ -190,6 +190,8 @@ const ImageViewerForRuns = ({
   const { image_servers } = useSiteConfig();
   const pixel_values = usePrefsStore(state => state.imagePixelValues);
   const setPixelValues = usePrefsStore(state => state.setImagePixelValues);
+  const analysis = usePrefsStore(state => state.imageAnalysis);
+  const setAnalysis = usePrefsStore(state => state.setImageAnalysis);
   const adjustments = useAdjustmentsStore(state => state.by_path[path]);
   const setAdjustments = useAdjustmentsStore(state => state.set);
 
@@ -280,6 +282,8 @@ const ImageViewerForRuns = ({
     onAdjustmentsChange={value => setAdjustments(path, value)}
     pixelValues={pixel_values}
     onPixelValuesChange={setPixelValues}
+    analysis={analysis}
+    onAnalysisChange={setAnalysis}
     // the same input's images are synced, e.g. the other runs', or the other visualizations of a run
     syncKey={output_new.test_input_path ?? null}
     regionSets={region_sets}

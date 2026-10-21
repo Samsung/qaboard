@@ -284,6 +284,39 @@ test('writes the values of the pixels on them when zoomed in', async ({ page }) 
   await expect(page.locator('.qiv-values-badge')).toHaveText('Values: displayed, 8-bit');
 });
 
+test('analyzes the view: histogram, row and column profiles, statistics, and remembers the view', async ({ page }) => {
+  await setup(page);
+  await expect(page.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
+  const box = await page.locator('.qiv-pane').first().boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.keyboard.press('a');
+  await expect(page.getByRole('radio', { name: 'Histogram' })).toBeChecked();
+
+  // the values along the row and column under the pointer: blue is 128, away from the square
+  await page.getByRole('radio', { name: 'Row / column' }).click();
+  await expect(page.locator('.qiv-profile')).toHaveCount(2);
+  await page.getByLabel('Profiles of').selectOption('pointer');
+  await page.mouse.move(box.x + box.width * 300 / 512, box.y + box.height * 300 / 384);
+  await expect(page.locator('.qiv-profile-title').first()).toContainText(/Row 29\d/);
+  await expect(page.locator('.qiv-profile-readout').first()).toContainText('B 128.0 / 128.0');
+  // hovering a profile shows its column on the images
+  await page.locator('.qiv-profile-plot').first().hover();
+  await expect(page.locator('.qiv-guide-x')).toHaveCount(2);
+
+  // the square is dark in the new image only
+  await page.getByRole('radio', { name: 'Statistics' }).click();
+  const blue = page.locator('.qiv-stats-table tbody tr').filter({ has: page.locator('th', { hasText: /^B$/ }) });
+  const min = row => row.locator('td').nth(4);
+  await expect(min(blue)).toHaveText('20');
+  await expect(min(blue.locator('xpath=following-sibling::tr[1]'))).toHaveText('128');
+
+  // the view picked last opens next time
+  await page.reload();
+  await expect(page.getByRole('button', { name: /^new 512×384/ })).toBeVisible();
+  await page.getByRole('button', { name: /analysis of the view/ }).click();
+  await expect(page.getByRole('radio', { name: 'Statistics' })).toBeChecked();
+});
+
 test('reads the displayed value of the pixel it names, also on the edges of pixels', async ({ page }) => {
   await setup(page);
   await expect(page.getByRole('button', { name: /^new 512×384/ })).toBeVisible();

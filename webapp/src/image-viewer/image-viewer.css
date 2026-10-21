@@ -720,10 +720,25 @@
   white-space: nowrap;
 }
 
-/* Histogram */
-.qiv-histogram {
+/* The analysis panel: histogram, profiles, statistics */
+.qiv-analysis {
   margin-top: 6px;
   font-size: 12px;
+}
+.qiv-analysis-views .qiv-button {
+  height: 22px;
+  font-size: 12px;
+}
+.qiv-analysis-note {
+  font-size: 11px;
+}
+
+/* Histogram */
+.qiv-histogram {
+  font-size: 12px;
+}
+.qiv-histogram-alone {
+  margin-top: 6px;
 }
 .qiv-histogram-header,
 .qiv-histogram-footer {
@@ -920,6 +935,168 @@
   margin-left: auto;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+}
+
+/* Row and column profiles */
+.qiv-profiles-settings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-bottom: 4px;
+}
+.qiv-profiles-settings .qiv-select select {
+  height: 22px;
+  font-size: 12px;
+}
+.qiv-profiles-plots {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 8px 16px;
+}
+.qiv-profile {
+  min-width: 0;
+}
+.qiv-profile-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.qiv-profile-title > span:first-child {
+  font-weight: 600;
+}
+.qiv-profile-plot {
+  position: relative;
+  height: 150px;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+.qiv-profile-plot canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: var(--qiv-text);
+}
+.qiv-profile-cursor {
+  top: 8px;
+  bottom: 20px;
+}
+/* where the pointer is on the images */
+.qiv-profile-marker {
+  position: absolute;
+  top: 8px;
+  bottom: 20px;
+  border-left: 1px dashed var(--qiv-accent);
+  pointer-events: none;
+}
+.qiv-profile-readout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 10px;
+  min-height: 18px;
+  margin-left: 0;
+  padding-left: 36px;
+}
+.qiv-profiles-message {
+  position: static;
+  min-height: 80px;
+}
+
+/* The row or column hovered on its profile, on the images */
+.qiv-guide {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+}
+.qiv-guide-x {
+  top: 0;
+  bottom: 0;
+  margin-left: -1px;
+  border-inline: 1px solid rgba(0, 0, 0, 0.7);
+  background: #fff;
+  width: 1px;
+}
+.qiv-guide-y {
+  left: 0;
+  right: 0;
+  margin-top: -1px;
+  border-block: 1px solid rgba(0, 0, 0, 0.7);
+  background: #fff;
+  height: 1px;
+}
+.qiv-guide-x.qiv-guide-framed,
+.qiv-guide-y.qiv-guide-framed {
+  margin: 0;
+  border: none;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px #fff, 0 0 0 1px rgba(0, 0, 0, 0.7);
+}
+
+/* Statistics */
+.qiv-stats-scroll {
+  overflow-x: auto;
+}
+.qiv-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.qiv-stats-table th,
+.qiv-stats-table td {
+  padding: 3px 8px;
+  text-align: right;
+  white-space: nowrap;
+}
+.qiv-stats-table thead th {
+  border-bottom: 1px solid var(--qiv-border);
+  color: var(--qiv-text-muted);
+  font-weight: 500;
+  font-size: 11px;
+  cursor: help;
+}
+.qiv-stats-table .qiv-stats-channel,
+.qiv-stats-table .qiv-stats-image {
+  text-align: left;
+}
+.qiv-stats-table thead .qiv-stats-channel {
+  cursor: default;
+}
+.qiv-stats-table tbody th {
+  vertical-align: top;
+  font-weight: normal;
+}
+.qiv-stats-group > * {
+  border-top: 1px solid var(--qiv-border);
+}
+.qiv-stats-group:first-child > * {
+  border-top: none;
+}
+.qiv-stats-image {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--qiv-text-muted);
+}
+.qiv-stats-table tbody tr:hover td {
+  background: var(--qiv-hover);
+}
+.qiv-stats-delta td {
+  color: var(--qiv-text-muted);
+  font-size: 11px;
+}
+.qiv-stats-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.qiv-stats-actions .qiv-button {
+  height: 22px;
+  font-size: 12px;
 }
 
 .qiv-spinner {

@@ -170,15 +170,15 @@ export const ValuesBadge = ({ drawn }) => drawn && <div className="qiv-values-ba
 
 // --- Histograms ---
 
-const CHANNEL_COLORS = ['#e5484d', '#30a46c', '#3e63dd', 'currentColor'];
-const CHANNEL_TITLES = ['Red', 'Green', 'Blue', 'Luma (brightness)'];
+export const CHANNEL_COLORS = ['#e5484d', '#30a46c', '#3e63dd', 'currentColor'];
+export const CHANNEL_TITLES = ['Red', 'Green', 'Blue', 'Luma (brightness)'];
 // The fills blend like colored light on dark themes (red and green make yellow, all make white), like inks on light ones
 const LIGHT_FILLS = [[255, 45, 45], [40, 215, 70], [45, 95, 255]];
 const INK_FILLS = [[255, 150, 150], [150, 230, 160], [160, 180, 255]];
 const PAD_TOP = 6;
 
 // The histograms of what the viewers display, or null when we can't read their pixels
-const readHistograms = (controller, comparing, highlight) => {
+export const readHistograms = (controller, comparing, highlight) => {
   try {
     return [['a', false], ...(comparing ? [['b', true]] : [])]
       .map(([name, dashed]) => ({ ...histogram(controller.canvas(name) ?? { width: 0, height: 0 }, highlight), name, dashed }));
@@ -188,7 +188,7 @@ const readHistograms = (controller, comparing, highlight) => {
 };
 
 const fill_canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
-const isLight = color => {
+export const isLight = color => {
   const [r = 0, g = 0, b = 0] = (color.match(/[\d.]+/g) ?? []).map(Number);
   return 0.299 * r + 0.587 * g + 0.114 * b > 128;
 };
@@ -296,11 +296,36 @@ const drawHistograms = (element, series, channels) => {
   context.setLineDash([]);
 };
 
+// The channels' buttons: click one to show it alone, shift+click to show or hide it
+export const ChannelButtons = ({ channels, onChange, hint }) => {
+  const shown = channels.filter(Boolean).length;
+  return <span className="qiv-histogram-channels">
+    {HISTOGRAM_CHANNELS.map((name, c) => <button
+      key={name}
+      type="button"
+      className={`qiv-histogram-channel ${channels[c] ? '' : 'qiv-off'}`}
+      style={{ '--qiv-channel': CHANNEL_COLORS[c] }}
+      aria-pressed={channels[c]}
+      title={`${CHANNEL_TITLES[c]}: click to show it alone${channels[c] && shown === 1 ? ' (now: click to show all)' : ''}, shift+click to show or hide it.${hint ? ` ${hint}` : ''}`}
+      onClick={event => onChange(toggleChannel(channels, c, event.shiftKey))}
+    >
+      <i className="qiv-histogram-swatch" />{name}
+    </button>)}
+  </span>;
+};
+
+// Which image is drawn how: solid lines for the first, dashed for the other
+export const LineLegend = ({ names, comparing }) => <>
+  <span className="qiv-muted" title={`${names.a}: solid lines`}><svg width="16" height="8" aria-hidden="true"><path d="M0 4H16" stroke="currentColor" strokeWidth="1.5" /></svg> {names.a}</span>
+  {comparing && <span className="qiv-muted" title={`${names.b}: dashed lines`}><svg width="16" height="8" aria-hidden="true"><path d="M0 4H16" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 3" /></svg> {names.b}</span>}
+</>;
+
 const ChannelNames = ({ channels }) => HISTOGRAM_CHANNELS.map((name, c) => channels[c] && <span key={name} className="qiv-histogram-channel-name" style={{ color: CHANNEL_COLORS[c] }}>{name}</span>);
 
 // What the viewers display, by value, per channel. Users drag on it to highlight a range of values on the images.
 // channels: those shown, [r, g, b, y]. range: { lo, hi } or null. The highlighted pixels have the channels shown in the range.
-export const Histogram = ({ controller, comparing, names, channels, onChannelsChange, range, onRangeChange }) => {
+// With onChannelsChange, it has its own header (the analysis panel has its own, AnalysisPanel in analysisPanel.jsx).
+export const Histogram = ({ controller, comparing, names, channels, onChannelsChange, title = 'Histogram of the view', range, onRangeChange }) => {
   const canvas = useRef(null);
   const plot = useRef(null);
   const [error, setError] = useState(null);
@@ -412,27 +437,14 @@ export const Histogram = ({ controller, comparing, names, channels, onChannelsCh
   const shown = channels.filter(Boolean).length;
   // the ticks' labels the range's hide
   const hidden = value => !!range && !!plot_width && [range.lo, range.hi + 1].some(edge => Math.abs(edge - value) / 256 * plot_width < 30);
-  return <div className="qiv-histogram">
-    <div className="qiv-histogram-header">
-      <span>Histogram of the view</span>
+  return <div className={`qiv-histogram ${onChannelsChange ? 'qiv-histogram-alone' : ''}`}>
+    {onChannelsChange && <div className="qiv-histogram-header">
+      <span>{title}</span>
       <span className="qiv-histogram-legend">
-        <span className="qiv-histogram-channels">
-          {HISTOGRAM_CHANNELS.map((name, c) => <button
-            key={name}
-            type="button"
-            className={`qiv-histogram-channel ${channels[c] ? '' : 'qiv-off'}`}
-            style={{ '--qiv-channel': CHANNEL_COLORS[c] }}
-            aria-pressed={channels[c]}
-            title={`${CHANNEL_TITLES[c]}: click to show it alone${channels[c] && shown === 1 ? ' (now: click to show all)' : ''}, shift+click to show or hide it. The range you drag applies to the channels shown.`}
-            onClick={event => onChannelsChange(toggleChannel(channels, c, event.shiftKey))}
-          >
-            <i className="qiv-histogram-swatch" />{name}
-          </button>)}
-        </span>
-        <span className="qiv-muted" title={`${names.a}: solid lines`}><svg width="16" height="8" aria-hidden="true"><path d="M0 4H16" stroke="currentColor" strokeWidth="1.5" /></svg> {names.a}</span>
-        {comparing && <span className="qiv-muted" title={`${names.b}: dashed lines`}><svg width="16" height="8" aria-hidden="true"><path d="M0 4H16" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 3" /></svg> {names.b}</span>}
+        <ChannelButtons channels={channels} onChange={onChannelsChange} hint="The range you drag applies to the channels shown." />
+        <LineLegend names={names} comparing={comparing} />
       </span>
-    </div>
+    </div>}
     <div
       ref={plot}
       className="qiv-histogram-plot"
@@ -660,6 +672,7 @@ export const SHORTCUTS = [
   ['Drag', 'Pan (drag the divider to wipe)'],
   ['Double-click', 'Zoom in'],
   ['p', 'Show / hide the pixel values when zoomed in'],
+  ['a', 'Show / hide the analysis of the view: histogram, row and column profiles, statistics'],
   ['c', 'Compare with the reference, or with the image picked last (from the vs menu)'],
   ['h', 'Blind test: the images in a random order, called A and B. h again reveals them, then ends it'],
   ['[ ]', 'Previous / next region of interest'],

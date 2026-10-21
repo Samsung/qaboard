@@ -137,6 +137,8 @@ export type Pixels = PixelData | PixelRows;
 /** The values written on the pixels: the image's own (with getPixels), the displayed 8-bit ones, or none */
 export type PixelValuesSource = 'image' | 'display' | 'off';
 
+export type AnalysisView = 'histogram' | 'profiles' | 'stats';
+
 export interface ImageViewerProps {
   /** The image */
   image: ImageSource;
@@ -176,6 +178,14 @@ export interface ImageViewerProps {
   pixelValues?: PixelValuesSource;
   defaultPixelValues?: PixelValuesSource;
   onPixelValuesChange?: (source: PixelValuesSource) => void;
+
+  /**
+   * The view of the analysis panel under the images: 'histogram', 'profiles' (rows and columns) or 'stats'. Without it,
+   * the viewer remembers the view picked last for the page. Whether the panel shows is for each viewer (a).
+   */
+  analysis?: AnalysisView;
+  defaultAnalysis?: AnalysisView;
+  onAnalysisChange?: (view: AnalysisView) => void;
 
   /** Viewers with the same key, showing images of the same aspect ratio, zoom and pan together */
   syncKey?: string | null;

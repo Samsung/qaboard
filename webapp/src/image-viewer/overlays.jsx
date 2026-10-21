@@ -253,6 +253,25 @@ export const Crosshair = ({ controller, pane }) => {
 };
 const CROSS = 'M12.5 0v9M12.5 16v9M0 12.5h9M16 12.5h9';
 
+// The row or column of the images hovered on its profile (analysisPanel.jsx): { axis: 'x' | 'y', value } in the pixels of
+// the first image. Zoomed in, it frames the pixels.
+export const GuideLine = ({ controller, guide }) => {
+  const [, redraw] = useState(0);
+  useEffect(() => controller.onDraw(() => redraw(n => n + 1)), [controller]);
+  const transform = guide ? controller.imageTransform('a') : null;
+  if (!transform?.scale) return null;
+  const vertical = guide.axis === 'x';
+  const origin = vertical ? transform.origin.x : transform.origin.y;
+  const framed = transform.scale >= 4;
+  const start = origin + (framed ? Math.floor(guide.value) : guide.value) * transform.scale;
+  const size = framed ? transform.scale : 0;
+  return <div
+    className={`qiv-guide ${vertical ? 'qiv-guide-x' : 'qiv-guide-y'} ${framed ? 'qiv-guide-framed' : ''}`}
+    style={vertical ? { left: start, width: size } : { top: start, height: size }}
+    aria-hidden="true"
+  />;
+};
+
 
 // Where the view is in the whole image, when zoomed in. Click or drag to go elsewhere.
 export const Minimap = ({ controller, image, size }) => {

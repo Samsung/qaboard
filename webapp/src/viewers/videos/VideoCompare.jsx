@@ -930,6 +930,7 @@ export const VideoCompare = ({
       names={{ a: names[first], b: names[second] }}
       channels={histogram_channels}
       onChannelsChange={setHistogramChannels}
+      title="Histogram of the frames"
       range={highlight_range}
       onRangeChange={setHighlightRange}
     />}
