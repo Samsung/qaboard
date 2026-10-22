@@ -56,9 +56,11 @@ def update_output(output_id):
     if 'is_failed' in data:
       output.is_failed = data['is_failed']
     if 'data' in data:
+      if not isinstance(data['data'], dict):
+        return jsonify({"error": "`data` must be an object"}), 400
       if not output.data:
         output.data = {}
-      output.data.update(data['data'])
+      output.data.update({k: v for k, v in data['data'].items() if k not in SERVER_KEYS})
       flag_modified(output, "data")
     if data.get('batch'):
       output.data["batch"] = data["batch"]
