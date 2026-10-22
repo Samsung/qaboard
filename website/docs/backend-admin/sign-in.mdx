@@ -131,8 +131,10 @@ page redirects to it. `/login?local=1` still shows the password form, for admins
 
 ## LDAP over TLS
 Use `ldaps://ldap.example.com:636` in `QABOARD_LDAP_HOST`, or set `QABOARD_LDAP_START_TLS=true` to upgrade a plain
-connection. `qaboard-admin check-sign-in --provider ldap --user alice` checks the service account, and looks a user
-up.
+connection. If your directory's certificate comes from an internal CA, give it to OpenLDAP with
+`LDAPTLS_CACERT=/path/to/ca.pem` in the backend's environment. `qaboard-admin check-sign-in --provider ldap --user alice`
+checks the service account, and looks a user up. Empty passwords are refused before they reach the directory: LDAP
+servers often accept them as anonymous binds.
 
 ## Rate limits and proxies
 QA-Board's nginx allows 30 sign-in attempts per minute per client, with bursts: sign-in, sign-up, `qa auth login`
