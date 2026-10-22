@@ -337,3 +337,96 @@ def test_says_which_input_is_wrong(dummy_app, batches_setup):
     # the file as in qaboard.yaml, not its path in the artifacts
     assert data["error"] == 'qa/tests/tests.yaml:4: The batch "ci" has an empty input, after "a": a "-" with nothing after it. Remove the "-", or write the input after it.'
     assert data["definitions"] == [{"name": "ci", "files": ["qa/tests/tests.yaml"]}]
+
+
+def test_lists_a_batch_without_a_commit_with_the_projects_config(dummy_app, batches_setup):
+    import copy
+    project_config = copy.deepcopy(batches_setup.config)
+    (batches_setup.tmp_path / "shared" / "group/repo").mkdir(parents=True)
+    (batches_setup.tmp_path / "shared" / "group/repo" / "alice.yml").write_text("mine:\n  inputs: [b]\n")
+    data = list_tests(dummy_app, "mine", commit=None)
+    assert data["tests"] == [{"input_path": "b", "configurations": []}]
+    assert [f["source"] for f in data["files"]] == ["qaboard", "qaboard"]
+    # the project's config is left as it was
+    assert batches_setup.config == project_config
+
+
+@pytest.fixture
+def custom_iter_inputs(batches_setup, monkeypatch):
+    """The commit's entrypoint defines iter_inputs: the server lists the tests with `qa batch --list`."""
+    import backend.api.tuning as tuning
+    (batches_setup.artifacts / "qa/main.py").write_text("def iter_inputs(*args):\n  pass\n")
+    monkeypatch.setattr(tuning, "check_storage_path", lambda path: None)
+    return batches_setup
+
+
+def list_tests_response(app, name):
+    from backend.api.tuning import get_group
+    query = {"project": "group/repo", "name": name, "commit": "94d909ca"}
+    with app.test_request_context("/api/v1/tests/group", method="POST", query_string=query, json={"groups": []}):
+        response, status = get_group()
+        return response.get_json(), status
+
+
+def test_listing_with_the_projects_code_in_a_missing_folder(dummy_app, custom_iter_inputs):
+    custom_iter_inputs.commit.artifacts_dir = custom_iter_inputs.tmp_path / "deleted"
+    data, status = list_tests_response(dummy_app, "ci")
+    assert status == 500
+    assert data["error"].startswith("Could not list the tests with the project's code:")
+
+
+def test_listing_with_the_projects_code_times_out(dummy_app, custom_iter_inputs, monkeypatch):
+    import subprocess
+    import backend.api.tuning as tuning
+    def too_slow(cmd, cwd, timeout):
+        assert timeout == tuning.LIST_TESTS_TIMEOUT
+        raise subprocess.TimeoutExpired(cmd, timeout)
+    monkeypatch.setattr(tuning, "run_with_timeout", too_slow)
+    data, status = list_tests_response(dummy_app, "ci")
+    assert status == 504
+    assert "took more than" in data["error"]
+
+
+def test_run_with_timeout_stops_what_the_command_started(tmp_path):
+    import time
+    import subprocess
+    from backend.api.tuning import run_with_timeout
+    assert run_with_timeout(["bash", "-c", "echo out; echo err >&2"], cwd=tmp_path, timeout=10).stdout == "out\n"
+    marker = tmp_path / "still-running"
+    start = time.monotonic()
+    with pytest.raises(subprocess.TimeoutExpired):
+        run_with_timeout(["bash", "-c", f"(sleep 1; touch {marker}) & sleep 30"], cwd=tmp_path, timeout=0.3)
+    assert time.monotonic() - start < 5
+    time.sleep(1.5)
+    assert not marker.exists()
+
+
+def test_mkdir_for_everyone_leaves_the_umask_alone(tmp_path):
+    import os
+    from backend.api.tuning import mkdir_for_everyone
+    (tmp_path / "existing").mkdir()
+    (tmp_path / "existing").chmod(0o755)
+    previous = os.umask(0o022)
+    try:
+        mkdir_for_everyone(tmp_path / "existing" / "batch" / "logs")
+        assert os.umask(0o022) == 0o022
+    finally:
+        os.umask(previous)
+    assert ((tmp_path / "existing" / "batch").stat().st_mode & 0o777) == 0o777
+    assert ((tmp_path / "existing" / "batch" / "logs").stat().st_mode & 0o777) == 0o777
+    assert ((tmp_path / "existing").stat().st_mode & 0o777) == 0o755
+    mkdir_for_everyone(tmp_path / "existing" / "batch" / "logs")  # already there
+
+
+def test_celery_script_has_no_default_broker_credentials(tmp_path, monkeypatch):
+    import backend.api.tuning as tuning
+    monkeypatch.setattr(tuning, "_run_script", lambda path, log_dir: None)
+    script = tmp_path / "qa_batch.sh"
+    script.write_text("#!/bin/bash\nqa batch\n")
+    monkeypatch.delenv("CELERY_BROKER_URL", raising=False)
+    tuning._dispatch_celery(script, tmp_path)
+    assert "CELERY_BROKER_URL" not in script.read_text()
+    script.write_text("#!/bin/bash\nqa batch\n")
+    monkeypatch.setenv("CELERY_BROKER_URL", "pyamqp://qaboard:secret@rabbitmq//")
+    tuning._dispatch_celery(script, tmp_path)
+    assert "export CELERY_BROKER_URL=pyamqp://qaboard:secret@rabbitmq//\n" in script.read_text()
