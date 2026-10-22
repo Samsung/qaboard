@@ -123,6 +123,22 @@ def storage_overview():
   return jsonify(answer)
 
 
+@app.route('/api/v1/storage/users', methods=['GET'])
+@app.route('/api/v1/storage/users/', methods=['GET'])
+@login_required
+def storage_users():
+  """Who uses the most storage, with the filters (but everyone's runs): a leaderboard, to then look at someone's runs"""
+  filters = filters_from(request.args, None)
+  limit = min(int_or_none(request.args.get('limit'), 'limit') or 100, 500)
+  return jsonify({
+    "users": usage.by_user(filters, limit=limit),
+    "total": usage.nb_users(filters),
+    "totals": usage.totals(filters),
+    "me": me(),
+    "can_delete_others": is_admin(),
+  })
+
+
 # --- deletion rules ---
 
 @app.route('/api/v1/storage/rules', methods=['GET'])

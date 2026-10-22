@@ -14,17 +14,20 @@ import { PageShell, RequireLogin, ScrollingTabs } from "../components/PageShell"
 import { Time } from "../settings/format";
 import { Loading, QueryError } from "../settings/states";
 import { overviewQuery, itemsQuery, foldersQuery, items_page_size } from "./api";
-import { formatBytes, formatNumber, plural, SizeBar, Path } from "./format";
+import { path_segment } from "../selection";
+import { formatBytes, formatNumber, plural, SizeBar, Path, Ellipsis } from "./format";
 import { DeleteDialog } from "./DeleteDialog";
 import { Deletions } from "./Deletions";
 import { QuotaHelp } from "./QuotaHelp";
 import { Rules } from "./Rules";
 import { ExportsView } from "./Exports";
 import { UntrackedView } from "./Untracked";
+import { UsersView } from "./Users";
 
 
 export const views = [
   { id: 'projects', title: 'Projects', icon: 'projects' },
+  { id: 'users', title: 'Users', icon: 'people' },
   { id: 'batches', title: 'Batches', icon: 'layers', group: 'batch' },
   { id: 'commits', title: 'Commits', icon: 'git-commit', group: 'commit' },
   { id: 'branches', title: 'Branches', icon: 'git-branch', group: 'branch' },
@@ -64,7 +67,30 @@ const Summary = styled.div`
   grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 12px;
   margin-bottom: 20px;
+  > * { min-width: 0; }
   .value { font-size: 26px; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+`;
+
+// The main cell of batches, commits and branches: what they are, then their commit, then where they are
+const ItemCell = styled.td`
+  && { max-width: 480px; min-width: 240px; }
+  .line { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+  .commit { margin-top: 2px; font-size: 13px; }
+  .meta { margin-top: 2px; font-size: 12px; display: flex; flex-wrap: wrap; align-items: center; column-gap: 6px; row-gap: 2px; }
+  .meta > :not(:last-child)::after { content: '·'; margin-left: 6px; opacity: 0.6; }
+`;
+
+// Inline, in muted text: clicking adds a filter
+const FilterButton = styled.button`
+  all: unset;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 2px;
+  &:hover { text-decoration: underline; color: var(--qa-text, inherit); }
+  &:focus-visible { outline: 2px solid #4c90f0; }
 `;
 
 const Toolbar = styled.div`
@@ -107,6 +133,25 @@ const useDebounced = (value, onChange, delay = 400) => {
 };
 
 const commitUrl = item => `/${item.project_id}/commit/${item.hexsha}${item.batch_label ? `?batch=${encodeURIComponent(item.batch_label)}` : ''}`;
+const branchUrl = item => `/${path_segment(item.project_id)}/commits${item.branch ? `/${path_segment(item.branch)}` : ''}`;
+
+// The commit's message (its first line, the whole message on hover), author and date
+const CommitLine = ({ item, link = false }) => {
+  const commit = item.commit ?? {};
+  const sha = <code>{item.hexsha?.slice(0, 8)}</code>;
+  return <div className="line commit">
+    {link ? <Link to={commitUrl(item)} title="Open the commit">{sha}</Link> : <span className={Classes.TEXT_MUTED}>{sha}</span>}
+    {commit.message
+      ? <Ellipsis title={commit.details ?? commit.message} style={{ flex: 1 }}>{commit.message}</Ellipsis>
+      : <span className={Classes.TEXT_MUTED} style={{ fontStyle: 'italic' }}>no commit message</span>}
+  </div>;
+};
+
+const CommitAuthor = ({ commit }) => commit?.author || commit?.authored_at
+  ? <span title="The commit's author, and when they wrote it">
+    <Icon icon="person" size={11} style={{ marginRight: 3, verticalAlign: 'baseline' }}/>{commit.author || 'unknown'}{commit.authored_at && <>, <Time iso={commit.authored_at}/></>}
+  </span>
+  : null;
 
 
 const ProjectsView = ({ overview, filters, go }) => {
@@ -133,6 +178,24 @@ const ProjectsView = ({ overview, filters, go }) => {
 
 
 const itemKey = key => JSON.stringify(key);
+
+const PartialTag = () => <Tooltip content="Only some of its runs are in this folder: only those are deleted">
+  <Tag minimal intent={Intent.WARNING}>Partly in the folder</Tag>
+</Tooltip>;
+
+// Projects can be long paths: the end matters most
+const ProjectFilter = ({ item, filters, setFilters }) => filters.project === item.project_id
+  ? <Ellipsis title={item.project_id} style={{ maxWidth: 300, direction: 'rtl' }}>&lrm;{item.project_id}&lrm;</Ellipsis>
+  : <FilterButton type="button" title={`Only ${item.project_id}`} aria-label={item.project_id} onClick={() => setFilters({ project: item.project_id, page: '' })} style={{ maxWidth: 300, direction: 'rtl' }}>&lrm;{item.project_id}&lrm;</FilterButton>;
+
+const BranchFilter = ({ item, filters, setFilters }) => !item.branch
+  ? <span>no branch</span>
+  : <span>
+    <Icon icon="git-branch" size={11} style={{ marginRight: 3, verticalAlign: 'baseline' }}/>
+    {filters.branch === item.branch
+      ? item.branch
+      : <FilterButton type="button" title={`Only the branch ${item.branch}`} onClick={() => setFilters({ branch: item.branch, page: '' })}>{item.branch}</FilterButton>}
+  </span>;
 
 const ItemsView = ({ group, filters, setFilters, selection, setSelection }) => {
   const sort = filters.sort || 'size';
@@ -187,29 +250,65 @@ const ItemsView = ({ group, filters, setFilters, selection, setSelection }) => {
           </tr>
         </thead>
         <tbody>
-          {items.map(item => <tr key={itemKey(item.key)} data-testid="storage-item">
+          {items.map(item => <tr key={itemKey(item.key)} data-testid="storage-item"
+            onClick={event => { if (selectable(item) && !selection.all && !event.target.closest('a, button, input, label')) toggle(item); }}
+            style={{ cursor: selectable(item) && !selection.all ? 'pointer' : undefined, ...(selected(item) && selectable(item) ? { background: 'rgba(45, 114, 210, 0.12)' } : {}) }}>
             <td>
               {selectable(item)
                 ? <Checkbox checked={selected(item)} onChange={() => toggle(item)} disabled={selection.all} aria-label={`Select ${item.batch_label ?? item.hexsha?.slice(0, 8) ?? item.branch}`} style={{ margin: 0 }}/>
                 : <Tooltip content="This batch is a milestone: its runs are kept. Delete the milestone first if you don't need it." hoverOpenDelay={200}><Icon icon="lock" className={Classes.TEXT_MUTED} aria-label="Milestone: kept"/></Tooltip>}
             </td>
             <td><SizeBar bytes={item.bytes} max={max}/></td>
-            <td style={{ minWidth: 220 }}>
-              {group === 'branch'
-                ? <><strong>{item.branch || '(no branch)'}</strong><div className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>{item.project_id} · {plural(item.commits, 'commit')}, {plural(item.batches, 'batch', 'batches')}</div></>
-                : <>
-                  <Link to={commitUrl(item)}><strong>{group === 'batch' ? item.batch_label : <code>{item.hexsha?.slice(0, 8)}</code>}</strong></Link>
-                  {group === 'batch' && item.milestone && <Tag minimal icon="lock" style={{ marginLeft: 6 }}>Milestone</Tag>}
-                  {group === 'commit' && item.milestones?.length > 0 && <Tooltip content={`Milestone batches, kept: ${item.milestones.join(', ')}`}><Tag minimal icon="lock" style={{ marginLeft: 6 }}>{item.milestones.length} milestone{item.milestones.length > 1 ? 's' : ''}</Tag></Tooltip>}
-                  {item.partial && <Tooltip content="Only some of its runs are in this folder: only those are deleted"><Tag minimal intent={Intent.WARNING} style={{ marginLeft: 6 }}>Partly in the folder</Tag></Tooltip>}
-                  <div className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>
-                    {item.project_id} · {item.branch || 'no branch'}{group === 'batch' ? <> · <code>{item.hexsha?.slice(0, 8)}</code></> : <> · {(item.labels ?? []).join(', ')}</>}
-                  </div>
-                </>}
-            </td>
-            {group !== 'branch' && <td><Path path={item.folder}/></td>}
+            <ItemCell>
+              {group === 'branch' && <>
+                <div className="line">
+                  <Icon icon="git-branch" size={14} className={Classes.TEXT_MUTED}/>
+                  <Link to={branchUrl(item)} title="Its commits"><strong>{item.branch || '(no branch)'}</strong></Link>
+                  {item.partial && <PartialTag/>}
+                </div>
+                <CommitLine item={item} link/>
+                <div className={`meta ${Classes.TEXT_MUTED}`}>
+                  <ProjectFilter item={item} filters={filters} setFilters={setFilters}/>
+                  <span>{plural(item.commits, 'commit')}, {plural(item.batches, 'batch', 'batches')}</span>
+                  <span title="The commit with the latest runs">latest: <CommitAuthor commit={item.commit}/></span>
+                </div>
+              </>}
+              {group === 'batch' && <>
+                <div className="line">
+                  <Link to={commitUrl(item)} title="Open its results"><strong>{item.batch_label}</strong></Link>
+                  {item.milestone && <Tag minimal icon="lock">Milestone</Tag>}
+                  {item.partial && <PartialTag/>}
+                </div>
+                <CommitLine item={item}/>
+                <div className={`meta ${Classes.TEXT_MUTED}`}>
+                  <ProjectFilter item={item} filters={filters} setFilters={setFilters}/>
+                  <BranchFilter item={item} filters={filters} setFilters={setFilters}/>
+                  <CommitAuthor commit={item.commit}/>
+                </div>
+              </>}
+              {group === 'commit' && <>
+                <CommitLine item={item} link/>
+                <div className={`meta ${Classes.TEXT_MUTED}`}>
+                  <ProjectFilter item={item} filters={filters} setFilters={setFilters}/>
+                  <BranchFilter item={item} filters={filters} setFilters={setFilters}/>
+                  <CommitAuthor commit={item.commit}/>
+                </div>
+                <div className="line" style={{ marginTop: 4, flexWrap: 'wrap' }}>
+                  {(item.labels ?? []).map(label => <Link key={label} to={commitUrl({ ...item, batch_label: label })}><Tag minimal round interactive>{label}</Tag></Link>)}
+                  {item.batches > (item.labels ?? []).length && <span className={Classes.TEXT_MUTED} style={{ fontSize: 12 }}>+{item.batches - item.labels.length} more</span>}
+                  {item.milestones?.length > 0 && <Tooltip content={`Milestone batches, kept: ${item.milestones.join(', ')}`}><Tag minimal icon="lock">{item.milestones.length} milestone{item.milestones.length > 1 ? 's' : ''}</Tag></Tooltip>}
+                  {item.partial && <PartialTag/>}
+                </div>
+              </>}
+            </ItemCell>
+            {group !== 'branch' && <td><Path path={item.folder} style={{ maxWidth: 280 }}/></td>}
             <td>{formatNumber(item.runs)}</td>
-            {show_users && <td style={{ fontSize: 12 }}>{(item.users ?? []).map(u => u || 'unknown').join(', ')}{item.nb_users > (item.users ?? []).length ? '…' : ''}</td>}
+            {show_users && <td style={{ fontSize: 12, maxWidth: 160 }}>
+              {(item.users ?? []).map((u, i) => <div key={u} style={{ display: 'flex' }}>
+                <FilterButton type="button" title={`Only ${u || 'unknown'}'s runs`} onClick={() => setFilters({ scope: 'user', user: u, page: '' })}>{u || 'unknown'}</FilterButton>
+                {i === item.users.length - 1 && item.nb_users > item.users.length && <span className={Classes.TEXT_MUTED} style={{ marginLeft: 4, whiteSpace: 'nowrap' }}>+{item.nb_users - item.users.length}</span>}
+              </div>)}
+            </td>}
             <td><Time iso={item.last_run_at}/></td>
           </tr>)}
         </tbody>
@@ -369,7 +468,16 @@ export const StorageUsage = ({ me, view, filters }) => {
     {overview && <Summary>
       <Card compact><div className="value" data-testid="total">{formatBytes(overview.totals.bytes)}</div><div className={Classes.TEXT_MUTED}>{scope === 'me' ? 'used by your runs' : scope === 'user' ? `used by ${filters.user}'s runs` : "used by everyone's runs"}{filters.project ? ` in ${filters.project}` : ''}</div></Card>
       <Card compact><div className="value">{formatNumber(overview.totals.runs)}</div><div className={Classes.TEXT_MUTED}>runs, in {plural(overview.totals.batches, 'batch', 'batches')}</div></Card>
-      <Card compact><div className="value">{formatNumber(overview.totals.projects)}</div><div className={Classes.TEXT_MUTED}>{overview.projects[0] ? <>projects, the biggest: {overview.projects[0].project_id}</> : 'projects'}</div></Card>
+      <Card compact data-testid="projects-total">
+        <div className="value">{formatNumber(overview.totals.projects)}</div>
+        <div className={Classes.TEXT_MUTED}>{overview.totals.projects === 1 ? 'project' : 'projects'}{overview.projects[0] && overview.totals.projects > 1 ? ', the biggest:' : ''}</div>
+        {overview.projects[0] && overview.totals.projects > 1 && <div style={{ display: 'flex', gap: 6, minWidth: 0 }}>
+          <Ellipsis title={overview.projects[0].project_id} style={{ direction: 'rtl', textAlign: 'left', flex: 1 }}>
+            &lrm;<Link to={storageUrl('batches', { ...filters, project: overview.projects[0].project_id, page: '' })}>{overview.projects[0].project_id}</Link>&lrm;
+          </Ellipsis>
+          <span className={Classes.TEXT_MUTED} style={{ whiteSpace: 'nowrap' }}>{formatBytes(overview.projects[0].bytes)}</span>
+        </div>}
+      </Card>
       {overview.totals.deleted?.runs > 0 && <Tooltip
         content={<span style={{ display: 'block', maxWidth: 340 }}>
           Deleting runs deletes the files their manifest lists, and keeps the manifest. Files written after the run ended stay too.
@@ -387,11 +495,14 @@ export const StorageUsage = ({ me, view, filters }) => {
         <div className="value">{formatBytes(overview.exports.bytes)}</div>
         <div className={Classes.TEXT_MUTED}>in {plural(overview.exports.count, 'export')}{overview.exports.linked_bytes > 0 ? `, ${formatBytes(overview.exports.linked_bytes)} linked to runs` : ''}</div>
       </Card>}
-      {overview.users && scope !== 'me' && <Card compact>
-        <div className={Classes.TEXT_MUTED} style={{ marginBottom: 4 }}>Who uses the most</div>
-        {overview.users.slice(0, 3).map(u => <div key={u.user_name} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-          <Link to={storageUrl(view, { ...filters, scope: 'user', user: u.user_name, page: '' })}>{u.user_name || 'unknown'}</Link>
-          <span>{formatBytes(u.bytes)}</span>
+      {overview.users?.length > 0 && scope !== 'me' && view !== 'users' && <Card compact data-testid="top-users">
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 4 }}>
+          <span className={Classes.TEXT_MUTED}>Who uses the most</span>
+          <Link to={storageUrl('users', { ...filters, page: '' })} style={{ whiteSpace: 'nowrap' }}>See all</Link>
+        </div>
+        {overview.users.slice(0, 3).map(u => <div key={u.user_name} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
+          <Ellipsis title={u.user_name || 'unknown'}><Link to={storageUrl(view, { ...filters, scope: 'user', user: u.user_name, page: '' })}>{u.user_name || 'unknown'}</Link></Ellipsis>
+          <span style={{ whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>{formatBytes(u.bytes)}</span>
         </div>)}
       </Card>}
     </Summary>}
@@ -405,7 +516,7 @@ export const StorageUsage = ({ me, view, filters }) => {
       </Tabs>
     </ScrollingTabs>
     <div style={{ marginTop: 16 }}>
-      {selected_view.id !== 'projects' && selected_view.id !== 'folders' && <Toolbar>
+      {group && <Toolbar>
         <InputGroup leftIcon="search" placeholder="Search projects, branches, batches, commits…" aria-label="Search" value={search} onChange={e => setSearch(e.target.value)} style={{ width: 280 }}/>
         <InputGroup leftIcon="git-branch" placeholder="Branch" aria-label="Branch" value={branch} onChange={e => setBranch(e.target.value)} style={{ width: 160 }}/>
         <HTMLSelect aria-label="Age" options={older_options} value={filters.older} onChange={e => setFilters({ older: e.target.value, page: '' })}/>
@@ -415,6 +526,7 @@ export const StorageUsage = ({ me, view, filters }) => {
       </Toolbar>}
       <ActiveFilters filters={filters} setFilters={setFilters}/>
       {selected_view.id === 'projects' && <ProjectsView overview={overview} filters={filters} go={go}/>}
+      {selected_view.id === 'users' && <UsersView me={me} filters={filters} storageUrl={storageUrl} openUser={user => go('batches', { scope: 'user', user: user.user_name, page: '' })}/>}
       {group && <ItemsView group={group} filters={filters} setFilters={setFilters} selection={selection} setSelection={setSelection}/>}
       {selected_view.id === 'folders' && <FoldersView filters={filters} setFilters={setFilters} go={go} overview={overview} onDelete={setDeleting}/>}
       {selected_view.id === 'exports' && <ExportsView filters={filters} me={me}/>}

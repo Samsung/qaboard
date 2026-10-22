@@ -76,6 +76,67 @@ describe('Storage usage', () => {
     expect(history.location.search).toBe('?project=proj%2Fa');
   });
 
+  it("shows the commits' message, author and date, and filters by project, branch or user in a click", async () => {
+    const commit = { message: 'Tune the AWB', details: 'Tune the AWB\n\nWith more tests', author: 'Alice Doe', authored_at: '2026-06-30T00:00:00Z' };
+    const fetch = mockApi({
+      'GET /api/v1/storage/overview': { ...overview, scope: 'all', users: [{ user_name: 'alice', bytes: 30 * GB, runs: 3 }, { user_name: 'bob', bytes: 5 * GB, runs: 1 }] },
+      'GET /api/v1/storage/items': { ...items, items: [batch({ commit, users: ['alice', 'bob'], nb_users: 2 })], total: 1 },
+      'GET /api/v1/storage/jobs': { jobs: [] },
+    });
+    renderAt('/storage/batches?scope=all');
+    const [row] = within(await screen.findByRole('table', { name: 'Batches' })).getAllByTestId('storage-item');
+    expect(within(row).getByText('Tune the AWB')).toHaveAttribute('title', commit.details);
+    expect(row).toHaveTextContent('Alice Doe');
+    fireEvent.click(within(row).getByRole('button', { name: 'feature' }));
+    await waitFor(() => expect(history.location.search).toBe('?scope=all&branch=feature'));
+    fireEvent.click(within(row).getByRole('button', { name: 'proj/a' }));
+    await waitFor(() => expect(history.location.search).toBe('?scope=all&project=proj%2Fa&branch=feature'));
+    fireEvent.click(within(row).getByRole('button', { name: 'bob' }));
+    await waitFor(() => expect(history.location.search).toBe('?scope=user&user=bob&project=proj%2Fa&branch=feature'));
+    // clicking the row selects it
+    fireEvent.click(within(row).getByText('3'));
+    expect(screen.getByRole('region', { name: 'Selection' })).toHaveTextContent('1 batch selected');
+    expect(calls(fetch, 'GET', '/api/v1/storage/items').length).toBeGreaterThan(0);
+  });
+
+  it('cuts long project names in the summary', async () => {
+    const long = 'group/team/some/very/long/path/to/tests/products/the-project';
+    mockApi({
+      'GET /api/v1/storage/overview': { ...overview, projects: [{ ...overview.projects[0], project_id: long }, overview.projects[1]] },
+      'GET /api/v1/storage/jobs': { jobs: [] },
+    });
+    renderAt('/storage');
+    const link = within(await screen.findByTestId('projects-total')).getByRole('link', { name: long });
+    expect(link.parentElement).toHaveAttribute('title', long);
+    expect(link.parentElement).toHaveStyle({ textOverflow: 'ellipsis' });
+  });
+
+  it('ranks who uses the most, and opens their runs', async () => {
+    const fetch = mockApi({
+      'GET /api/v1/storage/overview': { ...overview, scope: 'all' },
+      'GET /api/v1/storage/users': {
+        users: [
+          { user_name: 'bob', bytes: 30 * GB, runs: 10, batches: 4, commits: 2, projects: 2, last_run_at: '2026-07-01T00:00:00Z', top_project: { project_id: 'proj/a', bytes: 25 * GB } },
+          { user_name: 'alice', bytes: 10 * GB, runs: 3, batches: 1, commits: 1, projects: 1, last_run_at: '2026-07-01T00:00:00Z', top_project: { project_id: 'proj/b', bytes: 10 * GB } },
+        ],
+        total: 2, totals: { bytes: 40 * GB, runs: 13 }, me: 'alice', can_delete_others: false,
+      },
+      'GET /api/v1/storage/items': items,
+      'GET /api/v1/storage/jobs': { jobs: [] },
+    });
+    renderAt('/storage/users?project=proj/a');
+    const rows = within(await screen.findByRole('table', { name: 'Users' })).getAllByTestId('storage-user');
+    expect(rows[0]).toHaveTextContent('bob');
+    expect(rows[0]).toHaveTextContent('75%');
+    expect(rows[1]).toHaveTextContent('you');
+    expect(new URL(calls(fetch, 'GET', '/api/v1/storage/users').at(-1)[0], 'http://localhost').searchParams.get('project')).toBe('proj/a');
+    fireEvent.change(screen.getByRole('textbox', { name: 'Find someone' }), { target: { value: 'ali' } });
+    expect(screen.getAllByTestId('storage-user')).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Their runs' }));
+    await waitFor(() => expect(history.location.pathname).toBe('/storage/batches'));
+    expect(history.location.search).toBe('?scope=user&user=alice&project=proj%2Fa');
+  });
+
   it("selects batches, keeps milestones, and deletes after a preview", async () => {
     const fetch = mockApi({
       'GET /api/v1/storage/overview': overview,

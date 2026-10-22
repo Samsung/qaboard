@@ -434,10 +434,13 @@ const StorageMenuItem = ({ user, project }) => {
     icon="database"
     text="Storage usage"
     title="How much storage your runs use in this project, and deleting what you don't need"
+    // In a portal, like the sidebar's other submenus: else the sidebar's scrolling cuts it off, or flips it off-screen on the left
+    popoverProps={{ usePortal: true, hoverCloseDelay: 300 }}
   >
     <MenuItemLink to={storage} icon="database" text="Your runs in this project"/>
     <MenuItemLink to="/storage" icon="projects" text="Your runs in every project"/>
     <MenuItemLink to={`/storage/batches?scope=all&project=${encodeURIComponent(project ?? '')}`} icon="people" text="Everyone's runs in this project"/>
+    <MenuItemLink to={`/storage/users?project=${encodeURIComponent(project ?? '')}`} icon="crown" text="Who uses the most in this project"/>
   </MenuItemLink>
 }
 
