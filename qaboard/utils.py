@@ -388,6 +388,36 @@ def is_plaintext(path, config=None):
   sys.exit(1)
 
 
+def eol_normalized_copy(path) -> Path:
+  """A temp copy of a plaintext file with universal-newline EOLs (CRLF/CR -> LF):
+  the exact transform file_info() applies to plaintext files on Windows before hashing."""
+  path = Path(path)
+  try:
+    with path.open(newline=None, encoding="utf-8", errors='surrogateescape') as raw_file: # newline=None: universal newlines — \r\n, \r and \n are all line endings
+      text = raw_file.read()
+  except Exception as e:
+    print(f"WARNING: Error reading {path} (utf8/surrogateescape), {e}")
+    try:
+      with path.open(newline=None, encoding="utf-8", errors="ignore") as raw_file:
+        text = raw_file.read()
+    except Exception as e:
+      print(f"ERROR: Error reading {path} (utf8/ignore), {e}")
+      raise e
+
+  from tempfile import mkstemp
+  fd, normalized_file_name = mkstemp(suffix=path.suffix)
+  temp_path = Path(normalized_file_name)
+  completed = False
+  try:
+    with open(fd, 'w', newline='\n', encoding="utf-8", errors='ignore') as normalized_file:
+      normalized_file.write(text)
+    completed = True
+  finally:
+    if not completed:
+      temp_path.unlink(missing_ok=True)  # missing_ok: purely defensive (mkstemp() has already created the file)
+  return temp_path
+
+
 def file_info(path, normalize_eof=True, config=None, compute_hashes=True, has_footer=False):
   """Return metadata about a file."""
   path = Path(path)
@@ -395,26 +425,11 @@ def file_info(path, normalize_eof=True, config=None, compute_hashes=True, has_fo
   # For bit-accuracy checks to work on text files between UNIX/windows,
   # we need to convert end-of-lines on Windows
   if os.name == 'nt' and is_plaintext(path, config=config) and normalize_eof:
+    normalized_file = eol_normalized_copy(path)
     try:
-      with path.open(newline=None, encoding="utf-8", errors='surrogateescape') as raw_file: # will accept both \t\n and \n as line endings
-        text = raw_file.read()
-    except Exception as e:
-      print(f"WARNING: Error reading {path} (utf8/surrogateescape), {e}")
-      try:
-        with path.open(newline=None, encoding="utf-8", errors="ignore") as raw_file:
-          text = raw_file.read()
-      except Exception as e:
-        print(f"ERROR: Error reading {path} (utf8/ignore), {e}")
-        raise e
-
-    from tempfile import mkstemp
-    fd, normalized_file_name = mkstemp(suffix=path.suffix)
-    try:
-      with open(fd, 'w', newline='\n', encoding="utf-8", errors='ignore') as normalized_file:
-        normalized_file.write(text)
-      return file_info(normalized_file_name, normalize_eof=False, has_footer=has_footer)
+      return file_info(normalized_file, normalize_eof=False, has_footer=has_footer)
     finally:
-      Path(normalized_file_name).unlink()
+      normalized_file.unlink()
 
   return _file_info(path, compute_hashes=compute_hashes)
 
