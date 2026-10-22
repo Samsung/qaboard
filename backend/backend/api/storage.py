@@ -19,6 +19,7 @@ from .auth import login_required
 from ..access import can, visibility_rules, yaml_key, role_of
 from ..access.policy import allows
 from ..settings import setting
+from .. import accounts
 
 
 # What users start from Storage usage
@@ -190,7 +191,7 @@ def exports_query(user, projects=None):
   from sqlalchemy import or_
   query = Export.query.filter(Export.deleted_at.is_(None))
   if user is not None:
-    query = query.filter(or_(Export.created_by == user, Export.owner == user))
+    query = query.filter(or_(Export.created_by == user, Export.owner.in_(accounts.aliases(user))))
   if projects:
     query = query.filter(Export.project_id.in_(projects))
   if user == me():
@@ -229,7 +230,7 @@ def storage_exports():
 
 
 def can_delete_export(export) -> bool:
-  return is_admin() or me() in (export.created_by, export.owner)
+  return is_admin() or me() in (export.created_by, accounts.resolve(export.owner))
 
 
 @app.route('/api/v1/storage/exports/delete', methods=['POST'])
@@ -295,21 +296,22 @@ def storage_untracked():
   user = request.args.get('user') if is_admin() and request.args.get('user') else me()
   kinds = sorted(UNTRACKED | {'folder', 'file'})
   entries = (StorageScanEntry.query
-             .filter(StorageScanEntry.scan_id == scan.id, StorageScanEntry.owner == user, StorageScanEntry.kind.in_(kinds), StorageScanEntry.action.is_(None))
+             .filter(StorageScanEntry.scan_id == scan.id, StorageScanEntry.owner.in_(accounts.aliases(user)), StorageScanEntry.kind.in_(kinds), StorageScanEntry.action.is_(None))
              .order_by(StorageScanEntry.bytes.desc()).limit(300).all())
   # the biggest untracked things, not the folders that contain them
   answer = []
   for entry in entries:
     item = serialize_entry(entry)
     untracked = sum(size for kind, size in (entry.kinds or {}).items() if kind in UNTRACKED)
-    if entry.kind in ('folder', 'file') and (not untracked or set(entry.owners or {}) - {user}):
+    owners = set(accounts.resolve_keys(entry.owners))
+    if entry.kind in ('folder', 'file') and (not untracked or owners - {user}):
       continue
     item['untracked_bytes'] = untracked or entry.bytes
-    item['only_yours'] = set(entry.owners or {}) <= {user}
+    item['only_yours'] = owners <= {user}
     answer.append(item)
   # folders whose untracked files are all listed inside them come after: keep the leaves first
   answer.sort(key=lambda e: (e['kind'] == 'folder', -e['untracked_bytes']))
-  by_owner = ((scan.totals or {}).get('by_owner') or {}).get(user) or {}
+  by_owner = accounts.resolve_keys((scan.totals or {}).get('by_owner')).get(user) or {}
   return jsonify({
     "scan": {"id": scan.id, "finished_at": usage.iso(scan.finished_at), "roots": scan.roots},
     "totals": {"by_kind": {k: v for k, v in by_owner.items() if k in UNTRACKED}, "bytes": sum(v for k, v in by_owner.items() if k in UNTRACKED)},
@@ -335,8 +337,9 @@ def storage_delete_untracked():
   for entry in entries:
     if not deletable(entry):
       return jsonify({"error": f"QA-Board uses files in {entry.path}: delete its runs from QA-Board instead."}), 400
-    if not is_admin() and set(entry.owners or {}) - {me()}:
-      return jsonify({"error": f"{entry.path} has files of other people ({', '.join(sorted(set(entry.owners or {}) - {me()}))}): ask them, or an admin."}), 403
+    others = set(accounts.resolve_keys(entry.owners)) - {me()}
+    if not is_admin() and others:
+      return jsonify({"error": f"{entry.path} has files of other people ({', '.join(sorted(others))}): ask them, or an admin."}), 403
   size = sum(e.bytes or 0 for e in entries)
   job = queue.create('delete_paths', {
     "scan_id": scan.id, "paths": [e.path for e in entries], "requested_by": me(),

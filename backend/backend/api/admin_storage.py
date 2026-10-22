@@ -8,6 +8,7 @@ from sqlalchemy import or_
 from backend import app, db_session
 from ..models import StorageScan, StorageScanEntry, Export, Job
 from ..audit import audit
+from .. import accounts
 from ..jobs import queue
 from ..jobs.params import ParamsError
 from ..jobs.scan import UNTRACKED
@@ -51,8 +52,9 @@ def serialize_entry(entry: StorageScanEntry) -> dict:
     "bytes": entry.bytes,
     "files": entry.files,
     "newest_mtime": iso(entry.newest_mtime),
-    "owners": entry.owners or {},
-    "owner": entry.owner,
+    # scans before the accounts were known saved "uid 2041"
+    "owners": accounts.resolve_keys(entry.owners),
+    "owner": accounts.resolve(entry.owner),
     "kinds": entry.kinds or {},
     "ref": entry.ref or {},
     "small": entry.small or {},
@@ -92,7 +94,7 @@ def admin_scan(scan_id):
   if error:
     return error
   job = scan_job_status(scan)
-  by_owner = (scan.totals or {}).get('by_owner') or {}
+  by_owner = accounts.resolve_keys((scan.totals or {}).get('by_owner'))
   owners = sorted(({
     "owner": name, "bytes": sum(kinds.values()),
     "untracked_bytes": sum(size for kind, size in kinds.items() if kind in UNTRACKED), "kinds": kinds,
@@ -135,7 +137,7 @@ def admin_scan_entries(scan_id):
   else:
     query = query.filter(StorageScanEntry.depth == 0)
   if request.args.get('owner'):
-    query = query.filter(StorageScanEntry.owner == request.args['owner'])
+    query = query.filter(StorageScanEntry.owner.in_(accounts.aliases(request.args['owner'])))
   try:
     limit = max(1, min(int(request.args.get('limit', 200)), 1000))
     offset = max(0, int(request.args.get('offset', 0)))
@@ -198,7 +200,7 @@ def admin_scan_track_exports(scan_id):
       continue
     export = Export.query.filter(Export.path == entry.path).one_or_none()
     if export is None:
-      export = Export(path=entry.path, owner=entry.owner, source='scan', created_at=entry.newest_mtime or queue.utcnow(),
+      export = Export(path=entry.path, owner=accounts.resolve(entry.owner), source='scan', created_at=entry.newest_mtime or queue.utcnow(),
                       updated_at=entry.newest_mtime or queue.utcnow(), bytes=entry.bytes, files=entry.files,
                       measured_at=scan.finished_at or queue.utcnow(), data={"scan_id": scan_id})
       db_session.add(export)

@@ -15,7 +15,7 @@ from ..database import db_session
 from ..models import Export, Output, TestInput, StorageScanEntry, Batch
 from ..storage import check_storage_path
 from ..fs_utils import rmtree, rm_empty_parents
-from .. import storage_usage
+from .. import storage_usage, accounts
 from . import params as p
 from .common import quiet
 from .report import Reporter, utcnow
@@ -197,7 +197,7 @@ class ImportRuns:
         output_dir_override=path, is_pending=False, is_running=False,
         is_failed=bool(metrics.get('is_failed')) if isinstance(metrics, dict) else False,
         metrics={k: v for k, v in metrics.items() if v == v} if isinstance(metrics, dict) else {},
-        data={"storage": size or entry.bytes, "user": entry.owner, "imported": {"at": utcnow().isoformat() + 'Z', "by": params.get('requested_by'), "scan_id": params['scan_id']}},
+        data={"storage": size or entry.bytes, "user": accounts.resolve(entry.owner), "imported": {"at": utcnow().isoformat() + 'Z', "by": params.get('requested_by'), "scan_id": params['scan_id']}},
         created_date=entry.newest_mtime or datetime.datetime.utcnow(),
       )
       db_session.add(output)
