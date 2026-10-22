@@ -204,6 +204,31 @@ def test_project_ids_with_dots_dont_get_around_access(team, client):
   assert team['dave'].get(f'/api/v1/commits?project=/{PROJECT}/').status_code == 403
 
 
+def test_imported_milestones_need_access_to_their_results(team, client):
+  """Milestones protect their results from deletion, and describe their runs: like when saving one"""
+  from backend.database import db_session
+  from backend.models import Milestone
+  assert ingest(client, project='pub').status_code == 200
+  legacy = {"milestones": {"pub": {f"group/secret/{SHA}/default": {"commit": SHA, "project": PROJECT, "label": "theirs"}}}}
+  answer = team['dave'].post('/api/v1/milestones/import', json=legacy).get_json()
+  assert answer["imported"] == 0 and answer["done"] == [] and "group/secret" in answer["skipped"][0]["reason"]
+  answer = team['carol'].post('/api/v1/milestones/import', json=legacy).get_json()
+  assert answer["imported"] == 1 and answer["done"] == ["pub"]
+  # viewers don't save milestones
+  answer = team['carol'].post('/api/v1/milestones/import', json={"milestones": {PROJECT: {f"{PROJECT}/{SHA}/default": {"commit": SHA}}}}).get_json()
+  assert answer["imported"] == 0 and answer["done"] == [] and answer["skipped"][0]["project"] == PROJECT
+  assert [m.label for m in Milestone.query.all()] == ["theirs"]
+  # milestones from before, listed by users who can't see their results, aren't described with them
+  db_session.add(Milestone(project_id='pub', commit_project_id=PROJECT, commit_hexsha=SHA, batch='default', shared=True, label='old', data={}))
+  db_session.commit()
+  assert team['dave'].get('/api/v1/milestones?project=pub').status_code == 200
+  db_session.remove()
+  assert 'runs' not in Milestone.query.filter(Milestone.label == 'old').one().data
+  team['carol'].get('/api/v1/milestones?project=pub')
+  db_session.remove()
+  assert Milestone.query.filter(Milestone.label == 'old').one().data['runs']
+
+
 def test_expired_grants_are_ignored(team):
   from backend.database import db_session
   from backend.models import RoleGrant
