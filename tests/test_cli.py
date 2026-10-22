@@ -356,10 +356,14 @@ class TestQaCli(unittest.TestCase):
   def test_batch_prints_the_results_url_at_the_start_and_the_end(self):
     from unittest import mock
     import requests
-    env = {k: v for k, v in os.environ.items() if k != 'QA_OFFLINE'}
+    # other tests run `qa batch` in this process, and leave QA_BATCH set as if we were started by a batch
+    env = {k: v for k, v in os.environ.items() if k != 'QA_OFFLINE' and not k.startswith('QA_BATCH')}
     # the runs (subprocesses) can't reach any server, and neither can this process
     env['QABOARD_URL'] = 'http://127.0.0.1:9'
     no_server = requests.ConnectionError('no server in tests')
+    # qaboard.api binds the project when imported, maybe by other tests from another directory
+    reload(import_module('qaboard.config'))
+    reload(import_module('qaboard.api'))
     with mock.patch.dict(os.environ, env, clear=True), \
          mock.patch('requests.post', side_effect=no_server), mock.patch('requests.get', side_effect=no_server):
       result = self.qa('--share', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{input_path} => {output_dir}"')
