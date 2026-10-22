@@ -16,6 +16,7 @@ Usage (from the root of the repository):
 
 ENV_FILE describes an environment, e.g. deployments/sirc/production.env. It's a docker compose env file
 that sets at least COMPOSE_FILE and COMPOSE_PROJECT_NAME. Variables from the shell take precedence.
+Secrets stay in .env: the backend reads it, and we pass the compose files the ones they need (DOTENV_SECRETS).
 
 `up` does:
 1. Pull the images for $QABOARD_VERSION (or build them with --build)
@@ -48,6 +49,10 @@ ROOT = Path(__file__).resolve().parent.parent
 STATIC_SERVICES = ["frontend", "website"]
 KEEP_IMAGES = 3  # versions kept locally for fast rollbacks
 DRAIN_SECONDS = 5  # after switching nginx to the new replicas, before stopping the old ones
+# Secrets that the compose files read with ${...}, kept in .env. `docker compose` reads .env by itself, but not when it's
+# given --env-file: we pass them on, unless the shell or ENV_FILE sets them.
+DOTENV_SECRETS = ["QABOARD_DB_PASSWORD", "QABOARD_RABBITMQ_USER", "QABOARD_RABBITMQ_PASSWORD", "FLOWER_BASIC_AUTH",
+                  "PGADMIN_DEFAULT_EMAIL", "PGADMIN_DEFAULT_PASSWORD"]
 
 
 def log(msg: str) -> None:
@@ -90,6 +95,12 @@ class Deployment:
         self.state = json.loads(self.state_path.read_text()) if self.state_path.exists() else {"history": []}
         self.version = version or os.environ.get("QABOARD_VERSION") or self.deployed_version()
         self.env = {**os.environ}
+        dotenv = ROOT / ".env"
+        if dotenv.is_file():
+            secrets = read_env_file(dotenv)
+            for key in DOTENV_SECRETS:
+                if key in secrets and key not in self.env and key not in file_env:
+                    self.env[key] = secrets[key]
         if self.version:
             self.env["QABOARD_VERSION"] = self.version
         else:

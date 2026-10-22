@@ -32,7 +32,7 @@ mkdir -p /mnt/qaboard
 chmod -R 777 /mnt/qaboard
 ```
 
-The base `docker-compose.yml` doesn't mount any results storage. Mount it in your site overlay (start from `deployments/example.yml`): the backend needs it at the same path as the clients, and nginx serves files under `/s/` from `/var/qaboard/` (`/s/mnt/qaboard/...` is read from `/var/qaboard/mnt/qaboard/...`):
+The base `docker-compose.yml` doesn't mount any results storage. Mount it in your site overlay (start from `deployments/example.yml`): the backend needs it at the same path as the clients, nginx serves files under `/s/` from `/var/qaboard/` (`/s/mnt/qaboard/...` is read from `/var/qaboard/mnt/qaboard/...`), and the image server reads images from `/repository/` (`/iiif/2/mnt%2Fqaboard%2F...` from `/repository/mnt/qaboard/...`):
 
 ```yaml title="deployments/mysite.yml"
 services:
@@ -42,7 +42,14 @@ services:
   proxy:
     volumes:
     - /mnt/qaboard:/var/qaboard/mnt/qaboard:ro
+  cantaloupe:
+    volumes:
+    - /mnt/qaboard:/repository/mnt/qaboard:ro
 ```
+
+:::note Upgrading from older versions
+`docker-compose.yml` used to mount the host's whole filesystem in the image server. If the image viewers show no images after you upgrade, mount your storage in `cantaloupe` like above, at the same paths as in `proxy`.
+:::
 
 :::tip
 If you want to use a different folder, use your path in the overlay, and set `storage` in your projects' *qaboard.yaml* (see [where is the data saved](storage/where-is-the-data)).
@@ -122,6 +129,7 @@ QA-Board can connect to external authentication systems (LDAP, SAML). If needed,
 | `QABOARD_PORT_HTTP`    | 5151    | Port mapped to the app on the host                   |
 | `QABOARD_DB_HOST`      | db      | Connect the backend to a non-default database host (e.g. instead of dev'ing with prod dumps, connect directly to it) |
 | `QABOARD_DB_PORT`      | 5432    | Connect to a non-default database port               |
+| `QABOARD_DB_PASSWORD`  | password | The database's password, in `.env`. See [Passwords and admin services](#passwords-and-admin-services) |
 | `QABOARD_DB_POOL_SIZE` / `QABOARD_DB_MAX_OVERFLOW` | 4 / 2 | Database connections kept open by each uwsgi process (it runs 4 threads), and extra ones it may open. PostgreSQL's `max_connections` must cover them, see [Database settings](backend-admin/deployment#database-settings) |
 | `JENKINS_AUTH`         | _none_  | Credentials used to [trigger jenkins jobs](triggering-third-party-tools) on 1 or many jenkins servers. The format is a JSON string looking like `{"hostname_1": {"user": "jenkinsuser", "token": "xxxxx", "crumb": "yyy"}}` (see [Jenkins builds](/docs/triggering-third-party-tools#trigger-jenkins-builds) for the token and crumb)               |
 | `JENKINS_BUILD_TOKEN`  | _none_  | The authentication token of **Trigger builds remotely** sent to the Jenkins jobs whose integration has no `token`. Without it, they get none. Older versions sent `qaboard`: if your jobs expect it, set `JENKINS_BUILD_TOKEN=qaboard` |
@@ -209,6 +217,24 @@ QABOARD_URL=https://qaboard.example.com
 ### Backups
 The `cron-backup-db` service in *production.yml* makes daily backups of the database, and keeps those of the last 14 days (`QABOARD_BACKUP_RETENTION_DAYS`). Mount a host directory at `/backups` in your site overlay, and copy the backups off the host. To restore one: `deployments/deploy.py <env file> restore-db <file>.dump`. See [Backups](backend-admin/deployment#backups).
 
+### Passwords and admin services
+Put the passwords in `.env`, at the root of the checkout, before the first start. The backend reads `.env`, and so does `docker compose` for the `${...}` of the compose files. `deployments/deploy.py` runs compose with your environment's env file instead, so it passes it the ones it needs from `.env`: those below.
+
+```bash title=".env"
+QABOARD_DB_PASSWORD=...
+# Only if Celery workers connect to RabbitMQ (QABOARD_TUNING_RUNNER=celery). URL-safe characters
+QABOARD_RABBITMQ_USER=qaboard
+QABOARD_RABBITMQ_PASSWORD=...
+# Flower, the task queue's UI at /flower/, can revoke tasks and shut the workers down
+FLOWER_BASIC_AUTH=admin:...
+PGADMIN_DEFAULT_EMAIL=admin@example.com
+PGADMIN_DEFAULT_PASSWORD=...
+```
+
+- **The database** is created with `QABOARD_DB_PASSWORD` (default: `password`), and the backend and the backups use it. To change the password of an existing database, see [Database password](backend-admin/deployment#database-password).
+- **RabbitMQ** is created with `QABOARD_RABBITMQ_USER` and `QABOARD_RABBITMQ_PASSWORD` (default: `guest:guest`). Celery workers run the commands of the tasks they get: anyone who can connect to RabbitMQ can run commands on them. For an existing RabbitMQ, add the user with `docker compose exec rabbitmq rabbitmqctl add_user` and `set_permissions`, or change the password with `rabbitmqctl change_password`. Workers then use `pyamqp://<user>:<password>@<qaboard-host>:5672//` (see [Celery](/docs/celery-integration)).
+- **The admin services are only published on the host itself** (`127.0.0.1`): RabbitMQ (`QABOARD_PORT_RABBITMQ`, 5672, and its management UI on `QABOARD_PORT_RABBITMQ_MNGT`, 15672), Flower (`QABOARD_PORT_FLOWER`, 8888, also at `/flower/`) and pgAdmin (`PGADMIN_PORT`, 5050). From another computer, use an ssh tunnel, e.g. `ssh -L 5050:localhost:5050 <qaboard-host>`. When Celery workers run on other hosts, publish RabbitMQ on the network with `QABOARD_RABBITMQ_HOST_IP=0.0.0.0` (or one of the host's addresses) in your env file, with a password. To publish another port, replace its `ports` in your site overlay: `ports: !override`.
+
 ### Using SSL / hosting behind a reverse proxy
 What we do is use our own copy of *services/nginx/conf.d/qaboard.conf* in the site overlay (keep its `include snippets/...` lines: they serve the files and the file browser). Files mounted under `/tmp/deployment/nginx/conf.d/` in the `proxy` container are added to (or replace) *services/nginx/conf.d/*:
 
@@ -244,7 +270,7 @@ openssl req -new -sha256 -key cert.key -out cert.csr
 If they send back a `.cer` certificate in the DER format, convert it to PEM: `openssl x509 -in cert.cer -inform der -outform pem -out cert.pem`.
 :::
 
-If you want to use your own reverse proxy, with `nginx` for instance you can set `QABOARD_PORT_HTTP=8080` and:
+If you want to use your own reverse proxy, with `nginx` for instance you can set `QABOARD_PORT_HTTP=8080` and the config below. QA-Board's nginx passes the `X-Forwarded-Proto` and `X-Forwarded-Host` headers your proxy sets to the backend (the SAML login builds its URLs from them), else the scheme and host of the request it got:
 
 ```nginx
 server {
@@ -252,6 +278,8 @@ server {
   server_name default_server;
   location / {
     proxy_pass http://localhost:8080/;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-Host $http_host;
   }
 }
 ```

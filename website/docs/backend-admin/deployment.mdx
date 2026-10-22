@@ -30,7 +30,7 @@ docker compose --env-file deployments/mysite/production.env ps
 deployments/deploy.py deployments/mysite/production.env compose logs -f backend
 ```
 
-Keep secrets out of the env files: put them in `.env` on the host.
+Keep secrets out of the env files: put them in `.env` on the host. The backend reads it, and `deploy.py` passes compose the passwords that the compose files use (`QABOARD_DB_PASSWORD`, RabbitMQ's, Flower's and pgAdmin's, see [Passwords and admin services](../start-server.mdx#passwords-and-admin-services)): plain `docker compose --env-file ...` commands don't read `.env`, so run those that use the passwords with `deploy.py <env file> compose ...` (e.g. a backup by hand).
 
 ## Deploying
 ```bash
@@ -127,6 +127,12 @@ At every start, `init.sh` copies the file into the database's folder and include
 - Values set with `ALTER SYSTEM` (in `postgresql.auto.conf`) win over the file. Check where each value comes from with `SELECT name, setting, sourcefile FROM pg_settings WHERE source NOT IN ('default', 'override');`, and remove them with `ALTER SYSTEM RESET ALL;` (applied at the next restart).
 - `max_connections` must cover the backends' connection pools: each uwsgi process opens up to `QABOARD_DB_POOL_SIZE` + `QABOARD_DB_MAX_OVERFLOW` connections (default 4 + 2), times `QABOARD_UWSGI_PROCESSES`, times `QABOARD_BACKEND_REPLICAS`, and twice that during a deploy, when the old and new backends run side by side. Add your other clients (backups, dashboards, admins).
 
+## Database password
+The database is created with `QABOARD_DB_PASSWORD` from `.env` (default: `password`), and the backend and the backups connect with it. It's only used when the database is created: to change the password of an existing database,
+1. Change it in PostgreSQL: `deployments/deploy.py <env file> compose exec db psql -U qaboard -c "ALTER USER qaboard PASSWORD '<new password>'"` (connections from inside the container don't need the password).
+2. Set `QABOARD_DB_PASSWORD=<new password>` in `.env`, and deploy: `deployments/deploy.py <env file> up`. The backend replicas connect with the new password; the backups too.
+3. Update the other clients: dashboards (e.g. Metabase), `QABOARD_SEED_SOURCE` of a staging environment, `services/pgadmin/passfile`.
+
 ## Host maintenance
 Before upgrading the host (CPU, memory, storage, OS...):
 1. Pause your automatic deploys, if you have some.
@@ -137,7 +143,8 @@ Before upgrading the host (CPU, memory, storage, OS...):
    docker compose --env-file deployments/mysite/production.env stop
    # the backup needs the database
    docker compose --env-file deployments/mysite/production.env up -d db
-   docker compose --env-file deployments/mysite/production.env run --rm cron-backup-db /etc/periodic/daily/backup before-upgrade.dump
+   # with deploy.py: it passes the database password from .env
+   deployments/deploy.py deployments/mysite/production.env compose run --rm cron-backup-db /etc/periodic/daily/backup before-upgrade.dump
    ```
 4. After the maintenance, start everything:
    ```bash

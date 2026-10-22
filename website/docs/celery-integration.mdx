@@ -8,7 +8,7 @@ sidebar_label: Celery Integration
 
 
 ## Starting Celery workers
-1. To manage the task queue we'll need what they call a *broker*. The QA-Board server already starts one on port `5672`. If you want to start another one, it's easy:
+1. To manage the task queue we'll need what they call a *broker*. The QA-Board server already starts one on port `5672`, only reachable from the server's host by default: for workers or `qa` on other hosts, the server's admins publish it and set its user and password (see [Passwords and admin services](/docs/deploy#passwords-and-admin-services)), then use `pyamqp://<user>:<password>@<qaboard-host>:5672//` below. Anyone who can connect to the broker can run commands on the workers. If you want to start another one, it's easy:
 
 ```bash
 docker run --detach -p 5672:5672 rabbitmq
