@@ -128,7 +128,9 @@ export function useRefreshCommit() {
 // They don't need to be declared.
 export const aggregation_metrics = (qatools_metrics, { dashboard = false } = {}) => {
   const { available_metrics = {}, default_metric, main_metrics = [], dashboard_metrics } = qatools_metrics ?? {};
-  const keys = dashboard ? (dashboard_metrics ?? main_metrics) : [default_metric, ...main_metrics];
+  // lists, see normalize_metrics: but the cache may have metrics files from before it
+  const main = Array.isArray(main_metrics) ? main_metrics : [];
+  const keys = dashboard ? (Array.isArray(dashboard_metrics) ? dashboard_metrics : main) : [default_metric, ...main];
   return Object.fromEntries(keys
     .filter(m => !!m)
     .map(m => [m, available_metrics[m]?.target ?? 0]));

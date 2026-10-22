@@ -163,6 +163,12 @@ Click **New schedule**, choose the job and its settings, and when it runs with a
 (`minute hour day-of-month month day-of-week`, e.g. `0 2 * * *` every night at 2:00) in a time zone. The form shows the
 next runs. A schedule's run is skipped, with a message, while a job of the same kind is still running.
 
+When a scheduled job fails, ends with errors, or is given up because its workers kept dying, QA-Board emails the admins
+what went wrong, its first errors and a link to the job (it needs [emails](/docs/deploy#emails)). Send them to others with
+the setting `jobs.failure_email_to` (user names or emails, `QABOARD_JOBS_FAILURE_EMAIL_TO`), or turn them off with
+`jobs.failure_emails` (`QABOARD_JOBS_FAILURE_EMAILS=false`). The jobs you start yourself aren't emailed. With
+[Sentry](/docs/backend-admin/monitoring#jobs-worker), every job that goes wrong is reported there too.
+
 For example, to replace the cron job of the [server's setup](/docs/deploy#optional-cleanup):
 - *Old results*: **Delete old results** of `*`, by default older than `1month`, every Saturday at 1:59.
 - *Nightly purge*: **Hard-delete runs** of `*`, **Both**, created before `1month`, every night.

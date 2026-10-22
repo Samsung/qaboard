@@ -19,7 +19,7 @@ from sqlalchemy import update, text
 
 from ..database import db_session, engine
 from ..models import Job, JobWorker, JobSchedule
-from . import queue
+from . import queue, alerts
 from .report import utcnow
 
 
@@ -82,6 +82,7 @@ class Worker:
         self.heartbeat()
       except Exception as e:
         print(f"[worker {self.id}] WARNING: heartbeat failed: {e}", flush=True)
+        alerts.capture_exception(e)
 
   def defaults(self):
     """What every server needs: the storage usage, rebuilt nightly, and users' groups. Admins can change or disable the schedules."""
@@ -127,9 +128,10 @@ class Worker:
     if storage_usage_auto():
       try:
         self.refresh_usage()
-      except Exception:
+      except Exception as e:
         db_session.rollback()
         print(f"[worker {self.id}] WARNING: could not update the storage usage: {traceback.format_exc()}", flush=True)
+        alerts.capture_exception(e)
 
   def run_next(self, lane: str) -> bool:
     """The next job of the lane, if there's one. Returns whether a job ran."""
@@ -160,9 +162,10 @@ class Worker:
     while not self.stopping():
       try:
         ran = self.tick(lanes)
-      except Exception:
+      except Exception as e:
         # e.g. the database restarts: we try again
         print(f"[worker {self.id}] ERROR: {traceback.format_exc()}", flush=True)
+        alerts.capture_exception(e)
         db_session.remove()
         ran = False
       if once and not ran:
@@ -181,9 +184,10 @@ class Worker:
     beats.start()
     try:
       self.defaults()
-    except Exception:
+    except Exception as e:
       db_session.rollback()
       print(f"[worker {self.id}] WARNING: {traceback.format_exc()}", flush=True)
+      alerts.capture_exception(e)
     print(f"[worker {self.id}] waiting for jobs", flush=True)
     try:
       if once:

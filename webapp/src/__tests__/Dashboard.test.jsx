@@ -74,6 +74,23 @@ describe('Dashboard', () => {
     expect(await screen.findByText('Metrics per input tag')).toBeInTheDocument();
   });
 
+  it("doesn't crash on lists of metrics that are not lists in the metrics file", async () => {
+    const commit = { id: 'abcdef12', branch: 'master', message: 'm', authored_datetime: '2026-10-01T10:00:00Z', batches: {} };
+    const qatools_metrics = { available_metrics: { psnr: {} }, dashboard_metrics: { psnr: null }, dashboard_evolution_metrics: 'psnr', main_metrics: ['psnr'] };
+    vi.stubGlobal('fetch', server(() => json([commit]), qatools_metrics));
+    renderPage(`/${project}/history/master`);
+    expect(await screen.findByText('Metrics per test')).toBeInTheDocument();
+  });
+
+  it("doesn't crash when the branch's latest commit has such a metrics file", async () => {
+    // On branches, the History uses the metrics file of the latest commit: the tables used to crash with "metrics.join is not a function"
+    const qatools_metrics = { available_metrics: { psnr: {} }, dashboard_metrics: { psnr: null }, main_metrics: ['psnr'] };
+    const commit = { id: 'abcdef12', branch: 'master', message: 'm', authored_datetime: '2026-10-01T10:00:00Z', batches: {}, data: { qatools_metrics } };
+    vi.stubGlobal('fetch', server(() => json([commit]), { available_metrics: { psnr: {} }, main_metrics: ['psnr'] }));
+    renderPage(`/${project}/history/master`);
+    expect(await screen.findByText('Metrics per test')).toBeInTheDocument();
+  });
+
   it('shows no breakdown by tag by default', async () => {
     const commit = { id: 'abcdef12', branch: 'master', message: 'm', authored_datetime: '2026-10-01T10:00:00Z', batches: {} };
     vi.stubGlobal('fetch', server(() => json([commit]), { available_metrics: {} }));

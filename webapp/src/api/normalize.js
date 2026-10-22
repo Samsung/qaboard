@@ -4,16 +4,24 @@ import { metrics_fill_defaults, merge_metrics_definitions } from "../utils";
 import { default_project } from "../defaults";
 
 
+// Lists of metric names in a metrics file. Dotted keys hide definitions, e.g. YAML anchors.
+const metric_names = list => list.filter(m => typeof m === 'string' && !m.startsWith('.'));
+// Optional lists: what isn't a list (e.g. `dashboard_metrics: psnr`, or a mapping) is as if it wasn't there
+const optional_lists = ['summary_metrics', 'dashboard_metrics', 'dashboard_evolution_metrics'];
+
 // The metrics file's definitions, with those declared in code (`definitions`). main_metrics can list metrics
 // that were not declared: components show them with neutral definitions (metric_info in utils.js).
 export const normalize_metrics = (qatools_metrics, definitions) => {
   const merged = merge_metrics_definitions(qatools_metrics, definitions);
   if (!merged) return merged;
+  const lists = Object.fromEntries(optional_lists
+    .filter(key => merged[key] !== undefined)
+    .map(key => [key, Array.isArray(merged[key]) ? metric_names(merged[key]) : undefined]));
   return {
     ...merged,
     available_metrics: metrics_fill_defaults(merged.available_metrics),
-    // dotted keys hide definitions, e.g. YAML anchors
-    main_metrics: Array.isArray(merged.main_metrics) ? merged.main_metrics.filter(m => typeof m === 'string' && !m.startsWith('.')) : [],
+    main_metrics: Array.isArray(merged.main_metrics) ? metric_names(merged.main_metrics) : [],
+    ...lists,
   };
 };
 

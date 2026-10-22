@@ -83,8 +83,9 @@ const App = ({ persist = true }) => {
   return <Provider {...providerProps}>
     <ThemeSync/>
     <PrefsSync/>
+    {/* outside the error boundary: pages that fail before we know the site's configuration are still reported */}
+    <Analytics/>
     <ErrorBoundary fallback={props => <Fallback {...props}/>}>
-      <Analytics/>
       <StyleSheetManager shouldForwardProp={shouldForwardProp}>
         <ReleaseNotesProvider>
           <HelpSheetProvider>

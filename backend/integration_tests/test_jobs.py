@@ -447,6 +447,134 @@ def test_crashes_are_reported(admin, monkeypatch):
   assert done["log"][-2]["message"] == 'The job crashed: RuntimeError: boom'
 
 
+@pytest.fixture
+def alerts(monkeypatch):
+  """What the jobs tell Sentry and send by email"""
+  from backend.jobs import alerts
+  sent = {"sentry": [], "emails": []}
+  monkeypatch.setattr(alerts, 'report_to_sentry', lambda job, status, error=None, message=None, schedule=None: sent["sentry"].append((job.kind, status, error, message)))
+  monkeypatch.setattr('backend.notifications.mail.send_email', lambda to, subject, html, text, headers=None, settings=None: sent["emails"].append({"to": to, "subject": subject, "text": text}))
+  monkeypatch.setenv('QABOARD_SMTP_HOST', 'smtp.example.com')
+  monkeypatch.setenv('QABOARD_EMAIL_DOMAIN', 'example.com')
+  return sent
+
+
+def scheduled(kind='hard_delete', name='nightly purge'):
+  from backend.database import db_session
+  from backend.models import JobSchedule
+  from backend.jobs import queue
+  schedule = queue.save_schedule(JobSchedule(), {"name": name, "kind": kind, "cron": "0 2 * * *", "params": {}})
+  job = queue.run_schedule(schedule)
+  db_session.commit()
+  return job.id
+
+
+def test_scheduled_jobs_that_crash_are_reported(admin, alerts, monkeypatch):
+  from backend.jobs import hard_delete
+  def crash(params, report):
+    raise RuntimeError("boom")
+  monkeypatch.setattr(hard_delete, 'run', crash)
+  job_id = scheduled()
+  run_jobs()
+  assert job(admin, job_id)["status"] == 'failed'
+  [(kind, status, error, _)] = alerts["sentry"]
+  assert (kind, status, str(error)) == ('hard_delete', 'failed', 'boom')
+  # `root` is the admin
+  [email] = alerts["emails"]
+  assert email["to"] == 'root@example.com'
+  assert email["subject"] == '[QA-Board] Scheduled job failed: nightly purge'
+  assert 'RuntimeError: boom' in email["text"] and f'/admin/storage/jobs/{job_id}' in email["text"]
+
+
+def test_scheduled_jobs_that_catch_errors_are_reported(admin, alerts, monkeypatch):
+  from backend.jobs import hard_delete
+  def errors(params, report):
+    report.error('permission', "Permission denied: /somewhere", path='/somewhere', owner='alice')
+  monkeypatch.setattr(hard_delete, 'run', errors)
+  monkeypatch.setenv('QABOARD_JOBS_FAILURE_EMAIL_TO', 'ops@example.com, bob')
+  job_id = scheduled()
+  run_jobs()
+  assert job(admin, job_id)["status"] == 'done_with_errors'
+  assert [(kind, status) for kind, status, *_ in alerts["sentry"]] == [('hard_delete', 'done_with_errors')]
+  [email] = alerts["emails"]
+  assert email["to"] == 'ops@example.com, bob@example.com'
+  assert email["subject"] == '[QA-Board] Scheduled job ended with 1 errors: nightly purge'
+  assert '- [permission] (alice) Permission denied: /somewhere' in email["text"]
+
+
+def test_only_scheduled_jobs_are_emailed(admin, alerts, monkeypatch):
+  from backend.jobs import hard_delete
+  def crash(params, report):
+    raise RuntimeError("boom")
+  monkeypatch.setattr(hard_delete, 'run', crash)
+  start(admin)
+  run_jobs()
+  assert len(alerts["sentry"]) == 1 and alerts["emails"] == []
+  # and admins can turn the emails off
+  monkeypatch.setenv('QABOARD_JOBS_FAILURE_EMAILS', 'false')
+  scheduled()
+  run_jobs()
+  assert len(alerts["sentry"]) == 2 and alerts["emails"] == []
+
+
+def test_jobs_that_succeed_are_not_reported(admin, alerts, monkeypatch):
+  from backend.jobs import hard_delete
+  monkeypatch.setattr(hard_delete, 'run', lambda params, report: None)
+  scheduled()
+  run_jobs()
+  assert alerts == {"sentry": [], "emails": []}
+
+
+def test_jobs_given_up_are_reported(admin, alerts):
+  from backend.database import db_session
+  from backend.models import Job
+  from backend.jobs import queue
+  job_id = scheduled()
+  stuck = db_session.get(Job, job_id)
+  stuck.status, stuck.worker, stuck.heartbeat_at, stuck.attempts = 'running', 'gone:1', now() - datetime.timedelta(hours=1), queue.MAX_ATTEMPTS
+  db_session.commit()
+  queue.requeue_stale()
+  assert [(kind, status) for kind, status, *_ in alerts["sentry"]] == [('hard_delete', 'failed')]
+  assert 'giving up' in alerts["emails"][0]["text"]
+
+
+def test_email_content():
+  from types import SimpleNamespace
+  from backend.jobs.alerts import email_content
+  job = SimpleNamespace(id=3, kind='hard_delete', schedule_id=None, progress=None)
+  content = email_content(job, 'failed', error_summary='<boom>')
+  assert content["subject"] == '[QA-Board] Scheduled job failed: Hard-delete runs'
+  assert '&lt;boom&gt;' in content["html"] and '<boom>' in content["text"]
+
+
+def test_sentry_events(monkeypatch):
+  """What Sentry gets: jobs' errors are tagged with their kind, those they caught are grouped by kind"""
+  from types import SimpleNamespace
+  import sentry_sdk
+  from backend.jobs import alerts
+  events = []
+  sentry_sdk.init(dsn='https://key@sentry.example.com/1', transport=lambda event: events.append(event), default_integrations=False)
+  try:
+    job = SimpleNamespace(id=3, kind='hard_delete', schedule_id=1, worker='w', attempts=1, params={}, progress={"errors": {"permission": 2}})
+    alerts.report_to_sentry(job, 'done_with_errors')
+    try:
+      raise RuntimeError("boom")
+    except RuntimeError as e:
+      alerts.report_to_sentry(job, 'failed', error=e)
+    # the worker's retries are reported once
+    alerts.capture_exception(ConnectionError("database down"))
+    alerts.capture_exception(ConnectionError("database down"))
+    sentry_sdk.flush()
+  finally:
+    sentry_sdk.get_client().close()
+  sentry_sdk.init()
+  caught, crashed, worker = [e if isinstance(e, dict) else e.get_event() for e in events]
+  assert caught["fingerprint"] == ['qaboard-job', 'hard_delete', 'done_with_errors'] and caught["level"] == 'warning'
+  assert caught["tags"]["job.kind"] == 'hard_delete' and caught["contexts"]["job"]["progress"] == {"errors": {"permission": 2}}
+  assert crashed["exception"]["values"][-1]["value"] == 'boom' and crashed["tags"]["job.status"] == 'failed'
+  assert worker["exception"]["values"][-1]["type"] == 'ConnectionError'
+
+
 def test_workers_say_they_are_alive(admin):
   from backend.jobs.worker import Worker
   worker = Worker(echo=False)
