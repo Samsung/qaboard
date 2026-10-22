@@ -321,7 +321,7 @@ def is_plaintext(path, config=None):
   if not plaintext_patterns and binary_patterns:
     return not any(fnmatch(path.name, p) for p in binary_patterns)
   click.secho('ERROR: Cannot define both bit_accuracy.binary and bit_accuracy.plaintext in qaboard.yaml', fg='red')
-  exit(1)
+  sys.exit(1)
 
 
 def file_info(path, normalize_eof=True, config=None, compute_hashes=True, has_footer=False):
@@ -466,11 +466,11 @@ def total_storage(manifest):
 def load_tuning_search(tuning_search: str, tuning_search_file: Path) -> Tuple[Dict, str]:
   if tuning_search and tuning_search_file:
     click.secho('Error: specify only one of --tuning-search or --tuning-search-file', fg='red', err=True)
-    exit(1)
+    sys.exit(1)
   if tuning_search_file:
     if not tuning_search_file.exists():
       click.secho('Error: could not find the file specified by --tuning-search-file', fg='red', err=True)
-      exit(1)
+      sys.exit(1)
     with tuning_search_file.open('r') as f:
       tuning_search = f.read()
     suffix = tuning_search_file.suffix

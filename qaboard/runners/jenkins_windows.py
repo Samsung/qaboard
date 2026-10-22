@@ -40,6 +40,7 @@ net use \\mars\raid
 """
 import math
 import os
+import sys
 import re
 import time
 from typing import List, Dict, Any, Optional, Tuple
@@ -169,7 +170,7 @@ def trigger_run(task: str) -> Dict:
         secho(str(r.headers), fg='red', dim=True)
         secho(r.text, fg='red')
         secho(f"[ERROR] Could not start the Jenkins job running on Windows {task}", fg='red', bold=True)
-        exit(1)
+        sys.exit(1)
     job_url = f"{r.json()['web_url']}console" if 'web_url' in r.json() else r.json()['url']
     secho(f"[TRIGGER] A Jenkins job is now running on Windows. To check the status (and possible errors!):", fg='blue', bold=True)
     secho(f"          {job_url}", fg='blue')
@@ -223,7 +224,7 @@ def build_status(build_info):
       secho(str(r.headers), fg='red', dim=True)
       secho(r.text, fg='red')
       secho("[ERROR] The Jenkins job failed", fg='red', bold=True)
-      exit(1)
+      sys.exit(1)
   return r.json()['status']
 
 

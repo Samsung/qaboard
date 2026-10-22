@@ -66,7 +66,7 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
   # it should be located at the root of the git repository
   if config_has_error and not ignore_config_errors:
     click.secho('Please fix the error(s) above in qaboard.yaml', fg='red', err=True, bold=True)
-    exit(1)
+    sys.exit(1)
 
   will_show_help = '-h' in sys.argv or '--help' in sys.argv
   noop_command = 'init' in sys.argv
@@ -183,7 +183,7 @@ def get(ctx, input_path, output_path, variable):
     print(variables[variable])
   else:
     click.secho(f"Could not find {variable}", err=True, fg='red')
-    exit(1)
+    sys.exit(1)
 
 
 
@@ -286,7 +286,7 @@ def run(ctx, input_path, output_path, keep_previous, no_postprocess, forwarded_a
         click.secho(str(metrics), fg='green')
       exit_if_results_refused()
       if metrics['is_failed']:
-        exit(1)
+        sys.exit(1)
 
 
 def postprocess_(runtime_metrics, run_context, skip=False, save_manifests_in_database=False):
@@ -501,7 +501,7 @@ def wait(ctx, output_id):
     else:
       click.secho("...waiting")
     time.sleep(5)
-  exit(0 if not output["is_failed"] else 1)
+  sys.exit(0 if not output["is_failed"] else 1)
 
 
 lsf_config = config['lsf'] if 'lsf' in config else config.get('runners', {}).get('lsf', {})
@@ -592,7 +592,7 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
   if not batches and not runs_file:
     click.secho(f'ERROR: you must provide a batch', fg='red', err=True, bold=True)
     click.secho(f'Use either `qa batch BATCH`, `qa batch BATCH_1 BATCH_2` or `qa batch --batch BATCH_2 --batch BATCH_2`', fg='red', err=True)
-    exit(1)
+    sys.exit(1)
 
   runs = load_runs_file(runs_file) if runs_file else None
   # How the runs were started. Some options are for the whole batch, e.g. the concurrency
@@ -612,7 +612,7 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
     print_auth_error(e.response, "QA-Board refused to read the batch's runs")
     if action_on_existing != 'run':
       click.secho(f"ERROR: --action-on-existing={action_on_existing} needs the batch's runs, else all the runs would be done again.", fg='red', bold=True, err=True)
-      exit(1)
+      sys.exit(1)
     click.secho("         qa batch can't see which runs are pending: it may start them again.", fg='yellow', err=True)
   log = batch_log(ctx)
   command_id = os.environ.get('QA_BATCH_COMMAND_ID', log['command_id'] if log else str(uuid.uuid4())) # unique IDs for triggered runs makes it easier to wait/cancel them 
@@ -820,7 +820,7 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
         if not matching_existing_output:
           click.secho("ERROR: At least 1 run cannot be found in QA-Board's past runs'", err=True, fg="red")
           click.secho(f"       {run_context}", err=True, fg="red")
-          exit(1)
+          sys.exit(1)
         run_context.output_dir = RunContext.from_api_output(matching_existing_output).output_dir
 
       if list_output_dirs:
@@ -911,7 +911,7 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
         total_runs += 1
         if total_runs > 1_000 and not os.environ.get("QA_BATCH_ALLOW_MANY_RUNS"):
           raise ValueError("Sorry you are sending too many runs at once. Consider using --offline or get an approval.")
-          exit(1)
+          sys.exit(1)
         # TODO: accumulate and send all at once to avoid 100s of requests?
         db_output = notify_qa_database(**{
           **ctx.obj,
@@ -973,7 +973,7 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
       del os.environ['QA_BATCH'] # restore verbosity
       if should_notify_qa_database:
         print_url(ctx, status="failure")
-      exit(1)
+      sys.exit(1)
     else:
       if should_notify_qa_database:
         print_url(ctx)
@@ -1023,7 +1023,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
       click.secho(
           "You are not in a git repository, maybe in an artifacts folder. `save_artifacts` is unavailable.",
           fg='yellow', dim=True)
-      exit(1)
+      sys.exit(1)
 
   for artifact_name, artifact_config in artifacts.items():
     click.secho(f'Saving artifacts: {artifact_name}', bold=True)
@@ -1035,7 +1035,7 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
       click.secho(f"We could not create one the folders required to save the artifacts..", fg='red', dim=True)
       click.secho(f"The disk could be full, or just the quota for the current user...", fg='red', dim=True)
       click.secho(f"> Contact Alg-Infra@transchip.com", fg='blue')
-      exit(1)
+      sys.exit(1)
     if manifest_path.exists():
       with manifest_path.open() as f:
         try:

@@ -1,3 +1,4 @@
+import sys
 import json
 import copy
 from pathlib import Path
@@ -124,7 +125,7 @@ class RunContext():
         input_path_absolute = (database / input_path).resolve()
         if not input_path_absolute.exists():
             click.secho(f"[ERROR] {input_path_absolute} cannot be found", fg='red')
-            exit(1)
+            sys.exit(1)
 
         if not ctx.params.get('output_path'):
             assert input_path_absolute.relative_to(database)

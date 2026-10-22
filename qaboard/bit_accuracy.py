@@ -3,6 +3,7 @@
 Bit-accuracy test between 2 results folders
 """
 import os
+import sys
 import json
 import filecmp
 import fnmatch
@@ -368,7 +369,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
       if run_context.input_path.is_file():
         click.secho('ERROR: check_bit_accuracy_manifest only works for inputs that are folders', fg='red', err=True)
         # otherwise the manifest is at input_path.parent/manifest.json in the database and input_path.stem/manifest.json in the results
-        exit(1)
+        sys.exit(1)
 
       batch_conf_dir = make_batch_conf_dir(Path(), ctx.obj['batch_label'], ctx.obj["platform"], run_context.configurations, ctx.obj['extra_parameters'], ctx.obj['share'])
       output_dir_suffix = output_dirs_for_input_part(run_context.rel_input_path, run_context.database, config)
@@ -403,7 +404,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
 
     if missing_runs:
       click.secho(f"ERROR: {missing_runs} runs are missing!", bg='red', underline=True, bold=True)
-      exit(1)
+      sys.exit(1)
     if not all_bit_accurate:
       click.secho("\nError: you are not bit-accurate versus the manifest.", bg='red', underline=True, bold=True)
       click.secho("Reminder: the manifest lists the expected inputs/outputs for each test. It acts as an explicit gatekeeper against changes", fg='red', dim=True)
@@ -416,7 +417,7 @@ def check_bit_accuracy_manifest(ctx, batches, batches_files, strict):
       else:
         click.secho("To update the manifests for all tests, run:", fg='red')
         click.secho("$ qa batch --save-manifests --batch *", fg='red')
-      exit(1)
+      sys.exit(1)
 
     if not nb_compared:
       click.secho("\nWARNING: Nothing was compared! It's not likely to be what you expected...", fg='yellow', underline=True, bold=True)
@@ -454,7 +455,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
 
     if not is_in_git_repo:
       click.secho("You are not in a git repository, maybe in an artifacts folder. `check_bit_accuracy` is unavailable.", fg='yellow', dim=True)
-      exit(1)
+      sys.exit(1)
 
 
     if is_ci and commit_branch == reference:
@@ -492,7 +493,7 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
         if not run_path.exists():
           secho(f"ERROR: Corrupted output directory. Missing 'run.json' file", fg="red", bold=True)
           secho(f"       We expected one in {run_path.parent}", fg="red")
-          exit(1)
+          sys.exit(1)
         run_info = json.loads(run_path.read_text())
         ba_contexts.append({
           "rel_input_path": run_info["input_path"],
@@ -572,4 +573,4 @@ def check_bit_accuracy(ctx, reference, batches, batches_files, strict, reference
           if batches:
             url = f"{url}&batch={batches[0]}"
           click.secho(url, fg='red')
-      exit(1)
+      sys.exit(1)

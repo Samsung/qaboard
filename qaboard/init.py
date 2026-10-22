@@ -4,6 +4,7 @@ Initialize a QA-Board project
 qa init
 ```
 """
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 import subprocess
@@ -91,7 +92,7 @@ def qa_init(ctx):
     click.secho(f'You already have a qaboard.yaml configuration:', fg='green', bold=True, err=True)
     for p in config_paths:
       click.secho(str(p), fg='green')
-    exit(0)
+    sys.exit(0)
 
   # Locate the sample project's configuration
   qatools_dir = Path(__file__).resolve().parent
@@ -120,7 +121,7 @@ def qa_init(ctx):
     subprocess.run("git rev-parse --is-inside-work-tree", shell=True, stdout=subprocess.PIPE, check=True)
   except Exception:
     click.secho('Warning: Could not find a git repository', fg='yellow')
-    exit(0)
+    sys.exit(0)
 
 
   try:
