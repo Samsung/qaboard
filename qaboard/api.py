@@ -228,8 +228,8 @@ def notify_qa_database(object_type='output', **kwargs):
 
   try:
     import simplejson
-    data = simplejson.dumps(data, ignore_nan=True, cls=makeNumpyEncoder())
-    r = requests.post(url, data=data, headers=headers, verify=api_verify, timeout=api_timeout)
+    payload = simplejson.dumps(data, ignore_nan=True, cls=makeNumpyEncoder())
+    r = requests.post(url, data=payload, headers=headers, verify=api_verify, timeout=api_timeout)
     if 'QA_VERBOSE' in os.environ:
       click.secho(r.text, fg='cyan', dim=True, err=True)
     print_server_warning(r)
@@ -243,10 +243,8 @@ def notify_qa_database(object_type='output', **kwargs):
   except Exception as e:
     click.secho(f'WARNING: [{e}] Failed to update QA-Board.', fg='yellow', bold=True, err=True)
     click.secho(url, fg='yellow', err=True)
-    data = json.loads(data)
-    for k in ['qaboard_config', 'qaboard_metrics', 'inputs_settings']:
-      if k in data:
-        del data[k]
+    # what we sent (or failed to serialize), without the big fields
+    data = {k: v for k, v in data.items() if k not in ['qaboard_config', 'qaboard_metrics', 'inputs_settings']}
     click.secho(str(data), fg='yellow', err=True)
     try:
       request_headers = {k: '<redacted>' if k.lower() == 'authorization' else v for k, v in r.request.headers.items()}
