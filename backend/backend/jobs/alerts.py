@@ -11,10 +11,14 @@ Alerts never get in the way of the jobs: what goes wrong while sending them is o
 """
 import html
 import time
+import datetime
 import traceback
+from types import SimpleNamespace
 from typing import Optional
 
 
+# a schedule that keeps failing, e.g. every 5 minutes, sends one email per EMAIL_EVERY
+EMAIL_EVERY = datetime.timedelta(hours=6)
 # the worker retries every few seconds: e.g. while the database restarts, one event per error and quarter of an hour is enough
 THROTTLE_SECONDS = 900
 _reported_at = {}
@@ -85,15 +89,22 @@ def recipients() -> list:
   from ..settings import setting
   from ..notifications.mail import recipient_for, email_settings
   settings = email_settings()
+  from ..models import User
+  candidates = []  # (user name, email)
   names = setting('jobs.failure_email_to') or []
   if not names:
-    from ..admins import env_admins
-    from ..models import User
-    admins = User.query.filter(User.is_admin.is_(True), User.status == 'active').all()
-    names = [*env_admins(), *(u.email or u.user_name for u in admins)]
-  found = []
+    from ..admins import is_admin
+    # the admins of $QABOARD_ADMINS have an account once they signed in
+    candidates = [(u.user_name, u.email) for u in User.query.filter(User.status == 'active').all() if is_admin(u)]
   for name in names:
-    recipient = recipient_for(None, name, settings) if '@' in name else recipient_for(name, None, settings)
+    candidates.append((None, name) if '@' in name else (name, None))
+  found = []
+  for user_name, email in candidates:
+    if user_name and email is None:
+      user = User.query.filter(User.user_name == user_name).one_or_none()
+      if user is not None and user.status != 'active':
+        continue
+    recipient = recipient_for(user_name, email, settings)
     if recipient and recipient.lower() not in {f.lower() for f in found}:
       found.append(recipient)
   return found
@@ -104,7 +115,8 @@ def email_content(job, status: str, schedule=None, error_summary: Optional[str] 
   from ..config import qaboard_url
   from . import kinds
   label = kinds.LABELS.get(job.kind, job.kind)
-  name = schedule.name if schedule is not None else label
+  # a newline in the subject would make the email invalid
+  name = " ".join((schedule.name if schedule is not None else label).split())
   what = {
     'failed': "failed",
     'done_with_errors': f"ended with {sum(((job.progress or {}).get('errors') or {}).values())} errors",
@@ -136,11 +148,20 @@ def email_content(job, status: str, schedule=None, error_summary: Optional[str] 
 def email_admins(job, status: str, schedule=None, error_summary: Optional[str] = None):
   from ..settings import setting
   from ..notifications.mail import email_settings, send_email
-  from ..models import JobError
-  if job.schedule_id is None or not setting('jobs.failure_emails'):
+  from ..models import Job, JobError
+  from .report import utcnow
+  # admins who start a schedule's job ("Run now") watch it
+  if job.schedule_id is None or job.created_by_id is not None or not setting('jobs.failure_emails'):
     return
   settings = email_settings()
   if not settings.enabled:
+    return
+  emailed_recently = (Job.query
+    .filter(Job.schedule_id == job.schedule_id, Job.id != job.id, Job.created_by_id.is_(None),
+            Job.status.in_(('failed', 'done_with_errors')), Job.finished_at > utcnow() - EMAIL_EVERY)
+    .first())
+  if emailed_recently:
+    print(f"Not emailing about job {job.id}: its schedule's job {emailed_recently.id} went wrong less than {EMAIL_EVERY} ago", flush=True)
     return
   to = recipients()
   if not to:
@@ -160,7 +181,16 @@ def job_went_wrong(job, status: str, error: Optional[BaseException] = None, mess
   from ..database import db_session
   from ..models import JobSchedule
   try:
+    # a rollback expires the job: we keep what we need
+    job = SimpleNamespace(**{key: getattr(job, key) for key in (
+      'id', 'kind', 'schedule_id', 'created_by_id', 'worker', 'attempts', 'params', 'progress')})
+  except Exception as e:
+    db_session.rollback()
+    print(f"WARNING: could not report a job that went wrong: {type(e).__name__}: {e}", flush=True)
+    return
+  try:
     schedule = db_session.get(JobSchedule, job.schedule_id) if job.schedule_id is not None else None
+    schedule = SimpleNamespace(name=schedule.name) if schedule is not None else None
   except Exception:
     db_session.rollback()
     schedule = None

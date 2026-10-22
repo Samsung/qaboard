@@ -46,7 +46,15 @@ export async function initSentry(config, routeName) {
     return;
   }
   sentry_initialized = true;
-  const client = await import('./sentry');
+  let client;
+  try {
+    client = await import('./sentry');
+  } catch (error) {
+    // e.g. a deploy replaced the bundle: errors stay in the console
+    console.warn('Could not load Sentry', error);
+    pending = null;
+    return;
+  }
   client.init(sentryOptions(config, routeName, client));
   sentry = client;
   pending?.forEach(([error, hint]) => client.captureException(error, hint));

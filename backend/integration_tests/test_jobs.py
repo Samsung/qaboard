@@ -517,6 +517,30 @@ def test_only_scheduled_jobs_are_emailed(admin, alerts, monkeypatch):
   assert len(alerts["sentry"]) == 2 and alerts["emails"] == []
 
 
+def test_failing_schedules_dont_flood_inboxes(admin, alerts, monkeypatch):
+  from backend.database import db_session
+  from backend.models import JobSchedule
+  from backend.jobs import hard_delete, queue
+  def crash(params, report):
+    raise RuntimeError("boom")
+  monkeypatch.setattr(hard_delete, 'run', crash)
+  job_id = scheduled(name='nightly\npurge')
+  run_jobs()
+  assert alerts["emails"][0]["subject"] == '[QA-Board] Scheduled job failed: nightly purge'
+  schedule = db_session.query(JobSchedule).one()
+  # it fails again soon after: Sentry knows, admins were already told
+  queue.run_schedule(schedule)
+  db_session.commit()
+  run_jobs()
+  assert len(alerts["sentry"]) == 2 and len(alerts["emails"]) == 1
+  # admins who click "Run now" see it fail
+  ran = admin.post(f'/api/v1/admin/job-schedules/{schedule.id}/run')
+  assert ran.status_code == 201
+  run_jobs()
+  assert len(alerts["sentry"]) == 3 and len(alerts["emails"]) == 1
+  assert job(admin, job_id)["status"] == 'failed'
+
+
 def test_jobs_that_succeed_are_not_reported(admin, alerts, monkeypatch):
   from backend.jobs import hard_delete
   monkeypatch.setattr(hard_delete, 'run', lambda params, report: None)
