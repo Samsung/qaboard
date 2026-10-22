@@ -332,7 +332,7 @@ const RunsTable = ({ filters, setFilters, group, item_key, now, live, show_batch
   return <div style={{ opacity: isFetching ? 0.8 : 1 }}>
     <div style={{ overflowX: 'auto' }}>
       <HTMLTable compact style={{ width: '100%' }} aria-label="Runs">
-        <thead><tr><th>Status</th><th>Input</th>{show_batch && <th>Batch</th>}{show_users && <th>By</th>}<th>Job</th><th>When</th><th/></tr></thead>
+        <thead><tr><th>Status</th><th>Input</th>{show_batch && <th>Batch</th>}{show_users && <th>By</th>}<th>Job</th><th>When</th><th aria-label="Actions"/></tr></thead>
         <tbody>
           {data.runs.map(run => {
             const results = commitUrl(run, { filter: run.input_path ?? '' });
@@ -411,12 +411,12 @@ const GroupsTable = ({ group, filters, setFilters, now, live, onFail, onStop }) 
       <HTMLTable compact style={{ width: '100%' }} aria-label={groups.find(g => g.id === group)?.label ?? group}>
         <thead>
           <tr>
-            <th style={{ width: 30 }}/>
+            <th style={{ width: 30 }} aria-label="Expand"/>
             <th>{groups.find(g => g.id === group)?.label.replace('…', '')}</th>
             <th>Runs</th>
             <th>Since</th>
             {show_users && <th>Run by</th>}
-            <th/>
+            <th aria-label="Actions"/>
           </tr>
         </thead>
         <tbody>
@@ -445,7 +445,7 @@ const GroupsTable = ({ group, filters, setFilters, now, live, onFail, onStop }) 
                 </td>
               </tr>,
               expanded && <tr key={`${key}-runs`}>
-                <td/>
+                <td aria-hidden/>
                 <td colSpan={columns}>
                   <RunsTable filters={filters} group={group} item_key={item.key} now={now} live={live} show_batch={group !== 'batch'} onFail={onFail}/>
                 </td>
@@ -640,7 +640,7 @@ export const Activity = ({ filters }) => {
         </label>
         {group === 'option' && <InputGroup leftIcon="properties" placeholder="Job option, e.g. project" aria-label="Job option" value={option}
           onChange={e => setOption(e.target.value)} list="activity-job-options" style={{ width: 200 }}/>}
-        <datalist id="activity-job-options">{common_options.map(o => <option key={o} value={o}/>)}</datalist>
+        <datalist id="activity-job-options">{common_options.map(o => <option key={o} value={o}>{o}</option>)}</datalist>
         <HTMLSelect aria-label="Status" options={status_options} value={filters.status} onChange={e => setFilters({ status: e.target.value, page: '' })}/>
         <InputGroup leftIcon="search" placeholder="Search projects, branches, batches, commits, users…" aria-label="Search" value={search} onChange={e => setSearch(e.target.value)} style={{ width: 300 }}/>
         {group !== 'runs' && <HTMLSelect aria-label="Sort" options={sort_options} value={filters.sort || 'active'} onChange={e => setFilters({ sort: e.target.value, page: '' })}/>}

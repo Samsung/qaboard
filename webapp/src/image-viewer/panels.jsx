@@ -557,6 +557,8 @@ export const AdjustmentsPanel = ({ adjustments, onChange }) => {
     </div>
     {ADJUSTMENT_SLIDERS.map(slider => {
       const changed = normalized[slider.name] !== DEFAULT_ADJUSTMENTS[slider.name];
+      // double-clicking is a shortcut: the Reset button does it with the keyboard
+      // oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
       return <label key={slider.name} className={`qiv-slider ${changed ? 'qiv-changed' : ''}`} onDoubleClick={() => set(slider.name, DEFAULT_ADJUSTMENTS[slider.name])} title="Double-click to reset">
         <span className="qiv-slider-label">{slider.label}</span>
         <input

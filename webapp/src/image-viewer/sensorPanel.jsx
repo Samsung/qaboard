@@ -85,12 +85,15 @@ export const useImageAnalysis = ({ controller, images, comparing, sizes, getPixe
       setState({ status: 'error', error: error?.message ?? String(error) });
     });
   });
+  // `key` says what to analyze
+  const ready = active && !!region && !!getPixels && !!images.a;
   useEffect(() => {
-    if (!active || !region || !getPixels || !images.a) return;
+    if (!ready) return;
     const abort = new AbortController();
+    // oxlint-disable-next-line react/set-state-in-effect -- it starts the analysis, which says how it goes
     run(abort.signal);
     return () => abort.abort();
-  }, [active, key, getPixels]);
+  }, [ready, key]);
   const guessAgain = () => {
     forgetGuess(images.a);
     if (images.b) forgetGuess(images.b);

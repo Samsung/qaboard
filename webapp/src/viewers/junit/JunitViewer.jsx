@@ -158,6 +158,7 @@ const Row = memo(function Row({ row, selected, words, has_reference, visible, on
 // The rows in view, and those just around: the list renders on its own when it scrolls
 function TreeList({ rows, selected_index, words, has_reference, visible, height, tree, onToggle, onSelect, onKeyDown }) {
   const scroll = useRef(null);
+  // oxlint-disable-next-line react/incompatible-library -- the compiler doesn't memoize this component: fine, it renders the rows in view
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scroll.current,

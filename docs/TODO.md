@@ -38,9 +38,6 @@ The shot list is `docs-media/shots.yaml`, how to capture is `docs-media/README.m
 - **Analysis view** (tuning): the frontier and plots only use the metrics selected in its tag picker; with another
   metric, the points are null and the plot is empty. (`webapp/src/components/tuning/`)
 - **Commits page**: `from=2026-09-17` showed 9/18 while `from=2026-09-10` showed 9/10: a time zone off-by-one?
-- **Image viewer**: `Init()` adds `add-item` and `tile-load-failed` handlers on every image change, so they pile up
-  (`webapp/src/viewers/images/images.jsx`). `OutputCard` logs React warnings (an unknown DOM prop, a non-boolean
-  attribute, missing list keys).
 - **Bit accuracy**: when both runs have a pixel hash (`md5_data`), the web app compares it instead of the file's md5,
   so it can call images identical when `qa check-bit-accuracy` wouldn't. Without manifests, the CLI matches
   `bit_accuracy.ignore` against file names rather than path prefixes.

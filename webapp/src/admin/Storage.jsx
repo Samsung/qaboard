@@ -151,6 +151,7 @@ const Schedules = () => {
                 {schedule.last_message && <div style={{ fontSize: 12 }} className={Classes.INTENT_WARNING}>{schedule.last_message}</div>}
               </td>
               <td><Switch checked={schedule.enabled} onChange={() => toggle(schedule)} aria-label={`Enable ${schedule.name}`} style={{ marginBottom: 0 }}/></td>
+              {/* oxlint-disable-next-line jsx-a11y/control-has-associated-label -- its buttons have their labels */}
               <td style={{ whiteSpace: 'nowrap' }}>
                 <ButtonGroup variant="minimal">
                   <Tooltip content="Run it now" hoverOpenDelay={300}><Button icon="play" aria-label={`Run ${schedule.name} now`} onClick={() => run(schedule)}/></Tooltip>

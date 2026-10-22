@@ -11,6 +11,10 @@
     "react/jsx-no-undef": "error",
     "react/rules-of-hooks": "error",
     "react/exhaustive-deps": "warn",
+    "no-unused-vars": "error",
+    "jsx-a11y/no-autofocus": "off",
+    "jsx-a11y/prefer-tag-over-role": "off",
+    "jsx-a11y/label-has-associated-control": ["warn", { "controlComponents": ["HTMLSelect"] }],
     "no-extra-boolean-cast": "off"
   },
   "overrides": [
