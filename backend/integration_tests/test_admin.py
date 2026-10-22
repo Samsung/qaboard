@@ -666,6 +666,8 @@ def test_overview(people, make_client):
   assert checklist["secret_key"]["ok"] is True
   assert checklist["legacy_tokens"]["ok"] is True
   assert checklist["local_signup"]["ok"] is True
+  # the test server has no QABOARD_WEBHOOK_SECRET
+  assert checklist["webhook_secret"]["ok"] is False and "QABOARD_WEBHOOK_SECRET" in checklist["webhook_secret"]["detail"]
 
 
 def test_overview_checklist_follows_settings(admin, monkeypatch):

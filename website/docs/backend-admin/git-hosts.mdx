@@ -92,7 +92,7 @@ Each repository should send its push events to QA-Board (see [Project setup](/do
 | Gitea, Forgejo | `/webhook/gitea` or `/webhook/forgejo` | *Secret* (`X-Gitea-Signature`, `X-Forgejo-Signature`) |
 | Bitbucket Cloud | `/webhook/bitbucket` | *Secret* (`X-Hub-Signature`) |
 
-Set a secret: without it, anyone who can reach the server can send fake push events. If any host has a secret (or `QABOARD_WEBHOOK_SECRET` is set), push events for hosts without one are refused: otherwise anyone could send a push event that claims its repository is on such a host, e.g. github.com. Other events (e.g. GitHub's `ping`) are answered with `200` and ignored.
+Set a secret: without it, anyone who can reach the server can send fake push events. The server then warns about it when it starts, and in **Admin → Overview**. If any host has a secret (or `QABOARD_WEBHOOK_SECRET` is set), push events for hosts without one are refused: otherwise anyone could send a push event that claims its repository is on such a host, e.g. github.com. Other events (e.g. GitHub's `ping`) are answered with `200` and ignored.
 
 | Status | Why |
 |--------|-----|
@@ -128,7 +128,7 @@ To show the avatars of commit authors quickly, the server learns about them from
 3. If a push event from the repository's host gave their username, their avatar there: `https://github.com/<login>.png` on github.com, `<url>/<login>.png` on GitHub Enterprise, `<url>/user/avatar/<username>/-1` on Gitea/Forgejo, or the host's `user_avatar_url`.
 4. Otherwise the [Gravatar](https://gravatar.com) of their email.
 
-The web app loads images from github.com, Bitbucket, Codeberg and the configured hosts that aren't GitLab directly. The others (GitLab avatars and badges, Gravatars, other hosts) go through the server's `/api/v1/git/proxy`. It only fetches images from the configured git hosts (and their `user_avatar_url`), the host of `QABOARD_AVATAR_URL`, Gravatar, GitHub avatars and [`QABOARD_PROXY_HOSTS`](/docs/deploy#optional-environment-variables). It can reach hosts users can't, and can log into GitLab with `GITLAB_AUTH` (`{"hostname": {"user": "...", "password": "...", "type": "ldap_user"}}`) to see private avatars and badges.
+The web app loads images from github.com, Bitbucket, Codeberg and the configured hosts that aren't GitLab directly. The others (GitLab avatars and badges, Gravatars, other hosts) go through the server's `/api/v1/git/proxy`. It only fetches images from the configured git hosts (and their `user_avatar_url`), the host of `QABOARD_AVATAR_URL`, Gravatar, GitHub avatars and [`QABOARD_PROXY_HOSTS`](/docs/deploy#optional-environment-variables). It can reach hosts users can't, and can log into GitLab with `GITLAB_AUTH` (`{"hostname": {"user": "...", "password": "...", "type": "ldap_user"}}`) to see private avatars and badges: it signs in the first time it needs to, and keeps the session cookie in `$QABOARD_DATA_DIR/gitlab_cookies.json`.
 
 ## The CLI
 `qa` also reads `QABOARD_GIT_HOSTS`, to set commit statuses and wait for the CI of reference commits (see [CI integration](/docs/ci-integration)). Like its other settings, it reads it, and the variables named by `token_env`, from its environment, the secrets files (`QA_SECRETS`, `~/.qaboard/secrets.yaml`) or your site package. It only uses `type` (`github` or `gitlab`: it doesn't talk to the API of other hosts), `url`, `api_url`, `token` or `token_env`, and `hostnames` (a list of lowercase hostnames).

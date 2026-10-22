@@ -626,6 +626,10 @@ def auth_ldap(user_name, password):
     "login_type": login_type,
     "login_success": False,
   }
+  # A bind with an empty password is an anonymous bind, that many LDAP servers accept
+  if not password:
+    user_info["error"] = "invalid-password"
+    return user_info
   ldap_connect = ldap_connection()
   # check if the user exists. Referrals come as entries without a DN.
   found = [entry for entry in ldap_connect.search_s(ldap_user_base, ldap.SCOPE_SUBTREE, ldap_search(user_name), ['distinguishedName']) if entry[0]]
@@ -751,9 +755,10 @@ def saml_auth():
         errors = auth.get_errors()
         if len(errors) == 0:
             if url is not None:
-                # TODO: To avoid 'Open Redirect' attacks, before execute the redirection confirm
-                # the value of the request.form['RelayState'] is a trusted URL.
+                # our answer to the IdP's logout request: to its SLO URL, from our SAML settings
                 return redirect(url)
+            # the IdP's answer to our logout
+            return redirect(safe_redirect_url(request.args.get('RelayState')))
 
     # Handle bad requests:
     # raise Exception(" ".join(errors))

@@ -32,6 +32,12 @@ runners:
 
 You can also use the `QA_RUNNERS_JENKINS_BUILD_URL` and `QA_RUNNERS_JENKINS_TOKEN` environment variables.
 
+The QA-Board server starts the builds with its Jenkins credentials. When `qa` has a token (`QABOARD_TOKEN`, or
+`qa auth login`), its user must be a developer of the project. Without a token, the server only starts the jobs
+listed in the project's *qaboard.yaml* (`runners.jenkins.build_url`, or a [Jenkins integration](/docs/triggering-third-party-tools#trigger-jenkins-builds)),
+and not at all when the server requires tokens to send results (`ingest.auth` set to `token`). So with
+`QA_RUNNERS_JENKINS_BUILD_URL` set to another job, use a token.
+
 :::caution
 The runner is named `windows`, while its configuration is under `runners.jenkins`. Set `runners.default` (e.g. to `local`): otherwise `qa batch` would try to use a runner named `jenkins`, which doesn't exist.
 :::

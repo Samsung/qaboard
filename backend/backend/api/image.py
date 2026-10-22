@@ -135,11 +135,18 @@ def decoded_image(image_path):
   if opened or (data_path.exists() and info_path.exists()):
     try:
       return _open_cached(hash, data_path, info_path)
-    except (FileNotFoundError, json.JSONDecodeError):
-      pass # removed meanwhile, or written by a process that died
+    except (FileNotFoundError, ValueError): # e.g. json.JSONDecodeError
+      pass # removed meanwhile, or broken: we check again with the lock
   with _image_lock(hash):
     if data_path.exists() and info_path.exists():
-      return _open_cached(hash, data_path, info_path)
+      try:
+        return _open_cached(hash, data_path, info_path)
+      except (FileNotFoundError, ValueError) as e: # e.g. a truncated file, after a full disk: we decode it again
+        print(f"WARNING: the cached values of {image_path} can't be read ({type(e).__name__}): decoding it again")
+        with _opened_lock:
+          _opened.pop(hash, None)
+        data_path.unlink(missing_ok=True)
+        info_path.unlink(missing_ok=True)
     print(f'MISS {image_path}')
     image, meta = read_image(image_path)
     image = np.asarray(image)
