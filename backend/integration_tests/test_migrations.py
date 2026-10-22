@@ -114,3 +114,23 @@ def test_runs_activity_columns_and_indexes(alembic, make_user):
   alembic('stamp', 'c1e3a5b7d9f2')
   alembic('upgrade', 'head')
   assert sql("SELECT indisvalid FROM pg_index WHERE indexrelid = 'ix_outputs_active'::regclass") == [(True,)]
+
+
+def test_redundant_commits_index_is_dropped(alembic):
+  def commits_indexes():
+    return {r[0] for r in sql("SELECT indexname FROM pg_indexes WHERE tablename = 'ci_commits'")}
+  alembic('downgrade', 'd2f4a6b8c0e1')
+  assert 'ix_ci_commits_project_id' in commits_indexes()
+  alembic('upgrade', 'head')
+  assert 'ix_ci_commits_project_id' not in commits_indexes()
+  assert 'ix_ci_commits_project_id_authored_datetime' in commits_indexes()
+  # we keep it while what replaces it isn't there
+  alembic('downgrade', 'd2f4a6b8c0e1')
+  sql("DROP INDEX ix_ci_commits_project_id_authored_datetime")
+  alembic('upgrade', 'head')
+  assert 'ix_ci_commits_project_id' in commits_indexes()
+  # once it's there (e.g. e7f3b2a91c40 again), the migration drops it
+  sql("CREATE INDEX ix_ci_commits_project_id_authored_datetime ON ci_commits (project_id, authored_datetime DESC)")
+  alembic('stamp', 'd2f4a6b8c0e1')
+  alembic('upgrade', 'head')
+  assert 'ix_ci_commits_project_id' not in commits_indexes()

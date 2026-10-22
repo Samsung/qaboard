@@ -39,7 +39,8 @@ class CiCommit(Base):
   __tablename__ = 'ci_commits'
   id = Column(Integer(), primary_key=True)
   hexsha = Column(String(), index=True, nullable=False)
-  project_id = Column(String(), ForeignKey('projects.id'), index=True)
+  # indexed by ix_ci_commits_project_id_authored_datetime below
+  project_id = Column(String(), ForeignKey('projects.id'))
 
   project = relationship("Project", back_populates="ci_commits")
 
