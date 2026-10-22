@@ -60,7 +60,8 @@ def test_overview(alice, world, storage):
   setup_runs(world, storage)
   answer = alice.get('/api/v1/storage/overview').get_json()
   assert answer["scope"] == 'me' and answer["me"] == 'alice' and answer["updated_at"]
-  assert answer["totals"] == {"bytes": 39 * GB, "runs": 6, "batches": 3, "commits": 2, "projects": 2}
+  # the deleted run's leftovers were never measured: it was deleted before QA-Board measured them
+  assert answer["totals"] == {"bytes": 39 * GB, "runs": 6, "batches": 3, "commits": 2, "projects": 2, "deleted": {"runs": 1, "bytes": 0, "unmeasured": 1}}
   assert [(p["project_id"], p["bytes"]) for p in answer["projects"]] == [('proj/a', 35 * GB), ('proj/b', 4 * GB)]
   assert answer["top_folders"][0]["bytes"] == 39 * GB or len(answer["top_folders"]) > 1
   everyone = alice.get('/api/v1/storage/overview?scope=all').get_json()

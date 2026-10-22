@@ -16,6 +16,7 @@ import { SignIn } from "./SignIn";
 import { AccessRequests } from "./AccessRequests";
 import { Storage } from "./Storage";
 import { JobDetail } from "./JobDetail";
+import { ScanExplorer } from "./ScanExplorer";
 import { accessRequestsQuery } from "./api";
 
 
@@ -32,7 +33,7 @@ const sections = [
 ];
 
 // The tabs, and the selected one. Users waiting for an admin are counted on their tab.
-const AdminSections = ({ me, selected, user_id, group_id, job_id, history }) => {
+const AdminSections = ({ me, selected, user_id, group_id, job_id, scan_id, history }) => {
   const { data: requests } = useQuery(accessRequestsQuery('pending', { background: true }));
   const nb_pending = requests?.length ?? 0;
   const { Panel } = selected;
@@ -54,7 +55,7 @@ const AdminSections = ({ me, selected, user_id, group_id, job_id, history }) => 
       </Tabs>
     </ScrollingTabs>
     <div style={{ marginTop: 20, minWidth: 0 }}>
-      {user_id ? <UserDetail id={user_id} me={me}/> : group_id ? <GroupDetail id={group_id}/> : job_id ? <JobDetail id={job_id}/> : <Panel me={me}/>}
+      {user_id ? <UserDetail id={user_id} me={me}/> : group_id ? <GroupDetail id={group_id}/> : job_id ? <JobDetail id={job_id}/> : scan_id ? <ScanExplorer id={scan_id}/> : <Panel me={me}/>}
     </div>
   </>;
 };
@@ -64,11 +65,12 @@ export const AdminPage = () => {
   const user_id = match.params?.user_id;
   const group_id = match.params?.group_id;
   const job_id = match.params?.job_id;
-  const section_id = user_id ? 'users' : group_id ? 'groups' : job_id ? 'storage' : match.params?.section;
+  const scan_id = match.params?.scan_id;
+  const section_id = user_id ? 'users' : group_id ? 'groups' : job_id || scan_id ? 'storage' : match.params?.section;
   const selected = sections.find(section => section.id === section_id) ?? sections[0];
   return <PageShell title="Admin" wide>
     <RequireLogin what="administer QA-Board">
-      {me => !me.is_admin ? <NotAdmin/> : <AdminSections me={me} selected={selected} user_id={user_id} group_id={group_id} job_id={job_id} history={history}/>}
+      {me => !me.is_admin ? <NotAdmin/> : <AdminSections me={me} selected={selected} user_id={user_id} group_id={group_id} job_id={job_id} scan_id={scan_id} history={history}/>}
     </RequireLogin>
   </PageShell>;
 };

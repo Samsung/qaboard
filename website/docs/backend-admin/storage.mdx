@@ -4,8 +4,8 @@ sidebar_label: Cleaning the storage
 title: Cleaning the storage
 ---
 Free disk space and keep the database small from **Admin → Storage**: delete for good the runs users deleted, purge the
-runs whose files are gone, delete commits' artifacts, delete old results as each project's *qaboard.yaml* says, and
-schedule these jobs instead of keeping cron jobs on the server. Jobs run in
+runs whose files are gone, delete commits' artifacts, delete old results as each project's *qaboard.yaml* says, find
+and delete what QA-Board doesn't track, and schedule these jobs instead of keeping cron jobs on the server. Jobs run in
 the background: their page shows their progress, their log, and every error.
 
 ## Delete the runs users deleted, for good
@@ -93,6 +93,51 @@ The numbers come from the `storage_usage` table, one row per batch and user who 
   `QABOARD_STORAGE_USAGE_AUTO=0` stops the worker from creating it and from updating the table.
 
 A rebuild reads every run once, chunk by chunk: count about 5 minutes for 50 million runs.
+
+## Scanning the storage
+QA-Board only knows the files of its runs and artifacts. **Scan the storage** walks the projects' storage roots (and
+any other folder you add) and finds, with the owner of every file:
+- **Untracked runs**: folders with a `run.json` or a manifest that QA-Board doesn't know (a failed upload, a run
+  deleted for good while its folder stayed),
+- **Untracked exports**: folders with an export's `0.qa.url`, `0.qa.html` or `0.common.json` that QA-Board doesn't track,
+- what **deleted runs** and **deleted artifacts** left,
+- **other files**, e.g. copies, core dumps, users' own folders.
+
+Open a scan from **Scans** to explore it like `ncdu`: folders by size, with a bar of what they're made of, down to the
+size you chose (*Details down to*, 50 MB by default: smaller items are counted with their folder). **Biggest untracked**
+lists them anywhere, by kind, owner or age. Click an owner to see only theirs. Then select entries and:
+- **Delete…** them: only folders without anything QA-Board uses (runs, batches' files, artifacts) can be selected,
+- **Track** exports: their owners see them in **Storage usage → Exports**, and can delete them,
+- **Add runs to QA-Board**: untracked runs in a batch's folder are added to their batch, from their `run.json`,
+  manifest and metrics.
+
+Users see what they own in **Storage usage → Not tracked**, from the latest scan, and can delete the folders whose
+files are all theirs. Scanning doesn't change anything on disk.
+
+<details>
+<summary>How long scans take, and what they don't see</summary>
+
+A scan reads every file's metadata, with 8 threads by default: on network storage, latency dominates, count hours for
+tens of millions of files. Schedule it at night, e.g. weekly. A scan stopped by a restart resumes: the folders it was
+in are scanned again. Hard links are counted once. `.snapshot` folders are skipped.
+
+Scans see what the backend sees: the storage must be mounted at the same paths as on the machines where runs save
+results, and the worker reads it as root. Files of uids the backend can't name show as numbers.
+
+</details>
+
+## Exports
+Exports from the web app are recorded with their folder, project, commit, batch, who made them and their size. By
+default they go to a `share/` folder next to the commit's results, which is hard to find among the results. Put them all
+in one place with the `storage.exports_root` setting (**Admin → Settings**, or `QABOARD_EXPORTS_ROOT`):
+`<root>/<user>/<project>/<date>-<id>`. The folder must be on the same file system as the results for hard links, and
+under `QABOARD_STORAGE_ROOTS`.
+
+## What deleted runs leave
+When users delete runs, QA-Board keeps their manifests, and deletes only the files the manifests list: what the runs
+wrote after they ended stays. QA-Board measures what's left when it deletes runs, and users see it in **Storage
+usage**. Run **Measure what deleted runs left** once to measure the runs deleted before. **Hard-delete deleted runs**
+removes what's left.
 
 ## Schedule jobs
 Click **New schedule**, choose the job and its settings, and when it runs with a cron expression

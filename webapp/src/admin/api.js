@@ -376,3 +376,52 @@ export const runSchedule = async (queryClient, id) => {
   invalidateJobs(queryClient);
   return data;
 };
+
+
+// Storage scans (api/admin_storage.py): what's on disk, what QA-Board tracks or not, and acting on it
+export const scansQuery = queryOptions({
+  queryKey: ['admin', 'scans'],
+  queryFn: async ({ signal }) => (await http.get('/api/v1/admin/scans', { signal })).data?.scans ?? [],
+  refetchInterval: query => query.state.data?.some(scan => scan.status === 'running') ? 5000 : false,
+});
+
+export const scanQuery = id => queryOptions({
+  queryKey: ['admin', 'scan', String(id)],
+  queryFn: async ({ signal }) => (await http.get(`/api/v1/admin/scans/${id}`, { signal })).data,
+  refetchInterval: query => query.state.data?.status === 'running' ? 5000 : false,
+});
+
+// {parent} for a folder's entries (none: the roots), or {flat: true, kind} for all the entries of some kinds
+export const scanEntriesQuery = (id, { parent, flat, kind, owner, sort, offset = 0 } = {}) => queryOptions({
+  queryKey: ['admin', 'scan', String(id), 'entries', { parent, flat, kind, owner, sort, offset }],
+  queryFn: async ({ signal }) => (await http.get(`/api/v1/admin/scans/${id}/entries`, {
+    params: { parent: parent || undefined, flat: flat ? true : undefined, kind: kind || undefined, owner: owner || undefined, sort: sort || undefined, offset, limit: 200 }, signal,
+  })).data,
+  placeholderData: keepPreviousData,
+});
+
+const invalidateScan = (queryClient, id) => Promise.all([
+  queryClient.invalidateQueries({ queryKey: ['admin', 'scan', String(id)] }),
+  queryClient.invalidateQueries({ queryKey: ['admin', 'jobs'] }),
+]);
+
+// => {job}
+export const deleteScanPaths = async (queryClient, id, paths) => {
+  const { data } = await http.post(`/api/v1/admin/scans/${id}/delete`, { paths });
+  invalidateScan(queryClient, id);
+  return data;
+};
+
+// => {exports}
+export const trackScanExports = async (queryClient, id, paths) => {
+  const { data } = await http.post(`/api/v1/admin/scans/${id}/track-exports`, { paths });
+  invalidateScan(queryClient, id);
+  return data;
+};
+
+// => {job}
+export const importScanRuns = async (queryClient, id, paths) => {
+  const { data } = await http.post(`/api/v1/admin/scans/${id}/import-runs`, { paths });
+  invalidateScan(queryClient, id);
+  return data;
+};

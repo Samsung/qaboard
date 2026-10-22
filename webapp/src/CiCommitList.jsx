@@ -26,6 +26,7 @@ import { groupBy } from "./utils";
 import { useCommitsList, useProjectData, useSelected, useSiteConfig, updateSelected } from './hooks'
 import { errorMessage } from './api/http'
 import { useCommitListDensity, usePrefsStore } from './stores/prefs'
+import { RulesButton } from './storage/Rules'
 
 
 
@@ -54,6 +55,8 @@ const CommitRows = ({ commits, project, project_data, density }) => {
 const ListToolbar = styled.div`
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 8px;
 `;
 
@@ -205,7 +208,7 @@ const CiCommitList = () => {
           icon="search"
           action={<Button icon="history" text="Search 7 more days" onClick={show_older}/>}
       />}
-      {some_commits_loaded && !error && <ListToolbar><DensityControl/></ListToolbar>}
+      {some_commits_loaded && !error && <ListToolbar><RulesButton project={project}/><DensityControl/></ListToolbar>}
       <CompactListContainer><Days>{Object.keys(commits_by_day).map(day => (
         <DayCard key={day} elevation={0} className={density === 'compact' ? 'compact' : undefined}>
           <h4 className={Classes.HEADING}>

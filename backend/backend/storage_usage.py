@@ -52,17 +52,21 @@ def common_folder(batch_dir: Optional[str], has_default_dirs: bool, min_override
     return None
 
 
+SIZE = "CASE WHEN o.data->>'{key}' ~ '^[0-9]+(\\.[0-9]+)?$' THEN (o.data->>'{key}')::numeric END"
 AGGREGATE = """
   SELECT o.batch_id,
          coalesce(o.data->>'user', '') AS user_name,
-         count(*) AS nb_runs,
-         coalesce(sum(CASE WHEN o.data->>'storage' ~ '^[0-9]+(\\.[0-9]+)?$' THEN (o.data->>'storage')::numeric END), 0)::bigint AS bytes,
+         count(*) FILTER (WHERE o.deleted IS NOT TRUE) AS nb_runs,
+         coalesce(sum(""" + SIZE.format(key='storage') + """) FILTER (WHERE o.deleted IS NOT TRUE), 0)::bigint AS bytes,
+         count(*) FILTER (WHERE o.deleted IS TRUE) AS deleted_runs,
+         coalesce(sum(""" + SIZE.format(key='storage_left') + """) FILTER (WHERE o.deleted IS TRUE), 0)::bigint AS deleted_bytes,
+         count(*) FILTER (WHERE o.deleted IS TRUE AND (o.data->>'storage_left') IS NULL) AS deleted_unmeasured,
          max(o.created_date) AS last_run_at,
          min(o.output_dir_override) AS min_override,
          max(o.output_dir_override) AS max_override,
          bool_or(o.output_dir_override IS NULL) AS has_default_dirs
   FROM outputs o
-  WHERE {where} AND o.deleted IS NOT TRUE
+  WHERE {where}
   GROUP BY o.batch_id, coalesce(o.data->>'user', '')
 """
 
@@ -94,13 +98,15 @@ def _refresh(where: str, params: dict, delete_where: str):
     "hexsha": m['hexsha'], "branch": m['branch'], "batch_label": m['label'], "nb_runs": r['nb_runs'], "bytes": r['bytes'],
     "folder": common_folder(m['batch_dir'], r['has_default_dirs'], r['min_override'], r['max_override']),
     "last_run_at": r['last_run_at'], "updated_at": now,
+    "deleted_runs": r['deleted_runs'], "deleted_bytes": r['deleted_bytes'], "deleted_unmeasured": r['deleted_unmeasured'],
   } for r in rows if (m := meta.get(r['batch_id']))]
   db_session.execute(text(f"DELETE FROM storage_usage WHERE {delete_where}"), params)
   if values:
     db_session.execute(text("""
-      INSERT INTO storage_usage (batch_id, user_name, project_id, ci_commit_id, hexsha, branch, batch_label, nb_runs, bytes, folder, last_run_at, updated_at)
-      VALUES (:batch_id, :user_name, :project_id, :ci_commit_id, :hexsha, :branch, :batch_label, :nb_runs, :bytes, :folder, :last_run_at, :updated_at)
+      INSERT INTO storage_usage (batch_id, user_name, project_id, ci_commit_id, hexsha, branch, batch_label, nb_runs, bytes, folder, last_run_at, updated_at, deleted_runs, deleted_bytes, deleted_unmeasured)
+      VALUES (:batch_id, :user_name, :project_id, :ci_commit_id, :hexsha, :branch, :batch_label, :nb_runs, :bytes, :folder, :last_run_at, :updated_at, :deleted_runs, :deleted_bytes, :deleted_unmeasured)
       ON CONFLICT (batch_id, user_name) DO UPDATE SET
+        deleted_runs = EXCLUDED.deleted_runs, deleted_bytes = EXCLUDED.deleted_bytes, deleted_unmeasured = EXCLUDED.deleted_unmeasured,
         project_id = EXCLUDED.project_id, ci_commit_id = EXCLUDED.ci_commit_id, hexsha = EXCLUDED.hexsha, branch = EXCLUDED.branch,
         batch_label = EXCLUDED.batch_label, nb_runs = EXCLUDED.nb_runs, bytes = EXCLUDED.bytes, folder = EXCLUDED.folder,
         last_run_at = EXCLUDED.last_run_at, updated_at = EXCLUDED.updated_at
@@ -231,24 +237,29 @@ class Filters:
 def totals(filters: Filters) -> dict:
   where, params = filters.where()
   row = db_session.execute(text(f"""
-    SELECT coalesce(sum(bytes), 0), coalesce(sum(nb_runs), 0), count(DISTINCT batch_id), count(DISTINCT ci_commit_id), count(DISTINCT project_id)
+    SELECT coalesce(sum(bytes), 0), coalesce(sum(nb_runs), 0), count(DISTINCT batch_id) FILTER (WHERE nb_runs > 0),
+           count(DISTINCT ci_commit_id) FILTER (WHERE nb_runs > 0), count(DISTINCT project_id) FILTER (WHERE nb_runs > 0),
+           coalesce(sum(deleted_runs), 0), coalesce(sum(deleted_bytes), 0), coalesce(sum(deleted_unmeasured), 0)
     FROM storage_usage u WHERE {where}"""), params).one()
-  return {"bytes": int(row[0]), "runs": int(row[1]), "batches": row[2], "commits": row[3], "projects": row[4]}
+  return {"bytes": int(row[0]), "runs": int(row[1]), "batches": row[2], "commits": row[3], "projects": row[4],
+          "deleted": {"runs": int(row[5]), "bytes": int(row[6]), "unmeasured": int(row[7])}}
 
 
 def by_project(filters: Filters, limit=500) -> list:
   where, params = filters.where()
   rows = db_session.execute(text(f"""
-    SELECT project_id, sum(bytes), sum(nb_runs), count(DISTINCT batch_id), count(DISTINCT ci_commit_id), max(last_run_at)
+    SELECT project_id, sum(bytes), sum(nb_runs), count(DISTINCT batch_id) FILTER (WHERE nb_runs > 0),
+           count(DISTINCT ci_commit_id) FILTER (WHERE nb_runs > 0), max(last_run_at), sum(deleted_runs), sum(deleted_bytes)
     FROM storage_usage u WHERE {where}
-    GROUP BY project_id ORDER BY sum(bytes) DESC LIMIT :limit"""), {**params, "limit": limit}).all()
-  return [{"project_id": p, "bytes": int(b), "runs": int(r), "batches": nb, "commits": nc, "last_run_at": iso(last)} for p, b, r, nb, nc, last in rows]
+    GROUP BY project_id ORDER BY sum(bytes) DESC, sum(deleted_bytes) DESC LIMIT :limit"""), {**params, "limit": limit}).all()
+  return [{"project_id": p, "bytes": int(b), "runs": int(r), "batches": nb, "commits": nc, "last_run_at": iso(last),
+           "deleted": {"runs": int(dr), "bytes": int(db)}} for p, b, r, nb, nc, last, dr, db in rows]
 
 
 def by_user(filters: Filters, limit=20) -> list:
   where, params = filters.where()
   rows = db_session.execute(text(f"""
-    SELECT user_name, sum(bytes), sum(nb_runs) FROM storage_usage u WHERE {where}
+    SELECT user_name, sum(bytes), sum(nb_runs) FROM storage_usage u WHERE {where} AND u.nb_runs > 0
     GROUP BY user_name ORDER BY sum(bytes) DESC LIMIT :limit"""), {**params, "limit": limit}).all()
   return [{"user_name": u, "bytes": int(b), "runs": int(r)} for u, b, r in rows]
 
@@ -279,7 +290,7 @@ def items(filters: Filters, group='batch', sort='size', limit=50, offset=0) -> d
   query = f"""
     SELECT {columns}, sum(u.bytes) AS bytes, sum(u.nb_runs) AS runs, max(u.last_run_at) AS last_run_at,
            bool_or({partial}) AS partial, (array_agg(DISTINCT u.user_name))[1:4] AS users, count(DISTINCT u.user_name) AS nb_users
-    FROM storage_usage u WHERE {where}
+    FROM storage_usage u WHERE {where} AND u.nb_runs > 0
     GROUP BY {keys}"""
   total = db_session.execute(text(f"SELECT count(*) FROM ({query}) g"), params).scalar()
   rows = db_session.execute(text(f"{query} ORDER BY {SORTS.get(sort, SORTS['size'])} LIMIT :limit OFFSET :offset"),
@@ -306,14 +317,14 @@ def folders(filters: Filters, path: Optional[str], limit=200) -> dict:
   params = {**params, "path": path, "like": like_escape(path) + '/%', "start": start, "limit": limit}
   children = db_session.execute(text(f"""
     SELECT split_part(substr(u.folder, :start), '/', 1) AS name, sum(u.bytes), sum(u.nb_runs), count(DISTINCT u.batch_id)
-    FROM storage_usage u WHERE {where} AND {inside}
+    FROM storage_usage u WHERE {where} AND {inside} AND u.nb_runs > 0
     GROUP BY 1 ORDER BY 2 DESC LIMIT :limit"""), params).all()
   here = db_session.execute(text(f"""
     SELECT coalesce(sum(u.bytes), 0), coalesce(sum(u.nb_runs), 0), count(DISTINCT u.batch_id) FROM storage_usage u
-    WHERE {where} AND u.folder = :path"""), params).one()
+    WHERE {where} AND u.folder = :path AND u.nb_runs > 0"""), params).one()
   partial = db_session.execute(text(f"""
     SELECT coalesce(sum(u.bytes), 0), coalesce(sum(u.nb_runs), 0), count(DISTINCT u.batch_id) FROM storage_usage u
-    WHERE {where} AND u.folder IS DISTINCT FROM :path AND :path LIKE (u.folder || '/%')"""), params).one() if path != '/' else (0, 0, 0)
+    WHERE {where} AND u.folder IS DISTINCT FROM :path AND :path LIKE (u.folder || '/%') AND u.nb_runs > 0"""), params).one() if path != '/' else (0, 0, 0)
   join = (lambda name: f"/{name}") if path == '/' else (lambda name: f"{path}/{name}")
   return {
     "path": path,
@@ -328,7 +339,7 @@ def top_folders(filters: Filters, depth=4, limit=8) -> list:
   where, params = filters.where()
   rows = db_session.execute(text(f"""
     SELECT array_to_string((string_to_array(u.folder, '/'))[1:{int(depth) + 1}], '/') AS folder, sum(u.bytes), sum(u.nb_runs)
-    FROM storage_usage u WHERE {where} AND u.folder LIKE '/%'
+    FROM storage_usage u WHERE {where} AND u.folder LIKE '/%' AND u.nb_runs > 0
     GROUP BY 1 ORDER BY 2 DESC LIMIT :limit"""), {**params, "limit": limit}).all()
   return [{"path": f, "bytes": int(b), "runs": int(r)} for f, b, r in rows if f]
 
@@ -350,7 +361,7 @@ def selected_rows(filters: Filters, group: str, keys: Optional[list] = None, max
       params['key_branches'] = [b for _, b in pairs]
   return db_session.execute(text(f"""
     SELECT u.batch_id, u.user_name, u.project_id, u.ci_commit_id, u.hexsha, u.batch_label, u.nb_runs, u.bytes, u.folder
-    FROM storage_usage u WHERE {where} ORDER BY u.bytes DESC LIMIT :max_rows"""), {**params, "max_rows": max_rows}).mappings().all()
+    FROM storage_usage u WHERE {where} AND u.nb_runs > 0 ORDER BY u.bytes DESC LIMIT :max_rows"""), {**params, "max_rows": max_rows}).mappings().all()
 
 
 def iso(date):

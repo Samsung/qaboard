@@ -10,8 +10,9 @@ import { history, Link } from "../router";
 import { Time } from "../settings/format";
 import { Loading } from "../settings/states";
 import { AdminError } from "./states";
-import { jobsQuery, schedulesQuery, saveSchedule, deleteSchedule, runSchedule } from "./api";
-import { JobStatus, kind_labels, progressSummary, nbErrors, number, formatDuration, jobDuration, isStale } from "./jobs";
+import { jobsQuery, schedulesQuery, saveSchedule, deleteSchedule, runSchedule, scansQuery } from "./api";
+import { JobStatus, kind_labels, progressSummary, nbErrors, number, formatDuration, jobDuration, isStale, formatBytes } from "./jobs";
+import { KindsBar } from "./ScanExplorer";
 import { JobDialog, ScheduleDialog, kind_icons } from "./JobForm";
 
 
@@ -200,7 +201,47 @@ const actions = [
     title: 'Delete old results',
     description: "Delete the files of old runs, as each project's qaboard.yaml says (storage.garbage), like qaboard_clean. Set a default for the projects that say nothing.",
   },
+  {
+    kind: 'scan_storage',
+    title: 'Scan the storage',
+    description: "Walk the projects' folders and find what QA-Board doesn't track: exports, runs it doesn't know, leftovers of deleted runs, other files. Then explore them by size and owner, and delete them.",
+  },
+  {
+    kind: 'measure_deleted',
+    title: "Measure what deleted runs left",
+    description: "Deleting runs keeps their manifests, and files the manifests didn't list. QA-Board now measures them when it deletes runs: measure those deleted before, so users see them in Storage usage.",
+  },
 ];
+
+const Scans = () => {
+  const { data: scans = [], isPending, error, refetch } = useQuery(scansQuery);
+  if (isPending) return null;
+  if (error) return <AdminError error={error} refetch={refetch} what="the scans"/>;
+  if (scans.length === 0) return null;
+  const max = Math.max(0, ...scans.map(scan => scan.bytes));
+  return <section aria-label="Scans" style={{ marginBottom: 32 }}>
+    <h4 className={Classes.HEADING}>Scans</h4>
+    <div style={{ overflowX: 'auto' }}>
+      <HTMLTable compact interactive style={{ width: '100%' }} aria-label="Scans">
+        <thead><tr><th>Scan</th><th>Status</th><th>On disk</th><th>Not tracked</th><th>Files</th><th>Errors</th><th>Finished</th></tr></thead>
+        <tbody>
+          {scans.map(scan => <tr key={scan.id} onClick={event => { if (!event.target.closest('a')) history.push(`/admin/storage/scans/${scan.id}`); }} style={{ cursor: 'pointer' }}>
+            <td style={{ minWidth: 200 }}>
+              <Link to={`/admin/storage/scans/${scan.id}`}><strong>Scan #{scan.id}</strong></Link>
+              <div className={Classes.TEXT_MUTED} style={{ fontSize: 12, overflowWrap: 'anywhere' }}>{scan.roots.length} folders{scan.roots.length ? `: ${scan.roots.slice(0, 2).join(', ')}${scan.roots.length > 2 ? '…' : ''}` : ''}</div>
+            </td>
+            <td>{scan.job ? <JobStatus job={scan.job}/> : <Tag minimal>{scan.status}</Tag>}</td>
+            <td><KindsBar kinds={scan.by_kind} bytes={scan.bytes} max={max}/></td>
+            <td><strong>{formatBytes(scan.untracked_bytes)}</strong></td>
+            <td>{number(scan.files)}</td>
+            <td>{scan.errors ? <Tag minimal intent={Intent.DANGER} round>{number(scan.errors)}</Tag> : <span className={Classes.TEXT_MUTED}>—</span>}</td>
+            <td><Time iso={scan.finished_at} never="—"/></td>
+          </tr>)}
+        </tbody>
+      </HTMLTable>
+    </div>
+  </section>;
+};
 
 export const Storage = () => {
   const [starting, setStarting] = useState(null);
@@ -213,6 +254,7 @@ export const Storage = () => {
       </Card>)}
     </section>
     {starting && <JobDialog kind={starting.kind} initial={starting.initial} title={starting.title} isOpen onClose={() => setStarting(null)}/>}
+    <Scans/>
     <Schedules/>
     <Jobs/>
   </>;

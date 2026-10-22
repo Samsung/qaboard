@@ -106,6 +106,10 @@ DEFINITIONS = {
     "Audit events older than this are deleted by `qaboard-admin purge-audit` (run it from a scheduled job).",
     730, int, minimum=30,
   ),
+  'storage.exports_root': Definition(
+    "Where \"Export to a shared folder\" puts exports: <this folder>/<user>/<project>/<date>-<id>, all in one place where users find and delete them (Storage usage > Exports). Empty: in a share/ folder next to the commit's runs, as before. It must be in the storage (QABOARD_STORAGE_ROOTS).",
+    None, str, env='QABOARD_EXPORTS_ROOT', nullable=True,
+  ),
 }
 
 
@@ -220,6 +224,14 @@ def validate(key: str, value):
       raise ValueError(f"{key} must be a text")
   if definition.choices and value not in definition.choices:
     raise ValueError(f"{key} must be one of: {', '.join(definition.choices)}")
+  if key == 'storage.exports_root':
+    from .storage import check_storage_path, UnsafePathError
+    if not value.startswith('/'):
+      raise ValueError(f"{key} must be an absolute path, e.g. /algo/qaboard/exports")
+    try:
+      check_storage_path(value)
+    except UnsafePathError as e:
+      raise ValueError(str(e))
   return value
 
 

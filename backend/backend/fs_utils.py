@@ -125,3 +125,49 @@ if __name__ == "__main__":
     uid_gid = sys.argv[1]
     path = Path(sys.argv[2])
     as_user(uid_gid, rmtree, path)
+
+
+def measure(path: Path, seen_inodes: set = None) -> dict:
+  """
+  What's in a folder (or a file): {bytes, files, linked_bytes, owners: {uid: bytes}, newest_mtime}, without following
+  symlinks. Files with several hard links count once per `seen_inodes` (pass the same set to measure several folders);
+  `linked_bytes` is their share: deleting this folder doesn't free them while their other links exist.
+  Unreadable folders are skipped: `errors` counts them.
+  """
+  totals = {"bytes": 0, "files": 0, "linked_bytes": 0, "owners": {}, "newest_mtime": 0, "errors": 0}
+  seen = seen_inodes if seen_inodes is not None else set()
+  def add(stat):
+    if stat.st_nlink > 1:
+      key = (stat.st_dev, stat.st_ino)
+      if key in seen:
+        return
+      seen.add(key)
+      totals["linked_bytes"] += stat.st_size
+    totals["bytes"] += stat.st_size
+    totals["files"] += 1
+    totals["owners"][stat.st_uid] = totals["owners"].get(stat.st_uid, 0) + stat.st_size
+    totals["newest_mtime"] = max(totals["newest_mtime"], stat.st_mtime)
+  try:
+    stat = os.lstat(path)
+  except OSError:
+    return totals
+  import stat as stat_module
+  if not stat_module.S_ISDIR(stat.st_mode):
+    add(stat)
+    return totals
+  stack = [str(path)]
+  while stack:
+    folder = stack.pop()
+    try:
+      with os.scandir(folder) as entries:
+        for entry in entries:
+          try:
+            if entry.is_dir(follow_symlinks=False):
+              stack.append(entry.path)
+            else:
+              add(entry.stat(follow_symlinks=False))
+          except OSError:
+            totals["errors"] += 1
+    except OSError:
+      totals["errors"] += 1
+  return totals

@@ -9,6 +9,7 @@ from pathlib import Path
 
 from sqlalchemy import Column, ForeignKey, Index
 from sqlalchemy.orm import relationship
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.orm.exc import NoResultFound, MultipleResultsFound
 from sqlalchemy import text, and_, Integer, String, Boolean, DateTime, JSON
 from sqlalchemy.dialects.postgresql import JSONB
@@ -214,6 +215,23 @@ class Output(Base):
       return output
 
 
+  def measure_left(self, output_dir=None, partial=False):
+    """
+    After deleting files, what's left on disk: soft deletes keep the manifests, and the files they don't list.
+    Deleted runs: data.storage_left (users see it in "Storage usage"). Runs whose files were only partly deleted: data.storage.
+    """
+    from backend.fs_utils import measure
+    output_dir = output_dir or self.output_dir
+    left = measure(output_dir)["bytes"] if os.path.lexists(output_dir) else 0
+    data = dict(self.data or {})
+    if partial:
+      data['storage'] = left
+    else:
+      data['storage_left'] = left
+      data['deleted_at'] = datetime.datetime.utcnow().isoformat() + 'Z'
+    self.data = data
+    flag_modified(self, "data")
+
   def delete(self, soft=True, ignore=None, filter=None, dryrun=False):
     """
     Delete the output's output files.
@@ -224,6 +242,8 @@ class Output(Base):
     output_dir = check_storage_path(self.output_dir)
     if not output_dir.exists():
       self.deleted = True
+      if not dryrun:
+        self.measure_left(output_dir)
       print(f"WARN: already deleted: {output_dir}")
       return
 
@@ -247,6 +267,7 @@ class Output(Base):
             rmtree(output_dir)
             rm_empty_parents(output_dir)
             self.deleted = True
+            self.measure_left(output_dir)
             return
         for file in files.keys():
           if file in ['manifest.outputs.json', 'manifest.inputs.json']:
@@ -267,8 +288,14 @@ class Output(Base):
       else:
         self.delete(soft=False, dryrun=dryrun)
         return
-    if not filter: # better not TODO: update .data.storage at least
+    if dryrun:
+      return
+    if not filter:
       self.deleted = True
+      self.measure_left(output_dir)
+    else:
+      # only some files were deleted: the run stays, with its new size
+      self.measure_left(output_dir, partial=True)
 
 
   def update_manifest(self, compute_hashes=True):

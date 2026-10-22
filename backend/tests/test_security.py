@@ -1227,6 +1227,8 @@ UNCHECKED_PROJECT_ROUTES = {
   # storage usage: filters_from limits them to the projects users can read (allowed_projects), and users only
   # delete their own runs. Their deletions' errors are about their own runs.
   ("storage.py", "storage_overview"), ("storage.py", "storage_delete"), ("storage.py", "storage_job_errors"),
+  # exports: exports_query limits them to the projects users can read (allowed_projects), and to theirs
+  ("storage.py", "storage_exports"),
   # asking for access works without access (role_of tells what they have)
   ("access.py", "request_project_access"),
   # "project" is a word in their answers, not a project they read

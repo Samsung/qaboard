@@ -202,7 +202,9 @@ def export_to_folder():
     export_dir = Path(request.args['export_dir'])
     export_dir = windows_to_linux_path(export_dir).resolve()
   else:
-    export_dir = new_commit.repo_outputs_dir / 'share' / m[:8]
+    # all in one place if admins chose it (storage.exports_root), else next to the commit's runs
+    from ..exports import default_dir
+    export_dir = default_dir(g.user['user_name'], project_id, m) or new_commit.repo_outputs_dir / 'share' / m[:8]
   try:
     check_storage_path(export_dir)
   except UnsafePathError as e:
@@ -381,7 +383,19 @@ def export_to_folder():
   if not link_file.exists():
     with link_file.open('w') as f:
       f.write(link_content)
+  # users see their exports, and their size, in "Storage usage" (backend/exports.py)
+  export_id = None
+  try:
+    from ..exports import record
+    export = record(export_dir, project_id=project_id, hexsha=new_commit.hexsha, batch_label=new_batch.label, user_name=g.user.get('user_name'),
+                    export_type=request.args.get('export_type', 'link'), filter=filter_new, nb_files=nb_files_exported)
+    db_session.commit()
+    export_id = export.id
+  except Exception as e:
+    db_session.rollback()
+    print(f"WARNING: could not track the export {export_dir}: {e}")
   return jsonify({
+    "export_id": export_id,
   	"export_dir": str(export_dir),
     "nb_outputs": len(new_outputs),
     "nb_outputs_ref": len(ref_outputs),

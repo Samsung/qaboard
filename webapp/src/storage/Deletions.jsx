@@ -51,8 +51,8 @@ const Deletion = ({ job }) => {
       <span className={Classes.TEXT_MUTED}><Time iso={job.created_at}/></span>
       {active && <Button size="small" icon="stop" text="Cancel" onClick={cancel} disabled={job.cancel_requested}/>}
     </div>
-    {active && progress.batches_total > 0 && <ProgressBar
-      value={(progress.batches_done ?? 0) / progress.batches_total}
+    {active && (progress.batches_total ?? progress.paths_total ?? progress.exports_total) > 0 && <ProgressBar
+      value={((progress.batches_done ?? 0) || (progress.paths_deleted ?? 0) + (progress.paths_failed ?? 0) || (progress.exports_deleted ?? 0) + (progress.exports_failed ?? 0)) / (progress.batches_total ?? progress.paths_total ?? progress.exports_total)}
       intent={Intent.PRIMARY}
       stripes
       animate
@@ -60,7 +60,11 @@ const Deletion = ({ job }) => {
     />}
     <div className={Classes.TEXT_MUTED} style={{ fontSize: 13, marginTop: 6 }}>
       {job.status === 'queued' ? 'Waiting to start…' : <>
-        {formatBytes(progress.bytes_deleted ?? 0)} freed, {plural(progress.runs_deleted ?? 0, 'run')} deleted
+        {job.kind === 'delete_exports'
+          ? <>{plural(progress.exports_deleted ?? 0, 'export')} deleted, {formatBytes(Math.max(0, (progress.bytes_deleted ?? 0) - (progress.linked_bytes ?? 0)))} freed{progress.linked_bytes ? `, ${formatBytes(progress.linked_bytes)} more once the runs are deleted` : ''}</>
+          : job.kind === 'delete_paths'
+            ? <>{formatBytes(progress.bytes_deleted ?? 0)} freed, {plural(progress.paths_deleted ?? 0, 'folder')} deleted</>
+            : <>{formatBytes(progress.bytes_deleted ?? 0)} freed, {plural(progress.runs_deleted ?? 0, 'run')} deleted</>}
         {kept > 0 && `, ${plural(kept, 'run')} kept (milestones or running)`}
       </>}
       {errors > 0 && <Button variant="minimal" size="small" intent={Intent.DANGER} text={`${plural(errors, 'error')}`} rightIcon={open ? 'chevron-up' : 'chevron-down'} onClick={() => setOpen(!open)}/>}

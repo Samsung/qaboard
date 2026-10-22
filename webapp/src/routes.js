@@ -37,6 +37,7 @@ const app_pages = {
   admin_user: AdminPage,
   admin_group: AdminPage,
   admin_job: AdminPage,
+  admin_scan: AdminPage,
   admin: AdminPage,
   storage: StoragePage,
   device: DevicePage,

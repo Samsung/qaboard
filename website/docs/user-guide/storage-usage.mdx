@@ -2,7 +2,7 @@
 id: storage-usage
 title: Storage usage
 sidebar_label: Storage usage
-description: "See how much storage your runs use, find the runs in the folder of a quota alert, and delete what you don't need."
+description: "See how much storage your runs and exports use, what QA-Board deletes automatically, find what it doesn't track, and delete what you don't need."
 ---
 Short on quota? **Storage usage** shows how much storage your runs take, project by project, down to each batch,
 commit, branch and folder, and deletes the files of many runs at once. Open it from your profile menu (**Storage
@@ -18,6 +18,14 @@ usage**, next to **Settings**), or from a project's sidebar.
 
 Sizes are what `qa` measured when each run ended. They're updated every few minutes, and right away when you delete
 runs from QA-Board.
+
+## What QA-Board deletes automatically
+The page lists what your admins scheduled, e.g. *Old results are deleted: the files of runs on commits without new runs
+for 1 month are deleted*, when it runs next, and what it keeps (milestones, the reference branch). With a project
+selected, it says what the project's *qaboard.yaml* sets (`storage.garbage.after`). The project's commit list shows it
+too, at the top right: *Results deleted after 1 month*.
+
+To keep a batch, make it a [milestone](/docs/user-guide/milestones).
 
 ## Delete runs' files
 1. Check the batches, commits or branches you don't need. To take everything that matches the filters, check the page,
@@ -36,10 +44,42 @@ The runs' files are deleted, which frees your quota. The runs stay listed, as de
 redo them later if the commit's artifacts are there. **The files can't be recovered.**
 :::
 
+<details>
+<summary>What deleted runs still take</summary>
+
+Deleting a run deletes the files its manifest lists, and keeps the manifest. Files written after the run ended (by
+scripts, or by hand) stay too. The card *left by N deleted runs* says how much they take. Your admins remove what's
+left when they delete the runs for good, usually with a schedule listed in *What QA-Board deletes automatically*.
+
+</details>
+
+## Exports
+**Export** on the commit page gathers files from many runs in one folder, to share them. **Exports** lists yours:
+their folder, size, the commit and batch they come from, and when you last exported there. Check the ones you don't need
+and **Delete…**: no terminal needed. The runs aren't deleted.
+
+:::caution Exports are links
+By default, an export's files are hard links to the runs' files: they take no extra space, but deleting the runs doesn't
+free the space while the export exists, and the other way round. QA-Board tags them *Links to the runs*. Copies
+(when you pick another folder) take space of their own.
+:::
+
+Exporting again to the same folder adds to it, and the export is measured again. If you deleted files of an export
+yourself, the refresh button measures it again.
+
+## Files QA-Board doesn't track
+Your admins can scan the storage to find what QA-Board doesn't know: old exports, runs whose upload failed, what
+deleted runs left, files you copied next to your runs. **Not tracked** lists what the latest scan found that you own,
+the biggest first, with when it last changed.
+
+Check the folders you don't need and **Delete…**. You can only delete folders whose files are all yours: ask the
+others, or an admin, for the rest. What QA-Board uses (runs, artifacts) can't be deleted from there: delete runs from the
+other tabs. The list is as of the scan: what changed since isn't shown.
+
 ## Why does IT's quota say something else?
 QA-Board counts the files of the runs it knows. Your quota counts every file you own on the storage. They differ because of:
-- files QA-Board doesn't track: exports ("Export to a shared folder" writes to a `share/` folder next to the commit's
-  batches), files you copied next to your runs, files written after a run ended,
+- files QA-Board doesn't track: exports made before QA-Board tracked them, files you copied next to your runs, files
+  written after a run ended (see **Exports** and **Not tracked**),
 - folders you deleted yourself, until QA-Board cleans up their runs,
 - how the storage counts: small files take more space than their size, and snapshots keep deleted files for a while,
 - your other files on the same storage.
