@@ -8,6 +8,7 @@ QA-Board can report errors and performance data to [Sentry](https://sentry.io), 
 - **Backend**: errors, traces of the API requests with their database queries, and profiles (which functions take time).
 - **Web app**: errors with readable stack traces (if you upload the source maps), page loads and navigations with their web vitals (LCP, CLS, INP), the API calls they make, and session replays. The backend's traces continue the web app's, so you see a page load and the API requests it made in the same trace.
 - **Celery workers**: errors and traces of the tasks.
+- **Jobs worker**: the server's jobs (Admin → Storage) that fail or go wrong, see [below](#jobs-worker).
 - **`qa` in CI**: errors, see [below](#the-qa-cli).
 
 Nothing is sent unless you set a DSN. Users are only identified by their username: no emails, IP addresses or cookies. Tokens and secrets in URLs (e.g. `?token=`), `Authorization` headers and webhook secrets are filtered out before anything is sent.
@@ -51,6 +52,14 @@ The web app is loaded by your users' browsers: they need to trust your Sentry se
 
 ## Celery workers
 [Celery workers](/docs/celery-integration) report to `SENTRY_DSN` if it's set where they run, else to the site's `QABOARD_SENTRY_DSN` (see below). They use the same settings as the backend.
+
+## Jobs worker
+The [jobs worker](/docs/backend-admin/storage#schedule-jobs) (`qaboard-admin jobs worker`) uses the backend's settings. Jobs record most errors and carry on, so Sentry gets:
+- an issue for each job that crashes, grouped by where it crashed,
+- an issue per kind of job for the jobs that end with errors (e.g. files they could not delete) or are given up because their worker kept dying: each occurrence is a job, tagged `job.kind`, `job.status` and `job.scheduled`, with its parameters and counters,
+- the worker's own errors (e.g. the database restarts), at most once every 15 minutes each.
+
+Scheduled jobs that go wrong are also [emailed to admins](/docs/backend-admin/storage#schedule-jobs).
 
 ## The `qa` CLI
 In CI only, `qa` reports its errors to the Sentry project set by `QABOARD_SENTRY_DSN`, in its environment or your site package. Set `QABOARD_SENTRY_VERIFY` (or `SENTRY_CA_CERTS`) like `SENTRY_CA_CERTS` above if your Sentry server's certificate isn't signed by a public CA. Its events are tagged with the `qa` version (`qaboard@1.2.3`) and the `ci` environment.

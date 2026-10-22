@@ -8,8 +8,13 @@ let sentry_initialized = false;
 // Product analytics events, ignored without PostHog
 export const track = (event, properties) => posthog?.capture(event, properties);
 
-// Errors caught by our error boundary, ignored without Sentry
-export const captureException = (error, hint) => sentry?.captureException(error, hint);
+// Errors caught by our error boundary, ignored without Sentry. Those that happen while Sentry downloads, or before
+// we know if the site uses it (e.g. pages that fail on their first render), are reported once it's ready.
+let pending = [];
+export const captureException = (error, hint) => {
+  if (sentry) sentry.captureException(error, hint);
+  else if (pending && pending.length < 10) pending.push([error, hint]);
+};
 
 // Requests to our API (same origin) carry the trace headers, so the backend's traces continue the web app's
 export const tracePropagationTargets = [/^\/api\//];
@@ -35,11 +40,25 @@ export const sentryOptions = (config, routeName, { browserTracingIntegration }) 
 });
 
 export async function initSentry(config, routeName) {
-  if (!import.meta.env.PROD || !config.sentry_dsn || sentry_initialized) return;
+  if (sentry_initialized) return;
+  if (!import.meta.env.PROD || !config.sentry_dsn) {
+    pending = null;
+    return;
+  }
   sentry_initialized = true;
-  const client = await import('./sentry');
+  let client;
+  try {
+    client = await import('./sentry');
+  } catch (error) {
+    // e.g. a deploy replaced the bundle: errors stay in the console
+    console.warn('Could not load Sentry', error);
+    pending = null;
+    return;
+  }
   client.init(sentryOptions(config, routeName, client));
   sentry = client;
+  pending?.forEach(([error, hint]) => client.captureException(error, hint));
+  pending = null;
   // Session replays are heavy, we download them after the rest
   const { replayIntegration } = await import('./sentryReplay');
   client.addIntegration(replayIntegration());

@@ -79,13 +79,14 @@ const Dashboard = () => {
   const { available_metrics, main_metrics, dashboard_metrics, dashboard_evolution_metrics, dashboard_breakdown_by_tag } = metrics;
   // Without configuration, the plot over time offers the metrics of all the commits shown (the latest may still be running)
   const evolution_metrics = useMemo(
-    () => dashboard_evolution_metrics || (main_metrics?.length ? main_metrics : history_metrics(commits, selected_batch_new, qatools_metrics?.available_metrics)),
+    () => Array.isArray(dashboard_evolution_metrics) ? dashboard_evolution_metrics : (main_metrics?.length ? main_metrics : history_metrics(commits, selected_batch_new, qatools_metrics?.available_metrics)),
     [dashboard_evolution_metrics, main_metrics, commits, selected_batch_new, qatools_metrics],
   );
 
   // null: the project's default metrics, else the summary chooses
   const [user_selected_metrics, setSelectedMetrics] = useState(null);
-  const configured_metrics = dashboard_metrics || main_metrics || [];
+  // lists, see normalize_metrics: but the cache may have metrics files from before it
+  const configured_metrics = [dashboard_metrics, main_metrics].find(Array.isArray) ?? [];
   const selected_metrics_keys = user_selected_metrics ?? configured_metrics;
   const selected_metrics = (user_selected_metrics || configured_metrics.length > 0) ? selected_metrics_keys.map(k => metric_info(available_metrics, k)) : undefined;
   const [selected_tab, setSelectedTab] = useState(undefined);

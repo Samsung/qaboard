@@ -368,6 +368,9 @@ export const switch_new_and_reference = selected => {
 };
 
 
+// ?search=a&search=b is a list: we search for both
+const text_param = value => (value == null ? "" : typeof value === 'string' ? value : [].concat(value).filter(v => typeof v === 'string').join(' '));
+
 // Pure, so it's easy to test: (route match, location.search) => selection
 export const selection_from_url = (match, search) => {
   const { path, params } = match;
@@ -388,7 +391,7 @@ export const selection_from_url = (match, search) => {
     project: query.ref_project || project,
     commit_id: query.reference ?? query.commit_ref_folder ?? null,
     batch: query.batch_ref || "default",
-    filter: query.filter_ref ?? "",
+    filter: text_param(query.filter_ref),
     label: query.label_ref ?? "",
     color: color_from_query(query.color_ref),
   };
@@ -414,7 +417,7 @@ export const selection_from_url = (match, search) => {
 
     selected_batch_new: query.batch || query.batch_new || "default",
     selected_batch_ref: ref_side.batch,
-    filter_batch_new: query.filter ?? "",
+    filter_batch_new: text_param(query.filter),
     filter_batch_ref: ref_side.filter,
     label_new: query.label ?? "",
     color_new: color_from_query(query.color_new),
@@ -426,7 +429,7 @@ export const selection_from_url = (match, search) => {
     ref_index,
 
     // filter the list of commits
-    search: query.search ?? "",
+    search: text_param(query.search),
     sort_order: Number(query.sort_order ?? -1),
     sort_by: query.sort_by || undefined, // undefined: we use the default metric
     selected_views,

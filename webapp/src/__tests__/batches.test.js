@@ -142,6 +142,16 @@ test('normalize_metrics ignores main metrics that are not names', () => {
   expect(normalize_metrics({ main_metrics: 'psnr' }).main_metrics).toEqual([]);
 });
 
+test('normalize_metrics ignores the lists of metrics that are not lists', () => {
+  // e.g. `dashboard_metrics: psnr`, or a mapping: the History page used to crash on them
+  const metrics = normalize_metrics({ dashboard_metrics: { psnr: null }, dashboard_evolution_metrics: 'psnr', summary_metrics: ['psnr', null] });
+  expect(metrics.dashboard_metrics).toBeUndefined();
+  expect(metrics.dashboard_evolution_metrics).toBeUndefined();
+  expect(metrics.summary_metrics).toEqual(['psnr']);
+  // those not in the metrics file stay out
+  expect('dashboard_metrics' in normalize_metrics({ main_metrics: ['psnr'] })).toBe(false);
+});
+
 test('the metrics stay the same object while the runs have the same metrics', () => {
   const metrics = normalize_metrics({ available_metrics: { psnr: {} } });
   // e.g. when users filter runs: a new Set with the same metrics

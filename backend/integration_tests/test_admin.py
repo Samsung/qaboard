@@ -504,7 +504,7 @@ def test_settings_list(admin):
     'tokens.default_lifetime_days', 'tokens.max_lifetime_days', 'tokens.cli_idle_expiry_days', 'audit.retention_days',
     'auth.access_policy', 'auth.allowed_email_domains', 'auth.access_request_webhook', 'auth.sso_auto_redirect',
     'sessions.idle_days', 'sessions.max_days', 'projects.default_visibility', 'projects.signed_in_role',
-    'storage.exports_root', 'storage.others_visible_to',
+    'storage.exports_root', 'storage.others_visible_to', 'jobs.failure_emails', 'jobs.failure_email_to',
   }
   assert all(s["source"] == "default" and s["editable"] and s["description"] for s in settings.values())
   assert settings["auth.require_sign_in"]["value"] is False and settings["auth.require_sign_in"]["env"] == "QABOARD_LOGIN_REQUIRED"

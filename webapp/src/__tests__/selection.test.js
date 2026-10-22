@@ -24,6 +24,13 @@ const roundtrip = (url, changes) => {
 
 
 describe('reading the selection from the URL', () => {
+  test('repeated text parameters are read as one text', () => {
+    const s = select('/group/repo/commit/abc123?filter=a&filter=b&filter_ref=c&filter_ref=d&search=e&search=f');
+    expect(s.filter_batch_new).toBe('a b');
+    expect(s.filter_batch_ref).toBe('c d');
+    expect(s.search).toBe('e f');
+  });
+
   test('commit page', () => {
     const s = select('/group/repo/commit/abc123?reference=def456&batch=tuning&filter=scene&batch_ref=default&new_project=group/other');
     expect(s.project).toBe('group/repo');

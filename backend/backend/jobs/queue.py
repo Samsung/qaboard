@@ -9,7 +9,7 @@ from typing import Optional
 
 from ..database import db_session
 from ..models import Job, JobError, JobSchedule, JobWorker
-from . import kinds
+from . import kinds, alerts
 from .cron import next_run, Cron, CronError, timezone
 from .params import ParamsError
 from .report import DatabaseReporter, utcnow
@@ -71,14 +71,18 @@ def requeue_stale(now=None) -> int:
   now = now or utcnow()
   stale = (Job.query.filter(Job.status == 'running', Job.heartbeat_at < now - STALE_AFTER)
            .with_for_update(skip_locked=True).all())
+  given_up = []
   for job in stale:
     message = f"The worker {job.worker} stopped responding"
     if job.attempts >= MAX_ATTEMPTS:
       job.status, job.finished_at, job.error = 'failed', now, f"{message}, {job.attempts} times: giving up."
+      given_up.append(job)
     else:
       job.status, job.worker = 'queued', None
     job.log = [*(job.log or []), {"at": now.isoformat() + 'Z', "level": 'warning', "message": f"{message}: {'queued again, it will resume' if job.status == 'queued' else 'giving up'}"}][-300:]
   db_session.commit()
+  for job in given_up:
+    alerts.job_went_wrong(job, 'failed', message=job.error)
   return len(stale)
 
 
@@ -108,15 +112,15 @@ def run(job_id: int, stopping=lambda: False, echo=True) -> str:
   kind, params = job.kind, dict(job.params or {})
   db_session.commit()
   report = DatabaseReporter(job_id, stopping=stopping, echo=echo)
-  error = None
+  error, exception = None, None
   try:
     module = kinds.get(kind)
     params = module.validate(params)
     report.log(f"{'Resuming' if report.progress else 'Starting'}: {module.describe(params)}{' (dry run)' if params.get('dry_run') else ''}")
     module.run(params, report)
-  except Exception:
+  except Exception as e:
     db_session.rollback()
-    error = traceback.format_exc()
+    error, exception = traceback.format_exc(), e
     report.log(f"The job crashed: {error.strip().splitlines()[-1]}", level='error')
   report.flush(force=True)
 
@@ -140,6 +144,8 @@ def run(job_id: int, stopping=lambda: False, echo=True) -> str:
     job.log = [*(job.log or []), {"at": utcnow().isoformat() + 'Z', "level": 'error' if status == 'failed' else 'success' if status == 'done' else 'warning',
                "message": {"failed": "Failed", "cancelled": "Cancelled", "done": "Done", "done_with_errors": f"Done, with {report.nb_errors} errors"}[status]}][-300:]
   db_session.commit()
+  if status in ('failed', 'done_with_errors'):
+    alerts.job_went_wrong(job, status, error=exception)
   return status
 
 

@@ -106,6 +106,14 @@ DEFINITIONS = {
     "Audit events older than this are deleted by `qaboard-admin purge-audit` (run it from a scheduled job).",
     730, int, minimum=30,
   ),
+  'jobs.failure_emails': Definition(
+    "Email when a scheduled job (Admin > Storage > Schedules) fails or ends with errors. Requires QABOARD_SMTP_HOST.",
+    True, bool, env='QABOARD_JOBS_FAILURE_EMAILS', parse_env=env_flag,
+  ),
+  'jobs.failure_email_to': Definition(
+    "Who gets the emails about scheduled jobs that went wrong: user names or emails. Empty: the admins.",
+    [], list, env='QABOARD_JOBS_FAILURE_EMAIL_TO', parse_env=env_list,
+  ),
   'storage.others_visible_to': Definition(
     "Who sees other people's storage usage (Storage usage > Everyone's, Users): \"members\" (the project's developers and owners, from a grant, a group or qaboard.yaml: not every signed-in user) or \"signed_in\" (everyone who can see the project). Admins see everything.",
     'members', str, env='QABOARD_STORAGE_OTHERS_VISIBLE_TO', choices=('members', 'signed_in'),
