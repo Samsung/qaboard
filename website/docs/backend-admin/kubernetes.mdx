@@ -83,7 +83,7 @@ helm install qaboard oci://ghcr.io/samsung/charts/qaboard \
 | redis | Deployment | A cache, no persistence |
 | cantaloupe | Deployment (`cantaloupe.enabled`) | IIIF image server: tiles for big images in the image viewer |
 | backups | CronJob (`backup.enabled`) | `pg_dump` to a volume |
-| rabbitmq, flower | Deployments (`celery.enabled`) | Only with `QABOARD_TUNING_RUNNER=celery` |
+| rabbitmq, flower | Deployments (`celery.enabled`) | Only with `QABOARD_TUNING_RUNNER=celery`. Anyone who can connect to RabbitMQ can run commands on the Celery workers: set `celery.rabbitmq.user`, and `QABOARD_RABBITMQ_PASSWORD` in the secret with `celery.rabbitmq.passwordFromSecret: true` (default: `guest:guest`). Flower, at `/flower/`, asks for a login if the secret has `FLOWER_BASIC_AUTH` (`user:password`) |
 
 ### Results storage
 Runs save their results (outputs and artifacts) in a shared storage, and tell the server where. Everything must see this storage at the same absolute path: the server, and the runners (CI runners, LSF or Celery workers, laptops). The chart's `results` mounts it in the backend (at `results.mountPath`), in nginx (which serves it under `/s/`) and in Cantaloupe (which reads the images). It also sets `QABOARD_STORAGE_ROOTS`: the backend only writes, deletes or runs code there.
@@ -118,7 +118,7 @@ The backend also needs a volume for its own data (git clones, caches), `backend.
   helm upgrade --install cnpg cnpg/cloudnative-pg --namespace cnpg-system --create-namespace
   ```
 - **An external PostgreSQL** (e.g. managed by your cloud or IT): set `database.host`, and `QABOARD_DB_PASSWORD` in the secret.
-- `database.embedded` runs a single PostgreSQL pod: only to try the chart.
+- `database.embedded` runs a single PostgreSQL pod: only to try the chart. Its password, `database.embedded.password` (default `password`), is only used when the database is created.
 
 ### Ingress and TLS
 The chart creates an Ingress for `ingress.host`, for any ingress controller. Its default annotations are for ingress-nginx (no limit on uploads, slow API calls): set your controller's equivalents. With [cert-manager](https://cert-manager.io):
