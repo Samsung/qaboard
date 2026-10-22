@@ -56,7 +56,7 @@ qa batch --runner=local my-batch
 Note that unless you have a transparent shared storage for your working directory, you'll need to use `qa --share batch` to see runs in QA-Board...
 
 ## Monitoring
-- A [`flower`](https://flower.readthedocs.io/en/latest/) instance is available at `<QABOARD_HOST>/flower`
+- A [`flower`](https://flower.readthedocs.io/en/latest/) instance is available to QA-Board's admins at `<QABOARD_HOST>/flower/`: it can revoke tasks and shut the workers down
 - Read the [docs](http://docs.celeryproject.org/en/latest/userguide/monitoring.html).
 ## Advanced Celery Configuration 
 To configure Celery at the **project level**:

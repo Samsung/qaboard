@@ -723,6 +723,9 @@ def test_overview_legacy_tokens(admin):
 
 def test_pgadmin_signs_admins_in(admin, logged_in, monkeypatch):
   """nginx asks before proxying /pgadmin4/ (services/nginx/snippets/pgadmin.conf), and passes the account to pgAdmin"""
+  # Flower and other admin services (services/nginx/snippets/qaboard-admins-only.conf)
+  assert admin.get('/api/v1/admin/authorize').status_code == 204
+  assert logged_in('carol').get('/api/v1/admin/authorize').status_code == 403
   monkeypatch.delenv('QABOARD_PGADMIN_USER', raising=False)
   monkeypatch.delenv('PGADMIN_DEFAULT_EMAIL', raising=False)
   assert admin.get('/api/v1/admin/pgadmin/authorize').status_code == 404

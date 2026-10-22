@@ -90,7 +90,7 @@ Code that runs as the server's user can read its credentials (database, GitLab t
 ### Default passwords in `docker-compose.yml`
 RabbitMQ, Flower and pgAdmin are only published on the host itself (`127.0.0.1`), but their default credentials stay until you change them:
 - RabbitMQ uses the `guest:guest` account. Celery workers run the shell commands given in the tasks they receive, so **anyone who can connect to RabbitMQ can run commands on the workers**: publishing it for workers on other hosts (`QABOARD_RABBITMQ_HOST_IP`, DSK's overlay) needs a password.
-- Flower, also served at `/flower/` to anyone who can reach the server, has no login unless `FLOWER_BASIC_AUTH` is set. It can revoke tasks and shut the workers down.
+- Flower can revoke tasks and shut the workers down. At `/flower/`, QA-Board's nginx only lets QA-Board's admins in (`snippets/qaboard-admins-only.conf`); on its port (`127.0.0.1:8888`) it has no login unless `FLOWER_BASIC_AUTH` is set.
 - Postgres uses the password `password` unless `QABOARD_DB_PASSWORD` is set, and some deployment files publish its port.
 - pgAdmin uses a default password.
 

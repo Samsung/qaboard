@@ -260,7 +260,7 @@ ls -lht /home/ispq/qaboard_data_prod/database_backups/ | head
 
 ## pgAdmin
 QA-Board's admins open pgAdmin at https://qa/pgadmin4/ (`/pgadmin` redirects there), without a pgAdmin password:
-nginx asks the backend if they're an admin (`services/nginx/snippets/pgadmin.conf`, `backend/backend/api/admin_pgadmin.py`),
+nginx asks the backend if they're an admin (`services/nginx/snippets/pgadmin.conf`, `backend/backend/api/admin_services.py`),
 and signs them in as pgAdmin's default account (`PGADMIN_DEFAULT_EMAIL`), which owns the preconfigured "QA-Board" server.
 Others are sent to sign in, then get a 403. pgAdmin trusts nginx's `X-Pgadmin-User` header, so it has no published port
 (`deployments/sirc/sirc.yml`): it's only reachable through nginx.

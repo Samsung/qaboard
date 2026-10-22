@@ -127,3 +127,24 @@ def test_exports_dont_replace_what_was_there(world, logged_in):
   assert export(world.storage / 'older-browser', method='GET', Referer='http://localhost/proj/commit/a').status_code == 200
   # cross-site POSTs are refused by backend/actor.py
   assert export(world.storage / 'from-a-form', Origin='https://evil.example').status_code == 403
+
+
+def test_exports_with_tokens(world, logged_in, make_client):
+  """Scripts export with a token, GET or POST: it writes, so it needs the "act" scope"""
+  from .conftest import new_token, bearer
+  world.run(world.batch('proj'), deleted=False, files=True, size=10)
+  world.commit()
+  alice = logged_in('alice')
+  script = make_client()
+  def export(token, folder, method):
+    url = f'/api/v1/export/?project=proj&new_commit_id={"a" * 40}&path=*.png&export_type=link&export_dir={world.storage / folder}'
+    return script.open(url, method=method, headers=bearer(token))
+  reader = new_token(alice, scopes=["read"])["token"]
+  for method in ('GET', 'POST'):
+    response = export(reader, f'read-{method}', method)
+    assert response.status_code == 403 and response.get_json()["reason"] == "missing_scope", response.get_json()
+    assert not (world.storage / f'read-{method}').exists()
+  actor = new_token(alice, scopes=["read", "act"])["token"]
+  for method in ('GET', 'POST'):
+    response = export(actor, f'act-{method}', method)
+    assert response.status_code == 200 and response.get_json()["nb_files_exported"] == 1, response.get_json()

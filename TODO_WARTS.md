@@ -28,7 +28,6 @@ release notes and SECURITY.md); what's below is left, or was found while fixing 
   match env admins on (provider, subject) or verified emails only for OIDC. [S, behaviour]
 - The GitLab "play job" endpoint doesn't check that the job is listed in qaboard.yaml (GitHub workflows do): left out so
   that integrations defined only on branches keep working. [S, behaviour]
-- `/flower/` is only protected by nginx-level checks when `FLOWER_BASIC_AUTH` is unset (base, DSK and chart configs). [S, behaviour]
 - `deployments/sirc/metabase.yml` has default passwords and publishes Metabase's database on 5434. [S, behaviour]
 - `services/pgadmin/passfile` hard-codes the default database password: generate it from `QABOARD_DB_PASSWORD`. [S, no change]
 - pgAdmin 9 trusts `X-Pgadmin-User` from any peer (at SIRC, only nginx can reach it): pin `dpage/pgadmin4` to a version
