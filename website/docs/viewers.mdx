@@ -225,6 +225,9 @@ QA-Board's pages, cookies or local storage, or call its API as the user. What th
 user's session: if your server restricts who can read files, a report with scripts can't load files of restricted
 projects. Reports without scripts load them as usual.
 
+Opened on their own, from the file browser or a link, HTML and SVG files from the storage show in QA-Board's origin
+but their scripts don't run, so a file can't act as whoever opens it. To see a report's charts, open it in QA-Board.
+
 <Shot
   id="commit/html-report"
   caption="The detector's report for one run: AP per class and per object size, latency, and the images where it missed the most objects."

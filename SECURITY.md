@@ -30,6 +30,11 @@ Fixed on the default branch, after the `qaboard` 1.0.3 release:
   (`GET /api/v1/output/<id>` and `/manifest`, which also wrote a file), a project's test groups, the commits of
   milestones used as references, and files under `/s/` with tokens limited to other projects. They now follow
   project roles.
+- Stored XSS: HTML and SVG files in the storage ran their scripts in QA-Board's origin, as whoever opened them, from
+  a link or in the run cards' viewers (figures saved as HTML, reports). Their scripts now run sandboxed in an origin
+  of their own, in the web app's viewers; opened on their own (`/s/...`), they show without scripts
+  (`Content-Security-Policy: sandbox`, `services/nginx/conf.d/qaboard-files.conf`). Error messages in run cards are
+  shown as text.
 - `POST /api/v1/task/celery/<id>` didn't require a login, and waited forever for a Celery worker: it now requires
   one, and gives up after 2 minutes.
 - `POST /api/v1/webhook/proxy`, used for the webhooks and links of `qaboard.yaml`'s integrations, let logged-in users
