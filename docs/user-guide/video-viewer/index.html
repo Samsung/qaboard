@@ -18,7 +18,7 @@
 <link rel="alternate" type="application/rss+xml" href="/qaboard/release-notes/rss.xml" title="QA-Board release notes RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/qaboard/release-notes/atom.xml" title="QA-Board release notes Atom Feed">
 <link rel="alternate" type="application/json" href="/qaboard/release-notes/feed.json" title="QA-Board release notes JSON Feed"><link rel="stylesheet" href="/qaboard/assets/css/styles.ad500c62.css">
-<script src="/qaboard/assets/js/runtime~main.ddadca76.js" defer="defer"></script>
+<script src="/qaboard/assets/js/runtime~main.3ede0599.js" defer="defer"></script>
 <script src="/qaboard/assets/js/main.79336278.js" defer="defer"></script>
 </head>
 <body>
@@ -59,7 +59,7 @@ frame differs: here, all of them, since a new denoiser changes every frame. See
 zooms on where the videos differ most, at frame 12. Press <kbd>]</kbd> for the next one.</li>
 <li class="">Check the badge at the bottom left of the videos: <em>✓ Frame 12 · both</em> means both videos show their frame 12, decoded
 from the files. See <a href="#which-frames-you-are-looking-at" class="">which frames you are looking at</a>.</li>
-<li class="">Press <kbd>3</kbd> for <strong>Single</strong>, then <kbd>t</kbd>: new, reference, their difference, and again. Edges that flash
+<li class="">Press <kbd>3</kbd> for <strong>Single</strong>, then <kbd>t</kbd>: new, reference, and again. Edges that flash
 when you flip are what changed; on the white packages, the new denoiser draws dark rims. See
 <a href="#comparison-modes" class="">comparing two videos</a>.</li>
 <li class="">Hover a pixel on a rim: the line above the videos shows its decoded Y′, Cb and Cr in both frames, and their
@@ -73,7 +73,7 @@ the encoder&#x27;s. The new file&#x27;s bit rate is higher, highlighted: 6.5 Mb/
 <h2 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="comparison-modes">Compare two videos<a href="#comparison-modes" class="hash-link" aria-label="Direct link to Compare two videos" title="Direct link to Compare two videos" translate="no">​</a></h2>
 <p>Pick how to compare above the videos. The modes are the
 <a class="" href="/qaboard/docs/user-guide/image-viewer#comparison-modes">image viewer&#x27;s</a>:</p>
-<table><thead><tr><th>Mode</th><th>What you see</th></tr></thead><tbody><tr><td><strong>Side by side</strong></td><td>New on the left, reference on the right. A cross marks the spot under your mouse on the other video.</td></tr><tr><td><strong>Wipe</strong></td><td>One video over the other: drag the divider to see new on one side, reference on the other.</td></tr><tr><td><strong>Single</strong></td><td>One video at a time, in place: <kbd>t</kbd> (or a click on its label) shows the other, then their difference, then the first again.</td></tr><tr><td><strong>Difference</strong></td><td>Their difference, between the videos (new | difference | reference). Click <strong>Difference</strong> again, or press <kbd>4</kbd> again, to see it alone, larger.</td></tr></tbody></table>
+<table><thead><tr><th>Mode</th><th>What you see</th></tr></thead><tbody><tr><td><strong>Side by side</strong></td><td>New on the left, reference on the right. A cross marks the spot under your mouse on the other video.</td></tr><tr><td><strong>Wipe</strong></td><td>One video over the other: drag the divider to see new on one side, reference on the other.</td></tr><tr><td><strong>Single</strong></td><td>One video at a time, in place: <kbd>t</kbd> (or a click on its label) shows the other, then the first again.</td></tr><tr><td><strong>Difference</strong></td><td>Their difference, between the videos (new | difference | reference). <strong>With the videos</strong>, <strong>Difference</strong> again, or <kbd>4</kbd> again, shows it alone, larger.</td></tr></tbody></table>
 <p>The difference is computed on your graphics card for every frame shown, also while the videos play. Pick how to
 measure it next to the modes, like for images: <strong>Perceptual</strong>, <strong>ΔE 2000</strong>, <strong>Absolute</strong>, <strong>Signed</strong> or <strong>Any
 change</strong> (see <a class="" href="/qaboard/docs/user-guide/image-viewer#the-difference">the difference</a>). It&#x27;s computed on the colors your browser

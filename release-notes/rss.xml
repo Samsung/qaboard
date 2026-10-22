@@ -23,6 +23,8 @@ users and queues (<a class="" href="https://samsung.github.io/qaboard/docs/user-
 <li class="">Group runs by batch, commit, project, user, <code>qa batch</code> command, runner, queue, platform, status or any job option,
 and open each group's runs with their job options, when they were queued, started and ended, and links to their
 results, log and files.</li>
+<li class="">See the runs from before the upgrade too: they count as started when they were created, and ended after the time
+<code>qa run</code> measured them computing.</li>
 <li class="">Spot runs pending for over a day, mark your stuck runs as failed (their jobs aren't stopped), or stop a batch, from
 Runs activity.</li>
 </ul>
@@ -59,10 +61,10 @@ all yours (<a class="" href="https://samsung.github.io/qaboard/docs/user-guide/s
 </ul>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="comparing-images">Comparing images<a href="https://samsung.github.io/qaboard/release-notes/2026-10#comparing-images" class="hash-link" aria-label="Direct link to Comparing images" title="Direct link to Comparing images" translate="no">​</a></h3>
 <ul>
-<li class="">Compare images like videos: side by side, with a wipe, one at a time in place (<strong>Single</strong>), or as their difference. Pick the mode above any image, or with the keys 1 to 4: it applies to all the images of the page, and links keep it. The swap button, or <code>t</code>, swaps the sides (around the difference too); when one image shows, it shows the other, then their difference, then the first again. It does it in every viewer of the page, so they all show the same one, and the keys work anywhere on the page, not only over an image. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/image-viewer">comparing images</a>.</li>
+<li class="">Compare images like videos: side by side, with a wipe, one at a time in place (<strong>Single</strong>), or as their difference. Pick the mode above any image, or with the keys 1 to 4: it applies to all the images of the page, and links keep it. The swap button, or <code>t</code>, swaps the sides (around the difference too), or shows the other image in <strong>Single</strong>, and never changes the mode. It does it in every viewer of the page, so they all show the same one, and the keys work anywhere on the page, not only over an image. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/image-viewer">comparing images</a>.</li>
 <li class="">Compare an image with another file of the same run, like its ground truth or the input, side by side or as their difference: pick it in <strong>vs reference ▾</strong> above the image, where the likeliest files come first. Every run of the page then compares with its own file of that name, or only the run you're looking at with <strong>Apply to: This run</strong>, and <code>c</code> switches back and forth with the reference. The pick is for the page: another commit or batch compares with the reference again. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/image-viewer#compare-with-another-file-of-the-run">comparing with another file</a>.</li>
 <li class="">Run a blind test: <strong>Blind test</strong> above the images (or <code>h</code>) shows each viewer's images in a random order, called A and B everywhere, then <strong>Reveal</strong> shows which was which, and <strong>Done</strong> goes back to new first. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/image-viewer#blind-test">blind test</a>.</li>
-<li class="">See the difference between the new and reference images, all three in sync, with a cross on the pixel under your mouse in each, measured perceptually (YIQ), as ΔE 2000, per channel or as any change at all. Click <strong>Difference</strong> again, or press <code>4</code> again, to see it alone and larger. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/image-viewer#the-difference">the difference</a>.</li>
+<li class="">See the difference between the new and reference images, all three in sync, with a cross on the pixel under your mouse in each, measured perceptually (YIQ), as ΔE 2000, per channel or as any change at all. <strong>With the images</strong> next to the modes, <strong>Difference</strong> again, or <code>4</code> again, shows it alone and larger. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/image-viewer#the-difference">the difference</a>.</li>
 <li class="">Zoom in and read the values of the pixels, written on them: the image's own values (10-bit, 16-bit, float, raw...) or the 8-bit colors on screen, picked from the <strong>123</strong> button above the images. Hover a pixel to see both, in both images, and their difference; <code>p</code> hides them. 8-bit images show one set of values: the screen shows them as they are. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/image-viewer#pixel-values">pixel values</a>.</li>
 <li class="">Compare images in full screen: the button at the right of the image viewer's toolbar, or <code>f</code>, gives the screen to the images, with all the viewer's tools, and the difference under them when that makes them larger. See <a class="" href="https://samsung.github.io/qaboard/docs/user-guide/image-viewer#full-screen">full screen</a>.</li>
 <li class="">Adjust how images look with brightness, contrast, gamma, sharpening, one channel (R, G, B or luma), false colors or inverted colors. They apply to both images and to the same visualization of the other runs; the pixel values, the difference and the histograms stay the images'.</li>
@@ -379,6 +381,11 @@ reference branch's, and what you list (groups, paths, globs).</li>
 project, or download them as CSV. Errors don't stop the job: the runs are kept and the next job tries again.</li>
 <li class="">Schedule jobs with cron expressions in your time zone, instead of cron jobs on the server: hard deletes, and
 <em>Delete old results</em> (like <code>qaboard_clean</code>), with a default age for the projects whose <em>qaboard.yaml</em> says nothing.</li>
+<li class="">Get an email when a scheduled job fails or ends with errors, with the first errors and a link to the job: admins
+get it by default, <code>jobs.failure_email_to</code> sends it to others, <code>jobs.failure_emails</code> turns it off
+(<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/storage#schedule-jobs">schedule jobs</a>).</li>
+<li class="">Get a Sentry issue when a job fails, ends with errors or is given up, one per kind of job, and when the jobs worker
+itself runs into errors (<a class="" href="https://samsung.github.io/qaboard/docs/backend-admin/monitoring#jobs-worker">Monitoring with Sentry</a>).</li>
 <li class="">Choose who sees other people's storage usage with <code>storage.others_visible_to</code>: by default, admins and each
 project's developers and owners from a grant, a group or <em>qaboard.yaml</em>, not every signed-in user.</li>
 <li class="">Users' storage usage is kept up to date by the worker, and rebuilt nightly by a <em>Storage usage</em> schedule it creates
@@ -610,6 +617,10 @@ anonymous users (any non-empty value used to block them), and an empty value let
 <li class="">Long project names no longer overflow the <strong>Storage usage</strong> summary.</li>
 <li class="">Storage scans, exports and jobs name file owners from <code>QABOARD_ACCOUNTS_COMMAND</code>'s accounts, like the file browser,
 instead of <code>uid 2041</code>: users see their files in <strong>Storage usage → Not tracked</strong> and their exports, also from earlier scans.</li>
+<li class="">Storage scans no longer fail when the backend can't update the users' accounts (e.g. their shared folder belongs to
+another user): they use the accounts they have.</li>
+<li class="">Storage scans read each folder once: the same folder under several roots (symlinks, bind mounts) and storage snapshots
+are no longer scanned again, even when you set your own excluded paths.</li>
 <li class="">The whole web app says <strong>Sign in</strong> and <strong>Sign out</strong>: the sidebar, the viewers and the file browser used different words.</li>
 <li class="">The cheat sheet (<code>?</code>) lists the viewers' real shortcuts: <code>h</code> starts a blind test, <code>&lt;</code> and <code>&gt;</code> change a video's speed, and the run filter's example <code>fail</code> keeps the failed runs. The image viewer's own list includes full screen (<code>f</code>).</li>
 <li class="">The batch menu says <strong>Move the filtered runs to another batch</strong> when you filter runs, instead of the other way around.</li>
@@ -656,6 +667,9 @@ instead of <code>uid 2041</code>: users see their files in <strong>Storage usage
 <li class="">ROIs set on inputs of another size than the output images are placed right on non-square images, in the thumbnails and when you zoom on them.</li>
 <li class="">In the image viewer, selecting a region (the selection button, or <code>c</code>) draws it again and shows its histograms, instead of panning the image.</li>
 <li class="">The image viewer's diff threshold slider no longer jumps to its maximum and gets stuck: it moves step by step after you turn the diff on.</li>
+<li class="">Images whose proportions differ from 4:3, like 300×400 portraits, fill their pane when they open, and stay fitted when the pane resizes, instead of showing smaller with dark margins.</li>
+<li class="">In full screen, the images make room for the analysis panel: you see the images and their histogram, profiles or statistics together, without scrolling.</li>
+<li class="">The analysis of the image's own values no longer spins forever when the image keeps redrawing, e.g. while some of its tiles fail to load.</li>
 </ul>
 <h3 class="anchor anchorTargetHideOnScrollNavbar_vjPI" id="videos-plots-and-other-viewers">Videos, plots and other viewers<a href="https://samsung.github.io/qaboard/release-notes/2026-10#videos-plots-and-other-viewers" class="hash-link" aria-label="Direct link to Videos, plots and other viewers" title="Direct link to Videos, plots and other viewers" translate="no">​</a></h3>
 <ul>
@@ -685,6 +699,9 @@ instead of <code>uid 2041</code>: users see their files in <strong>Storage usage
 <li class="">Selecting a milestone from <code>qaboard.yaml</code> selects the latest commit of its branch.</li>
 <li class="">The batch selector no longer jumps back to the top while you scroll it, and its keyboard navigation works again. It now opens on the selected batch, marked with a check.</li>
 <li class="">Switching to a branch you had opened in a previous visit no longer crashes the commits list ("setHours is not a function").</li>
+<li class="">The History page no longer crashes when <code>dashboard_metrics</code> or <code>dashboard_evolution_metrics</code> in a metrics file isn't a list of metric names (e.g. <code>dashboard_metrics: psnr</code>): it uses the defaults instead.</li>
+<li class="">Pages no longer crash when a link repeats <code>filter</code> or <code>search</code> (e.g. <code>?search=a&amp;search=b</code>): they search for both.</li>
+<li class="">Pages that crash while Sentry loads, or before QA-Board knows the server's configuration, are reported to the server's Sentry too.</li>
 <li class="">Commit pages and the branch list no longer break when results were sent without a branch.</li>
 <li class="">The projects list shows the description from <em>qaboard.yaml</em> (<code>project.description</code>) for projects that aren't on GitHub or GitLab too.</li>
 <li class="">The chart above a branch's commits leaves out the commits that don't have the metric, instead of drawing gaps in its line.</li>
