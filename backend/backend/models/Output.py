@@ -19,7 +19,7 @@ from qaboard.utils import save_outputs_manifest
 from qaboard.api import dir_to_url
 
 from backend.models import Base
-from backend.fs_utils import rm_empty_parents, rmtree
+from backend.fs_utils import rm_empty_parents, rmtree, mkdir_shared, chmod_shared
 from backend.storage import check_storage_path, check_inside
 
 
@@ -209,9 +209,10 @@ class Output(Base):
       return output
 
     except MultipleResultsFound:
+      # This should not happen (e.g. concurrent calls for the same run). We keep the newest, the one runs
+      # update now. The others' files may be the same folder: we only delete their rows.
       print('WARNING: MultipleResultsFound')
-      # this should not happen. Quick and dirty fix:
-      output = session.query(Output).filter(
+      newest, *others = session.query(Output).filter(
           and_(
               Output.batch_id == kwargs['batch'].id,
               Output.test_input_id == kwargs['test_input'].id,
@@ -219,17 +220,11 @@ class Output(Base):
               Output.configurations == kwargs['configurations'],
               Output.extra_parameters == kwargs['extra_parameters'],
           )
-      ).delete()
-      output = Output(
-          batch=kwargs['batch'],
-          test_input=kwargs['test_input'],
-          platform=kwargs['platform'],
-          configurations=kwargs['configurations'],
-          extra_parameters=kwargs['extra_parameters'],
-      )
-      session.add(output)
+      ).order_by(Output.id.desc()).all()
+      for output in others:
+        session.delete(output)
       session.commit()
-      return output
+      return newest
 
 
   def set_status(self, is_pending, is_running, now=None):
@@ -322,7 +317,8 @@ class Output(Base):
           print(f'{output_file}')
           if not dryrun:
             rmtree(output_file)
-            rm_empty_parents(output_dir)
+            # the folders it leaves empty: the manifest stays in the output's
+            rm_empty_parents(output_file)
       else:
         self.delete(soft=False, dryrun=dryrun)
         return
@@ -339,8 +335,11 @@ class Output(Base):
   def update_manifest(self, compute_hashes=True):
     qatools_config = self.batch.ci_commit.project.data.get('qatools_config', {})
     check_storage_path(self.output_dir)
-    os.umask(0)
-    return save_outputs_manifest(self.output_dir, config=qatools_config, compute_hashes=compute_hashes)
+    # users' runs, under their own accounts, rewrite the manifest (and write in the folder if we create it)
+    mkdir_shared(self.output_dir)
+    manifest = save_outputs_manifest(self.output_dir, config=qatools_config, compute_hashes=compute_hashes)
+    chmod_shared(self.output_dir / 'manifest.outputs.json')
+    return manifest
 
   def update_metrics(self, filepath=None):
     """Updates the metrics from a file"""

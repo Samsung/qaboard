@@ -18,6 +18,7 @@ from pathlib import Path
 from backend import db_session
 from .shell_utils import quote, is_shell_safe, safe_user_name, lsf_bridge_command
 from .storage import check_storage_path
+from .fs_utils import mkdir_shared
 from .artifacts import ArtifactsUnavailable
 from .submissions import record_submission, user_batch_dir, submission_dir
 
@@ -127,11 +128,8 @@ def redo_outputs(batch, outputs, user_info) -> dict:
   log_dir = submission_dir(user_batch_dir(batch.batch_dir, user), created_at, command_id)
   # We write and run scripts there
   check_storage_path(log_dir)
-  prev_mask = os.umask(0)
-  try:
-    log_dir.mkdir(parents=True, exist_ok=True)
-  finally:
-    os.umask(prev_mask)
+  # users' `qa batch` writes there under their own accounts
+  mkdir_shared(log_dir)
 
   runs_path = log_dir / 'runs.json'
   with runs_path.open('w') as f:

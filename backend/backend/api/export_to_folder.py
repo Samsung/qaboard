@@ -18,7 +18,7 @@ from polyleven import levenshtein as polyleven_levenshtein
 from qaboard.compat import windows_to_linux_path
 from qaboard.conventions import serialize_config
 from backend import app, db_session
-from backend.fs_utils import as_user, rmtree
+from backend.fs_utils import as_user, rmtree, mkdir_shared
 from backend.storage import check_storage_path, UnsafePathError
 from ..models import CiCommit, Batch, slugify_hash
 from ..config import qaboard_url
@@ -211,13 +211,11 @@ def export_to_folder():
     return json.dumps({"error": f"ERROR: {e}"}), 403
 
   if not export_dir.exists():
-    prev_mask = os.umask(000)
     try:
-      export_dir.mkdir(parents=True, exist_ok=True)
+      # all users write their exports there
+      mkdir_shared(export_dir)
     except Exception as e:
-      os.umask(prev_mask)
       return json.dumps({"error": f"ERROR: When creating '{export_dir}': {e}"}), 403
-    os.umask(prev_mask)
 
   is_export_dir_writable = os.access(export_dir, os.W_OK)
   if not is_export_dir_writable:
