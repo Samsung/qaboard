@@ -86,6 +86,10 @@ def is_same_content(filename, meta_1, meta_2):
     return meta_1['md5'] == meta_2['md5']
 
 
+def is_ignored(rel_path: str, ignore) -> bool:
+  """Whether the path of a file in a run's output directory starts with one of the bit_accuracy.ignore patterns."""
+  return any(fnmatch.fnmatch(rel_path, f"{i}*") for i in ignore)
+
 
 def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignore=None, cmp=default_cmp):
   """Bit-accuracy test between two directories. We usually use cmpmanifest only...
@@ -111,16 +115,16 @@ def cmpfiles(dir_1=Path(), dir_2=Path(), patterns=None, ignore=None, cmp=default
 
     for file_2 in files_2:
       if not file_2.is_file(): continue
-      if any(fnmatch.fnmatch(file_2.name, i) for i in ignore): continue
       rel_path = file_2.relative_to(dir_2)
+      if is_ignored(rel_path.as_posix(), ignore): continue
       if not (dir_1 / rel_path).is_file():
         only_in_2.add(rel_path)
 
     for file_1 in files_1:
       if not file_1.is_file(): continue
-      if any(fnmatch.fnmatch(file_1.name, i) for i in ignore): continue
-
       rel_path = file_1.relative_to(dir_1)
+      if is_ignored(rel_path.as_posix(), ignore): continue
+
       file_2 = dir_2 / rel_path
       if file_2.is_file():
         try:
@@ -179,7 +183,7 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignore=None):
     for file_2_str in manifest_2:
       if not fnmatch.fnmatch(file_2_str, pattern):
         continue
-      if any(fnmatch.fnmatch(file_2_str, f"{i}*") for i in ignore):
+      if is_ignored(file_2_str, ignore):
         continue
       if file_2_str not in manifest_1:
         only_in_2.add(Path(file_2_str))
@@ -188,7 +192,7 @@ def cmpmanifests(manifest_path_1, manifest_path_2, patterns=None, ignore=None):
       if not fnmatch.fnmatch(file_1_str, pattern):
         continue
       file_1 = Path(file_1_str)
-      if any(fnmatch.fnmatch(file_1, f"{i}*") for i in ignore):
+      if is_ignored(file_1_str, ignore):
         continue
       if file_1_str in manifest_2:
         is_same = is_same_content(file_1_str, meta_1, manifest_2[file_1_str])
@@ -240,6 +244,7 @@ def is_bit_accurate(dir_new, dir_ref, ba_context, strict=False, manifest_name='m
     ignore = config.get("bit_accuracy", {}).get("ignore", [])
     if not (isinstance(ignore, list) or isinstance(ignore, tuple)):
       ignore = [ignore]
+    ignore = list(ignore) # we add to it, not to the configuration
     ignore.append('manifest.inputs.json') # compared when setting manifest_name
     ignore.append('run.json')             # qa-board data, not relevant
     ignore.append('log.txt')              # contains timestamps
