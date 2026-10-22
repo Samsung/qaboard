@@ -1034,7 +1034,10 @@ def save_artifacts(ctx, files, excluded_groups, artifacts_path, groups):
       click.secho(f"ERROR: {e}", fg='red')
       click.secho(f"We could not create one the folders required to save the artifacts..", fg='red', dim=True)
       click.secho(f"The disk could be full, or just the quota for the current user...", fg='red', dim=True)
-      click.secho(f"> Contact Alg-Infra@transchip.com", fg='blue')
+      from .site_config import site_config
+      storage_help = site_config('QABOARD_STORAGE_HELP')
+      if storage_help:
+        click.secho(f"INFO: {storage_help}", fg='blue')
       sys.exit(1)
     if manifest_path.exists():
       with manifest_path.open() as f:

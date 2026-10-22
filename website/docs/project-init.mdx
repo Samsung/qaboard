@@ -186,4 +186,11 @@ Add a *qaboard.yaml* next to your site package's `__init__.py`, and add to its `
 "QABOARD_SITE_CONFIG": str(Path(__file__).with_name("qaboard.yaml")),
 ```
 
+If projects need someone to create their storage folders, or to raise a quota, say how in `QABOARD_STORAGE_HELP`:
+`qa` prints it when it can't create a folder for results or artifacts.
+
+```python
+"QABOARD_STORAGE_HELP": "To get storage for a new project, ask your IT team: https://helpdesk.example.com",
+```
+
 </details>

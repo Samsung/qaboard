@@ -19,7 +19,7 @@ my-batch:
 ```yaml
 runners:
   jenkins:
-    build_url: http://jenmaster1:8080/job/ALGO/job/WindowsExecutor
+    build_url: http://jenkins.example.com/job/WindowsExecutor
     token: "1234"
 ``` 
 - This Jenkins build job needs to be configured like this:

@@ -83,5 +83,30 @@ class TestGitHeadFallback(unittest.TestCase):
     self.assertIn('Could not read the git HEAD', secho.call_args.args[0])
 
 
+class TestStorageHelp(unittest.TestCase):
+  def messages(self, env):
+    from importlib import import_module
+    config = import_module('qaboard.config') # qaboard.config is also the configuration (qaboard/__init__.py)
+    with tempfile.TemporaryDirectory() as tmp, \
+         mock.patch.dict(os.environ, env), \
+         mock.patch.object(config, 'ignore_config_errors', False), \
+         mock.patch.object(config, 'config_has_error', False), \
+         mock.patch('qaboard.config.click.secho') as secho:
+      (Path(tmp) / 'file').touch()
+      config.mkdir(Path(tmp) / 'file' / 'storage') # can't be created
+      self.assertTrue(config.config_has_error)
+    return '\n'.join(c.args[0] for c in secho.call_args_list)
+
+  def test_site_explains_how_to_get_storage(self):
+    messages = self.messages({'QABOARD_STORAGE_HELP': 'Ask IT at https://helpdesk.example.com'})
+    self.assertIn('The storage path does not exist', messages)
+    self.assertIn('Ask IT at https://helpdesk.example.com', messages)
+
+  def test_no_site_help(self):
+    messages = self.messages({'QABOARD_STORAGE_HELP': ''})
+    self.assertIn('The storage path does not exist', messages)
+    self.assertNotIn('INFO', messages)
+
+
 if __name__ == '__main__':
   unittest.main()

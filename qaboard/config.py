@@ -213,10 +213,10 @@ def mkdir(path: Path):
       config_has_error = True
       if not ignore_config_errors:
         click.secho(f'ERROR: The storage path does not exist: "{path}".', fg='red', err=True)
-        if "/algo/" in str(path) and not Path(*path.parts[:3]).exists():
-          click.secho(f'INFO: To create storage locations for new projects, go to:', fg='blue', bold=True, err=True)
-          click.secho(f'      http://jenmaster1:8080/job/ALGO/job/CreateProjectStorage/build?delay=0sec', fg='blue', err=True)
-          click.secho(f'Products (HP1, 2X5...) are "Technology" projects, while CIS/KITT_ISP.. are "Group" projects.', fg='blue', err=True)
+        # Sites can explain how to get storage for new projects
+        storage_help = site_config('QABOARD_STORAGE_HELP')
+        if storage_help:
+          click.secho(f'INFO: {storage_help}', fg='blue', err=True)
 
 outputs_root: Optional[Path]
 artifacts_root: Optional[Path]
