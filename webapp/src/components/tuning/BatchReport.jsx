@@ -28,15 +28,27 @@ export function BatchWarnings({ warnings, title, style }) {
 }
 
 
+// a.yaml, then b.yaml
+const Files = ({ files }) => files.map((file, idx) => <React.Fragment key={idx}>
+  {idx > 0 && ", then "}<code>{file}</code>
+</React.Fragment>);
+
+/**
+ * The batch files the batches are defined in: [{name, files}], e.g. from QA-Board's API.
+ * The batches are not shown, e.g. for a batch whose name is already shown.
+ */
+export const definitionsFiles = definitions => [...new Set((definitions ?? []).flatMap(d => d.files ?? []))];
+
 /**
  * Where the batch (or the batches its alias or pattern stands for) is defined.
+ * When several files define a batch, they are listed in order: like for `qa batch`, the last one wins.
  */
 export function BatchDefinitions({ definitions, style }) {
   if (!definitions?.length) return null;
   const shown = definitions.slice(0, 5);
   return <p className={Classes.TEXT_MUTED} style={style}>
     {shown.map((d, idx) => <React.Fragment key={idx}>
-      {idx > 0 && "; "}<code>{d.name}</code> is defined in <code>{d.file}</code>
+      {idx > 0 && "; "}<code>{d.name}</code> is defined in <Files files={d.files ?? []} />
     </React.Fragment>)}
     {definitions.length > shown.length && `, and ${definitions.length - shown.length} more`}.
   </p>;

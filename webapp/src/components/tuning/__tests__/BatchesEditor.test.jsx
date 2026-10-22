@@ -186,7 +186,7 @@ it('opens the private file once we know who the user is', async () => {
 it('says why a batch has no tests, and which batch files the server read', async () => {
   http.post.mockImplementation(() => Promise.resolve({ data: {
     tests: [],
-    definitions: [{ name: 'my-batch', file: 'sub/batches.yaml' }],
+    definitions: [{ name: 'my-batch', files: ['sub/batches.yaml'] }],
     warnings: ['Inputs not found by the QA-Board server: “a.jpg” under /mnt/db.'],
     files: [
       { source: 'commit', path: 'sub/batches.yaml', location: '/mnt/qaboard/group/repo/ab/cd/sub/batches.yaml', status: 'ok', batches: 3 },
