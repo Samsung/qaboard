@@ -94,12 +94,6 @@ const compute_options = (outputs, manifest) => {
 }
 
 
-const error_html = error => {
-  const data = error.response?.data;
-  return typeof data === 'string' && data ? data : errorMessage(error);
-}
-
-
 const SlimCard = styled(Card)`
   overflow: "auto";
 `;
@@ -531,13 +525,13 @@ const OutputCard = memo(function OutputCard(props) {
       }}
     >
       {error.new && <span key="error-new">
-        <Tooltip content={<span dangerouslySetInnerHTML={{ __html: error_html(error.new) }} />}>
+        <Tooltip content={<span>{errorMessage(error.new)}</span>}>
           <Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Could not list the run's files</Tag>
         </Tooltip>
         <Button size="small" variant="minimal" icon="refresh" text="Retry" onClick={() => query_new.refetch()}/>
       </span>}
       {error.reference && <span key="error-ref">
-        <Tooltip content={<span dangerouslySetInnerHTML={{ __html: error_html(error.reference) }} />}>
+        <Tooltip content={<span>{errorMessage(error.reference)}</span>}>
           <Tag style={{ margin: '5px' }} intent={Intent.DANGER}>Could not list the reference's files</Tag>
         </Tooltip>
         <Button size="small" variant="minimal" icon="refresh" text="Retry" onClick={() => query_ref.refetch()}/>

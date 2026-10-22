@@ -1,28 +1,46 @@
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { fileQuery } from "../api/queries";
-import { html_base_url, html_with_base } from "./htmlDocument";
+import { FRAME_SIZE_MESSAGE, OUTPUT_FRAME_SANDBOX, STATIC_FRAME_SANDBOX, has_scripts, html_base_url, html_for_frame } from "./htmlDocument";
 import { ViewerError, ViewerLoading } from "./ViewerStates";
 import { useLabels } from "../hooks";
 
 
+// The frame grows to fit its document: as high, and wider if what's in it doesn't fit
+const fit = (frame, { width, height }) => {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || height < 1) return;
+  if (width > frame.clientWidth)
+    frame.style.width = `${width}px`;
+  frame.style.height = `${height}px`;
+};
+
 // An HTML output in its own document: its styles stay out of the app, and its relative links (images/1.jpg) resolve
-// from its folder. No scripts: the sandbox only lets the frame be measured (same origin) and open links in a new tab.
-// Once it loaded, images included, the frame grows to fit its document: as high, and wider if what's in it doesn't fit.
+// from its folder. It is sandboxed (see htmlDocument.js). With scripts, in an origin of its own: they run but can't
+// reach the app, and the document tells us its size. Without, in our origin where nothing of it can run: we measure
+// it once loaded, images included.
 const HtmlFrame = ({ html, base, width, title }) => {
-  const resize = e => {
-    const frame = e.currentTarget;
-    const root = frame.contentDocument?.documentElement;
-    if (!root) return;
-    if (root.scrollWidth > frame.clientWidth)
-      frame.style.width = `${root.scrollWidth}px`;
-    frame.style.height = `${root.scrollHeight}px`;
+  const frame = useRef(null);
+  const scripted = has_scripts(html);
+  useEffect(() => {
+    if (!scripted) return;
+    const resize = e => {
+      if (frame.current && e.source === frame.current.contentWindow && e.data?.type === FRAME_SIZE_MESSAGE)
+        fit(frame.current, e.data);
+    };
+    window.addEventListener('message', resize);
+    return () => window.removeEventListener('message', resize);
+  }, [scripted]);
+  const measure = e => {
+    const root = e.currentTarget.contentDocument?.documentElement;
+    if (root) fit(e.currentTarget, { width: root.scrollWidth, height: root.scrollHeight });
   };
   return <iframe
+    ref={frame}
     title={title}
-    srcDoc={html_with_base(html, base)}
-    sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-    onLoad={resize}
+    srcDoc={html_for_frame(html, base)}
+    sandbox={scripted ? OUTPUT_FRAME_SANDBOX : STATIC_FRAME_SANDBOX}
+    onLoad={scripted ? undefined : measure}
     style={{ width, height: '150px', border: 0, display: 'block' }}
   />
 }

@@ -2,7 +2,7 @@
  * The HTML viewer shows the new and reference documents, under their names.
  * Run with: cd webapp && npm test -- htmlViewer
  */
-import { screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
 
 import HtmlViewer from '../html';
 import { renderWithProviders } from '../../test-utils';
@@ -31,5 +31,36 @@ describe('HtmlViewer', () => {
     const reference = screen.getByRole('heading', { name: /v1.4/ });
     expect(reference.querySelector('[aria-hidden]')).toHaveStyle({ color: 'var(--qa-side-1)' });
     expect(screen.getByTitle('report.html (v1.4)')).toBeInTheDocument();
+  });
+
+  const scripted = '<div id="chart"></div><script>draw("chart")</script>';
+  const sandbox_of = frame => frame.getAttribute('sandbox').split(' ');
+
+  it("runs the scripts of reports sandboxed, outside of the app's origin", async () => {
+    fetch.mockImplementation(async () => new Response(scripted));
+    renderWithProviders(<HtmlViewer path="report.html" output_new={output_new}/>);
+    const frame = await screen.findByTitle('report.html (new)');
+    expect(sandbox_of(frame)).toContain('allow-scripts');
+    expect(sandbox_of(frame)).not.toContain('allow-same-origin');
+    expect(frame.getAttribute('srcdoc')).toContain(scripted);
+  });
+
+  it('runs nothing of reports without scripts, which keep our origin to load their images', async () => {
+    renderWithProviders(<HtmlViewer path="report.html" output_new={output_new}/>);
+    const frame = await screen.findByTitle('report.html (new)');
+    expect(sandbox_of(frame)).not.toContain('allow-scripts');
+    expect(frame.getAttribute('srcdoc')).toContain('<p>report</p>');
+  });
+
+  it('grows to the size its document says, only from its own frame', async () => {
+    fetch.mockImplementation(async () => new Response(scripted));
+    renderWithProviders(<HtmlViewer path="report.html" output_new={output_new} style={{ width: '400px' }}/>);
+    const frame = await screen.findByTitle('report.html (new)');
+    const size = { type: 'qaboard-frame-size', width: 0, height: 900 };
+    fireEvent(window, new MessageEvent('message', { data: size, source: window }));
+    expect(frame.style.height).toBe('150px');
+    fireEvent(window, new MessageEvent('message', { data: size, source: frame.contentWindow }));
+    expect(frame.style.height).toBe('900px');
+    expect(frame.style.width).toBe('400px');
   });
 });

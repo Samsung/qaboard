@@ -217,7 +217,13 @@ transcript.
 **Files:** *.html*, e.g. reports your code renders.
 
 Each report shows in a frame of its own, the new run's above the reference's. Images and links relative to the HTML
-file work, its styles don't change the page, and scripts don't run. The frame grows to fit the report.
+file work, its styles don't change the page, and its scripts run (e.g. to draw charts). The frame grows to fit the
+report once it loaded.
+
+Reports with scripts, and figures saved as HTML, run sandboxed, in an origin of their own: their scripts can't read
+QA-Board's pages, cookies or local storage, or call its API as the user. What they load is requested without the
+user's session: if your server restricts who can read files, a report with scripts can't load files of restricted
+projects. Reports without scripts load them as usual.
 
 <Shot
   id="commit/html-report"
