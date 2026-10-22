@@ -39,7 +39,7 @@ afterEach(() => {
 
 describe('configurationSummary', () => {
   it('lists the configurations and tuning parameters on one line', () => {
-    expect(configurationSummary(output)).toBe('base · isp: {"denoise":0.8} · lr=0.1')
+    expect(configurationSummary(output)).toBe('lr=0.1 · base · isp: {"denoise":0.8}')
   })
   it('mentions unusual platforms', () => {
     expect(configurationSummary({ ...output, platform: 'windows', configurations: [], extra_parameters: {} })).toBe('@windows')
@@ -69,7 +69,7 @@ describe('RunLogs', () => {
   it('shows the run and its configuration as text, without waiting to be on screen', () => {
     renderRun()
     expect(screen.getByText('scenes/indoor/sequence_7.mp4')).toBeInTheDocument()
-    expect(screen.getByText('base · isp: {"denoise":0.8} · lr=0.1')).toBeInTheDocument()
+    expect(screen.getByText('lr=0.1 · base · isp: {"denoise":0.8}')).toBeInTheDocument()
     // the configuration tags are only rendered for expanded runs
     expect(screen.queryByText('Configuration')).toBeNull()
     expect(screen.getByLabelText('Open the output directory')).toHaveAttribute('href', '/s/out/7/') // the file browser, even if the folder is missing
@@ -89,6 +89,17 @@ describe('RunLogs', () => {
     fireEvent.click(screen.getByLabelText('Run actions'))
     expect(await screen.findByText('Redo')).toBeInTheDocument()
     expect(screen.getByText('Delete…')).toBeInTheDocument()
+  })
+
+  it('says how long the run took, and has what we know about it in its menu, with its History', async () => {
+    renderRun({ output: { ...output, metrics: { compute_time: 125 }, created_date: '2026-09-01T10:00:00Z' }, commit: { id: 'abc', branch: 'main' } })
+    expect(screen.getByTitle('Compute time')).toHaveTextContent('2min5s')
+    fireEvent.click(screen.getByLabelText('Run actions'))
+    const history = (await screen.findByTitle("See this input's results over time")).closest('a')
+    expect(new URL(history.href, 'http://localhost').pathname).toBe('/p/history/main')
+    expect(screen.getByText('compute time')).toBeInTheDocument()
+    expect(screen.getByText('Run Info')).toBeInTheDocument()
+    expect(screen.getByText('Redo')).toBeInTheDocument()
   })
 
   it('shows the full configuration with the logs', async () => {

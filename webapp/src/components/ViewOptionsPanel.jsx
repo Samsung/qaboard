@@ -17,6 +17,7 @@ import { defaultRule, optionLabel, resolveOptionValue } from "../utils/dynamicOp
 import SidePanel from "./SidePanel";
 import { SharedSettings, useSharedConfiguration, useHideSharedSettings } from "../configurations/ConfigurationsTags";
 import { HideSharedSwitch } from "../configurations/ConfigurationOverview";
+import { FileOptionSwitches, file_options_summary } from "../viewers/bit_accuracy/utils";
 
 // The commit page's View options: what the views of the runs' results show, and in which order.
 // Docked on the right of the page (see SidePanel), they only list what changes the views selected.
@@ -119,6 +120,11 @@ const ViewOptionsPanel = ({
   setExpanded,
   // incremented to bring the Files to show into view, e.g. after users choose an option for all runs again from a run's card
   revealFiles = 0,
+  // { id }, a new object each time a section should open and come into view, e.g. the output files' options
+  revealSection = null,
+  // the output files' options, e.g. show_all_files, from the URL
+  file_options = no_options,
+  onToggleFileOption = () => noop,
 }) => {
   const [scroll_to, setScrollTo] = useState(null);
 
@@ -127,6 +133,7 @@ const ViewOptionsPanel = ({
     dynamic_options: true,
     viewers: true,
     configuration: true,
+    files: true,
     sorting: true,
   });
 
@@ -142,6 +149,15 @@ const ViewOptionsPanel = ({
     setExpandedSections(prev => ({ ...prev, dynamic_options: true }));
   }
 
+  const [prev_reveal_section, setPrevRevealSection] = useState(revealSection);
+  if (revealSection !== prev_reveal_section) {
+    setPrevRevealSection(revealSection);
+    if (revealSection) {
+      setScrollTo({ id: revealSection.id });
+      setExpandedSections(prev => ({ ...prev, [revealSection.id]: true }));
+    }
+  }
+
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
       ...prev,
@@ -154,6 +170,9 @@ const ViewOptionsPanel = ({
   const shows_cards = (selected_views.includes('output-list') || selected_views.includes('bit-accuracy')) && nb_runs !== 0;
   // only the visualizations view shows visualizations, and uses their options
   const shows_visualizations = selected_views.includes('output-list') && nb_runs !== 0;
+  // the output files view lists files
+  const shows_files = selected_views.includes('bit-accuracy') && nb_runs !== 0;
+  const file_options_on = file_options_summary(file_options);
   const has_images = visualizations.some(v => is_image(v));
   // `diff` is how URLs said "difference" before there were comparison modes
   const image_mode = controls.image_mode ?? (controls.diff ? 'difference' : DEFAULT_MODE);
@@ -321,6 +340,7 @@ const ViewOptionsPanel = ({
         .map(control => `${control.label || humanize(control.name)} ${controls[control.name] ? 'on' : 'off'}`),
     ],
     configuration: shared?.collapse && !hide_shared ? ['Shared settings shown in each run'] : [],
+    files: file_options_on.map(option => `Output files: ${option}`),
     sorting: sort_changed ? [`Sorted by ${sort_label(sort_value)}, ${order_label}`] : [],
   };
 
@@ -375,6 +395,13 @@ const ViewOptionsPanel = ({
       icon: 'eye-open',
       summary: viewers_summary,
       content: viewer_switches,
+    },
+    shows_files && {
+      id: 'files',
+      title: 'Output files',
+      icon: 'folder-close',
+      summary: file_options_on.length > 0 ? file_options_on.join(', ') : 'Changed files only',
+      content: <FileOptionSwitches options={file_options} toggle={onToggleFileOption} />,
     },
     shared?.tokens.length > 0 && {
       id: 'configuration',
@@ -453,7 +480,7 @@ const ViewOptionsPanel = ({
     changes={Object.values(changes).flat()}
     reset={has_changes ? {
       onClick: onResetControls,
-      tooltip: "Back to the project's defaults: visualizations, files to show and viewers. The sorting stays.",
+      tooltip: "Back to the project's defaults: visualizations, files to show, viewers and output files. The sorting stays.",
     } : undefined}
     scrollTo={scroll_to}
   >

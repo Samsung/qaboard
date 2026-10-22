@@ -120,6 +120,8 @@ const Strip = styled.div`
     align-items: flex-start;
     gap: 2px;
     min-width: 0;
+    /* room for the insertion bar before the first tab and after the last */
+    padding: 0 5px;
     overflow-x: auto;
     overscroll-behavior-x: contain;
     scrollbar-width: none;
@@ -143,6 +145,27 @@ const Strip = styled.div`
   .qa-tabs-hint {
     font-size: 11px;
     white-space: nowrap;
+  }
+  /* while dragging a tab: where it would go, in words. It floats below the tabs: taking room would move them */
+  .qa-tabs-drop-hint {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 12px;
+    z-index: 1;
+    max-width: 420px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    background: var(--qa-surface);
+    box-shadow: 0 0 0 1px var(--qa-border), 0 2px 6px rgba(17, 20, 24, 0.15);
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--qa-text);
+    pointer-events: none;
+  }
+  .qa-tabs-drop-hint strong {
+    font-weight: 600;
   }
   .qa-tabs-hint kbd {
     display: inline-block;
@@ -210,21 +233,37 @@ const Tab = styled.div`
   &:focus-visible {
     box-shadow: inset 0 0 0 2px var(--side-color);
   }
-  /* where a dragged tab would go */
-  &[data-drop="before"]::before, &[data-drop="after"]::before {
+  /* where a dragged tab would go: an insertion bar in the gap between the two tabs, with round ends */
+  .qa-drop-marker {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    z-index: 1;
+    width: 3px;
+    border-radius: 2px;
+    background: var(--qa-intent-primary);
+    pointer-events: none;
+  }
+  .qa-drop-marker::before, .qa-drop-marker::after {
     content: "";
     position: absolute;
-    top: 4px;
-    bottom: 4px;
-    width: 2px;
-    border-radius: 1px;
-    background: var(--qa-intent-primary);
-  }
-  &[data-drop="before"]::before {
     left: -2px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: inherit;
   }
-  &[data-drop="after"]::before {
-    right: -2px;
+  .qa-drop-marker::before {
+    top: -3px;
+  }
+  .qa-drop-marker::after {
+    bottom: -3px;
+  }
+  &[data-drop="before"] .qa-drop-marker {
+    left: -3.5px;
+  }
+  &[data-drop="after"] .qa-drop-marker {
+    right: -3.5px;
   }
   /* dropped there, they swap */
   &[data-drop="swap"] {
@@ -544,6 +583,7 @@ const ReferenceTab = ({ reference, project, details, actions, batch_counts, drag
       else if (event.altKey && event.key === 'ArrowRight') actions.move(reference.index + 1);
     }}
   >
+    {(drop === 'before' || drop === 'after') && <span className="qa-drop-marker" aria-hidden/>}
     <span className="qa-tab-dot"/>
     {renaming !== null
       ? <input
@@ -798,7 +838,27 @@ export const ReferenceTabs = () => {
       setDrop(null);
     },
   });
-  const drop_on = index => drop?.index === index && dragging !== index ? drop.side : undefined;
+  // Where the dragged tab would go, as the gap before a reference: dropping it next to itself doesn't move it
+  const drop_gap = drop && drop.side !== 'swap' ? drop.index + (drop.side === 'after' ? 1 : 0) : null;
+  const moves_nowhere = drop_gap !== null && (drop_gap === dragging || drop_gap === dragging + 1);
+  const drop_on = index => drop?.index === index && dragging !== index && !moves_nowhere ? drop.side : undefined;
+  const name = index => <strong>{index === 'top' ? top.display_label : references[index].display_label}</strong>;
+  let drop_hint = null;
+  if (dragging !== null) {
+    if (!drop) drop_hint = dragging === 'top'
+      ? <>Drop on a reference to swap it with {name('top')}</>
+      : <>Drop between two references to move {name(dragging)}, or on {name('top')} to swap them</>;
+    else if (drop.side === 'swap') drop_hint = <>Swap {name(dragging)} with {name(dragging === 'top' ? drop.index : 'top')}</>;
+    else if (moves_nowhere) drop_hint = <>{name(dragging)} is already there</>;
+    else {
+      const others = references.map(r => r.index).filter(i => i !== dragging);
+      const left = others.filter(i => i < drop_gap).at(-1);
+      const right = others.find(i => i >= drop_gap);
+      drop_hint = left === undefined ? <>Move {name(dragging)} first, before {name(right)}</>
+        : right === undefined ? <>Move {name(dragging)} last, after {name(left)}</>
+        : <>Move {name(dragging)} between {name(left)} and {name(right)}</>;
+    }
+  }
 
   return <Strip style={{ top: strip_top }}>
     <div className="qa-tabs-top">
@@ -850,5 +910,6 @@ export const ReferenceTabs = () => {
         <kbd>r</kbd> next · <kbd>⇧ r</kbd> previous
       </span>
     </div>
+    {drop_hint && <span className="qa-tabs-drop-hint" aria-live="polite">{drop_hint}</span>}
   </Strip>;
 };

@@ -145,7 +145,7 @@ Some projects open another view by default. The view you're on is part of the pa
 The **Visualizations** view has one card per run. A card starts with:
 
 - **the run's name**, usually its input. Hover it for its batch, input path and database (click to copy), metadata,
-  compute time, date and storage. Click it to see this input's results over time, in
+  compute time, date and storage, and **History**: this input's results over time, in
   [History](/docs/user-guide/history-and-dashboards).
 - **tags** for its platform and configuration, and how they differ from the reference run's: see
   [Reading configurations](/docs/user-guide/comparing-results#reading-configurations). Orange **Input**, **Config** or
@@ -162,8 +162,9 @@ tagged **Identical to the reference**. Cards load their files as you scroll to t
   caption="The facade's card: its PSNR, in red, still misses its 30 dB target, but its change, +5%, is green: better than the release. Then the regions saved for this photo, and both images, zoomed in together."
 />
 
-Next to the run's name, the menu (☰) redoes the run, or deletes it or only its output files, once you're logged in:
-see [Redo, stop and clean up runs](/docs/user-guide/running-from-the-webapp#redo-stop-and-clean-up-runs).
+Next to the run's name, the menu (☰) opens the input's **History**, and redoes the run, or deletes it or only its
+output files, once you're logged in: see
+[Redo, stop and clean up runs](/docs/user-guide/running-from-the-webapp#redo-stop-and-clean-up-runs).
 
 The folder icon opens the run's output directory (or the reference's) in the [file browser](/docs/user-guide/files);
 the copy icon copies its path, as a Linux or a Windows path. The button at the card's top right shows the card in full
@@ -181,8 +182,10 @@ the runs shown use.
   caption="Only the files that differ from the reference are listed: here, the pipeline stages that a rounding change touched. Click Help for what the icons mean."
 />
 
-- By default, only the files that are **different, added or removed** are listed. **Show all files**, **Hide runs
-  without files**, **Expand all folders**, **Color-blind friendly** and the path filter change that.
+- By default, only the files that are **different, added or removed** are listed. Filter them by path above the
+  files: `match:name` lists identical files, `diff:name` different ones.
+- **File options**, next to the filter, opens their options in the [View options](#view-options): **Show all files**,
+  **Hide runs without files**, **Expand all folders** and **Color-blind friendly**. The button says which are on.
 - **Click a file** to see its diff with the reference's. <kbd>Ctrl</kbd>-click or <kbd>Shift</kbd>-click to diff
   several. **Next diff** jumps to the next change.
 - **Help** explains the icons and colors: bit-accurate, different, missing in the reference, only in the reference...

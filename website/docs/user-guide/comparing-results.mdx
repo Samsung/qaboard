@@ -110,7 +110,8 @@ The references are saved in the page's link: share it, and others can switch bet
 <details>
 <summary>Reorder, rename and remove references</summary>
 
-- Drag tabs to reorder them, or press <kbd>Alt</kbd> <kbd>←</kbd> <kbd>→</kbd>.
+- Drag tabs to reorder them, or press <kbd>Alt</kbd> <kbd>←</kbd> <kbd>→</kbd>. While you drag, a bar shows where the
+  tab would go, and the right of the tabs says it in words: "Move ref 3 between ref and ref 2".
 - Double-click a tab to rename it, press <kbd>Delete</kbd> to remove it.
 - Right-click a tab, or click its **⋯**, to compare with it, rename it, **Duplicate** it (to change its batch or
   filter), move or remove it.
@@ -193,7 +194,7 @@ tag to see what it means and copy it.
 | green, with **+** | Added: the reference run doesn't have it. |
 | red, struck through, with **−** | Removed: only the reference run has it. |
 | orange, `gain: 3 → 4` | Changed: the reference's value, then this run's. For strings, only the part that changed: `conf/[day → night].yaml`. |
-| with a wrench | A tuning parameter (`qa --tuning`), shown after the configuration. |
+| with a wrench | A tuning parameter (`qa --tuning`), shown after the configuration, in full, even when all runs share it. |
 | dashed, **··· 9 shared** | Settings all the runs shown share, hidden in each run. |
 
 - Each string of a configuration (`base`, `conf/night.yaml`) is a setting, and so is each value of its JSON objects
