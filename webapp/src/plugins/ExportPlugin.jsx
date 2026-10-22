@@ -71,7 +71,8 @@ const ExportPlugin = props => {
       edit_export_dir: false,
       export_dir: export_dir || undefined,
     };
-    http.get('/api/v1/export/', { params })
+    // POST: it writes files, the server checks it comes from QA-Board's pages
+    http.post('/api/v1/export/', undefined, { params })
       .then(({ data }) => {
         const windows_export_dir = linux_to_windows(data.export_dir);
         copyWithToast(windows_export_dir, { what: 'the export directory' });

@@ -211,6 +211,18 @@ def is_cross_site() -> bool:
   return (urlparse(origin).hostname or '').lower() not in own_origins()
 
 
+def is_same_origin() -> bool:
+  """
+  Whether the browser says the request comes from our pages, for the GETs that change things (cookies come with
+  other websites' links). Unlike is_cross_site, nothing said means no.
+  """
+  if request.headers.get('Sec-Fetch-Site'):
+    return request.headers['Sec-Fetch-Site'] == 'same-origin'
+  # older browsers
+  origin = request.headers.get('Origin') or request.headers.get('Referer')
+  return bool(origin) and origin != 'null' and (urlparse(origin).hostname or '').lower() in own_origins()
+
+
 def is_public_endpoint() -> bool:
   if request.endpoint in PUBLIC_ENDPOINTS:
     return True

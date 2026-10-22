@@ -94,7 +94,7 @@ def endpoints(batch_id, output_id):
     "rename": (("POST", '/api/v1/batch/rename/', {"id": batch_id, "label": "renamed"}), (403, 403, "ok")),
     "update run": (("PUT", f'/api/v1/output/{output_id}', {"is_failed": True}), (403, 403, "ok")),
     "save groups": (("POST", f'/api/v1/tests/groups?project={PROJECT}&name=extra-batches', {"groups": {}}), (403, 403, "ok")),
-    "export": (("GET", f'/api/v1/export?project={PROJECT}&new_commit_id={SHA}', None), (403, 403, "ok")),
+    "export": (("POST", f'/api/v1/export?project={PROJECT}&new_commit_id={SHA}', None), (403, 403, "ok")),
     "milestone": (("POST", '/api/v1/milestones', {"project": PROJECT, "label": "m", "commit_hexsha": SHA, "commit_project_id": PROJECT, "batch": "default"}), (403, 403, "ok")),
     "visibility": (("POST", '/api/v1/project/access/visibility', {"project": PROJECT, "visibility": "private"}), (403, 403, 403)),
   }
