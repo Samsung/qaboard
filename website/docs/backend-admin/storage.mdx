@@ -125,7 +125,7 @@ files are all theirs. Scanning doesn't change anything on disk.
 
 A scan reads every file's metadata, with 8 threads by default: on network storage, latency dominates, count hours for
 tens of millions of files. Schedule it at night, e.g. weekly. A scan stopped by a restart resumes: the folders it was
-in are scanned again. Hard links are counted once. `.snapshot` folders are skipped.
+in are scanned again. Hard links are counted once, symlinks aren't followed, and a folder reachable under several roots (nested, symlinked or bind-mounted) is scanned once. Storage snapshots (`.snapshot`, `.snapshots`, `.zfs`) are always skipped, whatever *Excluded paths* says.
 
 Scans see what the backend sees: the storage must be mounted at the same paths as on the machines where runs save
 results, and the worker reads it as root. Files of uids the backend can't name show as numbers.

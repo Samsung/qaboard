@@ -150,3 +150,12 @@ def test_owners_saved_before_the_accounts_were_known(commands):
   assert accounts.resolve_keys(None) == {}
   assert accounts.aliases("bob") == ["bob", "uid 1001"]
   assert accounts.aliases("nobody-we-know") == ["nobody-we-know"]
+
+
+def test_refresh_never_fails_when_the_folder_isnt_writable(commands, monkeypatch, capsys):
+  """e.g. the shared folder belongs to another user: scans and the file browser keep the accounts they have"""
+  blocked = commands / "a-file"
+  blocked.write_text("")
+  monkeypatch.setattr(accounts, "accounts_dir", blocked / "accounts")
+  assert accounts.refresh() is False
+  assert "could not update the accounts" in capsys.readouterr().out

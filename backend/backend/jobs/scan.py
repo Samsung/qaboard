@@ -44,6 +44,8 @@ LEAVES = {'run', 'deleted_run', 'untracked_run', 'artifacts', 'deleted_artifacts
 DELETABLE = {'deleted_run', 'untracked_run', 'deleted_artifacts', 'untracked_export', 'export', 'untracked_files', 'file', 'folder'}
 UNTRACKED = {'deleted_run', 'untracked_run', 'deleted_artifacts', 'untracked_export', 'untracked_files'}
 FLUSH_EVERY = 2000
+# Storage snapshots are copies of everything: never scanned, whatever `exclude_paths` says
+SNAPSHOTS = {'.snapshot', '.snapshots', '.zfs'}
 commit_dirs_re = re.compile(r'/(?P<a>[0-9a-f]{2})/(?P<b>[0-9a-f]{14})(?=/|$)')
 
 
@@ -104,12 +106,34 @@ def project_roots(params: dict) -> list:
   return sorted(roots)
 
 
+def real_folder(path: str):
+  """Where a folder really is, and its identity: symlinks and bind mounts give the same folder several paths"""
+  real = os.path.realpath(path)
+  try:
+    st = os.stat(real)
+    return real, (st.st_dev, st.st_ino)
+  except OSError:
+    return real, None
+
+
 def top_folders(paths) -> list:
-  """Without the folders inside others"""
-  kept = []
-  for path in sorted(set(paths), key=len):
-    if not any(path == k or path.startswith(k.rstrip('/') + '/') for k in kept):
-      kept.append(path)
+  """
+  Without the folders inside others, or that are another folder under another path (symlinks, bind mounts):
+  each is scanned once.
+  """
+  kept, reals, identities = [], [], set()
+  for path in sorted(set(paths), key=lambda p: (len(os.path.realpath(p)), len(p), p)):
+    real, identity = real_folder(path)
+    if identity is not None and identity in identities:
+      continue
+    if any(real == k or real.startswith(k.rstrip('/') + '/') for k in reals):
+      continue
+    if any(path == k or path.startswith(k.rstrip('/') + '/') for k in kept):
+      continue
+    kept.append(path)
+    reals.append(real)
+    if identity is not None:
+      identities.add(identity)
   return sorted(kept)
 
 
@@ -314,7 +338,7 @@ class Scanner:
   def walk(self, path: str, parent: Optional[str], depth: int, batch: Optional[tuple]) -> Totals:
     """Everything in the folder, classified. Stores the entries that are big enough, or at the top."""
     totals = Totals()
-    if self.excluded(path):
+    if os.path.basename(path) in SNAPSHOTS or self.excluded(path):
       return totals
     try:
       with os.scandir(path) as listing:
@@ -366,6 +390,8 @@ class Scanner:
     """Everything under an entry counts as `kind`"""
     try:
       if entry.is_dir(follow_symlinks=False):
+        if entry.name in SNAPSHOTS:
+          return
         with os.scandir(entry.path) as listing:
           for child in listing:
             self.add_tree(child, totals, kind)
@@ -419,9 +445,15 @@ def run(params: dict, report: Reporter):
     db_session.commit()
     report.set(scan_id=scan.id)
   scan_id = scan.id
-  # owners are saved by name: with QABOARD_ACCOUNTS_COMMAND, wait for its accounts instead of saving "uid 2041"
-  if not accounts.refresh():
-    report.log("WARNING: could not update the accounts (QABOARD_ACCOUNTS_COMMAND): owners QA-Board doesn't know are saved as \"uid 1234\"")
+  # owners are saved by name: with QABOARD_ACCOUNTS_COMMAND, wait for its accounts instead of saving "uid 2041".
+  # Never a reason to fail: we use the accounts we have, and names saved as "uid 2041" are resolved when read.
+  try:
+    updated = accounts.refresh()
+  except Exception as e:
+    updated = False
+    print(f"[scan] could not update the accounts: {e}")
+  if not updated:
+    report.log("Could not update the accounts (QABOARD_ACCOUNTS_COMMAND, see the backend's logs): we use the ones we have", level='warning')
   report.log(f"Scanning {len(roots)} folders: {', '.join(roots[:10])}{'…' if len(roots) > 10 else ''}")
   # small and shared by the threads: the exports QA-Board knows, and the batches with their own folder
   exports = {path: export_id for export_id, path in db_session.query(Export.id, Export.path).filter(Export.deleted_at.is_(None))}

@@ -227,6 +227,22 @@ def test_scan_finds_what_qaboard_doesnt_track(admin, world, storage):
   assert scan_detail["owners"][0]["owner"] == 'root' and scan_detail["owners"][0]["untracked_bytes"] == result["untracked_bytes"]
 
 
+def test_scan_reads_each_folder_once(admin, storage):
+  """Nested roots, the same folder under another path, and storage snapshots are scanned once, or not at all"""
+  data = write(storage / 'data' / 'big', size=1000)
+  (storage / 'data' / '.snapshot' / 'hourly.0').mkdir(parents=True)
+  write(storage / 'data' / '.snapshot' / 'hourly.0' / 'big', size=1000)
+  (storage / 'link').symlink_to(storage / 'data')
+  roots = [str(storage / 'data'), str(storage / 'link'), str(data), str(storage / 'link' / 'big')]
+  # an admin's own exclusions don't bring the snapshots back
+  answer = start(admin, kind='scan_storage', roots=roots, min_size_mb=0, threads=2, exclude_paths=['*/nothing'])
+  run_jobs()
+  assert job(admin, answer["id"])["status"] == 'done'
+  result = admin.get('/api/v1/admin/scans').get_json()["scans"][0]
+  assert result["roots"] == [str(storage / 'data')]
+  assert result["bytes"] == 1000 and result["files"] == 1
+
+
 def test_scan_actions(admin, world, storage):
   from backend.models import Output, Export
   ids, paths = tree(world, storage)

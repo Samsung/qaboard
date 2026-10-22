@@ -162,8 +162,14 @@ def refresh(force=False) -> bool:
   """
   if not accounts_command:
     return True
-  accounts_dir.mkdir(parents=True, exist_ok=True)
-  with open(accounts_dir / '.lock', 'w') as lock:
+  try:
+    accounts_dir.mkdir(parents=True, exist_ok=True)
+    lock = open(accounts_dir / '.lock', 'a')
+  except OSError as e:
+    # e.g. the folder belongs to another user: we keep the accounts we have, and try again later
+    print(f"[accounts] ERROR: could not update the accounts in {accounts_dir}: {e}")
+    return False
+  with lock:
     try:
       fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
