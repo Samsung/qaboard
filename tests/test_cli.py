@@ -353,6 +353,21 @@ class TestQaCli(unittest.TestCase):
     assert result.exit_code == 0
 
 
+  def test_batch_prints_the_results_url_at_the_start_and_the_end(self):
+    from unittest import mock
+    import requests
+    env = {k: v for k, v in os.environ.items() if k != 'QA_OFFLINE'}
+    # the runs (subprocesses) can't reach any server, and neither can this process
+    env['QABOARD_URL'] = 'http://127.0.0.1:9'
+    no_server = requests.ConnectionError('no server in tests')
+    with mock.patch.dict(os.environ, env, clear=True), \
+         mock.patch('requests.post', side_effect=no_server), mock.patch('requests.get', side_effect=no_server):
+      result = self.qa('--share', 'batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=local', 'echo "{input_path} => {output_dir}"')
+      qa_batch = os.environ.get('QA_BATCH')
+    assert result.exit_code == 0
+    self.assertEqual(result.stderr.count('Results: '), 2, result.stderr)
+    self.assertIsNone(qa_batch) # restored when the batch ends
+
   @unittest.skipUnless(shutil.which('bsub'), 'needs LSF (bsub)')
   def test_runner_lsf(self):
     result = self.qa('batch', '--batches-file', 'image.batches.yaml', 'images', '--runner=lsf', 'echo "{input_path} => {output_dir}"')

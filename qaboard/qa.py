@@ -627,7 +627,8 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
     # so if we keep it defined we'll end up with deadlocks as those batch wait for the current batch to end...
     del os.environ['QA_BATCH_COMMAND_ID']
 
-  os.environ['QA_BATCH']= 'true' # triggered runs will be less verbose than with just `qa run` 
+  previous_qa_batch = os.environ.get('QA_BATCH') # set when this batch was started by another
+  os.environ['QA_BATCH']= 'true' # triggered runs will be less verbose than with just `qa run`
   os.environ['QA_BATCHES_FILES'] = json.dumps([str(b) for b in batches_files])
   dryrun = ctx.obj['dryrun'] or list_output_dirs or list_inputs or list_contexts
   should_notify_qa_database = (is_ci or ctx.obj['share']) and not (dryrun or ctx.obj['offline'])
@@ -975,6 +976,9 @@ def batch(ctx, batches, batches_files, runs_file, tuning_search_dict, tuning_sea
         print_url(ctx, status="failure")
       sys.exit(1)
     else:
+      # restore verbosity: print_url is quiet in runs started by `qa batch`, but this one ends
+      if previous_qa_batch is None:
+        del os.environ['QA_BATCH']
       if should_notify_qa_database:
         print_url(ctx)
 
