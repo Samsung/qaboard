@@ -211,6 +211,11 @@ const actions = [
     title: "Measure what deleted runs left",
     description: "Deleting runs keeps their manifests, and files the manifests didn't list. QA-Board now measures them when it deletes runs: measure those deleted before, so users see them in Storage usage.",
   },
+  {
+    kind: 'fail_stuck_runs',
+    title: 'Fail stuck runs',
+    description: "Runs still waiting or running after a week: their job died without telling QA-Board. Mark them as failed, so they're out of the way in Runs activity, and users can redo them. Nothing is deleted.",
+  },
 ];
 
 const Scans = () => {

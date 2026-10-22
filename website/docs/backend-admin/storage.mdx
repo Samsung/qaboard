@@ -139,6 +139,19 @@ wrote after they ended stays. QA-Board measures what's left when it deletes runs
 usage**. Run **Measure what deleted runs left** once to measure the runs deleted before. **Hard-delete deleted runs**
 removes what's left.
 
+## Fail stuck runs
+When LSF kills a job, or its machine reboots, its run can't tell QA-Board it ended: it shows as running forever, in
+[Runs activity](/docs/user-guide/runs-activity) and on its commit. **Fail stuck runs** marks as failed the runs pending
+(waiting or running) for over a week, or what you choose. Nothing is deleted and their jobs aren't stopped: a run that
+still runs saves its results when it ends. Users can redo the others.
+
+Start with a dry run, then schedule it, e.g. *Stuck runs*: **Fail stuck runs** of `*`, pending for over `1week`, every
+night. **Runs activity** tells admins how many runs are pending for over a week, offers to start the job or schedule it,
+and says which schedule does it. Each run says why it failed (`data.failed_reason`).
+
+Runs from before QA-Board recorded when runs start count from when they were created: a run redone just before the
+upgrade may look old. The dry run lists how many runs it would change, per project.
+
 ## Schedule jobs
 Click **New schedule**, choose the job and its settings, and when it runs with a cron expression
 (`minute hour day-of-month month day-of-week`, e.g. `0 2 * * *` every night at 2:00) in a time zone. The form shows the
@@ -148,6 +161,7 @@ For example, to replace the cron job of the [server's setup](/docs/deploy#option
 - *Old results*: **Delete old results** of `*`, by default older than `1month`, every Saturday at 1:59.
 - *Nightly purge*: **Hard-delete runs** of `*`, **Both**, created before `1month`, every night.
 - *Artifacts*: **Delete artifacts** of `*`, commits without runs for `2months`, every Sunday.
+- *Stuck runs*: **Fail stuck runs** of `*`, pending for over `1week`, every night.
 
 <details>
 <summary>Where jobs run</summary>

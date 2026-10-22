@@ -28,6 +28,8 @@ export const app_paths = {
   admin_scan: "/admin/storage/scans/:scan_id(\\d+)",
   // how much storage runs use, and deleting their files
   storage: "/storage/:view(projects|batches|commits|branches|folders|exports|untracked)?",
+  // what waits and runs now, and what ran recently
+  activity: "/activity",
   admin: "/admin/:section(overview|users|groups|requests|sign-in|tokens|storage|audit|settings)?",
   // the ways to sign in, ?next=<page> to go back to it (see login/LoginPage.jsx)
   login: "/login",

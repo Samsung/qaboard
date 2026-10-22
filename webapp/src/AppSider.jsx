@@ -441,6 +441,23 @@ const StorageMenuItem = ({ user, project }) => {
   </MenuItemLink>
 }
 
+// What waits and runs now in the project, and what ran recently
+const ActivityMenuItem = ({ user, project }) => {
+  if (!user?.is_logged)
+    return null
+  const mine = `/activity?project=${encodeURIComponent(project ?? '')}`
+  return <MenuItemLink
+    to={mine}
+    icon="pulse"
+    text="Runs activity"
+    title="What waits and runs now, and what ran recently"
+  >
+    <MenuItemLink to={mine} icon="person" text="Your runs in this project"/>
+    <MenuItemLink to={`/activity?scope=all&project=${encodeURIComponent(project ?? '')}`} icon="people" text="Everyone's runs in this project"/>
+    <MenuItemLink to="/activity?scope=all" icon="globe-network" text="Everyone's runs, in every project"/>
+  </MenuItemLink>
+}
+
 // Milestones: a menu to pick any of them, and the user's favorites one click away
 const max_sider_favorites = 6;
 const SiderMilestones = ({ project, project_data, docs_root }) => {
@@ -552,6 +569,7 @@ const ProjectSideCommitList = ({ project, project_data = {}, commit = {}, ref_co
       {...integrationProps}
     />
     <SiderMilestones project={project} project_data={project_data} docs_root={docs_root}/>
+    <ActivityMenuItem user={user} project={project} />
     <StorageMenuItem user={user} project={project} />
     <SiderHint name="Access" content="Who can see the project, upload runs and act on them. Request access, or manage it.">
       <MenuItemLink to={`/${path_segment(project)}/access`} active={is_access} icon="people" text="Access"/>

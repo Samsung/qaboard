@@ -11,6 +11,7 @@ const AccessPage = lazy(() => import("./access/AccessPage"));
 const SettingsPage = lazy(() => import("./settings/SettingsPage"));
 const AdminPage = lazy(() => import("./admin/AdminPage"));
 const StoragePage = lazy(() => import("./storage/StoragePage"));
+const ActivityPage = lazy(() => import("./activity/ActivityPage"));
 const DevicePage = lazy(() => import("./device/DevicePage"));
 const LoginPage = lazy(() => import("./login/LoginPage"));
 
@@ -40,6 +41,7 @@ const app_pages = {
   admin_scan: AdminPage,
   admin: AdminPage,
   storage: StoragePage,
+  activity: ActivityPage,
   device: DevicePage,
   login: LoginPage,
 };
