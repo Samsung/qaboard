@@ -711,3 +711,15 @@ def test_overview_legacy_tokens(admin):
   db_session.commit()
   checklist = {item["id"]: item for item in admin.get('/api/v1/admin/overview').get_json()["checklist"]}
   assert checklist["legacy_tokens"]["ok"] is False and "1 legacy token" in checklist["legacy_tokens"]["title"]
+
+
+def test_pgadmin_signs_admins_in(admin, logged_in, monkeypatch):
+  """nginx asks before proxying /pgadmin4/ (services/nginx/snippets/pgadmin.conf), and passes the account to pgAdmin"""
+  monkeypatch.delenv('QABOARD_PGADMIN_USER', raising=False)
+  monkeypatch.delenv('PGADMIN_DEFAULT_EMAIL', raising=False)
+  assert admin.get('/api/v1/admin/pgadmin/authorize').status_code == 404
+  monkeypatch.setenv('PGADMIN_DEFAULT_EMAIL', 'pgadmin@example.com')
+  response = admin.get('/api/v1/admin/pgadmin/authorize')
+  assert response.status_code == 204 and response.headers['X-Pgadmin-User'] == 'pgadmin@example.com'
+  response = logged_in('bob').get('/api/v1/admin/pgadmin/authorize')
+  assert response.status_code == 403 and 'X-Pgadmin-User' not in response.headers

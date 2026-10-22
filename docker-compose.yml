@@ -248,6 +248,8 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-user@domain.com}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-SuperSecret}
+      # copied to the account's storage, where servers.json's PassFile (/.pgpass) points
+      PGPASS_FILE: /pgadmin4/passfile
       # if you want to host it under a subdirectory, add a location.proxy_pass to the nginx conf
       # SCRIPT_NAME: /pgadmin
     volumes:
