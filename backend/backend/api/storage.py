@@ -16,7 +16,8 @@ from .. import storage_usage as usage
 from ..jobs import queue
 from ..jobs.params import ParamsError
 from .auth import login_required
-from ..access import can, visibility_rules, yaml_key
+from ..access import can, visibility_rules, yaml_key, role_of
+from ..access.policy import allows
 from ..settings import setting
 
 
@@ -50,6 +51,30 @@ def allowed_projects():
   return [p for p in projects if can('project.read', p)]
 
 
+# How users got a role that makes them a project's member, rather than any signed-in user (access.role_of)
+MEMBER_VIAS = ('grant', 'group', 'yaml')
+
+
+def others_projects():
+  """
+  None if the user sees everyone's usage, else the projects where they see other people's: admins see everything,
+  developers and owners (members, not every signed-in user) their projects. `storage.others_visible_to` opens it to all.
+  """
+  if is_admin():
+    return None
+  if 'storage_others_projects' in g:
+    return g.storage_others_projects
+  allowed = allowed_projects()
+  if setting('storage.others_visible_to') == 'signed_in':
+    answer = allowed
+  else:
+    user = g.actor.user
+    projects = allowed if allowed is not None else [p for (p,) in db_session.query(Project.id)]
+    answer = [p for p in projects if (lambda role, via: via in MEMBER_VIAS and allows(role, 'runs.act'))(*role_of(user, p))]
+  g.storage_others_projects = answer
+  return answer
+
+
 def int_or_none(value, name):
   if value in (None, ''):
     return None
@@ -62,7 +87,7 @@ def int_or_none(value, name):
 def whose(source) -> dict:
   """`scope`: "me" (default), "all", or "user" with `user`: whose runs we look at"""
   scope = source.get('scope') or 'me'
-  if scope == 'me':
+  if scope == 'me' or (scope == 'user' and (source.get('user') or '').strip() == me()):
     return {"scope": 'me', "user": me()}
   if scope == 'all':
     return {"scope": 'all', "user": None}
@@ -75,6 +100,7 @@ def whose(source) -> dict:
 
 
 def filters_from(source: dict, user) -> usage.Filters:
+  """Other people's runs (`user` isn't the user's): only in the projects where they may see them"""
   projects = source.get('project')
   if isinstance(projects, str):
     projects = [p.strip() for p in projects.split(',') if p.strip()]
@@ -82,7 +108,7 @@ def filters_from(source: dict, user) -> usage.Filters:
     return usage.Filters(
       user=user,
       projects=projects or [],
-      allowed_projects=allowed_projects(),
+      allowed_projects=allowed_projects() if user == me() else others_projects(),
       folder=source.get('folder') or None,
       branch=source.get('branch') or None,
       older_than_days=int_or_none(source.get('older_than_days'), 'older_than_days'),
@@ -95,10 +121,14 @@ def filters_from(source: dict, user) -> usage.Filters:
 def status() -> dict:
   """When the numbers were updated, and whether they're being computed"""
   building = Job.query.filter(Job.kind == 'storage_usage', Job.status.in_(queue.ACTIVE)).first()
+  others = others_projects()
   return {
     "updated_at": usage.iso(usage.updated_at()),
     "building": queue.serialize_job(building) if building else None,
     "can_delete_others": is_admin(),
+    # whose usage the user sees: "all", "some" projects' (where they're a developer or owner), or "none"
+    "can_see_others": "all" if others is None else "some" if others else "none",
+    "others_visible_to": setting('storage.others_visible_to'),
   }
 
 
@@ -117,8 +147,8 @@ def storage_overview():
   }
   if who['user'] is not None:
     answer["top_folders"] = usage.top_folders(filters)
-  if who['scope'] == 'all' or filters.projects:
-    answer["users"] = usage.by_user(filters)
+  if who['scope'] != 'me' and answer['can_see_others'] != 'none':
+    answer["users"] = usage.by_user(filters_from(request.args, None))
   answer["exports"] = export_totals(who['user'], filters.projects)
   return jsonify(answer)
 
@@ -131,11 +161,11 @@ def storage_users():
   filters = filters_from(request.args, None)
   limit = min(int_or_none(request.args.get('limit'), 'limit') or 100, 500)
   return jsonify({
+    **status(),
     "users": usage.by_user(filters, limit=limit),
     "total": usage.nb_users(filters),
     "totals": usage.totals(filters),
     "me": me(),
-    "can_delete_others": is_admin(),
   })
 
 
@@ -163,9 +193,15 @@ def exports_query(user, projects=None):
     query = query.filter(or_(Export.created_by == user, Export.owner == user))
   if projects:
     query = query.filter(Export.project_id.in_(projects))
-  allowed = allowed_projects()
-  if allowed is not None:
-    query = query.filter(or_(Export.project_id.is_(None), Export.project_id.in_(allowed)))
+  if user == me():
+    allowed = allowed_projects()
+    if allowed is not None:
+      query = query.filter(or_(Export.project_id.is_(None), Export.project_id.in_(allowed)))
+  else:
+    # other people's exports: not those without a project, unless admin
+    allowed = others_projects()
+    if allowed is not None:
+      query = query.filter(Export.project_id.in_(allowed))
   return query
 
 

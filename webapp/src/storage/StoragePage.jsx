@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Breadcrumbs, Button, Callout, Card, Checkbox, Classes, HTMLSelect, HTMLTable, Icon, InputGroup, Intent,
-  NonIdealState, SegmentedControl, Tab, Tabs, Tag, Tooltip,
+  ButtonGroup, NonIdealState, SegmentedControl, Tab, Tabs, Tag, Tooltip,
 } from "@blueprintjs/core";
 import { useLocation } from "react-router";
 import styled from "styled-components";
@@ -154,11 +154,16 @@ const CommitAuthor = ({ commit }) => commit?.author || commit?.authored_at
   : null;
 
 
-const ProjectsView = ({ overview, filters, go }) => {
+const ProjectsView = ({ overview, filters, go, setFilters }) => {
   const projects = overview?.projects ?? [];
-  if (projects.length === 0) return <NonIdealState icon="database" title="No runs" description={filters.scope === 'me' || !filters.scope ? "QA-Board doesn't know runs of yours that take storage." : "No runs take storage here."}/>;
+  const only = filters.project && <Callout icon="filter" style={{ marginBottom: 12 }}>
+    Only <strong>{filters.project}</strong> is shown.{' '}
+    <Button intent={Intent.PRIMARY} variant="minimal" icon="projects" text="Show all projects" onClick={() => setFilters({ project: '', page: '' })}/>
+  </Callout>;
+  if (projects.length === 0) return <>{only}<NonIdealState icon="database" title="No runs" description={filters.scope === 'me' || !filters.scope ? "QA-Board doesn't know runs of yours that take storage." : "No runs take storage here."}/></>;
   const max = projects[0]?.bytes ?? 0;
   return <div style={{ overflowX: 'auto' }}>
+    {only}
     <HTMLTable compact interactive style={{ width: '100%' }} aria-label="Projects">
       <thead><tr><th>Project</th><th>Size</th><th>Runs</th><th>Batches</th><th>Commits</th><th>Latest run</th></tr></thead>
       <tbody>
@@ -334,7 +339,7 @@ const FoldersView = ({ filters, setFilters, go, overview, onDelete }) => {
   const { data, isPending, error, refetch, isFetching } = useQuery(foldersQuery(path, filters));
   const open = folder => setFilters({ path: folder });
   const parts = (data?.path ?? '/').split('/').filter(Boolean);
-  const crumbs = [{ text: '/', onClick: () => open('') }, ...parts.map((part, i) => ({ text: part, onClick: () => open(`/${parts.slice(0, i + 1).join('/')}`) }))];
+  const crumbs = [{ text: '/', onClick: () => open('/') }, ...parts.map((part, i) => ({ text: part, onClick: () => open(`/${parts.slice(0, i + 1).join('/')}`) }))];
   const max = Math.max(0, ...(data?.children ?? []).map(c => c.bytes));
   const total = (data?.children ?? []).reduce((sum, c) => sum + c.bytes, 0) + (data?.here?.bytes ?? 0);
   const top = overview?.top_folders ?? [];
@@ -363,6 +368,9 @@ const FoldersView = ({ filters, setFilters, go, overview, onDelete }) => {
     {data && <>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
         <Breadcrumbs items={crumbs}/>
+        {data.skipped && <Tooltip content="The folders above only lead here: nothing else in them has runs." hoverOpenDelay={200}>
+          <Tag minimal icon="double-chevron-down">Started where the runs are</Tag>
+        </Tooltip>}
         <span style={{ marginLeft: 'auto' }}/>
         {data.path !== '/' && <>
           <span><strong>{formatBytes(total)}</strong> <span className={Classes.TEXT_MUTED}>known to QA-Board here</span></span>
@@ -386,7 +394,9 @@ const FoldersView = ({ filters, setFilters, go, overview, onDelete }) => {
                 <td>{formatNumber(data.here.runs)}</td><td>{formatNumber(data.here.batches)}</td>
               </tr>}
               {data.children.map(c => <tr key={c.path} onClick={event => { if (!event.target.closest('a')) open(c.path); }} style={{ cursor: 'pointer' }}>
-                <td><Icon icon="folder-close" className={Classes.TEXT_MUTED} style={{ marginRight: 6 }}/><Link to={storageUrl('folders', { ...filters, path: c.path })}>{c.name}</Link></td>
+                <td><Icon icon="folder-close" className={Classes.TEXT_MUTED} style={{ marginRight: 6 }}/><Link to={storageUrl('folders', { ...filters, path: c.path })} title={c.name.includes('/') ? `${c.path}: the folders on the way only lead there` : c.path}>
+                  {c.name.includes('/') ? <><span className={Classes.TEXT_MUTED}>{c.name.slice(0, c.name.lastIndexOf('/') + 1)}</span>{c.name.slice(c.name.lastIndexOf('/') + 1)}</> : c.name}
+                </Link></td>
                 <td><SizeBar bytes={c.bytes} max={Math.max(max, data.here.bytes)}/></td>
                 <td>{formatNumber(c.runs)}</td>
                 <td>{formatNumber(c.batches)}</td>
@@ -433,6 +443,7 @@ export const StorageUsage = ({ me, view, filters }) => {
 
   const { data: overview, isPending, error, refetch } = useQuery(overviewQuery(filters));
   const scope = filters.scope || 'me';
+  const can_see_others = overview?.can_see_others ?? 'all';
   const selected_items = [...selection.keys.values()];
   const selected_bytes = selection.all ? selection.totals?.bytes ?? 0 : selected_items.reduce((sum, item) => sum + item.bytes, 0);
   const selected_count = selection.all ? selection.total : selected_items.length;
@@ -441,13 +452,22 @@ export const StorageUsage = ({ me, view, filters }) => {
 
   return <>
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-      <SegmentedControl
+      {can_see_others !== 'none' && <SegmentedControl
         aria-label="Whose runs"
         options={[{ label: 'Your runs', value: 'me' }, { label: "Everyone's", value: 'all' }]}
         value={scope === 'user' ? 'all' : scope}
         onValueChange={value => setFilters({ scope: value, user: '', page: '' })}
-      />
+      />}
+      {scope !== 'me' && can_see_others === 'some' && <Tooltip content="Only admins see everyone's usage everywhere: you see it in the projects where you're a developer or an owner." hoverOpenDelay={200}>
+        <Tag minimal icon="info-sign">In your projects</Tag>
+      </Tooltip>}
       {scope === 'user' && <Tag large minimal icon="person" onRemove={() => setFilters({ scope: 'all', user: '' })}>Runs of {filters.user}</Tag>}
+      {filters.project
+        ? <ButtonGroup>
+          <Tag large minimal icon="projects" title={filters.project} style={{ maxWidth: 360 }} onRemove={() => setFilters({ project: '', page: '' })}>{filters.project}</Tag>
+          <Button variant="outlined" icon="projects" text="All projects" onClick={() => setFilters({ project: '', page: '' })}/>
+        </ButtonGroup>
+        : null}
       {overview?.updated_at && <Tooltip content="Each run's size is measured when it ends. The numbers are updated every few minutes, and right away when you delete from QA-Board." hoverOpenDelay={200}>
         <span className={Classes.TEXT_MUTED}>Updated <Time iso={overview.updated_at}/></span>
       </Tooltip>}
@@ -466,7 +486,11 @@ export const StorageUsage = ({ me, view, filters }) => {
     {isPending && <Loading label="Loading the storage usage"/>}
     {error && <QueryError error={error} refetch={refetch} what="the storage usage"/>}
     {overview && <Summary>
-      <Card compact><div className="value" data-testid="total">{formatBytes(overview.totals.bytes)}</div><div className={Classes.TEXT_MUTED}>{scope === 'me' ? 'used by your runs' : scope === 'user' ? `used by ${filters.user}'s runs` : "used by everyone's runs"}{filters.project ? ` in ${filters.project}` : ''}</div></Card>
+      <Card compact>
+        <div className="value" data-testid="total">{formatBytes(overview.totals.bytes)}</div>
+        <Ellipsis className={Classes.TEXT_MUTED}>{scope === 'me' ? 'used by your runs' : scope === 'user' ? `used by ${filters.user}'s runs` : "used by everyone's runs"}</Ellipsis>
+        {filters.project && <Ellipsis className={Classes.TEXT_MUTED} title={filters.project} style={{ direction: 'rtl', textAlign: 'left' }}>&lrm;in {filters.project}&lrm;</Ellipsis>}
+      </Card>
       <Card compact><div className="value">{formatNumber(overview.totals.runs)}</div><div className={Classes.TEXT_MUTED}>runs, in {plural(overview.totals.batches, 'batch', 'batches')}</div></Card>
       <Card compact data-testid="projects-total">
         <div className="value">{formatNumber(overview.totals.projects)}</div>
@@ -512,7 +536,7 @@ export const StorageUsage = ({ me, view, filters }) => {
 
     <ScrollingTabs>
       <Tabs id="storage-views" selectedTabId={selected_view.id} onChange={id => go(id, { page: '' })} size="large">
-        {views.map(v => <Tab key={v.id} id={v.id} title={v.title} icon={v.icon}/>)}
+        {views.filter(v => v.id !== 'users' || can_see_others !== 'none' || view === 'users').map(v => <Tab key={v.id} id={v.id} title={v.title} icon={v.icon}/>)}
       </Tabs>
     </ScrollingTabs>
     <div style={{ marginTop: 16 }}>
@@ -525,7 +549,7 @@ export const StorageUsage = ({ me, view, filters }) => {
           onClick={() => setDeleting({ group: group ?? 'batch', keys: null, filters, label: `Everything that matches the filters in ${filters.project}` })}/>}
       </Toolbar>}
       <ActiveFilters filters={filters} setFilters={setFilters}/>
-      {selected_view.id === 'projects' && <ProjectsView overview={overview} filters={filters} go={go}/>}
+      {selected_view.id === 'projects' && <ProjectsView overview={overview} filters={filters} go={go} setFilters={setFilters}/>}
       {selected_view.id === 'users' && <UsersView me={me} filters={filters} storageUrl={storageUrl} openUser={user => go('batches', { scope: 'user', user: user.user_name, page: '' })}/>}
       {group && <ItemsView group={group} filters={filters} setFilters={setFilters} selection={selection} setSelection={setSelection}/>}
       {selected_view.id === 'folders' && <FoldersView filters={filters} setFilters={setFilters} go={go} overview={overview} onDelete={setDeleting}/>}

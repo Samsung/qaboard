@@ -189,6 +189,52 @@ describe('Storage usage', () => {
     expect(lastBody(fetch, 'POST', '/api/v1/storage/delete')).toEqual({ group: 'batch', scope: 'me', filters: { project: 'proj/a' }, confirm: 'Delete 120 batches' });
   });
 
+  it('starts the folders where the runs are, and skips folders that only lead to one', async () => {
+    const fetch = mockApi({
+      'GET /api/v1/storage/overview': overview,
+      'GET /api/v1/storage/jobs': { jobs: [] },
+      'GET /api/v1/storage/folders': url => {
+        const path = new URL(url, 'http://localhost').searchParams.get('path');
+        const empty = { bytes: 0, runs: 0, batches: 0 };
+        return [path === '/'
+          ? { path: '/', skipped: false, children: [{ name: 'algo/proj/outputs/alice', path: '/algo/proj/outputs/alice', bytes: 39 * GB, runs: 6, batches: 3 }], here: empty, partial: empty }
+          : { path: '/algo/proj/outputs/alice', skipped: true, children: [{ name: 'a/b/c', path: '/algo/proj/outputs/alice/a/b/c', bytes: 39 * GB, runs: 6, batches: 3 }], here: empty, partial: empty }, 200];
+      },
+    });
+    renderAt('/storage/folders');
+    expect(await screen.findByText('Started where the runs are')).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: 'a/b/c' });
+    expect(link).toHaveAttribute('href', '/storage/folders?path=%2Falgo%2Fproj%2Foutputs%2Falice%2Fa%2Fb%2Fc');
+    expect(new URL(calls(fetch, 'GET', '/api/v1/storage/folders')[0][0], 'http://localhost').searchParams.get('path')).toBe(null);
+    // the breadcrumbs' root is "/" itself, not where the runs start
+    act(() => history.push('/storage/folders?path=%2F'));
+    expect(await screen.findByRole('link', { name: 'algo/proj/outputs/alice' })).toBeInTheDocument();
+    expect(screen.queryByText('Started where the runs are')).not.toBeInTheDocument();
+  });
+
+  it('says when a project is selected, and shows all projects', async () => {
+    mockApi({ 'GET /api/v1/storage/overview': { ...overview, projects: [overview.projects[0]] }, 'GET /api/v1/storage/jobs': { jobs: [] } });
+    renderAt('/storage/projects?project=proj/a');
+    const table = await screen.findByRole('table', { name: 'Projects' });
+    expect(table.parentElement).toHaveTextContent('Only proj/a is shown.');
+    expect(screen.getByRole('button', { name: 'All projects' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Show all projects' }));
+    await waitFor(() => expect(history.location.search).toBe(''));
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'All projects' })).not.toBeInTheDocument());
+  });
+
+  it("hides other people's usage from who can't see it", async () => {
+    mockApi({
+      'GET /api/v1/storage/overview': { ...overview, can_see_others: 'none' },
+      'GET /api/v1/storage/users': { can_see_others: 'none', users: [], total: 0, totals: { bytes: 0 }, me: 'alice' },
+      'GET /api/v1/storage/jobs': { jobs: [] },
+    });
+    renderAt('/storage/users');
+    expect(await screen.findByText('Only your own usage')).toBeInTheDocument();
+    expect(screen.queryByRole('radiogroup', { name: 'Whose runs' })).not.toBeInTheDocument();
+    expect(screen.queryByText("Everyone's")).not.toBeInTheDocument();
+  });
+
   it('finds the runs in a folder from a quota alert', async () => {
     const fetch = mockApi({
       'GET /api/v1/storage/overview': overview,

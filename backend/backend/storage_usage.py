@@ -341,11 +341,39 @@ def add_commits(items: list) -> None:
     item['commit'] = commits.get(item.get('ci_commit_id'))
 
 
+def deepest_folder(lowest: Optional[str], highest: Optional[str]) -> Optional[str]:
+  """
+  The deepest folder containing all the folders whose "<folder>/" sort between `lowest` and `highest`, e.g. the end of
+  a chain of folders with only one subfolder. With the trailing "/", the common prefix of the first and last in
+  alphabetical order is the common prefix of all of them.
+  """
+  if not lowest or not highest:
+    return None
+  prefix = os.path.commonprefix([lowest, highest])
+  return prefix[:prefix.rfind('/')] or '/'
+
+
+def common_root(filters: Filters) -> str:
+  """The deepest folder that contains all the runs: where exploring them starts"""
+  inner = Filters(filters.user, filters.projects, filters.allowed_projects, None, filters.branch, filters.older_than_days, filters.search)
+  where, params = inner.where()
+  lowest, highest = db_session.execute(text(f"""
+    SELECT min(u.folder || '/'), max(u.folder || '/') FROM storage_usage u WHERE {where} AND u.folder LIKE '/%' AND u.nb_runs > 0"""), params).one()
+  return deepest_folder(lowest, highest) or '/'
+
+
 def folders(filters: Filters, path: Optional[str], limit=200) -> dict:
   """
   The subfolders of `path` with runs, the biggest first, e.g. to find the runs in the folder a quota alert names.
   `here`: runs right in the folder. `partial`: runs of batches whose folder contains `path`: some may be inside.
+  Subfolders that only have one subfolder, and no runs right in them, are skipped: `path` is the deepest folder they
+  lead to, and `name` the folders on the way (e.g. "a/b/c"). Without `path`, it starts from the deepest folder
+  that contains all the runs (`skipped` says it skipped folders).
   """
+  skipped = False
+  if not path:
+    path = common_root(filters)
+    skipped = path != '/'
   path = normalize_folder(path) or '/'
   # the folder filter selects what's in `path`
   inner = Filters(filters.user, filters.projects, filters.allowed_projects, None, filters.branch, filters.older_than_days, filters.search)
@@ -354,7 +382,8 @@ def folders(filters: Filters, path: Optional[str], limit=200) -> dict:
   inside = "u.folder LIKE '/%'" if path == '/' else "u.folder LIKE :like ESCAPE '\\'"
   params = {**params, "path": path, "like": like_escape(path) + '/%', "start": start, "limit": limit}
   children = db_session.execute(text(f"""
-    SELECT split_part(substr(u.folder, :start), '/', 1) AS name, sum(u.bytes), sum(u.nb_runs), count(DISTINCT u.batch_id)
+    SELECT split_part(substr(u.folder, :start), '/', 1) AS name, sum(u.bytes), sum(u.nb_runs), count(DISTINCT u.batch_id),
+           min(u.folder || '/'), max(u.folder || '/')
     FROM storage_usage u WHERE {where} AND {inside} AND u.nb_runs > 0
     GROUP BY 1 ORDER BY 2 DESC LIMIT :limit"""), params).all()
   here = db_session.execute(text(f"""
@@ -364,9 +393,16 @@ def folders(filters: Filters, path: Optional[str], limit=200) -> dict:
     SELECT coalesce(sum(u.bytes), 0), coalesce(sum(u.nb_runs), 0), count(DISTINCT u.batch_id) FROM storage_usage u
     WHERE {where} AND u.folder IS DISTINCT FROM :path AND :path LIKE (u.folder || '/%') AND u.nb_runs > 0"""), params).one() if path != '/' else (0, 0, 0)
   join = (lambda name: f"/{name}") if path == '/' else (lambda name: f"{path}/{name}")
+  def child(name, size, runs, batches, lowest, highest):
+    folder = join(name)
+    deepest = deepest_folder(lowest, highest) or folder
+    if not deepest.startswith(folder):
+      deepest = folder
+    return {"name": deepest[len(folder) - len(name):], "path": deepest, "bytes": int(size), "runs": int(runs), "batches": batches}
   return {
     "path": path,
-    "children": [{"name": n, "path": join(n), "bytes": int(b), "runs": int(r), "batches": nb} for n, b, r, nb in children],
+    "skipped": skipped,
+    "children": [child(*row) for row in children],
     "here": {"bytes": int(here[0]), "runs": int(here[1]), "batches": here[2]},
     "partial": {"bytes": int(partial[0]), "runs": int(partial[1]), "batches": partial[2]},
   }

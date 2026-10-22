@@ -19,6 +19,8 @@ export const UsersView = ({ me, filters, storageUrl, openUser }) => {
   const { data, isPending, error, refetch, isFetching } = useQuery(usersQuery(filters));
   if (isPending) return <Loading label="Loading who uses the most"/>;
   if (error) return <QueryError error={error} refetch={refetch} what="who uses the most"/>;
+  if (data.can_see_others === 'none') return <NonIdealState icon="lock" title="Only your own usage"
+    description="Admins, and a project's developers and owners, see who uses the most storage in their projects."/>;
   const users = data.users.map((user, index) => ({ ...user, rank: index + 1 }));
   if (users.length === 0) return <NonIdealState icon="people" title="Nobody's runs take storage here" description="No runs match the filters."/>;
   const max = users[0].bytes;
@@ -29,7 +31,7 @@ export const UsersView = ({ me, filters, storageUrl, openUser }) => {
     <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 12 }}>
       <InputGroup leftIcon="search" placeholder="Find someone" aria-label="Find someone" value={search} onChange={e => setSearch(e.target.value)} style={{ width: 220 }}/>
       <span className={Classes.TEXT_MUTED}>
-        {plural(data.total, 'person', 'people')} use {formatBytes(total)}{filters.project ? ` in ${filters.project}` : ''}.
+        {plural(data.total, 'person', 'people')} use {formatBytes(total)}{filters.project ? ` in ${filters.project}` : data.can_see_others === 'some' ? ' in the projects where you are a developer or an owner' : ''}.
         {' '}{me.is_admin ? "Open someone's runs to delete them." : "Open someone's runs to see them: they, or an admin, delete them."}
       </span>
     </div>
