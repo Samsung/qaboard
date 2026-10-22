@@ -20,25 +20,38 @@ const roundRegion = region => region && {
 };
 const sameRegion = (a, b) => !!a && !!b && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 
+// The region in view, once it stopped moving for `still` ms. The viewers can draw on every frame without moving, e.g.
+// while tiles load or fail: waiting for the draws to stop could wait forever.
+export const watchStillRegion = (controller, onRegion, { still = 400, every = 100 } = {}) => {
+  let seen;
+  let check = null;
+  let timer = null;
+  const update = () => {
+    if (check !== null) return;
+    check = setTimeout(() => {
+      check = null;
+      const next = roundRegion(controller.visibleRegion());
+      if (seen !== undefined && (seen === next || sameRegion(seen, next))) return;
+      seen = next;
+      clearTimeout(timer);
+      timer = setTimeout(() => onRegion(next), still);
+    }, every);
+  };
+  update();
+  const stop = controller.onDraw(update);
+  return () => {
+    stop();
+    clearTimeout(check);
+    clearTimeout(timer);
+  };
+};
+
 // The analysis of the images' values over the view, once it stops moving: { status, progress, results: { a, b }, error }
 export const useImageAnalysis = ({ controller, images, comparing, sizes, getPixels, setting, active }) => {
   const [region, setRegion] = useState(null);
   useEffect(() => {
     if (!active) return;
-    let timer = null;
-    const update = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => {
-        const next = roundRegion(controller.visibleRegion());
-        setRegion(previous => sameRegion(previous, next) ? previous : next);
-      }, 400);
-    };
-    update();
-    const stop = controller.onDraw(update);
-    return () => {
-      stop();
-      clearTimeout(timer);
-    };
+    return watchStillRegion(controller, next => setRegion(previous => sameRegion(previous, next) ? previous : next));
   }, [controller, active]);
 
   const [state, setState] = useState({ status: 'idle' });

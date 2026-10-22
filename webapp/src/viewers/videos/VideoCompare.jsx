@@ -227,25 +227,14 @@ export const VideoCompare = ({
   const second = swapped ? 'new' : 'reference';
   const order = [first, second];
   const swap = () => setSwapped(s => !s);
-  // The toggle, like the image viewer's: both videos show, they swap sides; one shows, or their difference alone:
-  // the first, the other, their difference, and again
-  const single = mode === 'single' || (mode === 'difference' && diff_layout === 'alone');
-  const lead = blind?.a === 'B' ? 'reference' : 'new';
-  const flip = () => {
-    if (!single || (mode === 'single' && first === lead)) return swap();
-    if (mode === 'single') {
-      swap();
-      setDiff({ ...diff, layout: 'alone' });
-      setMode('difference');
-      return;
-    }
-    if (first !== lead) swap();
-    setMode('single');
-  };
-  const flip_title = !single ? `Swap the sides: ${names[second]} | ${names[first]}`
-    : mode === 'single' && first === lead ? `Show the ${names[lead === 'new' ? 'reference' : 'new']} video`
-    : mode === 'single' ? `Show the difference: ${names[lead]} − ${names[lead === 'new' ? 'reference' : 'new']}`
-    : `Show the ${names[lead]} video`;
+  // The toggle, like the image viewer's, never changes the mode: in single mode it shows the other video, else the
+  // videos swap sides, or the difference its order
+  const single = mode === 'single';
+  const diff_alone = mode === 'difference' && diff_layout === 'alone';
+  const flip = swap;
+  const flip_title = single ? `Show the ${names[second]} video`
+    : diff_alone ? `Swap the difference: ${names[second]} − ${names[first]}`
+    : `Swap the sides: ${names[second]} | ${names[first]}`;
   const pickMode = value => {
     if (value === mode && value === 'single') swap();
     else if (value === mode && value === 'difference') toggleDiffLayout();
@@ -752,6 +741,7 @@ export const VideoCompare = ({
         {comparing && <Segmented label="Comparison" options={modes} value={mode} onChange={pickMode} />}
         {mode === 'difference' && <Button
           icon="three-columns"
+          text="With the videos"
           title={diff_between ? 'Show the difference alone (4)' : `Show the videos on each side of the difference: ${names[first]} | difference | ${names[second]} (4)`}
           active={diff_between}
           aria-pressed={diff_between}

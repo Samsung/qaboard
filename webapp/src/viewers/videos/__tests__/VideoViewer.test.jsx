@@ -134,7 +134,7 @@ describe('VideoViewer', () => {
     expect(again.container.querySelector('.video-wipe')).not.toBeNull();
   });
 
-  it('toggles like the image viewer: the other video, their difference, and again', () => {
+  it('toggles like the image viewer: the other video and back, without changing the mode', () => {
     const { container } = viewer({ output_ref: output('ref') });
     load(screen.getByLabelText('New video'));
     load(screen.getByLabelText('Reference video'));
@@ -144,10 +144,9 @@ describe('VideoViewer', () => {
     fireEvent.keyDown(document.activeElement, { key: 't' });
     expect(shown()).toMatch(/^reference/);
     fireEvent.keyDown(document.activeElement, { key: 't' });
-    expect(screen.getByRole('radio', { name: 'Difference' })).toHaveAttribute('aria-checked', 'true');
-    expect(container.querySelector('canvas[aria-label="Difference"]')).not.toBeNull();
-    fireEvent.keyDown(document.activeElement, { key: 't' });
     expect(shown()).toMatch(/^new/);
+    expect(screen.getByRole('radio', { name: 'Single' })).toHaveAttribute('aria-checked', 'true');
+    expect(container.querySelector('canvas[aria-label="Difference"]')).toBeNull();
     // clicking Single again flips the videos
     fireEvent.click(screen.getByRole('radio', { name: 'Single' }));
     expect(shown()).toMatch(/^reference/);

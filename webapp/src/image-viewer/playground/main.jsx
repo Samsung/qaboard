@@ -78,15 +78,17 @@ const getPixels = async (image, { x, y, w, h }) => {
 // Raw images: the chart through a Tetra (Quad Bayer) GRBG color filter, 10-bit, with a black level and noise, shown in
 // gray as a raw viewer would. The new image has no metadata (the viewer guesses its CFA), the reference has some.
 const RAW_GAINS = { R: 0.5, G: 1, B: 0.7 };
+// ?raw=300x400 makes them of that size
+const RAW_SIZE = /^(\d+)x(\d+)$/.exec(new URLSearchParams(window.location.search).get('raw') ?? '');
 const makeRaw = (url, { black = 64, seed = 1, metadata = null } = {}) => new Promise(resolve => {
   const img = new Image();
   img.onload = () => {
-    const { naturalWidth: w, naturalHeight: h } = img;
+    const [w, h] = RAW_SIZE ? [Number(RAW_SIZE[1]), Number(RAW_SIZE[2])] : [img.naturalWidth, img.naturalHeight];
     const canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
     const context = canvas.getContext('2d', { willReadFrequently: true });
-    context.drawImage(img, 0, 0);
+    context.drawImage(img, 0, 0, w, h);
     const rgba = context.getImageData(0, 0, w, h).data;
     const values = new Uint16Array(w * h);
     const gray = context.createImageData(w, h);

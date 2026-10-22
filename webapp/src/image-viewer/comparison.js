@@ -41,6 +41,14 @@ const OSD_OPTIONS = {
 };
 
 const same_aspect = (a, b) => !!a?.width && !!b?.width && Math.abs(a.height / a.width - b.height / b.width) < 1e-3;
+// The viewport shows the whole image, as large as it fits
+const showsWholeImage = viewport => {
+  const home = viewport.getHomeBounds();
+  const center = viewport.getCenter(true);
+  return Math.abs(viewport.getZoom(true) / viewport.getHomeZoom() - 1) < 1e-3
+    && Math.abs(center.x - (home.x + home.width / 2)) < 1e-3 * home.width
+    && Math.abs(center.y - (home.y + home.height / 2)) < 1e-3 * home.height;
+};
 const close = (a, b) => Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b));
 
 export class Comparison {
@@ -57,6 +65,8 @@ export class Comparison {
     this.pending = null;
     // the region to show when an image first shows, or changes aspect ratio
     this.region = null;
+    // the panes that showed the whole image before they resized
+    this.refit = new Set();
     this.onClick = null;
     this.listeners = new Set();
     this.drawListeners = new Set();
@@ -139,7 +149,18 @@ export class Comparison {
     const viewer = OpenSeadragon({ ...OSD_OPTIONS, element });
     this.viewers[name] = viewer;
     viewer.addHandler('viewport-change', () => this.onViewportChange(name));
-    viewer.addHandler('update-viewport', () => this.scheduleDraw());
+    // The whole image stays in view when the pane resizes, e.g. once the image's proportions are known, or when the
+    // analysis panel takes room in full screen: OpenSeadragon keeps the zoom, it would show the image smaller, or cut
+    const { viewport } = viewer;
+    const resize = viewport.resize.bind(viewport);
+    viewport.resize = (...args) => {
+      if (this.images[name]?.item && showsWholeImage(viewport)) this.refit.add(name);
+      return resize(...args);
+    };
+    viewer.addHandler('update-viewport', () => {
+      if (this.refit.delete(name)) viewport.goHome(true);
+      this.scheduleDraw();
+    });
     // Users lead with gestures, not by moving the mouse over another pane: it would stop the zoom of the other halfway
     for (const event of ['canvas-press', 'canvas-scroll', 'canvas-pinch', 'canvas-drag'])
       viewer.addHandler(event, () => this.lead(name));
@@ -161,6 +182,7 @@ export class Comparison {
     const viewer = this.viewers[name];
     if (!viewer) return;
     delete this.viewers[name];
+    this.refit.delete(name);
     if (this.images[name]) this.images[name].item = null;
     viewer.destroy();
   }
