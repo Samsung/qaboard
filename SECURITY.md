@@ -70,13 +70,14 @@ Code that runs as the server's user can read its credentials (database, GitLab t
 *Mitigations*: require tokens to send results (`ingest.auth` set to `token` in the admin panel, or `QABOARD_INGEST_AUTH=token`, after a period in `warn`); only expose the server to trusted networks; set `QABOARD_STORAGE_ROOTS` as narrowly as you can; make sure users can't write to the artifacts folders.
 *Planned*: per-project ingest policies (signed-in senders already need the developer role), and running the tests listing without access to the server's credentials.
 
-### Insecure defaults in `docker-compose.yml`
-- RabbitMQ is published on ports 5672/15672 with the `guest:guest` account. Celery workers run the shell commands given in the tasks they receive, so **anyone who can reach RabbitMQ can run commands on the workers**.
-- Flower is published on port 8888 without authentication.
-- Postgres uses the password `password`, and some deployment files publish its port.
+### Default passwords in `docker-compose.yml`
+RabbitMQ, Flower and pgAdmin are only published on the host itself (`127.0.0.1`), but their default credentials stay until you change them:
+- RabbitMQ uses the `guest:guest` account. Celery workers run the shell commands given in the tasks they receive, so **anyone who can connect to RabbitMQ can run commands on the workers**: publishing it for workers on other hosts (`QABOARD_RABBITMQ_HOST_IP`, DSK's overlay) needs a password.
+- Flower, also served at `/flower/` to anyone who can reach the server, has no login unless `FLOWER_BASIC_AUTH` is set. It can revoke tasks and shut the workers down.
+- Postgres uses the password `password` unless `QABOARD_DB_PASSWORD` is set, and some deployment files publish its port.
 - pgAdmin uses a default password.
 
-*Mitigations*: don't publish these ports outside the Docker network (or firewall them), and change all the default credentials.
+*Mitigations*: set the passwords in `.env` before the first start (see [Passwords and admin services](https://samsung.github.io/qaboard/docs/deploy#passwords-and-admin-services)), and don't publish these ports outside the Docker network (or firewall them).
 
 ### Webhooks
 Without `QABOARD_WEBHOOK_SECRET`, anyone who can reach the server can send fake push events to `/webhook/gitlab` and `/webhook/github`: they make the server fetch repositories, and change the projects' git metadata.
@@ -91,7 +92,7 @@ Without `QABOARD_WEBHOOK_SECRET`, anyone who can reach the server can send fake 
 
 ### Other
 - `POST /api/v1/webhook/proxy` lets logged-in users send any HTTP request to any URL from the server (SSRF), e.g. to internal services. It is used for the webhook integrations configured in `qaboard.yaml`.
-- Anyone who can reach the server can read the files it serves under `/s/`, unless you restrict them (see [user management](https://samsung.github.io/qaboard/docs/backend-admin/user-management#restricting-who-can-read-files)). Even then, the image server (IIIF, `/iiif/`) doesn't check permissions, and `docker-compose.yml` mounts the whole host filesystem in it (`/:/repository`): anyone who can reach it can read the images it can decode, anywhere on the host.
+- Anyone who can reach the server can read the files it serves under `/s/`, unless you restrict them (see [user management](https://samsung.github.io/qaboard/docs/backend-admin/user-management#restricting-who-can-read-files)). Even then, the image server (IIIF, `/iiif/`) doesn't check permissions: anyone who can reach it can read the images it can decode in the folders mounted in it (`docker-compose.yml` used to mount the whole host filesystem, sites now mount their storage).
   *Mitigations*: mount only the storage folders in the image server's container, and don't expose `/iiif/` to untrusted networks.
 - The example WebDAV configuration (`services/nginx/webdav.conf`) lets anyone who can reach the server read, write and delete files, without QA-Board's checks. It is only enabled where a deployment includes it.
 - `GET /api/v1/export` lets logged-in users create links or copies of output files in most folders the server can write to.
