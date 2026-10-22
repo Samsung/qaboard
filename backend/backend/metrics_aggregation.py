@@ -4,8 +4,19 @@ Per-batch aggregates of the runs' metrics, e.g. for the chart above a branch's c
 The web app asks for some metrics (the `metrics` query parameter, {metric: target}), and gets for each batch
 `{metric}_median`, `{metric}_average` and `{metric}_sum`, computed by PostgreSQL with one grouped query over all the batches.
 """
+import json
 import math
 from typing import Dict, Iterable, List, Tuple
+
+
+def parse_metrics_arg(value):
+  """The `metrics` query parameter, JSON. Raises ValueError if it isn't."""
+  if not value:
+    return {}
+  try:
+    return json.loads(value)
+  except ValueError as e:
+    raise ValueError(f"`metrics` must be JSON, e.g. {{\"psnr\": 30}}: {e}")
 
 
 def metric_names(metrics) -> List[str]:

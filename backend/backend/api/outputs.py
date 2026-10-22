@@ -26,7 +26,7 @@ def get_output(output_id):
   try:
     output = Output.query.filter(Output.id==output_id).one()
   except NoResultFound:
-    return jsonify({"error": f"Cannot find output {output_id}"}), 400
+    return jsonify({"error": f"Cannot find output {output_id}"}), 404
   if not is_authorized_user(None, output.batch.ci_commit.project_id):
     return forbidden_project(output.batch.ci_commit.project_id)
   return jsonify(output.to_dict())
@@ -43,7 +43,7 @@ def update_output(output_id):
   except NoResultFound:
     if request.method == 'DELETE':
       return {"status": "OK"}
-    return jsonify({"error": f"Cannot find output {output_id}"}), 400
+    return jsonify({"error": f"Cannot find output {output_id}"}), 404
   if forbidden := require_project_access(g.user, output.batch.ci_commit.project_id):
     return forbidden
 
@@ -71,7 +71,7 @@ def update_output(output_id):
 
   if request.method == 'DELETE':
     if output.is_pending:
-      return {"error": "Please wait for the Output to finish running before deleting it"}, 500
+      return {"error": "Please wait for the Output to finish running before deleting it"}, 409
     soft = request.args.get('soft') == 'true'
     batch_id = output.batch_id
     try:
@@ -94,7 +94,7 @@ def output_redo(output_id):
   try:
     output = Output.query.filter(Output.id==output_id).one()
   except NoResultFound:
-    return jsonify({"error": f"Cannot find output {output_id}"}), 400
+    return jsonify({"error": f"Cannot find output {output_id}"}), 404
   if forbidden := require_project_access(g.user, output.batch.ci_commit.project_id):
     return forbidden
   return redo_response(output.batch, [output], g.user)
@@ -106,7 +106,7 @@ def get_output_manifest(output_id):
   try:
     output = Output.query.filter(Output.id==output_id).one()
   except NoResultFound:
-    return jsonify({"error": f"Cannot find output {output_id}"}), 400
+    return jsonify({"error": f"Cannot find output {output_id}"}), 404
   if not is_authorized_user(None, output.batch.ci_commit.project_id):
     return forbidden_project(output.batch.ci_commit.project_id)
   manifest_path = output.output_dir / "manifest.outputs.json"

@@ -102,3 +102,25 @@ def test_metrics_definitions_are_saved(outputs_api, dummy_app, monkeypatch):
   # the run is saved even if its definitions can't be
   save.side_effect = ValueError("database error")
   assert notify(outputs_api, dummy_app, is_pending=False, metrics={"psnr": 30}, metrics_definitions=definitions)["is_failed"] is False
+
+
+@pytest.mark.parametrize("method, call", [
+  ("GET", lambda api: api.get_output(7)), ("PUT", lambda api: api.update_output(7)),
+  ("POST", lambda api: api.output_redo(7)), ("GET", lambda api: api.get_output_manifest(7)),
+])
+def test_unknown_outputs(outputs_api, dummy_app, method, call):
+  outputs_api.Output.query.filter.return_value.one.side_effect = outputs_api.NoResultFound
+  with dummy_app.test_request_context("/api/v1/output/7/", method=method, json={}):
+    response, status = call(outputs_api)
+  assert status == 404 and response.get_json() == {"error": "Cannot find output 7"}
+
+
+def test_pending_outputs_cant_be_deleted(outputs_api, dummy_app, monkeypatch):
+  from flask import g
+  import backend.api.auth as auth
+  auth.is_authorized_user.return_value = True
+  outputs_api.Output.query.filter.return_value.one.return_value = SimpleNamespace(is_pending=True, batch=MagicMock())
+  with dummy_app.test_request_context("/api/v1/output/7/", method="DELETE"):
+    g.user = {"user_name": "alice"}
+    response, status = outputs_api.update_output(7)
+  assert status == 409 and "wait" in response["error"]

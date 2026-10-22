@@ -205,6 +205,32 @@ class TestCommitsSearch:
     query.scalar.assert_called_once()
 
 
+class TestCommitsArguments:
+  @pytest.mark.parametrize('params', ['metrics={psnr', 'from=yesterday', 'to=2026-13-01T00:00:00.000Z'])
+  def test_invalid_arguments(self, dummy_app, api, params):
+    api.db_session.query.return_value = query_chain([], scalar=latest_commit_date)
+    with dummy_app.test_request_context(f'/api/v1/commits?project=p&{params}'):
+      response, status = api.get_commits()
+    assert status == 400 and response.get_json()["error"]
+
+  @pytest.fixture
+  def time_zone(self, monkeypatch):
+    import time
+    monkeypatch.setenv('TZ', 'Pacific/Honolulu')  # UTC-10
+    time.tzset()
+    yield
+    monkeypatch.undo()
+    time.tzset()
+
+  def test_recent_commits_whatever_the_time_zone(self, dummy_app, api, time_zone):
+    now = datetime.datetime.now(datetime.timezone.utc)
+    api.db_session.query.return_value = query_chain([], scalar=now)
+    with dummy_app.test_request_context('/api/v1/commits?project=p'):
+      api.get_commits()
+    to_date, = api.CiCommit.authored_datetime.__le__.call_args.args
+    assert to_date >= now
+
+
 class TestCommitsMetrics:
   def aggregated(self, dummy_app, api, project):
     """The metrics the list aggregates, when the web app asks for psnr's"""

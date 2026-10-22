@@ -5,6 +5,8 @@ from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy_utils import database_exists, create_database
 
+from .settings import env_flag
+
 
 # For other databases read http://docs.sqlalchemy.org/en/latest/core/engines.html
 # http://docs.sqlalchemy.org/en/latest/dialects/mysql.html
@@ -17,13 +19,11 @@ db_password = os.getenv('QABOARD_DB_PASSWORD', 'password')
 db_host = os.getenv('QABOARD_DB_HOST', 'db')
 db_port = os.getenv('QABOARD_DB_PORT', 5432)
 db_name = os.getenv('QABOARD_DB_NAME', 'qaboard')
-db_echo = bool(os.getenv('QABOARD_DB_ECHO', False))
+# like other flags, QABOARD_DB_ECHO=0 or false turns it off
+db_echo = env_flag(os.getenv('QABOARD_DB_ECHO', ''))
 
 
 import ujson
-import psycopg2.extras
-psycopg2.extras.register_default_json(loads=lambda x: ujson.loads)
-psycopg2.extras.register_default_jsonb(loads=lambda x: ujson.loads)
 
 # Connections per process. uwsgi runs 4 threads per process (uwsgi.ini), each with its own session: 4 is enough,
 # the overflow covers the occasional extra connection. The database's max_connections must cover

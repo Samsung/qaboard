@@ -18,7 +18,7 @@ from polyleven import levenshtein as polyleven_levenshtein
 from qaboard.compat import windows_to_linux_path
 from qaboard.conventions import serialize_config
 from backend import app, db_session
-from backend.fs_utils import as_user, rmtree
+from backend.fs_utils import as_user, rmtree, mkdir_shared
 from backend.storage import check_storage_path, UnsafePathError
 from ..models import CiCommit, Batch, slugify_hash
 from ..config import qaboard_url
@@ -101,12 +101,14 @@ def filter_outputs(query, outputs):
 
 
 def compatible(o1, o2):
+  """Whether the runs are on the same input: same path, or same id in their metadata (e.g. inputs that moved)"""
   if o1.test_input.abs_path == o2.test_input.abs_path:
     return True
   if o1.test_input.path == o2.test_input.path:
     return True
   if o1.test_input.data and o2.test_input.data and o1.test_input.data.get('id') and o1.test_input.data.get('id') == o2.test_input.data.get('id'):
-    return False
+    return True
+  return False
 
 # Note: already defined in qaboard.tuning.py, but raises instead of returning None
 def matching_output(output_reference, outputs):
@@ -165,7 +167,7 @@ def export_to_folder():
   new_commit_id = request.args['new_commit_id']
   new_commit = load_commit(project_id, new_commit_id)
   if not new_commit:
-    return f"ERROR: Commit {request.args['new_commit_id']} not found", 404
+    return jsonify({"error": f"ERROR: Commit {new_commit_id} not found"}), 404
   new_batch_label = request.args.get('batch_new', 'default')
   new_batch = new_commit.get_or_create_batch(new_batch_label)
   new_outputs = new_batch.outputs
@@ -177,7 +179,7 @@ def export_to_folder():
     ref_commit_id = request.args['ref_commit_id']
     ref_commit = load_commit(ref_project_id, ref_commit_id)
     if not ref_commit:
-      return f"ERROR: Commit {ref_commit_id} not found", 404
+      return jsonify({"error": f"ERROR: Commit {ref_commit_id} not found"}), 404
     ref_batch_label = request.args.get('batch_ref', 'default')
     ref_batch = ref_commit.get_or_create_batch(ref_batch_label)
     ref_outputs = ref_batch.outputs
@@ -208,20 +210,18 @@ def export_to_folder():
   try:
     check_storage_path(export_dir)
   except UnsafePathError as e:
-    return json.dumps({"error": f"ERROR: {e}"}), 403
+    return jsonify({"error": f"ERROR: {e}"}), 403
 
   if not export_dir.exists():
-    prev_mask = os.umask(000)
     try:
-      export_dir.mkdir(parents=True, exist_ok=True)
+      # all users write their exports there
+      mkdir_shared(export_dir)
     except Exception as e:
-      os.umask(prev_mask)
-      return json.dumps({"error": f"ERROR: When creating '{export_dir}': {e}"}), 403
-    os.umask(prev_mask)
+      return jsonify({"error": f"ERROR: When creating '{export_dir}': {e}"}), 403
 
   is_export_dir_writable = os.access(export_dir, os.W_OK)
   if not is_export_dir_writable:
-    return json.dumps({"error": f"The export folder need to be writable by all users. Call 'chmod a+w {export_dir}'"}), 403
+    return jsonify({"error": f"The export folder need to be writable by all users. Call 'chmod a+w {export_dir}'"}), 403
 
   output_refs = {}
   for output in new_outputs:
