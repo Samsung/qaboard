@@ -160,6 +160,14 @@ def git_head(repo_root : Path) -> Tuple[str, str]:
 
 
 
+class GitWrapperError(ValueError, AttributeError):
+  """
+  Raised by the _Repo/_Commit wrappers when GitPython can't give them what they wrap.
+  It's also an AttributeError so that, like before, hasattr(config.repo, ...) is False outside a git repository
+  (or without GitPython), and getattr(config.repo, name, default) returns the default.
+  """
+
+
 # for backward compatibility only
 class _Repo(object):
   """Lazily wraps gitpython's Repo to avoid high import times and stay backward-compatible"""
@@ -168,13 +176,13 @@ class _Repo(object):
     self.repo_root = repo_root
 
   def init(self):
-    import git
     try:
+      import git # GitPython is not a dependency of qaboard
       self.repo = git.Repo(str(self.repo_root))
     except Exception:
       self.repo = None
+
   def __getattribute__(self, name):
-    # print(f'_Repo.__getattribute__ {name}')
     if name in ['repo_root']:
       return object.__getattribute__(self, name)
     if not object.__getattribute__(self, 'repo'):
@@ -182,8 +190,8 @@ class _Repo(object):
 
     repo = object.__getattribute__(self, 'repo')
     if not repo:
-      raise ValueError(f"ERROR: Not a git rep {object.repo_root}")
-    return repo.__getattribute__(name)
+      raise GitWrapperError(f"ERROR: Not a git repository, or GitPython is not installed: {object.__getattribute__(self, 'repo_root')}")
+    return getattr(repo, name)
 
 # for backward compatibility only
 class _Commit(object):
@@ -194,14 +202,10 @@ class _Commit(object):
     self.commit_id = commit_id
 
   def init(self):
-    # print('init()')
-    if not self.commit_id:
-      self.commit = self.repo.commit(object.commit_id)
-    else:
-      # print('init: has commit_id')
-      # print("type(self.repo.commit)", type(self.repo.head.commit))
-      # print(self.repo.commit(self.repo.head.commit))
-      self.commit = self.repo.head.commit
+    try:
+      self.commit = self.repo.commit(self.commit_id) if self.commit_id else self.repo.head.commit
+    except Exception: # not a git repository, a commit missing from the clone...
+      self.commit = None
 
   def __getattribute__(self, name):
     if name in ['commit_id', 'repo']:
@@ -210,12 +214,10 @@ class _Commit(object):
       object.__getattribute__(self, 'init')()
 
     commit = object.__getattribute__(self, 'commit')
-    # print("commit", type(commit))
     if not commit:
-      raise ValueError(f"ERROR: Could not init a GitPython Commit: {object.commit_id}")
-    # FIXME: this seems to init a data fetch of some sort...
-    commit.committer
-    return commit.__getattribute__(name)
+      raise GitWrapperError(f"ERROR: Could not init a GitPython Commit: {object.__getattribute__(self, 'commit_id')}")
+    # getattr() and not __getattribute__: GitPython reads most attributes lazily, in __getattr__
+    return getattr(commit, name)
 
 
 
