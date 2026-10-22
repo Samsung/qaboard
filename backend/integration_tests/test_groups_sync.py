@@ -60,12 +60,13 @@ def test_the_worker_schedules_it_daily(monkeypatch):
 
 def test_rule_changes_apply_to_everyone(root, make_user):
   """No need to wait for users to sign in again"""
-  make_user('alice')
-  make_user('bob', email='bob@other.com')
+  # the domains of verified emails: here SAML's, not the local accounts' (root)
+  make_user('alice', login_type='SAML')
+  make_user('bob', email='bob@other.com', login_type='SAML')
   group = new_group(root, 'example', claim='email_domain', values=['example.com'])
   assert group["rule"]["sync_job"]["kind"] == 'sync_groups'
   run_jobs()
-  assert members(root, group) == [('alice', 'rule'), ('root', 'rule')]
+  assert members(root, group) == [('alice', 'rule')]
   sync = root.get('/api/v1/admin/groups').get_json()["sync"]
   assert sync["last_job"]["status"] == 'done'
   root.delete(f'/api/v1/admin/groups/{group["id"]}/rules/{group["rule"]["id"]}')

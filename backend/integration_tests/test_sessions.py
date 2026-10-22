@@ -1,6 +1,8 @@
 """Browser sessions stored in the database: listed, revoked, sliding, and converted from the older cookies"""
 import datetime
 
+import pytest
+
 from .conftest import login, bearer, new_token
 
 
@@ -101,6 +103,51 @@ def test_older_sessions_become_stored_sessions(make_user, make_client):
   with client.session_transaction() as cookie_session:
     assert '_user_id' not in cookie_session and cookie_session.get('sid')
   assert client.get('/api/v1/user/tokens').status_code == 200
+
+
+def old_cookie(app, make_client, user_id, kind):
+  """A browser with a cookie from before sessions were stored: flask-login's session, or its remember cookie"""
+  client = make_client()
+  if kind == 'session':
+    with client.session_transaction() as cookie_session:
+      cookie_session['_user_id'] = str(user_id)
+      cookie_session['_fresh'] = True
+  else:
+    from flask_login.utils import encode_cookie
+    with app.test_request_context():
+      client.set_cookie('remember_token', encode_cookie(str(user_id)))
+  return client
+
+
+@pytest.mark.parametrize('kind', ['session', 'remember'])
+def test_older_cookies_dont_outlive_signing_out(app, kind, make_user, logged_in, make_client, monkeypatch):
+  """They could be copies: not after the user's sessions ended, nor long after the upgrade"""
+  from backend.database import db_session
+  from backend.models import User, UserSession
+  monkeypatch.setenv('QABOARD_ADMINS', 'root')
+  root = logged_in('root')
+  ids = {name: make_user(name).id for name in ('alice', 'bob', 'carol', 'dave')}
+  alice = old_cookie(app, make_client, ids['alice'], kind)
+  assert alice.get('/api/v1/user/me/').get_json()["user_name"] == "alice"
+  # signing out ends the session, and the cookies from before
+  assert alice.post('/api/v1/user/logout/').status_code == 200
+  me = old_cookie(app, make_client, ids['alice'], kind).get('/api/v1/user/me/').get_json()
+  assert me["is_authenticated"] is False and me["reason"] == "session_expired"
+  # admins end the sessions of users who have none stored yet
+  assert root.post(f'/api/v1/admin/users/{ids["bob"]}/revoke-sessions').status_code == 200
+  assert old_cookie(app, make_client, ids['bob'], kind).get('/api/v1/user/me/').get_json()["is_authenticated"] is False
+  # disabled, then enabled again
+  root.post(f'/api/v1/admin/users/{ids["carol"]}', json={"status": "disabled"})
+  root.post(f'/api/v1/admin/users/{ids["carol"]}', json={"status": "active"})
+  assert User.query.get(ids['carol']).status == 'active'
+  assert old_cookie(app, make_client, ids['carol'], kind).get('/api/v1/user/me/').get_json()["is_authenticated"] is False
+  # sessions.max_days after the upgrade (the first stored session), browsers in use have upgraded
+  UserSession.query.update({"created_at": datetime.datetime.utcnow() - datetime.timedelta(days=181)})
+  db_session.commit()
+  dave = old_cookie(app, make_client, ids['dave'], kind)
+  assert dave.get('/api/v1/user/me/').get_json()["is_authenticated"] is False
+  # and the browser forgets them
+  assert dave.get('/api/v1/user/me/').get_json().get("reason") is None
 
 
 def test_token_requests_dont_create_sessions(logged_in, make_client):

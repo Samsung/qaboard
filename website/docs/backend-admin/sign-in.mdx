@@ -104,7 +104,9 @@ directory attributes, which the rules of `QABOARD_LOGIN_RESTRICTED_YAML` can use
 ## Decide who gets an account
 `auth.access_policy`, in **Admin → Settings**:
 - `open` (the default): anyone a sign-in method accepts gets an account.
-- `domains`: users whose email is in `auth.allowed_email_domains` (e.g. `example.com`) get one. The others wait for an admin.
+- `domains`: users whose verified email is in `auth.allowed_email_domains` (e.g. `example.com`) get one. The others
+  wait for an admin. Verified emails are those of LDAP and SAML, and those single sign-on says are verified
+  (`email_verified`): not the emails of local sign-up.
 - `approval`: everyone waits for an admin.
 
 Users who wait can sign in, and see a page saying so, where they write why they need access. Admins get an email
@@ -121,7 +123,9 @@ Browser sessions are stored on the server:
 - Users see theirs in **Settings → Sessions** and can end any of them. Signing out ends the session.
 - Admins end all of a user's sessions from the user's page. Disabling a user ends them too.
 
-Users signed in before the upgrade stay signed in.
+Users signed in before the upgrade stay signed in: their browser's older cookie becomes a stored session at its next
+request. Not when the user's sessions ended since (they signed out, they or an admin ended their sessions, or they
+were disabled), since the cookie could be a copy, nor `sessions.max_days` after the upgrade: they sign in again.
 
 ## Only single sign-on
 The sign-in page shows the password form for LDAP and local accounts. To send users straight to your IdP, require

@@ -2,7 +2,7 @@
 Groups filled by rules (Appendix D.3), from what QA-Board knows of each user:
 - the claims of each sign-in method's last sign-in (OIDC, SAML), refreshed daily for OIDC providers with `refresh_groups`;
 - the directory's attributes (users.data), from LDAP sign-ins, SSO sign-ins matched to LDAP accounts, and the daily sync;
-- `email_domain`.
+- `email_domain`, of the user's verified emails (sign_in/identities.py: verified_emails).
 A rule for one sign-in method reads its claims, a rule for any reads them all: signing in one way doesn't undo the
 groups another way gave. Each sync replaces the user's "rule" memberships; admins' "manual" ones stay.
 They sync at each sign-in, and daily for everyone (backend/jobs/groups.py).
@@ -29,9 +29,12 @@ def claims_by_source(user, identities=(), provider_id: Optional[str] = None, cla
     sources[provider_id] = {**sources.get(provider_id, {}), **(claims or {})}
   if not sources:
     sources['local'] = {}
-  if user.email and '@' in user.email:
+  # only verified emails: local sign-up, and some IdPs, let users choose theirs
+  from ..sign_in.identities import verified_emails
+  domains = sorted({email.rsplit('@', 1)[1] for email in verified_emails(user, identities) if '@' in email})
+  if domains:
     for found in sources.values():
-      found['email_domain'] = user.email.rsplit('@', 1)[1]
+      found['email_domain'] = domains[0] if len(domains) == 1 else domains
   return sources
 
 

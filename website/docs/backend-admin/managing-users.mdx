@@ -21,8 +21,9 @@ Admins see **Admin** in the user menu, at `/admin`:
   setting changes, with who did it and from which IP.
 - **Settings**: change the settings below without restarting the server.
 
-**The first admins** come from the environment: `QABOARD_ADMINS` lists user names (exactly, case included), or the
-emails of LDAP/SAML accounts (local accounts' emails aren't verified), comma-separated. They're admins whatever the
+**The first admins** come from the environment: `QABOARD_ADMINS` lists user names (exactly, case included), or
+verified emails: those of LDAP/SAML accounts, or of single sign-on accounts whose identity provider says the email is
+verified (`email_verified`). Local accounts' emails aren't verified, and local sign-up refuses the user names listed. They're admins whatever the
 database says, and can't be disabled from the web app, so you can't lock yourself out. Admins then make other admins from the panel. From
 the server, `qaboard-admin` does the same:
 
@@ -102,7 +103,7 @@ The sign-in policy is set via environment variables such as `QABOARD_LOGIN_*`, `
 | ENV Variable           | Default | Usage                                                |
 -------------------------|-------- |------------------------------------------------------|
 | `QABOARD_LOGIN_TYPE`   | _LOCAL_  | Set to `LOCAL/LDAP/SAML`                   |
-| `QABOARD_ADMINS`   | _empty_  | User names of admins, or emails of LDAP/SAML accounts, comma-separated |
+| `QABOARD_ADMINS`   | _empty_  | User names of admins, or verified emails (LDAP/SAML accounts, single sign-on with `email_verified`), comma-separated |
 | `QABOARD_LOGIN_REQUIRED`   | _empty_  | `true` blocks anonymous users, `false` allows them. Empty: as set in the admin panel (`auth.require_sign_in`) |
 | `QABOARD_DISABLE_SIGNUP`   | _empty_  | `true` disables the signup of `LOCAL` users, `false` enables it. Empty: as set in the admin panel (`auth.local_signup`) |
 | `QABOARD_COOKIE_SECURE`   | _empty_  | `true` sends session cookies only over HTTPS. It's automatic when `QABOARD_URL` starts with `https://` |

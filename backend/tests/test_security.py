@@ -451,9 +451,10 @@ UNAUTHENTICATED_ENDPOINTS = {
   # the CLI sends results, checked by ingest_access: anonymous unless ingest.auth is "token" (see "Known issues" in SECURITY.md)
   ("outputs.py", "new_output_webhook"), ("batch.py", "update_batch"), ("commit.py", "api_ci_commit"),
   # the CLI's Jenkins runner triggers builds (anonymous unless sign-in is required). With a project (the web app): developers
-  ("integrations.py", "jenkins_build_trigger"),
+  # and checks their status, the same way (jenkins_trigger_access)
+  ("integrations.py", "jenkins_build_trigger"), ("integrations.py", "jenkins_build"),
   # read-only, POST is only used to send parameters
-  ("integrations.py", "gitlab_job"), ("integrations.py", "jenkins_build"), ("integrations.py", "github_workflow_run"),
+  ("integrations.py", "gitlab_job"), ("integrations.py", "github_workflow_run"),
   # checks the login itself when writing
   ("tuning.py", "groups"),
   # authenticated with the git host's webhook secret (QABOARD_WEBHOOK_SECRET by default)

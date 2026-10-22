@@ -83,3 +83,47 @@ def test_runs_saved_twice_keep_the_newest(world):
   assert [o.id for o in world.db.query(Output).filter(Output.batch_id == batch.id)] == [duplicate_id]
   # the files stay: they are the newest's too
   assert (first.output_dir / 'image.png').exists()
+
+
+def test_exports_dont_replace_what_was_there(world, logged_in):
+  """Users choose the export folder: what's in it isn't theirs, and isn't an export they can delete"""
+  from backend.models import Export
+  run = world.run(world.batch('proj'), deleted=False, files=True, size=10)
+  world.commit()
+  alice = logged_in('alice')
+  def export(folder, method='POST', **headers):
+    url = f'/api/v1/export/?project=proj&new_commit_id={"a" * 40}&path=*.png&export_type=link&export_dir={folder}'
+    return alice.open(url, method=method, headers=headers)
+  fresh = world.storage / 'fresh'
+  response = export(fresh)
+  assert response.status_code == 200 and response.get_json()["errors"] == [], response.get_json()
+  assert response.get_json()["export_id"] and response.get_json()["nb_files_exported"] == 1
+  name, = [p.name for p in fresh.iterdir() if p.name.endswith('.png')]
+  assert os.path.samefile(fresh / name, run.output_dir / 'image.png')
+  # exporting again into our own export is fine
+  assert export(fresh).get_json()["errors"] == []
+  # someone's folder, with a file or a folder named like what we export
+  for kind in ('file', 'folder'):
+    theirs = world.storage / f'theirs-{kind}'
+    theirs.mkdir()
+    if kind == 'file':
+      (theirs / name).write_text('precious')
+    else:
+      (theirs / name).mkdir()
+      (theirs / name / 'results.csv').write_text('precious')
+    response = export(theirs)
+    assert response.status_code == 200 and len(response.get_json()["errors"]) == 1, response.get_json()
+    assert response.get_json()["export_id"] is None
+    precious = theirs / name if kind == 'file' else theirs / name / 'results.csv'
+    assert precious.read_text() == 'precious'
+    assert Export.query.filter(Export.path == str(theirs)).count() == 0
+  # other websites' links (GET, with cookies): refused. The web app's own pages: fine
+  response = export(world.storage / 'from-a-link', method='GET')
+  assert response.status_code == 403 and response.get_json()["reason"] == "cross_site_write"
+  assert export(world.storage / 'from-a-link', method='GET', **{'Sec-Fetch-Site': 'cross-site', 'Referer': 'http://localhost/'}).status_code == 403
+  assert export(world.storage / 'from-a-link', method='GET', Referer='https://evil.example/').status_code == 403
+  assert not (world.storage / 'from-a-link').exists()
+  assert export(world.storage / 'older-web-app', method='GET', **{'Sec-Fetch-Site': 'same-origin'}).status_code == 200
+  assert export(world.storage / 'older-browser', method='GET', Referer='http://localhost/proj/commit/a').status_code == 200
+  # cross-site POSTs are refused by backend/actor.py
+  assert export(world.storage / 'from-a-form', Origin='https://evil.example').status_code == 403

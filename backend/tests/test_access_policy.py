@@ -4,7 +4,7 @@ Who gets which role, from the database: integration_tests/test_access.py.
 """
 from types import SimpleNamespace
 
-from backend.access.policy import prefixes, applies_to, highest, allows, required_role, PERMISSIONS
+from backend.access.policy import prefixes, applies_to, highest, allows, required_role, PERMISSIONS, is_valid_project_id
 from backend.access.groups import rule_matches, claims_by_source, matches_any, groups_overage
 
 
@@ -24,6 +24,14 @@ def test_grants_apply_by_path_segments():
   assert prefixes('') == []
   assert applies_to('a/b', 'a/b') and applies_to('a/b', 'a/b/c') and applies_to('a/', 'a/b')
   assert not applies_to('a/b', 'a/bc') and not applies_to('a/b/c', 'a/b') and not applies_to('', 'a')
+
+
+def test_project_ids_have_no_dot_segments():
+  assert is_valid_project_id('a') and is_valid_project_id('a/b/c-d.e') and is_valid_project_id('a/..b')
+  # tolerated when reading, like in prefixes, not for new projects
+  assert is_valid_project_id('/a/b/') and not is_valid_project_id('/a/b/', new=True) and is_valid_project_id('a/b', new=True)
+  for project_id in ['', '/', 'a/../b', '..', 'a/.', './a', 'a//b', 'a/\0', None, ['a'], 1]:
+    assert not is_valid_project_id(project_id), project_id
 
 
 def rule(claim, values, provider_id=None):
@@ -56,20 +64,36 @@ def test_rules_read_nested_claims():
   assert not rule_matches(rule("realm_access", ["camera"]), "sso", claims)
 
 
-def identity(provider_id, claims):
-  return SimpleNamespace(provider_id=provider_id, claims=claims)
+def identity(provider_id, claims, email=None):
+  return SimpleNamespace(provider_id=provider_id, claims=claims, email=email)
 
 
 def test_claims_by_source():
   ldap_user = SimpleNamespace(email="alice@Example.com", data=[["CN=alice,DC=example", {"memberOf": ["CN=camera-algo,OU=Groups"]}]])
-  assert claims_by_source(ldap_user) == {"ldap": {"memberOf": ["CN=camera-algo,OU=Groups"], "email_domain": "Example.com"}}
+  assert claims_by_source(ldap_user) == {"ldap": {"memberOf": ["CN=camera-algo,OU=Groups"], "email_domain": "example.com"}}
   # each sign-in method keeps its claims: signing in with SSO doesn't drop LDAP's groups
   sources = claims_by_source(ldap_user, [identity("sso", {"groups": ["old"]}), identity("ldap", {})], "sso", {"groups": ["x"]})
   assert sources == {
-    "sso": {"groups": ["x"], "email_domain": "Example.com"},
-    "ldap": {"memberOf": ["CN=camera-algo,OU=Groups"], "email_domain": "Example.com"},
+    "sso": {"groups": ["x"], "email_domain": "example.com"},
+    "ldap": {"memberOf": ["CN=camera-algo,OU=Groups"], "email_domain": "example.com"},
   }
   assert claims_by_source(SimpleNamespace(email=None, data={})) == {"local": {}}
+
+
+def test_email_domains_are_only_those_of_verified_emails():
+  """Local sign-up stores any email, and some IdPs let users choose theirs"""
+  assert claims_by_source(SimpleNamespace(email="mallory@example.com", login_type="LOCAL", data={})) == {"local": {}}
+  saml_user = SimpleNamespace(email="alice@example.com", login_type="SAML", data={})
+  assert claims_by_source(saml_user, [identity("saml", {})])["saml"]["email_domain"] == "example.com"
+  oidc_user = SimpleNamespace(email="bob@example.com", login_type="OIDC", data={})
+  unverified = identity("sso", {"email": "bob@example.com", "email_verified": False}, email="bob@example.com")
+  assert claims_by_source(oidc_user, [unverified]) == {"sso": {"email": "bob@example.com", "email_verified": False}}
+  verified = identity("sso", {"email": "bob@example.com", "email_verified": True}, email="bob@example.com")
+  assert claims_by_source(oidc_user, [verified])["sso"]["email_domain"] == "example.com"
+  # a local account that links a verified SSO identity
+  local_user = SimpleNamespace(email="carol@other.com", login_type="LOCAL", data={})
+  linked = identity("sso", {"email": "carol@example.com", "email_verified": True}, email="carol@example.com")
+  assert claims_by_source(local_user, [linked])["sso"]["email_domain"] == "example.com"
 
 
 def test_rules_for_one_sign_in_method_read_its_claims():

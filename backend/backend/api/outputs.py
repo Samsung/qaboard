@@ -12,6 +12,7 @@ from ..storage import check_storage_path, UnsafePathError
 from ..redo import redo_response
 from ..metrics_definitions import save_metrics_definitions
 from ..notifications.batches import on_run_ended
+from ..access import invalid_project
 from .auth import login_required, is_authorized_user, ingest_access, forbidden_project, require_project_access
 
 # Keys of a run's data that only the server sets
@@ -55,9 +56,11 @@ def update_output(output_id):
     if 'is_failed' in data:
       output.is_failed = data['is_failed']
     if 'data' in data:
+      if not isinstance(data['data'], dict):
+        return jsonify({"error": "`data` must be an object"}), 400
       if not output.data:
         output.data = {}
-      output.data.update(data['data'])
+      output.data.update({k: v for k, v in data['data'].items() if k not in SERVER_KEYS})
       flag_modified(output, "data")
     if data.get('batch'):
       output.data["batch"] = data["batch"]
@@ -148,6 +151,8 @@ def new_output_webhook():
   except UnsafePathError as e:
     return jsonify({"error": f"{e}"}), 400
 
+  if error := invalid_project(data.get('project')):
+    return error
   submitted_by, error = ingest_access(data.get('project'))
   if error:
     return error

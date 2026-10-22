@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.attributes import flag_modified
 
 from backend import app, db_session
+from ..access import invalid_project
 from .auth import is_authorized_user, login_required, require_project_access, ingest_access, forbidden_project
 from ..models import Project, CiCommit, latest_successful_commit, Batch
 from ..storage import UnsafePathError
@@ -21,6 +22,8 @@ from ..metrics_aggregation import parse_metrics_arg
 @app.route("/api/v1/commit/<path:commit_id>", methods=['GET', 'POST'])
 def api_ci_commit(commit_id=None):
   if request.method == 'POST':
+    if error := invalid_project(request.json.get('project')):
+      return error
     submitted_by, error = ingest_access(request.json.get('project'))
     if error:
       return error

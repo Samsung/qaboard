@@ -36,8 +36,9 @@ def finish(user, provider_id: str, subject: Optional[str] = None, email: Optiona
   db_session.commit()
 
 
-def new_user_status(email: Optional[str]) -> str:
-  return initial_status(email)
+def new_user_status(email: Optional[str], verified: bool = True) -> str:
+  """`verified`: whether the email is (identities.verified_emails): the `domains` policy doesn't trust the others"""
+  return initial_status(email if verified else None)
 
 
 def oidc_account(provider, claims: dict, linking_user=None):
@@ -90,7 +91,7 @@ def oidc_account(provider, claims: dict, linking_user=None):
     email=email_for_account,
     login_type='OIDC',
     data={},
-    status=new_user_status(email),
+    status=new_user_status(email, verified=claims.get('email_verified') in (True, 'true')),
   )
   db_session.add(user)
   db_session.flush()

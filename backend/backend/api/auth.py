@@ -98,6 +98,10 @@ def signup():
   from ..search import escape_like
   if User.query.filter(User.user_name.ilike(escape_like(user_name), escape='\\')).first():
     return jsonify({"error": "This user name is already taken"}), 409
+  # admins whatever the database says: they sign in with the directory, or get an account from `qaboard-admin create-admin`
+  from ..admins import env_admins
+  if user_name.casefold() in {a.casefold() for a in env_admins()}:
+    return jsonify({"error": "This user name is reserved: sign in with your usual account, or ask an admin."}), 409
   # Never log or return the form or the exception: they contain the password, its hash, or the SQL query
   try:
     user = create_user({
@@ -409,7 +413,7 @@ def create_user(info):
     # https://werkzeug.palletsprojects.com/en/1.0.x/utils/#werkzeug.security.generate_password_hash
     password=generate_password_hash(info["password"]) if "password" in info else None,
     # active, or waiting for an admin (auth.access_policy)
-    status=new_user_status(info.get("email")),
+    status=new_user_status(info.get("email"), verified=info["login_type"] != "LOCAL"),
   )
   db_session.add(user)
   db_session.commit()

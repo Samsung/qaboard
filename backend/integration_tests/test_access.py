@@ -94,7 +94,7 @@ def endpoints(batch_id, output_id):
     "rename": (("POST", '/api/v1/batch/rename/', {"id": batch_id, "label": "renamed"}), (403, 403, "ok")),
     "update run": (("PUT", f'/api/v1/output/{output_id}', {"is_failed": True}), (403, 403, "ok")),
     "save groups": (("POST", f'/api/v1/tests/groups?project={PROJECT}&name=extra-batches', {"groups": {}}), (403, 403, "ok")),
-    "export": (("GET", f'/api/v1/export?project={PROJECT}&new_commit_id={SHA}', None), (403, 403, "ok")),
+    "export": (("POST", f'/api/v1/export?project={PROJECT}&new_commit_id={SHA}', None), (403, 403, "ok")),
     "milestone": (("POST", '/api/v1/milestones', {"project": PROJECT, "label": "m", "commit_hexsha": SHA, "commit_project_id": PROJECT, "batch": "default"}), (403, 403, "ok")),
     "visibility": (("POST", '/api/v1/project/access/visibility', {"project": PROJECT, "visibility": "private"}), (403, 403, 403)),
   }
@@ -178,6 +178,55 @@ def test_visibility_and_grants_apply_to_the_projects_under_a_prefix(client, logg
   assert bob.get('/api/v1/commits?project=groupie/x').status_code == 403
   grants = root.get('/api/v1/project/access?project=group/a').get_json()["grants"]
   assert [(g["subject"]["name"], g["resource_id"], g["inherited"]) for g in grants] == [("bob", "group", True)]
+
+
+def test_project_ids_with_dots_dont_get_around_access(team, client):
+  """pub/../group/secret would get pub's access (public, or a grant on pub), and reach group/secret's files"""
+  from backend.api.tuning import get_groups_path
+  get_groups_path(PROJECT, name='extra-batches').write_text("secret: {}")
+  dave = team['dave']
+  assert dave.get(f'/api/v1/tests/groups?project={PROJECT}&name=extra-batches').status_code == 403
+  for project in ['pub/../group/secret', 'group/./secret', 'group//secret', 'pub/..', '..']:
+    for response in [dave.get(f'/api/v1/tests/groups?project={project}&name=extra-batches'),
+                     dave.post(f'/api/v1/tests/groups?project={project}&name=extra-batches', json={"groups": "x: {}"}),
+                     dave.get(f'/api/v1/commits?project={project}'),
+                     client.get(f'/api/v1/project?project={project}')]:
+      assert response.status_code == 400 and response.get_json()["reason"] == "invalid_project", (project, response.request.path)
+  assert get_groups_path(PROJECT, name='extra-batches').read_text() == "secret: {}"
+  # qa can't create such projects
+  for project in ['pub/../group/secret', 'a//b', '/a/b', 'a/b/', '']:
+    response = ingest(client, project=project)
+    assert response.status_code == 400 and response.get_json()["reason"] == "invalid_project", project
+  from backend.models import Project
+  assert [p.id for p in Project.query.all()] == [PROJECT]
+  # slashes around are tolerated to read, like before
+  assert team['carol'].get(f'/api/v1/commits?project=/{PROJECT}/').status_code == 200
+  assert team['dave'].get(f'/api/v1/commits?project=/{PROJECT}/').status_code == 403
+
+
+def test_imported_milestones_need_access_to_their_results(team, client):
+  """Milestones protect their results from deletion, and describe their runs: like when saving one"""
+  from backend.database import db_session
+  from backend.models import Milestone
+  assert ingest(client, project='pub').status_code == 200
+  legacy = {"milestones": {"pub": {f"group/secret/{SHA}/default": {"commit": SHA, "project": PROJECT, "label": "theirs"}}}}
+  answer = team['dave'].post('/api/v1/milestones/import', json=legacy).get_json()
+  assert answer["imported"] == 0 and answer["done"] == [] and "group/secret" in answer["skipped"][0]["reason"]
+  answer = team['carol'].post('/api/v1/milestones/import', json=legacy).get_json()
+  assert answer["imported"] == 1 and answer["done"] == ["pub"]
+  # viewers don't save milestones
+  answer = team['carol'].post('/api/v1/milestones/import', json={"milestones": {PROJECT: {f"{PROJECT}/{SHA}/default": {"commit": SHA}}}}).get_json()
+  assert answer["imported"] == 0 and answer["done"] == [] and answer["skipped"][0]["project"] == PROJECT
+  assert [m.label for m in Milestone.query.all()] == ["theirs"]
+  # milestones from before, listed by users who can't see their results, aren't described with them
+  db_session.add(Milestone(project_id='pub', commit_project_id=PROJECT, commit_hexsha=SHA, batch='default', shared=True, label='old', data={}))
+  db_session.commit()
+  assert team['dave'].get('/api/v1/milestones?project=pub').status_code == 200
+  db_session.remove()
+  assert 'runs' not in Milestone.query.filter(Milestone.label == 'old').one().data
+  team['carol'].get('/api/v1/milestones?project=pub')
+  db_session.remove()
+  assert Milestone.query.filter(Milestone.label == 'old').one().data['runs']
 
 
 def test_expired_grants_are_ignored(team):
@@ -272,11 +321,18 @@ def test_groups_from_sign_in_claims(team, make_client):
   root = team['root']
   group = root.post('/api/v1/admin/groups', json={"name": "camera-team", "description": "The camera algorithms team"}).get_json()
   assert root.post('/api/v1/admin/groups', json={"name": "Camera-Team"}).status_code == 409
-  # local accounts: their email's domain
+  # the domain of verified emails: not local accounts', anyone can sign up with any email
   rule = root.post(f'/api/v1/admin/groups/{group["id"]}/rules', json={"claim": "email_domain", "values": ["EXAMPLE.com"]}).get_json()
   root.post('/api/v1/project/access/grants', json={"project": PROJECT, "subject": {"type": "group", "id": group["id"]}, "role": "viewer"})
   dave = make_client()
   assert dave.get(f'/api/v1/commits?project={PROJECT}').status_code == 401
+  login(dave, 'dave')
+  assert dave.get(f'/api/v1/commits?project={PROJECT}').status_code == 403
+  # the directory's (e.g. an account LDAP knows)
+  from backend.database import db_session
+  from backend.models import User
+  User.query.filter(User.user_name == 'dave').one().data = [["CN=dave,DC=example,DC=com", {"mail": ["dave@example.com"]}]]
+  db_session.commit()
   login(dave, 'dave')
   assert dave.get(f'/api/v1/commits?project={PROJECT}').status_code == 200
   details = root.get(f'/api/v1/admin/groups/{group["id"]}').get_json()

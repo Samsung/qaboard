@@ -167,6 +167,11 @@ class Project(Base):
     try:
       project = session.query(Project).filter_by(**kwargs).one()
     except NoResultFound:
+      # the id is a path in the storage, and in the grants: a/../b would be b's
+      from ..access.policy import is_valid_project_id
+      project_id = kwargs.get('id')
+      if not is_valid_project_id(project_id, new=True):
+        raise ValueError(f"Invalid project id: {project_id!r}, expected e.g. group/repo")
       project = Project(**kwargs)
     if not project.data:
       project.data = {}
