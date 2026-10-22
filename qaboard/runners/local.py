@@ -66,4 +66,6 @@ class LocalRunner(BaseRunner):
 
   @staticmethod
   def stop_jobs(jobs: List[Job], job_options: Dict[str, Any]):
-    return NotImplementedError
+    # Local runs happen on the machine that started them, the server can't stop them.
+    # We don't raise: when users stop a batch in the web app, the server then marks its pending runs as stopped.
+    return None

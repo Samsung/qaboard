@@ -163,18 +163,20 @@ This logic is usually better in your CI's configuration (rules, `if:` conditions
 `qaboard.ci_helpers` runs the functions you decorate only on the branches they name:
 
 ```python title="ci.py"
+import sys
 from qaboard.ci_helpers import on_branch, run_tests
 
 @on_branch('develop')
 def my_tests():
-  pass
+  return 0 # 0 for success
 
 # Also supported:
 # @on_branch(["develop", "master"])
 # @on_branch("feature/*")
 
 if __name__ == '__main__':
-    run_tests()
+    # run_tests() returns True if all the tasks succeeded
+    sys.exit(0 if run_tests() else 1)
 ```
 
 ```bash
