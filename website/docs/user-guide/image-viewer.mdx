@@ -23,9 +23,10 @@ Above each pair of images, pick a mode, or press its key:
 |---|---|---|
 | **Side by side** | <kbd>1</kbd> | New on the left, reference on the right. A cross marks the pixel under your mouse on both. |
 | **Wipe** | <kbd>2</kbd> | One image over the other: drag the divider across them. |
-| **Single** | <kbd>3</kbd> | One image at a time, in place. Press <kbd>t</kbd>, or click the image, to flip to the other, then to their difference, then back. Small changes jump out, like in a flicker test. |
-| **Difference** | <kbd>4</kbd> | [Where the images differ](#the-difference), between them. Press <kbd>4</kbd> again to see it alone, larger. |
+| **Single** | <kbd>3</kbd> | One image at a time, in place. Press <kbd>t</kbd>, or click the image, to flip to the other and back. Small changes jump out, like in a flicker test. |
+| **Difference** | <kbd>4</kbd> | [Where the images differ](#the-difference), between them. **With the images**, next to the modes, or <kbd>4</kbd> again, shows it alone, larger, and back. |
 
+<kbd>t</kbd> never changes the mode: to go from the difference back to the images, pick **Side by side** or **Single**.
 The mode applies to every image viewer of the page, and the page's link keeps it: whoever opens the link sees the same
 comparison. It's also in the **View options**, under **Viewers** › **Compare images**. The keys work anywhere on the
 page, not only over an image.
@@ -58,7 +59,7 @@ or drag it to go elsewhere.
 - When the reference run has no such image, the viewer shows the new image alone, without the modes.
 - Images whose proportions differ are compared at the same width: a warning, *different aspect ratios*, says their
   bottoms don't match.
-- In **Single** mode, pressing <kbd>3</kbd> again shows the other image, without going to the difference.
+- In **Single** mode, pressing <kbd>3</kbd> again also shows the other image.
 
 </details>
 
@@ -375,7 +376,7 @@ To judge images on their looks alone, e.g. to pick between two denoisers with a 
 **Blind test** next to the swap button, or press <kbd>h</kbd>. Every viewer of the page shows its two images in a random
 order, its own, called **A** and **B**: in their labels, the values under the pointer and the histograms. Nothing else
 tells them apart: the labels turn gray, and the links to the files are hidden. Compare them, flip them (in **Single**,
-<kbd>t</kbd> goes from A to B, then to their difference), and pick the one you prefer.
+<kbd>t</kbd> goes from A to B and back), and pick the one you prefer.
 
 <Shot
   id="commit/blind-test"
@@ -388,7 +389,7 @@ images. Then **Done** (or <kbd>h</kbd>) ends the test: new first again, everywhe
 ## Full screen {#full-screen}
 The full screen button at the right of the viewer's toolbar, or <kbd>f</kbd>, gives the whole screen to the images,
 with the toolbar: the modes, the difference, regions and pixel values all work there. The difference goes under the two
-images when that makes them larger. <kbd>Esc</kbd> or <kbd>f</kbd> leaves.
+images when that makes them larger, and the analysis panel (<kbd>a</kbd>) under them, both in view. <kbd>Esc</kbd> or <kbd>f</kbd> leaves.
 
 The button at the top right of each card shows the whole card in full screen instead, with its file picker.
 
@@ -430,8 +431,8 @@ text box. The keyboard button in the viewer's toolbar lists them.
 
 | Key | What it does |
 |---|---|
-| <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> | Side by side, wipe, single, difference. <kbd>4</kbd> again: the difference between the images, or alone. |
-| <kbd>t</kbd> | Swap the sides. With one image shown, or the difference alone: the other image, their difference, and again, like a click on the image. |
+| <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> <kbd>4</kbd> | Side by side, wipe, single, difference. <kbd>4</kbd> again: the difference with the images on its sides, or alone. |
+| <kbd>t</kbd> | In **Single**: the other image, like a click on the image. Else swap the sides, or the order of the difference shown alone. |
 | <kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd> | Zoom in, zoom out, fit the whole image. |
 | Wheel, pinch | Zoom. |
 | Drag | Pan. Drag the divider to wipe. |

@@ -1538,6 +1538,10 @@
   overflow: auto;
   background: var(--qiv-surface);
 }
+.qiv-fullscreen .qiv-analysis-wrap {
+  max-height: 50vh;
+  overflow: auto;
+}
 
 /* "image" or "display": users mix up the image's values and the displayed ones */
 .qiv-chip {

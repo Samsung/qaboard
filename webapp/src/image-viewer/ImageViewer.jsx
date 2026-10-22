@@ -274,8 +274,12 @@ export const ImageViewer = ({
     return () => document.removeEventListener('fullscreenchange', onChange);
   }, []);
   const can_fullscreen = typeof document !== 'undefined' && !!document.fullscreenEnabled;
+  // In full screen, the analysis panel shows under the images, without scrolling (it scrolls when it's taller than half
+  // the screen)
+  const analysis_panel = useRef(null);
+  const analysis_height = useHeight(analysis_panel, fullscreen && show_analysis);
   const max_height = Math.max(120, fullscreen
-    ? window_height - header_height - 24
+    ? window_height - header_height - (show_analysis ? analysis_height : 0) - 24
     : typeof maxHeight === 'function' ? maxHeight(window_height) : maxHeight);
   const fit = (columns, rows) => Math.floor(Math.max(0, Math.min(
     (available - (columns - 1) * GAP) / columns,
@@ -317,28 +321,15 @@ export const ImageViewer = ({
   const first = swapped ? 'b' : 'a';
   const second = swapped ? 'a' : 'b';
   const swap = () => setSwapped(!swapped);
-  // The toggle (t, the swap button, a click on the image shown alone): when both images show, they swap sides (around
-  // their difference). When one shows, or their difference alone: the first image, the other, their difference, and
-  // again. The first is new, or A during a blind test: with swapped shared by the viewers of a page, they all stay in step.
-  const single = mode === 'single' || (mode === 'difference' && diff_layout === 'alone');
-  const lead = blind?.a === 'B' ? 'b' : 'a';
-  const trailing = lead === 'a' ? 'b' : 'a';
-  const flip = () => {
-    if (!single || (mode === 'single' && first === lead)) return swap();
-    if (mode === 'single') {
-      // their difference: the first image minus the other
-      swap();
-      setDiff({ ...diff, layout: 'alone' });
-      setMode('difference');
-      return;
-    }
-    if (first !== lead) swap();
-    setMode('single');
-  };
-  const flip_title = !single ? `Swap the sides: ${names[second]} | ${names[first]}`
-    : mode === 'single' && first === lead ? `Show the ${names[trailing]} image`
-    : mode === 'single' ? `Show the difference: ${names[lead]} − ${names[trailing]}`
-    : `Show the ${names[lead]} image`;
+  // The toggle (t, the swap button, a click on the image shown alone) never changes the mode: in single mode it shows
+  // the other image, else the images swap sides, or the difference its order. With swapped shared by the viewers of a
+  // page, they all stay in step.
+  const single = mode === 'single';
+  const diff_alone = mode === 'difference' && diff_layout === 'alone';
+  const flip = swap;
+  const flip_title = single ? `Show the ${names[second]} image`
+    : diff_alone ? `Swap the difference: ${names[second]} − ${names[first]}`
+    : `Swap the sides: ${names[second]} | ${names[first]}`;
   // Picking the mode shown again: Single flips the images, Difference shows or hides the images on its sides
   const pickMode = value => {
     if (value === mode && value === 'single') swap();
@@ -426,7 +417,7 @@ export const ImageViewer = ({
     copied(() => navigator.clipboard.writeText(regionAsYaml(region, size_a)), 'region in view').then(notify);
   };
 
-  // Clicking the image shown alone, or their difference, shows the next one
+  // Clicking the image shown alone shows the other
   useLayoutEffect(() => {
     controller.setOnClick(() => {
       if (single) flip();
@@ -675,6 +666,7 @@ export const ImageViewer = ({
       </span>}
       {mode === 'difference' && <Button
         icon="three-columns"
+        text="With the images"
         title={diff_between ? 'Show the difference alone (4)' : `Show the images on each side of the difference: ${names[first]} | difference | ${names[second]} (4)`}
         active={diff_between}
         aria-pressed={diff_between}
@@ -841,7 +833,7 @@ export const ImageViewer = ({
       {mode === 'single' && label(first, 'left')}
       <Minimap controller={controller} image={hidden ? images[first] : images.a} size={size_a} />
     </div>
-    {show_analysis && <AnalysisPanel
+    {show_analysis && <div ref={analysis_panel} className="qiv-analysis-wrap"><AnalysisPanel
       controller={controller}
       comparing={comparing}
       names={names}
@@ -861,8 +853,24 @@ export const ImageViewer = ({
       sensor={sensor}
       onSensorChange={setSensorSetting}
       sensorRemembered={sensorRemembered}
-    />}
+    /></div>}
   </div>;
+};
+
+// The height of an element, while `enabled`
+const useHeight = (ref, enabled) => {
+  const [height, setHeight] = useState(0);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!enabled || !element) return;
+    const measure = () => setHeight(element.offsetHeight);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref, enabled]);
+  return height;
 };
 
 // Screen pixels per image pixel, updated as users zoom
