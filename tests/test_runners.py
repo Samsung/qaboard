@@ -606,6 +606,27 @@ except ImportError:
   has_dask = False
 
 
+class TestCelerySettings(unittest.TestCase):
+  def test_passwords_come_from_the_environment(self):
+    """qaboard.yaml is in git: broker URLs can read the password from the environment"""
+    from qaboard.runners.celery_settings import celery_settings
+    config = {"runners": {"celery": {
+      "broker_url": "pyamqp://camera:${QA_CELERY_PASSWORD}@qaboard:5672/camera",
+      "result_backend": "rpc://",
+      "timezone": "$TZ_KEPT",
+      "worker_concurrency": 4,
+    }}}
+    with mock.patch.dict(os.environ, {"QA_CELERY_PASSWORD": "secret", "TZ_KEPT": "x"}):
+      settings = celery_settings(config)
+    self.assertEqual(settings["broker_url"], "pyamqp://camera:secret@qaboard:5672/camera")
+    self.assertEqual(settings["result_backend"], "rpc://")
+    self.assertEqual(settings["timezone"], "$TZ_KEPT")
+    self.assertEqual(settings["worker_concurrency"], 4)
+    # the project's configuration isn't changed
+    self.assertIn("${QA_CELERY_PASSWORD}", config["runners"]["celery"]["broker_url"])
+    self.assertEqual(celery_settings({}), {})
+
+
 class TestCleanOutputDir(unittest.TestCase):
   def test_removes_everything_when_not_redirected(self):
     import sys

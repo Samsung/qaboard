@@ -55,6 +55,34 @@ qa batch --runner=local my-batch
 
 Note that unless you have a transparent shared storage for your working directory, you'll need to use `qa --share batch` to see runs in QA-Board...
 
+## Sharing the server's broker between teams
+Workers run the commands of the tasks they get, so **anyone who can send tasks to a worker can run commands on its
+host**. When several teams use the QA-Board server's RabbitMQ, give each team its own *virtual host* and user: its
+workers only get its tasks, and other accounts can't send them any. The server's admins create them:
+
+```bash
+team=camera
+password=$(openssl rand -hex 16)
+docker compose exec rabbitmq rabbitmqctl add_vhost $team
+docker compose exec rabbitmq rabbitmqctl add_user $team $password
+docker compose exec rabbitmq rabbitmqctl set_permissions -p $team $team ".*" ".*" ".*"
+# the team's broker URL
+echo "pyamqp://$team:$password@<qaboard-host>:5672/$team"
+```
+
+*qaboard.yaml* is in git: keep the password in the environment, where you run `qa` and where the workers run.
+Settings ending with `_url` (and `result_backend`) expand environment variables:
+
+```yaml title="qaboard.yaml"
+runners:
+  celery:
+    broker_url: pyamqp://camera:${QA_CELERY_PASSWORD}@qaboard:5672/camera
+```
+
+With `qa` versions from before October 2026, leave `broker_url` out of *qaboard.yaml* and set the whole URL in
+`CELERY_BROKER_URL` instead. To see who still connects with another account:
+`docker compose exec rabbitmq rabbitmqctl list_connections user vhost peer_host`.
+
 ## Monitoring
 - A [`flower`](https://flower.readthedocs.io/en/latest/) instance is available to QA-Board's admins at `<QABOARD_HOST>/flower/`: it can revoke tasks and shut the workers down
 - Read the [docs](http://docs.celeryproject.org/en/latest/userguide/monitoring.html).

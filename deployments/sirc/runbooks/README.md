@@ -17,6 +17,7 @@ They used to be pages of the public docs website. The website now only has the g
 | [ssl-certificates.md](ssl-certificates.md) | Getting the HTTPS certificate from IT |
 | [optimization-loop.md](optimization-loop.md) | Reproducing and debugging a tuning (`qa optimize`) of a project |
 | [sso.md](sso.md) | Single sign-on with Keycloak: asking IT for the clients, configuring, checking, rolling back |
+| [celery.md](celery.md) | RabbitMQ accounts for teams' Celery workers, who still uses guest, stopping guest from the network |
 
 Keep them in sync with the generic pages: when a change is not SIRC-specific, document it on the website too.
 
