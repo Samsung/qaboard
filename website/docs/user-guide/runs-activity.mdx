@@ -47,8 +47,9 @@ A single run has its own **Mark as failed** button. You change only your own run
 <details>
 <summary>Older runs, and what the page doesn't show</summary>
 
-- Runs from before your QA-Board recorded when runs are queued, start and end show when they were created instead
-  (*Created 3 hours ago*), and count as ended then. We don't know how long they waited or ran.
+- Runs from before your QA-Board recorded when runs are queued, start and end count as started when they were
+  created, and ended after the time `qa run` measured them computing (*Ended ~3 hours ago*). Without it, they show
+  when they were created (*Created 3 hours ago*). We don't know how long they waited in a queue.
 - Batches started from QA-Board over 3 days ago whose `qa batch` never started: their LSF job is most likely gone.
 - Runs of private projects you can't see.
 

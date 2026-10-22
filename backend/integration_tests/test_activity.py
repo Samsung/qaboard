@@ -268,15 +268,27 @@ def test_runs_say_when_they_were_queued_started_and_ended(client):
 
 
 def test_older_runs_count_from_when_they_were_created(alice, world):
-  """Runs from before QA-Board recorded when runs end: their creation date stands for it"""
+  """Runs from before QA-Board recorded when runs end: they started when created, and ended compute_time later"""
+  from backend.models import Output
   batch = world.batch('proj/a', hexsha='a' * 40, label='old')
   recent = add_run(world, batch, 'done', created=ago(hours=2))
+  world.db.get(Output, recent).metrics = {"compute_time": 1500, "loss": 1}
+  unknown = add_run(world, batch, 'done', created=ago(hours=1))
   add_run(world, batch, 'failed', created=ago(days=3))
+  # started before the window, ended in it
+  long = add_run(world, batch, 'done', created=ago(hours=25))
+  world.db.get(Output, long).metrics = {"compute_time": 7200}
+  # nonsense compute times are ignored
+  world.db.get(Output, add_run(world, batch, 'done', created=ago(hours=3))).metrics = {"compute_time": "slow"}
   world.commit()
   answer = alice.get('/api/v1/activity/overview').get_json()
-  assert (answer["totals"]["done"], answer["totals"]["failed"]) == (1, 0)
-  assert sum(bar["done"] for bar in answer["timeline"]["bars"]) == 1
-  run = alice.get('/api/v1/activity/runs').get_json()["runs"][0]
-  assert (run["id"], run["estimated"], run["finished_at"], run["started_at"]) == (recent, True, run["created_date"], None)
+  assert (answer["totals"]["done"], answer["totals"]["failed"]) == (4, 0)
+  assert sum(bar["done"] for bar in answer["timeline"]["bars"]) == 4
+  assert any(bar["running"] for bar in answer["timeline"]["bars"])
+  runs = {r["id"]: r for r in alice.get('/api/v1/activity/runs').get_json()["runs"]}
+  assert runs[recent]["estimated"] and runs[recent]["started_at"] == runs[recent]["created_date"]
+  assert runs[recent]["finished_at"] > runs[recent]["started_at"]
+  assert (runs[unknown]["started_at"], runs[unknown]["finished_at"]) == (None, runs[unknown]["created_date"])
+  assert long in runs
   week = alice.get('/api/v1/activity/items?group=batch&window=7d').get_json()["items"][0]
-  assert (week["done"], week["failed"], week["run_seconds"]) == (1, 1, None)
+  assert (week["done"], week["failed"], week["run_seconds"]) == (4, 1, (1500 + 7200) / 2)

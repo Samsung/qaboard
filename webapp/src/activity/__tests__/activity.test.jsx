@@ -204,4 +204,14 @@ describe('Runs activity', () => {
     renderAt('/activity?group=runs');
     expect(await screen.findByTestId('run')).toHaveTextContent('Created');
   });
+
+  it('estimates when older runs ended from how long they computed', async () => {
+    mockApi(routes({ routes: {
+      'GET /api/v1/activity/runs': { runs: [run({ status: 'done', queued_at: null, started_at: '2026-10-22T09:00:00Z', finished_at: '2026-10-22T09:25:00Z', created_date: '2026-10-22T09:00:00Z', estimated: true })], total: 1 },
+    } }));
+    renderAt('/activity?group=runs');
+    const row = await screen.findByTestId('run');
+    expect(row).toHaveTextContent('Ended ~');
+    expect(row).toHaveTextContent('ran 25min');
+  });
 });

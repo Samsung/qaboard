@@ -288,11 +288,16 @@ const RunWhen = ({ run, now }) => {
       {waited !== null && waited >= 60 && <Meta>waited {formatDuration(waited)}</Meta>}
     </span>;
   }
-  if (run.estimated)
-    return <Tooltip content="QA-Board didn't record when this run ended (older runs, or older qa versions): this is when it was created." hoverOpenDelay={200}>
-      <span>Created <Time iso={run.created_date}/></span>
-    </Tooltip>;
   const ran = run.started_at && run.finished_at ? secondsSince(run.started_at, now) - secondsSince(run.finished_at, now) : null;
+  if (run.estimated)
+    return <Tooltip hoverOpenDelay={200} content={ran !== null
+      ? "QA-Board didn't record when this run ended (older runs, or older qa versions): it's when it was created, plus how long it computed."
+      : "QA-Board didn't record when this run ended (older runs, or older qa versions), nor how long it computed: this is when it was created."}>
+      <span>
+        {ran !== null ? <>Ended ~<Time iso={run.finished_at}/></> : <>Created <Time iso={run.created_date}/></>}
+        {ran !== null && <Meta>ran {formatDuration(ran)}</Meta>}
+      </span>
+    </Tooltip>;
   return <span>
     Ended <Time iso={run.finished_at}/>
     {ran !== null && <Meta>ran {formatDuration(ran)}</Meta>}
