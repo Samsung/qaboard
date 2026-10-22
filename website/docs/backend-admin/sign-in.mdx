@@ -123,7 +123,9 @@ Browser sessions are stored on the server:
 - Users see theirs in **Settings → Sessions** and can end any of them. Signing out ends the session.
 - Admins end all of a user's sessions from the user's page. Disabling a user ends them too.
 
-Users signed in before the upgrade stay signed in.
+Users signed in before the upgrade stay signed in: their browser's older cookie becomes a stored session at its next
+request. Not when the user's sessions ended since (they signed out, they or an admin ended their sessions, or they
+were disabled), since the cookie could be a copy, nor `sessions.max_days` after the upgrade: they sign in again.
 
 ## Only single sign-on
 The sign-in page shows the password form for LDAP and local accounts. To send users straight to your IdP, require

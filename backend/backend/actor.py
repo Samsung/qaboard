@@ -170,7 +170,7 @@ def session_user():
   if 'sid' in session or g.get('auth_error'):
     return None
   # Sessions opened before sessions were stored (flask-login's cookies, SAML's): they become stored sessions, nobody
-  # is signed out by the upgrade
+  # is signed out by the upgrade. Unless they could be copies (sessions.upgrades_old_cookie)
   user = None
   if session.get('_user_id') or request.cookies.get('remember_token'):
     from flask_login import current_user
@@ -184,7 +184,12 @@ def session_user():
     return None
   from flask_login import logout_user
   from backend import db_session
+  # the browser forgets the old cookies either way
   logout_user()
+  if not sessions.upgrades_old_cookie(user):
+    session.pop('samlUserdata', None)
+    g.auth_error = ('session_expired', "Your session expired: sign in again.")
+    return None
   sessions.start(user, (user.login_type or 'local').lower())
   db_session.commit()
   return user
