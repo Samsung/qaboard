@@ -265,3 +265,18 @@ def test_runs_say_when_they_were_queued_started_and_ended(client):
   # `qa run` alone: it runs right away
   direct = send(is_pending=True, is_running=True, rel_input_path='inputs/b.txt')
   assert direct.queued_at == direct.started_at
+
+
+def test_older_runs_count_from_when_they_were_created(alice, world):
+  """Runs from before QA-Board recorded when runs end: their creation date stands for it"""
+  batch = world.batch('proj/a', hexsha='a' * 40, label='old')
+  recent = add_run(world, batch, 'done', created=ago(hours=2))
+  add_run(world, batch, 'failed', created=ago(days=3))
+  world.commit()
+  answer = alice.get('/api/v1/activity/overview').get_json()
+  assert (answer["totals"]["done"], answer["totals"]["failed"]) == (1, 0)
+  assert sum(bar["done"] for bar in answer["timeline"]["bars"]) == 1
+  run = alice.get('/api/v1/activity/runs').get_json()["runs"][0]
+  assert (run["id"], run["estimated"], run["finished_at"], run["started_at"]) == (recent, True, run["created_date"], None)
+  week = alice.get('/api/v1/activity/items?group=batch&window=7d').get_json()["items"][0]
+  assert (week["done"], week["failed"], week["run_seconds"]) == (1, 1, None)

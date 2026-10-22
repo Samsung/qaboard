@@ -288,6 +288,10 @@ const RunWhen = ({ run, now }) => {
       {waited !== null && waited >= 60 && <Meta>waited {formatDuration(waited)}</Meta>}
     </span>;
   }
+  if (run.estimated)
+    return <Tooltip content="QA-Board didn't record when this run ended (older runs, or older qa versions): this is when it was created." hoverOpenDelay={200}>
+      <span>Created <Time iso={run.created_date}/></span>
+    </Tooltip>;
   const ran = run.started_at && run.finished_at ? secondsSince(run.started_at, now) - secondsSince(run.finished_at, now) : null;
   return <span>
     Ended <Time iso={run.finished_at}/>
@@ -305,13 +309,19 @@ const job_summary = run => {
 
 
 // The runs of a group, or all of them
-const RunsTable = ({ filters, group, item_key, now, live, show_batch = true, onFail }) => {
+// Nothing to show: maybe other people's runs
+const Empty = ({ title, description, filters, setFilters }) => <NonIdealState icon="search" title={title} description={description}
+  action={(!filters.scope || filters.scope === 'me') && setFilters
+    ? <Button icon="people" text="See everyone's runs" onClick={() => setFilters({ scope: 'all', page: '' })}/>
+    : undefined}/>;
+
+const RunsTable = ({ filters, setFilters, group, item_key, now, live, show_batch = true, onFail }) => {
   const [page, setPage] = useState(1);
   const offset = (page - 1) * runs_page_size;
   const { data, isPending, error, refetch, isFetching } = useQuery(runsQuery(filters, { group, key: item_key, offset, live }));
   if (isPending) return <Loading label="Loading the runs"/>;
   if (error) return <QueryError error={error} refetch={refetch} what="the runs"/>;
-  if (!data.runs.length) return <NonIdealState icon="search" title="No runs" description="No run matches the filters."/>;
+  if (!data.runs.length) return <Empty title="No runs" description="No run matches the filters." filters={filters} setFilters={group ? null : setFilters}/>;
   const show_users = filters.scope === 'all';
   const pages = Math.max(1, Math.ceil(data.total / runs_page_size));
   return <div style={{ opacity: isFetching ? 0.8 : 1 }}>
@@ -379,7 +389,8 @@ const GroupsTable = ({ group, filters, setFilters, now, live, onFail, onStop }) 
   if (error) return <QueryError error={error} refetch={refetch} what="the runs"/>;
   const items = data.items;
   if (items.length === 0)
-    return <NonIdealState icon="search" title="Nothing here" description={filters.status ? "No run matches the filters: try another status." : "No run waits or runs now, and none ended in this time window."}/>;
+    return <Empty title="Nothing here" filters={filters} setFilters={setFilters}
+      description={filters.status ? "No run matches the filters: try another status." : `No ${!filters.scope || filters.scope === 'me' ? 'run of yours' : 'run'} waits or runs now, and none ended in this time window.`}/>;
   const toggle = key => setOpen(current => {
     const next = new Set(current);
     if (next.has(key)) next.delete(key);
@@ -540,7 +551,7 @@ const Help = () => <Popover content={<div style={{ padding: 14, maxWidth: 420 }}
     <li><strong>Starting soon</strong>: batches you started from QA-Board, whose <code>qa batch</code> waits for the cluster.</li>
     {Object.entries(statuses).map(([id, s]) => <li key={id}><strong>{s.label}</strong>: {s.description}</li>)}
   </ul>
-  <p style={{ margin: 0 }} className={Classes.TEXT_MUTED}>Runs that ended before QA-Board started recording when runs end aren't shown. Runs pending for over a day are flagged: their job may have died. The page refreshes every 15 seconds.</p>
+  <p style={{ margin: 0 }} className={Classes.TEXT_MUTED}>Older runs, from before QA-Board recorded when runs end, show when they were created instead. Runs pending for over a day are flagged: their job may have died. The page refreshes every 15 seconds.</p>
 </div>}>
   <Button icon="help" variant="minimal" text="What do these mean?"/>
 </Popover>;
@@ -630,7 +641,7 @@ export const Activity = ({ filters }) => {
         {group !== 'runs' && <HTMLSelect aria-label="Sort" options={sort_options} value={filters.sort || 'active'} onChange={e => setFilters({ sort: e.target.value, page: '' })}/>}
       </Toolbar>
       {group === 'runs'
-        ? <RunsTable filters={filters} now={overview?.now} live={live} onFail={setFailing}/>
+        ? <RunsTable filters={filters} setFilters={setFilters} now={overview?.now} live={live} onFail={setFailing}/>
         : <GroupsTable group={group} filters={filters} setFilters={setFilters} now={overview?.now} live={live} onFail={setFailing} onStop={setStopping}/>}
     </section>
 

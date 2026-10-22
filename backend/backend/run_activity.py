@@ -6,9 +6,11 @@ command, runner, queue, platform or any job option. Also the batches started fro
 It stays fast on big databases by reading only:
 - the pending runs (is_pending): ix_outputs_active, a partial index,
 - the runs that ended recently: ix_outputs_finished_at,
+- the runs created recently that don't say when they ended: the index on created_date,
 - the batches started from QA-Board: ix_batches_submissions.
-Runs saved before QA-Board knew when they were queued, started and ended only have their created_date: they're
-shown if they're still pending, but not once they've ended.
+Runs saved before QA-Board recorded when runs are queued, start and end (and runs from clients that never say) only
+have their created_date: it stands for when they ended (`estimated`), so the history shows them without rewriting
+the outputs table. We don't know how long they waited or ran.
 
 Nothing here depends on the web framework: api/activity.py is a thin layer over these functions.
 """
@@ -75,7 +77,9 @@ INTEGER_GROUPS = ('commit', 'batch')
 
 RUNS = """
   SELECT o.id, o.batch_id, b.label AS batch_label, c.id AS ci_commit_id, c.hexsha, c.branch, c.project_id,
-         """ + STATUS + """ AS status, o.created_date, o.queued_at, o.started_at, o.finished_at, o.test_input_id,
+         """ + STATUS + """ AS status, o.created_date, o.queued_at, o.started_at,
+         CASE WHEN o.is_pending THEN NULL ELSE coalesce(o.finished_at, o.created_date) END AS finished_at,
+         o.finished_at IS NULL AND o.is_pending IS NOT TRUE AS estimated, o.test_input_id,
          coalesce(o.platform, '') AS platform,
          coalesce(o.data->>'user', '') AS user_name,
          coalesce(o.data->>'root_command_id', '') AS command_id,
@@ -86,6 +90,8 @@ RUNS = """
     SELECT * FROM outputs WHERE is_pending
     UNION ALL
     SELECT * FROM outputs WHERE finished_at >= :since AND is_pending IS NOT TRUE
+    UNION ALL
+    SELECT * FROM outputs WHERE created_date >= :since AND finished_at IS NULL AND is_pending IS NOT TRUE
   ) o
   JOIN batches b ON b.id = o.batch_id
   JOIN ci_commits c ON c.id = b.ci_commit_id
