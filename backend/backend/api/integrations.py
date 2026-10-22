@@ -726,18 +726,25 @@ def github_workflow_dispatch():
 @app.route("/api/v1/jenkins/build/", methods=['POST'])
 def jenkins_build():
   """
-  Get the status of a Jenkins build.
+  Get the status of a Jenkins build, with the server's Jenkins credentials: who can start builds can check them
+  (jenkins_trigger_access), on the Jenkins hosts (jenkins_status_url_allowed). Only the status is sent back.
   """
-  data = request.get_json()
+  data = request.get_json(silent=True)
+  if not isinstance(data, dict):
+    return jsonify({"error": "Expected a JSON object"}), 400
+  if forbidden := jenkins_trigger_access(data, checking=True):
+    return forbidden
   if "build_url" in data or "web_url" in data:
     if "build_url" in data:
       url = data['build_url']
     else:
       url = data['web_url']
-    if not url.endswith("/api/json"):
+    if isinstance(url, str) and not url.endswith("/api/json"):
       url = f"{url.rstrip('/')}/api/json"
   else:
-    url = data['url']
+    url = data.get('url')
+  if not isinstance(url, str) or not jenkins_status_url_allowed(url):
+    return jsonify({"error": f"ERROR: {url} is not on a Jenkins host of JENKINS_AUTH (with the scheme and port of the Jenkins jobs projects use)"}), 403
   jenkins_credentials = jenkins_hostname_credentials(url)
   if not jenkins_credentials:
     return jsonify({"error": f"ERROR: No credentials for {urlparse(url).hostname} in JENKINS_AUTH, to check {url}"}), 403
@@ -753,7 +760,8 @@ def jenkins_build():
     # @retry(tries=3) # pip install retry...
     def fetch():
       # https://docs.python-requests.org/en/master/user/advanced/#timeouts
-      return requests.get(url, timeout=(60, 3.5*60), **jenkins_credentials)
+      # not redirects: they could go anywhere, with the credentials
+      return requests.get(url, timeout=(60, 3.5*60), allow_redirects=False, **jenkins_credentials)
     # LOL Jenkins is super unstable... WIP until we add something proper...
     import time
     try:
@@ -777,10 +785,12 @@ def jenkins_build():
     return jsonify({"error": f"ERROR: checking the build status: {e}"}), 500
   try:
     build_data = r.json()
+    if not isinstance(build_data, dict) or 'building' not in build_data:
+      raise ValueError("not a build")
   except Exception as e:
-    print(r.text)
-    print(e)
-    return jsonify({"error": f"ERROR: malformed Jenkins response, when checking the build status: {e}", "text": r.text}), 500
+    # never the body: it's whatever the URL answers, read with the server's credentials
+    print(f"[jenkins] {url}: HTTP {r.status_code}, not a Jenkins build: {e}")
+    return jsonify({"error": f"ERROR: malformed Jenkins response, when checking the build status: HTTP {r.status_code} ({r.headers.get('Content-Type')}) from {url}, not a Jenkins build's JSON"}), 500
   # print(build_data.get('building'), build_data.get('result'))
   # https://javadoc.jenkins-ci.org/hudson/model/Result.html
   allow_failure = False
@@ -836,13 +846,14 @@ def jenkins_build_trigger():
   return response
 
 
-def jenkins_trigger_access(data):
-  """None if the caller can start this Jenkins build, else the response to return"""
+def jenkins_trigger_access(data, checking=False):
+  """None if the caller can start this Jenkins build (`checking`: check builds' status), else the response to return"""
+  verb = "check" if checking else "start"
   project_id = data.get('project') if isinstance(data.get('project'), str) and data.get('project') else None
   actor = g.get('actor')
   if actor is not None and actor.user is not None:
     if actor.token is not None and not (actor.has_scope('act') or actor.has_scope('ingest')):
-      return jsonify({"error": "This token can't start Jenkins builds: it needs the \"act\" or \"ingest\" scope.", "reason": "missing_scope", "required": "act"}), 403
+      return jsonify({"error": f"This token can't {verb} Jenkins builds: it needs the \"act\" or \"ingest\" scope.", "reason": "missing_scope", "required": "act"}), 403
     if project_id:
       if not actor.allows_project(project_id):
         return jsonify({"error": f"This token can't access {project_id}.", "reason": "token_project"}), 403
@@ -852,18 +863,18 @@ def jenkins_trigger_access(data):
   mode = setting('ingest.auth')
   if mode == 'token':
     return jsonify({
-      "error": "This server only starts Jenkins builds for signed-in users: run `qa auth login`, or set QABOARD_TOKEN in CI.",
+      "error": f"This server only {verb}s Jenkins builds for signed-in users: run `qa auth login`, or set QABOARD_TOKEN in CI.",
       "reason": "ingest_token_required",
     }), 403
   build_url = data.get('build_url')
-  if isinstance(build_url, str) and not is_declared_jenkins_job(build_url, project_id, data.get('commit')):
+  if not checking and isinstance(build_url, str) and not is_declared_jenkins_job(build_url, project_id, data.get('commit')):
     where = f"the qaboard.yaml of {project_id}" if project_id else "the projects' qaboard.yaml"
     return jsonify({
       "error": f"Without signing in, QA-Board only starts the Jenkins jobs of {where} (runners.jenkins.build_url, or jenkins integrations). Run `qa auth login`, or set QABOARD_TOKEN in CI.",
       "reason": "sign_in_required",
     }), 403
   if mode == 'warn':
-    g.qaboard_warning = "This Jenkins build was started without a token. This server will soon require one: run `qa auth login`, or set QABOARD_TOKEN in CI."
+    g.qaboard_warning = f"This Jenkins build was {'checked' if checking else 'started'} without a token. This server will soon require one: run `qa auth login`, or set QABOARD_TOKEN in CI."
   return None
 
 
@@ -883,21 +894,53 @@ def jenkins_jobs(config):
 # Without a project, we look at all the projects: qa batch can start hundreds of builds
 _declared_jenkins_jobs = {"at": None, "build_urls": set()}
 
+def declared_jenkins_jobs() -> set:
+  """The Jenkins jobs of all the projects' qaboard.yaml, read again every few minutes"""
+  if _declared_jenkins_jobs["at"] is None or time.time() - _declared_jenkins_jobs["at"] > 300:
+    _declared_jenkins_jobs["build_urls"] = {
+      url.strip().rstrip('/')
+      for (data,) in db_session.query(Project.data).all()
+      for url in jenkins_jobs((data or {}).get('qatools_config')) if isinstance(url, str)
+    }
+    _declared_jenkins_jobs["at"] = time.time()
+  return _declared_jenkins_jobs["build_urls"]
+
 def is_declared_jenkins_job(build_url, project_id=None, commit_id=None):
   normalize = lambda url: url.strip().rstrip('/')
   if project_id:
     configs = [config for _, config in configs_of(project_id, commit_id if isinstance(commit_id, str) else None)]
     build_urls = {normalize(url) for config in configs for url in jenkins_jobs(config) if isinstance(url, str)}
   else:
-    if _declared_jenkins_jobs["at"] is None or time.time() - _declared_jenkins_jobs["at"] > 300:
-      _declared_jenkins_jobs["build_urls"] = {
-        normalize(url)
-        for (data,) in db_session.query(Project.data).all()
-        for url in jenkins_jobs((data or {}).get('qatools_config')) if isinstance(url, str)
-      }
-      _declared_jenkins_jobs["at"] = time.time()
-    build_urls = _declared_jenkins_jobs["build_urls"]
+    build_urls = declared_jenkins_jobs()
   return any(matches_template(declared, normalize(build_url)) for declared in build_urls)
+
+
+DEFAULT_PORTS = {'http': 80, 'https': 443}
+
+def url_origin(url):
+  """(scheme, hostname, port), None for URLs that aren't http(s), or have credentials"""
+  parsed = urlparse(url)
+  try:
+    port = parsed.port or DEFAULT_PORTS.get(parsed.scheme)
+  except ValueError: # e.g. a port that isn't a number, or a ${template}
+    return None
+  if parsed.scheme not in DEFAULT_PORTS or not parsed.hostname or parsed.username or parsed.password:
+    return None
+  return parsed.scheme, parsed.hostname, port
+
+def jenkins_status_url_allowed(url) -> bool:
+  """
+  We send JENKINS_AUTH's credentials to its hosts, on the default port of http(s), or with the scheme and port of a
+  Jenkins job of the projects' qaboard.yaml (on a JENKINS_AUTH host): not to other services on the same machines.
+  """
+  origin = url_origin(url)
+  if origin is None or origin[1] not in jenkins_credentials:
+    return False
+  scheme, _, port = origin
+  if port == DEFAULT_PORTS[scheme]:
+    return True
+  declared = [url_origin(job) for job in declared_jenkins_jobs()]
+  return any(d is not None and d[1] in jenkins_credentials and (d[0], d[2]) == (scheme, port) for d in declared)
 
 
 def trigger_jenkins_build(data):

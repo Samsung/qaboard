@@ -179,6 +179,9 @@ Jenkins host in its `JENKINS_AUTH` environment variable:
 `<jenkins>/crumbIssuer/api/xml?xpath=concat(//crumbRequestField,":",//crumb)`, which handles
 [Jenkins' CSRF protection](https://www.jenkins.io/doc/book/security/csrf-protection/). See the
 [server's environment variables](/docs/deploy#optional-environment-variables).
+To check the builds' status, the server only uses these credentials on the hosts of `JENKINS_AUTH`, on the default
+ports of http and https, or with the scheme and port of a Jenkins job of the projects' *qaboard.yaml* (e.g.
+`http://jenkins:8080/job/x`).
 
 `token` is the **Authentication Token** of the job's **Trigger builds remotely**. Without `token`, the server sends
 the token in its `JENKINS_BUILD_TOKEN` environment variable, if it's set, and none otherwise; `token: ""` never sends
