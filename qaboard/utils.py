@@ -75,12 +75,16 @@ class RedirectStream():
       self.file.write(data if self.file_color else data_stripped)
     self.stream.flush()
     self.file.flush()
-  def __del__(self):
-    setattr(sys, self.stream_name, getattr(sys, f"__{self.stream_name}__"))
+  def restore(self):
+    """Stops the redirection: restores the stream we replaced, and closes the file."""
+    if getattr(sys, self.stream_name) is self:
+      setattr(sys, self.stream_name, self.stream)
     try:
       self.file.close()
     except Exception:
       pass # we avoid printing here
+  def __del__(self):
+    self.restore()
   def flush(self):
     self.file.flush()
     self.stream.flush()
@@ -141,8 +145,9 @@ def redirect_std_streams(file, color=None):
   try:
     yield stdout, stderr
   finally:
-    del stdout
-    del stderr
+    # in the reverse order, in case they wrap each other
+    stderr.restore()
+    stdout.restore()
 
 
 class TeeStream():
@@ -338,15 +343,14 @@ def file_info(path, normalize_eof=True, config=None, compute_hashes=True, has_fo
         print(f"ERROR: Error reading {path} (utf8/ignore), {e}")
         raise e
 
-    from tempfile import NamedTemporaryFile
-    with NamedTemporaryFile(mode='w+', delete=False, newline='\n') as normalized_file:
-      normalized_file_name = normalized_file.name + path.suffix
-    with open(normalized_file_name, 'w+', newline='\n', encoding="utf-8", errors='ignore') as normalized_file:
-      normalized_file.write(text)
-
-    normalized_file_info = file_info(normalized_file_name, normalize_eof=False, has_footer=has_footer)
-    Path(normalized_file_name).unlink()
-    return normalized_file_info
+    from tempfile import mkstemp
+    fd, normalized_file_name = mkstemp(suffix=path.suffix)
+    try:
+      with open(fd, 'w', newline='\n', encoding="utf-8", errors='ignore') as normalized_file:
+        normalized_file.write(text)
+      return file_info(normalized_file_name, normalize_eof=False, has_footer=has_footer)
+    finally:
+      Path(normalized_file_name).unlink()
 
   return _file_info(path, compute_hashes=compute_hashes)
 

@@ -113,7 +113,8 @@ else:
     if "include" in c:
       # paths will be relative to the root qaboard.yaml
       c_include_path = root_qatools / c["include"]
-      c_include = yaml.load(c_include_path.open(), Loader=yaml.SafeLoader)
+      with c_include_path.open() as f:
+        c_include = yaml.load(f, Loader=yaml.SafeLoader)
       c = merge(c_include, c)
     config = merge(c, config)
 

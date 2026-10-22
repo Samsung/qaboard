@@ -288,7 +288,8 @@ def iter_inputs(
     try:
       from .config import project, subproject
       batches_file_path = location_from_spec(batches_file, {"project": project, "subproject": subproject})
-      new_batches = yaml.load(open(batches_file_path), Loader=yaml.SafeLoader)
+      with open(batches_file_path) as f:
+        new_batches = yaml.load(f, Loader=yaml.SafeLoader)
       if new_batches is None:
         click.secho(f"WARNING: no data in: {batches_file}", fg='yellow', err=True)
         continue
