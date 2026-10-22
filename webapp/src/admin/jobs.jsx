@@ -23,6 +23,7 @@ export const kind_labels = {
   delete_artifacts: 'Delete artifacts',
   scan_storage: 'Scan the storage',
   measure_deleted: 'Measure what deleted runs left',
+  fail_stuck_runs: 'Fail stuck runs',
 };
 
 const statuses = {
@@ -66,6 +67,8 @@ export const progressSummary = job => {
     if (progress.folders_total) parts.push(`${number(progress.folders_done ?? 0)}/${plural(progress.folders_total, 'folder')}`);
   } else if (job.kind === 'measure_deleted') {
     parts.push(`${plural(progress.runs_checked ?? 0, 'run')} measured, ${formatBytes(progress.bytes_left ?? 0)} left`);
+  } else if (job.kind === 'fail_stuck_runs') {
+    parts.push(`${plural(progress.runs_failed ?? 0, 'run')} ${job.dry_run ? 'to mark as failed' : 'marked as failed'}`);
   } else if (['delete_runs', 'delete_exports', 'delete_paths'].includes(job.kind)) {
     parts.push(`${formatBytes(progress.bytes_deleted ?? 0)} freed`);
   } else if (job.kind === 'import_runs') {
@@ -110,6 +113,11 @@ export const counters = {
     { key: 'runs_measured', label: 'had files left' },
     { key: 'bytes_left', label: 'Left on disk', format: 'bytes' },
     { key: 'runs_without_files', label: 'had no files left', hint: "Their folders were gone." },
+  ],
+  fail_stuck_runs: [
+    { key: 'runs_failed', label: 'Runs marked as failed', dry: 'Runs to mark as failed', main: true },
+    { key: 'batches', label: 'Batches' },
+    { key: 'projects', label: 'Projects' },
   ],
   delete_paths: [
     { key: 'bytes_deleted', label: 'Freed', main: true, format: 'bytes' },

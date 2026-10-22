@@ -25,6 +25,10 @@ from backend.storage import check_storage_path, check_inside
 
 
 
+def iso_utc(date):
+  return f"{date.isoformat()}Z" if date else None
+
+
 class Output(Base):
   __tablename__ = 'outputs'
   id = Column(Integer, primary_key=True)
@@ -68,6 +72,10 @@ class Output(Base):
     Index('idx_outputs_output_dir_override', "output_dir_override"),
     # When a run ends, we check if the `qa batch` command that started it has pending runs (backend/notifications/)
     Index('idx_outputs_pending_root_command', text("(data->>'root_command_id')"), postgresql_where=text("is_pending")),
+    # What runs now, for "Activity" (backend/run_activity.py): few runs are pending at a time
+    Index('ix_outputs_active', 'batch_id', postgresql_where=text("is_pending")),
+    # What ended recently. Runs from before we saved when they ended aren't in the index.
+    Index('ix_outputs_finished_at', 'finished_at', postgresql_where=text("finished_at IS NOT NULL")),
     Index('idx_outputs_batch_user_storage', 
           "batch_id", 
           text("(data->>'user')"),
@@ -86,6 +94,11 @@ class Output(Base):
   is_pending = Column(Boolean(), default=False)
   is_running = Column(Boolean(), default=False) # a running output is still pending...
   is_failed = Column(Boolean(), default=False)
+  # The latest attempt: when it was queued (e.g. sent to LSF by `qa batch`), started running, and ended.
+  # Runs from before we saved them only have created_date. See set_status().
+  queued_at = Column(DateTime, nullable=True)
+  started_at = Column(DateTime, nullable=True)
+  finished_at = Column(DateTime, nullable=True)
 
   metrics = Column(JSON(), nullable=False, default=dict, server_default='{}')
   data = Column(JSON(), nullable=False, default=dict, server_default='{}')
@@ -106,6 +119,9 @@ class Output(Base):
     o.is_pending = self.is_pending
     o.is_running = self.is_running
     o.is_failed = self.is_failed
+    o.queued_at = self.queued_at
+    o.started_at = self.started_at
+    o.finished_at = self.finished_at
     o.metrics = self.metrics
     o.data = self.data
     return o
@@ -161,6 +177,7 @@ class Output(Base):
     return {
         **as_dict,
         'created_date': self.created_date.isoformat(),
+        **{c: iso_utc(getattr(self, c)) for c in ('queued_at', 'started_at', 'finished_at')},
         'output_dir_url': dir_to_url(self.get_output_dir(batch_dir)),
         'test_input_database': str(self.test_input.database),
         'test_input_path': str(self.test_input.path),
@@ -214,6 +231,27 @@ class Output(Base):
       session.commit()
       return output
 
+
+  def set_status(self, is_pending, is_running, now=None):
+    """
+    Updates whether the run is pending (queued or running) and running, and when its latest attempt was queued,
+    started and ended: users see what runs now, and admins the load ("Activity").
+    """
+    now = now or datetime.datetime.utcnow()
+    is_running = bool(is_running)
+    is_pending = bool(is_pending) or is_running
+    was_pending, was_running = bool(self.is_pending), bool(self.is_pending and self.is_running)
+    if is_pending:
+      if not was_pending:
+        # a new attempt, e.g. a redo
+        self.queued_at, self.started_at, self.finished_at = now, None, None
+      if is_running and not was_running:
+        self.started_at = now
+        self.queued_at = self.queued_at or now
+    elif was_pending or self.finished_at is None:
+      self.finished_at = now
+    self.is_pending = is_pending
+    self.is_running = is_running
 
   def measure_left(self, output_dir=None, partial=False):
     """
@@ -320,5 +358,4 @@ class Output(Base):
       # we *could* return False then consider the run crashed if more than X time has passed...
       # metrics = {'is_failed': True}
       # metrics = {}
-    self.is_pending = False
-    self.is_running = False
+    self.set_status(False, False)

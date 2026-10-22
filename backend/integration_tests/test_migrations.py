@@ -97,3 +97,20 @@ def test_roles_groups_and_visibility(alembic, make_user, client):
   assert sql("SELECT count(*) FROM role_grants")[0][0] == 0
   assert sql("SELECT kind, resource_id, role FROM access_requests") == [('instance', None, None)]
   assert client.post('/api/v1/user/auth/', data={"username": "alice", "password": "password"}).status_code == 200
+
+
+def test_runs_activity_columns_and_indexes(alembic, make_user):
+  """Nullable columns (no table rewrite) and partial indexes built CONCURRENTLY: the migration works again if it was interrupted"""
+  alembic('downgrade', 'c1e3a5b7d9f2')
+  assert 'finished_at' not in {r[0] for r in sql("SELECT column_name FROM information_schema.columns WHERE table_name = 'outputs'")}
+  alembic('upgrade', 'head')
+  assert {'queued_at', 'started_at', 'finished_at'} <= {r[0] for r in sql("SELECT column_name FROM information_schema.columns WHERE table_name = 'outputs'")}
+  indexes = dict(sql("SELECT indexname, indexdef FROM pg_indexes WHERE indexname IN ('ix_outputs_active', 'ix_outputs_finished_at', 'ix_batches_submissions')"))
+  assert 'WHERE is_pending' in indexes['ix_outputs_active']
+  assert 'WHERE (finished_at IS NOT NULL)' in indexes['ix_outputs_finished_at']
+  assert "WHERE (data ? 'submissions'::text)" in indexes['ix_batches_submissions']
+  # an interrupted CONCURRENTLY build leaves an invalid index: it's built again
+  sql("UPDATE pg_index SET indisvalid = false WHERE indexrelid = 'ix_outputs_active'::regclass")
+  alembic('stamp', 'c1e3a5b7d9f2')
+  alembic('upgrade', 'head')
+  assert sql("SELECT indisvalid FROM pg_index WHERE indexrelid = 'ix_outputs_active'::regclass") == [(True,)]

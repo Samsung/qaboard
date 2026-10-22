@@ -8,7 +8,7 @@ from pathlib import Path
 
 from sqlalchemy import ForeignKey, Integer, String, DateTime, Float, Numeric, Text, text, literal_column
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy import UniqueConstraint, Column
+from sqlalchemy import UniqueConstraint, Column, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy import func, case, and_, cast
 from sqlalchemy.exc import DataError
@@ -53,7 +53,11 @@ class Batch(Base):
   # identifies eg whether it is the default CI job, or a tuning experiment...
   label = Column(String(), default="default")
 
-  __table_args__ = (UniqueConstraint('ci_commit_id', 'label', name='_ci_commit__label'),)
+  __table_args__ = (
+    UniqueConstraint('ci_commit_id', 'label', name='_ci_commit__label'),
+    # The batches started from QA-Board: "Activity" shows those that will start soon (backend/run_activity.py)
+    Index('ix_batches_submissions', 'id', postgresql_where=text("data ? 'submissions'")),
+  )
 
   batch_dir_override = Column(String())
 
@@ -153,8 +157,7 @@ class Batch(Base):
       for o in self.outputs:
         if o.is_pending:
           o.is_failed = True
-          o.is_running = False
-          o.is_pending = False
+          o.set_status(False, False)
           session.add(o)
       session.commit()
       return {}

@@ -25,6 +25,8 @@ def outputs_api(monkeypatch):
   module.CiCommit.get_or_create.return_value.latest_output_datetime = None
   output = SimpleNamespace(data={}, deleted=False, is_failed=True, is_pending=False, is_running=False, metrics={"psnr": 30})
   output.to_dict = lambda: {"is_failed": output.is_failed, "is_pending": output.is_pending, "is_running": output.is_running}
+  # Output.set_status, without the dates (integration_tests/test_activity.py tests them)
+  output.set_status = lambda is_pending, is_running: output.__dict__.update(is_pending=bool(is_pending or is_running), is_running=bool(is_running))
   module.Output.get_or_create.return_value = output
   module.test_output = output
   return module

@@ -99,6 +99,7 @@ const sidebars: SidebarsConfig = {
         'user-guide/running-from-the-webapp',
         'user-guide/available-tests',
         'user-guide/logs',
+        'user-guide/runs-activity',
         'user-guide/sharing',
         'user-guide/files',
         'user-guide/storage-usage',

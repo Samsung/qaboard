@@ -49,10 +49,9 @@ def update_output(output_id):
 
   if request.method == 'PUT':
     data = request.get_json()
-    if 'is_pending' in data:
-      output.is_pending = data['is_pending']
-    if 'is_running' in data:
-      output.is_running = data['is_running']
+    if 'is_pending' in data or 'is_running' in data:
+      is_pending = data.get('is_pending', output.is_pending)
+      output.set_status(is_pending, data.get('is_running', output.is_running if is_pending else False))
     if 'is_failed' in data:
       output.is_failed = data['is_failed']
     if 'data' in data:
@@ -244,11 +243,7 @@ def new_output_webhook():
   output.output_dir_override = output_directory
 
   # We update the output's status
-  output.is_running = data.get('is_running', False)
-  if output.is_running:
-    output.is_pending = True
-  else:
-    output.is_pending = data.get('is_pending', False)
+  output.set_status(data.get('is_pending', False), data.get('is_running', False))
 
   # A run that starts again (redo, qa batch...) is not failed anymore, until it says so when it ends.
   # Else re-runs of failed runs show as failed (and count as failed) while they are pending or running.

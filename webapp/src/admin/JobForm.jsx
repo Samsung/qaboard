@@ -29,6 +29,7 @@ const defaults = {
   },
   scan_storage: { projects: '*', exclude_projects: '', roots: '', min_size_mb: '50', threads: '8' },
   measure_deleted: { projects: '*', exclude_projects: '' },
+  fail_stuck_runs: { projects: '*', exclude_projects: '', older_than: '1week', only_running: false, dry_run: true },
 };
 
 // The server's params => the form
@@ -76,6 +77,7 @@ export const validateParams = (kind, form) => {
       errors[key] = "A duration like 1month, 2weeks or 1year.";
   }
   if (kind === 'delete_artifacts' && !form.older_than?.trim()) errors.older_than = "How long since the commit's latest run, e.g. 1month.";
+  if (kind === 'fail_stuck_runs' && !form.older_than?.trim()) errors.older_than = "How long they've been pending, e.g. 1week.";
   if (kind === 'garbage_collect' && form.older_than?.trim() && splitPatterns(form.projects).join() === '*')
     errors.older_than = "It overrides what every project asks in qaboard.yaml: choose projects, or use the default below.";
   return errors;
@@ -221,6 +223,13 @@ export const JobParamsFields = ({ kind, form, set, errors, id_prefix = 'job' }) 
       </div>
     </>}
 
+    {kind === 'fail_stuck_runs' && <>
+      <FormGroup label="Pending for over" {...group('older_than', "Since they were queued, or started running. Runs from before QA-Board recorded it: since they were created.")}>
+        <InputGroup {...text('older_than')} placeholder="1week" style={{ maxWidth: 240 }}/>
+      </FormGroup>
+      <Switch checked={form.only_running} onChange={() => set({ only_running: !form.only_running })} label="Only runs that started (leave the runs still waiting in a queue)"/>
+    </>}
+
     <Estimate kind={kind} form={form}/>
     {'dry_run' in (defaults[kind] ?? {}) && <Switch
       checked={form.dry_run}
@@ -236,11 +245,12 @@ const what_is_kept = {
   garbage_collect: "Deletes the files of old runs, and maybe the commits' artifacts, as each project's qaboard.yaml says. Runs stay listed, as deleted: a hard delete removes them later. Milestones are kept.",
   scan_storage: "Walks the projects' folders on disk, and finds what QA-Board doesn't track: runs it doesn't know, exports, what deleted runs and artifacts left, other files, with who owns them. Nothing is deleted: explore the scan, and choose what to delete. It can take hours on big storage.",
   measure_deleted: "Measures what the runs deleted before QA-Board measured it left on disk (manifests, files their manifests don't list): users see it in Storage usage. Nothing is deleted.",
+  fail_stuck_runs: "Marks as failed the runs waiting or running for too long: their job died without telling QA-Board (killed by LSF, a machine that rebooted…). Users stop seeing them as running, and can redo them. Their jobs aren't stopped, nothing is deleted: a run that still runs saves its results when it ends.",
 };
 
 
 // Start a job now
-export const kind_icons = { hard_delete: 'trash', garbage_collect: 'clean', delete_artifacts: 'box', scan_storage: 'search', measure_deleted: 'calculator' };
+export const kind_icons = { hard_delete: 'trash', garbage_collect: 'clean', delete_artifacts: 'box', scan_storage: 'search', measure_deleted: 'calculator', fail_stuck_runs: 'outdated' };
 
 export const JobDialog = ({ kind, isOpen, onClose, initial, title }) => {
   const queryClient = useQueryClient();
@@ -277,13 +287,13 @@ export const JobDialog = ({ kind, isOpen, onClose, initial, title }) => {
         <p className={Classes.TEXT_MUTED}>{what_is_kept[kind]}</p>
         <JobParamsFields kind={kind} form={form} set={set} errors={errors}/>
         {'dry_run' in defaults[kind] && !form.dry_run && <Callout intent={Intent.WARNING} icon="warning-sign" style={{ marginTop: 12 }}>
-          This is not a dry run: {kind === 'hard_delete' ? 'the runs will be deleted for good.' : kind === 'delete_artifacts' ? 'the artifacts will be deleted.' : 'files will be deleted.'} Errors don't stop the job: they're listed on its page.
+          This is not a dry run: {kind === 'hard_delete' ? 'the runs will be deleted for good.' : kind === 'delete_artifacts' ? 'the artifacts will be deleted.' : kind === 'fail_stuck_runs' ? 'the runs will be marked as failed.' : 'files will be deleted.'} Errors don't stop the job: they're listed on its page.
         </Callout>}
       </DialogBody>
       <DialogFooter actions={<>
         <Button text="Cancel" onClick={onClose}/>
         {'dry_run' in defaults[kind]
-          ? <Button type="submit" intent={form.dry_run ? Intent.PRIMARY : Intent.DANGER} text={form.dry_run ? 'Start the dry run' : 'Delete'} loading={busy}/>
+          ? <Button type="submit" intent={form.dry_run ? Intent.PRIMARY : Intent.DANGER} text={form.dry_run ? 'Start the dry run' : kind === 'fail_stuck_runs' ? 'Mark as failed' : 'Delete'} loading={busy}/>
           : <Button type="submit" intent={Intent.PRIMARY} text="Start" loading={busy}/>}
       </>}/>
     </form>
