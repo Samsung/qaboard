@@ -9,7 +9,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Optional, List
 
-from ..settings import login_type, env_flag, env_list
+from ..settings import login_type, env_list
 
 
 ENV_OIDC_ID = 'sso'

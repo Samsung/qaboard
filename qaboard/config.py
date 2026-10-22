@@ -467,7 +467,6 @@ if metrics_file:
       main_metrics = (_metrics or {}).get('main_metrics') or []
 
 # reexport for backward compat
-from .site_config import secrets
 
 # backward compat only for HW_ALG's tools/find_valid_build.py (removed 28/07/20)
 from .git import _Repo, _Commit

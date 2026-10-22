@@ -2,7 +2,6 @@
 Authentication for qaboard - LOCAL, LDAP and SAML.
 """
 import os
-from datetime import timedelta
 from functools import wraps
 
 import yaml
@@ -10,19 +9,18 @@ import ldap
 import ldap.filter
 import simplejson
 from flask import request, jsonify, redirect, session, g, has_request_context
-from flask_login import LoginManager, login_user, logout_user, current_user
+from flask_login import LoginManager, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 try:
   # FIXME: Unfortunately we run often into libxml mismatch version issues
   from onelogin.saml2.auth import OneLogin_Saml2_Auth
-  from onelogin.saml2.utils import OneLogin_Saml2_Utils
 except Exception as e:
   print(f"WARNING: Could not import onelogin.saml2: {e}")
 from backend import app, db_session
-from ..models import User, Token
+from ..models import User
 from ..settings import setting
 from ..audit import audit
-from ..admins import is_admin, is_env_admin
+from ..admins import is_admin
 from ..actor import unauthenticated
 from ..sign_in import sessions
 from ..sign_in.accounts import finish as finish_sign_in, new_user_status

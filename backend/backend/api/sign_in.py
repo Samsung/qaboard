@@ -87,7 +87,7 @@ def oidc_callback(provider_id=None):
       raise SignInError('user_disabled', f"{user.user_name} is disabled")
     groups = claims.get(provider.claim('groups'))
     if linking_user is not None:
-      identity = identities.record(user, provider.id, claims['sub'], email=email, claims=claims, refresh_token=refresh_token)
+      identities.record(user, provider.id, claims['sub'], email=email, claims=claims, refresh_token=refresh_token)
       audit('identity.link', 'user', user.id, user.user_name, meta={"provider": provider.id})
       db_session.commit()
       return redirect(safe_redirect_url(saved.get('next')))

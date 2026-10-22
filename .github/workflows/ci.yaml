@@ -55,8 +55,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked --extra dev
       - name: Lint with flake8
-        # stop the build if there are Python syntax errors or undefined names
-        run: uv run --no-sync flake8 backend qaboard --count --select=E9,F63,F7,F82,W605 --show-source --statistics
+        # syntax errors, undefined names, unused imports and variables (see .flake8)
+        run: uv run --no-sync flake8 backend qaboard --count --show-source --statistics
       - name: Type Checks with MyPy
         run: uv run --no-sync mypy -p qaboard --ignore-missing-imports
       - name: Release notes

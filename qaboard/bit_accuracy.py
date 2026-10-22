@@ -31,7 +31,6 @@ cmp_func = default_cmp
 custom_cmp = os.environ.get("QA_BITACCURACY_CMP")
 if custom_cmp:
   try:
-    import sys
     cmp_source = Path(custom_cmp).resolve()
     # https://docs.python.org/3/library/importlib.html#importing-a-source-file-directly
     import importlib.util
@@ -41,7 +40,7 @@ if custom_cmp:
     sys.path.insert(0, str(cmp_source.parent))
     spec.loader.exec_module(module) # type: ignore
     cmp_func = module.cmp # type: ignore
-  except Exception as e:
+  except Exception:
     import traceback
     exc_type, exc_value, exc_traceback = sys.exc_info()
     click.secho(f'ERROR: Error importing the custom cmp function.', fg='red', err=True, bold=True)

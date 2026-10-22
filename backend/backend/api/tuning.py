@@ -15,7 +15,6 @@ import subprocess
 from glob import glob
 from copy import deepcopy
 from shlex import quote
-from html import escape
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Dict, List, Any

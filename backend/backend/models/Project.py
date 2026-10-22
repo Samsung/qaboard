@@ -11,10 +11,10 @@ from pathlib import Path
 from functools import lru_cache
 
 from sqlalchemy.orm import relationship
-from sqlalchemy import Column, ForeignKey
+from sqlalchemy import Column
 from sqlalchemy import String, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy import cast, type_coerce, or_, and_, literal, func
+from sqlalchemy import or_, and_, literal, func
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -204,7 +204,7 @@ def _storage_roots(project_id, id_git, id_relative, storage_config_json, qa_stor
 
 def is_relative_to(path : Path, path_maybe_parent : Path) -> bool:
   try:
-    relative_path = path.relative_to(path_maybe_parent)
+    path.relative_to(path_maybe_parent)
     return True
   except:
     return False
@@ -256,7 +256,7 @@ def update_project(data, db_session):
       elif str(path).endswith('json'):
         return json.loads(content)
       return yaml.load(content, Loader=yaml.SafeLoader)
-    except Exception as e:
+    except Exception:
       exc_type, exc_value, exc_traceback = sys.exc_info()
       info = ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
       print(info, file=sys.stderr)

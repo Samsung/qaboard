@@ -165,7 +165,6 @@ def qa(ctx, platform, configurations, label, tuning, tuning_filepath, dryrun, sh
 @click.pass_context
 def get(ctx, input_path, output_path, variable):
   """Prints the value of the requested variable. Mostly useful for debug."""
-  from .config import outputs_commit, commit_branch, commit_message, artifacts_branch, artifacts_branch_root
   # backward compatibility
   if variable == "branch_ci_dir":
     variable = "artifacts_branch_root"

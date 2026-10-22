@@ -7,10 +7,9 @@ import sys
 import json
 
 from flask import request, jsonify, g
-from sqlalchemy.orm.attributes import flag_modified
 
 from backend import app, db_session
-from ..models import CiCommit, Output, Project
+from ..models import CiCommit, Project
 from ..models.Project import update_project
 from ..git_hosts import git_hosts, committers, HOST_TYPES, UntrustedHost
 from .auth import login_required, require_project_access

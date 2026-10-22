@@ -6,7 +6,7 @@ Users see the projects they can read (like Storage usage), and mark their own ru
 """
 import datetime
 
-from flask import request, jsonify, g
+from flask import request, jsonify
 
 from backend import app, db_session
 from ..models import JobSchedule

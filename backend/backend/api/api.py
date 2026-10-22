@@ -9,10 +9,9 @@ import datetime
 import ujson
 from flask import request, jsonify, make_response
 
-from sqlalchemy import func, and_, asc, or_, text
+from sqlalchemy import func, asc, text
 from sqlalchemy.orm import selectinload
 
-from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.sql import label
 
 # Like the CLI: ENV > secrets > site package (e.g. qaboard-site-sirc) > default
@@ -20,9 +19,8 @@ from qaboard.compat import mappings as _path_mappings
 from qaboard.sentry_utils import traces_sample_rate
 
 from backend import app, db_session
-from ..models import Project, CiCommit, Batch, Output, batches_stats
-from ..utils import profiled
-from ..config import git_server, skip_metrics_aggregation
+from ..models import Project, CiCommit, Batch, batches_stats
+from ..config import skip_metrics_aggregation
 from ..search import parse_query, commits_search_filter, escape_like
 from ..metrics_aggregation import parse_metrics_arg
 from .auth import is_authorized_user, get_current_user, forbidden_project
