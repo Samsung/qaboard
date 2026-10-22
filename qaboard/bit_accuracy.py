@@ -20,7 +20,7 @@ from .config import user, default_batches_files
 
 
 def default_cmp(file_1, file_2):
-    filecmp.cmp(str(file_1), str(file_2), shallow=False)
+    return filecmp.cmp(str(file_1), str(file_2), shallow=False)
 
 cmp_func = default_cmp
 # In some cases you want to implement your own file comparaison.

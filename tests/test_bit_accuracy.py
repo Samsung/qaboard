@@ -168,6 +168,15 @@ class TestIgnore(unittest.TestCase):
     self.assertEqual(with_manifests['mismatch'], expected)
     self.assertEqual(without_manifests['mismatch'], expected)
 
+  def test_identical_files_match_without_manifests(self):
+    from qaboard.bit_accuracy import cmpfiles
+    new, ref = self.dirs
+    (new / 'same.txt').write_text('same')
+    (ref / 'same.txt').write_text('same')
+    result = cmpfiles(new, ref, patterns=['same.txt'])
+    self.assertEqual(result['match'], {Path('same.txt')})
+    self.assertEqual(result['mismatch'], set())
+
 
 if __name__ == '__main__':
   unittest.main()
