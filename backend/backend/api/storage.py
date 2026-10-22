@@ -100,8 +100,11 @@ def whose(source) -> dict:
   raise ParamsError("`scope` must be me, all or user")
 
 
-def filters_from(source: dict, user) -> usage.Filters:
-  """Other people's runs (`user` isn't the user's): only in the projects where they may see them"""
+def filters_from(source: dict, user, own_projects=False) -> usage.Filters:
+  """
+  Other people's runs (`user` isn't the user's): only in the projects where they may see them.
+  `own_projects`: every project the user sees, e.g. to delete their own runs among everyone's.
+  """
   projects = source.get('project')
   if isinstance(projects, str):
     projects = [p.strip() for p in projects.split(',') if p.strip()]
@@ -109,7 +112,7 @@ def filters_from(source: dict, user) -> usage.Filters:
     return usage.Filters(
       user=user,
       projects=projects or [],
-      allowed_projects=allowed_projects() if user == me() else others_projects(),
+      allowed_projects=allowed_projects() if user == me() or own_projects else others_projects(),
       folder=source.get('folder') or None,
       branch=source.get('branch') or None,
       older_than_days=int_or_none(source.get('older_than_days'), 'older_than_days'),
@@ -404,7 +407,9 @@ def human(size: int) -> str:
 def preview(body: dict) -> dict:
   """What deleting a selection would delete, and what it keeps: milestones, and other users' runs"""
   who = whose(body)
-  filters = filters_from(body.get('filters') or {}, who['user'])
+  # users delete their own runs in every project they see, even among "Everyone's"
+  filters = filters_from(body.get('filters') or {}, who['user'], own_projects=True)
+  others = others_projects()
   group = body.get('group') or 'batch'
   if group not in usage.GROUPS:
     raise ParamsError(f"`group` must be one of {', '.join(usage.GROUPS)}")
@@ -435,7 +440,9 @@ def preview(body: dict) -> dict:
   for row in rows:
     if owner is not None and row['user_name'] != owner:
       k = kept['others']
-      k['users'].add(row['user_name'] or 'unknown')
+      # their names, only where the user may see other people's runs
+      if others is None or row['project_id'] in others:
+        k['users'].add(row['user_name'] or 'unknown')
     elif row['batch_id'] in milestones:
       k = kept['milestones']
       milestone_rows.append(row)
