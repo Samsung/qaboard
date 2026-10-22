@@ -101,12 +101,14 @@ def filter_outputs(query, outputs):
 
 
 def compatible(o1, o2):
+  """Whether the runs are on the same input: same path, or same id in their metadata (e.g. inputs that moved)"""
   if o1.test_input.abs_path == o2.test_input.abs_path:
     return True
   if o1.test_input.path == o2.test_input.path:
     return True
   if o1.test_input.data and o2.test_input.data and o1.test_input.data.get('id') and o1.test_input.data.get('id') == o2.test_input.data.get('id'):
-    return False
+    return True
+  return False
 
 # Note: already defined in qaboard.tuning.py, but raises instead of returning None
 def matching_output(output_reference, outputs):
