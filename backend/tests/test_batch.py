@@ -173,3 +173,67 @@ def test_qa_notify_requests_an_email(batch_api, monkeypatch):
   assert requests == [('c1', 'jdoe', {'source': 'cli', 'label': '@jdoe| test', 'selected_group': 'low-light', 'platform': 'linux'})]
   assert 'CI' in batch_api.cli_notification({**data, 'job_type': 'ci'}, command, None, None)['error']
   assert len(requests) == 1
+
+
+@pytest.fixture
+def web_batch(batch_api, monkeypatch):
+  """A batch the web app acts on, as a signed-in user"""
+  import backend.api.auth as auth
+  auth.is_authorized_user.return_value = True
+  monkeypatch.setattr(batch_api, 'refresh_soon', MagicMock())
+  batch = MagicMock(label='default', id=1)
+  batch.ci_commit.batches = [batch, MagicMock(label='taken')]
+  query = MagicMock()
+  query.filter.return_value.one.return_value = batch
+  monkeypatch.setattr(batch_api.Batch, 'query', query)
+  return batch
+
+
+def as_user(dummy_app, path, **kwargs):
+  from flask import g
+  context = dummy_app.test_request_context(path, **kwargs)
+  context.push()
+  g.user = {"user_name": "alice", "user_id": 1}
+  return context
+
+
+@pytest.mark.parametrize("label, status", [("taken", 409), ("default", 409), ("", 400), ("new", 200)])
+def test_rename_batch(batch_api, dummy_app, web_batch, label, status):
+  context = as_user(dummy_app, "/api/v1/batch/rename/", method="POST", json={"id": 1, "label": label})
+  try:
+    response = batch_api.rename_batch()
+  finally:
+    context.pop()
+  response, code = response if isinstance(response, tuple) else (response, response.status_code)
+  assert code == status
+  # JSON, like other errors
+  assert response.is_json
+  if status == 200:
+    assert response.get_json() == {"status": "OK"}
+    web_batch.rename.assert_called_once_with(label="new", db_session=batch_api.db_session)
+  else:
+    assert response.get_json()["error"]
+    web_batch.rename.assert_not_called()
+
+
+@pytest.mark.parametrize("call", [
+  lambda api: api.rename_batch(), lambda api: api.move_batch(), lambda api: api.stop_batch(),
+  lambda api: api.redo_batch(), lambda api: api.delete_batch(7),
+])
+def test_unknown_batches(batch_api, dummy_app, web_batch, call):
+  batch_api.Batch.query.filter.return_value.one.side_effect = batch_api.NoResultFound
+  context = as_user(dummy_app, "/api/v1/batch/7", method="POST", json={"id": 7, "label": "x"})
+  try:
+    response, status = call(batch_api)
+  finally:
+    context.pop()
+  assert status == 404 and response.get_json() == {"error": "Batch 7 not found"}
+
+
+def test_unknown_commits_are_json_errors(batch_api, dummy_app):
+  batch_api.CiCommit.get_or_create.side_effect = ValueError("BadName")
+  body = {"project": "group/project", "batch_label": "default", "commit_sha": HEXSHA}
+  with dummy_app.test_request_context("/api/v1/batch/", method="POST", json=body):
+    response, status = batch_api.update_batch()
+  # old `qa` versions only check it's an error
+  assert status == 404 and HEXSHA in response.get_json()["error"]

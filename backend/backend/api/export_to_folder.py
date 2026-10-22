@@ -167,7 +167,7 @@ def export_to_folder():
   new_commit_id = request.args['new_commit_id']
   new_commit = load_commit(project_id, new_commit_id)
   if not new_commit:
-    return f"ERROR: Commit {request.args['new_commit_id']} not found", 404
+    return jsonify({"error": f"ERROR: Commit {new_commit_id} not found"}), 404
   new_batch_label = request.args.get('batch_new', 'default')
   new_batch = new_commit.get_or_create_batch(new_batch_label)
   new_outputs = new_batch.outputs
@@ -179,7 +179,7 @@ def export_to_folder():
     ref_commit_id = request.args['ref_commit_id']
     ref_commit = load_commit(ref_project_id, ref_commit_id)
     if not ref_commit:
-      return f"ERROR: Commit {ref_commit_id} not found", 404
+      return jsonify({"error": f"ERROR: Commit {ref_commit_id} not found"}), 404
     ref_batch_label = request.args.get('batch_ref', 'default')
     ref_batch = ref_commit.get_or_create_batch(ref_batch_label)
     ref_outputs = ref_batch.outputs
@@ -210,18 +210,18 @@ def export_to_folder():
   try:
     check_storage_path(export_dir)
   except UnsafePathError as e:
-    return json.dumps({"error": f"ERROR: {e}"}), 403
+    return jsonify({"error": f"ERROR: {e}"}), 403
 
   if not export_dir.exists():
     try:
       # all users write their exports there
       mkdir_shared(export_dir)
     except Exception as e:
-      return json.dumps({"error": f"ERROR: When creating '{export_dir}': {e}"}), 403
+      return jsonify({"error": f"ERROR: When creating '{export_dir}': {e}"}), 403
 
   is_export_dir_writable = os.access(export_dir, os.W_OK)
   if not is_export_dir_writable:
-    return json.dumps({"error": f"The export folder need to be writable by all users. Call 'chmod a+w {export_dir}'"}), 403
+    return jsonify({"error": f"The export folder need to be writable by all users. Call 'chmod a+w {export_dir}'"}), 403
 
   output_refs = {}
   for output in new_outputs:

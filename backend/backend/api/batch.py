@@ -2,6 +2,7 @@ import re
 
 from flask import request, jsonify, g
 from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.orm.exc import NoResultFound
 
 from backend import app, db_session
 from ..models import CiCommit, Batch
@@ -23,6 +24,12 @@ def refresh_soon(batch_ids):
   refresh_soon(batch_ids)
 
 
+def find_batch(batch_id):
+  """(the batch, None), or (None, a 404 response)"""
+  try:
+    return Batch.query.filter(Batch.id == batch_id).one(), None
+  except NoResultFound:
+    return None, (jsonify({"error": f"Batch {batch_id} not found"}), 404)
 
 
 @app.route('/api/v1/batch', methods=['POST'])
@@ -62,8 +69,10 @@ def update_batch():
       project_id=request.json['project'],
       data=data,
     )
-  except:
-    return f"404 ERROR:\n ({request.json['project']}): There is an issue with your commit id ({hexsha})", 404
+  except Exception as e:
+    # usually a commit we don't know, and whose git repository we can't read
+    db_session.rollback()
+    return jsonify({"error": f"({data.get('project')}): There is an issue with your commit id ({hexsha}): {e}"}), 404
 
   batch = ci_commit.get_or_create_batch(data['batch_label'])
   batch.batch_dir_override = batch_dir
@@ -190,10 +199,9 @@ def cli_notification(data, command, ci_commit, batch):
 @login_required
 def stop_batch():
   data = request.get_json()
-  try:
-    batch = Batch.query.filter(Batch.id == data['id']).one()
-  except:
-    return f"404 ERROR:\n Not found", 404
+  batch, not_found = find_batch(data.get('id'))
+  if not_found:
+    return not_found
   if forbidden := require_project_access(g.user, batch.ci_commit.project_id):
     return forbidden
   status = batch.stop(db_session)
@@ -205,10 +213,9 @@ def stop_batch():
 def redo_batch():
   """Redo the batch's runs: all of them, or only those that failed, were deleted, and/or are listed in output_ids."""
   data = request.get_json()
-  try:
-    batch = Batch.query.filter(Batch.id == data['id']).one()
-  except:
-    return f"404 ERROR:\n Not found", 404
+  batch, not_found = find_batch(data.get('id'))
+  if not_found:
+    return not_found
   if forbidden := require_project_access(g.user, batch.ci_commit.project_id):
     return forbidden
   only_failed = data.get('only_failed', False)
@@ -229,19 +236,19 @@ def redo_batch():
 @login_required
 def rename_batch():
   data = request.get_json()
-  try:
-    batch = Batch.query.filter(Batch.id == data['id']).one()
-  except:
-    return '{"error":"not found"}', 404
+  batch, not_found = find_batch(data.get('id'))
+  if not_found:
+    return not_found
   if forbidden := require_project_access(g.user, batch.ci_commit.project_id):
     return forbidden
-  try:
-    assert all([b.label != data['label'] for b in batch.ci_commit.batches])
-  except:
-    return '{"error":"already exists"}', 403
-  batch.rename(label=data['label'], db_session=db_session)
+  label = data.get('label')
+  if not label or not isinstance(label, str):
+    return jsonify({"error": "`label` is required"}), 400
+  if any(b.label == label for b in batch.ci_commit.batches):
+    return jsonify({"error": "already exists"}), 409
+  batch.rename(label=label, db_session=db_session)
   refresh_soon([batch.id])
-  return '{"status": "OK"}'
+  return jsonify({"status": "OK"})
 
 # Check move: existing, delete if empty, filter
 
@@ -250,10 +257,9 @@ def rename_batch():
 @login_required
 def move_batch():
   data = request.get_json()
-  try:
-    batch = Batch.query.filter(Batch.id == data['id']).one()
-  except:
-    return f"404 ERROR:\n Not found", 404
+  batch, not_found = find_batch(data.get('id'))
+  if not_found:
+    return not_found
   # The runs move to another batch of the same commit, so in the same project
   if forbidden := require_project_access(g.user, batch.ci_commit.project_id):
     return forbidden
@@ -266,17 +272,16 @@ def move_batch():
     batch.delete(session=db_session)
   db_session.commit()
   refresh_soon([batch_id, dst_batch_id])
-  return '{"status": "OK"}'
+  return jsonify({"status": "OK"})
 
 
 @app.route('/api/v1/batch/<batch_id>', methods=['DELETE'])
 @app.route('/api/v1/batch/<batch_id>/', methods=['DELETE'])
 @login_required
 def delete_batch(batch_id):
-  try:
-    batch = Batch.query.filter(Batch.id == batch_id).one()
-  except:
-    return f"404 ERROR:\nNot found", 404
+  batch, not_found = find_batch(batch_id)
+  if not_found:
+    return not_found
   if forbidden := require_project_access(g.user, batch.ci_commit.project_id):
     return forbidden
   soft = request.args.get('soft') == 'true'
