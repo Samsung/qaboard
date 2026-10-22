@@ -4,21 +4,25 @@ QA-Board's backend built as a [flask](https://flask.pocoo.org) application, with
 ## How to start a development backend
 1. First get the code:
 ```bash
-git clone git@gitlab-srv:common-infrastructure/qaboard.git
+git clone https://github.com/Samsung/qaboard.git
 cd qaboard
 ```
 
 2. If you want to run a frontend, [go to the README](../webapp/README.md) and without docker run `cd webapp; npm install`.
 
-3. Edit at the top-level of the repository _development.yml_, and replace `arthurf` with your user. Edit _services/backend/passwd_ and add a line with  your user, looking like `arthurf:*:11611:10:Arthur Flam:/home/arthurf:/bin/tcsh`. You can get  it  with `getent passwd | grep arthurf`.
+3. The development backend runs as your user (`$USER`) if the container knows it, else as root. To run as you, add your
+   user to _services/backend/passwd_ and mount it at `/etc/passwd` (like `deployments/sirc/sirc.yml` does), with a line
+   like `jdoe:*:1000:1000:Jane Doe:/home/jdoe:/bin/bash`: get yours with `getent passwd $USER`.
 
 4. Start the server:
 
 ```bash
-# At SIRC we need to make sure important folders are mounted before starting containers...
-./at-sirc-before-up.py
+docker compose -f docker-compose.yml -f development.yml up -d
 
-docker compose -f docker-compose.yml -f development.yml -f sirc.yml up  -d 
+# At SIRC: mount the important folders first, then add SIRC's overlay
+source deployments/sirc/.envrc
+./at-sirc-before-up.py
+docker compose -f docker-compose.yml -f development.yml -f deployments/sirc/sirc.yml up -d
 
 # for more build logs
 export BUILDKIT_PROGRESS=plain
@@ -28,8 +32,8 @@ export BUILDKIT_PROGRESS=plain
 
 Get logs and a shell with:
 ```
-docker compose -f docker-compose.yml -f development.yml -f sirc.yml logs -f backend
-docker compose -f docker-compose.yml -f development.yml -f sirc.yml exec backend bash
+docker compose -f docker-compose.yml -f development.yml logs -f backend
+docker compose -f docker-compose.yml -f development.yml exec backend bash
 ```
 
 Edit _development.yml_ as suits your needs to e.g. change connect to another database using `QABOARD_DB_HOST`.
@@ -77,14 +81,16 @@ Flask helps us create an HTTP server. It exposes API endpoints defined in the [a
   * we use [`alembic`](http://alembic.zzzcomputing.com/en/latest/tutorial.html) to manage migrations
   * you'll find [many examples here](alembic/versions)
 
-It's useful to connect to `pgadmin` on the URL `<qaboard>/pgadmin4` (user/pass in the `docker-compose.yml`)
+It's useful to connect to `pgadmin`: at `localhost:5050` on the server's host, with `PGADMIN_DEFAULT_EMAIL` and
+`PGADMIN_DEFAULT_PASSWORD` (see `docker-compose.yml`). Sites whose nginx includes `services/nginx/snippets/pgadmin.conf`
+serve it at `<qaboard>/pgadmin4/`, where QA-Board's admins are signed in.
 
 
 ## Adding or upgrading packages, migrations...
 Start a shell in the container to access `uv` or `alembic`:  
 ```bash
 # you'd run something like this
-docker compose -f docker-compose.yml -f development.yml -f sirc.yml build backend
+docker compose -f docker-compose.yml -f development.yml build backend
 su $USER
 uv sync
 # ..
@@ -117,7 +123,7 @@ database, where it also creates the `pg_stat_statements` extension). Changes nee
 Queries:
 - In the backend, set `QABOARD_DB_ECHO=true` to see all SQL queries
 - Get an SQL prompt with `docker compose exec db psql -U qaboard` and play with `EXPLAIN ANALYZE my-query`.
-- `pgadmin` is available by default  on port 5050.
+- `pgadmin` is available by default on port 5050, on the server's host only (`ssh -L 5050:localhost:5050 <host>`).
 
 Tuning:
 - [Read here](https://wiki.postgresql.org/wiki/Tuning_Your_PostgreSQL_Server) about how to investigate the database's performance.
@@ -126,7 +132,7 @@ Tuning:
 # Check performance issues with
 # https://github.com/jfcoz/postgresqltuner
 apt-get install -y libdbd-pg-perl
-postgresqltuner.pl --host=localhost --database=qaboard --user=ci --password=password
+postgresqltuner.pl --host=localhost --database=qaboard --user=qaboard --password="$QABOARD_DB_PASSWORD"
 
 # or we can also use pgbadger:
 # https://github.com/dalibo/pgbadger
