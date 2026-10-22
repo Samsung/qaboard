@@ -104,7 +104,9 @@ directory attributes, which the rules of `QABOARD_LOGIN_RESTRICTED_YAML` can use
 ## Decide who gets an account
 `auth.access_policy`, in **Admin → Settings**:
 - `open` (the default): anyone a sign-in method accepts gets an account.
-- `domains`: users whose email is in `auth.allowed_email_domains` (e.g. `example.com`) get one. The others wait for an admin.
+- `domains`: users whose verified email is in `auth.allowed_email_domains` (e.g. `example.com`) get one. The others
+  wait for an admin. Verified emails are those of LDAP and SAML, and those single sign-on says are verified
+  (`email_verified`): not the emails of local sign-up.
 - `approval`: everyone waits for an admin.
 
 Users who wait can sign in, and see a page saying so, where they write why they need access. Admins get an email

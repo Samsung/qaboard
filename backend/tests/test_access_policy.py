@@ -64,20 +64,36 @@ def test_rules_read_nested_claims():
   assert not rule_matches(rule("realm_access", ["camera"]), "sso", claims)
 
 
-def identity(provider_id, claims):
-  return SimpleNamespace(provider_id=provider_id, claims=claims)
+def identity(provider_id, claims, email=None):
+  return SimpleNamespace(provider_id=provider_id, claims=claims, email=email)
 
 
 def test_claims_by_source():
   ldap_user = SimpleNamespace(email="alice@Example.com", data=[["CN=alice,DC=example", {"memberOf": ["CN=camera-algo,OU=Groups"]}]])
-  assert claims_by_source(ldap_user) == {"ldap": {"memberOf": ["CN=camera-algo,OU=Groups"], "email_domain": "Example.com"}}
+  assert claims_by_source(ldap_user) == {"ldap": {"memberOf": ["CN=camera-algo,OU=Groups"], "email_domain": "example.com"}}
   # each sign-in method keeps its claims: signing in with SSO doesn't drop LDAP's groups
   sources = claims_by_source(ldap_user, [identity("sso", {"groups": ["old"]}), identity("ldap", {})], "sso", {"groups": ["x"]})
   assert sources == {
-    "sso": {"groups": ["x"], "email_domain": "Example.com"},
-    "ldap": {"memberOf": ["CN=camera-algo,OU=Groups"], "email_domain": "Example.com"},
+    "sso": {"groups": ["x"], "email_domain": "example.com"},
+    "ldap": {"memberOf": ["CN=camera-algo,OU=Groups"], "email_domain": "example.com"},
   }
   assert claims_by_source(SimpleNamespace(email=None, data={})) == {"local": {}}
+
+
+def test_email_domains_are_only_those_of_verified_emails():
+  """Local sign-up stores any email, and some IdPs let users choose theirs"""
+  assert claims_by_source(SimpleNamespace(email="mallory@example.com", login_type="LOCAL", data={})) == {"local": {}}
+  saml_user = SimpleNamespace(email="alice@example.com", login_type="SAML", data={})
+  assert claims_by_source(saml_user, [identity("saml", {})])["saml"]["email_domain"] == "example.com"
+  oidc_user = SimpleNamespace(email="bob@example.com", login_type="OIDC", data={})
+  unverified = identity("sso", {"email": "bob@example.com", "email_verified": False}, email="bob@example.com")
+  assert claims_by_source(oidc_user, [unverified]) == {"sso": {"email": "bob@example.com", "email_verified": False}}
+  verified = identity("sso", {"email": "bob@example.com", "email_verified": True}, email="bob@example.com")
+  assert claims_by_source(oidc_user, [verified])["sso"]["email_domain"] == "example.com"
+  # a local account that links a verified SSO identity
+  local_user = SimpleNamespace(email="carol@other.com", login_type="LOCAL", data={})
+  linked = identity("sso", {"email": "carol@example.com", "email_verified": True}, email="carol@example.com")
+  assert claims_by_source(local_user, [linked])["sso"]["email_domain"] == "example.com"
 
 
 def test_rules_for_one_sign_in_method_read_its_claims():

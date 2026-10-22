@@ -77,14 +77,20 @@ def test_admins_from_env(logged_in, monkeypatch, admins, directory):
 
 
 @pytest.mark.parametrize('user_name, email, admins', [
-  # local sign-up could create "ALICE" next to the admin "alice"
+  # local sign-up could create "ALICE" next to the admin "alice" (and "alice" before they sign in: test_access_policy.py)
   ('ALICE', 'a@example.com', 'alice'),
   # local sign-up doesn't verify emails
   ('mallory', 'boss@example.com', 'boss@example.com'),
 ])
-def test_local_accounts_cant_pass_for_env_admins(client, monkeypatch, user_name, email, admins):
+def test_local_accounts_cant_pass_for_env_admins(client, make_user, monkeypatch, user_name, email, admins):
   monkeypatch.setenv('QABOARD_ADMINS', admins)
-  assert client.post('/api/v1/user/signup/', data={"user_name": user_name, "password": "pw", "email": email}).status_code == 200
+  response = client.post('/api/v1/user/signup/', data={"user_name": user_name, "password": "pw", "email": email})
+  if user_name.casefold() in admins:
+    # sign-up refuses the names in QABOARD_ADMINS, whatever their case
+    assert response.status_code == 409
+    make_user(user_name, password='pw', email=email)
+  else:
+    assert response.status_code == 200
   login(client, user_name, 'pw')
   assert client.get('/api/v1/user/me/').get_json()["is_admin"] is False
   assert client.get('/api/v1/admin/overview').status_code == 403

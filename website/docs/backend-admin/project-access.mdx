@@ -59,7 +59,7 @@ add users from their groups in your directory or identity provider:
 | `groups` | single sign-on (OpenID Connect), if your IdP sends it | `camera-team` |
 | `realm_access.roles` | Keycloak's realm roles (nested claims are written with dots) | `camera` |
 | `memberOf` | LDAP (or the attributes in `QABOARD_LDAP_GROUP_ATTRIBUTES`), SAML attributes | `CN=camera-algo,OU=Groups,DC=example,DC=com`, or just `camera-algo` |
-| `email_domain` | any | `example.com` |
+| `email_domain` | LDAP, SAML, single sign-on if your IdP says the email is verified (`email_verified`); not local accounts | `example.com` |
 
 Values match case-insensitively; an LDAP group matches by its full DN or its name. Members you add by hand stay.
 To write rules, look at **Admin → Audit**: `auth.login` events list the groups each sign-in put users in, and for

@@ -296,11 +296,18 @@ def test_groups_from_sign_in_claims(team, make_client):
   root = team['root']
   group = root.post('/api/v1/admin/groups', json={"name": "camera-team", "description": "The camera algorithms team"}).get_json()
   assert root.post('/api/v1/admin/groups', json={"name": "Camera-Team"}).status_code == 409
-  # local accounts: their email's domain
+  # the domain of verified emails: not local accounts', anyone can sign up with any email
   rule = root.post(f'/api/v1/admin/groups/{group["id"]}/rules', json={"claim": "email_domain", "values": ["EXAMPLE.com"]}).get_json()
   root.post('/api/v1/project/access/grants', json={"project": PROJECT, "subject": {"type": "group", "id": group["id"]}, "role": "viewer"})
   dave = make_client()
   assert dave.get(f'/api/v1/commits?project={PROJECT}').status_code == 401
+  login(dave, 'dave')
+  assert dave.get(f'/api/v1/commits?project={PROJECT}').status_code == 403
+  # the directory's (e.g. an account LDAP knows)
+  from backend.database import db_session
+  from backend.models import User
+  User.query.filter(User.user_name == 'dave').one().data = [["CN=dave,DC=example,DC=com", {"mail": ["dave@example.com"]}]]
+  db_session.commit()
   login(dave, 'dave')
   assert dave.get(f'/api/v1/commits?project={PROJECT}').status_code == 200
   details = root.get(f'/api/v1/admin/groups/{group["id"]}').get_json()
